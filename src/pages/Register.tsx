@@ -20,19 +20,13 @@ const Register = () => {
     setSuccess("");
 
     try {
-      const response = await apiFetch("/register", {
+      const data = await apiFetch("/register", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ name, email, password }),
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Error en el registro");
-      }
 
       setSuccess("✅ Registro exitoso. Iniciá sesión.");
       setTimeout(() => navigate("/login"), 1500);
@@ -107,16 +101,17 @@ const Register = () => {
           <Button type="submit" className="w-full">
             Crear Cuenta
           </Button>
+
           <div className="text-center text-sm text-muted-foreground mt-4">
-  ¿Ya tenés cuenta?
-  <button
-    type="button"
-    onClick={() => navigate("/login")}
-    className="text-primary font-semibold hover:underline ml-1"
-  >
-    Iniciá sesión
-  </button>
-</div>
+            ¿Ya tenés cuenta?
+            <button
+              type="button"
+              onClick={() => navigate("/login")}
+              className="text-primary font-semibold hover:underline ml-1"
+            >
+              Iniciá sesión
+            </button>
+          </div>
         </form>
       </main>
 
