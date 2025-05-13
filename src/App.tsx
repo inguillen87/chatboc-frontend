@@ -10,7 +10,7 @@ import Register from "./pages/Register";
 import Demo from "./pages/Demo";
 import Perfil from "./pages/Perfil";
 import NotFound from "./pages/NotFound";
-import ChatPage from "@/pages/Chatpage";
+import ChatPage from "@/pages/Tempage";
 
 
 import ChatWidget from "./components/chat/ChatWidget";
