@@ -43,13 +43,14 @@ const ChatWidget: React.FC = () => {
 
   try {
     const data = await apiFetch("/ask", "POST", {
-      question: text,
-      user_id: user?.id
-    }, {
-      headers: {
-        Authorization: token
-      }
-    });
+  question: text,
+  user_id: user?.id
+}, {
+  headers: {
+    "Content-Type": "application/json", // ← necesario
+    Authorization: token
+  }
+});
 
     const botMessage: Message = {
       id: messages.length + 2,
