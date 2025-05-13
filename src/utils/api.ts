@@ -4,12 +4,14 @@ export async function apiFetch<T = any>(
   data?: any,
   options: RequestInit = {}
 ): Promise<T> {
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(options.headers || {})
+  };
+
   const response = await fetch(`${import.meta.env.VITE_API_URL}${path}`, {
     method,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.headers || {})
-    },
+    headers,
     body: data ? JSON.stringify(data) : undefined,
     ...options,
   });
