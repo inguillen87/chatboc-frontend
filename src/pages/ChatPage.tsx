@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Message } from '@/types/chat';
-import ChatMessage from '@/components/chat/ChatMessage';
-import ChatInput from '@/components/chat/ChatInput';
-import TypingIndicator from '@/components/chat/TypingIndicator';
-import { apiFetch } from '@/utils/api';
+import React, { useState, useEffect, useRef } from "react";
+import { Message } from "@/types/chat";
+import ChatMessage from "@/components/chat/ChatMessage";
+import ChatInput from "@/components/chat/ChatInput";
+import TypingIndicator from "@/components/chat/TypingIndicator";
+import { apiFetch } from "@/utils/api";
 
 const ChatPage = () => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -12,36 +12,25 @@ const ChatPage = () => {
   const isDemo = window.location.pathname.includes("demo");
 
   useEffect(() => {
-    const baseMessages: Message[] = [
+    setMessages([
       {
         id: 1,
-        text: '¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?',
+        text: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?",
         isBot: true,
         timestamp: new Date(),
       },
-    ];
-
-    if (isDemo) {
-      baseMessages.push({
-        id: 2,
-        text: '__cta__',
-        isBot: true,
-        timestamp: new Date(),
-      });
-    }
-
-    setMessages(baseMessages);
+    ]);
   }, []);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   const handleSend = async (text: string) => {
     if (!text.trim()) return;
 
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    const token = user?.token || '';
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+    const token = user?.token || "";
 
     const userMessage: Message = {
       id: messages.length + 1,
@@ -59,31 +48,31 @@ const ChatPage = () => {
 
       if (isDemo) {
         response = await apiFetch(
-          '/demo-chat',
-          'POST',
+          "/demo-chat",
+          "POST",
           {
             messages: updatedMessages.map((m) => ({
-              role: m.isBot ? 'assistant' : 'user',
+              role: m.isBot ? "assistant" : "user",
               content: m.text,
             })),
           },
           {
             headers: {
-              'Content-Type': 'application/json',
+              "Content-Type": "application/json",
             },
           }
         );
       } else {
         response = await apiFetch(
-          '/ask',
-          'POST',
+          "/ask",
+          "POST",
           {
             question: text,
             user_id: user?.id,
           },
           {
             headers: {
-              'Content-Type': 'application/json',
+              "Content-Type": "application/json",
               Authorization: token,
             },
           }
@@ -92,7 +81,7 @@ const ChatPage = () => {
 
       const botMessage: Message = {
         id: updatedMessages.length + 1,
-        text: response?.answer || response?.content || '⚠️ No se pudo generar una respuesta.',
+        text: response?.answer || response?.content || "⚠️ No se pudo generar una respuesta.",
         isBot: true,
         timestamp: new Date(),
       };
@@ -101,7 +90,7 @@ const ChatPage = () => {
     } catch (error) {
       const errorMessage: Message = {
         id: updatedMessages.length + 1,
-        text: '⚠️ No se pudo conectar con el servidor.',
+        text: "⚠️ No se pudo conectar con el servidor.",
         isBot: true,
         timestamp: new Date(),
       };
