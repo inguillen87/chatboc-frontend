@@ -18,17 +18,17 @@ const Login = () => {
     setError("");
 
     try {
-      const response = await apiFetch("/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
+  const data = await apiFetch("/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
 
-      const data = await response.json();
+  localStorage.setItem("user", JSON.stringify(data));
+  navigate("/perfil");
+} catch (err: any) {
+  setError(err.message);
+}
 
-      if (!response.ok) {
-        throw new Error(data.error || "Error en inicio de sesión");
-      }
 
       // ✅ Guardar el usuario completo
       localStorage.setItem("user", JSON.stringify(data));
