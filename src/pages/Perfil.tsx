@@ -30,14 +30,16 @@ const Perfil = () => {
   const handleChangePlan = async (newPlan: string) => {
     if (!user?.token) return;
     try {
-      const data = await apiFetch("/update_user", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: user.token,
-        },
-        body: JSON.stringify({ plan: newPlan }),
-      });
+      const data = await apiFetch("/update_user", "POST", 
+  { plan: newPlan },
+  {
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: user.token,
+    },
+  }
+);
+
 
       if (data.plan) {
         const updated = { ...user, ...data };
@@ -56,14 +58,15 @@ const Perfil = () => {
   const handleReset = async () => {
     if (!user?.token) return;
     try {
-      const data = await apiFetch("/update_user", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: user.token,
-        },
-        body: JSON.stringify({ reset_preguntas: true }),
-      });
+      const data = await apiFetch("/update_user", "POST", 
+  { reset_preguntas: true },
+  {
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: user.token,
+    },
+  }
+);
 
       if (data.message) {
         const updated = { ...user, ...data };
