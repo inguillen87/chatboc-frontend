@@ -6,6 +6,7 @@ interface ChatMessageProps {
 }
 
 const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
+    if (!message || typeof message.text !== 'string') return null;
   // Caso especial: mostrar botones CTA cuando el mensaje es "__cta__"
   if (message.text === '__cta__') {
     return (

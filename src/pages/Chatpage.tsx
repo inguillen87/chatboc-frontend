@@ -43,7 +43,7 @@ const ChatPage = () => {
     setIsTyping(true);
 
     try {
-      const response = await apiFetch(
+const response = await apiFetch(
   '/ask',
   'POST',
   {
@@ -52,6 +52,7 @@ const ChatPage = () => {
   },
   {
     headers: {
+      "Content-Type": "application/json", // ← necesario
       Authorization: token,
     },
   }
@@ -59,9 +60,10 @@ const ChatPage = () => {
 
 
 
+
       const botMessage: Message = {
         id: updatedMessages.length + 1,
-        text: response.answer || 'No entendí tu mensaje.',
+text: response?.answer || '⚠️ No se pudo generar una respuesta.',
         isBot: true,
         timestamp: new Date(),
       };
