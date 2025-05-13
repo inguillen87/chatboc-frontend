@@ -16,23 +16,21 @@ const Perfil = () => {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-  const stored = localStorage.getItem("user");
-  const parsed = stored ? JSON.parse(stored) : null;
+    const stored = localStorage.getItem("user");
+    const parsed = stored ? JSON.parse(stored) : null;
 
-  // Validar que tenga los campos mínimos esperados
-  if (!parsed || !parsed.token || !parsed.name || !parsed.email) {
-    localStorage.removeItem("user");
-    navigate("/login");
-  } else {
-    setUser(parsed);
-  }
-}, [navigate]);
-
+    if (!parsed || !parsed.token || !parsed.name || !parsed.email) {
+      localStorage.removeItem("user");
+      navigate("/login");
+    } else {
+      setUser(parsed);
+    }
+  }, [navigate]);
 
   const handleChangePlan = async (newPlan: string) => {
     if (!user?.token) return;
     try {
-      const res = await apiFetch("/update_user", {
+      const data = await apiFetch("/update_user", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -40,7 +38,7 @@ const Perfil = () => {
         },
         body: JSON.stringify({ plan: newPlan }),
       });
-      const data = await res.json();
+
       if (data.plan) {
         const updated = { ...user, ...data };
         localStorage.setItem("user", JSON.stringify(updated));
@@ -58,7 +56,7 @@ const Perfil = () => {
   const handleReset = async () => {
     if (!user?.token) return;
     try {
-      const res = await apiFetch("/update_user", {
+      const data = await apiFetch("/update_user", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -66,7 +64,7 @@ const Perfil = () => {
         },
         body: JSON.stringify({ reset_preguntas: true }),
       });
-      const data = await res.json();
+
       if (data.message) {
         const updated = { ...user, ...data };
         localStorage.setItem("user", JSON.stringify(updated));

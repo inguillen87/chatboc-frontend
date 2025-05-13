@@ -2,16 +2,33 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useNavigate } from 'react-router-dom';
+import { apiFetch } from '@/utils/api';
 
 const Login = () => {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: conectar con backend
-    console.log('Login with:', { email, password });
+    setError('');
+
+    try {
+      const data = await apiFetch('/login', 'POST', { email, password });
+
+      if (data && data.token) {
+        // Guardar usuario en localStorage
+        localStorage.setItem('user', JSON.stringify(data));
+        // Redirigir al perfil
+        navigate('/perfil');
+      } else {
+        setError('Credenciales inválidas.');
+      }
+    } catch (err) {
+      console.error('❌ Error al iniciar sesión:', err);
+      setError('Error de conexión con el servidor.');
+    }
   };
 
   return (
@@ -35,6 +52,7 @@ const Login = () => {
             onChange={(e) => setPassword(e.target.value)}
             required
           />
+          {error && <p className="text-red-600 text-sm">{error}</p>}
           <Button type="submit" className="w-full">
             Iniciar Sesión
           </Button>
