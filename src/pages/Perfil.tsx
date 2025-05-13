@@ -130,7 +130,13 @@ const Perfil = () => {
               <RotateCcw className="w-4 h-4" />
               Resetear contador
             </Button>
-
+            <Button
+              onClick={() => navigate("/chat")}
+              variant="default"
+              className="bg-blue-600 text-white hover:bg-blue-700 transition w-full sm:w-auto"
+>
+  Ir al Chat Completo
+</Button>
             {message && (
               <p className="text-green-600 font-medium text-sm pt-2">{message}</p>
             )}
