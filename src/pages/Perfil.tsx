@@ -6,6 +6,7 @@ import EnvironmentBadge from "../components/EnvironmentBadge";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { RotateCcw, LogOut } from "lucide-react";
+import { apiFetch } from "@/utils/api";
 
 const plans = ["free", "starter", "pro", "enterprise"];
 
@@ -31,7 +32,7 @@ const Perfil = () => {
   const handleChangePlan = async (newPlan: string) => {
     if (!user?.token) return;
     try {
-      const res = await fetch("http://localhost:5000/update_user", {
+      const res = await apiFetch("/update_user", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -57,7 +58,7 @@ const Perfil = () => {
   const handleReset = async () => {
     if (!user?.token) return;
     try {
-      const res = await fetch("http://localhost:5000/update_user", {
+      const res = await apiFetch("/update_user", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -7,6 +7,7 @@ import ChatMessage from './ChatMessage';
 import TypingIndicator from './TypingIndicator';
 import ChatInput from './ChatInput';
 import { Message } from '@/types/chat';
+import { apiFetch } from '@/utils/api';
 
 const ChatWidget: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -43,7 +44,7 @@ const ChatWidget: React.FC = () => {
   setIsTyping(true);
 
   try {
-    const response = await fetch("http://localhost:5000/ask", {
+    const response = await apiFetch("/ask", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

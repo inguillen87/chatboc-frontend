@@ -4,6 +4,7 @@ import Navbar from "../components/layout/Navbar";
 import Footer from "../components/layout/Footer";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
+import { apiFetch } from "@/utils/api";
 
 const Register = () => {
   const [name, setName] = useState("");
@@ -19,7 +20,7 @@ const Register = () => {
     setSuccess("");
 
     try {
-      const response = await fetch("http://localhost:5000/register", {
+      const response = await apiFetch("/register", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

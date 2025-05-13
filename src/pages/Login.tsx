@@ -4,6 +4,8 @@ import Navbar from "../components/layout/Navbar";
 import Footer from "../components/layout/Footer";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
+import { apiFetch } from "@/utils/api";
+
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -16,11 +18,9 @@ const Login = () => {
     setError("");
 
     try {
-      const response = await fetch("http://localhost:5000/login", {
+      const response = await apiFetch("/login", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
 
