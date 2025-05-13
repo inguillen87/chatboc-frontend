@@ -25,15 +25,15 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route element={<Layout />}>
-            <Route path="/" element={<Index />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/demo" element={<Demo />} />
-            <Route path="/perfil" element={<Perfil />} />
-            <Route path="/register" element={<Register />} />
-          </Route>
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+  <Route element={<Layout />}>
+    <Route path="/" element={<Index />} />
+    <Route path="/login" element={<Login />} />
+    <Route path="/register" element={<Register />} />
+    <Route path="/demo" element={<Demo />} />
+    <Route path="/perfil" element={<Perfil />} />
+  </Route>
+  <Route path="*" element={<NotFound />} />
+</Routes>
 
         {/* Widgets flotantes */}
         <UserPlanCard />
