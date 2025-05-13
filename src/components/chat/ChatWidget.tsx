@@ -68,7 +68,7 @@ const ChatWidget: React.FC = () => {
     setMessages(prev => [...prev, botMessage]);
 
     // ✅ Actualizar user local con contador actualizado
-    const meRes = await fetch("http://localhost:5000/me", {
+    const meRes = await apiFetch("/me", {
       headers: { Authorization: token }
     });
 
