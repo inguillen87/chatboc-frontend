@@ -63,12 +63,14 @@ const ChatWidget: React.FC = () => {
 
       setMessages(prev => [...prev, botMessage]);
 
-      // ✅ Actualizar usuario con contador actualizado
-      const updatedUser = await apiFetch("/me", {
+      // ⚠️ Esto ahora no rompe el flujo si falla
+      apiFetch("/me", {
         headers: { Authorization: token }
+      }).then((updatedUser) => {
+        localStorage.setItem("user", JSON.stringify({ ...user, ...updatedUser }));
+      }).catch((err) => {
+        console.warn("No se pudo actualizar datos del usuario:", err);
       });
-
-      localStorage.setItem("user", JSON.stringify({ ...user, ...updatedUser }));
 
     } catch (error) {
       console.error("❌ Error al conectar con el backend:", error);

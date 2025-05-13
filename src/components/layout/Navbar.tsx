@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Menu, X } from 'lucide-react';
-import { useNavigate } from 'react-router-dom'; // ← AGREGADO
+import { useNavigate } from 'react-router-dom';
 
 const Navbar = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const navigate = useNavigate(); // ← AGREGADO
+  const navigate = useNavigate();
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-sm border-b border-gray-100">
+    <nav className="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-sm border-b border-gray-100 shadow-sm">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
@@ -17,23 +17,23 @@ const Navbar = () => {
           </div>
 
           {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center space-x-8">
-            <a href="#problems" className="text-gray-600 hover:text-blue-600 transition-colors text-sm font-medium">
+          <div className="hidden md:flex items-center space-x-6">
+            <a href="#problems" className="text-gray-600 hover:text-blue-600 text-sm font-medium transition">
               Problemas
             </a>
-            <a href="#solution" className="text-gray-600 hover:text-blue-600 transition-colors text-sm font-medium">
+            <a href="#solution" className="text-gray-600 hover:text-blue-600 text-sm font-medium transition">
               Solución
             </a>
-            <a href="#how-it-works" className="text-gray-600 hover:text-blue-600 transition-colors text-sm font-medium">
+            <a href="#how-it-works" className="text-gray-600 hover:text-blue-600 text-sm font-medium transition">
               Cómo Funciona
             </a>
-            <a href="#pricing" className="text-gray-600 hover:text-blue-600 transition-colors text-sm font-medium">
+            <a href="#pricing" className="text-gray-600 hover:text-blue-600 text-sm font-medium transition">
               Precios
             </a>
-            <Button variant="outline" className="mr-2" onClick={() => navigate("/Login")}>
+            <Button variant="outline" onClick={() => navigate("/login")}>
               Iniciar Sesión
             </Button>
-            <Button variant="outline" onClick={() => navigate("/Demo")}>
+            <Button onClick={() => navigate("/demo")}>
               Prueba Gratuita
             </Button>
           </div>
@@ -42,14 +42,13 @@ const Navbar = () => {
           <div className="md:hidden">
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
-              aria-expanded="false"
+              className="p-2 rounded-md text-gray-600 hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
+              aria-label="Abrir menú"
             >
-              <span className="sr-only">Abrir menú principal</span>
               {mobileMenuOpen ? (
-                <X className="block h-6 w-6" aria-hidden="true" />
+                <X className="h-6 w-6" />
               ) : (
-                <Menu className="block h-6 w-6" aria-hidden="true" />
+                <Menu className="h-6 w-6" />
               )}
             </button>
           </div>
@@ -58,17 +57,38 @@ const Navbar = () => {
 
       {/* Mobile menu */}
       {mobileMenuOpen && (
-        <div className="md:hidden">
-          <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-white border-b border-gray-200">
-            <a href="#problems" className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50" onClick={() => setMobileMenuOpen(false)}>Problemas</a>
-            <a href="#solution" className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50" onClick={() => setMobileMenuOpen(false)}>Solución</a>
-            <a href="#how-it-works" className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50" onClick={() => setMobileMenuOpen(false)}>Cómo Funciona</a>
-            <a href="#pricing" className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50" onClick={() => setMobileMenuOpen(false)}>Precios</a>
-            <div className="pt-4 pb-3">
-              <Button variant="outline" className="w-full mb-2" onClick={() => { setMobileMenuOpen(false); navigate("/login"); }}>
+        <div className="md:hidden bg-white border-t border-gray-200 shadow-sm">
+          <div className="px-4 py-4 space-y-3">
+            <a href="#problems" onClick={() => setMobileMenuOpen(false)} className="block text-sm text-gray-700 hover:text-blue-600">
+              Problemas
+            </a>
+            <a href="#solution" onClick={() => setMobileMenuOpen(false)} className="block text-sm text-gray-700 hover:text-blue-600">
+              Solución
+            </a>
+            <a href="#how-it-works" onClick={() => setMobileMenuOpen(false)} className="block text-sm text-gray-700 hover:text-blue-600">
+              Cómo Funciona
+            </a>
+            <a href="#pricing" onClick={() => setMobileMenuOpen(false)} className="block text-sm text-gray-700 hover:text-blue-600">
+              Precios
+            </a>
+            <div className="pt-4 border-t border-gray-100">
+              <Button
+                variant="outline"
+                className="w-full mb-2"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  navigate("/login");
+                }}
+              >
                 Iniciar Sesión
               </Button>
-              <Button className="w-full" onClick={() => { setMobileMenuOpen(false); navigate("/demo"); }}>
+              <Button
+                className="w-full"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  navigate("/demo");
+                }}
+              >
                 Prueba Gratuita
               </Button>
             </div>
