@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, MessageCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const CtaSection = () => {
@@ -14,16 +14,42 @@ const CtaSection = () => {
             ¿Listo para que Chatboc trabaje para tu Pyme?
           </h2>
           <p className="text-base sm:text-lg opacity-90 mb-6">
-            Empezá hoy tu prueba gratuita de 15 días y descubrí cómo Chatboc transforma tu atención al cliente.
+            Empezá hoy mismo. Podés probarlo sin registrarte, crear tu cuenta o escribirnos por WhatsApp.
           </p>
-          <Button
-            size="lg"
-            variant="secondary"
-            className="text-blue-800 bg-white hover:bg-white/90 font-medium transition"
-            onClick={() => navigate('/register')}
-          >
-            Sí, ¡Quiero Mi Prueba Gratuita! <ArrowRight className="ml-2 h-5 w-5" />
-          </Button>
+
+          <div className="flex flex-col sm:flex-row justify-center items-center gap-4 flex-wrap">
+            <Button
+              size="lg"
+              variant="secondary"
+              className="text-blue-800 bg-white hover:bg-white/90 font-medium transition"
+              onClick={() => navigate('/demo')}
+            >
+              Probar sin registrarme <ArrowRight className="ml-2 h-5 w-5" />
+            </Button>
+
+            <Button
+              size="lg"
+              className="bg-white text-blue-800 hover:bg-white/90 font-medium transition"
+              onClick={() => navigate('/register')}
+            >
+              Crear cuenta gratis <ArrowRight className="ml-2 h-5 w-5" />
+            </Button>
+
+            <Button
+              size="lg"
+              variant="outline"
+              className="border-white text-white hover:bg-white/10 transition"
+              onClick={() =>
+                window.open(
+                  'https://wa.me/5492613168608?text=Hola! Estoy probando Chatboc y quiero implementarlo en mi empresa.',
+                  '_blank'
+                )
+              }
+            >
+              Hablar por WhatsApp <MessageCircle className="ml-2 h-5 w-5" />
+            </Button>
+          </div>
+
           <div className="mt-4">
             <button
               onClick={() => navigate('/login')}

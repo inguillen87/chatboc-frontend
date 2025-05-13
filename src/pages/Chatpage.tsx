@@ -9,16 +9,28 @@ const ChatPage = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const isDemo = window.location.pathname.includes("demo");
 
   useEffect(() => {
-    setMessages([
+    const baseMessages: Message[] = [
       {
         id: 1,
         text: '¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?',
         isBot: true,
         timestamp: new Date(),
       },
-    ]);
+    ];
+
+    if (isDemo) {
+      baseMessages.push({
+        id: 2,
+        text: '__cta__',
+        isBot: true,
+        timestamp: new Date(),
+      });
+    }
+
+    setMessages(baseMessages);
   }, []);
 
   useEffect(() => {
@@ -43,27 +55,44 @@ const ChatPage = () => {
     setIsTyping(true);
 
     try {
-const response = await apiFetch(
-  '/ask',
-  'POST',
-  {
-    question: text,
-    user_id: user?.id,
-  },
-  {
-    headers: {
-      "Content-Type": "application/json", // ← necesario
-      Authorization: token,
-    },
-  }
-);
+      let response;
 
-
-
+      if (isDemo) {
+        response = await apiFetch(
+          '/demo-chat',
+          'POST',
+          {
+            messages: updatedMessages.map((m) => ({
+              role: m.isBot ? 'assistant' : 'user',
+              content: m.text,
+            })),
+          },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+      } else {
+        response = await apiFetch(
+          '/ask',
+          'POST',
+          {
+            question: text,
+            user_id: user?.id,
+          },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: token,
+            },
+          }
+        );
+      }
 
       const botMessage: Message = {
         id: updatedMessages.length + 1,
-text: response?.answer || '⚠️ No se pudo generar una respuesta.',
+        text: response?.answer || response?.content || '⚠️ No se pudo generar una respuesta.',
         isBot: true,
         timestamp: new Date(),
       };
