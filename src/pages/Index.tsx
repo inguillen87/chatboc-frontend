@@ -14,15 +14,31 @@ const Index = () => {
   }, []);
 
   return (
-    <main className="flex flex-col">
-      <HeroSection />
-      <ProblemsSection />
-      <SolutionSection />
-      <HowItWorksSection />
-      <PricingSection />
-      <TargetSection />
-      <TestimonialsSection />
-      <CtaSection />
+    <main className="flex flex-col gap-12 md:gap-16 lg:gap-20">
+      <section>
+        <HeroSection />
+      </section>
+      <section>
+        <ProblemsSection />
+      </section>
+      <section>
+        <SolutionSection />
+      </section>
+      <section>
+        <HowItWorksSection />
+      </section>
+      <section>
+        <PricingSection />
+      </section>
+      <section>
+        <TargetSection />
+      </section>
+      <section>
+        <TestimonialsSection />
+      </section>
+      <section>
+        <CtaSection />
+      </section>
     </main>
   );
 };
