@@ -1,32 +1,24 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Message } from '@/types/chat';
-import ChatMessage from '@/components/ChatMessage';
-import ChatInput from '@/components/ChatInput';
-import TypingIndicator from '@/components/TypingIndicator';
+import ChatMessage from '@/components/chat/ChatMessage';
+import ChatInput from '@/components/chat/ChatInput';
+import TypingIndicator from '@/components/chat/TypingIndicator';
 import { apiFetch } from '@/utils/api';
 
-const ChatPage: React.FC = () => {
+const ChatPage = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
-  const [remainingQuestions, setRemainingQuestions] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const navigate = useNavigate();
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      navigate('/login');
-    } else {
-      // Obtener cantidad de preguntas restantes
-      apiFetch('/questions_remaining', 'GET')
-        .then((data) => {
-          setRemainingQuestions(data.remaining);
-        })
-        .catch(() => {
-          setRemainingQuestions(null);
-        });
-    }
+    setMessages([
+      {
+        id: 1,
+        text: '¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?',
+        isBot: true,
+        timestamp: new Date(),
+      },
+    ]);
   }, []);
 
   useEffect(() => {
@@ -36,62 +28,69 @@ const ChatPage: React.FC = () => {
   const handleSend = async (text: string) => {
     if (!text.trim()) return;
 
-    const newMessage: Message = {
-      id: crypto.randomUUID(),
-      role: 'user',
-      content: text,
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const token = user?.token || '';
+
+    const userMessage: Message = {
+      id: messages.length + 1,
+      text,
+      isBot: false,
+      timestamp: new Date(),
     };
 
-    const updatedMessages = [...messages, newMessage];
+    const updatedMessages = [...messages, userMessage];
     setMessages(updatedMessages);
     setIsTyping(true);
 
     try {
-      const response = await apiFetch('/chat', 'POST', {
-        messages: updatedMessages,
-      });
+      const response = await apiFetch(
+  '/ask',
+  'POST',
+  {
+    question: text,
+    user_id: user?.id,
+  },
+  {
+    headers: {
+      Authorization: token,
+    },
+  }
+);
 
-      const botReply: Message = {
-        id: crypto.randomUUID(),
-        role: 'assistant',
-        content: response.content,
+
+
+      const botMessage: Message = {
+        id: updatedMessages.length + 1,
+        text: response.answer || 'No entendí tu mensaje.',
+        isBot: true,
+        timestamp: new Date(),
       };
 
-      setMessages([...updatedMessages, botReply]);
-      if (typeof response.remaining === 'number') {
-        setRemainingQuestions(response.remaining);
-      }
+      setMessages([...updatedMessages, botMessage]);
     } catch (error) {
-      setMessages([
-        ...updatedMessages,
-        {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          content: 'Lo siento, hubo un error procesando tu mensaje.',
-        },
-      ]);
+      const errorMessage: Message = {
+        id: updatedMessages.length + 1,
+        text: '⚠️ No se pudo conectar con el servidor.',
+        isBot: true,
+        timestamp: new Date(),
+      };
+      setMessages([...updatedMessages, errorMessage]);
     } finally {
       setIsTyping(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50">
-      <div className="w-full max-w-4xl mx-auto px-4 py-6">
-        <h1 className="text-3xl font-bold text-center mb-4">Tu Asistente Virtual</h1>
-        {remainingQuestions !== null && (
-          <p className="text-center text-sm text-gray-600 mb-4">
-            Preguntas restantes: {remainingQuestions}
-          </p>
-        )}
-        <div className="border rounded-lg bg-white shadow-md p-4 h-[500px] overflow-y-auto">
+    <div className="min-h-[calc(100vh-80px)] flex flex-col items-center justify-center px-4">
+      <div className="w-full max-w-2xl bg-white rounded-lg shadow-md border border-gray-200 p-4 flex flex-col h-[80vh]">
+        <div className="flex-1 overflow-y-auto space-y-4 px-2 pb-4">
           {messages.map((msg) => (
             <ChatMessage key={msg.id} message={msg} />
           ))}
           {isTyping && <TypingIndicator />}
           <div ref={messagesEndRef} />
         </div>
-        <ChatInput onSend={handleSend} />
+        <ChatInput onSendMessage={handleSend} />
       </div>
     </div>
   );

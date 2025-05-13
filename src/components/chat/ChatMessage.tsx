@@ -7,6 +7,32 @@ interface ChatMessageProps {
 }
 
 const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
+ if (message.text === '__cta__') {
+  return (
+    <div className="flex justify-center mt-2">
+      <div className="text-center space-y-2">
+        <button
+          onClick={() => window.location.href = '/demo'}
+          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition"
+        >
+          Usar Chatboc en mi empresa
+        </button>
+        <button
+          onClick={() =>
+            window.open(
+              'https://wa.me/5492613168608?text=Hola! Estoy probando Chatboc y quiero implementarlo en mi empresa.',
+              '_blank'
+            )
+          }
+          className="px-4 py-2 border border-blue-600 text-blue-600 rounded-md hover:bg-blue-50 transition"
+        >
+          Hablar por WhatsApp
+        </button>
+      </div>
+    </div>
+  );
+}
+ 
   return (
     <div 
       className={`flex ${message.isBot ? "justify-start" : "justify-end"}`}

@@ -1,14 +1,16 @@
-const BASE_URL = import.meta.env.VITE_API_URL;
-
 export async function apiFetch<T = any>(
   path: string,
+  method: string = 'GET',
+  data?: any,
   options: RequestInit = {}
 ): Promise<T> {
-  const response = await fetch(`${BASE_URL}${path}`, {
+  const response = await fetch(`${import.meta.env.VITE_API_URL}${path}`, {
+    method,
     headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
+      'Content-Type': 'application/json',
+      ...(options.headers || {})
     },
+    body: data ? JSON.stringify(data) : undefined,
     ...options,
   });
 
