@@ -6,7 +6,6 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { apiFetch } from "@/utils/api";
 
-
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -18,19 +17,11 @@ const Login = () => {
     setError("");
 
     try {
-  const data = await apiFetch("/login", {
-    method: "POST",
-    body: JSON.stringify({ email, password }),
-  });
+      const data = await apiFetch("/login", {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
+      });
 
-  localStorage.setItem("user", JSON.stringify(data));
-  navigate("/perfil");
-} catch (err: any) {
-  setError(err.message);
-}
-
-
-      // ✅ Guardar el usuario completo
       localStorage.setItem("user", JSON.stringify(data));
       navigate("/perfil");
     } catch (err: any) {
@@ -75,19 +66,20 @@ const Login = () => {
             <p className="text-red-500 text-sm text-center font-medium">{error}</p>
           )}
 
-        <Button variant="default" className="w-full">
+          <Button variant="default" className="w-full">
             Entrar
-        </Button>
-        <div className="text-center text-sm text-muted-foreground mt-4">
-  ¿No tenés cuenta?
-  <button
-    type="button"
-    onClick={() => navigate("/register")}
-    className="text-primary font-semibold hover:underline ml-1"
-  >
-    Registrate
-  </button>
-</div>
+          </Button>
+
+          <div className="text-center text-sm text-muted-foreground mt-4">
+            ¿No tenés cuenta?
+            <button
+              type="button"
+              onClick={() => navigate("/register")}
+              className="text-primary font-semibold hover:underline ml-1"
+            >
+              Registrate
+            </button>
+          </div>
         </form>
       </main>
 
