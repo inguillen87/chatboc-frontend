@@ -18,7 +18,7 @@ const Login = () => {
     setError("");
 
     try {
-      const response = await apiFetch("/auth/login", {
+      const response = await apiFetch("/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
