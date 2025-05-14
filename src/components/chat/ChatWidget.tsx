@@ -14,10 +14,11 @@ const ChatWidget: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const path = window.location.pathname;
-  const isRutaOculta = ["/login", "/register"].some((r) => path.startsWith(r));
+  const isRutaOculta = ["/login", "/register"].some((r) =>
+    path.startsWith(r)
+  );
   const user = JSON.parse(localStorage.getItem("user") || "null");
 
-  // 🔐 Mostrar widget para todos excepto en login/register
   if (isRutaOculta) return null;
 
   const toggleChat = () => {
@@ -85,7 +86,7 @@ const ChatWidget: React.FC = () => {
 
   return (
     <div className="fixed bottom-5 right-5 z-50">
-      {/* Botón flotante visible siempre */}
+      {/* Botón flotante */}
       <button
         onClick={toggleChat}
         className={`group relative w-16 h-16 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 ease-in-out transform hover:scale-105 ${
@@ -102,7 +103,6 @@ const ChatWidget: React.FC = () => {
               alt="Chatboc"
               className="w-8 h-8"
             />
-            {/* Tooltip hover visible solo en desktop */}
             <span className="absolute -left-40 hidden md:block group-hover:flex bg-gray-800 text-white text-xs px-3 py-1 rounded shadow-md whitespace-nowrap">
               ¿Necesitás ayuda?
             </span>
@@ -110,9 +110,12 @@ const ChatWidget: React.FC = () => {
         )}
       </button>
 
-      {/* Panel del chat */}
+      {/* Panel del chat con animación */}
       {isOpen && (
-        <div className="absolute bottom-20 right-0 w-80 md:w-96 bg-white rounded-xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden" style={{ maxHeight: "500px", height: "500px" }}>
+        <div
+          className="absolute bottom-20 right-0 w-80 md:w-96 bg-white rounded-xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden animate-slide-up"
+          style={{ maxHeight: "500px", height: "500px" }}
+        >
           <ChatHeader onClose={toggleChat} />
           <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-3">
             {messages.map((message) => (
