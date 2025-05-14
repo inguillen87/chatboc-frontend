@@ -110,19 +110,18 @@ const ChatPage = () => {
   };
 
   return (
-    <div className="flex flex-col items-center px-4 py-8 min-h-screen">
-      {/* Barra de navegación interna del chat */}
-      <div className="w-full max-w-2xl flex justify-between items-center mb-4">
-        <h1 className="text-xl font-bold">Chat en vivo</h1>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => navigate("/perfil")}>
-            Volver al perfil
-          </Button>
-          <Button variant="destructive" onClick={handleLogout}>
-            Cerrar sesión
-          </Button>
-        </div>
-      </div>
+    <div className="w-full max-w-2xl flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
+  <h1 className="text-xl font-bold text-center sm:text-left">Chat en vivo</h1>
+  <div className="flex flex-col sm:flex-row gap-2 justify-center sm:justify-end">
+    <Button variant="outline" onClick={() => navigate("/perfil")}>
+      Volver al perfil
+    </Button>
+    <Button variant="destructive" onClick={handleLogout}>
+      Cerrar sesión
+    </Button>
+  </div>
+
+
 
       {/* Área del chat */}
       <div className="w-full max-w-2xl bg-white rounded-lg shadow-md border border-gray-200 p-4 flex flex-col h-[80vh]">
