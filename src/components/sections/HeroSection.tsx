@@ -29,9 +29,14 @@ const HeroSection = () => {
           <div className="w-full lg:w-1/2 relative">
             <div className="bg-white rounded-2xl shadow-xl p-5 border border-gray-100 max-w-full sm:max-w-md mx-auto animate-float">
               <div className="flex items-center border-b border-gray-100 pb-3 mb-3">
-                <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center mr-3">
-                  <MessageSquare className="h-4 w-4 text-white" />
-                </div>
+                <div className="mr-3">
+  <img
+    src="/chatboc_widget_64x64.png"
+    alt="Chatboc"
+    className="w-8 h-8 rounded"
+    style={{ backgroundColor: '#E0F0FF', padding: '2px' }}
+  />
+</div>
                 <div>
                   <h3 className="font-medium text-sm">Chatboc</h3>
                   <p className="text-xs text-gray-500">Asistente IA personalizado</p>
