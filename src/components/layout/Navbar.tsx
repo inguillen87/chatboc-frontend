@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { Menu, X } from "lucide-react";
+import DarkModeToggle from "@/components/ui/DarkModeToggle";
 
 const Navbar: React.FC = () => {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -19,7 +20,7 @@ const Navbar: React.FC = () => {
   };
 
   return (
-    <header className="fixed top-0 left-0 right-0 bg-white shadow-sm z-50 px-4 py-2">
+    <header className="fixed top-0 left-0 right-0 bg-background text-foreground shadow-sm z-50 px-4 py-2 transition-colors">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         {/* Logo con scroll al top */}
         <button
@@ -40,41 +41,42 @@ const Navbar: React.FC = () => {
         <nav className="hidden lg:flex gap-6 items-center flex-1 justify-center">
           <button
             onClick={() => scrollToSection("problemas")}
-            className="hover:text-blue-600 text-sm"
+            className="hover:text-primary text-sm transition-colors"
           >
             Problemas
           </button>
           <button
             onClick={() => scrollToSection("solucion")}
-            className="hover:text-blue-600 text-sm"
+            className="hover:text-primary text-sm transition-colors"
           >
             Solución
           </button>
           <button
             onClick={() => scrollToSection("como-funciona")}
-            className="hover:text-blue-600 text-sm"
+            className="hover:text-primary text-sm transition-colors"
           >
             Cómo Funciona
           </button>
           <button
             onClick={() => scrollToSection("precios")}
-            className="hover:text-blue-600 text-sm"
+            className="hover:text-primary text-sm transition-colors"
           >
             Precios
           </button>
         </nav>
 
-        {/* Botones de sesión */}
+        {/* Botones de sesión + toggle */}
         <div className="hidden lg:flex gap-3 items-center">
+          <DarkModeToggle />
           <RouterLink
             to="/login"
-            className="px-3 py-1 border border-blue-600 text-blue-600 rounded hover:bg-blue-50 text-sm"
+            className="px-3 py-1 border border-primary text-primary rounded hover:bg-muted text-sm transition-colors"
           >
             Iniciar Sesión
           </RouterLink>
           <RouterLink
             to="/demo"
-            className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+            className="px-3 py-1 bg-primary text-primary-foreground rounded hover:bg-blue-700 text-sm transition-colors"
           >
             Prueba Gratuita
           </RouterLink>
@@ -88,7 +90,7 @@ const Navbar: React.FC = () => {
 
       {/* Menú mobile */}
       {menuOpen && (
-        <div className="lg:hidden flex flex-col items-center gap-4 py-4 bg-white shadow-md">
+        <div className="lg:hidden flex flex-col items-center gap-4 py-4 bg-background text-foreground shadow-md transition-colors">
           <button onClick={() => scrollToSection("problemas")}>Problemas</button>
           <button onClick={() => scrollToSection("solucion")}>Solución</button>
           <button onClick={() => scrollToSection("como-funciona")}>
@@ -98,7 +100,7 @@ const Navbar: React.FC = () => {
           <RouterLink to="/login">Iniciar Sesión</RouterLink>
           <RouterLink
             to="/demo"
-            className="bg-blue-600 text-white px-4 py-2 rounded"
+            className="bg-primary text-primary-foreground px-4 py-2 rounded"
           >
             Prueba Gratuita
           </RouterLink>
