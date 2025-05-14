@@ -79,9 +79,6 @@
     "tailwindcss": "^3.4.11",
     "typescript": "^5.5.3",
     "typescript-eslint": "^8.0.1",
-    "vite": "^5.4.19"
+    "vite": "^5.2.0" }
   }
-=======
-  "type": "module"
->>>>>>> 37f648b4947a0c6ac90f9642e1ae62b7fbd2e104
-}
+
