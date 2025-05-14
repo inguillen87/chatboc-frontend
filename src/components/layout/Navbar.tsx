@@ -71,7 +71,9 @@ const Navbar: React.FC = () => {
           <button onClick={() => scrollToSection("como-funciona")}>Cómo Funciona</button>
           <button onClick={() => scrollToSection("precios")}>Precios</button>
           <RouterLink to="/login">Iniciar Sesión</RouterLink>
-          <RouterLink to="/register" className="bg-blue-600 text-white px-4 py-2 rounded">Prueba Gratuita</RouterLink>
+          <RouterLink to="/demo" className="bg-blue-600 text-white px-4 py-2 rounded">
+            Prueba Gratuita
+          </RouterLink>
         </div>
       )}
     </header>
