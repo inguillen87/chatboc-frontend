@@ -23,6 +23,14 @@ const Navbar = () => {
     }
   };
 
+  const scrollToTop = () => {
+    if (location.pathname === "/") {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      navigate("/");
+    }
+  };
+
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-sm border-b border-gray-100 shadow-sm">
       <div className="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -31,7 +39,7 @@ const Navbar = () => {
           {/* Logo */}
           <div
             className="flex items-center gap-2 cursor-pointer"
-            onClick={() => navigate("/")}
+            onClick={scrollToTop}
           >
             <img
               src="/chatboc_widget_64x64.webp"
