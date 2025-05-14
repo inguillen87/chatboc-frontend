@@ -7,6 +7,8 @@ import PricingSection from '@/components/sections/PricingSection';
 import TargetSection from '@/components/sections/TargetSection';
 import TestimonialsSection from '@/components/sections/TestimonialsSection';
 import CtaSection from '@/components/sections/CtaSection';
+import Navbar from "@/components/layout/Navbar";
+
 
 const Index = () => {
   useEffect(() => {
@@ -14,7 +16,7 @@ const Index = () => {
   }, []);
 
   return (
-    <main className="flex flex-col gap-12 md:gap-16 lg:gap-20">
+    <main className="flex flex-col gap-12 md:gap-16 lg:gap-20 mt-16">
       <section>
         <HeroSection />
       </section>
