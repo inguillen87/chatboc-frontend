@@ -14,20 +14,20 @@ const Index = () => {
   }, []);
 
   return (
-    <main className="flex flex-col gap-12 md:gap-16 lg:gap-20">
+    <main className="flex flex-col gap-12 md:gap-16 lg:gap-20 mt-24">
       <section>
         <HeroSection />
       </section>
-      <section>
+      <section id="problems">
         <ProblemsSection />
       </section>
-      <section>
+      <section id="solution">
         <SolutionSection />
       </section>
-      <section>
+      <section id="how-it-works">
         <HowItWorksSection />
       </section>
-      <section>
+      <section id="pricing">
         <PricingSection />
       </section>
       <section>
