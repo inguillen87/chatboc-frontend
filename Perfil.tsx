@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../components/layout/Navbar";
 import Footer from "../components/layout/Footer";
-import EnvironmentBadge from "../components/EnvironmentBadge";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { RotateCcw, LogOut } from "lucide-react";
@@ -88,7 +87,6 @@ const Perfil = () => {
   return (
     <div className="flex flex-col min-h-screen bg-background text-foreground">
       <Navbar />
-      <EnvironmentBadge />
 
       <main className="flex-grow pt-28 pb-12">
         <div className="max-w-5xl mx-auto px-4">
