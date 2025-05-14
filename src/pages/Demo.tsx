@@ -85,7 +85,7 @@ const Demo = () => {
       {/* Header con branding */}
       <div className="bg-[#006AEC] text-white py-3 px-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <img src="/logo-circle.svg" alt="Chatboc" className="w-6 h-6" />
+          <img src="/chatboc_widget_white_outline.webp" alt="Chatboc" className="w-6 h-6" />
           <span className="font-semibold text-sm">Chatboc - Demo Gratuita</span>
         </div>
       </div>
