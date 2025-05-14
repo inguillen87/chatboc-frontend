@@ -4,12 +4,15 @@ import ChatMessage from "@/components/chat/ChatMessage";
 import ChatInput from "@/components/chat/ChatInput";
 import TypingIndicator from "@/components/chat/TypingIndicator";
 import { apiFetch } from "@/utils/api";
+import { useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 
 const ChatPage = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isDemo = window.location.pathname.includes("demo");
+  const navigate = useNavigate();
 
   useEffect(() => {
     setMessages([
@@ -100,8 +103,28 @@ const ChatPage = () => {
     }
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem("user");
+    localStorage.removeItem("token");
+    navigate("/login");
+  };
+
   return (
-    <div className="min-h-[calc(100vh-80px)] flex flex-col items-center justify-center px-4">
+    <div className="flex flex-col items-center px-4 py-8 min-h-screen">
+      {/* Barra de navegación interna del chat */}
+      <div className="w-full max-w-2xl flex justify-between items-center mb-4">
+        <h1 className="text-xl font-bold">Chat en vivo</h1>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => navigate("/perfil")}>
+            Volver al perfil
+          </Button>
+          <Button variant="destructive" onClick={handleLogout}>
+            Cerrar sesión
+          </Button>
+        </div>
+      </div>
+
+      {/* Área del chat */}
       <div className="w-full max-w-2xl bg-white rounded-lg shadow-md border border-gray-200 p-4 flex flex-col h-[80vh]">
         <div className="flex-1 overflow-y-auto space-y-4 px-2 pb-4">
           {messages.map((msg) => (
