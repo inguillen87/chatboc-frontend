@@ -25,7 +25,7 @@ const Navbar = () => {
 
   const scrollToTop = () => {
     if (location.pathname === "/") {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } else {
       navigate("/");
     }
@@ -37,21 +37,14 @@ const Navbar = () => {
         <div className="flex items-center justify-between h-16">
 
           {/* Logo */}
-          <div
-            className="flex items-center gap-2 cursor-pointer"
-            onClick={scrollToTop}
-          >
-            <img
-              src="/chatboc_widget_64x64.webp"
-              alt="Logo"
-              className="w-9 h-9"
-            />
+          <div className="flex items-center gap-2 cursor-pointer" onClick={scrollToTop}>
+            <img src="/chatboc_widget_64x64.webp" alt="Logo" className="w-9 h-9" />
             <span className="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-blue-600 to-cyan-400 bg-clip-text text-transparent">
               Chatboc
             </span>
           </div>
 
-          {/* Links del medio (centrados) */}
+          {/* Centro navegación (desktop) */}
           <div className="hidden md:flex flex-1 justify-center items-center space-x-6">
             <button onClick={() => scrollToSection("problems")} className="text-sm text-gray-600 hover:text-blue-600">Problemas</button>
             <button onClick={() => scrollToSection("solution")} className="text-sm text-gray-600 hover:text-blue-600">Solución</button>
@@ -59,25 +52,22 @@ const Navbar = () => {
             <button onClick={() => scrollToSection("pricing")} className="text-sm text-gray-600 hover:text-blue-600">Precios</button>
           </div>
 
-          {/* Botones derecha (desktop) */}
+          {/* Botones derechos (desktop) */}
           <div className="hidden md:flex items-center space-x-4">
             <Button variant="outline" onClick={() => navigate("/login")}>Iniciar Sesión</Button>
             <Button onClick={() => navigate("/demo")}>Prueba Gratuita</Button>
           </div>
 
-          {/* Botón mobile */}
+          {/* Menú hamburguesa mobile */}
           <div className="md:hidden">
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 text-gray-600 hover:text-blue-600"
-            >
+            <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 text-gray-600 hover:text-blue-600">
               {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
             </button>
           </div>
         </div>
       </div>
 
-      {/* Menú mobile */}
+      {/* Menú desplegable mobile */}
       {mobileMenuOpen && (
         <div className="md:hidden bg-white border-t border-gray-200 shadow-sm">
           <div className="px-4 py-4 space-y-3">
@@ -92,8 +82,8 @@ const Navbar = () => {
         </div>
       )}
 
-      {/* Botón solo si usuario logueado */}
-      {user && user.plan && (
+      {/* Botón de plan solo si usuario logueado con plan */}
+      {user?.plan && (
         <div className="fixed bottom-5 right-5 md:top-4 md:right-4 md:bottom-auto z-50">
           <Button className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-full shadow-md">
             {user.plan === "free" ? "Versión Gratuita" : "Versión Premium"}
