@@ -15,14 +15,13 @@ const planLimits: Record<string, number> = {
 
 const UserPlanCard: React.FC = () => {
   const path = window.location.pathname;
-  const isPublicRoute = path === "/" || path.includes("/demo") || path === "/login" || path === "/register";
-
-  if (isPublicRoute) return null;
+  const isRutaPublica = ["/", "/demo", "/login", "/register"].some((r) => path.startsWith(r));
 
   const storedUser = localStorage.getItem("user");
   const user: UserData | null = storedUser ? JSON.parse(storedUser) : null;
 
-  if (!user) return null;
+  // 👇 Ocultar si está en ruta pública o si no hay usuario logueado
+  if (!user || isRutaPublica) return null;
 
   const limit = planLimits[user.plan] ?? 10;
 
