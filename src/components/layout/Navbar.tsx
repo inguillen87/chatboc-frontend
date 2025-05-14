@@ -27,9 +27,10 @@ const Navbar = () => {
               alt="Logo"
               className="w-9 h-9"
             />
-            <span className="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-blue-600 to-gray-500 bg-clip-text text-transparent">
+            <span className="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-blue-600 to-cyan-400 bg-clip-text text-transparent">
               Chatboc
             </span>
+
           </div>
 
           {/* Desktop nav */}
