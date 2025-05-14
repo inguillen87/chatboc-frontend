@@ -84,7 +84,7 @@ const Navbar = () => {
         </div>
       )}
 
-      {/* Botón especial si está logueado */}
+      {/* Botón solo si usuario logueado */}
       {user && user.plan && (
         <div className="fixed bottom-5 right-5 md:top-4 md:right-4 md:bottom-auto z-50">
           <Button className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-full shadow-md">
