@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { Menu, X } from "lucide-react";
+import { Link } from "@radix-ui/react-navigation-menu";
 
 const Navbar: React.FC = () => {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -28,15 +29,16 @@ const Navbar: React.FC = () => {
           }}
           className="flex items-center gap-3 focus:outline-none"
         >
-          <img
-            src="/chatboc_widget_64x64.webp"
-            alt="Chatboc"
-            className="h-10 w-10"
-          />
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-700 to-cyan-400 text-transparent bg-clip-text">
-            Chatboc
-          </h1>
-        </button>
+          <Link href="/" className="flex items-center gap-2">
+            <img
+              src="/chatboc_widget_64x64.webp"
+              alt="Chatboc"
+              className="h-10 w-10"
+            />
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-700 to-cyan-400 text-transparent bg-clip-text">
+              Chatboc
+            </h1>
+            </Link> 
 
         {/* Navegación central */}
         <nav className="hidden lg:flex gap-6 items-center flex-1 justify-center">
