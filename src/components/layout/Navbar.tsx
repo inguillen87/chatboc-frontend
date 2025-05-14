@@ -1,4 +1,4 @@
-// /src/components/Navbar.tsx
+// src/components/Navbar.tsx
 import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Menu, X } from "lucide-react";
@@ -6,17 +6,27 @@ import { Menu, X } from "lucide-react";
 const Navbar: React.FC = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
-  const user = JSON.parse(localStorage.getItem("user") || "null");
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem("user");
+    if (storedUser) {
+      setUser(JSON.parse(storedUser));
+    }
+  }, []);
 
   const toggleMenu = () => setMenuOpen(!menuOpen);
-
   const isPerfil = location.pathname === "/perfil";
   const showModoReal = user && isPerfil;
 
   return (
     <header className="flex items-center justify-between px-4 py-2 shadow-sm">
       <Link to="/" className="flex items-center">
-        <img src="/logo.svg" alt="Chatboc" className="h-8 mr-2" />
+        <img
+          src="/logo-navbar.png"
+          alt="Chatboc"
+          className="h-8 w-auto mr-2"
+        />
         <h1 className="text-xl font-bold bg-gradient-to-r from-blue-500 to-gray-600 text-transparent bg-clip-text">Chatboc</h1>
       </Link>
 
