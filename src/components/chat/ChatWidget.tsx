@@ -29,55 +29,77 @@ const ChatWidget: React.FC = () => {
 
   const handleSendMessage = async (text: string) => {
   const user = JSON.parse(localStorage.getItem("user") || "{}");
-  const token = user?.token || "fake-token";
+  const token = user?.token;
+  const isAuthenticated = Boolean(token && user?.id);
 
   const userMessage: Message = {
     id: messages.length + 1,
     text,
     isBot: false,
-    timestamp: new Date()
+    timestamp: new Date(),
   };
 
   setMessages(prev => [...prev, userMessage]);
   setIsTyping(true);
 
   try {
-    const data = await apiFetch("/ask", "POST", {
-  question: text,
-  user_id: user?.id
-}, {
-  headers: {
-    "Content-Type": "application/json", // ← necesario
-    Authorization: token
-  }
-});
+    let response;
+
+    if (isAuthenticated) {
+      response = await apiFetch(
+        "/ask",
+        "POST",
+        { question: text, user_id: user.id },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: token,
+          },
+        }
+      );
+    } else {
+      response = await apiFetch(
+        "/demo-chat",
+        "POST",
+        {
+          messages: [...messages, userMessage].map((m) => ({
+            role: m.isBot ? "assistant" : "user",
+            content: m.text,
+          })),
+        },
+        {
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    }
 
     const botMessage: Message = {
       id: messages.length + 2,
-      text: data.answer || "No entendí tu mensaje.",
+      text:
+        response?.answer ||
+        response?.content ||
+        "⚠️ No se pudo generar una respuesta.",
       isBot: true,
-      timestamp: new Date()
+      timestamp: new Date(),
     };
 
     setMessages(prev => [...prev, botMessage]);
 
-    // ⚠️ Esto no rompe si falla
-    apiFetch("/me", "GET", null, {
-      headers: { Authorization: token }
-    }).then((updatedUser) => {
-      localStorage.setItem("user", JSON.stringify({ ...user, ...updatedUser }));
-    }).catch((err) => {
-      console.warn("No se pudo actualizar datos del usuario:", err);
-    });
-
+    if (isAuthenticated) {
+      apiFetch("/me", "GET", null, {
+        headers: { Authorization: token },
+      })
+        .then((updatedUser) => {
+          localStorage.setItem("user", JSON.stringify({ ...user, ...updatedUser }));
+        })
+        .catch(() => {});
+    }
   } catch (error) {
-    console.error("❌ Error al conectar con el backend:", error);
-
     const errorMessage: Message = {
       id: messages.length + 2,
       text: "⚠️ No se pudo conectar con el servidor.",
       isBot: true,
-      timestamp: new Date()
+      timestamp: new Date(),
     };
 
     setMessages(prev => [...prev, errorMessage]);

@@ -1,55 +1,93 @@
-import React from 'react';
-import { Message } from '@/types/chat';
+import React, { useState, useEffect, useRef } from "react";
+import ChatMessage from "@/components/chat/ChatMessage";
+import ChatInput from "@/components/chat/ChatInput";
+import TypingIndicator from "@/components/chat/TypingIndicator";
+import { Message } from "@/types/chat";
+import { apiFetch } from "@/utils/api";
 
-interface ChatMessageProps {
-  message: Message;
-}
+const Demo = () => {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [isTyping, setIsTyping] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
-    if (!message || typeof message.text !== 'string') return null;
-  // Caso especial: mostrar botones CTA cuando el mensaje es "__cta__"
-  if (message.text === '__cta__') {
-    return (
-      <div className="flex justify-center mt-4">
-        <div className="text-center space-y-2">
-          <button
-            onClick={() => window.location.href = '/demo'}
-            className="bg-blue-600 text-white text-sm rounded-md px-4 py-2 hover:bg-blue-700 transition"
-          >
-            Usar Chatboc en mi empresa
-          </button>
-          <button
-            onClick={() =>
-              window.open(
-                'https://wa.me/5492613168608?text=Hola! Estoy probando Chatboc y quiero implementarlo en mi empresa.',
-                '_blank'
-              )
-            }
-            className="border border-blue-600 text-blue-600 text-sm rounded-md px-4 py-2 hover:bg-blue-50 transition"
-          >
-            Hablar por WhatsApp
-          </button>
-        </div>
-      </div>
-    );
-  }
+  useEffect(() => {
+    setMessages([
+      {
+        id: 1,
+        text: "¡Hola! Soy Chatboc, tu experto virtual. ¿En qué puedo ayudarte?",
+        isBot: true,
+        timestamp: new Date(),
+      },
+    ]);
+  }, []);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const handleSendMessage = async (text: string) => {
+    const userMessage: Message = {
+      id: messages.length + 1,
+      text,
+      isBot: false,
+      timestamp: new Date(),
+    };
+
+    const updatedMessages = [...messages, userMessage];
+    setMessages(updatedMessages);
+    setIsTyping(true);
+
+    try {
+      const response = await apiFetch(
+        "/demo-chat",
+        "POST",
+        {
+          messages: updatedMessages.map((m) => ({
+            role: m.isBot ? "assistant" : "user",
+            content: m.text,
+          })),
+        },
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      const botMessage: Message = {
+        id: updatedMessages.length + 1,
+        text: response?.answer || response?.content || "⚠️ No se pudo generar una respuesta.",
+        isBot: true,
+        timestamp: new Date(),
+      };
+
+      setMessages([...updatedMessages, botMessage]);
+    } catch (error) {
+      const errorMessage: Message = {
+        id: updatedMessages.length + 1,
+        text: "⚠️ No se pudo conectar con el servidor.",
+        isBot: true,
+        timestamp: new Date(),
+      };
+      setMessages([...updatedMessages, errorMessage]);
+    } finally {
+      setIsTyping(false);
+    }
+  };
 
   return (
-    <div className={`flex ${message.isBot ? "justify-start" : "justify-end"}`}>
-      <div
-        className={`max-w-[80%] p-3 rounded-lg ${
-          message.isBot
-            ? "bg-blue-100 text-gray-800"
-            : "bg-blue-600 text-white"
-        }`}
-      >
-        <p className="text-sm">{message.text}</p>
-        <p className="text-xs mt-1 opacity-70">
-          {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-        </p>
+    <div className="w-full max-w-2xl mx-auto bg-white rounded-lg shadow-lg border border-gray-200 p-4 flex flex-col h-[80vh] mt-10">
+      <h2 className="text-xl font-bold mb-4 text-center">Demo Chatboc</h2>
+      <div className="flex-1 overflow-y-auto space-y-4 px-2 pb-4">
+        {messages.map((msg) => (
+          <ChatMessage key={msg.id} message={msg} />
+        ))}
+        {isTyping && <TypingIndicator />}
+        <div ref={messagesEndRef} />
       </div>
+      <ChatInput onSendMessage={handleSendMessage} />
     </div>
   );
 };
 
-export default ChatMessage;
+export default Demo;
