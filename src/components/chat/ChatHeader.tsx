@@ -11,7 +11,7 @@ const ChatHeader: React.FC<Props> = ({ onClose }) => {
     <div className="flex items-center justify-between p-3 border-b bg-blue-50">
       <div className="flex items-center gap-2">
         <img
-  src="/chatboc_widget_white_outline.png"
+  src="/chatboc_widget_64x64.png"
   alt="Chatboc"
   className="w-8 h-8 rounded"
   style={{ backgroundColor: "#E0F0FF", padding: "2px" }}
