@@ -39,20 +39,21 @@ const Demo = () => {
 
     try {
       const response = await apiFetch(
-        "/demo-chat",
-        "POST",
-        {
-          messages: updatedMessages.map((m) => ({
-            role: m.isBot ? "assistant" : "user",
-            content: m.text,
-          })),
-        },
-        {
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      );
+  "/demo-chat",
+  "POST",
+  {
+    messages: updatedMessages.map((m) => ({
+      role: m.isBot ? "assistant" : "user",
+      content: m.text,
+    })),
+    rubro_id: 1, // <--- importante para que el backend funcione
+  },
+  {
+    headers: {
+      "Content-Type": "application/json",
+    },
+  }
+);
 
       const botMessage: Message = {
         id: updatedMessages.length + 1,

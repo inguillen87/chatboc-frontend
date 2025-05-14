@@ -50,15 +50,16 @@ const ChatPage = () => {
       let response;
 
       if (isDemo) {
-        response = await apiFetch(
-          "/demo-chat",
-          "POST",
-          {
-            messages: updatedMessages.map((m) => ({
-              role: m.isBot ? "assistant" : "user",
-              content: m.text,
-            })),
-          },
+       response = await apiFetch(
+  "/demo-chat",
+  "POST",
+  {
+    messages: updatedMessages.map((m) => ({
+      role: m.isBot ? "assistant" : "user",
+      content: m.text,
+    })),
+    rubro_id: 1,
+  },
           {
             headers: {
               "Content-Type": "application/json",
