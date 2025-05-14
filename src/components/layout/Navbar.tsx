@@ -82,8 +82,8 @@ const Navbar = () => {
         </div>
       )}
 
-      {/* Botón de plan solo si usuario logueado con plan */}
-      {user?.plan && (
+      {/* Botón de plan SOLO en perfil si está logueado */}
+      {user?.plan && location.pathname === "/perfil" && (
         <div className="fixed bottom-5 right-5 md:top-4 md:right-4 md:bottom-auto z-50">
           <Button className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-full shadow-md">
             {user.plan === "free" ? "Versión Gratuita" : "Versión Premium"}

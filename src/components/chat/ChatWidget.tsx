@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { X } from "lucide-react";
 import ChatHeader from "./ChatHeader";
 import ChatMessage from "./ChatMessage";
@@ -6,6 +6,7 @@ import TypingIndicator from "./TypingIndicator";
 import ChatInput from "./ChatInput";
 import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
+import { useLocation } from "react-router-dom";
 
 const ChatWidget: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -13,36 +14,34 @@ const ChatWidget: React.FC = () => {
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const path = window.location.pathname;
-  const isRutaPublica = ["/", "/demo", "/login", "/register"].some((r) => path.startsWith(r));
+  const location = useLocation();
+  const path = location.pathname;
+  const ocultarEn = ["/login", "/register", "/perfil"];
   const user = JSON.parse(localStorage.getItem("user") || "null");
 
-  if (!user || isRutaPublica) return null;
+  if (!user || ocultarEn.includes(path)) return null;
 
   const toggleChat = () => {
     setIsOpen(!isOpen);
     if (!isOpen && messages.length === 0) {
-      setMessages([
-        {
-          id: 1,
-          text: "¡Hola! Soy Chatboc, tu asistente virtual. ¿En qué puedo ayudarte hoy?",
-          isBot: true,
-          timestamp: new Date()
-        }
-      ]);
+      const welcomeMessage = {
+        id: 1,
+        text: "¡Hola! Soy Chatboc, tu asistente virtual. ¿En qué puedo ayudarte hoy?",
+        isBot: true,
+        timestamp: new Date()
+      };
+      setMessages([welcomeMessage]);
     }
   };
 
   const handleSendMessage = async (text: string) => {
     const token = user?.token || "fake-token";
-
     const userMessage: Message = {
       id: messages.length + 1,
       text,
       isBot: false,
       timestamp: new Date()
     };
-
     setMessages(prev => [...prev, userMessage]);
     setIsTyping(true);
 
@@ -63,15 +62,15 @@ const ChatWidget: React.FC = () => {
         isBot: true,
         timestamp: new Date()
       };
-
       setMessages(prev => [...prev, botMessage]);
-    } catch {
-      setMessages(prev => [...prev, {
+    } catch (error) {
+      const errorMessage: Message = {
         id: messages.length + 2,
         text: "⚠️ No se pudo conectar con el servidor.",
         isBot: true,
         timestamp: new Date()
-      }]);
+      };
+      setMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsTyping(false);
     }
