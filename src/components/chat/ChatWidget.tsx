@@ -1,3 +1,4 @@
+// src/components/ChatWidget.tsx
 import React, { useState, useRef, useEffect } from "react";
 import { X } from "lucide-react";
 import ChatHeader from "./ChatHeader";
@@ -6,7 +7,6 @@ import TypingIndicator from "./TypingIndicator";
 import ChatInput from "./ChatInput";
 import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
-import { useLocation } from "react-router-dom";
 
 const ChatWidget: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -14,98 +14,66 @@ const ChatWidget: React.FC = () => {
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const location = useLocation();
-  const path = location.pathname;
-  const ocultarEn = ["/login", "/register"];
+  const path = window.location.pathname;
+  const rutasPermitidas = ["/", "/demo", "/solucion", "/como-funciona", "/precios"];
   const user = JSON.parse(localStorage.getItem("user") || "null");
 
-  if (!user || ocultarEn.includes(path)) return null;
+  // Mostrar solo en rutas públicas
+  const mostrarWidget = rutasPermitidas.includes(path);
 
-  const toggleChat = () => {
-    setIsOpen(!isOpen);
-    if (!isOpen && messages.length === 0) {
-      const welcomeMessage = {
-        id: 1,
-        text: "¡Hola! Soy Chatboc, tu asistente virtual. ¿En qué puedo ayudarte hoy?",
-        isBot: true,
-        timestamp: new Date()
-      };
-      setMessages([welcomeMessage]);
-    }
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  const handleSendMessage = async (text: string) => {
-    const token = user?.token || "fake-token";
-    const userMessage: Message = {
-      id: messages.length + 1,
-      text,
-      isBot: false,
-      timestamp: new Date()
-    };
-    setMessages(prev => [...prev, userMessage]);
+  const toggleChat = () => setIsOpen(!isOpen);
+
+  const sendMessage = async (message: string) => {
+    const newMessage: Message = { sender: "user", text: message };
+    setMessages((prev) => [...prev, newMessage]);
     setIsTyping(true);
 
     try {
-      const data = await apiFetch("/ask", "POST", {
-        question: text,
-        user_id: user?.id
-      }, {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: token
-        }
+      const response = await apiFetch("/ask", {
+        method: "POST",
+        body: JSON.stringify({ message }),
       });
 
-      const botMessage: Message = {
-        id: messages.length + 2,
-        text: data.answer || "No entendí tu mensaje.",
-        isBot: true,
-        timestamp: new Date()
-      };
-      setMessages(prev => [...prev, botMessage]);
+      const data = await response.json();
+      setMessages((prev) => [...prev, { sender: "bot", text: data.answer }]);
     } catch (error) {
-      const errorMessage: Message = {
-        id: messages.length + 2,
-        text: "⚠️ No se pudo conectar con el servidor.",
-        isBot: true,
-        timestamp: new Date()
-      };
-      setMessages(prev => [...prev, errorMessage]);
+      setMessages((prev) => [...prev, { sender: "bot", text: "Error de conexión." }]);
     } finally {
       setIsTyping(false);
     }
   };
 
-  return (
-    <div className="fixed bottom-5 right-5 z-50">
-      <button
-        onClick={toggleChat}
-        className={`w-14 h-14 rounded-full flex items-center justify-center transition-all shadow-lg border border-gray-300 hover:scale-105 hover:shadow-xl bg-blue-500 hover:bg-blue-600`}
-        aria-label={isOpen ? "Cerrar chat" : "Abrir chat"}
-      >
-        {isOpen ? (
-          <X className="text-white h-6 w-6" />
-        ) : (
-          <img
-            src="/chatboc_widget_64x64.webp"
-            alt="Chatboc"
-            className="w-7 h-7"
-          />
-        )}
-      </button>
+  if (!mostrarWidget) return null;
 
-      {isOpen && (
-        <div className="absolute bottom-16 right-0 w-80 md:w-96 bg-white rounded-lg shadow-xl border border-gray-200 flex flex-col overflow-hidden" style={{ maxHeight: "500px", height: "500px" }}>
+  return (
+    <div className="fixed bottom-4 right-4 z-50">
+      {isOpen ? (
+        <div className="w-80 max-h-[80vh] rounded-xl shadow-xl border bg-white flex flex-col overflow-hidden">
           <ChatHeader onClose={toggleChat} />
-          <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-3">
-            {messages.map((message) => (
-              <ChatMessage key={message.id} message={message} />
+          <div className="flex-1 overflow-y-auto p-2">
+            {messages.map((msg, i) => (
+              <ChatMessage key={i} sender={msg.sender} text={msg.text} />
             ))}
             {isTyping && <TypingIndicator />}
             <div ref={messagesEndRef} />
           </div>
-          <ChatInput onSendMessage={handleSendMessage} />
+          <ChatInput onSend={sendMessage} />
         </div>
+      ) : (
+        <button
+          onClick={toggleChat}
+          className="bg-blue-500 hover:bg-blue-600 text-white p-3 rounded-full shadow-lg flex items-center justify-center"
+        >
+          💬
+        </button>
       )}
     </div>
   );
