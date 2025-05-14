@@ -14,7 +14,6 @@ import NotFound from "./pages/NotFound";
 
 import ChatWidget from "./components/chat/ChatWidget";
 import UserPlanCard from "./components/UserPlanCard";
-import EnvironmentBadge from "./components/EnvironmentBadge";
 
 const queryClient = new QueryClient();
 

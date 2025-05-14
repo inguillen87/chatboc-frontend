@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../components/layout/Navbar";
 import Footer from "../components/layout/Footer";
-import EnvironmentBadge from "../components/EnvironmentBadge";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { RotateCcw, LogOut } from "lucide-react";
