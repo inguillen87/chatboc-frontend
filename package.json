@@ -1,4 +1,5 @@
 {
+<<<<<<< HEAD
   "name": "vite_react_shadcn_ts",
   "private": true,
   "version": "0.0.0",
@@ -80,4 +81,7 @@
     "typescript-eslint": "^8.0.1",
     "vite": "^5.4.19"
   }
+=======
+  "type": "module"
+>>>>>>> 37f648b4947a0c6ac90f9642e1ae62b7fbd2e104
 }
