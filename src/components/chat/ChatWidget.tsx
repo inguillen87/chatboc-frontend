@@ -16,7 +16,7 @@ const ChatWidget: React.FC = () => {
 
   const location = useLocation();
   const path = location.pathname;
-  const ocultarEn = ["/login", "/register", "/perfil"];
+  const ocultarEn = ["/login", "/register"];
   const user = JSON.parse(localStorage.getItem("user") || "null");
 
   if (!user || ocultarEn.includes(path)) return null;
