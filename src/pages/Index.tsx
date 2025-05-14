@@ -7,8 +7,6 @@ import PricingSection from '@/components/sections/PricingSection';
 import TargetSection from '@/components/sections/TargetSection';
 import TestimonialsSection from '@/components/sections/TestimonialsSection';
 import CtaSection from '@/components/sections/CtaSection';
-import Navbar from "@/components/layout/Navbar";
-
 
 const Index = () => {
   useEffect(() => {
@@ -20,16 +18,16 @@ const Index = () => {
       <section>
         <HeroSection />
       </section>
-      <section>
+      <section id="problems">
         <ProblemsSection />
       </section>
-      <section>
+      <section id="solution">
         <SolutionSection />
       </section>
-      <section>
+      <section id="how-it-works">
         <HowItWorksSection />
       </section>
-      <section>
+      <section id="pricing">
         <PricingSection />
       </section>
       <section>
