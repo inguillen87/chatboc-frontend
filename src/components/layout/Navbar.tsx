@@ -25,7 +25,6 @@ const Navbar: React.FC = () => {
     Chatboc
   </h1>
 
-
       </RouterLink>
 
       <nav className="hidden lg:flex gap-6 items-center">
