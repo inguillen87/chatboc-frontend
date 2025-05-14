@@ -14,6 +14,10 @@ const Navbar: React.FC = () => {
     }
   };
 
+  function handleLogoClick(event: MouseEvent<HTMLButtonElement, MouseEvent>): void {
+    throw new Error("Function not implemented.");
+  }
+
   return (
     <header className="fixed top-0 left-0 right-0 bg-white shadow-sm z-50 px-4 py-2">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -29,16 +33,13 @@ const Navbar: React.FC = () => {
           }}
           className="flex items-center gap-3 focus:outline-none"
         >
-          <Link href="/" className="flex items-center gap-2">
-            <img
-              src="/chatboc_widget_64x64.webp"
-              alt="Chatboc"
-              className="h-10 w-10"
-            />
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-700 to-cyan-400 text-transparent bg-clip-text">
-              Chatboc
-            </h1>
-            </Link> 
+          <button onClick={handleLogoClick} className="flex items-center gap-2">
+  <img src="/chatboc_widget_64x64.webp" alt="Chatboc" className="h-10 w-10" />
+  <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-700 to-cyan-400 text-transparent bg-clip-text">
+    Chatboc
+  </h1>
+</button>
+
 
         {/* Navegación central */}
         <nav className="hidden lg:flex gap-6 items-center flex-1 justify-center">
