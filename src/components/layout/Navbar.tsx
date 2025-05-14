@@ -16,15 +16,14 @@ const Navbar: React.FC = () => {
   return (
     <header className="flex items-center justify-between px-4 py-2 shadow-sm fixed top-0 left-0 right-0 bg-white z-50">
       <RouterLink to="/" className="flex items-center gap-3">
-  <img
-    src="/chatboc_widget_64x64.webp"
-    alt="Chatboc"
-    className="h-10 w-10"
-  />
-  <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-700 to-cyan-400 text-transparent bg-clip-text">
-    Chatboc
-  </h1>
-
+        <img
+          src="/chatboc_widget_64x64.webp"
+          alt="Chatboc"
+          className="h-10 w-10"
+        />
+        <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-700 to-cyan-400 text-transparent bg-clip-text">
+          Chatboc
+        </h1>
       </RouterLink>
 
       <nav className="hidden lg:flex gap-6 items-center">
