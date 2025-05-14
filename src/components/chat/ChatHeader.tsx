@@ -11,13 +11,12 @@ const ChatHeader: React.FC<Props> = ({ onClose }) => {
     <div className="flex items-center justify-between p-3 border-b bg-blue-50">
       <div className="flex items-center gap-2">
         <img
-          src="/chatboc_widget_64x64.webp"
+          src="/chatboc_widget_white_outline.webp"
           alt="Chatboc"
           className="w-6 h-6 rounded bg-blue-500 p-1"
         />
         <div className="flex flex-col text-sm leading-tight">
           <span className="font-bold text-blue-800">Chatboc</span>
-          <span className="text-gray-500 text-xs">Asistente IA personalizado</span>
         </div>
       </div>
       <div className="flex items-center gap-2">
