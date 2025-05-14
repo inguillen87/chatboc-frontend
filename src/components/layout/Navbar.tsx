@@ -15,7 +15,17 @@ const Navbar: React.FC = () => {
 
   return (
     <header className="flex items-center justify-between px-4 py-2 shadow-sm fixed top-0 left-0 right-0 bg-white z-50">
-      <RouterLink to="/" className="flex items-center gap-3">
+      <button
+        onClick={() => {
+          const hero = document.querySelector("main");
+          if (hero) {
+            hero.scrollTo({ top: 0, behavior: "smooth" });
+          } else {
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }
+        }}
+        className="flex items-center gap-3 focus:outline-none"
+      >
         <img
           src="/chatboc_widget_64x64.webp"
           alt="Chatboc"
@@ -24,7 +34,7 @@ const Navbar: React.FC = () => {
         <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-700 to-cyan-400 text-transparent bg-clip-text">
           Chatboc
         </h1>
-      </RouterLink>
+      </button>
 
       <nav className="hidden lg:flex gap-6 items-center">
         <button onClick={() => scrollToSection("problemas")} className="hover:text-blue-600 text-sm">Problemas</button>
