@@ -8,7 +8,6 @@ const Navbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Cierra el menú si se cambia de ruta
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [location]);
@@ -17,12 +16,17 @@ const Navbar = () => {
     <nav className="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-sm border-b border-gray-100 shadow-sm">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
-          <span
-            className="text-xl font-bold text-blue-600 cursor-pointer"
-            onClick={() => navigate("/")}
-          >
-            Chatboc
-          </span>
+
+          {/* 🔵 LOGO Chatboc */}
+          <div
+            className="flex items-center space-x-2 cursor-pointer"
+            onClick={() => navigate("/")}>
+            <img
+              src="/chatboc_navbar_logo.webp"
+              alt="Chatboc"
+              className="h-10 w-auto"
+            />
+          </div>
 
           {/* Desktop nav */}
           <div className="hidden md:flex items-center space-x-6">
@@ -50,47 +54,16 @@ const Navbar = () => {
         </div>
       </div>
 
-      {/* Menú desplegable mobile */}
+      {/* Menú mobile */}
       {mobileMenuOpen && (
         <div className="md:hidden bg-white border-t border-gray-200 shadow-sm">
           <div className="px-4 py-4 space-y-3">
-            <button
-              className="block w-full text-left text-sm text-gray-700"
-              onClick={() => navigate("/#problems")}
-            >
-              Problemas
-            </button>
-            <button
-              className="block w-full text-left text-sm text-gray-700"
-              onClick={() => navigate("/#solution")}
-            >
-              Solución
-            </button>
-            <button
-              className="block w-full text-left text-sm text-gray-700"
-              onClick={() => navigate("/#how-it-works")}
-            >
-              Cómo Funciona
-            </button>
-            <button
-              className="block w-full text-left text-sm text-gray-700"
-              onClick={() => navigate("/#pricing")}
-            >
-              Precios
-            </button>
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={() => navigate("/login")}
-            >
-              Iniciar Sesión
-            </Button>
-            <Button
-              className="w-full"
-              onClick={() => navigate("/demo")}
-            >
-              Prueba Gratuita
-            </Button>
+            <button className="block w-full text-left text-sm text-gray-700" onClick={() => navigate("/#problems")}>Problemas</button>
+            <button className="block w-full text-left text-sm text-gray-700" onClick={() => navigate("/#solution")}>Solución</button>
+            <button className="block w-full text-left text-sm text-gray-700" onClick={() => navigate("/#how-it-works")}>Cómo Funciona</button>
+            <button className="block w-full text-left text-sm text-gray-700" onClick={() => navigate("/#pricing")}>Precios</button>
+            <Button variant="outline" className="w-full" onClick={() => navigate("/login")}>Iniciar Sesión</Button>
+            <Button className="w-full" onClick={() => navigate("/demo")}>Prueba Gratuita</Button>
           </div>
         </div>
       )}

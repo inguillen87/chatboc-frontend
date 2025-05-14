@@ -12,10 +12,18 @@ const ChatWidget: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [hasAnimated, setHasAnimated] = useState(false);
 
   const path = window.location.pathname;
-  const isRutaPublica = ["/", "/demo", "/login", "/register"].some((r) => path.startsWith(r));
+  const isRutaPublica = ["/", "/demo", "/login", "/register"].some((r) =>
+    path.startsWith(r)
+  );
   const user = JSON.parse(localStorage.getItem("user") || "null");
+
+  useEffect(() => {
+    // Evita que se repita la animación
+    setHasAnimated(true);
+  }, []);
 
   if (!user || isRutaPublica) return null;
 
@@ -26,7 +34,7 @@ const ChatWidget: React.FC = () => {
         id: 1,
         text: "¡Hola! Soy Chatboc, tu asistente virtual. ¿En qué puedo ayudarte hoy?",
         isBot: true,
-        timestamp: new Date()
+        timestamp: new Date(),
       };
       setMessages([welcomeMessage]);
     }
@@ -39,39 +47,44 @@ const ChatWidget: React.FC = () => {
       id: messages.length + 1,
       text,
       isBot: false,
-      timestamp: new Date()
+      timestamp: new Date(),
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    setMessages((prev) => [...prev, userMessage]);
     setIsTyping(true);
 
     try {
-      const data = await apiFetch("/ask", "POST", {
-        question: text,
-        user_id: user?.id
-      }, {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: token
+      const data = await apiFetch(
+        "/ask",
+        "POST",
+        {
+          question: text,
+          user_id: user?.id,
+        },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: token,
+          }
         }
-      });
+      );
 
       const botMessage: Message = {
         id: messages.length + 2,
         text: data.answer || "No entendí tu mensaje.",
         isBot: true,
-        timestamp: new Date()
+        timestamp: new Date(),
       };
 
-      setMessages(prev => [...prev, botMessage]);
+      setMessages((prev) => [...prev, botMessage]);
     } catch (error) {
       const errorMessage: Message = {
         id: messages.length + 2,
         text: "⚠️ No se pudo conectar con el servidor.",
         isBot: true,
-        timestamp: new Date()
+        timestamp: new Date(),
       };
-      setMessages(prev => [...prev, errorMessage]);
+      setMessages((prev) => [...prev, errorMessage]);
     } finally {
       setIsTyping(false);
     }
@@ -81,18 +94,18 @@ const ChatWidget: React.FC = () => {
     <div className="fixed bottom-5 right-5 z-50">
       <button
         onClick={toggleChat}
-        className={`w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-all ${
+        className={`w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-all duration-300 ease-in-out transform hover:scale-105 ${
           isOpen ? "bg-red-500 hover:bg-red-600" : "bg-[#e0f2fe] hover:bg-[#bae6fd]"
-        }`}
+        } ${!hasAnimated ? "animate-bounce" : ""}`}
         aria-label={isOpen ? "Cerrar chat" : "Abrir chat"}
       >
         {isOpen ? (
           <X className="text-white h-6 w-6" />
         ) : (
           <img
-            src="/widget/chatboc_widget_icon.png"
+            src="/chatboc_widget_64x64.webp"
             alt="Chatboc"
-            className="w-7 h-7"
+            className="w-8 h-8"
           />
         )}
       </button>
