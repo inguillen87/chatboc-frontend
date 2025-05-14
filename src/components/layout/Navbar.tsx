@@ -8,16 +8,27 @@ const Navbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const user = JSON.parse(localStorage.getItem("user") || "null");
+
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [location]);
+
+  const scrollToSection = (id: string) => {
+    if (location.pathname === "/") {
+      const el = document.getElementById(id);
+      if (el) el.scrollIntoView({ behavior: "smooth" });
+    } else {
+      navigate(`/#${id}`);
+    }
+  };
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-sm border-b border-gray-100 shadow-sm">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
 
-          {/* LOGO Chatboc (ícono + degradé) */}
+          {/* Logo */}
           <div
             className="flex items-center gap-2 cursor-pointer"
             onClick={() => navigate("/")}
@@ -30,15 +41,18 @@ const Navbar = () => {
             <span className="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-blue-600 to-cyan-400 bg-clip-text text-transparent">
               Chatboc
             </span>
-
           </div>
 
-          {/* Desktop nav */}
-            <div className="hidden md:flex justify-center flex-1 items-center space-x-6">
-            <button onClick={() => navigate("/#problems")} className="text-sm text-gray-600 hover:text-blue-600">Problemas</button>
-            <button onClick={() => navigate("/#solution")} className="text-sm text-gray-600 hover:text-blue-600">Solución</button>
-            <button onClick={() => navigate("/#how-it-works")} className="text-sm text-gray-600 hover:text-blue-600">Cómo Funciona</button>
-            <button onClick={() => navigate("/#pricing")} className="text-sm text-gray-600 hover:text-blue-600">Precios</button>
+          {/* Centro (desktop) */}
+          <div className="hidden md:flex justify-center flex-1 items-center space-x-6">
+            <button onClick={() => scrollToSection("problems")} className="text-sm text-gray-600 hover:text-blue-600">Problemas</button>
+            <button onClick={() => scrollToSection("solution")} className="text-sm text-gray-600 hover:text-blue-600">Solución</button>
+            <button onClick={() => scrollToSection("how-it-works")} className="text-sm text-gray-600 hover:text-blue-600">Cómo Funciona</button>
+            <button onClick={() => scrollToSection("pricing")} className="text-sm text-gray-600 hover:text-blue-600">Precios</button>
+          </div>
+
+          {/* Acciones derecha (desktop) */}
+          <div className="hidden md:flex items-center space-x-4">
             <Button variant="outline" onClick={() => navigate("/login")}>
               Iniciar Sesión
             </Button>
@@ -47,7 +61,7 @@ const Navbar = () => {
             </Button>
           </div>
 
-          {/* Botón hamburguesa (mobile) */}
+          {/* Mobile menú toggle */}
           <div className="md:hidden">
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -59,17 +73,27 @@ const Navbar = () => {
         </div>
       </div>
 
-      {/* Menú mobile */}
+      {/* Mobile menú desplegable */}
       {mobileMenuOpen && (
         <div className="md:hidden bg-white border-t border-gray-200 shadow-sm">
           <div className="px-4 py-4 space-y-3">
-            <button className="block w-full text-left text-sm text-gray-700" onClick={() => navigate("/#problems")}>Problemas</button>
-            <button className="block w-full text-left text-sm text-gray-700" onClick={() => navigate("/#solution")}>Solución</button>
-            <button className="block w-full text-left text-sm text-gray-700" onClick={() => navigate("/#how-it-works")}>Cómo Funciona</button>
-            <button className="block w-full text-left text-sm text-gray-700" onClick={() => navigate("/#pricing")}>Precios</button>
+            <button className="block w-full text-left text-sm text-gray-700" onClick={() => scrollToSection("problems")}>Problemas</button>
+            <button className="block w-full text-left text-sm text-gray-700" onClick={() => scrollToSection("solution")}>Solución</button>
+            <button className="block w-full text-left text-sm text-gray-700" onClick={() => scrollToSection("how-it-works")}>Cómo Funciona</button>
+            <button className="block w-full text-left text-sm text-gray-700" onClick={() => scrollToSection("pricing")}>Precios</button>
             <Button variant="outline" className="w-full" onClick={() => navigate("/login")}>Iniciar Sesión</Button>
+            <Button className="w-full" onClick={() => navigate("/register")}>Registrarse</Button>
             <Button className="w-full" onClick={() => navigate("/demo")}>Prueba Gratuita</Button>
           </div>
+        </div>
+      )}
+
+      {/* Botón “REAL / ANÓNIMO” solo si logueado */}
+      {user && user.plan && (
+        <div className="fixed bottom-5 right-5 md:top-4 md:right-4 md:bottom-auto z-50">
+          <Button className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-full shadow-md">
+            {user.plan === "free" ? "Versión Gratuita" : "Versión Premium"}
+          </Button>
         </div>
       )}
     </nav>
