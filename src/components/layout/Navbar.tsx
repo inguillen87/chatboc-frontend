@@ -34,7 +34,7 @@ const Navbar = () => {
           </div>
 
           {/* Desktop nav */}
-          <div className="hidden md:flex items-center space-x-6">
+            <div className="hidden md:flex justify-center flex-1 items-center space-x-6">
             <button onClick={() => navigate("/#problems")} className="text-sm text-gray-600 hover:text-blue-600">Problemas</button>
             <button onClick={() => navigate("/#solution")} className="text-sm text-gray-600 hover:text-blue-600">Solución</button>
             <button onClick={() => navigate("/#how-it-works")} className="text-sm text-gray-600 hover:text-blue-600">Cómo Funciona</button>
