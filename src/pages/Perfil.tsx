@@ -87,8 +87,6 @@ const Perfil = () => {
   return (
     <div className="flex flex-col min-h-screen bg-background text-foreground">
       <Navbar />
-      <EnvironmentBadge />
-
       <main className="flex-grow pt-28 pb-12">
         <div className="max-w-5xl mx-auto px-4">
           <div className="flex justify-between items-center mb-6">

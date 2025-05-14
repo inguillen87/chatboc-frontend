@@ -39,7 +39,6 @@ const App = () => (
           <UserPlanCard />
         </div>
         <ChatWidget />
-        <EnvironmentBadge />
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
