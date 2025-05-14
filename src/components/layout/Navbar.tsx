@@ -51,9 +51,10 @@ const Navbar: React.FC = () => {
           <RouterLink to="/login" className="px-3 py-1 border border-blue-600 text-blue-600 rounded hover:bg-blue-50 text-sm">
             Iniciar Sesión
           </RouterLink>
-          <RouterLink to="/register" className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm">
-            Prueba Gratuita
-          </RouterLink>
+            <RouterLink to="/demo" className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm">
+              Prueba Gratuita
+            </RouterLink>
+
         </div>
 
         {/* Mobile toggle */}
