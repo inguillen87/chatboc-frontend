@@ -35,8 +35,10 @@ const App = () => (
           <Route path="*" element={<NotFound />} />
         </Routes>
 
-        {/* Widgets flotantes */}
-        <UserPlanCard />
+        {/* Widgets flotantes posicionados correctamente */}
+        <div className="fixed bottom-24 right-4 z-40 w-[90vw] max-w-sm">
+          <UserPlanCard />
+        </div>
         <ChatWidget />
         <EnvironmentBadge />
       </BrowserRouter>

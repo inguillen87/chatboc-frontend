@@ -1,25 +1,25 @@
-import React from 'react';
-import { Button } from '@/components/ui/button';
-import { MessageSquare, Sparkles, ArrowRight } from 'lucide-react';
+import React from "react";
+import { Button } from "@/components/ui/button";
+import { MessageSquare, Sparkles, ArrowRight } from "lucide-react";
 
 const HeroSection = () => {
   return (
     <section className="pt-20 pb-12 md:pt-32 md:pb-24 overflow-hidden bg-gradient-to-b from-white to-blue-50">
       <div className="container px-4 mx-auto">
-        <div className="flex flex-col lg:flex-row items-center gap-12">
+        <div className="flex flex-col lg:flex-row items-center gap-8 lg:gap-12">
           {/* Texto principal */}
-          <div className="w-full lg:w-1/2 lg:pr-12">
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4">
+          <div className="w-full lg:w-1/2 lg:pr-12 text-center lg:text-left">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4 leading-tight">
               <span className="gradient-text">Chatboc:</span> Tu Experto Virtual 24/7
             </h1>
             <p className="text-base sm:text-lg text-gray-600 mb-6">
               Ofrece respuestas inmediatas y personalizadas, fideliza a tus clientes y capturá nuevas oportunidades, incluso mientras dormís.
             </p>
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+            <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3">
               <Button size="lg" className="w-full sm:w-auto">
                 Iniciar Mi Prueba Gratuita <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
-              <p className="text-xs text-gray-500 sm:ml-4">
+              <p className="text-xs text-gray-500 sm:ml-4 text-center sm:text-left">
                 Sin tarjeta de crédito. Configuración inicial guiada.
               </p>
             </div>
@@ -27,7 +27,7 @@ const HeroSection = () => {
 
           {/* Chat simulado */}
           <div className="w-full lg:w-1/2 relative">
-            <div className="bg-white rounded-2xl shadow-xl p-5 border border-gray-100 max-w-md mx-auto animate-float">
+            <div className="bg-white rounded-2xl shadow-xl p-5 border border-gray-100 max-w-full sm:max-w-md mx-auto animate-float">
               <div className="flex items-center border-b border-gray-100 pb-3 mb-3">
                 <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center mr-3">
                   <MessageSquare className="h-4 w-4 text-white" />
