@@ -25,8 +25,8 @@ const Navbar = () => {
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-sm border-b border-gray-100 shadow-sm">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
+      <div className="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-16">
 
           {/* Logo */}
           <div
@@ -43,25 +43,21 @@ const Navbar = () => {
             </span>
           </div>
 
-          {/* Centro (desktop) */}
-          <div className="hidden md:flex justify-center flex-1 items-center space-x-6">
+          {/* Links del medio (centrados) */}
+          <div className="hidden md:flex flex-1 justify-center items-center space-x-6">
             <button onClick={() => scrollToSection("problems")} className="text-sm text-gray-600 hover:text-blue-600">Problemas</button>
             <button onClick={() => scrollToSection("solution")} className="text-sm text-gray-600 hover:text-blue-600">Solución</button>
             <button onClick={() => scrollToSection("how-it-works")} className="text-sm text-gray-600 hover:text-blue-600">Cómo Funciona</button>
             <button onClick={() => scrollToSection("pricing")} className="text-sm text-gray-600 hover:text-blue-600">Precios</button>
           </div>
 
-          {/* Acciones derecha (desktop) */}
+          {/* Botones derecha (desktop) */}
           <div className="hidden md:flex items-center space-x-4">
-            <Button variant="outline" onClick={() => navigate("/login")}>
-              Iniciar Sesión
-            </Button>
-            <Button onClick={() => navigate("/demo")}>
-              Prueba Gratuita
-            </Button>
+            <Button variant="outline" onClick={() => navigate("/login")}>Iniciar Sesión</Button>
+            <Button onClick={() => navigate("/demo")}>Prueba Gratuita</Button>
           </div>
 
-          {/* Mobile menú toggle */}
+          {/* Botón mobile */}
           <div className="md:hidden">
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -73,7 +69,7 @@ const Navbar = () => {
         </div>
       </div>
 
-      {/* Mobile menú desplegable */}
+      {/* Menú mobile */}
       {mobileMenuOpen && (
         <div className="md:hidden bg-white border-t border-gray-200 shadow-sm">
           <div className="px-4 py-4 space-y-3">
@@ -88,7 +84,7 @@ const Navbar = () => {
         </div>
       )}
 
-      {/* Botón “REAL / ANÓNIMO” solo si logueado */}
+      {/* Botón especial si está logueado */}
       {user && user.plan && (
         <div className="fixed bottom-5 right-5 md:top-4 md:right-4 md:bottom-auto z-50">
           <Button className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-full shadow-md">
