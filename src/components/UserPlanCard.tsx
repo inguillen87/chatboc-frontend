@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 
 interface UserData {
   name: string;
@@ -14,6 +14,11 @@ const planLimits: Record<string, number> = {
 };
 
 const UserPlanCard: React.FC = () => {
+  const path = window.location.pathname;
+  const isPublicRoute = path === "/" || path.includes("/demo") || path === "/login" || path === "/register";
+
+  if (isPublicRoute) return null;
+
   const storedUser = localStorage.getItem("user");
   const user: UserData | null = storedUser ? JSON.parse(storedUser) : null;
 
@@ -22,12 +27,12 @@ const UserPlanCard: React.FC = () => {
   const limit = planLimits[user.plan] ?? 10;
 
   return (
-    <div className="p-4 border rounded-lg bg-white shadow text-sm">
+    <div className="fixed bottom-4 right-4 z-40 p-4 border rounded-lg bg-white shadow text-sm w-72">
       <h2 className="text-lg font-semibold mb-2">👋 Hola {user.name}</h2>
       <p>📄 Tu plan actual: <strong>{user.plan}</strong></p>
       <p>💬 Consultas usadas: <strong>{user.preguntas_usadas}</strong> / {limit === Infinity ? '∞' : limit}</p>
 
-      {user.plan === 'free' && (
+      {user.plan === "free" && (
         <div className="mt-3 bg-yellow-100 text-yellow-800 p-2 rounded">
           Has alcanzado el límite gratuito. <br />
           <button className="mt-1 text-blue-600 underline hover:font-semibold">
