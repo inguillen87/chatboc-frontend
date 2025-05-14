@@ -1,7 +1,5 @@
-
-import React from 'react';
-import { X } from 'lucide-react';
-import ChatbocLogo from '../ChatbocLogo';
+import React from "react";
+import { X } from "lucide-react";
 
 interface ChatHeaderProps {
   onClose: () => void;
@@ -9,15 +7,20 @@ interface ChatHeaderProps {
 
 const ChatHeader: React.FC<ChatHeaderProps> = ({ onClose }) => {
   return (
-    <div className="bg-blue-600 text-white p-3 rounded-t-lg flex items-center">
-      <ChatbocLogo size={28} className="mr-2" />
-      <div>
-        <h3 className="font-medium">Chatboc</h3>
-        <p className="text-xs opacity-80">Asistente IA personalizado</p>
+    <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-[#f8fafc] rounded-t-lg">
+      <div className="flex items-center space-x-2">
+        <img
+          src="/chatboc_widget_64x64.webp"
+          alt="Chatboc"
+          className="w-6 h-6"
+        />
+        <span className="text-sm font-semibold text-gray-800">
+          Chatboc
+        </span>
       </div>
-      <button 
+      <button
         onClick={onClose}
-        className="ml-auto text-white hover:bg-blue-700 rounded-full p-1"
+        className="text-gray-500 hover:text-red-500 transition-colors"
         aria-label="Cerrar chat"
       >
         <X className="h-5 w-5" />
