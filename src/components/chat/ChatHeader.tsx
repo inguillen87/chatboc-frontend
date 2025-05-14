@@ -1,31 +1,27 @@
-// src/components/ChatHeader.tsx
-import React from "react";
-import { X } from "lucide-react";
 
-interface Props {
+import React from 'react';
+import { X } from 'lucide-react';
+import ChatbocLogo from '../ChatbocLogo';
+
+interface ChatHeaderProps {
   onClose: () => void;
 }
 
-const ChatHeader: React.FC<Props> = ({ onClose }) => {
+const ChatHeader: React.FC<ChatHeaderProps> = ({ onClose }) => {
   return (
-    <div className="flex items-center justify-between p-3 border-b bg-blue-50">
-      <div className="flex items-center gap-2">
-        <img
-          src="/chatboc_widget_64x64.png"
-          alt="Chatboc"
-          className="w-6 h-6 rounded bg-blue-500 p-1"
-        />
-        <div className="flex flex-col text-sm leading-tight">
-          <span className="font-bold text-blue-800">Chatboc</span>
-          <span className="text-gray-500 text-xs">Asistente IA personalizado</span>
-        </div>
+    <div className="bg-blue-600 text-white p-3 rounded-t-lg flex items-center">
+      <ChatbocLogo size={28} className="mr-2" />
+      <div>
+        <h3 className="font-medium">Chatboc</h3>
+        <p className="text-xs opacity-80">Asistente IA personalizado</p>
       </div>
-      <div className="flex items-center gap-2">
-        <span className="text-green-600 text-xs font-semibold">● Online</span>
-        <button onClick={onClose} className="text-gray-500 hover:text-gray-800">
-          <X size={18} />
-        </button>
-      </div>
+      <button 
+        onClick={onClose}
+        className="ml-auto text-white hover:bg-blue-700 rounded-full p-1"
+        aria-label="Cerrar chat"
+      >
+        <X className="h-5 w-5" />
+      </button>
     </div>
   );
 };
