@@ -89,7 +89,7 @@ const ChatWidget: React.FC = () => {
       {/* Botón flotante */}
       <button
         onClick={toggleChat}
-        className={`group relative w-16 h-16 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 ease-in-out transform hover:scale-105 ${
+        className={`group relative w-16 h-16 rounded-full flex items-center justify-center shadow-xl transition-all duration-300 ease-in-out transform hover:scale-110 hover:brightness-110 ${
           isOpen ? "bg-red-500 hover:bg-red-600" : "bg-blue-600 hover:bg-blue-700"
         }`}
         aria-label={isOpen ? "Cerrar chat" : "Abrir chat"}
@@ -98,12 +98,18 @@ const ChatWidget: React.FC = () => {
           <X className="text-white h-6 w-6" />
         ) : (
           <>
-            <img
-              src="/chatboc_widget_64x64.webp"
-              alt="Chatboc"
-              className="w-8 h-8"
-            />
-            <span className="absolute -left-40 hidden md:block group-hover:flex bg-gray-800 text-white text-xs px-3 py-1 rounded shadow-md whitespace-nowrap">
+            <div className="relative">
+              <img
+                src="/chatboc_widget_64x64.webp"
+                alt="Chatboc"
+                className="w-8 h-8"
+              />
+              {/* Badge “● Online” */}
+              <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
+            </div>
+
+            {/* Tooltip de ayuda en desktop */}
+            <span className="absolute -left-44 hidden md:block group-hover:flex bg-gray-800 text-white text-xs px-3 py-1 rounded shadow-md whitespace-nowrap">
               ¿Necesitás ayuda?
             </span>
           </>
