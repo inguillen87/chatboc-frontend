@@ -17,7 +17,7 @@ const Navbar = () => {
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
 
-          {/* ✅ LOGO Chatboc (ícono + texto grande) */}
+          {/* LOGO Chatboc (ícono + degradé) */}
           <div
             className="flex items-center gap-2 cursor-pointer"
             onClick={() => navigate("/")}
@@ -25,9 +25,9 @@ const Navbar = () => {
             <img
               src="/chatboc_widget_64x64.webp"
               alt="Logo"
-              className="w-7 h-7"
+              className="w-9 h-9"
             />
-            <span className="text-2xl font-extrabold text-blue-600 tracking-tight">
+            <span className="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-blue-600 to-gray-500 bg-clip-text text-transparent">
               Chatboc
             </span>
           </div>
