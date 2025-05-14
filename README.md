@@ -8,7 +8,7 @@
 
 There are several ways of editing your application.
 
-**Use Lovable**
+echo "// redeploy trigger" >> README.md
 
 Simply visit the [Lovable Project](https://lovable.dev/projects/a97ee1e3-5a88-429f-8969-dcd039ee2482) and start prompting.
 
