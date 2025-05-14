@@ -1,3 +1,4 @@
+// src/components/ChatMessage.tsx
 import React from "react";
 import { Message } from "@/types/chat";
 
@@ -8,10 +9,12 @@ interface ChatMessageProps {
 const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
   const isBot = message.isBot;
 
-  const formattedTime = new Date(message.timestamp).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const formattedTime = React.useMemo(() => {
+    return new Date(message.timestamp).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }, [message.timestamp]);
 
   return (
     <div className={`flex ${isBot ? "justify-start" : "justify-end"} w-full`}>
@@ -20,13 +23,14 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
           <img
             src="/chatboc_widget_64x64.webp"
             alt="Chatboc"
+            aria-label="Avatar del asistente Chatboc"
             className="w-6 h-6 rounded-full"
           />
         )}
 
-        <div className="flex flex-col max-w-[75%]">
+        <div className="flex flex-col max-w-[90%] sm:max-w-[75%]">
           <div
-            className={`px-4 py-2 rounded-xl text-sm shadow-sm ${
+            className={`px-4 py-2 rounded-xl text-sm shadow-sm break-words ${
               isBot
                 ? "bg-gray-100 text-gray-800"
                 : "bg-blue-500 text-white self-end"
