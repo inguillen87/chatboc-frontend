@@ -1,193 +1,65 @@
+// src/components/Navbar.tsx
 import React, { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
+import { Link, useLocation } from "react-router-dom";
 import { Menu, X } from "lucide-react";
-import { useNavigate, useLocation } from "react-router-dom";
 
-const Navbar = () => {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const navigate = useNavigate();
+const Navbar: React.FC = () => {
+  const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
-
-  const user = JSON.parse(localStorage.getItem("user") || "null");
+  const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
-    setMobileMenuOpen(false);
-  }, [location]);
-
-  const scrollToSection = (id: string) => {
-    if (location.pathname === "/") {
-      const el = document.getElementById(id);
-      if (el) el.scrollIntoView({ behavior: "smooth" });
-    } else {
-      navigate(`/#${id}`);
+    const storedUser = localStorage.getItem("user");
+    if (storedUser) {
+      setUser(JSON.parse(storedUser));
     }
-  };
+  }, []);
 
-  const scrollToTop = () => {
-    if (location.pathname === "/") {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    } else {
-      navigate("/");
-    }
-  };
+  const toggleMenu = () => setMenuOpen(!menuOpen);
+  const isPerfil = location.pathname === "/perfil";
+  const showModoReal = user && isPerfil;
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-sm border-b border-gray-100 shadow-sm">
-      <div className="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
+    <header className="flex items-center justify-between px-4 py-2 shadow-sm">
+      <Link to="/" className="flex items-center">
+        <img
+          src="/logo-navbar.png"
+          alt="Chatboc"
+          className="h-8 w-auto mr-2"
+        />
+        <h1 className="text-xl font-bold bg-gradient-to-r from-blue-500 to-gray-600 text-transparent bg-clip-text">Chatboc</h1>
+      </Link>
 
-          {/* Logo */}
-          <div className="flex items-center gap-2 cursor-pointer" onClick={scrollToTop}>
-            <img src="/chatboc_widget_64x64.webp" alt="Logo" className="w-9 h-9" />
-            <span className="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-blue-600 to-cyan-400 bg-clip-text text-transparent">
-              Chatboc
-            </span>
-          </div>
+      <nav className="hidden lg:flex gap-6 items-center">
+        <Link to="/#problemas" className="hover:text-blue-500">Problemas</Link>
+        <Link to="/#solucion" className="hover:text-blue-500">Solución</Link>
+        <Link to="/#como-funciona" className="hover:text-blue-500">Cómo Funciona</Link>
+        <Link to="/#precios" className="hover:text-blue-500">Precios</Link>
+        <Link to="/login" className="text-sm font-medium">Iniciar Sesión</Link>
+        <Link to="/register" className="px-3 py-1 bg-blue-600 text-white rounded">Prueba Gratuita</Link>
+      </nav>
 
-          {/* Centro navegación (desktop) */}
-          <div className="hidden md:flex flex-1 justify-center items-center space-x-6">
-            <button onClick={() => scrollToSection("problems")} className="text-sm text-gray-600 hover:text-blue-600">Problemas</button>
-            <button onClick={() => scrollToSection("solution")} className="text-sm text-gray-600 hover:text-blue-600">Solución</button>
-            <button onClick={() => scrollToSection("how-it-works")} className="text-sm text-gray-600 hover:text-blue-600">Cómo Funciona</button>
-            <button onClick={() => scrollToSection("pricing")} className="text-sm text-gray-600 hover:text-blue-600">Precios</button>
-          </div>
+      <button className="lg:hidden" onClick={toggleMenu}>
+        {menuOpen ? <X /> : <Menu />}
+      </button>
 
-          {/* Botones derechos (desktop) */}
-          <div className="hidden md:flex items-center space-x-4">
-            <Button variant="outline" onClick={() => navigate("/login")}>Iniciar Sesión</Button>
-            <Button onClick={() => navigate("/demo")}>Prueba Gratuita</Button>
-          </div>
-
-          {/* Menú hamburguesa mobile */}
-          <div className="md:hidden">
-            <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 text-gray-600 hover:text-blue-600">
-              {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Menú desplegable mobile */}
-      {mobileMenuOpen && (
-        <div className="md:hidden bg-white border-t border-gray-200 shadow-sm">
-          <div className="px-4 py-4 space-y-3">
-            <button className="block w-full text-left text-sm text-gray-700" onClick={() => scrollToSection("problems")}>Problemas</button>
-            <button className="block w-full text-left text-sm text-gray-700" onClick={() => scrollToSection("solution")}>Solución</button>
-            <button className="block w-full text-left text-sm text-gray-700" onClick={() => scrollToSection("how-it-works")}>Cómo Funciona</button>
-            <button className="block w-full text-left text-sm text-gray-700" onClick={() => scrollToSection("pricing")}>Precios</button>
-            <Button variant="outline" className="w-full" onClick={() => navigate("/login")}>Iniciar Sesión</Button>
-            <Button className="w-full" onClick={() => navigate("/register")}>Registrarse</Button>
-            <Button className="w-full" onClick={() => navigate("/demo")}>Prueba Gratuita</Button>
-          </div>
+      {showModoReal && (
+        <div className="ml-4 px-3 py-1 bg-green-100 text-green-800 rounded text-xs">
+          🟢 MODO REAL · ANÓNIMO
         </div>
       )}
 
-      {/* Botón de plan solo si usuario logueado con plan */}
-      {user?.plan && (
-        <div className="fixed bottom-5 right-5 md:top-4 md:right-4 md:bottom-auto z-50">
-          <Button className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-full shadow-md">
-            {user.plan === "free" ? "Versión Gratuita" : "Versión Premium"}
-          </Button>
+      {menuOpen && (
+        <div className="absolute top-14 left-0 w-full bg-white shadow-md lg:hidden flex flex-col items-center gap-4 py-4 z-50">
+          <Link to="/#problemas" onClick={toggleMenu}>Problemas</Link>
+          <Link to="/#solucion" onClick={toggleMenu}>Solución</Link>
+          <Link to="/#como-funciona" onClick={toggleMenu}>Cómo Funciona</Link>
+          <Link to="/#precios" onClick={toggleMenu}>Precios</Link>
+          <Link to="/login" onClick={toggleMenu}>Iniciar Sesión</Link>
+          <Link to="/register" onClick={toggleMenu} className="bg-blue-600 text-white px-4 py-2 rounded">Prueba Gratuita</Link>
         </div>
       )}
-    </nav>
-  );
-};
-
-export default Navbar;
-import React, { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Menu, X } from "lucide-react";
-import { useNavigate, useLocation } from "react-router-dom";
-
-const Navbar = () => {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const navigate = useNavigate();
-  const location = useLocation();
-
-  const user = JSON.parse(localStorage.getItem("user") || "null");
-
-  useEffect(() => {
-    setMobileMenuOpen(false);
-  }, [location]);
-
-  const scrollToSection = (id: string) => {
-    if (location.pathname === "/") {
-      const el = document.getElementById(id);
-      if (el) el.scrollIntoView({ behavior: "smooth" });
-    } else {
-      navigate(`/#${id}`);
-    }
-  };
-
-  const scrollToTop = () => {
-    if (location.pathname === "/") {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    } else {
-      navigate("/");
-    }
-  };
-
-  return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-sm border-b border-gray-100 shadow-sm">
-      <div className="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-
-          {/* Logo */}
-          <div className="flex items-center gap-2 cursor-pointer" onClick={scrollToTop}>
-            <img src="/chatboc_widget_64x64.webp" alt="Logo" className="w-9 h-9" />
-            <span className="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-blue-600 to-cyan-400 bg-clip-text text-transparent">
-              Chatboc
-            </span>
-          </div>
-
-          {/* Centro navegación (desktop) */}
-          <div className="hidden md:flex flex-1 justify-center items-center space-x-6">
-            <button onClick={() => scrollToSection("problems")} className="text-sm text-gray-600 hover:text-blue-600">Problemas</button>
-            <button onClick={() => scrollToSection("solution")} className="text-sm text-gray-600 hover:text-blue-600">Solución</button>
-            <button onClick={() => scrollToSection("how-it-works")} className="text-sm text-gray-600 hover:text-blue-600">Cómo Funciona</button>
-            <button onClick={() => scrollToSection("pricing")} className="text-sm text-gray-600 hover:text-blue-600">Precios</button>
-          </div>
-
-          {/* Botones derechos (desktop) */}
-          <div className="hidden md:flex items-center space-x-4">
-            <Button variant="outline" onClick={() => navigate("/login")}>Iniciar Sesión</Button>
-            <Button onClick={() => navigate("/demo")}>Prueba Gratuita</Button>
-          </div>
-
-          {/* Menú hamburguesa mobile */}
-          <div className="md:hidden">
-            <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 text-gray-600 hover:text-blue-600">
-              {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Menú desplegable mobile */}
-      {mobileMenuOpen && (
-        <div className="md:hidden bg-white border-t border-gray-200 shadow-sm">
-          <div className="px-4 py-4 space-y-3">
-            <button className="block w-full text-left text-sm text-gray-700" onClick={() => scrollToSection("problems")}>Problemas</button>
-            <button className="block w-full text-left text-sm text-gray-700" onClick={() => scrollToSection("solution")}>Solución</button>
-            <button className="block w-full text-left text-sm text-gray-700" onClick={() => scrollToSection("how-it-works")}>Cómo Funciona</button>
-            <button className="block w-full text-left text-sm text-gray-700" onClick={() => scrollToSection("pricing")}>Precios</button>
-            <Button variant="outline" className="w-full" onClick={() => navigate("/login")}>Iniciar Sesión</Button>
-            <Button className="w-full" onClick={() => navigate("/register")}>Registrarse</Button>
-            <Button className="w-full" onClick={() => navigate("/demo")}>Prueba Gratuita</Button>
-          </div>
-        </div>
-      )}
-
-      {/* Botón de plan SOLO en perfil si está logueado */}
-      {user?.plan && location.pathname === "/perfil" && (
-        <div className="fixed bottom-5 right-5 md:top-4 md:right-4 md:bottom-auto z-50">
-          <Button className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-full shadow-md">
-            {user.plan === "free" ? "Versión Gratuita" : "Versión Premium"}
-          </Button>
-        </div>
-      )}
-    </nav>
+    </header>
   );
 };
 
