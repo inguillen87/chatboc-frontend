@@ -43,12 +43,7 @@ const Navbar: React.FC = () => {
         {menuOpen ? <X /> : <Menu />}
       </button>
 
-      {showModoReal && (
-        <div className="ml-4 px-3 py-1 bg-green-100 text-green-800 rounded text-xs">
-          🟢 MODO REAL · ANÓNIMO
-        </div>
-      )}
-
+    
       {menuOpen && (
         <div className="absolute top-14 left-0 w-full bg-white shadow-md lg:hidden flex flex-col items-center gap-4 py-4 z-50">
           <Link to="/#problemas" onClick={toggleMenu}>Problemas</Link>
