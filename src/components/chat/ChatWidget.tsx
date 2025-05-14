@@ -86,22 +86,32 @@ const ChatWidget: React.FC = () => {
 
   return (
     <div className="fixed bottom-5 right-5 z-50">
+      {/* Botón flotante */}
       <button
         onClick={toggleChat}
-        className="w-16 h-16 rounded-full border border-gray-300 bg-white shadow-lg hover:shadow-xl flex items-center justify-center transition-all duration-300"
+        className={`group relative w-16 h-16 rounded-full flex items-center justify-center border border-gray-300 bg-white hover:shadow-lg transition-all duration-300 ease-in-out transform hover:scale-105`}
         aria-label={isOpen ? "Cerrar chat" : "Abrir chat"}
       >
         {isOpen ? (
           <X className="text-gray-600 h-6 w-6" />
         ) : (
-          <img
-            src="/chatboc_widget_white_outline.png"
-            alt="Abrir Chat"
-            className="w-10 h-10"
-          />
+          <>
+            <div className="relative">
+              <img
+                src="/chatboc_widget_64x64.webp"
+                alt="Chatboc"
+                className="w-8 h-8"
+              />
+              <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
+            </div>
+            <span className="absolute -left-44 hidden md:block group-hover:flex bg-gray-800 text-white text-xs px-3 py-1 rounded shadow-md whitespace-nowrap">
+              ¿Necesitás ayuda?
+            </span>
+          </>
         )}
       </button>
 
+      {/* Panel del chat */}
       {isOpen && (
         <div
           className="absolute bottom-20 right-0 w-80 md:w-96 bg-white rounded-xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden animate-slide-up"
