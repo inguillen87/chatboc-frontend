@@ -10,6 +10,11 @@ const Demo = () => {
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const DEMO_USER = {
+    token: "demo-token", // este token debe existir en tu base de datos
+    rubro_id: 1, // asegúrate que corresponde a un rubro real cargado (ej: médico general)
+  };
+
   useEffect(() => {
     setMessages([
       {
@@ -39,27 +44,21 @@ const Demo = () => {
 
     try {
       const response = await apiFetch(
-  "/demo-chat",
-  "POST",
-  {
-    messages: updatedMessages.map((m) => ({
-      role: m.isBot ? "assistant" : "user",
-      content: m.text,
-    })),
-    rubro_id: 1, // <--- importante para que el backend funcione
-  },
-  {
-    headers: {
-      "Content-Type": "application/json",
-    },
-  }
-);
+        "/responder_chatboc",
+        "POST",
+        { pregunta: text },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${DEMO_USER.token}`,
+          },
+        }
+      );
 
       const botMessage: Message = {
         id: updatedMessages.length + 1,
         text:
-          response?.answer ||
-          response?.content ||
+          response?.respuesta ||
           "⚠️ No se pudo generar una respuesta.",
         isBot: true,
         timestamp: new Date(),
