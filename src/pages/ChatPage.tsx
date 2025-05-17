@@ -54,7 +54,7 @@ const ChatPage = () => {
           })),
         });
       } else {
-        response = await apiFetch("/ask", "POST", {
+        response = await apiFetch("/responder_chatboc", "POST", {
           question: text,
           user_id: user?.id,
         }, {
