@@ -14,14 +14,25 @@ const ChatWidget: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const path = window.location.pathname;
-  const isRutaOculta = ["/login", "/register"].some((r) =>
+
+  // Rutas donde NO debe mostrarse
+  const isRutaOculta = ["/login", "/register", "/perfil"].some((r) =>
     path.startsWith(r)
   );
-  const isDemo = path.includes("demo");
-  const user = JSON.parse(localStorage.getItem("user") || "null");
-  const token = isDemo ? "demo-token" : user?.token;
-
   if (isRutaOculta) return null;
+
+  // Obtener token (demo o real)
+  const storedUser = localStorage.getItem("user");
+  let token = "demo-token"; // por defecto usa modo demo
+
+  try {
+    const user = storedUser ? JSON.parse(storedUser) : null;
+    if (user?.token) {
+      token = user.token;
+    }
+  } catch (e) {
+    console.warn("❗ Error leyendo el token del usuario:", e);
+  }
 
   const toggleChat = () => {
     setIsOpen(!isOpen);
