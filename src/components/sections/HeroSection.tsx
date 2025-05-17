@@ -31,7 +31,7 @@ const HeroSection = () => {
               <div className="flex items-center border-b border-gray-100 pb-3 mb-3">
                 <div className="mr-3">
   <img
-    src="/chatboc_widget_64x64.png"
+    src="/chatboc_widget_64x64.webp"
     alt="Chatboc"
     className="w-8 h-8 rounded"
     style={{ backgroundColor: '#E0F0FF', padding: '2px' }}

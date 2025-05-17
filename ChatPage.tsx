@@ -3,7 +3,10 @@ import { Message } from "@/types/chat";
 import ChatMessage from "@/components/chat/ChatMessage";
 import ChatInput from "@/components/chat/ChatInput";
 import TypingIndicator from "@/components/chat/TypingIndicator";
+import Navbar from "@/components/layout/Navbar";
+import Footer from "@/components/layout/Footer";
 import { apiFetch } from "@/utils/api";
+import { motion, AnimatePresence } from "framer-motion";
 
 const ChatPage = () => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -45,12 +48,17 @@ const ChatPage = () => {
     setIsTyping(true);
 
     try {
-      const response = await apiFetch("/responder_chatboc", "POST", { pregunta: text }, {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const response = await apiFetch(
+        "/responder_chatboc",
+        "POST",
+        { question: text },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
 
       const botMessage: Message = {
         id: updatedMessages.length + 1,
@@ -91,17 +99,33 @@ const ChatPage = () => {
   };
 
   return (
-    <div className="min-h-[calc(100vh-80px)] flex flex-col items-center justify-center px-4">
-      <div className="w-full max-w-2xl bg-white rounded-lg shadow-md border border-gray-200 p-4 flex flex-col h-[80vh]">
-        <div className="flex-1 overflow-y-auto space-y-4 px-2 pb-4">
-          {messages.map((msg) => (
-            <ChatMessage key={msg.id} message={msg} />
-          ))}
-          {isTyping && <TypingIndicator />}
-          <div ref={messagesEndRef} />
+    <div className="flex flex-col min-h-screen bg-gray-50 text-foreground">
+      <Navbar />
+
+      <main className="flex-grow flex items-center justify-center px-4 pt-20 pb-10">
+        <div className="w-full max-w-2xl bg-white border border-gray-200 rounded-3xl shadow-lg p-4 flex flex-col h-[80vh]">
+          <div className="flex-1 overflow-y-auto space-y-4 px-2 pb-4">
+            <AnimatePresence>
+              {messages.map((msg) => (
+                <motion.div
+                  key={msg.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <ChatMessage message={msg} />
+                </motion.div>
+              ))}
+            </AnimatePresence>
+            {isTyping && <TypingIndicator />}
+            <div ref={messagesEndRef} />
+          </div>
+          <ChatInput onSendMessage={handleSend} />
         </div>
-        <ChatInput onSendMessage={handleSend} />
-      </div>
+      </main>
+
+      <Footer />
     </div>
   );
 };
