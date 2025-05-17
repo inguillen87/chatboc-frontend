@@ -24,7 +24,7 @@ const ChatWidget: React.FC = () => {
   const toggleChat = () => {
     setIsOpen(!isOpen);
     if (!isOpen && messages.length === 0) {
-      const welcomeMessage = {
+      const welcomeMessage: Message = {
         id: 1,
         text: "¡Hola! Soy Chatboc, tu asistente virtual. ¿En qué puedo ayudarte hoy?",
         isBot: true,
@@ -35,7 +35,7 @@ const ChatWidget: React.FC = () => {
   };
 
   const handleSendMessage = async (text: string) => {
-    const token = user?.token || "fake-token";
+    const token = user?.token || "";
 
     const userMessage: Message = {
       id: messages.length + 1,
@@ -48,7 +48,7 @@ const ChatWidget: React.FC = () => {
     setIsTyping(true);
 
     try {
-      const data = await apiFetch(
+      const response = await apiFetch(
         "/ask",
         "POST",
         {
@@ -58,14 +58,20 @@ const ChatWidget: React.FC = () => {
         {
           headers: {
             "Content-Type": "application/json",
-            Authorization: token,
-          }
+            Authorization: `Bearer ${token}`, // ✅ NECESARIO
+          },
         }
       );
 
+      const botText =
+        response?.respuesta ||
+        response?.answer ||
+        response?.content ||
+        "⚠️ No se pudo generar una respuesta.";
+
       const botMessage: Message = {
         id: messages.length + 2,
-        text: data.answer || "No entendí tu mensaje.",
+        text: botText,
         isBot: true,
         timestamp: new Date(),
       };

@@ -73,15 +73,21 @@ const ChatPage = () => {
           {
             headers: {
               "Content-Type": "application/json",
-              Authorization: token,
+              Authorization: `Bearer ${token}`, // ✅ CORRECTO
             },
           }
         );
       }
 
+      const botText =
+        response?.respuesta || // Para lógica spacy/cohere
+        response?.answer || // Fallback
+        response?.content || // Fallback para demo
+        "⚠️ No se pudo generar una respuesta.";
+
       const botMessage: Message = {
         id: updatedMessages.length + 1,
-        text: response?.answer || response?.content || "⚠️ No se pudo generar una respuesta.",
+        text: botText,
         isBot: true,
         timestamp: new Date(),
       };
