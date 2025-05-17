@@ -1,55 +1,78 @@
-import React from 'react';
-import { Message } from '@/types/chat';
+import React, { useState, useEffect, useRef } from "react";
+import ChatInput from "@/components/ChatInput";
+import ChatMessage from "@/components/ChatMessage";
+import TypingIndicator from "@/components/TypingIndicator"; // si tenés este componente
+import { Message } from "@/types/chat";
 
-interface ChatMessageProps {
-  message: Message;
-}
+const Demo: React.FC = () => {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [isTyping, setIsTyping] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
-const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
-    if (!message || typeof message.text !== 'string') return null;
-  // Caso especial: mostrar botones CTA cuando el mensaje es "__cta__"
-  if (message.text === '__cta__') {
-    return (
-      <div className="flex justify-center mt-4">
-        <div className="text-center space-y-2">
-          <button
-            onClick={() => window.location.href = '/demo'}
-            className="bg-blue-600 text-white text-sm rounded-md px-4 py-2 hover:bg-blue-700 transition"
-          >
-            Usar Chatboc en mi empresa
-          </button>
-          <button
-            onClick={() =>
-              window.open(
-                'https://wa.me/5492613168608?text=Hola! Estoy probando Chatboc y quiero implementarlo en mi empresa.',
-                '_blank'
-              )
-            }
-            className="border border-blue-600 text-blue-600 text-sm rounded-md px-4 py-2 hover:bg-blue-50 transition"
-          >
-            Hablar por WhatsApp
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const scrollToBottom = () => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const handleSendMessage = async (text: string) => {
+    const newMessage: Message = {
+      text,
+      isBot: false,
+      timestamp: new Date(),
+    };
+
+    setMessages((prev) => [...prev, newMessage]);
+    setIsTyping(true);
+
+    try {
+      const res = await fetch("https://api.chatboc.ar/responder_chatboc", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token") || "demo-token"}`,
+        },
+        body: JSON.stringify({ pregunta: text }),
+      });
+
+      const data = await res.json();
+
+      const respuestaBot: Message = {
+        text: data.respuesta || "❌ Error al procesar la respuesta.",
+        isBot: true,
+        timestamp: new Date(),
+      };
+
+      setMessages((prev) => [...prev, respuestaBot]);
+    } catch (error) {
+      console.error("❌ Error conectando al backend:", error);
+      setMessages((prev) => [
+        ...prev,
+        {
+          text: "⚠️ No pudimos contactar al servidor. Intentá de nuevo más tarde.",
+          isBot: true,
+          timestamp: new Date(),
+        },
+      ]);
+    } finally {
+      setIsTyping(false);
+    }
+  };
 
   return (
-    <div className={`flex ${message.isBot ? "justify-start" : "justify-end"}`}>
-      <div
-        className={`max-w-[80%] p-3 rounded-lg ${
-          message.isBot
-            ? "bg-blue-100 text-gray-800"
-            : "bg-blue-600 text-white"
-        }`}
-      >
-        <p className="text-sm">{message.text}</p>
-        <p className="text-xs mt-1 opacity-70">
-          {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-        </p>
+    <div className="max-w-2xl mx-auto py-6 px-4">
+      <div className="border rounded-lg shadow-sm h-[500px] overflow-y-auto p-4 bg-white space-y-4">
+        {messages.map((msg, idx) => (
+          <ChatMessage key={idx} message={msg} />
+        ))}
+        {isTyping && <TypingIndicator />}
+        <div ref={chatEndRef} />
       </div>
+      <ChatInput onSendMessage={handleSendMessage} />
     </div>
   );
 };
 
-export default ChatMessage;
+export default Demo;
