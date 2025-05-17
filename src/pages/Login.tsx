@@ -17,17 +17,15 @@ const Login = () => {
     try {
       const data = await apiFetch('/login', 'POST', { email, password });
 
-      if (data && data.token) {
-        // Guardar usuario en localStorage
+      if (data?.token) {
         localStorage.setItem('user', JSON.stringify(data));
-        // Redirigir al perfil
         navigate('/perfil');
       } else {
-        setError('Credenciales inválidas.');
+        setError('❌ Credenciales inválidas.');
       }
     } catch (err) {
       console.error('❌ Error al iniciar sesión:', err);
-      setError('Error de conexión con el servidor.');
+      setError('⚠️ Error de conexión con el servidor.');
     }
   };
 

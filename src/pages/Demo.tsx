@@ -11,8 +11,8 @@ const Demo = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const DEMO_USER = {
-    token: "demo-token", // este token debe existir en tu base de datos
-    rubro_id: 1, // asegúrate que corresponde a un rubro real cargado (ej: médico general)
+    token: "demo-token", // debe existir en la base de datos
+    rubro_id: 1, // debe coincidir con un rubro real (ej: médico)
   };
 
   useEffect(() => {
@@ -31,6 +31,8 @@ const Demo = () => {
   }, [messages]);
 
   const handleSendMessage = async (text: string) => {
+    if (!text.trim()) return;
+
     const userMessage: Message = {
       id: messages.length + 1,
       text,
@@ -57,14 +59,12 @@ const Demo = () => {
 
       const botMessage: Message = {
         id: updatedMessages.length + 1,
-        text:
-          response?.respuesta ||
-          "⚠️ No se pudo generar una respuesta.",
+        text: response?.respuesta || "⚠️ No se pudo generar una respuesta.",
         isBot: true,
         timestamp: new Date(),
       };
 
-      setMessages([...updatedMessages, botMessage]);
+      setMessages((prev) => [...prev, botMessage]);
     } catch (error) {
       const errorMessage: Message = {
         id: updatedMessages.length + 1,
@@ -72,7 +72,7 @@ const Demo = () => {
         isBot: true,
         timestamp: new Date(),
       };
-      setMessages([...updatedMessages, errorMessage]);
+      setMessages((prev) => [...prev, errorMessage]);
     } finally {
       setIsTyping(false);
     }
@@ -80,7 +80,6 @@ const Demo = () => {
 
   return (
     <div className="w-full max-w-xl mx-auto bg-white rounded-2xl shadow-xl border border-gray-200 flex flex-col h-[80vh] mt-10 overflow-hidden">
-      
       {/* Header con branding */}
       <div className="bg-[#006AEC] text-white py-3 px-4 flex items-center justify-between">
         <div className="flex items-center gap-2">

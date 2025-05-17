@@ -28,17 +28,14 @@ const Perfil = () => {
 
   const handleChangePlan = async (newPlan: string) => {
     if (!user?.token) return;
-    try {
-      const data = await apiFetch("/update_user", "POST", 
-  { plan: newPlan },
-  {
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: user.token,
-    },
-  }
-);
 
+    try {
+      const data = await apiFetch("/update_user", "POST", { plan: newPlan }, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: user.token,
+        },
+      });
 
       if (data.plan) {
         const updated = { ...user, ...data };
@@ -56,26 +53,26 @@ const Perfil = () => {
 
   const handleReset = async () => {
     if (!user?.token) return;
+
     try {
-      const data = await apiFetch("/update_user", "POST", 
-  { reset_preguntas: true },
-  {
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: user.token,
-    },
-  }
-);
+      const data = await apiFetch("/update_user", "POST", { reset_preguntas: true }, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: user.token,
+        },
+      });
 
       if (data.message) {
         const updated = { ...user, ...data };
         localStorage.setItem("user", JSON.stringify(updated));
         setUser(updated);
         setMessage("🔄 Contador reiniciado.");
+      } else {
+        setMessage("❌ No se pudo reiniciar.");
       }
     } catch (err) {
       console.error(err);
-      setMessage("❌ No se pudo reiniciar.");
+      setMessage("❌ Error de conexión.");
     }
   };
 
@@ -127,20 +124,21 @@ const Perfil = () => {
               <RotateCcw className="w-4 h-4" />
               Resetear contador
             </Button>
+
             <Button
               onClick={() => navigate("/chat")}
               variant="default"
               className="bg-blue-600 text-white hover:bg-blue-700 transition w-full sm:w-auto"
->
-  Ir al Chat Completo
-</Button>
+            >
+              Ir al Chat Completo
+            </Button>
+
             {message && (
               <p className="text-green-600 font-medium text-sm pt-2">{message}</p>
             )}
           </div>
         </div>
       </main>
-
       <Footer />
     </div>
   );
