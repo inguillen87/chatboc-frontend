@@ -1,40 +1,43 @@
-export async function apiFetch<T = any>(
+export async function apiFetch(
   path: string,
-  method: string = 'GET',
-  data?: any,
-  options: RequestInit = {}
-): Promise<T> {
-  const url = `${import.meta.env.VITE_API_URL}${path}`;
-  const headers = {
-    'Content-Type': 'application/json',
-    ...(options.headers || {})
+  method: string = "GET",
+  body?: any,
+  options: {
+    headers?: Record<string, string>;
+    baseUrl?: string;
+  } = {}
+) {
+  const baseUrl = options.baseUrl || import.meta.env.VITE_API_URL || "";
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...options.headers,
   };
 
-  // Logs para debug
+  const url = `${baseUrl}${path}`;
+
   console.log("🔍 URL:", url);
   console.log("📦 Método:", method);
   console.log("🧾 Headers:", headers);
-  console.log("📨 Data:", data);
+  if (body) console.log("📨 Data:", body);
 
   try {
     const response = await fetch(url, {
       method,
       headers,
-      body: data ? JSON.stringify(data) : undefined,
-      ...options,
+      body: body ? JSON.stringify(body) : undefined,
     });
 
+    const data = await response.json();
+    console.log("✅ Respuesta:", data);
+
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`❌ Error ${response.status}:`, errorText);
-      throw new Error(`Error ${response.status}: ${errorText}`);
+      console.error("❌ Error HTTP:", response.status, data);
+      throw new Error(`Error ${response.status}: ${JSON.stringify(data)}`);
     }
 
-    const json = await response.json();
-    console.log("✅ Respuesta:", json);
-    return json;
+    return data;
   } catch (error) {
-    console.error("🚨 Error en apiFetch:", error);
+    console.error("❌ Error conectando con el servidor:", error);
     throw error;
   }
 }

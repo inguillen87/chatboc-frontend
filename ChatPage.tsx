@@ -9,7 +9,11 @@ const ChatPage = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const isDemo = window.location.pathname.includes("demo");
+
+  const path = window.location.pathname;
+  const isDemo = path.includes("demo");
+  const user = JSON.parse(localStorage.getItem("user") || "null");
+  const token = isDemo ? "demo-token" : user?.token;
 
   useEffect(() => {
     setMessages([
@@ -29,9 +33,6 @@ const ChatPage = () => {
   const handleSend = async (text: string) => {
     if (!text.trim()) return;
 
-    const user = JSON.parse(localStorage.getItem("user") || "{}");
-    const token = user?.token || "";
-
     const userMessage: Message = {
       id: messages.length + 1,
       text,
@@ -44,50 +45,22 @@ const ChatPage = () => {
     setIsTyping(true);
 
     try {
-      let response;
+      const endpoint = isDemo ? "/responder_chatboc" : "/responder_chatboc";
 
-      if (isDemo) {
-        response = await apiFetch(
-          "/demo-chat",
-          "POST",
-          {
-            messages: updatedMessages.map((m) => ({
-              role: m.isBot ? "assistant" : "user",
-              content: m.text,
-            })),
-          },
-          {
-            headers: {
-              "Content-Type": "application/json",
-            },
-          }
-        );
-      } else {
-        response = await apiFetch(
-          "/ask",
-          "POST",
-          {
-            question: text,
-            user_id: user?.id,
-          },
-          {
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`, // ✅ CORRECTO
-            },
-          }
-        );
-      }
+      const payload = isDemo
+        ? { pregunta: text }
+        : { pregunta: text };
 
-      const botText =
-        response?.respuesta || // Para lógica spacy/cohere
-        response?.answer || // Fallback
-        response?.content || // Fallback para demo
-        "⚠️ No se pudo generar una respuesta.";
+      const response = await apiFetch(endpoint, "POST", payload, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
       const botMessage: Message = {
         id: updatedMessages.length + 1,
-        text: botText,
+        text: response?.respuesta || response?.answer || "⚠️ No se pudo generar una respuesta.",
         isBot: true,
         timestamp: new Date(),
       };
