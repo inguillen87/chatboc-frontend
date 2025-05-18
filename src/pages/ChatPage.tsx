@@ -67,12 +67,19 @@ const ChatPage = () => {
         );
       }
 
-      console.log("🔍 Backend response:", response);
+      console.log("🧪 Backend response:", response, typeof response);
 
-      const textoRespuesta =
-        typeof response === "object" && response?.respuesta
-          ? response.respuesta
-          : "⚠️ No se pudo generar una respuesta.";
+      let textoRespuesta = "⚠️ No se pudo generar una respuesta.";
+
+      if (typeof response === "object" && response !== null) {
+        if ("respuesta" in response) {
+          textoRespuesta = response.respuesta;
+        } else {
+          textoRespuesta = "⚠️ Objeto recibido pero sin campo 'respuesta'.";
+        }
+      } else {
+        textoRespuesta = `⚠️ Respuesta inválida del backend: ${JSON.stringify(response)}`;
+      }
 
       const botMessage: Message = {
         id: updatedMessages.length + 1,
