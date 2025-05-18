@@ -45,7 +45,8 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
             : "bg-[#006AEC] text-white rounded-br-none"
         }`}
       >
-        <p className="text-sm bg-yellow-100 text-black px-2 py-1 rounded">
+        {/* Render forzado del mensaje completo */}
+        <p className="text-sm bg-yellow-100 text-black px-2 py-1 rounded whitespace-pre-wrap">
           {typeof message.text === "string"
             ? message.text
             : JSON.stringify(message)}
