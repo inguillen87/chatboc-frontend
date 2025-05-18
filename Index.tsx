@@ -10,7 +10,7 @@ import CtaSection from '@/components/sections/CtaSection';
 
 const Index = () => {
   useEffect(() => {
-    document.title = 'Chatboc - Tu Experto Virtual para Pymes';
+    document.title = 'Chatboc - Tu Experto Virtual para Pymesssssss';
   }, []);
 
   return (
