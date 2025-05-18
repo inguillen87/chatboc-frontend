@@ -54,7 +54,7 @@ const Perfil = () => {
       setMessage("❌ Error de conexión.");
     }
   };
-
+//forzara redepleoy limpio!!
   const handleReset = async () => {
     if (!user?.token) return;
     try {
