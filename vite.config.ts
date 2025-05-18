@@ -2,7 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 
-// 🔧 Dummy para evitar romper vite en Vercel
+// 🔧 Plugin vacío para evitar errores en desarrollo (no importa en producción)
 const componentTagger = () => null;
 
 export default defineConfig(({ mode }) => ({
@@ -19,7 +19,7 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [
     react(),
-    mode === "development" && componentTagger(), // Solo en local, sin romper producción
+    mode === "development" && componentTagger(), // solo se activa en local si se necesita
   ].filter(Boolean),
   resolve: {
     alias: {
