@@ -71,9 +71,8 @@ const ChatPage = () => {
       console.log("🧪 respuesta:", response?.respuesta);
 
       const textoRespuesta =
-        response && typeof response === "object"
-          ? response?.respuesta ?? JSON.stringify(response)
-          : `⚠️ Respuesta inválida del backend: ${JSON.stringify(response)}`;
+        response?.respuesta ??
+        `⚠️ Respuesta inválida: ${JSON.stringify(response)}`;
 
       const botMessage: Message = {
         id: updatedMessages.length + 1,
@@ -99,18 +98,4 @@ const ChatPage = () => {
 
   return (
     <div className="min-h-[calc(100vh-80px)] flex flex-col items-center justify-center px-4">
-      <div className="w-full max-w-2xl bg-white rounded-lg shadow-md border border-gray-200 p-4 flex flex-col h-[80vh]">
-        <div className="flex-1 overflow-y-auto space-y-4 px-2 pb-4">
-          {messages.map((msg) => (
-            <ChatMessage key={msg.id} message={msg} />
-          ))}
-          {isTyping && <TypingIndicator />}
-          <div ref={messagesEndRef} />
-        </div>
-        <ChatInput onSendMessage={handleSend} />
-      </div>
-    </div>
-  );
-};
-
-export default ChatPage;
+      <div className="w-full max-w-2xl bg-white rounded-lg shadow-md border
