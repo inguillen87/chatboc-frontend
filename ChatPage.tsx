@@ -62,7 +62,7 @@ const ChatPage = () => {
 
       const botMessage: Message = {
         id: updatedMessages.length + 1,
-        text: response?.respuesta || "⚠️ No se pudo generar una respuesta.",
+        text: response?.respuesta?.respuesta || "⚠️ No se pudo generar una respuesta.",
         isBot: true,
         timestamp: new Date(),
       };
