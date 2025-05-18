@@ -67,9 +67,16 @@ const ChatPage = () => {
         );
       }
 
+      console.log("🔍 Backend response:", response);
+
+      const textoRespuesta =
+        typeof response === "object" && response?.respuesta
+          ? response.respuesta
+          : "⚠️ No se pudo generar una respuesta.";
+
       const botMessage: Message = {
         id: updatedMessages.length + 1,
-        text: response?.respuesta || response?.answer || response?.content || "⚠️ No se pudo generar una respuesta.",
+        text: textoRespuesta,
         isBot: true,
         timestamp: new Date(),
       };
