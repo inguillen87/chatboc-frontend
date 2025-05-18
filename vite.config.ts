@@ -2,8 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 
-// 🔧 Plugin vacío para evitar errores en desarrollo (no importa en producción)
-const componentTagger = () => null;
+// ✅ NO HAY IMPORTACIONES DE lovable-tagger
 
 export default defineConfig(({ mode }) => ({
   server: {
@@ -19,8 +18,8 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [
     react(),
-    mode === "development" && componentTagger(), // solo se activa en local si se necesita
-  ].filter(Boolean),
+    // componentTagger ya no se usa
+  ],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
