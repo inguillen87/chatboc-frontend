@@ -6,7 +6,7 @@ interface ChatMessageProps {
 }
 
 const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
-    console.log("🧾 Render message:", message);
+  console.log("🧾 ChatMessage received:", JSON.stringify(message));
 
   if (message.text === "__cta__") {
     return (
@@ -45,7 +45,11 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
             : "bg-[#006AEC] text-white rounded-br-none"
         }`}
       >
-        <p className="text-sm">{message.text}</p>
+        <p className="text-sm bg-yellow-100 text-black px-2 py-1 rounded">
+          {typeof message.text === "string"
+            ? message.text
+            : JSON.stringify(message)}
+        </p>
         <p className="text-xs mt-1 opacity-70 text-right">
           {message.timestamp.toLocaleTimeString([], {
             hour: "2-digit",
