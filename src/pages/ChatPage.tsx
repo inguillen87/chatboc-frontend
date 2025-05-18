@@ -57,7 +57,7 @@ const ChatPage = () => {
         response = await apiFetch(
           "/responder_chatboc",
           "POST",
-          { pregunta: text },
+          { question: text },
           {
             headers: {
               "Content-Type": "application/json",
