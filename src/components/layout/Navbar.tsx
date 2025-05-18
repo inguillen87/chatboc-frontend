@@ -10,7 +10,6 @@ const Navbar: React.FC = () => {
   const isLanding = location.pathname === "/";
   const isLoggedIn = !!localStorage.getItem("user");
 
-  // Cargar modo desde localStorage
   useEffect(() => {
     const currentTheme = localStorage.theme;
     if (currentTheme === "dark") {
@@ -55,17 +54,17 @@ const Navbar: React.FC = () => {
   };
 
   return (
-    <header className="fixed top-0 left-0 right-0 bg-white dark:bg-gray-900 shadow-sm z-50 px-4 py-2 transition-colors">
+    <header className="fixed top-0 left-0 right-0 z-50 bg-white dark:bg-gray-900 shadow-sm transition-all px-4 py-2">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         {/* Logo */}
         <button onClick={handleLogoClick} className="flex items-center gap-2">
-          <img src="/chatboc_widget_64x64.webp" alt="Chatboc" className="h-10 w-10" />
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-700 to-cyan-400 text-transparent bg-clip-text">
+          <img src="/chatboc_widget_64x64.webp" alt="Chatboc" className="h-9 w-9" />
+          <span className="text-2xl font-bold bg-gradient-to-r from-blue-700 to-cyan-400 text-transparent bg-clip-text">
             Chatboc
-          </h1>
+          </span>
         </button>
 
-        {/* Navegación centro (solo landing) */}
+        {/* Links centrales - solo landing - desktop */}
         {isLanding && (
           <nav className="hidden lg:flex gap-6 items-center flex-1 justify-center">
             <button onClick={() => scrollToSection("problemas")} className="hover:text-blue-600 text-sm dark:text-white">
@@ -83,7 +82,7 @@ const Navbar: React.FC = () => {
           </nav>
         )}
 
-        {/* Botones de sesión / navegación interna */}
+        {/* Botones lado derecho */}
         <div className="hidden lg:flex gap-3 items-center">
           {isLoggedIn ? (
             <>
@@ -93,7 +92,11 @@ const Navbar: React.FC = () => {
               <RouterLink to="/chat" className="text-sm text-gray-700 dark:text-white hover:underline">
                 Chat
               </RouterLink>
-              <RouterLink to="/" onClick={() => localStorage.removeItem("user")} className="text-sm text-red-500 hover:underline">
+              <RouterLink
+                to="/"
+                onClick={() => localStorage.removeItem("user")}
+                className="text-sm text-red-500 hover:underline"
+              >
                 Cerrar sesión
               </RouterLink>
             </>
@@ -107,47 +110,53 @@ const Navbar: React.FC = () => {
               </RouterLink>
             </>
           )}
-          <button onClick={toggleDarkMode} className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition" title="Cambiar modo">
+          <button
+            onClick={toggleDarkMode}
+            title="Modo claro / oscuro"
+            className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+          >
             {isDark ? <Sun className="w-5 h-5 text-yellow-400" /> : <Moon className="w-5 h-5 text-blue-600" />}
           </button>
         </div>
 
-        {/* Mobile toggle */}
-        <button className="lg:hidden" onClick={() => setMenuOpen(!menuOpen)}>
+        {/* Botón menú mobile */}
+        <button className="lg:hidden p-2" onClick={() => setMenuOpen(!menuOpen)}>
           {menuOpen ? <X /> : <Menu />}
         </button>
       </div>
 
-      {/* Mobile menu */}
+      {/* Menú Mobile desplegable */}
       {menuOpen && (
-        <div className="lg:hidden flex flex-col items-center gap-4 py-4 bg-white dark:bg-gray-900 shadow-md">
-          {isLanding && (
-            <>
-              <button onClick={() => scrollToSection("problemas")}>Problemas</button>
-              <button onClick={() => scrollToSection("solucion")}>Solución</button>
-              <button onClick={() => scrollToSection("como-funciona")}>Cómo Funciona</button>
-              <button onClick={() => scrollToSection("precios")}>Precios</button>
-            </>
-          )}
-          {isLoggedIn ? (
-            <>
-              <RouterLink to="/perfil">Mi Perfil</RouterLink>
-              <RouterLink to="/chat">Chat</RouterLink>
-              <RouterLink to="/" onClick={() => localStorage.removeItem("user")} className="text-red-500">
-                Cerrar sesión
-              </RouterLink>
-            </>
-          ) : (
-            <>
-              <RouterLink to="/login">Iniciar Sesión</RouterLink>
-              <RouterLink to="/demo" className="bg-blue-600 text-white px-4 py-2 rounded">
-                Prueba Gratuita
-              </RouterLink>
-            </>
-          )}
-          <button onClick={toggleDarkMode} className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition">
-            {isDark ? <Sun className="w-5 h-5 text-yellow-400" /> : <Moon className="w-5 h-5 text-blue-600" />}
-          </button>
+        <div className="lg:hidden bg-white dark:bg-gray-900 shadow-md mt-2 rounded-b-xl animate-fade-in-down">
+          <div className="flex flex-col items-center gap-3 py-4">
+            {isLanding && (
+              <>
+                <button onClick={() => scrollToSection("problemas")}>Problemas</button>
+                <button onClick={() => scrollToSection("solucion")}>Solución</button>
+                <button onClick={() => scrollToSection("como-funciona")}>Cómo Funciona</button>
+                <button onClick={() => scrollToSection("precios")}>Precios</button>
+              </>
+            )}
+            {isLoggedIn ? (
+              <>
+                <RouterLink to="/perfil" onClick={() => setMenuOpen(false)}>Mi Perfil</RouterLink>
+                <RouterLink to="/chat" onClick={() => setMenuOpen(false)}>Chat</RouterLink>
+                <RouterLink to="/" onClick={() => { localStorage.removeItem("user"); setMenuOpen(false); }} className="text-red-500">
+                  Cerrar sesión
+                </RouterLink>
+              </>
+            ) : (
+              <>
+                <RouterLink to="/login" onClick={() => setMenuOpen(false)}>Iniciar Sesión</RouterLink>
+                <RouterLink to="/demo" onClick={() => setMenuOpen(false)} className="bg-blue-600 text-white px-4 py-2 rounded">
+                  Prueba Gratuita
+                </RouterLink>
+              </>
+            )}
+            <button onClick={toggleDarkMode} className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition">
+              {isDark ? <Sun className="w-5 h-5 text-yellow-400" /> : <Moon className="w-5 h-5 text-blue-600" />}
+            </button>
+          </div>
         </div>
       )}
     </header>

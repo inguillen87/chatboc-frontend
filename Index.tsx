@@ -10,33 +10,33 @@ import CtaSection from '@/components/sections/CtaSection';
 
 const Index = () => {
   useEffect(() => {
-    document.title = 'Chatboc - Tu Experto Virtual para Pymesssssss';
+    document.title = 'Chatboc - Tu Experto Virtual para Pymes';
   }, []);
 
   return (
-    <main className="flex flex-col gap-12 md:gap-16 lg:gap-20 mt-24">
-      <section>
+    <main className="flex flex-col gap-12 md:gap-16 lg:gap-20 mt-24 bg-background text-foreground transition-all duration-500 ease-in-out">
+      <section className="reveal-animation">
         <HeroSection />
       </section>
-      <section id="problems">
+      <section id="problems" className="reveal-animation">
         <ProblemsSection />
       </section>
-      <section id="solution">
+      <section id="solution" className="reveal-animation">
         <SolutionSection />
       </section>
-      <section id="how-it-works">
+      <section id="how-it-works" className="reveal-animation">
         <HowItWorksSection />
       </section>
-      <section id="pricing">
+      <section id="pricing" className="reveal-animation">
         <PricingSection />
       </section>
-      <section>
+      <section className="reveal-animation">
         <TargetSection />
       </section>
-      <section>
+      <section className="reveal-animation">
         <TestimonialsSection />
       </section>
-      <section>
+      <section className="reveal-animation">
         <CtaSection />
       </section>
     </main>
