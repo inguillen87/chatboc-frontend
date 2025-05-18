@@ -6,6 +6,8 @@ interface ChatMessageProps {
 }
 
 const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
+    console.log("🧾 Render message:", message);
+
   if (message.text === "__cta__") {
     return (
       <div className="flex justify-center mt-4">
