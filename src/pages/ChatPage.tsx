@@ -54,20 +54,22 @@ const ChatPage = () => {
           })),
         });
       } else {
-        response = await apiFetch("/responder_chatboc", "POST", {
-       pregunta: text,
-    }, {
-        headers: {
-    "Content-Type": "application/json",
-    Authorization: token,
-  },
-});
-
+        response = await apiFetch(
+          "/responder_chatboc",
+          "POST",
+          { pregunta: text },
+          {
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: token,
+            },
+          }
+        );
       }
 
       const botMessage: Message = {
         id: updatedMessages.length + 1,
-        text: response?.answer || response?.content || "⚠️ No se pudo generar una respuesta.",
+        text: response?.respuesta || response?.answer || response?.content || "⚠️ No se pudo generar una respuesta.",
         isBot: true,
         timestamp: new Date(),
       };
