@@ -55,14 +55,14 @@ const ChatPage = () => {
         });
       } else {
         response = await apiFetch("/responder_chatboc", "POST", {
-          question: text,
-          user_id: user?.id,
-        }, {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: token,
-          },
-        });
+       pregunta: text,
+    }, {
+        headers: {
+    "Content-Type": "application/json",
+    Authorization: token,
+  },
+});
+
       }
 
       const botMessage: Message = {
