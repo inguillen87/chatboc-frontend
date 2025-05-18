@@ -14,7 +14,7 @@ const ChatPage = () => {
     setMessages([
       {
         id: 1,
-        text: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?",
+        text: "¡Hola! Soy Chatboc 🤖 ¿En qué puedo ayudarte hoy?",
         isBot: true,
         timestamp: new Date(),
       },
@@ -66,7 +66,6 @@ const ChatPage = () => {
         );
       }
 
-      console.log("🧪 response:", response);
       const textoRespuesta =
         response && typeof response === "object"
           ? response.respuesta ?? JSON.stringify(response)
@@ -81,8 +80,8 @@ const ChatPage = () => {
 
       const allMessages = [...updatedMessages, botMessage];
 
-      // 🔍 Detectar si no se encontró respuesta útil
-      const sinRespuestaUtil = textoRespuesta.includes("no tengo una respuesta") ||
+      const sinRespuestaUtil =
+        textoRespuesta.includes("no tengo una respuesta") ||
         textoRespuesta.includes("no tengo información") ||
         textoRespuesta.includes("no encontré") ||
         textoRespuesta.includes("desconocida");
@@ -132,13 +131,16 @@ const ChatPage = () => {
       };
 
       return (
-        <div key={msg.id} className="bg-yellow-100 text-black p-3 rounded-xl max-w-[80%] self-start">
-          <p className="text-sm">🤔 No encontré una respuesta clara a:</p>
+        <div
+          key={msg.id}
+          className="bg-yellow-100 dark:bg-yellow-900/30 text-black dark:text-yellow-200 p-3 rounded-xl max-w-[80%] self-start shadow"
+        >
+          <p className="text-sm font-semibold">🤔 No encontré una respuesta clara a:</p>
           <p className="text-xs italic mt-1">"{msg.originalQuestion}"</p>
           {!enviado ? (
             <button
               onClick={handleSugerencia}
-              className="mt-2 text-xs text-blue-700 underline"
+              className="mt-2 text-xs text-blue-700 dark:text-blue-400 underline"
             >
               ➕ Enviar esta duda como sugerencia
             </button>
@@ -152,9 +154,9 @@ const ChatPage = () => {
     return (
       <div
         key={msg.id}
-        className={`p-3 rounded-xl max-w-[80%] ${
+        className={`p-3 rounded-xl max-w-[80%] shadow ${
           msg.isBot
-            ? "bg-blue-100 text-black self-start"
+            ? "bg-blue-100 dark:bg-blue-900/30 text-black dark:text-white self-start"
             : "bg-[#006AEC] text-white self-end"
         }`}
       >
@@ -167,14 +169,16 @@ const ChatPage = () => {
   };
 
   return (
-    <div className="min-h-[calc(100vh-80px)] flex flex-col items-center justify-center px-4">
-      <div className="w-full max-w-2xl bg-white rounded-lg shadow-md border border-gray-200 p-4 flex flex-col h-[80vh]">
-        <div className="flex-1 overflow-y-auto space-y-4 px-2 pb-4">
+    <div className="min-h-[calc(100vh-80px)] flex flex-col items-center justify-center px-4 py-4">
+      <div className="w-full max-w-2xl bg-white dark:bg-[#1e1e1e] rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 flex flex-col h-[80vh]">
+        <div className="flex-1 overflow-y-auto space-y-4 px-3 py-4">
           {messages.map(renderMessage)}
           {isTyping && <TypingIndicator />}
           <div ref={messagesEndRef} />
         </div>
-        <ChatInput onSendMessage={handleSend} />
+        <div className="border-t border-gray-200 dark:border-gray-700 p-2">
+          <ChatInput onSendMessage={handleSend} />
+        </div>
       </div>
     </div>
   );

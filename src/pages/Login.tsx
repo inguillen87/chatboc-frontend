@@ -30,9 +30,9 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-[calc(100vh-80px)] flex items-center justify-center px-4">
-      <div className="w-full max-w-md bg-white p-8 rounded-lg shadow-md border">
-        <h2 className="text-2xl font-bold mb-6 text-center text-gray-800">
+    <div className="min-h-[calc(100vh-80px)] flex items-center justify-center px-4 bg-white dark:bg-[#0f0f0f] transition-colors">
+      <div className="w-full max-w-md bg-gray-100 dark:bg-[#1a1a1a] p-8 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700">
+        <h2 className="text-2xl font-bold mb-6 text-center text-gray-800 dark:text-gray-100">
           Iniciar Sesión
         </h2>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -55,11 +55,11 @@ const Login = () => {
             Iniciar Sesión
           </Button>
         </form>
-        <div className="text-center text-sm text-gray-600 mt-4">
+        <div className="text-center text-sm text-gray-700 dark:text-gray-300 mt-4">
           ¿No tenés cuenta?{' '}
           <button
             onClick={() => navigate('/register')}
-            className="text-blue-600 hover:underline"
+            className="text-blue-600 hover:underline dark:text-blue-400"
           >
             Registrate
           </button>

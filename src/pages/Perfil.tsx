@@ -82,33 +82,36 @@ const Perfil = () => {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-background text-foreground">
+    <div className="flex flex-col min-h-screen bg-background text-foreground transition-colors">
       <Navbar />
-      <main className="flex-grow pt-28 pb-12">
-        <div className="max-w-5xl mx-auto px-4">
-          <div className="flex justify-between items-center mb-6">
-            <h1 className="text-3xl font-bold text-primary">👋 Hola, {user?.name}</h1>
+      <main className="flex-grow pt-28 pb-16">
+        <div className="max-w-4xl mx-auto px-4">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+            <h1 className="text-3xl font-bold text-primary">
+              👋 Hola, {user?.name}
+            </h1>
             <Button variant="destructive" onClick={handleLogout}>
               <LogOut className="w-4 h-4 mr-2" />
               Cerrar sesión
             </Button>
           </div>
 
-          <div className="bg-card shadow-lg rounded-2xl p-6 space-y-6 border">
-            <div className="text-base space-y-2">
+          <div className="bg-card shadow-xl rounded-2xl p-6 space-y-6 border border-gray-200 dark:border-gray-700">
+            <div className="space-y-2 text-base">
               <p>📧 <strong>Email:</strong> {user?.email}</p>
               <p>📄 <strong>Plan actual:</strong> <Badge variant="secondary">{user?.plan}</Badge></p>
               <p>💬 <strong>Consultas usadas:</strong> {user?.preguntas_usadas}</p>
             </div>
 
             <div>
-              <p className="font-semibold text-sm mb-1">Cambiar plan:</p>
+              <p className="font-semibold text-sm mb-2">Cambiar plan:</p>
               <div className="flex flex-wrap gap-3">
                 {plans.map(plan => (
                   <Button
                     key={plan}
                     onClick={() => handleChangePlan(plan)}
-                    className="px-4 py-1.5 rounded-full text-sm"
+                    className="px-4 py-1.5 rounded-full text-sm capitalize"
+                    variant={user?.plan === plan ? "default" : "outline"}
                   >
                     {plan}
                   </Button>
@@ -116,22 +119,23 @@ const Perfil = () => {
               </div>
             </div>
 
-            <Button
-              onClick={handleReset}
-              variant="outline"
-              className="gap-2"
-            >
-              <RotateCcw className="w-4 h-4" />
-              Resetear contador
-            </Button>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <Button
+                onClick={handleReset}
+                variant="outline"
+                className="gap-2"
+              >
+                <RotateCcw className="w-4 h-4" />
+                Resetear contador
+              </Button>
 
-            <Button
-              onClick={() => navigate("/chat")}
-              variant="default"
-              className="bg-blue-600 text-white hover:bg-blue-700 transition w-full sm:w-auto"
-            >
-              Ir al Chat Completo
-            </Button>
+              <Button
+                onClick={() => navigate("/chat")}
+                className="bg-blue-600 text-white hover:bg-blue-700 transition w-full sm:w-auto"
+              >
+                Ir al Chat Completo
+              </Button>
+            </div>
 
             {message && (
               <p className="text-green-600 font-medium text-sm pt-2">{message}</p>

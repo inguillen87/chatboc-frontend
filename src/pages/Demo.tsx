@@ -12,7 +12,7 @@ const Demo = () => {
 
   const DEMO_USER = {
     token: "demo-token", // debe existir en la base de datos
-    rubro_id: 1, // debe coincidir con un rubro real (ej: médico)
+    rubro_id: 1, // debe coincidir con un rubro real
   };
 
   useEffect(() => {
@@ -79,17 +79,21 @@ const Demo = () => {
   };
 
   return (
-    <div className="w-full max-w-xl mx-auto bg-white rounded-2xl shadow-xl border border-gray-200 flex flex-col h-[80vh] mt-10 overflow-hidden">
+    <div className="w-full max-w-2xl mx-auto bg-white dark:bg-[#1e1e1e] rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 flex flex-col h-[85vh] mt-6 overflow-hidden">
       {/* Header con branding */}
-      <div className="bg-[#006AEC] text-white py-3 px-4 flex items-center justify-between">
+      <div className="bg-[#006AEC] text-white py-3 px-4 flex items-center justify-between shadow-md">
         <div className="flex items-center gap-2">
-          <img src="/chatboc_widget_white_outline.webp" alt="Chatboc" className="w-6 h-6" />
-          <span className="font-semibold text-sm">Chatboc - Demo Gratuita</span>
+          <img
+            src="/chatboc_widget_white_outline.webp"
+            alt="Chatboc"
+            className="w-6 h-6"
+          />
+          <span className="font-semibold text-sm">Chatboc · Demo Gratuita</span>
         </div>
       </div>
 
       {/* Área de mensajes */}
-      <div className="flex-1 overflow-y-auto space-y-4 px-4 py-4 bg-gray-50">
+      <div className="flex-1 overflow-y-auto space-y-4 px-4 py-4 bg-gray-50 dark:bg-[#2a2a2a] transition-colors">
         {messages.map((msg) => (
           <ChatMessage key={msg.id} message={msg} />
         ))}
@@ -98,7 +102,9 @@ const Demo = () => {
       </div>
 
       {/* Input */}
-      <ChatInput onSendMessage={handleSendMessage} />
+      <div className="border-t border-gray-200 dark:border-gray-700 p-2 bg-white dark:bg-[#1e1e1e]">
+        <ChatInput onSendMessage={handleSendMessage} />
+      </div>
     </div>
   );
 };
