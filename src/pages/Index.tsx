@@ -14,8 +14,8 @@ const Index = () => {
   }, []);
 
   return (
-    <main className="flex flex-col gap-12 md:gap-16 lg:gap-20 mt-16">
-      <section>
+    <main className="flex flex-col gap-12 md:gap-16 lg:gap-20 mt-16 scroll-smooth">
+      <section id="inicio">
         <HeroSection />
       </section>
       <section id="problemas">
@@ -30,13 +30,13 @@ const Index = () => {
       <section id="precios">
         <PricingSection />
       </section>
-      <section>
+      <section id="publico-objetivo">
         <TargetSection />
       </section>
-      <section>
+      <section id="testimonios">
         <TestimonialsSection />
       </section>
-      <section>
+      <section id="cta">
         <CtaSection />
       </section>
     </main>

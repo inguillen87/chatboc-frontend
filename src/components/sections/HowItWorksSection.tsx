@@ -1,7 +1,5 @@
-
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { CheckCircle2, ArrowDown } from 'lucide-react';
 
 const HowItWorksSection = () => {
   const steps = [
@@ -28,13 +26,13 @@ const HowItWorksSection = () => {
   ];
 
   return (
-    <section id="how-it-works" className="section-padding bg-white">
+    <section id="how-it-works" className="section-padding bg-background text-foreground transition-colors">
       <div className="container px-4 mx-auto">
         <div className="text-center max-w-3xl mx-auto mb-16">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
             Empezar a Revolucionar la Comunicación de tu Pyme con Chatboc es Muy Fácil
           </h2>
-          <p className="text-lg text-gray-600">
+          <p className="text-lg text-muted-foreground">
             Implementar Chatboc en tu negocio es un proceso simple y guiado que te permitirá ver resultados desde el primer día.
           </p>
         </div>
@@ -43,19 +41,19 @@ const HowItWorksSection = () => {
           {steps.map((step, index) => (
             <div key={index} className="relative">
               <div className="flex items-start mb-12 last:mb-0">
-                <div className="flex-shrink-0 mr-4">
+                <div className="flex-shrink-0 mr-4 relative">
                   <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center text-white text-xl font-bold">
                     {step.number}
                   </div>
                   {index < steps.length - 1 && (
-                    <div className="absolute left-6 top-12 transform -translate-x-1/2 h-full">
-                      <div className="h-full border-l-2 border-dashed border-blue-200"></div>
+                    <div className="absolute left-1/2 top-12 transform -translate-x-1/2 h-full">
+                      <div className="h-full border-l-2 border-dashed border-blue-300 dark:border-blue-700" />
                     </div>
                   )}
                 </div>
-                <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm flex-grow">
+                <div className="bg-card text-card-foreground p-6 rounded-xl border border-border shadow-sm flex-grow">
                   <h3 className="text-xl font-semibold mb-2">{step.title}</h3>
-                  <p className="text-gray-600 mb-4">{step.description}</p>
+                  <p className="text-muted-foreground mb-4">{step.description}</p>
                   {index === 0 && (
                     <Button>Iniciar Prueba Gratuita</Button>
                   )}

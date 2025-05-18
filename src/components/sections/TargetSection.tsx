@@ -1,6 +1,11 @@
-
 import React from 'react';
-import { ShoppingCart, Briefcase, Utensils, Home, GraduationCap } from 'lucide-react';
+import {
+  ShoppingCart,
+  Briefcase,
+  Utensils,
+  Home,
+  GraduationCap
+} from 'lucide-react';
 
 const TargetSection = () => {
   const targets = [
@@ -32,34 +37,32 @@ const TargetSection = () => {
   ];
 
   return (
-    <section className="section-padding bg-white">
+    <section id="target" className="section-padding bg-background text-foreground">
       <div className="container px-4 mx-auto">
         <div className="text-center max-w-3xl mx-auto mb-16">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
             Chatboc es Ideal para Pymes que Buscan Crecer y Optimizar su Comunicación
           </h2>
-          <p className="text-lg text-gray-600">
+          <p className="text-lg text-muted-foreground">
             Diseñado específicamente para adaptarse a las necesidades de diversos tipos de negocios.
           </p>
         </div>
 
         <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
           {targets.map((target, index) => (
-            <div 
-              key={index} 
-              className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow"
+            <div
+              key={index}
+              className="bg-card text-card-foreground p-6 rounded-xl border border-border shadow-sm hover:shadow-md transition-shadow"
             >
-              <div className="mb-4">
-                {target.icon}
-              </div>
+              <div className="mb-4">{target.icon}</div>
               <h3 className="text-xl font-semibold mb-2">{target.title}</h3>
-              <p className="text-gray-600">{target.description}</p>
+              <p className="text-muted-foreground">{target.description}</p>
             </div>
           ))}
-          
-          <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-xl border border-blue-200 shadow-sm hover:shadow-md transition-shadow">
+
+          <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/10 dark:to-blue-800/10 p-6 rounded-xl border border-blue-200 dark:border-blue-400/30 shadow-sm hover:shadow-md transition-shadow">
             <h3 className="text-xl font-semibold mb-2">¡Y Muchas Más!</h3>
-            <p className="text-gray-700">
+            <p className="text-muted-foreground">
               Cualquier pyme que reciba consultas constantes y quiera ofrecer una atención al cliente excepcional sin aumentar sus costos operativos.
             </p>
           </div>

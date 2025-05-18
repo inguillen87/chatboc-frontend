@@ -23,27 +23,27 @@ const PricingSection = () => {
   ];
 
   return (
-    <section id="pricing" className="py-14 md:py-20 bg-gray-50">
+    <section id="pricing" className="py-14 md:py-20 bg-background text-foreground transition-colors">
       <div className="container px-4 mx-auto">
         <div className="text-center max-w-2xl mx-auto mb-12 md:mb-16">
           <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3">
             Planes Pensados para el Éxito de Tu Pyme
           </h2>
-          <p className="text-base sm:text-lg text-gray-600">
+          <p className="text-base sm:text-lg text-muted-foreground">
             Simples, transparentes y sin sorpresas.
           </p>
         </div>
 
         <div className="flex flex-col lg:flex-row gap-8 max-w-5xl mx-auto">
           {/* FREE PLAN */}
-          <div className="w-full lg:w-1/2 bg-white rounded-2xl border border-gray-200 shadow-md hover:shadow-lg transition overflow-hidden">
-            <div className="p-6 md:p-8 border-b border-gray-100">
+          <div className="w-full lg:w-1/2 bg-card text-card-foreground rounded-2xl border border-border shadow-md hover:shadow-lg transition overflow-hidden">
+            <div className="p-6 md:p-8 border-b border-border">
               <h3 className="text-lg md:text-xl font-bold mb-2">Prueba Gratuita</h3>
               <div className="flex items-baseline gap-1 mb-3">
                 <span className="text-3xl font-bold">GRATIS</span>
-                <span className="text-gray-500 text-sm">/ 15 días</span>
+                <span className="text-sm text-muted-foreground">/ 15 días</span>
               </div>
-              <p className="text-gray-600 text-sm">
+              <p className="text-sm text-muted-foreground">
                 Probá Chatboc sin compromisos ni tarjeta de crédito.
               </p>
             </div>
@@ -61,7 +61,7 @@ const PricingSection = () => {
           </div>
 
           {/* PRO PLAN */}
-          <div className="w-full lg:w-1/2 bg-white rounded-2xl border border-blue-200 shadow-md hover:shadow-lg transition overflow-hidden">
+          <div className="w-full lg:w-1/2 bg-card text-card-foreground rounded-2xl border border-blue-400 dark:border-blue-600 shadow-md hover:shadow-lg transition overflow-hidden">
             <div className="bg-blue-600 p-6 md:p-8 text-white">
               <h3 className="text-lg md:text-xl font-bold mb-2">Chatboc Pro</h3>
               <div className="flex items-baseline gap-1 mb-3">
@@ -81,7 +81,7 @@ const PricingSection = () => {
                   </li>
                 ))}
               </ul>
-              <Button size="lg" className="w-full bg-blue-600 hover:bg-blue-700">
+              <Button size="lg" className="w-full bg-blue-600 hover:bg-blue-700 text-white">
                 Elegir Plan Pro
               </Button>
             </div>

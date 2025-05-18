@@ -4,7 +4,7 @@ import { MessageSquare, Sparkles, ArrowRight } from "lucide-react";
 
 const HeroSection = () => {
   return (
-    <section className="pt-20 pb-12 md:pt-32 md:pb-24 overflow-hidden bg-gradient-to-b from-white to-blue-50">
+    <section className="pt-20 pb-12 md:pt-32 md:pb-24 overflow-hidden bg-background text-foreground transition-colors">
       <div className="container px-4 mx-auto">
         <div className="flex flex-col lg:flex-row items-center gap-8 lg:gap-12">
           {/* Texto principal */}
@@ -12,14 +12,14 @@ const HeroSection = () => {
             <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4 leading-tight">
               <span className="gradient-text">Chatboc:</span> Tu Experto Virtual 24/7
             </h1>
-            <p className="text-base sm:text-lg text-gray-600 mb-6">
+            <p className="text-base sm:text-lg text-muted-foreground mb-6">
               Ofrece respuestas inmediatas y personalizadas, fideliza a tus clientes y capturá nuevas oportunidades, incluso mientras dormís.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3">
               <Button size="lg" className="w-full sm:w-auto">
                 Iniciar Mi Prueba Gratuita <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
-              <p className="text-xs text-gray-500 sm:ml-4 text-center sm:text-left">
+              <p className="text-xs text-muted-foreground sm:ml-4 text-center sm:text-left">
                 Sin tarjeta de crédito. Configuración inicial guiada.
               </p>
             </div>
@@ -27,19 +27,19 @@ const HeroSection = () => {
 
           {/* Chat simulado */}
           <div className="w-full lg:w-1/2 relative">
-            <div className="bg-white rounded-2xl shadow-xl p-5 border border-gray-100 max-w-full sm:max-w-md mx-auto animate-float">
-              <div className="flex items-center border-b border-gray-100 pb-3 mb-3">
+            <div className="bg-card text-card-foreground rounded-2xl shadow-xl p-5 border border-border max-w-full sm:max-w-md mx-auto animate-float">
+              <div className="flex items-center border-b border-border pb-3 mb-3">
                 <div className="mr-3">
-  <img
-    src="/chatboc_widget_64x64.webp"
-    alt="Chatboc"
-    className="w-8 h-8 rounded"
-    style={{ backgroundColor: '#E0F0FF', padding: '2px' }}
-  />
-</div>
+                  <img
+                    src="/chatboc_widget_64x64.webp"
+                    alt="Chatboc"
+                    className="w-8 h-8 rounded"
+                    style={{ backgroundColor: "#E0F0FF", padding: "2px" }}
+                  />
+                </div>
                 <div>
                   <h3 className="font-medium text-sm">Chatboc</h3>
-                  <p className="text-xs text-gray-500">Asistente IA personalizado</p>
+                  <p className="text-xs text-muted-foreground">Asistente IA personalizado</p>
                 </div>
                 <div className="ml-auto">
                   <span className="inline-flex items-center px-2 py-0.5 bg-green-100 text-green-800 text-xs rounded-full">
@@ -49,19 +49,19 @@ const HeroSection = () => {
                 </div>
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-3 text-sm">
                 <div className="flex items-start">
-                  <div className="bg-blue-100 rounded-lg p-3 text-sm max-w-[85%]">
+                  <div className="bg-blue-100 dark:bg-blue-900/30 rounded-lg p-3 max-w-[85%]">
                     Hola, ¿en qué puedo ayudarte hoy?
                   </div>
                 </div>
                 <div className="flex justify-end">
-                  <div className="bg-gray-100 rounded-lg p-3 text-sm max-w-[85%]">
+                  <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-3 max-w-[85%]">
                     ¿Cuál es el horario de atención?
                   </div>
                 </div>
                 <div className="flex items-start">
-                  <div className="bg-blue-100 rounded-lg p-3 text-sm max-w-[85%]">
+                  <div className="bg-blue-100 dark:bg-blue-900/30 rounded-lg p-3 max-w-[85%]">
                     Nuestro horario es de lunes a viernes de 9:00 a 18:00, pero yo te ayudo 24/7.
                   </div>
                 </div>
@@ -71,7 +71,7 @@ const HeroSection = () => {
                 <input
                   type="text"
                   placeholder="Escribí tu mensaje..."
-                  className="flex-1 border border-gray-300 rounded-l-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex-1 border border-border rounded-l-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-background text-foreground"
                 />
                 <button className="bg-blue-600 text-white rounded-r-lg px-4 py-2">
                   <Sparkles className="h-4 w-4" />
@@ -80,8 +80,8 @@ const HeroSection = () => {
             </div>
 
             {/* Efectos decorativos */}
-            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl -z-10" />
-            <div className="absolute top-1/4 right-1/4 w-40 h-40 bg-cyan-500/10 rounded-full blur-3xl -z-10" />
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-blue-500/10 dark:bg-blue-300/10 rounded-full blur-3xl -z-10" />
+            <div className="absolute top-1/4 right-1/4 w-40 h-40 bg-cyan-500/10 dark:bg-cyan-300/10 rounded-full blur-3xl -z-10" />
           </div>
         </div>
       </div>
