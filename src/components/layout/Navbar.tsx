@@ -69,7 +69,7 @@ const Navbar: React.FC = () => {
         {isLanding && (
           <nav className="hidden lg:flex gap-6 items-center flex-1 justify-center">
             <button onClick={() => scrollToSection("problemas")} className="hover:text-blue-600 text-sm dark:text-white">
-              Problemas
+              Problemasssss
             </button>
             <button onClick={() => scrollToSection("solucion")} className="hover:text-blue-600 text-sm dark:text-white">
               Solución
