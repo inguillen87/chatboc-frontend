@@ -38,9 +38,11 @@ const Navbar: React.FC = () => {
 
   const scrollToSection = (id: string) => {
     const el = document.getElementById(id);
-    if (el) {
+    if (el && isLanding) {
       el.scrollIntoView({ behavior: "smooth" });
       setMenuOpen(false);
+    } else {
+      window.location.href = `/#${id}`;
     }
   };
 
@@ -67,18 +69,13 @@ const Navbar: React.FC = () => {
         {/* Links centrales - solo landing - desktop */}
         {isLanding && (
           <nav className="hidden lg:flex gap-6 items-center flex-1 justify-center">
-            <button onClick={() => scrollToSection("problemas")} className="hover:text-blue-600 text-sm dark:text-white">
-              Problemas
-            </button>
-            <button onClick={() => scrollToSection("solucion")} className="hover:text-blue-600 text-sm dark:text-white">
-              Solución
-            </button>
-            <button onClick={() => scrollToSection("como-funciona")} className="hover:text-blue-600 text-sm dark:text-white">
-              Cómo Funciona
-            </button>
-            <button onClick={() => scrollToSection("precios")} className="hover:text-blue-600 text-sm dark:text-white">
-              Precios
-            </button>
+            <button onClick={() => scrollToSection("problemas")} className="hover:text-blue-600 text-sm dark:text-white">Problemas</button>
+            <button onClick={() => scrollToSection("solucion")} className="hover:text-blue-600 text-sm dark:text-white">Solución</button>
+            <button onClick={() => scrollToSection("como-funciona")} className="hover:text-blue-600 text-sm dark:text-white">Cómo Funciona</button>
+            <button onClick={() => scrollToSection("precios")} className="hover:text-blue-600 text-sm dark:text-white">Precios</button>
+            <button onClick={() => scrollToSection("publico-objetivo")} className="hover:text-blue-600 text-sm dark:text-white">Público Objetivo</button>
+            <button onClick={() => scrollToSection("testimonios")} className="hover:text-blue-600 text-sm dark:text-white">Testimonios</button>
+            <button onClick={() => scrollToSection("cta")} className="hover:text-blue-600 text-sm dark:text-white">Empezar</button>
           </nav>
         )}
 
@@ -86,28 +83,14 @@ const Navbar: React.FC = () => {
         <div className="hidden lg:flex gap-3 items-center">
           {isLoggedIn ? (
             <>
-              <RouterLink to="/perfil" className="text-sm text-gray-700 dark:text-white hover:underline">
-                Mi perfil
-              </RouterLink>
-              <RouterLink to="/chat" className="text-sm text-gray-700 dark:text-white hover:underline">
-                Chat
-              </RouterLink>
-              <RouterLink
-                to="/"
-                onClick={() => localStorage.removeItem("user")}
-                className="text-sm text-red-500 hover:underline"
-              >
-                Cerrar sesión
-              </RouterLink>
+              <RouterLink to="/perfil" className="text-sm text-gray-700 dark:text-white hover:underline">Mi perfil</RouterLink>
+              <RouterLink to="/chat" className="text-sm text-gray-700 dark:text-white hover:underline">Chat</RouterLink>
+              <RouterLink to="/" onClick={() => localStorage.removeItem("user")} className="text-sm text-red-500 hover:underline">Cerrar sesión</RouterLink>
             </>
           ) : (
             <>
-              <RouterLink to="/login" className="px-3 py-1 border border-blue-600 text-blue-600 rounded hover:bg-blue-50 text-sm dark:text-white dark:border-white dark:hover:bg-gray-800">
-                Iniciar Sesión
-              </RouterLink>
-              <RouterLink to="/demo" className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm">
-                Prueba Gratuita
-              </RouterLink>
+              <RouterLink to="/login" className="px-3 py-1 border border-blue-600 text-blue-600 rounded hover:bg-blue-50 text-sm dark:text-white dark:border-white dark:hover:bg-gray-800">Iniciar Sesión</RouterLink>
+              <RouterLink to="/demo" className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm">Prueba Gratuita</RouterLink>
             </>
           )}
           <button
@@ -135,6 +118,9 @@ const Navbar: React.FC = () => {
                 <button onClick={() => scrollToSection("solucion")}>Solución</button>
                 <button onClick={() => scrollToSection("como-funciona")}>Cómo Funciona</button>
                 <button onClick={() => scrollToSection("precios")}>Precios</button>
+                <button onClick={() => scrollToSection("publico-objetivo")}>Público Objetivo</button>
+                <button onClick={() => scrollToSection("testimonios")}>Testimonios</button>
+                <button onClick={() => scrollToSection("cta")}>Empezar</button>
               </>
             )}
             {isLoggedIn ? (
