@@ -2,8 +2,6 @@ import React, { useState, useEffect, useRef } from "react";
 import { Message } from "@/types/chat";
 import ChatInput from "@/components/chat/ChatInput";
 import TypingIndicator from "@/components/chat/TypingIndicator";
-// 🔥 Usamos render directo, no ChatMessage
-// import ChatMessage from "@/components/chat/ChatMessage";
 import { apiFetch } from "@/utils/api";
 
 const ChatPage = () => {
@@ -81,8 +79,25 @@ const ChatPage = () => {
         timestamp: new Date(),
       };
 
-      console.log("🪵 Enviando al frontend:", botMessage);
-      setMessages([...updatedMessages, botMessage]);
+      const allMessages = [...updatedMessages, botMessage];
+
+      // 🔍 Detectar si no se encontró respuesta útil
+      const sinRespuestaUtil = textoRespuesta.includes("no tengo una respuesta") ||
+        textoRespuesta.includes("no tengo información") ||
+        textoRespuesta.includes("no encontré") ||
+        textoRespuesta.includes("desconocida");
+
+      if (sinRespuestaUtil) {
+        allMessages.push({
+          id: allMessages.length + 1,
+          text: "__sugerencia__",
+          originalQuestion: text,
+          isBot: true,
+          timestamp: new Date(),
+        });
+      }
+
+      setMessages(allMessages);
     } catch (error: any) {
       const errorMessage: Message = {
         id: updatedMessages.length + 1,
@@ -96,25 +111,66 @@ const ChatPage = () => {
     }
   };
 
+  const renderMessage = (msg: Message) => {
+    if (msg.text === "__sugerencia__" && msg.originalQuestion) {
+      const [enviado, setEnviado] = useState(false);
+
+      const handleSugerencia = async () => {
+        const user = JSON.parse(localStorage.getItem("user") || "null");
+        await fetch("https://api.chatboc.ar/sugerencia", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${user?.token || ""}`,
+          },
+          body: JSON.stringify({
+            texto: msg.originalQuestion,
+            rubro_id: user?.rubro_id || 1,
+          }),
+        });
+        setEnviado(true);
+      };
+
+      return (
+        <div key={msg.id} className="bg-yellow-100 text-black p-3 rounded-xl max-w-[80%] self-start">
+          <p className="text-sm">🤔 No encontré una respuesta clara a:</p>
+          <p className="text-xs italic mt-1">"{msg.originalQuestion}"</p>
+          {!enviado ? (
+            <button
+              onClick={handleSugerencia}
+              className="mt-2 text-xs text-blue-700 underline"
+            >
+              ➕ Enviar esta duda como sugerencia
+            </button>
+          ) : (
+            <p className="text-xs text-green-600 mt-2">✅ ¡Gracias por tu sugerencia!</p>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <div
+        key={msg.id}
+        className={`p-3 rounded-xl max-w-[80%] ${
+          msg.isBot
+            ? "bg-blue-100 text-black self-start"
+            : "bg-[#006AEC] text-white self-end"
+        }`}
+      >
+        <div className="text-sm whitespace-pre-wrap">{msg.text}</div>
+        <div className="text-[10px] opacity-60 text-right mt-1">
+          {msg.timestamp.toLocaleTimeString()}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-[calc(100vh-80px)] flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-2xl bg-white rounded-lg shadow-md border border-gray-200 p-4 flex flex-col h-[80vh]">
         <div className="flex-1 overflow-y-auto space-y-4 px-2 pb-4">
-          {messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`p-3 rounded-xl max-w-[80%] ${
-                msg.isBot
-                  ? "bg-blue-100 text-black self-start"
-                  : "bg-[#006AEC] text-white self-end"
-              }`}
-            >
-              <div className="text-sm whitespace-pre-wrap">{msg.text}</div>
-              <div className="text-[10px] opacity-60 text-right mt-1">
-                {msg.timestamp.toLocaleTimeString()}
-              </div>
-            </div>
-          ))}
+          {messages.map(renderMessage)}
           {isTyping && <TypingIndicator />}
           <div ref={messagesEndRef} />
         </div>
