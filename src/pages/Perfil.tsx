@@ -28,12 +28,17 @@ const Perfil = () => {
     if (!user?.token) return;
 
     try {
-      const data = await apiFetch("/update_user", "POST", { reset_preguntas: true }, {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: user.token,
-        },
-      });
+      const data = await apiFetch(
+        "/update_user",
+        "POST",
+        { reset_preguntas: true },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: user.token,
+          },
+        }
+      );
 
       if (data.message) {
         const updated = { ...user, ...data };
@@ -115,4 +120,20 @@ const Perfil = () => {
                 className="bg-blue-600 text-white hover:bg-blue-700 transition w-full sm:w-auto"
               >
                 Ir al Chat Completo
-              </
+              </Button>
+            </div>
+
+            {message && (
+              <div className="text-sm text-center text-muted-foreground pt-2">
+                {message}
+              </div>
+            )}
+          </div>
+        </div>
+      </main>
+      <Footer />
+    </div>
+  );
+};
+
+export default Perfil;
