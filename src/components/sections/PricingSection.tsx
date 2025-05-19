@@ -1,111 +1,101 @@
 import React from 'react';
 import { CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useNavigate } from 'react-router-dom';
 
 const plans = [
   {
-    name: 'Prueba Gratuita',
+    title: 'Prueba Gratuita',
     price: 'GRATIS',
     duration: '/ 15 días',
     description: 'Probá Chatboc sin compromisos ni tarjeta de crédito.',
     features: [
       'Hasta 10 preguntas por día',
+      '15 días de uso ilimitado',
       'Configuración inicial guiada',
-      'Hasta 10 preguntas y respuestas personalizadas',
-      'Funcionalidad básica de IA',
+      'Hasta 10 preguntas/respuestas personalizadas',
       'Integración Web (Widget)',
-      'Soporte básico'
+      'IA básica + FAQ con NLP',
+      'Soporte básico por email'
     ],
-    button: 'Comenzar GRATIS',
-    action: '/register',
-    highlight: false,
+    cta: 'Comenzar GRATIS',
+    buttonStyle: 'secondary',
+    href: '/register',
   },
   {
-    name: 'Chatboc Pro',
-    price: '$25',
+    title: 'Chatboc Pro',
+    price: '$30',
     duration: '/ mes',
-    description: 'Solución completa para automatizar tu atención al cliente.',
+    description: 'Automatización avanzada y panel completo.',
     features: [
-      'Todo lo del plan gratuito, ¡y más!',
-      'Hasta 50 preguntas y respuestas personalizadas',
-      'Panel de administración con estadísticas',
-      'Entrenamiento IA especializado en tu rubro',
-      'Aprendizaje continuo y respuestas más inteligentes',
-      'Integración Web y soporte prioritario',
+      'Hasta 50 preguntas/respuestas personalizadas',
+      'Entrenamiento NLP por rubro',
+      'Panel con estadísticas y mejoras continuas',
+      'Aprendizaje IA y FAQ avanzado',
+      'Integración Web completa',
+      'Soporte prioritario',
       'Actualizaciones constantes'
     ],
-    button: 'Elegir Plan Pro',
-    action: '/register',
-    highlight: true,
+    cta: 'Elegir Plan Pro',
+    buttonStyle: 'default',
+    href: '/register',
   },
   {
-    name: 'Chatboc WhatsApp',
-    price: '$50',
+    title: 'Chatboc Full + WhatsApp',
+    price: '$80',
     duration: '/ mes',
-    description: 'Todo el poder de Chatboc, conectado directamente con WhatsApp Business.',
+    description: 'Incluye todo lo anterior + integración técnica con WhatsApp Business.',
     features: [
       'Todo lo del plan Pro',
       'Integración real con WhatsApp Business',
-      'Configuración personalizada con soporte técnico',
-      'Atención por WhatsApp 24/7',
-      'Entrenamiento IA mejorado para conversaciones fluidas en mobile',
-      'Ideal para empresas que reciben muchas consultas por WhatsApp'
+      'Implementación técnica completa (API, línea y pruebas)',
+      'IA entrenada por sector',
+      'Carga ampliada de preguntas y flujos',
+      'Atención preferencial'
     ],
-    button: 'Solicitar Integración',
-    action: 'https://wa.me/5492613168608?text=Hola! Quiero activar el plan WhatsApp de Chatboc.',
-    highlight: false,
-    external: true,
-  },
+    cta: 'Solicitar Full Plan',
+    buttonStyle: 'outline',
+    href: 'https://wa.me/5492613168608?text=Quiero%20el%20Plan%20Full%20con%20WhatsApp%20Business',
+  }
 ];
 
 const PricingSection = () => {
-  const navigate = useNavigate();
-
   return (
-    <section id="precios" className="bg-white py-16">
-      <div className="container px-4 mx-auto text-center">
-        <h2 className="text-3xl md:text-4xl font-bold mb-6">Planes para cada etapa de tu Pyme</h2>
-        <p className="text-gray-600 mb-12 max-w-2xl mx-auto">
-          Desde pruebas simples hasta automatización total, elegí el plan que se adapte a tus objetivos.
-        </p>
-        <div className="grid md:grid-cols-3 gap-8">
-          {plans.map((plan, idx) => (
+    <section id="precios" className="section-padding bg-white dark:bg-gray-950">
+      <div className="container px-4 mx-auto">
+        <div className="text-center max-w-3xl mx-auto mb-12">
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">
+            Planes Pensados para Tu Negocio
+          </h2>
+          <p className="text-gray-600 dark:text-gray-300 text-lg">
+            Empezá gratis, escalá según tu crecimiento.
+          </p>
+        </div>
+
+        <div className="grid gap-8 md:grid-cols-3">
+          {plans.map((plan, index) => (
             <div
-              key={idx}
-              className={`p-6 rounded-xl border ${
-                plan.highlight ? 'border-blue-500 shadow-lg' : 'border-gray-200'
-              } transition`}
+              key={index}
+              className="border border-gray-200 dark:border-gray-800 rounded-2xl p-6 shadow-sm hover:shadow-md transition bg-white dark:bg-gray-900"
             >
-              <h3 className="text-xl font-bold mb-2">{plan.name}</h3>
-              <p className="text-3xl font-semibold text-blue-600">{plan.price}</p>
-              <p className="text-sm text-gray-500 mb-4">{plan.duration}</p>
-              <p className="text-gray-700 mb-6">{plan.description}</p>
-              <ul className="text-left space-y-2 mb-6">
+              <h3 className="text-xl font-semibold mb-1">{plan.title}</h3>
+              <p className="text-gray-500 dark:text-gray-400 mb-4 text-sm">{plan.description}</p>
+              <div className="text-3xl font-bold mb-2">{plan.price}</div>
+              <div className="text-sm text-gray-500 dark:text-gray-400 mb-4">{plan.duration}</div>
+
+              <ul className="mb-6 space-y-2 text-sm text-gray-700 dark:text-gray-300">
                 {plan.features.map((feature, i) => (
-                  <li key={i} className="flex items-start gap-2 text-gray-600 text-sm">
-                    <CheckCircle className="w-4 h-4 text-green-500 mt-1" />
+                  <li key={i} className="flex items-start gap-2">
+                    <CheckCircle className="h-4 w-4 text-blue-600 mt-1" />
                     {feature}
                   </li>
                 ))}
               </ul>
-              {plan.external ? (
-                <a
-                  href={plan.action}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-block w-full text-center bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded transition"
-                >
-                  {plan.button}
-                </a>
-              ) : (
-                <Button
-                  onClick={() => navigate(plan.action)}
-                  className="w-full"
-                >
-                  {plan.button}
+
+              <a href={plan.href} target={plan.href.startsWith('http') ? '_blank' : '_self'}>
+                <Button variant={plan.buttonStyle} className="w-full">
+                  {plan.cta}
                 </Button>
-              )}
+              </a>
             </div>
           ))}
         </div>
