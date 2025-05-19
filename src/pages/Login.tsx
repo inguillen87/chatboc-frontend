@@ -1,21 +1,41 @@
-import React, { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { useNavigate } from 'react-router-dom';
-import { apiFetch } from '@/utils/api';
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { apiFetch } from "@/utils/api";
 
 const Login = () => {
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    // Si ya está logueado, redirigir automáticamente
+    const stored = localStorage.getItem("user");
+    if (stored) {
+      try {
+        const user = JSON.parse(stored);
+        if (user?.token && user?.email) {
+          navigate("/perfil");
+        }
+      } catch (e) {
+        localStorage.removeItem("user");
+      }
+    }
+
+    // Scroll automático al centro
+    setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }, 100);
+  }, [navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setError("");
 
     try {
-      const data = await apiFetch('/login', 'POST', { email, password });
+      const data = await apiFetch("/login", "POST", { email, password });
 
       if (data?.token && data?.email && data?.plan) {
         const user = {
@@ -24,17 +44,17 @@ const Login = () => {
           email: data.email,
           plan: data.plan,
           preguntas_usadas: data.preguntas_usadas ?? 0,
-          limite_preguntas: data.limite_preguntas ?? 50
+          limite_preguntas: data.limite_preguntas ?? 50,
         };
 
-        localStorage.setItem('user', JSON.stringify(user));
-        navigate('/perfil');
+        localStorage.setItem("user", JSON.stringify(user));
+        navigate("/perfil");
       } else {
-        setError('❌ Credenciales inválidas o datos incompletos.');
+        setError("❌ Credenciales inválidas o datos incompletos.");
       }
     } catch (err) {
-      console.error('❌ Error al iniciar sesión:', err);
-      setError('⚠️ Error de conexión con el servidor.');
+      console.error("❌ Error al iniciar sesión:", err);
+      setError("⚠️ Error de conexión con el servidor.");
     }
   };
 
@@ -65,9 +85,9 @@ const Login = () => {
           </Button>
         </form>
         <div className="text-center text-sm text-gray-700 dark:text-gray-300 mt-4">
-          ¿No tenés cuenta?{' '}
+          ¿No tenés cuenta?{" "}
           <button
-            onClick={() => navigate('/register')}
+            onClick={() => navigate("/register")}
             className="text-blue-600 hover:underline dark:text-blue-400"
           >
             Registrate
