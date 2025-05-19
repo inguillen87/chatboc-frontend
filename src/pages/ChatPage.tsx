@@ -14,7 +14,7 @@ const ChatPage = () => {
     setMessages([
       {
         id: 1,
-        text: "¡Hola! Soy Chatboc 🤖 ¿En qué puedo ayudarte hoy?",
+        text: "¡Hola! Soy Chatboc ¿En qué puedo ayudarte hoy?",
         isBot: true,
         timestamp: new Date(),
       },
