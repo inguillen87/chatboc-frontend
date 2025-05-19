@@ -109,7 +109,8 @@ const ChatWidget: React.FC = () => {
               <img
                 src="/chatboc_widget_64x64.png"
                 alt="Chatboc"
-                className="w-8 h-8"
+                className="w-8 h-8 rounded"
+                style={{ padding: "2px" }}
               />
               <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-gray-900" />
             </div>
