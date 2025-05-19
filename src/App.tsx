@@ -13,7 +13,6 @@ import Perfil from "./pages/Perfil";
 import NotFound from "./pages/NotFound";
 import Checkout  from "./pages/Checkout";
 import ChatWidget from "./components/chat/ChatWidget";
-import UserPlanCard from "./components/UserPlanCard";
 
 const queryClient = new QueryClient();
 
@@ -34,12 +33,8 @@ const App = () => (
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
-
         {/* Widgets flotantes posicionados correctamente */}
-        <div className="fixed bottom-24 right-4 z-40 w-[90vw] max-w-sm">
-          <UserPlanCard />
-        </div>
-        <ChatWidget />
+       <ChatWidget />
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
