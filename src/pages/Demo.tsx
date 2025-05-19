@@ -52,18 +52,19 @@ const Demo = () => {
   const handleSendMessage = async (text: string) => {
     if (!text.trim()) return;
 
-    if (preguntasUsadas >= 15) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: prev.length + 1,
-          text: "🔒 Alcanzaste el límite de 15 preguntas gratuitas en esta demo.",
-          isBot: true,
-          timestamp: new Date(),
-        },
-      ]);
-      return;
-    }
+   if (preguntasUsadas >= 15) {
+  setMessages((prev) => [
+    ...prev,
+    {
+      id: prev.length + 1,
+      text: `🔒 Alcanzaste el límite de 15 preguntas gratuitas en esta demo.\n\n👉 Si te gustó, podés crear una cuenta gratis para usar Chatboc sin límites y personalizarlo para tu empresa. [Registrarse ahora](/register)`,
+      isBot: true,
+      timestamp: new Date(),
+    },
+  ]);
+  return;
+}
+
 
     const userMessage: Message = {
       id: messages.length + 1,

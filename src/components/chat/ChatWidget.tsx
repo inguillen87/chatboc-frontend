@@ -11,33 +11,34 @@ const ChatWidget: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
+  const [preguntasUsadas, setPreguntasUsadas] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
   const path = window.location.pathname;
-  const isRutaOculta = ["/login", "/register", "/perfil"].some((r) => path.startsWith(r));
+  const isRutaOculta = ["/login", "/register", "/perfil"].some((r) =>
+    path.startsWith(r)
+  );
   if (isRutaOculta) return null;
 
   let token = "";
-try {
-  const storedUser = localStorage.getItem("user");
-  const user = storedUser ? JSON.parse(storedUser) : null;
+  try {
+    const storedUser = localStorage.getItem("user");
+    const user = storedUser ? JSON.parse(storedUser) : null;
 
-  if (user?.token) {
-    token = user.token;
-  } else {
-    // 🆕 Generar token anónimo una sola vez
-    let anonToken = localStorage.getItem("anon_token");
-    if (!anonToken) {
-      anonToken = `demo-anon-${Math.random().toString(36).substring(2, 10)}`;
-      localStorage.setItem("anon_token", anonToken);
+    if (user?.token) {
+      token = user.token;
+    } else {
+      let anonToken = localStorage.getItem("anon_token");
+      if (!anonToken) {
+        anonToken = `demo-anon-${Math.random().toString(36).substring(2, 10)}`;
+        localStorage.setItem("anon_token", anonToken);
+      }
+      token = anonToken;
     }
-    token = anonToken;
+  } catch (e) {
+    console.warn("❗ Error leyendo user del localStorage", e);
   }
-} catch (e) {
-  console.warn("❗ Error leyendo user del localStorage", e);
-}
-
 
   useEffect(() => {
     if (chatContainerRef.current) {
@@ -60,6 +61,24 @@ try {
   };
 
   const handleSendMessage = async (text: string) => {
+    if (!text.trim()) return;
+
+    const esAnonimo = token.startsWith("demo-anon-") || token.startsWith("demo-token");
+    if (esAnonimo && preguntasUsadas >= 15) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: prev.length + 1,
+          text: `🔒 Alcanzaste el límite de 15 preguntas gratuitas en esta demo.
+
+👉 Si te gustó, podés crear una cuenta gratis para usar Chatboc sin límites y personalizarlo para tu empresa: https://chatboc.ar/register`,
+          isBot: true,
+          timestamp: new Date(),
+        },
+      ]);
+      return;
+    }
+
     const userMessage: Message = {
       id: messages.length + 1,
       text,
@@ -91,6 +110,10 @@ try {
       };
 
       setMessages((prev) => [...prev, botMessage]);
+
+      if (esAnonimo) {
+        setPreguntasUsadas((prev) => prev + 1);
+      }
     } catch (err) {
       setMessages((prev) => [
         ...prev,

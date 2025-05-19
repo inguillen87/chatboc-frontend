@@ -7,6 +7,7 @@ import { apiFetch } from "@/utils/api";
 const ChatPage = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
+  const [preguntasUsadas, setPreguntasUsadas] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isDemo = window.location.pathname.includes("demo");
 
@@ -29,7 +30,31 @@ const ChatPage = () => {
     if (!text.trim()) return;
 
     const user = JSON.parse(localStorage.getItem("user") || "{}");
-    const token = user?.token || "";
+    let token = user?.token || "";
+
+    // Detectar usuario anónimo
+    if (!token) {
+      let anonToken = localStorage.getItem("anon_token");
+      if (!anonToken) {
+        anonToken = `demo-anon-${Math.random().toString(36).substring(2, 10)}`;
+        localStorage.setItem("anon_token", anonToken);
+      }
+      token = anonToken;
+    }
+
+    const esAnonimo = token.startsWith("demo-anon") || token.startsWith("demo-token");
+    if (esAnonimo && preguntasUsadas >= 15) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: prev.length + 1,
+          text: `🔒 Alcanzaste el límite de 15 preguntas gratuitas en esta demo.\n\n👉 Si te gustó, podés crear una cuenta gratis para usar Chatboc sin límites y personalizarlo para tu empresa: https://chatboc.ar/register`,
+          isBot: true,
+          timestamp: new Date(),
+        },
+      ]);
+      return;
+    }
 
     const userMessage: Message = {
       id: messages.length + 1,
@@ -97,6 +122,10 @@ const ChatPage = () => {
       }
 
       setMessages(allMessages);
+
+      if (esAnonimo) {
+        setPreguntasUsadas((prev) => prev + 1);
+      }
     } catch (error: any) {
       const errorMessage: Message = {
         id: updatedMessages.length + 1,
