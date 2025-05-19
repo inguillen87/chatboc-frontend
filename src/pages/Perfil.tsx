@@ -7,8 +7,6 @@ import { Button } from "../components/ui/button";
 import { RotateCcw, LogOut } from "lucide-react";
 import { apiFetch } from "@/utils/api";
 
-const plans = ["free", "starter", "pro", "enterprise"];
-
 const Perfil = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState<any>(null);
@@ -25,31 +23,6 @@ const Perfil = () => {
       setUser(parsed);
     }
   }, [navigate]);
-
-  const handleChangePlan = async (newPlan: string) => {
-    if (!user?.token) return;
-
-    try {
-      const data = await apiFetch("/update_user", "POST", { plan: newPlan }, {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: user.token,
-        },
-      });
-
-      if (data.plan) {
-        const updated = { ...user, ...data };
-        localStorage.setItem("user", JSON.stringify(updated));
-        setUser(updated);
-        setMessage(`✅ Plan actualizado a: ${data.plan}`);
-      } else {
-        setMessage("❌ No se pudo actualizar el plan.");
-      }
-    } catch (err) {
-      console.error(err);
-      setMessage("❌ Error de conexión.");
-    }
-  };
 
   const handleReset = async () => {
     if (!user?.token) return;
@@ -106,46 +79,40 @@ const Perfil = () => {
             <div>
               <p className="font-semibold text-sm mb-2">Cambiar plan:</p>
               <div className="flex flex-wrap gap-3">
-                {plans.map(plan => (
-                  <Button
-                    key={plan}
-                    onClick={() => handleChangePlan(plan)}
-                    className="px-4 py-1.5 rounded-full text-sm capitalize"
-                    variant={user?.plan === plan ? "default" : "outline"}
-                  >
-                    {plan}
-                  </Button>
-                ))}
+                <Button
+                  disabled
+                  className="px-4 py-1.5 rounded-full text-sm"
+                  variant="default"
+                >
+                  Gratis (actual)
+                </Button>
+
+                <Button
+                  disabled
+                  title="Disponible próximamente"
+                  className="px-4 py-1.5 rounded-full text-sm border border-yellow-400 text-yellow-400 bg-transparent"
+                  variant="ghost"
+                >
+                  Plan Empresas (próximamente)
+                </Button>
               </div>
             </div>
 
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <Button
-                onClick={handleReset}
-                variant="outline"
-                className="gap-2"
-              >
-                <RotateCcw className="w-4 h-4" />
-                Resetear contador
-              </Button>
+              {user?.plan !== "free" && (
+                <Button
+                  onClick={handleReset}
+                  variant="outline"
+                  className="gap-2"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  Resetear contador
+                </Button>
+              )}
 
               <Button
                 onClick={() => navigate("/chat")}
                 className="bg-blue-600 text-white hover:bg-blue-700 transition w-full sm:w-auto"
               >
                 Ir al Chat Completo
-              </Button>
-            </div>
-
-            {message && (
-              <p className="text-green-600 font-medium text-sm pt-2">{message}</p>
-            )}
-          </div>
-        </div>
-      </main>
-      <Footer />
-    </div>
-  );
-};
-
-export default Perfil;
+              </
