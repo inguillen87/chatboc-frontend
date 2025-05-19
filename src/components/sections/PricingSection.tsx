@@ -23,7 +23,7 @@ const plans = [
   },
   {
     name: 'Chatboc Pro',
-    price: '$20',
+    price: '$25',
     duration: '/ mes',
     description: 'Solución completa para automatizar tu atención al cliente.',
     features: [
@@ -41,7 +41,7 @@ const plans = [
   },
   {
     name: 'Chatboc WhatsApp',
-    price: '$30',
+    price: '$50',
     duration: '/ mes',
     description: 'Todo el poder de Chatboc, conectado directamente con WhatsApp Business.',
     features: [
