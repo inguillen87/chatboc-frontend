@@ -34,7 +34,7 @@ const HeroSection = () => {
                     src="/chatboc_widget_64x64.png"
                     alt="Chatboc"
                     className="w-8 h-8 rounded"
-                    style={{ backgroundColor: "#E0F0FF", padding: "2px" }}
+                    style={{ padding: "2px" }}
                   />
                 </div>
                 <div>
