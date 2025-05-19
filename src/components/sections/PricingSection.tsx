@@ -33,7 +33,7 @@ const plans = [
       'Entrenamiento optimizado para el rubro de tu empresa',
       'Panel de control con métricas e historial de uso',
       'Asistente inteligente con aprendizaje y mejoras continuas',
-      'Alertas automáticas por palabra clave (ej: reclamos, urgencias)',
+      'Alertas automáticas por palabra clave (ej: reclamo, urgencia, compra)',
       'Registro automático de conversaciones (planilla o sistema)',
       'Soporte técnico prioritario y acceso anticipado a nuevas funcionalidades'
     ],
