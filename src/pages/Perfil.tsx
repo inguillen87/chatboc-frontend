@@ -102,7 +102,7 @@ const Perfil = () => {
         <div className="max-w-4xl mx-auto px-4">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
             <h1 className="text-3xl font-bold text-primary">
-              👋 Hola, {user?.name}
+              👋 Hola, {user?.name} de {user?.nombre_empresa || 'tu empresa'}
             </h1>
             <Button variant="destructive" onClick={handleLogout}>
               <LogOut className="w-4 h-4 mr-2" />
@@ -113,6 +113,8 @@ const Perfil = () => {
           <div className="bg-card shadow-xl rounded-2xl p-6 space-y-6 border border-gray-200 dark:border-gray-700">
             <div className="space-y-2 text-base">
               <p>📧 <strong>Email:</strong> {user?.email}</p>
+              <p>🏢 <strong>Empresa:</strong> {user?.nombre_empresa || 'No especificado'}</p>
+              <p className="text-sm text-muted-foreground">⚠️ Es importante que hayas ingresado correctamente el nombre real de tu empresa, pyme o negocio. Esto mejora la experiencia del cliente y permite al bot aprender y responder con mayor precisión.</p>
               <p>📄 <strong>Plan actual:</strong> <Badge variant="secondary">{user?.plan}</Badge></p>
               <p>💬 <strong>Consultas usadas:</strong> {user?.preguntas_usadas}</p>
               <p>📈 <strong>Límite:</strong> {user?.limite_preguntas}</p>
