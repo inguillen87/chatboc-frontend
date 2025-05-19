@@ -11,10 +11,15 @@ const ChatHeader: React.FC<Props> = ({ onClose }) => {
     <div className="flex items-center justify-between p-3 border-b bg-blue-50 dark:bg-blue-900 dark:border-blue-800">
       <div className="flex items-center gap-3">
         <img
-          src="/chatboc_logo_clean_transparent.png"
-          alt="Chatboc"
-          className="w-9 h-9 rounded-full bg-blue-100 p-1"
-        />
+            src="/chatboc_logo_clean_transparent.png"
+            alt="Chatboc"
+            className="w-9 h-9 rounded-full p-1"
+            style={{
+              backgroundColor: "transparent",
+              filter: "drop-shadow(0 0 2px rgba(0,0,0,0.2))"
+            }}
+          />
+
         <div className="flex flex-col leading-tight">
           <span className="text-sm font-semibold text-blue-900 dark:text-white">Chatboc</span>
           <span className="text-xs text-gray-600 dark:text-gray-300">Asistente Virtual</span>
