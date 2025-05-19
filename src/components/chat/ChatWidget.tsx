@@ -12,12 +12,12 @@ const ChatWidget: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
 
   const path = window.location.pathname;
   const isRutaOculta = ["/login", "/register", "/perfil"].some((r) => path.startsWith(r));
   if (isRutaOculta) return null;
 
-  // 🧠 Token de sesión o demo
   let token = "demo-token";
   try {
     const storedUser = localStorage.getItem("user");
@@ -27,10 +27,11 @@ const ChatWidget: React.FC = () => {
     console.warn("❗ Error leyendo user del localStorage", e);
   }
 
-  // 📥 Auto scroll al último mensaje
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
+  }, [messages, isTyping]);
 
   const toggleChat = () => {
     setIsOpen(!isOpen);
@@ -95,7 +96,6 @@ const ChatWidget: React.FC = () => {
 
   return (
     <div className="fixed bottom-5 right-5 z-50">
-      {/* Botón flotante */}
       <button
         onClick={toggleChat}
         className="group relative w-16 h-16 rounded-full flex items-center justify-center border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 hover:shadow-lg transition-all duration-300 ease-in-out transform hover:scale-105"
@@ -120,13 +120,13 @@ const ChatWidget: React.FC = () => {
         )}
       </button>
 
-      {/* Panel del chat */}
       {isOpen && (
-        <div
-          className="absolute bottom-20 right-0 w-80 md:w-96 h-[500px] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl flex flex-col overflow-hidden animate-slide-up"
-        >
+        <div className="absolute bottom-20 right-0 w-80 md:w-96 h-[500px] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl flex flex-col overflow-hidden animate-slide-up">
           <ChatHeader onClose={toggleChat} />
-          <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-3">
+          <div
+            className="flex-1 overflow-y-auto p-3 flex flex-col gap-3"
+            ref={chatContainerRef}
+          >
             {messages.map((msg) => (
               <ChatMessage key={msg.id} message={msg} />
             ))}
