@@ -107,7 +107,7 @@ const ChatWidget: React.FC = () => {
           <>
             <div className="relative">
               <img
-                src="/chatboc_widget_64x64.png"
+                src="/chatboc_logo_clean_transparent.png"
                 alt="Chatboc"
                 className="w-8 h-8 rounded"
                 style={{ padding: "2px" }}
