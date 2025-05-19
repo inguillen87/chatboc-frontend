@@ -1,6 +1,7 @@
 import React from 'react';
 import { Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useNavigate } from 'react-router-dom';
 
 const pricingPlans = [
   {
@@ -17,7 +18,7 @@ const pricingPlans = [
       'Sin tarjeta de crédito ni datos de facturación',
     ],
     cta: 'Comenzar GRATIS',
-    href: '/register',
+    ctaAction: () => navigate('/register'),
     highlight: false
   },
   {
@@ -34,12 +35,12 @@ const pricingPlans = [
       'Soporte técnico prioritario y acceso anticipado a nuevas funciones',
     ],
     cta: 'Elegir Plan Pro',
-    href: '/register',
+    ctaAction: () => navigate('/register'),
     highlight: true
   },
   {
     name: 'Chatboc Full + WhatsApp',
-    price: '$60',
+    price: '$80',
     duration: '/ mes',
     description: 'Ideal para empresas que ya usan WhatsApp y buscan un canal automatizado de alto impacto.',
     features: [
@@ -49,12 +50,14 @@ const pricingPlans = [
       'Soporte técnico dedicado y personalizado',
     ],
     cta: 'Solicitar Activación WhatsApp',
-    href: 'https://wa.me/5492613168608?text=Hola!%20Estoy%20interesado%20en%20activar%20el%20plan%20Chatboc%20Full%20con%20WhatsApp.',
+    ctaAction: () => window.open('https://wa.me/5492613168608?text=Hola! Estoy interesado en activar Chatboc con WhatsApp.', '_blank'),
     highlight: false
   }
 ];
 
 const PricingSection = () => {
+  const navigate = useNavigate();
+
   return (
     <section id="pricing" className="py-20 bg-background text-foreground">
       <div className="container px-4 mx-auto">
@@ -77,9 +80,11 @@ const PricingSection = () => {
                 </div>
               )}
               <h3 className="text-lg font-semibold mb-1">{plan.name}</h3>
-              <p className="text-xl font-bold text-white mb-0">{plan.price} <span className="text-sm font-normal text-muted-foreground">{plan.duration}</span></p>
+              <p className="text-2xl font-extrabold text-gray-900 dark:text-white mb-0">
+                {plan.price} <span className="text-sm font-normal text-muted-foreground">{plan.duration}</span>
+              </p>
               <p className="text-sm text-muted-foreground italic mt-1 mb-4">{plan.description}</p>
-              <p className="text-sm font-semibold mb-2 text-white">Incluye:</p>
+              <p className="text-sm font-semibold mb-2 text-white dark:text-white">Incluye:</p>
               <ul className="text-sm space-y-2 mb-6">
                 {plan.features.map((feature, i) => (
                   <li key={i} className="flex items-start">
@@ -88,9 +93,7 @@ const PricingSection = () => {
                   </li>
                 ))}
               </ul>
-              <a href={plan.href} target={plan.href.startsWith('http') ? '_blank' : '_self'} rel="noopener noreferrer">
-                <Button className="w-full">{plan.cta}</Button>
-              </a>
+              <Button className="w-full" onClick={plan.ctaAction}>{plan.cta}</Button>
             </div>
           ))}
         </div>
