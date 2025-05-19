@@ -16,7 +16,8 @@ const pricingPlans = [
       'Soporte básico por email',
       'Sin tarjeta de crédito ni datos de facturación',
     ],
-    cta: 'Probar sin compromiso',
+    cta: 'Comenzar GRATIS',
+    href: '/register',
     highlight: false
   },
   {
@@ -32,12 +33,13 @@ const pricingPlans = [
       'Integración Web + futura expansión a Telegram y otros canales',
       'Soporte técnico prioritario y acceso anticipado a nuevas funciones',
     ],
-    cta: 'Quiero Automatizar mi Negocio',
+    cta: 'Elegir Plan Pro',
+    href: '/register',
     highlight: true
   },
   {
     name: 'Chatboc Full + WhatsApp',
-    price: '$80',
+    price: '$60',
     duration: '/ mes',
     description: 'Ideal para empresas que ya usan WhatsApp y buscan un canal automatizado de alto impacto.',
     features: [
@@ -46,7 +48,8 @@ const pricingPlans = [
       'Entrenamiento con base de datos extendida y respuestas más profundas',
       'Soporte técnico dedicado y personalizado',
     ],
-    cta: 'Hablar con un asesor',
+    cta: 'Solicitar Activación WhatsApp',
+    href: 'https://wa.me/5492613168608?text=Hola!%20Estoy%20interesado%20en%20activar%20el%20plan%20Chatboc%20Full%20con%20WhatsApp.',
     highlight: false
   }
 ];
@@ -85,7 +88,9 @@ const PricingSection = () => {
                   </li>
                 ))}
               </ul>
-              <Button className="w-full">{plan.cta}</Button>
+              <a href={plan.href} target={plan.href.startsWith('http') ? '_blank' : '_self'} rel="noopener noreferrer">
+                <Button className="w-full">{plan.cta}</Button>
+              </a>
             </div>
           ))}
         </div>
