@@ -18,14 +18,26 @@ const ChatWidget: React.FC = () => {
   const isRutaOculta = ["/login", "/register", "/perfil"].some((r) => path.startsWith(r));
   if (isRutaOculta) return null;
 
-  let token = "demo-token";
-  try {
-    const storedUser = localStorage.getItem("user");
-    const user = storedUser ? JSON.parse(storedUser) : null;
-    if (user?.token) token = user.token;
-  } catch (e) {
-    console.warn("❗ Error leyendo user del localStorage", e);
+  let token = "";
+try {
+  const storedUser = localStorage.getItem("user");
+  const user = storedUser ? JSON.parse(storedUser) : null;
+
+  if (user?.token) {
+    token = user.token;
+  } else {
+    // 🆕 Generar token anónimo una sola vez
+    let anonToken = localStorage.getItem("anon_token");
+    if (!anonToken) {
+      anonToken = `demo-anon-${Math.random().toString(36).substring(2, 10)}`;
+      localStorage.setItem("anon_token", anonToken);
+    }
+    token = anonToken;
   }
+} catch (e) {
+  console.warn("❗ Error leyendo user del localStorage", e);
+}
+
 
   useEffect(() => {
     if (chatContainerRef.current) {

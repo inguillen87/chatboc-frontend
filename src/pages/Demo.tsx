@@ -8,13 +8,30 @@ import { apiFetch } from "@/utils/api";
 const Demo = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
+  const [preguntasUsadas, setPreguntasUsadas] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const DEMO_USER = {
-    token: "demo-token", // debe existir en la base de datos
-    rubro_id: 1, // debe coincidir con un rubro real
-  };
+  // 🔐 Token anónimo persistente
+  let token = "";
+  try {
+    const storedUser = localStorage.getItem("user");
+    const user = storedUser ? JSON.parse(storedUser) : null;
 
+    if (user?.token) {
+      token = user.token;
+    } else {
+      let anonToken = localStorage.getItem("anon_token");
+      if (!anonToken) {
+        anonToken = `demo-anon-${Math.random().toString(36).substring(2, 10)}`;
+        localStorage.setItem("anon_token", anonToken);
+      }
+      token = anonToken;
+    }
+  } catch (e) {
+    console.warn("❗ Error leyendo user/anon_token del localStorage", e);
+  }
+
+  // 🎬 Mensaje inicial
   useEffect(() => {
     setMessages([
       {
@@ -26,12 +43,27 @@ const Demo = () => {
     ]);
   }, []);
 
+  // 📜 Scroll automático
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // ✉️ Enviar mensaje
   const handleSendMessage = async (text: string) => {
     if (!text.trim()) return;
+
+    if (preguntasUsadas >= 15) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: prev.length + 1,
+          text: "🔒 Alcanzaste el límite de 15 preguntas gratuitas en esta demo.",
+          isBot: true,
+          timestamp: new Date(),
+        },
+      ]);
+      return;
+    }
 
     const userMessage: Message = {
       id: messages.length + 1,
@@ -52,7 +84,7 @@ const Demo = () => {
         {
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${DEMO_USER.token}`,
+            Authorization: `Bearer ${token}`,
           },
         }
       );
@@ -65,6 +97,7 @@ const Demo = () => {
       };
 
       setMessages((prev) => [...prev, botMessage]);
+      setPreguntasUsadas((prev) => prev + 1);
     } catch (error) {
       const errorMessage: Message = {
         id: updatedMessages.length + 1,
