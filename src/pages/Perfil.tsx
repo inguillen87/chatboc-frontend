@@ -30,7 +30,7 @@ const Perfil = () => {
       }
 
       try {
-        const response = await apiFetch("/me", "GET", {}, {
+        const response = await apiFetch("/me", "GET", undefined, {
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${parsed.token}`,
@@ -51,7 +51,12 @@ const Perfil = () => {
     };
 
     fetchUserData();
-  }, []);
+
+    // 🧭 Scroll al centro al cargar perfil
+    setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }, 100);
+  }, [navigate]);
 
   const handleReset = async () => {
     if (!user?.token) return;
@@ -81,6 +86,11 @@ const Perfil = () => {
   const handleLogout = () => {
     localStorage.removeItem("user");
     navigate("/login");
+
+    // 📍 Asegurar que la pantalla se centre en el login
+    setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }, 200);
   };
 
   if (!user) return null;
