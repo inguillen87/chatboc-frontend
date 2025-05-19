@@ -14,7 +14,9 @@ const plans = [
       'Configuración inicial paso a paso',
       'Funcionalidad básica de inteligencia artificial',
       'Integración web con widget flotante',
-      'Soporte básico por email',
+      'Sin Integraciones externas',
+      'Sin automatizaciones',
+
       'Sin tarjeta de crédito ni datos de facturación'
     ],
     cta: 'Comenzar GRATIS',
@@ -25,30 +27,37 @@ const plans = [
     name: 'Chatboc Pro',
     price: '$30',
     duration: '/ mes',
-    description: 'Pensado para negocios que quieren automatizar su atención y escalar con IA.',
+    description: 'Ideal para pymes que buscan escalar su atención al cliente con tecnología simple y efectiva.',
     features: [
-      'Hasta 50 preguntas y respuestas personalizadas',
-      'Entrenamiento especializado para tu rubro',
-      'Panel de control con métricas y estadísticas',
-      'IA con aprendizaje continuo y mejoras automáticas',
-      'Integración Web + futura expansión a Telegram y otros canales',
-      'Soporte técnico prioritario y acceso anticipado a nuevas funciones'
+      'Hasta 200 preguntas y respuestas personalizadas por mes',
+      'Entrenamiento optimizado para el rubro de tu empresa',
+      'Panel de control con métricas e historial de uso',
+      'Asistente inteligente con aprendizaje y mejoras continuas',
+      'Alertas automáticas por palabra clave (ej: reclamos, urgencias)',
+      'Registro automático de conversaciones (planilla o sistema)',
+      'Soporte técnico prioritario y acceso anticipado a nuevas funcionalidades'
     ],
     cta: 'Elegir Plan Pro',
     ctaLink: '/register',
     highlight: true
+
   },
   {
-    name: 'Chatboc Full + WhatsApp',
+    name: 'Chatboc Full',
     price: '$80',
     duration: '/ mes',
     description: 'Ideal para empresas que ya usan WhatsApp y buscan un canal automatizado de alto impacto.',
-    features: [
-      'Implementación profesional en WhatsApp Business API',
-      'Conexión a tu línea y cuenta con asistencia completa',
-      'Entrenamiento con base de datos extendida y respuestas más profundas',
-      'Soporte técnico dedicado y personalizado'
+      features: [
+      'Consultas ilimitadas',
+      'Automatización completa de respuestas, seguimientos y derivaciones',
+      'Envío automático de catálogos, promociones o formularios por email',
+      'Integración con herramientas externas (CRM, planillas, formularios, etc.)',
+      'Acceso a panel administrativo completo con historial y métricas',
+      'Dashboard mensual con indicadores de rendimiento del chatbot',
+      'Soporte para empresas con múltiples unidades de negocio o servicios diferenciados',
+      'Soporte técnico dedicado y configuración avanzada incluida'
     ],
+
     cta: 'Solicitar Activación WhatsApp',
     ctaLink: 'https://wa.me/5492613168608?text=Hola! Estoy probando Chatboc y quiero implementarlo en mi empresa.',
     highlight: false
