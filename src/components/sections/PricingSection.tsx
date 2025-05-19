@@ -1,12 +1,6 @@
 import React from 'react';
 import { CheckCircle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { useNavigate } from 'react-router-dom';
 
-const PricingSection = () => {
-  const navigate = useNavigate();
-
-  
 const plans = [
   {
     name: 'Prueba Gratuita',
@@ -56,15 +50,14 @@ const plans = [
   },
 ];
 
-
-
+const PricingSection = () => {
   return (
-    <section id="precios" className="section-padding bg-background text-foreground">
+    <section id="precios" className="section-padding bg-muted text-foreground">
       <div className="container px-4 mx-auto">
         <div className="text-center mb-12 max-w-3xl mx-auto">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">Planes de Chatboc</h2>
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">Planes y Precios</h2>
           <p className="text-lg text-muted-foreground">
-            Elegí el plan que mejor se adapte a tu negocio. Probalo gratis o activá una versión profesional con más funcionalidades.
+            Elegí el plan que mejor se adapte a tu negocio. Todos comienzan con una prueba gratuita.
           </p>
         </div>
 
@@ -72,30 +65,38 @@ const plans = [
           {plans.map((plan, index) => (
             <div
               key={index}
-              className="bg-card text-card-foreground p-6 rounded-xl border border-border shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between"
+              className="bg-card text-card-foreground p-6 rounded-xl border border-border shadow-sm hover:shadow-md transition-shadow flex flex-col"
             >
-              <div>
-                <h3 className="text-xl font-semibold mb-1">{plan.name}</h3>
-                <p className="text-3xl font-bold mb-2">{plan.price} <span className="text-sm font-normal">{plan.duration}</span></p>
+              <h3 className="text-xl font-semibold mb-1">{plan.name}</h3>
+              <p className="text-sm text-muted-foreground mb-1">
+                {plan.price} <span className="text-xs">{plan.duration}</span>
+              </p>
+              <p className="text-sm text-muted-foreground italic mb-3">
+                {plan.description}
+              </p>
 
-                <ul className="space-y-2 mb-6 text-sm text-muted-foreground">
-                  {plan.features.map((feature, i) => (
-                    <li key={i} className="flex items-start gap-2">
-                      <CheckCircle className="h-4 w-4 text-blue-600 mt-1" />
-                      <span>{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              <h4 className="text-sm font-semibold mb-2">{plan.featuresTitle}</h4>
+              <ul className="space-y-2 mb-6 text-sm text-muted-foreground">
+                {plan.features.map((feature, i) => (
+                  <li key={i} className="flex items-start gap-2">
+                    <CheckCircle className="h-4 w-4 text-blue-600 mt-1" />
+                    <span>{feature}</span>
+                  </li>
+                ))}
+              </ul>
 
-              <div className="mt-auto">
-                <Button
-                  className="w-full"
-                  onClick={() => navigate('/register')}
-                >
-                  {plan.cta}
-                </Button>
-              </div>
+              <button
+                className="w-full mt-auto px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
+                onClick={() => {
+                  if (plan.name === 'Chatboc Full + WhatsApp') {
+                    window.open('https://wa.me/5492613168608', '_blank');
+                  } else {
+                    window.location.href = '/register';
+                  }
+                }}
+              >
+                {plan.cta}
+              </button>
             </div>
           ))}
         </div>
