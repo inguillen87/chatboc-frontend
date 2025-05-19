@@ -15,9 +15,15 @@ const Perfil = () => {
   useEffect(() => {
     const fetchUserData = async () => {
       const stored = localStorage.getItem("user");
-      const parsed = stored ? JSON.parse(stored) : null;
+      let parsed = null;
 
-      if (!parsed || !parsed.token) {
+      try {
+        parsed = stored ? JSON.parse(stored) : null;
+      } catch (err) {
+        console.warn("❌ Error al parsear localStorage:", err);
+      }
+
+      if (!parsed || !parsed.token || !parsed.email || !parsed.name) {
         localStorage.removeItem("user");
         navigate("/login");
         return;
@@ -76,6 +82,8 @@ const Perfil = () => {
     localStorage.removeItem("user");
     navigate("/login");
   };
+
+  if (!user) return null;
 
   return (
     <div className="flex flex-col min-h-screen bg-background text-foreground transition-colors">
