@@ -6,51 +6,53 @@ import { useNavigate } from 'react-router-dom';
 const PricingSection = () => {
   const navigate = useNavigate();
 
-  const plans = [
-    {
-      name: 'Prueba Gratuita',
-      price: 'GRATIS',
-      duration: '/ 15 días',
-      features: [
-        'Hasta 10 Preguntas por día',
-        'Configuración inicial guiada',
-        'Funcionalidad básica de IA',
-        'Integración Web (Widget)',
-        'Soporte básico',
-        'Sin tarjeta de crédito',
-      ],
-      cta: 'Comenzar GRATIS',
-    },
-    {
-      name: 'Chatboc Pro',
-      price: '$30',
-      duration: '/ mes',
-      features: [
-        'Todo lo del plan de prueba',
-        'Hasta 50 Preguntas y Respuestas personalizadas',
-        'Entrenamiento específico por rubro',
-        'Panel con estadísticas y métricas',
-        'Aprendizaje IA continuo',
-        'Integración Web y futura expansión a Telegram y otros canales',
-        'Soporte prioritario y mejoras constantes',
-      ],
-      cta: 'Elegir Plan Pro',
-    },
-    {
-      name: 'Chatboc Full + WhatsApp',
-      price: '$80',
-      duration: '/ mes',
-      features: [
-        'Incluye todo lo del plan PRO',
-        'Implementación personalizada vía WhatsApp Business API',
-        'Configuración completa por nuestro equipo',
-        'Integración con línea y cuenta del cliente',
-        'Entrenamiento con base de datos extendida',
-        'Soporte técnico dedicado',
-      ],
-      cta: 'Solicitar Activación WhatsApp',
-    },
-  ];
+  
+const plans = [
+  {
+    name: 'Prueba Gratuita',
+    price: 'GRATIS',
+    duration: '/ 15 días',
+    features: [
+      'Hasta 50 consultas por día',
+      'Configuración inicial paso a paso',
+      'Funcionalidad básica de inteligencia artificial',
+      'Integración web con widget flotante',
+      'Soporte básico por email',
+      'Sin tarjeta de crédito ni datos de facturación',
+    ],
+    cta: 'Comenzar GRATIS',
+  },
+  {
+    name: 'Chatboc Pro',
+    price: '$30',
+    duration: '/ mes',
+    features: [
+      'Incluye todo lo del plan gratuito',
+      'Hasta 50 preguntas y respuestas personalizadas',
+      'Entrenamiento especializado para tu rubro',
+      'Panel de control con métricas y estadísticas',
+      'IA con aprendizaje continuo y mejoras automáticas',
+      'Integración Web + futura expansión a Telegram y otros canales',
+      'Soporte técnico prioritario y acceso anticipado a nuevas funciones',
+    ],
+    cta: 'Elegir Plan Pro',
+  },
+  {
+    name: 'Chatboc Full + WhatsApp',
+    price: '$80',
+    duration: '/ mes',
+    features: [
+      'Todo lo del plan Pro incluido',
+      'Implementación profesional en WhatsApp Business API',
+      'Conexión a tu línea y cuenta con asistencia completa',
+      'Entrenamiento con base de datos extendida y respuestas más profundas',
+      'Soporte técnico dedicado y personalizado',
+      'Ideal para empresas que ya usan WhatsApp con sus clientes',
+    ],
+    cta: 'Solicitar Activación WhatsApp',
+  },
+];
+
 
   return (
     <section id="precios" className="section-padding bg-background text-foreground">
