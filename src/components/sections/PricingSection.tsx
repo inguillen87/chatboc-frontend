@@ -12,6 +12,8 @@ const plans = [
     name: 'Prueba Gratuita',
     price: 'GRATIS',
     duration: '/ 15 días',
+    description: 'Ideal para conocer cómo Chatboc puede ayudar a tu negocio sin compromisos.',
+    featuresTitle: 'Incluye:',
     features: [
       'Hasta 50 consultas por día',
       'Configuración inicial paso a paso',
@@ -26,8 +28,9 @@ const plans = [
     name: 'Chatboc Pro',
     price: '$30',
     duration: '/ mes',
+    description: 'Pensado para negocios que quieren automatizar su atención y escalar con IA.',
+    featuresTitle: 'Incluye todo lo del plan gratuito, y además:',
     features: [
-      'Incluye todo lo del plan gratuito',
       'Hasta 50 preguntas y respuestas personalizadas',
       'Entrenamiento especializado para tu rubro',
       'Panel de control con métricas y estadísticas',
@@ -41,17 +44,18 @@ const plans = [
     name: 'Chatboc Full + WhatsApp',
     price: '$80',
     duration: '/ mes',
+    description: 'Ideal para empresas que ya usan WhatsApp y buscan un canal automatizado de alto impacto.',
+    featuresTitle: 'Incluye todo lo del plan Pro, más:',
     features: [
-      'Todo lo del plan Pro incluido',
       'Implementación profesional en WhatsApp Business API',
       'Conexión a tu línea y cuenta con asistencia completa',
       'Entrenamiento con base de datos extendida y respuestas más profundas',
       'Soporte técnico dedicado y personalizado',
-      'Ideal para empresas que ya usan WhatsApp con sus clientes',
     ],
     cta: 'Solicitar Activación WhatsApp',
   },
 ];
+
 
 
   return (
