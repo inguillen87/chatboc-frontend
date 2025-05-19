@@ -12,7 +12,6 @@ const Perfil = () => {
   const [user, setUser] = useState<any>(null);
   const [message, setMessage] = useState("");
 
-  // 🔁 Obtener usuario desde backend incluso si se recarga (F5)
   useEffect(() => {
     const fetchUserData = async () => {
       const stored = localStorage.getItem("user");
@@ -37,7 +36,7 @@ const Perfil = () => {
           localStorage.setItem("user", JSON.stringify(updated));
           setUser(updated);
         } else {
-          setUser(parsed); // fallback
+          setUser(parsed);
         }
       } catch (err) {
         console.error("❌ Error al obtener datos del usuario:", err);
@@ -101,22 +100,27 @@ const Perfil = () => {
               <p>📈 <strong>Límite:</strong> {user?.limite_preguntas}</p>
             </div>
 
-            <div>
-              <p className="font-semibold text-sm mb-2">Cambiar plan:</p>
-              <div className="flex flex-wrap gap-3">
-                <Button disabled className="px-4 py-1.5 rounded-full text-sm" variant="default">
-                  Gratis (actual)
-                </Button>
-                <Button
-                  disabled
-                  title="Disponible próximamente"
-                  className="px-4 py-1.5 rounded-full text-sm border border-yellow-400 text-yellow-400 bg-transparent"
-                  variant="ghost"
-                >
-                  Plan Empresas (próximamente)
-                </Button>
+            {(user?.plan === "free" || user?.plan === "pro") && (
+              <div className="space-y-2">
+                <p className="font-semibold text-sm">Mejorá tu plan:</p>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  {user?.plan === "free" && (
+                    <Button
+                      className="bg-yellow-400 hover:bg-yellow-500 text-black font-semibold"
+                      onClick={() => navigate("/checkout?plan=pro")}
+                    >
+                      Pasar a Plan Pro · $30/mes
+                    </Button>
+                  )}
+                  <Button
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+                    onClick={() => navigate("/checkout?plan=full")}
+                  >
+                    Pasar a Plan Full · $80/mes
+                  </Button>
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               {user?.plan !== "free" && (
@@ -125,7 +129,6 @@ const Perfil = () => {
                   Resetear contador
                 </Button>
               )}
-
               <Button
                 onClick={() => navigate("/chat")}
                 className="bg-blue-600 text-white hover:bg-blue-700 transition w-full sm:w-auto"
