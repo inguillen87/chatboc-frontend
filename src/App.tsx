@@ -11,7 +11,7 @@ import Register from "./pages/Register";
 import Demo from "./pages/Demo";
 import Perfil from "./pages/Perfil";
 import NotFound from "./pages/NotFound";
-
+import Checkout  from "./pages/Checkout";
 import ChatWidget from "./components/chat/ChatWidget";
 import UserPlanCard from "./components/UserPlanCard";
 
@@ -30,6 +30,7 @@ const App = () => (
             <Route path="/demo" element={<Demo />} />
             <Route path="/perfil" element={<Perfil />} />
             <Route path="/chat" element={<ChatPage />} />
+            <Route path="/checkout" element={<Checkout />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
