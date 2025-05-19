@@ -17,11 +17,20 @@ const Login = () => {
     try {
       const data = await apiFetch('/login', 'POST', { email, password });
 
-      if (data?.token) {
-        localStorage.setItem('user', JSON.stringify(data));
+      if (data?.token && data?.email && data?.plan) {
+        const user = {
+          token: data.token,
+          name: data.name,
+          email: data.email,
+          plan: data.plan,
+          preguntas_usadas: data.preguntas_usadas ?? 0,
+          limite_preguntas: data.limite_preguntas ?? 50
+        };
+
+        localStorage.setItem('user', JSON.stringify(user));
         navigate('/perfil');
       } else {
-        setError('❌ Credenciales inválidas.');
+        setError('❌ Credenciales inválidas o datos incompletos.');
       }
     } catch (err) {
       console.error('❌ Error al iniciar sesión:', err);
