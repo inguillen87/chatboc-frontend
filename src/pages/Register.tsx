@@ -10,7 +10,7 @@ const Register = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [nombreEmpresa, setNombreEmpresa] = useState('');
-  const [rubro, setRubro] = useState('');
+  const [rubroId, setRubroId] = useState('');
   const [rubrosDisponibles, setRubrosDisponibles] = useState([]);
   const [error, setError] = useState('');
 
@@ -22,7 +22,7 @@ const Register = () => {
           setRubrosDisponibles(data);
         }
       } catch (err) {
-        console.error('Error al cargar rubros:', err);
+        console.error('❌ Error al cargar rubros:', err);
       }
     };
     fetchRubros();
@@ -38,7 +38,7 @@ const Register = () => {
         email,
         password,
         nombre_empresa: nombreEmpresa,
-        rubro
+        rubro_id: parseInt(rubroId),
       };
 
       const data = await apiFetch('/register', 'POST', payload);
@@ -50,9 +50,9 @@ const Register = () => {
           email: data.email,
           plan: data.plan,
           nombre_empresa: data.nombre_empresa,
-          rubro: data.rubro,
+          rubro_id: data.rubro_id,
           preguntas_usadas: data.preguntas_usadas ?? 0,
-          limite_preguntas: data.limite_preguntas ?? 50
+          limite_preguntas: data.limite_preguntas ?? 50,
         };
         localStorage.setItem('user', JSON.stringify(user));
         navigate('/perfil');
@@ -60,7 +60,7 @@ const Register = () => {
         setError('❌ Error al registrarse. Verificá los datos.');
       }
     } catch (err) {
-      console.error('Error al registrarse:', err);
+      console.error('❌ Error al registrarse:', err);
       setError('⚠️ No se pudo completar el registro.');
     }
   };
@@ -76,10 +76,10 @@ const Register = () => {
           <Input type="email" placeholder="Correo electrónico" value={email} onChange={(e) => setEmail(e.target.value)} required />
           <Input type="password" placeholder="Contraseña" value={password} onChange={(e) => setPassword(e.target.value)} required />
           <Input type="text" placeholder="Nombre de la empresa (fantasía o legal)" value={nombreEmpresa} onChange={(e) => setNombreEmpresa(e.target.value)} required />
-          <select value={rubro} onChange={(e) => setRubro(e.target.value)} required className="w-full p-2 border rounded text-sm">
+          <select value={rubroId} onChange={(e) => setRubroId(e.target.value)} required className="w-full p-2 border rounded text-sm">
             <option value="">Seleccioná tu rubro</option>
             {rubrosDisponibles.map((rubro: any) => (
-              <option key={rubro.id} value={rubro.nombre}>{rubro.nombre}</option>
+              <option key={rubro.id} value={rubro.id}>{rubro.nombre}</option>
             ))}
           </select>
           <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
