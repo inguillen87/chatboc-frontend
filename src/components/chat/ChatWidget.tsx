@@ -15,7 +15,7 @@ const ChatWidget: React.FC = () => {
   const [rubroSeleccionado, setRubroSeleccionado] = useState<string | null>(() => {
     return localStorage.getItem("rubroSeleccionado");
   });
-  const [rubrosDisponibles, setRubrosDisponibles] = useState<string[]>([]);
+  const [rubrosDisponibles, setRubrosDisponibles] = useState<{ id: number; nombre: string }[]>([]);
   const [esperandoRubro, setEsperandoRubro] = useState(!rubroSeleccionado);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -151,10 +151,10 @@ const ChatWidget: React.FC = () => {
         <div className="flex flex-wrap justify-center gap-2">
           {rubrosDisponibles.map((rubro) => (
             <button
-              key={rubro}
+              key={rubro.id}
               onClick={() => {
-                localStorage.setItem("rubroSeleccionado", rubro);
-                setRubroSeleccionado(rubro);
+                localStorage.setItem("rubroSeleccionado", rubro.nombre);
+                setRubroSeleccionado(rubro.nombre);
                 setEsperandoRubro(false);
                 setMessages([
                   {
@@ -167,7 +167,7 @@ const ChatWidget: React.FC = () => {
               }}
               className="px-4 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 text-sm"
             >
-              {rubro}
+              {rubro.nombre}
             </button>
           ))}
         </div>
