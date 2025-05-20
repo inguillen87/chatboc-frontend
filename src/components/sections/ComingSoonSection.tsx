@@ -17,7 +17,7 @@ const ComingSoonSection = () => {
           <div className="bg-background rounded-2xl shadow-lg border border-border p-6 hover:shadow-xl transition duration-300">
             <div className="flex flex-col items-center">
               <Image
-                src="/mockups/chatpos.png" // reemplazar con tu imagen real
+                src="/images/chatpos.png" // reemplazar con tu imagen real
                 alt="Mockup ChatPos"
                 width={400}
                 height={250}
@@ -25,7 +25,7 @@ const ComingSoonSection = () => {
               />
               <div className="flex items-center gap-2 mb-2">
                 <Image
-                  src="/icons/chatpos-icon.png" // ícono del POS (puede ser un ticket o caja registradora)
+                  src="/images/chatpos-icon.png" // ícono del POS (puede ser un ticket o caja registradora)
                   alt="Icono ChatPos"
                   width={32}
                   height={32}
@@ -48,7 +48,7 @@ const ComingSoonSection = () => {
           <div className="bg-background rounded-2xl shadow-lg border border-border p-6 hover:shadow-xl transition duration-300">
             <div className="flex flex-col items-center">
               <Image
-                src="/mockups/chatcrm.png" // reemplazar con tu imagen real
+                src="/images/chatcrm.png" // reemplazar con tu imagen real
                 alt="Mockup ChatCRM"
                 width={400}
                 height={250}
@@ -56,7 +56,7 @@ const ComingSoonSection = () => {
               />
               <div className="flex items-center gap-2 mb-2">
                 <Image
-                  src="/icons/chatcrm-icon.png" // ícono de CRM (clientes, gráfico, contacto)
+                  src="/images/chatcrm-icon.png" // ícono de CRM (clientes, gráfico, contacto)
                   alt="Icono ChatCRM"
                   width={32}
                   height={32}
@@ -81,3 +81,4 @@ const ComingSoonSection = () => {
 };
 
 export default ComingSoonSection;
+si 

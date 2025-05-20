@@ -7,6 +7,7 @@ import PricingSection from '@/components/sections/PricingSection';
 import TargetSection from '@/components/sections/TargetSection';
 import TestimonialsSection from '@/components/sections/TestimonialsSection';
 import CtaSection from '@/components/sections/CtaSection';
+import ComingSoonSection from '@/components/sections/ComingSoonSection';
 
 const Index = () => {
   useEffect(() => {
