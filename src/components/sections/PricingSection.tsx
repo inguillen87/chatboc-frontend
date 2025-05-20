@@ -43,20 +43,21 @@ const plans = [
 
   },
   {
-    name: 'Chatboc Full',
+  name: 'Chatboc Full',
     price: '$80',
     duration: '/ mes',
-    description: 'Ideal para empresas que ya usan WhatsApp y buscan un canal automatizado de alto impacto.',
-      features: [
+    description: 'Ideal para empresas que ya usan WhatsApp y buscan automatizar su atención con una solución profesional, eficiente y escalable.',
+    features: [
       'Consultas ilimitadas',
       'Automatización completa de respuestas, seguimientos y derivaciones',
-      'Envío automático de catálogos, promociones o formularios por email',
-      'Integración con herramientas externas (CRM, planillas, formularios, etc.)',
-      'Acceso a panel administrativo completo con historial y métricas',
-      'Dashboard mensual con indicadores de rendimiento del chatbot',
-      'Soporte para empresas con múltiples unidades de negocio o servicios diferenciados',
-      'Soporte técnico dedicado y configuración avanzada incluida'
-    ],
+      'Envío automático de catálogos, promociones o formularios personalizados por email',
+      'CRM, formularios y paneles visuales desarrollados por nuestro equipo, alojados 100% en la nube Chatboc',
+      'Acceso total al panel administrativo: historial, prospectos, filtros y métricas clave',
+      'Dashboard mensual con indicadores de rendimiento y actividad del chatbot',
+      'Soporte para empresas con múltiples unidades de negocio, rubros o sucursales',
+      'Soporte técnico prioritario y configuración avanzada incluida'
+    ]
+
 
     cta: 'Solicitar Activación WhatsApp',
     ctaLink: 'https://wa.me/5492613168608?text=Hola! Estoy probando Chatboc y quiero implementarlo en mi empresa.',
