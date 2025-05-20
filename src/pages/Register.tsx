@@ -11,15 +11,15 @@ const Register = () => {
   const [password, setPassword] = useState('');
   const [nombreEmpresa, setNombreEmpresa] = useState('');
   const [rubroId, setRubroId] = useState('');
-  const [rubrosDisponibles, setRubrosDisponibles] = useState([]);
+  const [rubrosDisponibles, setRubrosDisponibles] = useState<{ id: number; nombre: string }[]>([]);
   const [error, setError] = useState('');
 
   useEffect(() => {
     const fetchRubros = async () => {
       try {
         const data = await apiFetch('/rubros', 'GET');
-        if (Array.isArray(data)) {
-          setRubrosDisponibles(data);
+        if (Array.isArray(data.rubros)) {
+          setRubrosDisponibles(data.rubros);
         }
       } catch (err) {
         console.error('❌ Error al cargar rubros:', err);
@@ -76,15 +76,23 @@ const Register = () => {
           <Input type="email" placeholder="Correo electrónico" value={email} onChange={(e) => setEmail(e.target.value)} required />
           <Input type="password" placeholder="Contraseña" value={password} onChange={(e) => setPassword(e.target.value)} required />
           <Input type="text" placeholder="Nombre de la empresa (fantasía o legal)" value={nombreEmpresa} onChange={(e) => setNombreEmpresa(e.target.value)} required />
-          <select value={rubroId} onChange={(e) => setRubroId(e.target.value)} required className="w-full p-2 border rounded text-sm">
+          
+          <select
+            value={rubroId}
+            onChange={(e) => setRubroId(e.target.value)}
+            required
+            className="w-full p-2 border rounded text-sm bg-white dark:bg-[#0f0f0f] text-black dark:text-white"
+          >
             <option value="">Seleccioná tu rubro</option>
-            {rubrosDisponibles.map((rubro: any) => (
+            {rubrosDisponibles.map((rubro) => (
               <option key={rubro.id} value={rubro.id}>{rubro.nombre}</option>
             ))}
           </select>
+
           <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
             ⚠️ Es muy importante ingresar correctamente el nombre de tu empresa y seleccionar el rubro real, ya que esto mejora la experiencia del usuario y permite que el bot responda con mayor precisión.
           </p>
+
           {error && <p className="text-red-600 text-sm">{error}</p>}
           <Button type="submit" className="w-full">Registrarse</Button>
         </form>
