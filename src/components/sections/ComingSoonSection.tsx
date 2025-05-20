@@ -16,7 +16,7 @@ const ComingSoonSection = () => {
           <div className="bg-background rounded-2xl shadow-lg border border-border p-6 hover:shadow-xl transition duration-300">
             <div className="flex flex-col items-center">
               <img
-                src="/images/chatpos-icon.png"
+                src="/images/chatpos-icon-transparent.png"
                 alt="Icono ChatPos"
                 className="w-20 h-20 mb-4"
               />
@@ -25,7 +25,7 @@ const ComingSoonSection = () => {
                 Sistema de punto de venta moderno para facturar, gestionar stock y ver reportes desde cualquier dispositivo.
               </p>
               <img
-                src="/images/chatpos.png"
+                src="/images/mockup-chatpos.png"
                 alt="Mockup ChatPos"
                 className="mt-4 rounded-xl w-full max-w-[90%] h-auto shadow-lg"
               />
@@ -42,7 +42,7 @@ const ComingSoonSection = () => {
           <div className="bg-background rounded-2xl shadow-lg border border-border p-6 hover:shadow-xl transition duration-300">
             <div className="flex flex-col items-center">
               <img
-                src="/images/chatcrm-icon.png"
+                src="/images/chatcrm-icon-cleaned.png"
                 alt="Icono ChatCRM"
                 className="w-20 h-20 mb-4"
               />
@@ -51,7 +51,7 @@ const ComingSoonSection = () => {
                 Gestioná contactos, enviá campañas y promociones automáticas. Ideal para aumentar la recompra y fidelización.
               </p>
               <img
-                src="/images/chatcrm.png"
+                src="/images/mockup-chatcrm.png"
                 alt="Mockup ChatCRM"
                 className="mt-4 rounded-xl w-full max-w-[90%] h-auto shadow-lg"
               />
