@@ -3,6 +3,8 @@ import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 
 const ChatPosPage = () => {
+  const whatsappURL = "https://wa.me/2613168608?text=Hola!%20Estoy%20interesado%20en%20probar%20la%20demo%20de%20ChatPos.";
+
   return (
     <main className="bg-background text-foreground py-20 px-6 md:px-12">
       {/* Hero Section */}
@@ -27,8 +29,10 @@ const ChatPosPage = () => {
           Sistema profesional de ventas, stock y facturación en la nube con asistencia inteligente.
         </p>
         <div className="mt-8 flex justify-center gap-4">
-          <Button className="bg-green-600 text-white hover:bg-green-700 shadow-md">
-            Solicitar demo
+          <Button asChild className="bg-green-600 text-white hover:bg-green-700 shadow-md">
+            <a href={whatsappURL} target="_blank" rel="noopener noreferrer">
+              Solicitar demo
+            </a>
           </Button>
           <Button variant="outline">Ver precios</Button>
         </div>
