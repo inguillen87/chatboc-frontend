@@ -67,14 +67,14 @@ const Navbar: React.FC = () => {
         </button>
 
         {/* Links centrales - solo landing - desktop */}
-        {isLanding && (
+       {isLanding && (
           <nav className="hidden lg:flex gap-6 items-center flex-1 justify-center">
             <button onClick={() => scrollToSection("problemas")} className="hover:text-blue-600 text-sm dark:text-white">Problemas</button>
             <button onClick={() => scrollToSection("solucion")} className="hover:text-blue-600 text-sm dark:text-white">Solución</button>
             <button onClick={() => scrollToSection("como-funciona")} className="hover:text-blue-600 text-sm dark:text-white">Cómo Funciona</button>
             <button onClick={() => scrollToSection("precios")} className="hover:text-blue-600 text-sm dark:text-white">Precios</button>
             <button onClick={() => scrollToSection("publico-objetivo")} className="hover:text-blue-600 text-sm dark:text-white">Público Objetivo</button>
-            <button onClick={() => scrollToSection("testimonios")} className="hover:text-blue-600 text-sm dark:text-white">Testimonios</button>
+            <button onClick={() => scrollToSection("proximamente")} className="hover:text-blue-600 text-sm dark:text-white">Próximamente</button>
             <button onClick={() => scrollToSection("cta")} className="hover:text-blue-600 text-sm dark:text-white">Empezar</button>
           </nav>
         )}
@@ -113,17 +113,18 @@ const Navbar: React.FC = () => {
         <div className="lg:hidden bg-white dark:bg-gray-900 shadow-md mt-2 rounded-b-xl animate-fade-in-down">
           <div className="flex flex-col items-center gap-3 py-4">
             {isLanding && (
-              <>
-                <button onClick={() => scrollToSection("problemas")}>Problemas</button>
-                <button onClick={() => scrollToSection("solucion")}>Solución</button>
-                <button onClick={() => scrollToSection("como-funciona")}>Cómo Funciona</button>
-                <button onClick={() => scrollToSection("precios")}>Precios</button>
-                <button onClick={() => scrollToSection("publico-objetivo")}>Público Objetivo</button>
-                <button onClick={() => scrollToSection("testimonios")}>Testimonios</button>
-                <button onClick={() => scrollToSection("cta")}>Empezar</button>
-              </>
-            )}
-            {isLoggedIn ? (
+            <>
+            <button onClick={() => scrollToSection("problemas")}>Problemas</button>
+            <button onClick={() => scrollToSection("solucion")}>Solución</button>
+            <button onClick={() => scrollToSection("como-funciona")}>Cómo Funciona</button>
+            <button onClick={() => scrollToSection("precios")}>Precios</button>
+            <button onClick={() => scrollToSection("publico-objetivo")}>Público Objetivo</button>
+            <button onClick={() => scrollToSection("proximamente")}>Próximamente</button>
+            <button onClick={() => scrollToSection("cta")}>Empezar</button>
+            </>
+          )}
+
+              {isLoggedIn ? (
               <>
                 <RouterLink to="/perfil" onClick={() => setMenuOpen(false)}>Mi Perfil</RouterLink>
                 <RouterLink to="/chat" onClick={() => setMenuOpen(false)}>Chat</RouterLink>
