@@ -7,15 +7,13 @@ import { apiFetch } from "@/utils/api";
 const ChatPage = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
-  const [preguntasUsadas, setPreguntasUsadas] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const isDemo = window.location.pathname.includes("demo");
 
   useEffect(() => {
     setMessages([
       {
         id: 1,
-        text: "¡Hola! Soy Chatboc ¿En qué puedo ayudarte hoy?",
+        text: "¡Hola! Soy Chatboc, ¿en qué puedo ayudarte hoy?",
         isBot: true,
         timestamp: new Date(),
       },
@@ -29,32 +27,9 @@ const ChatPage = () => {
   const handleSend = async (text: string) => {
     if (!text.trim()) return;
 
-    const user = JSON.parse(localStorage.getItem("user") || "{}");
-    let token = user?.token || "";
-
-    // Detectar usuario anónimo
-    if (!token) {
-      let anonToken = localStorage.getItem("anon_token");
-      if (!anonToken) {
-        anonToken = `demo-anon-${Math.random().toString(36).substring(2, 10)}`;
-        localStorage.setItem("anon_token", anonToken);
-      }
-      token = anonToken;
-    }
-
-    const esAnonimo = token.startsWith("demo-anon") || token.startsWith("demo-token");
-    if (esAnonimo && preguntasUsadas >= 15) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: prev.length + 1,
-          text: `🔒 Alcanzaste el límite de 15 preguntas gratuitas en esta demo.\n\n👉 Si te gustó, podés crear una cuenta gratis para usar Chatboc sin límites y personalizarlo para tu empresa: https://chatboc.ar/register`,
-          isBot: true,
-          timestamp: new Date(),
-        },
-      ]);
-      return;
-    }
+    const storedUser = localStorage.getItem("user");
+    const user = storedUser ? JSON.parse(storedUser) : null;
+    const token = user?.token || "";
 
     const userMessage: Message = {
       id: messages.length + 1,
@@ -68,28 +43,17 @@ const ChatPage = () => {
     setIsTyping(true);
 
     try {
-      let response;
-
-      if (isDemo) {
-        response = await apiFetch("/demo-chat", "POST", {
-          messages: updatedMessages.map((m) => ({
-            role: m.isBot ? "assistant" : "user",
-            content: m.text,
-          })),
-        });
-      } else {
-        response = await apiFetch(
-          "/responder_chatboc",
-          "POST",
-          { question: text },
-          {
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: token,
-            },
-          }
-        );
-      }
+      const response = await apiFetch(
+        "/responder_chatboc",
+        "POST",
+        { question: text },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: token,
+          },
+        }
+      );
 
       const textoRespuesta =
         response && typeof response === "object"
@@ -103,29 +67,7 @@ const ChatPage = () => {
         timestamp: new Date(),
       };
 
-      const allMessages = [...updatedMessages, botMessage];
-
-      const sinRespuestaUtil =
-        textoRespuesta.includes("no tengo una respuesta") ||
-        textoRespuesta.includes("no tengo información") ||
-        textoRespuesta.includes("no encontré") ||
-        textoRespuesta.includes("desconocida");
-
-      if (sinRespuestaUtil) {
-        allMessages.push({
-          id: allMessages.length + 1,
-          text: "__sugerencia__",
-          originalQuestion: text,
-          isBot: true,
-          timestamp: new Date(),
-        });
-      }
-
-      setMessages(allMessages);
-
-      if (esAnonimo) {
-        setPreguntasUsadas((prev) => prev + 1);
-      }
+      setMessages([...updatedMessages, botMessage]);
     } catch (error: any) {
       const errorMessage: Message = {
         id: updatedMessages.length + 1,
@@ -139,69 +81,25 @@ const ChatPage = () => {
     }
   };
 
-  const renderMessage = (msg: Message) => {
-    if (msg.text === "__sugerencia__" && msg.originalQuestion) {
-      const [enviado, setEnviado] = useState(false);
-
-      const handleSugerencia = async () => {
-        const user = JSON.parse(localStorage.getItem("user") || "null");
-        await fetch("https://api.chatboc.ar/sugerencia", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${user?.token || ""}`,
-          },
-          body: JSON.stringify({
-            texto: msg.originalQuestion,
-            rubro_id: user?.rubro_id || 1,
-          }),
-        });
-        setEnviado(true);
-      };
-
-      return (
-        <div
-          key={msg.id}
-          className="bg-yellow-100 dark:bg-yellow-900/30 text-black dark:text-yellow-200 p-3 rounded-xl max-w-[80%] self-start shadow"
-        >
-          <p className="text-sm font-semibold">🤔 No encontré una respuesta clara a:</p>
-          <p className="text-xs italic mt-1">"{msg.originalQuestion}"</p>
-          {!enviado ? (
-            <button
-              onClick={handleSugerencia}
-              className="mt-2 text-xs text-blue-700 dark:text-blue-400 underline"
-            >
-              ➕ Enviar esta duda como sugerencia
-            </button>
-          ) : (
-            <p className="text-xs text-green-600 mt-2">✅ ¡Gracias por tu sugerencia!</p>
-          )}
-        </div>
-      );
-    }
-
-    return (
-      <div
-        key={msg.id}
-        className={`p-3 rounded-xl max-w-[80%] shadow ${
-          msg.isBot
-            ? "bg-blue-100 dark:bg-blue-900/30 text-black dark:text-white self-start"
-            : "bg-[#006AEC] text-white self-end"
-        }`}
-      >
-        <div className="text-sm whitespace-pre-wrap">{msg.text}</div>
-        <div className="text-[10px] opacity-60 text-right mt-1">
-          {msg.timestamp.toLocaleTimeString()}
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div className="min-h-[calc(100vh-80px)] flex flex-col items-center justify-center px-4 py-4">
       <div className="w-full max-w-2xl bg-white dark:bg-[#1e1e1e] rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 flex flex-col h-[80vh]">
         <div className="flex-1 overflow-y-auto space-y-4 px-3 py-4">
-          {messages.map(renderMessage)}
+          {messages.map((msg) => (
+            <div
+              key={msg.id}
+              className={`p-3 rounded-xl max-w-[80%] shadow ${
+                msg.isBot
+                  ? "bg-blue-100 dark:bg-blue-900/30 text-black dark:text-white self-start"
+                  : "bg-[#006AEC] text-white self-end"
+              }`}
+            >
+              <div className="text-sm whitespace-pre-wrap">{msg.text}</div>
+              <div className="text-[10px] opacity-60 text-right mt-1">
+                {msg.timestamp.toLocaleTimeString()}
+              </div>
+            </div>
+          ))}
           {isTyping && <TypingIndicator />}
           <div ref={messagesEndRef} />
         </div>

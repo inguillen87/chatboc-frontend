@@ -9,9 +9,14 @@ const Demo = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [preguntasUsadas, setPreguntasUsadas] = useState(0);
+  const [rubroSeleccionado, setRubroSeleccionado] = useState<string | null>(() => {
+    return localStorage.getItem("rubroSeleccionado");
+  });
+  const [rubrosDisponibles, setRubrosDisponibles] = useState<string[]>([]);
+  const [esperandoRubro, setEsperandoRubro] = useState(!rubroSeleccionado);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // 🔐 Token anónimo persistente
   let token = "";
   try {
     const storedUser = localStorage.getItem("user");
@@ -31,40 +36,46 @@ const Demo = () => {
     console.warn("❗ Error leyendo user/anon_token del localStorage", e);
   }
 
-  // 🎬 Mensaje inicial
   useEffect(() => {
-    setMessages([
-      {
-        id: 1,
-        text: "¡Hola! Soy Chatboc, tu experto virtual. ¿En qué puedo ayudarte?",
-        isBot: true,
-        timestamp: new Date(),
-      },
-    ]);
-  }, []);
+    if (!rubroSeleccionado) {
+      fetch("https://api.chatboc.ar/rubros")
+        .then((res) => res.json())
+        .then((data) => {
+          setRubrosDisponibles(data.rubros || []);
+          setEsperandoRubro(true);
+        })
+        .catch((err) => console.error("Error al obtener rubros:", err));
+    } else {
+      setMessages([
+        {
+          id: 1,
+          text: "¡Hola! Soy Chatboc, tu experto virtual. ¿En qué puedo ayudarte?",
+          isBot: true,
+          timestamp: new Date(),
+        },
+      ]);
+    }
+  }, [rubroSeleccionado]);
 
-  // 📜 Scroll automático
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // ✉️ Enviar mensaje
   const handleSendMessage = async (text: string) => {
     if (!text.trim()) return;
 
-   if (preguntasUsadas >= 15) {
-  setMessages((prev) => [
-    ...prev,
-    {
-      id: prev.length + 1,
-      text: `🔒 Alcanzaste el límite de 15 preguntas gratuitas en esta demo.\n\n👉 Si te gustó, podés crear una cuenta gratis para usar Chatboc sin límites y personalizarlo para tu empresa. [Registrarse ahora](/register)`,
-      isBot: true,
-      timestamp: new Date(),
-    },
-  ]);
-  return;
-}
-
+    if (preguntasUsadas >= 15) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: prev.length + 1,
+          text: `🔒 Alcanzaste el límite de 15 preguntas gratuitas en esta demo.\n\n👉 Si te gustó, podés crear una cuenta gratis para usar Chatboc sin límites y personalizarlo para tu empresa. [Registrarse ahora](/register)`,
+          isBot: true,
+          timestamp: new Date(),
+        },
+      ]);
+      return;
+    }
 
     const userMessage: Message = {
       id: messages.length + 1,
@@ -81,7 +92,7 @@ const Demo = () => {
       const response = await apiFetch(
         "/responder_chatboc",
         "POST",
-        { question: text },
+        { question: text, rubro: rubroSeleccionado },
         {
           headers: {
             "Content-Type": "application/json",
@@ -112,9 +123,32 @@ const Demo = () => {
     }
   };
 
+  if (esperandoRubro) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-4 text-center">
+        <h2 className="text-xl font-semibold mb-4">👋 ¡Bienvenido a Chatboc!</h2>
+        <p className="mb-4">Para darte una mejor experiencia, contanos a qué rubro pertenece tu negocio:</p>
+        <div className="flex flex-wrap justify-center gap-2">
+          {rubrosDisponibles.map((rubro) => (
+            <button
+              key={rubro}
+              onClick={() => {
+                localStorage.setItem("rubroSeleccionado", rubro);
+                setRubroSeleccionado(rubro);
+                setEsperandoRubro(false);
+              }}
+              className="px-4 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition"
+            >
+              {rubro}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full max-w-2xl mx-auto bg-white dark:bg-[#1e1e1e] rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 flex flex-col h-[85vh] mt-6 overflow-hidden">
-      {/* Header con branding */}
       <div className="bg-[#006AEC] text-white py-3 px-4 flex items-center justify-between shadow-md">
         <div className="flex items-center gap-2">
           <img
@@ -126,7 +160,6 @@ const Demo = () => {
         </div>
       </div>
 
-      {/* Área de mensajes */}
       <div className="flex-1 overflow-y-auto space-y-4 px-4 py-4 bg-gray-50 dark:bg-[#2a2a2a] transition-colors">
         {messages.map((msg) => (
           <ChatMessage key={msg.id} message={msg} />
@@ -135,7 +168,6 @@ const Demo = () => {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input */}
       <div className="border-t border-gray-200 dark:border-gray-700 p-2 bg-white dark:bg-[#1e1e1e]">
         <ChatInput onSendMessage={handleSendMessage} />
       </div>
