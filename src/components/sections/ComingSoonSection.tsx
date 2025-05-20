@@ -16,17 +16,22 @@ const ComingSoonSection = () => {
           <div className="bg-background rounded-2xl shadow-lg border border-border p-6 hover:shadow-xl transition duration-300">
             <div className="flex flex-col items-center">
               <img
-                src="/images/chatpos.png"
+                src="/images/chatpos-icon-transparent.png"
                 alt="Icono ChatPos"
-                className="w-16 h-16 mb-4"
+                className="w-20 h-20 mb-4"
               />
               <h3 className="text-2xl font-semibold text-green-600 dark:text-green-400 mb-2">ChatPos</h3>
               <p className="text-muted-foreground mb-4">
                 Sistema de punto de venta moderno para facturar, gestionar stock y ver reportes desde cualquier dispositivo.
               </p>
+              <img
+                src="/images/mockup-chatpos.png"
+                alt="Mockup ChatPos"
+                className="mt-4 rounded-xl w-full max-w-[90%] h-auto shadow-lg"
+              />
               <a
                 href="/chatpos"
-                className="inline-block bg-green-600 text-white px-6 py-2 rounded-xl text-sm hover:bg-green-700 transition"
+                className="mt-6 inline-block bg-green-600 text-white px-6 py-2 rounded-xl text-sm hover:bg-green-700 transition"
               >
                 Ver demo
               </a>
@@ -37,17 +42,22 @@ const ComingSoonSection = () => {
           <div className="bg-background rounded-2xl shadow-lg border border-border p-6 hover:shadow-xl transition duration-300">
             <div className="flex flex-col items-center">
               <img
-                src="/images/chatcrm.png"
+                src="/images/chatcrm-icon-cleaned.png"
                 alt="Icono ChatCRM"
-                className="w-16 h-16 mb-4"
+                className="w-20 h-20 mb-4"
               />
               <h3 className="text-2xl font-semibold text-purple-600 dark:text-purple-400 mb-2">ChatCRM</h3>
               <p className="text-muted-foreground mb-4">
                 Gestioná contactos, enviá campañas y promociones automáticas. Ideal para aumentar la recompra y fidelización.
               </p>
+              <img
+                src="/images/mockup-chatcrm.png"
+                alt="Mockup ChatCRM"
+                className="mt-4 rounded-xl w-full max-w-[90%] h-auto shadow-lg"
+              />
               <a
                 href="/chatcrm"
-                className="inline-block bg-purple-600 text-white px-6 py-2 rounded-xl text-sm hover:bg-purple-700 transition"
+                className="mt-6 inline-block bg-purple-600 text-white px-6 py-2 rounded-xl text-sm hover:bg-purple-700 transition"
               >
                 Ver demo
               </a>
