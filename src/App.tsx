@@ -13,6 +13,9 @@ import Perfil from "./pages/Perfil";
 import NotFound from "./pages/NotFound";
 import Checkout  from "./pages/Checkout";
 import ChatWidget from "./components/chat/ChatWidget";
+import ChatPosPage from "./pages/ChatPosPage";
+import ChatCRMPage from "./pages/ChatCRMPage";
+
 
 const queryClient = new QueryClient();
 
@@ -30,6 +33,8 @@ const App = () => (
             <Route path="/perfil" element={<Perfil />} />
             <Route path="/chat" element={<ChatPage />} />
             <Route path="/checkout" element={<Checkout />} />
+            <Route path="/chatpos" element={<ChatPosPage />} />
+            <Route path="/chatcrm" element={<ChatCRMPage />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
