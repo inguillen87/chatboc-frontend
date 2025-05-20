@@ -7,15 +7,15 @@ const ChatCRMPage = () => {
       {/* Hero */}
       <section className="text-center max-w-4xl mx-auto mb-20">
         <img
-          src="/icons/chatcrm-icon.png"
+          src="/images/chatcrm-icon.png"
           alt="ChatCRM Logo"
           className="mx-auto mb-4 w-16 h-16"
         />
-        <h1 className="text-4xl md:text-5xl font-bold mb-4 text-purple-700">
+        <h1 className="text-4xl md:text-5xl font-bold mb-4 text-purple-600 dark:text-purple-400">
           ChatCRM
         </h1>
         <p className="text-muted-foreground text-lg md:text-xl">
-          Gestioná contactos, automatizá campañas y hacé que tus clientes vuelvan.
+          Gestioná contactos, automatizá campañas y fidelizá como las grandes marcas.
         </p>
         <div className="mt-6 flex justify-center gap-4">
           <Button className="bg-purple-600 text-white hover:bg-purple-700">
@@ -30,11 +30,11 @@ const ChatCRMPage = () => {
         <div>
           <h2 className="text-2xl font-semibold mb-4">Herramienta de fidelización 360°</h2>
           <ul className="text-muted-foreground list-disc pl-6 space-y-2">
-            <li>Registro automático de contactos desde consultas o ventas</li>
-            <li>Segmentación por intereses o historial</li>
-            <li>Envío de promociones por WhatsApp o email</li>
-            <li>Campañas automatizadas por fechas, categorías o visitas</li>
-            <li>Historial completo por cliente y reportes de impacto</li>
+            <li>Captura automática de clientes desde consultas o ventas</li>
+            <li>Segmentación por intereses, historial o ubicación</li>
+            <li>Promociones por WhatsApp y email en 1 clic</li>
+            <li>Campañas programadas por fecha, visita o categoría</li>
+            <li>Historial completo y reportes con métricas clave</li>
           </ul>
         </div>
         <img
@@ -50,8 +50,8 @@ const ChatCRMPage = () => {
         <div className="grid md:grid-cols-2 gap-12 items-center">
           <div className="space-y-3 text-muted-foreground">
             <p>Chatboc registra clientes desde el primer contacto automático.</p>
-            <p>Podés usarlo como canal de campañas personalizadas vía WhatsApp.</p>
-            <p>Actuá como asistente postventa y motor de fidelización continua.</p>
+            <p>Usalo como canal de campañas personalizadas vía WhatsApp o web.</p>
+            <p>Funciona como asistente postventa y motor de fidelización continua.</p>
           </div>
           <img
             src="/chatboc_widget_64x64.webp"
@@ -68,21 +68,21 @@ const ChatCRMPage = () => {
           <div className="border p-6 rounded-xl">
             <h3 className="text-lg font-bold mb-2">Base</h3>
             <p className="text-muted-foreground mb-4">Gestión simple de clientes</p>
-            <p className="text-2xl font-bold text-purple-700">$10/mes</p>
+            <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">$10/mes</p>
           </div>
-          <div className="border p-6 rounded-xl bg-purple-50">
+          <div className="border p-6 rounded-xl bg-purple-50 dark:bg-purple-900/20">
             <h3 className="text-lg font-bold mb-2">Avanzado</h3>
             <p className="text-muted-foreground mb-4">
               Campañas automatizadas + WhatsApp
             </p>
-            <p className="text-2xl font-bold text-purple-700">$25/mes</p>
+            <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">$25/mes</p>
           </div>
           <div className="border p-6 rounded-xl">
             <h3 className="text-lg font-bold mb-2">Completo</h3>
             <p className="text-muted-foreground mb-4">
               Todo incluido + Chatboc embebido
             </p>
-            <p className="text-2xl font-bold text-purple-700">$45/mes</p>
+            <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">$45/mes</p>
           </div>
         </div>
       </section>
