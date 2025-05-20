@@ -56,9 +56,7 @@ const plans = [
       'Dashboard mensual con indicadores de rendimiento y actividad del chatbot',
       'Soporte para empresas con múltiples unidades de negocio, rubros o sucursales',
       'Soporte técnico prioritario y configuración avanzada incluida'
-    ]
-
-
+    ],
     cta: 'Solicitar Activación WhatsApp',
     ctaLink: 'https://wa.me/5492613168608?text=Hola! Estoy probando Chatboc y quiero implementarlo en mi empresa.',
     highlight: false
