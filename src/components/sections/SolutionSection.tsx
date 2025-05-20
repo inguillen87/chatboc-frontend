@@ -6,7 +6,7 @@ const SolutionSection = () => {
     {
       icon: <Bot className="h-10 w-10 text-blue-500" />,
       title: "Personalización Profunda desde el Inicio",
-      description: "Comenzamos configurando juntos 10 preguntas y respuestas cruciales para tu negocio. Así, desde el día uno, Chatboc habla el idioma de tus clientes y conoce tus productos/servicios."
+      description: "Chatboc ya viene listo con más de 50 preguntas y respuestas reales por rubro. Elegís tu sector y empezás a responder como un experto, sin configurar nada."
     },
     {
       icon: <Brain className="h-10 w-10 text-blue-500" />,
@@ -15,8 +15,8 @@ const SolutionSection = () => {
     },
     {
       icon: <LayoutDashboard className="h-10 w-10 text-blue-500" />,
-      title: "Panel de Administración Sencillo e Intuitivo",
-      description: "Controlá todo desde un panel fácil de usar, pensado para dueños de pymes. Revisá conversaciones y ajustá respuestas sin complicaciones."
+      title: "Panel Simple. Control Total.",
+      description: "Gestioná tu chatbot como un experto desde un panel claro, sin depender de soporte técnico ni configuraciones complejas."
     },
     {
       icon: <Clock className="h-10 w-10 text-blue-500" />,
@@ -31,7 +31,8 @@ const SolutionSection = () => {
     {
       icon: <Heart className="h-10 w-10 text-blue-500" />,
       title: "Experiencia de Cliente Superior",
-      description: "Ofrecé respuestas inmediatas, precisas y coherentes que encantan a tus clientes y mejoran la reputación de tu marca."
+      description: "Conectá mejor con tus clientes con respuestas inmediatas, humanas y precisas que construyen confianza desde el primer mensaje."
+
     }
   ];
 
