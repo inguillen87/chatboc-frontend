@@ -38,7 +38,7 @@ const Register = () => {
         email,
         password,
         nombre_empresa: nombreEmpresa,
-        rubro_id: parseInt(rubroId),
+        rubro: rubrosDisponibles.find(r => r.id === parseInt(rubroId))?.nombre || '',
       };
 
       const data = await apiFetch('/register', 'POST', payload);
