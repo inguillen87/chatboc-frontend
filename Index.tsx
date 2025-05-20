@@ -7,6 +7,7 @@ import PricingSection from '@/components/sections/PricingSection';
 import TargetSection from '@/components/sections/TargetSection';
 import TestimonialsSection from '@/components/sections/TestimonialsSection';
 import CtaSection from '@/components/sections/CtaSection';
+import ComingSoonSection from '@/components/sections/ComingSoonSection';
 
 const Index = () => {
   useEffect(() => {
@@ -18,7 +19,7 @@ const Index = () => {
       <section className="reveal-animation">
         <HeroSection />
       </section>
-      <section id="problems" className="reveal-animation">
+      <section id="problemas" className="reveal-animation">
         <ProblemsSection />
       </section>
       <section id="solution" className="reveal-animation">
@@ -38,6 +39,9 @@ const Index = () => {
       </section>
       <section className="reveal-animation">
         <CtaSection />
+      </section>
+      <section className="reveal-animation">
+        <ComingSoonSection />
       </section>
     </main>
   );
