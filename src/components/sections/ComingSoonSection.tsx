@@ -16,7 +16,7 @@ const ComingSoonSection = () => {
           <div className="bg-background rounded-2xl shadow-lg border border-border p-6 hover:shadow-xl transition duration-300">
             <div className="flex flex-col items-center">
               <img
-                src="/images/chatpos-icon.png"
+                src="/images/chatpos.png"
                 alt="Icono ChatPos"
                 className="w-16 h-16 mb-4"
               />
@@ -37,7 +37,7 @@ const ComingSoonSection = () => {
           <div className="bg-background rounded-2xl shadow-lg border border-border p-6 hover:shadow-xl transition duration-300">
             <div className="flex flex-col items-center">
               <img
-                src="/images/chatcrm-icon.png"
+                src="/images/chatcrm.png"
                 alt="Icono ChatCRM"
                 className="w-16 h-16 mb-4"
               />
