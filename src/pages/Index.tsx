@@ -5,7 +5,7 @@ import SolutionSection from '@/components/sections/SolutionSection';
 import HowItWorksSection from '@/components/sections/HowItWorksSection';
 import PricingSection from '@/components/sections/PricingSection';
 import TargetSection from '@/components/sections/TargetSection';
-import TestimonialsSection from '@/components/sections/TestimonialsSection';
+// import TestimonialsSection from '@/components/sections/TestimonialsSection';
 import CtaSection from '@/components/sections/CtaSection';
 import ComingSoonSection from '@/components/sections/ComingSoonSection';
 
@@ -34,11 +34,14 @@ const Index = () => {
       <section id="publico-objetivo">
         <TargetSection />
       </section>
-      <section id="testimonios">
+      {/* <section id="testimonios">
         <TestimonialsSection />
-      </section>
+      </section> */}
       <section id="cta">
         <CtaSection />
+      </section>
+      <section id="proximamente">
+        <ComingSoonSection />
       </section>
     </main>
   );
