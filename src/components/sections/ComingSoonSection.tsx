@@ -4,7 +4,7 @@ const ComingSoonSection = () => {
   return (
     <section id="coming-soon" className="bg-muted py-20 px-4 text-center">
       <div className="max-w-6xl mx-auto">
-        <h2 className="text-3xl md:text-4xl font-bold mb-6 text-primary">
+        <h2 className="text-3xl md:text-4xl font-bold mb-6 text-foreground">
           Próximamente: nuevas soluciones para tu negocio
         </h2>
         <p className="text-muted-foreground max-w-2xl mx-auto mb-12">
@@ -16,18 +16,11 @@ const ComingSoonSection = () => {
           <div className="bg-background rounded-2xl shadow-lg border border-border p-6 hover:shadow-xl transition duration-300">
             <div className="flex flex-col items-center">
               <img
-                src="/images/chatpos.png"
-                alt="Mockup ChatPos"
-                className="rounded-md mb-4 w-full max-w-[400px] h-auto"
+                src="/images/chatpos-icon.png"
+                alt="Icono ChatPos"
+                className="w-16 h-16 mb-4"
               />
-              <div className="flex items-center gap-2 mb-2">
-                <img
-                  src="/images/chatpos-icon.png"
-                  alt="Icono ChatPos"
-                  className="w-8 h-8"
-                />
-                <h3 className="text-2xl font-semibold text-green-700">ChatPos</h3>
-              </div>
+              <h3 className="text-2xl font-semibold text-green-600 dark:text-green-400 mb-2">ChatPos</h3>
               <p className="text-muted-foreground mb-4">
                 Sistema de punto de venta moderno para facturar, gestionar stock y ver reportes desde cualquier dispositivo.
               </p>
@@ -44,18 +37,11 @@ const ComingSoonSection = () => {
           <div className="bg-background rounded-2xl shadow-lg border border-border p-6 hover:shadow-xl transition duration-300">
             <div className="flex flex-col items-center">
               <img
-                src="/images/chatcrm.png"
-                alt="Mockup ChatCRM"
-                className="rounded-md mb-4 w-full max-w-[400px] h-auto"
+                src="/images/chatcrm-icon.png"
+                alt="Icono ChatCRM"
+                className="w-16 h-16 mb-4"
               />
-              <div className="flex items-center gap-2 mb-2">
-                <img
-                  src="/images/chatcrm-icon.png"
-                  alt="Icono ChatCRM"
-                  className="w-8 h-8"
-                />
-                <h3 className="text-2xl font-semibold text-purple-700">ChatCRM</h3>
-              </div>
+              <h3 className="text-2xl font-semibold text-purple-600 dark:text-purple-400 mb-2">ChatCRM</h3>
               <p className="text-muted-foreground mb-4">
                 Gestioná contactos, enviá campañas y promociones automáticas. Ideal para aumentar la recompra y fidelización.
               </p>
