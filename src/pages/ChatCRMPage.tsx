@@ -16,7 +16,6 @@ const ChatCRMPage = () => {
           src="/images/chatcrm-icon.png"
           alt="ChatCRM Logo"
           className="mx-auto mb-6 w-20 h-20"
-          style={{ filter: 'drop-shadow(0 0 2px rgba(255,255,255,0.2))' }}
 
         />
         <motion.h1
