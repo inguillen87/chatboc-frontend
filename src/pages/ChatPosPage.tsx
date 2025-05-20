@@ -7,7 +7,7 @@ const ChatPosPage = () => {
       {/* Hero */}
       <section className="text-center max-w-4xl mx-auto mb-20">
         <img
-          src="/icons/chatpos-icon.png"
+          src="/images/chatpos-icon.png"
           alt="ChatPos Logo"
           className="mx-auto mb-4 w-16 h-16"
         />
@@ -38,7 +38,7 @@ const ChatPosPage = () => {
           </ul>
         </div>
         <img
-          src="/mockups/chatpos.png"
+          src="/images/chatpos.png"
           alt="Mockup ChatPos"
           className="rounded-xl shadow-lg w-full h-auto"
         />
