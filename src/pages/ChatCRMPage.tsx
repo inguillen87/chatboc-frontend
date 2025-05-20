@@ -38,7 +38,7 @@ const ChatCRMPage = () => {
           </ul>
         </div>
         <img
-          src="/mockups/chatcrm.png"
+          src="/images/chatcrm.png"
           alt="Mockup ChatCRM"
           className="rounded-xl shadow-lg w-full h-auto"
         />
