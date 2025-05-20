@@ -1,5 +1,4 @@
 import React from "react";
-import Image from "next/image";
 
 const ComingSoonSection = () => {
   return (
@@ -16,19 +15,16 @@ const ComingSoonSection = () => {
           {/* ChatPos */}
           <div className="bg-background rounded-2xl shadow-lg border border-border p-6 hover:shadow-xl transition duration-300">
             <div className="flex flex-col items-center">
-              <Image
-                src="/images/chatpos.png" // reemplazar con tu imagen real
+              <img
+                src="/images/chatpos.png"
                 alt="Mockup ChatPos"
-                width={400}
-                height={250}
-                className="rounded-md mb-4"
+                className="rounded-md mb-4 w-full max-w-[400px] h-auto"
               />
               <div className="flex items-center gap-2 mb-2">
-                <Image
-                  src="/images/chatpos-icon.png" // ícono del POS (puede ser un ticket o caja registradora)
+                <img
+                  src="/images/chatpos-icon.png"
                   alt="Icono ChatPos"
-                  width={32}
-                  height={32}
+                  className="w-8 h-8"
                 />
                 <h3 className="text-2xl font-semibold text-green-700">ChatPos</h3>
               </div>
@@ -47,19 +43,16 @@ const ComingSoonSection = () => {
           {/* ChatCRM */}
           <div className="bg-background rounded-2xl shadow-lg border border-border p-6 hover:shadow-xl transition duration-300">
             <div className="flex flex-col items-center">
-              <Image
-                src="/images/chatcrm.png" // reemplazar con tu imagen real
+              <img
+                src="/images/chatcrm.png"
                 alt="Mockup ChatCRM"
-                width={400}
-                height={250}
-                className="rounded-md mb-4"
+                className="rounded-md mb-4 w-full max-w-[400px] h-auto"
               />
               <div className="flex items-center gap-2 mb-2">
-                <Image
-                  src="/images/chatcrm-icon.png" // ícono de CRM (clientes, gráfico, contacto)
+                <img
+                  src="/images/chatcrm-icon.png"
                   alt="Icono ChatCRM"
-                  width={32}
-                  height={32}
+                  className="w-8 h-8"
                 />
                 <h3 className="text-2xl font-semibold text-purple-700">ChatCRM</h3>
               </div>
@@ -81,4 +74,3 @@ const ComingSoonSection = () => {
 };
 
 export default ComingSoonSection;
-si 
