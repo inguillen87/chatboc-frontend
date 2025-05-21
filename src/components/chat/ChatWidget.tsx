@@ -21,7 +21,7 @@ const ChatWidget: React.FC = () => {
   const [isVisible, setIsVisible] = useState(true);
 
   useEffect(() => {
-  try {
+  const cargarDesdeStorage = () => {
     const path = window.location.pathname;
     const ocultas = ["/login", "/register", "/perfil"];
     if (ocultas.includes(path)) {
@@ -29,54 +29,51 @@ const ChatWidget: React.FC = () => {
       return;
     }
 
-    const cargarDesdeStorage = () => {
-      const storedUser = localStorage.getItem("user");
-      const user = storedUser ? JSON.parse(storedUser) : null;
+    const storedUser = localStorage.getItem("user");
+    const user = storedUser ? JSON.parse(storedUser) : null;
 
-      if (user?.token && !user.token.startsWith("demo")) {
-        // Usuario real logueado
-        setToken(user.token);
-        setRubroSeleccionado(user.rubro || null);
-        setPreguntasUsadas(0);
-        return;
-      }
+    if (user?.token && !user.token.startsWith("demo")) {
+      // ✅ Usuario real logueado
+      setToken(user.token);
+      setPreguntasUsadas(0);
+      localStorage.removeItem("rubroSeleccionado"); // 🔥 eliminar viejo
+      setRubroSeleccionado(user.rubro || null);
+      setEsperandoRubro(false);
+      return;
+    }
 
-      // Usuario anónimo
-      let anonToken = localStorage.getItem("anon_token");
-      if (!anonToken) {
-        anonToken = `demo-anon-${Math.random().toString(36).substring(2, 10)}`;
-        localStorage.setItem("anon_token", anonToken);
-      }
-      setToken(anonToken);
+    // 🟡 Usuario anónimo
+    let anonToken = localStorage.getItem("anon_token");
+    if (!anonToken) {
+      anonToken = `demo-anon-${Math.random().toString(36).substring(2, 10)}`;
+      localStorage.setItem("anon_token", anonToken);
+    }
+    setToken(anonToken);
 
-      const rubro = localStorage.getItem("rubroSeleccionado");
-      if (!rubro) {
-        setEsperandoRubro(true);
-        fetch("https://api.chatboc.ar/rubros")
-          .then((res) => res.json())
-          .then((data) => {
-            setRubrosDisponibles(data.rubros || []);
-          })
-          .catch((err) => console.error("Error al obtener rubros:", err));
-      } else {
-        setRubroSeleccionado(rubro);
-      }
-    };
+    const rubro = localStorage.getItem("rubroSeleccionado");
+    if (!rubro) {
+      setEsperandoRubro(true);
+      fetch("https://api.chatboc.ar/rubros")
+        .then((res) => res.json())
+        .then((data) => {
+          setRubrosDisponibles(data.rubros || []);
+        })
+        .catch((err) => console.error("Error al obtener rubros:", err));
+    } else {
+      setRubroSeleccionado(rubro);
+    }
+  };
 
+  // ▶ Primera carga
+  cargarDesdeStorage();
+
+  // 🔁 Detectar cambios en storage (login/logout)
+  const handleStorageChange = () => {
     cargarDesdeStorage();
+  };
 
-    // 🔁 Detectar cambios en storage (por login o logout)
-    const handleStorageChange = () => {
-      cargarDesdeStorage();
-    };
-
-    window.addEventListener("storage", handleStorageChange);
-    return () => window.removeEventListener("storage", handleStorageChange);
-
-  } catch (e) {
-    console.warn("❗ Error leyendo storage o ruta", e);
-    setIsVisible(false);
-  }
+  window.addEventListener("storage", handleStorageChange);
+  return () => window.removeEventListener("storage", handleStorageChange);
 }, []);
 
 
