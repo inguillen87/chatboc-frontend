@@ -8,7 +8,7 @@ interface ChatMessageProps {
 const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
   const [enviado, setEnviado] = useState(false);
 
-  // 🛡️ Protección general
+  // 🛡️ Protección general contra mensajes malformados
   if (!message || typeof message.text !== "string") return null;
 
   // 🔵 CTA final

@@ -122,14 +122,20 @@ const ChatWidget: React.FC = () => {
 
       console.log("🔍 Respuesta del backend:", data);
 
-      let respuestaFinal: string;
-      if (typeof data.respuesta === "string") {
-        respuestaFinal = data.respuesta;
-      } else if (typeof data.respuesta === "object" && data.respuesta?.text) {
-        respuestaFinal = data.respuesta.text;
-      } else {
-        respuestaFinal = "❌ No entendí tu mensaje.";
+      let respuestaFinal: string = "❌ No entendí tu mensaje.";
+    try {
+      const r = data?.respuesta;
+      if (typeof r === "string") {
+        respuestaFinal = r;
+      } else if (r && typeof r.text === "string") {
+        respuestaFinal = r.text;
+      } else if (r) {
+        respuestaFinal = JSON.stringify(r);
       }
+    } catch (e) {
+      console.error("❌ Error interpretando respuesta:", e);
+    }
+
 
       const botMessage: Message = {
         id: messages.length + 2,
