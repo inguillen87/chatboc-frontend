@@ -6,8 +6,6 @@ import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { LogOut } from "lucide-react";
 import { apiFetch } from "@/utils/api";
-// ... imports originales
-import WidgetEmbed from "@/components/chat/WidgetEmbed";
 
 const Perfil = () => {
   const navigate = useNavigate();
@@ -78,6 +76,7 @@ const Perfil = () => {
                 ? `Perfil de ${user.nombre_empresa}`
                 : `Perfil de ${user.name}`}
             </h1>
+
             <Button variant="destructive" onClick={handleLogout}>
               <LogOut className="w-4 h-4 mr-2" />
               Cerrar sesión
@@ -123,10 +122,27 @@ const Perfil = () => {
               >
                 Ir al Chat Completo
               </Button>
-            </div>
 
-            {/* 🔌 Bloque nuevo para incrustar el iframe del widget */}
-            <WidgetEmbed token={user.token} />
+              {["pro", "full"].includes(user?.plan) ? (
+                <Button
+                  variant="outline"
+                  onClick={() => navigate("/integracion")}
+                  className="w-full sm:w-auto"
+                >
+                  🔌 Ver código de integración
+                </Button>
+              ) : (
+                <div className="text-sm text-muted-foreground mt-2 sm:mt-0">
+                  🔒 Solo disponible en el plan Pro o Full.{" "}
+                  <button
+                    onClick={() => navigate("/checkout?plan=pro")}
+                    className="underline text-blue-600 hover:text-blue-800 ml-1"
+                  >
+                    Mejorá tu plan
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </main>
