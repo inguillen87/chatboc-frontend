@@ -6,6 +6,8 @@ import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { LogOut } from "lucide-react";
 import { apiFetch } from "@/utils/api";
+// ... imports originales
+import WidgetEmbed from "@/components/chat/WidgetEmbed";
 
 const Perfil = () => {
   const navigate = useNavigate();
@@ -50,8 +52,6 @@ const Perfil = () => {
     };
 
     fetchUserData();
-
-    // 🧭 Scroll al centro al cargar perfil
     setTimeout(() => {
       window.scrollTo({ top: 0, behavior: "smooth" });
     }, 100);
@@ -60,8 +60,6 @@ const Perfil = () => {
   const handleLogout = () => {
     localStorage.removeItem("user");
     navigate("/login");
-
-    // 📍 Asegurar que la pantalla se centre en el login
     setTimeout(() => {
       window.scrollTo({ top: 0, behavior: "smooth" });
     }, 200);
@@ -80,7 +78,6 @@ const Perfil = () => {
                 ? `Perfil de ${user.nombre_empresa}`
                 : `Perfil de ${user.name}`}
             </h1>
-
             <Button variant="destructive" onClick={handleLogout}>
               <LogOut className="w-4 h-4 mr-2" />
               Cerrar sesión
@@ -127,6 +124,9 @@ const Perfil = () => {
                 Ir al Chat Completo
               </Button>
             </div>
+
+            {/* 🔌 Bloque nuevo para incrustar el iframe del widget */}
+            <WidgetEmbed token={user.token} />
           </div>
         </div>
       </main>

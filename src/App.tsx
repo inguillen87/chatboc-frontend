@@ -15,6 +15,8 @@ import Checkout  from "./pages/Checkout";
 import ChatWidget from "./components/chat/ChatWidget";
 import ChatPosPage from "./pages/ChatPosPage";
 import ChatCRMPage from "./pages/ChatCRMPage";
+import Iframe from "@/pages/Iframe"; // Asegurate que el path esté bien
+import Integracion from "./pages/Integracion";
 
 
 const queryClient = new QueryClient();
@@ -35,6 +37,8 @@ const App = () => (
             <Route path="/checkout" element={<Checkout />} />
             <Route path="/chatpos" element={<ChatPosPage />} />
             <Route path="/chatcrm" element={<ChatCRMPage />} />
+            <Route path="/iframe" element={<Iframe />} />
+            <Route path="/integracion" element={<Integracion />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
