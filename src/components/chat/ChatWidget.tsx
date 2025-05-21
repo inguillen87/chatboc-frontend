@@ -1,11 +1,15 @@
-import React, { useState, useRef, useEffect } from "react";
-import { X } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
 import ChatHeader from "./ChatHeader";
 import ChatMessage from "./ChatMessage";
 import TypingIndicator from "./TypingIndicator";
 import ChatInput from "./ChatInput";
-import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
+import { useLocation } from "react-router-dom";
+
+type Message = {
+  text: string;
+  sender: "user" | "bot";
+};
 
 const ChatWidget: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -13,34 +17,23 @@ const ChatWidget: React.FC = () => {
   const [isTyping, setIsTyping] = useState(false);
   const [user, setUser] = useState<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const location = useLocation();
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
+    try {
       const storedUser = localStorage.getItem("user");
-      console.log("🧠 localStorage.getItem('user'):", storedUser);
-
       if (storedUser) {
-        try {
-          const parsedUser = JSON.parse(storedUser);
-          if (parsedUser?.token) {
-            console.log("✅ Usuario cargado en ChatWidget:", parsedUser);
-            setUser(parsedUser);
-          } else {
-            console.warn("⚠️ El objeto de usuario no tiene token");
-          }
-        } catch (e) {
-          console.error("❌ Error parseando user de localStorage:", e);
+        const parsedUser = JSON.parse(storedUser);
+        if (parsedUser?.token) {
+          setUser(parsedUser);
         }
-      } else {
-        console.warn("⚠️ No hay user en localStorage");
       }
+    } catch (e) {
+      console.error("❌ Error leyendo user desde localStorage:", e);
     }
-  }, []);
+  }, [location]);
 
-  if (!user) {
-    console.log("⛔ ChatWidget oculto: no hay usuario logueado.");
-    return null;
-  }
+  if (!user) return null;
 
   const toggleChat = () => {
     setIsOpen(!isOpen);
@@ -58,19 +51,26 @@ const ChatWidget: React.FC = () => {
     setIsTyping(true);
 
     try {
-      const res = await apiFetch("/responder_chatboc", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${user.token}`,
-        },
-        body: {
+      const response = await apiFetch(
+        "/responder_chatboc",
+        "POST",
+        {
           pregunta: messageText,
           rubro: user.rubro || "general",
         },
-      });
+        {
+          headers: {
+            Authorization: `Bearer ${user.token}`,
+          },
+        }
+      );
 
-      setMessages([...updatedMessages, { text: res.respuesta, sender: "bot" }]);
-    } catch (err) {
+      setMessages([
+        ...updatedMessages,
+        { text: response.respuesta, sender: "bot" },
+      ]);
+    } catch (error) {
+      console.error("❌ Error en handleSend:", error);
       setMessages([
         ...updatedMessages,
         {
