@@ -8,6 +8,9 @@ interface ChatMessageProps {
 const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
   const [enviado, setEnviado] = useState(false);
 
+  // 🛡️ Protección general
+  if (!message || typeof message.text !== "string") return null;
+
   // 🔵 CTA final
   if (message.text === "__cta__") {
     return (
@@ -83,10 +86,10 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
             : "bg-blue-600 text-white rounded-br-none"
         }`}
       >
-        {typeof message.text === "string" ? message.text : JSON.stringify(message)}
+        {message.text}
 
         <div className="text-xs mt-1 opacity-70 text-right">
-          {message.timestamp.toLocaleTimeString([], {
+          {new Date(message.timestamp).toLocaleTimeString([], {
             hour: "2-digit",
             minute: "2-digit",
           })}
