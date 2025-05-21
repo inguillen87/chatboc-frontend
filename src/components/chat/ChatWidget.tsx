@@ -4,7 +4,6 @@ import ChatMessage from "./ChatMessage";
 import TypingIndicator from "./TypingIndicator";
 import ChatInput from "./ChatInput";
 import { apiFetch } from "@/utils/api";
-import { useLocation } from "react-router-dom";
 
 type Message = {
   text: string;
@@ -12,13 +11,13 @@ type Message = {
 };
 
 const ChatWidget: React.FC = () => {
-  const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [user, setUser] = useState<any>(null);
+  const [rubros, setRubros] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const location = useLocation();
 
+  // Leer user desde localStorage
   useEffect(() => {
     try {
       const storedUser = localStorage.getItem("user");
@@ -31,17 +30,31 @@ const ChatWidget: React.FC = () => {
     } catch (e) {
       console.error("❌ Error leyendo user desde localStorage:", e);
     }
-  }, [location]);
+  }, []);
 
-  if (!user) return null;
-
-  const toggleChat = () => {
-    setIsOpen(!isOpen);
-    if (!isOpen) {
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-      }, 100);
+  // Traer rubros desde la API si no hay user
+  useEffect(() => {
+    if (!user) {
+      apiFetch("/rubros", "GET")
+        .then((data) => {
+          const nombres = data.map((r: any) => r.nombre || r.name);
+          setRubros(nombres);
+        })
+        .catch((err) => {
+          console.error("❌ Error cargando rubros:", err);
+        });
     }
+  }, [user]);
+
+  const handleRubroSeleccionado = (rubro: string) => {
+    const anonUser = {
+      token: "demo-token",
+      name: "ANÓNIMO",
+      rubro,
+      plan: "demo",
+    };
+    localStorage.setItem("user", JSON.stringify(anonUser));
+    setUser(anonUser);
   };
 
   const handleSend = async (messageText: string) => {
@@ -84,17 +97,27 @@ const ChatWidget: React.FC = () => {
   };
 
   return (
-    <>
-      <div
-        className="fixed bottom-4 right-4 z-50 bg-blue-600 text-white p-3 rounded-full shadow-lg cursor-pointer"
-        onClick={toggleChat}
-      >
-        💬
-      </div>
-
-      {isOpen && (
-        <div className="fixed bottom-20 right-4 z-50 w-80 h-[450px] bg-white border rounded-xl shadow-xl flex flex-col overflow-hidden">
-          <ChatHeader onClose={toggleChat} />
+    <div className="fixed bottom-0 right-4 z-50 w-80 h-[500px] bg-white border rounded-t-xl shadow-xl flex flex-col overflow-hidden">
+      <ChatHeader />
+      {!user ? (
+        <div className="flex-1 overflow-y-auto p-4">
+          <h2 className="text-sm font-semibold mb-2">
+            ¿De qué rubro querés recibir respuestas?
+          </h2>
+          <ul className="space-y-2 max-h-64 overflow-y-auto">
+            {rubros.map((rubro) => (
+              <li
+                key={rubro}
+                className="cursor-pointer text-blue-600 hover:underline"
+                onClick={() => handleRubroSeleccionado(rubro)}
+              >
+                {rubro}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <>
           <div className="flex-1 overflow-y-auto p-2">
             {messages.map((msg, idx) => (
               <ChatMessage key={idx} message={msg} />
@@ -103,9 +126,9 @@ const ChatWidget: React.FC = () => {
             <div ref={messagesEndRef} />
           </div>
           <ChatInput onSend={handleSend} />
-        </div>
+        </>
       )}
-    </>
+    </div>
   );
 };
 
