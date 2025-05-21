@@ -26,7 +26,7 @@ const ChatWidget: React.FC = () => {
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
   const path = window.location.pathname;
-  const isRutaOculta = ["/login", "/register", "/perfil"].some((r) => path.startsWith(r));
+  const isRutaOculta = ["/login", "/register"].some((r) => path.startsWith(r));
   if (isRutaOculta) return null;
 
   let token = "";
@@ -120,35 +120,30 @@ const ChatWidget: React.FC = () => {
         }
       );
 
-      console.log("🔍 Respuesta del backend:", data);
-
       let respuestaFinal: string = "❌ No entendí tu mensaje.";
-    try {
-      const r = data?.respuesta;
-      if (typeof r === "string") {
-        respuestaFinal = r;
-      } else if (r && typeof r.text === "string") {
-        respuestaFinal = r.text;
-      } else if (r) {
-        respuestaFinal = JSON.stringify(r);
-      }
-    } catch (e) {
-      console.error("❌ Error interpretando respuesta:", e);
-    }
 
+      try {
+        const r = data?.respuesta;
+        if (typeof r === "string") {
+          respuestaFinal = r;
+        } else if (r && typeof r.text === "string") {
+          respuestaFinal = r.text;
+        } else if (typeof r === "object") {
+          respuestaFinal = JSON.stringify(r);
+        }
+      } catch (e) {
+        console.error("❌ Error interpretando respuesta:", e);
+      }
 
       const botMessage: Message = {
         id: messages.length + 2,
-        text: respuestaFinal,
+        text: typeof respuestaFinal === "string" ? respuestaFinal : "⚠️ Respuesta malformada.",
         isBot: true,
         timestamp: new Date(),
       };
 
       setMessages((prev) => [...prev, botMessage]);
-
-      if (esAnonimo) {
-        setPreguntasUsadas((prev) => prev + 1);
-      }
+      if (esAnonimo) setPreguntasUsadas((prev) => prev + 1);
     } catch (err) {
       console.error("❌ Error en apiFetch:", err);
       setMessages((prev) => [

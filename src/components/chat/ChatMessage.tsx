@@ -8,10 +8,14 @@ interface ChatMessageProps {
 const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
   const [enviado, setEnviado] = useState(false);
 
-  // 🛡️ Protección general contra mensajes malformados
-  if (!message || typeof message.text !== "string") return null;
+  if (!message || typeof message.text !== "string") {
+    return (
+      <div className="text-xs text-red-600 italic mt-2 px-3">
+        ❌ Mensaje inválido o malformado.
+      </div>
+    );
+  }
 
-  // 🔵 CTA final
   if (message.text === "__cta__") {
     return (
       <div className="flex justify-center mt-4">
@@ -38,7 +42,6 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
     );
   }
 
-  // 🟡 Mensaje de sugerencia
   if (message.text === "__sugerencia__" && message.originalQuestion) {
     return (
       <div className="flex justify-start px-2 mt-2">
@@ -74,7 +77,6 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
     );
   }
 
-  // 🟢 Mensaje normal (bot o usuario)
   const isBot = message.isBot;
 
   return (
@@ -87,7 +89,6 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
         }`}
       >
         {message.text}
-
         <div className="text-xs mt-1 opacity-70 text-right">
           {new Date(message.timestamp).toLocaleTimeString([], {
             hour: "2-digit",
