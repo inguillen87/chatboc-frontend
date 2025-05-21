@@ -162,7 +162,19 @@ const Demo = () => {
 
       <div className="flex-1 overflow-y-auto space-y-4 px-4 py-4 bg-gray-50 dark:bg-[#2a2a2a] transition-colors">
         {messages.map((msg) => (
-          <ChatMessage key={msg.id} message={msg} />
+          <div
+            key={msg.id}
+            className={`p-3 rounded-xl max-w-[80%] whitespace-pre-wrap text-justify shadow ${
+              msg.isBot
+                ? "bg-blue-100 dark:bg-blue-900/30 text-black dark:text-white self-start"
+                : "bg-[#006AEC] text-white self-end"
+            }`}
+          >
+            <div className="text-sm">{msg.text}</div>
+            <div className="text-[10px] opacity-60 text-right mt-1">
+              {msg.timestamp.toLocaleTimeString()}
+            </div>
+          </div>
         ))}
         {isTyping && <TypingIndicator />}
         <div ref={messagesEndRef} />
