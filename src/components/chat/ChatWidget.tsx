@@ -100,83 +100,90 @@ const ChatWidget: React.FC = () => {
     }
   };
 
-  const handleSendMessage = async (text: string) => {
-    if (!text.trim()) return;
+ const handleSendMessage = async (text: string) => {
+  if (!text.trim()) return;
 
-    const esAnonimo = token.startsWith("demo-anon-") || token.startsWith("demo-token");
-    if (esAnonimo && preguntasUsadas >= 15) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: prev.length + 1,
-          text: `🔒 Alcanzaste el límite de 15 preguntas gratuitas en esta demo.\n\n👉 Si te gustó, podés crear una cuenta gratis para usar Chatboc sin límites: https://chatboc.ar/register`,
-          isBot: true,
-          timestamp: new Date(),
-        },
-      ]);
-      return;
+  const esAnonimo = token.startsWith("demo-anon-") || token.startsWith("demo-token");
+  if (esAnonimo && preguntasUsadas >= 15) {
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: prev.length + 1,
+        text: `🔒 Alcanzaste el límite de 15 preguntas gratuitas en esta demo.\n\n👉 Si te gustó, podés crear una cuenta gratis para usar Chatboc sin límites: https://chatboc.ar/register`,
+        isBot: true,
+        timestamp: new Date(),
+      },
+    ]);
+    return;
+  }
+
+  const userMessage: Message = {
+    id: messages.length + 1,
+    text,
+    isBot: false,
+    timestamp: new Date(),
+  };
+
+  setMessages((prev) => [...prev, userMessage]);
+  setIsTyping(true);
+
+  try {
+    // ⚠️ Usar siempre rubro si existe
+    const bodyPayload: any = { pregunta: text };
+    if (rubroSeleccionado) {
+      bodyPayload.rubro = rubroSeleccionado;
     }
 
-    const userMessage: Message = {
-      id: messages.length + 1,
-      text,
-      isBot: false,
+    const data = await apiFetch(
+      "/responder_chatboc",
+      "POST",
+      bodyPayload,
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    let respuestaFinal = "❌ No entendí tu mensaje.";
+    const r = data?.respuesta;
+    if (typeof r === "string") {
+      respuestaFinal = r;
+    } else if (r && typeof r.text === "string") {
+      respuestaFinal = r.text;
+    } else if (r) {
+      respuestaFinal = JSON.stringify(r);
+    }
+
+    const botMessage: Message = {
+      id: messages.length + 2,
+      text: respuestaFinal,
+      isBot: true,
       timestamp: new Date(),
     };
 
-    setMessages((prev) => [...prev, userMessage]);
-    setIsTyping(true);
+    setMessages((prev) => [...prev, botMessage]);
 
-    try {
-      const data = await apiFetch(
-        "/responder_chatboc",
-        "POST",
-        { pregunta: text, rubro: rubroSeleccionado },
-        {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      let respuestaFinal = "❌ No entendí tu mensaje.";
-      const r = data?.respuesta;
-      if (typeof r === "string") {
-        respuestaFinal = r;
-      } else if (r && typeof r.text === "string") {
-        respuestaFinal = r.text;
-      } else if (r) {
-        respuestaFinal = JSON.stringify(r);
-      }
-
-      const botMessage: Message = {
+    if (esAnonimo) {
+      setPreguntasUsadas((prev) => prev + 1);
+    }
+  } catch (err) {
+    console.error("❌ Error en apiFetch:", err);
+    setMessages((prev) => [
+      ...prev,
+      {
         id: messages.length + 2,
-        text: respuestaFinal,
+        text: "⚠️ No se pudo conectar con el servidor.",
         isBot: true,
         timestamp: new Date(),
-      };
+      },
+    ]);
+  } finally {
+    setIsTyping(false);
+  }
+};
 
-      setMessages((prev) => [...prev, botMessage]);
-
-      if (esAnonimo) {
-        setPreguntasUsadas((prev) => prev + 1);
-      }
-    } catch (err) {
-      console.error("❌ Error en apiFetch:", err);
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: messages.length + 2,
-          text: "⚠️ No se pudo conectar con el servidor.",
-          isBot: true,
-          timestamp: new Date(),
-        },
-      ]);
-    } finally {
-      setIsTyping(false);
-    }
-  };
 
   if (!isVisible) return null;
 
