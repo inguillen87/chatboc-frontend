@@ -84,8 +84,12 @@ const ChatPage = () => {
   return (
     <div className="min-h-[calc(100vh-80px)] flex flex-col items-center justify-center px-4 py-4">
       <div className="w-full max-w-2xl bg-white dark:bg-[#1e1e1e] rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 flex flex-col h-[80vh]">
-        <div className="flex-1 overflow-y-auto space-y-4 px-3 py-4">
-          {messages.map((msg) => (
+      <div
+        className={`flex-1 overflow-y-auto px-3 py-4 space-y-4 flex flex-col ${
+          messages.length <= 1 ? "justify-center" : ""
+        }`}
+      >
+            {messages.map((msg) => (
             <div
               key={msg.id}
               className={`p-3 rounded-xl max-w-[80%] shadow ${
