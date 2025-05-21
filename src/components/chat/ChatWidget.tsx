@@ -13,7 +13,11 @@ const ChatWidget: React.FC = () => {
   const [isTyping, setIsTyping] = useState(false);
   const [preguntasUsadas, setPreguntasUsadas] = useState(0);
   const [rubroSeleccionado, setRubroSeleccionado] = useState<string | null>(() => {
-    return localStorage.getItem("rubroSeleccionado");
+    try {
+      return typeof window !== "undefined" ? localStorage.getItem("rubroSeleccionado") : null;
+    } catch {
+      return null;
+    }
   });
   const [rubrosDisponibles, setRubrosDisponibles] = useState<{ id: number; nombre: string }[]>([]);
   const [esperandoRubro, setEsperandoRubro] = useState(!rubroSeleccionado);
@@ -116,9 +120,20 @@ const ChatWidget: React.FC = () => {
         }
       );
 
+      console.log("🔍 Respuesta del backend:", data);
+
+      let respuestaFinal: string;
+      if (typeof data.respuesta === "string") {
+        respuestaFinal = data.respuesta;
+      } else if (typeof data.respuesta === "object" && data.respuesta?.text) {
+        respuestaFinal = data.respuesta.text;
+      } else {
+        respuestaFinal = "❌ No entendí tu mensaje.";
+      }
+
       const botMessage: Message = {
         id: messages.length + 2,
-        text: data.respuesta || "❌ No entendí tu mensaje.",
+        text: respuestaFinal,
         isBot: true,
         timestamp: new Date(),
       };
@@ -129,6 +144,7 @@ const ChatWidget: React.FC = () => {
         setPreguntasUsadas((prev) => prev + 1);
       }
     } catch (err) {
+      console.error("❌ Error en apiFetch:", err);
       setMessages((prev) => [
         ...prev,
         {
@@ -206,9 +222,11 @@ const ChatWidget: React.FC = () => {
         <div className="absolute bottom-20 right-0 w-80 md:w-96 h-[500px] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl flex flex-col overflow-hidden animate-slide-up">
           <ChatHeader onClose={toggleChat} />
           <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-3" ref={chatContainerRef}>
-            {messages.map((msg) => (
-              <ChatMessage key={msg.id} message={msg} />
-            ))}
+            {messages.map((msg) =>
+              typeof msg.text === "string" ? (
+                <ChatMessage key={msg.id} message={msg} />
+              ) : null
+            )}
             {isTyping && <TypingIndicator />}
             <div ref={messagesEndRef} />
           </div>
