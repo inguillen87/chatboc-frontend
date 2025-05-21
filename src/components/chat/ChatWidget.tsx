@@ -14,30 +14,37 @@ const ChatWidget: React.FC = () => {
   const [user, setUser] = useState<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // ⏳ Cargar el usuario desde localStorage
   useEffect(() => {
     if (typeof window !== "undefined") {
       const storedUser = localStorage.getItem("user");
+      console.log("🧠 localStorage.getItem('user'):", storedUser);
+
       if (storedUser) {
         try {
           const parsedUser = JSON.parse(storedUser);
           if (parsedUser?.token) {
+            console.log("✅ Usuario cargado en ChatWidget:", parsedUser);
             setUser(parsedUser);
+          } else {
+            console.warn("⚠️ El objeto de usuario no tiene token");
           }
         } catch (e) {
-          console.error("❌ Error leyendo user desde localStorage:", e);
+          console.error("❌ Error parseando user de localStorage:", e);
         }
+      } else {
+        console.warn("⚠️ No hay user en localStorage");
       }
     }
   }, []);
 
-  // ❌ Si no hay usuario logueado, no mostrar el widget (evita modo demo si ya inició sesión)
-  if (!user) return null;
+  if (!user) {
+    console.log("⛔ ChatWidget oculto: no hay usuario logueado.");
+    return null;
+  }
 
   const toggleChat = () => {
     setIsOpen(!isOpen);
     if (!isOpen) {
-      // Scroll automático al abrir
       setTimeout(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
       }, 100);
