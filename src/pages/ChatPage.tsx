@@ -7,9 +7,19 @@ import { apiFetch } from "@/utils/api";
 const ChatPage = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
+  const [token, setToken] = useState("");
+  const [rubro, setRubro] = useState("general");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    const storedUser = localStorage.getItem("user");
+    const user = storedUser ? JSON.parse(storedUser) : null;
+
+    if (user?.token) {
+      setToken(user.token);
+      setRubro(user.rubro?.toLowerCase() || "general");
+    }
+
     setMessages([
       {
         id: 1,
@@ -18,22 +28,14 @@ const ChatPage = () => {
         timestamp: new Date(),
       },
     ]);
-    // ⬇️ Centrar scroll al iniciar
-    setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, 100);
   }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, isTyping]);
 
   const handleSend = async (text: string) => {
     if (!text.trim()) return;
-
-    const storedUser = localStorage.getItem("user");
-    const user = storedUser ? JSON.parse(storedUser) : null;
-    const token = user?.token || "";
 
     const userMessage: Message = {
       id: messages.length + 1,
@@ -50,11 +52,14 @@ const ChatPage = () => {
       const response = await apiFetch(
         "/responder_chatboc",
         "POST",
-        { question: text },
+        {
+          pregunta: text,
+          rubro: rubro,
+        },
         {
           headers: {
             "Content-Type": "application/json",
-            Authorization: token,
+            Authorization: `Bearer ${token}`,
           },
         }
       );
@@ -71,7 +76,7 @@ const ChatPage = () => {
         timestamp: new Date(),
       };
 
-      setMessages([...updatedMessages, botMessage]);
+      setMessages((prev) => [...prev, botMessage]);
     } catch (error: any) {
       const errorMessage: Message = {
         id: updatedMessages.length + 1,
@@ -79,7 +84,7 @@ const ChatPage = () => {
         isBot: true,
         timestamp: new Date(),
       };
-      setMessages([...updatedMessages, errorMessage]);
+      setMessages((prev) => [...prev, errorMessage]);
     } finally {
       setIsTyping(false);
     }
@@ -87,9 +92,9 @@ const ChatPage = () => {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-start bg-background text-foreground pt-20 px-4">
-      <div className="w-full max-w-2xl flex flex-col h-[80vh] bg-white dark:bg-[#1e1e1e] rounded-lg shadow-lg border border-gray-200 dark:border-gray-700">
+      <div className="w-full max-w-2xl flex flex-col h-[80vh] bg-white dark:bg-[#1e1e1e] rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
         {/* Mensajes */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 scroll-smooth">
           {messages.map((msg) => (
             <div
               key={msg.id}
