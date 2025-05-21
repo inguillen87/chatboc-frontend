@@ -10,8 +10,9 @@ const ChatPage = () => {
   const [token, setToken] = useState("");
   const [rubro, setRubro] = useState("general");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // Siempre que carga el componente, se fija si hay un usuario logueado
+  // Al iniciar: obtener token y mensaje inicial
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
     const user = storedUser ? JSON.parse(storedUser) : null;
@@ -29,7 +30,7 @@ const ChatPage = () => {
     ]);
   }, []);
 
-  // Cada vez que cambia el token, pedimos el rubro real al backend
+  // Cuando cambia el token: pedir rubro al backend
   useEffect(() => {
     const cargarRubro = async () => {
       if (!token) return;
@@ -45,12 +46,21 @@ const ChatPage = () => {
     cargarRubro();
   }, [token]);
 
+  // Scroll automático al fondo
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const scroll = () => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    };
+    const timeout = setTimeout(scroll, 100);
+    return () => clearTimeout(timeout);
   }, [messages, isTyping]);
 
   const handleSend = async (text: string) => {
     if (!text.trim()) return;
+
+    const storedUser = localStorage.getItem("user");
+    const user = storedUser ? JSON.parse(storedUser) : null;
+    const tokenFinal = user?.token || token;
 
     const userMessage: Message = {
       id: messages.length + 1,
@@ -64,11 +74,6 @@ const ChatPage = () => {
     setIsTyping(true);
 
     try {
-      // Siempre tomamos el último user de localStorage por si cambió
-      const storedUser = localStorage.getItem("user");
-      const user = storedUser ? JSON.parse(storedUser) : null;
-      const tokenFinal = user?.token || token;
-
       const response = await apiFetch(
         "/responder_chatboc",
         "POST",
@@ -106,9 +111,12 @@ const ChatPage = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-start bg-background text-foreground pt-20 px-4">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background text-foreground pt-20 px-4">
       <div className="w-full max-w-2xl flex flex-col h-[80vh] bg-white dark:bg-[#1e1e1e] rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 scroll-smooth">
+        <div
+          className="flex-1 overflow-y-auto px-4 py-4 space-y-4 scroll-smooth"
+          ref={scrollContainerRef}
+        >
           {messages.map((msg) => (
             <div
               key={msg.id}
