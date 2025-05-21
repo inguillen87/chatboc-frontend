@@ -11,18 +11,13 @@ const ChatPage = () => {
   const [rubro, setRubro] = useState("general");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const cargarDesdeStorage = () => {
+  // Siempre que carga el componente, se fija si hay un usuario logueado
+  useEffect(() => {
     const storedUser = localStorage.getItem("user");
     const user = storedUser ? JSON.parse(storedUser) : null;
-
     if (user?.token) {
       setToken(user.token);
-      setRubro(user.rubro?.toLowerCase() || "general");
     }
-  };
-
-  useEffect(() => {
-    cargarDesdeStorage();
 
     setMessages([
       {
@@ -32,14 +27,23 @@ const ChatPage = () => {
         timestamp: new Date(),
       },
     ]);
-
-    const handleStorageChange = () => {
-      cargarDesdeStorage();
-    };
-
-    window.addEventListener("storage", handleStorageChange);
-    return () => window.removeEventListener("storage", handleStorageChange);
   }, []);
+
+  // Cada vez que cambia el token, pedimos el rubro real al backend
+  useEffect(() => {
+    const cargarRubro = async () => {
+      if (!token) return;
+      try {
+        const res = await apiFetch("/me", "GET", null, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setRubro(res?.rubro?.toLowerCase() || "general");
+      } catch (err) {
+        console.error("❌ Error al obtener rubro:", err);
+      }
+    };
+    cargarRubro();
+  }, [token]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -60,6 +64,11 @@ const ChatPage = () => {
     setIsTyping(true);
 
     try {
+      // Siempre tomamos el último user de localStorage por si cambió
+      const storedUser = localStorage.getItem("user");
+      const user = storedUser ? JSON.parse(storedUser) : null;
+      const tokenFinal = user?.token || token;
+
       const response = await apiFetch(
         "/responder_chatboc",
         "POST",
@@ -70,19 +79,14 @@ const ChatPage = () => {
         {
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${tokenFinal}`,
           },
         }
       );
 
-      const textoRespuesta =
-        response && typeof response === "object"
-          ? response.respuesta ?? JSON.stringify(response)
-          : `⚠️ Respuesta inválida del backend: ${JSON.stringify(response)}`;
-
       const botMessage: Message = {
         id: updatedMessages.length + 1,
-        text: textoRespuesta,
+        text: response?.respuesta || "⚠️ No se pudo generar una respuesta.",
         isBot: true,
         timestamp: new Date(),
       };
@@ -104,7 +108,6 @@ const ChatPage = () => {
   return (
     <div className="min-h-screen flex flex-col items-center justify-start bg-background text-foreground pt-20 px-4">
       <div className="w-full max-w-2xl flex flex-col h-[80vh] bg-white dark:bg-[#1e1e1e] rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-        {/* Mensajes */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 scroll-smooth">
           {messages.map((msg) => (
             <div
@@ -124,8 +127,6 @@ const ChatPage = () => {
           {isTyping && <TypingIndicator />}
           <div ref={messagesEndRef} />
         </div>
-
-        {/* Input */}
         <div className="border-t border-gray-200 dark:border-gray-700 p-2">
           <ChatInput onSendMessage={handleSend} />
         </div>
