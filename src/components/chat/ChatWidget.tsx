@@ -21,54 +21,49 @@ const ChatWidget: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
+  const recargarDesdeStorage = () => {
+    const path = window.location.pathname;
+    const ocultas = ["/login", "/register", "/perfil"];
+    if (ocultas.includes(path)) {
+      setIsVisible(false);
+      return;
+    }
+
+    const storedUser = localStorage.getItem("user");
+    const user = storedUser ? JSON.parse(storedUser) : null;
+
+    if (user?.token && !user.token.startsWith("demo")) {
+      setToken(user.token);
+      setPreguntasUsadas(0);
+      localStorage.removeItem("rubroSeleccionado");
+      setRubroSeleccionado(user.rubro?.toLowerCase() || "general");
+      setEsperandoRubro(false);
+      return;
+    }
+
+    let anonToken = localStorage.getItem("anon_token");
+    if (!anonToken) {
+      anonToken = `demo-anon-${Math.random().toString(36).substring(2, 10)}`;
+      localStorage.setItem("anon_token", anonToken);
+    }
+    setToken(anonToken);
+
+    const rubro = localStorage.getItem("rubroSeleccionado");
+    if (!rubro) {
+      setEsperandoRubro(true);
+      fetch("https://api.chatboc.ar/rubros")
+        .then((res) => res.json())
+        .then((data) => setRubrosDisponibles(data.rubros || []))
+        .catch(() => {});
+    } else {
+      setRubroSeleccionado(rubro);
+    }
+  };
+
   useEffect(() => {
-    const cargarDesdeStorage = () => {
-      const path = window.location.pathname;
-      const ocultas = ["/login", "/register", "/perfil"];
-      if (ocultas.includes(path)) {
-        setIsVisible(false);
-        return;
-      }
-
-      const storedUser = localStorage.getItem("user");
-      const user = storedUser ? JSON.parse(storedUser) : null;
-
-      if (user?.token && !user.token.startsWith("demo")) {
-        setToken(user.token);
-        setPreguntasUsadas(0);
-        localStorage.removeItem("rubroSeleccionado");
-        setRubroSeleccionado(user.rubro?.toLowerCase() || "general");
-        setEsperandoRubro(false);
-        return;
-      }
-
-      let anonToken = localStorage.getItem("anon_token");
-      if (!anonToken) {
-        anonToken = `demo-anon-${Math.random().toString(36).substring(2, 10)}`;
-        localStorage.setItem("anon_token", anonToken);
-      }
-      setToken(anonToken);
-
-      const rubro = localStorage.getItem("rubroSeleccionado");
-      if (!rubro) {
-        setEsperandoRubro(true);
-        fetch("https://api.chatboc.ar/rubros")
-          .then((res) => res.json())
-          .then((data) => setRubrosDisponibles(data.rubros || []))
-          .catch(() => {});
-      } else {
-        setRubroSeleccionado(rubro);
-      }
-    };
-
-    cargarDesdeStorage();
-
-    const handleStorageChange = () => {
-      cargarDesdeStorage();
-    };
-
-    window.addEventListener("storage", handleStorageChange);
-    return () => window.removeEventListener("storage", handleStorageChange);
+    recargarDesdeStorage();
+    window.addEventListener("storage", recargarDesdeStorage);
+    return () => window.removeEventListener("storage", recargarDesdeStorage);
   }, []);
 
   useEffect(() => {
@@ -78,23 +73,28 @@ const ChatWidget: React.FC = () => {
   }, [messages, isTyping]);
 
   const toggleChat = () => {
-    setIsOpen(!isOpen);
-    if (!isOpen && messages.length === 0 && rubroSeleccionado) {
-      setMessages([
-        {
-          id: 1,
-          text: "¡Hola! Soy Chatboc, tu asistente virtual. ¿En qué puedo ayudarte hoy?",
-          isBot: true,
-          timestamp: new Date(),
-        },
-      ]);
+    const nextState = !isOpen;
+    setIsOpen(nextState);
+
+    if (nextState) {
+      recargarDesdeStorage();
+      if (messages.length === 0 && rubroSeleccionado) {
+        setMessages([
+          {
+            id: 1,
+            text: "¡Hola! Soy Chatboc, tu asistente virtual. ¿En qué puedo ayudarte hoy?",
+            isBot: true,
+            timestamp: new Date(),
+          },
+        ]);
+      }
     }
   };
 
   const handleSendMessage = async (text: string) => {
     if (!text.trim()) return;
 
-    const esAnonimo = token.startsWith("demo-anon-") || token.startsWith("demo-token");
+    const esAnonimo = token.startsWith("demo-anon") || token.startsWith("demo-token");
     if (esAnonimo && preguntasUsadas >= 15) {
       setMessages((prev) => [
         ...prev,
@@ -131,13 +131,10 @@ const ChatWidget: React.FC = () => {
         }
       );
 
-      let respuestaFinal: string = "❌ No entendí tu mensaje.";
-      const r = data?.respuesta;
-      if (typeof r === "string") {
-        respuestaFinal = r;
-      } else if (r?.text) {
-        respuestaFinal = r.text;
-      }
+      const respuestaFinal: string =
+        typeof data?.respuesta === "string"
+          ? data.respuesta
+          : data?.respuesta?.text || "❌ No entendí tu mensaje.";
 
       const botMessage: Message = {
         id: messages.length + 2,
@@ -210,17 +207,15 @@ const ChatWidget: React.FC = () => {
         {isOpen ? (
           <X className="text-gray-600 dark:text-gray-300 h-6 w-6" />
         ) : (
-          <>
-            <div className="relative">
-              <img
-                src="/chatboc_logo_clean_transparent.png"
-                alt="Chatboc"
-                className="w-8 h-8 rounded"
-                style={{ padding: "2px" }}
-              />
-              <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-gray-900" />
-            </div>
-          </>
+          <div className="relative">
+            <img
+              src="/chatboc_logo_clean_transparent.png"
+              alt="Chatboc"
+              className="w-8 h-8 rounded"
+              style={{ padding: "2px" }}
+            />
+            <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-gray-900" />
+          </div>
         )}
       </button>
 
