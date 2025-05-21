@@ -11,7 +11,7 @@ const ChatPage = () => {
   const [rubro, setRubro] = useState("general");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  const cargarDesdeStorage = () => {
     const storedUser = localStorage.getItem("user");
     const user = storedUser ? JSON.parse(storedUser) : null;
 
@@ -19,6 +19,10 @@ const ChatPage = () => {
       setToken(user.token);
       setRubro(user.rubro?.toLowerCase() || "general");
     }
+  };
+
+  useEffect(() => {
+    cargarDesdeStorage();
 
     setMessages([
       {
@@ -28,6 +32,13 @@ const ChatPage = () => {
         timestamp: new Date(),
       },
     ]);
+
+    const handleStorageChange = () => {
+      cargarDesdeStorage();
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
   }, []);
 
   useEffect(() => {
