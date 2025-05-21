@@ -15,13 +15,16 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
 
   const handleSend = () => {
     const message = inputValue.trim();
-    if (message === "") return;
+    if (message.length === 0) return;
     onSendMessage(message);
     setInputValue("");
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") handleSend();
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
   };
 
   return (
@@ -35,10 +38,11 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           aria-label="Escribir mensaje"
+          autoComplete="off"
         />
         <Button
           onClick={handleSend}
-          disabled={inputValue.trim() === ""}
+          disabled={inputValue.trim().length === 0}
           className="bg-blue-600 text-white hover:bg-blue-700 transition px-3 py-2 rounded-xl"
           aria-label="Enviar mensaje"
         >
