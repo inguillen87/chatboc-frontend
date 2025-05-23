@@ -1,154 +1,224 @@
-import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import Navbar from "../components/layout/Navbar";
-import Footer from "../components/layout/Footer";
-import { Badge } from "../components/ui/badge";
-import { Button } from "../components/ui/button";
-import { LogOut } from "lucide-react";
-import { apiFetch } from "@/utils/api";
+import React, { useEffect, useState } from "react"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { LogOut } from "lucide-react"
+import Navbar from "@/components/layout/Navbar"
+import Footer from "@/components/layout/Footer"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
-const Perfil = () => {
-  const navigate = useNavigate();
-  const [user, setUser] = useState<any>(null);
+interface PerfilData {
+  nombre_empresa: string
+  direccion: string
+  telefono: string
+  link_web: string
+  horario: string
+  ubicacion: string
+  email?: string
+  name?: string
+  plan?: string
+  preguntas_usadas?: number
+  limite_preguntas?: number
+  logo_url?: string
+}
+
+interface MetricData {
+  total_preguntas?: number
+  preguntas_esta_semana?: number
+  fecha_ultimo_uso?: string
+}
+
+export default function Perfil() {
+  const [perfil, setPerfil] = useState<PerfilData>({
+    nombre_empresa: "",
+    direccion: "",
+    telefono: "",
+    link_web: "",
+    horario: "",
+    ubicacion: "",
+  })
+
+  const [metrics, setMetrics] = useState<MetricData>({})
+  const [mensaje, setMensaje] = useState<string>("")
+  const [error, setError] = useState<string>("")
 
   useEffect(() => {
-    const fetchUserData = async () => {
-      const stored = localStorage.getItem("user");
-      let parsed = null;
+    const token = localStorage.getItem("token")
+    if (!token) return
 
-      try {
-        parsed = stored ? JSON.parse(stored) : null;
-      } catch (err) {
-        console.warn("❌ Error al parsear localStorage:", err);
+    fetch("https://api.chatboc.ar/me", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        setPerfil({
+          nombre_empresa: data.nombre_empresa || "",
+          direccion: data.direccion || "",
+          telefono: data.telefono || "",
+          link_web: data.link_web || "",
+          horario: data.horario || "",
+          ubicacion: data.ubicacion || "",
+          email: data.email,
+          name: data.name,
+          plan: data.plan,
+          preguntas_usadas: data.preguntas_usadas,
+          limite_preguntas: data.limite_preguntas,
+          logo_url: data.logo_url || "",
+        })
+      })
+
+    fetch("https://api.chatboc.ar/metricas", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((data) => setMetrics(data))
+      .catch(() => {})
+  }, [])
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target
+    setPerfil({ ...perfil, [name]: value })
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setMensaje("")
+    setError("")
+
+    for (const [key, value] of Object.entries(perfil)) {
+      if (["nombre_empresa", "direccion", "telefono", "link_web", "horario", "ubicacion"].includes(key) && !value?.trim()) {
+        setError("⚠️ Todos los campos son obligatorios para mejorar las respuestas del chatbot.")
+        return
       }
+    }
 
-      if (!parsed || !parsed.token || !parsed.email || !parsed.name) {
-        localStorage.removeItem("user");
-        navigate("/login");
-        return;
-      }
+    const token = localStorage.getItem("token")
+    if (!token) return
 
-      try {
-        const response = await apiFetch("/me", "GET", undefined, {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${parsed.token}`,
-          },
-        });
+    const res = await fetch("https://api.chatboc.ar/perfil", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(perfil),
+    })
 
-        if (response?.email) {
-          const updated = { ...parsed, ...response };
-          localStorage.setItem("user", JSON.stringify(updated));
-          setUser(updated);
-        } else {
-          setUser(parsed);
-        }
-      } catch (err) {
-        console.error("❌ Error al obtener datos del usuario:", err);
-        navigate("/login");
-      }
-    };
-
-    fetchUserData();
-    setTimeout(() => {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }, 100);
-  }, [navigate]);
-
-  const handleLogout = () => {
-    localStorage.removeItem("user");
-    navigate("/login");
-    setTimeout(() => {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }, 200);
-  };
-
-  if (!user) return null;
+    if (res.ok) {
+      setMensaje("✅ Perfil actualizado correctamente")
+    } else {
+      setError("❌ Error al guardar los datos")
+    }
+  }
 
   return (
     <div className="flex flex-col min-h-screen bg-background text-foreground transition-colors">
       <Navbar />
       <main className="flex-grow pt-28 pb-16">
-        <div className="max-w-4xl mx-auto px-4">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-            <h1 className="text-3xl font-bold text-primary">
-              {user?.nombre_empresa
-                ? `Perfil de ${user.nombre_empresa}`
-                : `Perfil de ${user.name}`}
-            </h1>
-
-            <Button variant="destructive" onClick={handleLogout}>
-              <LogOut className="w-4 h-4 mr-2" />
-              Cerrar sesión
+        <div className="max-w-5xl mx-auto px-4 space-y-10">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div className="flex items-center gap-4">
+              <Avatar className="w-16 h-16">
+                <AvatarImage src={perfil.logo_url || undefined} alt={perfil.nombre_empresa} />
+                <AvatarFallback>{perfil.nombre_empresa?.charAt(0) || "C"}</AvatarFallback>
+              </Avatar>
+              <h1 className="text-3xl font-bold text-primary">
+                {perfil?.nombre_empresa ? `Perfil de ${perfil.nombre_empresa}` : `Perfil de ${perfil.name}`}
+              </h1>
+            </div>
+            <Button variant="destructive" onClick={() => { localStorage.removeItem("user"); location.href = "/login"; }}>
+              <LogOut className="w-4 h-4 mr-2" /> Cerrar sesión
             </Button>
           </div>
 
-          <div className="bg-card shadow-xl rounded-2xl p-6 space-y-6 border border-gray-200 dark:border-gray-700">
-            <div className="space-y-2 text-base">
-              <p>📧 <strong>Email:</strong> {user?.email}</p>
-              <p>🏢 <strong>Empresa:</strong> {user?.nombre_empresa || 'No especificado'}</p>
-              <p className="text-sm text-muted-foreground">⚠️ Es importante que hayas ingresado correctamente el nombre real de tu empresa, pyme o negocio. Esto mejora la experiencia del cliente y permite al bot aprender y responder con mayor precisión.</p>
-              <p>📄 <strong>Plan actual:</strong> <Badge variant="secondary">{user?.plan}</Badge></p>
-              <p>💬 <strong>Consultas usadas:</strong> {user?.preguntas_usadas}</p>
-              <p>📈 <strong>Límite:</strong> {user?.limite_preguntas}</p>
-            </div>
-
-            {(user?.plan === "free" || user?.plan === "pro") && (
-              <div className="space-y-2">
-                <p className="font-semibold text-sm">Mejorá tu plan:</p>
-                <div className="flex flex-col sm:flex-row gap-2">
-                  {user?.plan === "free" && (
-                    <Button
-                      className="bg-yellow-400 hover:bg-yellow-500 text-black font-semibold"
-                      onClick={() => navigate("/checkout?plan=pro")}
-                    >
-                      Pasar a Plan Pro · $30/mes
-                    </Button>
-                  )}
-                  <Button
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-semibold"
-                    onClick={() => navigate("/checkout?plan=full")}
-                  >
-                    Pasar a Plan Full · $80/mes
-                  </Button>
+          <Card className="shadow-lg border border-muted">
+            <CardHeader>
+              <CardTitle>📋 Información general</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Estos datos permiten al chatbot brindar respuestas precisas y personalizadas a tus clientes.
+              </p>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <Label>Nombre de la empresa</Label>
+                  <Input name="nombre_empresa" value={perfil.nombre_empresa} onChange={handleChange} required />
                 </div>
-              </div>
-            )}
-
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <Button
-                onClick={() => navigate("/chat")}
-                className="bg-blue-600 text-white hover:bg-blue-700 transition w-full sm:w-auto"
-              >
-                Ir al Chat Completo
-              </Button>
-
-              {["pro", "full"].includes(user?.plan) ? (
-                <Button
-                  variant="outline"
-                  onClick={() => navigate("/integracion")}
-                  className="w-full sm:w-auto"
-                >
-                  🔌 Ver código de integración
-                </Button>
-              ) : (
-                <div className="text-sm text-muted-foreground mt-2 sm:mt-0">
-                  🔒 Solo disponible en el plan Pro o Full.{" "}
-                  <button
-                    onClick={() => navigate("/checkout?plan=pro")}
-                    className="underline text-blue-600 hover:text-blue-800 ml-1"
-                  >
-                    Mejorá tu plan
-                  </button>
+                <div>
+                  <Label>Teléfono / WhatsApp</Label>
+                  <Input name="telefono" value={perfil.telefono} onChange={handleChange} required />
                 </div>
-              )}
-            </div>
+                <div>
+                  <Label>Dirección</Label>
+                  <Input name="direccion" value={perfil.direccion} onChange={handleChange} required />
+                </div>
+                <div>
+                  <Label>Ubicación / Ciudad</Label>
+                  <Input name="ubicacion" value={perfil.ubicacion} onChange={handleChange} required />
+                </div>
+                <div>
+                  <Label>Horario de atención</Label>
+                  <Input name="horario" value={perfil.horario} onChange={handleChange} required />
+                </div>
+                <div>
+                  <Label>Link del sitio web o tienda online</Label>
+                  <Input name="link_web" value={perfil.link_web} onChange={handleChange} required />
+                </div>
+                <div>
+                  <Label>Link de logo o imagen (URL)</Label>
+                  <Input name="logo_url" value={perfil.logo_url || ""} onChange={handleChange} placeholder="https://..." />
+                </div>
+                <div className="md:col-span-2">
+                  <Button type="submit" className="w-full">Guardar cambios</Button>
+                  {mensaje && <p className="mt-2 text-sm text-green-600 text-center">{mensaje}</p>}
+                  {error && <p className="mt-2 text-sm text-red-600 text-center">{error}</p>}
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card className="border border-gray-200 dark:border-gray-700">
+              <CardHeader>
+                <CardTitle>📄 Plan actual</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="mb-2">Plan: <Badge>{perfil.plan || "demo"}</Badge></p>
+                <p>Consultas usadas: {perfil.preguntas_usadas ?? 0}</p>
+                <p>Límite de preguntas: {perfil.limite_preguntas ?? 15}</p>
+              </CardContent>
+            </Card>
+
+            <Card className="border border-gray-200 dark:border-gray-700">
+              <CardHeader>
+                <CardTitle>📊 Métricas de uso</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p>Total de preguntas históricas: {metrics.total_preguntas ?? "-"}</p>
+                <p>Preguntas esta semana: {metrics.preguntas_esta_semana ?? "-"}</p>
+                <p>Último uso: {metrics.fecha_ultimo_uso ? new Date(metrics.fecha_ultimo_uso).toLocaleDateString() : "-"}</p>
+              </CardContent>
+            </Card>
+
+            <Card className="border border-gray-200 dark:border-gray-700 col-span-1 md:col-span-2">
+              <CardHeader>
+                <CardTitle>💡 Sugerencias</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="text-sm space-y-1">
+                  <li>✅ Completá todos los datos para respuestas más realistas</li>
+                  <li>📈 Actualizá tu plan si superás el límite</li>
+                  <li>🤖 El bot responde mejor si conoce tu rubro, horario y contacto</li>
+                  <li>🖼️ Subí el logo de tu negocio para mostrarlo en tu widget personalizado</li>
+                </ul>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </main>
       <Footer />
     </div>
-  );
-};
-
-export default Perfil;
+  )
+}
