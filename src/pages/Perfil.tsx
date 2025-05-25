@@ -87,8 +87,9 @@ export default function Perfil() {
     setMensaje("")
     setError("")
 
-    for (const [key, value] of Object.entries(perfil)) {
-      if (["nombre_empresa", "direccion", "telefono", "link_web", "horario", "ubicacion"].includes(key) && !value?.trim()) {
+    const camposObligatorios = ["nombre_empresa", "direccion", "telefono", "link_web", "horario", "ubicacion"]
+    for (const campo of camposObligatorios) {
+      if (!perfil[campo as keyof PerfilData]?.trim()) {
         setError("⚠️ Todos los campos son obligatorios para mejorar las respuestas del chatbot.")
         return
       }
@@ -135,41 +136,20 @@ export default function Perfil() {
 
           <Card className="shadow-lg border border-muted">
             <CardHeader>
-              <CardTitle>📋 Información general</CardTitle>
+              <CardTitle>📋 Información del negocio</CardTitle>
               <p className="text-sm text-muted-foreground">
-                Estos datos permiten al chatbot brindar respuestas precisas y personalizadas a tus clientes.
+                Completá estos campos para personalizar las respuestas del chatbot con datos reales de tu empresa.
               </p>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <Label>Nombre de la empresa</Label>
-                  <Input name="nombre_empresa" value={perfil.nombre_empresa} onChange={handleChange} required />
-                </div>
-                <div>
-                  <Label>Teléfono / WhatsApp</Label>
-                  <Input name="telefono" value={perfil.telefono} onChange={handleChange} required />
-                </div>
-                <div>
-                  <Label>Dirección</Label>
-                  <Input name="direccion" value={perfil.direccion} onChange={handleChange} required />
-                </div>
-                <div>
-                  <Label>Ubicación / Ciudad</Label>
-                  <Input name="ubicacion" value={perfil.ubicacion} onChange={handleChange} required />
-                </div>
-                <div>
-                  <Label>Horario de atención</Label>
-                  <Input name="horario" value={perfil.horario} onChange={handleChange} required />
-                </div>
-                <div>
-                  <Label>Link del sitio web o tienda online</Label>
-                  <Input name="link_web" value={perfil.link_web} onChange={handleChange} required />
-                </div>
-                <div>
-                  <Label>Link de logo o imagen (URL)</Label>
-                  <Input name="logo_url" value={perfil.logo_url || ""} onChange={handleChange} placeholder="https://..." />
-                </div>
+                <div><Label>Nombre de la empresa</Label><Input name="nombre_empresa" value={perfil.nombre_empresa} onChange={handleChange} required /></div>
+                <div><Label>Teléfono / WhatsApp</Label><Input name="telefono" value={perfil.telefono} onChange={handleChange} required /></div>
+                <div><Label>Dirección</Label><Input name="direccion" value={perfil.direccion} onChange={handleChange} required /></div>
+                <div><Label>Ubicación / Ciudad</Label><Input name="ubicacion" value={perfil.ubicacion} onChange={handleChange} required /></div>
+                <div><Label>Horario de atención</Label><Input name="horario" value={perfil.horario} onChange={handleChange} required /></div>
+                <div><Label>Web / Tienda Online</Label><Input name="link_web" value={perfil.link_web} onChange={handleChange} required /></div>
+                <div><Label>Logo o Imagen (URL)</Label><Input name="logo_url" value={perfil.logo_url || ""} onChange={handleChange} placeholder="https://..." /></div>
                 <div className="md:col-span-2">
                   <Button type="submit" className="w-full">Guardar cambios</Button>
                   {mensaje && <p className="mt-2 text-sm text-green-600 text-center">{mensaje}</p>}
@@ -181,9 +161,7 @@ export default function Perfil() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card className="border border-gray-200 dark:border-gray-700">
-              <CardHeader>
-                <CardTitle>📄 Plan actual</CardTitle>
-              </CardHeader>
+              <CardHeader><CardTitle>📄 Plan actual</CardTitle></CardHeader>
               <CardContent>
                 <p className="mb-2">Plan: <Badge>{perfil.plan || "demo"}</Badge></p>
                 <p>Consultas usadas: {perfil.preguntas_usadas ?? 0}</p>
@@ -192,9 +170,7 @@ export default function Perfil() {
             </Card>
 
             <Card className="border border-gray-200 dark:border-gray-700">
-              <CardHeader>
-                <CardTitle>📊 Métricas de uso</CardTitle>
-              </CardHeader>
+              <CardHeader><CardTitle>📊 Métricas de uso</CardTitle></CardHeader>
               <CardContent>
                 <p>Total de preguntas históricas: {metrics.total_preguntas ?? "-"}</p>
                 <p>Preguntas esta semana: {metrics.preguntas_esta_semana ?? "-"}</p>
@@ -203,9 +179,7 @@ export default function Perfil() {
             </Card>
 
             <Card className="border border-gray-200 dark:border-gray-700 col-span-1 md:col-span-2">
-              <CardHeader>
-                <CardTitle>💡 Sugerencias</CardTitle>
-              </CardHeader>
+              <CardHeader><CardTitle>💡 Sugerencias</CardTitle></CardHeader>
               <CardContent>
                 <ul className="text-sm space-y-1">
                   <li>✅ Completá todos los datos para respuestas más realistas</li>
