@@ -1,3 +1,4 @@
+// Perfil.tsx actualizado
 import React, { useEffect, useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -98,6 +99,8 @@ export default function Perfil() {
     const token = localStorage.getItem("token")
     if (!token) return
 
+    console.log("📤 Enviando perfil:", perfil)
+
     const res = await fetch("https://api.chatboc.ar/perfil", {
       method: "PUT",
       headers: {
@@ -106,6 +109,9 @@ export default function Perfil() {
       },
       body: JSON.stringify(perfil),
     })
+
+    const data = await res.json()
+    console.log("📥 Respuesta del backend", data)
 
     if (res.ok) {
       setMensaje("✅ Perfil actualizado correctamente")
@@ -158,38 +164,6 @@ export default function Perfil() {
               </form>
             </CardContent>
           </Card>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card className="border border-gray-200 dark:border-gray-700">
-              <CardHeader><CardTitle>📄 Plan actual</CardTitle></CardHeader>
-              <CardContent>
-                <p className="mb-2">Plan: <Badge>{perfil.plan || "demo"}</Badge></p>
-                <p>Consultas usadas: {perfil.preguntas_usadas ?? 0}</p>
-                <p>Límite de preguntas: {perfil.limite_preguntas ?? 15}</p>
-              </CardContent>
-            </Card>
-
-            <Card className="border border-gray-200 dark:border-gray-700">
-              <CardHeader><CardTitle>📊 Métricas de uso</CardTitle></CardHeader>
-              <CardContent>
-                <p>Total de preguntas históricas: {metrics.total_preguntas ?? "-"}</p>
-                <p>Preguntas esta semana: {metrics.preguntas_esta_semana ?? "-"}</p>
-                <p>Último uso: {metrics.fecha_ultimo_uso ? new Date(metrics.fecha_ultimo_uso).toLocaleDateString() : "-"}</p>
-              </CardContent>
-            </Card>
-
-            <Card className="border border-gray-200 dark:border-gray-700 col-span-1 md:col-span-2">
-              <CardHeader><CardTitle>💡 Sugerencias</CardTitle></CardHeader>
-              <CardContent>
-                <ul className="text-sm space-y-1">
-                  <li>✅ Completá todos los datos para respuestas más realistas</li>
-                  <li>📈 Actualizá tu plan si superás el límite</li>
-                  <li>🤖 El bot responde mejor si conoce tu rubro, horario y contacto</li>
-                  <li>🖼️ Subí el logo de tu negocio para mostrarlo en tu widget personalizado</li>
-                </ul>
-              </CardContent>
-            </Card>
-          </div>
         </div>
       </main>
       <Footer />
