@@ -164,31 +164,100 @@ export default function Perfil() {
                 Estos datos se usan para personalizar las respuestas del bot.
               </p>
             </CardHeader>
-            <CardContent>
+  <CardContent>
   <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
     <div>
       <Label>Nombre empresa</Label>
-      <Input name="nombre_empresa" value={perfil.nombre_empresa} onChange={handleChange} required />
+      <Input
+        name="nombre_empresa"
+        value={perfil.nombre_empresa}
+        onChange={handleChange}
+        required
+        placeholder="Ej: Cuatro Fincas"
+      />
     </div>
+
     <div>
       <Label>Teléfono</Label>
-      <Input name="telefono" value={perfil.telefono} onChange={handleChange} required />
+      <Input
+        name="telefono"
+        value={perfil.telefono}
+        onChange={handleChange}
+        required
+        placeholder="Ej: +54 9 261 1234567"
+        pattern="^\+?[0-9\s\-]{7,20}$"
+        title="Formato válido: +54 9 261 1234567"
+      />
     </div>
+
     <div>
       <Label>Dirección</Label>
-      <Input name="direccion" value={perfil.direccion} onChange={handleChange} required />
+      <Input
+        name="direccion"
+        value={perfil.direccion}
+        onChange={handleChange}
+        required
+        placeholder="Ej: Ruta 89, Mendoza"
+      />
     </div>
+
     <div>
-      <Label>Ubicación</Label>
-      <Input name="ubicacion" value={perfil.ubicacion} onChange={handleChange} required />
+      <Label>Provincia</Label>
+      <select
+        name="ubicacion"
+        value={perfil.ubicacion}
+        onChange={handleChange}
+        required
+        className="w-full rounded border px-3 py-2 text-sm text-foreground bg-background"
+      >
+        <option value="">Seleccioná una provincia</option>
+        <option value="Buenos Aires">Buenos Aires</option>
+        <option value="CABA">Ciudad Autónoma de Buenos Aires</option>
+        <option value="Catamarca">Catamarca</option>
+        <option value="Chaco">Chaco</option>
+        <option value="Chubut">Chubut</option>
+        <option value="Córdoba">Córdoba</option>
+        <option value="Corrientes">Corrientes</option>
+        <option value="Entre Ríos">Entre Ríos</option>
+        <option value="Formosa">Formosa</option>
+        <option value="Jujuy">Jujuy</option>
+        <option value="La Pampa">La Pampa</option>
+        <option value="La Rioja">La Rioja</option>
+        <option value="Mendoza">Mendoza</option>
+        <option value="Misiones">Misiones</option>
+        <option value="Neuquén">Neuquén</option>
+        <option value="Río Negro">Río Negro</option>
+        <option value="Salta">Salta</option>
+        <option value="San Juan">San Juan</option>
+        <option value="San Luis">San Luis</option>
+        <option value="Santa Cruz">Santa Cruz</option>
+        <option value="Santa Fe">Santa Fe</option>
+        <option value="Santiago del Estero">Santiago del Estero</option>
+        <option value="Tierra del Fuego">Tierra del Fuego</option>
+        <option value="Tucumán">Tucumán</option>
+      </select>
     </div>
+
     <div>
       <Label>Horario</Label>
-      <Input name="horario" value={perfil.horario} onChange={handleChange} required />
+      <Input
+        name="horario"
+        value={perfil.horario}
+        onChange={handleChange}
+        required
+        placeholder="Ej: Lunes a Sábado de 9 a 18"
+      />
     </div>
+
     <div>
       <Label>Web / Tienda</Label>
-      <Input name="link_web" value={perfil.link_web} onChange={handleChange} required />
+      <Input
+        name="link_web"
+        value={perfil.link_web}
+        onChange={handleChange}
+        required
+        placeholder="Ej: https://tuempresa.com"
+      />
       {perfil.link_web && (
         <a
           href={perfil.link_web.startsWith("http") ? perfil.link_web : `https://${perfil.link_web}`}
@@ -200,9 +269,15 @@ export default function Perfil() {
         </a>
       )}
     </div>
+
     <div>
       <Label>Logo URL</Label>
-      <Input name="logo_url" value={perfil.logo_url || ""} onChange={handleChange} />
+      <Input
+        name="logo_url"
+        value={perfil.logo_url || ""}
+        onChange={handleChange}
+        placeholder="URL de la imagen del logo"
+      />
     </div>
 
     <div className="md:col-span-2">
@@ -212,6 +287,7 @@ export default function Perfil() {
     </div>
   </form>
 </CardContent>
+
 
           </Card>
 
