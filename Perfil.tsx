@@ -79,47 +79,58 @@ export default function Perfil() {
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setMensaje("");
-    setError("");
+  e.preventDefault();
+  setMensaje("");
+  setError("");
 
-    const campos = ["nombre_empresa", "direccion", "telefono", "link_web", "horario", "ubicacion"];
-    for (const campo of campos) {
-      if (!perfil[campo as keyof PerfilData]) {
-        setError("Todos los campos son obligatorios");
-        return;
-      }
-    }
-
-    const stored = localStorage.getItem("user");
-    const token = stored ? JSON.parse(stored).token : null;
-    if (!token) {
-      setError("Usuario no autenticado");
+  const campos = ["nombre_empresa", "direccion", "telefono", "link_web", "horario", "ubicacion"];
+  for (const campo of campos) {
+    if (!perfil[campo as keyof PerfilData]) {
+      setError("Todos los campos son obligatorios");
       return;
     }
+  }
 
-    try {
-      const res = await fetch("https://api.chatboc.ar/perfil", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(perfil),
-      });
-
-      const data = await res.json();
-      if (res.ok) {
-        setMensaje("✅ Perfil guardado correctamente");
-      } else {
-        setError(data.error || "❌ Error al guardar");
-      }
-    } catch (err) {
-      console.error("❌ Error al conectar con el servidor:", err);
-      setError("Error al conectar con el servidor");
-    }
+  const payload = {
+    nombre_empresa: perfil.nombre_empresa.trim(),
+    direccion: perfil.direccion.trim(),
+    telefono: perfil.telefono.trim(),
+    link_web: perfil.link_web.trim(),
+    horario: perfil.horario.trim(),
+    ubicacion: perfil.ubicacion.trim(),
+    logo_url: perfil.logo_url?.trim() || ""
   };
 
+  console.log("📤 Enviando perfil al backend:", payload);
+
+  const stored = localStorage.getItem("user");
+  const token = stored ? JSON.parse(stored).token : null;
+  if (!token) {
+    setError("Usuario no autenticado");
+    return;
+  }
+
+  try {
+    const res = await fetch("https://api.chatboc.ar/perfil", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await res.json();
+    if (res.ok) {
+      setMensaje("✅ Perfil guardado correctamente");
+    } else {
+      setError(data.error || "❌ Error al guardar");
+    }
+  } catch (err) {
+    console.error("❌ Error al conectar con el servidor:", err);
+    setError("Error al conectar con el servidor");
+  }
+};
   return (
     <div className="flex flex-col min-h-screen bg-background text-foreground">
       <Navbar />
@@ -154,22 +165,54 @@ export default function Perfil() {
               </p>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div><Label>Nombre empresa</Label><Input name="nombre_empresa" value={perfil.nombre_empresa} onChange={handleChange} required /></div>
-                <div><Label>Teléfono</Label><Input name="telefono" value={perfil.telefono} onChange={handleChange} required /></div>
-                <div><Label>Dirección</Label><Input name="direccion" value={perfil.direccion} onChange={handleChange} required /></div>
-                <div><Label>Ubicación</Label><Input name="ubicacion" value={perfil.ubicacion} onChange={handleChange} required /></div>
-                <div><Label>Horario</Label><Input name="horario" value={perfil.horario} onChange={handleChange} required /></div>
-                <div><Label>Web / Tienda</Label><Input name="link_web" value={perfil.link_web} onChange={handleChange} required /></div>
-                <div><Label>Logo URL</Label><Input name="logo_url" value={perfil.logo_url || ""} onChange={handleChange} /></div>
+  <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div>
+      <Label>Nombre empresa</Label>
+      <Input name="nombre_empresa" value={perfil.nombre_empresa} onChange={handleChange} required />
+    </div>
+    <div>
+      <Label>Teléfono</Label>
+      <Input name="telefono" value={perfil.telefono} onChange={handleChange} required />
+    </div>
+    <div>
+      <Label>Dirección</Label>
+      <Input name="direccion" value={perfil.direccion} onChange={handleChange} required />
+    </div>
+    <div>
+      <Label>Ubicación</Label>
+      <Input name="ubicacion" value={perfil.ubicacion} onChange={handleChange} required />
+    </div>
+    <div>
+      <Label>Horario</Label>
+      <Input name="horario" value={perfil.horario} onChange={handleChange} required />
+    </div>
+    <div>
+      <Label>Web / Tienda</Label>
+      <Input name="link_web" value={perfil.link_web} onChange={handleChange} required />
+      {perfil.link_web && (
+        <a
+          href={perfil.link_web.startsWith("http") ? perfil.link_web : `https://${perfil.link_web}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 underline text-sm mt-1 block"
+        >
+          Ir a tienda: {perfil.link_web}
+        </a>
+      )}
+    </div>
+    <div>
+      <Label>Logo URL</Label>
+      <Input name="logo_url" value={perfil.logo_url || ""} onChange={handleChange} />
+    </div>
 
-                <div className="md:col-span-2">
-                  <Button type="submit" className="w-full">Guardar cambios</Button>
-                  {mensaje && <p className="mt-2 text-sm text-green-600 text-center">{mensaje}</p>}
-                  {error && <p className="mt-2 text-sm text-red-600 text-center">{error}</p>}
-                </div>
-              </form>
-            </CardContent>
+    <div className="md:col-span-2">
+      <Button type="submit" className="w-full">Guardar cambios</Button>
+      {mensaje && <p className="mt-2 text-sm text-green-600 text-center">{mensaje}</p>}
+      {error && <p className="mt-2 text-sm text-red-600 text-center">{error}</p>}
+    </div>
+  </form>
+</CardContent>
+
           </Card>
 
           <Card>
