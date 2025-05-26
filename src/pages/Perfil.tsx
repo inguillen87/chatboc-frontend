@@ -4,7 +4,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { LogOut } from "lucide-react";
+import { LogOut, UploadCloud } from "lucide-react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -34,30 +34,25 @@ export default function Perfil() {
     ubicacion: "",
     logo_url: "",
   });
-
   const [mensaje, setMensaje] = useState("");
   const [error, setError] = useState("");
+  const [archivo, setArchivo] = useState<File | null>(null);
+  const [resultadoCatalogo, setResultadoCatalogo] = useState("");
 
   useEffect(() => {
     const stored = localStorage.getItem("user");
     const token = stored ? JSON.parse(stored).token : null;
-    if (!token) {
-      console.warn("⚠️ No hay token en localStorage");
-      return;
-    }
+    if (!token) return;
 
     fetch("https://api.chatboc.ar/me", {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => res.json())
       .then((data) => {
-        console.log("📥 Datos recibidos de /me:", data);
-
         if (data?.error) {
           setError(data.error);
           return;
         }
-
         setPerfil({
           nombre_empresa: data.nombre_empresa || "",
           direccion: data.direccion || "",
@@ -79,67 +74,34 @@ export default function Perfil() {
       });
   }, []);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setPerfil({ ...perfil, [name]: value });
+  const handleArchivoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    setArchivo(file);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setMensaje("");
-    setError("");
+  const handleSubirArchivo = async () => {
+    setResultadoCatalogo("");
+    if (!archivo) return setResultadoCatalogo("Seleccioná un archivo válido.");
 
-    console.log("🔥 HANDLE SUBMIT EJECUTADO");
-
-    const campos = ["nombre_empresa", "direccion", "telefono", "link_web", "horario", "ubicacion"];
-    for (const campo of campos) {
-      if (!perfil[campo as keyof PerfilData]) {
-        setError("Todos los campos son obligatorios");
-        return;
-      }
-    }
-
-    const payload = {
-      nombre_empresa: perfil.nombre_empresa.trim(),
-      direccion: perfil.direccion.trim(),
-      telefono: perfil.telefono.trim(),
-      link_web: perfil.link_web.trim(),
-      horario: perfil.horario.trim(),
-      ubicacion: perfil.ubicacion.trim(),
-      logo_url: perfil.logo_url?.trim() || "",
-    };
-
-    console.log("📤 Payload enviado:", payload);
+    const formData = new FormData();
+    formData.append("archivo", archivo);
 
     const stored = localStorage.getItem("user");
     const token = stored ? JSON.parse(stored).token : null;
-    if (!token) {
-      console.error("❌ Token no encontrado en localStorage");
-      setError("Usuario no autenticado");
-      return;
-    }
+    if (!token) return;
 
     try {
-      const res = await fetch("https://api.chatboc.ar/perfil", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
+      const res = await fetch("https://api.chatboc.ar/subir_catalogo", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
       });
 
       const data = await res.json();
-      if (res.ok) {
-        console.log("✅ Backend respondió correctamente:", data);
-        setMensaje("✅ Perfil guardado correctamente");
-      } else {
-        console.error("❌ Error del backend:", data);
-        setError(data.error || "❌ Error al guardar");
-      }
+      setResultadoCatalogo(res.ok ? `✅ Catálogo procesado: ${data.insertados} productos` : `❌ ${data.error}`);
     } catch (err) {
-      console.error("❌ Error al conectar con el servidor:", err);
-      setError("Error al conectar con el servidor");
+      console.error("❌ Error al subir catálogo:", err);
+      setResultadoCatalogo("❌ Error al conectar con el servidor");
     }
   };
 
@@ -169,82 +131,78 @@ export default function Perfil() {
             </Button>
           </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Información del negocio</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Estos datos se usan para personalizar las respuestas del bot.
-              </p>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div><Label>Nombre empresa</Label><Input name="nombre_empresa" value={perfil.nombre_empresa} onChange={handleChange} required /></div>
-                <div><Label>Teléfono</Label><Input name="telefono" value={perfil.telefono} onChange={handleChange} required /></div>
-                <div><Label>Dirección</Label><Input name="direccion" value={perfil.direccion} onChange={handleChange} required /></div>
-                <div>
-                  <Label>Provincia</Label>
-                  <select name="ubicacion" value={perfil.ubicacion} onChange={handleChange} required className="w-full rounded border px-3 py-2 text-sm text-foreground bg-background">
-                    <option value="">Seleccioná una provincia</option>
-                    <option value="Buenos Aires">Buenos Aires</option>
-                    <option value="CABA">Ciudad Autónoma de Buenos Aires</option>
-                    <option value="Catamarca">Catamarca</option>
-                    <option value="Chaco">Chaco</option>
-                    <option value="Chubut">Chubut</option>
-                    <option value="Córdoba">Córdoba</option>
-                    <option value="Corrientes">Corrientes</option>
-                    <option value="Entre Ríos">Entre Ríos</option>
-                    <option value="Formosa">Formosa</option>
-                    <option value="Jujuy">Jujuy</option>
-                    <option value="La Pampa">La Pampa</option>
-                    <option value="La Rioja">La Rioja</option>
-                    <option value="Mendoza">Mendoza</option>
-                    <option value="Misiones">Misiones</option>
-                    <option value="Neuquén">Neuquén</option>
-                    <option value="Río Negro">Río Negro</option>
-                    <option value="Salta">Salta</option>
-                    <option value="San Juan">San Juan</option>
-                    <option value="San Luis">San Luis</option>
-                    <option value="Santa Cruz">Santa Cruz</option>
-                    <option value="Santa Fe">Santa Fe</option>
-                    <option value="Santiago del Estero">Santiago del Estero</option>
-                    <option value="Tierra del Fuego">Tierra del Fuego</option>
-                    <option value="Tucumán">Tucumán</option>
-                  </select>
-                </div>
-                <div><Label>Horario</Label><Input name="horario" value={perfil.horario} onChange={handleChange} required /></div>
-                <div>
-                  <Label>Web / Tienda</Label>
-                  <Input name="link_web" value={perfil.link_web} onChange={handleChange} required />
-                  {perfil.link_web && (
-                    <a
-                      href={perfil.link_web.startsWith("http") ? perfil.link_web : `https://${perfil.link_web}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 underline text-sm mt-1 block"
-                    >
-                      Ir a tienda: {perfil.link_web}
-                    </a>
-                  )}
-                </div>
-                <div><Label>Logo URL</Label><Input name="logo_url" value={perfil.logo_url || ""} onChange={handleChange} /></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card className="md:col-span-2">
+              <CardHeader>
+                <CardTitle>Información del negocio</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Estos datos se usan para personalizar las respuestas del bot.
+                </p>
+                <form className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div><Label>Nombre empresa</Label><Input name="nombre_empresa" value={perfil.nombre_empresa} onChange={(e) => setPerfil({ ...perfil, nombre_empresa: e.target.value })} required /></div>
+                  <div><Label>Teléfono</Label><Input name="telefono" value={perfil.telefono} onChange={(e) => setPerfil({ ...perfil, telefono: e.target.value })} required /></div>
+                  <div><Label>Dirección</Label><Input name="direccion" value={perfil.direccion} onChange={(e) => setPerfil({ ...perfil, direccion: e.target.value })} required /></div>
+                  <div>
+                    <Label>Provincia</Label>
+                    <select name="ubicacion" value={perfil.ubicacion} onChange={(e) => setPerfil({ ...perfil, ubicacion: e.target.value })} required className="w-full rounded border px-3 py-2 text-sm text-foreground bg-background">
+                      <option value="">Seleccioná una provincia</option>
+                      {[
+                        "Buenos Aires", "CABA", "Catamarca", "Chaco", "Chubut", "Córdoba",
+                        "Corrientes", "Entre Ríos", "Formosa", "Jujuy", "La Pampa", "La Rioja",
+                        "Mendoza", "Misiones", "Neuquén", "Río Negro", "Salta", "San Juan",
+                        "San Luis", "Santa Cruz", "Santa Fe", "Santiago del Estero",
+                        "Tierra del Fuego", "Tucumán"
+                      ].map((prov) => (
+                        <option key={prov} value={prov}>{prov}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div><Label>Horario</Label><Input name="horario" value={perfil.horario} onChange={(e) => setPerfil({ ...perfil, horario: e.target.value })} required /></div>
+                  <div>
+                    <Label>Web / Tienda</Label>
+                    <Input name="link_web" value={perfil.link_web} onChange={(e) => setPerfil({ ...perfil, link_web: e.target.value })} required />
+                    {perfil.link_web && (
+                      <a href={perfil.link_web.startsWith("http") ? perfil.link_web : `https://${perfil.link_web}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline text-sm mt-1 block">
+                        Ir a tienda: {perfil.link_web}
+                      </a>
+                    )}
+                  </div>
+                  <div><Label>Logo URL</Label><Input name="logo_url" value={perfil.logo_url || ""} onChange={(e) => setPerfil({ ...perfil, logo_url: e.target.value })} /></div>
+                  <div className="md:col-span-2">
+                    <Button type="submit" className="w-full">Guardar cambios</Button>
+                    {mensaje && <p className="mt-2 text-sm text-green-600 text-center">{mensaje}</p>}
+                    {error && <p className="mt-2 text-sm text-red-600 text-center">{error}</p>}
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
 
-                <div className="md:col-span-2">
-                  <Button type="submit" className="w-full">Guardar cambios</Button>
-                  {mensaje && <p className="mt-2 text-sm text-green-600 text-center">{mensaje}</p>}
-                  {error && <p className="mt-2 text-sm text-red-600 text-center">{error}</p>}
-                </div>
-              </form>
-            </CardContent>
-          </Card>
+            <Card>
+              <CardHeader><CardTitle>Plan y uso</CardTitle></CardHeader>
+              <CardContent>
+                <p>Plan: <Badge>{perfil.plan || "demo"}</Badge></p>
+                <p>Consultas usadas: {perfil.preguntas_usadas ?? "-"}</p>
+                <p>Límite de preguntas: {perfil.limite_preguntas ?? "-"}</p>
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader><CardTitle>Plan y uso</CardTitle></CardHeader>
-            <CardContent>
-              <p>Plan: <Badge>{perfil.plan || "demo"}</Badge></p>
-              <p>Consultas usadas: {perfil.preguntas_usadas ?? "-"}</p>
-              <p>Límite de preguntas: {perfil.limite_preguntas ?? "-"}</p>
-            </CardContent>
-          </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Catálogo de productos</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Input type="file" accept=".xlsx,.xls,.csv,.txt" onChange={handleArchivoChange} />
+                <Button onClick={handleSubirArchivo} className="w-full">
+                  <UploadCloud className="w-4 h-4 mr-2" /> Subir catálogo
+                </Button>
+                {resultadoCatalogo && (
+                  <p className="text-sm text-center text-green-600">{resultadoCatalogo}</p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </main>
       <Footer />
