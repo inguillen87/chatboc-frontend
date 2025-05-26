@@ -48,10 +48,13 @@ export default function Perfil() {
     })
       .then((res) => res.json())
       .then((data) => {
+        console.log("📥 Datos recibidos de /me:", data);
+
         if (data?.error) {
           setError(data.error);
           return;
         }
+
         setPerfil({
           nombre_empresa: data.nombre_empresa || "",
           direccion: data.direccion || "",
@@ -73,64 +76,65 @@ export default function Perfil() {
       });
   }, []);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setPerfil({ ...perfil, [name]: value });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setMensaje("");
-  setError("");
+    e.preventDefault();
+    setMensaje("");
+    setError("");
 
-  const campos = ["nombre_empresa", "direccion", "telefono", "link_web", "horario", "ubicacion"];
-  for (const campo of campos) {
-    if (!perfil[campo as keyof PerfilData]) {
-      setError("Todos los campos son obligatorios");
+    const campos = ["nombre_empresa", "direccion", "telefono", "link_web", "horario", "ubicacion"];
+    for (const campo of campos) {
+      if (!perfil[campo as keyof PerfilData]) {
+        setError("Todos los campos son obligatorios");
+        return;
+      }
+    }
+
+    const payload = {
+      nombre_empresa: perfil.nombre_empresa.trim(),
+      direccion: perfil.direccion.trim(),
+      telefono: perfil.telefono.trim(),
+      link_web: perfil.link_web.trim(),
+      horario: perfil.horario.trim(),
+      ubicacion: perfil.ubicacion.trim(),
+      logo_url: perfil.logo_url?.trim() || "",
+    };
+
+    console.log("📤 Enviando perfil al backend:", payload);
+
+    const stored = localStorage.getItem("user");
+    const token = stored ? JSON.parse(stored).token : null;
+    if (!token) {
+      setError("Usuario no autenticado");
       return;
     }
-  }
 
-  const payload = {
-    nombre_empresa: perfil.nombre_empresa.trim(),
-    direccion: perfil.direccion.trim(),
-    telefono: perfil.telefono.trim(),
-    link_web: perfil.link_web.trim(),
-    horario: perfil.horario.trim(),
-    ubicacion: perfil.ubicacion.trim(),
-    logo_url: perfil.logo_url?.trim() || ""
+    try {
+      const res = await fetch("https://api.chatboc.ar/perfil", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setMensaje("✅ Perfil guardado correctamente");
+      } else {
+        setError(data.error || "❌ Error al guardar");
+      }
+    } catch (err) {
+      console.error("❌ Error al conectar con el servidor:", err);
+      setError("Error al conectar con el servidor");
+    }
   };
 
-  console.log("📤 Enviando perfil al backend:", payload);
-
-  const stored = localStorage.getItem("user");
-  const token = stored ? JSON.parse(stored).token : null;
-  if (!token) {
-    setError("Usuario no autenticado");
-    return;
-  }
-
-  try {
-    const res = await fetch("https://api.chatboc.ar/perfil", {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(payload),
-    });
-
-    const data = await res.json();
-    if (res.ok) {
-      setMensaje("✅ Perfil guardado correctamente");
-    } else {
-      setError(data.error || "❌ Error al guardar");
-    }
-  } catch (err) {
-    console.error("❌ Error al conectar con el servidor:", err);
-    setError("Error al conectar con el servidor");
-  }
-};
   return (
     <div className="flex flex-col min-h-screen bg-background text-foreground">
       <Navbar />
@@ -164,131 +168,92 @@ export default function Perfil() {
                 Estos datos se usan para personalizar las respuestas del bot.
               </p>
             </CardHeader>
-  <CardContent>
-  <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-    <div>
-      <Label>Nombre empresa</Label>
-      <Input
-        name="nombre_empresa"
-        value={perfil.nombre_empresa}
-        onChange={handleChange}
-        required
-        placeholder="Ej: Cuatro Fincas"
-      />
-    </div>
-
-    <div>
-      <Label>Teléfono</Label>
-      <Input
-        name="telefono"
-        value={perfil.telefono}
-        onChange={handleChange}
-        required
-        placeholder="Ej: +54 9 261 1234567"
-        pattern="^\+?[0-9\s\-]{7,20}$"
-        title="Formato válido: +54 9 261 1234567"
-      />
-    </div>
-
-    <div>
-      <Label>Dirección</Label>
-      <Input
-        name="direccion"
-        value={perfil.direccion}
-        onChange={handleChange}
-        required
-        placeholder="Ej: Ruta 89, Mendoza"
-      />
-    </div>
-
-    <div>
-      <Label>Provincia</Label>
-      <select
-        name="ubicacion"
-        value={perfil.ubicacion}
-        onChange={handleChange}
-        required
-        className="w-full rounded border px-3 py-2 text-sm text-foreground bg-background"
-      >
-        <option value="">Seleccioná una provincia</option>
-        <option value="Buenos Aires">Buenos Aires</option>
-        <option value="CABA">Ciudad Autónoma de Buenos Aires</option>
-        <option value="Catamarca">Catamarca</option>
-        <option value="Chaco">Chaco</option>
-        <option value="Chubut">Chubut</option>
-        <option value="Córdoba">Córdoba</option>
-        <option value="Corrientes">Corrientes</option>
-        <option value="Entre Ríos">Entre Ríos</option>
-        <option value="Formosa">Formosa</option>
-        <option value="Jujuy">Jujuy</option>
-        <option value="La Pampa">La Pampa</option>
-        <option value="La Rioja">La Rioja</option>
-        <option value="Mendoza">Mendoza</option>
-        <option value="Misiones">Misiones</option>
-        <option value="Neuquén">Neuquén</option>
-        <option value="Río Negro">Río Negro</option>
-        <option value="Salta">Salta</option>
-        <option value="San Juan">San Juan</option>
-        <option value="San Luis">San Luis</option>
-        <option value="Santa Cruz">Santa Cruz</option>
-        <option value="Santa Fe">Santa Fe</option>
-        <option value="Santiago del Estero">Santiago del Estero</option>
-        <option value="Tierra del Fuego">Tierra del Fuego</option>
-        <option value="Tucumán">Tucumán</option>
-      </select>
-    </div>
-
-    <div>
-      <Label>Horario</Label>
-      <Input
-        name="horario"
-        value={perfil.horario}
-        onChange={handleChange}
-        required
-        placeholder="Ej: Lunes a Sábado de 9 a 18"
-      />
-    </div>
-
-    <div>
-      <Label>Web / Tienda</Label>
-      <Input
-        name="link_web"
-        value={perfil.link_web}
-        onChange={handleChange}
-        required
-        placeholder="Ej: https://tuempresa.com"
-      />
-      {perfil.link_web && (
-        <a
-          href={perfil.link_web.startsWith("http") ? perfil.link_web : `https://${perfil.link_web}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-blue-600 underline text-sm mt-1 block"
-        >
-          Ir a tienda: {perfil.link_web}
-        </a>
-      )}
-    </div>
-
-    <div>
-      <Label>Logo URL</Label>
-      <Input
-        name="logo_url"
-        value={perfil.logo_url || ""}
-        onChange={handleChange}
-        placeholder="URL de la imagen del logo"
-      />
-    </div>
-
-    <div className="md:col-span-2">
-      <Button type="submit" className="w-full">Guardar cambios</Button>
-      {mensaje && <p className="mt-2 text-sm text-green-600 text-center">{mensaje}</p>}
-      {error && <p className="mt-2 text-sm text-red-600 text-center">{error}</p>}
-    </div>
-  </form>
-</CardContent>
-
-
+            <CardContent>
+              <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <Label>Nombre empresa</Label>
+                  <Input name="nombre_empresa" value={perfil.nombre_empresa} onChange={handleChange} required />
+                </div>
+                <div>
+                  <Label>Teléfono</Label>
+                  <Input
+                    name="telefono"
+                    value={perfil.telefono}
+                    onChange={handleChange}
+                    required
+                    placeholder="Ej: +54 9 261 1234567"
+                    pattern="^\+?[0-9\s\-]{7,20}$"
+                  />
+                </div>
+                <div>
+                  <Label>Dirección</Label>
+                  <Input name="direccion" value={perfil.direccion} onChange={handleChange} required />
+                </div>
+                <div>
+                  <Label>Provincia</Label>
+                  <select
+                    name="ubicacion"
+                    value={perfil.ubicacion}
+                    onChange={handleChange}
+                    required
+                    className="w-full rounded border px-3 py-2 text-sm text-foreground bg-background"
+                  >
+                    <option value="">Seleccioná una provincia</option>
+                    <option value="Buenos Aires">Buenos Aires</option>
+                    <option value="CABA">Ciudad Autónoma de Buenos Aires</option>
+                    <option value="Catamarca">Catamarca</option>
+                    <option value="Chaco">Chaco</option>
+                    <option value="Chubut">Chubut</option>
+                    <option value="Córdoba">Córdoba</option>
+                    <option value="Corrientes">Corrientes</option>
+                    <option value="Entre Ríos">Entre Ríos</option>
+                    <option value="Formosa">Formosa</option>
+                    <option value="Jujuy">Jujuy</option>
+                    <option value="La Pampa">La Pampa</option>
+                    <option value="La Rioja">La Rioja</option>
+                    <option value="Mendoza">Mendoza</option>
+                    <option value="Misiones">Misiones</option>
+                    <option value="Neuquén">Neuquén</option>
+                    <option value="Río Negro">Río Negro</option>
+                    <option value="Salta">Salta</option>
+                    <option value="San Juan">San Juan</option>
+                    <option value="San Luis">San Luis</option>
+                    <option value="Santa Cruz">Santa Cruz</option>
+                    <option value="Santa Fe">Santa Fe</option>
+                    <option value="Santiago del Estero">Santiago del Estero</option>
+                    <option value="Tierra del Fuego">Tierra del Fuego</option>
+                    <option value="Tucumán">Tucumán</option>
+                  </select>
+                </div>
+                <div>
+                  <Label>Horario</Label>
+                  <Input name="horario" value={perfil.horario} onChange={handleChange} required />
+                </div>
+                <div>
+                  <Label>Web / Tienda</Label>
+                  <Input name="link_web" value={perfil.link_web} onChange={handleChange} required />
+                  {perfil.link_web && (
+                    <a
+                      href={perfil.link_web.startsWith("http") ? perfil.link_web : `https://${perfil.link_web}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 underline text-sm mt-1 block"
+                    >
+                      Ir a tienda: {perfil.link_web}
+                    </a>
+                  )}
+                </div>
+                <div>
+                  <Label>Logo URL</Label>
+                  <Input name="logo_url" value={perfil.logo_url || ""} onChange={handleChange} />
+                </div>
+                <div className="md:col-span-2">
+                  <Button type="submit" className="w-full">Guardar cambios</Button>
+                  {mensaje && <p className="mt-2 text-sm text-green-600 text-center">{mensaje}</p>}
+                  {error && <p className="mt-2 text-sm text-red-600 text-center">{error}</p>}
+                </div>
+              </form>
+            </CardContent>
           </Card>
 
           <Card>
