@@ -48,6 +48,10 @@ export default function Perfil() {
     })
       .then((res) => res.json())
       .then((data) => {
+        if (data?.error) {
+          setError(data.error);
+          return;
+        }
         setPerfil({
           nombre_empresa: data.nombre_empresa || "",
           direccion: data.direccion || "",
@@ -95,8 +99,6 @@ export default function Perfil() {
     }
 
     try {
-      console.log("📤 Enviando datos:", perfil);
-
       const res = await fetch("https://api.chatboc.ar/perfil", {
         method: "PUT",
         headers: {
@@ -107,15 +109,13 @@ export default function Perfil() {
       });
 
       const data = await res.json();
-      console.log("✅ Respuesta del backend:", data);
-
       if (res.ok) {
         setMensaje("✅ Perfil guardado correctamente");
       } else {
         setError(data.error || "❌ Error al guardar");
       }
     } catch (err) {
-      console.error("❌ Error al enviar datos:", err);
+      console.error("❌ Error al conectar con el servidor:", err);
       setError("Error al conectar con el servidor");
     }
   };
@@ -128,17 +128,20 @@ export default function Perfil() {
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-4">
               <Avatar className="w-16 h-16">
-                <AvatarImage src={perfil.logo_url || undefined} />
+                <AvatarImage src={perfil.logo_url} />
                 <AvatarFallback>{perfil.nombre_empresa?.charAt(0) || "C"}</AvatarFallback>
               </Avatar>
               <h1 className="text-3xl font-bold text-primary">
                 Perfil de {perfil.nombre_empresa || perfil.name}
               </h1>
             </div>
-            <Button variant="destructive" onClick={() => {
-              localStorage.removeItem("user");
-              location.href = "/login";
-            }}>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                localStorage.removeItem("user");
+                location.href = "/login";
+              }}
+            >
               <LogOut className="w-4 h-4 mr-2" /> Cerrar sesión
             </Button>
           </div>
