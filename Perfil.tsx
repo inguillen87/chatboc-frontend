@@ -39,7 +39,8 @@ export default function Perfil() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
+    const stored = localStorage.getItem("user");
+    const token = stored ? JSON.parse(stored).token : null;
     if (!token) return;
 
     fetch("https://api.chatboc.ar/me", {
@@ -62,7 +63,10 @@ export default function Perfil() {
           limite_preguntas: data.limite_preguntas,
         });
       })
-      .catch(() => setError("Error al cargar el perfil"));
+      .catch((err) => {
+        console.error("❌ Error al cargar perfil:", err);
+        setError("Error al cargar el perfil");
+      });
   }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -83,23 +87,36 @@ export default function Perfil() {
       }
     }
 
-    const token = localStorage.getItem("token");
-    if (!token) return;
+    const stored = localStorage.getItem("user");
+    const token = stored ? JSON.parse(stored).token : null;
+    if (!token) {
+      setError("Usuario no autenticado");
+      return;
+    }
 
-    const res = await fetch("https://api.chatboc.ar/perfil", {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(perfil),
-    });
+    try {
+      console.log("📤 Enviando datos:", perfil);
 
-    const data = await res.json();
-    if (res.ok) {
-      setMensaje("Perfil guardado correctamente");
-    } else {
-      setError(data.error || "Error al guardar");
+      const res = await fetch("https://api.chatboc.ar/perfil", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(perfil),
+      });
+
+      const data = await res.json();
+      console.log("✅ Respuesta del backend:", data);
+
+      if (res.ok) {
+        setMensaje("✅ Perfil guardado correctamente");
+      } else {
+        setError(data.error || "❌ Error al guardar");
+      }
+    } catch (err) {
+      console.error("❌ Error al enviar datos:", err);
+      setError("Error al conectar con el servidor");
     }
   };
 
