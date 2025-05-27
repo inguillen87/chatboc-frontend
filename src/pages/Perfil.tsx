@@ -84,7 +84,7 @@ export default function Perfil() {
     if (!archivo) return setResultadoCatalogo("Seleccioná un archivo válido.");
 
     const formData = new FormData();
-    formData.append("archivo", archivo);
+    formData.append("file", archivo);
 
     const stored = localStorage.getItem("user");
     const token = stored ? JSON.parse(stored).token : null;
