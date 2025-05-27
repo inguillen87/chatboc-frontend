@@ -98,7 +98,7 @@ export default function Perfil() {
       });
 
       const data = await res.json();
-      setResultadoCatalogo(res.ok ? `✅ Catálogo procesado: ${data.insertados} productos` : `❌ ${data.error}`);
+      setResultadoCatalogo(res.ok ? data.mensaje : `❌ ${data.error}`);
     } catch (err) {
       console.error("❌ Error al subir catálogo:", err);
       setResultadoCatalogo("❌ Error al conectar con el servidor");
