@@ -193,7 +193,7 @@ export default function Perfil() {
                 <CardTitle>Catálogo de productos</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <Input type="file" accept=".xlsx,.xls,.csv,.txt" onChange={handleArchivoChange} />
+                <Input type="file" accept=".xlsx,.xls,.csv,.pdf,.txt" onChange={handleArchivoChange} />
                 <Button onClick={handleSubirArchivo} className="w-full">
                   <UploadCloud className="w-4 h-4 mr-2" /> Subir catálogo
                 </Button>
