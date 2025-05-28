@@ -1,21 +1,24 @@
 import React, { useState, useEffect, useRef } from "react";
 import ChatInput from "@/components/ChatInput";
 import ChatMessage from "@/components/ChatMessage";
-import TypingIndicator from "@/components/TypingIndicator"; // si tenés este componente
+import TypingIndicator from "@/components/TypingIndicator";
 import { Message } from "@/types/chat";
 
 const Demo: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
-
-  const scrollToBottom = () => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  const scrollToBottom = () => {
+    setTimeout(() => {
+      chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, 50);
+  };
 
   const handleSendMessage = async (text: string) => {
     const newMessage: Message = {
@@ -28,7 +31,7 @@ const Demo: React.FC = () => {
     setIsTyping(true);
 
     try {
-      const res = await fetch("https://api.chatboc.ar/responder_chatboc", {
+      const res = await fetch("https://api.chatboc.ar/ask", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -62,15 +65,22 @@ const Demo: React.FC = () => {
   };
 
   return (
-    <div className="max-w-2xl mx-auto py-6 px-4">
-      <div className="border rounded-lg shadow-sm h-[500px] overflow-y-auto p-4 bg-white space-y-4">
-        {messages.map((msg, idx) => (
-          <ChatMessage key={idx} message={msg} />
-        ))}
-        {isTyping && <TypingIndicator />}
-        <div ref={chatEndRef} />
+    <div className="min-h-screen flex flex-col items-center justify-start bg-background text-foreground pt-20 px-4">
+      <div className="w-full max-w-2xl flex flex-col h-[80vh] bg-white dark:bg-[#1e1e1e] rounded-lg shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div
+          className="flex-1 overflow-y-auto px-4 py-4 space-y-4 scroll-smooth"
+          ref={scrollContainerRef}
+        >
+          {messages.map((msg, idx) => (
+            <ChatMessage key={idx} message={msg} />
+          ))}
+          {isTyping && <TypingIndicator />}
+          <div ref={chatEndRef} />
+        </div>
+        <div className="border-t border-gray-200 dark:border-gray-700 p-2">
+          <ChatInput onSendMessage={handleSendMessage} />
+        </div>
       </div>
-      <ChatInput onSendMessage={handleSendMessage} />
     </div>
   );
 };

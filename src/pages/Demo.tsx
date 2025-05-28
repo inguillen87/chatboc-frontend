@@ -90,7 +90,7 @@ const Demo = () => {
 
     try {
       const response = await apiFetch(
-        "/responder_chatboc",
+        "/ask",
         "POST",
         { question: text, rubro: rubroSeleccionado },
         {

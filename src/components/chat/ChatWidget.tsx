@@ -120,7 +120,7 @@ const ChatWidget: React.FC = () => {
 
     try {
       const data = await apiFetch(
-        "/responder_chatboc",
+        "/ask",
         "POST",
         { pregunta: text, rubro: rubroSeleccionado },
         {

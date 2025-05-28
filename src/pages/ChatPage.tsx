@@ -1,66 +1,39 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Message } from "@/types/chat";
+import ChatMessage from "@/components/chat/ChatMessage";
 import ChatInput from "@/components/chat/ChatInput";
 import TypingIndicator from "@/components/chat/TypingIndicator";
-import { apiFetch } from "@/utils/api";
+import Navbar from "@/components/layout/Navbar";
+import Footer from "@/components/layout/Footer";
+import { motion, AnimatePresence } from "framer-motion";
 
 const ChatPage = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
-  const [token, setToken] = useState("");
-  const [rubro, setRubro] = useState("general");
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // Al iniciar: obtener token y mensaje inicial
+  const path = typeof window !== "undefined" ? window.location.pathname : "";
+  const isDemo = path.includes("demo");
+  const user = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("user") || "null") : null;
+  const token = isDemo ? "demo-token" : user?.token || "demo-token";
+
   useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    const user = storedUser ? JSON.parse(storedUser) : null;
-    if (user?.token) {
-      setToken(user.token);
-    }
-
     setMessages([
       {
         id: 1,
-        text: "¡Hola! Soy Chatboc, ¿en qué puedo ayudarte hoy?",
+        text: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?",
         isBot: true,
         timestamp: new Date(),
       },
     ]);
   }, []);
 
-  // Cuando cambia el token: pedir rubro al backend
   useEffect(() => {
-    const cargarRubro = async () => {
-      if (!token) return;
-      try {
-        const res = await apiFetch("/me", "GET", null, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setRubro(res?.rubro?.toLowerCase() || "general");
-      } catch (err) {
-        console.error("❌ Error al obtener rubro:", err);
-      }
-    };
-    cargarRubro();
-  }, [token]);
-
-  // Scroll automático al fondo
-  useEffect(() => {
-    const scroll = () => {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    };
-    const timeout = setTimeout(scroll, 100);
-    return () => clearTimeout(timeout);
-  }, [messages, isTyping]);
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   const handleSend = async (text: string) => {
     if (!text.trim()) return;
-
-    const storedUser = localStorage.getItem("user");
-    const user = storedUser ? JSON.parse(storedUser) : null;
-    const tokenFinal = user?.token || token;
 
     const userMessage: Message = {
       id: messages.length + 1,
@@ -74,71 +47,85 @@ const ChatPage = () => {
     setIsTyping(true);
 
     try {
-      const response = await apiFetch(
-        "/responder_chatboc",
-        "POST",
-        {
-          pregunta: text,
-          rubro: rubro,
+      const res = await fetch("https://api.chatboc.ar/ask", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
-        {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${tokenFinal}`,
-          },
-        }
-      );
+        body: JSON.stringify({ pregunta: text }),
+      });
+
+      const data = await res.json();
 
       const botMessage: Message = {
         id: updatedMessages.length + 1,
-        text: response?.respuesta || "⚠️ No se pudo generar una respuesta.",
+        text: data?.respuesta || "⚠️ No se pudo generar una respuesta.",
         isBot: true,
         timestamp: new Date(),
       };
 
-      setMessages((prev) => [...prev, botMessage]);
-    } catch (error: any) {
-      const errorMessage: Message = {
-        id: updatedMessages.length + 1,
-        text: `⚠️ Error al conectar con el servidor: ${error.message || "desconocido"}`,
-        isBot: true,
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, errorMessage]);
+      const newMessages = [...updatedMessages, botMessage];
+
+      if (
+        data?.fuente === "cohere" ||
+        botMessage.text.toLowerCase().includes("no encontré") ||
+        botMessage.text.toLowerCase().includes("no se pudo")
+      ) {
+        newMessages.push({
+          id: newMessages.length + 1,
+          text: "__cta__",
+          isBot: true,
+          timestamp: new Date(),
+        });
+      }
+
+      setMessages(newMessages);
+    } catch (error) {
+      setMessages([
+        ...updatedMessages,
+        {
+          id: updatedMessages.length + 1,
+          text: "⚠️ No se pudo conectar con el servidor.",
+          isBot: true,
+          timestamp: new Date(),
+        },
+      ]);
     } finally {
       setIsTyping(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-background text-foreground pt-20 px-4">
-      <div className="w-full max-w-2xl flex flex-col h-[80vh] bg-white dark:bg-[#1e1e1e] rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-        <div
-          className="flex-1 overflow-y-auto px-4 py-4 space-y-4 scroll-smooth"
-          ref={scrollContainerRef}
-        >
-          {messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`p-3 rounded-xl max-w-[80%] shadow ${
-                msg.isBot
-                  ? "bg-blue-100 dark:bg-blue-900/30 text-black dark:text-white self-start"
-                  : "bg-[#006AEC] text-white self-end"
-              }`}
-            >
-              <div className="text-sm whitespace-pre-wrap">{msg.text}</div>
-              <div className="text-[10px] opacity-60 text-right mt-1">
-                {msg.timestamp.toLocaleTimeString()}
-              </div>
-            </div>
-          ))}
-          {isTyping && <TypingIndicator />}
-          <div ref={messagesEndRef} />
+    <div className="flex flex-col min-h-screen bg-background text-foreground">
+      <Navbar />
+
+      <main className="flex-grow flex items-center justify-center px-4 pt-20 pb-10">
+        <div className="w-full max-w-2xl bg-white dark:bg-[#1e1e1e] border border-gray-200 dark:border-gray-700 rounded-3xl shadow-lg flex flex-col h-[80vh]">
+          <div className="flex-1 overflow-y-auto space-y-4 px-2 py-4">
+            <AnimatePresence>
+              {messages.map((msg) => (
+                <motion.div
+                  key={msg.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <ChatMessage message={msg} />
+                </motion.div>
+              ))}
+            </AnimatePresence>
+            {isTyping && <TypingIndicator />}
+            <div ref={chatEndRef} />
+          </div>
+          <div className="border-t border-gray-200 dark:border-gray-700 p-2">
+            <ChatInput onSendMessage={handleSend} />
+          </div>
         </div>
-        <div className="border-t border-gray-200 dark:border-gray-700 p-2">
-          <ChatInput onSendMessage={handleSend} />
-        </div>
-      </div>
+      </main>
+
+      <Footer />
     </div>
   );
 };
