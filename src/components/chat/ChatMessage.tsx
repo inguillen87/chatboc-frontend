@@ -16,31 +16,35 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
     );
   }
 
-  if (message.text === "__cta__") {
-    return (
-      <div className="flex justify-center mt-4">
-        <div className="text-center space-y-2">
-          <button
-            onClick={() => (window.location.href = "/demo")}
-            className="px-4 py-2 text-sm bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition font-medium shadow"
-          >
-            Usar Chatboc en mi empresa
-          </button>
-          <button
-            onClick={() =>
-              window.open(
-                "https://wa.me/5492613168608?text=Hola! Estoy probando Chatboc y quiero implementarlo en mi empresa.",
-                "_blank"
-              )
-            }
-            className="px-4 py-2 text-sm border border-blue-600 text-blue-600 rounded-xl hover:bg-blue-50 transition font-medium"
-          >
-            Hablar por WhatsApp
-          </button>
-        </div>
+ if (message.text === "__cta__") {
+  const user = JSON.parse(localStorage.getItem("user") || "null");
+  if (user?.token) return null;
+
+  return (
+    <div className="flex justify-center mt-4">
+      <div className="text-center space-y-2">
+        <button
+          onClick={() => (window.location.href = "/demo")}
+          className="px-4 py-2 text-sm bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition font-medium shadow"
+        >
+          Usar Chatboc en mi empresa
+        </button>
+        <button
+          onClick={() =>
+            window.open(
+              "https://wa.me/5492613168608?text=Hola! Estoy probando Chatboc y quiero implementarlo en mi empresa.",
+              "_blank"
+            )
+          }
+          className="px-4 py-2 text-sm border border-blue-600 text-blue-600 rounded-xl hover:bg-blue-50 transition font-medium"
+        >
+          Hablar por WhatsApp
+        </button>
       </div>
-    );
-  }
+    </div>
+  );
+}
+
 
   if (message.text === "__sugerencia__" && message.originalQuestion) {
     return (
