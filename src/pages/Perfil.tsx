@@ -88,10 +88,15 @@ export default function Perfil() {
     if (!token) return;
 
     try {
+      const formData = new FormData();
+      formData.append("file", archivo);
+
       const res = await fetch("https://api.chatboc.ar/subir_catalogo", {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: new FormData().append("file", archivo),
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
       });
 
       const data = await res.json();
