@@ -83,9 +83,6 @@ export default function Perfil() {
     setResultadoCatalogo("");
     if (!archivo) return setResultadoCatalogo("Seleccioná un archivo válido.");
 
-    const formData = new FormData();
-    formData.append("file", archivo);
-
     const stored = localStorage.getItem("user");
     const token = stored ? JSON.parse(stored).token : null;
     if (!token) return;
@@ -94,7 +91,7 @@ export default function Perfil() {
       const res = await fetch("https://api.chatboc.ar/subir_catalogo", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
-        body: formData,
+        body: new FormData().append("file", archivo),
       });
 
       const data = await res.json();
@@ -102,6 +99,35 @@ export default function Perfil() {
     } catch (err) {
       console.error("❌ Error al subir catálogo:", err);
       setResultadoCatalogo("❌ Error al conectar con el servidor");
+    }
+  };
+
+  const handleGuardarCambios = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMensaje("");
+    setError("");
+
+    const stored = localStorage.getItem("user");
+    const token = stored ? JSON.parse(stored).token : null;
+    if (!token) return setError("No se encontró sesión activa.");
+
+    try {
+      const res = await fetch("https://api.chatboc.ar/perfil", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(perfil),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error inesperado");
+
+      setMensaje(data.mensaje || "Cambios guardados");
+    } catch (err: any) {
+      console.error("❌ Error al guardar perfil:", err);
+      setError(err.message || "Error al guardar perfil");
     }
   };
 
@@ -140,7 +166,7 @@ export default function Perfil() {
                 <p className="text-sm text-muted-foreground mb-4">
                   Estos datos se usan para personalizar las respuestas del bot.
                 </p>
-                <form className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <form onSubmit={handleGuardarCambios} className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div><Label>Nombre empresa</Label><Input name="nombre_empresa" value={perfil.nombre_empresa} onChange={(e) => setPerfil({ ...perfil, nombre_empresa: e.target.value })} required /></div>
                   <div><Label>Teléfono</Label><Input name="telefono" value={perfil.telefono} onChange={(e) => setPerfil({ ...perfil, telefono: e.target.value })} required /></div>
                   <div><Label>Dirección</Label><Input name="direccion" value={perfil.direccion} onChange={(e) => setPerfil({ ...perfil, direccion: e.target.value })} required /></div>
@@ -148,15 +174,7 @@ export default function Perfil() {
                     <Label>Provincia</Label>
                     <select name="ubicacion" value={perfil.ubicacion} onChange={(e) => setPerfil({ ...perfil, ubicacion: e.target.value })} required className="w-full rounded border px-3 py-2 text-sm text-foreground bg-background">
                       <option value="">Seleccioná una provincia</option>
-                      {[
-                        "Buenos Aires", "CABA", "Catamarca", "Chaco", "Chubut", "Córdoba",
-                        "Corrientes", "Entre Ríos", "Formosa", "Jujuy", "La Pampa", "La Rioja",
-                        "Mendoza", "Misiones", "Neuquén", "Río Negro", "Salta", "San Juan",
-                        "San Luis", "Santa Cruz", "Santa Fe", "Santiago del Estero",
-                        "Tierra del Fuego", "Tucumán"
-                      ].map((prov) => (
-                        <option key={prov} value={prov}>{prov}</option>
-                      ))}
+                      {["Buenos Aires", "CABA", "Catamarca", "Chaco", "Chubut", "Córdoba", "Corrientes", "Entre Ríos", "Formosa", "Jujuy", "La Pampa", "La Rioja", "Mendoza", "Misiones", "Neuquén", "Río Negro", "Salta", "San Juan", "San Luis", "Santa Cruz", "Santa Fe", "Santiago del Estero", "Tierra del Fuego", "Tucumán"].map((prov) => (<option key={prov} value={prov}>{prov}</option>))}
                     </select>
                   </div>
                   <div><Label>Horario</Label><Input name="horario" value={perfil.horario} onChange={(e) => setPerfil({ ...perfil, horario: e.target.value })} required /></div>
