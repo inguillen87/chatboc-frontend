@@ -1,22 +1,22 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
-import { Check } from 'lucide-react';
+import { Check, Sparkles } from 'lucide-react';
 
 const plans = [
   {
     name: 'Prueba Gratuita',
     price: 'GRATIS',
     duration: '/ 15 días',
-    description: 'Ideal para conocer cómo Chatboc puede ayudar a tu negocio sin compromisos.',
+    description: 'Probá nuestra tecnología de IA con subida de catálogos, consultas inteligentes y atención automatizada. Ideal para ver el potencial real de Chatboc.',
     features: [
       'Hasta 50 consultas por día',
-      'Configuración inicial paso a paso',
-      'Funcionalidad básica de inteligencia artificial',
-      'Integración web con widget flotante',
-      'Sin Integraciones externas',
-      'Sin automatizaciones',
-
+      'Carga de catálogo en PDF o Excel',
+      'Procesamiento automático con Google Document AI',
+      'Búsqueda inteligente con algoritmos de vectores (Qdrant)',
+      'Configuración inicial guiada',
+      'Widget web flotante',
+      'Sin integraciones externas',
       'Sin tarjeta de crédito ni datos de facturación'
     ],
     cta: 'Comenzar GRATIS',
@@ -27,35 +27,37 @@ const plans = [
     name: 'Chatboc Pro',
     price: '$30',
     duration: '/ mes',
-    description: 'Ideal para pymes que buscan escalar su atención al cliente con tecnología simple y efectiva.',
+    description: 'Automatización profesional para pymes. Incluye procesamiento avanzado de catálogos, respuestas personalizadas y tecnología de IA de última generación.',
     features: [
       'Hasta 200 preguntas y respuestas personalizadas por mes',
       'Entrenamiento optimizado para el rubro de tu empresa',
-      'Panel de control con métricas e historial de uso',
-      'Asistente inteligente con aprendizaje y mejoras continuas',
-      'Alertas automáticas por palabra clave (ej: reclamo, urgencia, compra)',
-      'Registro automático de conversaciones (planilla o sistema)',
-      'Soporte técnico prioritario y acceso anticipado a nuevas funcionalidades'
+      'Carga ilimitada de catálogos en PDF/Excel',
+      'Búsqueda y respuestas en tiempo real usando Qdrant',
+      'Panel de métricas, historial de consultas y mejoras continuas',
+      'Asistente IA con aprendizaje sobre tus productos',
+      'Alertas inteligentes por palabra clave',
+      'Registro automático de conversaciones',
+      'Soporte prioritario y acceso a nuevas funciones'
     ],
     cta: 'Elegir Plan Pro',
     ctaLink: '/register',
     highlight: true
-
   },
   {
-  name: 'Chatboc Full',
+    name: 'Chatboc Full',
     price: '$80',
     duration: '/ mes',
-    description: 'Ideal para empresas que ya usan WhatsApp y buscan automatizar su atención con una solución profesional, eficiente y escalable.',
+    description: 'Todo el poder de nuestra IA: atención ilimitada, integración WhatsApp, automatizaciones y paneles avanzados. Desarrollado con tecnología mundial de vanguardia.',
     features: [
-      'Consultas ilimitadas',
-      'Automatización completa de respuestas, seguimientos y derivaciones',
-      'Envío automático de catálogos, promociones o formularios personalizados por email',
-      'CRM, formularios y paneles visuales desarrollados por nuestro equipo, alojados 100% en la nube Chatboc',
-      'Acceso total al panel administrativo: historial, prospectos, filtros y métricas clave',
-      'Dashboard mensual con indicadores de rendimiento y actividad del chatbot',
-      'Soporte para empresas con múltiples unidades de negocio, rubros o sucursales',
-      'Soporte técnico prioritario y configuración avanzada incluida'
+      'Consultas ilimitadas y multicanal',
+      'Automatización completa: respuestas, seguimientos y derivaciones',
+      'Envío de catálogos, promociones y formularios personalizados',
+      'CRM y paneles visuales exclusivos en la nube',
+      'Acceso total a panel administrativo, prospectos y filtros avanzados',
+      'Dashboard mensual con indicadores clave',
+      'Tecnología de vectores y procesamiento de lenguaje natural a nivel global',
+      'Soporte para empresas con múltiples unidades, rubros o sucursales',
+      'Soporte técnico premium y configuración avanzada incluida'
     ],
     cta: 'Solicitar Activación WhatsApp',
     ctaLink: 'https://wa.me/5492613168608?text=Hola! Estoy probando Chatboc y quiero implementarlo en mi empresa.',
@@ -69,9 +71,17 @@ const PricingSection = () => {
   return (
     <section id="pricing" className="py-20 bg-background text-foreground">
       <div className="container px-4 mx-auto">
-        <div className="text-center max-w-2xl mx-auto mb-12">
+        <div className="text-center max-w-3xl mx-auto mb-12">
+          <div className="flex justify-center mb-4">
+            <Sparkles className="h-8 w-8 text-blue-500" />
+          </div>
           <h2 className="text-3xl md:text-4xl font-bold mb-4">Planes y Precios</h2>
-          <p className="text-muted-foreground">Elegí el plan que mejor se adapte a tu negocio. Todos comienzan con una prueba gratuita.</p>
+          <p className="text-lg text-muted-foreground">
+            Somos la primera plataforma en la región que integra procesamiento de catálogos en PDF y Excel usando <b>Google Document AI</b> y <b>Qdrant</b> (búsqueda por vectores), la misma tecnología que utilizan empresas líderes a nivel mundial.  
+            <br /><br />
+            Chatboc no es un bot tradicional: nuestros algoritmos de inteligencia artificial convierten tu catálogo en respuestas automáticas, cotizaciones instantáneas y asistencia personalizada para cada cliente.<br />
+            Elegí tu plan y llevá la atención de tu empresa a otro nivel.
+          </p>
         </div>
 
         <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
@@ -87,7 +97,7 @@ const PricingSection = () => {
               )}
 
               <h3 className="text-xl font-bold mb-1">{plan.name}</h3>
-              <p className="text-lg text-white font-semibold mb-1">{plan.price} <span className="text-sm font-normal text-muted-foreground">{plan.duration}</span></p>
+              <p className="text-lg font-semibold mb-1">{plan.price} <span className="text-sm font-normal text-muted-foreground">{plan.duration}</span></p>
               <p className="text-sm italic text-muted-foreground mb-4">{plan.description}</p>
 
               <p className="text-sm font-semibold mb-2 text-foreground">Incluye:</p>

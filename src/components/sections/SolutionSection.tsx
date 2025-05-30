@@ -1,50 +1,53 @@
 import React from 'react';
-import { Bot, Brain, LayoutDashboard, Clock, Coins, Heart } from 'lucide-react';
+import { Bot, Brain, LayoutDashboard, Clock, Coins, Heart, FileText } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useNavigate } from 'react-router-dom';
+
+const benefits = [
+  {
+    icon: <FileText className="h-10 w-10 text-blue-600" />,
+    title: "Catálogo Digital Directo de tu PDF o Excel",
+    description: "Olvidate de cargar productos a mano: subís tu catálogo y Chatboc responde usando tus datos reales, siempre actualizados."
+  },
+  {
+    icon: <Brain className="h-10 w-10 text-blue-600" />,
+    title: "Inteligencia Artificial de Verdad",
+    description: "No son botones, es IA. Chatboc entiende, busca y sugiere usando procesamiento de lenguaje natural y búsquedas vectoriales."
+  },
+  {
+    icon: <LayoutDashboard className="h-10 w-10 text-blue-600" />,
+    title: "Panel de Control Fácil y Completo",
+    description: "Gestioná preguntas, respuestas, métricas y catálogos sin depender de soporte. Todo claro y en un solo lugar."
+  },
+  {
+    icon: <Clock className="h-10 w-10 text-blue-600" />,
+    title: "Atendé 24/7, Incluso en Feriados",
+    description: "No perdés más oportunidades: el bot responde en segundos a cualquier hora, todos los días."
+  },
+  {
+    icon: <Coins className="h-10 w-10 text-blue-600" />,
+    title: "Ahorro Real de Tiempo y Plata",
+    description: "Reducí tareas repetitivas y bajá el costo de atención sin sacrificar calidad ni personalización."
+  },
+  {
+    icon: <Heart className="h-10 w-10 text-blue-600" />,
+    title: "Mejor Experiencia para tus Clientes",
+    description: "Tus clientes reciben respuestas útiles y claras, como si chatearan con un experto de tu propio equipo."
+  }
+];
 
 const SolutionSection = () => {
-  const benefits = [
-    {
-      icon: <Bot className="h-10 w-10 text-blue-500" />,
-      title: "Personalización Profunda desde el Inicio",
-      description: "Chatboc ya viene listo con más de 50 preguntas y respuestas reales por rubro. Elegís tu sector y empezás a responder como un experto, sin configurar nada."
-    },
-    {
-      icon: <Brain className="h-10 w-10 text-blue-500" />,
-      title: "Inteligencia Artificial que Aprende y se Adapta",
-      description: "Gracias a nuestro avanzado NLP y embeddings, Chatboc no solo sigue guiones; comprende la intención, el contexto y se vuelve más inteligente con cada conversación."
-    },
-    {
-      icon: <LayoutDashboard className="h-10 w-10 text-blue-500" />,
-      title: "Panel Simple. Control Total.",
-      description: "Gestioná tu chatbot como un experto desde un panel claro, sin depender de soporte técnico ni configuraciones complejas."
-    },
-    {
-      icon: <Clock className="h-10 w-10 text-blue-500" />,
-      title: "Atención Ininterrumpida 24/7",
-      description: "Tu negocio sigue generando oportunidades y resolviendo dudas incluso fuera de horario. Chatboc es tu empleado estrella que nunca descansa."
-    },
-    {
-      icon: <Coins className="h-10 w-10 text-blue-500" />,
-      title: "Optimización de Recursos y Costos",
-      description: "Reducí el tiempo dedicado a tareas repetitivas y bajá los costos de atención tradicional, reinvirtiendo en lo que más importa."
-    },
-    {
-      icon: <Heart className="h-10 w-10 text-blue-500" />,
-      title: "Experiencia de Cliente Superior",
-      description: "Conectá mejor con tus clientes con respuestas inmediatas, humanas y precisas que construyen confianza desde el primer mensaje."
-
-    }
-  ];
+  const navigate = useNavigate();
 
   return (
     <section id="solution" className="section-padding bg-background text-foreground">
       <div className="container px-4 mx-auto">
         <div className="text-center max-w-3xl mx-auto mb-16">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
-            Chatboc: La Inteligencia Conversacional Diseñada para <span className="gradient-text">Entender y Potenciar</span> Tu Negocio
+            Chatboc: La IA Conversacional que Hace el Trabajo Difícil por Vos
           </h2>
           <p className="text-lg text-muted-foreground">
-            Imaginá un asistente virtual que no solo responde preguntas, sino que entiende las particularidades de tu pyme, aprende de cada interacción y trabaja incansablemente para mejorar la satisfacción de tus clientes y optimizar tus procesos. Eso es Chatboc.
+            Sumá tecnología real a tu pyme: subís tu catálogo, automatizás respuestas y medís resultados en serio. Chatboc no improvisa, trabaja con tus datos, aprende y mejora solo.
           </p>
         </div>
 
@@ -59,6 +62,25 @@ const SolutionSection = () => {
               <p className="text-muted-foreground">{benefit.description}</p>
             </div>
           ))}
+        </div>
+
+        {/* Botones de acción */}
+        <div className="flex flex-col sm:flex-row gap-4 justify-center mt-16">
+          <Button
+            size="lg"
+            className="px-8 py-4 text-base font-semibold"
+            onClick={() => navigate('/register')}
+          >
+            Probar Chatboc ahora
+          </Button>
+          <Button
+            variant="outline"
+            size="lg"
+            className="px-8 py-4 text-base font-semibold"
+            onClick={() => navigate('/demo')}
+          >
+            Ver demo en vivo
+          </Button>
         </div>
       </div>
     </section>
