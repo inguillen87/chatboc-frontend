@@ -13,7 +13,7 @@ const HeroSection = () => {
           {/* Texto principal */}
           <div className="w-full lg:w-1/2 lg:pr-12 text-center lg:text-left">
             <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4 leading-tight">
-              <span className="gradient-text">Chatboc:</span> Primer Bot IA para PYMEs con Catálogo Inteligente
+              <span className="gradient-text">Chatboc:</span> Primer Bot IA para PYMEs MUY Inteligente
             </h1>
             <p className="text-base sm:text-lg text-muted-foreground mb-6">
               Subí tu catálogo en PDF o Excel y empezá a vender por chat en minutos. Atención 24/7, ventas automáticas y respuestas instantáneas con la mejor tecnología IA.
