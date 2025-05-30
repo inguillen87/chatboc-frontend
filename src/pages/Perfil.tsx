@@ -26,9 +26,6 @@ interface PerfilData {
 
 }
 
-// ... imports iniciales iguales a los tuyos
-import { Progress } from "@/components/ui/progress"; // NUEVO
-
 // ...interface PerfilData igual
 
 export default function Perfil() {
