@@ -73,8 +73,7 @@ const HeroSection = () => {
                   </span>
                 </div>
               </div>
-
-              <div className="space-y-3 text-sm">
+                           <div className="space-y-3 text-sm">
                 <div className="flex items-start">
                   <div className="bg-blue-100 dark:bg-blue-900/30 rounded-lg p-3 max-w-[85%]">
                     Hola, ¿en qué puedo ayudarte hoy?
@@ -82,27 +81,25 @@ const HeroSection = () => {
                 </div>
                 <div className="flex justify-end">
                   <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-3 max-w-[85%]">
-                    ¿Puedo ver la lista de productos?
+                    Quiero comprar 6 cajas de vino.
                   </div>
                 </div>
                 <div className="flex items-start">
                   <div className="bg-blue-100 dark:bg-blue-900/30 rounded-lg p-3 max-w-[85%]">
-                    Claro. Te muestro el catálogo actualizado de este mes.<br />
-                    <span className="text-xs text-muted-foreground">[Catálogo PDF adjunto]</span>
+                    ¡Perfecto! Según nuestro catálogo actualizado, tengo disponibles cajas de Malbec, Cabernet y Chardonnay. El precio por caja arranca en $18.000. ¿Te gustaría ver opciones o elegir una variedad en particular?
                   </div>
                 </div>
                 <div className="flex justify-end">
                   <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-3 max-w-[85%]">
-                    ¿Tenés promos de Malbec?
+                    ¿Cuánto me sale 3 de Malbec y 3 de Cabernet?
                   </div>
                 </div>
                 <div className="flex items-start">
                   <div className="bg-blue-100 dark:bg-blue-900/30 rounded-lg p-3 max-w-[85%]">
-                    Sí, 2x1 en cajas de 6. ¿Querés que te reserve una?
+                    Sumando las 3 cajas de Malbec ($18.000 c/u) y 3 de Cabernet ($20.000 c/u), el total es $114.000. ¿Querés que te reserve el pedido o te paso promos vigentes?
                   </div>
                 </div>
               </div>
-
               <div className="mt-4 flex">
                 <input
                   type="text"
