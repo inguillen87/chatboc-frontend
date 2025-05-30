@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { LogOut, UploadCloud } from "lucide-react";
 import Navbar from "@/components/layout/Navbar";
+import { Progress } from "@/components/ui/progress";
 import Footer from "@/components/layout/Footer";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
@@ -22,7 +23,13 @@ interface PerfilData {
   plan?: string;
   preguntas_usadas?: number;
   limite_preguntas?: number;
+
 }
+
+// ... imports iniciales iguales a los tuyos
+import { Progress } from "@/components/ui/progress"; // NUEVO
+
+// ...interface PerfilData igual
 
 export default function Perfil() {
   const [perfil, setPerfil] = useState<PerfilData>({
@@ -38,6 +45,10 @@ export default function Perfil() {
   const [error, setError] = useState("");
   const [archivo, setArchivo] = useState<File | null>(null);
   const [resultadoCatalogo, setResultadoCatalogo] = useState("");
+  const porcentaje =
+    perfil.preguntas_usadas && perfil.limite_preguntas
+      ? Math.min((perfil.preguntas_usadas / perfil.limite_preguntas) * 100, 100)
+      : 0;
 
   useEffect(() => {
     const stored = localStorage.getItem("user");
@@ -49,10 +60,7 @@ export default function Perfil() {
     })
       .then((res) => res.json())
       .then((data) => {
-        if (data?.error) {
-          setError(data.error);
-          return;
-        }
+        if (data?.error) return setError(data.error);
         setPerfil({
           nombre_empresa: data.nombre_empresa || "",
           direccion: data.direccion || "",
@@ -75,12 +83,11 @@ export default function Perfil() {
   }, []);
 
   const handleArchivoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] || null;
-    setArchivo(file);
+    setArchivo(e.target.files?.[0] || null);
+    setResultadoCatalogo("");
   };
 
   const handleSubirArchivo = async () => {
-    setResultadoCatalogo("");
     if (!archivo) return setResultadoCatalogo("Seleccioná un archivo válido.");
 
     const stored = localStorage.getItem("user");
@@ -90,15 +97,11 @@ export default function Perfil() {
     try {
       const formData = new FormData();
       formData.append("file", archivo);
-
       const res = await fetch("https://api.chatboc.ar/subir_catalogo", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
-
       const data = await res.json();
       setResultadoCatalogo(res.ok ? data.mensaje : `❌ ${data.error}`);
     } catch (err) {
@@ -128,7 +131,6 @@ export default function Perfil() {
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error inesperado");
-
       setMensaje(data.mensaje || "Cambios guardados");
     } catch (err: any) {
       console.error("❌ Error al guardar perfil:", err);
@@ -151,48 +153,44 @@ export default function Perfil() {
                 Perfil de {perfil.nombre_empresa || perfil.name}
               </h1>
             </div>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                localStorage.removeItem("user");
-                location.href = "/login";
-              }}
-            >
+            <Button variant="destructive" onClick={() => {
+              localStorage.removeItem("user");
+              location.href = "/login";
+            }}>
               <LogOut className="w-4 h-4 mr-2" /> Cerrar sesión
             </Button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card className="md:col-span-2">
-              <CardHeader>
-                <CardTitle>Información del negocio</CardTitle>
-              </CardHeader>
+              <CardHeader><CardTitle>Información del negocio</CardTitle></CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground mb-4">
                   Estos datos se usan para personalizar las respuestas del bot.
                 </p>
                 <form onSubmit={handleGuardarCambios} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div><Label>Nombre empresa</Label><Input name="nombre_empresa" value={perfil.nombre_empresa} onChange={(e) => setPerfil({ ...perfil, nombre_empresa: e.target.value })} required /></div>
-                  <div><Label>Teléfono</Label><Input name="telefono" value={perfil.telefono} onChange={(e) => setPerfil({ ...perfil, telefono: e.target.value })} required /></div>
-                  <div><Label>Dirección</Label><Input name="direccion" value={perfil.direccion} onChange={(e) => setPerfil({ ...perfil, direccion: e.target.value })} required /></div>
+                  {/* campos iguales a antes */}
+                  <div><Label>Nombre empresa</Label><Input value={perfil.nombre_empresa} onChange={(e) => setPerfil({ ...perfil, nombre_empresa: e.target.value })} required /></div>
+                  <div><Label>Teléfono</Label><Input value={perfil.telefono} onChange={(e) => setPerfil({ ...perfil, telefono: e.target.value })} required /></div>
+                  <div><Label>Dirección</Label><Input value={perfil.direccion} onChange={(e) => setPerfil({ ...perfil, direccion: e.target.value })} required /></div>
                   <div>
                     <Label>Provincia</Label>
-                    <select name="ubicacion" value={perfil.ubicacion} onChange={(e) => setPerfil({ ...perfil, ubicacion: e.target.value })} required className="w-full rounded border px-3 py-2 text-sm text-foreground bg-background">
+                    <select value={perfil.ubicacion} onChange={(e) => setPerfil({ ...perfil, ubicacion: e.target.value })} required className="w-full rounded border px-3 py-2 text-sm text-foreground bg-background">
                       <option value="">Seleccioná una provincia</option>
                       {["Buenos Aires", "CABA", "Catamarca", "Chaco", "Chubut", "Córdoba", "Corrientes", "Entre Ríos", "Formosa", "Jujuy", "La Pampa", "La Rioja", "Mendoza", "Misiones", "Neuquén", "Río Negro", "Salta", "San Juan", "San Luis", "Santa Cruz", "Santa Fe", "Santiago del Estero", "Tierra del Fuego", "Tucumán"].map((prov) => (<option key={prov} value={prov}>{prov}</option>))}
                     </select>
                   </div>
-                  <div><Label>Horario</Label><Input name="horario" value={perfil.horario} onChange={(e) => setPerfil({ ...perfil, horario: e.target.value })} required /></div>
+                  <div><Label>Horario</Label><Input value={perfil.horario} onChange={(e) => setPerfil({ ...perfil, horario: e.target.value })} required /></div>
                   <div>
                     <Label>Web / Tienda</Label>
-                    <Input name="link_web" value={perfil.link_web} onChange={(e) => setPerfil({ ...perfil, link_web: e.target.value })} required />
+                    <Input value={perfil.link_web} onChange={(e) => setPerfil({ ...perfil, link_web: e.target.value })} required />
                     {perfil.link_web && (
                       <a href={perfil.link_web.startsWith("http") ? perfil.link_web : `https://${perfil.link_web}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline text-sm mt-1 block">
                         Ir a tienda: {perfil.link_web}
                       </a>
                     )}
                   </div>
-                  <div><Label>Logo URL</Label><Input name="logo_url" value={perfil.logo_url || ""} onChange={(e) => setPerfil({ ...perfil, logo_url: e.target.value })} /></div>
+                  <div><Label>Logo URL</Label><Input value={perfil.logo_url || ""} onChange={(e) => setPerfil({ ...perfil, logo_url: e.target.value })} /></div>
                   <div className="md:col-span-2">
                     <Button type="submit" className="w-full">Guardar cambios</Button>
                     {mensaje && <p className="mt-2 text-sm text-green-600 text-center">{mensaje}</p>}
@@ -204,19 +202,20 @@ export default function Perfil() {
 
             <Card>
               <CardHeader><CardTitle>Plan y uso</CardTitle></CardHeader>
-              <CardContent>
-                <p>Plan: <Badge>{perfil.plan || "demo"}</Badge></p>
-                <p>Consultas usadas: {perfil.preguntas_usadas ?? "-"}</p>
-                <p>Límite de preguntas: {perfil.limite_preguntas ?? "-"}</p>
+              <CardContent className="space-y-2">
+                <p>Plan actual: <Badge>{perfil.plan || "demo"}</Badge></p>
+                <p>Consultas usadas: {perfil.preguntas_usadas ?? 0} / {perfil.limite_preguntas ?? 50}</p>
+                <Progress value={porcentaje} />
               </CardContent>
             </Card>
 
             <Card>
-              <CardHeader>
-                <CardTitle>Catálogo de productos</CardTitle>
-              </CardHeader>
+              <CardHeader><CardTitle>Catálogo de productos</CardTitle></CardHeader>
               <CardContent className="space-y-4">
                 <Input type="file" accept=".xlsx,.xls,.csv,.pdf,.txt" onChange={handleArchivoChange} />
+                <p className="text-xs text-muted-foreground">
+                  ⚠️ Se recomienda subir Excel o CSV para mejor lectura. PDF puede tener menor precisión.
+                </p>
                 <Button onClick={handleSubirArchivo} className="w-full">
                   <UploadCloud className="w-4 h-4 mr-2" /> Subir catálogo
                 </Button>
