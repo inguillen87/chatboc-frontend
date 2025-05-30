@@ -15,12 +15,27 @@ const ChatWidget: React.FC = () => {
   const [rubroSeleccionado, setRubroSeleccionado] = useState<string | null>(null);
   const [rubrosDisponibles, setRubrosDisponibles] = useState<{ id: number; nombre: string }[]>([]);
   const [esperandoRubro, setEsperandoRubro] = useState(false);
+  const [cargandoRubros, setCargandoRubros] = useState(false);
   const [token, setToken] = useState("");
   const [isVisible, setIsVisible] = useState(true);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
+  // Carga los rubros si se necesitan (solo anónimo)
+  const cargarRubros = async () => {
+    setCargandoRubros(true);
+    try {
+      const res = await fetch("https://api.chatboc.ar/rubros");
+      const data = await res.json();
+      setRubrosDisponibles(data.rubros || []);
+    } catch {
+      setRubrosDisponibles([]);
+    }
+    setCargandoRubros(false);
+  };
+
+  // Lógica centralizada de autenticación/rubro
   const recargarDesdeStorage = () => {
     const path = window.location.pathname;
     const ocultas = ["/login", "/register", "/perfil"];
@@ -51,12 +66,11 @@ const ChatWidget: React.FC = () => {
     const rubro = localStorage.getItem("rubroSeleccionado");
     if (!rubro) {
       setEsperandoRubro(true);
-      fetch("https://api.chatboc.ar/rubros")
-        .then((res) => res.json())
-        .then((data) => setRubrosDisponibles(data.rubros || []))
-        .catch(() => {});
+      setRubroSeleccionado(null);
+      cargarRubros();
     } else {
       setRubroSeleccionado(rubro);
+      setEsperandoRubro(false);
     }
   };
 
@@ -64,6 +78,7 @@ const ChatWidget: React.FC = () => {
     recargarDesdeStorage();
     window.addEventListener("storage", recargarDesdeStorage);
     return () => window.removeEventListener("storage", recargarDesdeStorage);
+    // eslint-disable-next-line
   }, []);
 
   useEffect(() => {
@@ -71,6 +86,20 @@ const ChatWidget: React.FC = () => {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
   }, [messages, isTyping]);
+
+  // Nuevo: Si cambia el rubro (ejemplo: después de elegir), reinicia el chat de bienvenida
+  useEffect(() => {
+    if (isOpen && rubroSeleccionado) {
+      setMessages([
+        {
+          id: 1,
+          text: "¡Hola! Soy Chatboc, tu asistente virtual. ¿En qué puedo ayudarte hoy?",
+          isBot: true,
+          timestamp: new Date(),
+        },
+      ]);
+    }
+  }, [isOpen, rubroSeleccionado]);
 
   const toggleChat = () => {
     const nextState = !isOpen;
@@ -93,6 +122,19 @@ const ChatWidget: React.FC = () => {
 
   const handleSendMessage = async (text: string) => {
     if (!text.trim()) return;
+
+    if (!rubroSeleccionado) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: prev.length + 1,
+          text: "🛈 Por favor, seleccioná primero el rubro de tu negocio.",
+          isBot: true,
+          timestamp: new Date(),
+        },
+      ]);
+      return;
+    }
 
     const esAnonimo = token.startsWith("demo-anon") || token.startsWith("demo-token");
     if (esAnonimo && preguntasUsadas >= 15) {
@@ -170,29 +212,43 @@ const ChatWidget: React.FC = () => {
       <div className="fixed bottom-20 right-5 z-50 w-80 md:w-96 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl shadow-xl p-4 animate-slide-up">
         <h2 className="text-lg font-semibold mb-3 text-center">👋 ¡Bienvenido!</h2>
         <p className="mb-4 text-sm text-center">¿De qué rubro es tu negocio?</p>
-        <div className="flex flex-wrap justify-center gap-2">
-          {rubrosDisponibles.map((rubro) => (
+        {cargandoRubros ? (
+          <div className="text-center text-gray-500 text-sm my-6">Cargando rubros...</div>
+        ) : rubrosDisponibles.length === 0 ? (
+          <div className="text-center text-red-500 text-sm my-6">
+            No se pudieron cargar los rubros. <br />
             <button
-              key={rubro.id}
-              onClick={() => {
-                localStorage.setItem("rubroSeleccionado", rubro.nombre);
-                setRubroSeleccionado(rubro.nombre);
-                setEsperandoRubro(false);
-                setMessages([
-                  {
-                    id: 1,
-                    text: "¡Hola! Soy Chatboc, tu asistente virtual. ¿En qué puedo ayudarte hoy?",
-                    isBot: true,
-                    timestamp: new Date(),
-                  },
-                ]);
-              }}
-              className="px-4 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 text-sm"
+              onClick={cargarRubros}
+              className="mt-2 underline text-blue-600 hover:text-blue-800"
             >
-              {rubro.nombre}
+              Reintentar
             </button>
-          ))}
-        </div>
+          </div>
+        ) : (
+          <div className="flex flex-wrap justify-center gap-2">
+            {rubrosDisponibles.map((rubro) => (
+              <button
+                key={rubro.id}
+                onClick={() => {
+                  localStorage.setItem("rubroSeleccionado", rubro.nombre);
+                  setRubroSeleccionado(rubro.nombre);
+                  setEsperandoRubro(false);
+                  setMessages([
+                    {
+                      id: 1,
+                      text: "¡Hola! Soy Chatboc, tu asistente virtual. ¿En qué puedo ayudarte hoy?",
+                      isBot: true,
+                      timestamp: new Date(),
+                    },
+                  ]);
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 text-sm"
+              >
+                {rubro.nombre}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     );
   }
