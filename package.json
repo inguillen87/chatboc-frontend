@@ -26,7 +26,8 @@
     "react-time-picker": "^7.0.0",
     "sonner": "^1.7.4",
     "tailwind-merge": "^2.2.1",
-    "tailwindcss-animate": "^1.0.7"
+    "tailwindcss-animate": "^1.0.7",
+    "use-places-autocomplete": "^4.0.1"
   },
   "devDependencies": {
     "@types/react": "^18.3.21",
