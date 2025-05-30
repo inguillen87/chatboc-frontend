@@ -29,7 +29,7 @@ const ChatPage = () => {
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, isTyping]);
 
   const handleSend = async (text: string) => {
     if (!text.trim()) return;
@@ -96,12 +96,37 @@ const ChatPage = () => {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-background text-foreground">
+    <div className="min-h-screen flex flex-col bg-background text-foreground">
       <Navbar />
 
-      <main className="flex-grow flex items-center justify-center px-4 pt-20 pb-10">
-        <div className="w-full max-w-2xl bg-white dark:bg-[#1e1e1e] border border-gray-200 dark:border-gray-700 rounded-3xl shadow-lg flex flex-col h-[80vh]">
-          <div className="flex-1 overflow-y-auto space-y-4 px-2 py-4">
+      <main className="flex-grow flex justify-center items-center px-2 sm:px-4 pt-16 pb-4 bg-gradient-to-b from-[#131a23] to-[#181e24]">
+        <div
+          className="
+            w-full max-w-2xl
+            h-[80vh] min-h-[420px]
+            flex flex-col
+            rounded-3xl
+            shadow-2xl
+            bg-white/80 dark:bg-[#1c1e24]/90
+            border border-gray-300 dark:border-[#23272e]
+            backdrop-blur-lg
+            relative
+            overflow-hidden
+            transition-all
+          "
+        >
+          {/* Chat messages */}
+          <div
+            className="
+              flex-1
+              overflow-y-auto
+              p-2 sm:p-4
+              space-y-3
+              scrollbar-thin scrollbar-thumb-[#90caf9] scrollbar-track-transparent
+              custom-scroll
+            "
+            style={{ minHeight: 0 }}
+          >
             <AnimatePresence>
               {messages.map((msg) => (
                 <motion.div
@@ -109,7 +134,7 @@ const ChatPage = () => {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
-                  transition={{ duration: 0.2 }}
+                  transition={{ duration: 0.17 }}
                 >
                   <ChatMessage message={msg} />
                 </motion.div>
@@ -118,7 +143,16 @@ const ChatPage = () => {
             {isTyping && <TypingIndicator />}
             <div ref={chatEndRef} />
           </div>
-          <div className="border-t border-gray-200 dark:border-gray-700 p-2">
+          {/* Chat input */}
+          <div
+            className="
+              bg-gradient-to-t from-[#15181f] via-[#23272e]/90 to-transparent
+              border-t border-gray-300 dark:border-[#23272e]
+              p-3 sm:p-4
+              flex-shrink-0
+              "
+              style={{ zIndex: 5 }}
+          >
             <ChatInput onSendMessage={handleSend} />
           </div>
         </div>
