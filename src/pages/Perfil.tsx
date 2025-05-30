@@ -8,7 +8,7 @@ import { LogOut, UploadCloud } from "lucide-react";
 import Navbar from "@/components/layout/Navbar";
 import { Progress } from "@/components/ui/progress";
 import Footer from "@/components/layout/Footer";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 interface PerfilData {
   nombre_empresa: string;
@@ -17,16 +17,12 @@ interface PerfilData {
   link_web: string;
   horario: string;
   ubicacion: string;
-  logo_url?: string;
   email?: string;
   name?: string;
   plan?: string;
   preguntas_usadas?: number;
   limite_preguntas?: number;
-
 }
-
-// ...interface PerfilData igual
 
 export default function Perfil() {
   const [perfil, setPerfil] = useState<PerfilData>({
@@ -36,12 +32,13 @@ export default function Perfil() {
     link_web: "",
     horario: "",
     ubicacion: "",
-    logo_url: "",
   });
   const [mensaje, setMensaje] = useState("");
   const [error, setError] = useState("");
   const [archivo, setArchivo] = useState<File | null>(null);
   const [resultadoCatalogo, setResultadoCatalogo] = useState("");
+  const [showModal, setShowModal] = useState(false);
+
   const porcentaje =
     perfil.preguntas_usadas && perfil.limite_preguntas
       ? Math.min((perfil.preguntas_usadas / perfil.limite_preguntas) * 100, 100)
@@ -65,7 +62,6 @@ export default function Perfil() {
           link_web: data.link_web || "",
           horario: data.horario || "",
           ubicacion: data.ubicacion || "",
-          logo_url: data.logo_url || "",
           email: data.email,
           name: data.name,
           plan: data.plan,
@@ -142,9 +138,11 @@ export default function Perfil() {
         <div className="max-w-5xl mx-auto px-4 space-y-10">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-4">
-              <Avatar className="w-16 h-16">
-                <AvatarImage src={perfil.logo_url} />
-                <AvatarFallback>{perfil.nombre_empresa?.charAt(0) || "C"}</AvatarFallback>
+              {/* Avatar genérico clickeable */}
+              <Avatar className="w-16 h-16 cursor-pointer" onClick={() => setShowModal(true)}>
+                <AvatarFallback>
+                  <span role="img" aria-label="avatar" className="text-2xl">👤</span>
+                </AvatarFallback>
               </Avatar>
               <h1 className="text-3xl font-bold text-primary">
                 Perfil de {perfil.nombre_empresa || perfil.name}
@@ -158,6 +156,21 @@ export default function Perfil() {
             </Button>
           </div>
 
+          {/* Modal PRO (placeholder) */}
+          {showModal && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+              <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl p-6 max-w-sm w-full text-center">
+                <div className="text-4xl mb-2">👤</div>
+                <h2 className="text-lg font-semibold mb-2">Subida de logo próximamente</h2>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Pronto podrás personalizar el logo de tu empresa.<br />
+                  <strong>Límite: 2 MB.</strong>
+                </p>
+                <Button onClick={() => setShowModal(false)} className="w-full mt-2">Cerrar</Button>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card className="md:col-span-2">
               <CardHeader><CardTitle>Información del negocio</CardTitle></CardHeader>
@@ -166,7 +179,6 @@ export default function Perfil() {
                   Estos datos se usan para personalizar las respuestas del bot.
                 </p>
                 <form onSubmit={handleGuardarCambios} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* campos iguales a antes */}
                   <div><Label>Nombre empresa</Label><Input value={perfil.nombre_empresa} onChange={(e) => setPerfil({ ...perfil, nombre_empresa: e.target.value })} required /></div>
                   <div><Label>Teléfono</Label><Input value={perfil.telefono} onChange={(e) => setPerfil({ ...perfil, telefono: e.target.value })} required /></div>
                   <div><Label>Dirección</Label><Input value={perfil.direccion} onChange={(e) => setPerfil({ ...perfil, direccion: e.target.value })} required /></div>
@@ -187,7 +199,7 @@ export default function Perfil() {
                       </a>
                     )}
                   </div>
-                  <div><Label>Logo URL</Label><Input value={perfil.logo_url || ""} onChange={(e) => setPerfil({ ...perfil, logo_url: e.target.value })} /></div>
+                  {/* Logo URL ELIMINADO */}
                   <div className="md:col-span-2">
                     <Button type="submit" className="w-full">Guardar cambios</Button>
                     {mensaje && <p className="mt-2 text-sm text-green-600 text-center">{mensaje}</p>}
@@ -224,6 +236,7 @@ export default function Perfil() {
           </div>
         </div>
       </main>
+      <Footer />
     </div>
   );
 }
