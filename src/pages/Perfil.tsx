@@ -79,7 +79,11 @@ export default function Perfil() {
     setModoHorario("comercial");
     setPerfil((prev) => ({
       ...prev,
-      horarios: DIAS.map(() => ({ abre: "09:00", cierra: "20:00", cerrado: false })),
+      horarios: DIAS.map((dia, i) =>
+        i < 6
+          ? { abre: "09:00", cierra: "20:00", cerrado: false }
+          : { abre: "09:00", cierra: "13:00", cerrado: true }
+      ),
     }));
   };
 
@@ -136,181 +140,176 @@ export default function Perfil() {
     ? Math.min((perfil.preguntas_usadas / perfil.limite_preguntas) * 100, 100)
     : 0;
 
-  // 💡 Responsive layout: stack in mobile, grid in desktop
   return (
-    <div className="flex flex-col min-h-screen bg-background text-foreground">
-      <main className="flex-grow pt-24 pb-8">
-        <div className="max-w-4xl mx-auto px-2 sm:px-6">
-          {/* Header sticky en mobile */}
-          <div className="sticky top-0 z-20 bg-background/80 py-3 px-2 flex items-center gap-3 mb-5 border-b md:static md:border-0 md:py-6 md:px-0">
-            <Avatar className="w-14 h-14 bg-primary/10">
-              <AvatarFallback>
-                <span role="img" aria-label="avatar" className="text-xl">👤</span>
-              </AvatarFallback>
-            </Avatar>
-            <h1 className="text-2xl md:text-3xl font-bold text-primary dark:text-blue-400">
-              Perfil de empresa
-            </h1>
-            <Button
-              variant="destructive"
-              size="sm"
-              className="ml-auto"
-              onClick={() => { localStorage.removeItem("user"); location.href = "/login"; }}
-            >
-              <LogOut className="w-4 h-4 mr-1" /> Salir
-            </Button>
-          </div>
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
+      <main className="flex-grow flex items-start justify-center pt-28 pb-12">
+        <div className="w-full max-w-6xl flex flex-col md:flex-row gap-10 px-2 sm:px-6">
+          {/* Columna izquierda */}
+          <div className="flex-1 flex flex-col gap-6">
+            {/* Header */}
+            <div className="flex items-center gap-4 mb-2">
+              <Avatar className="w-16 h-16 bg-primary/10">
+                <AvatarFallback>
+                  <span role="img" aria-label="avatar" className="text-2xl">👤</span>
+                </AvatarFallback>
+              </Avatar>
+              <h1 className="text-3xl font-extrabold text-primary dark:text-blue-400">
+                Perfil de empresa
+              </h1>
+              <Button
+                variant="destructive"
+                className="ml-auto"
+                onClick={() => { localStorage.removeItem("user"); location.href = "/login"; }}
+              >
+                <LogOut className="w-4 h-4 mr-2" /> Salir
+              </Button>
+            </div>
+            {/* Formulario */}
+            <Card className="shadow-lg rounded-2xl border border-slate-700 bg-background/90">
+              <CardHeader><CardTitle>Datos de la empresa</CardTitle></CardHeader>
+              <CardContent>
+                <form onSubmit={handleGuardar} className="space-y-4">
+                  <div>
+                    <Label>Nombre empresa*</Label>
+                    <Input value={perfil.nombre_empresa} onChange={e => setPerfil({ ...perfil, nombre_empresa: e.target.value })} required />
+                  </div>
+                  <div>
+                    <Label>Teléfono*</Label>
+                    <Input value={perfil.telefono} onChange={e => setPerfil({ ...perfil, telefono: e.target.value })} required />
+                  </div>
+                  <div>
+                    <Label>Dirección*</Label>
+                    <GooglePlacesAutocomplete
+                      apiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}
+                      onPlaceSelected={handlePlace}
+                      options={{ componentRestrictions: { country: "ar" } }}
+                      autocompletionRequest={{ componentRestrictions: { country: "ar" } }}
+                      className="w-full"
+                      placeholder="Buscá la dirección exacta..."
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <Label>Ciudad</Label>
+                      <Input value={perfil.ciudad} onChange={e => setPerfil({ ...perfil, ciudad: e.target.value })} />
+                    </div>
+                    <div>
+                      <Label>Provincia*</Label>
+                      <select value={perfil.provincia} onChange={e => setPerfil({ ...perfil, provincia: e.target.value })} required className="w-full rounded border px-3 py-2 text-sm bg-background">
+                        <option value="">Seleccioná una provincia</option>
+                        {PROVINCIAS.map((p) => <option key={p} value={p}>{p}</option>)}
+                      </select>
+                    </div>
+                  </div>
 
-          {/* Grid pro: mobile stack, desktop 2 cols */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-            {/* Left: Form + Catálogo */}
-            <div className="flex flex-col gap-6">
-              {/* FORM */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Datos de la empresa</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <form onSubmit={handleGuardar} className="space-y-5">
-                    <div>
-                      <Label>Nombre empresa*</Label>
-                      <Input value={perfil.nombre_empresa} onChange={e => setPerfil({ ...perfil, nombre_empresa: e.target.value })} required />
+                  {/* Horarios compacto */}
+                  <div>
+                    <Label>Horarios</Label>
+                    <div className="flex gap-2 mb-1">
+                      <Button type="button" variant={modoHorario === "comercial" ? "default" : "outline"} size="sm" onClick={setHorarioComercial}>Horario 9-20</Button>
+                      <Button type="button" variant={modoHorario === "personalizado" ? "default" : "outline"} size="sm" onClick={() => { setHorarioPersonalizado(); setHorariosOpen(!horariosOpen); }}>
+                        Personalizar
+                      </Button>
                     </div>
-                    <div>
-                      <Label>Teléfono*</Label>
-                      <Input value={perfil.telefono} onChange={e => setPerfil({ ...perfil, telefono: e.target.value })} required />
-                    </div>
-                    <div>
-                      <Label>Dirección*</Label>
-                      <GooglePlacesAutocomplete
-                        apiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}
-                        onPlaceSelected={handlePlace}
-                        options={{ componentRestrictions: { country: "ar" } }}
-                        autocompletionRequest={{ componentRestrictions: { country: "ar" } }}
-                        className="w-full"
-                        placeholder="Buscá la dirección exacta..."
-                      />
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <Label>Ciudad</Label>
-                        <Input value={perfil.ciudad} onChange={e => setPerfil({ ...perfil, ciudad: e.target.value })} />
+                    {modoHorario === "comercial" && (
+                      <div className="text-xs sm:text-sm text-green-600 dark:text-green-400">
+                        Lunes a Sábado: 9:00 a 20:00 hs. - Domingo: Cerrado
                       </div>
-                      <div>
-                        <Label>Provincia*</Label>
-                        <select value={perfil.provincia} onChange={e => setPerfil({ ...perfil, provincia: e.target.value })} required className="w-full rounded border px-3 py-2 text-sm bg-background">
-                          <option value="">Seleccioná una provincia</option>
-                          {PROVINCIAS.map((p) => <option key={p} value={p}>{p}</option>)}
-                        </select>
+                    )}
+                    {modoHorario === "personalizado" && horariosOpen && (
+                      <div className="border rounded-lg p-2 mt-1 bg-muted dark:bg-slate-800 space-y-2">
+                        {DIAS.map((dia, idx) => (
+                          <div key={dia} className="flex items-center gap-2 text-sm">
+                            <span className="w-16 sm:w-20">{dia}</span>
+                            <input
+                              type="checkbox"
+                              checked={perfil.horarios[idx].cerrado}
+                              onChange={e => {
+                                const copia = [...perfil.horarios];
+                                copia[idx].cerrado = e.target.checked;
+                                setPerfil((prev) => ({ ...prev, horarios: copia }));
+                              }}
+                            /> <span className="text-xs">Cerrado</span>
+                            {!perfil.horarios[idx].cerrado && (
+                              <>
+                                <Input
+                                  type="time"
+                                  value={perfil.horarios[idx].abre}
+                                  className="w-20"
+                                  onChange={e => {
+                                    const copia = [...perfil.horarios];
+                                    copia[idx].abre = e.target.value;
+                                    setPerfil((prev) => ({ ...prev, horarios: copia }));
+                                  }}
+                                />
+                                <span>-</span>
+                                <Input
+                                  type="time"
+                                  value={perfil.horarios[idx].cierra}
+                                  className="w-20"
+                                  onChange={e => {
+                                    const copia = [...perfil.horarios];
+                                    copia[idx].cierra = e.target.value;
+                                    setPerfil((prev) => ({ ...prev, horarios: copia }));
+                                  }}
+                                />
+                              </>
+                            )}
+                          </div>
+                        ))}
                       </div>
-                    </div>
-                    {/* Horarios compacto */}
-                    <div>
-                      <Label>Horarios</Label>
-                      <div className="flex gap-2 mb-1">
-                        <Button type="button" variant={modoHorario === "comercial" ? "default" : "outline"} size="sm" onClick={setHorarioComercial}>9:00 a 20:00</Button>
-                        <Button type="button" variant={modoHorario === "personalizado" ? "default" : "outline"} size="sm" onClick={() => { setHorarioPersonalizado(); setHorariosOpen(!horariosOpen); }}>
-                          Personalizar
-                        </Button>
-                      </div>
-                      {modoHorario === "comercial" && (
-                        <div className="text-xs sm:text-sm text-green-600 dark:text-green-400">
-                          Lunes a Sábado: 9:00 a 20:00 hs. - Domingo: Cerrado
-                        </div>
-                      )}
-                      {modoHorario === "personalizado" && horariosOpen && (
-                        <div className="border rounded-lg p-2 mt-1 bg-muted dark:bg-slate-800 space-y-2">
-                          {DIAS.map((dia, idx) => (
-                            <div key={dia} className="flex items-center gap-2 text-sm">
-                              <span className="w-16 sm:w-20">{dia}</span>
-                              <input
-                                type="checkbox"
-                                checked={perfil.horarios[idx].cerrado}
-                                onChange={e => {
-                                  const copia = [...perfil.horarios];
-                                  copia[idx].cerrado = e.target.checked;
-                                  setPerfil((prev) => ({ ...prev, horarios: copia }));
-                                }}
-                              /> <span className="text-xs">Cerrado</span>
-                              {!perfil.horarios[idx].cerrado && (
-                                <>
-                                  <Input
-                                    type="time"
-                                    value={perfil.horarios[idx].abre}
-                                    className="w-20"
-                                    onChange={e => {
-                                      const copia = [...perfil.horarios];
-                                      copia[idx].abre = e.target.value;
-                                      setPerfil((prev) => ({ ...prev, horarios: copia }));
-                                    }}
-                                  />
-                                  <span>-</span>
-                                  <Input
-                                    type="time"
-                                    value={perfil.horarios[idx].cierra}
-                                    className="w-20"
-                                    onChange={e => {
-                                      const copia = [...perfil.horarios];
-                                      copia[idx].cierra = e.target.value;
-                                      setPerfil((prev) => ({ ...prev, horarios: copia }));
-                                    }}
-                                  />
-                                </>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    <div>
-                      <Label>Web / Tienda*</Label>
-                      <Input value={perfil.link_web} onChange={e => setPerfil({ ...perfil, link_web: e.target.value })} required />
-                      {perfil.link_web && (
-                        <a
-                          href={perfil.link_web.startsWith("http") ? perfil.link_web : `https://${perfil.link_web}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 underline text-xs sm:text-sm mt-1 block"
-                        >
-                          Ir a tienda: {perfil.link_web}
-                        </a>
-                      )}
-                    </div>
-                    <Button disabled={loading} type="submit" className="w-full mt-2">Guardar cambios</Button>
-                    {mensaje && <p className="mt-2 text-green-600 dark:text-green-400 text-center">{mensaje}</p>}
-                    {error && <p className="mt-2 text-red-600 dark:text-red-400 text-center">{error}</p>}
-                  </form>
-                </CardContent>
-              </Card>
-              {/* Catálogo */}
-              <Card>
-                <CardHeader><CardTitle>Catálogo de productos</CardTitle></CardHeader>
-                <CardContent className="space-y-3">
-                  <Input type="file" accept=".xlsx,.xls,.csv,.pdf,.txt" onChange={handleArchivoChange} />
-                  <p className="text-xs text-muted-foreground">
-                    ⚠️ Subí Excel o CSV para mejor lectura. PDF puede tener menor precisión.
-                  </p>
-                  <Button onClick={handleSubirArchivo} className="w-full" disabled={loading}>
-                    <UploadCloud className="w-4 h-4 mr-2" /> Subir catálogo
-                  </Button>
-                  {resultadoCatalogo && (
-                    <p className="text-xs text-center text-green-600">{resultadoCatalogo}</p>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-            {/* Right: Métricas/Plan (se va abajo en mobile) */}
-            <div className="flex flex-col gap-6">
-              <Card>
-                <CardHeader><CardTitle>Plan y uso</CardTitle></CardHeader>
-                <CardContent className="space-y-2">
-                  <p className="text-xs sm:text-sm">Plan actual: <Badge>{perfil.plan || "demo"}</Badge></p>
-                  <p className="text-xs sm:text-sm">Consultas usadas: {perfil.preguntas_usadas} / {perfil.limite_preguntas}</p>
-                  <Progress value={porcentaje} />
-                </CardContent>
-              </Card>
-              {/* Podés sumar futuras cards: upgrades, ayuda, links, etc */}
-            </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <Label>Web / Tienda*</Label>
+                    <Input value={perfil.link_web} onChange={e => setPerfil({ ...perfil, link_web: e.target.value })} required />
+                    {perfil.link_web && (
+                      <a
+                        href={perfil.link_web.startsWith("http") ? perfil.link_web : `https://${perfil.link_web}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 underline text-xs sm:text-sm mt-1 block"
+                      >
+                        Ir a tienda: {perfil.link_web}
+                      </a>
+                    )}
+                  </div>
+                  <Button disabled={loading} type="submit" className="w-full mt-2">Guardar cambios</Button>
+                  {mensaje && <p className="mt-2 text-green-600 dark:text-green-400 text-center">{mensaje}</p>}
+                  {error && <p className="mt-2 text-red-600 dark:text-red-400 text-center">{error}</p>}
+                </form>
+              </CardContent>
+            </Card>
+            {/* Catálogo */}
+            <Card className="shadow-lg rounded-2xl border border-slate-700 bg-background/90">
+              <CardHeader><CardTitle>Catálogo de productos</CardTitle></CardHeader>
+              <CardContent className="space-y-3">
+                <Input type="file" accept=".xlsx,.xls,.csv,.pdf,.txt" onChange={handleArchivoChange} />
+                <p className="text-xs text-muted-foreground">
+                  ⚠️ Subí Excel o CSV para mejor lectura. PDF puede tener menor precisión.
+                </p>
+                <Button onClick={handleSubirArchivo} className="w-full" disabled={loading}>
+                  <UploadCloud className="w-4 h-4 mr-2" /> Subir catálogo
+                </Button>
+                {resultadoCatalogo && (
+                  <p className="text-xs text-center text-green-600">{resultadoCatalogo}</p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+          {/* Columna derecha */}
+          <div className="w-full md:w-80 flex flex-col gap-6">
+            {/* Métricas/Plan */}
+            <Card className="shadow-lg rounded-2xl border border-slate-700 bg-background/90">
+              <CardHeader><CardTitle>Plan y uso</CardTitle></CardHeader>
+              <CardContent className="space-y-2">
+                <p className="text-xs sm:text-sm">Plan actual: <Badge>{perfil.plan || "demo"}</Badge></p>
+                <p className="text-xs sm:text-sm">Consultas usadas: {perfil.preguntas_usadas} / {perfil.limite_preguntas}</p>
+                <Progress value={porcentaje} />
+              </CardContent>
+            </Card>
+            {/* Si querés más cards (próximamente: métricas, upgrade, etc) */}
           </div>
         </div>
       </main>
