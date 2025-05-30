@@ -1,3 +1,4 @@
+// Perfil.tsx (con ajustes para consistencia y nuevos campos)
 import React, { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,322 +9,443 @@ import { LogOut, UploadCloud } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import GooglePlacesAutocomplete from "react-google-autocomplete";
+// import { apiFetch } from "@/utils/api"; // Asumo que la tienes
 
 const RUBRO_AVATAR = {
   bodega: "🍷",
   restaurante: "🍽️",
   almacen: "🛒",
   ecommerce: "🛍️",
+  medico: "🩺", // Ejemplo
   default: "🏢",
 };
 
-const PROVINCIAS = [
-  "Buenos Aires","CABA","Catamarca","Chaco","Chubut","Córdoba","Corrientes","Entre Ríos","Formosa","Jujuy","La Pampa","La Rioja","Mendoza","Misiones","Neuquén","Río Negro","Salta","San Juan","San Luis","Santa Cruz","Santa Fe","Santiago del Estero","Tierra del Fuego","Tucumán"
+const PROVINCIAS = [ /* ... tu lista ... */ 
+"Buenos Aires","CABA","Catamarca","Chaco","Chubut","Córdoba","Corrientes","Entre Ríos","Formosa","Jujuy","La Pampa","La Rioja","Mendoza","Misiones","Neuquén","Río Negro","Salta","San Juan","San Luis","Santa Cruz","Santa Fe","Santiago del Estero","Tierra del Fuego","Tucumán"
 ];
-const DIAS = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
+const DIAS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
+
+interface HorarioDia {
+  abre: string;
+  cierra: string;
+  cerrado: boolean;
+}
+
+interface PerfilState {
+  nombre_empresa: string;
+  telefono: string;
+  direccion: string;
+  ciudad: string;
+  provincia: string;
+  pais: string; // Añadido
+  latitud?: number | null; // Añadido
+  longitud?: number | null; // Añadido
+  link_web: string;
+  plan: string;
+  preguntas_usadas: number;
+  limite_preguntas: number;
+  rubro: string;
+  horario_json: string; // Para enviar al backend
+  // 'horarios' como array de objetos para el manejo en el estado local
+  horarios_ui: HorarioDia[]; 
+  logo_url?: string; // Añadido
+}
 
 export default function Perfil() {
-  const [perfil, setPerfil] = useState({
+  const [perfil, setPerfil] = useState<PerfilState>({
     nombre_empresa: "",
     telefono: "",
     direccion: "",
     ciudad: "",
     provincia: "",
+    pais: "",
+    latitud: null,
+    longitud: null,
     link_web: "",
-    plan: "",
+    plan: "gratis",
     preguntas_usadas: 0,
     limite_preguntas: 50,
     rubro: "",
-    horarios: DIAS.map(() => ({ abre: "09:00", cierra: "20:00", cerrado: false })),
+    horario_json: '[]',
+    horarios_ui: DIAS.map(() => ({ abre: "09:00", cierra: "20:00", cerrado: false })),
+    logo_url: "",
   });
-  const [modoHorario, setModoHorario] = useState("comercial");
-  const [archivo, setArchivo] = useState(null);
+
+  const [modoHorario, setModoHorario] = useState("comercial"); // "comercial" o "personalizado"
+  const [archivo, setArchivo] = useState<File | null>(null);
   const [resultadoCatalogo, setResultadoCatalogo] = useState("");
   const [mensaje, setMensaje] = useState("");
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [horariosOpen, setHorariosOpen] = useState(false);
+  const [loadingGuardar, setLoadingGuardar] = useState(false);
+  const [loadingCatalogo, setLoadingCatalogo] = useState(false);
+  const [horariosOpen, setHorariosOpen] = useState(false); // Para el acordeón de horarios
 
   useEffect(() => {
-    const stored = localStorage.getItem("user");
-    const token = stored ? JSON.parse(stored).token : null;
-    if (!token) return;
-    fetch("https://api.chatboc.ar/me", {
+    const storedUser = localStorage.getItem("user");
+    const token = storedUser ? JSON.parse(storedUser).token : null;
+    if (!token) {
+      // Idealmente, un AuthContext o HOC manejaría la redirección
+      // navigate("/login"); // Si usas react-router-dom
+      window.location.href = "/login"; // Fallback simple
+      return;
+    }
+
+    setLoadingGuardar(true); // Estado de carga para el perfil
+    fetch("https://api.chatboc.ar/me", { // Asumo que apiFetch es similar a fetch
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => res.json())
       .then((data) => {
-        if (data?.error) return setError(data.error);
-        setPerfil((prev) => ({
-          ...prev,
+        if (data?.error) {
+          setError(data.error);
+          if (data.error === "Token inválido" || data.error === "Token faltante"){
+            localStorage.removeItem("user");
+            window.location.href = "/login";
+          }
+          return;
+        }
+        
+        let parsedHorariosUi = DIAS.map(() => ({ abre: "09:00", cierra: "20:00", cerrado: false }));
+        if (data.horario_json && typeof data.horario_json === 'string' && data.horario_json.trim() !== "" && data.horario_json.trim() !== "[]") {
+          try {
+            const loadedHorarios = JSON.parse(data.horario_json);
+            if (Array.isArray(loadedHorarios) && loadedHorarios.length === DIAS.length) {
+              parsedHorariosUi = loadedHorarios.map((h: any) => ({ // Añadir tipo any o interfaz para h
+                abre: h.abre || "09:00",
+                cierra: h.cierra || "20:00",
+                cerrado: typeof h.cerrado === 'boolean' ? h.cerrado : false,
+              }));
+            }
+          } catch (e) {
+            console.error("Error parseando horario_json del backend al cargar:", e);
+          }
+        }
+
+        setPerfil({
           nombre_empresa: data.nombre_empresa || "",
           telefono: data.telefono || "",
           direccion: data.direccion || "",
           ciudad: data.ciudad || "",
-          provincia: data.ubicacion || "",
+          provincia: data.provincia || "", // Usar data.provincia si el backend lo devuelve así
+          pais: data.pais || "",
+          latitud: data.latitud || null,
+          longitud: data.longitud || null,
           link_web: data.link_web || "",
-          plan: data.plan || "demo",
+          plan: data.plan || "gratis",
           preguntas_usadas: data.preguntas_usadas ?? 0,
           limite_preguntas: data.limite_preguntas ?? 50,
-          horarios: data.horarios ? JSON.parse(data.horarios) : prev.horarios,
           rubro: data.rubro?.toLowerCase() || "",
-        }));
+          horario_json: data.horario_json || '[]', // Guardar el string JSON original
+          horarios_ui: parsedHorariosUi,          // Para la UI
+          logo_url: data.logo_url || "",
+        });
       })
-      .catch(() => setError("Error al cargar el perfil"));
+      .catch(() => setError("Error al cargar el perfil. Verifica tu conexión."))
+      .finally(() => setLoadingGuardar(false));
   }, []);
 
-  const handlePlace = (place) => {
+  const handlePlaceSelected = (place: any) => { // Añadir tipo para 'place' si lo tienes de la librería
+    const getAddressComponent = (type: string) => 
+      place.address_components?.find((c: any) => c.types.includes(type))?.long_name || "";
+
     setPerfil((prev) => ({
       ...prev,
       direccion: place.formatted_address || "",
-      ciudad: place.address_components?.find(x =>
-        x.types.includes("locality") || x.types.includes("administrative_area_level_2")
-      )?.long_name || "",
-      provincia: place.address_components?.find(x =>
-        x.types.includes("administrative_area_level_1")
-      )?.long_name || "",
+      ciudad: getAddressComponent("locality") || getAddressComponent("administrative_area_level_2"),
+      provincia: getAddressComponent("administrative_area_level_1"),
+      pais: getAddressComponent("country"),
+      latitud: place.geometry?.location?.lat() || null,
+      longitud: place.geometry?.location?.lng() || null,
     }));
   };
 
+  const handleHorarioChange = (index: number, field: keyof HorarioDia, value: any) => {
+    const nuevosHorarios = [...perfil.horarios_ui];
+    (nuevosHorarios[index] as any)[field] = value;
+    setPerfil(prev => ({ ...prev, horarios_ui: nuevosHorarios }));
+  };
+  
   const setHorarioComercial = () => {
     setModoHorario("comercial");
-    setPerfil((prev) => ({
-      ...prev,
-      horarios: DIAS.map(() => ({ abre: "09:00", cierra: "20:00", cerrado: false })),
+    const horariosComercial = DIAS.map((dia, idx) => ({ 
+        abre: "09:00", 
+        cierra: "20:00", 
+        cerrado: idx === 6 // Domingo cerrado
     }));
+    setPerfil(prev => ({ ...prev, horarios_ui: horariosComercial }));
+    setHorariosOpen(false);
   };
-  const setHorarioPersonalizado = () => setModoHorario("personalizado");
 
-  const handleGuardar = async (e) => {
+  const setHorarioPersonalizado = () => {
+    setModoHorario("personalizado");
+    // No es necesario colapsar aquí, solo cambiar el modo
+    // setHorariosOpen(true); // Abrir siempre al seleccionar personalizar
+  };
+
+
+  const handleGuardar = async (e: React.FormEvent) => {
     e.preventDefault();
-    setMensaje(""); setError(""); setLoading(true);
-    const stored = localStorage.getItem("user");
-    const token = stored ? JSON.parse(stored).token : null;
-    if (!token) return setError("No se encontró sesión activa.");
+    setMensaje(""); setError(""); setLoadingGuardar(true);
+    const storedUser = localStorage.getItem("user");
+    const token = storedUser ? JSON.parse(storedUser).token : null;
+
+    if (!token) {
+      setError("No se encontró sesión activa. Por favor, inicia sesión de nuevo.");
+      setLoadingGuardar(false);
+      return;
+    }
+
+    // Preparar el payload para enviar, asegurando que horario_json sea el string
+    const payload = {
+        nombre_empresa: perfil.nombre_empresa,
+        telefono: perfil.telefono,
+        direccion: perfil.direccion,
+        ciudad: perfil.ciudad,
+        provincia: perfil.provincia,
+        pais: perfil.pais,
+        latitud: perfil.latitud,
+        longitud: perfil.longitud,
+        link_web: perfil.link_web,
+        logo_url: perfil.logo_url,
+        // El campo 'horario' (string simple) ya no se envía si solo usamos horario_json
+        // Si tu backend aún espera 'horario', necesitarías construirlo o decidir qué enviar.
+        horario_json: JSON.stringify(perfil.horarios_ui), 
+    };
+
     try {
+      // Asumo que tienes una función apiFetch similar a la de ChatPage.tsx
+      // const res = await apiFetch("/perfil", "PUT", payload, { headers: { Authorization: `Bearer ${token}` } });
       const res = await fetch("https://api.chatboc.ar/perfil", {
         method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ ...perfil, horarios: JSON.stringify(perfil.horarios) }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Error inesperado");
-      setMensaje(data.mensaje || "Cambios guardados ✔️");
-    } catch (err) {
-      setError("Error al guardar perfil");
+      if (!res.ok) throw new Error(data.error || "Error al guardar cambios.");
+      setMensaje(data.mensaje || "Cambios guardados correctamente ✔️");
+      // Actualizar el localStorage con los datos guardados si el backend los devuelve
+      // o al menos actualizar los campos modificados en el objeto 'user' del localStorage.
+    } catch (err: any) {
+      setError(err.message || "Error al guardar el perfil. Intenta de nuevo.");
     }
-    setLoading(false);
+    setLoadingGuardar(false);
   };
 
-  const handleArchivoChange = (e) => {
-    setArchivo(e.target.files?.[0] || null);
+  const handleArchivoChange = (e: React.ChangeEvent<HTMLInputElement>) => { // Tipado del evento
+    if (e.target.files && e.target.files[0]) {
+      setArchivo(e.target.files[0]);
+    } else {
+      setArchivo(null);
+    }
     setResultadoCatalogo("");
   };
+
   const handleSubirArchivo = async () => {
+    // ... (tu lógica de subir archivo se mantiene, solo asegúrate que el token se obtenga bien) ...
     if (!archivo) return setResultadoCatalogo("Seleccioná un archivo válido.");
-    const stored = localStorage.getItem("user");
-    const token = stored ? JSON.parse(stored).token : null;
-    if (!token) return;
-    setLoading(true);
+    const storedUser = localStorage.getItem("user"); // Re-obtener por si acaso
+    const token = storedUser ? JSON.parse(storedUser).token : null;
+    if (!token) {
+        setResultadoCatalogo("❌ Sesión no válida para subir catálogo.");
+        return;
+    }
+    setLoadingCatalogo(true); // Estado de carga separado para catálogo
+    // ... el resto de tu lógica try-catch-finally para subir ...
     try {
       const formData = new FormData();
       formData.append("file", archivo);
       const res = await fetch("https://api.chatboc.ar/subir_catalogo", {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token}` }, // No Content-Type para FormData
         body: formData,
       });
       const data = await res.json();
-      setResultadoCatalogo(res.ok ? data.mensaje : `❌ ${data.error}`);
-    } catch {
-      setResultadoCatalogo("❌ Error al conectar con el servidor");
+      setResultadoCatalogo(res.ok ? data.mensaje : `❌ ${data.error || 'Error desconocido'}`);
+    } catch (err) {
+      setResultadoCatalogo("❌ Error de conexión al subir el catálogo.");
     }
-    setLoading(false);
+    setLoadingCatalogo(false);
   };
 
-  const porcentaje = perfil.preguntas_usadas && perfil.limite_preguntas
+  const porcentaje = perfil.limite_preguntas > 0
     ? Math.min((perfil.preguntas_usadas / perfil.limite_preguntas) * 100, 100)
     : 0;
 
-  // Avatar dinámico según rubro
-  const avatarEmoji = RUBRO_AVATAR[perfil.rubro] || RUBRO_AVATAR.default;
+  const avatarEmoji = RUBRO_AVATAR[perfil.rubro as keyof typeof RUBRO_AVATAR] || RUBRO_AVATAR.default;
+
+  // El JSX se mantiene como lo tienes, es un buen diseño de dashboard.
+  // Solo asegúrate de que los 'value' de los Inputs y el 'select' para provincia
+  // correspondan a los campos correctos del estado 'perfil' (ej. perfil.provincia, perfil.ciudad).
+  // Y que los 'onChange' actualicen los campos correctos del estado.
 
   return (
-    <div className="min-h-screen bg-gradient-to-tr from-slate-950 to-slate-900 flex flex-col py-8 px-2 sm:px-0">
+    <div className="flex flex-col min-h-screen bg-gradient-to-tr from-slate-950 to-slate-900 text-slate-200 py-8 px-2 sm:px-0">
       {/* Header Dashboard */}
-      <div className="w-full max-w-6xl mx-auto flex items-center justify-between mb-8 gap-6">
+      <div className="w-full max-w-6xl mx-auto flex items-center justify-between mb-8 gap-3 px-2">
         <div className="flex items-center gap-4">
-          <Avatar className="w-16 h-16 bg-primary/10 shadow-lg">
-            <AvatarFallback>
+          <Avatar className="w-16 h-16 bg-blue-500/20 shadow-lg border-2 border-blue-400">
+            <AvatarFallback className="bg-transparent">
               <span className="text-3xl">{avatarEmoji}</span>
             </AvatarFallback>
           </Avatar>
           <div>
-            <h1 className="text-4xl font-extrabold text-blue-400 leading-none mb-1">Perfil de empresa</h1>
-            <span className="text-slate-400 text-base font-medium capitalize">
-              {perfil.nombre_empresa || "Mi empresa"} <span className="ml-2">{perfil.rubro ? `/ ${perfil.rubro}` : ""}</span>
+            <h1 className="text-3xl md:text-4xl font-extrabold text-blue-400 leading-tight mb-0.5">
+              {perfil.nombre_empresa || "Panel de Empresa"}
+            </h1>
+            <span className="text-slate-400 text-sm sm:text-base font-medium capitalize">
+              {perfil.rubro || "Rubro no especificado"}
             </span>
           </div>
         </div>
         <Button
-          variant="destructive"
-          className="h-11 px-6 text-base"
-          onClick={() => { localStorage.removeItem("user"); location.href = "/login"; }}
+          variant="outline"
+          className="h-10 px-5 text-sm border-red-500/50 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+          onClick={() => { 
+            localStorage.removeItem("user"); 
+            localStorage.removeItem("anon_token"); // También limpiar token anónimo
+            localStorage.removeItem("rubroSeleccionado");
+            window.location.href = "/login"; 
+          }}
         >
-          <LogOut className="w-5 h-5 mr-2" /> Salir
+          <LogOut className="w-4 h-4 mr-2" /> Salir
         </Button>
       </div>
 
-      <div className="w-full max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8">
-        {/* Columna 1 y 2: Datos */}
-        <Card className="col-span-2 bg-white/10 dark:bg-slate-900/90 shadow-2xl rounded-2xl border border-slate-800 backdrop-blur-md p-6 flex flex-col gap-4">
-          <CardHeader>
-            <CardTitle className="text-2xl font-bold text-primary mb-2">Datos de la empresa</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleGuardar} className="space-y-4">
-              <div>
-                <Label>Nombre empresa*</Label>
-                <Input value={perfil.nombre_empresa} onChange={e => setPerfil({ ...perfil, nombre_empresa: e.target.value })} required />
-              </div>
-              <div>
-                <Label>Teléfono*</Label>
-                <Input value={perfil.telefono} onChange={e => setPerfil({ ...perfil, telefono: e.target.value })} required />
-              </div>
-              <div>
-                <Label>Dirección*</Label>
-                <GooglePlacesAutocomplete
-                  apiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}
-                  onPlaceSelected={handlePlace}
-                  options={{ componentRestrictions: { country: "ar" } }}
-                  autocompletionRequest={{ componentRestrictions: { country: "ar" } }}
-                  className="w-full"
-                  placeholder="Buscá la dirección exacta..."
-                />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <Label>Ciudad</Label>
-                  <Input value={perfil.ciudad} onChange={e => setPerfil({ ...perfil, ciudad: e.target.value })} />
-                </div>
-                <div>
-                  <Label>Provincia*</Label>
-                  <select value={perfil.provincia} onChange={e => setPerfil({ ...perfil, provincia: e.target.value })} required className="w-full rounded border px-3 py-2 text-sm bg-background">
-                    <option value="">Seleccioná una provincia</option>
-                    {PROVINCIAS.map((p) => <option key={p} value={p}>{p}</option>)}
-                  </select>
-                </div>
-              </div>
-              {/* Horarios compacto, mobile accordion */}
-              <div>
-                <Label>Horarios</Label>
-                <div className="flex gap-2 mb-1">
-                  <Button type="button" variant={modoHorario === "comercial" ? "default" : "outline"} size="sm" onClick={setHorarioComercial}>Horario 9-20</Button>
-                  <Button type="button" variant={modoHorario === "personalizado" ? "default" : "outline"} size="sm" onClick={() => { setHorarioPersonalizado(); setHorariosOpen(!horariosOpen); }}>
-                    Personalizar
-                  </Button>
-                </div>
-                {modoHorario === "comercial" && (
-                  <div className="text-xs sm:text-sm text-green-600 dark:text-green-400">
-                    Lunes a Sábado: 9:00 a 20:00 hs. - Domingo: Cerrado
-                  </div>
-                )}
-                {modoHorario === "personalizado" && horariosOpen && (
-                  <div className="border rounded-lg p-2 mt-1 bg-muted dark:bg-slate-800 space-y-2">
-                    {DIAS.map((dia, idx) => (
-                      <div key={dia} className="flex items-center gap-2 text-sm">
-                        <span className="w-16 sm:w-20">{dia}</span>
-                        <input
-                          type="checkbox"
-                          checked={perfil.horarios[idx].cerrado}
-                          onChange={e => {
-                            const copia = [...perfil.horarios];
-                            copia[idx].cerrado = e.target.checked;
-                            setPerfil((prev) => ({ ...prev, horarios: copia }));
-                          }}
-                        /> <span className="text-xs">Cerrado</span>
-                        {!perfil.horarios[idx].cerrado && (
-                          <>
-                            <Input
-                              type="time"
-                              value={perfil.horarios[idx].abre}
-                              className="w-20"
-                              onChange={e => {
-                                const copia = [...perfil.horarios];
-                                copia[idx].abre = e.target.value;
-                                setPerfil((prev) => ({ ...prev, horarios: copia }));
-                              }}
-                            />
-                            <span>-</span>
-                            <Input
-                              type="time"
-                              value={perfil.horarios[idx].cierra}
-                              className="w-20"
-                              onChange={e => {
-                                const copia = [...perfil.horarios];
-                                copia[idx].cierra = e.target.value;
-                                setPerfil((prev) => ({ ...prev, horarios: copia }));
-                              }}
-                            />
-                          </>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div>
-                <Label>Web / Tienda*</Label>
-                <Input value={perfil.link_web} onChange={e => setPerfil({ ...perfil, link_web: e.target.value })} required />
-                {perfil.link_web && (
-                  <a
-                    href={perfil.link_web.startsWith("http") ? perfil.link_web : `https://${perfil.link_web}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 underline text-xs sm:text-sm mt-1 block"
-                  >
-                    Ir a tienda: {perfil.link_web}
-                  </a>
-                )}
-              </div>
-              <Button disabled={loading} type="submit" className="w-full mt-2">Guardar cambios</Button>
-              {mensaje && <p className="mt-2 text-green-600 dark:text-green-400 text-center">{mensaje}</p>}
-              {error && <p className="mt-2 text-red-600 dark:text-red-400 text-center">{error}</p>}
-            </form>
-          </CardContent>
-        </Card>
-        {/* Columna 3: Panel derecho */}
-        <div className="flex flex-col gap-8">
-          {/* Plan/uso: ahora más alargado, barra grande */}
-          <Card className="bg-white/10 dark:bg-slate-900/80 shadow-2xl rounded-2xl border border-slate-800 backdrop-blur-md p-6 flex flex-col gap-2 h-fit">
+      <div className="w-full max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 px-2">
+        {/* Columna Izquierda (2/3 en desktop): Formulario de Datos y Catálogo */}
+        <div className="md:col-span-2 flex flex-col gap-6 md:gap-8">
+          <Card className="bg-slate-900/70 shadow-xl rounded-xl border border-slate-800 backdrop-blur-sm">
             <CardHeader>
-              <CardTitle className="text-lg font-bold text-primary mb-1">Plan y uso</CardTitle>
+              <CardTitle className="text-xl font-semibold text-blue-400">Datos de tu Empresa</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex flex-col gap-3">
-                <span className="text-base font-medium text-white/90">Plan actual: <Badge className="text-base">{perfil.plan || "demo"}</Badge></span>
-                <div className="text-sm text-slate-400 mb-1">
-                  Consultas usadas: <span className="font-bold">{perfil.preguntas_usadas} / {perfil.limite_preguntas}</span>
+              <form onSubmit={handleGuardar} className="space-y-4">
+                {/* Nombre Empresa, Teléfono, Link Web (Inputs Simples) */}
+                <div>
+                  <Label htmlFor="nombre_empresa" className="text-slate-300 text-sm">Nombre de la empresa*</Label>
+                  <Input id="nombre_empresa" value={perfil.nombre_empresa} onChange={e => setPerfil({ ...perfil, nombre_empresa: e.target.value })} required className="bg-slate-800/50 border-slate-700 text-slate-100"/>
                 </div>
-                <Progress className="h-4 rounded-xl" value={porcentaje} />
-              </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="telefono" className="text-slate-300 text-sm">Teléfono* (con cód. país y área)</Label>
+                    <Input id="telefono" placeholder="+5492611234567" value={perfil.telefono} onChange={e => setPerfil({ ...perfil, telefono: e.target.value })} required className="bg-slate-800/50 border-slate-700 text-slate-100"/>
+                  </div>
+                  <div>
+                    <Label htmlFor="link_web" className="text-slate-300 text-sm">Sitio Web / Tienda Online*</Label>
+                    <Input id="link_web" placeholder="https://ejemplo.com" value={perfil.link_web} onChange={e => setPerfil({ ...perfil, link_web: e.target.value })} required className="bg-slate-800/50 border-slate-700 text-slate-100"/>
+                  </div>
+                </div>
+                
+                {/* Dirección con Google Places Autocomplete */}
+                <div>
+                  <Label htmlFor="direccion" className="text-slate-300 text-sm">Dirección Completa* (calle, número, localidad)</Label>
+                  <GooglePlacesAutocomplete
+                    apiKey={import.meta.env.VITE_Maps_API_KEY} // Asegúrate que esta variable de entorno esté disponible
+                    onPlaceSelected={handlePlaceSelected}
+                    options={{ componentRestrictions: { country: "ar" }, types: ['address'] }}
+                    defaultValue={perfil.direccion} // Para que muestre la dirección actual si existe
+                    inputClassName="w-full rounded-md border border-slate-700 bg-slate-800/50 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" // Clases de Tailwind
+                  />
+                </div>
+
+                {/* Ciudad y Provincia (se autocompletan con Google Places o se pueden editar) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="ciudad" className="text-slate-300 text-sm">Ciudad</Label>
+                    <Input id="ciudad" value={perfil.ciudad} onChange={e => setPerfil({ ...perfil, ciudad: e.target.value })} className="bg-slate-800/50 border-slate-700 text-slate-100"/>
+                  </div>
+                  <div>
+                    <Label htmlFor="provincia" className="text-slate-300 text-sm">Provincia*</Label>
+                    <select id="provincia" value={perfil.provincia} onChange={e => setPerfil({ ...perfil, provincia: e.target.value })} required 
+                            className="w-full rounded-md border border-slate-700 bg-slate-800/50 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 h-10">
+                      <option value="">Selecciona una provincia</option>
+                      {PROVINCIAS.map((p) => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Horarios */}
+                <div>
+                  <Label className="text-slate-300 text-sm block mb-1">Horarios de Atención</Label>
+                  <div className="flex gap-2 mb-2">
+                    <Button type="button" variant={modoHorario === "comercial" ? "secondary" : "outline"} size="sm" onClick={setHorarioComercial} className="border-slate-700 hover:bg-slate-700/50">Automático (Lun-Sáb 9-20)</Button>
+                    <Button type="button" variant={modoHorario === "personalizado" ? "secondary" : "outline"} size="sm" onClick={() => { setHorarioPersonalizado(); setHorariosOpen(prev => !prev); }} className="border-slate-700 hover:bg-slate-700/50">
+                      {horariosOpen && modoHorario === "personalizado" ? "Ocultar Personalizados" : "Personalizar Días/Horas"}
+                    </Button>
+                  </div>
+                  {modoHorario === "comercial" && !horariosOpen && ( /* Mostrar solo si no se está personalizando */
+                    <div className="text-xs text-green-400 p-2 bg-slate-800/30 rounded-md">
+                      Lunes a Sábado: 09:00 a 20:00. Domingo: Cerrado. (Para cambiar, elegí "Personalizar").
+                    </div>
+                  )}
+                  {horariosOpen && modoHorario === "personalizado" && (
+                    <div className="border border-slate-700 rounded-lg p-3 mt-1 bg-slate-800/30 space-y-2">
+                      {DIAS.map((dia, idx) => (
+                        <div key={dia} className="flex items-center justify-between gap-2 text-sm">
+                          <span className="w-20 text-slate-300">{dia}</span>
+                          <div className="flex items-center gap-2">
+                             <Label htmlFor={`cerrado-${idx}`} className="text-xs text-slate-400 flex items-center gap-1 cursor-pointer">
+                                <input type="checkbox" id={`cerrado-${idx}`} checked={perfil.horarios_ui[idx].cerrado}
+                                  onChange={e => handleHorarioChange(idx, "cerrado", e.target.checked)} 
+                                  className="form-checkbox h-4 w-4 text-blue-500 bg-slate-700 border-slate-600 rounded focus:ring-blue-400"
+                                /> Cerrado
+                              </Label>
+                          </div>
+                          {!perfil.horarios_ui[idx].cerrado && (
+                            <div className="flex items-center gap-1">
+                              <Input type="time" value={perfil.horarios_ui[idx].abre} className="w-24 bg-slate-700/50 border-slate-600 text-slate-200 h-8" onChange={e => handleHorarioChange(idx, "abre", e.target.value)} />
+                              <span className="text-slate-400">-</span>
+                              <Input type="time" value={perfil.horarios_ui[idx].cierra} className="w-24 bg-slate-700/50 border-slate-600 text-slate-200 h-8" onChange={e => handleHorarioChange(idx, "cierra", e.target.value)} />
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                
+                <Button disabled={loadingGuardar} type="submit" className="w-full mt-3 bg-blue-600 hover:bg-blue-700 text-white">
+                  {loadingGuardar ? "Guardando..." : "Guardar Cambios"}
+                </Button>
+                {mensaje && <p className="mt-2 text-sm text-green-400 text-center">{mensaje}</p>}
+                {error && <p className="mt-2 text-sm text-red-400 text-center">{error}</p>}
+              </form>
             </CardContent>
           </Card>
-          {/* Catálogo: card chica arriba */}
-          <Card className="bg-white/10 dark:bg-slate-900/80 shadow-2xl rounded-2xl border border-slate-800 backdrop-blur-md p-6 flex flex-col gap-2 h-fit">
+        </div>
+
+        {/* Columna Derecha (1/3 en desktop): Plan y Catálogo */}
+        <div className="flex flex-col gap-6 md:gap-8">
+          <Card className="bg-slate-900/70 shadow-xl rounded-xl border border-slate-800 backdrop-blur-sm p-2">
             <CardHeader>
-              <CardTitle className="text-lg font-bold text-primary mb-1">Catálogo</CardTitle>
+              <CardTitle className="text-lg font-semibold text-blue-400">Plan y Uso</CardTitle>
             </CardHeader>
-            <CardContent>
-              <Input type="file" accept=".xlsx,.xls,.csv,.pdf,.txt" onChange={handleArchivoChange} />
-              <p className="text-xs text-muted-foreground mt-1">
-                ⚠️ Subí Excel o CSV para mejor lectura. PDF puede tener menor precisión.
+            <CardContent className="space-y-3">
+              <p className="text-sm text-slate-300">Plan actual: <Badge variant="secondary" className="bg-blue-500/80 text-white">{perfil.plan || "N/A"}</Badge></p>
+              <p className="text-sm text-slate-300">Consultas usadas este mes:</p>
+              <div className="flex items-center gap-2">
+                <Progress value={porcentaje} className="h-3 bg-slate-700 [&>div]:bg-blue-500" />
+                <span className="text-xs text-slate-400">{perfil.preguntas_usadas} / {perfil.limite_preguntas}</span>
+              </div>
+              {/* Aquí podrías añadir botones para cambiar de plan, que lleven a /checkout?plan=... */}
+            </CardContent>
+          </Card>
+
+          <Card className="bg-slate-900/70 shadow-xl rounded-xl border border-slate-800 backdrop-blur-sm p-2">
+            <CardHeader>
+              <CardTitle className="text-lg font-semibold text-blue-400">Tu Catálogo de Productos</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Label htmlFor="catalogoFile" className="text-sm text-slate-300">Subir nuevo o actualizar (PDF, Excel, CSV)</Label>
+              <Input id="catalogoFile" type="file" accept=".xlsx,.xls,.csv,.pdf" onChange={handleArchivoChange} className="text-slate-400 file:mr-2 file:py-1 file:px-2 file:rounded-full file:border-0 file:text-xs file:bg-blue-600 file:text-white hover:file:bg-blue-700"/>
+              <p className="text-xs text-slate-500">
+                Tip: Para mayor precisión, usá Excel/CSV con columnas claras (ej: Nombre, Precio, Descripción).
               </p>
-              <Button onClick={handleSubirArchivo} className="w-full mt-2" disabled={loading}>
-                <UploadCloud className="w-4 h-4 mr-2" /> Subir catálogo
+              <Button onClick={handleSubirArchivo} className="w-full bg-green-600 hover:bg-green-700 text-white" disabled={loadingCatalogo || !archivo}>
+                <UploadCloud className="w-4 h-4 mr-2" /> {loadingCatalogo ? "Procesando..." : "Subir y Procesar Catálogo"}
               </Button>
               {resultadoCatalogo && (
-                <p className="text-xs text-center text-green-600 mt-2">{resultadoCatalogo}</p>
+                <p className={`text-xs text-center p-2 rounded-md ${resultadoCatalogo.startsWith("❌") ? 'bg-red-500/10 text-red-400' : 'bg-green-500/10 text-green-400'}`}>{resultadoCatalogo}</p>
               )}
             </CardContent>
           </Card>
