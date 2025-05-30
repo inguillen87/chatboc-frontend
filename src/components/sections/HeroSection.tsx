@@ -1,10 +1,10 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { MessageSquare, Sparkles, UserPlus, LogIn } from "lucide-react";
-import { useRouter } from "next/router";
+import { useNavigate } from "react-router-dom";
 
 const HeroSection = () => {
-  const router = useRouter();
+  const navigate = useNavigate();
 
   return (
     <section className="pt-20 pb-12 md:pt-32 md:pb-24 overflow-hidden bg-background text-foreground transition-colors">
@@ -23,7 +23,7 @@ const HeroSection = () => {
               <Button
                 size="lg"
                 className="w-full sm:w-auto"
-                onClick={() => router.push("/demo")}
+                onClick={() => navigate("/demo")}
               >
                 <MessageSquare className="mr-2 h-5 w-5" /> Probar Demo
               </Button>
@@ -31,7 +31,7 @@ const HeroSection = () => {
                 variant="outline"
                 size="lg"
                 className="w-full sm:w-auto"
-                onClick={() => router.push("/register")}
+                onClick={() => navigate("/register")}
               >
                 <UserPlus className="mr-2 h-5 w-5" /> Registrarse
               </Button>
@@ -39,7 +39,7 @@ const HeroSection = () => {
                 variant="ghost"
                 size="lg"
                 className="w-full sm:w-auto"
-                onClick={() => router.push("/login")}
+                onClick={() => navigate("/login")}
               >
                 <LogIn className="mr-2 h-5 w-5" /> Iniciar Sesión
               </Button>
