@@ -49,7 +49,7 @@ const ChatPage = () => {
 
     try {
       const response = await apiFetch(
-        "/responder_chatboc",
+        "/ask",
         "POST",
         { question: text },
         {
@@ -124,8 +124,6 @@ const ChatPage = () => {
           <ChatInput onSendMessage={handleSend} />
         </div>
       </main>
-
-      <Footer />
     </div>
   );
 };

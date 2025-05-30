@@ -224,7 +224,6 @@ export default function Perfil() {
           </div>
         </div>
       </main>
-      <Footer />
     </div>
   );
 }
