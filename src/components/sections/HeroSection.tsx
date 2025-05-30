@@ -12,13 +12,9 @@ const HeroSection = () => {
         <div className="flex flex-col lg:flex-row items-center gap-8 lg:gap-12">
           {/* Texto principal */}
           <div className="w-full lg:w-1/2 lg:pr-12 text-center lg:text-left">
-            <h1 className="mb-4 leading-tight font-bold flex flex-wrap items-end justify-center lg:justify-start">
-              <span className="text-5xl sm:text-6xl md:text-7xl mr-2">
-                Chatboc
-              </span>
-              <span className="text-xl sm:text-2xl md:text-3xl text-foreground font-semibold">
-                : Primer Bot IA para PYMEs MUY Inteligente
-              </span>
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4 leading-tight">
+              <span className="gradient-text">Chatboc:</span> 
+              Primer Bot IA para PYMEs MUY Inteligente
             </h1>
             <p className="text-base sm:text-lg text-muted-foreground mb-6">
               Subí tu catálogo en PDF o Excel y empezá a vender por chat en minutos. Atención 24/7, ventas automáticas y respuestas instantáneas con la mejor tecnología IA.
@@ -78,7 +74,7 @@ const HeroSection = () => {
                   </span>
                 </div>
               </div>
-              <div className="space-y-3 text-sm">
+                           <div className="space-y-3 text-sm">
                 <div className="flex items-start">
                   <div className="bg-blue-100 dark:bg-blue-900/30 rounded-lg p-3 max-w-[85%]">
                     Hola, ¿en qué puedo ayudarte hoy?
