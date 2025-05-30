@@ -9,6 +9,15 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import GooglePlacesAutocomplete from "react-google-autocomplete";
 
+// Opcional: iconos SVG rubros
+const RUBRO_AVATAR = {
+  bodega: "🍷",
+  restaurante: "🍽️",
+  almacen: "🛒",
+  ecommerce: "🛍️",
+  default: "🏢",
+};
+
 const PROVINCIAS = [
   "Buenos Aires","CABA","Catamarca","Chaco","Chubut","Córdoba","Corrientes","Entre Ríos","Formosa","Jujuy","La Pampa","La Rioja","Mendoza","Misiones","Neuquén","Río Negro","Salta","San Juan","San Luis","Santa Cruz","Santa Fe","Santiago del Estero","Tierra del Fuego","Tucumán"
 ];
@@ -25,6 +34,7 @@ export default function Perfil() {
     plan: "",
     preguntas_usadas: 0,
     limite_preguntas: 50,
+    rubro: "", // <--- Nuevo: rubro, para mostrar avatar correspondiente
     horarios: DIAS.map(() => ({ abre: "09:00", cierra: "20:00", cerrado: false })),
   });
   const [modoHorario, setModoHorario] = useState("comercial");
@@ -57,6 +67,7 @@ export default function Perfil() {
           preguntas_usadas: data.preguntas_usadas ?? 0,
           limite_preguntas: data.limite_preguntas ?? 50,
           horarios: data.horarios ? JSON.parse(data.horarios) : prev.horarios,
+          rubro: data.rubro?.toLowerCase() || "",
         }));
       })
       .catch(() => setError("Error al cargar el perfil"));
@@ -136,19 +147,24 @@ export default function Perfil() {
     ? Math.min((perfil.preguntas_usadas / perfil.limite_preguntas) * 100, 100)
     : 0;
 
+  // Avatar dinámico según rubro
+  const avatarEmoji = RUBRO_AVATAR[perfil.rubro] || RUBRO_AVATAR.default;
+
   return (
-    <div className="min-h-screen bg-gradient-to-tr from-slate-950 to-slate-900 flex flex-col items-center py-8 px-2 sm:px-0">
-      {/* Header */}
-      <div className="w-full max-w-4xl flex flex-col md:flex-row justify-between items-center mb-8 gap-6">
+    <div className="min-h-screen bg-gradient-to-tr from-slate-950 to-slate-900 flex flex-col py-8 px-2 sm:px-0">
+      {/* Header Dashboard */}
+      <div className="w-full max-w-6xl mx-auto flex items-center justify-between mb-8 gap-6">
         <div className="flex items-center gap-4">
           <Avatar className="w-16 h-16 bg-primary/10 shadow-lg">
             <AvatarFallback>
-              <span role="img" aria-label="avatar" className="text-2xl">👤</span>
+              <span className="text-3xl">{avatarEmoji}</span>
             </AvatarFallback>
           </Avatar>
           <div>
-            <h1 className="text-3xl sm:text-4xl font-extrabold text-blue-400 leading-none mb-1">Perfil de empresa</h1>
-            <span className="text-slate-400 text-base font-medium">{perfil.nombre_empresa || "Mi empresa"}</span>
+            <h1 className="text-4xl font-extrabold text-blue-400 leading-none mb-1">Perfil de empresa</h1>
+            <span className="text-slate-400 text-base font-medium capitalize">
+              {perfil.nombre_empresa || "Mi empresa"} <span className="ml-2">{perfil.rubro ? `/ ${perfil.rubro}` : ""}</span>
+            </span>
           </div>
         </div>
         <Button
@@ -160,8 +176,8 @@ export default function Perfil() {
         </Button>
       </div>
 
-      <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-3 gap-8">
-        {/* Datos */}
+      <div className="w-full max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8">
+        {/* Columna 1 y 2: Datos */}
         <Card className="col-span-2 bg-white/10 dark:bg-slate-900/90 shadow-2xl rounded-2xl border border-slate-800 backdrop-blur-md p-6 flex flex-col gap-4">
           <CardHeader>
             <CardTitle className="text-2xl font-bold text-primary mb-2">Datos de la empresa</CardTitle>
@@ -278,41 +294,42 @@ export default function Perfil() {
             </form>
           </CardContent>
         </Card>
-        {/* Métricas/plan */}
-        <Card className="bg-white/10 dark:bg-slate-900/80 shadow-2xl rounded-2xl border border-slate-800 backdrop-blur-md p-6 flex flex-col gap-2 h-fit">
-          <CardHeader>
-            <CardTitle className="text-lg font-bold text-primary mb-1">Plan y uso</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col gap-3">
-              <span className="text-base font-medium text-white/90">Plan actual: <Badge className="text-base">{perfil.plan || "demo"}</Badge></span>
-              <div className="text-sm text-slate-400 mb-1">
-                Consultas usadas: <span className="font-bold">{perfil.preguntas_usadas} / {perfil.limite_preguntas}</span>
+        {/* Columna 3: Panel derecho */}
+        <div className="flex flex-col gap-8">
+          {/* Plan/uso: ahora más alargado, barra grande */}
+          <Card className="bg-white/10 dark:bg-slate-900/80 shadow-2xl rounded-2xl border border-slate-800 backdrop-blur-md p-6 flex flex-col gap-2 h-fit">
+            <CardHeader>
+              <CardTitle className="text-lg font-bold text-primary mb-1">Plan y uso</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col gap-3">
+                <span className="text-base font-medium text-white/90">Plan actual: <Badge className="text-base">{perfil.plan || "demo"}</Badge></span>
+                <div className="text-sm text-slate-400 mb-1">
+                  Consultas usadas: <span className="font-bold">{perfil.preguntas_usadas} / {perfil.limite_preguntas}</span>
+                </div>
+                <Progress className="h-4 rounded-xl" value={porcentaje} />
               </div>
-              <Progress className="h-4 rounded-xl" value={porcentaje} />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-      {/* Catálogo */}
-      <div className="w-full max-w-4xl mt-10">
-        <Card className="bg-white/10 dark:bg-slate-900/80 shadow-2xl rounded-2xl border border-slate-800 backdrop-blur-md p-6">
-          <CardHeader>
-            <CardTitle className="text-lg font-bold text-primary mb-1">Catálogo de productos</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Input type="file" accept=".xlsx,.xls,.csv,.pdf,.txt" onChange={handleArchivoChange} />
-            <p className="text-xs text-muted-foreground mt-1">
-              ⚠️ Subí Excel o CSV para mejor lectura. PDF puede tener menor precisión.
-            </p>
-            <Button onClick={handleSubirArchivo} className="w-full mt-2" disabled={loading}>
-              <UploadCloud className="w-4 h-4 mr-2" /> Subir catálogo
-            </Button>
-            {resultadoCatalogo && (
-              <p className="text-xs text-center text-green-600 mt-2">{resultadoCatalogo}</p>
-            )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+          {/* Catálogo: card chica arriba */}
+          <Card className="bg-white/10 dark:bg-slate-900/80 shadow-2xl rounded-2xl border border-slate-800 backdrop-blur-md p-6 flex flex-col gap-2 h-fit">
+            <CardHeader>
+              <CardTitle className="text-lg font-bold text-primary mb-1">Catálogo</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Input type="file" accept=".xlsx,.xls,.csv,.pdf,.txt" onChange={handleArchivoChange} />
+              <p className="text-xs text-muted-foreground mt-1">
+                ⚠️ Subí Excel o CSV para mejor lectura. PDF puede tener menor precisión.
+              </p>
+              <Button onClick={handleSubirArchivo} className="w-full mt-2" disabled={loading}>
+                <UploadCloud className="w-4 h-4 mr-2" /> Subir catálogo
+              </Button>
+              {resultadoCatalogo && (
+                <p className="text-xs text-center text-green-600 mt-2">{resultadoCatalogo}</p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );
