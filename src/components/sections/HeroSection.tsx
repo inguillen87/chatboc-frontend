@@ -1,7 +1,7 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { MessageSquare, Sparkles, UserPlus, LogIn } from "lucide-react";
-import { useRouter } from "next/router"; // Si usás Next.js
+import { useRouter } from "next/router";
 
 const HeroSection = () => {
   const router = useRouter();
@@ -108,3 +108,21 @@ const HeroSection = () => {
                   type="text"
                   placeholder="Consultá por productos, precios o stock…"
                   className="flex-1 border border-border rounded-l-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-background text-foreground"
+                />
+                <button className="bg-blue-600 text-white rounded-r-lg px-4 py-2">
+                  <Sparkles className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Efectos decorativos */}
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-blue-500/10 dark:bg-blue-300/10 rounded-full blur-3xl -z-10" />
+            <div className="absolute top-1/4 right-1/4 w-40 h-40 bg-cyan-500/10 dark:bg-cyan-300/10 rounded-full blur-3xl -z-10" />
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+};
+
+export default HeroSection;
