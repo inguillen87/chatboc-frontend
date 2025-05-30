@@ -9,7 +9,6 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import GooglePlacesAutocomplete from "react-google-autocomplete";
 
-// Opcional: iconos SVG rubros
 const RUBRO_AVATAR = {
   bodega: "🍷",
   restaurante: "🍽️",
@@ -34,7 +33,7 @@ export default function Perfil() {
     plan: "",
     preguntas_usadas: 0,
     limite_preguntas: 50,
-    rubro: "", // <--- Nuevo: rubro, para mostrar avatar correspondiente
+    rubro: "",
     horarios: DIAS.map(() => ({ abre: "09:00", cierra: "20:00", cerrado: false })),
   });
   const [modoHorario, setModoHorario] = useState("comercial");
@@ -93,7 +92,6 @@ export default function Perfil() {
       horarios: DIAS.map(() => ({ abre: "09:00", cierra: "20:00", cerrado: false })),
     }));
   };
-
   const setHorarioPersonalizado = () => setModoHorario("personalizado");
 
   const handleGuardar = async (e) => {
