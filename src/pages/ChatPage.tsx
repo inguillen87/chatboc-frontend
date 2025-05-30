@@ -4,7 +4,6 @@ import ChatMessage from "@/components/chat/ChatMessage";
 import ChatInput from "@/components/chat/ChatInput";
 import TypingIndicator from "@/components/chat/TypingIndicator";
 import Navbar from "@/components/layout/Navbar";
-import Footer from "@/components/layout/Footer";
 import { motion, AnimatePresence } from "framer-motion";
 
 const ChatPage = () => {
@@ -124,8 +123,6 @@ const ChatPage = () => {
           </div>
         </div>
       </main>
-
-      <Footer />
     </div>
   );
 };
