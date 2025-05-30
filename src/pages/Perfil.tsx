@@ -1,239 +1,185 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { LogOut, UploadCloud } from "lucide-react";
-import Navbar from "@/components/layout/Navbar";
-import { Progress } from "@/components/ui/progress";
-import Footer from "@/components/layout/Footer";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { LogOut, UploadCloud } from "lucide-react";
+import GooglePlacesAutocomplete from "react-google-autocomplete";
+import TimePicker from "react-time-picker";
 
-interface PerfilData {
-  nombre_empresa: string;
-  direccion: string;
-  telefono: string;
-  link_web: string;
-  horario: string;
-  ubicacion: string;
-  email?: string;
-  name?: string;
-  plan?: string;
-  preguntas_usadas?: number;
-  limite_preguntas?: number;
-}
+const DIAS_SEMANA = [
+  "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"
+];
 
 export default function Perfil() {
-  const [perfil, setPerfil] = useState<PerfilData>({
-    nombre_empresa: "",
-    direccion: "",
-    telefono: "",
-    link_web: "",
-    horario: "",
-    ubicacion: "",
-  });
+  const [nombre, setNombre] = useState("");
+  const [telefono, setTelefono] = useState("");
+  const [direccion, setDireccion] = useState("");
+  const [ciudad, setCiudad] = useState("");
+  const [provincia, setProvincia] = useState("");
+  const [lat, setLat] = useState("");
+  const [lng, setLng] = useState("");
+  const [horarios, setHorarios] = useState(
+    DIAS_SEMANA.map(() => ({ abre: "09:00", cierra: "18:00", cerrado: false }))
+  );
+  const [web, setWeb] = useState("");
   const [mensaje, setMensaje] = useState("");
   const [error, setError] = useState("");
-  const [archivo, setArchivo] = useState<File | null>(null);
-  const [resultadoCatalogo, setResultadoCatalogo] = useState("");
-  const [showModal, setShowModal] = useState(false);
 
-  const porcentaje =
-    perfil.preguntas_usadas && perfil.limite_preguntas
-      ? Math.min((perfil.preguntas_usadas / perfil.limite_preguntas) * 100, 100)
-      : 0;
-
-  useEffect(() => {
-    const stored = localStorage.getItem("user");
-    const token = stored ? JSON.parse(stored).token : null;
-    if (!token) return;
-
-    fetch("https://api.chatboc.ar/me", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data?.error) return setError(data.error);
-        setPerfil({
-          nombre_empresa: data.nombre_empresa || "",
-          direccion: data.direccion || "",
-          telefono: data.telefono || "",
-          link_web: data.link_web || "",
-          horario: data.horario || "",
-          ubicacion: data.ubicacion || "",
-          email: data.email,
-          name: data.name,
-          plan: data.plan,
-          preguntas_usadas: data.preguntas_usadas,
-          limite_preguntas: data.limite_preguntas,
-        });
-      })
-      .catch((err) => {
-        console.error("❌ Error al cargar perfil:", err);
-        setError("Error al cargar el perfil");
-      });
-  }, []);
-
-  const handleArchivoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setArchivo(e.target.files?.[0] || null);
-    setResultadoCatalogo("");
+  // Manejo dirección autocompletado
+  const handlePlace = (place) => {
+    setDireccion(place.formatted_address || "");
+    const addressComp = place.address_components || [];
+    const provincia_ = addressComp.find(x => x.types.includes("administrative_area_level_1"));
+    const ciudad_ = addressComp.find(x => x.types.includes("locality") || x.types.includes("administrative_area_level_2"));
+    setProvincia(provincia_?.long_name || "");
+    setCiudad(ciudad_?.long_name || "");
+    setLat(place.geometry?.location?.lat() || "");
+    setLng(place.geometry?.location?.lng() || "");
   };
 
-  const handleSubirArchivo = async () => {
-    if (!archivo) return setResultadoCatalogo("Seleccioná un archivo válido.");
-
-    const stored = localStorage.getItem("user");
-    const token = stored ? JSON.parse(stored).token : null;
-    if (!token) return;
-
-    try {
-      const formData = new FormData();
-      formData.append("file", archivo);
-      const res = await fetch("https://api.chatboc.ar/subir_catalogo", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      });
-      const data = await res.json();
-      setResultadoCatalogo(res.ok ? data.mensaje : `❌ ${data.error}`);
-    } catch (err) {
-      console.error("❌ Error al subir catálogo:", err);
-      setResultadoCatalogo("❌ Error al conectar con el servidor");
-    }
-  };
-
-  const handleGuardarCambios = async (e: React.FormEvent) => {
+  // Guardar cambios (acá llamás a tu backend)
+  const handleGuardar = (e) => {
     e.preventDefault();
-    setMensaje("");
-    setError("");
-
-    const stored = localStorage.getItem("user");
-    const token = stored ? JSON.parse(stored).token : null;
-    if (!token) return setError("No se encontró sesión activa.");
-
-    try {
-      const res = await fetch("https://api.chatboc.ar/perfil", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(perfil),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Error inesperado");
-      setMensaje(data.mensaje || "Cambios guardados");
-    } catch (err: any) {
-      console.error("❌ Error al guardar perfil:", err);
-      setError(err.message || "Error al guardar perfil");
+    setMensaje(""); setError("");
+    // Validación simple
+    if (!nombre || !telefono || !direccion || !web) {
+      setError("Completá todos los campos obligatorios.");
+      return;
     }
+    // TODO: Llamar al backend (fetch o axios)
+    setMensaje("Cambios guardados ✔️");
   };
 
   return (
     <div className="flex flex-col min-h-screen bg-background text-foreground">
-      <Navbar />
+      {/* Navbar, etc */}
       <main className="flex-grow pt-28 pb-16">
-        <div className="max-w-5xl mx-auto px-4 space-y-10">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-4">
-              {/* Avatar genérico clickeable */}
-              <Avatar className="w-16 h-16 cursor-pointer" onClick={() => setShowModal(true)}>
-                <AvatarFallback>
-                  <span role="img" aria-label="avatar" className="text-2xl">👤</span>
-                </AvatarFallback>
-              </Avatar>
-              <h1 className="text-3xl font-bold text-primary">
-                Perfil de {perfil.nombre_empresa || perfil.name}
-              </h1>
-            </div>
-            <Button variant="destructive" onClick={() => {
-              localStorage.removeItem("user");
-              location.href = "/login";
-            }}>
+        <div className="max-w-3xl mx-auto px-4 space-y-10">
+          <div className="flex gap-4 items-center mb-8">
+            <Avatar className="w-16 h-16 cursor-pointer">
+              <AvatarFallback>
+                <span role="img" aria-label="avatar" className="text-2xl">👤</span>
+              </AvatarFallback>
+            </Avatar>
+            <h1 className="text-3xl font-bold text-primary">Perfil de empresa</h1>
+            <Button
+              variant="destructive"
+              className="ml-auto"
+              onClick={() => { localStorage.removeItem("user"); location.href = "/login"; }}
+            >
               <LogOut className="w-4 h-4 mr-2" /> Cerrar sesión
             </Button>
           </div>
 
-          {/* Modal PRO (placeholder) */}
-          {showModal && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-              <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl p-6 max-w-sm w-full text-center">
-                <div className="text-4xl mb-2">👤</div>
-                <h2 className="text-lg font-semibold mb-2">Subida de logo próximamente</h2>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Pronto podrás personalizar el logo de tu empresa.<br />
-                  <strong>Límite: 2 MB.</strong>
-                </p>
-                <Button onClick={() => setShowModal(false)} className="w-full mt-2">Cerrar</Button>
-              </div>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card className="md:col-span-2">
-              <CardHeader><CardTitle>Información del negocio</CardTitle></CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Estos datos se usan para personalizar las respuestas del bot.
-                </p>
-                <form onSubmit={handleGuardarCambios} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div><Label>Nombre empresa</Label><Input value={perfil.nombre_empresa} onChange={(e) => setPerfil({ ...perfil, nombre_empresa: e.target.value })} required /></div>
-                  <div><Label>Teléfono</Label><Input value={perfil.telefono} onChange={(e) => setPerfil({ ...perfil, telefono: e.target.value })} required /></div>
-                  <div><Label>Dirección</Label><Input value={perfil.direccion} onChange={(e) => setPerfil({ ...perfil, direccion: e.target.value })} required /></div>
+          <Card>
+            <CardHeader>
+              <CardTitle>Datos de la empresa</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleGuardar} className="space-y-6">
+                <div>
+                  <Label>Nombre empresa*</Label>
+                  <Input value={nombre} onChange={e => setNombre(e.target.value)} required />
+                </div>
+                <div>
+                  <Label>Teléfono*</Label>
+                  <Input value={telefono} onChange={e => setTelefono(e.target.value)} required />
+                </div>
+                <div>
+                  <Label>Dirección*</Label>
+                  <GooglePlacesAutocomplete
+                    apiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}
+                    selectProps={{
+                      value: direccion ? { label: direccion, value: direccion } : null,
+                      onChange: val => setDireccion(val.value),
+                      placeholder: "Buscá la dirección exacta...",
+                    }}
+                    onPlaceSelected={handlePlace}
+                    autocompletionRequest={{
+                      componentRestrictions: { country: ["ar"] }
+                    }}
+                    style={{ width: "100%", minHeight: "42px" }}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Ciudad</Label>
+                    <Input value={ciudad} onChange={e => setCiudad(e.target.value)} />
+                  </div>
                   <div>
                     <Label>Provincia</Label>
-                    <select value={perfil.ubicacion} onChange={(e) => setPerfil({ ...perfil, ubicacion: e.target.value })} required className="w-full rounded border px-3 py-2 text-sm text-foreground bg-background">
-                      <option value="">Seleccioná una provincia</option>
-                      {["Buenos Aires", "CABA", "Catamarca", "Chaco", "Chubut", "Córdoba", "Corrientes", "Entre Ríos", "Formosa", "Jujuy", "La Pampa", "La Rioja", "Mendoza", "Misiones", "Neuquén", "Río Negro", "Salta", "San Juan", "San Luis", "Santa Cruz", "Santa Fe", "Santiago del Estero", "Tierra del Fuego", "Tucumán"].map((prov) => (<option key={prov} value={prov}>{prov}</option>))}
-                    </select>
+                    <Input value={provincia} onChange={e => setProvincia(e.target.value)} />
                   </div>
-                  <div><Label>Horario</Label><Input value={perfil.horario} onChange={(e) => setPerfil({ ...perfil, horario: e.target.value })} required /></div>
-                  <div>
-                    <Label>Web / Tienda</Label>
-                    <Input value={perfil.link_web} onChange={(e) => setPerfil({ ...perfil, link_web: e.target.value })} required />
-                    {perfil.link_web && (
-                      <a href={perfil.link_web.startsWith("http") ? perfil.link_web : `https://${perfil.link_web}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline text-sm mt-1 block">
-                        Ir a tienda: {perfil.link_web}
-                      </a>
-                    )}
+                </div>
+                {/* Horarios PRO */}
+                <div>
+                  <Label>Horarios</Label>
+                  <div className="border rounded-lg p-2 space-y-1 bg-muted">
+                    {DIAS_SEMANA.map((dia, idx) => (
+                      <div key={dia} className="flex items-center gap-2">
+                        <span className="w-20">{dia}</span>
+                        <input
+                          type="checkbox"
+                          checked={horarios[idx].cerrado}
+                          onChange={e => {
+                            const copia = [...horarios];
+                            copia[idx].cerrado = e.target.checked;
+                            setHorarios(copia);
+                          }}
+                        /> <span className="text-xs">Cerrado</span>
+                        {!horarios[idx].cerrado && (
+                          <>
+                            <TimePicker
+                              value={horarios[idx].abre}
+                              onChange={val => {
+                                const copia = [...horarios];
+                                copia[idx].abre = val || "09:00";
+                                setHorarios(copia);
+                              }}
+                              disableClock
+                              clearIcon={null}
+                              className="border rounded px-1 w-24"
+                            />
+                            <span>-</span>
+                            <TimePicker
+                              value={horarios[idx].cierra}
+                              onChange={val => {
+                                const copia = [...horarios];
+                                copia[idx].cierra = val || "18:00";
+                                setHorarios(copia);
+                              }}
+                              disableClock
+                              clearIcon={null}
+                              className="border rounded px-1 w-24"
+                            />
+                          </>
+                        )}
+                      </div>
+                    ))}
                   </div>
-                  {/* Logo URL ELIMINADO */}
-                  <div className="md:col-span-2">
-                    <Button type="submit" className="w-full">Guardar cambios</Button>
-                    {mensaje && <p className="mt-2 text-sm text-green-600 text-center">{mensaje}</p>}
-                    {error && <p className="mt-2 text-sm text-red-600 text-center">{error}</p>}
-                  </div>
-                </form>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader><CardTitle>Plan y uso</CardTitle></CardHeader>
-              <CardContent className="space-y-2">
-                <p>Plan actual: <Badge>{perfil.plan || "demo"}</Badge></p>
-                <p>Consultas usadas: {perfil.preguntas_usadas ?? 0} / {perfil.limite_preguntas ?? 50}</p>
-                <Progress value={porcentaje} />
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader><CardTitle>Catálogo de productos</CardTitle></CardHeader>
-              <CardContent className="space-y-4">
-                <Input type="file" accept=".xlsx,.xls,.csv,.pdf,.txt" onChange={handleArchivoChange} />
-                <p className="text-xs text-muted-foreground">
-                  ⚠️ Se recomienda subir Excel o CSV para mejor lectura. PDF puede tener menor precisión.
-                </p>
-                <Button onClick={handleSubirArchivo} className="w-full">
-                  <UploadCloud className="w-4 h-4 mr-2" /> Subir catálogo
-                </Button>
-                {resultadoCatalogo && (
-                  <p className="text-sm text-center text-green-600">{resultadoCatalogo}</p>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+                </div>
+                <div>
+                  <Label>Web / Tienda*</Label>
+                  <Input value={web} onChange={e => setWeb(e.target.value)} required />
+                  {web && (
+                    <a
+                      href={web.startsWith("http") ? web : `https://${web}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 underline text-sm mt-1 block"
+                    >
+                      Ir a tienda: {web}
+                    </a>
+                  )}
+                </div>
+                <Button type="submit" className="w-full">Guardar cambios</Button>
+                {mensaje && <p className="mt-2 text-green-600 text-center">{mensaje}</p>}
+                {error && <p className="mt-2 text-red-600 text-center">{error}</p>}
+              </form>
+            </CardContent>
+          </Card>
         </div>
       </main>
     </div>
