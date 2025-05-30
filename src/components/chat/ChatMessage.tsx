@@ -3,7 +3,7 @@ import { Message } from "@/types/chat";
 import { motion } from "framer-motion";
 
 // Ruta al logo PNG, AJUSTA según tu estructura
-const LOGO_BOT = "/images/favicon-48x48.png";
+const LOGO_BOT = "/favicon/favicon-48x48.png";
 
 // Avatar por defecto para usuario (puede ser un emoji, inicial, o imagen)
 const UserAvatar = () => (

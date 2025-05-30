@@ -2,7 +2,7 @@ import React from "react";
 import { motion } from "framer-motion";
 
 // Ruta al favicon PNG
-const LOGO_BOT = "/images/favicon-48x48.png";
+const LOGO_BOT = "/favicon/favicon-48x48.png";
 
 const TypingIndicator: React.FC = () => (
   <div className="flex items-center gap-3 px-3 py-2">
