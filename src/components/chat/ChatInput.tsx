@@ -1,57 +1,74 @@
-import React, { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Send } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { SendHorizonal } from "lucide-react";
 
-interface ChatInputProps {
-  onSendMessage: (message: string) => void;
+interface Props {
+  onSendMessage: (text: string) => void;
 }
 
-const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
-  const [inputValue, setInputValue] = useState("");
+const PLACEHOLDERS = [
+  "Escribí tu mensaje...",
+  "¿En qué puedo ayudarte hoy?",
+  "Probá: '¿Qué hace Chatboc?'",
+  "¿Cuánto cuesta el servicio?",
+];
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setInputValue(e.target.value);
-  };
+const ChatInput: React.FC<Props> = ({ onSendMessage }) => {
+  const [input, setInput] = useState("");
+  const [placeholderIndex, setPlaceholderIndex] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
 
+  // Animación simple para el placeholder
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setPlaceholderIndex((i) => (i + 1) % PLACEHOLDERS.length);
+    }, 3500);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Enviar mensaje
   const handleSend = () => {
-    const message = inputValue.trim();
-    if (message.length === 0) return;
-    onSendMessage(message);
-    setInputValue("");
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
+    if (!input.trim()) return;
+    onSendMessage(input.trim());
+    setInput("");
+    inputRef.current?.focus();
   };
 
   return (
-    <div className="border-t bg-white dark:bg-blue-950 border-gray-200 dark:border-blue-800 px-4 py-3">
-      <div className="flex items-center gap-3">
-        <input
-          type="text"
-          placeholder="Escribí tu mensaje..."
-          className="flex-1 rounded-xl px-4 py-2 text-sm border border-gray-300 dark:border-blue-700 bg-white dark:bg-blue-900 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          value={inputValue}
-          onChange={handleInputChange}
-          onKeyDown={handleKeyDown}
-          aria-label="Escribir mensaje"
-          autoComplete="off"
-        />
-        <Button
-          onClick={handleSend}
-          disabled={inputValue.trim().length === 0}
-          className="bg-blue-600 text-white hover:bg-blue-700 transition px-3 py-2 rounded-xl"
-          aria-label="Enviar mensaje"
-        >
-          <Send className="h-4 w-4" />
-        </Button>
-      </div>
-      <p className="mt-2 text-xs text-center text-gray-500 dark:text-gray-400">
-        💡 Probá con: “¿Qué hace Chatboc?” o “¿Cuánto cuesta?”
-      </p>
+    <div className="flex items-center gap-2">
+      <input
+        ref={inputRef}
+        className="
+          flex-1 bg-white dark:bg-[#1c1e24]
+          border border-gray-300 dark:border-[#23272e]
+          rounded-2xl px-4 py-2
+          text-sm outline-none transition
+          focus:border-blue-500 dark:focus:border-blue-400
+          placeholder:text-gray-400 dark:placeholder:text-gray-500
+          shadow-sm
+        "
+        type="text"
+        placeholder={PLACEHOLDERS[placeholderIndex]}
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && handleSend()}
+        autoFocus
+        autoComplete="off"
+      />
+      <button
+        className={`
+          flex items-center justify-center
+          bg-blue-500 hover:bg-blue-700
+          text-white rounded-full p-2
+          shadow-md transition
+          disabled:bg-gray-300 disabled:cursor-not-allowed
+        `}
+        onClick={handleSend}
+        disabled={!input.trim()}
+        aria-label="Enviar"
+        type="button"
+      >
+        <SendHorizonal className="w-5 h-5" />
+      </button>
     </div>
   );
 };
