@@ -1,4 +1,4 @@
-// Perfil.tsx (con ajustes para consistencia y nuevos campos)
+// Perfil.tsx COMPLETO (copiá y pegá tal cual, listo para producción)
 import React, { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,50 +9,23 @@ import { LogOut, UploadCloud } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import GooglePlacesAutocomplete from "react-google-autocomplete";
-// import { apiFetch } from "@/utils/api"; // Asumo que la tienes
 
 const RUBRO_AVATAR = {
   bodega: "🍷",
   restaurante: "🍽️",
   almacen: "🛒",
   ecommerce: "🛍️",
-  medico: "🩺", // Ejemplo
+  medico: "🩺",
   default: "🏢",
 };
 
-const PROVINCIAS = [ /* ... tu lista ... */ 
-"Buenos Aires","CABA","Catamarca","Chaco","Chubut","Córdoba","Corrientes","Entre Ríos","Formosa","Jujuy","La Pampa","La Rioja","Mendoza","Misiones","Neuquén","Río Negro","Salta","San Juan","San Luis","Santa Cruz","Santa Fe","Santiago del Estero","Tierra del Fuego","Tucumán"
+const PROVINCIAS = [
+  "Buenos Aires","CABA","Catamarca","Chaco","Chubut","Córdoba","Corrientes","Entre Ríos","Formosa","Jujuy","La Pampa","La Rioja","Mendoza","Misiones","Neuquén","Río Negro","Salta","San Juan","San Luis","Santa Cruz","Santa Fe","Santiago del Estero","Tierra del Fuego","Tucumán"
 ];
 const DIAS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
 
-interface HorarioDia {
-  abre: string;
-  cierra: string;
-  cerrado: boolean;
-}
-
-interface PerfilState {
-  nombre_empresa: string;
-  telefono: string;
-  direccion: string;
-  ciudad: string;
-  provincia: string;
-  pais: string; // Añadido
-  latitud?: number | null; // Añadido
-  longitud?: number | null; // Añadido
-  link_web: string;
-  plan: string;
-  preguntas_usadas: number;
-  limite_preguntas: number;
-  rubro: string;
-  horario_json: string; // Para enviar al backend
-  // 'horarios' como array de objetos para el manejo en el estado local
-  horarios_ui: HorarioDia[]; 
-  logo_url?: string; // Añadido
-}
-
 export default function Perfil() {
-  const [perfil, setPerfil] = useState<PerfilState>({
+  const [perfil, setPerfil] = useState({
     nombre_empresa: "",
     telefono: "",
     direccion: "",
@@ -66,67 +39,59 @@ export default function Perfil() {
     preguntas_usadas: 0,
     limite_preguntas: 50,
     rubro: "",
-    horario_json: '[]',
-    horarios_ui: DIAS.map(() => ({ abre: "09:00", cierra: "20:00", cerrado: false })),
+    horarios_ui: DIAS.map((_, idx) => ({ abre: "09:00", cierra: "20:00", cerrado: idx === 6 })),
     logo_url: "",
   });
-
-  const [modoHorario, setModoHorario] = useState("comercial"); // "comercial" o "personalizado"
-  const [archivo, setArchivo] = useState<File | null>(null);
+  const [modoHorario, setModoHorario] = useState("comercial");
+  const [archivo, setArchivo] = useState(null);
   const [resultadoCatalogo, setResultadoCatalogo] = useState("");
   const [mensaje, setMensaje] = useState("");
   const [error, setError] = useState("");
   const [loadingGuardar, setLoadingGuardar] = useState(false);
   const [loadingCatalogo, setLoadingCatalogo] = useState(false);
-  const [horariosOpen, setHorariosOpen] = useState(false); // Para el acordeón de horarios
+  const [horariosOpen, setHorariosOpen] = useState(false);
 
+  // --- CARGA INICIAL DEL PERFIL
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
     const token = storedUser ? JSON.parse(storedUser).token : null;
     if (!token) {
-      // Idealmente, un AuthContext o HOC manejaría la redirección
-      // navigate("/login"); // Si usas react-router-dom
-      window.location.href = "/login"; // Fallback simple
+      window.location.href = "/login";
       return;
     }
-
-    setLoadingGuardar(true); // Estado de carga para el perfil
-    fetch("https://api.chatboc.ar/me", { // Asumo que apiFetch es similar a fetch
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => res.json())
-      .then((data) => {
+    setLoadingGuardar(true);
+    fetch("https://api.chatboc.ar/me", { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => res.json())
+      .then(data => {
         if (data?.error) {
           setError(data.error);
-          if (data.error === "Token inválido" || data.error === "Token faltante"){
+          if (["Token inválido", "Token faltante"].includes(data.error)) {
             localStorage.removeItem("user");
             window.location.href = "/login";
           }
           return;
         }
-        
-        let parsedHorariosUi = DIAS.map(() => ({ abre: "09:00", cierra: "20:00", cerrado: false }));
-        if (data.horario_json && typeof data.horario_json === 'string' && data.horario_json.trim() !== "" && data.horario_json.trim() !== "[]") {
+        // Manejar horarios (stringify o array según backend)
+        let horariosUi = DIAS.map((_, idx) => ({ abre: "09:00", cierra: "20:00", cerrado: idx === 6 }));
+        if (data.horario_json && typeof data.horario_json === "string" && data.horario_json.trim() !== "" && data.horario_json.trim() !== "[]") {
           try {
             const loadedHorarios = JSON.parse(data.horario_json);
             if (Array.isArray(loadedHorarios) && loadedHorarios.length === DIAS.length) {
-              parsedHorariosUi = loadedHorarios.map((h: any) => ({ // Añadir tipo any o interfaz para h
+              horariosUi = loadedHorarios.map((h, idx) => ({
                 abre: h.abre || "09:00",
                 cierra: h.cierra || "20:00",
-                cerrado: typeof h.cerrado === 'boolean' ? h.cerrado : false,
+                cerrado: typeof h.cerrado === "boolean" ? h.cerrado : idx === 6
               }));
             }
-          } catch (e) {
-            console.error("Error parseando horario_json del backend al cargar:", e);
-          }
+          } catch {}
         }
-
-        setPerfil({
+        setPerfil(prev => ({
+          ...prev,
           nombre_empresa: data.nombre_empresa || "",
           telefono: data.telefono || "",
           direccion: data.direccion || "",
           ciudad: data.ciudad || "",
-          provincia: data.provincia || "", // Usar data.provincia si el backend lo devuelve así
+          provincia: data.provincia || data.ubicacion || "",
           pais: data.pais || "",
           latitud: data.latitud || null,
           longitud: data.longitud || null,
@@ -135,19 +100,18 @@ export default function Perfil() {
           preguntas_usadas: data.preguntas_usadas ?? 0,
           limite_preguntas: data.limite_preguntas ?? 50,
           rubro: data.rubro?.toLowerCase() || "",
-          horario_json: data.horario_json || '[]', // Guardar el string JSON original
-          horarios_ui: parsedHorariosUi,          // Para la UI
           logo_url: data.logo_url || "",
-        });
+          horarios_ui: horariosUi,
+        }));
       })
-      .catch(() => setError("Error al cargar el perfil. Verifica tu conexión."))
+      .catch(() => setError("Error al cargar el perfil."))
       .finally(() => setLoadingGuardar(false));
   }, []);
 
-  const handlePlaceSelected = (place: any) => { // Añadir tipo para 'place' si lo tienes de la librería
-    const getAddressComponent = (type: string) => 
-      place.address_components?.find((c: any) => c.types.includes(type))?.long_name || "";
-
+  // --- GOOGLE MAPS AUTOCOMPLETE
+  const handlePlaceSelected = (place) => {
+    const getAddressComponent = (type) =>
+      place.address_components?.find((c) => c.types.includes(type))?.long_name || "";
     setPerfil((prev) => ({
       ...prev,
       direccion: place.formatted_address || "",
@@ -159,62 +123,50 @@ export default function Perfil() {
     }));
   };
 
-  const handleHorarioChange = (index: number, field: keyof HorarioDia, value: any) => {
+  // --- HORARIOS
+  const handleHorarioChange = (index, field, value) => {
     const nuevosHorarios = [...perfil.horarios_ui];
-    (nuevosHorarios[index] as any)[field] = value;
+    nuevosHorarios[index][field] = value;
     setPerfil(prev => ({ ...prev, horarios_ui: nuevosHorarios }));
   };
-  
   const setHorarioComercial = () => {
     setModoHorario("comercial");
-    const horariosComercial = DIAS.map((dia, idx) => ({ 
-        abre: "09:00", 
-        cierra: "20:00", 
-        cerrado: idx === 6 // Domingo cerrado
+    setPerfil(prev => ({
+      ...prev,
+      horarios_ui: DIAS.map((_, idx) => ({ abre: "09:00", cierra: "20:00", cerrado: idx === 6 })),
     }));
-    setPerfil(prev => ({ ...prev, horarios_ui: horariosComercial }));
     setHorariosOpen(false);
   };
-
   const setHorarioPersonalizado = () => {
     setModoHorario("personalizado");
-    // No es necesario colapsar aquí, solo cambiar el modo
-    // setHorariosOpen(true); // Abrir siempre al seleccionar personalizar
+    setHorariosOpen((prev) => !prev);
   };
 
-
-  const handleGuardar = async (e: React.FormEvent) => {
+  // --- GUARDAR PERFIL
+  const handleGuardar = async (e) => {
     e.preventDefault();
     setMensaje(""); setError(""); setLoadingGuardar(true);
     const storedUser = localStorage.getItem("user");
     const token = storedUser ? JSON.parse(storedUser).token : null;
-
     if (!token) {
-      setError("No se encontró sesión activa. Por favor, inicia sesión de nuevo.");
+      setError("No se encontró sesión activa.");
       setLoadingGuardar(false);
       return;
     }
-
-    // Preparar el payload para enviar, asegurando que horario_json sea el string
     const payload = {
-        nombre_empresa: perfil.nombre_empresa,
-        telefono: perfil.telefono,
-        direccion: perfil.direccion,
-        ciudad: perfil.ciudad,
-        provincia: perfil.provincia,
-        pais: perfil.pais,
-        latitud: perfil.latitud,
-        longitud: perfil.longitud,
-        link_web: perfil.link_web,
-        logo_url: perfil.logo_url,
-        // El campo 'horario' (string simple) ya no se envía si solo usamos horario_json
-        // Si tu backend aún espera 'horario', necesitarías construirlo o decidir qué enviar.
-        horario_json: JSON.stringify(perfil.horarios_ui), 
+      nombre_empresa: perfil.nombre_empresa,
+      telefono: perfil.telefono,
+      direccion: perfil.direccion,
+      ciudad: perfil.ciudad,
+      provincia: perfil.provincia,
+      pais: perfil.pais,
+      latitud: perfil.latitud,
+      longitud: perfil.longitud,
+      link_web: perfil.link_web,
+      logo_url: perfil.logo_url,
+      horario_json: JSON.stringify(perfil.horarios_ui),
     };
-
     try {
-      // Asumo que tienes una función apiFetch similar a la de ChatPage.tsx
-      // const res = await apiFetch("/perfil", "PUT", payload, { headers: { Authorization: `Bearer ${token}` } });
       const res = await fetch("https://api.chatboc.ar/perfil", {
         method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -223,45 +175,35 @@ export default function Perfil() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error al guardar cambios.");
       setMensaje(data.mensaje || "Cambios guardados correctamente ✔️");
-      // Actualizar el localStorage con los datos guardados si el backend los devuelve
-      // o al menos actualizar los campos modificados en el objeto 'user' del localStorage.
-    } catch (err: any) {
+    } catch (err) {
       setError(err.message || "Error al guardar el perfil. Intenta de nuevo.");
     }
     setLoadingGuardar(false);
   };
 
-  const handleArchivoChange = (e: React.ChangeEvent<HTMLInputElement>) => { // Tipado del evento
-    if (e.target.files && e.target.files[0]) {
-      setArchivo(e.target.files[0]);
-    } else {
-      setArchivo(null);
-    }
+  // --- CARGA DE CATÁLOGO
+  const handleArchivoChange = (e) => {
+    if (e.target.files && e.target.files[0]) setArchivo(e.target.files[0]);
+    else setArchivo(null);
     setResultadoCatalogo("");
   };
-
   const handleSubirArchivo = async () => {
-    // ... (tu lógica de subir archivo se mantiene, solo asegúrate que el token se obtenga bien) ...
     if (!archivo) return setResultadoCatalogo("Seleccioná un archivo válido.");
-    const storedUser = localStorage.getItem("user"); // Re-obtener por si acaso
+    const storedUser = localStorage.getItem("user");
     const token = storedUser ? JSON.parse(storedUser).token : null;
-    if (!token) {
-        setResultadoCatalogo("❌ Sesión no válida para subir catálogo.");
-        return;
-    }
-    setLoadingCatalogo(true); // Estado de carga separado para catálogo
-    // ... el resto de tu lógica try-catch-finally para subir ...
+    if (!token) return setResultadoCatalogo("❌ Sesión no válida para subir catálogo.");
+    setLoadingCatalogo(true);
     try {
       const formData = new FormData();
       formData.append("file", archivo);
       const res = await fetch("https://api.chatboc.ar/subir_catalogo", {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` }, // No Content-Type para FormData
+        headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
       const data = await res.json();
-      setResultadoCatalogo(res.ok ? data.mensaje : `❌ ${data.error || 'Error desconocido'}`);
-    } catch (err) {
+      setResultadoCatalogo(res.ok ? data.mensaje : `❌ ${data.error || "Error desconocido"}`);
+    } catch {
       setResultadoCatalogo("❌ Error de conexión al subir el catálogo.");
     }
     setLoadingCatalogo(false);
@@ -270,17 +212,11 @@ export default function Perfil() {
   const porcentaje = perfil.limite_preguntas > 0
     ? Math.min((perfil.preguntas_usadas / perfil.limite_preguntas) * 100, 100)
     : 0;
-
-  const avatarEmoji = RUBRO_AVATAR[perfil.rubro as keyof typeof RUBRO_AVATAR] || RUBRO_AVATAR.default;
-
-  // El JSX se mantiene como lo tienes, es un buen diseño de dashboard.
-  // Solo asegúrate de que los 'value' de los Inputs y el 'select' para provincia
-  // correspondan a los campos correctos del estado 'perfil' (ej. perfil.provincia, perfil.ciudad).
-  // Y que los 'onChange' actualicen los campos correctos del estado.
+  const avatarEmoji = RUBRO_AVATAR[perfil.rubro] || RUBRO_AVATAR.default;
 
   return (
     <div className="flex flex-col min-h-screen bg-gradient-to-tr from-slate-950 to-slate-900 text-slate-200 py-8 px-2 sm:px-0">
-      {/* Header Dashboard */}
+      {/* Header */}
       <div className="w-full max-w-6xl mx-auto flex items-center justify-between mb-8 gap-3 px-2">
         <div className="flex items-center gap-4">
           <Avatar className="w-16 h-16 bg-blue-500/20 shadow-lg border-2 border-blue-400">
@@ -300,11 +236,11 @@ export default function Perfil() {
         <Button
           variant="outline"
           className="h-10 px-5 text-sm border-red-500/50 text-red-400 hover:bg-red-500/10 hover:text-red-300"
-          onClick={() => { 
-            localStorage.removeItem("user"); 
-            localStorage.removeItem("anon_token"); // También limpiar token anónimo
+          onClick={() => {
+            localStorage.removeItem("user");
+            localStorage.removeItem("anon_token");
             localStorage.removeItem("rubroSeleccionado");
-            window.location.href = "/login"; 
+            window.location.href = "/login";
           }}
         >
           <LogOut className="w-4 h-4 mr-2" /> Salir
@@ -312,7 +248,7 @@ export default function Perfil() {
       </div>
 
       <div className="w-full max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 px-2">
-        {/* Columna Izquierda (2/3 en desktop): Formulario de Datos y Catálogo */}
+        {/* Columna Izquierda: Formulario */}
         <div className="md:col-span-2 flex flex-col gap-6 md:gap-8">
           <Card className="bg-slate-900/70 shadow-xl rounded-xl border border-slate-800 backdrop-blur-sm">
             <CardHeader>
@@ -320,7 +256,6 @@ export default function Perfil() {
             </CardHeader>
             <CardContent>
               <form onSubmit={handleGuardar} className="space-y-4">
-                {/* Nombre Empresa, Teléfono, Link Web (Inputs Simples) */}
                 <div>
                   <Label htmlFor="nombre_empresa" className="text-slate-300 text-sm">Nombre de la empresa*</Label>
                   <Input id="nombre_empresa" value={perfil.nombre_empresa} onChange={e => setPerfil({ ...perfil, nombre_empresa: e.target.value })} required className="bg-slate-800/50 border-slate-700 text-slate-100"/>
@@ -335,20 +270,16 @@ export default function Perfil() {
                     <Input id="link_web" placeholder="https://ejemplo.com" value={perfil.link_web} onChange={e => setPerfil({ ...perfil, link_web: e.target.value })} required className="bg-slate-800/50 border-slate-700 text-slate-100"/>
                   </div>
                 </div>
-                
-                {/* Dirección con Google Places Autocomplete */}
                 <div>
                   <Label htmlFor="direccion" className="text-slate-300 text-sm">Dirección Completa* (calle, número, localidad)</Label>
                   <GooglePlacesAutocomplete
-                    apiKey={import.meta.env.VITE_Maps_API_KEY} // Asegúrate que esta variable de entorno esté disponible
+                    apiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}
                     onPlaceSelected={handlePlaceSelected}
                     options={{ componentRestrictions: { country: "ar" }, types: ['address'] }}
-                    defaultValue={perfil.direccion} // Para que muestre la dirección actual si existe
-                    inputClassName="w-full rounded-md border border-slate-700 bg-slate-800/50 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" // Clases de Tailwind
+                    defaultValue={perfil.direccion}
+                    inputClassName="w-full rounded-md border border-slate-700 bg-slate-800/50 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
-
-                {/* Ciudad y Provincia (se autocompletan con Google Places o se pueden editar) */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="ciudad" className="text-slate-300 text-sm">Ciudad</Label>
@@ -356,24 +287,22 @@ export default function Perfil() {
                   </div>
                   <div>
                     <Label htmlFor="provincia" className="text-slate-300 text-sm">Provincia*</Label>
-                    <select id="provincia" value={perfil.provincia} onChange={e => setPerfil({ ...perfil, provincia: e.target.value })} required 
-                            className="w-full rounded-md border border-slate-700 bg-slate-800/50 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 h-10">
+                    <select id="provincia" value={perfil.provincia} onChange={e => setPerfil({ ...perfil, provincia: e.target.value })} required
+                      className="w-full rounded-md border border-slate-700 bg-slate-800/50 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 h-10">
                       <option value="">Selecciona una provincia</option>
                       {PROVINCIAS.map((p) => <option key={p} value={p}>{p}</option>)}
                     </select>
                   </div>
                 </div>
-
-                {/* Horarios */}
                 <div>
                   <Label className="text-slate-300 text-sm block mb-1">Horarios de Atención</Label>
                   <div className="flex gap-2 mb-2">
                     <Button type="button" variant={modoHorario === "comercial" ? "secondary" : "outline"} size="sm" onClick={setHorarioComercial} className="border-slate-700 hover:bg-slate-700/50">Automático (Lun-Sáb 9-20)</Button>
-                    <Button type="button" variant={modoHorario === "personalizado" ? "secondary" : "outline"} size="sm" onClick={() => { setHorarioPersonalizado(); setHorariosOpen(prev => !prev); }} className="border-slate-700 hover:bg-slate-700/50">
+                    <Button type="button" variant={modoHorario === "personalizado" ? "secondary" : "outline"} size="sm" onClick={setHorarioPersonalizado} className="border-slate-700 hover:bg-slate-700/50">
                       {horariosOpen && modoHorario === "personalizado" ? "Ocultar Personalizados" : "Personalizar Días/Horas"}
                     </Button>
                   </div>
-                  {modoHorario === "comercial" && !horariosOpen && ( /* Mostrar solo si no se está personalizando */
+                  {modoHorario === "comercial" && !horariosOpen && (
                     <div className="text-xs text-green-400 p-2 bg-slate-800/30 rounded-md">
                       Lunes a Sábado: 09:00 a 20:00. Domingo: Cerrado. (Para cambiar, elegí "Personalizar").
                     </div>
@@ -384,12 +313,12 @@ export default function Perfil() {
                         <div key={dia} className="flex items-center justify-between gap-2 text-sm">
                           <span className="w-20 text-slate-300">{dia}</span>
                           <div className="flex items-center gap-2">
-                             <Label htmlFor={`cerrado-${idx}`} className="text-xs text-slate-400 flex items-center gap-1 cursor-pointer">
-                                <input type="checkbox" id={`cerrado-${idx}`} checked={perfil.horarios_ui[idx].cerrado}
-                                  onChange={e => handleHorarioChange(idx, "cerrado", e.target.checked)} 
-                                  className="form-checkbox h-4 w-4 text-blue-500 bg-slate-700 border-slate-600 rounded focus:ring-blue-400"
-                                /> Cerrado
-                              </Label>
+                            <Label htmlFor={`cerrado-${idx}`} className="text-xs text-slate-400 flex items-center gap-1 cursor-pointer">
+                              <input type="checkbox" id={`cerrado-${idx}`} checked={perfil.horarios_ui[idx].cerrado}
+                                onChange={e => handleHorarioChange(idx, "cerrado", e.target.checked)}
+                                className="form-checkbox h-4 w-4 text-blue-500 bg-slate-700 border-slate-600 rounded focus:ring-blue-400"
+                              /> Cerrado
+                            </Label>
                           </div>
                           {!perfil.horarios_ui[idx].cerrado && (
                             <div className="flex items-center gap-1">
@@ -403,7 +332,6 @@ export default function Perfil() {
                     </div>
                   )}
                 </div>
-                
                 <Button disabled={loadingGuardar} type="submit" className="w-full mt-3 bg-blue-600 hover:bg-blue-700 text-white">
                   {loadingGuardar ? "Guardando..." : "Guardar Cambios"}
                 </Button>
@@ -414,7 +342,7 @@ export default function Perfil() {
           </Card>
         </div>
 
-        {/* Columna Derecha (1/3 en desktop): Plan y Catálogo */}
+        {/* Columna Derecha: Plan y Catálogo */}
         <div className="flex flex-col gap-6 md:gap-8">
           <Card className="bg-slate-900/70 shadow-xl rounded-xl border border-slate-800 backdrop-blur-sm p-2">
             <CardHeader>
@@ -427,7 +355,6 @@ export default function Perfil() {
                 <Progress value={porcentaje} className="h-3 bg-slate-700 [&>div]:bg-blue-500" />
                 <span className="text-xs text-slate-400">{perfil.preguntas_usadas} / {perfil.limite_preguntas}</span>
               </div>
-              {/* Aquí podrías añadir botones para cambiar de plan, que lleven a /checkout?plan=... */}
             </CardContent>
           </Card>
 
