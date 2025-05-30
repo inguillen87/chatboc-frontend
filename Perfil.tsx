@@ -268,7 +268,6 @@ export default function Perfil() {
           </Card>
         </div>
       </main>
-      <Footer />
     </div>
   );
 }
