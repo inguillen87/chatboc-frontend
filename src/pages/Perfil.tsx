@@ -9,6 +9,7 @@ import { LogOut, UploadCloud, CheckCircle, XCircle, Info, ChevronDown, ChevronUp
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import GooglePlacesAutocomplete from "react-google-autocomplete";
+import.meta.env.VITE_Maps_API_KEY
 
 // Constantes
 const API_BASE_URL = import.meta.env.VITE_API_URL || "https://api.chatboc.ar";
