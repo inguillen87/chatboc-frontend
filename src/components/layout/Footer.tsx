@@ -1,4 +1,5 @@
 import React from "react";
+import { Link } from "react-router-dom";
 import { Facebook, Twitter, Instagram, Linkedin, Mail, MessageCircle } from "lucide-react";
 
 const Footer = () => {
@@ -34,7 +35,11 @@ const Footer = () => {
             <ul className="space-y-2">
               <li><a href="#solution" className="text-gray-400 hover:text-white transition">Qué hace</a></li>
               <li><a href="#pricing" className="text-gray-400 hover:text-white transition">Planes</a></li>
-              <li><a href="/demo" className="text-gray-400 hover:text-white transition">Probar demo</a></li>
+              <li>
+                <Link to="/demo" className="text-gray-400 hover:text-white transition">
+                  Probar demo
+                </Link>
+              </li>
             </ul>
           </div>
 
@@ -43,10 +48,14 @@ const Footer = () => {
             <h3 className="text-lg font-semibold mb-4">Recursos</h3>
             <ul className="space-y-2">
               <li>
-                <a href="/Faqs" className="text-gray-400 hover:text-white transition">Centro de ayuda (FAQs)</a>
+                <Link to="/Faqs" className="text-gray-400 hover:text-white transition">
+                  Centro de ayuda (FAQs)
+                </Link>
               </li>
               <li>
-                <a href="/Documentacion" className="text-gray-400 hover:text-white transition">Documentación técnica</a>
+                <Link to="/Documentacion" className="text-gray-400 hover:text-white transition">
+                  Documentación técnica
+                </Link>
               </li>
               <li className="flex items-center space-x-2">
                 <MessageCircle className="h-4 w-4 text-green-400" />
@@ -79,13 +88,19 @@ const Footer = () => {
             <h3 className="text-lg font-semibold mb-4">Legal</h3>
             <ul className="space-y-2">
               <li>
-                <a href="/legal/Privacy" className="text-gray-400 hover:text-white transition">Política de privacidad</a>
+                <Link to="/legal/Privacy" className="text-gray-400 hover:text-white transition">
+                  Política de privacidad
+                </Link>
               </li>
               <li>
-                <a href="/legal/terms" className="text-gray-400 hover:text-white transition">Términos y condiciones</a>
+                <Link to="/legal/Terms" className="text-gray-400 hover:text-white transition">
+                  Términos y condiciones
+                </Link>
               </li>
               <li>
-                <a href="/legal/Cookies" className="text-gray-400 hover:text-white transition">Política de cookies</a>
+                <Link to="/legal/Cookies" className="text-gray-400 hover:text-white transition">
+                  Política de cookies
+                </Link>
               </li>
             </ul>
           </div>
