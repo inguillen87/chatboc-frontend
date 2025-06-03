@@ -42,8 +42,8 @@ const Footer = () => {
           <div>
             <h3 className="text-lg font-semibold mb-4">Recursos</h3>
             <ul className="space-y-2">
-              <li><a href="/help" className="text-gray-400 hover:text-white transition">Centro de ayuda (FAQs)</a></li>
-              <li><a href="/docs" className="text-gray-400 hover:text-white transition">Documentación técnica</a></li>
+              <li><a href="/Faqs" className="text-gray-400 hover:text-white transition">Centro de ayuda (FAQs)</a></li>
+              <li><a href="/Documentacion" className="text-gray-400 hover:text-white transition">Documentación técnica</a></li>
               <li><a href="https://wa.me/5492613168608" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-white transition">Escribinos por WhatsApp</a></li>
               <li><a href="mailto:soporte@chatboc.ar" className="text-gray-400 hover:text-white transition">Contacto</a></li>
             </ul>
@@ -53,9 +53,9 @@ const Footer = () => {
           <div>
             <h3 className="text-lg font-semibold mb-4">Legal</h3>
             <ul className="space-y-2">
-              <li><a href="/legal/privacy" className="text-gray-400 hover:text-white transition">Política de privacidad</a></li>
-              <li><a href="/legal/terms" className="text-gray-400 hover:text-white transition">Términos y condiciones</a></li>
-              <li><a href="/legal/cookies" className="text-gray-400 hover:text-white transition">Política de cookies</a></li>
+              <li><a href="/legal/Pprivacy" className="text-gray-400 hover:text-white transition">Política de privacidad</a></li>
+              <li><a href="/legal/Terms" className="text-gray-400 hover:text-white transition">Términos y condiciones</a></li>
+              <li><a href="/legal/Cookies" className="text-gray-400 hover:text-white transition">Política de cookies</a></li>
             </ul>
           </div>
         </div>
