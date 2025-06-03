@@ -39,6 +39,18 @@ const ChatWidget: React.FC = () => {
   const [token, setToken] = useState("");
   const [isVisible, setIsVisible] = useState(true);
 
+  // --- Detección de dark/light mode del navegador
+  const [prefersDark, setPrefersDark] = useState(
+    window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const handler = (e: MediaQueryListEvent) => setPrefersDark(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+  // ---
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
@@ -218,7 +230,14 @@ const ChatWidget: React.FC = () => {
 
   if (isOpen && esperandoRubro) {
     return (
-      <div className="fixed bottom-20 right-5 z-50 w-80 md:w-96 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl shadow-xl p-4 animate-slide-up">
+      <div
+        className="fixed bottom-20 right-5 z-50 w-80 md:w-96 border rounded-xl shadow-xl p-4 animate-slide-up"
+        style={{
+          background: prefersDark ? "#161c24" : "#fff",
+          borderColor: prefersDark ? "#374151" : "#e5e7eb",
+          color: prefersDark ? "#fff" : "#222",
+        }}
+      >
         <h2 className="text-lg font-semibold mb-3 text-center">👋 ¡Bienvenido!</h2>
         <p className="mb-4 text-sm text-center">¿De qué rubro es tu negocio?</p>
         {cargandoRubros ? (
@@ -263,11 +282,15 @@ const ChatWidget: React.FC = () => {
   }
 
   return (
-    <div className="fixed bottom-5 right-5 z-50">
+    <div className="fixed bottom-5 right-5 z-50" style={{ background: "transparent" }}>
       <button
         onClick={toggleChat}
         className="group relative w-16 h-16 rounded-full flex items-center justify-center border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 hover:shadow-lg transition-all duration-300 ease-in-out transform hover:scale-105"
         aria-label={isOpen ? "Cerrar chat" : "Abrir chat"}
+        style={{
+          background: prefersDark ? "#161c24" : "#fff",
+          borderColor: prefersDark ? "#374151" : "#e5e7eb",
+        }}
       >
         {isOpen ? (
           <X className="text-gray-600 dark:text-gray-300 h-6 w-6" />
@@ -285,7 +308,14 @@ const ChatWidget: React.FC = () => {
       </button>
 
       {isOpen && !esperandoRubro && (
-        <div className="absolute bottom-20 right-0 w-80 md:w-96 h-[500px] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl flex flex-col overflow-hidden animate-slide-up">
+        <div
+          className="absolute bottom-20 right-0 w-80 md:w-96 h-[500px] rounded-xl shadow-2xl flex flex-col overflow-hidden animate-slide-up"
+          style={{
+            background: prefersDark ? "#161c24" : "#fff",
+            border: `1px solid ${prefersDark ? "#374151" : "#e5e7eb"}`,
+            color: prefersDark ? "#fff" : "#222",
+          }}
+        >
           <ChatHeader onClose={toggleChat} />
           <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-3" ref={chatContainerRef}>
             {messages.map((msg) =>
