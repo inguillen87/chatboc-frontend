@@ -7,8 +7,28 @@ import ChatInput from "./ChatInput";
 import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
 
+function getToken() {
+  // PRIORIDAD 1: token por URL (widget embed)
+  const params = new URLSearchParams(window.location.search);
+  const urlToken = params.get("token");
+  if (urlToken) return urlToken;
+
+  // PRIORIDAD 2: token logueado
+  const storedUser = localStorage.getItem("user");
+  const user = storedUser ? JSON.parse(storedUser) : null;
+  if (user?.token && !user.token.startsWith("demo")) return user.token;
+
+  // PRIORIDAD 3: demo token anónimo
+  let anonToken = localStorage.getItem("anon_token");
+  if (!anonToken) {
+    anonToken = `demo-anon-${Math.random().toString(36).substring(2, 10)}`;
+    localStorage.setItem("anon_token", anonToken);
+  }
+  return anonToken;
+}
+
 const ChatWidget: React.FC = () => {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(true); // Siempre abierto si es iframe/widget
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [preguntasUsadas, setPreguntasUsadas] = useState(0);
@@ -22,7 +42,7 @@ const ChatWidget: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
-  // Carga los rubros si se necesitan (solo anónimo)
+  // Carga rubros si es necesario (demo)
   const cargarRubros = async () => {
     setCargandoRubros(true);
     try {
@@ -35,34 +55,23 @@ const ChatWidget: React.FC = () => {
     setCargandoRubros(false);
   };
 
-  // Lógica centralizada de autenticación/rubro
-  const recargarDesdeStorage = () => {
-    const path = window.location.pathname;
-    const ocultas = ["/login", "/register", "/perfil"];
-    if (ocultas.includes(path)) {
-      setIsVisible(false);
-      return;
-    }
+  // Recarga token y rubro
+  const recargarTokenYRubro = () => {
+    const token = getToken();
+    setToken(token);
 
-    const storedUser = localStorage.getItem("user");
-    const user = storedUser ? JSON.parse(storedUser) : null;
-
-    if (user?.token && !user.token.startsWith("demo")) {
-      setToken(user.token);
+    // Si es user real, rubro por perfil
+    if (token && !token.startsWith("demo")) {
       setPreguntasUsadas(0);
       localStorage.removeItem("rubroSeleccionado");
-      setRubroSeleccionado(user.rubro?.toLowerCase() || "general");
+      const storedUser = localStorage.getItem("user");
+      const user = storedUser ? JSON.parse(storedUser) : null;
+      setRubroSeleccionado(user?.rubro?.toLowerCase() || "general");
       setEsperandoRubro(false);
       return;
     }
 
-    let anonToken = localStorage.getItem("anon_token");
-    if (!anonToken) {
-      anonToken = `demo-anon-${Math.random().toString(36).substring(2, 10)}`;
-      localStorage.setItem("anon_token", anonToken);
-    }
-    setToken(anonToken);
-
+    // Si es demo anónimo, rubro de storage (o pide elegir)
     const rubro = localStorage.getItem("rubroSeleccionado");
     if (!rubro) {
       setEsperandoRubro(true);
@@ -75,9 +84,9 @@ const ChatWidget: React.FC = () => {
   };
 
   useEffect(() => {
-    recargarDesdeStorage();
-    window.addEventListener("storage", recargarDesdeStorage);
-    return () => window.removeEventListener("storage", recargarDesdeStorage);
+    recargarTokenYRubro();
+    window.addEventListener("storage", recargarTokenYRubro);
+    return () => window.removeEventListener("storage", recargarTokenYRubro);
     // eslint-disable-next-line
   }, []);
 
@@ -87,7 +96,7 @@ const ChatWidget: React.FC = () => {
     }
   }, [messages, isTyping]);
 
-  // Nuevo: Si cambia el rubro (ejemplo: después de elegir), reinicia el chat de bienvenida
+  // Mensaje de bienvenida por rubro
   useEffect(() => {
     if (isOpen && rubroSeleccionado) {
       setMessages([
@@ -106,7 +115,7 @@ const ChatWidget: React.FC = () => {
     setIsOpen(nextState);
 
     if (nextState) {
-      recargarDesdeStorage();
+      recargarTokenYRubro();
       if (messages.length === 0 && rubroSeleccionado) {
         setMessages([
           {
