@@ -387,6 +387,63 @@ export default function Perfil() {
                 </div>
               </CardContent>
             </Card>
+            {/* --- Card de Integración del Chatbot --- */}
+<Card className="bg-slate-900/70 shadow-xl rounded-xl border border-slate-800 backdrop-blur-sm">
+  <CardHeader>
+    <CardTitle className="text-lg font-semibold text-blue-400">Integrá Chatboc a tu web</CardTitle>
+  </CardHeader>
+  <CardContent className="space-y-3">
+    {/* Lógica para habilitar el botón SOLO si el plan es pro, full o es gratis y está dentro del trial */}
+    {(() => {
+      const planesPremium = ["pro", "full"];
+      const esPremium = planesPremium.includes(perfil.plan?.toLowerCase());
+      const inicioTrial = window.localStorage.getItem("trial_start"); // Asegurate de guardar esto al registrar el user
+      let enTrial = false;
+      if (perfil.plan === "gratis" && inicioTrial) {
+        const hoy = new Date();
+        const inicio = new Date(inicioTrial);
+        const dias = (hoy.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24);
+        enTrial = dias <= 15;
+      }
+      if (esPremium || enTrial) {
+        return (
+          <>
+            <p className="text-sm text-slate-300 mb-2">
+              Sumá el chat a tu tienda, web, Tiendanube, WooCommerce, etc.
+            </p>
+            <Button
+              className="w-full mb-2 bg-blue-600 hover:bg-blue-700 text-white"
+              onClick={() => window.location.href = "/integracion"}
+            >
+              Obtener código de integración
+            </Button>
+            {enTrial && (
+              <div className="text-xs text-yellow-400">
+                <b>Modo prueba:</b> Tu integración funciona por 15 días gratis.
+              </div>
+            )}
+          </>
+        );
+      }
+      // Si NO es premium ni está en trial, se muestra cartel y upgrade
+      return (
+        <>
+          <div className="bg-yellow-100 text-yellow-800 p-2 rounded border border-yellow-300 text-xs">
+            Solo disponible para planes <b>PRO</b> o <b>FULL</b>.<br />
+            Mejorá tu plan para integrar Chatboc en tu web.
+          </div>
+          <Button
+            className="w-full mt-2 bg-yellow-400 hover:bg-yellow-500 text-black font-semibold"
+            onClick={() => window.location.href = "/checkout?plan=pro"}
+          >
+            Mejorar mi plan
+          </Button>
+        </>
+      );
+    })()}
+  </CardContent>
+</Card>
+
             {/* ... Card Catálogo ... */}
             <Card className="bg-slate-900/70 shadow-xl rounded-xl border border-slate-800 backdrop-blur-sm">
               <CardHeader><CardTitle className="text-lg font-semibold text-blue-400">Tu Catálogo de Productos</CardTitle></CardHeader>
