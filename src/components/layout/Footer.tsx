@@ -1,8 +1,20 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { Facebook, Twitter, Instagram, Linkedin, Mail, MessageCircle } from "lucide-react";
+import { Facebook, Twitter, Instagram, Linkedin, Mail, MessageCircle, Copy } from "lucide-react";
+import { useScrollToSection } from "@/hooks/useScrollToSection";
+import { useState } from "react";
 
 const Footer = () => {
+  const scrollToSection = useScrollToSection();
+  const [copied, setCopied] = useState(false);
+  const email = "soporte@chatboc.ar";
+
+  const handleCopyEmail = () => {
+    navigator.clipboard.writeText(email);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1200);
+  };
+
   return (
     <footer className="bg-gray-900 text-white pt-16 pb-8">
       <div className="container mx-auto px-4">
@@ -33,9 +45,24 @@ const Footer = () => {
           <div>
             <h3 className="text-lg font-semibold mb-4">Producto</h3>
             <ul className="space-y-2">
-              {/* Estos redirigen a secciones internas de la landing */}
-              <li><a href="#solution" className="text-gray-400 hover:text-white transition">Qué hace</a></li>
-              <li><a href="#pricing" className="text-gray-400 hover:text-white transition">Planes</a></li>
+              <li>
+                <button
+                  type="button"
+                  className="text-gray-400 hover:text-white transition bg-transparent border-none p-0 m-0 cursor-pointer"
+                  onClick={() => scrollToSection("solution")}
+                >
+                  Qué hace
+                </button>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  className="text-gray-400 hover:text-white transition bg-transparent border-none p-0 m-0 cursor-pointer"
+                  onClick={() => scrollToSection("pricing")}
+                >
+                  Planes
+                </button>
+              </li>
               <li>
                 <Link to="/demo" className="text-gray-400 hover:text-white transition">
                   Probar demo
@@ -73,13 +100,20 @@ const Footer = () => {
               <li className="flex items-center space-x-2">
                 <Mail className="h-4 w-4 text-blue-400" />
                 <a
-                  href="mailto:soporte@chatboc.ar"
+                  href={`mailto:${email}`}
                   className="text-gray-400 hover:text-white transition underline underline-offset-2"
-                  style={{ wordBreak: "break-all" }}
-                  title="Enviar correo a soporte@chatboc.ar"
+                  title="Enviar correo"
                 >
-                  soporte@chatboc.ar
+                  {email}
                 </a>
+                <button
+                  className="ml-2"
+                  title="Copiar mail"
+                  onClick={handleCopyEmail}
+                >
+                  <Copy className={`h-4 w-4 ${copied ? "text-green-400" : "text-gray-400"} transition`} />
+                </button>
+                {copied && <span className="text-green-400 ml-1 text-xs">¡Copiado!</span>}
               </li>
             </ul>
           </div>
