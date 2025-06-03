@@ -3,27 +3,116 @@ import React from "react";
 const Documentacion = () => (
   <div className="min-h-screen bg-background text-foreground py-16 px-4 md:px-0 flex flex-col items-center">
     <div className="max-w-2xl w-full bg-card rounded-2xl shadow-lg p-8 mt-6">
-      <h1 className="text-3xl font-bold mb-4 text-primary">Documentación Técnica</h1>
-      <p className="mb-6 text-lg text-muted-foreground">
-        Todo lo que necesitás para integrar y aprovechar Chatboc al máximo.
-        Si sos desarrollador, acá encontrás ejemplos de uso, autenticación, integración por iframe, API REST y webhooks.
+
+      <h1 className="text-3xl font-bold mb-6 text-primary">Documentación Técnica</h1>
+
+      {/* ===================== USUARIOS COMUNES ===================== */}
+      <h2 className="text-2xl font-semibold mt-6 mb-4 text-primary">👥 Para empresas, comercios y usuarios comunes</h2>
+      <p className="mb-4 text-base">
+        <b>¿Qué podés hacer con Chatboc?</b> Usar el asistente virtual para responder consultas de tus clientes, automatizar ventas y soporte, y tener tu propio chatbot listo para usar <b>sin programar nada</b>.
       </p>
-      <h2 className="text-xl font-semibold mb-2 mt-6 text-primary">Guía rápida de integración</h2>
-      <ol className="list-decimal ml-6 mb-4 text-base">
-        <li>Registrate y obtené tu token de acceso.</li>
-        <li>Agregá el widget de Chatboc copiando el iframe personalizado a tu web.</li>
-        <li>Consultá los endpoints disponibles para automatizar ventas y soporte.</li>
-      </ol>
-      <h2 className="text-xl font-semibold mb-2 mt-6 text-primary">Principales endpoints</h2>
       <ul className="list-disc ml-6 mb-4">
-        <li><strong>POST /ask</strong> — Consulta al agente IA</li>
-        <li><strong>GET /perfil</strong> — Datos y configuración de tu empresa</li>
-        <li><strong>POST /catalogo/upload</strong> — Carga de catálogos (PDF, Excel)</li>
+        <li>Ingresá a tu panel con usuario y contraseña.</li>
+        <li>Personalizá tu empresa y rubro desde el perfil.</li>
+        <li>Cargá el catálogo de productos en PDF o Excel para que el bot lo utilice en respuestas.</li>
+        <li>Integrá Chatboc en tu web copiando el código del <b>iframe/widget</b> (disponible en tu panel).</li>
+        <li>Gestioná las respuestas, consultas y upgrades de tu plan desde la web.</li>
       </ul>
+      <p className="mb-4 text-base">
+        Si tenés dudas frecuentes, visitá el <a href="/faqs" className="text-blue-500 underline">Centro de Ayuda</a> o escribinos por WhatsApp.
+      </p>
+
+      {/* ===================== DESARROLLADORES ===================== */}
+      <h2 className="text-2xl font-semibold mt-10 mb-4 text-primary">💻 Para desarrolladores e integradores (API REST)</h2>
+      <div className="bg-yellow-50 dark:bg-gray-800 border-l-4 border-yellow-500 p-4 rounded mb-4 text-yellow-700 dark:text-yellow-200">
+        <b>¡Importante!</b><br />
+        <span>
+          El <b>acceso a la API es exclusivo para empresas con plan activo o integradores autorizados</b>.
+          <br />
+          <b>No es gratuita ni libre</b>. Necesitás un <b>token de acceso</b> para todas las llamadas.
+        </span>
+      </div>
+      <p className="mb-4">
+        Si tu empresa o proyecto requiere integración con otros sistemas (CRM, ecommerce, WhatsApp, etc.), podés acceder a los endpoints de Chatboc para consultar, enviar preguntas y automatizar todo el flujo.
+      </p>
+
+      {/* ENDPOINTS */}
+      <h3 className="text-lg font-semibold mt-4 mb-2 text-primary">Principales endpoints</h3>
+      <ul className="list-disc ml-6 mb-4">
+        <li>
+          <strong>POST /ask</strong> — Consultar al agente IA.<br />
+          <span className="text-sm text-muted-foreground">
+            Envía una pregunta y recibí respuesta de Chatboc usando tu token.
+          </span>
+        </li>
+        <li>
+          <strong>GET /perfil</strong> — Info de la empresa.<br />
+          <span className="text-sm text-muted-foreground">
+            Obtené tus datos de empresa y rubro (requiere token).
+          </span>
+        </li>
+        <li>
+          <strong>POST /catalogo/upload</strong> — Subir catálogo.<br />
+          <span className="text-sm text-muted-foreground">
+            Cargá tu catálogo de productos por PDF o Excel para que el bot lo use en consultas.
+          </span>
+        </li>
+      </ul>
+
+      <h3 className="text-lg font-semibold mt-4 mb-2 text-primary">Ejemplo: consulta al bot vía API (Python)</h3>
+      <div className="bg-black rounded-lg text-green-300 text-sm p-4 font-mono mb-4 overflow-auto">
+{`import requests
+
+url = "https://api.chatboc.ar/ask"
+headers = {
+    "Authorization": "Bearer TU_TOKEN_AQUI",
+    "Content-Type": "application/json"
+}
+data = {
+    "pregunta": "¿Cuáles son los horarios de atención?",
+    "rubro_frontend": "",   # opcional, según integración
+}
+
+response = requests.post(url, json=data, headers=headers)
+print(response.json())  # Respuesta del bot
+`}
+      </div>
+      <p className="text-xs text-muted-foreground mb-4">
+        Usá tu token personal y siempre protegé esta clave. Cada plan tiene un límite de consultas por mes según contrato.
+      </p>
+
+      <h3 className="text-lg font-semibold mt-6 mb-2 text-primary">Ejemplo: subir catálogo por API (Python)</h3>
+      <div className="bg-black rounded-lg text-yellow-200 text-sm p-4 font-mono mb-4 overflow-auto">
+{`import requests
+
+url = "https://api.chatboc.ar/catalogo/upload"
+headers = {"Authorization": "Bearer TU_TOKEN_AQUI"}
+files = {"archivo": open("catalogo.xlsx", "rb")}
+
+response = requests.post(url, files=files, headers=headers)
+print(response.json())
+`}
+      </div>
+
+      {/* ACLARACIÓN SEGURIDAD */}
+      <div className="bg-red-50 dark:bg-gray-900 border-l-4 border-red-500 p-4 rounded mb-4 text-red-700 dark:text-red-200">
+        <b>Seguridad y buenas prácticas:</b>
+        <ul className="list-disc ml-4 text-sm">
+          <li>No compartas tu token. Cada empresa tiene uno único e intransferible.</li>
+          <li>Si sospechás uso indebido, solicitá el cambio de token inmediato.</li>
+          <li>El abuso o uso fraudulento será bloqueado automáticamente por el sistema.</li>
+        </ul>
+      </div>
+
+      {/* INFO FINAL */}
+      <h2 className="text-xl font-semibold mb-2 mt-10 text-primary">Soporte y consultas</h2>
       <p className="mb-2">
-        ¿Dudas técnicas? Escribinos a{" "}
-        <a href="mailto:soporte@chatboc.ar" className="text-blue-500 underline">soporte@chatboc.ar</a> o consultá el{" "}
+        ¿Dudas técnicas, problemas de integración o querés acceso a la API? <br />
+        Escribinos a <a href="mailto:soporte@chatboc.ar" className="text-blue-500 underline">soporte@chatboc.ar</a> o consultá el{" "}
         <a href="/faqs" className="text-blue-500 underline">Centro de Ayuda</a>.
+      </p>
+      <p className="text-xs text-muted-foreground mt-8">
+        *Todos los endpoints requieren autenticación y plan activo. El acceso a la API REST está sujeto a condiciones comerciales y límites según plan.
       </p>
     </div>
   </div>
