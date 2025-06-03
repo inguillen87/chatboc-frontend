@@ -12,6 +12,7 @@ const Register = () => {
   const [nombreEmpresa, setNombreEmpresa] = useState('');
   const [rubroId, setRubroId] = useState('');
   const [rubrosDisponibles, setRubrosDisponibles] = useState<{ id: number; nombre: string }[]>([]);
+  const [accepted, setAccepted] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -31,7 +32,10 @@ const Register = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-
+    if (!accepted) {
+      setError("Debés aceptar los Términos y Condiciones para continuar.");
+      return;
+    }
     try {
       const payload = {
         name,
@@ -39,6 +43,8 @@ const Register = () => {
         password,
         nombre_empresa: nombreEmpresa,
         rubro: rubrosDisponibles.find(r => r.id === parseInt(rubroId))?.nombre || '',
+        acepto_terminos: accepted,
+        fecha_aceptacion_terminos: accepted ? new Date().toISOString() : null,
       };
 
       const data = await apiFetch('/register', 'POST', payload);
@@ -76,7 +82,7 @@ const Register = () => {
           <Input type="email" placeholder="Correo electrónico" value={email} onChange={(e) => setEmail(e.target.value)} required />
           <Input type="password" placeholder="Contraseña" value={password} onChange={(e) => setPassword(e.target.value)} required />
           <Input type="text" placeholder="Nombre de la empresa (fantasía o legal)" value={nombreEmpresa} onChange={(e) => setNombreEmpresa(e.target.value)} required />
-          
+
           <select
             value={rubroId}
             onChange={(e) => setRubroId(e.target.value)}
@@ -93,8 +99,28 @@ const Register = () => {
             ⚠️ Es muy importante ingresar correctamente el nombre de tu empresa y seleccionar el rubro real, ya que esto mejora la experiencia del usuario y permite que el bot responda con mayor precisión.
           </p>
 
+          {/* Checkbox Términos */}
+          <div className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              id="terms"
+              checked={accepted}
+              onChange={() => setAccepted(!accepted)}
+              className="accent-blue-600 h-4 w-4"
+              required
+            />
+            <label htmlFor="terms" className="text-xs text-gray-700 dark:text-gray-200">
+              Acepto los{" "}
+              <a href="/legal/terms" target="_blank" className="underline text-blue-600 dark:text-blue-400">Términos y Condiciones</a>
+              {" "}y la{" "}
+              <a href="/legal/privacy" target="_blank" className="underline text-blue-600 dark:text-blue-400">Política de Privacidad</a>.
+            </label>
+          </div>
+
           {error && <p className="text-red-600 text-sm">{error}</p>}
-          <Button type="submit" className="w-full">Registrarse</Button>
+          <Button type="submit" className="w-full" disabled={!accepted}>
+            Registrarse
+          </Button>
         </form>
         <div className="text-center text-sm text-gray-700 dark:text-gray-300 mt-4">
           ¿Ya tenés cuenta?{' '}

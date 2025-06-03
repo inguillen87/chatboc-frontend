@@ -9,16 +9,44 @@ export default function PrivacyPolicy() {
             Política de Privacidad
           </h1>
           <p className="mb-4 text-gray-700 dark:text-gray-300">
-            En Chatboc nos tomamos en serio la privacidad de tus datos. Utilizamos la información proporcionada solo para prestar nuestros servicios de agente virtual, CRM y sistema POS.
+            En <b>Chatboc</b> priorizamos la privacidad y la protección de tus datos personales y comerciales. Esta política explica cómo recolectamos, usamos y protegemos tu información cuando usás nuestros servicios de agente virtual, CRM y sistema POS.
           </p>
+          
+          <h2 className="text-lg font-semibold mb-2 text-primary">¿Qué datos recolectamos?</h2>
           <ul className="list-disc ml-6 mb-4 text-gray-700 dark:text-gray-300">
-            <li>No compartimos tu información con terceros sin tu consentimiento.</li>
-            <li>Tus datos se almacenan en servidores seguros y cumplen con la legislación argentina de protección de datos.</li>
-            <li>Puedes solicitar la eliminación de tus datos o modificar tu información desde tu perfil o escribiéndonos.</li>
+            <li>Datos de registro y perfil (nombre, email, empresa, teléfono, dirección, etc.).</li>
+            <li>Datos de catálogo de productos, consultas y conversaciones con el agente virtual.</li>
+            <li>Información de uso de la plataforma para mejorar nuestros servicios.</li>
+            <li>En caso de usar integraciones externas (CRM, POS, APIs), datos necesarios para el funcionamiento.</li>
           </ul>
+
+          <h2 className="text-lg font-semibold mb-2 text-primary">¿Cómo usamos tus datos?</h2>
+          <ul className="list-disc ml-6 mb-4 text-gray-700 dark:text-gray-300">
+            <li>Para operar el sistema de agente IA, gestión comercial y soporte automatizado.</li>
+            <li>Para personalizar tu experiencia y sugerencias en la plataforma.</li>
+            <li>Para enviar notificaciones relevantes sobre el uso de Chatboc.</li>
+            <li>Nunca vendemos ni compartimos tus datos con terceros sin tu consentimiento expreso.</li>
+          </ul>
+
+          <h2 className="text-lg font-semibold mb-2 text-primary">¿Cómo protegemos tus datos?</h2>
+          <ul className="list-disc ml-6 mb-4 text-gray-700 dark:text-gray-300">
+            <li>Almacenamos tu información en servidores seguros, protegidos con estándares de seguridad actualizados.</li>
+            <li>Ciframos contraseñas y aplicamos buenas prácticas para resguardar tus datos.</li>
+            <li>Respetamos la legislación argentina (Ley 25.326) y estándares internacionales de privacidad.</li>
+          </ul>
+
+          <h2 className="text-lg font-semibold mb-2 text-primary">Tus derechos como usuario</h2>
+          <ul className="list-disc ml-6 mb-4 text-gray-700 dark:text-gray-300">
+            <li>Podés acceder, modificar o eliminar tu información en cualquier momento desde tu perfil o escribiéndonos a <a href="mailto:soporte@chatboc.ar" className="underline text-blue-400">soporte@chatboc.ar</a>.</li>
+            <li>Podés solicitar la baja definitiva de tu cuenta y la eliminación total de tus datos.</li>
+            <li>Podés consultar, en cualquier momento, cómo se usan y resguardan tus datos.</li>
+          </ul>
+
+          <h2 className="text-lg font-semibold mb-2 text-primary">Consultas y contacto</h2>
           <p className="mb-4 text-gray-700 dark:text-gray-300">
-            Si tenés dudas o necesitás ayuda sobre privacidad, podés contactarnos por WhatsApp o desde nuestro centro de ayuda.
+            Si tenés dudas o necesitás ayuda sobre privacidad, podés escribirnos directo por WhatsApp, email o desde nuestro centro de ayuda. Respondemos siempre en el día.
           </p>
+          
           <div className="mt-8 flex flex-wrap gap-4">
             <a
               href="/legal/terms"
