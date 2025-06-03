@@ -1,5 +1,5 @@
 import React from "react";
-import { Facebook, Twitter, Instagram, Linkedin } from "lucide-react";
+import { Facebook, Twitter, Instagram, Linkedin, Mail, MessageCircle } from "lucide-react";
 
 const Footer = () => {
   return (
@@ -12,7 +12,7 @@ const Footer = () => {
             <p className="text-gray-400 mb-4">
               Tu experto virtual que entiende y atiende a tus clientes, 24/7.
             </p>
-            <div className="flex space-x-4">
+            <div className="flex space-x-4 mt-2">
               <a href="https://www.facebook.com" target="_blank" rel="noopener noreferrer" aria-label="Facebook" className="text-gray-400 hover:text-white transition">
                 <Facebook className="h-5 w-5" />
               </a>
@@ -43,23 +43,32 @@ const Footer = () => {
             <h3 className="text-lg font-semibold mb-4">Recursos</h3>
             <ul className="space-y-2">
               <li>
-                <a href="/faqs" className="text-gray-400 hover:text-white transition">
-                  Centro de ayuda (FAQs)
-                </a>
+                <a href="/Faqs" className="text-gray-400 hover:text-white transition">Centro de ayuda (FAQs)</a>
               </li>
               <li>
-                <a href="/documentacion" className="text-gray-400 hover:text-white transition">
-                  Documentación técnica
+                <a href="/Documentacion" className="text-gray-400 hover:text-white transition">Documentación técnica</a>
+              </li>
+              <li className="flex items-center space-x-2">
+                <MessageCircle className="h-4 w-4 text-green-400" />
+                <a
+                  href="https://wa.me/5492613168608"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-gray-400 hover:text-white transition underline underline-offset-2"
+                  title="Chatear por WhatsApp"
+                >
+                  WhatsApp
                 </a>
               </li>
-              <li>
-                <a href="https://wa.me/5492613168608" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-white transition">
-                  Escribinos por WhatsApp
-                </a>
-              </li>
-              <li>
-                <a href="mailto:soporte@chatboc.ar" className="text-gray-400 hover:text-white transition">
-                  Contacto
+              <li className="flex items-center space-x-2">
+                <Mail className="h-4 w-4 text-blue-400" />
+                <a
+                  href="mailto:soporte@chatboc.ar"
+                  className="text-gray-400 hover:text-white transition underline underline-offset-2"
+                  style={{ wordBreak: "break-all" }}
+                  title="Enviar correo a soporte@chatboc.ar"
+                >
+                  soporte@chatboc.ar
                 </a>
               </li>
             </ul>
@@ -70,19 +79,13 @@ const Footer = () => {
             <h3 className="text-lg font-semibold mb-4">Legal</h3>
             <ul className="space-y-2">
               <li>
-                <a href="/legal/privacy" className="text-gray-400 hover:text-white transition">
-                  Política de privacidad
-                </a>
+                <a href="/legal/Privacy" className="text-gray-400 hover:text-white transition">Política de privacidad</a>
               </li>
               <li>
-                <a href="/legal/terms" className="text-gray-400 hover:text-white transition">
-                  Términos y condiciones
-                </a>
+                <a href="/legal/Terms" className="text-gray-400 hover:text-white transition">Términos y condiciones</a>
               </li>
               <li>
-                <a href="/legal/cookies" className="text-gray-400 hover:text-white transition">
-                  Política de cookies
-                </a>
+                <a href="/legal/Cookies" className="text-gray-400 hover:text-white transition">Política de cookies</a>
               </li>
             </ul>
           </div>
