@@ -33,6 +33,7 @@ const Footer = () => {
           <div>
             <h3 className="text-lg font-semibold mb-4">Producto</h3>
             <ul className="space-y-2">
+              {/* Estos redirigen a secciones internas de la landing */}
               <li><a href="#solution" className="text-gray-400 hover:text-white transition">Qué hace</a></li>
               <li><a href="#pricing" className="text-gray-400 hover:text-white transition">Planes</a></li>
               <li>
@@ -48,12 +49,12 @@ const Footer = () => {
             <h3 className="text-lg font-semibold mb-4">Recursos</h3>
             <ul className="space-y-2">
               <li>
-                <Link to="/Faqs" className="text-gray-400 hover:text-white transition">
+                <Link to="/faqs" className="text-gray-400 hover:text-white transition">
                   Centro de ayuda (FAQs)
                 </Link>
               </li>
               <li>
-                <Link to="/Documentacion" className="text-gray-400 hover:text-white transition">
+                <Link to="/documentacion" className="text-gray-400 hover:text-white transition">
                   Documentación técnica
                 </Link>
               </li>
@@ -88,17 +89,17 @@ const Footer = () => {
             <h3 className="text-lg font-semibold mb-4">Legal</h3>
             <ul className="space-y-2">
               <li>
-                <Link to="/legal/Privacy" className="text-gray-400 hover:text-white transition">
+                <Link to="/legal/privacy" className="text-gray-400 hover:text-white transition">
                   Política de privacidad
                 </Link>
               </li>
               <li>
-                <Link to="/legal/Terms" className="text-gray-400 hover:text-white transition">
+                <Link to="/legal/terms" className="text-gray-400 hover:text-white transition">
                   Términos y condiciones
                 </Link>
               </li>
               <li>
-                <Link to="/legal/Cookies" className="text-gray-400 hover:text-white transition">
+                <Link to="/legal/cookies" className="text-gray-400 hover:text-white transition">
                   Política de cookies
                 </Link>
               </li>
