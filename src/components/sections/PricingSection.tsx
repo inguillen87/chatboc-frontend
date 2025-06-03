@@ -10,7 +10,7 @@ const plans = [
     duration: '/ 15 días',
     description: 'Probá nuestra tecnología de IA con subida de catálogos, consultas inteligentes y atención automatizada. Ideal para ver el potencial real de Chatboc.',
     features: [
-      'Hasta 50 consultas por día',
+      'Hasta 50 consultas',
       'Carga de catálogo en PDF o Excel',
       'Procesamiento automático con Google Document AI',
       'Búsqueda inteligente con algoritmos de vectores (Qdrant)',
