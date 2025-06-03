@@ -29,32 +29,36 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <BrowserRouter>
-        <Routes>
-          <Route element={<Layout />}>
-            <Route path="/" element={<Index />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/demo" element={<Demo />} />
-            <Route path="/perfil" element={<Perfil />} />
-            <Route path="/chat" element={<ChatPage />} />
-            <Route path="/checkout" element={<Checkout />} />
-            <Route path="/chatpos" element={<ChatPosPage />} />
-            <Route path="/chatcrm" element={<ChatCRMPage />} />
-            <Route path="/iframe" element={<Iframe />} />
-            <Route path="/integracion" element={<Integracion />} />
+       <Routes>
+  {/* Todas las rutas normales con Layout */}
+  <Route element={<Layout />}>
+    <Route path="/" element={<Index />} />
+    <Route path="/login" element={<Login />} />
+    <Route path="/register" element={<Register />} />
+    <Route path="/demo" element={<Demo />} />
+    <Route path="/perfil" element={<Perfil />} />
+    <Route path="/chat" element={<ChatPage />} />
+    <Route path="/checkout" element={<Checkout />} />
+    <Route path="/chatpos" element={<ChatPosPage />} />
+    <Route path="/chatcrm" element={<ChatCRMPage />} />
+    <Route path="/integracion" element={<Integracion />} />
+    {/* Páginas de ayuda y docs */}
+    <Route path="/documentacion" element={<Documentacion />} />
+    <Route path="/faqs" element={<Faqs />} />
+    {/* Legales */}
+    <Route path="/legal/privacy" element={<Privacy />} />
+    <Route path="/legal/terms" element={<Terms />} />
+    <Route path="/legal/cookies" element={<Cookies />} />
+  </Route>
 
-            {/* Páginas de ayuda y docs */}
-            <Route path="/documentacion" element={<Documentacion />} />
-            <Route path="/faqs" element={<Faqs />} />
+  {/* ---> ESTA ES LA DIFERENCIA <--- */}
+  {/* Ruta especial SIN Layout */}
+  <Route path="/iframe" element={<Iframe />} />
 
-            {/* Legales */}
-            <Route path="/legal/privacy" element={<Privacy />} />
-            <Route path="/legal/terms" element={<Terms />} />
-            <Route path="/legal/cookies" element={<Cookies />} />
-          </Route>
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-        <ChatWidget />
+  {/* 404 */}
+  <Route path="*" element={<NotFound />} />
+</Routes>
+      <ChatWidget />
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
