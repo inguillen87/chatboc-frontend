@@ -47,7 +47,7 @@ const plans = [
     name: 'Chatboc Full',
     price: '$80',
     duration: '/ mes',
-    description: 'Todo el poder de nuestra IA: atención ilimitada, integración WhatsApp, automatizaciones y paneles avanzados. Desarrollado con tecnología mundial de vanguardia.',
+    description: 'Todo el poder de nuestra IA: atención ilimitada, integraciones con otras redes, automatizaciones y paneles avanzados. Desarrollado con tecnología mundial de vanguardia.',
     features: [
       'Consultas ilimitadas y multicanal',
       'Automatización completa: respuestas, seguimientos y derivaciones',
