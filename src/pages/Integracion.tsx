@@ -104,8 +104,10 @@ const Integracion = () => {
 
           <div className="mt-10">
             <h2 className="text-xl font-semibold mb-2">🔍 Vista previa en vivo:</h2>
-            <div className="border border-gray-300 dark:border-gray-700 rounded overflow-hidden bg-white dark:bg-gray-900 flex items-center justify-center" style={{ minHeight: 520 }}>
-              <iframe
+            <div className="flex items-center justify-center" style={{ minHeight: 520, background: "transparent", border: "none" }}>
+            <iframe/>
+             </div>
+
                 src={url}
                 width="370"
                 height="520"
