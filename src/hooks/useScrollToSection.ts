@@ -1,21 +1,20 @@
 import { useNavigate, useLocation } from "react-router-dom";
 
-// Espera a que el DOM esté listo
-function scrollToId(id: string) {
-  const el = document.getElementById(id);
-  if (el) el.scrollIntoView({ behavior: "smooth" });
-}
-
-export function useScrollToSection() {
+export const useScrollToSection = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
   return (sectionId: string) => {
-    if (location.pathname !== "/") {
-      navigate("/");
-      setTimeout(() => scrollToId(sectionId), 400); // ajusta delay si ves que lo necesita
+    // Si ya estamos en la home, scrollea
+    if (location.pathname === "/") {
+      const section = document.getElementById(sectionId);
+      if (section) {
+        section.scrollIntoView({ behavior: "smooth" });
+      }
     } else {
-      scrollToId(sectionId);
+      // Guarda la sección deseada y redirige
+      sessionStorage.setItem("pendingScrollSection", sectionId);
+      navigate("/");
     }
   };
-}
+};

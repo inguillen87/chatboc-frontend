@@ -12,6 +12,18 @@ import ComingSoonSection from '@/components/sections/ComingSoonSection';
 const Index = () => {
   useEffect(() => {
     document.title = 'Chatboc - Tu Experto Virtual para Pymes';
+
+    // AUTO SCROLL SI HAY UN PENDIENTE
+    const sectionId = sessionStorage.getItem("pendingScrollSection");
+    if (sectionId) {
+      setTimeout(() => {
+        const el = document.getElementById(sectionId);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth" });
+        }
+        sessionStorage.removeItem("pendingScrollSection");
+      }, 200);
+    }
   }, []);
 
   return (
