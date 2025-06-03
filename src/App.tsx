@@ -3,7 +3,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import ChatPage from "@/pages/ChatPage";
-
+import Documentacion from "@/pages/Documentacion"; // O la ruta real
 import Layout from "./components/layout/Layout";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
@@ -38,6 +38,8 @@ const App = () => (
             <Route path="/chatcrm" element={<ChatCRMPage />} />
             <Route path="/iframe" element={<Iframe />} />
             <Route path="/integracion" element={<Integracion />} />
+            <Route path="/documentacion" element={<Documentacion />} />
+
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
