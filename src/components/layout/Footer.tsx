@@ -82,7 +82,7 @@ const Footer = () => {
                 <a href="/legal/Privacy" className="text-gray-400 hover:text-white transition">Política de privacidad</a>
               </li>
               <li>
-                <a href="/legal/Terms" className="text-gray-400 hover:text-white transition">Términos y condiciones</a>
+                <a href="/legal/terms" className="text-gray-400 hover:text-white transition">Términos y condiciones</a>
               </li>
               <li>
                 <a href="/legal/Cookies" className="text-gray-400 hover:text-white transition">Política de cookies</a>
