@@ -27,7 +27,7 @@ const HelpPage = () => (
         </div>
       </div>
       <div className="text-center mt-4">
-        <a href="/docs" className="inline-block text-blue-500 underline">Ir a la documentación técnica</a>
+        <a href="/documentacion" className="inline-block text-blue-500 underline">Ir a la documentación técnica</a>
       </div>
     </div>
   </div>
