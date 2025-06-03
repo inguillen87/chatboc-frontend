@@ -56,7 +56,7 @@ const HelpPage = () => (
         <div>
           <h2 className="text-lg font-semibold mb-1 text-primary">¿Qué hago si tengo dudas técnicas?</h2>
           <p className="text-muted-foreground">
-            Consultá la <a href="/documentacion" className="text-blue-500 underline">Documentación Técnica</a> o escribinos a <a href="mailto:soporte@chatboc.ar" className="text-blue-500 underline">soporte@chatboc.ar</a>.
+            Consultá la <a href="/documentacion" className="text-blue-500 underline">Documentación Técnica</a> o escribinos a <a href="mailto:info@chatboc.ar" className="text-blue-500 underline">info@chatboc.ar</a>.
           </p>
         </div>
         <div>
@@ -71,7 +71,7 @@ const HelpPage = () => (
         <span className="mx-2">·</span>
         <a href="https://wa.me/5492613168608" target="_blank" rel="noopener noreferrer" className="inline-block text-green-500 underline mr-2">Chatear por WhatsApp</a>
         <span className="mx-2">·</span>
-        <a href="mailto:soporte@chatboc.ar" className="inline-block text-blue-500 underline">Contactar por Email</a>
+        <a href="mailto:info@chatboc.ar" className="inline-block text-blue-500 underline">Contactar por Email</a>
       </div>
       <div className="text-center text-xs text-gray-400 mt-8">
         ¿No encontrás tu respuesta? Escribinos, resolvemos cualquier consulta.

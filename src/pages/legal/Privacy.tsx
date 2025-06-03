@@ -37,7 +37,7 @@ export default function PrivacyPolicy() {
 
           <h2 className="text-lg font-semibold mb-2 text-primary">Tus derechos como usuario</h2>
           <ul className="list-disc ml-6 mb-4 text-gray-700 dark:text-gray-300">
-            <li>Podés acceder, modificar o eliminar tu información en cualquier momento desde tu perfil o escribiéndonos a <a href="mailto:soporte@chatboc.ar" className="underline text-blue-400">soporte@chatboc.ar</a>.</li>
+            <li>Podés acceder, modificar o eliminar tu información en cualquier momento desde tu perfil o escribiéndonos a <a href="mailto:info@chatboc.ar" className="underline text-blue-400">info@chatboc.ar</a>.</li>
             <li>Podés solicitar la baja definitiva de tu cuenta y la eliminación total de tus datos.</li>
             <li>Podés consultar, en cualquier momento, cómo se usan y resguardan tus datos.</li>
           </ul>

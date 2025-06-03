@@ -43,7 +43,7 @@ export default function TermsPage() {
           <h2 className="text-lg font-semibold mb-2 text-primary">Modificaciones y contacto</h2>
           <ul className="list-disc ml-6 mb-4 text-gray-700 dark:text-gray-300">
             <li>Podemos actualizar estos términos para mejorar el servicio. Te avisaremos en caso de cambios importantes.</li>
-            <li>Si tenés dudas o consultas, escribinos a <a href="mailto:soporte@chatboc.ar" className="underline text-blue-400">soporte@chatboc.ar</a>.</li>
+            <li>Si tenés dudas o consultas, escribinos a <a href="mailto:info@chatboc.ar" className="underline text-blue-400">info@chatboc.ar</a>.</li>
           </ul>
           
           <div className="mt-8 flex flex-wrap gap-4">

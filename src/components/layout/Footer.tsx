@@ -7,7 +7,7 @@ import { useState } from "react";
 const Footer = () => {
   const scrollToSection = useScrollToSection();
   const [copied, setCopied] = useState(false);
-  const email = "soporte@chatboc.ar";
+  const email = "info@chatboc.ar";
 
   const handleCopyEmail = () => {
     navigator.clipboard.writeText(email);
