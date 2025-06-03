@@ -31,7 +31,7 @@ const plans = [
     features: [
       'Hasta 200 preguntas y respuestas personalizadas por mes',
       'Entrenamiento optimizado para el rubro de tu empresa',
-      'Carga ilimitada de catálogos en PDF/Excel',
+      'Carga Controlada de catálogos en PDF/Excel',
       'Búsqueda y respuestas en tiempo real usando Qdrant',
       'Panel de métricas, historial de consultas y mejoras continuas',
       'Asistente IA con aprendizaje sobre tus productos',
