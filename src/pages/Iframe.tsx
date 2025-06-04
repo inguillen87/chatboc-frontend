@@ -1,6 +1,6 @@
 import React, { useEffect, useState, Suspense } from "react";
 
-// Ajusta la ruta a tu componente ChatWidget
+// Ajusta la ruta si tu estructura es distinta
 const ChatWidget = React.lazy(() => import("@/components/chat/ChatWidget")); 
 
 const Iframe = () => {
@@ -10,43 +10,38 @@ const Iframe = () => {
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
-      // Leer defaultOpen y widgetId de los parámetros de la URL del iframe
       const openParam = params.get("defaultOpen");
       const idParam = params.get("widgetId");
-
-      if (openParam === "true") { // widget.js pasa "true" como string
-        setDefaultOpen(true);
-      }
-      if (idParam) {
-        setWidgetId(idParam);
-      }
+      if (openParam === "true") setDefaultOpen(true);
+      if (idParam) setWidgetId(idParam);
     }
   }, []);
 
-  useEffect(() => { // Estilos para el body del iframe
+  useEffect(() => {
     if (typeof document !== "undefined") {
-        document.body.style.margin = "0";
-        document.body.style.padding = "0";
-        document.body.style.height = "100vh";
-        document.body.style.width = "100vw";
-        document.body.style.overflow = "hidden";
-        const rootEl = document.getElementById("root") || document.getElementById("__next");
-        if (rootEl) {
-            rootEl.style.height = "100%";
-            rootEl.style.width = "100%";
-            rootEl.style.overflow = "hidden";
-        }
+      document.body.style.margin = "0";
+      document.body.style.padding = "0";
+      document.body.style.height = "100vh";
+      document.body.style.width = "100vw";
+      document.body.style.overflow = "hidden";
+      // Para Next.js, Vite o CRA
+      const rootEl = document.getElementById("root") || document.getElementById("__next") || document.getElementById("app");
+      if (rootEl) {
+        rootEl.style.height = "100%";
+        rootEl.style.width = "100%";
+        rootEl.style.overflow = "hidden";
+      }
     }
   }, []);
 
   return (
     <div style={{
-      width: "100%", 
+      width: "100%",
       height: "100%",
       background: "transparent",
       margin: 0,
       padding: 0,
-      overflow: "hidden", 
+      overflow: "hidden",
       display: "flex",
       flexDirection: "column"
     }}>
@@ -55,7 +50,7 @@ const Iframe = () => {
           Cargando Chatboc...
         </div>
       }>
-        <ChatWidget defaultOpen={defaultOpen} widgetId={widgetId} />
+        <ChatWidget mode="iframe" defaultOpen={defaultOpen} widgetId={widgetId} />
       </Suspense>
     </div>
   );
