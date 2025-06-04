@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Send } from "lucide-react"; // Usá 'Send' si 'SendHorizontal' no existe en tu versión
+import { Send } from "lucide-react";
 
 interface Props {
   onSendMessage: (text: string) => void;
@@ -17,7 +17,7 @@ const ChatInput: React.FC<Props> = ({ onSendMessage }) => {
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Animación de placeholder (tipo carousel)
+  // Animación de placeholder (carousel)
   useEffect(() => {
     const interval = setInterval(() => {
       setPlaceholderIndex((i) => (i + 1) % PLACEHOLDERS.length);
@@ -34,11 +34,12 @@ const ChatInput: React.FC<Props> = ({ onSendMessage }) => {
   };
 
   return (
-    <div className="flex items-center gap-2 px-3 py-2 border-t border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-[#15171b]/80 backdrop-blur-md">
+    <div className="w-full max-w-[420px] mx-auto flex items-center gap-2 px-3 py-2 border-t border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-[#15171b]/80 backdrop-blur-md">
       <input
         ref={inputRef}
         className="
-          flex-1 bg-white/70 dark:bg-[#23272e]/70
+          flex-1 max-w-full min-w-0
+          bg-white/70 dark:bg-[#23272e]/70
           border border-gray-200 dark:border-[#262a31]
           rounded-full px-4 py-2
           text-base text-gray-900 dark:text-gray-100 

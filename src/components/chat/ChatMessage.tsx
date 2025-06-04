@@ -2,7 +2,6 @@ import React from "react";
 import { Message } from "@/types/chat";
 import { motion } from "framer-motion";
 
-// Logo Bot ajustá si tu ruta es otra
 const LOGO_BOT = "/favicon/favicon-48x48.png";
 
 const UserAvatar = () => (
@@ -24,7 +23,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
     );
   }
 
-  // Botón CTA especial
+  // CTA buttons
   if (message.text === "__cta__") {
     const user = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("user") || "null") : null;
     if (user?.token) return null;
@@ -55,7 +54,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
 
   const isBot = message.isBot;
 
-  // ANIMACIONES
+  // Animations
   const bubbleVariants = {
     hidden: { opacity: 0, y: 14, scale: 0.98 },
     visible: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.18 } },
@@ -73,7 +72,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
         font-['Inter','Segoe UI',Arial,sans-serif]
       `}
     >
-      {/* BOT avatar */}
+      {/* Bot avatar */}
       {isBot && (
         <motion.span
           className="flex-shrink-0 w-10 h-10 rounded-full bg-white dark:bg-blue-950 flex items-center justify-center border border-blue-200 dark:border-blue-900 shadow-md"
@@ -90,10 +89,11 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
         </motion.span>
       )}
 
-      {/* Mensaje */}
+      {/* Message bubble */}
       <motion.div
         className={`
-          max-w-[80vw] sm:max-w-[68%] px-4 py-2 rounded-2xl shadow-lg
+          max-w-[95vw] sm:max-w-[380px] md:max-w-[420px] w-full
+          px-4 py-2 rounded-2xl shadow-lg
           text-base leading-snug
           ${isBot
             ? "bg-gradient-to-br from-blue-50 via-white to-blue-100 dark:from-blue-900 dark:to-blue-800 dark:via-blue-950 text-blue-900 dark:text-blue-100 border border-blue-100 dark:border-blue-900 rounded-bl-none"
@@ -106,8 +106,15 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
         variants={bubbleVariants}
       >
         <div
-          className="whitespace-pre-wrap"
-          style={{ minHeight: 24 }}
+          className="w-full prose prose-blue dark:prose-invert max-w-full"
+          style={{
+            padding: 0,
+            margin: 0,
+            fontSize: '1em',
+            lineHeight: 1.42,
+            fontFamily: "inherit",
+            overflowWrap: "break-word"
+          }}
           dangerouslySetInnerHTML={{ __html: message.text }}
         />
         <div className="text-xs mt-1 opacity-60 text-right select-none tracking-tight font-normal">
@@ -117,7 +124,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
         </div>
       </motion.div>
 
-      {/* Usuario avatar */}
+      {/* User avatar */}
       {!isBot && (
         <motion.span
           className="flex-shrink-0 w-9 h-9 rounded-full bg-gradient-to-br from-blue-200 to-blue-400 dark:from-gray-800 dark:to-gray-900 flex items-center justify-center border border-blue-200 dark:border-blue-700 shadow-md"
