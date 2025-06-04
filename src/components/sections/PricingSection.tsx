@@ -25,7 +25,7 @@ const plans = [
   },
   {
     name: 'Chatboc Pro',
-    price: '$30',
+    price: '$',
     duration: '/ mes',
     description: 'Automatización profesional para pymes. Incluye procesamiento avanzado de catálogos, respuestas personalizadas y tecnología de IA de última generación.',
     features: [
@@ -45,7 +45,7 @@ const plans = [
   },
   {
     name: 'Chatboc Full',
-    price: '$80',
+    price: '$',
     duration: '/ mes',
     description: 'Todo el poder de nuestra IA: atención ilimitada, integraciones con otras redes, automatizaciones y paneles avanzados. Desarrollado con tecnología mundial de vanguardia.',
     features: [

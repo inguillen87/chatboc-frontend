@@ -95,7 +95,7 @@ const ChatPosPage = () => {
           >
             <h3 className="text-xl font-bold mb-2">Básico</h3>
             <p className="text-muted-foreground mb-3">Para un solo local</p>
-            <p className="text-3xl font-bold text-green-700">$15/mes</p>
+            <p className="text-3xl font-bold text-green-700">$/mes</p>
           </motion.div>
           <motion.div
             whileHover={{ scale: 1.05 }}
@@ -103,7 +103,7 @@ const ChatPosPage = () => {
           >
             <h3 className="text-xl font-bold mb-2">Profesional</h3>
             <p className="text-muted-foreground mb-3">Multi-sucursal + Soporte + Chatboc</p>
-            <p className="text-3xl font-bold text-green-700">$30/mes</p>
+            <p className="text-3xl font-bold text-green-700">$/mes</p>
           </motion.div>
           <motion.div
             whileHover={{ scale: 1.03 }}
@@ -111,7 +111,7 @@ const ChatPosPage = () => {
           >
             <h3 className="text-xl font-bold mb-2">Premium</h3>
             <p className="text-muted-foreground mb-3">Todo incluido + dominio propio</p>
-            <p className="text-3xl font-bold text-green-700">$50/mes</p>
+            <p className="text-3xl font-bold text-green-700">$/mes</p>
           </motion.div>
         </div>
       </section>

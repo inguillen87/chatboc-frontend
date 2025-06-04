@@ -95,7 +95,7 @@ const ChatCRMPage = () => {
           >
             <h3 className="text-xl font-bold mb-2">Base</h3>
             <p className="text-muted-foreground mb-3">Gestión simple de clientes</p>
-            <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">$10/mes</p>
+            <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">$/mes</p>
           </motion.div>
           <motion.div
             whileHover={{ scale: 1.05 }}
@@ -105,7 +105,7 @@ const ChatCRMPage = () => {
             <p className="text-muted-foreground mb-3">
               Campañas automatizadas + WhatsApp
             </p>
-            <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">$25/mes</p>
+            <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">$/mes</p>
           </motion.div>
           <motion.div
             whileHover={{ scale: 1.03 }}
@@ -115,7 +115,7 @@ const ChatCRMPage = () => {
             <p className="text-muted-foreground mb-3">
               Todo incluido + Chatboc embebido
             </p>
-            <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">$45/mes</p>
+            <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">$/mes</p>
           </motion.div>
         </div>
       </section>
