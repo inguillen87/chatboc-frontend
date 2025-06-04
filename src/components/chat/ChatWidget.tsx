@@ -1,14 +1,12 @@
 import React, { useState, useRef, useEffect, CSSProperties } from "react";
-import { X } from "lucide-react"; // Asegúrate de tener lucide-react instalado
-
-// Asume que las rutas a estos componentes son correctas en tu proyecto
+import { X } from "lucide-react";
 import ChatMessage from "./ChatMessage";
 import TypingIndicator from "./TypingIndicator";
 import ChatInput from "./ChatInput";
-import { Message } from "@/types/chat"; // Asume que tienes este tipo definido
-import { apiFetch } from "@/utils/api"; // Asume que tienes esta utilidad
+import { Message } from "@/types/chat";
+import { apiFetch } from "@/utils/api";
 
-// --- Componente ChatHeader (Integrado para completitud) ---
+// --- Componente ChatHeader ---
 interface ChatHeaderProps {
   title?: string;
   onMinimize?: () => void;
@@ -20,7 +18,6 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
   const [prefersDarkHeader, setPrefersDarkHeader] = useState(
     typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches
   );
-
   useEffect(() => {
     if (typeof window === "undefined") return;
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
@@ -32,17 +29,10 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
   return (
     <div
       className="flex items-center justify-between p-3 border-b select-none"
-      style={{
-        borderBottomColor: prefersDarkHeader ? "#374151" : "#e5e7eb",
-        cursor: "default",
-      }}
+      style={{ borderBottomColor: prefersDarkHeader ? "#374151" : "#e5e7eb", cursor: "default" }}
     >
       <div className="flex items-center pointer-events-none">
-        <img
-          src="/chatboc_logo_clean_transparent.png" // RUTA PÚBLICA A TU LOGO
-          alt="Chatboc"
-          className="w-6 h-6 mr-2"
-        />
+        <img src="/chatboc_logo_clean_transparent.png" alt="Chatboc" className="w-6 h-6 mr-2" />
         <span className="font-semibold text-sm">{title}</span>
       </div>
       <div className="flex items-center">
@@ -50,11 +40,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
           &nbsp;• Online
         </span>
         {onMinimize && (
-          <button
-            onClick={onMinimize}
-            className="text-gray-600 dark:text-gray-300 hover:text-red-500 focus:outline-none"
-            aria-label="Minimizar chat"
-          >
+          <button onClick={onMinimize} className="text-gray-600 dark:text-gray-300 hover:text-red-500 focus:outline-none" aria-label="Minimizar chat">
             <X size={20} />
           </button>
         )}
@@ -62,19 +48,16 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
     </div>
   );
 };
-// --- Fin Componente ChatHeader ---
 
-// --- Función getToken (Completa) ---
+// --- Función getToken ---
 function getToken(): string {
   if (typeof window === "undefined") return "demo-anon-ssr";
   const params = new URLSearchParams(window.location.search);
   const urlToken = params.get("token");
   if (urlToken) return urlToken;
-
   const storedUserItem = localStorage.getItem("user");
   const user = storedUserItem ? JSON.parse(storedUserItem) : null;
   if (user && user.token && typeof user.token === 'string' && !user.token.startsWith("demo")) return user.token;
-
   let anonToken = localStorage.getItem("anon_token");
   if (!anonToken) {
     anonToken = `demo-anon-${Math.random().toString(36).substring(2, 10)}`;
@@ -82,7 +65,6 @@ function getToken(): string {
   }
   return anonToken;
 }
-// --- Fin Función getToken ---
 
 interface ChatWidgetProps {
   widgetId?: string;
@@ -91,7 +73,6 @@ interface ChatWidgetProps {
 const ChatWidget: React.FC<ChatWidgetProps> = ({
   widgetId = "chatboc-iframe-unknown",
 }) => {
-  const [isOpen, setIsOpen] = useState(true); // El widget dentro del iframe siempre está "abierto" mostrando su contenido
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [preguntasUsadas, setPreguntasUsadas] = useState(0);
@@ -99,7 +80,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const [rubrosDisponibles, setRubrosDisponibles] = useState<{ id: number; nombre: string }[]>([]);
   const [esperandoRubro, setEsperandoRubro] = useState(true);
   const [cargandoRubros, setCargandoRubros] = useState(false);
-  const [token, setToken] = useState<string>(""); // Especificar tipo string
+  const [token, setToken] = useState<string>("");
   const [prefersDark, setPrefersDark] = useState(
     typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches
   );
@@ -118,7 +99,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const cargarRubros = async () => {
     setCargandoRubros(true);
     try {
-      const res = await fetch("https://api.chatboc.ar/rubros"); // URL DE TU API
+      const res = await fetch("https://api.chatboc.ar/rubros");
       if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
       const data = await res.json();
       setRubrosDisponibles(data.rubros || []);
@@ -132,7 +113,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const recargarTokenYRubro = () => {
     const currentToken = getToken();
     setToken(currentToken);
-
     if (currentToken && !currentToken.startsWith("demo") && !currentToken.includes("anon")) {
       setPreguntasUsadas(0);
       if (typeof window !== "undefined") localStorage.removeItem("rubroSeleccionado");
@@ -143,7 +123,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       setEsperandoRubro(false);
       return;
     }
-
     const rubro = typeof window !== "undefined" ? localStorage.getItem("rubroSeleccionado") : null;
     if (!rubro) {
       setEsperandoRubro(true);
@@ -198,7 +177,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       const respuestaFinal: string = typeof data?.respuesta === "string" ? data.respuesta : data?.respuesta?.text || "❌ No entendí tu mensaje.";
       const botMessage: Message = { id: Date.now() + 1, text: respuestaFinal, isBot: true, timestamp: new Date() };
       setMessages((prevMessages) => {
-        const filteredMessages = prevMessages.filter(m => m.id !== newUserMessageId); // Evita duplicados si hay re-render
+        const filteredMessages = prevMessages.filter(m => m.id !== newUserMessageId);
         return [...filteredMessages, userMessage, botMessage];
       });
       if (esAnonimo) setPreguntasUsadas((prev) => prev + 1);
@@ -250,11 +229,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     background: prefersDark ? "#161c24" : "#fff",
     color: prefersDark ? "#fff" : "#222",
     overflow: "hidden",
-    // El borderRadius y boxShadow son manejados por el iframe en widget.js
   };
 
-  // Este ChatWidget siempre renderiza la interfaz de chat completa.
-  // widget.js se encarga de mostrar/ocultar este iframe o el globito.
   return (
     <div style={widgetStyle}>
       {esperandoRubro ? rubroSelectionViewContent : mainChatViewContent}
