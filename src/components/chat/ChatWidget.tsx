@@ -1,26 +1,20 @@
 import React, { useState, useRef, useEffect, CSSProperties } from "react";
-import { X } from "lucide-react"; // Icono para el botón de cierre
-import ChatMessage from "./ChatMessage"; // Asegúrate que la ruta sea correcta
-import TypingIndicator from "./TypingIndicator"; // Asegúrate que la ruta sea correcta
-import ChatInput from "./ChatInput"; // Asegúrate que la ruta sea correcta
-import { Message } from "@/types/chat"; // Asegúrate que la ruta sea correcta
-import { apiFetch } from "@/utils/api"; // Asegúrate que la ruta sea correcta
+import { X } from "lucide-react"; // Icono para el botón de cierre en el Header
+// Asume que tienes estos componentes y tipos en las rutas correctas:
+import ChatMessage from "./ChatMessage";
+import TypingIndicator from "./TypingIndicator";
+import ChatInput from "./ChatInput";
+import { Message } from "@/types/chat";
+import { apiFetch } from "@/utils/api";
 
-// --- Componente ChatHeader (integrado aquí o puede ser importado si ya existe modificado) ---
+// --- Componente ChatHeader (Definido aquí para completitud) ---
 interface ChatHeaderProps {
   title?: string;
-  showCloseButton?: boolean;
-  onClose?: () => void;
-  onMouseDownDrag?: (e: React.MouseEvent | React.TouchEvent) => void;
-  isDraggable?: boolean;
+  onClose?: () => void; // Para minimizar a globito
 }
-
 const ChatHeader: React.FC<ChatHeaderProps> = ({
-  title = "Chatboc Asistente Virtual",
-  showCloseButton = false,
+  title = "Chatboc Asistente",
   onClose,
-  onMouseDownDrag,
-  isDraggable,
 }) => {
   const [prefersDarkHeader, setPrefersDarkHeader] = useState(
     typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches
@@ -39,28 +33,27 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
       className="flex items-center justify-between p-3 border-b select-none"
       style={{
         borderBottomColor: prefersDarkHeader ? "#374151" : "#e5e7eb",
-        cursor: isDraggable && onMouseDownDrag ? "move" : "default",
+        // El arrastre lo maneja widget.js sobre el iframe, no el header interno directamente
+        cursor: "default", 
       }}
-      onMouseDown={onMouseDownDrag}
-      onTouchStart={onMouseDownDrag}
     >
       <div className="flex items-center pointer-events-none">
         <img
-          src="/chatboc_logo_clean_transparent.png" // Verifica esta ruta
+          src="/chatboc_logo_clean_transparent.png" // VERIFICA ESTA RUTA PÚBLICA
           alt="Chatboc"
           className="w-6 h-6 mr-2"
         />
         <span className="font-semibold text-sm">{title}</span>
       </div>
       <div className="flex items-center">
-        <span style={{ fontSize: 12, fontWeight: 400, color: prefersDarkHeader ? "#90EE90" : "#24ba53", marginRight: showCloseButton ? '8px' : '0' }} className="pointer-events-none">
+        <span style={{ fontSize: 12, fontWeight: 400, color: prefersDarkHeader ? "#90EE90" : "#24ba53", marginRight: onClose ? '8px' : '0' }} className="pointer-events-none">
           &nbsp;• Online
         </span>
-        {showCloseButton && onClose && (
+        {onClose && (
           <button
             onClick={onClose}
             className="text-gray-600 dark:text-gray-300 hover:text-red-500 focus:outline-none"
-            aria-label="Cerrar chat"
+            aria-label="Minimizar chat"
           >
             <X size={20} />
           </button>
@@ -71,8 +64,9 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
 };
 // --- Fin Componente ChatHeader ---
 
+// --- Función getToken (Completa) ---
 function getToken() {
-  if (typeof window === "undefined") return "demo-anon-ssr";
+  if (typeof window === "undefined") return "demo-anon-ssr"; // Salvaguarda para SSR
   const params = new URLSearchParams(window.location.search);
   const urlToken = params.get("token");
   if (urlToken) return urlToken;
@@ -88,21 +82,25 @@ function getToken() {
   }
   return anonToken;
 }
+// --- Fin Función getToken ---
 
+// --- Props y Constantes de Dimensiones ---
 interface ChatWidgetProps {
-  mode?: "iframe" | "standalone";
-  initialPosition?: { top?: number | string; bottom?: number | string; left?: number | string; right?: number | string };
-  draggable?: boolean;
   defaultOpen?: boolean;
+  widgetId?: string;
 }
 
+const WIDGET_DIMENSIONS = {
+  OPEN: { width: "360px", height: "520px" }, // Valores por defecto, widget.js puede tener los suyos
+  CLOSED: { width: "80px", height: "80px" },
+};
+
+// --- Componente ChatWidget ---
 const ChatWidget: React.FC<ChatWidgetProps> = ({
-  mode = "standalone",
-  initialPosition: initialPosProp = { bottom: 20, right: 20 },
-  draggable = true,
   defaultOpen = false,
+  widgetId = "chatboc-widget-iframe", // Debe coincidir con el ID en widget.js
 }) => {
-  const [isOpen, setIsOpen] = useState(mode === "iframe" ? true : defaultOpen);
+  const [isOpen, setIsOpen] = useState(defaultOpen);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [preguntasUsadas, setPreguntasUsadas] = useState(0);
@@ -111,20 +109,14 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const [esperandoRubro, setEsperandoRubro] = useState(false);
   const [cargandoRubros, setCargandoRubros] = useState(false);
   const [token, setToken] = useState("");
-
   const [prefersDark, setPrefersDark] = useState(
     typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches
   );
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
-  const widgetContainerRef = useRef<HTMLDivElement>(null);
-  const dragStartPosRef = useRef<{ x: number; y: number; elementX: number; elementY: number } | null>(null);
-  
-  const [currentPos, setCurrentPos] = useState<CSSProperties>(
-    mode === "standalone" ? { position: 'fixed', ...initialPosProp, zIndex: 99998 } : {}
-  );
 
+  // Efecto para Dark Mode
   useEffect(() => {
     if (typeof window === "undefined") return;
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
@@ -133,32 +125,33 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     return () => mq.removeEventListener("change", handler);
   }, []);
 
+  // Cargar Rubros
   const cargarRubros = async () => {
     setCargandoRubros(true);
     try {
-      const res = await fetch("https://api.chatboc.ar/rubros");
+      const res = await fetch("https://api.chatboc.ar/rubros"); // URL de tu API
       const data = await res.json();
       setRubrosDisponibles(data.rubros || []);
-    } catch {
+    } catch (error) {
+      console.error("Error cargando rubros:", error);
       setRubrosDisponibles([]);
     }
     setCargandoRubros(false);
   };
 
+  // Recargar Token y Rubro
   const recargarTokenYRubro = () => {
     const currentToken = getToken();
     setToken(currentToken);
-
     if (currentToken && !currentToken.startsWith("demo")) {
       setPreguntasUsadas(0);
-      if(typeof window !== "undefined") localStorage.removeItem("rubroSeleccionado");
+      if (typeof window !== "undefined") localStorage.removeItem("rubroSeleccionado");
       const storedUser = typeof window !== "undefined" ? localStorage.getItem("user") : null;
       const user = storedUser ? JSON.parse(storedUser) : null;
       setRubroSeleccionado(user?.rubro?.toLowerCase() || "general");
       setEsperandoRubro(false);
       return;
     }
-
     const rubro = typeof window !== "undefined" ? localStorage.getItem("rubroSeleccionado") : null;
     if (!rubro) {
       setEsperandoRubro(true);
@@ -170,95 +163,88 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     }
   };
 
-  useEffect(() => { 
-    recargarTokenYRubro(); 
-    if (typeof window !== "undefined") window.addEventListener("storage", recargarTokenYRubro); 
-    return () => {
-      if (typeof window !== "undefined") window.removeEventListener("storage", recargarTokenYRubro);
-    }
+  useEffect(() => {
+    recargarTokenYRubro();
+    if (typeof window !== "undefined") window.addEventListener("storage", recargarTokenYRubro);
+    return () => { if (typeof window !== "undefined") window.removeEventListener("storage", recargarTokenYRubro); };
   }, []);
-  
-  useEffect(() => { 
-    if (chatContainerRef.current) chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight; 
+
+  // Scroll al final de los mensajes
+  useEffect(() => {
+    if (chatContainerRef.current) chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
   }, [messages, isTyping]);
-  
+
+  // Mensaje de bienvenida y limpieza de mensajes al minimizar
   useEffect(() => {
     if (isOpen && rubroSeleccionado) {
-      setMessages([{ id: 1, text: "¡Hola! Soy Chatboc, tu asistente virtual. ¿En qué puedo ayudarte hoy?", isBot: true, timestamp: new Date() }]);
+      if (messages.length === 0 || messages[0]?.text !== "¡Hola! Soy Chatboc, tu asistente virtual. ¿En qué puedo ayudarte hoy?") {
+         setMessages([{ id: Date.now(), text: "¡Hola! Soy Chatboc, tu asistente virtual. ¿En qué puedo ayudarte hoy?", isBot: true, timestamp: new Date() }]);
+      }
+    } else if (!isOpen) {
+      setMessages([]); // Limpiar mensajes cuando se minimiza a globito
     }
-  }, [isOpen, rubroSeleccionado]);
+  }, [isOpen, rubroSeleccionado]); // messages fue quitado para evitar bucle si el ID cambia
 
+  // Enviar Mensaje
   const handleSendMessage = async (text: string) => {
     if (!text.trim()) return;
     if (!rubroSeleccionado) {
-      setMessages((prev) => [...prev, { id: prev.length + 1, text: "🛈 Por favor, seleccioná primero el rubro de tu negocio.", isBot: true, timestamp: new Date() }]);
+      setMessages((prev) => [...prev, { id: Date.now(), text: "🛈 Por favor, seleccioná primero el rubro de tu negocio.", isBot: true, timestamp: new Date() }]);
       return;
     }
     const esAnonimo = token.startsWith("demo-anon") || token.startsWith("demo-token");
     if (esAnonimo && preguntasUsadas >= 15) {
-      setMessages((prev) => [...prev, { id: prev.length + 1, text: `🔒 Alcanzaste el límite de 15 preguntas gratuitas en esta demo.\n\n👉 Creá una cuenta para seguir usando Chatboc: https://chatboc.ar/register`, isBot: true, timestamp: new Date() }]);
+      setMessages((prev) => [...prev, { id: Date.now(), text: `🔒 Alcanzaste el límite de 15 preguntas gratuitas en esta demo.\n\n👉 Creá una cuenta para seguir usando Chatboc: https://chatboc.ar/register`, isBot: true, timestamp: new Date() }]);
       return;
     }
-    const userMessage: Message = { id: messages.length + 1, text, isBot: false, timestamp: new Date() };
-    setMessages((prev) => [...prev, userMessage]);
+    const userMessage: Message = { id: Date.now(), text, isBot: false, timestamp: new Date() };
+    setMessages((prevMessages) => [...prevMessages, userMessage]);
     setIsTyping(true);
     try {
       const data = await apiFetch("/ask", "POST", { pregunta: text, rubro: rubroSeleccionado }, { headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` } });
       const respuestaFinal: string = typeof data?.respuesta === "string" ? data.respuesta : data?.respuesta?.text || "❌ No entendí tu mensaje.";
-      const botMessage: Message = { id: messages.length + 2, text: respuestaFinal, isBot: true, timestamp: new Date() };
-      setMessages((prev) => [...prev, botMessage]);
+      const botMessage: Message = { id: Date.now() +1, text: respuestaFinal, isBot: true, timestamp: new Date() };
+      setMessages((prevMessages) => [...prevMessages.filter(m => m.id !== userMessage.id), userMessage, botMessage]); // Asegura orden y evita duplicados si hay re-render rápido
       if (esAnonimo) setPreguntasUsadas((prev) => prev + 1);
-    } catch {
-      setMessages((prev) => [...prev, { id: messages.length + 2, text: "⚠️ No se pudo conectar con el servidor.", isBot: true, timestamp: new Date() }]);
+    } catch (error) {
+      console.error("Error enviando mensaje:", error);
+      setMessages((prevMessages) => [...prevMessages, { id: Date.now(), text: "⚠️ No se pudo conectar con el servidor.", isBot: true, timestamp: new Date() }]);
     } finally {
       setIsTyping(false);
     }
   };
 
-  const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
-    if (mode !== "standalone" || !draggable || !widgetContainerRef.current || typeof window === "undefined") return;
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-    const rect = widgetContainerRef.current.getBoundingClientRect();
-    dragStartPosRef.current = { x: clientX, y: clientY, elementX: rect.left, elementY: rect.top };
-    document.addEventListener("mousemove", handleDragging);
-    document.addEventListener("mouseup", handleDragEnd);
-    document.addEventListener("touchmove", handleDragging, { passive: false });
-    document.addEventListener("touchend", handleDragEnd);
-    if ('preventDefault' in e && e.cancelable) e.preventDefault();
-  };
+  // Comunicación con widget.js para redimensionar el iframe
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.parent !== window) {
+      const desiredDimensions = isOpen ? WIDGET_DIMENSIONS.OPEN : WIDGET_DIMENSIONS.CLOSED;
+      // Leer dimensiones de data-attributes del script en widget.js si están disponibles
+      // Esto es complejo de hacer desde el iframe. widget.js debe proveerlas.
+      // Por ahora, usamos las constantes.
 
-  const handleDragging = (e: MouseEvent | TouchEvent) => {
-    if (!dragStartPosRef.current || mode !== "standalone" || !draggable || typeof window === "undefined") return;
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-    const dx = clientX - dragStartPosRef.current.x;
-    const dy = clientY - dragStartPosRef.current.y;
-    setCurrentPos(prevPos => ({ ...prevPos, left: dragStartPosRef.current!.elementX + dx, top: dragStartPosRef.current!.elementY + dy, right: undefined, bottom: undefined }));
-    if ('preventDefault' in e && e.cancelable) e.preventDefault();
-  };
-
-  const handleDragEnd = () => {
-    dragStartPosRef.current = null;
-    if (typeof window === "undefined") return;
-    document.removeEventListener("mousemove", handleDragging);
-    document.removeEventListener("mouseup", handleDragEnd);
-    document.removeEventListener("touchmove", handleDragging);
-    document.removeEventListener("touchend", handleDragEnd);
-  };
-
-  const toggleChat = () => {
-    if (mode === "standalone") {
-      setIsOpen(prevIsOpen => {
-        const nextIsOpen = !prevIsOpen;
-        if (nextIsOpen) recargarTokenYRubro();
-        return nextIsOpen;
-      });
+      window.parent.postMessage({
+        type: "chatboc-resize",
+        widgetId: widgetId,
+        dimensions: desiredDimensions,
+        isOpen: isOpen,
+      }, "*"); // CAMBIA ESTO EN PRODUCCIÓN al origin de la página contenedora
     }
+  }, [isOpen, widgetId]);
+
+  // Toggle entre ventana de chat y globito
+  const toggleChat = () => {
+    setIsOpen(prevIsOpen => {
+      const nextIsOpen = !prevIsOpen;
+      if (nextIsOpen) { // Si se está abriendo
+        if(!rubroSeleccionado) recargarTokenYRubro(); // Cargar rubro si no está seleccionado
+      }
+      return nextIsOpen;
+    });
   };
   
+  // Vista para selección de Rubro
   const rubroSelectionViewContent = (
-    <div className={`w-full h-full flex flex-col items-center justify-center p-4 ${mode === 'standalone' && isOpen ? 'animate-slide-up' : ''}`}>
+    <div className="w-full h-full flex flex-col items-center justify-center p-4 animate-slide-up">
       <h2 className="text-lg font-semibold mb-3 text-center">👋 ¡Bienvenido!</h2>
       <p className="mb-4 text-sm text-center">¿De qué rubro es tu negocio?</p>
       {cargandoRubros ? ( <div className="text-center text-gray-500 text-sm my-6">Cargando rubros...</div>
@@ -268,17 +254,12 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     </div>
   );
 
+  // Vista principal del Chat
   const mainChatViewContent = (
     <>
-      <ChatHeader
-        title="Chatboc Asistente"
-        showCloseButton={mode === "standalone"}
-        onClose={toggleChat}
-        onMouseDownDrag={mode === "standalone" && isOpen && draggable ? handleDragStart : undefined}
-        isDraggable={mode === "standalone" && draggable && isOpen}
-      />
+      <ChatHeader title="Chatboc Asistente" onClose={toggleChat} />
       <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-3" ref={chatContainerRef}>
-        {messages.map((msg) => typeof msg.text === "string" ? <ChatMessage key={msg.id} message={msg} /> : null )}
+        {messages.map((msg) => <ChatMessage key={msg.id} message={msg} /> )}
         {isTyping && <TypingIndicator />}
         <div ref={messagesEndRef} />
       </div>
@@ -286,34 +267,40 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     </>
   );
 
-  if (mode === "iframe") {
-    return (
-      <div style={{
-        width: "100%", height: "100%", display: "flex", flexDirection: "column",
-        background: prefersDark ? "#161c24" : "#fff",
-        border: `1px solid ${prefersDark ? "#374151" : "#e5e7eb"}`,
-        borderRadius: "16px", 
-        color: prefersDark ? "#fff" : "#222",
-        overflow: "hidden",
-      }}>
-        {esperandoRubro ? rubroSelectionViewContent : mainChatViewContent}
-      </div>
-    );
-  }
+  // Estilo base del contenedor del widget (ocupa todo el iframe)
+  const widgetBaseStyle: CSSProperties = {
+    width: "100%",
+    height: "100%",
+    display: "flex", // Clave para centrar el globito
+    alignItems: "center", // Centra verticalmente el globito
+    justifyContent: "center", // Centra horizontalmente el globito
+    color: prefersDark ? "#fff" : "#222",
+    overflow: "hidden",
+    // La transición de borderRadius, background, etc., la manejará el iframe en widget.js
+    // para evitar conflictos visuales durante el redimensionamiento.
+    // Aquí solo nos preocupamos del contenido.
+  };
 
-  return (
-    <div ref={widgetContainerRef} style={currentPos}>
-      {!isOpen && (
+  // El fondo del iframe será transparente. El contenido del ChatWidget tendrá el fondo.
+  if (!isOpen) { // Renderizar el "globito"
+    return (
+      <div
+        style={{
+          ...widgetBaseStyle,
+          background: "transparent", // El iframe es el que cambia, el contenido del globito se centra
+        }}
+        role="button" // El iframe se hará pequeño, este div lo llena transparentemente
+        tabIndex={-1} // No enfocable, el botón interno sí
+      >
+        {/* Botón real del globito, centrado por el div padre */}
         <button
           onClick={toggleChat}
-          onMouseDown={draggable ? handleDragStart : undefined}
-          onTouchStart={draggable ? handleDragStart : undefined}
-          className="group w-16 h-16 rounded-full flex items-center justify-center border shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:scale-105"
           aria-label="Abrir chat"
+          className="w-16 h-16 rounded-full flex items-center justify-center border focus:outline-none shadow-lg hover:shadow-xl transition-all transform hover:scale-105"
           style={{
-            borderColor: prefersDark ? "#374151" : "#e5e7eb",
-            background: prefersDark ? "#161c24" : "#fff",
-            cursor: draggable ? "move" : "pointer",
+            borderColor: prefersDark ? "#4a5568" : "#ccc", // Borde más sutil para el globito
+            background: prefersDark ? "#2d3748" : "#fff", // Fondo del globito
+            cursor: "pointer",
           }}
         >
           <div className="relative">
@@ -321,22 +308,26 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-gray-900" />
           </div>
         </button>
-      )}
+      </div>
+    );
+  }
 
-      {isOpen && (
-        <div
-          className="w-80 md:w-96 rounded-xl shadow-2xl flex flex-col overflow-hidden animate-slide-up"
-          style={{
-            height: esperandoRubro ? 'auto' : '500px',
-            minHeight: esperandoRubro ? '240px' : undefined,
-            background: prefersDark ? "#161c24" : "#fff",
-            border: `1px solid ${prefersDark ? "#374151" : "#e5e7eb"}`,
-            color: prefersDark ? "#fff" : "#222",
-          }}
-        >
-          {esperandoRubro ? rubroSelectionViewContent : mainChatViewContent}
-        </div>
-      )}
+  // Renderizar la ventana de chat completa o selección de rubro
+  return (
+    <div style={{
+        ...widgetBaseStyle,
+        flexDirection: "column", // Para apilar Header, Messages, Input
+        alignItems: "stretch", // Estirar hijos horizontalmente
+        justifyContent: "flex-start", // Alinear hijos arriba
+        background: prefersDark ? "#161c24" : "#fff",
+        // El borde y borderRadius los maneja el iframe en widget.js
+        // No aplicar aquí para evitar doble borde si el iframe ya tiene uno.
+        // Si el iframe no tuviera borde (iframe.style.border = "none" como está en widget.js),
+        // y quieres que el contenido SÍ tenga borde, lo pones aquí.
+        // border: `1px solid ${prefersDark ? "#374151" : "#e5e7eb"}`,
+        // borderRadius: "16px", // Esto debería coincidir con el borderRadius del iframe
+    }}>
+      {esperandoRubro ? rubroSelectionViewContent : mainChatViewContent}
     </div>
   );
 };
