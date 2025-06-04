@@ -1,12 +1,19 @@
 (function () {
+  "use strict"; // Usar modo estricto
+
   const script = document.currentScript;
+  if (!script) {
+    console.error("Chatboc: No se pudo obtener el script actual para la configuración.");
+    return;
+  }
+
   const token = script.getAttribute("data-token") || "demo-anon";
   const initialBottom = script.getAttribute("data-bottom") || "20px";
   const initialRight = script.getAttribute("data-right") || "20px";
   const defaultOpen = script.getAttribute("data-default-open") === "true";
+  const chatbocDomain = script.getAttribute("data-domain") || "https://www.chatboc.ar"; // Permite configurar el dominio
 
-  const zIndexBase = parseInt(script.getAttribute("data-z") || "999990");
-  // Generar un ID único para cada instancia del widget en la página
+  const zIndexBase = parseInt(script.getAttribute("data-z") || "999990", 10);
   const iframeId = "chatboc-iframe-" + Math.random().toString(36).substring(2, 9);
   const globitoId = "chatboc-globito-" + Math.random().toString(36).substring(2, 9);
 
@@ -14,7 +21,10 @@
   const chatWindowHeight = script.getAttribute("data-height") || "520px";
   const globitoSize = "64px";
 
-  let isChatCurrentlyOpen = defaultOpen; // Estado visual actual
+  let isChatCurrentlyOpen = defaultOpen;
+  let iframeHasLoaded = false;
+  let currentIframeLeft = null; // Para guardar la posición si se arrastra
+  let currentIframeTop = null;
 
   // --- Estilos para animación ---
   const styleSheet = document.createElement("style");
@@ -22,7 +32,14 @@
   styleSheet.innerText = `
     #${iframeId}, #${globitoId} {
       transition: opacity 0.25s ease-in-out, transform 0.25s ease-in-out, width 0.25s ease-in-out, height 0.25s ease-in-out, border-radius 0.25s ease-in-out;
-      transform-origin: bottom right; /* Animación desde la esquina */
+      transform-origin: bottom right;
+      will-change: opacity, transform; /* Optimización para animaciones */
+    }
+    .chatboc-element {
+      position: fixed;
+      bottom: ${initialBottom};
+      right: ${initialRight};
+      /* left y top se establecerán si se arrastra */
     }
     .chatboc-visible {
       opacity: 1 !important;
@@ -41,14 +58,12 @@
   const globitoButton = document.createElement("button");
   globitoButton.id = globitoId;
   globitoButton.title = "Abrir Chatboc";
-  globitoButton.style.position = "fixed";
-  globitoButton.style.bottom = initialBottom;
-  globitoButton.style.right = initialRight;
+  globitoButton.classList.add("chatboc-element"); // Aplicar clase base para posición
   globitoButton.style.width = globitoSize;
   globitoButton.style.height = globitoSize;
   globitoButton.style.borderRadius = "50%";
-  globitoButton.style.border = "1px solid #ddd";
-  globitoButton.style.background = "#fff"; // Puede ser sobrescrito por estilos de tema oscuro
+  globitoButton.style.border = "1px solid #ddd"; // Borde sutil
+  globitoButton.style.background = "#fff";
   globitoButton.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
   globitoButton.style.cursor = "pointer";
   globitoButton.style.display = "flex";
@@ -57,8 +72,9 @@
   globitoButton.style.padding = "0";
   globitoButton.style.zIndex = (zIndexBase + 2).toString();
   globitoButton.classList.add(isChatCurrentlyOpen ? "chatboc-hidden" : "chatboc-visible");
+  // Asegúrate que la URL del logo sea accesible públicamente desde cualquier dominio
   globitoButton.innerHTML = `
-    <img src="https://www.chatboc.ar/chatboc_logo_clean_transparent.png" alt="Chatboc" style="width: 32px; height: 32px; border-radius: 4px; pointer-events: none;">
+    <img src="${chatbocDomain}/chatboc_logo_clean_transparent.png" alt="Chatboc" style="width: 32px; height: 32px; border-radius: 4px; pointer-events: none;">
     <span style="position: absolute; top: 2px; right: 2px; width: 12px; height: 12px; background-color: #28a745; border-radius: 50%; border: 2px solid white; pointer-events: none;"></span>
   `;
   if (!document.getElementById(globitoId)) document.body.appendChild(globitoButton);
@@ -66,10 +82,8 @@
   // --- Iframe (Ventana de Chat) ---
   const iframe = document.createElement("iframe");
   iframe.id = iframeId;
-  iframe.src = `https://www.chatboc.ar/iframe?token=${encodeURIComponent(token)}&widgetId=${iframeId}`;
-  iframe.style.position = "fixed";
-  iframe.style.bottom = initialBottom;
-  iframe.style.right = initialRight;
+  iframe.src = `${chatbocDomain}/iframe?token=${encodeURIComponent(token)}&widgetId=${iframeId}`;
+  iframe.classList.add("chatboc-element"); // Aplicar clase base para posición
   iframe.style.width = chatWindowWidth;
   iframe.style.height = chatWindowHeight;
   iframe.style.border = "none";
@@ -81,51 +95,55 @@
   iframe.allow = "clipboard-write";
   iframe.setAttribute("title", "Chatboc Chatbot");
   
-  // No mostramos el iframe hasta que cargue para evitar un flash de contenido vacío.
-  // La visibilidad inicial se maneja por las clases chatboc-visible/chatboc-hidden.
-  // if (!isChatCurrentlyOpen) { iframe.style.visibility = "hidden"; }
-
-
-  let iframeHasLoaded = false;
   iframe.onload = function () {
     iframeHasLoaded = true;
-    // Si defaultOpen era true, el iframe ya tiene la clase visible.
-    // Si no, el globito tiene la clase visible.
-    // No se necesita hacer nada más aquí respecto a la visibilidad inicial.
+    updateWidgetVisibility(); // Asegura que se muestre el estado correcto al cargar
   };
   if (!document.getElementById(iframeId)) document.body.appendChild(iframe);
 
-  // --- Funciones para controlar visibilidad ---
-  function showChatWindow() {
-    if (!iframeHasLoaded) { // Si el iframe no ha cargado, esperar a que cargue
-        isChatCurrentlyOpen = true; // Marcar para que se abra en onload
-        // Podríamos forzar el src de nuevo si tememos que no cargó, pero es mejor esperar.
-        return;
-    }
-    isChatCurrentlyOpen = true;
-    iframe.classList.remove("chatboc-hidden");
-    iframe.classList.add("chatboc-visible");
-    globitoButton.classList.remove("chatboc-visible");
-    globitoButton.classList.add("chatboc-hidden");
-  }
 
-  function showGlobito() {
-    isChatCurrentlyOpen = false;
-    iframe.classList.remove("chatboc-visible");
-    iframe.classList.add("chatboc-hidden");
-    globitoButton.classList.remove("chatboc-hidden");
-    globitoButton.classList.add("chatboc-visible");
+  // --- Funciones para controlar visibilidad ---
+  function updateWidgetVisibility() {
+    if (!iframeHasLoaded && isChatCurrentlyOpen) { 
+        // Si se supone que debe estar abierto pero el iframe no ha cargado, esperar a onload.
+        // Esto evita mostrar un iframe vacío si defaultOpen es true.
+        return; 
+    }
+
+    if (isChatCurrentlyOpen) {
+      iframe.classList.remove("chatboc-hidden");
+      iframe.classList.add("chatboc-visible");
+      globitoButton.classList.remove("chatboc-visible");
+      globitoButton.classList.add("chatboc-hidden");
+    } else {
+      iframe.classList.remove("chatboc-visible");
+      iframe.classList.add("chatboc-hidden");
+      globitoButton.classList.remove("chatboc-hidden");
+      globitoButton.classList.add("chatboc-visible");
+    }
   }
+  
+  // Inicializar visibilidad. Si es defaultOpen y el iframe ya cargó, se mostrará.
+  // Si no, se mostrará el globito, y luego en iframe.onload se re-evaluará.
+  updateWidgetVisibility();
+
 
   // --- Event Listeners ---
-  globitoButton.onclick = showChatWindow;
+  globitoButton.onclick = function () {
+    isChatCurrentlyOpen = true;
+    updateWidgetVisibility();
+  };
 
   window.addEventListener("message", function(event) {
     // IMPORTANTE: Verifica event.origin en producción.
-    // if (event.origin !== "https://www.chatboc.ar") return;
+    if (event.origin !== chatbocDomain) { // Compara con el dominio desde donde se sirve el iframe
+        // console.warn("Chatboc: Mensaje ignorado de origen no confiable:", event.origin);
+        return;
+    }
 
     if (event.data && event.data.type === "chatboc-minimize-request" && event.data.widgetId === iframeId) {
-      showGlobito();
+      isChatCurrentlyOpen = false;
+      updateWidgetVisibility();
     }
   });
 
@@ -136,20 +154,14 @@
   iframe.addEventListener("touchstart", dragStart, { passive: false });
 
   function dragStart(e) {
-    if (!isChatCurrentlyOpen) return; // Solo arrastrar si la ventana de chat está abierta
+    if (!isChatCurrentlyOpen) return; // Solo arrastrar la ventana de chat abierta
     
-    // Heurística para no arrastrar si se interactúa con elementos dentro del iframe
-    let targetElement = e.target;
-    if (targetElement !== iframe) { 
-        // Si el click fue en un elemento interno y no el scrollbar del iframe.
-        // Esto es difícil de determinar perfectamente sin acceso al DOM del iframe.
-        // Si el contenido del iframe no ocupa todo el espacio o tiene áreas "muertas",
-        // el click podría ser en el iframe mismo.
-        // Si el contenido del iframe previene la propagación del mousedown, esto no funcionará.
-        // Mejor si el header del iframe comunicara para iniciar/detener drag, pero es más complejo.
+    // Heurística simple: no arrastrar si el click es sobre un input, textarea o button dentro del iframe
+    // Esto solo funciona si el contenido del iframe NO previene la propagación del evento mousedown/touchstart.
+    const targetTagName = e.target ? (e.target as HTMLElement).tagName.toLowerCase() : '';
+    if (targetTagName === 'input' || targetTagName === 'textarea' || targetTagName === 'button' || targetTagName === 'a') {
         return;
     }
-
 
     isDragging = true;
     const rect = iframe.getBoundingClientRect();
@@ -160,6 +172,7 @@
     
     iframe.style.transition = "none";
     iframe.style.userSelect = 'none';
+    document.body.style.cursor = 'move'; // Cambiar cursor globalmente
     
     document.addEventListener("mousemove", dragMove);
     document.addEventListener("mouseup", dragEnd);
@@ -178,25 +191,31 @@
     let newLeft = iframeStartLeft + (clientX - dragStartX);
     let newTop = iframeStartTop + (clientY - dragStartY);
 
-    newLeft = Math.max(0, Math.min(window.innerWidth - parseInt(chatWindowWidth), newLeft));
-    newTop = Math.max(0, Math.min(window.innerHeight - parseInt(chatWindowHeight), newTop));
+    const currentIframeWidth = parseInt(chatWindowWidth);
+    const currentIframeHeight = parseInt(chatWindowHeight);
+
+    newLeft = Math.max(0, Math.min(window.innerWidth - currentIframeWidth, newLeft));
+    newTop = Math.max(0, Math.min(window.innerHeight - currentIframeHeight, newTop));
 
     iframe.style.left = newLeft + "px";
     iframe.style.top = newTop + "px";
     iframe.style.right = "auto";
     iframe.style.bottom = "auto";
-    // El globito mantiene su posición original, no se mueve con el drag del iframe.
-    // Si quisieras que el globito se mueva, tendrías que actualizar initialBottom/Right aquí
-    // y que el globito los use.
+
+    // Guardar la posición actual para que el globito pueda volver aquí si se desea
+    currentIframeLeft = iframe.style.left;
+    currentIframeTop = iframe.style.top;
   }
 
   function dragEnd() {
     if (!isDragging) return;
     isDragging = false;
     iframe.style.userSelect = '';
+    document.body.style.cursor = 'default';
+    // Reactivar transición después de un pequeño delay
     setTimeout(() => {
-      iframe.style.transition = "opacity 0.3s ease-in-out, transform 0.3s ease-in-out";
-    }, 0);
+      iframe.style.transition = "opacity 0.25s ease-in-out, transform 0.25s ease-in-out, width 0.25s ease-in-out, height 0.25s ease-in-out, border-radius 0.25s ease-in-out";
+    }, 50); // 50ms delay
     document.removeEventListener("mousemove", dragMove);
     document.removeEventListener("mouseup", dragEnd);
     document.removeEventListener("touchmove", dragMove);

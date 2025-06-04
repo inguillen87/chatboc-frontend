@@ -1,16 +1,17 @@
 import React, { useState, useRef, useEffect, CSSProperties } from "react";
-import { X } from "lucide-react";
-// Asegúrate de que estas rutas sean correctas en tu proyecto:
+import { X } from "lucide-react"; // Asegúrate de tener lucide-react instalado
+
+// Asume que las rutas a estos componentes son correctas en tu proyecto
 import ChatMessage from "./ChatMessage";
 import TypingIndicator from "./TypingIndicator";
 import ChatInput from "./ChatInput";
-import { Message } from "@/types/chat";
-import { apiFetch } from "@/utils/api";
+import { Message } from "@/types/chat"; // Asume que tienes este tipo definido
+import { apiFetch } from "@/utils/api"; // Asume que tienes esta utilidad
 
 // --- Componente ChatHeader (Integrado para completitud) ---
 interface ChatHeaderProps {
   title?: string;
-  onMinimize?: () => void; // Callback para cuando se presiona la 'X'
+  onMinimize?: () => void;
 }
 const ChatHeader: React.FC<ChatHeaderProps> = ({
   title = "Chatboc Asistente",
@@ -33,7 +34,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
       className="flex items-center justify-between p-3 border-b select-none"
       style={{
         borderBottomColor: prefersDarkHeader ? "#374151" : "#e5e7eb",
-        cursor: "default", // El arrastre es manejado por widget.js en el iframe
+        cursor: "default",
       }}
     >
       <div className="flex items-center pointer-events-none">
@@ -48,7 +49,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
         <span style={{ fontSize: 12, fontWeight: 400, color: prefersDarkHeader ? "#90EE90" : "#24ba53", marginRight: onMinimize ? '8px' : '0' }} className="pointer-events-none">
           &nbsp;• Online
         </span>
-        {onMinimize && ( // Mostrar 'X' si hay callback onMinimize
+        {onMinimize && (
           <button
             onClick={onMinimize}
             className="text-gray-600 dark:text-gray-300 hover:text-red-500 focus:outline-none"
@@ -64,15 +65,15 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
 // --- Fin Componente ChatHeader ---
 
 // --- Función getToken (Completa) ---
-function getToken() {
+function getToken(): string {
   if (typeof window === "undefined") return "demo-anon-ssr";
   const params = new URLSearchParams(window.location.search);
   const urlToken = params.get("token");
   if (urlToken) return urlToken;
 
-  const storedUser = localStorage.getItem("user");
-  const user = storedUser ? JSON.parse(storedUser) : null;
-  if (user?.token && !user.token.startsWith("demo")) return user.token;
+  const storedUserItem = localStorage.getItem("user");
+  const user = storedUserItem ? JSON.parse(storedUserItem) : null;
+  if (user && user.token && typeof user.token === 'string' && !user.token.startsWith("demo")) return user.token;
 
   let anonToken = localStorage.getItem("anon_token");
   if (!anonToken) {
@@ -84,20 +85,21 @@ function getToken() {
 // --- Fin Función getToken ---
 
 interface ChatWidgetProps {
-  widgetId?: string; // ID del iframe, pasado desde la URL por Iframe.tsx
+  widgetId?: string;
 }
 
 const ChatWidget: React.FC<ChatWidgetProps> = ({
   widgetId = "chatboc-iframe-unknown",
 }) => {
+  const [isOpen, setIsOpen] = useState(true); // El widget dentro del iframe siempre está "abierto" mostrando su contenido
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [preguntasUsadas, setPreguntasUsadas] = useState(0);
   const [rubroSeleccionado, setRubroSeleccionado] = useState<string | null>(null);
   const [rubrosDisponibles, setRubrosDisponibles] = useState<{ id: number; nombre: string }[]>([]);
-  const [esperandoRubro, setEsperandoRubro] = useState(true); // Inicia esperando rubro
+  const [esperandoRubro, setEsperandoRubro] = useState(true);
   const [cargandoRubros, setCargandoRubros] = useState(false);
-  const [token, setToken] = useState("");
+  const [token, setToken] = useState<string>(""); // Especificar tipo string
   const [prefersDark, setPrefersDark] = useState(
     typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches
   );
@@ -117,6 +119,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     setCargandoRubros(true);
     try {
       const res = await fetch("https://api.chatboc.ar/rubros"); // URL DE TU API
+      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
       const data = await res.json();
       setRubrosDisponibles(data.rubros || []);
     } catch (error) {
@@ -129,15 +132,18 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const recargarTokenYRubro = () => {
     const currentToken = getToken();
     setToken(currentToken);
-    if (currentToken && !currentToken.startsWith("demo")) {
+
+    if (currentToken && !currentToken.startsWith("demo") && !currentToken.includes("anon")) {
       setPreguntasUsadas(0);
       if (typeof window !== "undefined") localStorage.removeItem("rubroSeleccionado");
-      const storedUser = typeof window !== "undefined" ? localStorage.getItem("user") : null;
-      const user = storedUser ? JSON.parse(storedUser) : null;
-      setRubroSeleccionado(user?.rubro?.toLowerCase() || "general");
+      const storedUserItem = typeof window !== "undefined" ? localStorage.getItem("user") : null;
+      const user = storedUserItem ? JSON.parse(storedUserItem) : null;
+      const userRubro = user?.rubro;
+      setRubroSeleccionado(typeof userRubro === 'string' ? userRubro.toLowerCase() : "general");
       setEsperandoRubro(false);
       return;
     }
+
     const rubro = typeof window !== "undefined" ? localStorage.getItem("rubroSeleccionado") : null;
     if (!rubro) {
       setEsperandoRubro(true);
@@ -165,11 +171,12 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   useEffect(() => {
     if (rubroSeleccionado && !esperandoRubro) {
-      if (messages.length === 0 || messages[messages.length -1]?.text !== "¡Hola! Soy Chatboc, tu asistente virtual. ¿En qué puedo ayudarte hoy?") {
-        setMessages([{ id: Date.now(), text: "¡Hola! Soy Chatboc, tu asistente virtual. ¿En qué puedo ayudarte hoy?", isBot: true, timestamp: new Date() }]);
+      const welcomeMessageText = "¡Hola! Soy Chatboc, tu asistente virtual. ¿En qué puedo ayudarte hoy?";
+      if (messages.length === 0 || messages[messages.length -1]?.text !== welcomeMessageText) {
+        setMessages([{ id: Date.now(), text: welcomeMessageText, isBot: true, timestamp: new Date() }]);
       }
     }
-  }, [rubroSeleccionado, esperandoRubro, messages]); // messages en dep array para re-evaluar si es necesario
+  }, [rubroSeleccionado, esperandoRubro, messages]);
 
   const handleSendMessage = async (text: string) => {
     if (!text.trim()) return;
@@ -182,14 +189,18 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       setMessages((prev) => [...prev, { id: Date.now(), text: `🔒 Alcanzaste el límite de 15 preguntas gratuitas en esta demo.\n\n👉 Creá una cuenta para seguir usando Chatboc: https://chatboc.ar/register`, isBot: true, timestamp: new Date() }]);
       return;
     }
-    const userMessage: Message = { id: Date.now(), text, isBot: false, timestamp: new Date() };
+    const newUserMessageId = Date.now();
+    const userMessage: Message = { id: newUserMessageId, text, isBot: false, timestamp: new Date() };
     setMessages((prevMessages) => [...prevMessages, userMessage]);
     setIsTyping(true);
     try {
       const data = await apiFetch("/ask", "POST", { pregunta: text, rubro: rubroSeleccionado }, { headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` } });
       const respuestaFinal: string = typeof data?.respuesta === "string" ? data.respuesta : data?.respuesta?.text || "❌ No entendí tu mensaje.";
-      const botMessage: Message = { id: Date.now() + 1, text: respuestaFinal, isBot: true, timestamp: new Date() }; // ID ligeramente diferente
-      setMessages((prevMessages) => [...prevMessages.filter(m => m.id !== userMessage.id), userMessage, botMessage]);
+      const botMessage: Message = { id: Date.now() + 1, text: respuestaFinal, isBot: true, timestamp: new Date() };
+      setMessages((prevMessages) => {
+        const filteredMessages = prevMessages.filter(m => m.id !== newUserMessageId); // Evita duplicados si hay re-render
+        return [...filteredMessages, userMessage, botMessage];
+      });
       if (esAnonimo) setPreguntasUsadas((prev) => prev + 1);
     } catch (error) {
       console.error("Error enviando mensaje:", error);
@@ -199,10 +210,10 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     }
   };
 
-  const requestMinimizeToGlobito = () => {
+  const requestMinimize = () => {
     if (typeof window !== "undefined" && window.parent !== window) {
       window.parent.postMessage({
-        type: "chatboc-minimize-request", // Mensaje para que widget.js minimice
+        type: "chatboc-minimize-request",
         widgetId: widgetId,
       }, "*"); // IMPORTANTE: En producción, cambia "*" por el origin de la página contenedora
     }
@@ -221,7 +232,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   const mainChatViewContent = (
     <>
-      <ChatHeader title="Chatboc Asistente" onMinimize={requestMinimizeToGlobito} />
+      <ChatHeader title="Chatboc Asistente" onMinimize={requestMinimize} />
       <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-3" ref={chatContainerRef}>
         {messages.map((msg) => <ChatMessage key={msg.id} message={msg} /> )}
         {isTyping && <TypingIndicator />}
@@ -239,10 +250,11 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     background: prefersDark ? "#161c24" : "#fff",
     color: prefersDark ? "#fff" : "#222",
     overflow: "hidden",
-    // El iframe en widget.js manejará el borderRadius y boxShadow.
-    // Este div interno ocupa el 100% del iframe.
+    // El borderRadius y boxShadow son manejados por el iframe en widget.js
   };
 
+  // Este ChatWidget siempre renderiza la interfaz de chat completa.
+  // widget.js se encarga de mostrar/ocultar este iframe o el globito.
   return (
     <div style={widgetStyle}>
       {esperandoRubro ? rubroSelectionViewContent : mainChatViewContent}

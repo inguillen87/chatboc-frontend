@@ -1,75 +1,73 @@
-import React from "react"; // React es necesario para Suspense y JSX
-import { Toaster } from "@/components/ui/sonner"; // Asumo que existen estos componentes
-import { TooltipProvider } from "@/components/ui/tooltip"; // Asumo que existen
+import React from "react";
+import { Toaster } from "@/components/ui/sonner"; // Verifica la ruta
+import { TooltipProvider } from "@/components/ui/tooltip"; // Verifica la ruta
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 
-// Importa tus páginas (ajusta rutas según tu estructura)
-import Layout from "./components/layout/Layout"; // Asume que tienes un Layout
-import Index from "./pages/Index"; // Asume que tienes una página Index
-// Descomenta e importa las páginas que realmente tienes en tu proyecto:
-import Login from "./pages/Login"; // Ejemplo
-import Perfil from "./pages/Perfil"; // Ejemplo
-import Demo from "./pages/Demo"; // Ejemplo
-import ChatPage from "./pages/ChatPage"; // Ejemplo
-import Checkout from "./pages/Checkout"; // Ejemplo
-// ... y cualquier otra página que uses ...
+// Páginas principales (Asegúrate de que estas rutas y componentes existan)
+import Layout from "./components/layout/Layout";
+import Index from "./pages/Index";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+import Demo from "./pages/Demo";
+import Perfil from "./pages/Perfil";
+import ChatPage from "./pages/ChatPage";
+import ChatPosPage from "./pages/ChatPosPage";
+import ChatCRMPage from "./pages/ChatCRMPage";
+import Integracion from "./pages/Integracion";
+import Checkout from "./pages/Checkout";
 
-import Iframe from "./pages/Iframe"; // La página que hostea el ChatWidget para el iframe
-import NotFound from "./pages/NotFound"; // Asume que tienes una página 404 (corregí el import)
+// Otras páginas
+import Documentacion from "./pages/Documentacion";
+import Faqs from "./pages/Faqs";
+import Privacy from "./pages/legal/Privacy";
+import Terms from "./pages/legal/Terms";
+import Cookies from "./pages/legal/Cookies";
+import NotFound from "./pages/NotFound"; // Corregido el import si estaba mal
+
+// Chat y rutas especiales
+// El ChatWidget global para TU app es un tema aparte. Este App.tsx se centra en las rutas.
+import Iframe from "./pages/Iframe";
 
 const queryClient = new QueryClient();
 
 function AppRoutes() {
-  const location = useLocation(); // Descomentado para que puedas usarlo
-  // Ejemplo: podrías querer ocultar un widget global en la página del iframe
-  const ocultarWidgetGlobalEnApp = ["/iframe"].includes(location.pathname);
+  // const location = useLocation();
+  // const ocultarWidgetGlobalEnApp = ["/iframe"].includes(location.pathname);
 
   return (
     <>
       <Routes>
-        {/* Rutas principales con tu Layout */}
+        {/* Rutas con Layout general */}
         <Route element={<Layout />}>
           <Route path="/" element={<Index />} />
-          {/* Aquí van el resto de las rutas de tu aplicación principal */}
-          {/* Asegúrate de que estas rutas y componentes existan en tu proyecto */}
           <Route path="/login" element={<Login />} />
-          <Route path="/perfil" element={<Perfil />} />
+          <Route path="/register" element={<Register />} />
           <Route path="/demo" element={<Demo />} />
+          <Route path="/perfil" element={<Perfil />} />
           <Route path="/chat" element={<ChatPage />} />
           <Route path="/checkout" element={<Checkout />} />
-          {/* ... Añade más rutas de tu aplicación aquí ... */}
+          <Route path="/chatpos" element={<ChatPosPage />} />
+          <Route path="/chatcrm" element={<ChatCRMPage />} />
+          <Route path="/integracion" element={<Integracion />} />
+          {/* Info y legales */}
+          <Route path="/documentacion" element={<Documentacion />} />
+          <Route path="/faqs" element={<Faqs />} />
+          <Route path="/legal/privacy" element={<Privacy />} />
+          <Route path="/legal/terms" element={<Terms />} />
+          <Route path="/legal/cookies" element={<Cookies />} />
         </Route>
-
-        {/* Ruta para el iframe, importante que NO use el Layout global */}
+        {/* Ruta fuera del layout para el iframe */}
         <Route path="/iframe" element={<Iframe />} />
-
-        {/* Ruta para 404 */}
+        {/* 404 */}
         <Route path="*" element={<NotFound />} />
       </Routes>
-      
-      {/*
-        PARA UN WIDGET FLOTANTE EN TU PROPIA APLICACIÓN (ej. en chatboc.ar/perfil):
-        - Este es el lugar donde implementarías la lógica para mostrar un ChatWidget
-          en las páginas de TU aplicación (no en las de tus clientes PYMEs).
-        - El ChatWidget.tsx que te proporcioné para el sistema de iframe con postMessage
-          está optimizado para ESE CASO DE USO.
-        - Si quieres un widget flotante aquí, necesitarías:
-            1. Usar una versión de ChatWidget diseñada para ser "standalone"
-               (como la que tenía el prop `mode="standalone"` que discutimos antes,
-               con su propio posicionamiento fijo, botón de toggle, y lógica de arrastre).
-            2. O adaptar el ChatWidget.tsx actual para que, si detecta que NO está
-               en un iframe (window.parent === window), cambie su comportamiento.
-               Esto puede añadir bastante complejidad al componente ChatWidget.
-
-        Ejemplo conceptual (si tuvieras un ChatWidgetStandalone):
-
-        const ChatWidgetStandalone = React.lazy(() => import("@/components/chat/ChatWidgetStandalone"));
-        // ... más abajo ...
+      {/* Si necesitas un widget flotante EN TU PROPIA APLICACIÓN (ej. chatboc.ar/perfil),
+        deberás gestionarlo aquí con un componente ChatWidget adecuado para "standalone".
+        El ChatWidget.tsx que te pasé está enfocado en el iframe.
+        Ejemplo:
         {!ocultarWidgetGlobalEnApp && (
-          <React.Suspense fallback={<div>Cargando Chat...</div>}>
-            <ChatWidgetStandalone defaultOpen={false} initialPosition={{ bottom: 20, right: 20 }} />
-          </React.Suspense>
+          <ChatWidgetStandaloneProperties ... />
         )}
       */}
     </>
