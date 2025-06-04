@@ -327,18 +327,50 @@ export default function Perfil() {
         <div className="flex flex-col gap-6 md:gap-8">
           {/* Card Plan y Uso */}
           <Card className="bg-slate-900/70 shadow-xl rounded-xl border border-slate-800 backdrop-blur-sm">
-            <CardHeader><CardTitle className="text-lg font-semibold text-blue-400">Plan y Uso</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-slate-300">Plan actual: <Badge variant="secondary" className="bg-blue-500/80 text-white capitalize">{perfil.plan || "N/A"}</Badge></p>
-              <div>
-                <p className="text-sm text-slate-300 mb-1">Consultas usadas este mes:</p>
-                <div className="flex items-center gap-2">
-                  <Progress value={porcentaje} className="h-3 bg-slate-700 [&>div]:bg-blue-500" aria-label={`${porcentaje.toFixed(0)}% de consultas usadas`} />
-                  <span className="text-xs text-slate-400 min-w-[70px] text-right">{perfil.preguntas_usadas} / {perfil.limite_preguntas}</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+  <CardHeader>
+    <CardTitle className="text-lg font-semibold text-blue-400">Plan y Uso</CardTitle>
+  </CardHeader>
+  <CardContent className="space-y-3">
+    <p className="text-sm text-slate-300">
+      Plan actual: <Badge variant="secondary" className="bg-blue-500/80 text-white capitalize">{perfil.plan || "N/A"}</Badge>
+    </p>
+    <div>
+      <p className="text-sm text-slate-300 mb-1">Consultas usadas este mes:</p>
+      <div className="flex items-center gap-2">
+        <Progress value={porcentaje} className="h-3 bg-slate-700 [&>div]:bg-blue-500" aria-label={`${porcentaje.toFixed(0)}% de consultas usadas`} />
+        <span className="text-xs text-slate-400 min-w-[70px] text-right">{perfil.preguntas_usadas} / {perfil.limite_preguntas}</span>
+      </div>
+    </div>
+    {/* BOTONES UALÁ BIS */}
+    {(perfil.plan !== "full" && perfil.plan !== "pro") && (
+      <div className="space-y-2 mt-3">
+        <Button
+          className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold"
+          onClick={() => window.open("https://pagar.ualabis.com.ar/order/517238bd80bb1e97539240a22b1707c414a73855d6b673a8", "_blank")}
+        >
+          Mejorar a PRO ($30.000/mes)
+        </Button>
+        <Button
+          className="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-semibold"
+          onClick={() => window.open("https://pagar.ualabis.com.ar/order/61f8ef497944c94964ba34a3c31e9d46d4ecc749d5d4c56a", "_blank")}
+        >
+          Mejorar a FULL ($60.000/mes)
+        </Button>
+      </div>
+    )}
+    {(perfil.plan === "pro" || perfil.plan === "full") && (
+      <div className="text-green-400 bg-green-500/10 rounded p-3 font-medium text-sm mt-3">
+        ¡Tu plan está activo! <br />
+        <span className="text-xs text-slate-300">La renovación se realiza cada mes. Si vence el pago, vas a ver los links aquí para renovarlo.</span>
+      </div>
+    )}
+    <div className="text-xs text-yellow-300 mt-2">
+      Una vez realizado el pago, tu cuenta se actualiza automáticamente.<br />
+      Si no ves el cambio en unos minutos, comunicate con soporte.
+    </div>
+  </CardContent>
+</Card>
+
           {/* Card Integración */}
           <Card className="bg-slate-900/70 shadow-xl rounded-xl border border-slate-800 backdrop-blur-sm">
             <CardHeader>
