@@ -1,57 +1,18 @@
-import React, { useEffect, useState, Suspense } from "react";
+import React from "react";
+import ChatWidget from "@/components/chat/ChatWidget"; // Ajusta la ruta si es necesario
 
-// Ajusta la ruta a tu componente ChatWidget
-const ChatWidget = React.lazy(() => import("@/components/chat/ChatWidget")); 
-
-const Iframe = () => {
-  const [widgetId, setWidgetId] = useState("chatboc-iframe-unknown");
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      const idParam = params.get("widgetId");
-      if (idParam) {
-        setWidgetId(idParam);
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    if (typeof document !== "undefined") {
-        document.body.style.margin = "0";
-        document.body.style.padding = "0";
-        document.body.style.height = "100vh";
-        document.body.style.width = "100vw";
-        document.body.style.overflow = "hidden";
-        const rootEl = document.getElementById("root") || document.getElementById("__next");
-        if (rootEl) {
-            rootEl.style.height = "100%";
-            rootEl.style.width = "100%";
-            rootEl.style.overflow = "hidden";
-        }
-    }
-  }, []);
-
-  return (
-    <div style={{
-      width: "100%", 
-      height: "100%",
-      background: "transparent",
-      margin: 0,
-      padding: 0,
-      overflow: "hidden", 
-      display: "flex", 
-      flexDirection: "column"
-    }}>
-      <Suspense fallback={
-        <div style={{display: "flex", alignItems:"center", justifyContent:"center", width:"100%", height:"100%", fontFamily:"Arial, sans-serif", fontSize:"12px", color:"#555"}}>
-          Cargando Interfaz... 
-        </div>
-      }>
-        <ChatWidget widgetId={widgetId} />
-      </Suspense>
-    </div>
-  );
-};
+const Iframe = () => (
+  <div style={{
+    width: "100vw",
+    height: "100vh",
+    background: "transparent", // El iframe wrapper es transparente
+    margin: 0,
+    padding: 0,
+    overflow: "hidden", // Evita scrollbars en el body del iframe
+  }}>
+    {/* ChatWidget.tsx ahora ocupará este espacio y tendrá su propio fondo */}
+    <ChatWidget />
+  </div>
+);
 
 export default Iframe;
