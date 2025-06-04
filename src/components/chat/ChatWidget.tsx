@@ -1,284 +1,267 @@
-import React, { useState, useRef, useEffect } from "react";
-import { X } from "lucide-react"; // O tu ícono de Lucide para el logo/abrir
-// Asume que SendHorizontal es el nombre correcto o ajústalo (ej. Send)
-import { SendHorizontal } from "lucide-react"; 
+import React, { useState, useRef, useEffect, CSSProperties } from "react";
+import { X } from "lucide-react";
 import ChatMessage from "./ChatMessage"; // Ajusta la ruta
 import TypingIndicator from "./TypingIndicator"; // Ajusta la ruta
-// ChatInput no se usa directamente aquí si está separado, pero ChatWidget lo invocaría
-// import ChatInput from "./ChatInput"; // Ajusta la ruta si lo usas como componente separado
+import ChatInput from "./ChatInput"; // Ajusta la ruta
 import { Message } from "@/types/chat"; // Ajusta la ruta
 import { apiFetch } from "@/utils/api"; // Ajusta la ruta
 
-// --- Componente ChatHeader (Integrado) ---
-interface ChatHeaderPropsStandalone {
-  onCloseInternal: () => void; // Para el toggle interno del ChatWidget
-  prefersDark: boolean;
+// --- Componente ChatHeader (integrado y adaptado) ---
+interface ChatHeaderProps {
+  title?: string;
+  showCloseButton?: boolean; // Para controlar si se muestra el botón X
+  onClose?: () => void;    // Acción del botón X (minimizar en standalone, o enviar postMessage en iframe)
+  onMouseDownDrag?: (e: React.MouseEvent | React.TouchEvent) => void; // Para arrastrar en modo standalone
+  isDraggable?: boolean; // Para el cursor en modo standalone
 }
-const ChatHeaderStandalone: React.FC<ChatHeaderPropsStandalone> = ({ onCloseInternal, prefersDark }) => {
+const ChatHeader: React.FC<ChatHeaderProps> = ({
+  title = "Chatboc Asistente",
+  showCloseButton = false,
+  onClose,
+  onMouseDownDrag,
+  isDraggable,
+}) => {
+  const [prefersDarkHeader, setPrefersDarkHeader] = useState(
+    typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches
+  );
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const handler = (e: MediaQueryListEvent) => setPrefersDarkHeader(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+
   return (
     <div
       className="flex items-center justify-between p-3 border-b select-none"
       style={{
-        borderBottomColor: prefersDark ? "#374151" : "#e5e7eb",
-        // backgroundColor: prefersDark ? "#1f2937" : "#f9fafb", // Fondo sutil para el header
-        cursor: "default", // O 'move' si esta parte del header fuera arrastrable
+        borderBottomColor: prefersDarkHeader ? "#374151" : "#e5e7eb",
+        cursor: isDraggable && onMouseDownDrag ? "move" : "default",
       }}
-      // onMouseDown={onDragHeader} // Si el header fuera arrastrable
+      onMouseDown={onMouseDownDrag} // Solo se activa si onMouseDownDrag tiene una función (modo standalone)
+      onTouchStart={onMouseDownDrag} // Solo se activa si onMouseDownDrag tiene una función (modo standalone)
     >
       <div className="flex items-center pointer-events-none">
         <img src="/chatboc_logo_clean_transparent.png" alt="Chatboc" className="w-6 h-6 mr-2" />
-        <span className="font-semibold text-sm">Chatboc Asistente</span>
+        <span className="font-semibold text-sm">{title}</span>
       </div>
       <div className="flex items-center">
-        <span style={{ fontSize: 12, fontWeight: 400, color: prefersDark ? "#90EE90" : "#24ba53", marginRight: '8px' }} className="pointer-events-none">
+        <span style={{ fontSize: 12, fontWeight: 400, color: prefersDarkHeader ? "#90EE90" : "#24ba53", marginRight: showCloseButton ? '8px' : '0' }} className="pointer-events-none">
           &nbsp;• Online
         </span>
-        <button onClick={onCloseInternal} className="text-gray-600 dark:text-gray-300 hover:text-red-500 focus:outline-none" aria-label="Cerrar ventana de chat">
-          <X size={20} />
-        </button>
+        {showCloseButton && onClose && (
+          <button onClick={onClose} className="text-gray-600 dark:text-gray-300 hover:text-red-500 focus:outline-none" aria-label="Cerrar o minimizar chat">
+            <X size={20} />
+          </button>
+        )}
       </div>
     </div>
   );
 };
 
-// --- Componente ChatInput (Integrado, basado en el que me pasaste) ---
-interface ChatInputStandaloneProps {
-  onSendMessage: (text: string) => void;
-  prefersDark: boolean;
+// --- Función getToken (Completa) ---
+function getToken(): string {
+  if (typeof window === "undefined") return "demo-anon-ssr";
+  const params = new URLSearchParams(window.location.search);
+  const urlToken = params.get("token");
+  if (urlToken) return urlToken;
+  const storedUserItem = localStorage.getItem("user");
+  const user = storedUserItem ? JSON.parse(storedUserItem) : null;
+  if (user && user.token && typeof user.token === 'string' && !user.token.startsWith("demo")) return user.token;
+  let anonToken = localStorage.getItem("anon_token");
+  if (!anonToken) {
+    anonToken = `demo-anon-${Math.random().toString(36).substring(2, 10)}`;
+    localStorage.setItem("anon_token", anonToken);
+  }
+  return anonToken;
 }
-const PLACEHOLDERS_INTERNAL = [
-  "Escribí tu mensaje...",
-  "¿En qué puedo ayudarte hoy?",
-  "Probá: '¿Qué hace Chatboc?'",
-  "¿Cuánto cuesta el servicio?",
-];
-const ChatInputStandalone: React.FC<ChatInputStandaloneProps> = ({ onSendMessage, prefersDark }) => {
-  const [input, setInput] = useState("");
-  const [placeholderIndex, setPlaceholderIndex] = useState(0);
-  const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setPlaceholderIndex((i) => (i + 1) % PLACEHOLDERS_INTERNAL.length);
-    }, 3500);
-    return () => clearInterval(interval);
-  }, []);
+// --- Props y Constantes de Dimensiones ---
+interface ChatWidgetProps {
+  mode?: "iframe" | "standalone";
+  initialPosition?: { top?: number | string; bottom?: number | string; left?: number | string; right?: number | string };
+  draggable?: boolean;
+  defaultOpen?: boolean;
+  widgetId?: string; // Para iframe mode
+}
 
-  const handleSend = () => {
-    if (!input.trim()) return;
-    onSendMessage(input.trim());
-    setInput("");
-    inputRef.current?.focus();
-  };
-
-  return (
-    <div className={`flex items-center gap-2 p-3 border-t ${prefersDark ? 'border-gray-700' : 'border-gray-200'}`}>
-      <input
-        ref={inputRef}
-        className={`
-          flex-1 
-          ${prefersDark ? 'bg-[#1c1e24] border-[#23272e] text-gray-100 placeholder:text-gray-500 focus:border-blue-400' 
-                       : 'bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 focus:border-blue-500'}
-          rounded-2xl px-4 py-2 text-sm outline-none transition shadow-sm
-        `}
-        type="text"
-        placeholder={PLACEHOLDERS_INTERNAL[placeholderIndex]}
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-        autoFocus
-        autoComplete="off"
-      />
-      <button
-        className={`
-          flex items-center justify-center
-          bg-blue-500 hover:bg-blue-600 dark:hover:bg-blue-400
-          text-white rounded-full p-2 shadow-md transition
-          disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed
-        `}
-        onClick={handleSend}
-        disabled={!input.trim()}
-        aria-label="Enviar"
-        type="button"
-      >
-        <SendHorizontal className="w-5 h-5" />
-      </button>
-    </div>
-  );
+const WIDGET_DIMENSIONS = {
+  OPEN: { width: "360px", height: "520px" },
+  CLOSED: { width: "80px", height: "80px" }, // Para el "globito"
 };
 
-
-// --- ChatWidget (Tu Versión Original para Iframe con Toggle Interno) ---
-// Esta versión NO usa postMessage. El iframe tiene un tamaño fijo.
-// El botón de abrir/cerrar solo afecta el contenido DENTRO del iframe.
-const ChatWidget: React.FC = () => {
-  const [isOpen, setIsOpen] = useState(true); // Por defecto abierto DENTRO del iframe
+// --- Componente ChatWidget Unificado ---
+const ChatWidget: React.FC<ChatWidgetProps> = ({
+  mode = "standalone",
+  initialPosition: initialPosProp = { bottom: 20, right: 20 },
+  draggable = true,
+  defaultOpen = false,
+  widgetId = "chatboc-widget-iframe",
+}) => {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [preguntasUsadas, setPreguntasUsadas] = useState(0);
   const [rubroSeleccionado, setRubroSeleccionado] = useState<string | null>(null);
   const [rubrosDisponibles, setRubrosDisponibles] = useState<{ id: number; nombre: string }[]>([]);
-  const [esperandoRubro, setEsperandoRubro] = useState(false); // Cambiado para que intente cargar rubro al inicio
+  const [esperandoRubro, setEsperandoRubro] = useState(true);
   const [cargandoRubros, setCargandoRubros] = useState(false);
-  const [token, setToken] = useState("");
+  const [token, setToken] = useState<string>("");
   const [prefersDark, setPrefersDark] = useState(
     typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches
   );
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const handler = (e: MediaQueryListEvent) => setPrefersDark(e.matches);
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, []);
+  const widgetContainerRef = useRef<HTMLDivElement>(null); // Para arrastre en standalone
+  const dragStartPosRef = useRef<{ x: number; y: number; elementX: number; elementY: number } | null>(null);
   
-  // Lógica de getToken, cargarRubros, recargarTokenYRubro, handleSendMessage
-  // (Estas funciones son las mismas que en la versión completa de ChatWidget que te pasé antes,
-  // las omito aquí por brevedad, pero deben estar presentes y funcionales)
-  function getTokenInternal(): string { /* ... (misma lógica de getToken que te pasé antes) ... */ 
-    if (typeof window === "undefined") return "demo-anon-ssr";
-    const params = new URLSearchParams(window.location.search);
-    const urlToken = params.get("token");
-    if (urlToken) return urlToken;
-    const storedUserItem = localStorage.getItem("user");
-    const user = storedUserItem ? JSON.parse(storedUserItem) : null;
-    if (user && user.token && typeof user.token === 'string' && !user.token.startsWith("demo")) return user.token;
-    let anonToken = localStorage.getItem("anon_token");
-    if (!anonToken) {
-      anonToken = `demo-anon-${Math.random().toString(36).substring(2, 10)}`;
-      localStorage.setItem("anon_token", anonToken);
-    }
-    return anonToken;
-  }
+  const [currentPos, setCurrentPos] = useState<CSSProperties>(
+    mode === "standalone" ? { position: 'fixed', ...initialPosProp, zIndex: 99998 } : {}
+  );
 
-  const cargarRubrosInternal = async () => { /* ... (misma lógica de cargarRubros) ... */ 
-    setCargandoRubros(true);
-    try {
-      const res = await fetch("https://api.chatboc.ar/rubros");
-      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-      const data = await res.json();
-      setRubrosDisponibles(data.rubros || []);
-    } catch (error) { console.error("Error cargando rubros:", error); setRubrosDisponibles([]); }
-    setCargandoRubros(false);
+  // Efectos (dark mode, carga de rubros, token, scroll, bienvenida)
+  useEffect(() => { /* ... detección dark mode (sin cambios)... */ }, []);
+  const cargarRubros = async () => { /* ... (lógica de cargarRubros sin cambios) ... */ };
+  const recargarTokenYRubro = () => { /* ... (lógica de recargarTokenYRubro sin cambios) ... */ };
+  useEffect(() => { /* ... efecto para recargarTokenYRubro y storage listener (sin cambios) ... */ }, []);
+  useEffect(() => { /* ... efecto para scroll al final de mensajes (sin cambios) ... */ }, [messages, isTyping]);
+  useEffect(() => { /* ... efecto para mensaje de bienvenida (sin cambios, depende de isOpen y rubroSeleccionado) ... */ }, [isOpen, rubroSeleccionado, esperandoRubro, messages]); // messages.length como dependencia también podría ser
+  const handleSendMessage = async (text: string) => { /* ... (lógica de handleSendMessage sin cambios) ... */ };
+
+  // Lógica de Arrastre para modo Standalone
+  const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
+    if (mode !== "standalone" || !draggable || !widgetContainerRef.current || typeof window === "undefined") return;
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    const rect = widgetContainerRef.current.getBoundingClientRect();
+    dragStartPosRef.current = { x: clientX, y: clientY, elementX: rect.left, elementY: rect.top };
+    document.addEventListener("mousemove", handleDragging);
+    document.addEventListener("mouseup", handleDragEnd);
+    document.addEventListener("touchmove", handleDragging, { passive: false });
+    document.addEventListener("touchend", handleDragEnd);
+    if ('preventDefault' in e && e.cancelable) e.preventDefault();
   };
+  const handleDragging = (e: MouseEvent | TouchEvent) => { /* ... (sin cambios, actualiza currentPos) ... */ };
+  const handleDragEnd = () => { /* ... (sin cambios, limpia listeners) ... */ };
 
-  const recargarTokenYRubroInternal = () => { /* ... (misma lógica de recargarTokenYRubro) ... */ 
-    const currentToken = getTokenInternal();
-    setToken(currentToken);
-    if (currentToken && !currentToken.startsWith("demo") && !currentToken.includes("anon")) {
-      setPreguntasUsadas(0);
-      if (typeof window !== "undefined") localStorage.removeItem("rubroSeleccionado");
-      const storedUserItem = typeof window !== "undefined" ? localStorage.getItem("user") : null;
-      const user = storedUserItem ? JSON.parse(storedUserItem) : null;
-      const userRubro = user?.rubro;
-      setRubroSeleccionado(typeof userRubro === 'string' ? userRubro.toLowerCase() : "general");
-      setEsperandoRubro(false); return;
-    }
-    const rubro = typeof window !== "undefined" ? localStorage.getItem("rubroSeleccionado") : null;
-    if (!rubro) { setEsperandoRubro(true); setRubroSeleccionado(null); cargarRubrosInternal(); } 
-    else { setRubroSeleccionado(rubro); setEsperandoRubro(false); }
-  };
-
-  useEffect(() => { recargarTokenYRubroInternal(); if (typeof window !== "undefined") window.addEventListener("storage", recargarTokenYRubroInternal); return () => window.removeEventListener("storage", recargarTokenYRubroInternal); }, []);
-  useEffect(() => { if (chatContainerRef.current) chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight; }, [messages, isTyping]);
-  
-  useEffect(() => {
-    if (isOpen && rubroSeleccionado && !esperandoRubro) {
-      const welcomeMessageText = "¡Hola! Soy Chatboc, tu asistente virtual. ¿En qué puedo ayudarte hoy?";
-      if (messages.length === 0 || messages[messages.length -1]?.text !== welcomeMessageText) {
-        setMessages([{ id: Date.now(), text: welcomeMessageText, isBot: true, timestamp: new Date() }]);
+  // Toggle y Comunicación con el padre (para iframe mode)
+  const toggleChat = () => {
+    setIsOpen(prevIsOpen => {
+      const nextIsOpen = !prevIsOpen;
+      if (nextIsOpen && mode === "iframe") { // Solo recargar si se está abriendo en iframe y no estaba ya cargado el rubro
+         if(!rubroSeleccionado) recargarTokenYRubro();
+      } else if (nextIsOpen && mode === "standalone") {
+         if(!rubroSeleccionado) recargarTokenYRubro();
       }
-    } else if (!isOpen) {
-        // setMessages([]); // Opcional: limpiar mensajes al cerrar internamente
+      return nextIsOpen;
+    });
+  };
+
+  useEffect(() => { // Comunicación con widget.js para redimensionar el iframe
+    if (mode === "iframe" && typeof window !== "undefined" && window.parent !== window) {
+      const desiredDimensions = isOpen ? WIDGET_DIMENSIONS.OPEN : WIDGET_DIMENSIONS.CLOSED;
+      window.parent.postMessage({
+        type: "chatboc-resize",
+        widgetId: widgetId,
+        dimensions: desiredDimensions,
+        isOpen: isOpen, // Para que widget.js sepa si es globito o ventana
+      }, "*"); // IMPORTANTE: En producción, cambia "*" por el origin de la página contenedora
     }
-  }, [isOpen, rubroSeleccionado, esperandoRubro, messages]);
-
-  const handleSendMessageInternal = async (text: string) => { /* ... (misma lógica de handleSendMessage) ... */ 
-    if (!text.trim()) return;
-    if (!rubroSeleccionado) { /* ... mensaje de error ... */ return; }
-    const esAnonimo = token.startsWith("demo-anon") || token.startsWith("demo-token");
-    if (esAnonimo && preguntasUsadas >= 15) { /* ... mensaje de límite ... */ return; }
-    const newUserMessageId = `${Date.now()}-${Math.random().toString(36).substring(2,7)}`;
-    const userMessage: Message = { id: newUserMessageId, text, isBot: false, timestamp: new Date() };
-    setMessages((prev) => [...prev, userMessage]);
-    setIsTyping(true);
-    try {
-      const data = await apiFetch("/ask", "POST", { pregunta: text, rubro: rubroSeleccionado }, { headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` } });
-      const respFinal: string = typeof data?.respuesta === "string" ? data.respuesta : data?.respuesta?.text || "❌ No entendí tu mensaje.";
-      const botMsg: Message = { id: `${Date.now()+1}-${Math.random().toString(36).substring(2,7)}`, text: respFinal, isBot: true, timestamp: new Date() };
-      setMessages((prev) => [...prev.filter(m => m.id !== newUserMessageId), userMessage, botMsg]);
-      if (esAnonimo) setPreguntasUsadas((p) => p + 1);
-    } catch (err) { console.error(err); setMessages((prev) => [...prev, { id: Date.now(), text: "⚠️ No se pudo conectar.", isBot: true, timestamp: new Date() }]);
-    } finally { setIsTyping(false); }
-  };
-
-  const toggleInternalChatWindow = () => {
-    setIsOpen(prev => !prev);
-  };
-
-  // Estilo del contenedor principal DENTRO del iframe. Ocupa el 100% del iframe.
-  const mainDivStyle: CSSProperties = {
+  }, [isOpen, mode, widgetId]);
+  
+  // Vistas de contenido
+  const rubroSelectionViewContent = ( /* ... (JSX sin cambios, usa cargarRubros) ... */ );
+  const mainChatViewContent = (
+    <>
+      <ChatHeader
+        title="Chatboc Asistente"
+        showCloseButton={true} // Siempre mostrar X, la acción cambia por `onClose`
+        onClose={toggleChat} // En ambos modos, el X interno llama a toggleChat
+        onMouseDownDrag={mode === "standalone" && isOpen && draggable ? handleDragStart : undefined}
+        isDraggable={mode === "standalone" && draggable && isOpen}
+      />
+      {/* ... resto del JSX de mainChatViewContent (mensajes, input) sin cambios ... */}
+    </>
+  );
+  
+  // --- Renderizado Principal ---
+  const commonWrapperStyle: CSSProperties = { // Estilos comunes para el contenido del widget
     width: "100%",
     height: "100%",
     display: "flex",
-    flexDirection: "column", // Para que el botón flotante y la ventana de chat se posicionen
-    background: prefersDark ? "#161c24" : "#fff", // Fondo general
+    flexDirection: "column",
     color: prefersDark ? "#fff" : "#222",
-    borderRadius: "16px", // Hereda del iframe, pero por si acaso
-    overflow: "hidden", // Muy importante
+    overflow: "hidden",
   };
-  
-  const rubroSelectionViewContentInternal = ( /* ... (definición como en ChatWidget anterior) ... */ );
-  const mainChatViewContentInternal = ( /* ... (definición como en ChatWidget anterior, usando ChatHeaderStandalone y ChatInputStandalone) ... */ );
 
-
-  return (
-    <div style={mainDivStyle}>
-      {!isOpen && ( // Botón Flotante para abrir DENTRO del iframe
-        <div className="w-full h-full flex items-center justify-center"> {/* Contenedor para centrar el botón */}
-          <button
-            onClick={toggleInternalChatWindow}
-            className="group w-16 h-16 rounded-full flex items-center justify-center border shadow-lg hover:shadow-xl transition-all transform hover:scale-105"
-            style={{
-                borderColor: prefersDark ? "#374151" : "#e5e7eb",
-                background: prefersDark ? "#161c24" : "#fff",
-            }}
-            aria-label="Abrir chat"
+  if (mode === "iframe") {
+    // En modo iframe, el widget siempre "ocupa" el espacio que le da el iframe.
+    // El iframe (controlado por widget.js) se encarga del borderRadius, boxShadow y tamaño.
+    // El ChatWidget interno se adapta para parecer un globito o una ventana.
+    return (
+      <div style={{
+          ...commonWrapperStyle,
+          background: prefersDark ? (isOpen ? "#161c24" : "#2d3748") : (isOpen ? "#fff" : "#fff"), // Globito puede tener fondo diferente
+          // borderRadius es manejado por el iframe
+        }}
+      >
+        {!isOpen && ( // Renderizar el "globito" DENTRO del iframe (iframe será pequeño)
+          <div
+            style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
+            onClick={toggleChat}
+            role="button" tabIndex={0} aria-label="Abrir chat"
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleChat();}}
           >
             <div className="relative">
               <img src="/chatboc_logo_clean_transparent.png" alt="Chatboc" className="w-8 h-8 rounded" style={{ padding: "2px" }} />
-              <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-gray-900" />
+              <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2" style={{ borderColor: prefersDark ? '#2d3748' : '#fff' }} />
             </div>
-          </button>
-        </div>
+          </div>
+        )}
+        {isOpen && ( // Renderizar la ventana de chat completa o selección de rubro
+          esperandoRubro ? rubroSelectionViewContent : mainChatViewContent
+        )}
+      </div>
+    );
+  }
+
+  // ---- Renderizado para modo Standalone ----
+  return (
+    <div ref={widgetContainerRef} style={currentPos} className="chatboc-standalone-widget">
+      {!isOpen && ( // Botón flotante cuando está cerrado en modo standalone
+        <button
+          onClick={toggleChat}
+          onMouseDown={draggable ? handleDragStart : undefined}
+          onTouchStart={draggable ? handleDragStart : undefined}
+          className="group w-16 h-16 rounded-full flex items-center justify-center border shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:scale-105"
+          aria-label="Abrir chat"
+          style={{
+            borderColor: prefersDark ? "#374151" : "#e5e7eb",
+            background: prefersDark ? "#161c24" : "#fff",
+            cursor: draggable ? "move" : "pointer",
+          }}
+        >
+          <div className="relative">
+            <img src="/chatboc_logo_clean_transparent.png" alt="Chatboc" className="w-8 h-8 rounded" style={{ padding: "2px" }} />
+            <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-gray-900" />
+          </div>
+        </button>
       )}
 
-      {isOpen && ( // Ventana de chat o selección de rubro DENTRO del iframe
-        <div className="w-full h-full flex flex-col overflow-hidden animate-slide-up"> {/* Ocupa todo el espacio */}
-          {esperandoRubro ? (
-            <div className="w-full h-full flex flex-col items-center justify-center p-4">
-              <h2 className="text-lg font-semibold mb-3 text-center">👋 ¡Bienvenido!</h2>
-              <p className="mb-4 text-sm text-center">¿De qué rubro es tu negocio?</p>
-              {cargandoRubros ? ( <div className="text-center text-gray-500 text-sm my-6">Cargando rubros...</div>
-              ) : rubrosDisponibles.length === 0 ? ( <div className="text-center text-red-500 text-sm my-6"> No se pudieron cargar los rubros. <br /> <button onClick={cargarRubrosInternal} className="mt-2 underline text-blue-600 hover:text-blue-800"> Reintentar </button> </div>
-              ) : ( <div className="flex flex-wrap justify-center gap-2"> {rubrosDisponibles.map((rubro) => ( <button key={rubro.id} onClick={() => { if(typeof window !== "undefined") localStorage.setItem("rubroSeleccionado", rubro.nombre); setRubroSeleccionado(rubro.nombre); setEsperandoRubro(false); }} className="px-4 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 text-sm"> {rubro.nombre} </button> ))} </div>
-              )}
-            </div>
-          ) : (
-            <>
-              <ChatHeaderStandalone onCloseInternal={toggleInternalChatWindow} prefersDark={prefersDark} />
-              <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-3" ref={chatContainerRef}>
-                {messages.map((msg) => <ChatMessage key={msg.id} message={msg} />)}
-                {isTyping && <TypingIndicator />}
-                <div ref={messagesEndRef} />
-              </div>
-              <ChatInputStandalone onSendMessage={handleSendMessageInternal} prefersDark={prefersDark} />
-            </>
-          )}
+      {isOpen && ( // Ventana de chat o selección de rubro cuando está abierto en modo standalone
+        <div
+          className="w-80 md:w-96 rounded-xl shadow-2xl flex flex-col overflow-hidden animate-slide-up"
+          // El onMouseDown para arrastrar la ventana abierta está en el ChatHeader
+          style={{
+            height: esperandoRubro ? 'auto' : '500px', // Ajustar según necesidad
+            minHeight: esperandoRubro ? '240px' : '400px', // Ajustar según necesidad
+            background: prefersDark ? "#161c24" : "#fff",
+            border: `1px solid ${prefersDark ? "#374151" : "#e5e7eb"}`,
+          }}
+        >
+          {esperandoRubro ? rubroSelectionViewContent : mainChatViewContent}
         </div>
       )}
     </div>

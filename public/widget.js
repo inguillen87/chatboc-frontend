@@ -1,124 +1,134 @@
 (function () {
+  "use strict";
+  console.log("Chatboc widget.js: v16-style execution started.");
+
   const script = document.currentScript;
-  let token = script.getAttribute("data-token") || "demo-anon";
+  if (!script) {
+    console.error("Chatboc widget.js FATAL: document.currentScript is null.");
+    return;
+  }
 
-  // Posiciones custom por atributos
-  const posBottom = script.getAttribute("data-bottom") || "20px";
-  const posRight = script.getAttribute("data-right") || "20px";
-  const width = script.getAttribute("data-width") || "360px";
-  const height = script.getAttribute("data-height") || "520px";
-  const zIndex = script.getAttribute("data-z") || "999999";
+  const token = script.getAttribute("data-token") || "demo-anon";
+  const initialBottom = script.getAttribute("data-bottom") || "20px";
+  const initialRight = script.getAttribute("data-right") || "20px";
+  const defaultOpen = script.getAttribute("data-default-open") === "true"; // Si el chat debe iniciar abierto
+  const chatbocDomain = script.getAttribute("data-domain") || "https://www.chatboc.ar";
 
-  // Loader
+  const zIndexBase = parseInt(script.getAttribute("data-z") || "999990", 10);
+  const iframeId = "chatboc-dynamic-iframe-" + Math.random().toString(36).substring(2, 9);
+
+  const WIDGET_DIMENSIONS_JS = { // Usar los mismos nombres que en ChatWidget.tsx
+    OPEN: {
+      width: script.getAttribute("data-width") || "360px",
+      height: script.getAttribute("data-height") || "520px",
+    },
+    CLOSED: { // Dimensiones del globito
+      width: script.getAttribute("data-closed-width") || "80px",
+      height: script.getAttribute("data-closed-height") || "80px",
+    },
+  };
+
+  let currentDims = defaultOpen ? WIDGET_DIMENSIONS_JS.OPEN : WIDGET_DIMENSIONS_JS.CLOSED;
+  let iframeIsCurrentlyOpen = defaultOpen; // Sincronizado con ChatWidget interno
+
+  // --- Loader ---
   const loader = document.createElement("div");
-  loader.id = "chatboc-loader";
+  loader.id = "chatboc-loader-" + iframeId;
   loader.style.position = "fixed";
-  loader.style.bottom = posBottom;
-  loader.style.right = posRight;
-  loader.style.zIndex = zIndex;
-  loader.style.width = width;
-  loader.style.height = height;
+  loader.style.bottom = initialBottom;
+  loader.style.right = initialRight;
+  loader.style.width = currentDims.width; // Tamaño inicial basado en defaultOpen
+  loader.style.height = currentDims.height;
+  loader.style.zIndex = zIndexBase.toString();
   loader.style.display = "flex";
   loader.style.alignItems = "center";
   loader.style.justifyContent = "center";
-  loader.innerHTML = `<div style="border:4px solid #2b7fff;border-top:4px solid #fff;border-radius:50%;width:36px;height:36px;animation:spin 1s linear infinite;"></div>
-  <style>
-    @keyframes spin { 100% { transform: rotate(360deg); } }
-  </style>`;
-  if (!document.getElementById("chatboc-loader")) document.body.appendChild(loader);
+  loader.style.borderRadius = defaultOpen ? "16px" : "50%";
+  loader.style.background = "rgba(230,230,230,0.8)";
+  loader.style.boxShadow = "0 2px 8px rgba(0,0,0,0.1)";
+  loader.style.transition = "opacity 0.3s ease-out"; // Transición para el loader
+  loader.innerHTML = `<div style="font-family: Arial, sans-serif; color: #555; font-size:11px; text-align:center;">Cargando<br/>Chatboc...</div>`;
+  if (!document.getElementById(loader.id)) document.body.appendChild(loader);
 
-  // IFRAME
+
+  // --- Iframe ---
   const iframe = document.createElement("iframe");
-  iframe.src = `https://www.chatboc.ar/iframe?token=${encodeURIComponent(token)}`; // Asegúrate que esta URL sea la de tu app
+  iframe.id = iframeId;
+  // Pasamos defaultOpen y widgetId a ChatWidget.tsx para que sepa su estado inicial y pueda identificarse
+  iframe.src = `${chatbocDomain}/iframe?token=${encodeURIComponent(token)}&widgetId=${iframeId}&defaultOpen=${defaultOpen}`;
   iframe.style.position = "fixed";
-  iframe.style.bottom = posBottom;
-  iframe.style.right = posRight;
-  iframe.style.width = width;
-  iframe.style.height = height;
+  iframe.style.bottom = initialBottom;
+  iframe.style.right = initialRight;
+  iframe.style.left = "auto";
+  iframe.style.top = "auto";
+  iframe.style.width = currentDims.width;
+  iframe.style.height = currentDims.height;
   iframe.style.border = "none";
-  iframe.style.zIndex = zIndex;
-  iframe.style.borderRadius = "16px";
-  iframe.style.boxShadow = "0 4px 12px rgba(0,0,0,0.2)";
+  iframe.style.zIndex = zIndexBase.toString();
+  iframe.style.borderRadius = iframeIsCurrentlyOpen ? "16px" : "50%";
+  iframe.style.boxShadow = "0 4px 16px rgba(0,0,0,0.25)";
+  iframe.style.transition = "width 0.25s cubic-bezier(0.4, 0, 0.2, 1), height 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-radius 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease-in-out";
+  iframe.style.overflow = "hidden"; // Importante
+  iframe.style.opacity = "0"; // Inicia oculto hasta que cargue
   iframe.allow = "clipboard-write";
   iframe.setAttribute("title", "Chatboc Chatbot");
-  iframe.id = "chatboc-widget";
 
-  // Mostrar el iframe solo cuando termine de cargar
+  let iframeHasLoaded = false;
   iframe.onload = function () {
-    loader.remove();
-    iframe.style.display = "block"; // Muestra el iframe
-    closeBtn.style.display = "flex"; // Muestra el botón de cierre
+    console.log("Chatboc widget.js: Iframe onload disparado.");
+    iframeHasLoaded = true;
+    const loaderEl = document.getElementById(loader.id);
+    if (loaderEl) {
+        loaderEl.style.opacity = "0";
+        setTimeout(() => loaderEl.remove(), 300); // Quitar loader después de la transición
+    }
+    iframe.style.opacity = "1"; // Mostrar iframe
   };
-  iframe.style.display = "none"; // oculto hasta que cargue
+  if (!document.getElementById(iframeId)) document.body.appendChild(iframe);
 
-  // Evita doble widget
-  if (!document.getElementById("chatboc-widget")) document.body.appendChild(iframe);
 
-  // BOTÓN DE CIERRE EXTERNO
-  const closeBtn = document.createElement("button");
-  closeBtn.innerHTML = "&#10005;"; // Símbolo 'X'
-  closeBtn.title = "Cerrar Chatboc";
-  closeBtn.style.position = "fixed";
-  // Posición del botón de cierre relativa a la esquina superior DERECHA del iframe
-  closeBtn.style.bottom = `calc(${posBottom} + ${height} - 16px - 12px)`; // Ajustado para estar dentro, arriba
-  closeBtn.style.right = `calc(${posRight} + 12px)`; // Ajustado para estar dentro, a la derecha
-  closeBtn.style.zIndex = (parseInt(zIndex) + 1).toString(); // Encima del iframe
-  closeBtn.style.background = "#fff";
-  closeBtn.style.color = "#2b7fff";
-  closeBtn.style.border = "1px solid #cce1ff";
-  closeBtn.style.borderRadius = "50%";
-  closeBtn.style.width = "32px";
-  closeBtn.style.height = "32px";
-  closeBtn.style.boxShadow = "0 2px 8px #0002";
-  closeBtn.style.cursor = "pointer";
-  closeBtn.style.fontSize = "18px";
-  closeBtn.style.display = "none"; // Oculto hasta que el iframe cargue
-  closeBtn.style.alignItems = "center";
-  closeBtn.style.justifyContent = "center";
+  // Escuchar mensajes del iframe para redimensionar
+  window.addEventListener("message", function(event) {
+    if (event.origin !== chatbocDomain && !(chatbocDomain.startsWith("http://localhost")) ) { // Asegurar origen
+        return;
+    }
+
+    if (event.data && event.data.type === "chatboc-resize" && event.data.widgetId === iframeId) {
+      console.log("Chatboc widget.js: Mensaje 'chatboc-resize' recibido:", event.data);
+      const newDims = event.data.dimensions;
+      iframeIsCurrentlyOpen = event.data.isOpen;
+
+      iframe.style.width = newDims.width;
+      iframe.style.height = newDims.height;
+      iframe.style.borderRadius = iframeIsCurrentlyOpen ? "16px" : "50%";
+      iframe.style.boxShadow = iframeIsCurrentlyOpen ? "0 6px 20px rgba(0,0,0,0.2)" : "0 4px 12px rgba(0,0,0,0.15)";
+      
+      currentDims = newDims; // Actualizar para la lógica de arrastre
+    }
+  });
+
+  // --- Lógica de Arrastre (para el iframe) ---
+  let isDragging = false, dragStartX, dragStartY, iframeStartLeft, iframeStartTop;
   
-  closeBtn.onclick = function () {
-    iframe.style.display = "none"; // Oculta el iframe
-    closeBtn.style.display = "none"; // Oculta el botón de cierre
-    // Aquí faltaría la lógica para mostrar un "globito" para reabrir.
-  };
-  if (!document.getElementById("chatboc-close-btn")) {
-    closeBtn.id = "chatboc-close-btn";
-    document.body.appendChild(closeBtn);
-  }
-
-  // DRAG & DROP (Lógica de arrastre que tenías)
-  let isDragging = false, startX, startY, startBottom, startRight;
   iframe.addEventListener("mousedown", dragStart);
   iframe.addEventListener("touchstart", dragStart, { passive: false });
 
   function dragStart(e) {
-    // Prevenir arrastre si el click fue en un input, botón, etc. DENTRO del iframe.
-    // Esta es una heurística. Si el contenido del iframe no propaga el evento, puede no funcionar.
-    const targetTagName = e.target ? (e.target as HTMLElement).tagName.toLowerCase() : '';
-    if (targetTagName === 'input' || targetTagName === 'textarea' || targetTagName === 'button' || targetTagName === 'a') {
-        return;
-    }
-    if (e.target !== iframe) { // Si el click no es directamente en el iframe (ej. scrollbar), no arrastrar
-        // A menos que el contenido del iframe esté específicamente diseñado para propagar eventos de drag al padre.
-        // Esta condición puede ser muy restrictiva.
-        // return;
-    }
-
-
+    // Permitir arrastre tanto para el globito como para la ventana abierta.
+    // La heurística para no arrastrar inputs es difícil de hacer bien desde fuera del iframe.
+    // El ChatHeader dentro de ChatWidget ya no inicia el drag, así que no hay conflicto.
+    
     isDragging = true;
-    startX = e.touches ? e.touches[0].clientX : e.clientX;
-    startY = e.touches ? e.touches[0].clientY : e.clientY;
-    // Leer la posición actual basada en estilos (puede ser bottom/right o top/left)
     const rect = iframe.getBoundingClientRect();
     iframeStartLeft = rect.left;
     iframeStartTop = rect.top;
+    dragStartX = e.touches ? e.touches[0].clientX : e.clientX;
+    dragStartY = e.touches ? e.touches[0].clientY : e.clientY;
     
-    // Desactivar transición para arrastre fluido
-    iframe.style.transition = 'none'; 
-    document.body.style.userSelect = 'none'; // Evitar selección de texto en la página
+    iframe.style.transition = "none"; 
+    iframe.style.userSelect = 'none';
     document.body.style.cursor = 'move';
-
-
+    
     document.addEventListener("mousemove", dragMove);
     document.addEventListener("mouseup", dragEnd);
     document.addEventListener("touchmove", dragMove, { passive: false });
@@ -133,38 +143,34 @@
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
 
-    // Calcular nueva posición left/top
     let newLeft = iframeStartLeft + (clientX - dragStartX);
     let newTop = iframeStartTop + (clientY - dragStartY);
 
-    // Mantener dentro de la ventana
-    const iframeWidthNum = parseInt(width);
-    const iframeHeightNum = parseInt(height);
-    newLeft = Math.max(0, Math.min(window.innerWidth - iframeWidthNum, newLeft));
-    newTop = Math.max(0, Math.min(window.innerHeight - iframeHeightNum, newTop));
+    const currentIframeWidth = parseInt(currentDims.width); // Usa las dimensiones actuales del iframe
+    const currentIframeHeight = parseInt(currentDims.height);
+
+    newLeft = Math.max(0, Math.min(window.innerWidth - currentIframeWidth, newLeft));
+    newTop = Math.max(0, Math.min(window.innerHeight - currentIframeHeight, newTop));
 
     iframe.style.left = newLeft + "px";
     iframe.style.top = newTop + "px";
-    iframe.style.right = "auto"; // Cambiar a posicionamiento left/top
+    iframe.style.right = "auto";
     iframe.style.bottom = "auto";
-
-    // Mover el botón de cierre con el iframe
-    closeBtn.style.left = (newLeft + iframeWidthNum - parseInt(closeBtn.style.width) - 12) + "px"; // Ajustar posición del botón X
-    closeBtn.style.top = (newTop + 12) + "px";
-    closeBtn.style.right = "auto";
-    closeBtn.style.bottom = "auto";
   }
 
   function dragEnd() {
     if (!isDragging) return;
     isDragging = false;
-    // Reactivar transición si tenías alguna
-    // iframe.style.transition = '...'; // La tuya no tenía transición aquí
-    document.body.style.userSelect = '';
+    iframe.style.userSelect = '';
     document.body.style.cursor = 'default';
+    // Reactivar transición
+    setTimeout(() => {
+      iframe.style.transition = "width 0.25s cubic-bezier(0.4, 0, 0.2, 1), height 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-radius 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease-in-out";
+    }, 50);
     document.removeEventListener("mousemove", dragMove);
     document.removeEventListener("mouseup", dragEnd);
     document.removeEventListener("touchmove", dragMove);
     document.removeEventListener("touchend", dragEnd);
   }
+  console.log("Chatboc widget.js: v16-style ejecución finalizada.");
 })();
