@@ -9,6 +9,8 @@ import TargetSection from '@/components/sections/TargetSection';
 import CtaSection from '@/components/sections/CtaSection';
 import ComingSoonSection from '@/components/sections/ComingSoonSection';
 
+import ChatWidget from "@/components/chat/ChatWidget"; // <<--- IMPORTANTE
+
 const Index = () => {
   useEffect(() => {
     document.title = 'Chatboc - Tu Experto Virtual para Pymes';
@@ -27,35 +29,39 @@ const Index = () => {
   }, []);
 
   return (
-    <main className="flex flex-col gap-12 md:gap-16 lg:gap-20 mt-16 scroll-smooth">
-      <section id="inicio">
-        <HeroSection />
-      </section>
-      <section id="problemas">
-        <ProblemsSection />
-      </section>
-      <section id="solucion">
-        <SolutionSection />
-      </section>
-      <section id="como-funciona">
-        <HowItWorksSection />
-      </section>
-      <section id="precios">
-        <PricingSection />
-      </section>
-      <section id="publico-objetivo">
-        <TargetSection />
-      </section>
-      {/* <section id="testimonios">
-        <TestimonialsSection />
-      </section> */}
-      <section id="cta">
-        <CtaSection />
-      </section>
-      <section id="proximamente">
-        <ComingSoonSection />
-      </section>
-    </main>
+    <>
+      <main className="flex flex-col gap-12 md:gap-16 lg:gap-20 mt-16 scroll-smooth">
+        <section id="inicio">
+          <HeroSection />
+        </section>
+        <section id="problemas">
+          <ProblemsSection />
+        </section>
+        <section id="solucion">
+          <SolutionSection />
+        </section>
+        <section id="como-funciona">
+          <HowItWorksSection />
+        </section>
+        <section id="precios">
+          <PricingSection />
+        </section>
+        <section id="publico-objetivo">
+          <TargetSection />
+        </section>
+        {/* <section id="testimonios">
+          <TestimonialsSection />
+        </section> */}
+        <section id="cta">
+          <CtaSection />
+        </section>
+        <section id="proximamente">
+          <ComingSoonSection />
+        </section>
+      </main>
+      {/* --- CHATBOT FLOTANTE SOLO EN LANDING --- */}
+      <ChatWidget mode="standalone" defaultOpen={false} />
+    </>
   );
 };
 
