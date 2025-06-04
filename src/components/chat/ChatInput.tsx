@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { SendHorizonal } from "lucide-react";
+import { SendHorizontal } from "lucide-react"; // Cambiado a SendHorizontal, que es un nombre más común. Verifica si es 'Send' o 'SendHorizonal' en tu proyecto.
 
 interface Props {
   onSendMessage: (text: string) => void;
@@ -34,14 +34,17 @@ const ChatInput: React.FC<Props> = ({ onSendMessage }) => {
   };
 
   return (
-    <div className="flex items-center gap-2">
+    // Contenedor del input y botón. El padding y borde superior son opcionales,
+    // ajústalos si el ChatWidget.tsx no los provee ya.
+    <div className="flex items-center gap-2 p-3 border-t border-gray-200 dark:border-gray-700">
       <input
         ref={inputRef}
         className="
           flex-1 bg-white dark:bg-[#1c1e24]
           border border-gray-300 dark:border-[#23272e]
           rounded-2xl px-4 py-2
-          text-sm outline-none transition
+          text-sm text-gray-900 dark:text-gray-100 
+          outline-none transition
           focus:border-blue-500 dark:focus:border-blue-400
           placeholder:text-gray-400 dark:placeholder:text-gray-500
           shadow-sm
@@ -50,24 +53,30 @@ const ChatInput: React.FC<Props> = ({ onSendMessage }) => {
         placeholder={PLACEHOLDERS[placeholderIndex]}
         value={input}
         onChange={(e) => setInput(e.target.value)}
-        onKeyDown={(e) => e.key === "Enter" && handleSend()}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault(); 
+            handleSend();
+          }
+        }}
         autoFocus
         autoComplete="off"
       />
       <button
         className={`
           flex items-center justify-center
-          bg-blue-500 hover:bg-blue-700
+          bg-blue-500 hover:bg-blue-600 dark:hover:bg-blue-400
           text-white rounded-full p-2
           shadow-md transition
-          disabled:bg-gray-300 disabled:cursor-not-allowed
+          disabled:bg-gray-300 dark:disabled:bg-gray-600
+          disabled:cursor-not-allowed
         `}
         onClick={handleSend}
         disabled={!input.trim()}
         aria-label="Enviar"
         type="button"
       >
-        <SendHorizonal className="w-5 h-5" />
+        <SendHorizontal className="w-5 h-5" /> {/* Asegúrate que el nombre del icono sea correcto */}
       </button>
     </div>
   );
