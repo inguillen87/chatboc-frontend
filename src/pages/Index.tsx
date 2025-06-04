@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import HeroSection from '@/components/sections/HeroSection';
 import ProblemsSection from '@/components/sections/ProblemsSection';
 import SolutionSection from '@/components/sections/SolutionSection';
@@ -8,10 +8,11 @@ import TargetSection from '@/components/sections/TargetSection';
 // import TestimonialsSection from '@/components/sections/TestimonialsSection';
 import CtaSection from '@/components/sections/CtaSection';
 import ComingSoonSection from '@/components/sections/ComingSoonSection';
-
-import ChatWidget from "@/components/chat/ChatWidget"; // <<--- IMPORTANTE
+import ChatWidget from "@/components/chat/ChatWidget";
 
 const Index = () => {
+  const [showWidget, setShowWidget] = useState(true);
+
   useEffect(() => {
     document.title = 'Chatboc - Tu Experto Virtual para Pymes';
 
@@ -26,6 +27,29 @@ const Index = () => {
         sessionStorage.removeItem("pendingScrollSection");
       }, 200);
     }
+
+    // CONTROL VISIBILIDAD WIDGET POR LOGIN
+    const checkLogin = () => {
+      try {
+        const stored = localStorage.getItem("user");
+        if (stored) {
+          const user = JSON.parse(stored);
+          // Verifica si tiene token "real" y no demo
+          if (user && typeof user.token === "string" && !user.token.startsWith("demo")) {
+            setShowWidget(false);
+            return;
+          }
+        }
+        setShowWidget(true);
+      } catch {
+        setShowWidget(true);
+      }
+    };
+
+    checkLogin();
+
+    window.addEventListener("storage", checkLogin);
+    return () => window.removeEventListener("storage", checkLogin);
   }, []);
 
   return (
@@ -59,8 +83,8 @@ const Index = () => {
           <ComingSoonSection />
         </section>
       </main>
-      {/* --- CHATBOT FLOTANTE SOLO EN LANDING --- */}
-      <ChatWidget mode="standalone" defaultOpen={false} />
+      {/* CHAT FLOTANTE SOLO SI NO HAY USUARIO LOGUEADO */}
+      {showWidget && <ChatWidget mode="standalone" defaultOpen={false} />}
     </>
   );
 };
