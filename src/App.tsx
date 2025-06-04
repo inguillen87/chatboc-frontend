@@ -1,63 +1,85 @@
 import React from "react"; // React es necesario para Suspense y JSX
-import { Toaster } from "@/components/ui/sonner"; // Asumiendo que existen estos componentes
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster } from "@/components/ui/sonner"; // Asumo que existen estos componentes
+import { TooltipProvider } from "@/components/ui/tooltip"; // Asumo que existen
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 
 // Importa tus páginas (ajusta rutas según tu estructura)
 import Layout from "./components/layout/Layout"; // Asume que tienes un Layout
 import Index from "./pages/Index"; // Asume que tienes una página Index
-// ... Si tienes otras páginas como Login, Perfil, etc., impórtalas aquí
-// import Login from "./pages/Login";
-// import Perfil from "./pages/Perfil";
+// Descomenta e importa las páginas que realmente tienes en tu proyecto:
+import Login from "./pages/Login"; // Ejemplo
+import Perfil from "./pages/Perfil"; // Ejemplo
+import Demo from "./pages/Demo"; // Ejemplo
+import ChatPage from "./pages/ChatPage"; // Ejemplo
+import Checkout from "./pages/Checkout"; // Ejemplo
+// ... y cualquier otra página que uses ...
+
 import Iframe from "./pages/Iframe"; // La página que hostea el ChatWidget para el iframe
-import NotFound from "./pages.NotFound"; // Asume que tienes una página 404
+import NotFound from "./pages/NotFound"; // Asume que tienes una página 404 (corregí el import)
 
 const queryClient = new QueryClient();
 
 function AppRoutes() {
-  // const location = useLocation(); // Descomenta si necesitas lógica basada en la ruta actual
-  // const ocultarWidgetGlobal = ["/iframe"].includes(location.pathname); // Ejemplo
+  const location = useLocation(); // Descomentado para que puedas usarlo
+  // Ejemplo: podrías querer ocultar un widget global en la página del iframe
+  const ocultarWidgetGlobalEnApp = ["/iframe"].includes(location.pathname);
 
   return (
-    <Routes>
-      {/* Rutas principales con tu Layout */}
-      <Route element={<Layout />}>
-        <Route path="/" element={<Index />} />
-        {/* Aquí van el resto de las rutas de tu aplicación principal */}
-        {/* Ejemplo:
-        <Route path="/login" element={<Login />} />
-        <Route path="/perfil" element={<Perfil />} />
-        */}
-      </Route>
+    <>
+      <Routes>
+        {/* Rutas principales con tu Layout */}
+        <Route element={<Layout />}>
+          <Route path="/" element={<Index />} />
+          {/* Aquí van el resto de las rutas de tu aplicación principal */}
+          {/* Asegúrate de que estas rutas y componentes existan en tu proyecto */}
+          <Route path="/login" element={<Login />} />
+          <Route path="/perfil" element={<Perfil />} />
+          <Route path="/demo" element={<Demo />} />
+          <Route path="/chat" element={<ChatPage />} />
+          <Route path="/checkout" element={<Checkout />} />
+          {/* ... Añade más rutas de tu aplicación aquí ... */}
+        </Route>
 
-      {/* Ruta para el iframe, importante que NO use el Layout global */}
-      <Route path="/iframe" element={<Iframe />} />
+        {/* Ruta para el iframe, importante que NO use el Layout global */}
+        <Route path="/iframe" element={<Iframe />} />
 
-      {/* Ruta para 404 */}
-      <Route path="*" element={<NotFound />} />
-    </Routes>
-    
-    {/*
-      PARA UN WIDGET FLOTANTE EN TU PROPIA APLICACIÓN (ej. en chatboc.ar/perfil):
-      - El ChatWidget.tsx actual está diseñado para funcionar con widget.js y postMessage.
-      - Si necesitas un widget flotante en tu app, necesitarías:
-          1. Una versión diferente de ChatWidget (como la que tenías con `mode="standalone"`).
-          2. O adaptar el ChatWidget.tsx actual para que, si no está en un iframe
-             (window.parent === window), se comporte como un widget flotante autocontenido.
-             Esto haría el componente más complejo.
-      - Ejemplo conceptual de cómo se añadiría un widget standalone (requiere el componente adecuado):
-        {!ocultarWidgetGlobal && (
-          <StandaloneFloatingChatWidget defaultOpen={false} />
+        {/* Ruta para 404 */}
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+      
+      {/*
+        PARA UN WIDGET FLOTANTE EN TU PROPIA APLICACIÓN (ej. en chatboc.ar/perfil):
+        - Este es el lugar donde implementarías la lógica para mostrar un ChatWidget
+          en las páginas de TU aplicación (no en las de tus clientes PYMEs).
+        - El ChatWidget.tsx que te proporcioné para el sistema de iframe con postMessage
+          está optimizado para ESE CASO DE USO.
+        - Si quieres un widget flotante aquí, necesitarías:
+            1. Usar una versión de ChatWidget diseñada para ser "standalone"
+               (como la que tenía el prop `mode="standalone"` que discutimos antes,
+               con su propio posicionamiento fijo, botón de toggle, y lógica de arrastre).
+            2. O adaptar el ChatWidget.tsx actual para que, si detecta que NO está
+               en un iframe (window.parent === window), cambie su comportamiento.
+               Esto puede añadir bastante complejidad al componente ChatWidget.
+
+        Ejemplo conceptual (si tuvieras un ChatWidgetStandalone):
+
+        const ChatWidgetStandalone = React.lazy(() => import("@/components/chat/ChatWidgetStandalone"));
+        // ... más abajo ...
+        {!ocultarWidgetGlobalEnApp && (
+          <React.Suspense fallback={<div>Cargando Chat...</div>}>
+            <ChatWidgetStandalone defaultOpen={false} initialPosition={{ bottom: 20, right: 20 }} />
+          </React.Suspense>
         )}
-    */}
+      */}
+    </>
   );
 }
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider> {/* Asumiendo que usas tooltips */}
-      <Toaster /> {/* Para notificaciones Sonner */}
+    <TooltipProvider>
+      <Toaster />
       <BrowserRouter>
         <AppRoutes />
       </BrowserRouter>
