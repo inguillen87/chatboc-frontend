@@ -75,7 +75,7 @@ const Checkout = () => {
       </Button>
 
       <p className="text-xs text-muted-foreground mt-3">
-        También podés escribirnos a contacto@chatboc.ar
+        También podés escribirnos a info@chatboc.ar
       </p>
     </div>
   );
