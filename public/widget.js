@@ -2,34 +2,32 @@
   const script = document.currentScript;
   let token = script.getAttribute("data-token") || "demo-anon";
 
-  // Posiciones custom por atributos
   const posBottom = script.getAttribute("data-bottom") || "20px";
   const posRight = script.getAttribute("data-right") || "20px";
   const width = script.getAttribute("data-width") || "360px";
   const height = script.getAttribute("data-height") || "520px";
-  const zIndex = script.getAttribute("data-z") || "999999";
+  const zIndex = script.getAttribute("data-z") || "999999"; // zIndex para el iframe
 
-  // Loader
   const loader = document.createElement("div");
   loader.id = "chatboc-loader";
   loader.style.position = "fixed";
   loader.style.bottom = posBottom;
   loader.style.right = posRight;
-  loader.style.zIndex = zIndex;
+  loader.style.zIndex = zIndex; // Loader usa el mismo zIndex que el iframe
   loader.style.width = width;
   loader.style.height = height;
   loader.style.display = "flex";
   loader.style.alignItems = "center";
   loader.style.justifyContent = "center";
-  loader.innerHTML = `<div style="border:4px solid #2b7fff;border-top:4px solid #fff;border-radius:50%;width:36px;height:36px;animation:spin 1s linear infinite;"></div>
+  // Simple text loader for now, or use your spinner if you ensure styles are self-contained
+  loader.innerHTML = `<div style="font-family: sans-serif; color: #333;">Cargando Chatboc...</div>
   <style>
     @keyframes spin { 100% { transform: rotate(360deg); } }
   </style>`;
   if (!document.getElementById("chatboc-loader")) document.body.appendChild(loader);
 
-  // IFRAME
   const iframe = document.createElement("iframe");
-  iframe.src = `https://www.chatboc.ar/iframe?token=${encodeURIComponent(token)}`;
+  iframe.src = `https://www.chatboc.ar/iframe?token=${encodeURIComponent(token)}`; // Asegúrate que esta URL sea correcta
   iframe.style.position = "fixed";
   iframe.style.bottom = posBottom;
   iframe.style.right = posRight;
@@ -43,80 +41,124 @@
   iframe.setAttribute("title", "Chatboc Chatbot");
   iframe.id = "chatboc-widget";
 
-  // Mostrar el iframe solo cuando termine de cargar
   iframe.onload = function () {
-    loader.remove();
+    if(document.getElementById("chatboc-loader")) loader.remove();
     iframe.style.display = "block";
+    if(closeBtn) closeBtn.style.display = "flex"; // Mostrar botón de cierre cuando el iframe carga
   };
-  iframe.style.display = "none"; // oculto hasta que cargue
+  iframe.style.display = "none"; 
 
-  // Evita doble widget
   if (!document.getElementById("chatboc-widget")) document.body.appendChild(iframe);
 
-  // BOTÓN DE CIERRE
   const closeBtn = document.createElement("button");
   closeBtn.innerHTML = "&#10005;";
   closeBtn.title = "Cerrar Chatboc";
   closeBtn.style.position = "fixed";
-  closeBtn.style.bottom = `calc(${posBottom} + ${height} - 16px)`;
-  closeBtn.style.right = `calc(${posRight} + 8px)`;
-  closeBtn.style.zIndex = (parseInt(zIndex) + 1).toString();
-  closeBtn.style.background = "#fff";
-  closeBtn.style.color = "#2b7fff";
-  closeBtn.style.border = "1px solid #cce1ff";
+  // Posición del botón de cierre relativa a la esquina superior DERECHA del iframe
+  // Si el iframe tiene height y posBottom, su 'top' es effectively window.innerHeight - posBottom - height
+  // Para ponerlo arriba a la derecha del iframe:
+  // bottom: `calc(${posBottom} + ${height} - 32px - 8px)` (32px alto botón, 8px margen)
+  // right: `calc(${posRight} + 8px)`
+  // Lo ajustamos para que esté claramente asociado al iframe
+  let closeBtnTop = `calc(100vh - ${posBottom} - ${height} + 8px)`; // Asumiendo que posBottom es desde el fondo
+  let closeBtnRight = `calc(${posRight} + 8px)`;
+
+  // Si el iframe se define con 'top' en lugar de 'bottom'
+  // const posTop = script.getAttribute("data-top");
+  // if (posTop) { closeBtnTop = `calc(${posTop} + 8px)`; }
+
+
+  closeBtn.style.top = closeBtnTop; // Ajustado para la esquina superior derecha
+  closeBtn.style.right = closeBtnRight;
+  closeBtn.style.zIndex = (parseInt(zIndex) + 1).toString(); // Encima del iframe
+  closeBtn.style.background = "rgba(255,255,255,0.9)";
+  closeBtn.style.color = "#555";
+  closeBtn.style.border = "1px solid #ccc";
   closeBtn.style.borderRadius = "50%";
-  closeBtn.style.width = "32px";
-  closeBtn.style.height = "32px";
-  closeBtn.style.boxShadow = "0 2px 8px #0002";
+  closeBtn.style.width = "28px";
+  closeBtn.style.height = "28px";
+  closeBtn.style.boxShadow = "0 1px 4px rgba(0,0,0,0.15)";
   closeBtn.style.cursor = "pointer";
-  closeBtn.style.fontSize = "18px";
-  closeBtn.style.display = "flex";
-  closeBtn.style.alignItems = "center";
-  closeBtn.style.justifyContent = "center";
+  closeBtn.style.fontSize = "14px";
+  closeBtn.style.lineHeight = "26px"; // Centrar la X
+  closeBtn.style.textAlign = "center"; // Centrar la X
+  closeBtn.style.display = "none"; // Oculto hasta que el iframe cargue
+  closeBtn.style.alignItems = "center"; // Para flex, si se usa
+  closeBtn.style.justifyContent = "center"; // Para flex, si se usa
+
   closeBtn.onclick = function () {
     iframe.style.display = "none";
     closeBtn.style.display = "none";
+    // Podrías añadir un botón para reabrirlo o que se quede cerrado hasta un refresh
   };
   if (!document.getElementById("chatboc-close-btn")) {
     closeBtn.id = "chatboc-close-btn";
     document.body.appendChild(closeBtn);
   }
 
-  // DRAG & DROP
-  let isDragging = false, startX, startY, startBottom, startRight;
+  let isDragging = false, dragStartX, dragStartY, iframeStartLeft, iframeStartTop;
+  
+  // Solo el iframe es arrastrable, no el botón de cierre por separado.
+  // El botón se moverá con el iframe.
   iframe.addEventListener("mousedown", dragStart);
   iframe.addEventListener("touchstart", dragStart, { passive: false });
 
   function dragStart(e) {
+    // No arrastrar si se hizo clic en un input, botón, etc. dentro del iframe
+    if (e.target !== iframe) return;
+
     isDragging = true;
-    startX = e.touches ? e.touches[0].clientX : e.clientX;
-    startY = e.touches ? e.touches[0].clientY : e.clientY;
-    startBottom = parseInt(iframe.style.bottom);
-    startRight = parseInt(iframe.style.right);
+    const rect = iframe.getBoundingClientRect();
+    iframeStartLeft = rect.left;
+    iframeStartTop = rect.top;
+    dragStartX = e.touches ? e.touches[0].clientX : e.clientX;
+    dragStartY = e.touches ? e.touches[0].clientY : e.clientY;
+    
+    iframe.style.userSelect = 'none'; // Evitar selección de texto en iframe al arrastrar
+    
     document.addEventListener("mousemove", dragMove);
     document.addEventListener("mouseup", dragEnd);
     document.addEventListener("touchmove", dragMove, { passive: false });
     document.addEventListener("touchend", dragEnd);
-    e.preventDefault();
+    // No necesitamos e.preventDefault() aquí en el iframe directamente,
+    // pero sí en los document listeners para el dragMove si es touch.
   }
 
   function dragMove(e) {
     if (!isDragging) return;
+    if (e.cancelable && (e.type === 'touchmove')) e.preventDefault();
+
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    let newRight = startRight + (startX - clientX);
-    let newBottom = startBottom + (startY - clientY);
-    // límites (no sacar de la pantalla)
-    newRight = Math.max(0, Math.min(window.innerWidth - parseInt(width), newRight));
-    newBottom = Math.max(0, Math.min(window.innerHeight - parseInt(height), newBottom));
-    iframe.style.right = newRight + "px";
-    iframe.style.bottom = newBottom + "px";
-    closeBtn.style.right = (newRight + 8) + "px";
-    closeBtn.style.bottom = `calc(${newBottom + parseInt(height) - 16}px)`;
+
+    let newLeft = iframeStartLeft + (clientX - dragStartX);
+    let newTop = iframeStartTop + (clientY - dragStartY);
+
+    // Limitar a la pantalla
+    const iframeWidth = parseInt(width);
+    const iframeHeight = parseInt(height);
+    newLeft = Math.max(0, Math.min(window.innerWidth - iframeWidth, newLeft));
+    newTop = Math.max(0, Math.min(window.innerHeight - iframeHeight, newTop));
+
+    iframe.style.left = newLeft + "px";
+    iframe.style.top = newTop + "px";
+    iframe.style.right = "auto"; // Cambiar a posicionamiento left/top
+    iframe.style.bottom = "auto";
+
+    // Actualizar posición del botón de cierre
+    // closeBtn.style.top = (newTop + 8) + "px";
+    // closeBtn.style.right = `calc(100vw - ${newLeft + iframeWidth - 8 - 28}px)`; // Complejo
+    // Es más fácil si el botón se recalcula con el nuevo top/left del iframe:
+    closeBtn.style.left = (newLeft + iframeWidth - 28 - 8) + "px"; // 28px ancho botón, 8px margen
+    closeBtn.style.top = (newTop + 8) + "px";
+    closeBtn.style.right = "auto";
+    closeBtn.style.bottom = "auto";
   }
 
   function dragEnd() {
+    if (!isDragging) return;
     isDragging = false;
+    iframe.style.userSelect = ''; // Restaurar
     document.removeEventListener("mousemove", dragMove);
     document.removeEventListener("mouseup", dragEnd);
     document.removeEventListener("touchmove", dragMove);

@@ -108,7 +108,7 @@ print(response.json())
       <h2 className="text-xl font-semibold mb-2 mt-10 text-primary">Soporte y consultas</h2>
       <p className="mb-2">
         ¿Dudas técnicas, problemas de integración o querés acceso a la API? <br />
-        Escribinos a <a href="mailto:soporte@chatboc.ar" className="text-blue-500 underline">soporte@chatboc.ar</a> o consultá el{" "}
+        Escribinos a <a href="mailto:info@chatboc.ar" className="text-blue-500 underline">info@chatboc.ar</a> o consultá el{" "}
         <a href="/faqs" className="text-blue-500 underline">Centro de Ayuda</a>.
       </p>
       <p className="text-xs text-muted-foreground mt-8">

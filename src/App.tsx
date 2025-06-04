@@ -1,3 +1,4 @@
+import React from "react"; // Añadido React para Suspense
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -14,7 +15,7 @@ import ChatPage from "./pages/ChatPage";
 import ChatPosPage from "./pages/ChatPosPage";
 import ChatCRMPage from "./pages/ChatCRMPage";
 import Integracion from "./pages/Integracion";
-import Checkout from "./pages/Checkout"; // FALTABA ESTO
+import Checkout from "./pages/Checkout";
 
 // Otras páginas
 import Documentacion from "./pages/Documentacion";
@@ -25,20 +26,18 @@ import Cookies from "./pages/legal/Cookies";
 import NotFound from "./pages/NotFound";
 
 // Chat y rutas especiales
-import ChatWidget from "./components/chat/ChatWidget";
+import ChatWidget from "./components/chat/ChatWidget"; // Esta es la importación del ChatWidget unificado
 import Iframe from "./pages/Iframe";
 
 const queryClient = new QueryClient();
 
 function AppRoutes() {
   const location = useLocation();
-  // No mostrar el widget en /iframe ni en otras rutas especiales si querés
-  const ocultarWidget = ["/iframe"].includes(location.pathname);
+  const ocultarWidgetGlobal = ["/iframe"].includes(location.pathname);
 
   return (
     <>
       <Routes>
-        {/* Rutas con Layout general */}
         <Route element={<Layout />}>
           <Route path="/" element={<Index />} />
           <Route path="/login" element={<Login />} />
@@ -50,20 +49,25 @@ function AppRoutes() {
           <Route path="/chatpos" element={<ChatPosPage />} />
           <Route path="/chatcrm" element={<ChatCRMPage />} />
           <Route path="/integracion" element={<Integracion />} />
-          {/* Info y legales */}
           <Route path="/documentacion" element={<Documentacion />} />
           <Route path="/faqs" element={<Faqs />} />
           <Route path="/legal/privacy" element={<Privacy />} />
           <Route path="/legal/terms" element={<Terms />} />
           <Route path="/legal/cookies" element={<Cookies />} />
         </Route>
-        {/* Rutas fuera del layout */}
         <Route path="/iframe" element={<Iframe />} />
-        {/* 404 */}
         <Route path="*" element={<NotFound />} />
       </Routes>
-      {/* Widget global flotante para todas las páginas comunes */}
-      {!ocultarWidget && <ChatWidget />}
+      
+      {!ocultarWidgetGlobal && (
+        <React.Suspense fallback={<div>Cargando Chat...</div>}>
+          <ChatWidget
+            mode="standalone" // Explícito para claridad, o confía en el default
+            defaultOpen={false} // Empieza cerrado como botón
+            // initialPosition y draggable usarán los defaults definidos en ChatWidget
+          />
+        </React.Suspense>
+      )}
     </>
   );
 }
