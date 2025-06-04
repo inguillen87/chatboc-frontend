@@ -6,7 +6,7 @@ import ChatInput from "./ChatInput";
 import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
 
-// --- Componente ChatHeader ---
+// --- Componente ChatHeader Pro ---
 const ChatHeader: React.FC<{
   title?: string;
   showCloseButton?: boolean;
@@ -34,25 +34,43 @@ const ChatHeader: React.FC<{
   }, []);
   return (
     <div
-      className="flex items-center justify-between p-3 border-b select-none"
+      className={`
+        flex items-center justify-between px-4 py-2 border-b select-none
+        bg-gradient-to-r ${prefersDark ? "from-[#1b2230] to-[#182235]" : "from-blue-50 to-white"}
+        `}
       style={{
-        borderBottomColor: prefersDark ? "#374151" : "#e5e7eb",
+        borderBottomColor: prefersDark ? "#2e3545" : "#e5e7eb",
         cursor: isDraggable && onMouseDownDrag ? "move" : "default",
       }}
       onMouseDown={onMouseDownDrag}
       onTouchStart={onMouseDownDrag}
     >
       <div className="flex items-center pointer-events-none">
-        <img src="/chatboc_logo_clean_transparent.png" alt="Chatboc" className="w-6 h-6 mr-2" />
-        <span className="font-semibold text-sm">{title}</span>
+        <img src="/chatboc_logo_clean_transparent.png" alt="Chatboc" className="w-7 h-7 mr-2 rounded-xl bg-white shadow" />
+        <span className={`font-semibold text-base tracking-tight ${prefersDark ? "text-blue-100" : "text-blue-900"}`}>
+          {title}
+        </span>
       </div>
       <div className="flex items-center">
-        <span style={{ fontSize: 12, fontWeight: 400, color: prefersDark ? "#90EE90" : "#24ba53", marginRight: showCloseButton ? '8px' : '0' }} className="pointer-events-none">
-          &nbsp;• Online
+        <span
+          style={{
+            fontSize: 13,
+            fontWeight: 500,
+            color: prefersDark ? "#6ee7b7" : "#059669",
+            marginRight: showCloseButton ? 10 : 0,
+          }}
+          className="pointer-events-none"
+        >
+          ● Online
         </span>
         {showCloseButton && onClose && (
-          <button onClick={onClose} className="text-gray-600 dark:text-gray-300 hover:text-red-500 focus:outline-none" aria-label="Cerrar o minimizar chat">
-            <X size={20} />
+          <button
+            onClick={onClose}
+            className="text-gray-500 dark:text-gray-300 hover:text-red-500 dark:hover:text-red-400 transition focus:outline-none"
+            aria-label="Cerrar o minimizar chat"
+            tabIndex={0}
+          >
+            <X size={22} />
           </button>
         )}
       </div>
@@ -60,6 +78,7 @@ const ChatHeader: React.FC<{
   );
 };
 
+// --- Utilidad para Token ---
 function getToken(): string {
   if (typeof window === "undefined") return "demo-anon-ssr";
   const params = new URLSearchParams(window.location.search);
@@ -67,7 +86,7 @@ function getToken(): string {
   if (urlToken) return urlToken;
   const storedUserItem = localStorage.getItem("user");
   const user = storedUserItem ? JSON.parse(storedUserItem) : null;
-  if (user && user.token && typeof user.token === 'string' && !user.token.startsWith("demo")) return user.token;
+  if (user && user.token && typeof user.token === "string" && !user.token.startsWith("demo")) return user.token;
   let anonToken = localStorage.getItem("anon_token");
   if (!anonToken) {
     anonToken = `demo-anon-${Math.random().toString(36).substring(2, 10)}`;
@@ -86,7 +105,7 @@ interface ChatWidgetProps {
 
 const WIDGET_DIMENSIONS = {
   OPEN: { width: "360px", height: "520px" },
-  CLOSED: { width: "80px", height: "80px" },
+  CLOSED: { width: "72px", height: "72px" },
 };
 
 const ChatWidget: React.FC<ChatWidgetProps> = ({
@@ -114,7 +133,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const widgetContainerRef = useRef<HTMLDivElement>(null);
   const dragStartPosRef = useRef<{ x: number; y: number; elementX: number; elementY: number } | null>(null);
   const [currentPos, setCurrentPos] = useState<CSSProperties>(
-    mode === "standalone" ? { position: 'fixed', ...initialPosProp, zIndex: 99998 } : {}
+    mode === "standalone" ? { position: "fixed", ...initialPosProp, zIndex: 99998 } : {}
   );
 
   useEffect(() => {
@@ -262,15 +281,15 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   // --- Drag & Drop handlers ---
   const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
     if (mode !== "standalone" || !draggable || !widgetContainerRef.current || typeof window === "undefined") return;
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
+    const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
     const rect = widgetContainerRef.current.getBoundingClientRect();
     dragStartPosRef.current = { x: clientX, y: clientY, elementX: rect.left, elementY: rect.top };
     document.addEventListener("mousemove", handleDragging);
     document.addEventListener("mouseup", handleDragEnd);
     document.addEventListener("touchmove", handleDragging, { passive: false });
     document.addEventListener("touchend", handleDragEnd);
-    if ('preventDefault' in e && e.cancelable) e.preventDefault();
+    if ("preventDefault" in e && e.cancelable) e.preventDefault();
   };
   const handleDragging = (e: MouseEvent | TouchEvent) => {
     if (!dragStartPosRef.current) return;
@@ -295,7 +314,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   };
 
   const toggleChat = () => {
-    setIsOpen(prevIsOpen => {
+    setIsOpen((prevIsOpen) => {
       const nextIsOpen = !prevIsOpen;
       if (nextIsOpen && !rubroSeleccionado) recargarTokenYRubro();
       return nextIsOpen;
@@ -305,25 +324,34 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   useEffect(() => {
     if (mode === "iframe" && typeof window !== "undefined" && window.parent !== window) {
       const desiredDimensions = isOpen ? WIDGET_DIMENSIONS.OPEN : WIDGET_DIMENSIONS.CLOSED;
-      window.parent.postMessage({
-        type: "chatboc-resize",
-        widgetId: widgetId,
-        dimensions: desiredDimensions,
-        isOpen: isOpen,
-      }, "*");
+      window.parent.postMessage(
+        {
+          type: "chatboc-resize",
+          widgetId: widgetId,
+          dimensions: desiredDimensions,
+          isOpen: isOpen,
+        },
+        "*"
+      );
     }
   }, [isOpen, mode, widgetId]);
 
   // --- VISTA Selección de Rubro ---
   const rubroSelectionViewContent = (
-    <div className="w-full flex flex-col items-center justify-center p-6" style={{
-      background: prefersDark ? "#161c24" : "#fff",
-      minHeight: 240,
-    }}>
-      <h2 className="text-lg font-semibold mb-3 text-center">👋 ¡Bienvenido!</h2>
-      <p className="mb-4 text-sm text-center">¿De qué rubro es tu negocio?</p>
+    <div
+      className="w-full flex flex-col items-center justify-center px-6 py-7"
+      style={{
+        background: prefersDark ? "#161c24" : "#fff",
+        minHeight: 240,
+        borderRadius: "1.3rem",
+      }}
+    >
+      <h2 className="text-xl font-bold mb-3 text-center text-blue-700 dark:text-blue-200">👋 ¡Bienvenido!</h2>
+      <p className="mb-5 text-sm text-center text-gray-500 dark:text-gray-300">
+        ¿De qué rubro es tu negocio?
+      </p>
       {cargandoRubros ? (
-        <div className="text-center text-gray-500 text-sm my-6">Cargando rubros...</div>
+        <div className="text-center text-gray-400 text-sm my-6">Cargando rubros...</div>
       ) : rubrosDisponibles.length === 0 ? (
         <div className="text-center text-red-500 text-sm my-6">
           No se pudieron cargar los rubros. <br />
@@ -343,14 +371,19 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                 localStorage.setItem("rubroSeleccionado", rubro.nombre);
                 setRubroSeleccionado(rubro.nombre);
                 setEsperandoRubro(false);
-                setMessages([{
-                  id: 1,
-                  text: "¡Hola! Soy Chatboc, tu asistente virtual. ¿En qué puedo ayudarte hoy?",
-                  isBot: true,
-                  timestamp: new Date(),
-                }]);
+                setMessages([
+                  {
+                    id: 1,
+                    text: "¡Hola! Soy Chatboc, tu asistente virtual. ¿En qué puedo ayudarte hoy?",
+                    isBot: true,
+                    timestamp: new Date(),
+                  },
+                ]);
               }}
-              className="px-4 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 text-sm"
+              className="
+                px-4 py-2 bg-gradient-to-tr from-blue-500 to-blue-700
+                text-white rounded-2xl font-medium hover:scale-105
+                hover:bg-blue-700 transition text-sm shadow"
             >
               {rubro.nombre}
             </button>
@@ -369,11 +402,13 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         onMouseDownDrag={mode === "standalone" && isOpen && draggable ? handleDragStart : undefined}
         isDraggable={mode === "standalone" && draggable && isOpen}
       />
-      <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-3" ref={chatContainerRef} style={{ background: "none" }}>
+      <div
+        className="flex-1 overflow-y-auto p-3 flex flex-col gap-3 bg-transparent"
+        ref={chatContainerRef}
+        style={{ background: "none" }}
+      >
         {messages.map((msg) =>
-          typeof msg.text === "string" ? (
-            <ChatMessage key={msg.id} message={msg} />
-          ) : null
+          typeof msg.text === "string" ? <ChatMessage key={msg.id} message={msg} /> : null
         )}
         {isTyping && <TypingIndicator />}
         <div ref={messagesEndRef} />
@@ -393,61 +428,94 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   if (mode === "iframe") {
     return (
-      <div style={{
-        ...commonWrapperStyle,
-        background: prefersDark ? (isOpen ? "#161c24" : "#2d3748") : "#fff",
-      }}>
+      <div
+        style={{
+          ...commonWrapperStyle,
+          background: prefersDark ? (isOpen ? "#161c24" : "#232936") : "#fff",
+          borderRadius: "1.5rem",
+          boxShadow: isOpen
+            ? "0 12px 36px 0 rgba(24, 38, 67, 0.21)"
+            : "0 2px 16px 0 rgba(24, 38, 67, 0.13)",
+        }}
+        className={`transition-all duration-200 ${isOpen ? "shadow-2xl" : "shadow"}`}
+      >
         {!isOpen && (
           <div
-            style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
+            style={{
+              width: "100%",
+              height: "100%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+            }}
             onClick={toggleChat}
-            role="button" tabIndex={0} aria-label="Abrir chat"
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleChat();}}
+            role="button"
+            tabIndex={0}
+            aria-label="Abrir chat"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") toggleChat();
+            }}
           >
             <div className="relative">
-              <img src="/chatboc_logo_clean_transparent.png" alt="Chatboc" className="w-8 h-8 rounded" style={{ padding: "2px" }} />
-              <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2" style={{ borderColor: prefersDark ? '#2d3748' : '#fff' }} />
+              <img
+                src="/chatboc_logo_clean_transparent.png"
+                alt="Chatboc"
+                className="w-10 h-10 rounded-xl bg-white shadow"
+                style={{ padding: "2px" }}
+              />
+              <span
+                className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2"
+                style={{ borderColor: prefersDark ? "#232936" : "#fff" }}
+              />
             </div>
           </div>
         )}
-        {isOpen && (
-          esperandoRubro ? rubroSelectionViewContent : mainChatViewContent
-        )}
+        {isOpen && (esperandoRubro ? rubroSelectionViewContent : mainChatViewContent)}
       </div>
     );
   }
 
   // ---- Renderizado para modo Standalone ----
   return (
-    <div ref={widgetContainerRef} style={currentPos} className="chatboc-standalone-widget">
+    <div
+      ref={widgetContainerRef}
+      style={currentPos}
+      className={`chatboc-standalone-widget z-[99998]`}
+    >
       {!isOpen && (
         <button
           onClick={toggleChat}
           onMouseDown={draggable ? handleDragStart : undefined}
           onTouchStart={draggable ? handleDragStart : undefined}
-          className="group w-16 h-16 rounded-full flex items-center justify-center border shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:scale-105"
+          className="
+            group w-16 h-16 rounded-full flex items-center justify-center
+            border-2 shadow-lg hover:shadow-2xl transition-all duration-300 ease-in-out
+            transform hover:scale-105 bg-white/95 dark:bg-[#15171b]/90
+            border-blue-200 dark:border-blue-900
+          "
           aria-label="Abrir chat"
           style={{
-            borderColor: prefersDark ? "#374151" : "#e5e7eb",
-            background: prefersDark ? "#161c24" : "#fff",
             cursor: draggable ? "move" : "pointer",
           }}
         >
           <div className="relative">
-            <img src="/chatboc_logo_clean_transparent.png" alt="Chatboc" className="w-8 h-8 rounded" style={{ padding: "2px" }} />
+            <img src="/chatboc_logo_clean_transparent.png" alt="Chatboc" className="w-9 h-9 rounded-xl bg-white shadow" style={{ padding: "2px" }} />
             <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-gray-900" />
           </div>
         </button>
       )}
-
       {isOpen && (
         <div
-          className="w-80 md:w-96 rounded-xl shadow-2xl flex flex-col overflow-hidden animate-slide-up"
+          className="
+            w-80 md:w-96 rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-slide-up
+            border border-blue-100 dark:border-blue-900
+            bg-white/90 dark:bg-[#15171b]/90 backdrop-blur-md
+          "
           style={{
-            height: esperandoRubro ? 'auto' : '500px',
-            minHeight: esperandoRubro ? '240px' : '400px',
-            background: prefersDark ? "#161c24" : "#fff",
-            border: `1px solid ${prefersDark ? "#374151" : "#e5e7eb"}`,
+            height: esperandoRubro ? "auto" : "500px",
+            minHeight: esperandoRubro ? "240px" : "400px",
+            transition: "box-shadow .2s, background .2s",
           }}
         >
           {esperandoRubro ? rubroSelectionViewContent : mainChatViewContent}
