@@ -348,13 +348,13 @@ export default function Perfil() {
           className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold"
           onClick={() => window.open("https://pagar.ualabis.com.ar/order/517238bd80bb1e97539240a22b1707c414a73855d6b673a8", "_blank")}
         >
-          Mejorar a PRO ($30.000/mes)
+          Mejorar a PRO ($/mes)
         </Button>
         <Button
           className="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-semibold"
           onClick={() => window.open("https://pagar.ualabis.com.ar/order/61f8ef497944c94964ba34a3c31e9d46d4ecc749d5d4c56a", "_blank")}
         >
-          Mejorar a FULL ($60.000/mes)
+          Mejorar a FULL ($/mes)
         </Button>
       </div>
     )}
