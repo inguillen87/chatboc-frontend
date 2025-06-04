@@ -2,13 +2,12 @@ import React from "react";
 import { Message } from "@/types/chat";
 import { motion } from "framer-motion";
 
-// Ruta al logo PNG, AJUSTA según tu estructura
+// Logo Bot ajustá si tu ruta es otra
 const LOGO_BOT = "/favicon/favicon-48x48.png";
 
-// Avatar por defecto para usuario (puede ser un emoji, inicial, o imagen)
 const UserAvatar = () => (
-  <span className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-800 flex items-center justify-center border border-gray-300 shadow">
-    <span className="text-xl font-bold text-gray-500 dark:text-gray-300">🧑</span>
+  <span className="flex-shrink-0 w-9 h-9 rounded-full bg-gradient-to-br from-blue-100 to-blue-300 dark:from-gray-800 dark:to-gray-900 flex items-center justify-center border border-blue-200 dark:border-blue-700 shadow-md">
+    <span className="text-2xl font-bold text-blue-600 dark:text-blue-100">🧑‍💼</span>
   </span>
 );
 
@@ -17,7 +16,6 @@ interface ChatMessageProps {
 }
 
 const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
-  // Mensaje inválido
   if (!message || typeof message.text !== "string") {
     return (
       <div className="text-xs text-red-600 italic mt-2 px-3">
@@ -26,16 +24,16 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
     );
   }
 
-  // CTA especial
+  // Botón CTA especial
   if (message.text === "__cta__") {
-    const user = JSON.parse(localStorage.getItem("user") || "null");
+    const user = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("user") || "null") : null;
     if (user?.token) return null;
     return (
       <div className="flex justify-center mt-4">
         <div className="text-center space-y-2">
           <button
             onClick={() => (window.location.href = "/demo")}
-            className="px-4 py-2 text-sm bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition font-medium shadow"
+            className="px-4 py-2 text-base bg-gradient-to-br from-blue-600 to-blue-500 text-white rounded-xl hover:scale-105 shadow transition font-semibold"
           >
             Usar Chatboc en mi empresa
           </button>
@@ -46,7 +44,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
                 "_blank"
               )
             }
-            className="px-4 py-2 text-sm border border-blue-600 text-blue-600 rounded-xl hover:bg-blue-50 transition font-medium"
+            className="px-4 py-2 text-base border border-blue-500 text-blue-600 bg-white/80 dark:bg-gray-900/80 rounded-xl hover:bg-blue-50 hover:scale-105 transition font-semibold"
           >
             Hablar por WhatsApp
           </button>
@@ -55,39 +53,30 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
     );
   }
 
-  // Sugerencias
-  if (message.text === "__sugerencia__" && message.originalQuestion) {
-    return (
-      <div className="flex justify-start px-2 mt-2">
-        {/* ... tu lógica original de sugerencia ... */}
-      </div>
-    );
-  }
-
   const isBot = message.isBot;
 
-  // --- ANIMACIONES VARIANTS ---
+  // ANIMACIONES
   const bubbleVariants = {
-    hidden: { opacity: 0, y: 10, scale: 0.98 },
+    hidden: { opacity: 0, y: 14, scale: 0.98 },
     visible: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.18 } },
   };
-
   const avatarVariants = {
     hidden: { opacity: 0, scale: 0.85 },
-    visible: { opacity: 1, scale: 1, transition: { type: "spring", stiffness: 200 } },
+    visible: { opacity: 1, scale: 1, transition: { type: "spring", stiffness: 210 } },
   };
 
   return (
     <div
       className={`
-        flex items-end gap-2 px-2 mt-2
+        flex items-end gap-2 px-3 mb-1
         ${isBot ? "justify-start" : "justify-end"}
+        font-['Inter','Segoe UI',Arial,sans-serif]
       `}
     >
-      {/* Avatar Bot */}
+      {/* BOT avatar */}
       {isBot && (
         <motion.span
-          className="flex-shrink-0 w-9 h-9 rounded-full bg-white dark:bg-blue-900 flex items-center justify-center border border-blue-300 shadow"
+          className="flex-shrink-0 w-10 h-10 rounded-full bg-white dark:bg-blue-950 flex items-center justify-center border border-blue-200 dark:border-blue-900 shadow-md"
           initial="hidden"
           animate="visible"
           variants={avatarVariants}
@@ -95,7 +84,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
           <img
             src={LOGO_BOT}
             alt="Chatboc"
-            className="w-7 h-7 object-contain"
+            className="w-8 h-8 object-contain"
             style={{ filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.10))" }}
           />
         </motion.span>
@@ -104,30 +93,34 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
       {/* Mensaje */}
       <motion.div
         className={`
-          max-w-[78vw] sm:max-w-[70%] p-3 rounded-2xl shadow
-          text-sm break-words
+          max-w-[80vw] sm:max-w-[68%] px-4 py-2 rounded-2xl shadow-lg
+          text-base leading-snug
           ${isBot
-            ? "bg-blue-100 text-gray-900 rounded-bl-none dark:bg-blue-900 dark:text-blue-50 border border-blue-200 dark:border-blue-800"
-            : "bg-blue-600 text-white rounded-br-none border border-blue-700"}
+            ? "bg-gradient-to-br from-blue-50 via-white to-blue-100 dark:from-blue-900 dark:to-blue-800 dark:via-blue-950 text-blue-900 dark:text-blue-100 border border-blue-100 dark:border-blue-900 rounded-bl-none"
+            : "bg-gradient-to-br from-blue-600 to-blue-500 text-white rounded-br-none border border-blue-700 font-semibold"}
+          animate-fade-in
         `}
-        style={{ wordBreak: "break-word" }}
+        style={{ wordBreak: "break-word", boxShadow: "0 4px 16px rgba(60,60,110,0.10)" }}
         initial="hidden"
         animate="visible"
         variants={bubbleVariants}
       >
-        <div dangerouslySetInnerHTML={{ __html: message.text }} />
-        <div className="text-xs mt-1 opacity-70 text-right">
-          {new Date(message.timestamp).toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
+        <div
+          className="whitespace-pre-wrap"
+          style={{ minHeight: 24 }}
+          dangerouslySetInnerHTML={{ __html: message.text }}
+        />
+        <div className="text-xs mt-1 opacity-60 text-right select-none tracking-tight font-normal">
+          {typeof message.timestamp === "string"
+            ? message.timestamp
+            : new Date(message.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
         </div>
       </motion.div>
 
-      {/* Avatar Usuario */}
+      {/* Usuario avatar */}
       {!isBot && (
         <motion.span
-          className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-800 flex items-center justify-center border border-gray-300 shadow"
+          className="flex-shrink-0 w-9 h-9 rounded-full bg-gradient-to-br from-blue-200 to-blue-400 dark:from-gray-800 dark:to-gray-900 flex items-center justify-center border border-blue-200 dark:border-blue-700 shadow-md"
           initial="hidden"
           animate="visible"
           variants={avatarVariants}
