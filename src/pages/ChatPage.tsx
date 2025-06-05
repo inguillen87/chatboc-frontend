@@ -112,41 +112,42 @@ const ChatPage = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground">
+    <div className="min-h-screen flex flex-col bg-gradient-to-b from-[#131a23] to-[#181e24] dark:from-[#0d1014] dark:to-[#161b22] text-foreground">
       <Navbar />
 
       <main
         className={`
-          flex-grow flex flex-col items-center justify-center 
-          px-1 sm:px-0 pt-14 sm:pt-20 pb-4
-          bg-gradient-to-b from-[#131a23] to-[#181e24] dark:from-[#0d1014] dark:to-[#161b22]
-          relative
+          flex-grow flex flex-col items-center justify-center
+          pt-3 sm:pt-10 pb-2 sm:pb-6
+          transition-all
         `}
       >
         <motion.div
           layout
           className={`
-            w-full sm:w-[460px] max-w-[100vw]
-            h-[84vh] min-h-[420px] max-h-[700px]
+            w-full max-w-[99vw] ${isMobile ? "h-[100svh]" : "sm:w-[480px] h-[83vh]"}
             flex flex-col
-            rounded-2xl sm:rounded-3xl
-            shadow-2xl
+            rounded-none sm:rounded-3xl
+            border-0 sm:border border-gray-200 dark:border-[#23272e]
+            shadow-none sm:shadow-2xl
             bg-white/90 dark:bg-[#20232b]/95
-            border border-gray-200 dark:border-[#23272e]
-            backdrop-blur-xl
+            backdrop-blur-0 sm:backdrop-blur-xl
             relative
             overflow-hidden
             transition-all
-            ${isMobile ? "max-w-full h-[92vh] shadow-none border-none rounded-none" : ""}
           `}
+          style={{
+            boxShadow: isMobile ? undefined : "0 8px 64px 0 rgba(30,40,90,0.10)",
+          }}
         >
           {/* Mensajes */}
           <div
             className={`
-              flex-1 overflow-y-auto 
+              flex-1 overflow-y-auto
               p-2 sm:p-4 space-y-3
               custom-scroll
               scrollbar-thin scrollbar-thumb-[#90caf9] scrollbar-track-transparent
+              bg-[#F8FAFE] dark:bg-[#22262b]
               transition-all
             `}
             style={{ minHeight: 0 }}
@@ -171,13 +172,14 @@ const ChatPage = () => {
           {/* Input siempre visible abajo */}
           <div
             className={`
-              bg-gradient-to-t from-[#15181f] via-[#23272e]/90 to-transparent dark:from-[#181e24] dark:via-[#23272e]/80
+              bg-gradient-to-t from-[#f8fafd] via-[#d9e5f6]/60 to-transparent dark:from-[#181e24] dark:via-[#23272e]/80
               border-t border-gray-200 dark:border-[#23272e]
               p-2 sm:p-4
               flex-shrink-0
               sticky bottom-0
               z-20
               shadow-inner
+              backdrop-blur
             `}
           >
             <ChatInput onSendMessage={handleSend} />
