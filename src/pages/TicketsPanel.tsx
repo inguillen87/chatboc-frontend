@@ -5,15 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Loader2, CheckCircle2, ChevronDown } from "lucide-react";
 
+// Utilidad para fecha breve
 function fechaCorta(iso: string) {
   if (!iso) return "";
   const d = new Date(iso);
-  return `${d.getDate()}/${d.getMonth() + 1} ${d.getHours()}:${d
-    .getMinutes()
-    .toString()
-    .padStart(2, "0")}`;
+  return `${d.getDate()}/${d.getMonth() + 1} ${d.getHours()}:${d.getMinutes().toString().padStart(2, "0")}`;
 }
 
+// Estados visuales
 const ESTADOS = {
   nuevo: { label: "Nuevo", color: "bg-blue-100 text-blue-700" },
   "en curso": { label: "En Curso", color: "bg-yellow-100 text-yellow-700" },
@@ -22,64 +21,102 @@ const ESTADOS = {
   cerrado: { label: "Cerrado", color: "bg-gray-200 text-gray-500" },
 };
 
-export default function TicketsPanelPro() {
-  // Aquí debes traer el userId real desde tu contexto de autenticación
-  const userId = React.useMemo(() => {
-    // ejemplo placeholder, conecta con tu auth real
-    return window.__USER_ID__ || 1;
-  }, []);
+interface Ticket {
+  id: number;
+  nro_ticket: number;
+  pregunta: string;
+  estado: string;
+  user_id: number;
+  fecha: string;
+  telefono?: string | null;
+  email?: string | null;
+  dni?: string | null;
+  estado_cliente?: string | null;
+  nombre_empresa?: string;
+  logo_url?: string;
+}
 
-  const [tickets, setTickets] = useState<any[]>([]);
-  const [selected, setSelected] = useState<any | null>(null);
-  const [comentarios, setComentarios] = useState<any[]>([]);
+interface Comentario {
+  id: number;
+  comentario: string;
+  fecha: string;
+  user_id: number;
+  telefono?: string | null;
+  email?: string | null;
+  dni?: string | null;
+  estado_cliente?: string | null;
+  es_admin?: boolean;
+}
+
+export default function TicketsPanelPro() {
+  // Asumimos userId 6 mientras no haya auth global, TODO: conectar con AuthContext real
+  const userId = 6;
+
+  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [selected, setSelected] = useState<Ticket | null>(null);
+  const [comentarios, setComentarios] = useState<Comentario[]>([]);
   const [mensaje, setMensaje] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [estado, setEstado] = useState("");
   const [dropdownVisible, setDropdownVisible] = useState(false);
   const chatBottomRef = useRef<HTMLDivElement | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
+  // Fetch tickets al cargar
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/tickets/municipio?user_id=${userId}`, {
-      credentials: "include",
-    })
-      .then((res) => res.json())
+    setError(null);
+    fetch(`/tickets/municipio?user_id=${userId}`, { credentials: "include" })
+      .then(async (res) => {
+        if (!res.ok) throw new Error("No se pudo cargar tickets");
+        return await res.json();
+      })
       .then((data) => {
         if (data.ok) setTickets(data.tickets || []);
-        else setTickets([]);
+        else throw new Error(data.error || "Sin tickets");
       })
+      .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, [userId]);
 
-  function handleSelectTicket(t: any) {
+  // Seleccionar ticket
+  const handleSelectTicket = (t: Ticket) => {
     setSelected(t);
     setEstado(t.estado);
     setLoading(true);
-    fetch(`/api/tickets/municipio/${t.id}/comentarios?user_id=${userId}`, {
-      credentials: "include",
-    })
-      .then((res) => res.json())
+    setError(null);
+    fetch(`/tickets/municipio/${t.id}/comentarios?user_id=${userId}`, { credentials: "include" })
+      .then(async (res) => {
+        if (!res.ok) throw new Error("No se pudo cargar comentarios");
+        return await res.json();
+      })
       .then((data) => {
         if (data.ok) setComentarios(data.comentarios || []);
         else setComentarios([]);
       })
+      .catch((err) => setError(err.message))
       .finally(() => {
         setLoading(false);
         setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 200);
       });
-  }
+  };
 
-  function cambiarEstado(nuevo: string) {
+  // Cambiar estado del ticket
+  const cambiarEstado = (nuevo: string) => {
+    if (!selected) return;
     setDropdownVisible(false);
     setEstado(nuevo);
-    fetch(`/api/tickets/municipio/${selected.id}/estado`, {
+    fetch(`/tickets/municipio/${selected.id}/estado`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
       body: JSON.stringify({ estado: nuevo, user_id: userId }),
     })
-      .then((res) => res.json())
+      .then(async (res) => {
+        if (!res.ok) throw new Error("No se pudo cambiar el estado");
+        return await res.json();
+      })
       .then((data) => {
         if (data.ok) {
           setTickets((tickets) =>
@@ -87,39 +124,51 @@ export default function TicketsPanelPro() {
           );
           setSelected((s) => (s ? { ...s, estado: nuevo } : s));
         }
-      });
-  }
+      })
+      .catch((err) => setError(err.message));
+  };
 
-  function responderTicket() {
-    if (!mensaje.trim()) return;
+  // Responder un ticket (comentario)
+  const responderTicket = () => {
+    if (!mensaje.trim() || !selected) return;
     setSending(true);
-    fetch(`/api/tickets/municipio/${selected.id}/comentarios`, {
+    setError(null);
+    fetch(`/tickets/municipio/${selected.id}/comentarios`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
       body: JSON.stringify({ comentario: mensaje, user_id: userId }),
     })
-      .then((res) => res.json())
+      .then(async (res) => {
+        if (!res.ok) throw new Error("No se pudo enviar comentario");
+        return await res.json();
+      })
       .then((data) => {
         if (data.ok) {
           setMensaje("");
-          return fetch(`/api/tickets/municipio/${selected.id}/comentarios?user_id=${userId}`, {
-            credentials: "include",
-          });
+          return fetch(`/tickets/municipio/${selected.id}/comentarios?user_id=${userId}`, { credentials: "include" });
+        } else {
+          throw new Error(data.error || "Error enviando comentario");
         }
-        throw new Error(data.error || "Error enviando comentario");
       })
-      .then((res) => res.json())
+      .then(async (res) => {
+        if (!res.ok) throw new Error("No se pudo recargar comentarios");
+        return await res.json();
+      })
       .then((data) => {
         if (data.ok) setComentarios(data.comentarios || []);
         setSending(false);
         setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 200);
       })
-      .catch(() => setSending(false));
-  }
+      .catch((err) => {
+        setSending(false);
+        setError(err.message);
+      });
+  };
 
   return (
     <div className="flex h-[calc(100vh-80px)] shadow-2xl rounded-2xl overflow-hidden bg-white border max-w-6xl mx-auto my-8">
+      {/* Panel de tickets */}
       <div className="w-1/3 bg-gray-50 border-r flex flex-col">
         <div className="px-6 py-5 flex items-center gap-2 border-b bg-white">
           <CheckCircle2 className="text-blue-500" />
@@ -129,6 +178,14 @@ export default function TicketsPanelPro() {
           {loading && (
             <div className="flex flex-col items-center justify-center h-40">
               <Loader2 className="animate-spin text-gray-400" size={32} />
+            </div>
+          )}
+          {error && (
+            <div className="text-red-500 text-center py-4">{error}</div>
+          )}
+          {!loading && !error && tickets.length === 0 && (
+            <div className="flex flex-col items-center justify-center h-40 text-gray-400">
+              No hay tickets cargados.
             </div>
           )}
           {tickets.map((t) => (
@@ -141,18 +198,19 @@ export default function TicketsPanelPro() {
             >
               <div className="flex justify-between items-center">
                 <span className="font-semibold text-blue-800">#{t.nro_ticket}</span>
-                <Badge
-                  className={ESTADOS[t.estado]?.color + " rounded px-2 py-1 text-xs"}
-                >
+                <Badge className={ESTADOS[t.estado]?.color + " rounded px-2 py-1 text-xs"}>
                   {ESTADOS[t.estado]?.label || t.estado}
                 </Badge>
               </div>
-              <span className="text-sm text-gray-700">{t.pregunta?.slice(0, 70) || "Sin asunto"}</span>
+              <span className="text-sm text-gray-700">
+                {t.pregunta?.slice(0, 70) || "Sin asunto"}
+              </span>
               <span className="text-xs text-gray-400">{fechaCorta(t.fecha)}</span>
             </div>
           ))}
         </div>
       </div>
+      {/* Panel de detalle */}
       <div className="flex-1 flex flex-col h-full">
         {selected ? (
           <>
@@ -195,6 +253,9 @@ export default function TicketsPanelPro() {
               </div>
             </div>
             <div className="flex-1 bg-gray-50 p-6 flex flex-col gap-2 overflow-y-auto">
+              {comentarios.length === 0 && (
+                <div className="text-gray-400 text-center py-8">No hay comentarios.</div>
+              )}
               {comentarios.map((c, idx) => (
                 <div
                   key={c.id || idx}
@@ -207,7 +268,7 @@ export default function TicketsPanelPro() {
                         : "bg-white border rounded-bl-none"
                     }`}
                   >
-                    <div className="text-sm">{c.comentario || c.mensaje}</div>
+                    <div className="text-sm">{c.comentario}</div>
                     <div className="text-[11px] text-right text-gray-300 mt-1">
                       {fechaCorta(c.fecha)}
                     </div>
@@ -233,6 +294,9 @@ export default function TicketsPanelPro() {
                 {sending ? <Loader2 className="animate-spin" size={18} /> : "Enviar"}
               </Button>
             </div>
+            {error && (
+              <div className="text-red-500 text-center py-2">{error}</div>
+            )}
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center text-gray-400 text-xl">
@@ -242,49 +306,4 @@ export default function TicketsPanelPro() {
       </div>
     </div>
   );
-
-  function cambiarEstado(nuevo: string) {
-    setDropdownVisible(false);
-    setEstado(nuevo);
-    fetch(`/api/tickets/municipio/${selected.id}/estado`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ estado: nuevo, user_id: userId }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.ok) {
-          setTickets((tickets) =>
-            tickets.map((t) => (t.id === selected.id ? { ...t, estado: nuevo } : t))
-          );
-          setSelected((s) => (s ? { ...s, estado: nuevo } : s));
-        }
-      });
-  }
-
-  function responderTicket() {
-    if (!mensaje.trim()) return;
-    setSending(true);
-    fetch(`/api/tickets/municipio/${selected.id}/comentarios`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ comentario: mensaje, user_id: userId }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.ok) {
-          setMensaje("");
-          fetch(`/api/tickets/municipio/${selected.id}/comentarios?user_id=${userId}`)
-            .then((res) => res.json())
-            .then((data) => {
-              if (data.ok) setComentarios(data.comentarios || []);
-              setSending(false);
-              setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 200);
-            });
-        } else {
-          setSending(false);
-        }
-      })
-      .catch(() => setSending(false));
-  }
 }
