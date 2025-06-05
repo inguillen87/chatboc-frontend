@@ -5,14 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Loader2, CheckCircle2, ChevronDown } from "lucide-react";
 
-// Utilidad para fecha breve
 function fechaCorta(iso: string) {
   if (!iso) return "";
   const d = new Date(iso);
   return `${d.getDate()}/${d.getMonth() + 1} ${d.getHours()}:${d.getMinutes().toString().padStart(2, "0")}`;
 }
 
-// Estados visuales
 const ESTADOS = {
   nuevo: { label: "Nuevo", color: "bg-blue-100 text-blue-700" },
   "en curso": { label: "En Curso", color: "bg-yellow-100 text-yellow-700" },
@@ -49,9 +47,8 @@ interface Comentario {
 }
 
 export default function TicketsPanelPro() {
-  // Asumimos userId 6 mientras no haya auth global, TODO: conectar con AuthContext real
+  // Provisorio: usar userId real cuando haya auth
   const userId = 6;
-
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [selected, setSelected] = useState<Ticket | null>(null);
   const [comentarios, setComentarios] = useState<Comentario[]>([]);
@@ -63,42 +60,48 @@ export default function TicketsPanelPro() {
   const chatBottomRef = useRef<HTMLDivElement | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch tickets al cargar
+  // Fetch tickets
   useEffect(() => {
     setLoading(true);
     setError(null);
+
     fetch(`/tickets/municipio?user_id=${userId}`, { credentials: "include" })
       .then(async (res) => {
-        if (!res.ok) throw new Error("No se pudo cargar tickets");
-        return await res.json();
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(`Error tickets: [${res.status}] ${text.slice(0, 100)}`);
+        }
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || "Sin tickets");
+        setTickets(data.tickets || []);
       })
-      .then((data) => {
-        if (data.ok) setTickets(data.tickets || []);
-        else throw new Error(data.error || "Sin tickets");
-      })
-      .catch((err) => setError(err.message))
+      .catch((err) => setError(String(err.message || err)))
       .finally(() => setLoading(false));
   }, [userId]);
 
-  // Seleccionar ticket
+  // Select ticket y cargar comentarios
   const handleSelectTicket = (t: Ticket) => {
     setSelected(t);
     setEstado(t.estado);
+    setComentarios([]);
     setLoading(true);
     setError(null);
-    fetch(`/tickets/municipio/${t.id}/comentarios?user_id=${userId}`, { credentials: "include" })
+
+    const url = `/tickets/municipio/${t.id}/comentarios?user_id=${userId}`;
+    fetch(url, { credentials: "include" })
       .then(async (res) => {
-        if (!res.ok) throw new Error("No se pudo cargar comentarios");
-        return await res.json();
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(`Error comentarios: [${res.status}] ${text.slice(0, 100)}`);
+        }
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || "Sin comentarios");
+        setComentarios(data.comentarios || []);
       })
-      .then((data) => {
-        if (data.ok) setComentarios(data.comentarios || []);
-        else setComentarios([]);
-      })
-      .catch((err) => setError(err.message))
+      .catch((err) => setError(String(err.message || err)))
       .finally(() => {
         setLoading(false);
-        setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 200);
+        setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 150);
       });
   };
 
@@ -107,6 +110,7 @@ export default function TicketsPanelPro() {
     if (!selected) return;
     setDropdownVisible(false);
     setEstado(nuevo);
+    setError(null);
     fetch(`/tickets/municipio/${selected.id}/estado`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -114,25 +118,26 @@ export default function TicketsPanelPro() {
       body: JSON.stringify({ estado: nuevo, user_id: userId }),
     })
       .then(async (res) => {
-        if (!res.ok) throw new Error("No se pudo cambiar el estado");
-        return await res.json();
-      })
-      .then((data) => {
-        if (data.ok) {
-          setTickets((tickets) =>
-            tickets.map((t) => (t.id === selected.id ? { ...t, estado: nuevo } : t))
-          );
-          setSelected((s) => (s ? { ...s, estado: nuevo } : s));
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(`Error al cambiar estado: [${res.status}] ${text.slice(0, 100)}`);
         }
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || "Error al cambiar estado");
+        setTickets((tickets) =>
+          tickets.map((t) => (t.id === selected.id ? { ...t, estado: nuevo } : t))
+        );
+        setSelected((s) => (s ? { ...s, estado: nuevo } : s));
       })
-      .catch((err) => setError(err.message));
+      .catch((err) => setError(String(err.message || err)));
   };
 
-  // Responder un ticket (comentario)
+  // Responder un ticket
   const responderTicket = () => {
     if (!mensaje.trim() || !selected) return;
     setSending(true);
     setError(null);
+
     fetch(`/tickets/municipio/${selected.id}/comentarios`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -140,29 +145,29 @@ export default function TicketsPanelPro() {
       body: JSON.stringify({ comentario: mensaje, user_id: userId }),
     })
       .then(async (res) => {
-        if (!res.ok) throw new Error("No se pudo enviar comentario");
-        return await res.json();
-      })
-      .then((data) => {
-        if (data.ok) {
-          setMensaje("");
-          return fetch(`/tickets/municipio/${selected.id}/comentarios?user_id=${userId}`, { credentials: "include" });
-        } else {
-          throw new Error(data.error || "Error enviando comentario");
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(`Error al enviar comentario: [${res.status}] ${text.slice(0, 100)}`);
         }
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || "Error enviando comentario");
+        setMensaje("");
+        // Recargar comentarios después de enviar
+        return fetch(`/tickets/municipio/${selected.id}/comentarios?user_id=${userId}`, { credentials: "include" });
       })
       .then(async (res) => {
-        if (!res.ok) throw new Error("No se pudo recargar comentarios");
-        return await res.json();
-      })
-      .then((data) => {
+        if (res && !res.ok) {
+          const text = await res.text();
+          throw new Error(`Error recargando comentarios: [${res.status}] ${text.slice(0, 100)}`);
+        }
+        const data = res ? await res.json() : { ok: false, comentarios: [] };
         if (data.ok) setComentarios(data.comentarios || []);
         setSending(false);
         setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 200);
       })
       .catch((err) => {
         setSending(false);
-        setError(err.message);
+        setError(String(err.message || err));
       });
   };
 
@@ -181,7 +186,7 @@ export default function TicketsPanelPro() {
             </div>
           )}
           {error && (
-            <div className="text-red-500 text-center py-4">{error}</div>
+            <div className="text-red-500 text-center py-4 whitespace-pre-wrap">{error}</div>
           )}
           {!loading && !error && tickets.length === 0 && (
             <div className="flex flex-col items-center justify-center h-40 text-gray-400">
@@ -253,7 +258,7 @@ export default function TicketsPanelPro() {
               </div>
             </div>
             <div className="flex-1 bg-gray-50 p-6 flex flex-col gap-2 overflow-y-auto">
-              {comentarios.length === 0 && (
+              {comentarios.length === 0 && !loading && (
                 <div className="text-gray-400 text-center py-8">No hay comentarios.</div>
               )}
               {comentarios.map((c, idx) => (
@@ -295,7 +300,7 @@ export default function TicketsPanelPro() {
               </Button>
             </div>
             {error && (
-              <div className="text-red-500 text-center py-2">{error}</div>
+              <div className="text-red-500 text-center py-2 whitespace-pre-wrap">{error}</div>
             )}
           </>
         ) : (
