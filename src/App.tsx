@@ -4,7 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 
-// Páginas principales (Asegúrate de que estas rutas y componentes existan)
+// Páginas principales (Asegúrate que existan estos componentes)
 import Layout from "./components/layout/Layout";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
@@ -24,6 +24,9 @@ import Cookies from "./pages/legal/Cookies";
 import NotFound from "./pages/NotFound";
 
 import Iframe from "./pages/Iframe";
+
+// Importá tu componente TicketsPanelPro aquí
+import TicketsPanelPro from "./pages/TicketsPanelPro";
 
 const queryClient = new QueryClient();
 
@@ -51,25 +54,16 @@ function AppRoutes() {
           <Route path="/legal/privacy" element={<Privacy />} />
           <Route path="/legal/terms" element={<Terms />} />
           <Route path="/legal/cookies" element={<Cookies />} />
+          {/* Ruta para panel de tickets */}
+          <Route path="/tickets" element={<TicketsPanelPro />} />
         </Route>
-        
+
         <Route path="/iframe" element={<Iframe />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
-      
-      {/*
-        AQUÍ IRÍA LA LÓGICA PARA TU CHATWIDGET "STANDALONE" DENTRO DE TU PROPIA APP
-        SI ES DIFERENTE DEL CHATWIDGET USADO EN EL IFRAME.
-        Ejemplo:
-        {!ocultarWidgetGlobalEnApp && (
-          <ChatWidget 
-            mode="standalone" // Necesitarías reintroducir este modo en ChatWidget.tsx o usar un componente diferente
-            defaultOpen={false} 
-            initialPosition={{ bottom: 20, right: 20 }}
-            draggable={true}
-          />
-        )}
-      */}
+
+      {/* Aquí puedes reactivar el chatwidget global si querés */}
+      {/* {!ocultarWidgetGlobalEnApp && <ChatWidget mode="standalone" defaultOpen={false} />} */}
     </>
   );
 }

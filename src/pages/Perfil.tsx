@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import GooglePlacesAutocomplete from "react-google-autocomplete";
 import.meta.env.VITE_Maps_API_KEY
+import { useNavigate } from "react-router-dom";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "https://api.chatboc.ar";
 const Maps_API_KEY = import.meta.env.VITE_Maps_API_KEY;
@@ -30,6 +31,7 @@ interface PerfilState {
 interface HorarioBackend { dia: string; abre: string; cierra: string; cerrado: boolean; }
 
 export default function Perfil() {
+  const navigate = useNavigate(); 
   const [perfil, setPerfil] = useState<PerfilState>({
     nombre_empresa: "", telefono: "", direccion: "", ciudad: "", provincia: "",
     pais: "Argentina", latitud: null, longitud: null, link_web: "", plan: "gratis",
@@ -199,26 +201,37 @@ export default function Perfil() {
   return (
     <div className="flex flex-col min-h-screen bg-gradient-to-tr from-slate-950 to-slate-900 text-slate-200 py-8 px-2 sm:px-4 md:px-6 lg:px-8">
       <div className="w-full max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between mb-8 gap-4 px-2">
-        <div className="flex items-center gap-4">
-          <Avatar className="w-16 h-16 sm:w-20 sm:h-20 bg-blue-500/20 shadow-lg border-2 border-blue-400">
-            <AvatarFallback className="bg-transparent"><span className="text-3xl sm:text-4xl">{avatarEmoji}</span></AvatarFallback>
-          </Avatar>
-          <div>
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-blue-400 leading-tight mb-0.5 text-center sm:text-left">
-              {perfil.nombre_empresa || "Panel de Empresa"}
-            </h1>
-            <span className="text-slate-400 text-sm sm:text-base font-medium capitalize block text-center sm:text-left">
-              {perfil.rubro || "Rubro no especificado"}
-            </span>
-          </div>
+      <div className="flex items-center gap-4">
+        {/* ...tu avatar y nombre empresa acá... */}
+        <Avatar className="w-16 h-16 sm:w-20 sm:h-20 bg-blue-500/20 shadow-lg border-2 border-blue-400">
+          <AvatarFallback className="bg-transparent"><span className="text-3xl sm:text-4xl">{avatarEmoji}</span></AvatarFallback>
+        </Avatar>
+        <div>
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-blue-400 leading-tight mb-0.5 text-center sm:text-left">
+            {perfil.nombre_empresa || "Panel de Empresa"}
+          </h1>
+          <span className="text-slate-400 text-sm sm:text-base font-medium capitalize block text-center sm:text-left">
+            {perfil.rubro || "Rubro no especificado"}
+          </span>
         </div>
-        <Button variant="outline"
-          className="h-10 px-5 text-sm border-red-500/50 text-red-400 hover:bg-red-500/10 hover:text-red-300 self-center sm:self-auto"
-          onClick={() => { localStorage.clear(); window.location.href = "/login"; }}>
+      </div>
+      <div className="flex gap-3 items-center">
+        <Button
+          variant="outline"
+          className="h-10 px-5 text-sm border-yellow-400 text-yellow-400 hover:bg-yellow-500/10 hover:text-yellow-700"
+          onClick={() => navigate("/tickets")}
+        >
+          Ver Tickets
+        </Button>
+        <Button
+          variant="outline"
+          className="h-10 px-5 text-sm border-red-500/50 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+          onClick={() => { localStorage.clear(); window.location.href = "/login"; }}
+        >
           <LogOut className="w-4 h-4 mr-2" /> Salir
         </Button>
       </div>
-
+    </div>
       <div className="w-full max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 px-2">
         <div className="md:col-span-2 flex flex-col gap-6 md:gap-8">
           <Card className="bg-slate-900/70 shadow-xl rounded-xl border border-slate-800 backdrop-blur-sm">
