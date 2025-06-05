@@ -26,7 +26,7 @@ import NotFound from "./pages/NotFound";
 import Iframe from "./pages/Iframe";
 
 // Importá tu componente TicketsPanelPro aquí
-import TicketsPanelPro from "./pages/TicketsPanelPro";
+import TicketsPanelPro from "./pages/TicketsPanel";
 
 const queryClient = new QueryClient();
 
