@@ -8,7 +8,10 @@ import { Loader2, CheckCircle2, ChevronDown } from "lucide-react";
 function fechaCorta(iso: string) {
   if (!iso) return "";
   const d = new Date(iso);
-  return `${d.getDate()}/${d.getMonth() + 1} ${d.getHours()}:${d.getMinutes().toString().padStart(2, "0")}`;
+  return `${d.getDate()}/${d.getMonth() + 1} ${d.getHours()}:${d
+    .getMinutes()
+    .toString()
+    .padStart(2, "0")}`;
 }
 
 const ESTADOS = {
@@ -46,9 +49,10 @@ interface Comentario {
   es_admin?: boolean;
 }
 
+const API_URL = "https://api.chatboc.ar"; // Cambia esto si tu backend está en otro dominio
+
 export default function TicketsPanelPro() {
-  // Provisorio: usar userId real cuando haya auth
-  const userId = 6;
+  const userId = 6; // Cambia a tu lógica de auth
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [selected, setSelected] = useState<Ticket | null>(null);
   const [comentarios, setComentarios] = useState<Comentario[]>([]);
@@ -65,7 +69,7 @@ export default function TicketsPanelPro() {
     setLoading(true);
     setError(null);
 
-    fetch(`/tickets/municipio?user_id=${userId}`, { credentials: "include" })
+    fetch(`${API_URL}/tickets/municipio?user_id=${userId}`, { credentials: "include" })
       .then(async (res) => {
         if (!res.ok) {
           const text = await res.text();
@@ -87,8 +91,7 @@ export default function TicketsPanelPro() {
     setLoading(true);
     setError(null);
 
-    const url = `/tickets/municipio/${t.id}/comentarios?user_id=${userId}`;
-    fetch(url, { credentials: "include" })
+    fetch(`${API_URL}/tickets/municipio/${t.id}/comentarios?user_id=${userId}`, { credentials: "include" })
       .then(async (res) => {
         if (!res.ok) {
           const text = await res.text();
@@ -111,7 +114,7 @@ export default function TicketsPanelPro() {
     setDropdownVisible(false);
     setEstado(nuevo);
     setError(null);
-    fetch(`/tickets/municipio/${selected.id}/estado`, {
+    fetch(`${API_URL}/tickets/municipio/${selected.id}/estado`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
@@ -138,7 +141,7 @@ export default function TicketsPanelPro() {
     setSending(true);
     setError(null);
 
-    fetch(`/tickets/municipio/${selected.id}/comentarios`, {
+    fetch(`${API_URL}/tickets/municipio/${selected.id}/comentarios`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
@@ -153,7 +156,7 @@ export default function TicketsPanelPro() {
         if (!data.ok) throw new Error(data.error || "Error enviando comentario");
         setMensaje("");
         // Recargar comentarios después de enviar
-        return fetch(`/tickets/municipio/${selected.id}/comentarios?user_id=${userId}`, { credentials: "include" });
+        return fetch(`${API_URL}/tickets/municipio/${selected.id}/comentarios?user_id=${userId}`, { credentials: "include" });
       })
       .then(async (res) => {
         if (res && !res.ok) {
