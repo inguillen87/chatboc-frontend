@@ -8,6 +8,9 @@ import Footer from "@/components/layout/Footer";
 import { apiFetch } from "@/utils/api";
 import { motion, AnimatePresence } from "framer-motion";
 
+// --- CONFIGURA ACÁ EL RUBRO PARA DEMO O WIDGET
+const DEFAULT_WIDGET_RUBRO = "municipios"; // Cambia por "bodega", "almacen", etc. según corresponda
+
 const ChatPage = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
@@ -17,6 +20,8 @@ const ChatPage = () => {
   const isDemo = path.includes("demo");
   const user = JSON.parse(localStorage.getItem("user") || "null");
   const token = isDemo ? "demo-token" : user?.token || "demo-token";
+  // Si hay rubro en usuario, lo usamos. Si no, usamos el default
+  const rubro = user?.rubro || DEFAULT_WIDGET_RUBRO;
 
   useEffect(() => {
     setMessages([
@@ -48,10 +53,17 @@ const ChatPage = () => {
     setIsTyping(true);
 
     try {
+      // --- Arma el body universal ---
+      const body: any = { question: text };
+      // Si no hay user logueado o es demo, incluye el rubro
+      if (!user || isDemo) {
+        body.rubro = rubro;
+      }
+
       const response = await apiFetch(
         "/ask",
         "POST",
-        { question: text },
+        body,
         {
           headers: {
             "Content-Type": "application/json",
@@ -62,7 +74,10 @@ const ChatPage = () => {
 
       const botMessage: Message = {
         id: updatedMessages.length + 1,
-        text: response?.respuesta?.respuesta || "⚠️ No se pudo generar una respuesta.",
+        text:
+          response?.respuesta?.respuesta ||
+          response?.respuesta ||
+          "⚠️ No se pudo generar una respuesta.",
         isBot: true,
         timestamp: new Date(),
       };
@@ -101,7 +116,6 @@ const ChatPage = () => {
   return (
     <div className="flex flex-col min-h-screen bg-gray-50 text-foreground">
       <Navbar />
-
       <main className="flex-grow flex items-center justify-center px-4 pt-20 pb-10">
         <div className="w-full max-w-2xl bg-white border border-gray-200 rounded-3xl shadow-lg p-4 flex flex-col h-[80vh]">
           <div className="flex-1 overflow-y-auto space-y-4 px-2 pb-4">

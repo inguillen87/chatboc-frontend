@@ -9,33 +9,29 @@ const Demo = () => {
   const [isTyping, setIsTyping] = useState(false);
   const [preguntasUsadas, setPreguntasUsadas] = useState(0);
   const [rubroSeleccionado, setRubroSeleccionado] = useState<string | null>(() => {
-    return localStorage.getItem("rubroSeleccionado");
+    // Solo para demo, busca el rubro si ya está guardado
+    return typeof window !== "undefined" ? localStorage.getItem("rubroSeleccionado") : null;
   });
   const [rubrosDisponibles, setRubrosDisponibles] = useState<{ id: number; nombre: string }[]>([]);
   const [esperandoRubro, setEsperandoRubro] = useState(!rubroSeleccionado);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Siempre modo demo: usuario anónimo
   let token = "";
   try {
-    const storedUser = localStorage.getItem("user");
-    const user = storedUser ? JSON.parse(storedUser) : null;
-
-    if (user?.token) {
-      token = user.token;
-    } else {
-      let anonToken = localStorage.getItem("anon_token");
-      if (!anonToken) {
-        anonToken = `demo-anon-${Math.random().toString(36).substring(2, 10)}`;
-        localStorage.setItem("anon_token", anonToken);
-      }
-      token = anonToken;
+    let anonToken = typeof window !== "undefined" ? localStorage.getItem("anon_token") : null;
+    if (!anonToken && typeof window !== "undefined") {
+      anonToken = `demo-anon-${Math.random().toString(36).substring(2, 10)}`;
+      localStorage.setItem("anon_token", anonToken);
     }
+    token = anonToken || "demo-anon";
   } catch (e) {
-    console.warn("❗ Error leyendo user/anon_token del localStorage", e);
+    token = "demo-anon";
   }
 
   useEffect(() => {
+    // Si no hay rubro seleccionado, carga rubros disponibles
     if (!rubroSeleccionado) {
       fetch("https://api.chatboc.ar/rubros")
         .then((res) => res.json())
@@ -43,7 +39,7 @@ const Demo = () => {
           setRubrosDisponibles(data.rubros || []);
           setEsperandoRubro(true);
         })
-        .catch((err) => console.error("Error al obtener rubros:", err));
+        .catch(() => setRubrosDisponibles([]));
     } else {
       setMessages([
         {
@@ -122,6 +118,7 @@ const Demo = () => {
     }
   };
 
+  // UX: Selección de rubro (sólo una vez, antes de arrancar chat)
   if (esperandoRubro) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-4 text-center bg-gradient-to-b from-blue-50 to-white dark:from-[#10141b] dark:to-[#181d24]">
@@ -150,6 +147,7 @@ const Demo = () => {
     );
   }
 
+  // Chat clásico, con rubro ya elegido
   return (
     <div className="
       w-full max-w-2xl mx-auto

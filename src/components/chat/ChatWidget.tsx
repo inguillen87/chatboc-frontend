@@ -1,3 +1,4 @@
+// ChatWidget.tsx UNIVERSAL
 import React, { useState, useRef, useEffect, CSSProperties } from "react";
 import { X } from "lucide-react";
 import ChatMessage from "./ChatMessage";
@@ -89,6 +90,8 @@ const WIDGET_DIMENSIONS = {
   CLOSED: { width: "80px", height: "80px" },
 };
 
+const DEFAULT_WIDGET_RUBRO = "municipios"; // Cambialo según el sitio/widget
+
 const ChatWidget: React.FC<ChatWidgetProps> = ({
   mode = "standalone",
   initialPosition: initialPosProp = { bottom: 20, right: 20 },
@@ -102,7 +105,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const [preguntasUsadas, setPreguntasUsadas] = useState(0);
   const [rubroSeleccionado, setRubroSeleccionado] = useState<string | null>(null);
   const [rubrosDisponibles, setRubrosDisponibles] = useState<{ id: number; nombre: string }[]>([]);
-  const [esperandoRubro, setEsperandoRubro] = useState(true);
+  const [esperandoRubro, setEsperandoRubro] = useState(false);
   const [cargandoRubros, setCargandoRubros] = useState(false);
   const [token, setToken] = useState<string>("");
   const [prefersDark, setPrefersDark] = useState(
@@ -125,6 +128,13 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     return () => mq.removeEventListener("change", handler);
   }, []);
 
+  // -- Nuevo: detecta usuario logueado --
+  const getUser = () => {
+    if (typeof window === "undefined") return null;
+    const storedUser = localStorage.getItem("user");
+    return storedUser ? JSON.parse(storedUser) : null;
+  };
+
   const cargarRubros = async () => {
     setCargandoRubros(true);
     try {
@@ -137,19 +147,22 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     setCargandoRubros(false);
   };
 
+  // Solo pide rubro si NO hay user logueado
   const recargarTokenYRubro = () => {
     const token = getToken();
     setToken(token);
-    if (token && !token.startsWith("demo")) {
+    const user = getUser();
+
+    if (user && user.token && !user.token.startsWith("demo") && user.rubro) {
+      setRubroSeleccionado(null); // El backend lo resuelve, no mandamos nada.
+      setEsperandoRubro(false);
       setPreguntasUsadas(0);
       localStorage.removeItem("rubroSeleccionado");
-      const storedUser = localStorage.getItem("user");
-      const user = storedUser ? JSON.parse(storedUser) : null;
-      setRubroSeleccionado(user?.rubro?.toLowerCase() || "general");
-      setEsperandoRubro(false);
       return;
     }
-    const rubro = localStorage.getItem("rubroSeleccionado");
+
+    // ANÓNIMO
+    let rubro = localStorage.getItem("rubroSeleccionado");
     if (!rubro) {
       setEsperandoRubro(true);
       setRubroSeleccionado(null);
@@ -173,7 +186,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   }, [messages, isTyping]);
 
   useEffect(() => {
-    if (isOpen && rubroSeleccionado) {
+    // Arranca mensaje de bienvenida cuando puede responder
+    if (isOpen && (!esperandoRubro || getUser())) {
       setMessages([
         {
           id: 1,
@@ -183,11 +197,15 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         },
       ]);
     }
-  }, [isOpen, rubroSeleccionado]);
+  }, [isOpen, esperandoRubro]);
 
   const handleSendMessage = async (text: string) => {
     if (!text.trim()) return;
-    if (!rubroSeleccionado) {
+
+    const user = getUser();
+    const esAnonimo = !user || !user.token || user.token.startsWith("demo");
+
+    if (esAnonimo && !rubroSeleccionado) {
       setMessages((prev) => [
         ...prev,
         {
@@ -199,7 +217,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       ]);
       return;
     }
-    const esAnonimo = token.startsWith("demo-anon") || token.startsWith("demo-token");
     if (esAnonimo && preguntasUsadas >= 15) {
       setMessages((prev) => [
         ...prev,
@@ -220,11 +237,18 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     };
     setMessages((prev) => [...prev, userMessage]);
     setIsTyping(true);
+
+    // --- BODY INTELIGENTE ---
+    const body: any = { pregunta: text };
+    if (esAnonimo) {
+      body.rubro = rubroSeleccionado || DEFAULT_WIDGET_RUBRO;
+    }
+
     try {
       const data = await apiFetch(
         "/ask",
         "POST",
-        { pregunta: text, rubro: rubroSeleccionado },
+        body,
         {
           headers: {
             "Content-Type": "application/json",
@@ -235,7 +259,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       const respuestaFinal: string =
         typeof data?.respuesta === "string"
           ? data.respuesta
-          : data?.respuesta?.text || "❌ No entendí tu mensaje.";
+          : data?.respuesta?.text || data?.respuesta?.respuesta || "❌ No entendí tu mensaje.";
       const botMessage: Message = {
         id: messages.length + 2,
         text: respuestaFinal,
@@ -297,7 +321,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const toggleChat = () => {
     setIsOpen(prevIsOpen => {
       const nextIsOpen = !prevIsOpen;
-      if (nextIsOpen && !rubroSeleccionado) recargarTokenYRubro();
+      if (nextIsOpen && esperandoRubro) recargarTokenYRubro();
       return nextIsOpen;
     });
   };
