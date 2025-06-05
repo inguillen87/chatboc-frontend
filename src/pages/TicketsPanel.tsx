@@ -19,6 +19,16 @@ const ESTADOS = {
   cerrado: { label: "Cerrado", color: "bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-300" },
 };
 
+// Helper para evitar errores si el backend responde HTML o cualquier cosa que no sea JSON
+async function safeJson(res: Response) {
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    return { ok: false, error: "Respuesta inválida del servidor:\n" + text.slice(0, 200) };
+  }
+}
+
 interface Ticket {
   id: number;
   nro_ticket: number;
@@ -60,17 +70,14 @@ export default function TicketsPanelPro() {
   const chatBottomRef = useRef<HTMLDivElement | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Tickets fetch
   useEffect(() => {
     setLoading(true);
     setError(null);
 
     fetch(`/tickets/municipio?user_id=${userId}`, { credentials: "include" })
-      .then(async (res) => {
-        if (!res.ok) {
-          const text = await res.text();
-          throw new Error(`Error tickets: [${res.status}] ${text.slice(0, 100)}`);
-        }
-        const data = await res.json();
+      .then(safeJson)
+      .then((data) => {
         if (!data.ok) throw new Error(data.error || "Sin tickets");
         setTickets(data.tickets || []);
       })
@@ -87,12 +94,8 @@ export default function TicketsPanelPro() {
 
     const url = `/tickets/municipio/${t.id}/comentarios?user_id=${userId}`;
     fetch(url, { credentials: "include" })
-      .then(async (res) => {
-        if (!res.ok) {
-          const text = await res.text();
-          throw new Error(`Error comentarios: [${res.status}] ${text.slice(0, 100)}`);
-        }
-        const data = await res.json();
+      .then(safeJson)
+      .then((data) => {
         if (!data.ok) throw new Error(data.error || "Sin comentarios");
         setComentarios(data.comentarios || []);
       })
@@ -108,9 +111,8 @@ export default function TicketsPanelPro() {
     if (!selected) return;
     const interval = setInterval(() => {
       fetch(`/tickets/municipio/${selected.id}/comentarios?user_id=${userId}`, { credentials: "include" })
-        .then(async (res) => {
-          if (!res.ok) return;
-          const data = await res.json();
+        .then(safeJson)
+        .then((data) => {
           if (data.ok) setComentarios(data.comentarios || []);
         });
     }, 4000);
@@ -128,12 +130,8 @@ export default function TicketsPanelPro() {
       credentials: "include",
       body: JSON.stringify({ estado: nuevo, user_id: userId }),
     })
-      .then(async (res) => {
-        if (!res.ok) {
-          const text = await res.text();
-          throw new Error(`Error al cambiar estado: [${res.status}] ${text.slice(0, 100)}`);
-        }
-        const data = await res.json();
+      .then(safeJson)
+      .then((data) => {
         if (!data.ok) throw new Error(data.error || "Error al cambiar estado");
         setTickets((tickets) =>
           tickets.map((t) => (t.id === selected.id ? { ...t, estado: nuevo } : t))
@@ -154,23 +152,15 @@ export default function TicketsPanelPro() {
       credentials: "include",
       body: JSON.stringify({ comentario: mensaje, user_id: userId }),
     })
-      .then(async (res) => {
-        if (!res.ok) {
-          const text = await res.text();
-          throw new Error(`Error al enviar comentario: [${res.status}] ${text.slice(0, 100)}`);
-        }
-        const data = await res.json();
+      .then(safeJson)
+      .then((data) => {
         if (!data.ok) throw new Error(data.error || "Error enviando comentario");
         setMensaje("");
         // Recargar comentarios después de enviar
         return fetch(`/tickets/municipio/${selected.id}/comentarios?user_id=${userId}`, { credentials: "include" });
       })
-      .then(async (res) => {
-        if (res && !res.ok) {
-          const text = await res.text();
-          throw new Error(`Error recargando comentarios: [${res.status}] ${text.slice(0, 100)}`);
-        }
-        const data = res ? await res.json() : { ok: false, comentarios: [] };
+      .then((res) => res ? safeJson(res) : { ok: false, comentarios: [] })
+      .then((data) => {
         if (data.ok) setComentarios(data.comentarios || []);
         setSending(false);
         setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 200);
