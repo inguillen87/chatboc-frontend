@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from "react";
-import ChatMessage from "@/components/chat/ChatMessage";
 import ChatInput from "@/components/chat/ChatInput";
 import TypingIndicator from "@/components/chat/TypingIndicator";
 import { Message } from "@/types/chat";
@@ -125,54 +124,78 @@ const Demo = () => {
 
   if (esperandoRubro) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-4 text-center">
-        <h2 className="text-xl font-semibold mb-4">👋 ¡Bienvenido a Chatboc!</h2>
-        <p className="mb-4">Para darte una mejor experiencia, contanos a qué rubro pertenece tu negocio:</p>
-        <div className="flex flex-wrap justify-center gap-2">
-          {rubrosDisponibles.map((rubro) => (
-            <button
-              key={rubro.id}
-              onClick={() => {
-                localStorage.setItem("rubroSeleccionado", rubro.nombre);
-                setRubroSeleccionado(rubro.nombre);
-                setEsperandoRubro(false);
-              }}
-              className="px-4 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition"
-            >
-              {rubro.nombre}
-            </button>
-          ))}
+      <div className="min-h-screen flex flex-col items-center justify-center p-4 text-center bg-gradient-to-b from-blue-50 to-white dark:from-[#10141b] dark:to-[#181d24]">
+        <div className="w-full max-w-md p-6 rounded-3xl shadow-2xl border bg-white dark:bg-[#181d24]">
+          <h2 className="text-2xl font-bold mb-3 text-blue-800 dark:text-blue-300">👋 ¡Bienvenido a Chatboc!</h2>
+          <p className="mb-4 text-gray-600 dark:text-gray-300">
+            Para darte una mejor experiencia, contanos a qué rubro pertenece tu negocio:
+          </p>
+          <div className="flex flex-wrap justify-center gap-2 mt-3">
+            {rubrosDisponibles.map((rubro) => (
+              <button
+                key={rubro.id}
+                onClick={() => {
+                  localStorage.setItem("rubroSeleccionado", rubro.nombre);
+                  setRubroSeleccionado(rubro.nombre);
+                  setEsperandoRubro(false);
+                }}
+                className="px-5 py-3 rounded-full font-semibold text-base bg-gradient-to-r from-blue-500 to-blue-700 text-white hover:from-blue-600 hover:to-blue-800 shadow-md focus:outline-none transition-all"
+              >
+                {rubro.nombre}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="w-full max-w-2xl mx-auto bg-white dark:bg-[#1e1e1e] rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 flex flex-col h-[85vh] mt-6 overflow-hidden">
-      <div className="bg-[#006AEC] text-white py-3 px-4 flex items-center justify-between shadow-md">
+    <div className="
+      w-full max-w-2xl mx-auto
+      bg-white dark:bg-[#1e1e1e]
+      rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-700
+      flex flex-col h-[90vh] sm:h-[84vh] mt-6
+      overflow-hidden
+      relative
+      "
+    >
+      {/* Header */}
+      <div className="bg-[#006AEC] text-white py-3 px-4 flex items-center justify-between shadow-lg sticky top-0 z-10">
         <div className="flex items-center gap-2">
           <img
             src="/chatboc_widget_white_outline.webp"
             alt="Chatboc"
-            className="w-6 h-6"
+            className="w-7 h-7"
           />
-          <span className="font-semibold text-sm">Chatboc · Demo Gratuita</span>
+          <span className="font-semibold text-base sm:text-lg tracking-tight">Chatboc · Demo Gratuita</span>
         </div>
+        <span className="hidden sm:inline-block text-xs opacity-70">{rubroSeleccionado}</span>
       </div>
 
-      <div className="flex-1 overflow-y-auto space-y-4 px-4 py-4 bg-gray-50 dark:bg-[#2a2a2a] transition-colors">
+      {/* Mensajes */}
+      <div className="
+        flex-1 overflow-y-auto px-2 sm:px-5 py-5 bg-gradient-to-b from-blue-50/40 via-white to-blue-100/10 dark:bg-gradient-to-b dark:from-[#1b2532] dark:to-[#242b33]
+        transition-colors space-y-3 custom-scroll
+      ">
         {messages.map((msg) => (
           <div
             key={msg.id}
-            className={`p-3 rounded-xl max-w-[80%] whitespace-pre-wrap text-justify shadow ${
-              msg.isBot
-                ? "bg-blue-100 dark:bg-blue-900/30 text-black dark:text-white self-start"
-                : "bg-[#006AEC] text-white self-end"
-            }`}
+            className={`max-w-[84%] sm:max-w-[75%] rounded-2xl px-4 py-3 shadow-lg mb-2 whitespace-pre-wrap break-words text-justify
+              text-[15px] sm:text-base
+              ${msg.isBot
+                ? "bg-blue-100 dark:bg-blue-900/60 text-blue-900 dark:text-white self-start"
+                : "bg-gradient-to-br from-blue-500 to-blue-700 text-white self-end"
+              }
+            `}
+            style={{
+              marginLeft: msg.isBot ? 0 : "auto",
+              marginRight: msg.isBot ? "auto" : 0,
+            }}
           >
-            <div className="text-sm">{msg.text}</div>
-            <div className="text-[10px] opacity-60 text-right mt-1">
-              {msg.timestamp.toLocaleTimeString()}
+            {msg.text}
+            <div className={`text-[10px] sm:text-xs mt-1 text-right opacity-60 ${msg.isBot ? "text-blue-700 dark:text-blue-200" : "text-white"}`}>
+              {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
             </div>
           </div>
         ))}
@@ -180,7 +203,8 @@ const Demo = () => {
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="border-t border-gray-200 dark:border-gray-700 p-2 bg-white dark:bg-[#1e1e1e]">
+      {/* Input */}
+      <div className="border-t border-gray-200 dark:border-gray-700 p-2 bg-white dark:bg-[#1e1e1e] sticky bottom-0 z-10">
         <ChatInput onSendMessage={handleSendMessage} />
       </div>
     </div>
