@@ -22,12 +22,12 @@ const ESTADOS = {
   cerrado: { label: "Cerrado", color: "bg-gray-200 text-gray-500" },
 };
 
-export default function TicketsPanelPro() {
-  // Aquí debes traer el userId real desde tu contexto de autenticación
-  const userId = React.useMemo(() => {
-    // ejemplo placeholder, conecta con tu auth real
-    return window.__USER_ID__ || 1;
-  }, []);
+const API_BASE_URL = import.meta.env.VITE_API_URL || "";
+
+export default function TicketsPanel() {
+  // Tomar userId real desde localStorage
+  const storedUser = localStorage.getItem("user");
+  const userId = storedUser ? JSON.parse(storedUser).id : null;
 
   const [tickets, setTickets] = useState<any[]>([]);
   const [selected, setSelected] = useState<any | null>(null);
@@ -40,8 +40,12 @@ export default function TicketsPanelPro() {
   const chatBottomRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
+    if (!userId) {
+      window.location.href = "/login";
+      return;
+    }
     setLoading(true);
-    fetch(`/api/tickets/municipio?user_id=${userId}`, {
+    fetch(`${API_BASE_URL}/tickets/municipio?user_id=${userId}`, {
       credentials: "include",
     })
       .then((res) => res.json())
@@ -56,7 +60,7 @@ export default function TicketsPanelPro() {
     setSelected(t);
     setEstado(t.estado);
     setLoading(true);
-    fetch(`/api/tickets/municipio/${t.id}/comentarios?user_id=${userId}`, {
+    fetch(`${API_BASE_URL}/tickets/municipio/${t.id}/comentarios?user_id=${userId}`, {
       credentials: "include",
     })
       .then((res) => res.json())
@@ -73,7 +77,7 @@ export default function TicketsPanelPro() {
   function cambiarEstado(nuevo: string) {
     setDropdownVisible(false);
     setEstado(nuevo);
-    fetch(`/api/tickets/municipio/${selected.id}/estado`, {
+    fetch(`${API_BASE_URL}/tickets/municipio/${selected.id}/estado`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
@@ -93,7 +97,7 @@ export default function TicketsPanelPro() {
   function responderTicket() {
     if (!mensaje.trim()) return;
     setSending(true);
-    fetch(`/api/tickets/municipio/${selected.id}/comentarios`, {
+    fetch(`${API_BASE_URL}/tickets/municipio/${selected.id}/comentarios`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
@@ -103,15 +107,15 @@ export default function TicketsPanelPro() {
       .then((data) => {
         if (data.ok) {
           setMensaje("");
-          return fetch(`/api/tickets/municipio/${selected.id}/comentarios?user_id=${userId}`, {
+          return fetch(`${API_BASE_URL}/tickets/municipio/${selected.id}/comentarios?user_id=${userId}`, {
             credentials: "include",
           });
         }
         throw new Error(data.error || "Error enviando comentario");
       })
-      .then((res) => res.json())
+      .then((res) => res?.json())
       .then((data) => {
-        if (data.ok) setComentarios(data.comentarios || []);
+        if (data && data.ok) setComentarios(data.comentarios || []);
         setSending(false);
         setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 200);
       })
@@ -129,6 +133,11 @@ export default function TicketsPanelPro() {
           {loading && (
             <div className="flex flex-col items-center justify-center h-40">
               <Loader2 className="animate-spin text-gray-400" size={32} />
+            </div>
+          )}
+          {tickets.length === 0 && !loading && (
+            <div className="flex flex-col items-center justify-center h-40 text-gray-400">
+              No hay tickets cargados aún.
             </div>
           )}
           {tickets.map((t) => (
@@ -242,49 +251,4 @@ export default function TicketsPanelPro() {
       </div>
     </div>
   );
-
-  function cambiarEstado(nuevo: string) {
-    setDropdownVisible(false);
-    setEstado(nuevo);
-    fetch(`/api/tickets/municipio/${selected.id}/estado`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ estado: nuevo, user_id: userId }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.ok) {
-          setTickets((tickets) =>
-            tickets.map((t) => (t.id === selected.id ? { ...t, estado: nuevo } : t))
-          );
-          setSelected((s) => (s ? { ...s, estado: nuevo } : s));
-        }
-      });
-  }
-
-  function responderTicket() {
-    if (!mensaje.trim()) return;
-    setSending(true);
-    fetch(`/api/tickets/municipio/${selected.id}/comentarios`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ comentario: mensaje, user_id: userId }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.ok) {
-          setMensaje("");
-          fetch(`/api/tickets/municipio/${selected.id}/comentarios?user_id=${userId}`)
-            .then((res) => res.json())
-            .then((data) => {
-              if (data.ok) setComentarios(data.comentarios || []);
-              setSending(false);
-              setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 200);
-            });
-        } else {
-          setSending(false);
-        }
-      })
-      .catch(() => setSending(false));
-  }
 }
