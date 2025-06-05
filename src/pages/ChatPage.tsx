@@ -31,6 +31,17 @@ const ChatPage = () => {
   const user = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("user") || "null") : null;
   const token = isDemo ? "demo-token" : user?.token || "demo-token";
 
+  // NUEVO: Obtener el rubro
+  const getRubro = () => {
+    // Si user.rubro es un objeto, usá el nombre. Si es string, usá el string.
+    if (user?.rubro) {
+      if (typeof user.rubro === "object" && user.rubro.nombre) return user.rubro.nombre;
+      if (typeof user.rubro === "string") return user.rubro;
+    }
+    // Si no hay user, intentá localStorage
+    return localStorage.getItem("rubroSeleccionado") || "";
+  };
+
   useEffect(() => {
     setMessages([
       {
@@ -61,13 +72,15 @@ const ChatPage = () => {
     setIsTyping(true);
 
     try {
+      const rubro = getRubro();
+
       const res = await fetch("https://api.chatboc.ar/ask", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ pregunta: text }),
+        body: JSON.stringify({ pregunta: text, rubro }),
       });
 
       const data = await res.json();

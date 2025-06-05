@@ -1,4 +1,3 @@
-// ChatWidget.tsx UNIVERSAL
 import React, { useState, useRef, useEffect, CSSProperties } from "react";
 import { X } from "lucide-react";
 import ChatMessage from "./ChatMessage";
@@ -61,6 +60,7 @@ const ChatHeader: React.FC<{
   );
 };
 
+// --- Token Management
 function getToken(): string {
   if (typeof window === "undefined") return "demo-anon-ssr";
   const params = new URLSearchParams(window.location.search);
@@ -85,12 +85,13 @@ interface ChatWidgetProps {
   widgetId?: string;
 }
 
+// CAMBIÁ ESTO SI EL RUBRO SIEMPRE ES FIJO PARA EL CLIENTE
+const DEFAULT_WIDGET_RUBRO = "municipios"; // Cambialo según el sitio/widget
+
 const WIDGET_DIMENSIONS = {
   OPEN: { width: "360px", height: "520px" },
   CLOSED: { width: "80px", height: "80px" },
 };
-
-const DEFAULT_WIDGET_RUBRO = "municipios"; // Cambialo según el sitio/widget
 
 const ChatWidget: React.FC<ChatWidgetProps> = ({
   mode = "standalone",
@@ -120,6 +121,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     mode === "standalone" ? { position: 'fixed', ...initialPosProp, zIndex: 99998 } : {}
   );
 
+  // Dark mode listener
   useEffect(() => {
     if (typeof window === "undefined") return;
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
@@ -128,13 +130,14 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     return () => mq.removeEventListener("change", handler);
   }, []);
 
-  // -- Nuevo: detecta usuario logueado --
+  // -- User detection
   const getUser = () => {
     if (typeof window === "undefined") return null;
     const storedUser = localStorage.getItem("user");
     return storedUser ? JSON.parse(storedUser) : null;
   };
 
+  // -- Rubros
   const cargarRubros = async () => {
     setCargandoRubros(true);
     try {
@@ -147,21 +150,20 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     setCargandoRubros(false);
   };
 
-  // Solo pide rubro si NO hay user logueado
+  // -- Init: token y rubro segun tipo usuario
   const recargarTokenYRubro = () => {
     const token = getToken();
     setToken(token);
     const user = getUser();
 
     if (user && user.token && !user.token.startsWith("demo") && user.rubro) {
-      setRubroSeleccionado(null); // El backend lo resuelve, no mandamos nada.
+      setRubroSeleccionado(null); // El backend lo resuelve.
       setEsperandoRubro(false);
       setPreguntasUsadas(0);
       localStorage.removeItem("rubroSeleccionado");
       return;
     }
-
-    // ANÓNIMO
+    // Anónimo: debe elegir rubro o usar por default
     let rubro = localStorage.getItem("rubroSeleccionado");
     if (!rubro) {
       setEsperandoRubro(true);
@@ -186,7 +188,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   }, [messages, isTyping]);
 
   useEffect(() => {
-    // Arranca mensaje de bienvenida cuando puede responder
     if (isOpen && (!esperandoRubro || getUser())) {
       setMessages([
         {
@@ -199,13 +200,14 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     }
   }, [isOpen, esperandoRubro]);
 
+  // --- MAIN SENDING LOGIC ---
   const handleSendMessage = async (text: string) => {
     if (!text.trim()) return;
 
     const user = getUser();
     const esAnonimo = !user || !user.token || user.token.startsWith("demo");
 
-    if (esAnonimo && !rubroSeleccionado) {
+    if (esAnonimo && !(rubroSeleccionado || DEFAULT_WIDGET_RUBRO)) {
       setMessages((prev) => [
         ...prev,
         {
@@ -241,6 +243,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     // --- BODY INTELIGENTE ---
     const body: any = { pregunta: text };
     if (esAnonimo) {
+      // Nunca envíes vacío el rubro, siempre lleva uno
       body.rubro = rubroSeleccionado || DEFAULT_WIDGET_RUBRO;
     }
 

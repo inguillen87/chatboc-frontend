@@ -9,7 +9,6 @@ const Demo = () => {
   const [isTyping, setIsTyping] = useState(false);
   const [preguntasUsadas, setPreguntasUsadas] = useState(0);
   const [rubroSeleccionado, setRubroSeleccionado] = useState<string | null>(() => {
-    // Solo para demo, busca el rubro si ya está guardado
     return typeof window !== "undefined" ? localStorage.getItem("rubroSeleccionado") : null;
   });
   const [rubrosDisponibles, setRubrosDisponibles] = useState<{ id: number; nombre: string }[]>([]);
@@ -17,7 +16,7 @@ const Demo = () => {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Siempre modo demo: usuario anónimo
+  // Token siempre anónimo
   let token = "";
   try {
     let anonToken = typeof window !== "undefined" ? localStorage.getItem("anon_token") : null;
@@ -31,7 +30,6 @@ const Demo = () => {
   }
 
   useEffect(() => {
-    // Si no hay rubro seleccionado, carga rubros disponibles
     if (!rubroSeleccionado) {
       fetch("https://api.chatboc.ar/rubros")
         .then((res) => res.json())
@@ -57,7 +55,7 @@ const Demo = () => {
   }, [messages]);
 
   const handleSendMessage = async (text: string) => {
-    if (!text.trim()) return;
+    if (!text.trim() || !rubroSeleccionado) return;
 
     if (preguntasUsadas >= 15) {
       setMessages((prev) => [
@@ -87,7 +85,7 @@ const Demo = () => {
       const response = await apiFetch(
         "/ask",
         "POST",
-        { question: text, rubro: rubroSeleccionado },
+        { pregunta: text, rubro: rubroSeleccionado }, // SIEMPRE mando el rubro
         {
           headers: {
             "Content-Type": "application/json",
@@ -118,7 +116,6 @@ const Demo = () => {
     }
   };
 
-  // UX: Selección de rubro (sólo una vez, antes de arrancar chat)
   if (esperandoRubro) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-4 text-center bg-gradient-to-b from-blue-50 to-white dark:from-[#10141b] dark:to-[#181d24]">
@@ -147,7 +144,6 @@ const Demo = () => {
     );
   }
 
-  // Chat clásico, con rubro ya elegido
   return (
     <div className="
       w-full max-w-2xl mx-auto
