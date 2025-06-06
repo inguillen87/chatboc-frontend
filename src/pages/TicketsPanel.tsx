@@ -52,20 +52,22 @@ export default function TicketsPanel() {
   }, []);
 
   const fetchTickets = useCallback(async () => {
-    if (!userId) return; // No hacemos nada si no hay userId
-    setIsLoading(true);
-    setError(null);
-    try {
-      const response = await apiFetch<{ tickets: TicketType[] }>(`/tickets/municipio?user_id=${userId}`);
-      setTickets(response.tickets);
-    } catch (err) {
-      const errorMessage = err instanceof ApiError ? err.message : "Ocurrió un error inesperado.";
-      setError(errorMessage);
-      console.error("❌ Error cargando tickets:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [userId]);
+  if (!userId) return;
+  setIsLoading(true);
+  setError(null);
+  try {
+    const response = await apiFetch<{ tickets: TicketType[] }>(`/tickets/municipio?user_id=${userId}`);
+    console.log("🚩 Respuesta de tickets:", response); // <--- AGREGÁ ESTO
+    setTickets(response.tickets);
+  } catch (err) {
+    const errorMessage = err instanceof ApiError ? err.message : "Ocurrió un error inesperado.";
+    setError(errorMessage);
+    console.error("❌ Error cargando tickets:", err);
+  } finally {
+    setIsLoading(false);
+    console.log("🚩 Finalizó carga de tickets");
+  }
+}, [userId]);
 
   useEffect(() => { fetchTickets(); }, [fetchTickets]);
 
