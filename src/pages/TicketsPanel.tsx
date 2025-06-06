@@ -1,8 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Loader2, CheckCircle2, ChevronDown, ArrowLeft, Send } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -282,9 +280,8 @@ export default function TicketsPanelPro() {
       {/* Panel Detalle */}
       {selected && (
         <div className="flex-1 flex flex-col h-full">
-          {/* Header (unificado mobile/desktop, con botón volver en mobile) */}
-          <div className={`flex items-center gap-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950
-            ${isMobile ? "px-4 py-4" : "p-5"}`}>
+          {/* Header (unificado mobile/desktop, botón volver solo en mobile, SIN AVATAR) */}
+          <div className={`flex items-center gap-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 ${isMobile ? "px-4 py-4" : "p-5"}`}>
             {/* Botón volver solo en mobile */}
             {isMobile && (
               <button
@@ -295,14 +292,6 @@ export default function TicketsPanelPro() {
                 <ArrowLeft className="w-6 h-6 text-slate-600 dark:text-slate-300" />
               </button>
             )}
-            <Avatar>
-              <AvatarFallback>
-                {(selected.nombre_vecino?.slice(0,2).toUpperCase())
-                  || (selected.nombre_empresa?.slice(0,2).toUpperCase())
-                  || "VC"}
-              </AvatarFallback>
-              <AvatarImage src={selected.logo_url || "/avatar-muni.png"} alt="" />
-            </Avatar>
             <div className="flex flex-col flex-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-bold text-lg text-slate-900 dark:text-slate-100">
