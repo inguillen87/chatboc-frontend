@@ -87,11 +87,10 @@ export default function Perfil() {
   }, []);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    const token = storedUser ? JSON.parse(storedUser).token : null;
-    if (!token) { window.location.href = "/login"; return; }
-    fetchPerfil(token);
-  }, [fetchPerfil]);
+  const token = localStorage.getItem("authToken");
+  if (!token) { window.location.href = "/login"; return; }
+  fetchPerfil(token);
+}, [fetchPerfil]);
 
   const handlePlaceSelected = (place: any) => {
     if (!place || !place.address_components || !place.geometry) {
