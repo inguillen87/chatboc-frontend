@@ -9,11 +9,13 @@
     "paths": {
       "@/*": ["./src/*"]
     },
-    "noImplicitAny": false,
-    "noUnusedParameters": false,
-    "skipLibCheck": true,
     "allowJs": true,
-    "noUnusedLocals": false,
-    "strictNullChecks": false
+    "skipLibCheck": true,
+    // --- CAMBIOS RECOMENDADOS ---
+    "strict": true, // Activa todas las opciones estrictas, incluyendo las de abajo. Es la mejor práctica.
+    "forceConsistentCasingInFileNames": true,
+    "noImplicitAny": true, // Te obligará a definir tipos, previniendo errores.
+    "strictNullChecks": true // La clave para que el código que te di funcione perfectamente.
+    
   }
 }
