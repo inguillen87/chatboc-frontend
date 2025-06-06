@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { LogOut, UploadCloud, CheckCircle, XCircle, Info, ChevronDown, ChevronUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { cn } from "@/lib/utils"; // La ruta puede variar según tu proyecto
 import GooglePlacesAutocomplete from "react-google-autocomplete";
 import.meta.env.VITE_Maps_API_KEY
 import { useNavigate } from "react-router-dom";
@@ -336,25 +337,32 @@ export default function Perfil() {
           </Card>
         </div>
 
-        {/* Columna Derecha (Plan y Catálogo) */}
-        <div className="flex flex-col gap-6 md:gap-8">
-          {/* Card Plan y Uso */}
-          <Card className="bg-slate-900/70 shadow-xl rounded-xl border border-slate-800 backdrop-blur-sm">
-  <CardHeader>
-    <CardTitle className="text-lg font-semibold text-blue-400">Plan y Uso</CardTitle>
-  </CardHeader>
-  <CardContent className="space-y-3">
-    <p className="text-sm text-slate-300">
-      Plan actual: <Badge variant="secondary" className="bg-blue-500/80 text-white capitalize">{perfil.plan || "N/A"}</Badge>
-    </p>
-    <div>
-      <p className="text-sm text-slate-300 mb-1">Consultas usadas este mes:</p>
-      <div className="flex items-center gap-2">
-        <Progress value={porcentaje} className="h-3 bg-slate-700 [&>div]:bg-blue-500" aria-label={`${porcentaje.toFixed(0)}% de consultas usadas`} />
-        <span className="text-xs text-slate-400 min-w-[70px] text-right">{perfil.preguntas_usadas} / {perfil.limite_preguntas}</span>
-      </div>
-    </div>
-    {/* BOTONES UALÁ BIS */}
+         {/* Columna Derecha (Plan y Catálogo) */}
+      <div className="flex flex-col gap-6 md:gap-8">
+        {/* Card Plan y Uso */}
+        <Card className="bg-slate-900/70 shadow-xl rounded-xl border border-slate-800 backdrop-blur-sm">
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold text-blue-400">Plan y Uso</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-slate-300">
+              Plan actual:{" "}
+              {/* CORRECCIÓN 1: Se quitó el '<' extra y se agregó '?' a perfil */}
+              <Badge variant="secondary" className={cn("bg-blue-500/80 text-white capitalize")}>
+                {perfil?.plan || "N/A"}
+              </Badge>
+            </p>
+            <div>
+              <p className="text-sm text-slate-300 mb-1">Consultas usadas este mes:</p>
+              <div className="flex items-center gap-2">
+                <Progress value={porcentaje} className="h-3 bg-slate-700 [&>div]:bg-blue-500" aria-label={`${porcentaje.toFixed(0)}% de consultas usadas`} />
+                {/* CORRECCIÓN 2: Se agregó '?' para más seguridad */}
+                <span className="text-xs text-slate-400 min-w-[70px] text-right">
+                  {perfil?.preguntas_usadas} / {perfil?.limite_preguntas}
+                </span>
+              </div>
+            </div>
+            {/* BOTONES UALÁ BIS */}
     {(perfil.plan !== "full" && perfil.plan !== "pro") && (
       <div className="space-y-2 mt-3">
         <Button
