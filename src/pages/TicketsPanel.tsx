@@ -6,7 +6,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Loader2, CheckCircle2, ChevronDown, ArrowLeft, Send } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-// Colores y estados visuales igual que antes
 const ESTADOS = {
   nuevo: {
     label: "Nuevo",
@@ -40,9 +39,8 @@ const ESTADOS = {
   },
 };
 
-const API_URL = "https://api.chatboc.ar"; // Cambiá si usás otro dominio
+const API_URL = "https://api.chatboc.ar";
 
-// Detecta mobile
 function useIsMobile(breakpoint = 768) {
   const [isMobile, setIsMobile] = useState(
     typeof window !== "undefined" ? window.innerWidth < breakpoint : false
@@ -55,17 +53,28 @@ function useIsMobile(breakpoint = 768) {
   return isMobile;
 }
 
+// Mejor formato fecha Argentino
 function fechaCorta(iso) {
   if (!iso) return "";
   const d = new Date(iso);
-  return `${d.getDate()}/${d.getMonth() + 1} ${d.getHours()}:${d
+  return `${d.getDate().toString().padStart(2, "0")}/${(d.getMonth() + 1)
+    .toString()
+    .padStart(2, "0")} ${d.getHours().toString().padStart(2, "0")}:${d
     .getMinutes()
     .toString()
     .padStart(2, "0")}`;
 }
 
+// Trunca texto en el último espacio antes del límite, para no cortar palabras.
+function resumenTexto(text, max = 70) {
+  if (!text) return "";
+  if (text.length <= max) return text;
+  const idx = text.lastIndexOf(" ", max);
+  return text.slice(0, idx > 20 ? idx : max) + "…";
+}
+
 export default function TicketsPanelPro() {
-  const userId = 6; // Cambiá por auth real cuando toque
+  const userId = 6; // Cambia esto si usás auth real
   const [tickets, setTickets] = useState([]);
   const [selected, setSelected] = useState(null);
   const [comentarios, setComentarios] = useState([]);
@@ -77,8 +86,12 @@ export default function TicketsPanelPro() {
   const [dropdownVisible, setDropdownVisible] = useState(false);
   const chatBottomRef = useRef(null);
   const [error, setError] = useState(null);
-
   const isMobile = useIsMobile();
+
+  // Scroll to top on ticket select (mobile)
+  useEffect(() => {
+    if (selected && isMobile) window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [selected, isMobile]);
 
   // Tickets fetch
   useEffect(() => {
@@ -202,7 +215,6 @@ export default function TicketsPanelPro() {
       });
   };
 
-  // Estado cerrado
   const isCerrado = estado === "cerrado";
 
   return (
@@ -247,6 +259,7 @@ export default function TicketsPanelPro() {
                     ${selected?.id === t.id ? "bg-blue-50 dark:bg-blue-900/70 border-l-4 border-blue-500" : ""}
                   `}
                   onClick={() => handleSelectTicket(t)}
+                  title={t.pregunta}
                 >
                   <div className="flex justify-between items-center">
                     <span className="font-semibold text-blue-900 dark:text-blue-200">#{t.nro_ticket}</span>
@@ -254,8 +267,9 @@ export default function TicketsPanelPro() {
                       {ESTADOS[t.estado]?.label || t.estado}
                     </span>
                   </div>
-                  <span className="text-sm text-slate-800 dark:text-slate-200 truncate">
-                    {t.pregunta?.slice(0, 68) || "Sin asunto"}
+                  {/* Si tenés t.asunto lo mostrás, si no el resumen de pregunta */}
+                  <span className="text-sm text-slate-800 dark:text-slate-200 truncate font-medium">
+                    {t.asunto ? t.asunto : resumenTexto(t.pregunta)}
                   </span>
                   <span className="text-xs text-slate-400">{fechaCorta(t.fecha)}</span>
                 </motion.div>
@@ -265,10 +279,10 @@ export default function TicketsPanelPro() {
         </div>
       )}
 
-      {/* Panel Detalle (Mobile: solo si hay ticket seleccionado) */}
+      {/* Panel Detalle */}
       {selected && (
         <div className="flex-1 flex flex-col h-full">
-          {/* Mobile header con volver */}
+          {/* Mobile header */}
           {isMobile && (
             <div className="flex items-center gap-4 p-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 sticky top-0 z-10">
               <button
@@ -280,7 +294,7 @@ export default function TicketsPanelPro() {
               </button>
               <Avatar className="w-8 h-8">
                 <AvatarFallback>
-                  {selected.nombre_empresa?.slice(0, 2).toUpperCase() || ""}
+                  {selected.nombre_empresa?.slice(0, 2).toUpperCase() || "VC"}
                 </AvatarFallback>
                 <AvatarImage src={selected.logo_url || "/avatar-muni.png"} alt="" />
               </Avatar>
@@ -307,7 +321,7 @@ export default function TicketsPanelPro() {
             )}
           </AnimatePresence>
 
-          {/* Desktop header (solo si NO mobile) */}
+          {/* Desktop header */}
           {!isMobile && (
             <div className="flex items-center gap-4 p-5 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950">
               <Avatar>
@@ -353,6 +367,13 @@ export default function TicketsPanelPro() {
 
           {/* Mensajes/comentarios */}
           <div className="flex-1 bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-slate-900 dark:via-slate-950 dark:to-slate-900 p-4 flex flex-col gap-2 overflow-y-auto">
+            {/* Título completo y texto del ticket */}
+            <div className="mb-2 pb-2 border-b border-slate-200 dark:border-slate-800">
+              <div className="font-semibold text-lg mb-1 text-slate-900 dark:text-slate-100">
+                {selected.asunto || resumenTexto(selected.pregunta, 80)}
+              </div>
+              <div className="text-base whitespace-pre-line text-slate-700 dark:text-slate-300">{selected.pregunta}</div>
+            </div>
             {loadingDetalle ? (
               <div className="flex flex-col items-center justify-center h-40">
                 <Loader2 className="animate-spin text-gray-400" size={32} />
