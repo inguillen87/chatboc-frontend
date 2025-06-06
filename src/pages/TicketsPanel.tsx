@@ -284,27 +284,24 @@ export default function TicketsPanelPro() {
         <div className="flex-1 flex flex-col h-full">
           {/* Mobile header */}
           {isMobile && (
-            <div className="flex items-center gap-4 p-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 sticky top-0 z-10">
-              <button
-                className="p-2 rounded-full hover:bg-blue-100 transition"
-                onClick={() => setSelected(null)}
-                aria-label="Volver"
-              >
-                <ArrowLeft size={20} />
-              </button>
-              <Avatar className="w-8 h-8">
-                <AvatarFallback>
-                  {selected.nombre_empresa?.slice(0, 2).toUpperCase() || "VC"}
-                </AvatarFallback>
-                <AvatarImage src={selected.logo_url || "/avatar-muni.png"} alt="" />
-              </Avatar>
-              <div className="flex-1 font-bold text-lg truncate">
-                {selected.nombre_empresa || "Vecino"}
-              </div>
-              <span className={`px-3 py-1 rounded-full text-xs font-bold text-white shadow ${ESTADOS[estado]?.badge}`}>
-                {ESTADOS[estado]?.label || estado}
+          <div className="flex items-center gap-3">
+          <Avatar>
+            <AvatarFallback>
+              {(selected.nombre_vecino && selected.nombre_vecino.slice(0,2).toUpperCase()) || "VC"}
+            </AvatarFallback>
+          </Avatar>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-lg text-white">Ticket #{selected.id || "?"}</span>
+              <span className="ml-2 px-2 py-1 rounded bg-blue-600 text-white text-xs">
+                {selected.nombre_vecino || "Vecino"}
               </span>
             </div>
+            <span className="text-gray-400 text-sm">
+              {selected.email || selected.telefono || ""}
+            </span>
+            </div>
+          </div>
           )}
 
           {/* Banner ticket cerrado */}
