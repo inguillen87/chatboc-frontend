@@ -34,3 +34,6 @@ function Badge({ className, variant, children, ...props }: BadgeProps) {
     </div>
   )
 }
+
+// ESTA ES LA LÍNEA QUE FALTABA
+export { Badge, badgeVariants }

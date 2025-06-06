@@ -9,7 +9,6 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils"; // La ruta puede variar según tu proyecto
 import GooglePlacesAutocomplete from "react-google-autocomplete";
-import.meta.env.VITE_Maps_API_KEY
 import { useNavigate } from "react-router-dom";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "https://api.chatboc.ar";
