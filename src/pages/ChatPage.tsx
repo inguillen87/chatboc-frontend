@@ -29,7 +29,7 @@ const ChatPage = () => {
   const path = typeof window !== "undefined" ? window.location.pathname : "";
   const isDemo = path.includes("demo");
   const user = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("user") || "null") : null;
-  const token = isDemo ? "demo-token" : user?.token || "demo-token";
+  const token = isDemo ? "demo-token" : localStorage.getItem("authToken") || "demo-token";
 
   const getRubro = () => {
     if (user?.rubro) {
