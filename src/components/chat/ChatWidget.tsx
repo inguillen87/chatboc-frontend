@@ -145,16 +145,19 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   // -- Rubros
   const cargarRubros = async () => {
-    setCargandoRubros(true);
-    try {
-      const res = await fetch("https://api.chatboc.ar/rubros");
-      const data = await res.json();
-      setRubrosDisponibles(data.rubros || []);
-    } catch {
-      setRubrosDisponibles([]);
-    }
-    setCargandoRubros(false);
-  };
+  setCargandoRubros(true);
+  try {
+    // SIEMPRE agregá la barra al final para evitar problemas de CORS/redirect
+    const res = await fetch("https://api.chatboc.ar/rubros/");
+    const data = await res.json();
+    // El backend devuelve un array, no un objeto
+    setRubrosDisponibles(Array.isArray(data) ? data : []);
+  } catch {
+    setRubrosDisponibles([]);
+  }
+  setCargandoRubros(false);
+};
+
 
   // -- Init: token y rubro segun tipo usuario
   const recargarTokenYRubro = () => {
