@@ -1,12 +1,9 @@
-// src/components/Register.tsx (CORREGIDO)
-
 import React, { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { apiFetch, ApiError } from '@/utils/api'; // NOTA: Importamos ApiError
+import { apiFetch, ApiError } from '@/utils/api';
 import { useNavigate } from 'react-router-dom';
 
-// NOTA: Definimos los tipos para mayor claridad
 interface Rubro {
   id: number;
   nombre: string;
@@ -16,8 +13,8 @@ interface RubrosResponse {
   rubros: Rubro[];
 }
 
-// La respuesta de registro es similar a la de login
 interface RegisterResponse {
+  id: number;
   token: string;
   name: string;
   email: string;
@@ -43,13 +40,9 @@ const Register = () => {
   useEffect(() => {
     const fetchRubros = async () => {
       try {
-        // --- CAMBIO: Adaptamos la llamada a apiFetch ---
         const data = await apiFetch<RubrosResponse>('/rubros');
-        if (Array.isArray(data?.rubros)) {
-          setRubrosDisponibles(data.rubros);
-        }
+        if (Array.isArray(data?.rubros)) setRubrosDisponibles(data.rubros);
       } catch (err) {
-        console.error('❌ Error al cargar rubros:', err);
         setError("No se pudieron cargar los rubros. Intenta recargar la página.");
       }
     };
@@ -71,19 +64,18 @@ const Register = () => {
         email,
         password,
         nombre_empresa: nombreEmpresa,
-        rubro: rubrosDisponibles.find(r => r.id === parseInt(rubroId))?.nombre || '',
+        rubro_id: parseInt(rubroId),
         acepto_terminos: accepted,
         fecha_aceptacion_terminos: new Date().toISOString(),
       };
 
-      // --- CAMBIO: Adaptamos la llamada a apiFetch ---
       const data = await apiFetch<RegisterResponse>('/register', {
         method: 'POST',
         body: payload,
       });
 
-      // --- CORRECCIÓN CRÍTICA: Guardamos el token y el perfil por separado ---
       const userProfile = {
+        id: data.id,
         name: data.name,
         email: data.email,
         plan: data.plan,
@@ -94,18 +86,16 @@ const Register = () => {
       };
 
       localStorage.setItem('user', JSON.stringify(userProfile));
-      localStorage.setItem('authToken', data.token); // El token debe ir por separado
+      localStorage.setItem('authToken', data.token);
 
       navigate('/perfil');
-      
+
     } catch (err) {
-      // --- CAMBIO: Mejoramos el manejo de errores ---
       if (err instanceof ApiError) {
-        setError(err.body?.message || 'Error al registrarse. Verificá los datos.');
+        setError(err.body?.error || err.body?.message || 'Error al registrarse. Verificá los datos.');
       } else {
-        setError('⚠️ No se pudo completar el registro.');
+        setError('No se pudo completar el registro.');
       }
-      console.error('❌ Error al registrarse:', err);
     } finally {
       setIsLoading(false);
     }

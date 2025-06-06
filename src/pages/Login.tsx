@@ -1,13 +1,11 @@
-// src/components/Login.tsx (CORREGIDO)
-
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { apiFetch, ApiError } from "@/utils/api"; // NOTA: Importamos ApiError
+import { apiFetch, ApiError } from "@/utils/api";
 
-// NOTA: Definimos la forma de la respuesta esperada para mayor seguridad de tipos
 interface LoginResponse {
+  id: number;
   token: string;
   name: string;
   email: string;
@@ -24,11 +22,7 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    // Si ya hay un token, no deberíamos estar en la página de login
-    if (localStorage.getItem("authToken")) {
-      navigate("/perfil");
-    }
-    // Scroll al inicio
+    if (localStorage.getItem("authToken")) navigate("/perfil");
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [navigate]);
 
@@ -38,33 +32,28 @@ const Login = () => {
     setIsLoading(true);
 
     try {
-      // --- CAMBIO: Adaptamos la llamada a la nueva firma de apiFetch ---
       const data = await apiFetch<LoginResponse>('/login', {
         method: 'POST',
         body: { email, password },
       });
 
-      // La lógica de guardado es correcta: perfil por un lado, token por otro.
       const userProfile = {
+        id: data.id,
         name: data.name,
         email: data.email,
         plan: data.plan,
         preguntas_usadas: data.preguntas_usadas,
         limite_preguntas: data.limite_preguntas,
       };
-      
+
       localStorage.setItem("user", JSON.stringify(userProfile));
-      localStorage.setItem("authToken", data.token); // apiFetch usa "authToken"
+      localStorage.setItem("authToken", data.token);
 
       navigate("/perfil");
-
     } catch (err) {
-      // --- CAMBIO: Mejoramos el manejo de errores ---
       if (err instanceof ApiError) {
-        // Si el error viene de la API, mostramos el mensaje del servidor
-        setError(err.body?.message || "Credenciales inválidas.");
+        setError(err.body?.error || err.body?.message || "Credenciales inválidas.");
       } else {
-        // Si es un error de red u otro, mostramos un mensaje genérico
         setError("No se pudo conectar con el servidor. Intenta de nuevo.");
       }
       console.error("❌ Error al iniciar sesión:", err);

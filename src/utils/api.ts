@@ -1,9 +1,3 @@
-// Archivo: src/utils/api.ts
-
-/**
- * Clase de error personalizada para representar errores de la API.
- * Contiene el estado HTTP y el cuerpo de la respuesta del error.
- */
 export class ApiError extends Error {
   public readonly status: number;
   public readonly body: any;
@@ -16,9 +10,6 @@ export class ApiError extends Error {
   }
 }
 
-/**
- * Opciones avanzadas para la función apiFetch.
- */
 interface ApiFetchOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
   headers?: Record<string, string>;
@@ -26,39 +17,37 @@ interface ApiFetchOptions {
 }
 
 /**
- * Función centralizada y robusta para realizar peticiones a la API.
- * * @template T El tipo de dato esperado en la respuesta exitosa.
- * @param path El endpoint de la API al que se va a llamar (ej. '/login').
- * @param options Opciones de la petición como método, cuerpo y encabezados.
- * @returns Una promesa que se resuelve con los datos de la API del tipo T.
- * @throws {ApiError} Si la respuesta del servidor no es exitosa (no es 2xx).
- * @throws {Error} Si ocurre un error de red u otro problema inesperado.
+ * Helper centralizado para todas las llamadas a la API.
+ * Lee SIEMPRE el token desde localStorage["user"].token.
+ * Compatible con uploads (FormData).
  */
 export async function apiFetch<T>(
   path: string,
   options: ApiFetchOptions = {}
 ): Promise<T> {
   const { method = 'GET', body } = options;
-  const baseUrl = import.meta.env.VITE_API_URL || '';
+  const baseUrl = import.meta.env.VITE_API_URL || "https://api.chatboc.ar";
   const url = `${baseUrl}${path}`;
 
-  // 1. Construcción de encabezados dinámicos
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...options.headers,
-  };
-
-  // 2. Inyección automática del token de autenticación
-  const token = localStorage.getItem('authToken');
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
+  // --- Recuperar token desde el objeto user ---
+  let token = "";
+  const userRaw = localStorage.getItem("user");
+  if (userRaw) {
+    try {
+      const user = JSON.parse(userRaw);
+      token = user.token;
+    } catch {}
   }
 
-  // 3. Logs de depuración solo en modo de desarrollo
+  // --- Armado de headers dinámicos ---
+  let headers: Record<string, string> = { ...(options.headers || {}) };
+  const isForm = body instanceof FormData;
+  if (!isForm) headers["Content-Type"] = "application/json";
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  // --- DEBUG: Log de request solo en DEV ---
   if (import.meta.env.DEV) {
-    console.groupCollapsed(`[API Fetch] ${method} ${path}`);
-    console.log('URL:', url);
-    console.log('Método:', method);
+    console.groupCollapsed(`[API Fetch] ${method} ${url}`);
     console.log('Headers:', headers);
     if (body) console.log('Body:', body);
     console.groupEnd();
@@ -68,44 +57,36 @@ export async function apiFetch<T>(
     const response = await fetch(url, {
       method,
       headers,
-      body: body ? JSON.stringify(body) : undefined,
+      body: isForm ? body : (body ? JSON.stringify(body) : undefined),
     });
 
-    // 4. Manejo de respuesta 401 Unauthorized (Token inválido/expirado)
+    // 401 = Sesión inválida, limpiá SOLO "user"
     if (response.status === 401) {
-      // Limpiamos la sesión del usuario
-      localStorage.removeItem('authToken');
-      localStorage.removeItem('user');
-      // Redirigimos a la página de login para evitar bucles
-      window.location.href = '/login'; 
-      // Lanzamos un error para detener la ejecución actual
+      localStorage.removeItem("user");
+      window.location.href = '/login';
       throw new ApiError('No autorizado. Redirigiendo a login...', 401, null);
     }
-    
-    // 5. Manejo de respuesta 204 No Content
+
+    // 204 No Content
     if (response.status === 204) {
-      return null as T; // Devolvemos null de forma segura
+      return null as T;
     }
 
-    const data = await response.json();
+    let data: any = null;
+    try { data = await response.json(); } catch {}
 
     if (!response.ok) {
-      // 6. Lanzamos nuestro error personalizado con toda la información
-      console.error('❌ Error de API:', response.status, data);
-      throw new ApiError(data.message || 'Error en la respuesta de la API', response.status, data);
+      throw new ApiError(
+        data?.error || data?.message || 'Error en la respuesta de la API',
+        response.status,
+        data
+      );
     }
-
-    // 7. Retornamos los datos con el tipo correcto
     return data as T;
 
   } catch (error) {
-    // Si el error ya es de nuestro tipo, lo relanzamos
-    if (error instanceof ApiError) {
-      throw error;
-    }
-
-    // 8. Manejo de errores de red o errores de parsing de JSON
-    console.error('❌ Error de Conexión o Parsing:', error);
+    if (error instanceof ApiError) throw error;
+    console.error('❌ Error de conexión o parsing:', error);
     throw new Error('Error de conexión con el servidor. Por favor, revisa tu conexión a internet.');
   }
 }

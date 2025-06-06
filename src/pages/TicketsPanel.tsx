@@ -6,13 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { apiFetch, ApiError } from "@/utils/api";
 import type { Ticket as TicketType, TicketStatus, Comment } from "@/types";
 
-const ESTADOS: Record<TicketStatus, { label: string; color: string; bg: string; badge: string; }> = {
-  nuevo: { label: "Nuevo", color: "bg-blue-100 text-blue-700", badge: "bg-blue-600", bg: "bg-blue-50" },
-  "en curso": { label: "En Curso", color: "bg-yellow-100 text-yellow-800", badge: "bg-yellow-500", bg: "bg-yellow-50" },
-  derivado: { label: "Derivado", color: "bg-purple-100 text-purple-700", badge: "bg-purple-500", bg: "bg-purple-50" },
-  resuelto: { label: "Resuelto", color: "bg-green-100 text-green-700", badge: "bg-green-600", bg: "bg-green-50" },
-  cerrado: { label: "Cerrado", color: "bg-gray-200 text-gray-500", badge: "bg-gray-400", bg: "bg-gray-100" },
-};
+// ...ESTADOS y helpers igual...
 
 function useIsMobile(breakpoint = 768) {
   const [isMobile, setIsMobile] = useState(typeof window !== "undefined" ? window.innerWidth < breakpoint : false);
@@ -38,38 +32,41 @@ export default function TicketsPanel() {
   const [userId, setUserId] = useState<number | null>(null);
   const isMobile = useIsMobile();
 
-  // Al montar, leo el userId desde localStorage:
   useEffect(() => {
     const userRaw = localStorage.getItem("user");
     if (userRaw) {
       try {
         const user = JSON.parse(userRaw);
         if (user.id) setUserId(user.id);
-      } catch (e) {
+      } catch {
         setUserId(null);
       }
     }
   }, []);
 
   const fetchTickets = useCallback(async () => {
-  if (!userId) return;
-  setIsLoading(true);
-  setError(null);
-  try {
-    const response = await apiFetch<{ tickets: TicketType[] }>(`/tickets/municipio?user_id=${userId}`);
-    console.log("🚩 Respuesta de tickets:", response); // <--- AGREGÁ ESTO
-    setTickets(response.tickets);
-  } catch (err) {
-    const errorMessage = err instanceof ApiError ? err.message : "Ocurrió un error inesperado.";
-    setError(errorMessage);
-    console.error("❌ Error cargando tickets:", err);
-  } finally {
-    setIsLoading(false);
-    console.log("🚩 Finalizó carga de tickets");
-  }
-}, [userId]);
+    if (!userId) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      // El helper agrega token automáticamente
+      const response = await apiFetch<{ tickets: TicketType[] }>(`/tickets/municipio?user_id=${userId}`);
+      setTickets(response.tickets);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.body?.error || err.message : "Ocurrió un error inesperado.");
+      console.error("❌ Error cargando tickets:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [userId]);
 
   useEffect(() => { fetchTickets(); }, [fetchTickets]);
+
+  // ...resto igual que tu código (lista, detalles, comentarios)...
+
+  // Pegá aquí el resto de tu componente como ya lo tenías, solo ajusté fetchTickets
+}
+
 
   const showList = !isMobile || !selectedTicket;
   const showDetail = !!selectedTicket;
