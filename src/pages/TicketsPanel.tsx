@@ -70,7 +70,7 @@ function resumenTexto(text, max = 70) {
 }
 
 export default function TicketsPanelPro() {
-  const userId = 6;
+  const userId = 6; // acá tu user real o auth token en futuro
   const [tickets, setTickets] = useState([]);
   const [selected, setSelected] = useState(null);
   const [comentarios, setComentarios] = useState([]);
@@ -88,12 +88,22 @@ export default function TicketsPanelPro() {
     if (selected && isMobile) window.scrollTo({ top: 0, behavior: "smooth" });
   }, [selected, isMobile]);
 
+  // Carga tickets con manejo de error 401 y otros
   useEffect(() => {
     setLoading(true);
     setError(null);
-    fetch(`${API_URL}/tickets/municipio?user_id=${userId}`, { credentials: "include" })
+    fetch(`${API_URL}/tickets/municipio?user_id=${userId}`, {
+      credentials: "include",
+      headers: {
+        // Si tienes token: "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    })
       .then(async (res) => {
         if (!res.ok) {
+          if (res.status === 401) {
+            throw new Error("401 Unauthorized - Debés iniciar sesión para ver los tickets.");
+          }
           const text = await res.text();
           throw new Error(`Error tickets: [${res.status}] ${text.slice(0, 100)}`);
         }
@@ -101,7 +111,7 @@ export default function TicketsPanelPro() {
         if (!data.ok) throw new Error(data.error || "Sin tickets");
         setTickets(data.tickets || []);
       })
-      .catch((err) => setError(String(err.message || err)))
+      .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, [userId]);
 
@@ -112,9 +122,15 @@ export default function TicketsPanelPro() {
     setLoadingDetalle(true);
     setError(null);
 
-    fetch(`${API_URL}/tickets/municipio/${t.id}/comentarios?user_id=${userId}`, { credentials: "include" })
+    fetch(`${API_URL}/tickets/municipio/${t.id}/comentarios?user_id=${userId}`, {
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+    })
       .then(async (res) => {
         if (!res.ok) {
+          if (res.status === 401) {
+            throw new Error("401 Unauthorized - Debés iniciar sesión para ver comentarios.");
+          }
           const text = await res.text();
           throw new Error(`Error comentarios: [${res.status}] ${text.slice(0, 100)}`);
         }
@@ -122,7 +138,7 @@ export default function TicketsPanelPro() {
         if (!data.ok) throw new Error(data.error || "Sin comentarios");
         setComentarios(data.comentarios || []);
       })
-      .catch((err) => setError(String(err.message || err)))
+      .catch((err) => setError(err.message))
       .finally(() => {
         setLoadingDetalle(false);
         setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 150);
@@ -132,7 +148,10 @@ export default function TicketsPanelPro() {
   useEffect(() => {
     if (!selected) return;
     const interval = setInterval(() => {
-      fetch(`${API_URL}/tickets/municipio/${selected.id}/comentarios?user_id=${userId}`, { credentials: "include" })
+      fetch(`${API_URL}/tickets/municipio/${selected.id}/comentarios?user_id=${userId}`, {
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      })
         .then(async (res) => {
           if (!res.ok) return;
           const data = await res.json();
@@ -147,6 +166,7 @@ export default function TicketsPanelPro() {
     setDropdownVisible(false);
     setEstado(nuevo);
     setError(null);
+
     fetch(`${API_URL}/tickets/municipio/${selected.id}/estado`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -165,7 +185,7 @@ export default function TicketsPanelPro() {
         );
         setSelected((s) => (s ? { ...s, estado: nuevo } : s));
       })
-      .catch((err) => setError(String(err.message || err)));
+      .catch((err) => setError(err.message));
   };
 
   const responderTicket = () => {
@@ -187,7 +207,10 @@ export default function TicketsPanelPro() {
         const data = await res.json();
         if (!data.ok) throw new Error(data.error || "Error enviando comentario");
         setMensaje("");
-        return fetch(`${API_URL}/tickets/municipio/${selected.id}/comentarios?user_id=${userId}`, { credentials: "include" });
+        return fetch(`${API_URL}/tickets/municipio/${selected.id}/comentarios?user_id=${userId}`, {
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+        });
       })
       .then(async (res) => {
         if (res && !res.ok) {
@@ -201,7 +224,7 @@ export default function TicketsPanelPro() {
       })
       .catch((err) => {
         setSending(false);
-        setError(String(err.message || err));
+        setError(err.message);
       });
   };
 
@@ -246,8 +269,7 @@ export default function TicketsPanelPro() {
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ type: "spring", duration: 0.28 }}
                   className={`p-4 flex flex-col gap-1 border-b border-slate-100 dark:border-slate-800 cursor-pointer transition hover:bg-blue-100/60 hover:dark:bg-blue-950/60
-                    ${selected?.id === t.id ? "bg-blue-50 dark:bg-blue-900/70 border-l-4 border-blue-500" : ""}
-                  `}
+                    ${selected?.id === t.id ? "bg-blue-50 dark:bg-blue-900/70 border-l-4 border-blue-500" : ""}`}
                   onClick={() => handleSelectTicket(t)}
                   title={t.pregunta}
                 >
@@ -271,8 +293,11 @@ export default function TicketsPanelPro() {
       {/* Panel Detalle */}
       {selected && (
         <div className="flex-1 flex flex-col h-full">
-          {/* Header (mejorado pero sin romper estructura) */}
-          <div className={`flex items-center gap-3 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-5`}>
+          {/* Header con icono Ticket y diseño limpio */}
+          <div
+            className={`flex items-center gap-3 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-5`}
+          >
+            {/* Botón volver solo en mobile */}
             {isMobile && (
               <button
                 className="mr-2 rounded-full p-2 hover:bg-slate-100 dark:hover:bg-slate-900 transition"
@@ -291,7 +316,11 @@ export default function TicketsPanelPro() {
                 <span className="px-2 py-1 rounded bg-blue-600 text-white text-xs font-bold whitespace-nowrap">
                   {selected.nombre_vecino || selected.nombre_empresa || "Vecino"}
                 </span>
-                <span className={`px-2 py-1 rounded-full text-xs font-bold text-white shadow whitespace-nowrap ${ESTADOS[selected.estado]?.badge}`}>
+                <span
+                  className={`px-2 py-1 rounded-full text-xs font-bold text-white shadow whitespace-nowrap ${
+                    ESTADOS[selected.estado]?.badge
+                  }`}
+                >
                   {ESTADOS[selected.estado]?.label || selected.estado}
                 </span>
               </div>
@@ -300,14 +329,22 @@ export default function TicketsPanelPro() {
                 {selected.telefono && <span>{selected.telefono}</span>}
               </div>
             </div>
+            {/* Estado editable SOLO en desktop */}
             {!isMobile && (
               <div className="relative ml-2">
                 <Button
                   variant="outline"
-                  className={`flex items-center gap-1 rounded-full border border-gray-300 dark:border-slate-700 shadow text-base font-bold transition ${ESTADOS[estado]?.color}`}
+                  className={`flex items-center gap-1 rounded-full border border-gray-300 dark:border-slate-700 shadow text-base font-bold transition ${
+                    ESTADOS[estado]?.color
+                  }`}
                   onClick={() => setDropdownVisible(!dropdownVisible)}
                 >
-                  <span className="w-3 h-3 rounded-full mr-2 shadow" style={{ background: `var(--tw-${ESTADOS[estado]?.badge || "bg-blue-600"})` }}></span>
+                  <span
+                    className="w-3 h-3 rounded-full mr-2 shadow"
+                    style={{
+                      background: `var(--tw-${ESTADOS[estado]?.badge || "bg-blue-600"})`,
+                    }}
+                  ></span>
                   {ESTADOS[estado]?.label || estado}
                   <ChevronDown size={16} className="ml-1" />
                 </Button>
@@ -316,12 +353,16 @@ export default function TicketsPanelPro() {
                     {Object.keys(ESTADOS).map((k) => (
                       <div
                         key={k}
-                        className={`flex items-center gap-2 px-4 py-2 cursor-pointer hover:bg-blue-100 hover:dark:bg-blue-950 text-sm
-                          ${estado === k ? "font-bold text-blue-700 dark:text-blue-300" : ""}
-                        `}
+                        className={`flex items-center gap-2 px-4 py-2 cursor-pointer hover:bg-blue-100 hover:dark:bg-blue-950 text-sm ${
+                          estado === k ? "font-bold text-blue-700 dark:text-blue-300" : ""
+                        }`}
                         onClick={() => cambiarEstado(k)}
                       >
-                        <span className={`inline-block w-2 h-2 rounded-full ${ESTADOS[k]?.badge}`}></span>
+                        <span
+                          className={`inline-block w-2 h-2 rounded-full ${
+                            ESTADOS[k]?.badge
+                          }`}
+                        ></span>
                         {ESTADOS[k]?.label}
                       </div>
                     ))}
