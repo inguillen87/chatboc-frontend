@@ -47,7 +47,11 @@ const ChatHeader: React.FC<{
         <span className="font-semibold text-sm">{title}</span>
       </div>
       <div className="flex items-center">
-        <span style={{ fontSize: 12, fontWeight: 400, color: prefersDark ? "#90EE90" : "#24ba53", marginRight: showCloseButton ? '8px' : '0' }} className="pointer-events-none">
+        <span style={{
+          fontSize: 12, fontWeight: 400,
+          color: prefersDark ? "#90EE90" : "#24ba53",
+          marginRight: showCloseButton ? '8px' : '0'
+        }} className="pointer-events-none">
           &nbsp;• Online
         </span>
         {showCloseButton && onClose && (
@@ -60,7 +64,7 @@ const ChatHeader: React.FC<{
   );
 };
 
-// --- Token Management
+// --- Token Management ---
 function getToken(): string {
   if (typeof window === "undefined") return "demo-anon-ssr";
   const params = new URLSearchParams(window.location.search);
@@ -77,6 +81,10 @@ function getToken(): string {
   return anonToken;
 }
 
+interface Rubro {
+  id: number;
+  nombre: string;
+}
 interface ChatWidgetProps {
   mode?: "iframe" | "standalone";
   initialPosition?: { top?: number | string; bottom?: number | string; left?: number | string; right?: number | string };
@@ -85,9 +93,7 @@ interface ChatWidgetProps {
   widgetId?: string;
 }
 
-// CAMBIÁ ESTO SI EL RUBRO SIEMPRE ES FIJO PARA EL CLIENTE
-const DEFAULT_WIDGET_RUBRO = "municipios"; // Cambialo según el sitio/widget
-
+const DEFAULT_WIDGET_RUBRO = "municipios";
 const WIDGET_DIMENSIONS = {
   OPEN: { width: "360px", height: "520px" },
   CLOSED: { width: "80px", height: "80px" },
@@ -105,7 +111,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const [isTyping, setIsTyping] = useState(false);
   const [preguntasUsadas, setPreguntasUsadas] = useState(0);
   const [rubroSeleccionado, setRubroSeleccionado] = useState<string | null>(null);
-  const [rubrosDisponibles, setRubrosDisponibles] = useState<{ id: number; nombre: string }[]>([]);
+  const [rubrosDisponibles, setRubrosDisponibles] = useState<Rubro[]>([]);
   const [esperandoRubro, setEsperandoRubro] = useState(false);
   const [cargandoRubros, setCargandoRubros] = useState(false);
   const [token, setToken] = useState<string>("");
@@ -155,15 +161,13 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     const token = getToken();
     setToken(token);
     const user = getUser();
-
     if (user && user.token && !user.token.startsWith("demo") && user.rubro) {
-      setRubroSeleccionado(null); // El backend lo resuelve.
+      setRubroSeleccionado(null);
       setEsperandoRubro(false);
       setPreguntasUsadas(0);
       localStorage.removeItem("rubroSeleccionado");
       return;
     }
-    // Anónimo: debe elegir rubro o usar por default
     let rubro = localStorage.getItem("rubroSeleccionado");
     if (!rubro) {
       setEsperandoRubro(true);
@@ -191,7 +195,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     if (isOpen && (!esperandoRubro || getUser())) {
       setMessages([
         {
-          id: 1,
+          id: Date.now() + Math.random(),
           text: "¡Hola! Soy Chatboc, tu asistente virtual. ¿En qué puedo ayudarte hoy?",
           isBot: true,
           timestamp: new Date(),
@@ -203,7 +207,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   // --- MAIN SENDING LOGIC ---
   const handleSendMessage = async (text: string) => {
     if (!text.trim()) return;
-
     const user = getUser();
     const esAnonimo = !user || !user.token || user.token.startsWith("demo");
 
@@ -211,7 +214,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       setMessages((prev) => [
         ...prev,
         {
-          id: prev.length + 1,
+          id: Date.now() + Math.random(),
           text: "🛈 Por favor, seleccioná primero el rubro de tu negocio.",
           isBot: true,
           timestamp: new Date(),
@@ -223,7 +226,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       setMessages((prev) => [
         ...prev,
         {
-          id: prev.length + 1,
+          id: Date.now() + Math.random(),
           text: `🔒 Alcanzaste el límite de 15 preguntas gratuitas en esta demo.\n\n👉 Creá una cuenta para seguir usando Chatboc: https://chatboc.ar/register`,
           isBot: true,
           timestamp: new Date(),
@@ -232,7 +235,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       return;
     }
     const userMessage: Message = {
-      id: messages.length + 1,
+      id: Date.now() + Math.random(),
       text,
       isBot: false,
       timestamp: new Date(),
@@ -243,28 +246,25 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     // --- BODY INTELIGENTE ---
     const body: any = { pregunta: text };
     if (esAnonimo) {
-      // Nunca envíes vacío el rubro, siempre lleva uno
       body.rubro = rubroSeleccionado || DEFAULT_WIDGET_RUBRO;
     }
 
     try {
-      const data = await apiFetch(
-        "/ask",
-        "POST",
-        body,
-        {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      // *** Corregido: apiFetch estilo fetch ***
+      const data = await apiFetch("/ask", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      });
       const respuestaFinal: string =
         typeof data?.respuesta === "string"
           ? data.respuesta
           : data?.respuesta?.text || data?.respuesta?.respuesta || "❌ No entendí tu mensaje.";
       const botMessage: Message = {
-        id: messages.length + 2,
+        id: Date.now() + Math.random(),
         text: respuestaFinal,
         isBot: true,
         timestamp: new Date(),
@@ -275,7 +275,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       setMessages((prev) => [
         ...prev,
         {
-          id: messages.length + 2,
+          id: Date.now() + Math.random(),
           text: "⚠️ No se pudo conectar con el servidor.",
           isBot: true,
           timestamp: new Date(),
@@ -371,7 +371,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                 setRubroSeleccionado(rubro.nombre);
                 setEsperandoRubro(false);
                 setMessages([{
-                  id: 1,
+                  id: Date.now() + Math.random(),
                   text: "¡Hola! Soy Chatboc, tu asistente virtual. ¿En qué puedo ayudarte hoy?",
                   isBot: true,
                   timestamp: new Date(),
@@ -429,7 +429,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
             onClick={toggleChat}
             role="button" tabIndex={0} aria-label="Abrir chat"
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleChat();}}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleChat(); }}
           >
             <div className="relative">
               <img src="/chatboc_logo_clean_transparent.png" alt="Chatboc" className="w-8 h-8 rounded" style={{ padding: "2px" }} />

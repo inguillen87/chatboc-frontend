@@ -77,7 +77,7 @@ const ChatPage = () => {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ pregunta: text, rubro }),
+        body: JSON.stringify({ question: text, rubro }),
       });
 
       const data = await res.json();
