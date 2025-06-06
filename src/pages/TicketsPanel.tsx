@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Loader2, CheckCircle2, ChevronDown, ArrowLeft, Send } from "lucide-react";
+import { Loader2, CheckCircle2, ChevronDown, ArrowLeft, Send, Ticket } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 const ESTADOS = {
@@ -51,7 +51,6 @@ function useIsMobile(breakpoint = 768) {
   return isMobile;
 }
 
-// Mejor formato fecha Argentino
 function fechaCorta(iso) {
   if (!iso) return "";
   const d = new Date(iso);
@@ -63,7 +62,6 @@ function fechaCorta(iso) {
     .padStart(2, "0")}`;
 }
 
-// Trunca texto en el último espacio antes del límite, para no cortar palabras.
 function resumenTexto(text, max = 70) {
   if (!text) return "";
   if (text.length <= max) return text;
@@ -72,7 +70,7 @@ function resumenTexto(text, max = 70) {
 }
 
 export default function TicketsPanelPro() {
-  const userId = 6; // Cambia esto si usás auth real
+  const userId = 6;
   const [tickets, setTickets] = useState([]);
   const [selected, setSelected] = useState(null);
   const [comentarios, setComentarios] = useState([]);
@@ -86,12 +84,10 @@ export default function TicketsPanelPro() {
   const [error, setError] = useState(null);
   const isMobile = useIsMobile();
 
-  // Scroll to top on ticket select (mobile)
   useEffect(() => {
     if (selected && isMobile) window.scrollTo({ top: 0, behavior: "smooth" });
   }, [selected, isMobile]);
 
-  // Tickets fetch
   useEffect(() => {
     setLoading(true);
     setError(null);
@@ -109,7 +105,6 @@ export default function TicketsPanelPro() {
       .finally(() => setLoading(false));
   }, [userId]);
 
-  // Select ticket y cargar comentarios
   const handleSelectTicket = (t) => {
     setSelected(t);
     setEstado(t.estado);
@@ -134,7 +129,6 @@ export default function TicketsPanelPro() {
       });
   };
 
-  // Polling comentarios
   useEffect(() => {
     if (!selected) return;
     const interval = setInterval(() => {
@@ -148,7 +142,6 @@ export default function TicketsPanelPro() {
     return () => clearInterval(interval);
   }, [selected, userId]);
 
-  // Cambiar estado del ticket
   const cambiarEstado = (nuevo) => {
     if (!selected) return;
     setDropdownVisible(false);
@@ -175,7 +168,6 @@ export default function TicketsPanelPro() {
       .catch((err) => setError(String(err.message || err)));
   };
 
-  // Responder un ticket
   const responderTicket = () => {
     if (!mensaje.trim() || !selected) return;
     setSending(true);
@@ -214,6 +206,7 @@ export default function TicketsPanelPro() {
   };
 
   const isCerrado = estado === "cerrado";
+
 
   return (
     <div
