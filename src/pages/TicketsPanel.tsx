@@ -282,56 +282,46 @@ export default function TicketsPanelPro() {
       {/* Panel Detalle */}
       {selected && (
         <div className="flex-1 flex flex-col h-full">
-          {/* Mobile header */}
-          {isMobile && (
-          <div className="flex items-center gap-3">
-          <Avatar>
-            <AvatarFallback>
-              {(selected.nombre_vecino && selected.nombre_vecino.slice(0,2).toUpperCase()) || "VC"}
-            </AvatarFallback>
-          </Avatar>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-lg text-white">Ticket #{selected.id || "?"}</span>
-              <span className="ml-2 px-2 py-1 rounded bg-blue-600 text-white text-xs">
-                {selected.nombre_vecino || "Vecino"}
-              </span>
-            </div>
-            <span className="text-gray-400 text-sm">
-              {selected.email || selected.telefono || ""}
-            </span>
-            </div>
-          </div>
-          )}
-
-          {/* Banner ticket cerrado */}
-          <AnimatePresence>
-            {isCerrado && (
-              <motion.div
-                initial={{ opacity: 0, y: -30 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -30 }}
-                className="bg-gradient-to-r from-gray-800 to-gray-700 text-white text-center py-3 px-4 font-bold tracking-wide text-base shadow-md"
+          {/* Header (unificado mobile/desktop, con botón volver en mobile) */}
+          <div className={`flex items-center gap-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950
+            ${isMobile ? "px-4 py-4" : "p-5"}`}>
+            {/* Botón volver solo en mobile */}
+            {isMobile && (
+              <button
+                className="mr-2 rounded-full p-2 hover:bg-slate-100 dark:hover:bg-slate-900 transition"
+                onClick={() => setSelected(null)}
+                title="Volver a tickets"
               >
-                Este ticket está <span className="uppercase">cerrado</span> y no acepta nuevas respuestas.
-              </motion.div>
+                <ArrowLeft className="w-6 h-6 text-slate-600 dark:text-slate-300" />
+              </button>
             )}
-          </AnimatePresence>
-
-          {/* Desktop header */}
-          {!isMobile && (
-            <div className="flex items-center gap-4 p-5 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950">
-              <Avatar>
-                <AvatarFallback>
-                  {selected.nombre_empresa?.slice(0, 2).toUpperCase() || "VC"}
-                </AvatarFallback>
-                <AvatarImage src={selected.logo_url || "/avatar-muni.png"} alt="" />
-              </Avatar>
-              <div className="flex flex-col flex-1">
-                <div className="font-bold text-xl leading-tight text-slate-900 dark:text-slate-100">{selected.nombre_empresa || "Vecino"}</div>
-                <div className="text-xs text-gray-500">{selected.email || "-"}</div>
-                <div className="text-xs text-gray-500">{selected.telefono || "-"}</div>
+            <Avatar>
+              <AvatarFallback>
+                {(selected.nombre_vecino?.slice(0,2).toUpperCase())
+                  || (selected.nombre_empresa?.slice(0,2).toUpperCase())
+                  || "VC"}
+              </AvatarFallback>
+              <AvatarImage src={selected.logo_url || "/avatar-muni.png"} alt="" />
+            </Avatar>
+            <div className="flex flex-col flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-bold text-lg text-slate-900 dark:text-slate-100">
+                  Ticket #{selected.nro_ticket || selected.id || "?"}
+                </span>
+                <span className="ml-2 px-2 py-1 rounded bg-blue-600 text-white text-xs">
+                  {selected.nombre_vecino || selected.nombre_empresa || "Vecino"}
+                </span>
+                <span className={`ml-2 px-2 py-1 rounded-full text-xs font-bold text-white shadow ${ESTADOS[selected.estado]?.badge}`}>
+                  {ESTADOS[selected.estado]?.label || selected.estado}
+                </span>
               </div>
+              <div className="flex gap-4 text-xs text-gray-500 mt-1">
+                <span>{selected.email || "-"}</span>
+                <span>{selected.telefono || "-"}</span>
+              </div>
+            </div>
+            {/* Estado editable SOLO en desktop */}
+            {!isMobile && (
               <div className="relative">
                 <Button
                   variant="outline"
@@ -359,8 +349,22 @@ export default function TicketsPanelPro() {
                   </div>
                 )}
               </div>
-            </div>
-          )}
+            )}
+          </div>
+
+          {/* Banner ticket cerrado */}
+          <AnimatePresence>
+            {isCerrado && (
+              <motion.div
+                initial={{ opacity: 0, y: -30 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -30 }}
+                className="bg-gradient-to-r from-gray-800 to-gray-700 text-white text-center py-3 px-4 font-bold tracking-wide text-base shadow-md"
+              >
+                Este ticket está <span className="uppercase">cerrado</span> y no acepta nuevas respuestas.
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Mensajes/comentarios */}
           <div className="flex-1 bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-slate-900 dark:via-slate-950 dark:to-slate-900 p-4 flex flex-col gap-2 overflow-y-auto">
