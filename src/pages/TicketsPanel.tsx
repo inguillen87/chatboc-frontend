@@ -57,7 +57,7 @@ export default function TicketsPanel() {
     setError(null);
     try {
       // CÓMO DEBE QUEDAR
-      const fetchedTickets = await apiFetch<TicketType[]>(`/tickets?user_id=${userId}`);
+      const fetchedTickets = await apiFetch<TicketType[]>(`/tickets/?user_id=${userId}`);
       setTickets(fetchedTickets || []); // Guardamos la respuesta directamente
     } catch (err) {
       const errorMessage = err instanceof ApiError ? err.message : "Ocurrió un error inesperado.";
