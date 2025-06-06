@@ -280,7 +280,7 @@ export default function TicketsPanelPro() {
               </button>
               <Avatar className="w-8 h-8">
                 <AvatarFallback>
-                  {selected.nombre_empresa?.slice(0, 2).toUpperCase() || "VC"}
+                  {selected.nombre_empresa?.slice(0, 2).toUpperCase() || ""}
                 </AvatarFallback>
                 <AvatarImage src={selected.logo_url || "/avatar-muni.png"} alt="" />
               </Avatar>
