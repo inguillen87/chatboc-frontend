@@ -1,72 +1,75 @@
+// src/components/Login.tsx (CORREGIDO)
+
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { apiFetch } from "@/utils/api";
+import { apiFetch, ApiError } from "@/utils/api"; // NOTA: Importamos ApiError
+
+// NOTA: Definimos la forma de la respuesta esperada para mayor seguridad de tipos
+interface LoginResponse {
+  token: string;
+  name: string;
+  email: string;
+  plan: string;
+  preguntas_usadas: number;
+  limite_preguntas: number;
+}
 
 const Login = () => {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  
-  // --- MEJORA: Añadimos un estado de carga ---
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    // Si ya está logueado, redirigir automáticamente
-    const storedToken = localStorage.getItem("authToken");
-    if (storedToken) {
-      navigate("/perfil"); // O a tu panel de tickets
+    // Si ya hay un token, no deberíamos estar en la página de login
+    if (localStorage.getItem("authToken")) {
+      navigate("/perfil");
     }
-
-    // Scroll automático al centro
-    setTimeout(() => {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }, 100);
+    // Scroll al inicio
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }, [navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    setIsLoading(true); // --- MEJORA: Activamos el estado de carga
+    setIsLoading(true);
 
     try {
-      const data = await apiFetch("/login", "POST", { email, password });
+      // --- CAMBIO: Adaptamos la llamada a la nueva firma de apiFetch ---
+      const data = await apiFetch<LoginResponse>('/login', {
+        method: 'POST',
+        body: { email, password },
+      });
 
-      if (data?.token && data?.email && data?.plan) {
-        
-        // --- INICIO DE LA CORRECCIÓN PRINCIPAL ---
+      // La lógica de guardado es correcta: perfil por un lado, token por otro.
+      const userProfile = {
+        name: data.name,
+        email: data.email,
+        plan: data.plan,
+        preguntas_usadas: data.preguntas_usadas,
+        limite_preguntas: data.limite_preguntas,
+      };
+      
+      localStorage.setItem("user", JSON.stringify(userProfile));
+      localStorage.setItem("authToken", data.token); // apiFetch usa "authToken"
 
-        // 1. Creamos el objeto 'userProfile' para guardar en localStorage, SIN el token.
-        const userProfile = {
-          name: data.name,
-          email: data.email,
-          plan: data.plan,
-          preguntas_usadas: data.preguntas_usadas ?? 0,
-          limite_preguntas: data.limite_preguntas ?? 50,
-        };
+      navigate("/perfil");
 
-        // 2. Guardamos el perfil del usuario bajo la clave "user".
-        localStorage.setItem("user", JSON.stringify(userProfile));
-
-        // 3. Guardamos el TOKEN por separado bajo la clave "authToken".
-        //    Esta es la clave que tu apiService está esperando.
-        localStorage.setItem("authToken", data.token);
-
-        // --- FIN DE LA CORRECCIÓN PRINCIPAL ---
-
-        // 4. Redirigimos al usuario.
-        navigate("/perfil"); // O a la ruta de tu panel de tickets
-
-      } else {
-        setError("❌ Credenciales inválidas o datos incompletos.");
-      }
     } catch (err) {
+      // --- CAMBIO: Mejoramos el manejo de errores ---
+      if (err instanceof ApiError) {
+        // Si el error viene de la API, mostramos el mensaje del servidor
+        setError(err.body?.message || "Credenciales inválidas.");
+      } else {
+        // Si es un error de red u otro, mostramos un mensaje genérico
+        setError("No se pudo conectar con el servidor. Intenta de nuevo.");
+      }
       console.error("❌ Error al iniciar sesión:", err);
-      setError("⚠️ Error de conexión con el servidor.");
     } finally {
-        setIsLoading(false); // --- MEJORA: Desactivamos el estado de carga
+      setIsLoading(false);
     }
   };
 
@@ -83,7 +86,7 @@ const Login = () => {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            disabled={isLoading} // --- MEJORA: Deshabilitamos input durante la carga
+            disabled={isLoading}
           />
           <Input
             type="password"
@@ -91,11 +94,10 @@ const Login = () => {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            disabled={isLoading} // --- MEJORA: Deshabilitamos input durante la carga
+            disabled={isLoading}
           />
           {error && <p className="text-red-600 text-sm text-center">{error}</p>}
           <Button type="submit" className="w-full" disabled={isLoading}>
-            {/* --- MEJORA: Cambiamos el texto del botón al cargar --- */}
             {isLoading ? "Ingresando..." : "Iniciar Sesión"}
           </Button>
         </form>
