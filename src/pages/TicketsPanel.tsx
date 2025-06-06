@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Loader2, CheckCircle2, ChevronDown, ArrowLeft, Send, Ticket } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ticketService } from "@/services/apiService";
+import { ticketService } from '@/services/apiService.ts';
 import type { Ticket as TicketType, TicketStatus, Comment } from "@/types";
 
 const ESTADOS: Record<TicketStatus, { label: string; color: string; bg: string; badge: string; }> = {
