@@ -207,7 +207,6 @@ export default function TicketsPanelPro() {
 
   const isCerrado = estado === "cerrado";
 
-
   return (
     <div
       className="flex h-[calc(100vh-80px)] rounded-2xl overflow-hidden
@@ -258,7 +257,6 @@ export default function TicketsPanelPro() {
                       {ESTADOS[t.estado]?.label || t.estado}
                     </span>
                   </div>
-                  {/* Si tenés t.asunto lo mostrás, si no el resumen de pregunta */}
                   <span className="text-sm text-slate-800 dark:text-slate-200 truncate font-medium">
                     {t.asunto ? t.asunto : resumenTexto(t.pregunta)}
                   </span>
@@ -273,9 +271,8 @@ export default function TicketsPanelPro() {
       {/* Panel Detalle */}
       {selected && (
         <div className="flex-1 flex flex-col h-full">
-          {/* Header (unificado mobile/desktop, botón volver solo en mobile, SIN AVATAR) */}
-          <div className={`flex items-center gap-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 ${isMobile ? "px-4 py-4" : "p-5"}`}>
-            {/* Botón volver solo en mobile */}
+          {/* Header (mejorado pero sin romper estructura) */}
+          <div className={`flex items-center gap-3 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-5`}>
             {isMobile && (
               <button
                 className="mr-2 rounded-full p-2 hover:bg-slate-100 dark:hover:bg-slate-900 transition"
@@ -285,26 +282,26 @@ export default function TicketsPanelPro() {
                 <ArrowLeft className="w-6 h-6 text-slate-600 dark:text-slate-300" />
               </button>
             )}
-            <div className="flex flex-col flex-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-bold text-lg text-slate-900 dark:text-slate-100">
+            <Ticket className="text-blue-600 dark:text-blue-300 w-7 h-7" />
+            <div className="flex flex-col flex-1 min-w-0 ml-2">
+              <div className="flex items-center gap-2 flex-wrap min-w-0">
+                <span className="font-bold text-lg truncate text-slate-900 dark:text-white">
                   Ticket #{selected.nro_ticket || selected.id || "?"}
                 </span>
-                <span className="ml-2 px-2 py-1 rounded bg-blue-600 text-white text-xs">
+                <span className="px-2 py-1 rounded bg-blue-600 text-white text-xs font-bold whitespace-nowrap">
                   {selected.nombre_vecino || selected.nombre_empresa || "Vecino"}
                 </span>
-                <span className={`ml-2 px-2 py-1 rounded-full text-xs font-bold text-white shadow ${ESTADOS[selected.estado]?.badge}`}>
+                <span className={`px-2 py-1 rounded-full text-xs font-bold text-white shadow whitespace-nowrap ${ESTADOS[selected.estado]?.badge}`}>
                   {ESTADOS[selected.estado]?.label || selected.estado}
                 </span>
               </div>
-              <div className="flex gap-4 text-xs text-gray-500 mt-1">
-                <span>{selected.email || "-"}</span>
-                <span>{selected.telefono || "-"}</span>
+              <div className="flex gap-4 text-xs text-gray-500 mt-1 truncate">
+                {selected.email && <span>{selected.email}</span>}
+                {selected.telefono && <span>{selected.telefono}</span>}
               </div>
             </div>
-            {/* Estado editable SOLO en desktop */}
             {!isMobile && (
-              <div className="relative">
+              <div className="relative ml-2">
                 <Button
                   variant="outline"
                   className={`flex items-center gap-1 rounded-full border border-gray-300 dark:border-slate-700 shadow text-base font-bold transition ${ESTADOS[estado]?.color}`}
@@ -350,7 +347,6 @@ export default function TicketsPanelPro() {
 
           {/* Mensajes/comentarios */}
           <div className="flex-1 bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-slate-900 dark:via-slate-950 dark:to-slate-900 p-4 flex flex-col gap-2 overflow-y-auto">
-            {/* Título completo y texto del ticket */}
             <div className="mb-2 pb-2 border-b border-slate-200 dark:border-slate-800">
               <div className="font-semibold text-lg mb-1 text-slate-900 dark:text-slate-100">
                 {selected.asunto || resumenTexto(selected.pregunta, 80)}
