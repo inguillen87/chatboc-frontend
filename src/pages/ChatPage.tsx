@@ -6,7 +6,7 @@ import TypingIndicator from "@/components/chat/TypingIndicator";
 import Navbar from "@/components/layout/Navbar";
 import { motion, AnimatePresence } from "framer-motion";
 
-// Hook para mobile detection
+// Hook para mobile detection (sin cambios)
 function useIsMobile(breakpoint = 768) {
   const [isMobile, setIsMobile] = useState(
     typeof window !== "undefined" ? window.innerWidth < breakpoint : false
@@ -31,14 +31,11 @@ const ChatPage = () => {
   const user = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("user") || "null") : null;
   const token = isDemo ? "demo-token" : user?.token || "demo-token";
 
-  // NUEVO: Obtener el rubro
   const getRubro = () => {
-    // Si user.rubro es un objeto, usá el nombre. Si es string, usá el string.
     if (user?.rubro) {
       if (typeof user.rubro === "object" && user.rubro.nombre) return user.rubro.nombre;
       if (typeof user.rubro === "string") return user.rubro;
     }
-    // Si no hay user, intentá localStorage
     return localStorage.getItem("rubroSeleccionado") || "";
   };
 
@@ -94,7 +91,6 @@ const ChatPage = () => {
 
       const newMessages = [...updatedMessages, botMessage];
 
-      // CTA: Si fuente es cohere o no hay match, ofrece CTA al final
       if (
         data?.fuente === "cohere" ||
         botMessage.text.toLowerCase().includes("no encontré") ||
@@ -123,6 +119,29 @@ const ChatPage = () => {
       setIsTyping(false);
     }
   };
+
+  // ==================================================================
+  // ===== PASO 1: AÑADIR UN MANEJADOR DE CLICS PARA LOS BOTONES =====
+  // ==================================================================
+  // Esta función interceptará todos los clics en el área de mensajes.
+  const handleDynamicButtonClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Nos aseguramos de que el elemento clickeado sea un botón (HTMLButtonElement)
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'BUTTON') {
+      // El backend genera un atributo 'onclick' con el formato "enviarMensajeAsistente('payload')".
+      // Extraemos el texto del 'payload' de ese atributo.
+      const onclickAttribute = target.getAttribute('onclick');
+      if (onclickAttribute && onclickAttribute.includes('enviarMensajeAsistente')) {
+        const match = onclickAttribute.match(/enviarMensajeAsistente\('(.+?)'\)/);
+        if (match && match[1]) {
+          const payload = match[1];
+          // ¡Conectado! Ahora llamamos a nuestra función handleSend existente con el texto del botón.
+          handleSend(payload);
+        }
+      }
+    }
+  };
+  // ==================================================================
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-[#131a23] to-[#181e24] dark:from-[#0d1014] dark:to-[#161b22] text-foreground">
@@ -154,7 +173,11 @@ const ChatPage = () => {
           }}
         >
           {/* Mensajes */}
+          {/* ================================================================ */}
+          {/* ===== PASO 2: ADJUNTAR EL MANEJADOR AL CONTENEDOR DE MENSAJES ===== */}
+          {/* ================================================================ */}
           <div
+            onClick={handleDynamicButtonClick} // <-- ¡AQUÍ ESTÁ LA MAGIA!
             className={`
               flex-1 overflow-y-auto
               p-2 sm:p-4 space-y-3
@@ -174,6 +197,8 @@ const ChatPage = () => {
                   exit={{ opacity: 0, y: 14 }}
                   transition={{ duration: 0.18 }}
                 >
+                  {/* El componente ChatMessage probablemente usa 'dangerouslySetInnerHTML'
+                      para renderizar los botones, lo cual es correcto. */}
                   <ChatMessage message={msg} />
                 </motion.div>
               ))}
@@ -181,6 +206,8 @@ const ChatPage = () => {
             {isTyping && <TypingIndicator />}
             <div ref={chatEndRef} />
           </div>
+          {/* ================================================================ */}
+
 
           {/* Input siempre visible abajo */}
           <div
@@ -195,6 +222,8 @@ const ChatPage = () => {
               backdrop-blur
             `}
           >
+            {/* Aquí no necesitamos cambiar nada. El ID del input y del botón
+                están dentro de este componente, pero no necesitamos tocarlos. */}
             <ChatInput onSendMessage={handleSend} />
           </div>
         </motion.div>
