@@ -144,7 +144,9 @@ const ChatPage = () => {
   // ==================================================================
 
   return (
-        <div className="min-h-screen flex flex-col bg-background dark:bg-gradient-to-b dark:from-[#0d1014] dark:to-[#161b22] text-foreground">      <Navbar />
+    // CAMBIO 1: Fondo principal sensible al tema
+    <div className="min-h-screen flex flex-col bg-background dark:bg-gradient-to-b dark:from-[#0d1014] dark:to-[#161b22] text-foreground">
+      <Navbar />
 
       <main
         className={`
@@ -159,9 +161,11 @@ const ChatPage = () => {
             w-full max-w-[99vw] ${isMobile ? "h-[100svh]" : "sm:w-[480px] h-[83vh]"}
             flex flex-col
             rounded-none sm:rounded-3xl
-            border-0 sm:border border-gray-200 dark:border-[#23272e]
+            // MODIFICADO: Bordes del contenedor principal, usar border-border
+            border-0 sm:border border-border
             shadow-none sm:shadow-2xl
-            bg-white/90 dark:bg-[#20232b]/95
+            // MODIFICADO: Fondo del contenedor principal, usar bg-card
+            bg-card dark:bg-[#20232b]/95
             backdrop-blur-0 sm:backdrop-blur-xl
             relative
             overflow-hidden
@@ -172,17 +176,15 @@ const ChatPage = () => {
           }}
         >
           {/* Mensajes */}
-          {/* ================================================================ */}
-          {/* ===== PASO 2: ADJUNTAR EL MANEJADOR AL CONTENEDOR DE MENSAJES ===== */}
-          {/* ================================================================ */}
           <div
-            onClick={handleDynamicButtonClick} // <-- ¡AQUÍ ESTÁ LA MAGIA!
+            onClick={handleDynamicButtonClick}
             className={`
               flex-1 overflow-y-auto
               p-2 sm:p-4 space-y-3
               custom-scroll
               scrollbar-thin scrollbar-thumb-[#90caf9] scrollbar-track-transparent
-              bg-[#F8FAFE] dark:bg-[#22262b]
+              // MODIFICADO: Fondo del área de mensajes, usar bg-background
+              bg-background dark:bg-[#22262b]
               transition-all
             `}
             style={{ minHeight: 0 }}
@@ -195,9 +197,9 @@ const ChatPage = () => {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 14 }}
                   transition={{ duration: 0.18 }}
+                  // IMPORTANTE: NO HAY CLASES DE ESTILO DE BURBUJA AQUÍ. ChatMessage se encarga de eso.
+                  // Las clases de alineación (justify-start/end) están dentro de ChatMessage.
                 >
-                  {/* El componente ChatMessage probablemente usa 'dangerouslySetInnerHTML'
-                      para renderizar los botones, lo cual es correcto. */}
                   <ChatMessage message={msg} />
                 </motion.div>
               ))}
@@ -205,14 +207,13 @@ const ChatPage = () => {
             {isTyping && <TypingIndicator />}
             <div ref={chatEndRef} />
           </div>
-          {/* ================================================================ */}
-
 
           {/* Input siempre visible abajo */}
           <div
             className={`
-              bg-gradient-to-t from-[#f8fafd] via-[#d9e5f6]/60 to-transparent dark:from-[#181e24] dark:via-[#23272e]/80
-              border-t border-gray-200 dark:border-[#23272e]
+              // MODIFICADO: Fondo del input y borde superior
+              bg-gradient-to-t from-background via-card/60 to-transparent dark:from-[#181e24] dark:via-[#23272e]/80
+              border-t border-border
               p-2 sm:p-4
               flex-shrink-0
               sticky bottom-0
@@ -221,8 +222,6 @@ const ChatPage = () => {
               backdrop-blur
             `}
           >
-            {/* Aquí no necesitamos cambiar nada. El ID del input y del botón
-                están dentro de este componente, pero no necesitamos tocarlos. */}
             <ChatInput onSendMessage={handleSend} />
           </div>
         </motion.div>
