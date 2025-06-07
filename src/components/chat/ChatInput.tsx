@@ -34,16 +34,16 @@ const ChatInput: React.FC<Props> = ({ onSendMessage }) => {
   };
 
   return (
-    // Contenedor principal del input
-    // bg-card y border-border son correctos y semánticos
     <div className="w-full max-w-[420px] mx-auto flex items-center gap-2 px-3 py-2 border-t border-border bg-card backdrop-blur-md">
       <input
         ref={inputRef}
         className="
           flex-1 max-w-full min-w-0
-          // MODIFICADO: Aplicar bg-input para el modo claro y un color específico para el modo oscuro
-          // que sabemos que contrasta. Esto anula cualquier otra cosa si es necesario.
-          bg-input
+          // CLASE CRÍTICA PARA EL MODO OSCURO (con !important para anular otras reglas):
+          bg-input dark:bg-[#1a1a1a] dark:text-gray-100 dark:placeholder-gray-400
+          // Asegúrate de que este fondo prevalezca. Si no lo hace, considera `!important`
+          // como último recurso, pero primero pruébalo así.
+          
           border border-input
           rounded-full px-4 py-2
           text-base text-foreground
@@ -52,8 +52,6 @@ const ChatInput: React.FC<Props> = ({ onSendMessage }) => {
           placeholder:text-muted-foreground
           font-medium
           disabled:bg-muted disabled:text-muted-foreground
-          // CLASE CRÍTICA PARA EL MODO OSCURO:
-          dark:bg-[#1a1a1a] dark:text-gray-100 dark:placeholder-gray-400
         "
         type="text"
         placeholder={PLACEHOLDERS[placeholderIndex]}
