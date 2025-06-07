@@ -18,6 +18,8 @@ interface ApiFetchOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
   headers?: Record<string, string>;
   body?: any;
+  // Opcional: una bandera para indicar que una ruta no necesita autenticación
+  skipAuth?: boolean; 
 }
 
 /**
@@ -29,11 +31,8 @@ export async function apiFetch<T>(
   path: string,
   options: ApiFetchOptions = {}
 ): Promise<T> {
-  const { method = 'GET', body } = options;
+  const { method = 'GET', body, skipAuth } = options; // Desestructurar skipAuth
   const url = `${API_BASE_URL}${path}`;
-
-  // --- CORRECCIÓN DEFINITIVA: Recuperar token consistentemente ---
-  const token = localStorage.getItem("authToken");
 
   const headers: Record<string, string> = { ...(options.headers || {}) };
   const isForm = body instanceof FormData;
@@ -41,8 +40,13 @@ export async function apiFetch<T>(
   if (!isForm) {
     headers["Content-Type"] = "application/json";
   }
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
+
+  // --- CORRECCIÓN SUGERIDA: Solo añadir Authorization si no se omite y hay token ---
+  if (!skipAuth) { // Si no estamos en una ruta que omite la autenticación
+    const token = localStorage.getItem("authToken");
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
   }
 
   try {
@@ -52,10 +56,8 @@ export async function apiFetch<T>(
       body: isForm ? body : (body ? JSON.stringify(body) : undefined),
     });
 
-    // --- CORRECCIÓN DEFINITIVA: Manejo de sesión inválida ---
-    // Si el token es inválido (401), limpiamos COMPLETAMENTE la sesión.
     if (response.status === 401) {
-      localStorage.clear(); // Limpia 'user' y 'authToken'
+      localStorage.clear();
       window.location.href = '/login';
       throw new ApiError('No autorizado. Redirigiendo a login...', 401, null);
     }
@@ -64,13 +66,12 @@ export async function apiFetch<T>(
       return {} as T;
     }
 
-    // El try/catch para el JSON es una buena práctica
     let data: any = null;
     try {
-        const text = await response.text();
-        if(text) data = JSON.parse(text);
+      const text = await response.text();
+      if(text) data = JSON.parse(text);
     } catch (e) {
-        // No hacer nada si el cuerpo está vacío o no es JSON válido
+      // No hacer nada si el cuerpo está vacío o no es JSON válido
     }
     
     if (!response.ok) {
