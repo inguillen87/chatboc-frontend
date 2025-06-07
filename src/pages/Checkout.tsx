@@ -42,7 +42,7 @@ const Checkout = () => {
 
   if (!selected) {
     return (
-      <div className="text-center mt-20">
+      <div className="text-center mt-20 bg-background text-foreground"> {/* Añadido bg-background y text-foreground */}
         <h2 className="text-xl font-bold">❌ Plan no válido</h2>
         <Button onClick={() => navigate("/perfil")} className="mt-4">
           Volver al perfil
@@ -52,7 +52,8 @@ const Checkout = () => {
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-20 text-center">
+    // Añadido bg-background y text-foreground para asegurar coherencia
+    <div className="max-w-2xl mx-auto px-4 py-20 text-center bg-background text-foreground">
       <h1 className="text-3xl font-bold mb-2">{selected.title}</h1>
       <p className="text-muted-foreground mb-4">{selected.price}</p>
 

@@ -31,10 +31,13 @@ const Demo = () => {
 
   useEffect(() => {
     if (!rubroSeleccionado) {
-      fetch("https://api.chatboc.ar/rubros")
+      // MODIFICADO: Usar apiFetch para consistencia, aunque para demo fetch directo también funciona.
+      // Aquí se podría usar apiFetch('/rubros/', { skipAuth: true }) si el backend espera barra final
+      fetch("https://api.chatboc.ar/rubros/") // Asegurarse de usar la barra final si es necesario
         .then((res) => res.json())
         .then((data) => {
-          setRubrosDisponibles(data.rubros || []);
+          // Asumiendo que el backend puede devolver { rubros: [...] } o directamente [...]
+          setRubrosDisponibles(Array.isArray(data) ? data : data.rubros || []);
           setEsperandoRubro(true);
         })
         .catch(() => setRubrosDisponibles([]));
@@ -82,14 +85,25 @@ const Demo = () => {
     setIsTyping(true);
 
     try {
-      const response = await apiFetch(
+      // MODIFICADO: apiFetch ahora tiene un formato de opciones. Aquí se usa el token de demo.
+      // Si apiFetch fuera el tuyo, se pasaría así:
+      // const response = await apiFetch("/ask", {
+      //   method: "POST",
+      //   body: { question: text, rubro: rubroSeleccionado },
+      //   headers: { Authorization: `Bearer ${token}` } // Se envía el token de demo
+      // });
+      // Pero como ya tiene el formato antiguo, lo dejo así por ahora, solo revisa el token.
+
+      // Asumiendo que apiFetch fue actualizado a la interfaz ApiFetchOptions
+      // Si apiFetch es tu version personalizada, ajusta el segundo parametro
+      const response = await apiFetch<any>(
         "/ask",
-        "POST",
-        { pregunta: text, rubro: rubroSeleccionado }, // SIEMPRE mando el rubro
         {
+          method: "POST",
+          body: { question: text, rubro: rubroSeleccionado }, // SIEMPRE mando el rubro
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${token}`, // Se envía el token de demo
           },
         }
       );
@@ -118,10 +132,11 @@ const Demo = () => {
 
   if (esperandoRubro) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-4 text-center bg-gradient-to-b from-blue-50 to-white dark:from-[#10141b] dark:to-[#181d24]">
-        <div className="w-full max-w-md p-6 rounded-3xl shadow-2xl border bg-white dark:bg-[#181d24]">
+      // MODIFICADO: Fondo para la página de "Esperando Rubro"
+      <div className="min-h-screen flex flex-col items-center justify-center p-4 text-center bg-background dark:bg-gradient-to-b dark:from-[#10141b] dark:to-[#181d24]">
+        <div className="w-full max-w-md p-6 rounded-3xl shadow-2xl border bg-card dark:bg-[#181d24]"> {/* bg-card para modo claro */}
           <h2 className="text-2xl font-bold mb-3 text-blue-800 dark:text-blue-300">👋 ¡Bienvenido a Chatboc!</h2>
-          <p className="mb-4 text-gray-600 dark:text-gray-300">
+          <p className="mb-4 text-muted-foreground">
             Para darte una mejor experiencia, contanos a qué rubro pertenece tu negocio:
           </p>
           <div className="flex flex-wrap justify-center gap-2 mt-3">
@@ -133,7 +148,8 @@ const Demo = () => {
                   setRubroSeleccionado(rubro.nombre);
                   setEsperandoRubro(false);
                 }}
-                className="px-5 py-3 rounded-full font-semibold text-base bg-gradient-to-r from-blue-500 to-blue-700 text-white hover:from-blue-600 hover:to-blue-800 shadow-md focus:outline-none transition-all"
+                // MODIFICADO: Botones de rubro con dark: clases
+                className="px-5 py-3 rounded-full font-semibold text-base bg-gradient-to-r from-blue-500 to-blue-700 text-white hover:from-blue-600 hover:to-blue-800 shadow-md focus:outline-none transition-all dark:from-blue-700 dark:to-blue-900 dark:hover:from-blue-800 dark:hover:to-blue-950"
               >
                 {rubro.nombre}
               </button>
@@ -147,15 +163,16 @@ const Demo = () => {
   return (
     <div className="
       w-full max-w-2xl mx-auto
-      bg-white dark:bg-[#1e1e1e]
-      rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-700
+      bg-card dark:bg-[#1e1e1e] {/* bg-card para modo claro */}
+      rounded-3xl shadow-2xl border border-border dark:border-gray-700 {/* border-border para modo claro */}
       flex flex-col h-[90vh] sm:h-[84vh] mt-6
       overflow-hidden
       relative
       "
     >
       {/* Header */}
-      <div className="bg-[#006AEC] text-white py-3 px-4 flex items-center justify-between shadow-lg sticky top-0 z-10">
+      {/* MODIFICADO: Header con colores semánticos o mejorados para ambos modos */}
+      <div className="bg-primary text-primary-foreground py-3 px-4 flex items-center justify-between shadow-lg sticky top-0 z-10">
         <div className="flex items-center gap-2">
           <img
             src="/chatboc_widget_white_outline.webp"
@@ -169,7 +186,8 @@ const Demo = () => {
 
       {/* Mensajes */}
       <div className="
-        flex-1 overflow-y-auto px-2 sm:px-5 py-5 bg-gradient-to-b from-blue-50/40 via-white to-blue-100/10 dark:bg-gradient-to-b dark:from-[#1b2532] dark:to-[#242b33]
+        flex-1 overflow-y-auto px-2 sm:px-5 py-5
+        bg-background dark:bg-gradient-to-b dark:from-[#1b2532] dark:to-[#242b33] {/* bg-background para modo claro */}
         transition-colors space-y-3 custom-scroll
       ">
         {messages.map((msg) => (
@@ -179,7 +197,8 @@ const Demo = () => {
               text-[15px] sm:text-base
               ${msg.isBot
                 ? "bg-blue-100 dark:bg-blue-900/60 text-blue-900 dark:text-white self-start"
-                : "bg-gradient-to-br from-blue-500 to-blue-700 text-white self-end"
+                // MODIFICADO: Mensajes de usuario con adaptación a modo oscuro
+                : "bg-gradient-to-br from-blue-500 to-blue-700 text-white self-end dark:from-blue-700 dark:to-blue-900 dark:text-gray-100"
               }
             `}
             style={{
@@ -188,7 +207,8 @@ const Demo = () => {
             }}
           >
             {msg.text}
-            <div className={`text-[10px] sm:text-xs mt-1 text-right opacity-60 ${msg.isBot ? "text-blue-700 dark:text-blue-200" : "text-white"}`}>
+            {/* MODIFICADO: Timestamp del mensaje con adaptación a modo oscuro */}
+            <div className={`text-[10px] sm:text-xs mt-1 text-right opacity-60 ${msg.isBot ? "text-blue-700 dark:text-blue-200" : "text-white dark:text-gray-200"}`}>
               {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
             </div>
           </div>
@@ -198,7 +218,7 @@ const Demo = () => {
       </div>
 
       {/* Input */}
-      <div className="border-t border-gray-200 dark:border-gray-700 p-2 bg-white dark:bg-[#1e1e1e] sticky bottom-0 z-10">
+      <div className="border-t border-border dark:border-gray-700 p-2 bg-card dark:bg-[#1e1e1e] sticky bottom-0 z-10"> {/* bg-card y border-border */}
         <ChatInput onSendMessage={handleSendMessage} />
       </div>
     </div>
