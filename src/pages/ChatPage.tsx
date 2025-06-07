@@ -1,238 +1,138 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React from "react";
 import { Message } from "@/types/chat";
-import ChatMessage from "@/components/chat/ChatMessage";
-import ChatInput from "@/components/chat/ChatInput";
-import TypingIndicator from "@/components/chat/TypingIndicator";
-import Navbar from "@/components/layout/Navbar";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 
-// Hook para mobile detection (sin cambios)
-function useIsMobile(breakpoint = 768) {
-  const [isMobile, setIsMobile] = useState(
-    typeof window !== "undefined" ? window.innerWidth < breakpoint : false
-  );
-  useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < breakpoint);
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, [breakpoint]);
-  return isMobile;
+const LOGO_BOT = "/favicon/favicon-48x48.png";
+
+const UserAvatar = () => (
+  // Animación del avatar del usuario al aparecer
+  <motion.span
+    className="flex-shrink-0 w-9 h-9 rounded-full bg-secondary flex items-center justify-center border border-border shadow-md dark:border-blue-700"
+    initial={{ scale: 0.8, opacity: 0 }} // Empieza más pequeño y transparente
+    animate={{ scale: 1, opacity: 1 }} // Crece y se vuelve opaco
+    transition={{ type: "spring", stiffness: 200, damping: 20 }} // Animación elástica
+  >
+    <span className="text-2xl font-bold text-primary dark:text-blue-100">🧑‍💼</span>
+  </motion.span>
+);
+
+interface ChatMessageProps {
+  message: Message;
 }
 
-const ChatPage = () => {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [isTyping, setIsTyping] = useState(false);
-  const chatEndRef = useRef<HTMLDivElement>(null);
-  const chatMessagesContainerRef = useRef<HTMLDivElement>(null); // Nuevo ref para el contenedor de mensajes
+const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
+  if (!message || typeof message.text !== "string") {
+    return (
+      <div className="text-xs text-destructive italic mt-2 px-3">
+        ❌ Mensaje inválido o malformado.
+      </div>
+    );
+  }
 
-  const isMobile = useIsMobile();
+  // CTA buttons (revisado para mejor contraste si es necesario)
+  if (message.text === "__cta__") {
+    const user = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("user") || "null") : null;
+    if (user?.token) return null;
+    return (
+      <div className="flex justify-center mt-4">
+        <div className="text-center space-y-2">
+          <button
+            onClick={() => (window.location.href = "/demo")}
+            className="px-4 py-2 text-base bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 shadow transition font-semibold"
+          >
+            Usar Chatboc en mi empresa
+          </button>
+          <button
+            onClick={() =>
+              window.open(
+                "https://wa.me/5492613168608?text=Hola! Estoy probando Chatboc y quiero implementarlo en mi empresa.",
+                "_blank"
+              )
+            }
+            className="px-4 py-2 text-base border border-primary text-primary bg-background rounded-xl hover:bg-primary/5 dark:hover:bg-primary/20 transition font-semibold"
+          >
+            Hablar por WhatsApp
+          </button>
+        </div>
+      </div>
+    );
+  }
 
-  const path = typeof window !== "undefined" ? window.location.pathname : "";
-  const isDemo = path.includes("demo");
-  const user = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("user") || "null") : null;
-  const token = isDemo ? "demo-token" : localStorage.getItem("authToken") || "demo-token";
+  const isBot = message.isBot;
 
-  const getRubro = () => {
-    if (user?.rubro) {
-      if (typeof user.rubro === "object" && user.rubro.nombre) return user.rubro.nombre;
-      if (typeof user.rubro === "string") return user.rubro;
-    }
-    return localStorage.getItem("rubroSeleccionado") || "";
-  };
-
-  // MODIFICADO: Lógica de scroll para mayor estabilidad
-  const scrollToBottom = useCallback(() => {
-    if (chatEndRef.current) {
-      chatEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, []);
-
-  // MENSAJE INICIAL DEL BOT
-  useEffect(() => {
-    console.log("ChatPage: Inicializando mensajes del bot."); // Añadido para depuración
-    // Solo inicializar si no hay mensajes o si el primer mensaje no es el del bot.
-    // Esto previene duplicados si el componente se re-renderiza innecesariamente.
-    if (messages.length === 0 || messages[0].text !== "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?") {
-      setMessages([
-        {
-          id: 1,
-          text: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?",
-          isBot: true,
-          timestamp: new Date(),
-        },
-      ]);
-    }
-  }, [messages.length]); // Dependencia messages.length para evitar re-inicialización
-
-  // Disparar scroll cuando los mensajes o el estado de 'typing' cambian
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, isTyping, scrollToBottom]);
-
-  const handleSend = async (text: string) => {
-    if (!text.trim()) return;
-
-    const userMessage: Message = {
-      id: messages.length + 1,
-      text,
-      isBot: false,
-      timestamp: new Date(),
-    };
-
-    const updatedMessages = [...messages, userMessage];
-    setMessages(updatedMessages);
-    setIsTyping(true);
-
-    // MODIFICADO: Scroll inmediato al enviar un mensaje para que el input no quede cubierto
-    setTimeout(() => scrollToBottom(), 0); 
-
-    try {
-      const rubro = getRubro();
-
-      const res = await fetch("https://api.chatboc.ar/ask", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ question: text, rubro }),
-      });
-
-      const data = await res.json();
-
-      const botMessage: Message = {
-        id: updatedMessages.length + 1,
-        text: data?.respuesta || "⚠️ No se pudo generar una respuesta.",
-        isBot: true,
-        timestamp: new Date(),
-      };
-
-      const newMessages = [...updatedMessages, botMessage];
-
-      if (
-        data?.fuente === "cohere" ||
-        botMessage.text.toLowerCase().includes("no encontré") ||
-        botMessage.text.toLowerCase().includes("no se pudo")
-      ) {
-        newMessages.push({
-          id: newMessages.length + 1,
-          text: "__cta__",
-          isBot: true,
-          timestamp: new Date(),
-        });
-      }
-
-      setMessages(newMessages);
-    } catch (error) {
-      setMessages([
-        ...updatedMessages,
-        {
-          id: updatedMessages.length + 1,
-          text: "⚠️ No se pudo conectar con el servidor.",
-          isBot: true,
-          timestamp: new Date(),
-        },
-      ]);
-    } finally {
-      setIsTyping(false);
-      // MODIFICADO: Scroll final después de recibir la respuesta del bot
-      setTimeout(() => scrollToBottom(), 100);
-    }
-  };
-
-  const handleDynamicButtonClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    const target = e.target as HTMLElement;
-    if (target.tagName === 'BUTTON') {
-      const onclickAttribute = target.getAttribute('onclick');
-      if (onclickAttribute && onclickAttribute.includes('enviarMensajeAsistente')) {
-        const match = onclickAttribute.match(/enviarMensajeAsistente\('(.+?)'\)/);
-        if (match && match[1]) {
-          const payload = match[1];
-          handleSend(payload);
-        }
-      }
-    }
+  // Animations (bubbleVariants y avatarVariants ya estaban, no los modifico aquí salvo que se requiera)
+  const bubbleVariants = {
+    hidden: { opacity: 0, y: 14, scale: 0.98 },
+    visible: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.18 } },
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-background dark:bg-gradient-to-b dark:from-[#0d1014] dark:to-[#161b22] text-foreground">
-      <Navbar />
-
-      <main
-        className={`
-          flex-grow flex flex-col items-center justify-center
-          pt-3 sm:pt-10 pb-2 sm:pb-6
-          transition-all
-        `}
-      >
-        <motion.div
-          layout
-          className={`
-            w-full max-w-[99vw] ${isMobile ? "h-[100svh]" : "sm:w-[480px] h-[83vh]"}
-            flex flex-col
-            rounded-none sm:rounded-3xl
-            border-0 sm:border border-border
-            shadow-none sm:shadow-2xl
-            bg-card dark:bg-[#20232b]/95
-            backdrop-blur-0 sm:backdrop-blur-xl
-            relative
-            overflow-hidden
-            transition-all
-          `}
-          style={{
-            boxShadow: isMobile ? undefined : "0 8px 64px 0 rgba(30,40,90,0.10)",
-          }}
+    <div
+      className={`
+        flex items-end gap-2 px-3 mb-1
+        ${isBot ? "justify-start" : "justify-end"}
+        font-['Inter','Segoe UI',Arial,sans-serif]
+      `}
+    >
+      {/* Bot avatar */}
+      {isBot && (
+        <motion.span
+          className="flex-shrink-0 w-10 h-10 rounded-full bg-card dark:bg-blue-950 flex items-center justify-center border border-border dark:border-blue-900 shadow-md"
+          initial={{ scale: 0.8, opacity: 0 }} // Animación similar al usuario
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ type: "spring", stiffness: 200, damping: 20 }}
         >
-          {/* Mensajes */}
-          <div
-            onClick={handleDynamicButtonClick}
-            ref={chatMessagesContainerRef}
-            className={`
-              flex-1 overflow-y-auto
-              p-2 sm:p-4 space-y-3
-              custom-scroll
-              scrollbar-thin scrollbar-thumb-[#90caf9] scrollbar-track-transparent
-              bg-background dark:bg-[#22262b]
-              transition-all
-            `}
-            style={{ minHeight: 0 }}
-          >
-            <AnimatePresence>
-              {messages.map((msg) => (
-                <motion.div
-                  key={msg.id}
-                  initial={{ opacity: 0, y: 14 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 14 }}
-                  transition={{ duration: 0.18 }}
-                >
-                  <ChatMessage message={msg} />
-                </motion.div>
-              ))}
-            </AnimatePresence>
-            {isTyping && <TypingIndicator />}
-            <div ref={chatEndRef} />
-          </div>
+          <img
+            src={LOGO_BOT}
+            alt="Chatboc"
+            className="w-8 h-8 object-contain"
+            style={{ filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.10))" }}
+          />
+        </motion.span>
+      )}
 
-          {/* Input siempre visible abajo */}
-          <div
-            className={`
-              bg-gradient-to-t from-background via-card/60 to-transparent dark:from-[#181e24] dark:via-[#23272e]/80
-              border-t border-border
-              p-2 sm:p-4
-              flex-shrink-0
-              sticky bottom-0
-              z-20
-              shadow-inner
-              backdrop-blur
-            `}
-          >
-            <ChatInput onSendMessage={handleSend} />
-          </div>
-        </motion.div>
-      </main>
+      {/* Message bubble */}
+      <motion.div
+        className={`
+          max-w-[95vw] sm:max-w-[380px] md:max-w-[420px] w-full
+          px-4 py-2 rounded-2xl shadow-lg
+          text-base leading-snug
+          ${isBot
+            ? "bg-gradient-to-br from-blue-50 via-blue-100 to-blue-200 text-blue-900 border border-blue-200 rounded-bl-none dark:from-blue-900 dark:via-blue-950 dark:to-blue-900 dark:text-blue-100 dark:border-blue-800"
+            : "bg-gradient-to-br from-blue-500 to-blue-700 text-white rounded-br-none border border-blue-700 font-semibold dark:from-blue-700 dark:to-blue-900 dark:text-white dark:border-blue-900"
+          }
+          animate-fade-in
+        `}
+        style={{ wordBreak: "break-word", boxShadow: "0 4px 16px rgba(60,60,110,0.10)" }}
+        initial="hidden"
+        animate="visible"
+        variants={bubbleVariants}
+      >
+        <div
+          className="w-full prose prose-blue dark:prose-invert max-w-full"
+          style={{
+            padding: 0,
+            margin: 0,
+            fontSize: '1em',
+            lineHeight: 1.42,
+            fontFamily: "inherit",
+            overflowWrap: "break-word"
+          }}
+          dangerouslySetInnerHTML={{ __html: message.text }}
+        />
+        <div className={`text-xs mt-1 opacity-60 text-right select-none tracking-tight font-normal ${isBot ? "text-blue-700 dark:text-blue-200" : "text-white dark:text-gray-200"}`}>
+          {typeof message.timestamp === "string"
+            ? message.timestamp
+            : new Date(message.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+        </div>
+      </motion.div>
+
+      {/* User avatar */}
+      {!isBot && (
+        <UserAvatar /> {/* UserAvatar ya es un motion.span, lo llamamos directamente */}
+      )}
     </div>
   );
 };
 
-export default ChatPage;
+export default ChatMessage;

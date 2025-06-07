@@ -6,8 +6,10 @@ import ChatInput from "./ChatInput";
 import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
 
-// --- Componente ChatHeader ---
-const ChatHeader: React.FC<{
+// --- Componente WidgetChatHeader (interno de ChatWidget) ---
+// MODIFICADO: Adaptado a las clases temáticas de Tailwind.
+// Este es el ChatHeader usado dentro del widget.
+const WidgetChatHeader: React.FC<{
   title?: string;
   showCloseButton?: boolean;
   onClose?: () => void;
@@ -20,23 +22,11 @@ const ChatHeader: React.FC<{
   onMouseDownDrag,
   isDraggable,
 }) => {
-  const [prefersDark, setPrefersDark] = useState(
-    typeof window !== "undefined" &&
-      window.matchMedia &&
-      window.matchMedia("(prefers-color-scheme: dark)").matches
-  );
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const handler = (e: MediaQueryListEvent) => setPrefersDark(e.matches);
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, []);
   return (
+    // MODIFICADO: Usar bg-card y text-foreground, y border-border para que se adapte al tema
     <div
-      className="flex items-center justify-between p-3 border-b select-none"
+      className="flex items-center justify-between p-3 border-b border-border bg-card text-foreground select-none"
       style={{
-        borderBottomColor: prefersDark ? "#374151" : "#e5e7eb",
         cursor: isDraggable && onMouseDownDrag ? "move" : "default",
       }}
       onMouseDown={onMouseDownDrag}
@@ -44,18 +34,18 @@ const ChatHeader: React.FC<{
     >
       <div className="flex items-center pointer-events-none">
         <img src="/chatboc_logo_clean_transparent.png" alt="Chatboc" className="w-6 h-6 mr-2" />
-        <span className="font-semibold text-sm">{title}</span>
+        <span className="font-semibold text-sm text-primary"> {/* Usar text-primary */}
+          {title}
+        </span>
       </div>
       <div className="flex items-center">
-        <span style={{
-          fontSize: 12, fontWeight: 400,
-          color: prefersDark ? "#90EE90" : "#24ba53",
-          marginRight: showCloseButton ? '8px' : '0'
-        }} className="pointer-events-none">
+        <span
+          className="text-green-500 text-xs font-semibold mr-2 pointer-events-none"
+        >
           &nbsp;• Online
         </span>
         {showCloseButton && onClose && (
-          <button onClick={onClose} className="text-gray-600 dark:text-gray-300 hover:text-red-500 focus:outline-none" aria-label="Cerrar o minimizar chat">
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground focus:outline-none" aria-label="Cerrar o minimizar chat">
             <X size={20} />
           </button>
         )}
@@ -64,7 +54,8 @@ const ChatHeader: React.FC<{
   );
 };
 
-// --- Token Management ---
+
+// --- Token Management (sin cambios) ---
 function getToken(): string {
   if (typeof window === "undefined") return "demo-anon-ssr";
   const params = new URLSearchParams(window.location.search);
@@ -127,7 +118,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     mode === "standalone" ? { position: 'fixed', ...initialPosProp, zIndex: 99998 } : {}
   );
 
-  // Dark mode listener
+  // Dark mode listener (sin cambios)
   useEffect(() => {
     if (typeof window === "undefined") return;
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
@@ -136,21 +127,19 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     return () => mq.removeEventListener("change", handler);
   }, []);
 
-  // -- User detection
+  // -- User detection (sin cambios)
   const getUser = () => {
     if (typeof window === "undefined") return null;
     const storedUser = localStorage.getItem("user");
     return storedUser ? JSON.parse(storedUser) : null;
   };
 
-  // -- Rubros
+  // -- Rubros (sin cambios, ya lo arreglamos con la barra final)
   const cargarRubros = async () => {
   setCargandoRubros(true);
   try {
-    // SIEMPRE agregá la barra al final para evitar problemas de CORS/redirect
     const res = await fetch("https://api.chatboc.ar/rubros/");
     const data = await res.json();
-    // El backend devuelve un array, no un objeto
     setRubrosDisponibles(Array.isArray(data) ? data : []);
   } catch {
     setRubrosDisponibles([]);
@@ -159,7 +148,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 };
 
 
-  // -- Init: token y rubro segun tipo usuario
+  // -- Init: token y rubro segun tipo usuario (sin cambios)
   const recargarTokenYRubro = () => {
     const token = getToken();
     setToken(token);
@@ -207,7 +196,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     }
   }, [isOpen, esperandoRubro]);
 
-  // --- MAIN SENDING LOGIC ---
+  // --- MAIN SENDING LOGIC (sin cambios) ---
   const handleSendMessage = async (text: string) => {
     if (!text.trim()) return;
     const user = getUser();
@@ -253,7 +242,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     }
 
     try {
-      // *** Corregido: apiFetch estilo fetch ***
       const data = await apiFetch("/ask", {
         method: "POST",
         headers: {
@@ -289,7 +277,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     }
   };
 
-  // --- Drag & Drop handlers ---
+  // --- Drag & Drop handlers (sin cambios) ---
   const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
     if (mode !== "standalone" || !draggable || !widgetContainerRef.current || typeof window === "undefined") return;
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
@@ -346,20 +334,18 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   // --- VISTA Selección de Rubro ---
   const rubroSelectionViewContent = (
-    <div className="w-full flex flex-col items-center justify-center p-6" style={{
-      background: prefersDark ? "#161c24" : "#fff",
-      minHeight: 240,
-    }}>
-      <h2 className="text-lg font-semibold mb-3 text-center">👋 ¡Bienvenido!</h2>
-      <p className="mb-4 text-sm text-center">¿De qué rubro es tu negocio?</p>
+    // MODIFICADO: Usar bg-card, text-foreground, y border-border para adaptación al tema
+    <div className="w-full flex flex-col items-center justify-center p-6 bg-card text-foreground border border-border" style={{ minHeight: 240 }}>
+      <h2 className="text-lg font-semibold mb-3 text-center text-primary">👋 ¡Bienvenido!</h2>
+      <p className="mb-4 text-sm text-center text-muted-foreground">¿De qué rubro es tu negocio?</p>
       {cargandoRubros ? (
-        <div className="text-center text-gray-500 text-sm my-6">Cargando rubros...</div>
+        <div className="text-center text-muted-foreground text-sm my-6">Cargando rubros...</div>
       ) : rubrosDisponibles.length === 0 ? (
-        <div className="text-center text-red-500 text-sm my-6">
+        <div className="text-center text-destructive text-sm my-6">
           No se pudieron cargar los rubros. <br />
           <button
             onClick={cargarRubros}
-            className="mt-2 underline text-blue-600 hover:text-blue-800"
+            className="mt-2 underline text-primary hover:text-primary/80"
           >
             Reintentar
           </button>
@@ -380,7 +366,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                   timestamp: new Date(),
                 }]);
               }}
-              className="px-4 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 text-sm"
+              // MODIFICADO: Botones de rubro con estilos temáticos (bg-primary, text-primary-foreground)
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-full hover:bg-primary/90 text-sm shadow"
             >
               {rubro.nombre}
             </button>
@@ -392,14 +379,16 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   const mainChatViewContent = (
     <>
-      <ChatHeader
+      {/* MODIFICADO: Usar el ChatHeader nuevo del widget */}
+      <WidgetChatHeader
         title="Chatboc Asistente"
         showCloseButton={true}
         onClose={toggleChat}
         onMouseDownDrag={mode === "standalone" && isOpen && draggable ? handleDragStart : undefined}
         isDraggable={mode === "standalone" && draggable && isOpen}
       />
-      <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-3" ref={chatContainerRef} style={{ background: "none" }}>
+      {/* MODIFICADO: Fondo del contenedor de mensajes ahora es adaptativo */}
+      <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-3 bg-background text-foreground" ref={chatContainerRef}>
         {messages.map((msg) =>
           typeof msg.text === "string" ? (
             <ChatMessage key={msg.id} message={msg} />
@@ -417,7 +406,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     height: "100%",
     display: "flex",
     flexDirection: "column",
-    color: prefersDark ? "#fff" : "#222",
+    color: prefersDark ? "hsl(var(--foreground))" : "hsl(var(--foreground))",
     overflow: "hidden",
   };
 
@@ -425,7 +414,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     return (
       <div style={{
         ...commonWrapperStyle,
-        background: prefersDark ? (isOpen ? "#161c24" : "#2d3748") : "#fff",
+        // MODIFICADO: Fondo para iframe, usando bg-card (para que el contenido abierto se vea bien)
+        background: isOpen ? "hsl(var(--card))" : "transparent",
       }}>
         {!isOpen && (
           <div
@@ -436,7 +426,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
           >
             <div className="relative">
               <img src="/chatboc_logo_clean_transparent.png" alt="Chatboc" className="w-8 h-8 rounded" style={{ padding: "2px" }} />
-              <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2" style={{ borderColor: prefersDark ? '#2d3748' : '#fff' }} />
+              {/* MODIFICADO: Borde del indicador de online adaptativo */}
+              <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-background" />
             </div>
           </div>
         )}
@@ -455,29 +446,24 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
           onClick={toggleChat}
           onMouseDown={draggable ? handleDragStart : undefined}
           onTouchStart={draggable ? handleDragStart : undefined}
-          className="group w-16 h-16 rounded-full flex items-center justify-center border shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:scale-105"
+          // MODIFICADO: Botón de widget cerrado con colores temáticos
+          className="group w-16 h-16 rounded-full flex items-center justify-center border shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:scale-105 bg-card border-border"
           aria-label="Abrir chat"
-          style={{
-            borderColor: prefersDark ? "#374151" : "#e5e7eb",
-            background: prefersDark ? "#161c24" : "#fff",
-            cursor: draggable ? "move" : "pointer",
-          }}
         >
           <div className="relative">
             <img src="/chatboc_logo_clean_transparent.png" alt="Chatboc" className="w-8 h-8 rounded" style={{ padding: "2px" }} />
-            <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-gray-900" />
+            {/* MODIFICADO: Borde del indicador de online adaptativo */}
+            <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-background" />
           </div>
         </button>
       )}
 
       {isOpen && (
         <div
-          className="w-80 md:w-96 rounded-xl shadow-2xl flex flex-col overflow-hidden animate-slide-up"
+          className="w-80 md:w-96 rounded-xl shadow-2xl flex flex-col overflow-hidden animate-slide-up bg-card border border-border"
           style={{
             height: esperandoRubro ? 'auto' : '500px',
             minHeight: esperandoRubro ? '240px' : '400px',
-            background: prefersDark ? "#161c24" : "#fff",
-            border: `1px solid ${prefersDark ? "#374151" : "#e5e7eb"}`,
           }}
         >
           {esperandoRubro ? rubroSelectionViewContent : mainChatViewContent}
