@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react"; // Añadido useCallback
 import { Message } from "@/types/chat";
 import ChatMessage from "@/components/chat/ChatMessage";
 import ChatInput from "@/components/chat/ChatInput";
@@ -23,6 +23,7 @@ const ChatPage = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatMessagesContainerRef = useRef<HTMLDivElement>(null); // Nuevo ref para el contenedor de mensajes
 
   const isMobile = useIsMobile();
 
@@ -39,6 +40,13 @@ const ChatPage = () => {
     return localStorage.getItem("rubroSeleccionado") || "";
   };
 
+  // MODIFICADO: Lógica de scroll para mayor estabilidad
+  const scrollToBottom = useCallback(() => {
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, []);
+
   useEffect(() => {
     setMessages([
       {
@@ -50,9 +58,10 @@ const ChatPage = () => {
     ]);
   }, []);
 
+  // Disparar scroll cuando los mensajes o el estado de 'typing' cambian
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isTyping]);
+    scrollToBottom();
+  }, [messages, isTyping, scrollToBottom]); // Dependencia de scrollToBottom para useCallback
 
   const handleSend = async (text: string) => {
     if (!text.trim()) return;
@@ -67,6 +76,9 @@ const ChatPage = () => {
     const updatedMessages = [...messages, userMessage];
     setMessages(updatedMessages);
     setIsTyping(true);
+
+    // MODIFICADO: Scroll inmediato al enviar un mensaje para que el input no quede cubierto
+    setTimeout(() => scrollToBottom(), 0); 
 
     try {
       const rubro = getRubro();
@@ -117,34 +129,26 @@ const ChatPage = () => {
       ]);
     } finally {
       setIsTyping(false);
+      // MODIFICADO: Scroll final después de recibir la respuesta del bot
+      setTimeout(() => scrollToBottom(), 100); // Un pequeño delay puede ayudar si hay animaciones
     }
   };
 
-  // ==================================================================
-  // ===== PASO 1: AÑADIR UN MANEJADOR DE CLICS PARA LOS BOTONES =====
-  // ==================================================================
-  // Esta función interceptará todos los clics en el área de mensajes.
   const handleDynamicButtonClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    // Nos aseguramos de que el elemento clickeado sea un botón (HTMLButtonElement)
     const target = e.target as HTMLElement;
     if (target.tagName === 'BUTTON') {
-      // El backend genera un atributo 'onclick' con el formato "enviarMensajeAsistente('payload')".
-      // Extraemos el texto del 'payload' de ese atributo.
       const onclickAttribute = target.getAttribute('onclick');
       if (onclickAttribute && onclickAttribute.includes('enviarMensajeAsistente')) {
         const match = onclickAttribute.match(/enviarMensajeAsistente\('(.+?)'\)/);
         if (match && match[1]) {
           const payload = match[1];
-          // ¡Conectado! Ahora llamamos a nuestra función handleSend existente con el texto del botón.
           handleSend(payload);
         }
       }
     }
   };
-  // ==================================================================
 
   return (
-    // CAMBIO 1: Fondo principal sensible al tema
     <div className="min-h-screen flex flex-col bg-background dark:bg-gradient-to-b dark:from-[#0d1014] dark:to-[#161b22] text-foreground">
       <Navbar />
 
@@ -161,10 +165,8 @@ const ChatPage = () => {
             w-full max-w-[99vw] ${isMobile ? "h-[100svh]" : "sm:w-[480px] h-[83vh]"}
             flex flex-col
             rounded-none sm:rounded-3xl
-            // MODIFICADO: Bordes del contenedor principal, usar border-border
             border-0 sm:border border-border
             shadow-none sm:shadow-2xl
-            // MODIFICADO: Fondo del contenedor principal, usar bg-card
             bg-card dark:bg-[#20232b]/95
             backdrop-blur-0 sm:backdrop-blur-xl
             relative
@@ -176,14 +178,15 @@ const ChatPage = () => {
           }}
         >
           {/* Mensajes */}
+          {/* MODIFICADO: Añadido ref al contenedor para un control de scroll más preciso */}
           <div
             onClick={handleDynamicButtonClick}
+            ref={chatMessagesContainerRef} // Nuevo ref aquí
             className={`
               flex-1 overflow-y-auto
               p-2 sm:p-4 space-y-3
               custom-scroll
               scrollbar-thin scrollbar-thumb-[#90caf9] scrollbar-track-transparent
-              // MODIFICADO: Fondo del área de mensajes, usar bg-background
               bg-background dark:bg-[#22262b]
               transition-all
             `}
@@ -197,8 +200,6 @@ const ChatPage = () => {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 14 }}
                   transition={{ duration: 0.18 }}
-                  // IMPORTANTE: NO HAY CLASES DE ESTILO DE BURBUJA AQUÍ. ChatMessage se encarga de eso.
-                  // Las clases de alineación (justify-start/end) están dentro de ChatMessage.
                 >
                   <ChatMessage message={msg} />
                 </motion.div>
@@ -211,7 +212,6 @@ const ChatPage = () => {
           {/* Input siempre visible abajo */}
           <div
             className={`
-              // MODIFICADO: Fondo del input y borde superior
               bg-gradient-to-t from-background via-card/60 to-transparent dark:from-[#181e24] dark:via-[#23272e]/80
               border-t border-border
               p-2 sm:p-4
