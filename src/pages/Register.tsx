@@ -21,11 +21,11 @@ const Register = () => {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-useEffect(() => {
+ useEffect(() => {
     const fetchRubros = async () => {
       try {
-        // Añadir skipAuth: true para esta llamada
-        const data = await apiFetch<Rubro[]>('/rubros', { skipAuth: true }); 
+        // ¡AGREGA LA BARRA AL FINAL!
+        const data = await apiFetch<Rubro[]>('/rubros/', { skipAuth: true }); 
         if (Array.isArray(data)) setRubrosDisponibles(data);
       } catch (err) { setError("No se pudieron cargar los rubros."); }
     };
