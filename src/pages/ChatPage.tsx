@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Message } from "@/types/chat";
-import ChatMessage from "@/components/chat/ChatMessage"; // Importa ChatMessage
+import ChatMessage from "@/components/chat/ChatMessage";
 import ChatInput from "@/components/chat/ChatInput";
 import TypingIndicator from "@/components/chat/TypingIndicator";
 import Navbar from "@/components/layout/Navbar";
@@ -144,9 +144,7 @@ const ChatPage = () => {
   // ==================================================================
 
   return (
-    // MODIFICADO: Fondo principal sensible al tema
-    <div className="min-h-screen flex flex-col bg-background dark:bg-gradient-to-b dark:from-[#0d1014] dark:to-[#161b22] text-foreground">
-      <Navbar />
+        <div className="min-h-screen flex flex-col bg-background dark:bg-gradient-to-b dark:from-[#0d1014] dark:to-[#161b22] text-foreground">      <Navbar />
 
       <main
         className={`
@@ -174,8 +172,11 @@ const ChatPage = () => {
           }}
         >
           {/* Mensajes */}
+          {/* ================================================================ */}
+          {/* ===== PASO 2: ADJUNTAR EL MANEJADOR AL CONTENEDOR DE MENSAJES ===== */}
+          {/* ================================================================ */}
           <div
-            onClick={handleDynamicButtonClick}
+            onClick={handleDynamicButtonClick} // <-- ¡AQUÍ ESTÁ LA MAGIA!
             className={`
               flex-1 overflow-y-auto
               p-2 sm:p-4 space-y-3
@@ -194,9 +195,9 @@ const ChatPage = () => {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 14 }}
                   transition={{ duration: 0.18 }}
-                  // IMPORTANTE: NO HAY CLASES DE ESTILO DE BURBUJA AQUÍ.
-                  // ChatMessage se encarga de eso.
                 >
+                  {/* El componente ChatMessage probablemente usa 'dangerouslySetInnerHTML'
+                      para renderizar los botones, lo cual es correcto. */}
                   <ChatMessage message={msg} />
                 </motion.div>
               ))}
@@ -204,6 +205,8 @@ const ChatPage = () => {
             {isTyping && <TypingIndicator />}
             <div ref={chatEndRef} />
           </div>
+          {/* ================================================================ */}
+
 
           {/* Input siempre visible abajo */}
           <div
@@ -218,6 +221,8 @@ const ChatPage = () => {
               backdrop-blur
             `}
           >
+            {/* Aquí no necesitamos cambiar nada. El ID del input y del botón
+                están dentro de este componente, pero no necesitamos tocarlos. */}
             <ChatInput onSendMessage={handleSend} />
           </div>
         </motion.div>

@@ -5,7 +5,6 @@ import { motion } from "framer-motion";
 const LOGO_BOT = "/favicon/favicon-48x48.png";
 
 const UserAvatar = () => (
-  // MODIFICADO: Avatares con colores temáticos
   <span className="flex-shrink-0 w-9 h-9 rounded-full bg-secondary flex items-center justify-center border border-border shadow-md dark:border-blue-700">
     <span className="text-2xl font-bold text-primary dark:text-blue-100">🧑‍💼</span>
   </span>
@@ -24,7 +23,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
     );
   }
 
-  // CTA buttons - MODIFICADO: Estilos de botones adaptados
+  // CTA buttons (revisado para mejor contraste si es necesario)
   if (message.text === "__cta__") {
     const user = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("user") || "null") : null;
     if (user?.token) return null;
@@ -44,7 +43,8 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
                 "_blank"
               )
             }
-            className="px-4 py-2 text-base border border-primary text-primary bg-background rounded-xl hover:bg-primary/5 dark:hover:bg-primary/20 transition font-semibold"
+            // Mantenemos bordes azules y fondo transparente/sutil que se adapta
+            className="px-4 py-2 text-base border border-blue-500 text-blue-600 dark:text-blue-300 bg-transparent dark:bg-transparent rounded-xl hover:bg-blue-50 dark:hover:bg-blue-950/20 transition font-semibold"
           >
             Hablar por WhatsApp
           </button>
@@ -76,7 +76,6 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
       {/* Bot avatar */}
       {isBot && (
         <motion.span
-          // MODIFICADO: Avatar del bot con colores temáticos
           className="flex-shrink-0 w-10 h-10 rounded-full bg-card dark:bg-blue-950 flex items-center justify-center border border-border dark:border-blue-900 shadow-md"
           initial="hidden"
           animate="visible"
@@ -92,19 +91,16 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
       )}
 
       {/* Message bubble */}
-      {/* MODIFICADO: Clases de la burbuja para que se adapten a ambos modos
-         IMPORTANTE: Estas clases ahora controlan el fondo y el texto de la burbuja.
-         Asegúrate de que en ChatPage.tsx, el div que envuelve a ChatMessage ya NO tenga estas clases. */}
       <motion.div
         className={`
           max-w-[95vw] sm:max-w-[380px] md:max-w-[420px] w-full
           px-4 py-2 rounded-2xl shadow-lg
           text-base leading-snug
           ${isBot
-            // MODIFICADO: Colores de burbuja de bot
-            ? "bg-muted-foreground/10 text-foreground border border-border rounded-bl-none dark:bg-blue-900 dark:text-blue-100 dark:border-blue-900"
-            // MODIFICADO: Colores de burbuja de usuario
-            : "bg-primary text-primary-foreground rounded-br-none border border-primary dark:bg-blue-800 dark:border-blue-900"
+            // MODIFICADO: Degradado más suave para bot en modo claro, y degradado oscuro para dark
+            ? "bg-gradient-to-br from-blue-50 via-blue-100 to-blue-200 text-blue-900 border border-blue-200 rounded-bl-none dark:from-blue-900 dark:via-blue-950 dark:to-blue-900 dark:text-blue-100 dark:border-blue-800"
+            // MODIFICADO: Degradado azul para usuario en modo claro, y degradado más oscuro con texto blanco para dark
+            : "bg-gradient-to-br from-blue-500 to-blue-700 text-white rounded-br-none border border-blue-700 font-semibold dark:from-blue-700 dark:to-blue-900 dark:text-white dark:border-blue-900"
           }
           animate-fade-in
         `}
@@ -114,7 +110,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
         variants={bubbleVariants}
       >
         <div
-          className="w-full prose prose-blue dark:prose-invert max-w-full" // prose-blue y prose-invert se adaptan bien
+          className="w-full prose prose-blue dark:prose-invert max-w-full"
           style={{
             padding: 0,
             margin: 0,
@@ -125,8 +121,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
           }}
           dangerouslySetInnerHTML={{ __html: message.text }}
         />
-        {/* MODIFICADO: Timestamp con colores adaptativos */}
-        <div className="text-xs mt-1 opacity-60 text-right select-none tracking-tight font-normal text-foreground/70 dark:text-gray-300">
+        <div className={`text-xs mt-1 opacity-60 text-right select-none tracking-tight font-normal ${isBot ? "text-blue-700 dark:text-blue-200" : "text-white dark:text-gray-200"}`}>
           {typeof message.timestamp === "string"
             ? message.timestamp
             : new Date(message.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
@@ -136,13 +131,11 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
       {/* User avatar */}
       {!isBot && (
         <motion.span
-          // MODIFICADO: Avatar de usuario con colores temáticos
           className="flex-shrink-0 w-9 h-9 rounded-full bg-secondary flex items-center justify-center border border-border shadow-md dark:border-blue-700"
           initial="hidden"
           animate="visible"
           variants={avatarVariants}
         >
-          {/* UserAvatar ya no necesita estar envuelto, sus estilos ya están en el span */}
           <span className="text-2xl font-bold text-primary dark:text-blue-100">🧑‍💼</span>
         </motion.span>
       )}
