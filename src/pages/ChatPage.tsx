@@ -144,6 +144,7 @@ const ChatPage = () => {
   // ==================================================================
 
   return (
+    // MODIFICADO: Fondo principal sensible al tema
     <div className="min-h-screen flex flex-col bg-background dark:bg-gradient-to-b dark:from-[#0d1014] dark:to-[#161b22] text-foreground">
       <Navbar />
 
@@ -193,25 +194,10 @@ const ChatPage = () => {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 14 }}
                   transition={{ duration: 0.18 }}
-                  // MOVIDO: Las clases de estilo de mensaje se aplican directamente aquí
-                  className={`
-                    max-w-[84%] sm:max-w-[75%] rounded-2xl px-4 py-3 shadow-lg mb-2 whitespace-pre-wrap break-words text-justify
-                    text-[15px] sm:text-base
-                    ${msg.isBot
-                      ? "bg-blue-100 dark:bg-blue-900/60 text-blue-900 dark:text-white self-start"
-                      : "bg-gradient-to-br from-blue-500 to-blue-700 text-white self-end dark:from-blue-700 dark:to-blue-900 dark:text-gray-100"
-                    }
-                  `}
-                  style={{
-                    marginLeft: msg.isBot ? 0 : "auto",
-                    marginRight: msg.isBot ? "auto" : 0,
-                  }}
+                  // IMPORTANTE: NO HAY CLASES DE ESTILO DE BURBUJA AQUÍ.
+                  // ChatMessage se encarga de eso.
                 >
-                  {/* Contenido del mensaje y timestamp ahora dentro de esta motion.div */}
                   <ChatMessage message={msg} />
-                  <div className={`text-[10px] sm:text-xs mt-1 text-right opacity-60 ${msg.isBot ? "text-blue-700 dark:text-blue-200" : "text-white dark:text-gray-200"}`}>
-                    {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                  </div>
                 </motion.div>
               ))}
             </AnimatePresence>
