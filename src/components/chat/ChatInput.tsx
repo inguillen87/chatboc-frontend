@@ -35,17 +35,14 @@ const ChatInput: React.FC<Props> = ({ onSendMessage }) => {
 
   return (
     // Contenedor principal del input
-    // bg-card debería ser tu color de fondo para tarjetas (claro en light, oscuro en dark)
-    // border-border para el borde superior
+    // bg-card y border-border son correctos y semánticos
     <div className="w-full max-w-[420px] mx-auto flex items-center gap-2 px-3 py-2 border-t border-border bg-card backdrop-blur-md">
       <input
         ref={inputRef}
         className="
           flex-1 max-w-full min-w-0
-          // MODIFICADO: Aseguramos que el fondo del input (bg-input) y el borde (border-input)
-          // se adapten al modo oscuro.
-          // El texto del input y el placeholder usan text-foreground y placeholder:text-muted-foreground
-          // que se adaptarán automáticamente a claro/oscuro.
+          // MODIFICADO: Aplicar bg-input para el modo claro y un color específico para el modo oscuro
+          // que sabemos que contrasta. Esto anula cualquier otra cosa si es necesario.
           bg-input
           border border-input
           rounded-full px-4 py-2
@@ -55,6 +52,8 @@ const ChatInput: React.FC<Props> = ({ onSendMessage }) => {
           placeholder:text-muted-foreground
           font-medium
           disabled:bg-muted disabled:text-muted-foreground
+          // CLASE CRÍTICA PARA EL MODO OSCURO:
+          dark:bg-[#1a1a1a] dark:text-gray-100 dark:placeholder-gray-400
         "
         type="text"
         placeholder={PLACEHOLDERS[placeholderIndex]}
@@ -74,8 +73,6 @@ const ChatInput: React.FC<Props> = ({ onSendMessage }) => {
       <button
         className={`
           flex items-center justify-center
-          // MODIFICADO: Colores del botón de enviar
-          // bg-primary y text-primary-foreground aseguran adaptación al tema principal.
           bg-primary hover:bg-primary/90
           text-primary-foreground rounded-full p-2.5 ml-1
           shadow-xl transition-all duration-150
