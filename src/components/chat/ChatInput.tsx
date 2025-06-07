@@ -34,12 +34,16 @@ const ChatInput: React.FC<Props> = ({ onSendMessage }) => {
   };
 
   return (
-    // MODIFICADO: Fondo y borde adaptativos
+    // MODIFICADO: Fondo del contenedor del input
+    // Debería ser un fondo más neutro que se adapte bien
     <div className="w-full max-w-[420px] mx-auto flex items-center gap-2 px-3 py-2 border-t border-border bg-background backdrop-blur-md">
       <input
         ref={inputRef}
         className="
           flex-1 max-w-full min-w-0
+          // MODIFICADO: Fondo del input y borde
+          // Usar bg-input para el fondo, que se adapta con tus variables CSS
+          // Y text-foreground para el color del texto
           bg-input
           border border-input
           rounded-full px-4 py-2
