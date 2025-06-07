@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react"; // Añadido useCallback
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Message } from "@/types/chat";
 import ChatMessage from "@/components/chat/ChatMessage";
 import ChatInput from "@/components/chat/ChatInput";
@@ -47,21 +47,27 @@ const ChatPage = () => {
     }
   }, []);
 
+  // MENSAJE INICIAL DEL BOT
   useEffect(() => {
-    setMessages([
-      {
-        id: 1,
-        text: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?",
-        isBot: true,
-        timestamp: new Date(),
-      },
-    ]);
-  }, []);
+    console.log("ChatPage: Inicializando mensajes del bot."); // Añadido para depuración
+    // Solo inicializar si no hay mensajes o si el primer mensaje no es el del bot.
+    // Esto previene duplicados si el componente se re-renderiza innecesariamente.
+    if (messages.length === 0 || messages[0].text !== "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?") {
+      setMessages([
+        {
+          id: 1,
+          text: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?",
+          isBot: true,
+          timestamp: new Date(),
+        },
+      ]);
+    }
+  }, [messages.length]); // Dependencia messages.length para evitar re-inicialización
 
   // Disparar scroll cuando los mensajes o el estado de 'typing' cambian
   useEffect(() => {
     scrollToBottom();
-  }, [messages, isTyping, scrollToBottom]); // Dependencia de scrollToBottom para useCallback
+  }, [messages, isTyping, scrollToBottom]);
 
   const handleSend = async (text: string) => {
     if (!text.trim()) return;
@@ -130,7 +136,7 @@ const ChatPage = () => {
     } finally {
       setIsTyping(false);
       // MODIFICADO: Scroll final después de recibir la respuesta del bot
-      setTimeout(() => scrollToBottom(), 100); // Un pequeño delay puede ayudar si hay animaciones
+      setTimeout(() => scrollToBottom(), 100);
     }
   };
 
@@ -178,10 +184,9 @@ const ChatPage = () => {
           }}
         >
           {/* Mensajes */}
-          {/* MODIFICADO: Añadido ref al contenedor para un control de scroll más preciso */}
           <div
             onClick={handleDynamicButtonClick}
-            ref={chatMessagesContainerRef} // Nuevo ref aquí
+            ref={chatMessagesContainerRef}
             className={`
               flex-1 overflow-y-auto
               p-2 sm:p-4 space-y-3

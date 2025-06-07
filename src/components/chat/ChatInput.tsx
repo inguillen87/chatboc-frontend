@@ -35,15 +35,17 @@ const ChatInput: React.FC<Props> = ({ onSendMessage }) => {
 
   return (
     // Contenedor principal del input
-    // MODIFICADO: Asegurar que el fondo del contenedor es background/card
+    // bg-card debería ser tu color de fondo para tarjetas (claro en light, oscuro en dark)
+    // border-border para el borde superior
     <div className="w-full max-w-[420px] mx-auto flex items-center gap-2 px-3 py-2 border-t border-border bg-card backdrop-blur-md">
       <input
         ref={inputRef}
         className="
           flex-1 max-w-full min-w-0
-          // MODIFICADO: Eliminar el 'shadow-sm' del input directamente,
-          // ya que podría estar causando un borde oscuro visible en el fondo.
-          // Usar bg-input y border-input que se definen con tus variables CSS.
+          // MODIFICADO: Aseguramos que el fondo del input (bg-input) y el borde (border-input)
+          // se adapten al modo oscuro.
+          // El texto del input y el placeholder usan text-foreground y placeholder:text-muted-foreground
+          // que se adaptarán automáticamente a claro/oscuro.
           bg-input
           border border-input
           rounded-full px-4 py-2
@@ -72,6 +74,8 @@ const ChatInput: React.FC<Props> = ({ onSendMessage }) => {
       <button
         className={`
           flex items-center justify-center
+          // MODIFICADO: Colores del botón de enviar
+          // bg-primary y text-primary-foreground aseguran adaptación al tema principal.
           bg-primary hover:bg-primary/90
           text-primary-foreground rounded-full p-2.5 ml-1
           shadow-xl transition-all duration-150
