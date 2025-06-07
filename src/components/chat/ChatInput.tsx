@@ -34,16 +34,16 @@ const ChatInput: React.FC<Props> = ({ onSendMessage }) => {
   };
 
   return (
-    // MODIFICADO: Fondo del contenedor del input
-    // Debería ser un fondo más neutro que se adapte bien
-    <div className="w-full max-w-[420px] mx-auto flex items-center gap-2 px-3 py-2 border-t border-border bg-background backdrop-blur-md">
+    // Contenedor principal del input
+    // MODIFICADO: Asegurar que el fondo del contenedor es background/card
+    <div className="w-full max-w-[420px] mx-auto flex items-center gap-2 px-3 py-2 border-t border-border bg-card backdrop-blur-md">
       <input
         ref={inputRef}
         className="
           flex-1 max-w-full min-w-0
-          // MODIFICADO: Fondo del input y borde
-          // Usar bg-input para el fondo, que se adapta con tus variables CSS
-          // Y text-foreground para el color del texto
+          // MODIFICADO: Eliminar el 'shadow-sm' del input directamente,
+          // ya que podría estar causando un borde oscuro visible en el fondo.
+          // Usar bg-input y border-input que se definen con tus variables CSS.
           bg-input
           border border-input
           rounded-full px-4 py-2
@@ -51,7 +51,6 @@ const ChatInput: React.FC<Props> = ({ onSendMessage }) => {
           outline-none transition-all duration-200
           focus:border-primary focus:ring-2 focus:ring-primary/50
           placeholder:text-muted-foreground
-          shadow-sm
           font-medium
           disabled:bg-muted disabled:text-muted-foreground
         "
