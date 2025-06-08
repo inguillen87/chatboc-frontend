@@ -368,8 +368,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   // --- VISTA Selección de Rubro ---
   const rubroSelectionViewContent = (
     // MODIFICADO: Aplicar fondo mucho más opaco y sólido en modo claro para la "pared" tenue.
-    // Usaremos bg-white/95 para modo claro para asegurar visibilidad.
-    // Para modo oscuro, bg-card es generalmente oscuro, así que lo mantenemos.
+    // En modo oscuro, usará dark:bg-gray-900 (o tu bg-card oscuro)
     // rounded-3xl para los bordes del contenedor
     <div className={`w-full flex flex-col items-center justify-center p-6 text-foreground border border-border rounded-3xl
                       ${isMobile
@@ -501,7 +500,10 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
       {isOpen && (
         <div
-          className="w-80 md:w-96 rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-slide-up bg-card border border-border"
+          // MODIFICADO: CLASES DE FONDO SÓLIDO PARA EL CHAT WIDGET
+          // bg-white para modo claro, dark:bg-gray-900 para modo oscuro.
+          // Esto asegurará que el fondo siempre sea opaco y no se transparente.
+          className="w-80 md:w-96 rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-slide-up bg-white border border-border dark:bg-gray-900"
           style={{
             height: esperandoRubro ? 'auto' : '500px',
             minHeight: esperandoRubro ? '240px' : '400px',
