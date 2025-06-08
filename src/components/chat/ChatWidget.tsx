@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback, CSSProperties } from "react"; // Añadido useCallback
+import React, { useState, useRef, useEffect, useCallback, CSSProperties } from "react";
 import { X } from "lucide-react";
 import ChatMessage from "./ChatMessage";
 import TypingIndicator from "./TypingIndicator";
@@ -7,7 +7,6 @@ import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
 
 // --- Componente WidgetChatHeader (interno de ChatWidget) ---
-// Este componente de cabecera es para el widget flotante, no el de la página principal.
 const WidgetChatHeader: React.FC<{
   title?: string;
   showCloseButton?: boolean;
@@ -22,7 +21,6 @@ const WidgetChatHeader: React.FC<{
   isDraggable,
 }) => {
   return (
-    // Usa bg-card y text-foreground, y border-border para que se adapte al tema
     <div
       className="flex items-center justify-between p-3 border-b border-border bg-card text-foreground select-none"
       style={{
@@ -53,7 +51,6 @@ const WidgetChatHeader: React.FC<{
 
 
 // --- Token Management ---
-// Función para obtener el token, usada por el componente ChatWidget
 function getToken(): string {
   if (typeof window === "undefined") return "demo-anon-ssr";
   const params = new URLSearchParams(window.location.search);
@@ -104,7 +101,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const [esperandoRubro, setEsperandoRubro] = useState(false);
   const [cargandoRubros, setCargandoRubros] = useState(false);
   
-  // MODIFICADO: Declaración ÚNICA del token con useState
   const [token, setToken] = useState<string>(""); 
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -119,7 +115,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches
   );
 
-  // Dark mode listener (sin cambios)
   useEffect(() => {
     if (typeof window === "undefined") return;
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
@@ -128,20 +123,17 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     return () => mq.removeEventListener("change", handler);
   }, []);
 
-  // Lógica para inicializar el token al montar el componente (se ejecuta una sola vez)
   useEffect(() => {
     const fetchedToken = getToken();
     setToken(fetchedToken);
-  }, []); // Dependencia vacía
+  }, []);
 
-  // -- User detection (sin cambios)
   const getUser = () => {
     if (typeof window === "undefined") return null;
     const storedUser = localStorage.getItem("user");
     return storedUser ? JSON.parse(storedUser) : null;
   };
 
-  // -- Rubros (sin cambios, ya lo arreglamos con la barra final)
   const cargarRubros = async () => {
     setCargandoRubros(true);
     try {
@@ -154,8 +146,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     setCargandoRubros(false);
   };
 
-
-  // -- Init: token y rubro segun tipo usuario (recargarTokenYRubro ahora es useCallback)
   const recargarTokenYRubro = useCallback(() => {
     const currentToken = getToken();
     setToken(currentToken);
@@ -176,7 +166,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       setRubroSeleccionado(rubro);
       setEsperandoRubro(false);
     }
-  }, []); // Dependencias: [] porque getToken y getUser no cambian
+  }, []);
 
   useEffect(() => {
     recargarTokenYRubro();
@@ -191,7 +181,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   }, [messages, isTyping]);
 
   useEffect(() => {
-    if (isOpen && (!esperandoRubro || getUser())) { // Asegura que el mensaje inicial se muestra si el chat está abierto
+    if (isOpen && (!esperandoRubro || getUser())) {
       setMessages([
         {
           id: Date.now() + Math.random(),
@@ -203,9 +193,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     }
   }, [isOpen, esperandoRubro]);
 
-  // --- MAIN SENDING LOGIC ---
   const handleSendMessage = async (text: string) => {
-    if (!text.trim() || !rubroSeleccionado || !token) return; // Asegurarse de que el token esté disponible
+    if (!text.trim() || !rubroSeleccionado || !token) return;
 
     const user = getUser();
     const esAnonimo = !user || !user.token || user.token.startsWith("demo");
@@ -243,7 +232,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     setMessages((prev) => [...prev, userMessage]);
     setIsTyping(true);
 
-    // --- BODY INTELIGENTE ---
     const body: any = { pregunta: text };
     if (esAnonimo) {
       body.rubro = rubroSeleccionado || DEFAULT_WIDGET_RUBRO;
@@ -259,7 +247,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         body: JSON.stringify(body),
       });
 
-      // Lógica robusta para extraer la respuesta del bot
       const respuestaFinal: string =
         typeof data?.respuesta === "string"
           ? data.respuesta
@@ -296,7 +283,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     }
   };
 
-  // --- Drag & Drop handlers (sin cambios) ---
   const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
     if (mode !== "standalone" || !draggable || !widgetContainerRef.current || typeof window === "undefined") return;
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
@@ -353,8 +339,9 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   // --- VISTA Selección de Rubro ---
   const rubroSelectionViewContent = (
-    // Usa bg-card, text-foreground, y border-border para adaptación al tema
-    <div className="w-full flex flex-col items-center justify-center p-6 bg-card text-foreground border border-border rounded-xl" style={{ minHeight: 240 }}>
+    // MODIFICADO: Aplicar fondo opaco y borde para móviles
+    // Usaremos un fondo más sólido que bg-card en móvil para que actúe como "pared"
+    <div className={`w-full flex flex-col items-center justify-center p-6 text-foreground border border-border rounded-xl ${isMobile ? "bg-card shadow-2xl" : "bg-card"}`} style={{ minHeight: 240 }}>
       <h2 className="text-lg font-semibold mb-3 text-center text-primary">👋 ¡Bienvenido!</h2>
       <p className="mb-4 text-sm text-center text-muted-foreground">¿De qué rubro es tu negocio?</p>
       {cargandoRubros ? (
