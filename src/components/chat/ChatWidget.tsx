@@ -3,7 +3,7 @@ import { X } from "lucide-react";
 import ChatMessage from "./ChatMessage";
 import TypingIndicator from "./TypingIndicator";
 import ChatInput from "./ChatInput";
-import { Message } = "@/types/chat";
+import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
 
 // Importar useIsMobile desde tu archivo de hooks centralizado
@@ -373,7 +373,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     // rounded-3xl para los bordes del contenedor
     <div className={`w-full flex flex-col items-center justify-center p-6 text-foreground border border-border rounded-3xl
                       ${isMobile
-                        ? "bg-white/95 backdrop-blur-sm shadow-2xl dark:bg-card dark:bg-opacity-95" // Más opaco en light mobile, usa dark:bg-card con opacidad en dark mobile
+                        ? "bg-white dark:bg-gray-900 shadow-2xl" // FONDO SÓLIDO EN MOBILE (white para light, gray-900 para dark)
                         : "bg-card" // En web, el bg-card original
                       }`}
          style={{ minHeight: 240 }}
