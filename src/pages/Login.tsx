@@ -55,25 +55,22 @@ const Login = () => {
   };
 
   return (
-    // MODIFICADO: Fondo de la página de login
     <div className="min-h-[calc(100vh-80px)] flex items-center justify-center px-4 bg-background text-foreground">
-      {/* MODIFICADO: Contenedor del formulario */}
       <div className="w-full max-w-md bg-card p-8 rounded-xl shadow-xl border border-border">
-        <h2 className="text-2xl font-bold mb-6 text-center text-foreground"> {/* Usar text-foreground */}
+        <h2 className="text-2xl font-bold mb-6 text-center text-foreground">
           Iniciar Sesión
         </h2>
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* MODIFICADO: Input con bg-input y border-input, text-foreground, placeholder:text-muted-foreground */}
           <Input type="email" placeholder="Correo electrónico" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={isLoading} className="bg-input border-input text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/50" />
           <Input type="password" placeholder="Contraseña" value={password} onChange={(e) => setPassword(e.target.value)} required disabled={isLoading} className="bg-input border-input text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/50" />
-          {error && <p className="text-destructive text-sm text-center">{error}</p>} {/* Usar text-destructive */}
-          <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" disabled={isLoading}> {/* Usar bg-primary */}
+          {error && <p className="text-destructive text-sm text-center">{error}</p>}
+          <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" disabled={isLoading}>
             {isLoading ? "Ingresando..." : "Iniciar Sesión"}
           </Button>
         </form>
-        <div className="text-center text-sm text-muted-foreground mt-4"> {/* Usar text-muted-foreground */}
+        <div className="text-center text-sm text-muted-foreground mt-4">
           ¿No tenés cuenta?{" "}
-          <button onClick={() => navigate("/register")} className="text-primary hover:underline"> {/* Usar text-primary */}
+          <button onClick={() => navigate("/register")} className="text-primary hover:underline">
             Registrate
           </button>
         </div>

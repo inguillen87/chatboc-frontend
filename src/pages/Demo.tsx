@@ -12,7 +12,9 @@ const Demo = () => {
     return typeof window !== "undefined" ? localStorage.getItem("rubroSeleccionado") : null;
   });
   const [rubrosDisponibles, setRubrosDisponibles] = useState<{ id: number; nombre: string }[]>([]);
-  const [esperandoRubro, setEsperandoRubro] = useState(!rubroSeleccionado);
+  const [esperandoRubro, setEsperandoRubro] = useState(false);
+  const [cargandoRubros, setCargandoRubros] = useState(false);
+  const [token, setToken] = useState<string>("");
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -31,16 +33,13 @@ const Demo = () => {
 
   useEffect(() => {
     if (!rubroSeleccionado) {
-      // MODIFICADO: Usar apiFetch con skipAuth: true (si tu apiFetch lo soporta y es necesario)
-      // Asegurarse de usar la barra final si es necesario para /rubros/
-      apiFetch<any[]>('/rubros/', { skipAuth: true }) // Asumiendo apiFetch está configurado para manejar esto
+      apiFetch<any[]>('/rubros/', { skipAuth: true })
         .then((data) => {
-          setRubrosDisponibles(Array.isArray(data) ? data : []); // Ajustado para un array
+          setRubrosDisponibles(Array.isArray(data) ? data : []);
           setEsperandoRubro(true);
         })
         .catch(() => {
           setRubrosDisponibles([]);
-          // Considerar mostrar un mensaje de error aquí
         });
     } else {
       setMessages([
@@ -56,7 +55,7 @@ const Demo = () => {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isTyping]); // Añadido isTyping para asegurar scroll al aparecer TypingIndicator
+  }, [messages, isTyping]);
 
   const handleSendMessage = async (text: string) => {
     if (!text.trim() || !rubroSeleccionado) return;
@@ -87,15 +86,14 @@ const Demo = () => {
 
     try {
       const body: any = { pregunta: text };
-      // Asumiendo que el token se maneja dentro de apiFetch o se envía explícitamente
       const response = await apiFetch<any>(
         "/ask",
         {
           method: "POST",
-          body: { question: text, rubro: rubroSeleccionado }, // SIEMPRE mando el rubro
+          body: { question: text, rubro: rubroSeleccionado },
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`, // Se envía el token de demo
+            Authorization: `Bearer ${token}`,
           },
         }
       );
@@ -124,11 +122,10 @@ const Demo = () => {
 
   if (esperandoRubro) {
     return (
-      // MODIFICADO: Fondo y colores adaptativos
       <div className="min-h-screen flex flex-col items-center justify-center p-4 text-center bg-background dark:bg-gradient-to-b dark:from-[#10141b] dark:to-[#181d24] text-foreground">
         <div className="w-full max-w-md p-6 rounded-3xl shadow-2xl border bg-card dark:bg-[#181d24]">
           <h2 className="text-2xl font-bold mb-3 text-primary">👋 ¡Bienvenido a Chatboc!</h2>
-          <p className="mb-4 text-muted-foreground">
+          <p className="mb-4 text-sm text-center text-muted-foreground">
             Para darte una mejor experiencia, contanos a qué rubro pertenece tu negocio:
           </p>
           <div className="flex flex-wrap justify-center gap-2 mt-3">
@@ -162,7 +159,6 @@ const Demo = () => {
       "
     >
       {/* Header */}
-      {/* MODIFICADO: Header con colores semánticos (bg-primary, text-primary-foreground) */}
       <div className="bg-primary text-primary-foreground py-3 px-4 flex items-center justify-between shadow-lg sticky top-0 z-10">
         <div className="flex items-center gap-2">
           <img
@@ -172,7 +168,7 @@ const Demo = () => {
           />
           <span className="font-semibold text-base sm:text-lg tracking-tight">Chatboc · Demo Gratuita</span>
         </div>
-        <span className="hidden sm:inline-block text-xs opacity-70 text-primary-foreground/70">{rubroSeleccionado}</span> {/* Ajustado opacidad de texto */}
+        <span className="hidden sm:inline-block text-xs opacity-70 text-primary-foreground/70">{rubroSeleccionado}</span>
       </div>
 
       {/* Mensajes */}
@@ -184,7 +180,6 @@ const Demo = () => {
         {messages.map((msg) => (
           <div
             key={msg.id}
-            // IMPORTANTE: Aquí NO debe haber clases de estilo de burbuja. ChatMessage se encarga.
             className={`
               flex items-end gap-2 px-3 mb-1
               ${msg.isBot ? "justify-start" : "justify-end"}
@@ -198,8 +193,7 @@ const Demo = () => {
       </div>
 
       {/* Input */}
-      {/* MODIFICADO: El input se renderiza a través de ChatInput.tsx, que ya fue modificado */}
-      <div className="border-t border-border p-2 bg-card sticky bottom-0 z-10"> {/* bg-card y border-border */}
+      <div className="border-t border-border p-2 bg-card sticky bottom-0 z-10">
         <ChatInput onSendMessage={handleSendMessage} />
       </div>
     </div>

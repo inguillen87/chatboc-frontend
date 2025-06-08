@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { toast } from "sonner"; // Asegúrate de que sonner esté bien configurado en tu proyecto
+import { toast } from "sonner";
 
 const Integracion = () => {
   const navigate = useNavigate();
@@ -31,8 +31,6 @@ const Integracion = () => {
 
   // URLs y códigos para integración
   const url = `https://www.chatboc.ar/iframe?token=${user.token}`;
-  // MODIFICADO: Estilos inline del iframe para adaptarse mejor al tema si se usa background transparente
-  // o colores temáticos para el iframe mismo.
   const codeIframe = `<iframe src="${url}" width="370" height="520" style="position:fixed;bottom:24px;right:24px;border:none;border-radius:32px;z-index:9999;box-shadow:0 4px 32px rgba(0,0,0,0.2);background:transparent;" allow="clipboard-write" loading="lazy"></iframe>`;
   const codeScript = `<script src="https://www.chatboc.ar/widget.js" data-token="${user.token}"></script>`;
 
@@ -49,38 +47,36 @@ const Integracion = () => {
   };
 
   return (
-    <div className="p-8 max-w-2xl mx-auto bg-background text-foreground"> {/* Usar bg-background y text-foreground */}
-      <h1 className="text-3xl font-bold mb-6 text-primary">🧩 Integración del Chatbot Chatboc</h1> {/* Usar text-primary */}
+    <div className="p-8 max-w-2xl mx-auto bg-background text-foreground">
+      <h1 className="text-3xl font-bold mb-6 text-primary">🧩 Integración del Chatbot Chatboc</h1>
 
       {!esElegible ? (
-        // MODIFICADO: Colores adaptativos
         <div className="bg-yellow-100 dark:bg-yellow-950/20 text-yellow-800 dark:text-yellow-300 p-4 rounded border border-yellow-300 dark:border-yellow-700">
           <p className="mb-2">🔒 Este contenido está disponible solo para usuarios del <b>plan Pro o Full</b>.</p>
           <Button
             onClick={() => navigate("/checkout?plan=pro")}
-            className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold" // Usar bg-primary
+            className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
           >
             Mejorar mi plan
           </Button>
         </div>
       ) : (
         <>
-          <p className="mb-4 text-muted-foreground"> {/* Usar text-muted-foreground */}
+          <p className="mb-4 text-muted-foreground">
             Pegá este código en el <code>&lt;body&gt;</code> de tu web, Tiendanube, WooCommerce, Shopify, etc.
             Tu asistente aparecerá automáticamente abajo a la derecha y responderá con los datos de tu empresa y catálogo.
           </p>
 
           <div className="mb-5">
-            <div className="font-semibold mb-2 text-primary">Opción 1: <span className="text-foreground">Widget con &lt;iframe&gt; (universal, recomendado)</span></div> {/* Usar text-primary y text-foreground */}
+            <div className="font-semibold mb-2 text-primary">Opción 1: <span className="text-foreground">Widget con &lt;iframe&gt; (universal, recomendado)</span></div>
             <pre
-                 // MODIFICADO: Colores adaptativos para pre y border
                  className="bg-muted dark:bg-card p-3 rounded text-xs overflow-x-auto border border-border select-all cursor-pointer mb-2 text-foreground"
                  title="Click para copiar"
                  onClick={() => copiarCodigo("iframe")}
                  style={{ whiteSpace: "pre-line" }}
             >{codeIframe}</pre>
             <Button
-              className="w-full mb-4 bg-secondary text-secondary-foreground hover:bg-secondary/80" // Usar bg-secondary
+              className="w-full mb-4 bg-secondary text-secondary-foreground hover:bg-secondary/80"
               onClick={() => copiarCodigo("iframe")}
               variant="secondary"
             >
@@ -89,16 +85,15 @@ const Integracion = () => {
           </div>
 
           <div className="mb-5">
-            <div className="font-semibold mb-2 text-primary">Opción 2: <span className="text-foreground">Widget con &lt;script&gt; (alternativo, para tiendas que lo permitan)</span></div> {/* Usar text-primary y text-foreground */}
+            <div className="font-semibold mb-2 text-primary">Opción 2: <span className="text-foreground">Widget con &lt;script&gt; (alternativo, para tiendas que lo permitan)</span></div>
             <pre
-                 // MODIFICADO: Colores adaptativos para pre y border
                  className="bg-muted dark:bg-card p-3 rounded text-xs overflow-x-auto border border-border select-all cursor-pointer mb-2 text-foreground"
                  title="Click para copiar"
                  onClick={() => copiarCodigo("script")}
                  style={{ whiteSpace: "pre-line" }}
             >{codeScript}</pre>
             <Button
-              className="w-full bg-secondary text-secondary-foreground hover:bg-secondary/80" // Usar bg-secondary
+              className="w-full bg-secondary text-secondary-foreground hover:bg-secondary/80"
               onClick={() => copiarCodigo("script")}
               variant="secondary"
             >
@@ -106,16 +101,15 @@ const Integracion = () => {
             </Button>
           </div>
 
-          // MODIFICADO: Colores adaptativos
           <div className="bg-muted text-muted-foreground p-4 rounded mb-8 text-xs border border-border">
             <b>¿No ves el widget?</b> Verificá que el código esté bien pegado, y que tu tienda permita iframes/scripts.<br />
             Si usás Tiendanube: pegalo en “Editar Código Avanzado” o consultá a soporte.<br />
-            Ante cualquier problema <a href="mailto:soporte@chatboc.ar" className="underline text-primary">escribinos</a>. {/* Usar text-primary */}
+            Ante cualquier problema <a href="mailto:soporte@chatboc.ar" className="underline text-primary">escribinos</a>.
           </div>
 
           <div className="mt-10">
-            <h2 className="text-xl font-semibold mb-2 text-foreground">🔍 Vista previa en vivo:</h2> {/* Usar text-foreground */}
-            <div className="border border-border rounded overflow-hidden bg-background flex items-center justify-center" style={{ minHeight: 520 }}> {/* Usar border-border y bg-background */}
+            <h2 className="text-xl font-semibold mb-2 text-foreground">🔍 Vista previa en vivo:</h2>
+            <div className="border border-border rounded overflow-hidden bg-background flex items-center justify-center" style={{ minHeight: 520 }}>
               <iframe
                 src={url}
                 width="370"
@@ -126,7 +120,7 @@ const Integracion = () => {
                   width: "100%",
                   maxWidth: 370,
                   minHeight: 520,
-                  background: "var(--background)", // Usar la variable CSS para el fondo
+                  background: "var(--background)",
                 }}
                 loading="lazy"
                 title="Chatboc Preview"
