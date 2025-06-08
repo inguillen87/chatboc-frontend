@@ -3,10 +3,11 @@ import { X } from "lucide-react";
 import ChatMessage from "./ChatMessage";
 import TypingIndicator from "./TypingIndicator";
 import ChatInput from "./ChatInput";
-import { Message } from "@/types/chat";
+import { Message } = "@/types/chat";
 import { apiFetch } from "@/utils/api";
 
-// Hook para mobile detection
+// MODIFICADO: Hook para mobile detection - Incluido aquí para asegurar que esté disponible.
+// Si ya lo tienes en un archivo de hooks global, IMPÓRTALO y remueve esta definición duplicada.
 function useIsMobile(breakpoint = 768) {
   const [isMobile, setIsMobile] = useState(
     typeof window !== "undefined" ? window.innerWidth < breakpoint : false
@@ -18,6 +19,7 @@ function useIsMobile(breakpoint = 768) {
   }, [breakpoint]);
   return isMobile;
 }
+
 
 // --- Componente WidgetChatHeader (interno de ChatWidget) ---
 const WidgetChatHeader: React.FC<{
@@ -446,7 +448,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     height: "100%",
     display: "flex",
     flexDirection: "column",
-    color: prefersDark ? "hsl(var(--foreground))" : "hsl(var(--foreground))",
+    color: prefersDark ? "hsl(var(--foreground))" : "hsl(var(--foreground))", // Usa variables temáticas
     overflow: "hidden",
   };
 
