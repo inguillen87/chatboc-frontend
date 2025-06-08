@@ -6,7 +6,7 @@ import ChatInput from "./ChatInput";
 import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
 
-// MODIFICADO: Importar useIsMobile desde tu archivo de hooks centralizado
+// Importar useIsMobile desde tu archivo de hooks centralizado
 import { useIsMobile } from "@/hooks/use-mobile";
 
 
