@@ -81,24 +81,30 @@ const Register = () => {
           <Input type="email" placeholder="Correo electrónico" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={isLoading} className="bg-input border-input text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/50" />
           <Input type="password" placeholder="Contraseña" value={password} onChange={(e) => setPassword(e.target.value)} required disabled={isLoading} className="bg-input border-input text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/50" />
           <Input type="text" placeholder="Nombre de la empresa" value={nombreEmpresa} onChange={(e) => setNombreEmpresa(e.target.value)} required disabled={isLoading} className="bg-input border-input text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/50" />
-          {/* MODIFICADO: Select con bg-input, border-input, text-foreground, dark:text-foreground */}
-          <select value={rubro} onChange={(e) => setRubro(e.target.value)} required disabled={isLoading} className="w-full p-2 border rounded text-sm bg-input border-input text-foreground dark:text-foreground">
+          {/* MODIFICADO: Select con bg-input, border-input, text-foreground (adapta automáticamente) */}
+          <select 
+            value={rubro} 
+            onChange={(e) => setRubro(e.target.value)} 
+            required 
+            disabled={isLoading} 
+            className="w-full p-2 border rounded text-sm bg-input border-input text-foreground" // Usa bg-input y text-foreground
+          >
             <option value="">Seleccioná tu rubro</option>
             {rubrosDisponibles.map((r) => (<option key={r.id} value={r.nombre}>{r.nombre}</option>))}
           </select>
           <div className="flex items-center space-x-2">
             {/* Checkbox y label para términos */}
-            <input type="checkbox" id="terms" checked={accepted} onChange={() => setAccepted(!accepted)} required disabled={isLoading} className="form-checkbox h-4 w-4 text-primary bg-input border-border rounded focus:ring-primary cursor-pointer"/> {/* Clases semánticas para checkbox */}
-            <label htmlFor="terms" className="text-xs text-muted-foreground">Acepto los <a href="/legal/terms" target="_blank" className="underline text-primary hover:text-primary/80">Términos</a> y <a href="/legal/privacy" target="_blank" className="underline text-primary hover:text-primary/80">Política de Privacidad</a>.</label> {/* Clases semánticas para label y enlaces */}
+            <input type="checkbox" id="terms" checked={accepted} onChange={() => setAccepted(!accepted)} required disabled={isLoading} className="form-checkbox h-4 w-4 text-primary bg-input border-border rounded focus:ring-primary cursor-pointer"/>
+            <label htmlFor="terms" className="text-xs text-muted-foreground">Acepto los <a href="/legal/terms" target="_blank" className="underline text-primary hover:text-primary/80">Términos</a> y <a href="/legal/privacy" target="_blank" className="underline text-primary hover:text-primary/80">Política de Privacidad</a>.</label>
           </div>
-          {error && <p className="text-destructive text-sm">{error}</p>} {/* Usar text-destructive */}
-          <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" disabled={!accepted || isLoading}> {/* Usar bg-primary */}
+          {error && <p className="text-destructive text-sm">{error}</p>}
+          <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" disabled={!accepted || isLoading}>
             {isLoading ? "Registrando..." : "Registrarse"}
           </Button>
         </form>
-        <div className="text-center text-sm mt-4 text-muted-foreground"> {/* Usar text-muted-foreground */}
+        <div className="text-center text-sm mt-4 text-muted-foreground">
           ¿Ya tenés cuenta?{' '}
-          <button onClick={() => navigate('/login')} className="text-primary hover:underline">Iniciar sesión</button> {/* Usar text-primary */}
+          <button onClick={() => navigate('/login')} className="text-primary hover:underline">Iniciar sesión</button>
         </div>
       </div>
     </div>
