@@ -11,6 +11,8 @@ import { useIsMobile } from "@/hooks/use-mobile";
 
 
 // --- Componente WidgetChatHeader (interno de ChatWidget) ---
+// Este componente de cabecera es para el widget flotante, no el de la página principal.
+// MODIFICADO: Usar bg-card, text-foreground, y border-border para que se adapte al tema.
 const WidgetChatHeader: React.FC<{
   title?: string;
   showCloseButton?: boolean;
@@ -367,14 +369,13 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   // --- VISTA Selección de Rubro ---
   const rubroSelectionViewContent = (
-    // MODIFICADO: Aplicar fondo mucho más opaco y sólido en modo claro para la "pared" tenue.
-    // Usaremos bg-white/95 para modo claro para asegurar visibilidad.
-    // Para modo oscuro, bg-card es generalmente oscuro, así que lo mantenemos.
+    // MODIFICADO: Aplicar fondo mucho más opaco y sólido en MODO CLARO (usando bg-white)
+    // Y asegurando que en modo oscuro use bg-card o un gris oscuro.
     // rounded-3xl para los bordes del contenedor
     <div className={`w-full flex flex-col items-center justify-center p-6 text-foreground border border-border rounded-3xl
                       ${isMobile
                         ? "bg-white shadow-2xl dark:bg-gray-900" // FONDO SÓLIDO Y OSCURO EN MOBILE (white para light, gray-900 para dark)
-                        : "bg-card" // En web, el bg-card original
+                        : "bg-white dark:bg-card" // En web, white para light, bg-card para dark (más transparente si así está configurado)
                       }`}
          style={{ minHeight: 240 }}
     >
@@ -408,7 +409,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                   timestamp: new Date(),
                 }]);
               }}
-              // MODIFICADO: rounded-full para mayor redondez en los botones de rubro y hover sutil
+              // rounded-full para mayor redondez en los botones de rubro y hover sutil
               // bg-blue-500/80 (tenue) en modo claro, hover:bg-blue-600
               // dark:bg-blue-800/80 (tenue) en modo oscuro, hover:bg-blue-700
               className="px-4 py-2 rounded-full text-sm shadow transition-all duration-200 ease-in-out font-semibold
@@ -425,7 +426,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   const mainChatViewContent = (
     <>
-      <WidgetChatHeader
+      <ChatHeader
         title="Chatboc Asistente"
         showCloseButton={true}
         onClose={toggleChat}
@@ -501,7 +502,10 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
       {isOpen && (
         <div
-          className="w-80 md:w-96 rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-slide-up bg-card border border-border"
+          // MODIFICADO: CLASES DE FONDO SÓLIDO PARA EL CHAT WIDGET
+          // bg-white para modo claro, bg-gray-900 para modo oscuro.
+          // Esto asegurará que el fondo siempre sea opaco y no se transparente.
+          className="w-80 md:w-96 rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-slide-up bg-white border border-border dark:bg-gray-900"
           style={{
             height: esperandoRubro ? 'auto' : '500px',
             minHeight: esperandoRubro ? '240px' : '400px',
