@@ -139,7 +139,6 @@ export default function Perfil() {
     e.preventDefault();
     setMensaje(null); setError(null); setLoadingGuardar(true);
 
-    const storedUser = localStorage.getItem("user");
     const token = localStorage.getItem("authToken");
     if (!token) {
       setError("No se encontró sesión activa. Por favor, vuelve a iniciar sesión.");
