@@ -124,7 +124,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   const [prefersDark, setPrefersDark] = useState(false);
 
-  // MODIFICADO: Usar el hook useIsMobile aquí
+  // MODIFICADO: Usar el hook useIsMobile dentro del componente
   const isMobile = useIsMobile(); 
 
   // Dark mode listener
@@ -371,11 +371,15 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     // Usamos bg-card que es tu color base para tarjetas. En móvil, para crear la "pared" tenue,
     // le añadimos un bg-opacity más alto si es necesario, o un color más sólido directo.
     // rounded-3xl para los bordes del contenedor
-    <div className={`w-full flex flex-col items-center justify-center p-6 text-foreground border border-border rounded-3xl
+    // AÑADIDO: dark:bg-card (que es oscuro) y dark:text-foreground (que es blanco/claro)
+    // para asegurar el contraste en modo oscuro para el panel mismo.
+    <div className={`w-full flex flex-col items-center justify-center p-6 border border-border rounded-3xl
                       ${isMobile
                         ? "bg-card/90 backdrop-blur-sm shadow-2xl" // Mayor opacidad y blur para móvil
                         : "bg-card"
-                      }`}
+                      }
+                      dark:bg-card dark:text-foreground // Asegurar estos para el panel en dark mode
+                      `}
          style={{ minHeight: 240 }}
     >
       <h2 className="text-lg font-semibold mb-3 text-center text-primary">👋 ¡Bienvenido!</h2>
