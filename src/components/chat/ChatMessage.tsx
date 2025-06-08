@@ -5,9 +5,15 @@ import { motion } from "framer-motion";
 const LOGO_BOT = "/favicon/favicon-48x48.png";
 
 const UserAvatar = () => (
-  <span className="flex-shrink-0 w-9 h-9 rounded-full bg-secondary flex items-center justify-center border border-border shadow-md dark:border-blue-700">
+  // Animación del avatar del usuario al aparecer
+  <motion.span
+    className="flex-shrink-0 w-9 h-9 rounded-full bg-secondary flex items-center justify-center border border-border shadow-md dark:border-blue-700"
+    initial={{ scale: 0.8, opacity: 0 }} // Empieza más pequeño y transparente
+    animate={{ scale: 1, opacity: 1 }} // Crece y se vuelve opaco
+    transition={{ type: "spring", stiffness: 200, damping: 20 }} // Animación elástica
+  >
     <span className="text-2xl font-bold text-primary dark:text-blue-100">🧑‍💼</span>
-  </span>
+  </motion.span>
 );
 
 interface ChatMessageProps {
@@ -43,8 +49,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
                 "_blank"
               )
             }
-            // Mantenemos bordes azules y fondo transparente/sutil que se adapta
-            className="px-4 py-2 text-base border border-blue-500 text-blue-600 dark:text-blue-300 bg-transparent dark:bg-transparent rounded-xl hover:bg-blue-50 dark:hover:bg-blue-950/20 transition font-semibold"
+            className="px-4 py-2 text-base border border-primary text-primary bg-background rounded-xl hover:bg-primary/5 dark:hover:bg-primary/20 transition font-semibold"
           >
             Hablar por WhatsApp
           </button>
@@ -55,14 +60,10 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
 
   const isBot = message.isBot;
 
-  // Animations
+  // Animations (bubbleVariants y avatarVariants ya estaban, no los modifico aquí salvo que se requiera)
   const bubbleVariants = {
     hidden: { opacity: 0, y: 14, scale: 0.98 },
     visible: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.18 } },
-  };
-  const avatarVariants = {
-    hidden: { opacity: 0, scale: 0.85 },
-    visible: { opacity: 1, scale: 1, transition: { type: "spring", stiffness: 210 } },
   };
 
   return (
@@ -77,9 +78,9 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
       {isBot && (
         <motion.span
           className="flex-shrink-0 w-10 h-10 rounded-full bg-card dark:bg-blue-950 flex items-center justify-center border border-border dark:border-blue-900 shadow-md"
-          initial="hidden"
-          animate="visible"
-          variants={avatarVariants}
+          initial={{ scale: 0.8, opacity: 0 }} // Animación similar al usuario
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ type: "spring", stiffness: 200, damping: 20 }}
         >
           <img
             src={LOGO_BOT}
@@ -97,9 +98,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
           px-4 py-2 rounded-2xl shadow-lg
           text-base leading-snug
           ${isBot
-            // MODIFICADO: Degradado más suave para bot en modo claro, y degradado oscuro para dark
             ? "bg-gradient-to-br from-blue-50 via-blue-100 to-blue-200 text-blue-900 border border-blue-200 rounded-bl-none dark:from-blue-900 dark:via-blue-950 dark:to-blue-900 dark:text-blue-100 dark:border-blue-800"
-            // MODIFICADO: Degradado azul para usuario en modo claro, y degradado más oscuro con texto blanco para dark
             : "bg-gradient-to-br from-blue-500 to-blue-700 text-white rounded-br-none border border-blue-700 font-semibold dark:from-blue-700 dark:to-blue-900 dark:text-white dark:border-blue-900"
           }
           animate-fade-in
@@ -130,14 +129,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
 
       {/* User avatar */}
       {!isBot && (
-        <motion.span
-          className="flex-shrink-0 w-9 h-9 rounded-full bg-secondary flex items-center justify-center border border-border shadow-md dark:border-blue-700"
-          initial="hidden"
-          animate="visible"
-          variants={avatarVariants}
-        >
-          <span className="text-2xl font-bold text-primary dark:text-blue-100">🧑‍💼</span>
-        </motion.span>
+        <UserAvatar />
       )}
     </div>
   );
