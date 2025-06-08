@@ -6,18 +6,8 @@ import ChatInput from "./ChatInput";
 import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
 
-// MODIFICADO: Hook para mobile detection - Incluido aquí para asegurar que esté disponible.
-function useIsMobile(breakpoint = 768) {
-  const [isMobile, setIsMobile] = useState(
-    typeof window !== "undefined" ? window.innerWidth < breakpoint : false
-  );
-  useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < breakpoint);
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, [breakpoint]);
-  return isMobile;
-}
+// MODIFICADO: Importar useIsMobile desde tu archivo de hooks centralizado
+import { useIsMobile } from "@/hooks/useIsMobile";
 
 
 // --- Componente WidgetChatHeader (interno de ChatWidget) ---
@@ -85,12 +75,9 @@ interface Rubro {
   id: number;
   nombre: string;
 }
-
-// MODIFICADO: Interfaz para la respuesta de la API /ask
 interface AskApiResponse {
-  respuesta?: string | { text?: string; respuesta?: string; }; // Puede ser string o un objeto con text/respuesta
-  fuente?: string; // Si el backend devuelve 'fuente'
-  // ... otras propiedades que tu API pueda devolver
+  respuesta?: string | { text?: string; respuesta?: string; };
+  fuente?: string;
 }
 
 interface ChatWidgetProps {
@@ -137,7 +124,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   const [prefersDark, setPrefersDark] = useState(false);
 
-  // MODIFICADO: Usar el hook useIsMobile dentro del componente
+  // MODIFICADO: Usar el hook useIsMobile aquí
   const isMobile = useIsMobile(); 
 
   // Dark mode listener
@@ -279,7 +266,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     }
 
     try {
-      // MODIFICADO: Especificar el tipo de respuesta esperada de apiFetch
       const data = await apiFetch<AskApiResponse>("/ask", {
         method: "POST",
         headers: {
@@ -289,7 +275,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         body: JSON.stringify(body),
       });
 
-      // Lógica robusta para extraer la respuesta del bot, ahora con tipado
       const respuestaFinal: string =
         typeof data?.respuesta === "string"
           ? data.respuesta
@@ -388,7 +373,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     // rounded-3xl para los bordes del contenedor
     <div className={`w-full flex flex-col items-center justify-center p-6 text-foreground border border-border rounded-3xl
                       ${isMobile
-                        ? "bg-card shadow-2xl dark:bg-gray-900/90" // Fondo más sólido y oscuro en móvil dark. bg-card por defecto es bueno para light.
+                        ? "bg-card/90 backdrop-blur-sm shadow-2xl" // Mayor opacidad y blur para móvil
                         : "bg-card"
                       }`}
          style={{ minHeight: 240 }}
@@ -424,12 +409,11 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                 }]);
               }}
               // MODIFICADO: rounded-full para mayor redondez en los botones de rubro y hover sutil
-              // bg-primary y hover:bg-primary/90 para el azul "pro"
-              // En modo claro: bg-blue-500, hover:bg-blue-600, text-white
-              // En modo oscuro: bg-blue-800, hover:bg-blue-700, text-blue-100 (más claro)
+              // bg-blue-500/80 (tenue) en modo claro, hover:bg-blue-600
+              // dark:bg-blue-800/80 (tenue) en modo oscuro, hover:bg-blue-700
               className="px-4 py-2 rounded-full text-sm shadow transition-all duration-200 ease-in-out font-semibold
-                         bg-blue-500 text-white hover:bg-blue-600
-                         dark:bg-blue-800 dark:text-blue-100 dark:hover:bg-blue-700"
+                         bg-blue-500/80 text-white hover:bg-blue-600
+                         dark:bg-blue-800/80 dark:text-blue-100 dark:hover:bg-blue-700"
             >
               {rubro.nombre}
             </button>
@@ -467,7 +451,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     height: "100%",
     display: "flex",
     flexDirection: "column",
-    color: prefersDark ? "hsl(var(--foreground))" : "hsl(var(--foreground))",
+    color: prefersDark ? "hsl(var(--foreground))" : "hsl(var(--foreground))", // Usa variables temáticas
     overflow: "hidden",
   };
 
