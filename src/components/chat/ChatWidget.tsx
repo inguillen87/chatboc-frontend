@@ -6,7 +6,7 @@ import ChatInput from "./ChatInput";
 import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
 
-// MODIFICADO: Hook para mobile detection - Asegurarse de que esté aquí si no es global o importado de otro lado
+// Hook para mobile detection
 function useIsMobile(breakpoint = 768) {
   const [isMobile, setIsMobile] = useState(
     typeof window !== "undefined" ? window.innerWidth < breakpoint : false
@@ -371,8 +371,11 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   // --- VISTA Selección de Rubro ---
   const rubroSelectionViewContent = (
-    // Aplicar fondo más sólido en móvil
-    <div className={`w-full flex flex-col items-center justify-center p-6 text-foreground border border-border rounded-xl ${isMobile ? "bg-card shadow-2xl" : "bg-card"}`} style={{ minHeight: 240 }}>
+    // MODIFICADO: Aplicar fondo más sólido y redondez para móviles
+    // isMobile ? "bg-card shadow-2xl" : "bg-card" -> Puedes ajustar la opacidad del bg-card
+    // o usar un color hardcodeado aquí si necesitas un control más fino.
+    // rounded-3xl para los bordes del contenedor
+    <div className={`w-full flex flex-col items-center justify-center p-6 text-foreground border border-border rounded-3xl ${isMobile ? "bg-card shadow-2xl" : "bg-card"}`} style={{ minHeight: 240 }}>
       <h2 className="text-lg font-semibold mb-3 text-center text-primary">👋 ¡Bienvenido!</h2>
       <p className="mb-4 text-sm text-center text-muted-foreground">¿De qué rubro es tu negocio?</p>
       {cargandoRubros ? (
@@ -403,7 +406,9 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                   timestamp: new Date(),
                 }]);
               }}
-              className="px-4 py-2 bg-primary text-primary-foreground rounded-full hover:bg-primary/90 text-sm shadow"
+              // MODIFICADO: rounded-full para mayor redondez en los botones de rubro y hover sutil
+              // bg-primary y hover:bg-primary/90 para el azul "pro"
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-full text-sm shadow transition-all duration-200 ease-in-out hover:bg-primary/90"
             >
               {rubro.nombre}
             </button>
@@ -422,6 +427,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         onMouseDownDrag={mode === "standalone" && isOpen && draggable ? handleDragStart : undefined}
         isDraggable={mode === "standalone" && draggable && isOpen}
       />
+      {/* Fondo del contenedor de mensajes ahora es adaptativo */}
       <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-3 bg-background text-foreground" ref={chatContainerRef}>
         {messages.map((msg) =>
           typeof msg.text === "string" ? (
