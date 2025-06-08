@@ -31,18 +31,14 @@ const Login = () => {
         body: { email, password },
       });
 
-      // --- CORRECCIÓN DEFINITIVA ---
-      // 1. Guardamos el token en su propia variable para mayor seguridad.
       localStorage.setItem("authToken", data.token);
 
-      // 2. Creamos el objeto de usuario que SÍ incluye el ID.
       const userProfileToStore = {
         id: data.id,
         name: data.name,
         email: data.email,
       };
       
-      // 3. Guardamos el perfil COMPLETO del usuario.
       localStorage.setItem("user", JSON.stringify(userProfileToStore));
 
       navigate("/perfil");
@@ -59,22 +55,25 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-[calc(100vh-80px)] flex items-center justify-center px-4 bg-white dark:bg-[#0f0f0f]">
-      <div className="w-full max-w-md bg-gray-100 dark:bg-[#1a1a1a] p-8 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700">
-        <h2 className="text-2xl font-bold mb-6 text-center text-gray-800 dark:text-gray-100">
+    // MODIFICADO: Fondo de la página de login
+    <div className="min-h-[calc(100vh-80px)] flex items-center justify-center px-4 bg-background text-foreground">
+      {/* MODIFICADO: Contenedor del formulario */}
+      <div className="w-full max-w-md bg-card p-8 rounded-xl shadow-xl border border-border">
+        <h2 className="text-2xl font-bold mb-6 text-center text-foreground"> {/* Usar text-foreground */}
           Iniciar Sesión
         </h2>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <Input type="email" placeholder="Correo electrónico" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={isLoading} />
-          <Input type="password" placeholder="Contraseña" value={password} onChange={(e) => setPassword(e.target.value)} required disabled={isLoading} />
-          {error && <p className="text-red-600 text-sm text-center">{error}</p>}
-          <Button type="submit" className="w-full" disabled={isLoading}>
+          {/* MODIFICADO: Input con bg-input y border-input, text-foreground, placeholder:text-muted-foreground */}
+          <Input type="email" placeholder="Correo electrónico" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={isLoading} className="bg-input border-input text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/50" />
+          <Input type="password" placeholder="Contraseña" value={password} onChange={(e) => setPassword(e.target.value)} required disabled={isLoading} className="bg-input border-input text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/50" />
+          {error && <p className="text-destructive text-sm text-center">{error}</p>} {/* Usar text-destructive */}
+          <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" disabled={isLoading}> {/* Usar bg-primary */}
             {isLoading ? "Ingresando..." : "Iniciar Sesión"}
           </Button>
         </form>
-        <div className="text-center text-sm text-gray-700 dark:text-gray-300 mt-4">
+        <div className="text-center text-sm text-muted-foreground mt-4"> {/* Usar text-muted-foreground */}
           ¿No tenés cuenta?{" "}
-          <button onClick={() => navigate("/register")} className="text-blue-600 hover:underline dark:text-blue-400">
+          <button onClick={() => navigate("/register")} className="text-primary hover:underline"> {/* Usar text-primary */}
             Registrate
           </button>
         </div>

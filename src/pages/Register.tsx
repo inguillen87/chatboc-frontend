@@ -21,11 +21,10 @@ const Register = () => {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
- useEffect(() => {
+  useEffect(() => {
     const fetchRubros = async () => {
       try {
-        // ¡AGREGA LA BARRA AL FINAL!
-        const data = await apiFetch<Rubro[]>('/rubros/', { skipAuth: true }); 
+        const data = await apiFetch<Rubro[]>('/rubros/', { skipAuth: true }); // Asegurarse de usar la barra final
         if (Array.isArray(data)) setRubrosDisponibles(data);
       } catch (err) { setError("No se pudieron cargar los rubros."); }
     };
@@ -47,7 +46,6 @@ const Register = () => {
       
       const data = await apiFetch<RegisterResponse>('/register', { method: 'POST', body: payload });
 
-      // --- CORRECCIÓN DEFINITIVA ---
       localStorage.setItem('authToken', data.token);
 
       const userProfile = {
@@ -71,30 +69,36 @@ const Register = () => {
   };
 
   return (
-    <div className="min-h-[calc(100vh-80px)] flex items-center justify-center px-4 bg-white dark:bg-[#0f0f0f]">
-      <div className="w-full max-w-md bg-gray-100 dark:bg-[#1a1a1a] p-8 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700">
-        <h2 className="text-2xl font-bold mb-6 text-center">Registrarse</h2>
+    // MODIFICADO: Fondo de la página y colores del formulario
+    <div className="min-h-[calc(100vh-80px)] flex items-center justify-center px-4 bg-background text-foreground">
+      <div className="w-full max-w-md bg-card p-8 rounded-xl shadow-xl border border-border">
+        <h2 className="text-2xl font-bold mb-6 text-center text-foreground">
+          Registrarse
+        </h2>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <Input type="text" placeholder="Tu nombre" value={name} onChange={(e) => setName(e.target.value)} required disabled={isLoading} />
-          <Input type="email" placeholder="Correo electrónico" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={isLoading} />
-          <Input type="password" placeholder="Contraseña" value={password} onChange={(e) => setPassword(e.target.value)} required disabled={isLoading} />
-          <Input type="text" placeholder="Nombre de la empresa" value={nombreEmpresa} onChange={(e) => setNombreEmpresa(e.target.value)} required disabled={isLoading} />
-          <select value={rubro} onChange={(e) => setRubro(e.target.value)} required disabled={isLoading} className="w-full p-2 border rounded text-sm bg-white dark:bg-gray-800 text-black dark:text-white">
+          {/* MODIFICADO: Inputs con bg-input, border-input, text-foreground, placeholder:text-muted-foreground */}
+          <Input type="text" placeholder="Tu nombre" value={name} onChange={(e) => setName(e.target.value)} required disabled={isLoading} className="bg-input border-input text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/50" />
+          <Input type="email" placeholder="Correo electrónico" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={isLoading} className="bg-input border-input text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/50" />
+          <Input type="password" placeholder="Contraseña" value={password} onChange={(e) => setPassword(e.target.value)} required disabled={isLoading} className="bg-input border-input text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/50" />
+          <Input type="text" placeholder="Nombre de la empresa" value={nombreEmpresa} onChange={(e) => setNombreEmpresa(e.target.value)} required disabled={isLoading} className="bg-input border-input text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/50" />
+          {/* MODIFICADO: Select con bg-input, border-input, text-foreground, dark:text-foreground */}
+          <select value={rubro} onChange={(e) => setRubro(e.target.value)} required disabled={isLoading} className="w-full p-2 border rounded text-sm bg-input border-input text-foreground dark:text-foreground">
             <option value="">Seleccioná tu rubro</option>
             {rubrosDisponibles.map((r) => (<option key={r.id} value={r.nombre}>{r.nombre}</option>))}
           </select>
           <div className="flex items-center space-x-2">
-            <input type="checkbox" id="terms" checked={accepted} onChange={() => setAccepted(!accepted)} required disabled={isLoading} />
-            <label htmlFor="terms" className="text-xs">Acepto los <a href="/legal/terms" target="_blank" className="underline">Términos</a> y <a href="/legal/privacy" target="_blank" className="underline">Política de Privacidad</a>.</label>
+            {/* Checkbox y label para términos */}
+            <input type="checkbox" id="terms" checked={accepted} onChange={() => setAccepted(!accepted)} required disabled={isLoading} className="form-checkbox h-4 w-4 text-primary bg-input border-border rounded focus:ring-primary cursor-pointer"/> {/* Clases semánticas para checkbox */}
+            <label htmlFor="terms" className="text-xs text-muted-foreground">Acepto los <a href="/legal/terms" target="_blank" className="underline text-primary hover:text-primary/80">Términos</a> y <a href="/legal/privacy" target="_blank" className="underline text-primary hover:text-primary/80">Política de Privacidad</a>.</label> {/* Clases semánticas para label y enlaces */}
           </div>
-          {error && <p className="text-red-600 text-sm">{error}</p>}
-          <Button type="submit" className="w-full" disabled={!accepted || isLoading}>
+          {error && <p className="text-destructive text-sm">{error}</p>} {/* Usar text-destructive */}
+          <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" disabled={!accepted || isLoading}> {/* Usar bg-primary */}
             {isLoading ? "Registrando..." : "Registrarse"}
           </Button>
         </form>
-        <div className="text-center text-sm mt-4">
+        <div className="text-center text-sm mt-4 text-muted-foreground"> {/* Usar text-muted-foreground */}
           ¿Ya tenés cuenta?{' '}
-          <button onClick={() => navigate('/login')} className="text-blue-600 hover:underline">Iniciar sesión</button>
+          <button onClick={() => navigate('/login')} className="text-primary hover:underline">Iniciar sesión</button> {/* Usar text-primary */}
         </div>
       </div>
     </div>

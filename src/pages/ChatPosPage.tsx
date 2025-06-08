@@ -16,13 +16,13 @@ const ChatPosPage = () => {
           src="/images/chatpos-icon.png"
           alt="ChatPos Logo"
           className="mx-auto mb-6 w-20 h-20"
-
         />
         <motion.h1
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="text-5xl font-bold mb-4 text-green-700"
+          // MODIFICADO: text-primary para el color principal de la marca
+          className="text-5xl font-bold mb-4 text-primary dark:text-green-400" // Mantengo dark:text-green-400 si es un acento específico
         >
           ChatPos
         </motion.h1>
@@ -30,19 +30,21 @@ const ChatPosPage = () => {
           Sistema profesional de ventas, stock y facturación en la nube con asistencia inteligente.
         </p>
         <div className="mt-8 flex justify-center gap-4">
-          <Button asChild className="bg-green-600 text-white hover:bg-green-700 shadow-md">
+          <Button asChild className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-md"> {/* Usar bg-primary */}
             <a href={whatsappURL} target="_blank" rel="noopener noreferrer">
               Solicitar demo
             </a>
           </Button>
-          <Button variant="outline">Ver precios</Button>
+          <Button variant="outline" className="border-border text-foreground hover:bg-accent hover:text-accent-foreground"> {/* Usar border-border y bg-accent */}
+            Ver precios
+          </Button>
         </div>
       </section>
 
       {/* Funcionalidades */}
       <section className="max-w-6xl mx-auto grid md:grid-cols-2 gap-16 items-center mb-24">
         <div>
-          <h2 className="text-3xl font-semibold mb-6">Solución completa para tu negocio</h2>
+          <h2 className="text-3xl font-semibold mb-6 text-foreground">Solución completa para tu negocio</h2> {/* Usar text-foreground */}
           <ul className="text-muted-foreground list-disc pl-6 space-y-3">
             <li>Facturación online desde cualquier dispositivo</li>
             <li>Control de inventario y stock en tiempo real</li>
@@ -64,7 +66,7 @@ const ChatPosPage = () => {
 
       {/* Integración con Chatboc */}
       <section className="bg-muted py-20 px-6 md:px-12 rounded-2xl max-w-6xl mx-auto mb-24 shadow-sm">
-        <h2 className="text-3xl font-semibold text-center mb-10">
+        <h2 className="text-3xl font-semibold text-center mb-10 text-foreground"> {/* Usar text-foreground */}
           Potenciado con Chatboc
         </h2>
         <div className="grid md:grid-cols-2 gap-12 items-center">
@@ -87,31 +89,32 @@ const ChatPosPage = () => {
 
       {/* Precios */}
       <section className="max-w-5xl mx-auto text-center">
-        <h2 className="text-3xl font-semibold mb-10">Planes accesibles para cada etapa</h2>
+        <h2 className="text-3xl font-semibold mb-10 text-foreground">Planes accesibles para cada etapa</h2> {/* Usar text-foreground */}
         <div className="grid md:grid-cols-3 gap-8">
           <motion.div
             whileHover={{ scale: 1.03 }}
-            className="border p-6 rounded-2xl shadow-sm bg-background"
+            className="border p-6 rounded-2xl shadow-sm bg-card border-border text-foreground" {/* Usar bg-card y border-border */}
           >
-            <h3 className="text-xl font-bold mb-2">Básico</h3>
+            <h3 className="text-xl font-bold mb-2 text-foreground">Básico</h3> {/* Usar text-foreground */}
             <p className="text-muted-foreground mb-3">Para un solo local</p>
-            <p className="text-3xl font-bold text-green-700">$/mes</p>
+            <p className="text-3xl font-bold text-primary dark:text-green-400">$/mes</p> {/* Usar text-primary */}
           </motion.div>
           <motion.div
             whileHover={{ scale: 1.05 }}
-            className="border p-6 rounded-2xl bg-green-50 shadow-md"
+            // MODIFICADO: bg-card y border-border con dark:bg-green-900/20 si es un acento específico
+            className="border p-6 rounded-2xl bg-card border-border dark:bg-green-900/20 shadow-md text-foreground"
           >
-            <h3 className="text-xl font-bold mb-2">Profesional</h3>
+            <h3 className="text-xl font-bold mb-2 text-foreground">Profesional</h3> {/* Usar text-foreground */}
             <p className="text-muted-foreground mb-3">Multi-sucursal + Soporte + Chatboc</p>
-            <p className="text-3xl font-bold text-green-700">$/mes</p>
+            <p className="text-3xl font-bold text-primary dark:text-green-400">$/mes</p> {/* Usar text-primary */}
           </motion.div>
           <motion.div
             whileHover={{ scale: 1.03 }}
-            className="border p-6 rounded-2xl shadow-sm bg-background"
+            className="border p-6 rounded-2xl shadow-sm bg-card border-border text-foreground" {/* Usar bg-card y border-border */}
           >
-            <h3 className="text-xl font-bold mb-2">Premium</h3>
+            <h3 className="text-xl font-bold mb-2 text-foreground">Premium</h3> {/* Usar text-foreground */}
             <p className="text-muted-foreground mb-3">Todo incluido + dominio propio</p>
-            <p className="text-3xl font-bold text-green-700">$/mes</p>
+            <p className="text-3xl font-bold text-primary dark:text-green-400">$/mes</p> {/* Usar text-primary */}
           </motion.div>
         </div>
       </section>
