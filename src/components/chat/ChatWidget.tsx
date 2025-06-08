@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, CSSProperties } from "react";
+import React, { useState, useRef, useEffect, useCallback, CSSProperties } from "react"; // Añadido useCallback
 import { X } from "lucide-react";
 import ChatMessage from "./ChatMessage";
 import TypingIndicator from "./TypingIndicator";
@@ -7,6 +7,7 @@ import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
 
 // --- Componente WidgetChatHeader (interno de ChatWidget) ---
+// Este componente de cabecera es para el widget flotante, no el de la página principal.
 const WidgetChatHeader: React.FC<{
   title?: string;
   showCloseButton?: boolean;
@@ -21,7 +22,7 @@ const WidgetChatHeader: React.FC<{
   isDraggable,
 }) => {
   return (
-    // MODIFICADO: Usar bg-card, text-foreground, y border-border para que se adapte al tema
+    // Usa bg-card y text-foreground, y border-border para que se adapte al tema
     <div
       className="flex items-center justify-between p-3 border-b border-border bg-card text-foreground select-none"
       style={{
@@ -51,7 +52,8 @@ const WidgetChatHeader: React.FC<{
 };
 
 
-// --- Token Management (sin cambios) ---
+// --- Token Management ---
+// Función para obtener el token, usada por el componente ChatWidget
 function getToken(): string {
   if (typeof window === "undefined") return "demo-anon-ssr";
   const params = new URLSearchParams(window.location.search);
@@ -101,17 +103,20 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const [rubrosDisponibles, setRubrosDisponibles] = useState<Rubro[]>([]);
   const [esperandoRubro, setEsperandoRubro] = useState(false);
   const [cargandoRubros, setCargandoRubros] = useState(false);
-  const [token, setToken] = useState<string>("");
-  const [prefersDark, setPrefersDark] = useState(
-    typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches
-  );
-
+  
+  // MODIFICADO: Declaración ÚNICA del token con useState
+  const [token, setToken] = useState<string>(""); 
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const widgetContainerRef = useRef<HTMLDivElement>(null);
   const dragStartPosRef = useRef<{ x: number; y: number; elementX: number; elementY: number } | null>(null);
   const [currentPos, setCurrentPos] = useState<CSSProperties>(
     mode === "standalone" ? { position: 'fixed', ...initialPosProp, zIndex: 99998 } : {}
+  );
+
+  const [prefersDark, setPrefersDark] = useState(
+    typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches
   );
 
   // Dark mode listener (sin cambios)
@@ -123,6 +128,12 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     return () => mq.removeEventListener("change", handler);
   }, []);
 
+  // Lógica para inicializar el token al montar el componente (se ejecuta una sola vez)
+  useEffect(() => {
+    const fetchedToken = getToken();
+    setToken(fetchedToken);
+  }, []); // Dependencia vacía
+
   // -- User detection (sin cambios)
   const getUser = () => {
     if (typeof window === "undefined") return null;
@@ -132,24 +143,24 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   // -- Rubros (sin cambios, ya lo arreglamos con la barra final)
   const cargarRubros = async () => {
-  setCargandoRubros(true);
-  try {
-    const res = await fetch("https://api.chatboc.ar/rubros/");
-    const data = await res.json();
-    setRubrosDisponibles(Array.isArray(data) ? data : []);
-  } catch {
-    setRubrosDisponibles([]);
-  }
-  setCargandoRubros(false);
-};
+    setCargandoRubros(true);
+    try {
+      const res = await fetch("https://api.chatboc.ar/rubros/");
+      const data = await res.json();
+      setRubrosDisponibles(Array.isArray(data) ? data : []);
+    } catch {
+      setRubrosDisponibles([]);
+    }
+    setCargandoRubros(false);
+  };
 
 
-  // -- Init: token y rubro segun tipo usuario (sin cambios)
-  const recargarTokenYRubro = () => {
-    const token = getToken();
-    setToken(token);
+  // -- Init: token y rubro segun tipo usuario (recargarTokenYRubro ahora es useCallback)
+  const recargarTokenYRubro = useCallback(() => {
+    const currentToken = getToken();
+    setToken(currentToken);
     const user = getUser();
-    if (user && user.token && !user.token.startsWith("demo") && user.rubro) {
+    if (user && user.token && typeof user.token === 'string' && !user.token.startsWith("demo") && user.rubro) {
       setRubroSeleccionado(null);
       setEsperandoRubro(false);
       setPreguntasUsadas(0);
@@ -165,13 +176,13 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       setRubroSeleccionado(rubro);
       setEsperandoRubro(false);
     }
-  };
+  }, []); // Dependencias: [] porque getToken y getUser no cambian
 
   useEffect(() => {
     recargarTokenYRubro();
     window.addEventListener("storage", recargarTokenYRubro);
     return () => window.removeEventListener("storage", recargarTokenYRubro);
-  }, []);
+  }, [recargarTokenYRubro]);
 
   useEffect(() => {
     if (chatContainerRef.current) {
@@ -180,7 +191,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   }, [messages, isTyping]);
 
   useEffect(() => {
-    if (isOpen && (!esperandoRubro || getUser())) {
+    if (isOpen && (!esperandoRubro || getUser())) { // Asegura que el mensaje inicial se muestra si el chat está abierto
       setMessages([
         {
           id: Date.now() + Math.random(),
@@ -192,9 +203,10 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     }
   }, [isOpen, esperandoRubro]);
 
-  // --- MAIN SENDING LOGIC (sin cambios) ---
+  // --- MAIN SENDING LOGIC ---
   const handleSendMessage = async (text: string) => {
-    if (!text.trim()) return;
+    if (!text.trim() || !rubroSeleccionado || !token) return; // Asegurarse de que el token esté disponible
+
     const user = getUser();
     const esAnonimo = !user || !user.token || user.token.startsWith("demo");
 
@@ -246,10 +258,15 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         },
         body: JSON.stringify(body),
       });
+
+      // Lógica robusta para extraer la respuesta del bot
       const respuestaFinal: string =
         typeof data?.respuesta === "string"
           ? data.respuesta
-          : data?.respuesta?.text || data?.respuesta?.respuesta || "❌ No entendí tu mensaje.";
+          : (data?.respuesta && typeof data.respuesta === 'object'
+              ? (data.respuesta.text || data.respuesta.respuesta || "❌ No entendí tu mensaje.")
+              : "❌ No entendí tu mensaje.");
+
       const botMessage: Message = {
         id: Date.now() + Math.random(),
         text: respuestaFinal,
@@ -258,12 +275,18 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       };
       setMessages((prev) => [...prev, botMessage]);
       if (esAnonimo) setPreguntasUsadas((prev) => prev + 1);
-    } catch {
+    } catch (error) {
+      let errorMessageText = "⚠️ No se pudo conectar con el servidor.";
+      if (error instanceof Error) {
+          errorMessageText = `⚠️ Error: ${error.message}`;
+      } else if (typeof error === 'object' && error !== null && 'message' in error) {
+          errorMessageText = `⚠️ Error: ${String((error as any).message)}`;
+      }
       setMessages((prev) => [
         ...prev,
         {
           id: Date.now() + Math.random(),
-          text: "⚠️ No se pudo conectar con el servidor.",
+          text: errorMessageText,
           isBot: true,
           timestamp: new Date(),
         },
@@ -330,8 +353,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   // --- VISTA Selección de Rubro ---
   const rubroSelectionViewContent = (
-    // MODIFICADO: Usar bg-card, text-foreground, y border-border para adaptación al tema
-    <div className="w-full flex flex-col items-center justify-center p-6 bg-card text-foreground border border-border rounded-xl" style={{ minHeight: 240 }}> {/* redondez en el contenedor */}
+    // Usa bg-card, text-foreground, y border-border para adaptación al tema
+    <div className="w-full flex flex-col items-center justify-center p-6 bg-card text-foreground border border-border rounded-xl" style={{ minHeight: 240 }}>
       <h2 className="text-lg font-semibold mb-3 text-center text-primary">👋 ¡Bienvenido!</h2>
       <p className="mb-4 text-sm text-center text-muted-foreground">¿De qué rubro es tu negocio?</p>
       {cargandoRubros ? (
@@ -362,7 +385,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                   timestamp: new Date(),
                 }]);
               }}
-              // MODIFICADO: rounded-full para mayor redondez en los botones de rubro
+              // rounded-full para mayor redondez en los botones de rubro
               className="px-4 py-2 bg-primary text-primary-foreground rounded-full hover:bg-primary/90 text-sm shadow"
             >
               {rubro.nombre}
@@ -382,7 +405,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         onMouseDownDrag={mode === "standalone" && isOpen && draggable ? handleDragStart : undefined}
         isDraggable={mode === "standalone" && draggable && isOpen}
       />
-      {/* MODIFICADO: Fondo del contenedor de mensajes ahora es adaptativo */}
+      {/* Fondo del contenedor de mensajes ahora es adaptativo */}
       <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-3 bg-background text-foreground" ref={chatContainerRef}>
         {messages.map((msg) =>
           typeof msg.text === "string" ? (
@@ -439,7 +462,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
           onClick={toggleChat}
           onMouseDown={draggable ? handleDragStart : undefined}
           onTouchStart={draggable ? handleDragStart : undefined}
-          // MODIFICADO: rounded-full para el botón del widget cerrado
+          // rounded-full para el botón del widget cerrado
           className="group w-16 h-16 rounded-full flex items-center justify-center border shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:scale-105 bg-card border-border"
           aria-label="Abrir chat"
         >
@@ -452,7 +475,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
       {isOpen && (
         <div
-          // MODIFICADO: rounded-3xl para el contenedor del widget abierto
+          // rounded-3xl para el contenedor del widget abierto
           className="w-80 md:w-96 rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-slide-up bg-card border border-border"
           style={{
             height: esperandoRubro ? 'auto' : '500px',
