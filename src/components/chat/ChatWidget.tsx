@@ -3,11 +3,11 @@ import { X } from "lucide-react";
 import ChatMessage from "./ChatMessage";
 import TypingIndicator from "./TypingIndicator";
 import ChatInput from "./ChatInput";
-import { Message } = "@/types/chat";
+import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
 
-// MODIFICADO: Hook para mobile detection - Incluido aquí para asegurar que esté disponible.
-// Si ya lo tienes en un archivo de hooks global, IMPÓRTALO y remueve esta definición duplicada.
+// MODIFICADO: Hook para mobile detection - Asegurarse de que esté aquí si no es global o importado de otro lado
+// Si este hook ya está importado de "@/hooks/useIsMobile", ELIMINA esta definición local.
 function useIsMobile(breakpoint = 768) {
   const [isMobile, setIsMobile] = useState(
     typeof window !== "undefined" ? window.innerWidth < breakpoint : false
@@ -373,11 +373,17 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   // --- VISTA Selección de Rubro ---
   const rubroSelectionViewContent = (
-    // MODIFICADO: Aplicar fondo más sólido y redondez para móviles
-    // isMobile ? "bg-card shadow-2xl" : "bg-card" -> Puedes ajustar la opacidad del bg-card
-    // o usar un color hardcodeado aquí si necesitas un control más fino.
-    // rounded-3xl para los bordes del contenedor
-    <div className={`w-full flex flex-col items-center justify-center p-6 text-foreground border border-border rounded-3xl ${isMobile ? "bg-card shadow-2xl" : "bg-card"}`} style={{ minHeight: 240 }}>
+    // MODIFICADO: Aplicar fondo más sólido en móvil y redondez.
+    // Usamos bg-card que es tu color base para tarjetas. En móvil, para crear la "pared" tenue,
+    // le añadimos un bg-opacity más alto si es necesario, o un color más sólido directo.
+    // Aquí, usamos bg-background como base y aplicamos un gradiente sutil y opacidad para la "pared".
+    <div className={`w-full flex flex-col items-center justify-center p-6 text-foreground border border-border rounded-3xl
+                      ${isMobile
+                        ? "bg-background shadow-2xl dark:bg-gray-900/90" // Fondo más sólido y oscuro en móvil dark
+                        : "bg-card" // Fondo normal en web
+                      }`}
+         style={{ minHeight: 240 }}
+    >
       <h2 className="text-lg font-semibold mb-3 text-center text-primary">👋 ¡Bienvenido!</h2>
       <p className="mb-4 text-sm text-center text-muted-foreground">¿De qué rubro es tu negocio?</p>
       {cargandoRubros ? (
@@ -410,7 +416,11 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
               }}
               // MODIFICADO: rounded-full para mayor redondez en los botones de rubro y hover sutil
               // bg-primary y hover:bg-primary/90 para el azul "pro"
-              className="px-4 py-2 bg-primary text-primary-foreground rounded-full text-sm shadow transition-all duration-200 ease-in-out hover:bg-primary/90"
+              // En modo claro: bg-blue-500, hover:bg-blue-600, text-white
+              // En modo oscuro: bg-blue-700, hover:bg-blue-800, text-white (o gris claro)
+              className="px-4 py-2 rounded-full text-sm shadow transition-all duration-200 ease-in-out font-semibold
+                         bg-blue-500 text-white hover:bg-blue-600
+                         dark:bg-blue-800 dark:text-blue-100 dark:hover:bg-blue-700"
             >
               {rubro.nombre}
             </button>
@@ -448,7 +458,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     height: "100%",
     display: "flex",
     flexDirection: "column",
-    color: prefersDark ? "hsl(var(--foreground))" : "hsl(var(--foreground))", // Usa variables temáticas
+    color: prefersDark ? "hsl(var(--foreground))" : "hsl(var(--foreground))",
     overflow: "hidden",
   };
 
