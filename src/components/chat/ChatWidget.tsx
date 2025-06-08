@@ -1,11 +1,9 @@
 import React, { useState, useRef, useEffect, useCallback, CSSProperties } from "react";
 import { X } from "lucide-react";
-// Aquí el problema estaba en la importación de Message
 import ChatMessage from "./ChatMessage";
 import TypingIndicator from "./TypingIndicator";
 import ChatInput from "./ChatInput";
-// CORRECCIÓN CRÍTICA: Cambiado '=' por 'from'
-import { Message } from "@/types/chat"; 
+import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
 
 // Importar useIsMobile desde tu archivo de hooks centralizado
@@ -369,14 +367,13 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   // --- VISTA Selección de Rubro ---
   const rubroSelectionViewContent = (
-    // MODIFICADO: Aplicar fondo mucho más opaco y sólido en modo claro para la "pared" tenue.
-    // Usaremos bg-white/95 para modo claro para asegurar visibilidad.
-    // Para modo oscuro, bg-card es generalmente oscuro, así que lo mantenemos.
+    // MODIFICADO: Aplicar fondo mucho más opaco y sólido en MODO CLARO (usando bg-white)
+    // En modo oscuro, usará dark:bg-gray-900 (o tu bg-card oscuro)
     // rounded-3xl para los bordes del contenedor
     <div className={`w-full flex flex-col items-center justify-center p-6 text-foreground border border-border rounded-3xl
                       ${isMobile
                         ? "bg-white shadow-2xl dark:bg-gray-900" // FONDO SÓLIDO Y OSCURO EN MOBILE (white para light, gray-900 para dark)
-                        : "bg-card" // En web, el bg-card original
+                        : "bg-card" // En web, el bg-card original, que se verá más transparente si está configurado así
                       }`}
          style={{ minHeight: 240 }}
     >
@@ -410,7 +407,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                   timestamp: new Date(),
                 }]);
               }}
-              // MODIFICADO: rounded-full para mayor redondez en los botones de rubro y hover sutil
+              // rounded-full para mayor redondez en los botones de rubro y hover sutil
               // bg-blue-500/80 (tenue) en modo claro, hover:bg-blue-600
               // dark:bg-blue-800/80 (tenue) en modo oscuro, hover:bg-blue-700
               className="px-4 py-2 rounded-full text-sm shadow transition-all duration-200 ease-in-out font-semibold
