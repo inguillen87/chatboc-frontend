@@ -9,38 +9,45 @@ const Demo = () => {
   const [isTyping, setIsTyping] = useState(false);
   const [preguntasUsadas, setPreguntasUsadas] = useState(0);
   const [rubroSeleccionado, setRubroSeleccionado] = useState<string | null>(() => {
+    // Lee rubroSeleccionado de localStorage solo en el cliente
     return typeof window !== "undefined" ? localStorage.getItem("rubroSeleccionado") : null;
   });
   const [rubrosDisponibles, setRubrosDisponibles] = useState<{ id: number; nombre: string }[]>([]);
-  const [esperandoRubro, setEsperandoRubro] = useState(false);
-  const [cargandoRubros, setCargandoRubros] = useState(false);
+  const [esperandoRubro, setEsperandoRubro] = useState(false); // Inicialmente false, se actualiza en useEffect
+  
+  // MODIFICADO: Declaración única del token con useState
   const [token, setToken] = useState<string>("");
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Token siempre anónimo
-  let token = "";
-  try {
-    let anonToken = typeof window !== "undefined" ? localStorage.getItem("anon_token") : null;
-    if (!anonToken && typeof window !== "undefined") {
-      anonToken = `demo-anon-${Math.random().toString(36).substring(2, 10)}`;
-      localStorage.setItem("anon_token", anonToken);
+  // Lógica para inicializar el token al montar el componente
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      let currentToken = localStorage.getItem("anon_token");
+      if (!currentToken) {
+        currentToken = `demo-anon-${Math.random().toString(36).substring(2, 10)}`;
+        localStorage.setItem("anon_token", currentToken);
+      }
+      setToken(currentToken);
     }
-    token = anonToken || "demo-anon";
-  } catch (e) {
-    token = "demo-anon";
-  }
+  }, []); // Dependencia vacía para que se ejecute solo una vez al montar
 
+  // Lógica para cargar rubros o inicializar mensajes al cambiar rubroSeleccionado
   useEffect(() => {
     if (!rubroSeleccionado) {
-      apiFetch<any[]>('/rubros/', { skipAuth: true })
-        .then((data) => {
-          setRubrosDisponibles(Array.isArray(data) ? data : []);
-          setEsperandoRubro(true);
-        })
-        .catch(() => {
-          setRubrosDisponibles([]);
-        });
+      // Asegurarse de que el token está inicializado antes de cargar rubros si apiFetch lo requiere
+      // Aunque para /rubros/ normalmente no se necesita token si skipAuth es true
+      if (typeof window !== "undefined") { // Asegurar ejecución solo en el cliente
+        apiFetch<any[]>('/rubros/', { skipAuth: true })
+          .then((data) => {
+            setRubrosDisponibles(Array.isArray(data) ? data : []);
+            setEsperandoRubro(true); // Una vez que los rubros están disponibles, mostramos la pantalla de selección
+          })
+          .catch(() => {
+            setRubrosDisponibles([]);
+            // Considerar un mensaje de error visible al usuario si no se pueden cargar los rubros
+          });
+      }
     } else {
       setMessages([
         {
@@ -50,15 +57,17 @@ const Demo = () => {
           timestamp: new Date(),
         },
       ]);
+      setEsperandoRubro(false); // Si ya hay rubro seleccionado, no esperamos
     }
   }, [rubroSeleccionado]);
 
+  // Lógica de scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isTyping]);
+  }, [messages, isTyping]); // Dependencias: mensajes y estado de typing
 
   const handleSendMessage = async (text: string) => {
-    if (!text.trim() || !rubroSeleccionado) return;
+    if (!text.trim() || !rubroSeleccionado || !token) return; // Asegurarse de que el token esté disponible
 
     if (preguntasUsadas >= 15) {
       setMessages((prev) => [
@@ -85,12 +94,12 @@ const Demo = () => {
     setIsTyping(true);
 
     try {
-      const body: any = { pregunta: text };
+      const body: any = { question: text, rubro: rubroSeleccionado };
       const response = await apiFetch<any>(
         "/ask",
         {
           method: "POST",
-          body: { question: text, rubro: rubroSeleccionado },
+          body: body,
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
@@ -122,6 +131,7 @@ const Demo = () => {
 
   if (esperandoRubro) {
     return (
+      // Fondo y colores adaptativos
       <div className="min-h-screen flex flex-col items-center justify-center p-4 text-center bg-background dark:bg-gradient-to-b dark:from-[#10141b] dark:to-[#181d24] text-foreground">
         <div className="w-full max-w-md p-6 rounded-3xl shadow-2xl border bg-card dark:bg-[#181d24]">
           <h2 className="text-2xl font-bold mb-3 text-primary">👋 ¡Bienvenido a Chatboc!</h2>
@@ -135,7 +145,7 @@ const Demo = () => {
                 onClick={() => {
                   localStorage.setItem("rubroSeleccionado", rubro.nombre);
                   setRubroSeleccionado(rubro.nombre);
-                  setEsperandoRubro(false);
+                  // No es necesario setEsperandoRubro(false) aquí, lo manejará el useEffect de rubroSeleccionado
                 }}
                 className="px-5 py-3 rounded-full font-semibold text-base bg-primary text-primary-foreground hover:bg-primary/90 shadow-md focus:outline-none transition-all"
               >
@@ -177,17 +187,19 @@ const Demo = () => {
         bg-background dark:bg-gradient-to-b dark:from-[#1b2532] dark:to-[#242b33]
         transition-colors space-y-3 custom-scroll
       ">
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`
-              flex items-end gap-2 px-3 mb-1
-              ${msg.isBot ? "justify-start" : "justify-end"}
-            `}
-          >
-            <ChatMessage message={msg} />
-          </div>
-        ))}
+        <AnimatePresence>
+          {messages.map((msg) => (
+            <div
+              key={msg.id}
+              className={`
+                flex items-end gap-2 px-3 mb-1
+                ${msg.isBot ? "justify-start" : "justify-end"}
+              `}
+            >
+              <ChatMessage message={msg} />
+            </div>
+          ))}
+        </AnimatePresence>
         {isTyping && <TypingIndicator />}
         <div ref={messagesEndRef} />
       </div>
