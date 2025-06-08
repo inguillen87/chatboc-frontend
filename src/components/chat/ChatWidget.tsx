@@ -6,6 +6,19 @@ import ChatInput from "./ChatInput";
 import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
 
+// MODIFICADO: Hook para mobile detection - Asegurarse de que esté aquí si no es global o importado de otro lado
+function useIsMobile(breakpoint = 768) {
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== "undefined" ? window.innerWidth < breakpoint : false
+  );
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < breakpoint);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [breakpoint]);
+  return isMobile;
+}
+
 // --- Componente WidgetChatHeader (interno de ChatWidget) ---
 const WidgetChatHeader: React.FC<{
   title?: string;
@@ -51,9 +64,8 @@ const WidgetChatHeader: React.FC<{
 
 
 // --- Token Management ---
-// Función para obtener el token, encapsulando el acceso a window/localStorage
 function getToken(): string {
-  if (typeof window === "undefined") return "demo-anon-ssr"; // Devuelve un token para SSR si window no está disponible
+  if (typeof window === "undefined") return "demo-anon-ssr";
   const params = new URLSearchParams(window.location.search);
   const urlToken = params.get("token");
   if (urlToken) return urlToken;
@@ -98,14 +110,12 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const [isTyping, setIsTyping] = useState(false);
   const [preguntasUsadas, setPreguntasUsadas] = useState(0);
   
-  // MODIFICADO: rubroSeleccionado también se inicializa con un efecto para evitar SSR issues
   const [rubroSeleccionado, setRubroSeleccionado] = useState<string | null>(null);
 
   const [rubrosDisponibles, setRubrosDisponibles] = useState<Rubro[]>([]);
   const [esperandoRubro, setEsperandoRubro] = useState(false);
   const [cargandoRubros, setCargandoRubros] = useState(false);
   
-  // MODIFICADO: Declaración ÚNICA del token con useState
   const [token, setToken] = useState<string>(""); 
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -116,7 +126,10 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     mode === "standalone" ? { position: 'fixed', ...initialPosProp, zIndex: 99998 } : {}
   );
 
-  const [prefersDark, setPrefersDark] = useState(false); // Inicializado en false para evitar errores en SSR
+  const [prefersDark, setPrefersDark] = useState(false);
+
+  // MODIFICADO: Usar el hook useIsMobile dentro del componente
+  const isMobile = useIsMobile(); 
 
   // Dark mode listener
   useEffect(() => {
@@ -124,14 +137,13 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     const handler = (e: MediaQueryListEvent) => setPrefersDark(e.matches);
     mq.addEventListener("change", handler);
-    // Inicializa el estado preferesDark al montar
     setPrefersDark(mq.matches);
     return () => mq.removeEventListener("change", handler);
   }, []);
 
   // Lógica para inicializar el token y el rubroSeleccionado al montar el componente
   useEffect(() => {
-    if (typeof window === "undefined") return; // Asegura que solo se ejecute en el cliente
+    if (typeof window === "undefined") return;
     
     const fetchedToken = getToken();
     setToken(fetchedToken);
@@ -140,21 +152,18 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     let initialRubro = localStorage.getItem("rubroSeleccionado");
 
     if (user && user.token && typeof user.token === 'string' && !user.token.startsWith("demo") && user.rubro) {
-      // Usuario autenticado con rubro
-      setRubroSeleccionado(user.rubro); // Asumiendo que user.rubro es directamente el nombre
+      setRubroSeleccionado(user.rubro);
       setEsperandoRubro(false);
       setPreguntasUsadas(0);
-      localStorage.removeItem("rubroSeleccionado"); // Limpia rubro si ya está autenticado con rubro de perfil
+      localStorage.removeItem("rubroSeleccionado");
     } else if (initialRubro) {
-      // Usuario anónimo con rubro guardado
       setRubroSeleccionado(initialRubro);
       setEsperandoRubro(false);
     } else {
-      // No hay rubro guardado, esperamos selección
       setEsperandoRubro(true);
-      cargarRubros(); // Carga los rubros si no hay ninguno seleccionado
+      cargarRubros();
     }
-  }, []); // Se ejecuta una sola vez al montar el componente en el cliente
+  }, []);
 
   // -- User detection (sin cambios)
   const getUser = () => {
@@ -177,10 +186,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   };
 
 
-  // Recarga token y rubro en cambios de storage (ahora más simple, usa el efecto inicial)
   const recargarTokenAndRubroOnStorageChange = useCallback(() => {
-    // Si ya estamos manejando el token y rubro en el useEffect principal,
-    // esta función solo necesita disparar una recarga si el estado cambió de forma externa
     const currentToken = getToken();
     if (token !== currentToken) {
       setToken(currentToken);
@@ -190,7 +196,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         setRubroSeleccionado(currentRubro);
         setEsperandoRubro(!currentRubro);
     }
-  }, [token, rubroSeleccionado]); // Dependencias: token y rubroSeleccionado
+  }, [token, rubroSeleccionado]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -206,8 +212,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   }, [messages, isTyping]);
 
   useEffect(() => {
-    // Solo si el chat está abierto y tenemos un rubro válido
-    if (isOpen && rubroSeleccionado && messages.length === 0) { // Solo si no hay mensajes aún
+    if (isOpen && rubroSeleccionado && messages.length === 0) {
       setMessages([
         {
           id: Date.now() + Math.random(),
@@ -217,7 +222,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         },
       ]);
     }
-  }, [isOpen, rubroSeleccionado, messages.length]); // Agregado messages.length para que no se duplique
+  }, [isOpen, rubroSeleccionado, messages.length]);
 
 
   const handleSendMessage = async (text: string) => {
@@ -347,7 +352,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const toggleChat = () => {
     setIsOpen(prevIsOpen => {
       const nextIsOpen = !prevIsOpen;
-      if (nextIsOpen && esperandoRubro) recargarTokenAndRubroOnStorageChange(); // Usa la función correcta
+      if (nextIsOpen && esperandoRubro) recargarTokenAndRubroOnStorageChange();
       return nextIsOpen;
     });
   };
@@ -366,8 +371,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   // --- VISTA Selección de Rubro ---
   const rubroSelectionViewContent = (
-    // MODIFICADO: Aplicar fondo más sólido en móvil
-    // Detectamos si es móvil y si es así, damos un fondo más opaco
+    // Aplicar fondo más sólido en móvil
     <div className={`w-full flex flex-col items-center justify-center p-6 text-foreground border border-border rounded-xl ${isMobile ? "bg-card shadow-2xl" : "bg-card"}`} style={{ minHeight: 240 }}>
       <h2 className="text-lg font-semibold mb-3 text-center text-primary">👋 ¡Bienvenido!</h2>
       <p className="mb-4 text-sm text-center text-muted-foreground">¿De qué rubro es tu negocio?</p>
@@ -436,7 +440,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     height: "100%",
     display: "flex",
     flexDirection: "column",
-    color: prefersDark ? "hsl(var(--foreground))" : "hsl(var(--foreground))", // Usa variables temáticas
+    color: prefersDark ? "hsl(var(--foreground))" : "hsl(var(--foreground))",
     overflow: "hidden",
   };
 
