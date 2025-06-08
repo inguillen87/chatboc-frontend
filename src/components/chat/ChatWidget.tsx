@@ -51,8 +51,9 @@ const WidgetChatHeader: React.FC<{
 
 
 // --- Token Management ---
+// Función para obtener el token, encapsulando el acceso a window/localStorage
 function getToken(): string {
-  if (typeof window === "undefined") return "demo-anon-ssr";
+  if (typeof window === "undefined") return "demo-anon-ssr"; // Devuelve un token para SSR si window no está disponible
   const params = new URLSearchParams(window.location.search);
   const urlToken = params.get("token");
   if (urlToken) return urlToken;
@@ -96,11 +97,15 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [preguntasUsadas, setPreguntasUsadas] = useState(0);
+  
+  // MODIFICADO: rubroSeleccionado también se inicializa con un efecto para evitar SSR issues
   const [rubroSeleccionado, setRubroSeleccionado] = useState<string | null>(null);
+
   const [rubrosDisponibles, setRubrosDisponibles] = useState<Rubro[]>([]);
   const [esperandoRubro, setEsperandoRubro] = useState(false);
   const [cargandoRubros, setCargandoRubros] = useState(false);
   
+  // MODIFICADO: Declaración ÚNICA del token con useState
   const [token, setToken] = useState<string>(""); 
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -111,29 +116,54 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     mode === "standalone" ? { position: 'fixed', ...initialPosProp, zIndex: 99998 } : {}
   );
 
-  const [prefersDark, setPrefersDark] = useState(
-    typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches
-  );
+  const [prefersDark, setPrefersDark] = useState(false); // Inicializado en false para evitar errores en SSR
 
+  // Dark mode listener
   useEffect(() => {
     if (typeof window === "undefined") return;
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     const handler = (e: MediaQueryListEvent) => setPrefersDark(e.matches);
     mq.addEventListener("change", handler);
+    // Inicializa el estado preferesDark al montar
+    setPrefersDark(mq.matches);
     return () => mq.removeEventListener("change", handler);
   }, []);
 
+  // Lógica para inicializar el token y el rubroSeleccionado al montar el componente
   useEffect(() => {
+    if (typeof window === "undefined") return; // Asegura que solo se ejecute en el cliente
+    
     const fetchedToken = getToken();
     setToken(fetchedToken);
-  }, []);
 
+    const user = getUser();
+    let initialRubro = localStorage.getItem("rubroSeleccionado");
+
+    if (user && user.token && typeof user.token === 'string' && !user.token.startsWith("demo") && user.rubro) {
+      // Usuario autenticado con rubro
+      setRubroSeleccionado(user.rubro); // Asumiendo que user.rubro es directamente el nombre
+      setEsperandoRubro(false);
+      setPreguntasUsadas(0);
+      localStorage.removeItem("rubroSeleccionado"); // Limpia rubro si ya está autenticado con rubro de perfil
+    } else if (initialRubro) {
+      // Usuario anónimo con rubro guardado
+      setRubroSeleccionado(initialRubro);
+      setEsperandoRubro(false);
+    } else {
+      // No hay rubro guardado, esperamos selección
+      setEsperandoRubro(true);
+      cargarRubros(); // Carga los rubros si no hay ninguno seleccionado
+    }
+  }, []); // Se ejecuta una sola vez al montar el componente en el cliente
+
+  // -- User detection (sin cambios)
   const getUser = () => {
     if (typeof window === "undefined") return null;
     const storedUser = localStorage.getItem("user");
     return storedUser ? JSON.parse(storedUser) : null;
   };
 
+  // -- Rubros
   const cargarRubros = async () => {
     setCargandoRubros(true);
     try {
@@ -146,33 +176,28 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     setCargandoRubros(false);
   };
 
-  const recargarTokenYRubro = useCallback(() => {
+
+  // Recarga token y rubro en cambios de storage (ahora más simple, usa el efecto inicial)
+  const recargarTokenAndRubroOnStorageChange = useCallback(() => {
+    // Si ya estamos manejando el token y rubro en el useEffect principal,
+    // esta función solo necesita disparar una recarga si el estado cambió de forma externa
     const currentToken = getToken();
-    setToken(currentToken);
-    const user = getUser();
-    if (user && user.token && typeof user.token === 'string' && !user.token.startsWith("demo") && user.rubro) {
-      setRubroSeleccionado(null);
-      setEsperandoRubro(false);
-      setPreguntasUsadas(0);
-      localStorage.removeItem("rubroSeleccionado");
-      return;
+    if (token !== currentToken) {
+      setToken(currentToken);
     }
-    let rubro = localStorage.getItem("rubroSeleccionado");
-    if (!rubro) {
-      setEsperandoRubro(true);
-      setRubroSeleccionado(null);
-      cargarRubros();
-    } else {
-      setRubroSeleccionado(rubro);
-      setEsperandoRubro(false);
+    const currentRubro = typeof window !== "undefined" ? localStorage.getItem("rubroSeleccionado") : null;
+    if (rubroSeleccionado !== currentRubro) {
+        setRubroSeleccionado(currentRubro);
+        setEsperandoRubro(!currentRubro);
     }
-  }, []);
+  }, [token, rubroSeleccionado]); // Dependencias: token y rubroSeleccionado
 
   useEffect(() => {
-    recargarTokenYRubro();
-    window.addEventListener("storage", recargarTokenYRubro);
-    return () => window.removeEventListener("storage", recargarTokenYRubro);
-  }, [recargarTokenYRubro]);
+    if (typeof window === "undefined") return;
+    window.addEventListener("storage", recargarTokenAndRubroOnStorageChange);
+    return () => window.removeEventListener("storage", recargarTokenAndRubroOnStorageChange);
+  }, [recargarTokenAndRubroOnStorageChange]);
+
 
   useEffect(() => {
     if (chatContainerRef.current) {
@@ -181,7 +206,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   }, [messages, isTyping]);
 
   useEffect(() => {
-    if (isOpen && (!esperandoRubro || getUser())) {
+    // Solo si el chat está abierto y tenemos un rubro válido
+    if (isOpen && rubroSeleccionado && messages.length === 0) { // Solo si no hay mensajes aún
       setMessages([
         {
           id: Date.now() + Math.random(),
@@ -191,7 +217,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         },
       ]);
     }
-  }, [isOpen, esperandoRubro]);
+  }, [isOpen, rubroSeleccionado, messages.length]); // Agregado messages.length para que no se duplique
+
 
   const handleSendMessage = async (text: string) => {
     if (!text.trim() || !rubroSeleccionado || !token) return;
@@ -320,7 +347,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const toggleChat = () => {
     setIsOpen(prevIsOpen => {
       const nextIsOpen = !prevIsOpen;
-      if (nextIsOpen && esperandoRubro) recargarTokenYRubro();
+      if (nextIsOpen && esperandoRubro) recargarTokenAndRubroOnStorageChange(); // Usa la función correcta
       return nextIsOpen;
     });
   };
@@ -339,8 +366,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   // --- VISTA Selección de Rubro ---
   const rubroSelectionViewContent = (
-    // MODIFICADO: Aplicar fondo opaco y borde para móviles
-    // Usaremos un fondo más sólido que bg-card en móvil para que actúe como "pared"
+    // MODIFICADO: Aplicar fondo más sólido en móvil
+    // Detectamos si es móvil y si es así, damos un fondo más opaco
     <div className={`w-full flex flex-col items-center justify-center p-6 text-foreground border border-border rounded-xl ${isMobile ? "bg-card shadow-2xl" : "bg-card"}`} style={{ minHeight: 240 }}>
       <h2 className="text-lg font-semibold mb-3 text-center text-primary">👋 ¡Bienvenido!</h2>
       <p className="mb-4 text-sm text-center text-muted-foreground">¿De qué rubro es tu negocio?</p>
@@ -372,7 +399,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                   timestamp: new Date(),
                 }]);
               }}
-              // rounded-full para mayor redondez en los botones de rubro
               className="px-4 py-2 bg-primary text-primary-foreground rounded-full hover:bg-primary/90 text-sm shadow"
             >
               {rubro.nombre}
@@ -392,7 +418,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         onMouseDownDrag={mode === "standalone" && isOpen && draggable ? handleDragStart : undefined}
         isDraggable={mode === "standalone" && draggable && isOpen}
       />
-      {/* Fondo del contenedor de mensajes ahora es adaptativo */}
       <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-3 bg-background text-foreground" ref={chatContainerRef}>
         {messages.map((msg) =>
           typeof msg.text === "string" ? (
@@ -411,7 +436,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     height: "100%",
     display: "flex",
     flexDirection: "column",
-    color: prefersDark ? "hsl(var(--foreground))" : "hsl(var(--foreground))",
+    color: prefersDark ? "hsl(var(--foreground))" : "hsl(var(--foreground))", // Usa variables temáticas
     overflow: "hidden",
   };
 
@@ -449,7 +474,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
           onClick={toggleChat}
           onMouseDown={draggable ? handleDragStart : undefined}
           onTouchStart={draggable ? handleDragStart : undefined}
-          // rounded-full para el botón del widget cerrado
           className="group w-16 h-16 rounded-full flex items-center justify-center border shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:scale-105 bg-card border-border"
           aria-label="Abrir chat"
         >
@@ -462,7 +486,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
       {isOpen && (
         <div
-          // rounded-3xl para el contenedor del widget abierto
           className="w-80 md:w-96 rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-slide-up bg-card border border-border"
           style={{
             height: esperandoRubro ? 'auto' : '500px',
