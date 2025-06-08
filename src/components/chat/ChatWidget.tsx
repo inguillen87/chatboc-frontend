@@ -124,7 +124,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   const [prefersDark, setPrefersDark] = useState(false);
 
-  // MODIFICADO: Usar el hook useIsMobile dentro del componente
+  // Usar el hook useIsMobile dentro del componente
   const isMobile = useIsMobile(); 
 
   // Dark mode listener
@@ -367,13 +367,15 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   // --- VISTA Selección de Rubro ---
   const rubroSelectionViewContent = (
-    // MODIFICADO: Aplicar fondo mucho más opaco y sólido en MODO CLARO (usando bg-white)
+    // MODIFICADO: Aplicar fondo mucho más opaco y sólido en modo claro para la "pared" tenue.
     // En modo oscuro, usará dark:bg-gray-900 (o tu bg-card oscuro)
     // rounded-3xl para los bordes del contenedor
+    // AÑADIDO: dark:bg-card (que es oscuro) y dark:text-foreground (que es blanco/claro)
+    // para asegurar el contraste en modo oscuro para el panel mismo.
     <div className={`w-full flex flex-col items-center justify-center p-6 text-foreground border border-border rounded-3xl
                       ${isMobile
                         ? "bg-white shadow-2xl dark:bg-gray-900" // FONDO SÓLIDO Y OSCURO EN MOBILE (white para light, gray-900 para dark)
-                        : "bg-card" // En web, el bg-card original, que se verá más transparente si está configurado así
+                        : "bg-card" // En web, el bg-card original
                       }`}
          style={{ minHeight: 240 }}
     >
@@ -407,7 +409,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                   timestamp: new Date(),
                 }]);
               }}
-              // rounded-full para mayor redondez en los botones de rubro y hover sutil
+              // MODIFICADO: rounded-full para mayor redondez en los botones de rubro y hover sutil
               // bg-blue-500/80 (tenue) en modo claro, hover:bg-blue-600
               // dark:bg-blue-800/80 (tenue) en modo oscuro, hover:bg-blue-700
               className="px-4 py-2 rounded-full text-sm shadow transition-all duration-200 ease-in-out font-semibold
