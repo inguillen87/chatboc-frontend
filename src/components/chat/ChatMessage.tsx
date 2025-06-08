@@ -5,12 +5,11 @@ import { motion } from "framer-motion";
 const LOGO_BOT = "/favicon/favicon-48x48.png";
 
 const UserAvatar = () => (
-  // Animación del avatar del usuario al aparecer
   <motion.span
     className="flex-shrink-0 w-9 h-9 rounded-full bg-secondary flex items-center justify-center border border-border shadow-md dark:border-blue-700"
-    initial={{ scale: 0.8, opacity: 0 }} // Empieza más pequeño y transparente
-    animate={{ scale: 1, opacity: 1 }} // Crece y se vuelve opaco
-    transition={{ type: "spring", stiffness: 200, damping: 20 }} // Animación elástica
+    initial={{ scale: 0.8, opacity: 0 }}
+    animate={{ scale: 1, opacity: 1 }}
+    transition={{ type: "spring", stiffness: 200, damping: 20 }}
   >
     <span className="text-2xl font-bold text-primary dark:text-blue-100">🧑‍💼</span>
   </motion.span>
@@ -29,7 +28,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
     );
   }
 
-  // CTA buttons (revisado para mejor contraste si es necesario)
+  // CTA buttons - Ajustamos el estilo del botón alternativo
   if (message.text === "__cta__") {
     const user = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("user") || "null") : null;
     if (user?.token) return null;
@@ -49,7 +48,8 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
                 "_blank"
               )
             }
-            className="px-4 py-2 text-base border border-primary text-primary bg-background rounded-xl hover:bg-primary/5 dark:hover:bg-primary/20 transition font-semibold"
+            // MODIFICADO: Botón alternativo con colores temáticos y mayor redondez
+            className="px-4 py-2 text-base border border-primary text-primary bg-background rounded-full hover:bg-primary/5 dark:hover:bg-primary/20 transition font-semibold"
           >
             Hablar por WhatsApp
           </button>
@@ -60,7 +60,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
 
   const isBot = message.isBot;
 
-  // Animations (bubbleVariants y avatarVariants ya estaban, no los modifico aquí salvo que se requiera)
+  // Animations
   const bubbleVariants = {
     hidden: { opacity: 0, y: 14, scale: 0.98 },
     visible: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.18 } },
@@ -78,7 +78,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
       {isBot && (
         <motion.span
           className="flex-shrink-0 w-10 h-10 rounded-full bg-card dark:bg-blue-950 flex items-center justify-center border border-border dark:border-blue-900 shadow-md"
-          initial={{ scale: 0.8, opacity: 0 }} // Animación similar al usuario
+          initial={{ scale: 0.8, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ type: "spring", stiffness: 200, damping: 20 }}
         >
@@ -95,11 +95,13 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
       <motion.div
         className={`
           max-w-[95vw] sm:max-w-[380px] md:max-w-[420px] w-full
-          px-4 py-2 rounded-2xl shadow-lg
+          px-4 py-2 shadow-lg
           text-base leading-snug
           ${isBot
-            ? "bg-gradient-to-br from-blue-50 via-blue-100 to-blue-200 text-blue-900 border border-blue-200 rounded-bl-none dark:from-blue-900 dark:via-blue-950 dark:to-blue-900 dark:text-blue-100 dark:border-blue-800"
-            : "bg-gradient-to-br from-blue-500 to-blue-700 text-white rounded-br-none border border-blue-700 font-semibold dark:from-blue-700 dark:to-blue-900 dark:text-white dark:border-blue-900"
+            // MODIFICADO: Degradados más suaves y redondez para bot
+            ? "bg-gradient-to-br from-blue-50 via-blue-100 to-blue-200 text-blue-900 border border-blue-200 rounded-3xl rounded-bl-none dark:from-blue-900 dark:via-blue-950 dark:to-blue-900 dark:text-blue-100 dark:border-blue-800"
+            // MODIFICADO: Degradados más vivos y redondez para usuario, con texto blanco
+            : "bg-gradient-to-br from-blue-500 to-blue-700 text-white rounded-3xl rounded-br-none border border-blue-700 font-semibold dark:from-blue-700 dark:to-blue-900 dark:text-white dark:border-blue-900"
           }
           animate-fade-in
         `}

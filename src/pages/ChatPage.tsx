@@ -40,24 +40,16 @@ const ChatPage = () => {
     return localStorage.getItem("rubroSeleccionado") || "";
   };
 
-  // MODIFICADO: Lógica de scroll ajustada
-  // Función de scroll optimizada para asegurar visibilidad del último mensaje
   const scrollToBottom = useCallback(() => {
     if (chatMessagesContainerRef.current) {
-      // Intentamos scrollIntoView si el elemento final existe
-      if (chatEndRef.current) {
-        chatEndRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
-      } else {
-        // Si no, forzamos el scroll al final del contenedor
-        chatMessagesContainerRef.current.scrollTop = chatMessagesContainerRef.current.scrollHeight;
-      }
+      chatMessagesContainerRef.current.scrollTop = chatMessagesContainerRef.current.scrollHeight;
     }
   }, []);
 
   // MENSAJE INICIAL DEL BOT
   useEffect(() => {
-    console.log("ChatPage: Inicializando mensajes del bot.");
-    if (messages.length === 0) { // Solo inicializar si no hay mensajes
+    // Solo inicializar si no hay mensajes para evitar duplicados
+    if (messages.length === 0) { 
       setMessages([
         {
           id: 1,
@@ -67,19 +59,15 @@ const ChatPage = () => {
         },
       ]);
     }
-    // No añadir scrollToBottom aquí para evitar el scroll inicial que oculta el primer mensaje.
-    // El scroll inicial se manejará en el useEffect de abajo.
   }, [messages.length]);
 
   // Disparar scroll cuando los mensajes o el estado de 'typing' cambian
   useEffect(() => {
-    // Retrasar un poco el scroll para permitir que las animaciones de Framer Motion se asienten
-    // y el DOM calcule las alturas correctamente.
     const timer = setTimeout(() => {
       scrollToBottom();
-    }, 150); // Aumentado el delay para mayor estabilidad
+    }, 150); // Pequeño delay para permitir que las animaciones se asienten
     return () => clearTimeout(timer);
-  }, [messages, isTyping, scrollToBottom]); // Dependencia de scrollToBottom para useCallback
+  }, [messages.length, isTyping, scrollToBottom]);
 
   const handleSend = async (text: string) => {
     if (!text.trim()) return;
@@ -95,9 +83,7 @@ const ChatPage = () => {
     setMessages(updatedMessages);
     setIsTyping(true);
 
-    // Scroll inmediato al enviar para que el input no quede cubierto por el teclado virtual
-    // o para asegurar que el nuevo mensaje del usuario sea visible al instante.
-    // Un pequeño delay aquí es crucial si el mensaje tiene animaciones de entrada.
+    // Scroll inmediato al enviar para que el input no quede cubierto
     setTimeout(() => scrollToBottom(), 50);
 
     try {
@@ -149,7 +135,6 @@ const ChatPage = () => {
       ]);
     } finally {
       setIsTyping(false);
-      // El useEffect con delay ya se encarga del scroll final después de recibir la respuesta del bot
     }
   };
 
@@ -183,7 +168,9 @@ const ChatPage = () => {
           className={`
             w-full max-w-[99vw] ${isMobile ? "h-[100svh]" : "sm:w-[480px] h-[83vh]"}
             flex flex-col
-            rounded-none sm:rounded-3xl
+            // MODIFICADO: rounded-3xl para mayor redondez en el contenedor principal
+            rounded-none sm:rounded-3xl 
+            // MODIFICADO: border-0 sm:border para que el borde solo aparezca en desktop si es deseado
             border-0 sm:border border-border
             shadow-none sm:shadow-2xl
             bg-card dark:bg-[#20232b]/95
@@ -199,7 +186,7 @@ const ChatPage = () => {
           {/* Mensajes */}
           <div
             onClick={handleDynamicButtonClick}
-            ref={chatMessagesContainerRef} // Ref para el contenedor de mensajes
+            ref={chatMessagesContainerRef}
             className={`
               flex-1 overflow-y-auto
               p-2 sm:p-4 space-y-3
@@ -230,7 +217,8 @@ const ChatPage = () => {
           {/* Input siempre visible abajo */}
           <div
             className={`
-              bg-gradient-to-t from-background via-card/60 to-transparent dark:from-[#181e24] dark:via-[#23272e]/80
+              // MODIFICADO: Fondo con gradiente semántico y borde
+              bg-gradient-to-t from-background via-card/60 to-transparent dark:from-card dark:via-card/80
               border-t border-border
               p-2 sm:p-4
               flex-shrink-0

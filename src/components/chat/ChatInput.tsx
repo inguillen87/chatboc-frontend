@@ -37,17 +37,23 @@ const ChatInput: React.FC<Props> = ({ onSendMessage }) => {
         ref={inputRef}
         className="
           flex-1 max-w-full min-w-0
-          // MODIFICADO: Forzar colores de fondo, texto y placeholder con !important
-          // Esto debería anular cualquier otra regla.
-          bg-input !important dark:bg-[#1a1a1a] !important
-          border border-input
+          // MODIFICADO: rounded-full para mayor redondez en el input
           rounded-full px-4 py-2
-          text-base text-foreground !important // Forzar text-foreground
+          text-base text-foreground // Usar text-foreground para el color del texto
           outline-none transition-all duration-200
           focus:border-primary focus:ring-2 focus:ring-primary/50
-          placeholder:text-muted-foreground !important // Forzar placeholder
+          placeholder:text-muted-foreground // Usar placeholder:text-muted-foreground
           font-medium
           disabled:bg-muted disabled:text-muted-foreground
+          
+          // CLASE CRÍTICA PARA EL MODO OSCURO (con !important para anular otras reglas si persisten):
+          // Usar bg-input para el modo claro (definido en globals.css)
+          // Forzar un gris oscuro específico para el fondo del input en modo oscuro
+          // y un color claro para el texto y placeholder.
+          bg-input dark:bg-[#1a1a1a] !important // Fondo del input
+          dark:text-gray-100 !important // Color del texto
+          dark:placeholder-gray-400 !important // Color del placeholder
+          border border-input // Borde del input
         "
         type="text"
         placeholder={PLACEHOLDERS[placeholderIndex]}
@@ -67,12 +73,14 @@ const ChatInput: React.FC<Props> = ({ onSendMessage }) => {
       <button
         className={`
           flex items-center justify-center
-          bg-primary hover:bg-primary/90
-          text-primary-foreground rounded-full p-2.5 ml-1
+          // MODIFICADO: rounded-full para mayor redondez en el botón de enviar
+          rounded-full p-2.5 ml-1
           shadow-xl transition-all duration-150
           focus:outline-none focus:ring-2 focus:ring-primary/60
           disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed
           active:scale-95
+          bg-primary hover:bg-primary/90 // Usar bg-primary y hover
+          text-primary-foreground // Usar text-primary-foreground
         `}
         onClick={handleSend}
         disabled={!input.trim()}

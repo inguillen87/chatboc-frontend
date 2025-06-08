@@ -7,8 +7,6 @@ import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
 
 // --- Componente WidgetChatHeader (interno de ChatWidget) ---
-// MODIFICADO: Adaptado a las clases temáticas de Tailwind.
-// Este es el ChatHeader usado dentro del widget.
 const WidgetChatHeader: React.FC<{
   title?: string;
   showCloseButton?: boolean;
@@ -23,7 +21,7 @@ const WidgetChatHeader: React.FC<{
   isDraggable,
 }) => {
   return (
-    // MODIFICADO: Usar bg-card y text-foreground, y border-border para que se adapte al tema
+    // MODIFICADO: Usar bg-card, text-foreground, y border-border para que se adapte al tema
     <div
       className="flex items-center justify-between p-3 border-b border-border bg-card text-foreground select-none"
       style={{
@@ -34,7 +32,7 @@ const WidgetChatHeader: React.FC<{
     >
       <div className="flex items-center pointer-events-none">
         <img src="/chatboc_logo_clean_transparent.png" alt="Chatboc" className="w-6 h-6 mr-2" />
-        <span className="font-semibold text-sm text-primary"> {/* Usar text-primary */}
+        <span className="font-semibold text-sm text-primary">
           {title}
         </span>
       </div>
@@ -44,11 +42,9 @@ const WidgetChatHeader: React.FC<{
         >
           &nbsp;• Online
         </span>
-        {showCloseButton && onClose && (
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground focus:outline-none" aria-label="Cerrar o minimizar chat">
-            <X size={20} />
-          </button>
-        )}
+        <button onClick={onClose} className="text-muted-foreground hover:text-foreground focus:outline-none" aria-label="Cerrar o minimizar chat">
+          <X size={20} />
+        </button>
       </div>
     </div>
   );
@@ -335,7 +331,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   // --- VISTA Selección de Rubro ---
   const rubroSelectionViewContent = (
     // MODIFICADO: Usar bg-card, text-foreground, y border-border para adaptación al tema
-    <div className="w-full flex flex-col items-center justify-center p-6 bg-card text-foreground border border-border" style={{ minHeight: 240 }}>
+    <div className="w-full flex flex-col items-center justify-center p-6 bg-card text-foreground border border-border rounded-xl" style={{ minHeight: 240 }}> {/* redondez en el contenedor */}
       <h2 className="text-lg font-semibold mb-3 text-center text-primary">👋 ¡Bienvenido!</h2>
       <p className="mb-4 text-sm text-center text-muted-foreground">¿De qué rubro es tu negocio?</p>
       {cargandoRubros ? (
@@ -366,7 +362,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                   timestamp: new Date(),
                 }]);
               }}
-              // MODIFICADO: Botones de rubro con estilos temáticos (bg-primary, text-primary-foreground)
+              // MODIFICADO: rounded-full para mayor redondez en los botones de rubro
               className="px-4 py-2 bg-primary text-primary-foreground rounded-full hover:bg-primary/90 text-sm shadow"
             >
               {rubro.nombre}
@@ -379,7 +375,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   const mainChatViewContent = (
     <>
-      {/* MODIFICADO: Usar el ChatHeader nuevo del widget */}
       <WidgetChatHeader
         title="Chatboc Asistente"
         showCloseButton={true}
@@ -414,7 +409,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     return (
       <div style={{
         ...commonWrapperStyle,
-        // MODIFICADO: Fondo para iframe, usando bg-card (para que el contenido abierto se vea bien)
         background: isOpen ? "hsl(var(--card))" : "transparent",
       }}>
         {!isOpen && (
@@ -426,7 +420,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
           >
             <div className="relative">
               <img src="/chatboc_logo_clean_transparent.png" alt="Chatboc" className="w-8 h-8 rounded" style={{ padding: "2px" }} />
-              {/* MODIFICADO: Borde del indicador de online adaptativo */}
               <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-background" />
             </div>
           </div>
@@ -446,13 +439,12 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
           onClick={toggleChat}
           onMouseDown={draggable ? handleDragStart : undefined}
           onTouchStart={draggable ? handleDragStart : undefined}
-          // MODIFICADO: Botón de widget cerrado con colores temáticos
+          // MODIFICADO: rounded-full para el botón del widget cerrado
           className="group w-16 h-16 rounded-full flex items-center justify-center border shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:scale-105 bg-card border-border"
           aria-label="Abrir chat"
         >
           <div className="relative">
             <img src="/chatboc_logo_clean_transparent.png" alt="Chatboc" className="w-8 h-8 rounded" style={{ padding: "2px" }} />
-            {/* MODIFICADO: Borde del indicador de online adaptativo */}
             <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-background" />
           </div>
         </button>
@@ -460,7 +452,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
       {isOpen && (
         <div
-          className="w-80 md:w-96 rounded-xl shadow-2xl flex flex-col overflow-hidden animate-slide-up bg-card border border-border"
+          // MODIFICADO: rounded-3xl para el contenedor del widget abierto
+          className="w-80 md:w-96 rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-slide-up bg-card border border-border"
           style={{
             height: esperandoRubro ? 'auto' : '500px',
             minHeight: esperandoRubro ? '240px' : '400px',
