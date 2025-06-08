@@ -1,4 +1,3 @@
-
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
 
 @tailwind base;
@@ -6,118 +5,64 @@
 @tailwind utilities;
 
 @layer base {
+  /* ... tus variables CSS existentes ... */
+
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-
-    --primary: 218 92% 41%;
-    --primary-foreground: 210 40% 98%;
-
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-
-    --radius: 0.5rem;
-
-    --sidebar-background: 0 0% 98%;
-
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* ... tus variables del modo claro ... */
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* ... tus variables del modo oscuro ... */
   }
 }
 
-/* Google Places Input Dark/Light */
+/* Google Places Input Dark/Light - MODIFICADO */
+/* Aseguramos que los estilos de Google Places también usen las variables de tu tema
+   si son aplicables, o que definan claramente sus propios colores para ambos modos.
+   Si tu input del chat no es un pac-target-input, estas reglas no deberían afectarlo,
+   pero si lo es, ahora se adaptarán mejor. */
 .pac-target-input {
-  background-color: #0f172a !important;   /* slate-900 */
-  color: #fff !important;
-  border: 1px solid #334155 !important;   /* slate-700 */
+  background-color: hsl(var(--input)) !important; /* Usar tu variable --input */
+  color: hsl(var(--foreground)) !important; /* Usar tu variable --foreground */
+  border: 1px solid hsl(var(--border)) !important; /* Usar tu variable --border */
   border-radius: 0.5rem !important;
   padding: 0.5rem 0.75rem !important;
   font-size: 1rem !important;
   transition: background 0.2s;
 }
-body:not(.dark) .pac-target-input {
+
+/* No necesitas body:not(.dark) si usas las variables, ya que --input etc. cambian automáticamente */
+/* Puedes dejarlo si quieres forzar un color específico que no esté en tus variables */
+/* body:not(.dark) .pac-target-input {
   background-color: #fff !important;
   color: #111 !important;
-  border: 1px solid #e5e7eb !important;  /* slate-200 */
+  border: 1px solid #e5e7eb !important;
+} */
+
+
+/* MODIFICADO: Definir colores explícitamente para el modo oscuro para Google Places
+   para evitar conflictos si el input del chat comparte esta clase por error.
+   Esto debería *sobreescribir* cualquier `!important` no temático. */
+.dark .pac-target-input {
+    background-color: hsl(var(--input)) !important; /* Gris oscuro temático */
+    color: hsl(var(--foreground)) !important; /* Texto claro temático */
+    border-color: hsl(var(--border)) !important; /* Borde temático */
 }
+
+/* Container de Google Places */
 .pac-container {
-  background: #0f172a !important;
-  color: #fff !important;
+  background: hsl(var(--card)) !important; /* Usar tu variable --card */
+  color: hsl(var(--foreground)) !important; /* Usar tu variable --foreground */
   border-radius: 0.5rem !important;
   z-index: 999999 !important;
 }
-body:not(.dark) .pac-container {
+/* Puedes quitar body:not(.dark) .pac-container si usas las variables CSS de tema */
+/* body:not(.dark) .pac-container {
   background: #fff !important;
   color: #111 !important;
-}
+} */
+
+
 .pac-item {
   color: inherit !important;
   background: transparent !important;
@@ -125,11 +70,12 @@ body:not(.dark) .pac-container {
   padding: 0.4rem 1rem !important;
 }
 .pac-item:hover {
-  background: #1e293b !important;
+  background: hsl(var(--accent)) !important; /* Usar tu variable --accent */
 }
-body:not(.dark) .pac-item:hover {
+/* Puedes quitar body:not(.dark) .pac-item:hover si usas las variables CSS de tema */
+/* body:not(.dark) .pac-item:hover {
   background: #f3f4f6 !important;
-}
+} */
 
 @layer base {
   * {
@@ -142,25 +88,4 @@ body:not(.dark) .pac-item:hover {
   }
 }
 
-.gradient-text {
-  @apply bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-cyan-500;
-}
-
-.section-padding {
-  @apply py-16 md:py-24;
-}
-
-.reveal-animation {
-  animation: reveal 0.8s ease-in-out;
-}
-
-@keyframes reveal {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
+/* ... otras clases y keyframes ... */

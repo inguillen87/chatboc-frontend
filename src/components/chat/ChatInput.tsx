@@ -17,7 +17,6 @@ const ChatInput: React.FC<Props> = ({ onSendMessage }) => {
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Animación de placeholder (carousel)
   useEffect(() => {
     const interval = setInterval(() => {
       setPlaceholderIndex((i) => (i + 1) % PLACEHOLDERS.length);
@@ -25,7 +24,6 @@ const ChatInput: React.FC<Props> = ({ onSendMessage }) => {
     return () => clearInterval(interval);
   }, []);
 
-  // Enviar mensaje
   const handleSend = () => {
     if (!input.trim()) return;
     onSendMessage(input.trim());
@@ -39,17 +37,15 @@ const ChatInput: React.FC<Props> = ({ onSendMessage }) => {
         ref={inputRef}
         className="
           flex-1 max-w-full min-w-0
-          // CLASE CRÍTICA PARA EL MODO OSCURO (con !important para anular otras reglas):
-          bg-input dark:bg-[#1a1a1a] dark:text-gray-100 dark:placeholder-gray-400
-          // Asegúrate de que este fondo prevalezca. Si no lo hace, considera `!important`
-          // como último recurso, pero primero pruébalo así.
-          
+          // MODIFICADO: Forzar colores de fondo, texto y placeholder con !important
+          // Esto debería anular cualquier otra regla.
+          bg-input !important dark:bg-[#1a1a1a] !important
           border border-input
           rounded-full px-4 py-2
-          text-base text-foreground
+          text-base text-foreground !important // Forzar text-foreground
           outline-none transition-all duration-200
           focus:border-primary focus:ring-2 focus:ring-primary/50
-          placeholder:text-muted-foreground
+          placeholder:text-muted-foreground !important // Forzar placeholder
           font-medium
           disabled:bg-muted disabled:text-muted-foreground
         "
