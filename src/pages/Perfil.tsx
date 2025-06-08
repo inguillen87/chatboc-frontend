@@ -174,8 +174,7 @@ export default function Perfil() {
   };
   const handleSubirArchivo = async () => {
     if (!archivo) { setResultadoCatalogo({ message: "Seleccioná un archivo válido.", type: "error" }); return; }
-    const storedUser = localStorage.getItem("user");
-    const token = storedUser ? JSON.parse(storedUser).token : null;
+    const token = localStorage.getItem("authToken");
     if (!token) { setResultadoCatalogo({ message: "❌ Sesión no válida para subir catálogo.", type: "error" }); return; }
     setLoadingCatalogo(true); setResultadoCatalogo(null);
     try {
