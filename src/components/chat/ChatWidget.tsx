@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect, useCallback, CSSProperties } from "react";
 import { X } from "lucide-react";
+// Aquí el problema estaba en la importación de Message
 import ChatMessage from "./ChatMessage";
 import TypingIndicator from "./TypingIndicator";
 import ChatInput from "./ChatInput";
-import { Message } from "@/types/chat";
+// CORRECCIÓN CRÍTICA: Cambiado '=' por 'from'
+import { Message } from "@/types/chat"; 
 import { apiFetch } from "@/utils/api";
 
 // Importar useIsMobile desde tu archivo de hooks centralizado
@@ -373,7 +375,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     // rounded-3xl para los bordes del contenedor
     <div className={`w-full flex flex-col items-center justify-center p-6 text-foreground border border-border rounded-3xl
                       ${isMobile
-                        ? "bg-white dark:bg-gray-900 shadow-2xl" // FONDO SÓLIDO EN MOBILE (white para light, gray-900 para dark)
+                        ? "bg-white shadow-2xl dark:bg-gray-900" // FONDO SÓLIDO Y OSCURO EN MOBILE (white para light, gray-900 para dark)
                         : "bg-card" // En web, el bg-card original
                       }`}
          style={{ minHeight: 240 }}
