@@ -28,7 +28,7 @@ const Navbar: React.FC = () => {
 
     if (currentlyDark) {
       html.classList.remove("dark");
-      localStorage.theme = "light";
+      localStorage.theme = "light"; // Puedes cambiar a 'light' o eliminar para usar la preferencia del sistema
       setIsDark(false);
     } else {
       html.classList.add("dark");
@@ -57,11 +57,13 @@ const Navbar: React.FC = () => {
   };
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-card dark:bg-background shadow-sm transition-all px-4 py-2">
+    // MODIFICADO: Fondo de la cabecera (Navbar) y sombra
+    <header className="fixed top-0 left-0 right-0 z-50 bg-card dark:bg-background shadow-sm transition-all px-4 py-2"> {/* Usar bg-card para el fondo que se adapta */}
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         {/* Logo */}
         <button onClick={handleLogoClick} className="flex items-center gap-2">
           <img src="/chatboc_widget_64x64.webp" alt="Chatboc" className="h-9 w-9" />
+          {/* Este span ya tiene el degradado correcto, ¡perfecto! */}
           <span className="text-2xl font-bold bg-gradient-to-r from-blue-700 to-cyan-400 text-transparent bg-clip-text">
             Chatboc
           </span>
@@ -69,8 +71,8 @@ const Navbar: React.FC = () => {
 
         {/* Links centrales - solo landing - desktop */}
        {isLanding && (
-          <nav className="hidden lg:flex gap-6 items-center flex-1 justify-center text-foreground">
-            <button onClick={() => scrollToSection("problemas")} className="hover:text-primary text-sm">Problemas</button>
+          <nav className="hidden lg:flex gap-6 items-center flex-1 justify-center text-foreground"> {/* Usar text-foreground */}
+            <button onClick={() => scrollToSection("problemas")} className="hover:text-primary text-sm">Problemas</button> {/* Usar hover:text-primary */}
             <button onClick={() => scrollToSection("solucion")} className="hover:text-primary text-sm">Solución</button>
             <button onClick={() => scrollToSection("como-funciona")} className="hover:text-primary text-sm">Cómo Funciona</button>
             <button onClick={() => scrollToSection("precios")} className="hover:text-primary text-sm">Precios</button>
@@ -84,38 +86,38 @@ const Navbar: React.FC = () => {
         <div className="hidden lg:flex gap-3 items-center">
           {isLoggedIn ? (
             <>
-              <RouterLink to="/perfil" className="text-sm text-muted-foreground hover:underline hover:text-foreground">Mi perfil</RouterLink>
+              <RouterLink to="/perfil" className="text-sm text-muted-foreground hover:underline hover:text-foreground">Mi perfil</RouterLink> {/* Usar text-muted-foreground y hover:text-foreground */}
               <RouterLink to="/chat" className="text-sm text-muted-foreground hover:underline hover:text-foreground">Chat</RouterLink>
-              <RouterLink to="/" onClick={() => localStorage.removeItem("user")} className="text-sm text-destructive hover:underline">Cerrar sesión</RouterLink>
+              <RouterLink to="/" onClick={() => localStorage.removeItem("user")} className="text-sm text-destructive hover:underline">Cerrar sesión</RouterLink> {/* Usar text-destructive */}
             </>
           ) : (
             <>
-              <RouterLink to="/login" className="px-3 py-1 border border-primary text-primary rounded hover:bg-primary/10 text-sm">Iniciar Sesión</RouterLink>
-              <RouterLink to="/demo" className="px-3 py-1 bg-primary text-primary-foreground rounded hover:bg-primary/90 text-sm">Prueba Gratuita</RouterLink>
+              <RouterLink to="/login" className="px-3 py-1 border border-primary text-primary rounded hover:bg-primary/10 text-sm">Iniciar Sesión</RouterLink> {/* Usar border-primary, text-primary, hover:bg-primary/10 */}
+              <RouterLink to="/demo" className="px-3 py-1 bg-primary text-primary-foreground rounded hover:bg-primary/90 text-sm">Prueba Gratuita</RouterLink> {/* Usar bg-primary, text-primary-foreground */}
             </>
           )}
           <button
             onClick={toggleDarkMode}
             title="Modo claro / oscuro"
-            className="p-2 rounded hover:bg-accent dark:hover:bg-accent transition" // COMENTARIO ELIMINADO
+            className="p-2 rounded hover:bg-accent dark:hover:bg-accent transition" {/* Usar hover:bg-accent */}
           >
-            {isDark ? <Sun className="w-5 h-5 text-yellow-400" /> : <Moon className="w-5 h-5 text-primary" />}
+            {isDark ? <Sun className="w-5 h-5 text-yellow-400" /> : <Moon className="w-5 h-5 text-primary" />} {/* Usar text-primary para el icono de luna */}
           </button>
         </div>
 
         {/* Botón menú mobile */}
-        <button className="lg:hidden p-2 text-foreground" onClick={() => setMenuOpen(!menuOpen)}>
+        <button className="lg:hidden p-2 text-foreground" onClick={() => setMenuOpen(!menuOpen)}> {/* Usar text-foreground */}
           {menuOpen ? <X /> : <Menu />}
         </button>
       </div>
 
       {/* Menú Mobile desplegable */}
       {menuOpen && (
-        <div className="lg:hidden bg-card dark:bg-background shadow-md mt-2 rounded-b-xl animate-fade-in-down text-foreground">
+        <div className="lg:hidden bg-card dark:bg-background shadow-md mt-2 rounded-b-xl animate-fade-in-down text-foreground"> {/* Usar bg-card y text-foreground */}
           <div className="flex flex-col items-center gap-3 py-4">
             {isLanding && (
             <>
-            <button onClick={() => scrollToSection("problemas")} className="text-foreground hover:text-primary">Problemas</button>
+            <button onClick={() => scrollToSection("problemas")} className="text-foreground hover:text-primary">Problemas</button> {/* Usar text-foreground y hover:text-primary */}
             <button onClick={() => scrollToSection("solucion")} className="text-foreground hover:text-primary">Solución</button>
             <button onClick={() => scrollToSection("como-funciona")} className="text-foreground hover:text-primary">Cómo Funciona</button>
             <button onClick={() => scrollToSection("precios")} className="text-foreground hover:text-primary">Precios</button>
@@ -129,14 +131,14 @@ const Navbar: React.FC = () => {
             <>
               <RouterLink to="/perfil" onClick={() => setMenuOpen(false)} className="text-foreground hover:text-primary">Mi Perfil</RouterLink>
               <RouterLink to="/chat" onClick={() => setMenuOpen(false)} className="text-foreground hover:text-primary">Chat</RouterLink>
-              <RouterLink to="/" onClick={() => { localStorage.removeItem("user"); setMenuOpen(false); }} className="text-destructive hover:text-destructive/80">
+              <RouterLink to="/" onClick={() => { localStorage.removeItem("user"); setMenuOpen(false); }} className="text-destructive hover:text-destructive/80"> {/* Usar text-destructive */}
                 Cerrar sesión
               </RouterLink>
             </>
           ) : (
             <>
               <RouterLink to="/login" onClick={() => setMenuOpen(false)} className="text-foreground hover:text-primary">Iniciar Sesión</RouterLink>
-              <RouterLink to="/demo" onClick={() => setMenuOpen(false)} className="bg-primary text-primary-foreground px-4 py-2 rounded hover:bg-primary/90">
+              <RouterLink to="/demo" onClick={() => setMenuOpen(false)} className="bg-primary text-primary-foreground px-4 py-2 rounded hover:bg-primary/90"> {/* Usar bg-primary */}
                 Prueba Gratuita
               </RouterLink>
             </>
