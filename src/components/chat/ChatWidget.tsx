@@ -3,7 +3,7 @@ import { X } from "lucide-react";
 import ChatMessage from "./ChatMessage";
 import TypingIndicator from "./TypingIndicator";
 import ChatInput from "./ChatInput";
-import { Message } from "@/types/chat";
+import { Message } = "@/types/chat";
 import { apiFetch } from "@/utils/api";
 
 // Importar useIsMobile desde tu archivo de hooks centralizado
@@ -367,19 +367,15 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   // --- VISTA Selección de Rubro ---
   const rubroSelectionViewContent = (
-    // MODIFICADO: Aplicar fondo más sólido en móvil y redondez.
-    // Usamos bg-card que es tu color base para tarjetas. En móvil, para crear la "pared" tenue,
-    // le añadimos un bg-opacity más alto si es necesario, o un color más sólido directo.
+    // MODIFICADO: Aplicar fondo mucho más opaco y sólido en modo claro para la "pared" tenue.
+    // Usaremos bg-white/95 para modo claro para asegurar visibilidad.
+    // Para modo oscuro, bg-card es generalmente oscuro, así que lo mantenemos.
     // rounded-3xl para los bordes del contenedor
-    // AÑADIDO: dark:bg-card (que es oscuro) y dark:text-foreground (que es blanco/claro)
-    // para asegurar el contraste en modo oscuro para el panel mismo.
-    <div className={`w-full flex flex-col items-center justify-center p-6 border border-border rounded-3xl
+    <div className={`w-full flex flex-col items-center justify-center p-6 text-foreground border border-border rounded-3xl
                       ${isMobile
-                        ? "bg-card/90 backdrop-blur-sm shadow-2xl" // Mayor opacidad y blur para móvil
-                        : "bg-card"
-                      }
-                      dark:bg-card dark:text-foreground // Asegurar estos para el panel en dark mode
-                      `}
+                        ? "bg-white/95 backdrop-blur-sm shadow-2xl dark:bg-card dark:bg-opacity-95" // Más opaco en light mobile, usa dark:bg-card con opacidad en dark mobile
+                        : "bg-card" // En web, el bg-card original
+                      }`}
          style={{ minHeight: 240 }}
     >
       <h2 className="text-lg font-semibold mb-3 text-center text-primary">👋 ¡Bienvenido!</h2>
