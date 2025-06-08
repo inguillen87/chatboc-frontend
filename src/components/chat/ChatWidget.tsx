@@ -6,8 +6,7 @@ import ChatInput from "./ChatInput";
 import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
 
-// MODIFICADO: Hook para mobile detection - Asegurarse de que esté aquí si no es global o importado de otro lado
-// Si este hook ya está importado de "@/hooks/useIsMobile", ELIMINA esta definición local.
+// MODIFICADO: Hook para mobile detection - Incluido aquí para asegurar que esté disponible.
 function useIsMobile(breakpoint = 768) {
   const [isMobile, setIsMobile] = useState(
     typeof window !== "undefined" ? window.innerWidth < breakpoint : false
@@ -86,6 +85,14 @@ interface Rubro {
   id: number;
   nombre: string;
 }
+
+// MODIFICADO: Interfaz para la respuesta de la API /ask
+interface AskApiResponse {
+  respuesta?: string | { text?: string; respuesta?: string; }; // Puede ser string o un objeto con text/respuesta
+  fuente?: string; // Si el backend devuelve 'fuente'
+  // ... otras propiedades que tu API pueda devolver
+}
+
 interface ChatWidgetProps {
   mode?: "iframe" | "standalone";
   initialPosition?: { top?: number | string; bottom?: number | string; left?: number | string; right?: number | string };
@@ -272,7 +279,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     }
 
     try {
-      const data = await apiFetch("/ask", {
+      // MODIFICADO: Especificar el tipo de respuesta esperada de apiFetch
+      const data = await apiFetch<AskApiResponse>("/ask", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -281,10 +289,11 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         body: JSON.stringify(body),
       });
 
+      // Lógica robusta para extraer la respuesta del bot, ahora con tipado
       const respuestaFinal: string =
         typeof data?.respuesta === "string"
           ? data.respuesta
-          : (data?.respuesta && typeof data.respuesta === 'object'
+          : (typeof data?.respuesta === 'object' && data.respuesta !== null
               ? (data.respuesta.text || data.respuesta.respuesta || "❌ No entendí tu mensaje.")
               : "❌ No entendí tu mensaje.");
 
@@ -376,11 +385,11 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     // MODIFICADO: Aplicar fondo más sólido en móvil y redondez.
     // Usamos bg-card que es tu color base para tarjetas. En móvil, para crear la "pared" tenue,
     // le añadimos un bg-opacity más alto si es necesario, o un color más sólido directo.
-    // Aquí, usamos bg-background como base y aplicamos un gradiente sutil y opacidad para la "pared".
+    // rounded-3xl para los bordes del contenedor
     <div className={`w-full flex flex-col items-center justify-center p-6 text-foreground border border-border rounded-3xl
                       ${isMobile
-                        ? "bg-background shadow-2xl dark:bg-gray-900/90" // Fondo más sólido y oscuro en móvil dark
-                        : "bg-card" // Fondo normal en web
+                        ? "bg-card shadow-2xl dark:bg-gray-900/90" // Fondo más sólido y oscuro en móvil dark. bg-card por defecto es bueno para light.
+                        : "bg-card"
                       }`}
          style={{ minHeight: 240 }}
     >
@@ -417,7 +426,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
               // MODIFICADO: rounded-full para mayor redondez en los botones de rubro y hover sutil
               // bg-primary y hover:bg-primary/90 para el azul "pro"
               // En modo claro: bg-blue-500, hover:bg-blue-600, text-white
-              // En modo oscuro: bg-blue-700, hover:bg-blue-800, text-white (o gris claro)
+              // En modo oscuro: bg-blue-800, hover:bg-blue-700, text-blue-100 (más claro)
               className="px-4 py-2 rounded-full text-sm shadow transition-all duration-200 ease-in-out font-semibold
                          bg-blue-500 text-white hover:bg-blue-600
                          dark:bg-blue-800 dark:text-blue-100 dark:hover:bg-blue-700"
