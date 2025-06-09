@@ -36,6 +36,8 @@ const ChatPage = () => {
   const token = isDemo ? "demo-token" : (typeof window !== "undefined" ? localStorage.getItem("authToken") : null) || "demo-token";
 
   const getRubro = () => {
+          console.log("Buscando rubro... Objeto de usuario encontrado:", user);
+
     if (user?.rubro) {
           console.log("Prioridad 1: Usando el rubro del perfil de usuario.");
 
