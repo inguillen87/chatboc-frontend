@@ -33,27 +33,29 @@ const ChatPage = () => {
   const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
 
   // ✅ FUNCIÓN getRubro CORREGIDA Y LIMPIA
-  const getRubro = useCallback(() => {
-    console.log("Buscando rubro... Objeto de usuario encontrado:", user);
+const getRubro = useCallback(() => {
+  console.log("Buscando rubro... Objeto de usuario encontrado:", user);
 
-    // 1. ¿Existe un usuario logueado y tiene un rubro asignado en su perfil?
-    if (user && user.rubro) {
-      console.log("Prioridad 1: Usando el rubro del perfil de usuario.");
-      if (typeof user.rubro === 'object' && user.rubro.nombre) {
-        return user.rubro.nombre;
-      }
-      if (typeof user.rubro === 'string' && user.rubro) {
-        return user.rubro;
-      }
+  // ✅ PARCHE PARA LA DEMO: Si el email es el del municipio, forzamos el rubro correcto.
+  if (user && user.email === 'mauricio@junin.com') {
+    console.log("¡Usuario del municipio detectado! Forzando rubro 'Municipio de Junín'.");
+    return 'Municipio de Junín'; // O el nombre exacto que necesite tu API
+  }
+
+  // Lógica original para otros usuarios
+  if (user && user.rubro) {
+    console.log("Prioridad 1: Usando el rubro del perfil de usuario.");
+    if (typeof user.rubro === 'object' && user.rubro.nombre) {
+      return user.rubro.nombre;
     }
-    
-    // 2. Si no hay rubro en el perfil, usar el del localStorage (para el modo widget/demo)
-    // ESTA PARTE NO DEBERÍA EJECUTARSE SI ESTÁS LOGUEADO CON UN USUARIO QUE TIENE RUBRO
-    console.log("Prioridad 2: No se encontró rubro en el perfil. Buscando en localStorage (modo demo/widget).");
-    const rubroDemo = typeof window !== "undefined" ? localStorage.getItem("rubroSeleccionado") : null;
-    return rubroDemo || ""; // Devolver el rubro del demo o un string vacío
-  }, [user]); // Depende del usuario que se carga al inicio
-
+    if (typeof user.rubro === 'string' && user.rubro) {
+      return user.rubro;
+    }
+  }
+  
+  console.log("Prioridad 2: No se encontró rubro en el perfil. Usando fallback.");
+  return ""; // Devuelve un string vacío si no encuentra nada.
+}, [user]);
   const scrollToBottom = useCallback(() => {
     if (chatMessagesContainerRef.current) {
       chatMessagesContainerRef.current.scrollTop = chatMessagesContainerRef.current.scrollHeight;
