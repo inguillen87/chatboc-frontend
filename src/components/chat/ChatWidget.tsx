@@ -55,20 +55,22 @@ const WidgetChatHeader: React.FC<{
 
 
 // --- Token Management ---
-function getToken(): string {
-  if (typeof window === "undefined") return "demo-anon-ssr";
-  const params = new URLSearchParams(window.location.search);
-  const urlToken = params.get("token");
-  if (urlToken) return urlToken;
-  const storedUserItem = localStorage.getItem("user");
-  const user = storedUserItem ? JSON.parse(storedUserItem) : null;
-  if (user && user.token && typeof user.token === 'string' && !user.token.startsWith("demo")) return user.token;
-  let anonToken = localStorage.getItem("anon_token");
-  if (!anonToken) {
-    anonToken = `demo-anon-${Math.random().toString(36).substring(2, 10)}`;
-    localStorage.setItem("anon_token", anonToken);
-  }
-  return anonToken;
+// --- Lógica de Token Simplificada para claridad y robustez ---
+const getAuthToken = (): string | null => {
+    if (typeof window === "undefined") return null;
+    // La fuente de verdad para usuarios logueados
+    return localStorage.getItem("authToken"); 
+}
+
+const getAnonToken = (): string => {
+    if (typeof window === "undefined") return "anon-ssr";
+    // La fuente de verdad para usuarios anónimos/demo
+    let token = localStorage.getItem("anon_token");
+    if (!token) {
+        token = `anon-${Math.random().toString(36).substring(2, 12)}`;
+        localStorage.setItem("anon_token", token);
+    }
+    return token;
 }
 
 interface Rubro {
@@ -78,6 +80,7 @@ interface Rubro {
 interface AskApiResponse {
   respuesta?: string | { text?: string; respuesta?: string; };
   fuente?: string;
+  contexto_actualizado?: object; // O 'any' si preferís
 }
 
 interface ChatWidgetProps {
@@ -111,7 +114,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const [rubrosDisponibles, setRubrosDisponibles] = useState<Rubro[]>([]);
   const [esperandoRubro, setEsperandoRubro] = useState(false);
   const [cargandoRubros, setCargandoRubros] = useState(false);
-  
+
+  const [contexto, setContexto] = useState({});
   const [token, setToken] = useState<string>(""); 
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -222,90 +226,55 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
 
   const handleSendMessage = async (text: string) => {
-    if (!text.trim() || !rubroSeleccionado || !token) return;
+    if (!text.trim()) return;
 
-    const user = getUser();
-    const esAnonimo = !user || !user.token || user.token.startsWith("demo");
+    // Lógica de token robusta
+    const authToken = getAuthToken();
+    const finalToken = authToken || getAnonToken();
+    const esAnonimo = !authToken;
 
-    if (esAnonimo && !(rubroSeleccionado || DEFAULT_WIDGET_RUBRO)) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: Date.now() + Math.random(),
-          text: "🛈 Por favor, seleccioná primero el rubro de tu negocio.",
-          isBot: true,
-          timestamp: new Date(),
-        },
-      ]);
-      return;
+    if (esAnonimo && !rubroSeleccionado) {
+        setMessages((prev) => [...prev, {id: Date.now(), text: "🛈 Por favor, seleccioná primero el rubro de tu negocio.", isBot: true, timestamp: new Date()}]);
+        return;
     }
     if (esAnonimo && preguntasUsadas >= 15) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: Date.now() + Math.random(),
-          text: `🔒 Alcanzaste el límite de 15 preguntas gratuitas en esta demo.\n\n👉 Creá una cuenta para seguir usando Chatboc: https://chatboc.ar/register`,
-          isBot: true,
-          timestamp: new Date(),
-        },
-      ]);
-      return;
+        setMessages((prev) => [...prev, {id: Date.now(), text: `🔒 Alcanzaste el límite de 15 preguntas gratuitas en esta demo.\n\n👉 Creá una cuenta para seguir usando Chatboc: https://chatboc.ar/register`, isBot: true, timestamp: new Date()}]);
+        return;
     }
-    const userMessage: Message = {
-      id: Date.now() + Math.random(),
-      text,
-      isBot: false,
-      timestamp: new Date(),
-    };
+
+    const userMessage: Message = { id: Date.now() + Math.random(), text, isBot: false, timestamp: new Date() };
     setMessages((prev) => [...prev, userMessage]);
     setIsTyping(true);
 
-    const body: any = { pregunta: text };
+    // CONSTRUIMOS EL PAYLOAD CON LA "MOCHILA"
+    const payload: any = { 
+      pregunta: text,
+      contexto_previo: contexto
+    };
     if (esAnonimo) {
-      body.rubro = rubroSeleccionado || DEFAULT_WIDGET_RUBRO;
+      payload.rubro = rubroSeleccionado || DEFAULT_WIDGET_RUBRO;
     }
 
     try {
       const data = await apiFetch<AskApiResponse>("/ask", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(body),
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalToken}` },
+        body: payload,
       });
+      
+      // GUARDAMOS LA "MOCHILA" ACTUALIZADA
+      setContexto(data.contexto_actualizado || {});
 
-      const respuestaFinal: string =
-        typeof data?.respuesta === "string"
-          ? data.respuesta
-          : (typeof data?.respuesta === 'object' && data.respuesta !== null
-              ? (data.respuesta.text || data.respuesta.respuesta || "❌ No entendí tu mensaje.")
-              : "❌ No entendí tu mensaje.");
-
-      const botMessage: Message = {
-        id: Date.now() + Math.random(),
-        text: respuestaFinal,
-        isBot: true,
-        timestamp: new Date(),
-      };
+      const respuestaFinal = typeof data?.respuesta === "string" ? data.respuesta : "❌ No entendí tu mensaje.";
+      const botMessage: Message = { id: Date.now() + Math.random(), text: respuestaFinal, isBot: true, timestamp: new Date() };
       setMessages((prev) => [...prev, botMessage]);
       if (esAnonimo) setPreguntasUsadas((prev) => prev + 1);
+
     } catch (error) {
       let errorMessageText = "⚠️ No se pudo conectar con el servidor.";
-      if (error instanceof Error) {
-          errorMessageText = `⚠️ Error: ${error.message}`;
-      } else if (typeof error === 'object' && error !== null && 'message' in error) {
-          errorMessageText = `⚠️ Error: ${String((error as any).message)}`;
-      }
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: Date.now() + Math.random(),
-          text: errorMessageText,
-          isBot: true,
-          timestamp: new Date(),
-        },
-      ]);
+      if (error instanceof Error) { errorMessageText = `⚠️ Error: ${error.message}`; } 
+      else if (typeof error === 'object' && error !== null && 'message' in error) { errorMessageText = `⚠️ Error: ${String((error as any).message)}`; }
+      setMessages((prev) => [...prev, { id: Date.now(), text: errorMessageText, isBot: true, timestamp: new Date() }]);
     } finally {
       setIsTyping(false);
     }
