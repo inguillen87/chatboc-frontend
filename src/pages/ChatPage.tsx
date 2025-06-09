@@ -67,6 +67,7 @@ const ChatPage = () => {
         rubro: rubro,
         contexto_previo: contexto
       };
+    console.log('[ChatPage] Preparando para enviar a la API. Payload:', payload);
 
       const res = await fetch("https://api.chatboc.ar/ask", {
         method: "POST",
@@ -99,19 +100,20 @@ const ChatPage = () => {
   }, [contexto, token, messages]);
 
 
-  // CAMBIO 3: AÑADIMOS EL LISTENER PARA LOS CLICS EN BOTONES
-  useEffect(() => {
-    const handleButtonSendMessage = (event: Event) => {
-        const customEvent = event as CustomEvent<string>;
-        if (customEvent.detail) {
-            handleSend(customEvent.detail);
-        }
-    };
-    window.addEventListener('sendChatMessage', handleButtonSendMessage);
-    return () => {
-        window.removeEventListener('sendChatMessage', handleButtonSendMessage);
-    };
-  }, [handleSend]);
+useEffect(() => {
+  const handleButtonSendMessage = (event: Event) => {
+    const customEvent = event as CustomEvent<string>;
+    if (customEvent.detail) {
+      // ✅ DETECTIVE #2: ¿La página principal escucha el evento?
+      console.log(`[ChatPage] Evento 'sendChatMessage' escuchado. Ejecutando handleSend con: "${customEvent.detail}"`);
+      handleSend(customEvent.detail);
+    }
+  };
+  window.addEventListener('sendChatMessage', handleButtonSendMessage);
+  return () => {
+    window.removeEventListener('sendChatMessage', handleButtonSendMessage);
+  };
+}, [handleSend]);
 
 
   useEffect(() => {
