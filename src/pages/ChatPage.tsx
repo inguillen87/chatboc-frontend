@@ -33,14 +33,15 @@ const ChatPage = () => {
   const path = typeof window !== "undefined" ? window.location.pathname : "";
   const isDemo = path.includes("demo");
   const user = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("user") || "null") : null;
-  const token = isDemo ? "demo-token" : localStorage.getItem("authToken") || "demo-token";
+  // Aseguramos que siempre haya un token, sea real o de demo/anónimo
+  const token = isDemo ? "demo-token" : (typeof window !== "undefined" ? localStorage.getItem("authToken") : null) || "demo-token";
 
   const getRubro = () => {
     if (user?.rubro) {
       if (typeof user.rubro === "object" && user.rubro.nombre) return user.rubro.nombre;
       if (typeof user.rubro === "string") return user.rubro;
     }
-    return localStorage.getItem("rubroSeleccionado") || "";
+    return typeof window !== "undefined" ? localStorage.getItem("rubroSeleccionado") || "" : "";
   };
 
   const scrollToBottom = useCallback(() => {
@@ -51,7 +52,6 @@ const ChatPage = () => {
 
   useEffect(() => {
     if (messages.length === 0) {
-      console.log("ChatPage: Inicializando mensajes del bot.");
       setMessages([
         { id: 1, text: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?", isBot: true, timestamp: new Date() },
       ]);
@@ -97,11 +97,7 @@ const ChatPage = () => {
       const data = await res.json();
 
       // --- PASO 3: RECIBIMOS Y GUARDAMOS LA "MOCHILA" ACTUALIZADA ---
-      if (data.contexto_actualizado) {
-        setContexto(data.contexto_actualizado);
-      } else {
-        setContexto({});
-      }
+      setContexto(data.contexto_actualizado || {});
 
       const botMessage: Message = {
         id: updatedMessages.length + 1,
