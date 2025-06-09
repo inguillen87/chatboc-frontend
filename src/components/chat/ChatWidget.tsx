@@ -274,7 +274,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(body),
+        body: body,
       });
 
       const respuestaFinal: string =
