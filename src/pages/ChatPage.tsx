@@ -37,8 +37,14 @@ const ChatPage = () => {
 
   const getRubro = () => {
     if (user?.rubro) {
+          console.log("Prioridad 1: Usando el rubro del perfil de usuario.");
+
       if (typeof user.rubro === "object" && user.rubro.nombre) return user.rubro.nombre;
       if (typeof user.rubro === "string") return user.rubro;
+        console.log("Prioridad 2: Usando el rubro del localStorage (modo demo).");
+
+      console.log("Buscando rubro... Objeto de usuario encontrado:", user);
+
     }
     return typeof window !== "undefined" ? localStorage.getItem("rubroSeleccionado") || "" : "";
   };
