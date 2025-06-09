@@ -19,7 +19,7 @@ const Demo = () => {
   const [esperandoRubro, setEsperandoRubro] = useState(!rubroSeleccionado);
   const [token, setToken] = useState<string>("");
 
-  // --- ESTADO PARA LA "MEMORIA MANUAL" ---
+  // --- PASO 1: AÑADIMOS EL ESTADO PARA LA "MEMORIA MANUAL" ---
   const [contexto, setContexto] = useState({});
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -35,22 +35,7 @@ const Demo = () => {
       setToken(currentToken);
     }
   }, []);
-// Dentro del componente principal (ChatPage, Demo, o ChatWidget)
 
-useEffect(() => {
-    const handleButtonSendMessage = (event: Event) => {
-        const customEvent = event as CustomEvent<string>;
-        if (customEvent.detail) {
-            handleSend(customEvent.detail);
-        }
-    };
-
-    window.addEventListener('sendChatMessage', handleButtonSendMessage);
-
-    return () => {
-        window.removeEventListener('sendChatMessage', handleButtonSendMessage);
-    };
-}, [handleSend]); // El array de dependencias es importante
   // Cargar rubros o mensaje inicial
   useEffect(() => {
     if (!rubroSeleccionado) {
@@ -59,7 +44,7 @@ useEffect(() => {
         .then((data) => setRubrosDisponibles(Array.isArray(data) ? data : []))
         .catch(() => setRubrosDisponibles([]));
     } else if (messages.length === 0) {
-      setMessages([{ id: 1, text: "¡Hola! Soy Chatboc, tu experto virtual. ¿En qué puedo ayudarte?", isBot: true, timestamp: new Date() }]);
+      setMessages([{ id: Date.now(), text: "¡Hola! Soy Chatboc, tu experto virtual. ¿En qué puedo ayudarte?", isBot: true, timestamp: new Date() }]);
       setEsperandoRubro(false);
     }
   }, [rubroSeleccionado, messages.length]);
@@ -69,11 +54,12 @@ useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
 
-  const handleSendMessage = async (text: string) => {
+  // --- PASO 2: LÓGICA DE ENVÍO COMPLETAMENTE ACTUALIZADA ---
+  const handleSendMessage = useCallback(async (text: string) => {
     if (!text.trim() || !rubroSeleccionado || !token) return;
 
     if (preguntasUsadas >= 15) {
-      // Lógica de límite de preguntas
+      setMessages((prev) => [...prev, { id: Date.now(), text: `🔒 Alcanzaste el límite de 15 preguntas gratuitas en esta demo.\n\n👉 Si te gustó, podés crear una cuenta gratis para usar Chatboc sin límites y personalizarlo para tu empresa. [Registrarse ahora](/register)`, isBot: true, timestamp: new Date() }]);
       return;
     }
 
@@ -91,37 +77,43 @@ useEffect(() => {
       const response = await apiFetch<any>("/ask", {
         method: "POST",
         body: payload,
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`},
       });
 
       // Guardamos la "mochila" actualizada
       setContexto(response.contexto_actualizado || {});
 
       const botMessage: Message = {
-              id: updatedMessages.length + 1,
-              text: data?.respuesta || "⚠️ No se pudo generar una respuesta.",
-              isBot: true,
-              timestamp: new Date(),
-              botones: data?.botones || [] // <-- AÑADIR ESTA LÍNEA
-            };
+        id: Date.now(),
+        text: response?.respuesta || "⚠️ No se pudo generar una respuesta.",
+        isBot: true,
+        timestamp: new Date(),
+        botones: response?.botones || [], // Guardamos los botones
+      };
 
       setMessages((prev) => [...prev, botMessage]);
       setPreguntasUsadas((prev) => prev + 1);
     } catch (error) {
-      const errorMessage: Message = {
-        id: Date.now(),
-        text: "⚠️ No se pudo conectar con el servidor.",
-        isBot: true,
-        timestamp: new Date(),
-      };
+      const errorMessage: Message = { id: Date.now(), text: "⚠️ No se pudo conectar con el servidor.", isBot: true, timestamp: new Date() };
       setMessages((prev) => [...prev, errorMessage]);
     } finally {
       setIsTyping(false);
     }
-  };
+  }, [contexto, rubroSeleccionado, token, preguntasUsadas]);
+
+  // --- PASO 3: AÑADIMOS EL LISTENER PARA LOS CLICS EN BOTONES ---
+  useEffect(() => {
+    const handleButtonSendMessage = (event: Event) => {
+      const customEvent = event as CustomEvent<string>;
+      if (customEvent.detail) {
+        handleSendMessage(customEvent.detail);
+      }
+    };
+    window.addEventListener('sendChatMessage', handleButtonSendMessage);
+    return () => {
+      window.removeEventListener('sendChatMessage', handleButtonSendMessage);
+    };
+  }, [handleSendMessage]);
 
   if (esperandoRubro) {
     return (

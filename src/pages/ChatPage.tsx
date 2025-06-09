@@ -25,7 +25,7 @@ const ChatPage = () => {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatMessagesContainerRef = useRef<HTMLDivElement>(null);
 
-  // --- PASO 1: AÑADIMOS UN ESTADO PARA GUARDAR LA "MOCHILA" (EL CONTEXTO) ---
+  // CAMBIO 1: AÑADIMOS UN ESTADO PARA GUARDAR LA "MOCHILA" (EL CONTEXTO)
   const [contexto, setContexto] = useState({});
 
   const isMobile = useIsMobile();
@@ -33,7 +33,6 @@ const ChatPage = () => {
   const path = typeof window !== "undefined" ? window.location.pathname : "";
   const isDemo = path.includes("demo");
   const user = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("user") || "null") : null;
-  // Aseguramos que siempre haya un token, sea real o de demo/anónimo
   const token = isDemo ? "demo-token" : (typeof window !== "undefined" ? localStorage.getItem("authToken") : null) || "demo-token";
 
   const getRubro = () => {
@@ -49,44 +48,13 @@ const ChatPage = () => {
       chatMessagesContainerRef.current.scrollTop = chatMessagesContainerRef.current.scrollHeight;
     }
   }, []);
-// Dentro del componente principal (ChatPage, Demo, o ChatWidget)
-
-useEffect(() => {
-    const handleButtonSendMessage = (event: Event) => {
-        const customEvent = event as CustomEvent<string>;
-        if (customEvent.detail) {
-            handleSend(customEvent.detail);
-        }
-    };
-
-    window.addEventListener('sendChatMessage', handleButtonSendMessage);
-
-    return () => {
-        window.removeEventListener('sendChatMessage', handleButtonSendMessage);
-    };
-}, [handleSend]); // El array de dependencias es importante
-
-  useEffect(() => {
-    if (messages.length === 0) {
-      setMessages([
-        { id: 1, text: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?", isBot: true, timestamp: new Date() },
-      ]);
-    }
-  }, [messages.length]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      scrollToBottom();
-    }, 150);
-    return () => clearTimeout(timer);
-  }, [messages.length, isTyping, scrollToBottom]);
-
-  const handleSend = async (text: string) => {
+  
+  // CAMBIO 2: LÓGICA DE ENVÍO COMPLETAMENTE ACTUALIZADA
+  const handleSend = useCallback(async (text: string) => {
     if (!text.trim()) return;
 
-    const userMessage: Message = { id: messages.length + 1, text, isBot: false, timestamp: new Date() };
-    const updatedMessages = [...messages, userMessage];
-    setMessages(updatedMessages);
+    const userMessage: Message = { id: Date.now(), text, isBot: false, timestamp: new Date() };
+    setMessages(prevMessages => [...prevMessages, userMessage]);
     setIsTyping(true);
 
     setTimeout(() => scrollToBottom(), 50);
@@ -94,7 +62,6 @@ useEffect(() => {
     try {
       const rubro = getRubro();
 
-      // --- PASO 2: ENVIAMOS LA "MOCHILA" (CONTEXTO) EN CADA PETICIÓN ---
       const payload = {
         question: text,
         rubro: rubro,
@@ -112,50 +79,68 @@ useEffect(() => {
 
       const data = await res.json();
 
-      // --- PASO 3: RECIBIMOS Y GUARDAMOS LA "MOCHILA" ACTUALIZADA ---
       setContexto(data.contexto_actualizado || {});
 
       const botMessage: Message = {
-        id: updatedMessages.length + 1,
+        id: Date.now(),
         text: data?.respuesta || "⚠️ No se pudo generar una respuesta.",
         isBot: true,
         timestamp: new Date(),
-        botones: data?.botones || [] // <-- AÑADIR ESTA LÍNEA
+        botones: data?.botones || []
       };
+      
+      setMessages(prevMessages => [...prevMessages.filter(m => m.id !== userMessage.id), userMessage, botMessage]);
 
-      const newMessages = [...updatedMessages, botMessage];
-
-      if (data?.fuente === "cohere" || botMessage.text.toLowerCase().includes("no encontré") || botMessage.text.toLowerCase().includes("no se pudo")) {
-        newMessages.push({
-          id: newMessages.length + 1,
-          text: "__cta__",
-          isBot: true,
-          timestamp: new Date(),
-        });
-      }
-
-      setMessages(newMessages);
     } catch (error) {
-      setMessages([
-        ...updatedMessages,
-        { id: updatedMessages.length + 1, text: "⚠️ No se pudo conectar con el servidor.", isBot: true, timestamp: new Date() },
-      ]);
+        setMessages(prevMessages => [...prevMessages, { id: Date.now(), text: "⚠️ No se pudo conectar con el servidor.", isBot: true, timestamp: new Date() }]);
     } finally {
       setIsTyping(false);
     }
-  };
+  }, [contexto, token, messages]);
 
+
+  // CAMBIO 3: AÑADIMOS EL LISTENER PARA LOS CLICS EN BOTONES
+  useEffect(() => {
+    const handleButtonSendMessage = (event: Event) => {
+        const customEvent = event as CustomEvent<string>;
+        if (customEvent.detail) {
+            handleSend(customEvent.detail);
+        }
+    };
+    window.addEventListener('sendChatMessage', handleButtonSendMessage);
+    return () => {
+        window.removeEventListener('sendChatMessage', handleButtonSendMessage);
+    };
+  }, [handleSend]);
+
+
+  useEffect(() => {
+    if (messages.length === 0) {
+      setMessages([
+        { id: Date.now(), text: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?", isBot: true, timestamp: new Date() },
+      ]);
+    }
+  }, []); // Se ejecuta solo una vez
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      scrollToBottom();
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [messages.length, isTyping, scrollToBottom]);
+
+
+  // Esta función es para un caso de uso antiguo, la dejamos por si acaso pero los botones nuevos no la usan.
   const handleDynamicButtonClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
-    if (target.tagName === 'BUTTON') {
-      const onclickAttribute = target.getAttribute('onclick');
-      if (onclickAttribute && onclickAttribute.includes('enviarMensajeAsistente')) {
-        const match = onclickAttribute.match(/enviarMensajeAsistente\('(.+?)'\)/);
-        if (match && match[1]) {
-          const payload = match[1];
-          handleSend(payload);
+    if (target.tagName === 'BUTTON' && target.hasAttribute('onclick')) {
+        const onclickAttribute = target.getAttribute('onclick');
+        if (onclickAttribute && onclickAttribute.includes('enviarMensajeAsistente')) {
+            const match = onclickAttribute.match(/enviarMensajeAsistente\('(.+?)'\)/);
+            if (match && match[1]) {
+                handleSend(match[1]);
+            }
         }
-      }
     }
   };
 
