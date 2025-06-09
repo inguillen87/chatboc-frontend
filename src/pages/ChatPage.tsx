@@ -5,6 +5,7 @@ import ChatInput from "@/components/chat/ChatInput";
 import TypingIndicator from "@/components/chat/TypingIndicator";
 import Navbar from "@/components/layout/Navbar";
 import { motion, AnimatePresence } from "framer-motion";
+import { apiFetch } from "@/utils/api"; // Asumiendo que apiFetch maneja el token
 
 // Hook para mobile detection (sin cambios)
 function useIsMobile(breakpoint = 768) {
@@ -25,53 +26,33 @@ const ChatPage = () => {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatMessagesContainerRef = useRef<HTMLDivElement>(null);
 
-  // --- CAMBIO 1: AÑADIMOS EL ESTADO PARA LA "MOCHILA" (CONTEXTO) ---
+  // 1. AÑADIMOS EL ESTADO PARA LA "MOCHILA" (CONTEXTO)
   const [contexto, setContexto] = useState({});
 
   const isMobile = useIsMobile();
-
-  const path = typeof window !== "undefined" ? window.location.pathname : "";
-  const isDemo = path.includes("demo");
-  const user = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("user") || "null") : null;
-  const token = isDemo ? "demo-token" : localStorage.getItem("authToken") || "demo-token";
-
-  const getRubro = () => {
-    if (user?.rubro) {
-      if (typeof user.rubro === "object" && user.rubro.nombre) return user.rubro.nombre;
-      if (typeof user.rubro === "string") return user.rubro;
-    }
-    return localStorage.getItem("rubroSeleccionado") || "";
-  };
-
+  
   const scrollToBottom = useCallback(() => {
     if (chatMessagesContainerRef.current) {
       chatMessagesContainerRef.current.scrollTop = chatMessagesContainerRef.current.scrollHeight;
     }
   }, []);
 
-  // MENSAJE INICIAL DEL BOT
+  // Mensaje inicial (sin cambios)
   useEffect(() => {
     if (messages.length === 0) { 
       setMessages([
-        {
-          id: Date.now(),
-          text: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?",
-          isBot: true,
-          timestamp: new Date(),
-        },
+        { id: Date.now(), text: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?", isBot: true, timestamp: new Date() },
       ]);
     }
-  }, []); // Se ejecuta solo una vez al montar
+  }, []); // Se ejecuta solo una vez
 
-  // Disparar scroll cuando los mensajes o el estado de 'typing' cambian
+  // Scroll al fondo (sin cambios)
   useEffect(() => {
-    const timer = setTimeout(() => {
-      scrollToBottom();
-    }, 150);
+    const timer = setTimeout(() => scrollToBottom(), 150);
     return () => clearTimeout(timer);
   }, [messages, isTyping, scrollToBottom]);
 
-  // --- CAMBIO 2: LÓGICA DE ENVÍO COMPLETAMENTE ACTUALIZADA ---
+  // 2. LÓGICA DE ENVÍO COMPLETAMENTE ACTUALIZADA
   const handleSend = useCallback(async (text: string) => {
     if (!text.trim()) return;
 
@@ -82,25 +63,18 @@ const ChatPage = () => {
     setTimeout(() => scrollToBottom(), 50);
 
     try {
-      const rubro = getRubro();
-
+      // El backend ya obtiene el rubro del usuario logueado, no necesitamos enviarlo siempre.
       const payload = {
-        question: text,
-        rubro: rubro,
-        contexto_previo: contexto
+        pregunta: text,
+        contexto_previo: contexto // <-- Enviamos la mochila
       };
 
-      const res = await fetch("https://api.chatboc.ar/ask", {
+      const data = await apiFetch<any>("/ask", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
+        body: payload,
       });
 
-      const data = await res.json();
-
+      // Guardamos la mochila actualizada que nos devuelve el backend
       setContexto(data.contexto_actualizado || {});
 
       const botMessage: Message = {
@@ -108,9 +82,8 @@ const ChatPage = () => {
         text: data?.respuesta || "⚠️ No se pudo generar una respuesta.",
         isBot: true,
         timestamp: new Date(),
-        botones: data?.botones || []
+        botones: data?.botones || [] // <-- Guardamos los botones
       };
-
       setMessages(prev => [...prev, botMessage]);
 
     } catch (error) {
@@ -118,22 +91,21 @@ const ChatPage = () => {
     } finally {
       setIsTyping(false);
     }
-  }, [contexto, token]); // Dependencias para que la función se actualice con el contexto
+  }, [contexto]); // La dependencia principal ahora es el contexto
 
-  // --- CAMBIO 3: AÑADIMOS EL LISTENER PARA LOS CLICS EN BOTONES ---
+  // 3. LISTENER PARA LOS CLICS EN BOTONES DINÁMICOS
   useEffect(() => {
     const handleButtonSendMessage = (event: Event) => {
-        const customEvent = event as CustomEvent<string>;
-        if (customEvent.detail) {
-            handleSend(customEvent.detail);
-        }
+      const customEvent = event as CustomEvent<string>;
+      if (customEvent.detail) {
+        handleSend(customEvent.detail);
+      }
     };
     window.addEventListener('sendChatMessage', handleButtonSendMessage);
     return () => {
-        window.removeEventListener('sendChatMessage', handleButtonSendMessage);
+      window.removeEventListener('sendChatMessage', handleButtonSendMessage);
     };
   }, [handleSend]);
-
 
   const handleDynamicButtonClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
