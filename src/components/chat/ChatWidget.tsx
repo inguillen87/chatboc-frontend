@@ -113,7 +113,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const [cargandoRubros, setCargandoRubros] = useState(false);
   
   const [token, setToken] = useState<string>(""); 
-  
+  const [contexto, setContexto] = useState({});
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const widgetContainerRef = useRef<HTMLDivElement>(null);
