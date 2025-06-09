@@ -23,7 +23,10 @@ const ChatPage = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
-  const chatMessagesContainerRef = useRef<HTMLDivElement>(null); // Ref para el contenedor de mensajes
+  const chatMessagesContainerRef = useRef<HTMLDivElement>(null);
+
+  // --- CAMBIO 1: AÑADIMOS EL ESTADO PARA LA "MOCHILA" (CONTEXTO) ---
+  const [contexto, setContexto] = useState({});
 
   const isMobile = useIsMobile();
 
@@ -48,46 +51,44 @@ const ChatPage = () => {
 
   // MENSAJE INICIAL DEL BOT
   useEffect(() => {
-    // Solo inicializar si no hay mensajes para evitar duplicados
     if (messages.length === 0) { 
       setMessages([
         {
-          id: 1,
+          id: Date.now(),
           text: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?",
           isBot: true,
           timestamp: new Date(),
         },
       ]);
     }
-  }, [messages.length]);
+  }, []); // Se ejecuta solo una vez al montar
 
   // Disparar scroll cuando los mensajes o el estado de 'typing' cambian
   useEffect(() => {
     const timer = setTimeout(() => {
       scrollToBottom();
-    }, 150); // Pequeño delay para permitir que las animaciones se asienten
+    }, 150);
     return () => clearTimeout(timer);
-  }, [messages.length, isTyping, scrollToBottom]);
+  }, [messages, isTyping, scrollToBottom]);
 
-  const handleSend = async (text: string) => {
+  // --- CAMBIO 2: LÓGICA DE ENVÍO COMPLETAMENTE ACTUALIZADA ---
+  const handleSend = useCallback(async (text: string) => {
     if (!text.trim()) return;
 
-    const userMessage: Message = {
-      id: messages.length + 1,
-      text,
-      isBot: false,
-      timestamp: new Date(),
-    };
-
-    const updatedMessages = [...messages, userMessage];
-    setMessages(updatedMessages);
+    const userMessage: Message = { id: Date.now(), text, isBot: false, timestamp: new Date() };
+    setMessages(prev => [...prev, userMessage]);
     setIsTyping(true);
 
-    // Scroll inmediato al enviar para que el input no quede cubierto
     setTimeout(() => scrollToBottom(), 50);
 
     try {
       const rubro = getRubro();
+
+      const payload = {
+        question: text,
+        rubro: rubro,
+        contexto_previo: contexto
+      };
 
       const res = await fetch("https://api.chatboc.ar/ask", {
         method: "POST",
@@ -95,48 +96,44 @@ const ChatPage = () => {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ question: text, rubro }),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
 
+      setContexto(data.contexto_actualizado || {});
+
       const botMessage: Message = {
-        id: updatedMessages.length + 1,
+        id: Date.now(),
         text: data?.respuesta || "⚠️ No se pudo generar una respuesta.",
         isBot: true,
         timestamp: new Date(),
+        botones: data?.botones || []
       };
 
-      const newMessages = [...updatedMessages, botMessage];
+      setMessages(prev => [...prev, botMessage]);
 
-      if (
-        data?.fuente === "cohere" ||
-        botMessage.text.toLowerCase().includes("no encontré") ||
-        botMessage.text.toLowerCase().includes("no se pudo")
-      ) {
-        newMessages.push({
-          id: newMessages.length + 1,
-          text: "__cta__",
-          isBot: true,
-          timestamp: new Date(),
-        });
-      }
-
-      setMessages(newMessages);
     } catch (error) {
-      setMessages([
-        ...updatedMessages,
-        {
-          id: updatedMessages.length + 1,
-          text: "⚠️ No se pudo conectar con el servidor.",
-          isBot: true,
-          timestamp: new Date(),
-        },
-      ]);
+      setMessages(prev => [...prev, { id: Date.now(), text: "⚠️ No se pudo conectar con el servidor.", isBot: true, timestamp: new Date() }]);
     } finally {
       setIsTyping(false);
     }
-  };
+  }, [contexto, token]); // Dependencias para que la función se actualice con el contexto
+
+  // --- CAMBIO 3: AÑADIMOS EL LISTENER PARA LOS CLICS EN BOTONES ---
+  useEffect(() => {
+    const handleButtonSendMessage = (event: Event) => {
+        const customEvent = event as CustomEvent<string>;
+        if (customEvent.detail) {
+            handleSend(customEvent.detail);
+        }
+    };
+    window.addEventListener('sendChatMessage', handleButtonSendMessage);
+    return () => {
+        window.removeEventListener('sendChatMessage', handleButtonSendMessage);
+    };
+  }, [handleSend]);
+
 
   const handleDynamicButtonClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
@@ -151,7 +148,6 @@ const ChatPage = () => {
       }
     }
   };
-
   return (
     <div className="min-h-screen flex flex-col bg-background dark:bg-gradient-to-b dark:from-[#0d1014] dark:to-[#161b22] text-foreground">
       <Navbar />
