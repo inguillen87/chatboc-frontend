@@ -4,6 +4,7 @@ export interface Message {
   text: string;
   isBot: boolean;
   timestamp: Date;
+  botones?: { texto: string; payload?: string }[]; // <-- AÑADIR ESTA LÍNEA
 }
 
 export interface FAQ {
