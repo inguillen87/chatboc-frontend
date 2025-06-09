@@ -1,5 +1,3 @@
-// ChatPage.js - VERSIÓN FINAL Y LIMPIA
-
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Message } from "@/types/chat";
 import ChatMessage from "@/components/chat/ChatMessage";
@@ -8,6 +6,7 @@ import TypingIndicator from "@/components/chat/TypingIndicator";
 import Navbar from "@/components/layout/Navbar";
 import { motion, AnimatePresence } from "framer-motion";
 
+// Hook para mobile detection (sin cambios)
 function useIsMobile(breakpoint = 768) {
   const [isMobile, setIsMobile] = useState(
     typeof window !== "undefined" ? window.innerWidth < breakpoint : false
@@ -24,60 +23,71 @@ const ChatPage = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
-  const chatMessagesContainerRef = useRef<HTMLDivElement>(null);
-  const [contexto, setContexto] = useState({});
+  const chatMessagesContainerRef = useRef<HTMLDivElement>(null); // Ref para el contenedor de mensajes
+
   const isMobile = useIsMobile();
-  
-  // Estas constantes se leen una sola vez al cargar el componente
+
+  const path = typeof window !== "undefined" ? window.location.pathname : "";
+  const isDemo = path.includes("demo");
   const user = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("user") || "null") : null;
-  const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+  const token = isDemo ? "demo-token" : localStorage.getItem("authToken") || "demo-token";
 
-  // ✅ FUNCIÓN getRubro CORREGIDA Y LIMPIA
-const getRubro = useCallback(() => {
-  console.log("Buscando rubro... Objeto de usuario encontrado:", user);
-
-  // ✅ PARCHE PARA LA DEMO: Si el email es el del municipio, forzamos el rubro correcto.
-  if (user && user.email === 'mauricio@junin.com') {
-    console.log("¡Usuario del municipio detectado! Forzando rubro 'Municipio de Junín'.");
-    return 'Municipio de Junín'; // O el nombre exacto que necesite tu API
-  }
-
-  // Lógica original para otros usuarios
-  if (user && user.rubro) {
-    console.log("Prioridad 1: Usando el rubro del perfil de usuario.");
-    if (typeof user.rubro === 'object' && user.rubro.nombre) {
-      return user.rubro.nombre;
+  const getRubro = () => {
+    if (user?.rubro) {
+      if (typeof user.rubro === "object" && user.rubro.nombre) return user.rubro.nombre;
+      if (typeof user.rubro === "string") return user.rubro;
     }
-    if (typeof user.rubro === 'string' && user.rubro) {
-      return user.rubro;
-    }
-  }
-  
-  console.log("Prioridad 2: No se encontró rubro en el perfil. Usando fallback.");
-  return ""; // Devuelve un string vacío si no encuentra nada.
-}, [user]);
+    return localStorage.getItem("rubroSeleccionado") || "";
+  };
+
   const scrollToBottom = useCallback(() => {
     if (chatMessagesContainerRef.current) {
       chatMessagesContainerRef.current.scrollTop = chatMessagesContainerRef.current.scrollHeight;
     }
   }, []);
-  
-  const handleSend = useCallback(async (text: string) => {
+
+  // MENSAJE INICIAL DEL BOT
+  useEffect(() => {
+    // Solo inicializar si no hay mensajes para evitar duplicados
+    if (messages.length === 0) { 
+      setMessages([
+        {
+          id: 1,
+          text: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?",
+          isBot: true,
+          timestamp: new Date(),
+        },
+      ]);
+    }
+  }, [messages.length]);
+
+  // Disparar scroll cuando los mensajes o el estado de 'typing' cambian
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      scrollToBottom();
+    }, 150); // Pequeño delay para permitir que las animaciones se asienten
+    return () => clearTimeout(timer);
+  }, [messages.length, isTyping, scrollToBottom]);
+
+  const handleSend = async (text: string) => {
     if (!text.trim()) return;
 
-    const userMessage: Message = { id: Date.now(), text, isBot: false, timestamp: new Date() };
-    setMessages(prevMessages => [...prevMessages, userMessage]);
+    const userMessage: Message = {
+      id: messages.length + 1,
+      text,
+      isBot: false,
+      timestamp: new Date(),
+    };
+
+    const updatedMessages = [...messages, userMessage];
+    setMessages(updatedMessages);
     setIsTyping(true);
+
+    // Scroll inmediato al enviar para que el input no quede cubierto
     setTimeout(() => scrollToBottom(), 50);
 
     try {
       const rubro = getRubro();
-      const payload = {
-        question: text,
-        rubro: rubro,
-        contexto_previo: contexto
-      };
-      console.log('[ChatPage] Preparando para enviar a la API. Payload:', payload);
 
       const res = await fetch("https://api.chatboc.ar/ask", {
         method: "POST",
@@ -85,74 +95,106 @@ const getRubro = useCallback(() => {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ question: text, rubro }),
       });
 
       const data = await res.json();
-      setContexto(data.contexto_actualizado || {});
 
       const botMessage: Message = {
-        id: Date.now(),
+        id: updatedMessages.length + 1,
         text: data?.respuesta || "⚠️ No se pudo generar una respuesta.",
         isBot: true,
         timestamp: new Date(),
-        botones: data?.botones || []
       };
-      
-      setMessages(prevMessages => [...prevMessages, botMessage]);
 
+      const newMessages = [...updatedMessages, botMessage];
+
+      if (
+        data?.fuente === "cohere" ||
+        botMessage.text.toLowerCase().includes("no encontré") ||
+        botMessage.text.toLowerCase().includes("no se pudo")
+      ) {
+        newMessages.push({
+          id: newMessages.length + 1,
+          text: "__cta__",
+          isBot: true,
+          timestamp: new Date(),
+        });
+      }
+
+      setMessages(newMessages);
     } catch (error) {
-      setMessages(prevMessages => [...prevMessages, { id: Date.now(), text: "⚠️ No se pudo conectar con el servidor.", isBot: true, timestamp: new Date() }]);
+      setMessages([
+        ...updatedMessages,
+        {
+          id: updatedMessages.length + 1,
+          text: "⚠️ No se pudo conectar con el servidor.",
+          isBot: true,
+          timestamp: new Date(),
+        },
+      ]);
     } finally {
       setIsTyping(false);
     }
-  }, [contexto, token, getRubro, scrollToBottom]); // ✅ CORREGIDO: Sin 'messages'
+  };
 
-
-  useEffect(() => {
-    const handleButtonSendMessage = (event: Event) => {
-      const customEvent = event as CustomEvent<string>;
-      if (customEvent.detail) {
-        console.log(`[ChatPage] Evento 'sendChatMessage' escuchado. Ejecutando handleSend con: "${customEvent.detail}"`);
-        handleSend(customEvent.detail);
+  const handleDynamicButtonClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'BUTTON') {
+      const onclickAttribute = target.getAttribute('onclick');
+      if (onclickAttribute && onclickAttribute.includes('enviarMensajeAsistente')) {
+        const match = onclickAttribute.match(/enviarMensajeAsistente\('(.+?)'\)/);
+        if (match && match[1]) {
+          const payload = match[1];
+          handleSend(payload);
+        }
       }
-    };
-    window.addEventListener('sendChatMessage', handleButtonSendMessage);
-    return () => {
-      window.removeEventListener('sendChatMessage', handleButtonSendMessage);
-    };
-  }, [handleSend]);
-
-  useEffect(() => {
-    if (messages.length === 0) {
-      setMessages([
-        { id: Date.now(), text: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?", isBot: true, timestamp: new Date() },
-      ]);
     }
-  }, []);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      scrollToBottom();
-    }, 150);
-    return () => clearTimeout(timer);
-  }, [messages.length, isTyping, scrollToBottom]);
-
-  // Esta función es para un caso de uso antiguo, la dejamos por si acaso.
-  const handleDynamicButtonClick = (e: React.MouseEvent<HTMLDivElement>) => { /* ... */ };
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-background dark:bg-gradient-to-b dark:from-[#0d1014] dark:to-[#161b22] text-foreground">
       <Navbar />
-      <main className="flex-grow flex flex-col items-center justify-center pt-3 sm:pt-10 pb-2 sm:pb-6 transition-all">
+
+      <main
+        className={`
+          flex-grow flex flex-col items-center justify-center
+          pt-3 sm:pt-10 pb-2 sm:pb-6
+          transition-all
+        `}
+      >
         <motion.div
           layout
-          className={`w-full max-w-[99vw] ${isMobile ? "h-[100svh]" : "sm:w-[480px] h-[83vh]"} flex flex-col rounded-none sm:rounded-3xl border-0 sm:border border-border shadow-none sm:shadow-2xl bg-card dark:bg-[#20232b]/95 backdrop-blur-0 sm:backdrop-blur-xl relative overflow-hidden transition-all`}
-          style={{ boxShadow: isMobile ? undefined : "0 8px 64px 0 rgba(30,40,90,0.10)" }}
+          className={`
+            w-full max-w-[99vw] ${isMobile ? "h-[100svh]" : "sm:w-[480px] h-[83vh]"}
+            flex flex-col
+            // MODIFICADO: rounded-3xl para mayor redondez en el contenedor principal
+            rounded-none sm:rounded-3xl 
+            // MODIFICADO: border-0 sm:border para que el borde solo aparezca en desktop si es deseado
+            border-0 sm:border border-border
+            shadow-none sm:shadow-2xl
+            bg-card dark:bg-[#20232b]/95
+            backdrop-blur-0 sm:backdrop-blur-xl
+            relative
+            overflow-hidden
+            transition-all
+          `}
+          style={{
+            boxShadow: isMobile ? undefined : "0 8px 64px 0 rgba(30,40,90,0.10)",
+          }}
         >
+          {/* Mensajes */}
           <div
+            onClick={handleDynamicButtonClick}
             ref={chatMessagesContainerRef}
-            className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-3 custom-scroll scrollbar-thin scrollbar-thumb-[#90caf9] scrollbar-track-transparent bg-background dark:bg-[#22262b] transition-all"
+            className={`
+              flex-1 overflow-y-auto
+              p-2 sm:p-4 space-y-3
+              custom-scroll
+              scrollbar-thin scrollbar-thumb-[#90caf9] scrollbar-track-transparent
+              bg-background dark:bg-[#22262b]
+              transition-all
+            `}
             style={{ minHeight: 0 }}
           >
             <AnimatePresence>
@@ -171,7 +213,21 @@ const getRubro = useCallback(() => {
             {isTyping && <TypingIndicator />}
             <div ref={chatEndRef} />
           </div>
-          <div className="bg-gradient-to-t from-background via-card/60 to-transparent dark:from-card dark:via-card/80 border-t border-border p-2 sm:p-4 flex-shrink-0 sticky bottom-0 z-20 shadow-inner backdrop-blur">
+
+          {/* Input siempre visible abajo */}
+          <div
+            className={`
+              // MODIFICADO: Fondo con gradiente semántico y borde
+              bg-gradient-to-t from-background via-card/60 to-transparent dark:from-card dark:via-card/80
+              border-t border-border
+              p-2 sm:p-4
+              flex-shrink-0
+              sticky bottom-0
+              z-20
+              shadow-inner
+              backdrop-blur
+            `}
+          >
             <ChatInput onSendMessage={handleSend} />
           </div>
         </motion.div>

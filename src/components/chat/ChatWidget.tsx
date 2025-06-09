@@ -5,7 +5,10 @@ import TypingIndicator from "./TypingIndicator";
 import ChatInput from "./ChatInput";
 import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
+
+// Importar useIsMobile desde tu archivo de hooks centralizado
 import { useIsMobile } from "@/hooks/use-mobile";
+
 
 // --- Componente WidgetChatHeader (interno de ChatWidget) ---
 const WidgetChatHeader: React.FC<{
@@ -50,24 +53,22 @@ const WidgetChatHeader: React.FC<{
   );
 };
 
-// --- Token Management ---
-const getAuthToken = (): string | null => {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("authToken"); 
-}
 
-const getAnonToken = (): string => {
-  if (typeof window === "undefined") return "anon-ssr";
-  let token = localStorage.getItem("anon_token");
-  if (!token) {
-    token = `anon-${Math.random().toString(36).substring(2, 12)}`;
-    localStorage.setItem("anon_token", token);
+// --- Token Management ---
+function getToken(): string {
+  if (typeof window === "undefined") return "demo-anon-ssr";
+  const params = new URLSearchParams(window.location.search);
+  const urlToken = params.get("token");
+  if (urlToken) return urlToken;
+  const storedUserItem = localStorage.getItem("user");
+  const user = storedUserItem ? JSON.parse(storedUserItem) : null;
+  if (user && user.token && typeof user.token === 'string' && !user.token.startsWith("demo")) return user.token;
+  let anonToken = localStorage.getItem("anon_token");
+  if (!anonToken) {
+    anonToken = `demo-anon-${Math.random().toString(36).substring(2, 10)}`;
+    localStorage.setItem("anon_token", anonToken);
   }
-  return token;
-}
-const getToken = (): string => {
-  const authToken = getAuthToken();
-  return authToken || getAnonToken();
+  return anonToken;
 }
 
 interface Rubro {
@@ -77,8 +78,6 @@ interface Rubro {
 interface AskApiResponse {
   respuesta?: string | { text?: string; respuesta?: string; };
   fuente?: string;
-  contexto_actualizado?: object;
-  botones?: any[]; // Añadido para que no de error
 }
 
 interface ChatWidgetProps {
@@ -112,8 +111,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const [rubrosDisponibles, setRubrosDisponibles] = useState<Rubro[]>([]);
   const [esperandoRubro, setEsperandoRubro] = useState(false);
   const [cargandoRubros, setCargandoRubros] = useState(false);
-
-  const [contexto, setContexto] = useState({});
+  
   const [token, setToken] = useState<string>(""); 
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -125,6 +123,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   );
 
   const [prefersDark, setPrefersDark] = useState(false);
+
+  // Usar el hook useIsMobile dentro del componente
   const isMobile = useIsMobile(); 
 
   // Dark mode listener
@@ -161,12 +161,14 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     }
   }, []);
 
+  // -- User detection (sin cambios)
   const getUser = () => {
     if (typeof window === "undefined") return null;
     const storedUser = localStorage.getItem("user");
     return storedUser ? JSON.parse(storedUser) : null;
   };
 
+  // -- Rubros
   const cargarRubros = async () => {
     setCargandoRubros(true);
     try {
@@ -178,6 +180,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     }
     setCargandoRubros(false);
   };
+
 
   const recargarTokenAndRubroOnStorageChange = useCallback(() => {
     const currentToken = getToken();
@@ -218,81 +221,95 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   }, [isOpen, rubroSeleccionado, messages.length]);
 
 
-  // ✅ PASO 1: LA FUNCIÓN handleSendMessage ENVUELTA EN useCallback
-  const handleSendMessage = useCallback(async (text: string) => {
-    if (!text.trim()) return;
+  const handleSendMessage = async (text: string) => {
+    if (!text.trim() || !rubroSeleccionado || !token) return;
 
-    const authToken = getAuthToken();
-    const finalToken = authToken || getAnonToken();
-    const esAnonimo = !authToken;
+    const user = getUser();
+    const esAnonimo = !user || !user.token || user.token.startsWith("demo");
 
-    if (esAnonimo && !rubroSeleccionado) {
-        setMessages((prev) => [...prev, {id: Date.now(), text: "🛈 Por favor, seleccioná primero el rubro de tu negocio.", isBot: true, timestamp: new Date()}]);
-        return;
+    if (esAnonimo && !(rubroSeleccionado || DEFAULT_WIDGET_RUBRO)) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now() + Math.random(),
+          text: "🛈 Por favor, seleccioná primero el rubro de tu negocio.",
+          isBot: true,
+          timestamp: new Date(),
+        },
+      ]);
+      return;
     }
     if (esAnonimo && preguntasUsadas >= 15) {
-        setMessages((prev) => [...prev, {id: Date.now(), text: `🔒 Alcanzaste el límite de 15 preguntas gratuitas en esta demo.\n\n👉 Creá una cuenta para seguir usando Chatboc: https://chatboc.ar/register`, isBot: true, timestamp: new Date()}]);
-        return;
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now() + Math.random(),
+          text: `🔒 Alcanzaste el límite de 15 preguntas gratuitas en esta demo.\n\n👉 Creá una cuenta para seguir usando Chatboc: https://chatboc.ar/register`,
+          isBot: true,
+          timestamp: new Date(),
+        },
+      ]);
+      return;
     }
-
-    const userMessage: Message = { id: Date.now() + Math.random(), text, isBot: false, timestamp: new Date() };
+    const userMessage: Message = {
+      id: Date.now() + Math.random(),
+      text,
+      isBot: false,
+      timestamp: new Date(),
+    };
     setMessages((prev) => [...prev, userMessage]);
     setIsTyping(true);
 
-    const payload: any = { 
-      pregunta: text,
-      contexto_previo: contexto
-    };
+    const body: any = { pregunta: text };
     if (esAnonimo) {
-      payload.rubro = rubroSeleccionado || DEFAULT_WIDGET_RUBRO;
+      body.rubro = rubroSeleccionado || DEFAULT_WIDGET_RUBRO;
     }
 
     try {
       const data = await apiFetch<AskApiResponse>("/ask", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalToken}` },
-        body: payload,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
       });
-      
-      setContexto(data.contexto_actualizado || {});
+
+      const respuestaFinal: string =
+        typeof data?.respuesta === "string"
+          ? data.respuesta
+          : (typeof data?.respuesta === 'object' && data.respuesta !== null
+              ? (data.respuesta.text || data.respuesta.respuesta || "❌ No entendí tu mensaje.")
+              : "❌ No entendí tu mensaje.");
 
       const botMessage: Message = {
-        id: Date.now(),
-        text: data?.respuesta || "⚠️ No se pudo generar una respuesta.",
+        id: Date.now() + Math.random(),
+        text: respuestaFinal,
         isBot: true,
         timestamp: new Date(),
-        botones: data?.botones || [],
       };
-
       setMessages((prev) => [...prev, botMessage]);
       if (esAnonimo) setPreguntasUsadas((prev) => prev + 1);
-
     } catch (error) {
       let errorMessageText = "⚠️ No se pudo conectar con el servidor.";
-      if (error instanceof Error) { errorMessageText = `⚠️ Error: ${error.message}`; } 
-      else if (typeof error === 'object' && error !== null && 'message' in error) { errorMessageText = `⚠️ Error: ${String((error as any).message)}`; }
-      setMessages((prev) => [...prev, { id: Date.now(), text: errorMessageText, isBot: true, timestamp: new Date() }]);
+      if (error instanceof Error) {
+          errorMessageText = `⚠️ Error: ${error.message}`;
+      } else if (typeof error === 'object' && error !== null && 'message' in error) {
+          errorMessageText = `⚠️ Error: ${String((error as any).message)}`;
+      }
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now() + Math.random(),
+          text: errorMessageText,
+          isBot: true,
+          timestamp: new Date(),
+        },
+      ]);
     } finally {
       setIsTyping(false);
     }
-  }, [contexto, rubroSeleccionado, preguntasUsadas]); // Dependencias para useCallback
-
-  // ✅ PASO 2: EL useEffect CORREGIDO, DENTRO DEL COMPONENTE Y CON EL NOMBRE CORRECTO
-  useEffect(() => {
-    const handleButtonSendMessage = (event: Event) => {
-        const customEvent = event as CustomEvent<string>;
-        if (customEvent.detail) {
-            handleSendMessage(customEvent.detail); // Usa la función correcta
-        }
-    };
-
-    window.addEventListener('sendChatMessage', handleButtonSendMessage);
-
-    return () => {
-        window.removeEventListener('sendChatMessage', handleButtonSendMessage);
-    };
-  }, [handleSendMessage]); // La dependencia es la función que acabamos de optimizar
-
+  };
 
   const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
     if (mode !== "standalone" || !draggable || !widgetContainerRef.current || typeof window === "undefined") return;
@@ -348,13 +365,17 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     }
   }, [isOpen, mode, widgetId]);
 
+  // --- VISTA Selección de Rubro ---
   const rubroSelectionViewContent = (
+    // MODIFICADO: Aplicar fondo mucho más opaco y sólido en modo claro para la "pared" tenue.
+    // En modo oscuro, usará dark:bg-gray-900 (o tu bg-card oscuro)
+    // rounded-3xl para los bordes del contenedor
     <div className={`w-full flex flex-col items-center justify-center p-6 text-foreground border border-border rounded-3xl
-            ${isMobile
-              ? "bg-white shadow-2xl dark:bg-gray-900" 
-              : "bg-card"
-            }`}
-        style={{ minHeight: 240 }}
+                      ${isMobile
+                        ? "bg-white shadow-2xl dark:bg-gray-900" // FONDO SÓLIDO Y OSCURO EN MOBILE (white para light, gray-900 para dark)
+                        : "bg-card" // En web, el bg-card original
+                      }`}
+         style={{ minHeight: 240 }}
     >
       <h2 className="text-lg font-semibold mb-3 text-center text-primary">👋 ¡Bienvenido!</h2>
       <p className="mb-4 text-sm text-center text-muted-foreground">¿De qué rubro es tu negocio?</p>
@@ -386,6 +407,9 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                   timestamp: new Date(),
                 }]);
               }}
+              // MODIFICADO: rounded-full para mayor redondez en los botones de rubro y hover sutil
+              // bg-blue-500/80 (tenue) en modo claro, hover:bg-blue-600
+              // dark:bg-blue-800/80 (tenue) en modo oscuro, hover:bg-blue-700
               className="px-4 py-2 rounded-full text-sm shadow transition-all duration-200 ease-in-out font-semibold
                          bg-blue-500/80 text-white hover:bg-blue-600
                          dark:bg-blue-800/80 dark:text-blue-100 dark:hover:bg-blue-700"
@@ -407,6 +431,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         onMouseDownDrag={mode === "standalone" && isOpen && draggable ? handleDragStart : undefined}
         isDraggable={mode === "standalone" && draggable && isOpen}
       />
+      {/* Fondo del contenedor de mensajes ahora es adaptativo */}
       <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-3 bg-background text-foreground" ref={chatContainerRef}>
         {messages.map((msg) =>
           typeof msg.text === "string" ? (
@@ -425,7 +450,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     height: "100%",
     display: "flex",
     flexDirection: "column",
-    color: prefersDark ? "hsl(var(--foreground))" : "hsl(var(--foreground))",
+    color: prefersDark ? "hsl(var(--foreground))" : "hsl(var(--foreground))", // Usa variables temáticas
     overflow: "hidden",
   };
 
@@ -455,6 +480,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     );
   }
 
+  // ---- Renderizado para modo Standalone ----
   return (
     <div ref={widgetContainerRef} style={currentPos} className="chatboc-standalone-widget">
       {!isOpen && (
@@ -474,6 +500,9 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
       {isOpen && (
         <div
+          // MODIFICADO: CLASES DE FONDO SÓLIDO PARA EL CHAT WIDGET
+          // bg-white para modo claro, dark:bg-gray-900 para modo oscuro.
+          // Esto asegurará que el fondo siempre sea opaco y no se transparente.
           className="w-80 md:w-96 rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-slide-up bg-white border border-border dark:bg-gray-900"
           style={{
             height: esperandoRubro ? 'auto' : '500px',
