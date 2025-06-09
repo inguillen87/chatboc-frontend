@@ -9,6 +9,22 @@ import { apiFetch } from "@/utils/api";
 // Importar useIsMobile desde tu archivo de hooks centralizado
 import { useIsMobile } from "@/hooks/use-mobile";
 
+// Dentro del componente principal (ChatPage, Demo, o ChatWidget)
+
+useEffect(() => {
+    const handleButtonSendMessage = (event: Event) => {
+        const customEvent = event as CustomEvent<string>;
+        if (customEvent.detail) {
+            handleSend(customEvent.detail);
+        }
+    };
+
+    window.addEventListener('sendChatMessage', handleButtonSendMessage);
+
+    return () => {
+        window.removeEventListener('sendChatMessage', handleButtonSendMessage);
+    };
+}, [handleSend]); // El array de dependencias es importante
 
 // --- Componente WidgetChatHeader (interno de ChatWidget) ---
 const WidgetChatHeader: React.FC<{
@@ -82,7 +98,7 @@ interface Rubro {
   nombre: string;
 }
 interface AskApiResponse {
-  respuesta?: string | { text?: string; respuesta?: string; };
+  respuesta?: string | { text?: string; respuesta?: string; };  
   fuente?: string;
   contexto_actualizado?: object; // O 'any' si preferís
 }
@@ -269,8 +285,15 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       // GUARDAMOS LA "MOCHILA" ACTUALIZADA
       setContexto(data.contexto_actualizado || {});
 
-      const respuestaFinal = typeof data?.respuesta === "string" ? data.respuesta : "❌ No entendí tu mensaje.";
-      const botMessage: Message = { id: Date.now() + Math.random(), text: respuestaFinal, isBot: true, timestamp: new Date() };
+        const respuestaFinal = typeof data?.respuesta === "string" ? data.respuesta : "❌ No entendí tu mensaje.";
+     const botMessage: Message = {
+             id: updatedMessages.length + 1,
+             text: data?.respuesta || "⚠️ No se pudo generar una respuesta.",
+             isBot: true,
+             timestamp: new Date(),
+             botones: data?.botones || [] // <-- AÑADIR ESTA LÍNEA
+           };
+      
       setMessages((prev) => [...prev, botMessage]);
       if (esAnonimo) setPreguntasUsadas((prev) => prev + 1);
 

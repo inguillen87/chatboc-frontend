@@ -49,6 +49,22 @@ const ChatPage = () => {
       chatMessagesContainerRef.current.scrollTop = chatMessagesContainerRef.current.scrollHeight;
     }
   }, []);
+// Dentro del componente principal (ChatPage, Demo, o ChatWidget)
+
+useEffect(() => {
+    const handleButtonSendMessage = (event: Event) => {
+        const customEvent = event as CustomEvent<string>;
+        if (customEvent.detail) {
+            handleSend(customEvent.detail);
+        }
+    };
+
+    window.addEventListener('sendChatMessage', handleButtonSendMessage);
+
+    return () => {
+        window.removeEventListener('sendChatMessage', handleButtonSendMessage);
+    };
+}, [handleSend]); // El array de dependencias es importante
 
   useEffect(() => {
     if (messages.length === 0) {
@@ -104,6 +120,7 @@ const ChatPage = () => {
         text: data?.respuesta || "⚠️ No se pudo generar una respuesta.",
         isBot: true,
         timestamp: new Date(),
+        botones: data?.botones || [] // <-- AÑADIR ESTA LÍNEA
       };
 
       const newMessages = [...updatedMessages, botMessage];

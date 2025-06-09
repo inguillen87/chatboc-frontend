@@ -35,7 +35,22 @@ const Demo = () => {
       setToken(currentToken);
     }
   }, []);
+// Dentro del componente principal (ChatPage, Demo, o ChatWidget)
 
+useEffect(() => {
+    const handleButtonSendMessage = (event: Event) => {
+        const customEvent = event as CustomEvent<string>;
+        if (customEvent.detail) {
+            handleSend(customEvent.detail);
+        }
+    };
+
+    window.addEventListener('sendChatMessage', handleButtonSendMessage);
+
+    return () => {
+        window.removeEventListener('sendChatMessage', handleButtonSendMessage);
+    };
+}, [handleSend]); // El array de dependencias es importante
   // Cargar rubros o mensaje inicial
   useEffect(() => {
     if (!rubroSeleccionado) {
@@ -86,11 +101,12 @@ const Demo = () => {
       setContexto(response.contexto_actualizado || {});
 
       const botMessage: Message = {
-        id: Date.now(),
-        text: response?.respuesta || "⚠️ No se pudo generar una respuesta.",
-        isBot: true,
-        timestamp: new Date(),
-      };
+              id: updatedMessages.length + 1,
+              text: data?.respuesta || "⚠️ No se pudo generar una respuesta.",
+              isBot: true,
+              timestamp: new Date(),
+              botones: data?.botones || [] // <-- AÑADIR ESTA LÍNEA
+            };
 
       setMessages((prev) => [...prev, botMessage]);
       setPreguntasUsadas((prev) => prev + 1);
