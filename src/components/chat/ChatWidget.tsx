@@ -287,13 +287,13 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
         const respuestaFinal = typeof data?.respuesta === "string" ? data.respuesta : "❌ No entendí tu mensaje.";
      const botMessage: Message = {
-             id: updatedMessages.length + 1,
-             text: data?.respuesta || "⚠️ No se pudo generar una respuesta.",
-             isBot: true,
-             timestamp: new Date(),
-             botones: data?.botones || [] // <-- AÑADIR ESTA LÍNEA
-           };
-      
+      id: Date.now(),
+      text: data?.respuesta || "⚠️ No se pudo generar una respuesta.",
+      isBot: true,
+      timestamp: new Date(),
+      botones: data?.botones || [],
+    };
+
       setMessages((prev) => [...prev, botMessage]);
       if (esAnonimo) setPreguntasUsadas((prev) => prev + 1);
 
