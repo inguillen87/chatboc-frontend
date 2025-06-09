@@ -1,5 +1,3 @@
-// src/pages/Demo.tsx
-
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import ChatInput from "@/components/chat/ChatInput";
@@ -18,8 +16,8 @@ const Demo = () => {
   const [rubrosDisponibles, setRubrosDisponibles] = useState<{ id: number; nombre: string }[]>([]);
   const [esperandoRubro, setEsperandoRubro] = useState(!rubroSeleccionado);
   const [token, setToken] = useState<string>("");
-
-  // --- PASO 1: AÑADIMOS EL ESTADO PARA LA "MEMORIA MANUAL" ---
+  
+  // 1. ESTADO PARA LA "MEMORIA MANUAL"
   const [contexto, setContexto] = useState({});
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -54,12 +52,11 @@ const Demo = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
 
-  // --- PASO 2: LÓGICA DE ENVÍO COMPLETAMENTE ACTUALIZADA ---
+  // 2. LÓGICA DE ENVÍO COMPLETAMENTE ACTUALIZADA
   const handleSendMessage = useCallback(async (text: string) => {
     if (!text.trim() || !rubroSeleccionado || !token) return;
-
     if (preguntasUsadas >= 15) {
-      setMessages((prev) => [...prev, { id: Date.now(), text: `🔒 Alcanzaste el límite de 15 preguntas gratuitas en esta demo.\n\n👉 Si te gustó, podés crear una cuenta gratis para usar Chatboc sin límites y personalizarlo para tu empresa. [Registrarse ahora](/register)`, isBot: true, timestamp: new Date() }]);
+      setMessages((prev) => [...prev, { id: Date.now(), text: `🔒 Límite de 15 preguntas en la demo alcanzado.`, isBot: true, timestamp: new Date() }]);
       return;
     }
 
@@ -101,7 +98,7 @@ const Demo = () => {
     }
   }, [contexto, rubroSeleccionado, token, preguntasUsadas]);
 
-  // --- PASO 3: AÑADIMOS EL LISTENER PARA LOS CLICS EN BOTONES ---
+  // 3. AÑADIMOS EL LISTENER PARA LOS CLICS EN BOTONES
   useEffect(() => {
     const handleButtonSendMessage = (event: Event) => {
       const customEvent = event as CustomEvent<string>;
@@ -114,6 +111,7 @@ const Demo = () => {
       window.removeEventListener('sendChatMessage', handleButtonSendMessage);
     };
   }, [handleSendMessage]);
+
 
   if (esperandoRubro) {
     return (
