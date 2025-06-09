@@ -265,6 +265,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     if (esAnonimo) {
       body.rubro = rubroSeleccionado || DEFAULT_WIDGET_RUBRO;
     }
+    console.log("Enviando al backend:", JSON.stringify(body));
 
     try {
       const data = await apiFetch<AskApiResponse>("/ask", {
