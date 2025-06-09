@@ -72,6 +72,10 @@ const getAnonToken = (): string => {
     }
     return token;
 }
+const getToken = (): string => {
+    const authToken = getAuthToken();
+    return authToken || getAnonToken(); // Devuelve el token de auth, y si no existe, el anónimo.
+}
 
 interface Rubro {
   id: number;
