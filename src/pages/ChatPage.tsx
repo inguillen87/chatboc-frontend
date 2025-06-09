@@ -1,3 +1,5 @@
+// ChatPage.js - VERSIÓN FINAL Y LIMPIA
+
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Message } from "@/types/chat";
 import ChatMessage from "@/components/chat/ChatMessage";
@@ -6,7 +8,6 @@ import TypingIndicator from "@/components/chat/TypingIndicator";
 import Navbar from "@/components/layout/Navbar";
 import { motion, AnimatePresence } from "framer-motion";
 
-// Hook para mobile detection (sin cambios)
 function useIsMobile(breakpoint = 768) {
   const [isMobile, setIsMobile] = useState(
     typeof window !== "undefined" ? window.innerWidth < breakpoint : false
@@ -24,32 +25,34 @@ const ChatPage = () => {
   const [isTyping, setIsTyping] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatMessagesContainerRef = useRef<HTMLDivElement>(null);
-
-  // CAMBIO 1: AÑADIMOS UN ESTADO PARA GUARDAR LA "MOCHILA" (EL CONTEXTO)
   const [contexto, setContexto] = useState({});
-
   const isMobile = useIsMobile();
-
-  const path = typeof window !== "undefined" ? window.location.pathname : "";
-  const isDemo = path.includes("demo");
+  
+  // Estas constantes se leen una sola vez al cargar el componente
   const user = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("user") || "null") : null;
-  const token = isDemo ? "demo-token" : (typeof window !== "undefined" ? localStorage.getItem("authToken") : null) || "demo-token";
+  const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
 
-  const getRubro = () => {
-          console.log("Buscando rubro... Objeto de usuario encontrado:", user);
+  // ✅ FUNCIÓN getRubro CORREGIDA Y LIMPIA
+  const getRubro = useCallback(() => {
+    console.log("Buscando rubro... Objeto de usuario encontrado:", user);
 
-    if (user?.rubro) {
-          console.log("Prioridad 1: Usando el rubro del perfil de usuario.");
-
-      if (typeof user.rubro === "object" && user.rubro.nombre) return user.rubro.nombre;
-      if (typeof user.rubro === "string") return user.rubro;
-        console.log("Prioridad 2: Usando el rubro del localStorage (modo demo).");
-
-      console.log("Buscando rubro... Objeto de usuario encontrado:", user);
-
+    // 1. ¿Existe un usuario logueado y tiene un rubro asignado en su perfil?
+    if (user && user.rubro) {
+      console.log("Prioridad 1: Usando el rubro del perfil de usuario.");
+      if (typeof user.rubro === 'object' && user.rubro.nombre) {
+        return user.rubro.nombre;
+      }
+      if (typeof user.rubro === 'string' && user.rubro) {
+        return user.rubro;
+      }
     }
-    return typeof window !== "undefined" ? localStorage.getItem("rubroSeleccionado") || "" : "";
-  };
+    
+    // 2. Si no hay rubro en el perfil, usar el del localStorage (para el modo widget/demo)
+    // ESTA PARTE NO DEBERÍA EJECUTARSE SI ESTÁS LOGUEADO CON UN USUARIO QUE TIENE RUBRO
+    console.log("Prioridad 2: No se encontró rubro en el perfil. Buscando en localStorage (modo demo/widget).");
+    const rubroDemo = typeof window !== "undefined" ? localStorage.getItem("rubroSeleccionado") : null;
+    return rubroDemo || ""; // Devolver el rubro del demo o un string vacío
+  }, [user]); // Depende del usuario que se carga al inicio
 
   const scrollToBottom = useCallback(() => {
     if (chatMessagesContainerRef.current) {
@@ -57,25 +60,22 @@ const ChatPage = () => {
     }
   }, []);
   
-  // CAMBIO 2: LÓGICA DE ENVÍO COMPLETAMENTE ACTUALIZADA
   const handleSend = useCallback(async (text: string) => {
     if (!text.trim()) return;
 
     const userMessage: Message = { id: Date.now(), text, isBot: false, timestamp: new Date() };
     setMessages(prevMessages => [...prevMessages, userMessage]);
     setIsTyping(true);
-
     setTimeout(() => scrollToBottom(), 50);
 
     try {
       const rubro = getRubro();
-
       const payload = {
         question: text,
         rubro: rubro,
         contexto_previo: contexto
       };
-    console.log('[ChatPage] Preparando para enviar a la API. Payload:', payload);
+      console.log('[ChatPage] Preparando para enviar a la API. Payload:', payload);
 
       const res = await fetch("https://api.chatboc.ar/ask", {
         method: "POST",
@@ -87,7 +87,6 @@ const ChatPage = () => {
       });
 
       const data = await res.json();
-
       setContexto(data.contexto_actualizado || {});
 
       const botMessage: Message = {
@@ -98,31 +97,29 @@ const ChatPage = () => {
         botones: data?.botones || []
       };
       
-      setMessages(prevMessages => [...prevMessages.filter(m => m.id !== userMessage.id), userMessage, botMessage]);
+      setMessages(prevMessages => [...prevMessages, botMessage]);
 
     } catch (error) {
-        setMessages(prevMessages => [...prevMessages, { id: Date.now(), text: "⚠️ No se pudo conectar con el servidor.", isBot: true, timestamp: new Date() }]);
+      setMessages(prevMessages => [...prevMessages, { id: Date.now(), text: "⚠️ No se pudo conectar con el servidor.", isBot: true, timestamp: new Date() }]);
     } finally {
       setIsTyping(false);
     }
-  }, [contexto, token, messages]);
+  }, [contexto, token, getRubro, scrollToBottom]); // ✅ CORREGIDO: Sin 'messages'
 
 
-useEffect(() => {
-  const handleButtonSendMessage = (event: Event) => {
-    const customEvent = event as CustomEvent<string>;
-    if (customEvent.detail) {
-      // ✅ DETECTIVE #2: ¿La página principal escucha el evento?
-      console.log(`[ChatPage] Evento 'sendChatMessage' escuchado. Ejecutando handleSend con: "${customEvent.detail}"`);
-      handleSend(customEvent.detail);
-    }
-  };
-  window.addEventListener('sendChatMessage', handleButtonSendMessage);
-  return () => {
-    window.removeEventListener('sendChatMessage', handleButtonSendMessage);
-  };
-}, [handleSend]);
-
+  useEffect(() => {
+    const handleButtonSendMessage = (event: Event) => {
+      const customEvent = event as CustomEvent<string>;
+      if (customEvent.detail) {
+        console.log(`[ChatPage] Evento 'sendChatMessage' escuchado. Ejecutando handleSend con: "${customEvent.detail}"`);
+        handleSend(customEvent.detail);
+      }
+    };
+    window.addEventListener('sendChatMessage', handleButtonSendMessage);
+    return () => {
+      window.removeEventListener('sendChatMessage', handleButtonSendMessage);
+    };
+  }, [handleSend]);
 
   useEffect(() => {
     if (messages.length === 0) {
@@ -130,7 +127,7 @@ useEffect(() => {
         { id: Date.now(), text: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?", isBot: true, timestamp: new Date() },
       ]);
     }
-  }, []); // Se ejecuta solo una vez
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -139,20 +136,8 @@ useEffect(() => {
     return () => clearTimeout(timer);
   }, [messages.length, isTyping, scrollToBottom]);
 
-
-  // Esta función es para un caso de uso antiguo, la dejamos por si acaso pero los botones nuevos no la usan.
-  const handleDynamicButtonClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    const target = e.target as HTMLElement;
-    if (target.tagName === 'BUTTON' && target.hasAttribute('onclick')) {
-        const onclickAttribute = target.getAttribute('onclick');
-        if (onclickAttribute && onclickAttribute.includes('enviarMensajeAsistente')) {
-            const match = onclickAttribute.match(/enviarMensajeAsistente\('(.+?)'\)/);
-            if (match && match[1]) {
-                handleSend(match[1]);
-            }
-        }
-    }
-  };
+  // Esta función es para un caso de uso antiguo, la dejamos por si acaso.
+  const handleDynamicButtonClick = (e: React.MouseEvent<HTMLDivElement>) => { /* ... */ };
 
   return (
     <div className="min-h-screen flex flex-col bg-background dark:bg-gradient-to-b dark:from-[#0d1014] dark:to-[#161b22] text-foreground">
@@ -164,7 +149,6 @@ useEffect(() => {
           style={{ boxShadow: isMobile ? undefined : "0 8px 64px 0 rgba(30,40,90,0.10)" }}
         >
           <div
-            onClick={handleDynamicButtonClick}
             ref={chatMessagesContainerRef}
             className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-3 custom-scroll scrollbar-thin scrollbar-thumb-[#90caf9] scrollbar-track-transparent bg-background dark:bg-[#22262b] transition-all"
             style={{ minHeight: 0 }}
