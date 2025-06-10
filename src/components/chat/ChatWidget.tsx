@@ -1,14 +1,15 @@
-// Archivo: ChatWidget.tsx (versión optimizada final sin errores)
+// src/components/chat/ChatWidget.tsx
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { X } from "lucide-react";
 import ChatMessage from "./ChatMessage";
 import TypingIndicator from "./TypingIndicator";
 import ChatInput from "./ChatInput";
-import { Message } from "@/types/chat";
+import { Message } from "@/types/chat"; // Asegúrate de que esta interfaz esté correcta y tenga 'botones?: BotonProps[];'
 import { apiFetch } from "@/utils/api";
 import { useIsMobile } from "@/hooks/use-mobile";
 
+// --- WidgetChatHeader (si no está en un archivo separado, ponlo aquí) ---
 const WidgetChatHeader = ({ title = "Chatboc Asistente", showCloseButton = false, onClose, onMouseDownDrag, isDraggable }) => (
   <div
     className="flex items-center justify-between p-3 border-b border-border bg-card text-foreground select-none"
@@ -31,6 +32,7 @@ const WidgetChatHeader = ({ title = "Chatboc Asistente", showCloseButton = false
   </div>
 );
 
+// --- Funciones auxiliares (getAuthToken, getAnonToken) ---
 const getAuthToken = () => (typeof window === "undefined" ? null : localStorage.getItem("authToken"));
 const getAnonToken = () => {
   if (typeof window === "undefined") return "anon-ssr";
@@ -41,6 +43,7 @@ const getAnonToken = () => {
   }
   return token;
 };
+
 
 const ChatWidget = ({
   mode = "standalone",
@@ -69,6 +72,23 @@ const ChatWidget = ({
   );
   const isMobile = useIsMobile();
 
+  // Comunicación con el padre (widget.js) para redimensionar el iframe
+  const postResizeMessage = useCallback(() => {
+    if (mode === "iframe" && typeof window !== "undefined" && window.parent) {
+      const currentElement = widgetContainerRef.current as HTMLElement | null; // Asegurar que es un HTMLElement
+      if (currentElement) {
+        const { offsetWidth, offsetHeight } = currentElement;
+        window.parent.postMessage({
+          type: "chatboc-resize",
+          widgetId: widgetId,
+          dimensions: { width: `${offsetWidth}px`, height: `${offsetHeight}px` },
+          isOpen: isOpen,
+        }, "*"); // Usar '*' si el origen no es fijo (ej. si se incrusta en diferentes dominios)
+      }
+    }
+  }, [mode, isOpen, widgetId]);
+
+
   useEffect(() => {
     const esAnon = !getAuthToken();
     const rubroLS = localStorage.getItem("rubroSeleccionado");
@@ -81,6 +101,7 @@ const ChatWidget = ({
     }
   }, [isOpen]);
 
+  // Scroll al final de los mensajes
   useEffect(() => {
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
@@ -89,6 +110,12 @@ const ChatWidget = ({
       (messagesEndRef.current as any).scrollIntoView({ behavior: "smooth" });
     }
   }, [messages, isTyping]);
+
+  // Enviar mensaje de resize cuando el chat se abre/cierra o los mensajes cambian (para ajustar altura)
+  useEffect(() => {
+    postResizeMessage();
+  }, [isOpen, messages, isTyping, postResizeMessage]);
+
 
   const cargarRubros = async () => {
     setCargandoRubros(true);
@@ -116,6 +143,10 @@ const ChatWidget = ({
     const userMessage = { id: Date.now(), text, isBot: false, timestamp: new Date() };
     setMessages(prev => [...prev, userMessage]);
     setIsTyping(true);
+
+    // No necesitas setTimeout aquí si scrolltobottom se llama después de setMessages,
+    // y el useEffect de scroll ya lo maneja.
+    // setTimeout(() => scrollToBottom(), 50); // Comentado o eliminado
 
     const payload: any = { pregunta: text, contexto_previo: contexto };
     if (esAnonimo) payload.rubro = rubroSeleccionado;
@@ -146,19 +177,77 @@ const ChatWidget = ({
 
   const toggleChat = () => setIsOpen(o => !o);
 
+  // --- LÓGICA DE ARRASTRE (DRAG) ---
+  // Esta lógica ya está en widget.js si el modo es "iframe" y el widget.js lo gestiona.
+  // Aquí solo es relevante si mode="standalone" y draggable=true.
+  const onMouseDownDrag = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    if (mode === "standalone" && draggable && isOpen && !isMobile) {
+      const startX = e.touches ? e.touches[0].clientX : e.clientX;
+      const startY = e.touches ? e.touches[0].clientY : e.clientY;
+      const rect = widgetContainerRef.current.getBoundingClientRect();
+      dragStartPosRef.current = {
+        x: startX,
+        y: startY,
+        left: rect.left,
+        top: rect.top,
+      };
+
+      const handleMouseMove = (moveEvent: MouseEvent | TouchEvent) => {
+        if (!dragStartPosRef.current) return;
+        const clientX = moveEvent.touches ? moveEvent.touches[0].clientX : moveEvent.clientX;
+        const clientY = moveEvent.touches ? moveEvent.touches[0].clientY : moveEvent.clientY;
+
+        const newLeft = dragStartPosRef.current.left + (clientX - dragStartPosRef.current.x);
+        const newTop = dragStartPosRef.current.top + (clientY - dragStartPosRef.current.y);
+
+        setCurrentPos({
+          position: "fixed",
+          left: `${newLeft}px`,
+          top: `${newTop}px`,
+          right: "auto",
+          bottom: "auto",
+          zIndex: 99998,
+        });
+      };
+
+      const handleMouseUp = () => {
+        dragStartPosRef.current = null;
+        window.removeEventListener("mousemove", handleMouseMove);
+        window.removeEventListener("mouseup", handleMouseUp);
+        window.removeEventListener("touchmove", handleMouseMove);
+        window.removeEventListener("touchend", handleMouseUp);
+      };
+
+      window.addEventListener("mousemove", handleMouseMove);
+      window.addEventListener("mouseup", handleMouseUp);
+      window.addEventListener("touchmove", handleMouseMove, { passive: false });
+      window.addEventListener("touchend", handleMouseUp);
+      if (e.type === 'touchstart' && e.cancelable) e.preventDefault(); 
+    }
+  }, [mode, draggable, isOpen, isMobile]);
+
+
   const mainChatViewContent = (
     <>
       <WidgetChatHeader
         title="Chatboc Asistente"
         showCloseButton={true}
         onClose={toggleChat}
-        isDraggable={mode === "standalone" && draggable && isOpen}
+        isDraggable={mode === "standalone" && draggable && isOpen && !isMobile} // Solo draggable en standalone y no mobile
+        onMouseDownDrag={onMouseDownDrag} 
       />
       <div
         className="flex-1 overflow-y-auto overflow-x-hidden p-3 flex flex-col gap-3 bg-background text-foreground"
         ref={chatContainerRef}
       >
-        {messages.map(msg => typeof msg.text === "string" && <ChatMessage key={msg.id} message={msg} />)}
+        {messages.map(msg => typeof msg.text === "string" && (
+          <ChatMessage 
+            key={msg.id} 
+            message={msg} 
+            isTyping={isTyping} 
+            onButtonClick={handleSendMessage} // <<<<<<<<<<<<<< PASAR handleSendMessage AQUÍ
+          />
+        ))}
         {isTyping && <TypingIndicator />}
         <div ref={messagesEndRef} />
       </div>

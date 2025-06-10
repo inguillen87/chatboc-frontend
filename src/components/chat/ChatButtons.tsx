@@ -1,49 +1,48 @@
 // src/components/chat/ChatButtons.tsx
 import React from 'react';
 
-// Definición de la interfaz BotonProps, ahora incluyendo 'url' y 'accion_interna'
 interface BotonProps {
   texto: string;
-  payload?: string; // Para los botones que envían un valor específico al bot
-  url?: string;     // <<<<<<<<<<<<<< AÑADIDO: Para botones que son enlaces
-  accion_interna?: string; // <<<<<<<<<<<<<< AÑADIDO: Para acciones internas del bot
+  payload?: string;
+  url?: string;
+  accion_interna?: string;
 }
 
 interface ChatButtonsProps {
   botones: BotonProps[];
+  onButtonClick: (valueToSend: string) => void; // Recibe la función de envío de mensajes
 }
 
-const ChatButtons: React.FC<ChatButtonsProps> = ({ botones }) => {
+const ChatButtons: React.FC<ChatButtonsProps> = ({ botones, onButtonClick }) => {
   if (!botones || botones.length === 0) {
     return null;
   }
 
-  const handleButtonClick = (valueToSend: string) => {
-    // Disparamos un evento global que las páginas de chat escucharán
-    // y que tu ChatWidget debería estar escuchando para llamar a handleSendMessage
-    window.dispatchEvent(new CustomEvent('sendChatMessage', { detail: valueToSend }));
-  };
+  // handleButtonClick ya no es un CustomEvent, llama directamente a la prop
+  // const handleButtonClick = (valueToSend: string) => {
+  //   window.dispatchEvent(new CustomEvent('sendChatMessage', { detail: valueToSend }));
+  // };
 
   return (
-    <div className="mt-4 flex flex-wrap gap-2 justify-start">
+    <div className="mt-2 flex flex-wrap gap-2 justify-start"> 
       {botones.map((boton, index) => (
         <React.Fragment key={index}>
           {boton.url ? (
-            // Si el botón tiene una URL, renderizamos un enlace <a>
             <a
               href={boton.url}
-              target="_blank" // Abre en una nueva pestaña
-              rel="noopener noreferrer" // Buena práctica de seguridad
-              className="px-4 py-2 bg-blue-500/80 text-white rounded-full text-sm font-semibold hover:bg-blue-600 transition-all duration-200"
-              // Puedes ajustar los estilos para que coincidan con tus otros botones
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="px-3 py-1 text-sm rounded-full border border-blue-500 bg-blue-500 text-white hover:bg-blue-600 transition-colors duration-200 cursor-pointer text-center"
             >
               {boton.texto}
             </a>
           ) : (
-            // Si el botón NO tiene una URL, renderizamos un <button> que dispara un evento
             <button
-              onClick={() => handleButtonClick(boton.payload || boton.accion_interna || boton.texto)}
-              className="px-4 py-2 bg-primary/10 text-primary rounded-full text-sm font-semibold hover:bg-primary/20 transition-all duration-200"
+              onClick={() => {
+                // Llama directamente a la función onButtonClick que viene de ChatMessage -> ChatWidget
+                onButtonClick(boton.accion_interna || boton.payload || boton.texto);
+              }}
+              className="px-3 py-1 text-sm rounded-full border border-gray-300 bg-gray-100 text-gray-800 hover:bg-gray-200 transition-colors duration-200 cursor-pointer text-center"
             >
               {boton.texto}
             </button>

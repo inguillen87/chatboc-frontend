@@ -1,20 +1,18 @@
+// src/components/chat/ChatMessage.tsx
 import React from "react";
-import { Message } from "@/types/chat";
+import { Message } from "@/types/chat"; // Asegúrate de que tu interfaz Message sea correcta y tenga 'botones?: BotonProps[];'
+import ChatButtons from "./ChatButtons"; // Importamos el componente de botones
 import { motion } from "framer-motion";
-import ChatButtons from "./ChatButtons";
 
-const LOGO_BOT = "/favicon/favicon-48x48.png"; // Ruta para el avatar estático del bot
-
-// --- Componente AvatarBot (se puede mover a un archivo separado como AvatarBot.tsx) ---
+// --- Componente AvatarBot ---
 interface AvatarBotProps {
-    isTyping: boolean; // Indica si el bot está "escribiendo"
+    isTyping: boolean; 
 }
 
-const AvatarBot: React.FC<AvatarBotProps> = ({ isTyping }) => {
-    // Si tienes un GIF animado para la boca que se mueve, puedes usarlo aquí.
-    // Ejemplo: const AVATAR_TALKING_GIF = "/path/to/tu_avatar_hablando.gif";
-    const AVATAR_TALKING_GIF = null; // Por ahora, lo dejamos en null si no tienes un GIF específico
+const LOGO_BOT = "/favicon/favicon-48x48.png"; 
 
+const AvatarBot: React.FC<AvatarBotProps> = ({ isTyping }) => {
+    const AVATAR_TALKING_GIF = null; // Si tienes un GIF para "hablando"
     return (
         <motion.div
             initial={{ scale: 0.8, opacity: 0 }}
@@ -24,20 +22,20 @@ const AvatarBot: React.FC<AvatarBotProps> = ({ isTyping }) => {
                 flex-shrink-0 w-10 h-10 rounded-full bg-card flex items-center justify-center 
                 border-2 transition-all duration-200 ease-in-out
                 ${isTyping 
-                    ? "border-blue-500 shadow-lg shadow-blue-500/50 scale-105" // Borde y sombra azul, y pequeña escala cuando está escribiendo
+                    ? "border-blue-500 shadow-lg shadow-blue-500/50 scale-105" 
                     : "border-border shadow-sm"}
             `}
         >
             <img 
-                src={isTyping && AVATAR_TALKING_GIF ? AVATAR_TALKING_GIF : LOGO_BOT} // Usa el GIF si existe y está escribiendo, de lo contrario la imagen estática
+                src={isTyping && AVATAR_TALKING_GIF ? AVATAR_TALKING_GIF : LOGO_BOT} 
                 alt="Chatboc" 
-                className={`w-7 h-7 object-contain ${isTyping && !AVATAR_TALKING_GIF ? "animate-pulse-subtle" : ""}`} // Animación de pulso si no hay GIF
+                className={`w-7 h-7 object-contain ${isTyping && !AVATAR_TALKING_GIF ? "animate-pulse-subtle" : ""}`} 
             />
         </motion.div>
     );
 };
 
-// --- Componente UserAvatar (sin cambios funcionales, solo por completitud) ---
+// --- Componente UserAvatar ---
 const UserAvatar = () => (
     <motion.span
         className="flex-shrink-0 w-9 h-9 rounded-full bg-secondary flex items-center justify-center border border-border shadow-md dark:border-blue-700"
@@ -49,13 +47,15 @@ const UserAvatar = () => (
     </motion.span>
 );
 
+
 // --- Componente ChatMessage ---
 interface ChatMessageProps {
     message: Message;
-    isTyping: boolean; // <-- IMPORANTE: Esta prop es nueva y viene de ChatPage
+    isTyping: boolean; 
+    onButtonClick: (valueToSend: string) => void; // <<<<<<<<<<<<<< Prop para manejar clics de botones
 }
 
-const ChatMessage: React.FC<ChatMessageProps> = ({ message, isTyping }) => {
+const ChatMessage: React.FC<ChatMessageProps> = ({ message, isTyping, onButtonClick }) => {
     if (!message || typeof message.text !== "string") {
         return (
             <div className="text-xs text-destructive italic mt-2 px-3">
@@ -64,10 +64,10 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, isTyping }) => {
         );
     }
 
-    // Lógica de botones CTA (sin cambios, ya que no es el foco de la mejora visual)
+    // Lógica para el mensaje CTA especial (__cta__), si lo usas
     if (message.text === "__cta__") {
         const user = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("user") || "null") : null;
-        if (user?.token) return null;
+        if (user?.token) return null; 
         return (
             <div className="flex justify-center mt-4">
                 <div className="text-center space-y-2">
@@ -95,7 +95,6 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, isTyping }) => {
 
     const isBot = message.isBot;
     
-    // Variantes para animación de entrada de la burbuja
     const bubbleVariants = {
         hidden: { opacity: 0, y: 10, scale: 0.98 },
         visible: { opacity: 1, y: 0, scale: 1 },
@@ -106,8 +105,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, isTyping }) => {
             className={`flex items-end gap-2.5 ${isBot ? "justify-start" : "justify-end"}`}
         >
             {isBot && (
-                // Aquí usamos el componente AvatarBot, pasándole el estado de escritura
-                <AvatarBot isTyping={isTyping} />
+                <AvatarBot isTyping={isTyping} /> 
             )}
 
             <div className="flex flex-col">
@@ -115,11 +113,9 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, isTyping }) => {
                     className={`
                         px-4 py-3 max-w-[320px] shadow-md relative
                         ${isBot
-                            ? "bg-muted text-foreground rounded-b-2xl rounded-tr-2xl dark:bg-[#333a4d] dark:text-gray-100" // Bot: Esquina superior izquierda redondeada
-                            : "bg-primary text-primary-foreground rounded-b-2xl rounded-tl-2xl dark:bg-blue-600 dark:text-white" // Usuario: Esquina superior derecha redondeada
-                        }
-                        break-words // Asegura que el texto largo se ajuste
-                        // Añadimos una cola a la burbuja con pseudo-elementos
+                            ? "bg-muted text-foreground rounded-b-2xl rounded-tr-2xl dark:bg-[#333a4d] dark:text-gray-100" 
+                            : "bg-primary text-primary-foreground rounded-b-2xl rounded-tl-2xl dark:bg-blue-600 dark:text-white" }
+                        break-words 
                         after:content-[''] after:absolute after:bottom-0 
                         ${isBot 
                             ? "after:left-[-8px] after:w-0 after:h-0 after:border-8 after:border-transparent after:border-t-muted after:border-r-muted dark:after:border-t-[#333a4d] dark:after:border-r-[#333a4d]" 
@@ -138,7 +134,8 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, isTyping }) => {
 
                 {/* --- LÓGICA PARA MOSTRAR BOTONES DINÁMICOS --- */}
                 {message.isBot && message.botones && message.botones.length > 0 && (
-                    <ChatButtons botones={message.botones} />
+                    // Pasamos la prop onButtonClick a ChatButtons
+                    <ChatButtons botones={message.botones} onButtonClick={onButtonClick} /> 
                 )}
             </div>
 

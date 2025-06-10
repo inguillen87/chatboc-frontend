@@ -1,3 +1,4 @@
+// src/pages/ChatPage.tsx
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Message } from "@/types/chat";
 import ChatMessage from "@/components/chat/ChatMessage";
@@ -5,7 +6,7 @@ import ChatInput from "@/components/chat/ChatInput";
 import TypingIndicator from "@/components/chat/TypingIndicator";
 import Navbar from "@/components/layout/Navbar";
 import { motion, AnimatePresence } from "framer-motion";
-import { apiFetch } from "@/utils/api"; // Asumiendo que apiFetch maneja el token
+import { apiFetch } from "@/utils/api";
 
 // Hook para mobile detection (sin cambios)
 function useIsMobile(breakpoint = 768) {
@@ -26,7 +27,6 @@ const ChatPage = () => {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatMessagesContainerRef = useRef<HTMLDivElement>(null);
 
-  // 1. AÑADIMOS EL ESTADO PARA LA "MOCHILA" (CONTEXTO)
   const [contexto, setContexto] = useState({});
 
   const isMobile = useIsMobile();
@@ -37,22 +37,19 @@ const ChatPage = () => {
     }
   }, []);
 
-  // Mensaje inicial (sin cambios)
   useEffect(() => {
     if (messages.length === 0) { 
       setMessages([
         { id: Date.now(), text: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?", isBot: true, timestamp: new Date() },
       ]);
     }
-  }, []); // Se ejecuta solo una vez
+  }, []); 
 
-  // Scroll al fondo (sin cambios)
   useEffect(() => {
     const timer = setTimeout(() => scrollToBottom(), 150);
     return () => clearTimeout(timer);
   }, [messages, isTyping, scrollToBottom]);
 
-  // 2. LÓGICA DE ENVÍO COMPLETAMENTE ACTUALIZADA
   const handleSend = useCallback(async (text: string) => {
     if (!text.trim()) return;
 
@@ -60,21 +57,20 @@ const ChatPage = () => {
     setMessages(prev => [...prev, userMessage]);
     setIsTyping(true);
 
-    setTimeout(() => scrollToBottom(), 50);
+    // No necesitas setTimeout aquí si scrolltobottom se llama después de setMessages,
+    // y el useEffect de scroll ya lo maneja.
+
+    const payload = {
+      pregunta: text,
+      contexto_previo: contexto 
+    };
 
     try {
-      // El backend ya obtiene el rubro del usuario logueado, no necesitamos enviarlo siempre.
-      const payload = {
-        pregunta: text,
-        contexto_previo: contexto // <-- Enviamos la mochila
-      };
-
       const data = await apiFetch<any>("/ask", {
         method: "POST",
         body: payload,
       });
 
-      // Guardamos la mochila actualizada que nos devuelve el backend
       setContexto(data.contexto_actualizado || {});
 
       const botMessage: Message = {
@@ -82,7 +78,7 @@ const ChatPage = () => {
         text: data?.respuesta || "⚠️ No se pudo generar una respuesta.",
         isBot: true,
         timestamp: new Date(),
-        botones: data?.botones || [] // <-- Guardamos los botones
+        botones: data?.botones || [] 
       };
       setMessages(prev => [...prev, botMessage]);
 
@@ -91,9 +87,11 @@ const ChatPage = () => {
     } finally {
       setIsTyping(false);
     }
-  }, [contexto]); // La dependencia principal ahora es el contexto
+  }, [contexto]);
 
-  // 3. LISTENER PARA LOS CLICS EN BOTONES DINÁMICOS
+  // <<<<<<<<<<<<<< ELIMINAR O COMENTAR ESTE LISTENER DE CustomEvent >>>>>>>>>>>>>>
+  // Porque ChatButtons ahora llama directamente a onButtonClick, no emite un CustomEvent
+  /*
   useEffect(() => {
     const handleButtonSendMessage = (event: Event) => {
       const customEvent = event as CustomEvent<string>;
@@ -106,7 +104,11 @@ const ChatPage = () => {
       window.removeEventListener('sendChatMessage', handleButtonSendMessage);
     };
   }, [handleSend]);
+  */
 
+  // <<<<<<<<<<<<<< ELIMINAR O COMENTAR ESTA FUNCIÓN Y SU onClick EN EL DIV >>>>>>>>>>>>>>
+  // Porque los botones ahora se manejan a través de props y ChatButtons
+  /*
   const handleDynamicButtonClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
     if (target.tagName === 'BUTTON') {
@@ -120,6 +122,8 @@ const ChatPage = () => {
       }
     }
   };
+  */
+
   return (
     <div className="min-h-screen flex flex-col bg-background dark:bg-gradient-to-b dark:from-[#0d1014] dark:to-[#161b22] text-foreground">
       <Navbar />
@@ -136,9 +140,7 @@ const ChatPage = () => {
           className={`
             w-full max-w-[99vw] ${isMobile ? "h-[100svh]" : "sm:w-[480px] h-[83vh]"}
             flex flex-col
-            // MODIFICADO: rounded-3xl para mayor redondez en el contenedor principal
             rounded-none sm:rounded-3xl 
-            // MODIFICADO: border-0 sm:border para que el borde solo aparezca en desktop si es deseado
             border-0 sm:border border-border
             shadow-none sm:shadow-2xl
             bg-card dark:bg-[#20232b]/95
@@ -153,7 +155,7 @@ const ChatPage = () => {
         >
           {/* Mensajes */}
           <div
-            onClick={handleDynamicButtonClick}
+            // onClick={handleDynamicButtonClick} // <<<<<<<<<<<<<< COMENTAR O REMOVER ESTO
             ref={chatMessagesContainerRef}
             className={`
               flex-1 overflow-y-auto
@@ -174,7 +176,8 @@ const ChatPage = () => {
                   exit={{ opacity: 0, y: 14 }}
                   transition={{ duration: 0.18 }}
                 >
-                  <ChatMessage message={msg} />
+                  {/* Pasa onButtonClick a ChatMessage aquí también */}
+                  <ChatMessage message={msg} isTyping={isTyping} onButtonClick={handleSend} /> 
                 </motion.div>
               ))}
             </AnimatePresence>
@@ -185,7 +188,6 @@ const ChatPage = () => {
           {/* Input siempre visible abajo */}
           <div
             className={`
-              // MODIFICADO: Fondo con gradiente semántico y borde
               bg-gradient-to-t from-background via-card/60 to-transparent dark:from-card dark:via-card/80
               border-t border-border
               p-2 sm:p-4
