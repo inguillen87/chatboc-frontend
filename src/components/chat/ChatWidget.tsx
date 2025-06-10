@@ -185,7 +185,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ // Usar React.FC para tipar pro
 
       setContexto(data.contexto_actualizado || {});
       setMessages(prev => [...prev, {
-        id: Date.24, 7:38:32 PM -03:00, text: data.respuesta || "No pude procesar tu solicitud.",
+        id: Date.now(), // <<<<<<<<<<<<<< CORRECCIÓN AQUÍ
+        text: data.respuesta || "No pude procesar tu solicitud.",
         isBot: true,
         timestamp: new Date(),
         botones: data.botones || [],
