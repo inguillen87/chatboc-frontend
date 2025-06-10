@@ -1,3 +1,5 @@
+// Archivo: Demo.tsx (ajustado para igualar la lógica del ChatWidget para anónimos)
+
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import ChatInput from "@/components/chat/ChatInput";
@@ -16,13 +18,9 @@ const Demo = () => {
   const [rubrosDisponibles, setRubrosDisponibles] = useState<{ id: number; nombre: string }[]>([]);
   const [esperandoRubro, setEsperandoRubro] = useState(!rubroSeleccionado);
   const [token, setToken] = useState<string>("");
-  
-  // 1. ESTADO PARA LA "MEMORIA MANUAL"
   const [contexto, setContexto] = useState({});
-  
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Inicializar token anónimo
   useEffect(() => {
     if (typeof window !== "undefined") {
       let currentToken = localStorage.getItem("anon_token");
@@ -34,25 +32,22 @@ const Demo = () => {
     }
   }, []);
 
-  // Cargar rubros o mensaje inicial
   useEffect(() => {
     if (!rubroSeleccionado) {
       setEsperandoRubro(true);
-      apiFetch<any[]>('/rubros/', { skipAuth: true })
+      apiFetch<any[]>("/rubros/", { skipAuth: true })
         .then((data) => setRubrosDisponibles(Array.isArray(data) ? data : []))
         .catch(() => setRubrosDisponibles([]));
     } else if (messages.length === 0) {
-      setMessages([{ id: Date.now(), text: "¡Hola! Soy Chatboc, tu experto virtual. ¿En qué puedo ayudarte?", isBot: true, timestamp: new Date() }]);
+      setMessages([{ id: Date.now(), text: `¡Hola! Soy Chatboc, tu asistente para ${rubroSeleccionado.toLowerCase()}. ¿En qué puedo ayudarte hoy?`, isBot: true, timestamp: new Date() }]);
       setEsperandoRubro(false);
     }
   }, [rubroSeleccionado, messages.length]);
 
-  // Scroll automático
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
 
-  // 2. LÓGICA DE ENVÍO COMPLETAMENTE ACTUALIZADA
   const handleSendMessage = useCallback(async (text: string) => {
     if (!text.trim() || !rubroSeleccionado || !token) return;
     if (preguntasUsadas >= 15) {
@@ -66,18 +61,17 @@ const Demo = () => {
 
     try {
       const payload = {
-        question: text,
+        pregunta: text,
         rubro: rubroSeleccionado,
-        contexto_previo: contexto, // Enviamos la "mochila"
+        contexto_previo: contexto,
       };
 
       const response = await apiFetch<any>("/ask", {
         method: "POST",
         body: payload,
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`},
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       });
 
-      // Guardamos la "mochila" actualizada
       setContexto(response.contexto_actualizado || {});
 
       const botMessage: Message = {
@@ -85,7 +79,7 @@ const Demo = () => {
         text: response?.respuesta || "⚠️ No se pudo generar una respuesta.",
         isBot: true,
         timestamp: new Date(),
-        botones: response?.botones || [], // Guardamos los botones
+        botones: response?.botones || [],
       };
 
       setMessages((prev) => [...prev, botMessage]);
@@ -98,7 +92,6 @@ const Demo = () => {
     }
   }, [contexto, rubroSeleccionado, token, preguntasUsadas]);
 
-  // 3. AÑADIMOS EL LISTENER PARA LOS CLICS EN BOTONES
   useEffect(() => {
     const handleButtonSendMessage = (event: Event) => {
       const customEvent = event as CustomEvent<string>;
@@ -111,7 +104,6 @@ const Demo = () => {
       window.removeEventListener('sendChatMessage', handleButtonSendMessage);
     };
   }, [handleSendMessage]);
-
 
   if (esperandoRubro) {
     return (
@@ -128,6 +120,8 @@ const Demo = () => {
                 onClick={() => {
                   localStorage.setItem("rubroSeleccionado", rubro.nombre);
                   setRubroSeleccionado(rubro.nombre);
+                  setEsperandoRubro(false);
+                  setMessages([{ id: Date.now(), text: `¡Hola! Soy Chatboc, tu asistente para ${rubro.nombre.toLowerCase()}. ¿En qué puedo ayudarte hoy?`, isBot: true, timestamp: new Date() }]);
                 }}
                 className="px-5 py-3 rounded-full font-semibold text-base bg-primary text-primary-foreground hover:bg-primary/90 shadow-md focus:outline-none transition-all"
               >
