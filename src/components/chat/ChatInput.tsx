@@ -3,6 +3,7 @@ import { Send } from "lucide-react";
 
 interface Props {
   onSendMessage: (text: string) => void;
+  isTyping: boolean; // <-- NUEVO: Para deshabilitar el input si el bot está escribiendo
 }
 
 const PLACEHOLDERS = [
@@ -12,7 +13,7 @@ const PLACEHOLDERS = [
   "¿Cuánto cuesta el servicio?",
 ];
 
-const ChatInput: React.FC<Props> = ({ onSendMessage }) => {
+const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping }) => { // <-- Recibimos isTyping
   const [input, setInput] = useState("");
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -25,36 +26,40 @@ const ChatInput: React.FC<Props> = ({ onSendMessage }) => {
   }, []);
 
   const handleSend = () => {
-    if (!input.trim()) return;
+    if (!input.trim() || isTyping) return; // <-- No enviar si el bot está escribiendo
     onSendMessage(input.trim());
     setInput("");
     inputRef.current?.focus();
   };
 
   return (
-    <div className="w-full max-w-[420px] mx-auto flex items-center gap-2 px-3 py-2 border-t border-border bg-card backdrop-blur-md">
+    <div className="w-full max-w-[420px] mx-auto flex items-center gap-2 px-3 py-2"> {/* Quitamos border-t, bg-card, backdrop-blur-md, ya están en ChatPage */}
       <input
         ref={inputRef}
-        className="
+        className={`
           flex-1 max-w-full min-w-0
-          // MODIFICADO: rounded-full para mayor redondez en el input
           rounded-full px-4 py-2
-          text-base text-foreground // Usar text-foreground para el color del texto
+          text-base
           outline-none transition-all duration-200
           focus:border-primary focus:ring-2 focus:ring-primary/50
           placeholder:text-muted-foreground // Usar placeholder:text-muted-foreground
           font-medium
-          disabled:bg-muted disabled:text-muted-foreground
+          disabled:cursor-not-allowed // <-- Cursor de no permitido cuando está deshabilitado
           
-          // CLASE CRÍTICA PARA EL MODO OSCURO (con !important para anular otras reglas si persisten):
-          // Usar bg-input para el modo claro (definido en globals.css)
-          // Forzar un gris oscuro específico para el fondo del input en modo oscuro
-          // y un color claro para el texto y placeholder.
-          bg-input dark:bg-[#1a1a1a] !important // Fondo del input
-          dark:text-gray-100 !important // Color del texto
-          dark:placeholder-gray-400 !important // Color del placeholder
+          // COLORES DEL INPUT:
+          bg-input // Usa bg-input de tu tema base
+          text-foreground // Color del texto del input
           border border-input // Borde del input
-        "
+          
+          // MODO OSCURO:
+          dark:bg-[#1a1a1a] // Fondo del input en modo oscuro
+          dark:text-gray-100 // Color del texto en modo oscuro
+          dark:placeholder-gray-400 // Color del placeholder en modo oscuro
+          dark:border-[#333a4d] // Color del borde en modo oscuro
+
+          // EFECTOS DE DESHABILITADO:
+          ${isTyping ? "opacity-60 bg-muted-foreground/10" : ""} // Efecto visual cuando isTyping es true
+        `}
         type="text"
         placeholder={PLACEHOLDERS[placeholderIndex]}
         value={input}
@@ -69,21 +74,26 @@ const ChatInput: React.FC<Props> = ({ onSendMessage }) => {
         autoComplete="off"
         maxLength={200}
         aria-label="Escribir mensaje"
+        disabled={isTyping} // <-- Deshabilitar input si el bot está escribiendo
       />
       <button
         className={`
           flex items-center justify-center
-          // MODIFICADO: rounded-full para mayor redondez en el botón de enviar
           rounded-full p-2.5 ml-1
           shadow-xl transition-all duration-150
           focus:outline-none focus:ring-2 focus:ring-primary/60
-          disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed
           active:scale-95
-          bg-primary hover:bg-primary/90 // Usar bg-primary y hover
-          text-primary-foreground // Usar text-primary-foreground
+
+          // COLORES DEL BOTÓN:
+          bg-primary hover:bg-primary/90 // Fondo del botón y hover
+          text-primary-foreground // Color del ícono del botón
+          dark:bg-blue-600 dark:hover:bg-blue-700 // Colores en modo oscuro
+
+          // EFECTOS DE DESHABILITADO:
+          ${!input.trim() || isTyping ? "opacity-50 cursor-not-allowed" : ""} // Más opaco y cursor de no permitido si no hay texto o el bot está escribiendo
         `}
         onClick={handleSend}
-        disabled={!input.trim()}
+        disabled={!input.trim() || isTyping} // <-- Deshabilitar botón si no hay texto o el bot está escribiendo
         aria-label="Enviar mensaje"
         type="button"
       >
