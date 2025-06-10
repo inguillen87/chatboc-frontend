@@ -27,6 +27,8 @@ import Iframe from "./pages/Iframe";
 
 // Importá tu componente TicketsPanelPro aquí
 import TicketsPanelPro from "./pages/TicketsPanel";
+// --- NUEVO: Importa tu componente PedidosPage aquí ---
+import PedidosPage from "./pages/PedidosPage"; 
 
 const queryClient = new QueryClient();
 
@@ -56,6 +58,8 @@ function AppRoutes() {
           <Route path="/legal/cookies" element={<Cookies />} />
           {/* Ruta para panel de tickets */}
           <Route path="/tickets" element={<TicketsPanelPro />} />
+          {/* --- NUEVA RUTA PARA PANEL DE PEDIDOS --- */}
+          <Route path="/pedidos" element={<PedidosPage />} /> 
         </Route>
 
         <Route path="/iframe" element={<Iframe />} />
