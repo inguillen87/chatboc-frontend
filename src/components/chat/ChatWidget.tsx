@@ -96,17 +96,21 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     if (mode === "iframe" && typeof window !== "undefined" && window.parent) {
       const currentElement = widgetContainerRef.current; 
       if (currentElement) {
-        const { offsetWidth, offsetHeight } = currentElement;
+        // <<<<<<<<<<<<<< ESTA ES LA LÓGICA QUE NECESITA SER MÁS INTELIGENTE >>>>>>>>>>>>>>
+        // Necesitamos enviar las dimensiones correctas de OPEN o CLOSED.
+        const dimensionsToSend = isOpen 
+            ? { width: '360px', height: '520px' } // Dimensiones cuando está ABIERTO
+            : { width: '80px', height: '80px' };  // Dimensiones cuando está CERRADO (globito)
+
         window.parent.postMessage({
           type: "chatboc-resize",
           widgetId: widgetId,
-          dimensions: { width: `${offsetWidth}px`, height: `${offsetHeight}px` },
+          dimensions: dimensionsToSend, // Usar las dimensiones correctas aquí
           isOpen: isOpen,
         }, "*");
       }
     }
-  }, [mode, isOpen, widgetId]);
-
+}, [mode, isOpen, widgetId]); // Asegúrate de que `isOpen` esté en las dependencias
 
   // Lógica de bienvenida / rubro
   useEffect(() => {
