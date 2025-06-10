@@ -63,7 +63,7 @@ const ChatWidget = ({
     setCargandoRubros(true);
     try {
       const data = await apiFetch("/rubros/");
-      setRubrosDisponibles(data.rubros || []);
+      setRubrosDisponibles(Array.isArray(data) ? data : (data.rubros || []));
     } catch {
       setRubrosDisponibles([]);
     } finally {
