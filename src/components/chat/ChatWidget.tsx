@@ -2,14 +2,14 @@
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { X } from "lucide-react";
-import ChatMessage from "./ChatMessage"; // Asegúrate de que este archivo exista y esté actualizado
-import TypingIndicator from "./TypingIndicator"; // Asegúrate de que este archivo exista
-import ChatInput from "./ChatInput"; // Asegúrate de que este archivo exista
-import { Message } from "@/types/chat"; // Asegúrate de que esta interfaz esté correcta y tenga 'botones?: BotonProps[];'
-import { apiFetch } from "@/utils/api"; // Asegúrate de que este archivo exista
-import { useIsMobile } from "@/hooks/use-mobile"; // Asegúrate de que este hook exista y esté correcto
+import ChatMessage from "./ChatMessage"; 
+import TypingIndicator from "./TypingIndicator"; 
+import ChatInput from "./ChatInput"; 
+import { Message } from "@/types/chat"; 
+import { apiFetch } from "@/utils/api";
+import { useIsMobile } from "@/hooks/use-mobile";
 
-// --- WidgetChatHeader (se mantiene igual y es el que me proporcionaste antes) ---
+// --- WidgetChatHeader (se mantiene igual) ---
 const WidgetChatHeader = ({ title = "Chatboc Asistente", showCloseButton = false, onClose, onMouseDownDrag, isDraggable }) => (
   <div
     className="flex items-center justify-between p-3 border-b border-border bg-card text-foreground select-none"
@@ -78,18 +78,16 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const widgetContainerRef = useRef<HTMLDivElement>(null); 
-  const dragStartPosRef = useRef<any>(null); // Se usa 'any' para la estructura de la ref de arrastre
+  const dragStartPosRef = useRef<any>(null); 
 
   const [currentPos, setCurrentPos] = useState(
     mode === "standalone" ? { position: "fixed", ...initialPosition, zIndex: 99998 } : {}
   );
   const isMobile = useIsMobile();
 
-  // <<< LÓGICA PARA OBTENER EL TOKEN DEFINITIVO (Más robusta) >>>
-  // Si estamos en modo iframe, el token viene por propAuthToken
-  // Si estamos en modo standalone, el token viene de localStorage
+  // <<< LÓGICA PARA OBTENER EL TOKEN DEFINITIVO >>>
   const finalAuthToken = mode === "iframe" ? propAuthToken : getAuthTokenFromLocalStorage();
-  const esAnonimo = !finalAuthToken; // Es anónimo si no hay token final
+  const esAnonimo = !finalAuthToken; 
   // <<< FIN LÓGICA DE TOKEN >>>
 
 
@@ -98,8 +96,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     if (mode === "iframe" && typeof window !== "undefined" && window.parent) {
       const currentElement = widgetContainerRef.current; 
       if (currentElement) {
-        // Definimos las dimensiones esperadas que el widget.js debe aplicar al iframe.
-        // Estas deben coincidir con las definidas en widget.js.
         const dimensionsToSend = isOpen 
           ? { width: '360px', height: '520px' } // Dimensiones cuando está ABIERTO
           : { width: '80px', height: '80px' };  // Dimensiones cuando está CERRADO (globito)
@@ -107,25 +103,22 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         window.parent.postMessage({
           type: "chatboc-resize",
           widgetId: widgetId,
-          dimensions: dimensionsToSend, // Usar estas dimensiones fijas
+          dimensions: dimensionsToSend, 
           isOpen: isOpen,
-        }, "*"); // Usar '*' si el origen no es fijo (ej. si se incrusta en diferentes dominios)
+        }, "*"); 
       }
     }
-  }, [mode, isOpen, widgetId]); // Depende de `isOpen` para enviar el tamaño correcto al cambiar
+  }, [mode, isOpen, widgetId]); 
 
   // Lógica de bienvenida / rubro
   useEffect(() => {
     if (isOpen) {
-        // Caso 1: Usuario anónimo en modo standalone y sin rubro seleccionado
         if (esAnonimo && mode === "standalone" && !rubroSeleccionado) {
             setEsperandoRubro(true);
             cargarRubros();
         } 
-        // Caso 2: Usuario autenticado (sea iframe o standalone), o ya tiene rubro seleccionado
         else if (!esAnonimo || rubroSeleccionado) {
             setEsperandoRubro(false);
-            // Si el chat se acaba de abrir y no hay mensajes, muestra el mensaje de bienvenida
             if (messages.length === 0) {
               setMessages([{ id: Date.now(), text: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?", isBot: true, timestamp: new Date() }]);
             }
@@ -278,18 +271,12 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     </>
   );
 
-   return (
-    // widgetContainerRef ya no tiene "chatboc-standalone-widget" en modo iframe
-    // Sus estilos serán definidos por el iframe host
-    <div ref={widgetContainerRef} 
-         // Eliminar el style={currentPos} para modo iframe si ya lo gestiona el iframe host
-         // El currentPos solo es relevante si mode="standalone" y draggable
-         className={mode === "standalone" ? "chatboc-standalone-widget" : "w-full h-full flex flex-col"} 
-    >
-      {/* Botón para abrir el chat (solo en modo standalone) */}
-      {mode === "standalone" && !isOpen && (
+  return (
+    <div ref={widgetContainerRef} style={currentPos} className="chatboc-standalone-widget">
+      {/* Botón para abrir el chat cuando está cerrado */}
+      {!isOpen && (
         <button
-          onClick={toggleChat}
+          onClick={toggleChat} // <<<<<<<<<<<<<< ESTE onClick ES CLAVE
           className="group w-16 h-16 rounded-full flex items-center justify-center border shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:scale-105 bg-card border-border"
           aria-label="Abrir chat"
         >
@@ -299,17 +286,12 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
           </div>
         </button>
       )}
-      {/* Contenido del chat (cuando está abierto) */}
       {isOpen && (
         <div
-          // Clases para el contenedor principal del chat ABIERTO.
-          // Aseguramos que ocupe todo el espacio vertical del iframe (`h-full`)
-          // Y que los hijos se distribuyan con flexbox (`flex flex-col`)
           className="w-full h-full rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-slide-up bg-white border border-border dark:bg-gray-900" 
         >
           {esperandoRubro ? (
             <div
-              // Si estamos esperando rubro, también ocupar todo el espacio
               className={`w-full h-full flex flex-col items-center justify-center p-6 text-foreground border border-border rounded-3xl ${isMobile ? "bg-white shadow-2xl dark:bg-gray-900" : "bg-card"}`}
             >
               <h2 className="text-lg font-semibold mb-3 text-center text-primary">👋 ¡Bienvenido!</h2>
