@@ -21,7 +21,6 @@ interface Ticket {
     comentarios?: Comment[]; // Lista de comentarios
     // Añadir user_id si lo necesitas para mostrar el ID del cliente
     user_id?: number | null; 
-    # Propiedades adicionales de PymeTicket
     rubro_id?: number | null;
     archivo_url?: string | null;
     telefono?: string | null;
