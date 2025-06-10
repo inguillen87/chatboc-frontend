@@ -278,69 +278,28 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     </>
   );
 
+
   return (
     <div ref={widgetContainerRef} style={currentPos} className="chatboc-standalone-widget">
       {!isOpen && (
-        <button
-          onClick={toggleChat}
-          className="group w-16 h-16 rounded-full flex items-center justify-center border shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:scale-105 bg-card border-border"
-          aria-label="Abrir chat"
-        >
-          <div className="relative">
-            <img src="/chatboc_logo_clean_transparent.png" alt="Chatboc" className="w-8 h-8 rounded" style={{ padding: "2px" }} />
-            <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-background" />
-          </div>
-        </button>
+        // ... (botón para abrir chat) ...
       )}
       {isOpen && (
         <div
-          className="w-80 md:w-96 rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-slide-up bg-white border border-border dark:bg-gray-900"
-          style={{ height: esperandoRubro ? "auto" : "500px", minHeight: esperandoRubro ? "240px" : "400px" }}
+          // ESTAS SON LAS CLASES CLAVE
+          // w-full h-full le dice que ocupe el 100% del ancho y alto de su padre (el iframe)
+          // rounded-3xl, shadow-2xl, flex flex-col, overflow-hidden, etc. son para el estilo y layout
+          className="w-full h-full rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-slide-up bg-white border border-border dark:bg-gray-900" 
+          // Eliminamos los estilos inline 'height' y 'minHeight' para que no anulen 'h-full'
+          // style={{ height: esperandoRubro ? "auto" : "500px", minHeight: esperandoRubro ? "240px" : "400px" }} // COMENTAR o ELIMINAR esta línea
         >
           {esperandoRubro ? (
             <div
-              className={`w-full flex flex-col items-center justify-center p-6 text-foreground border border-border rounded-3xl ${isMobile ? "bg-white shadow-2xl dark:bg-gray-900" : "bg-card"}`}
-              style={{ minHeight: 240 }}
+              className={`w-full h-full flex flex-col items-center justify-center p-6 text-foreground border border-border rounded-3xl ${isMobile ? "bg-white shadow-2xl dark:bg-gray-900" : "bg-card"}`}
+              // style={{ minHeight: 240 }} // Si este minHeight es muy restrictivo, también puede ser un problema.
             >
-              <h2 className="text-lg font-semibold mb-3 text-center text-primary">👋 ¡Bienvenido!</h2>
-              <p className="mb-4 text-sm text-center text-muted-foreground">¿De qué rubro es tu negocio?</p>
-              {cargandoRubros ? (
-                <div className="text-center text-muted-foreground text-sm my-6">Cargando rubros...</div>
-              ) : rubrosDisponibles.length === 0 ? (
-                <div className="text-center text-destructive text-sm my-6">
-                  No se pudieron cargar los rubros. <br />
-                  <button
-                    onClick={cargarRubros}
-                    className="mt-2 underline text-primary hover:text-primary/80"
-                  >
-                    Reintentar
-                  </button>
-                </div>
-              ) : (
-                <div className="flex flex-wrap justify-center gap-2">
-                  {rubrosDisponibles.map((rubro) => (
-                    <button
-                      key={rubro.id}
-                      onClick={() => {
-                        localStorage.setItem("rubroSeleccionado", rubro.nombre);
-                        setRubroSeleccionado(rubro.nombre);
-                        setEsperandoRubro(false);
-                        setMessages([
-                          {
-                            id: Date.now(),
-                            text: `¡Hola! Soy Chatboc, tu asistente para ${rubro.nombre.toLowerCase()}. ¿En qué puedo ayudarte hoy?`,
-                            isBot: true,
-                            timestamp: new Date(),
-                          },
-                        ]);
-                      }}
-                      className="px-4 py-2 rounded-full text-sm shadow transition-all duration-200 ease-in-out font-semibold bg-blue-500/80 text-white hover:bg-blue-600 dark:bg-blue-800/80 dark:text-blue-100 dark:hover:bg-blue-700"
-                    >
-                      {rubro.nombre}
-                    </button>
-                  ))}
-                </div>
-              )}
+              {/* Contenido de selección de rubro */}
+              {/* Asegúrate de que los botones de rubro y el texto no sean excesivamente anchos/altos */}
             </div>
           ) : (
             mainChatViewContent
@@ -350,5 +309,3 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     </div>
   );
 };
-
-export default ChatWidget;
