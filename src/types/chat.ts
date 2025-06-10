@@ -4,10 +4,12 @@ export interface FAQ {
   answer: string;
 }
 export interface Message {
-  id: number;
+  id: number | string;
   text: string;
   isBot: boolean;
   timestamp: Date;
-  botones?: { texto: string; payload?: string }[];
-  originalQuestion?: string;
+  botones?: {
+    texto: string;
+    payload?: string;
+  }[];
 }

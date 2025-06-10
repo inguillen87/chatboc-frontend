@@ -1,32 +1,34 @@
-// components/chat/ChatButtons.tsx
+// src/components/chat/ChatButtons.tsx
 import React from 'react';
 
-// Renombré la interfaz para que coincida con lo que envía la API (title en vez de texto)
 interface BotonProps {
-  title: string;
+  texto: string;
   payload?: string;
 }
 
 interface ChatButtonsProps {
   botones: BotonProps[];
-  onButtonClick: (payload: string) => void;
 }
 
-const ChatButtons: React.FC<ChatButtonsProps> = ({ botones, onButtonClick }) => {
+const ChatButtons: React.FC<ChatButtonsProps> = ({ botones }) => {
   if (!botones || botones.length === 0) {
     return null;
   }
 
+  const handleButtonClick = (payload: string) => {
+    // Disparamos un evento global que las páginas de chat escucharán
+    window.dispatchEvent(new CustomEvent('sendChatMessage', { detail: payload }));
+  };
+
   return (
-    <div className="mt-3 pt-3 border-t border-black/10 dark:border-white/10 flex flex-wrap gap-2">
+    <div className="mt-4 flex flex-wrap gap-2 justify-start">
       {botones.map((boton, index) => (
         <button
           key={index}
-          onClick={() => onButtonClick(boton.payload || boton.title)}
-          // ✅ ESTILOS MEJORADOS CON DARK MODE
-          className="px-3 py-1 bg-white/80 dark:bg-blue-800/90 backdrop-blur-sm text-blue-800 dark:text-blue-100 text-sm rounded-full hover:bg-white dark:hover:bg-blue-700 transition-all shadow-sm font-medium"
+          onClick={() => handleButtonClick(boton.payload || boton.texto)}
+          className="px-4 py-2 bg-primary/10 text-primary rounded-full text-sm font-semibold hover:bg-primary/20 transition-all duration-200"
         >
-          {boton.title} {/* Usamos title para coincidir con la API */}
+          {boton.texto}
         </button>
       ))}
     </div>
