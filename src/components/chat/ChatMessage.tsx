@@ -19,8 +19,10 @@ interface ChatMessageProps {
   message: Message;
 }
 
-const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
-  if (!message || typeof message.text !== "string") {
+  const ChatMessage: React.FC<{ message: Message }> = ({ message }) => {
+  if (!message || typeof message.text !== "string") { return null; }
+
+  const isBot = message.isBot;
     return (
       <div className="text-xs text-destructive italic mt-2 px-3">
         ❌ Mensaje inválido o malformado.
