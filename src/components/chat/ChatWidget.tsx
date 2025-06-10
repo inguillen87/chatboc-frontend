@@ -48,11 +48,11 @@ const getAnonToken = () => {
 
 // Interfaz para las props de ChatWidget
 interface ChatWidgetProps {
-  mode?: "standalone" | "iframe";
+  mode?: "standalone" | "iframe"; // Modo de ejecución: en página principal o incrustado
   initialPosition?: { bottom: number; right: number };
-  draggable?: boolean;
-  defaultOpen?: boolean;
-  widgetId?: string;
+  draggable?: boolean; // Si el widget puede ser arrastrado (solo en standalone)
+  defaultOpen?: boolean; // Si inicia abierto o cerrado
+  widgetId?: string; // ID único para comunicación entre iframe y host
   authToken?: string | null; // Token de autenticación recibido como prop
 }
 
@@ -78,17 +78,16 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const widgetContainerRef = useRef<HTMLDivElement>(null); 
-  const dragStartPosRef = useRef<any>(null); // Uso 'any' por la complejidad de la estructura de ref para el arrastre
+  const dragStartPosRef = useRef<any>(null); 
 
   const [currentPos, setCurrentPos] = useState(
     mode === "standalone" ? { position: "fixed", ...initialPosition, zIndex: 99998 } : {}
   );
   const isMobile = useIsMobile();
 
-  // <<< LÓGICA PARA OBTENER EL TOKEN DEFINITIVO (Más robusta) >>>
-  // El token final es el propAuthToken (si modo iframe) o el de localStorage (si standalone)
+  // <<< LÓGICA PARA OBTENER EL TOKEN DEFINITIVO >>>
   const finalAuthToken = mode === "iframe" ? propAuthToken : getAuthTokenFromLocalStorage();
-  const esAnonimo = !finalAuthToken; // Determina si es anónimo basándose en el token final
+  const esAnonimo = !finalAuthToken; 
   // <<< FIN LÓGICA DE TOKEN >>>
 
 
@@ -109,27 +108,23 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   }, [mode, isOpen, widgetId]);
 
 
-  // Lógica de bienvenida / rubro (MODIFICADA para usar finalAuthToken y ser más precisa)
+  // Lógica de bienvenida / rubro
   useEffect(() => {
-    // Solo si el chat está abierto
     if (isOpen) {
-        // Caso 1: Usuario anónimo en modo standalone y sin rubro seleccionado
         if (esAnonimo && mode === "standalone" && !rubroSeleccionado) {
             setEsperandoRubro(true);
             cargarRubros();
         } 
-        // Caso 2: Usuario autenticado (sea iframe o standalone), o ya tiene rubro seleccionado
         else if (!esAnonimo || rubroSeleccionado) {
             setEsperandoRubro(false);
-            // Si el chat se acaba de abrir y no hay mensajes, muestra el mensaje de bienvenida
             if (messages.length === 0) {
               setMessages([{ id: Date.now(), text: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?", isBot: true, timestamp: new Date() }]);
             }
         }
     }
-  }, [isOpen, esAnonimo, mode, rubroSeleccionado, messages.length]); // Dependencias actualizadas
+  }, [isOpen, esAnonimo, mode, rubroSeleccionado, messages.length]); 
 
-  // Scroll al final de los mensajes (se mantiene igual)
+  // Scroll al final de los mensajes
   useEffect(() => {
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
@@ -139,7 +134,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     }
   }, [messages, isTyping]);
 
-  // Enviar mensaje de resize (se mantiene igual)
+  // Enviar mensaje de resize
   useEffect(() => {
     postResizeMessage();
   }, [isOpen, messages, isTyping, postResizeMessage]);
@@ -160,37 +155,33 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const handleSendMessage = useCallback(async (text: string) => {
     if (!text.trim()) return;
 
-    // Validar rubro solo si es anónimo en modo standalone
     if (esAnonimo && mode === "standalone" && !rubroSeleccionado) {
       setMessages(prev => [...prev, { id: Date.now(), text: "🛈 Por favor, seleccioná primero un rubro.", isBot: true, timestamp: new Date() }]);
       return;
     }
 
-    const userMessage = { id: Date.now(), text, isBot: false, timestamp: new Date() }; // <<<<<<<<<<<<<< CORREGIDO: ID CON Date.now()
+    const userMessage = { id: Date.now(), text, isBot: false, timestamp: new Date() }; 
     setMessages(prev => [...prev, userMessage]);
     setIsTyping(true);
 
     const payload: any = { pregunta: text, contexto_previo: contexto };
-    // Solo enviar rubro si es un usuario anónimo en modo standalone y ya seleccionó uno
     if (esAnonimo && mode === "standalone" && rubroSeleccionado) payload.rubro = rubroSeleccionado;
 
     try {
-      // Usar finalAuthToken para la autorización de la petición al backend
       const data = await apiFetch("/ask", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalAuthToken || getAnonToken()}` }, // Si por alguna razón finalAuthToken es nulo, usa el anónimo
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalAuthToken || getAnonToken()}` }, 
         body: payload,
       });
 
       setContexto(data.contexto_actualizado || {});
       setMessages(prev => [...prev, {
-        id: Date.now(), // <<<<<<<<<<<<<< CORREGIDO: ID CON Date.now()
+        id: Date.now(), 
         text: data.respuesta || "No pude procesar tu solicitud.",
         isBot: true,
         timestamp: new Date(),
         botones: data.botones || [],
       }]);
-      // Solo contar preguntas si es un usuario anónimo de la demo
       if (esAnonimo && mode === "standalone") setPreguntasUsadas(prev => prev + 1);
     } catch (error) {
       const msg = error instanceof Error ? `⚠️ Error: ${error.message}` : "⚠️ No se pudo conectar con el servidor.";
@@ -198,7 +189,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     } finally {
       setIsTyping(false);
     }
-  }, [contexto, rubroSeleccionado, preguntasUsadas, esAnonimo, mode, finalAuthToken]); // Añadir finalAuthToken a las dependencias
+  }, [contexto, rubroSeleccionado, preguntasUsadas, esAnonimo, mode, finalAuthToken]); 
 
   const toggleChat = () => setIsOpen(o => !o);
 
@@ -206,7 +197,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const onMouseDownDrag = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     if (mode === "standalone" && draggable && isOpen && !isMobile && widgetContainerRef.current) {
       const startX = e.touches ? e.touches[0].clientX : e.clientX;
-      const startY = e.touches ? e.touches[0].clientY : e.clientY; // Corregido: e.clientY para mouse
+      const startY = e.touches ? e.touches[0].clientY : e.clientY; 
       const rect = widgetContainerRef.current.getBoundingClientRect();
       dragStartPosRef.current = {
         x: startX,
@@ -221,7 +212,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         const clientY = moveEvent.touches ? moveEvent.touches[0].clientY : moveEvent.clientY;
 
         const newLeft = dragStartPosRef.current.left + (clientX - dragStartPosRef.current.x);
-        const newTop = dragStartPosRef.current.top + (clientY - dragStartPosRef.current.y); // Corregido: dragStartPosRef.current.top
+        const newTop = dragStartPosRef.current.top + (clientY - dragStartPosRef.current.y); // Corregido: dragStartPosRef.current.y
 
         setCurrentPos({
           position: "fixed",
@@ -278,28 +269,73 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     </>
   );
 
-
   return (
     <div ref={widgetContainerRef} style={currentPos} className="chatboc-standalone-widget">
+      {/* <<<<<<<<<<<<<< CORREGIDO: Asegurar que el botón exista aquí >>>>>>>>>>>>>> */}
       {!isOpen && (
-        // ... (botón para abrir chat) ...
+        <button
+          onClick={toggleChat}
+          className="group w-16 h-16 rounded-full flex items-center justify-center border shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:scale-105 bg-card border-border"
+          aria-label="Abrir chat"
+        >
+          <div className="relative">
+            <img src="/chatboc_logo_clean_transparent.png" alt="Chatboc" className="w-8 h-8 rounded" style={{ padding: "2px" }} />
+            <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-background" />
+          </div>
+        </button>
       )}
       {isOpen && (
         <div
           // ESTAS SON LAS CLASES CLAVE
           // w-full h-full le dice que ocupe el 100% del ancho y alto de su padre (el iframe)
-          // rounded-3xl, shadow-2xl, flex flex-col, overflow-hidden, etc. son para el estilo y layout
           className="w-full h-full rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-slide-up bg-white border border-border dark:bg-gray-900" 
           // Eliminamos los estilos inline 'height' y 'minHeight' para que no anulen 'h-full'
-          // style={{ height: esperandoRubro ? "auto" : "500px", minHeight: esperandoRubro ? "240px" : "400px" }} // COMENTAR o ELIMINAR esta línea
+          // style={{ height: esperandoRubro ? "auto" : "500px", minHeight: esperandoRubro ? "240px" : "400px" }}
         >
           {esperandoRubro ? (
             <div
               className={`w-full h-full flex flex-col items-center justify-center p-6 text-foreground border border-border rounded-3xl ${isMobile ? "bg-white shadow-2xl dark:bg-gray-900" : "bg-card"}`}
-              // style={{ minHeight: 240 }} // Si este minHeight es muy restrictivo, también puede ser un problema.
+              // style={{ minHeight: 240 }} 
             >
-              {/* Contenido de selección de rubro */}
-              {/* Asegúrate de que los botones de rubro y el texto no sean excesivamente anchos/altos */}
+              <h2 className="text-lg font-semibold mb-3 text-center text-primary">👋 ¡Bienvenido!</h2>
+              <p className="mb-4 text-sm text-center text-muted-foreground">¿De qué rubro es tu negocio?</p>
+              {cargandoRubros ? (
+                <div className="text-center text-muted-foreground text-sm my-6">Cargando rubros...</div>
+              ) : rubrosDisponibles.length === 0 ? (
+                <div className="text-center text-destructive text-sm my-6">
+                  No se pudieron cargar los rubros. <br />
+                  <button
+                    onClick={cargarRubros}
+                    className="mt-2 underline text-primary hover:text-primary/80"
+                  >
+                    Reintentar
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-wrap justify-center gap-2">
+                  {rubrosDisponibles.map((rubro) => (
+                    <button
+                      key={rubro.id}
+                      onClick={() => {
+                        localStorage.setItem("rubroSeleccionado", rubro.nombre);
+                        setRubroSeleccionado(rubro.nombre);
+                        setEsperandoRubro(false);
+                        setMessages([
+                          {
+                            id: Date.now(),
+                            text: `¡Hola! Soy Chatboc, tu asistente para ${rubro.nombre.toLowerCase()}. ¿En qué puedo ayudarte hoy?`,
+                            isBot: true,
+                            timestamp: new Date(),
+                          },
+                        ]);
+                      }}
+                      className="px-4 py-2 rounded-full text-sm shadow transition-all duration-200 ease-in-out font-semibold bg-blue-500/80 text-white hover:bg-blue-600 dark:bg-blue-800/80 dark:text-blue-100 dark:hover:bg-blue-700"
+                    >
+                      {rubro.nombre}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           ) : (
             mainChatViewContent
@@ -309,3 +345,5 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     </div>
   );
 };
+
+export default ChatWidget;
