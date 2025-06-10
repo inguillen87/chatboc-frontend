@@ -278,10 +278,16 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     </>
   );
 
-  return (
-    <div ref={widgetContainerRef} style={currentPos} className="chatboc-standalone-widget">
-      {/* Botón para abrir el chat cuando está cerrado */}
-      {!isOpen && (
+   return (
+    // widgetContainerRef ya no tiene "chatboc-standalone-widget" en modo iframe
+    // Sus estilos serán definidos por el iframe host
+    <div ref={widgetContainerRef} 
+         // Eliminar el style={currentPos} para modo iframe si ya lo gestiona el iframe host
+         // El currentPos solo es relevante si mode="standalone" y draggable
+         className={mode === "standalone" ? "chatboc-standalone-widget" : "w-full h-full flex flex-col"} 
+    >
+      {/* Botón para abrir el chat (solo en modo standalone) */}
+      {mode === "standalone" && !isOpen && (
         <button
           onClick={toggleChat}
           className="group w-16 h-16 rounded-full flex items-center justify-center border shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:scale-105 bg-card border-border"
@@ -293,18 +299,18 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
           </div>
         </button>
       )}
+      {/* Contenido del chat (cuando está abierto) */}
       {isOpen && (
         <div
-          // ESTAS SON LAS CLASES CLAVE
-          // w-full h-full le dice que ocupe el 100% del ancho y alto de su padre (el iframe)
+          // Clases para el contenedor principal del chat ABIERTO.
+          // Aseguramos que ocupe todo el espacio vertical del iframe (`h-full`)
+          // Y que los hijos se distribuyan con flexbox (`flex flex-col`)
           className="w-full h-full rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-slide-up bg-white border border-border dark:bg-gray-900" 
-          // Eliminamos los estilos inline 'height' y 'minHeight' si existieran
-          // style={{ height: esperandoRubro ? "auto" : "500px", minHeight: esperandoRubro ? "240px" : "400px" }}
         >
           {esperandoRubro ? (
             <div
+              // Si estamos esperando rubro, también ocupar todo el espacio
               className={`w-full h-full flex flex-col items-center justify-center p-6 text-foreground border border-border rounded-3xl ${isMobile ? "bg-white shadow-2xl dark:bg-gray-900" : "bg-card"}`}
-              // style={{ minHeight: 240 }} 
             >
               <h2 className="text-lg font-semibold mb-3 text-center text-primary">👋 ¡Bienvenido!</h2>
               <p className="mb-4 text-sm text-center text-muted-foreground">¿De qué rubro es tu negocio?</p>
