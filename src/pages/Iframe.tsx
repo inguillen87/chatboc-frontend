@@ -1,3 +1,5 @@
+// src/pages/Iframe.tsx
+
 import React, { useEffect, useState, Suspense } from "react";
 
 // Ajusta la ruta si tu estructura es distinta
@@ -6,14 +8,18 @@ const ChatWidget = React.lazy(() => import("@/components/chat/ChatWidget"));
 const Iframe = () => {
   const [defaultOpen, setDefaultOpen] = useState(false);
   const [widgetId, setWidgetId] = useState("chatboc-iframe-unknown");
+  const [tokenFromUrl, setTokenFromUrl] = useState<string | null>(null); // <<<<<<<<<<<<<< NUEVO: Estado para almacenar el token de la URL
 
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const openParam = params.get("defaultOpen");
       const idParam = params.get("widgetId");
+      const tokenParam = params.get("token"); // <<<<<<<<<<<<<< LEER EL TOKEN DE LA URL
+
       if (openParam === "true") setDefaultOpen(true);
       if (idParam) setWidgetId(idParam);
+      if (tokenParam) setTokenFromUrl(tokenParam); // <<<<<<<<<<<<<< ALMACENAR EL TOKEN EN EL ESTADO
     }
   }, []);
 
@@ -50,7 +56,13 @@ const Iframe = () => {
           Cargando Chatboc...
         </div>
       }>
-        <ChatWidget mode="iframe" defaultOpen={defaultOpen} widgetId={widgetId} />
+        {/* <<<<<<<<<<<<<< PASAR authToken COMO PROP AL CHATWIDGET >>>>>>>>>>>>>> */}
+        <ChatWidget 
+          mode="iframe" 
+          defaultOpen={defaultOpen} 
+          widgetId={widgetId} 
+          authToken={tokenFromUrl} // <<<<<<<<<<<<<< ESTA ES LA LÍNEA CLAVE
+        />
       </Suspense>
     </div>
   );

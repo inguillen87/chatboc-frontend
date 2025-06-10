@@ -9,7 +9,7 @@ import { Message } from "@/types/chat"; // Asegúrate de que esta interfaz esté
 import { apiFetch } from "@/utils/api";
 import { useIsMobile } from "@/hooks/use-mobile";
 
-// --- WidgetChatHeader (si no está en un archivo separado, ponlo aquí) ---
+// --- WidgetChatHeader (se mantiene igual, no necesita cambios) ---
 const WidgetChatHeader = ({ title = "Chatboc Asistente", showCloseButton = false, onClose, onMouseDownDrag, isDraggable }) => (
   <div
     className="flex items-center justify-between p-3 border-b border-border bg-card text-foreground select-none"
@@ -32,8 +32,10 @@ const WidgetChatHeader = ({ title = "Chatboc Asistente", showCloseButton = false
   </div>
 );
 
-// --- Funciones auxiliares (getAuthToken, getAnonToken) ---
-const getAuthToken = () => (typeof window === "undefined" ? null : localStorage.getItem("authToken"));
+// getAuthToken lee de localStorage (solo para modo standalone)
+const getAuthTokenFromLocalStorage = () => (typeof window === "undefined" ? null : localStorage.getItem("authToken"));
+
+// getAnonToken (se mantiene igual)
 const getAnonToken = () => {
   if (typeof window === "undefined") return "anon-ssr";
   let token = localStorage.getItem("anon_token");
@@ -44,13 +46,24 @@ const getAnonToken = () => {
   return token;
 };
 
+// Interfaz para las props de ChatWidget, incluyendo el nuevo authToken
+interface ChatWidgetProps {
+  mode?: "standalone" | "iframe"; // Modo de ejecución: en página principal o incrustado
+  initialPosition?: { bottom: number; right: number };
+  draggable?: boolean; // Si el widget puede ser arrastrado (solo en standalone)
+  defaultOpen?: boolean; // Si inicia abierto o cerrado
+  widgetId?: string; // ID único para comunicación entre iframe y host
+  authToken?: string | null; // <<<<<<<<<<<<<< NUEVA PROP: TOKEN RECIBIDO DEL PADRE (Iframe.tsx)
+}
 
-const ChatWidget = ({
+
+const ChatWidget: React.FC<ChatWidgetProps> = ({ // Usar React.FC para tipar props
   mode = "standalone",
   initialPosition = { bottom: 20, right: 20 },
   draggable = true,
   defaultOpen = false,
   widgetId = "chatboc-widget-iframe",
+  authToken: propAuthToken, // <<<<<<<<<<<<<< RECIBE EL TOKEN COMO PROP
 }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -64,7 +77,7 @@ const ChatWidget = ({
 
   const messagesEndRef = useRef(null);
   const chatContainerRef = useRef(null);
-  const widgetContainerRef = useRef(null);
+  const widgetContainerRef = useRef<HTMLDivElement>(null); // Tipado para ref
   const dragStartPosRef = useRef(null);
 
   const [currentPos, setCurrentPos] = useState(
@@ -72,10 +85,18 @@ const ChatWidget = ({
   );
   const isMobile = useIsMobile();
 
+  // <<< LÓGICA PARA OBTENER EL TOKEN DEFINITIVO >>>
+  // Si estamos en modo iframe, el token viene por prop (de la URL del iframe)
+  // Si estamos en modo standalone, el token viene de localStorage
+  const finalAuthToken = mode === "iframe" ? propAuthToken : getAuthTokenFromLocalStorage();
+  const esAnonimo = !finalAuthToken; // Determina si es anónimo basándose en el token final
+  // <<< FIN LÓGICA DE TOKEN >>>
+
+
   // Comunicación con el padre (widget.js) para redimensionar el iframe
   const postResizeMessage = useCallback(() => {
     if (mode === "iframe" && typeof window !== "undefined" && window.parent) {
-      const currentElement = widgetContainerRef.current as HTMLElement | null; // Asegurar que es un HTMLElement
+      const currentElement = widgetContainerRef.current as HTMLElement | null;
       if (currentElement) {
         const { offsetWidth, offsetHeight } = currentElement;
         window.parent.postMessage({
@@ -83,25 +104,33 @@ const ChatWidget = ({
           widgetId: widgetId,
           dimensions: { width: `${offsetWidth}px`, height: `${offsetHeight}px` },
           isOpen: isOpen,
-        }, "*"); // Usar '*' si el origen no es fijo (ej. si se incrusta en diferentes dominios)
+        }, "*");
       }
     }
   }, [mode, isOpen, widgetId]);
 
 
+  // Lógica de bienvenida / rubro (MODIFICADA para usar finalAuthToken)
   useEffect(() => {
-    const esAnon = !getAuthToken();
-    const rubroLS = localStorage.getItem("rubroSeleccionado");
-    if (isOpen && esAnon && !rubroLS) {
+    // Si es un usuario anónimo en modo standalone Y no hay rubro seleccionado
+    // Pedimos que seleccione un rubro
+    if (isOpen && esAnonimo && mode === "standalone" && !rubroSeleccionado) {
       setEsperandoRubro(true);
       cargarRubros();
-    } else if (rubroLS) {
-      setRubroSeleccionado(rubroLS);
+    } else if (rubroSeleccionado) {
+      // Si ya hay un rubro seleccionado, no esperamos y podemos enviar mensaje de bienvenida (opcional)
       setEsperandoRubro(false);
+    } else if (isOpen && !esAnonimo) {
+        // Si no es anónimo (es decir, tenemos un finalAuthToken), no esperamos rubro
+        setEsperandoRubro(false);
+        // Opcional: Si el chat está abierto y no es anónimo y no hay mensajes, podrías añadir un mensaje inicial aquí
+        // if (messages.length === 0) {
+        //   setMessages([{ id: Date.now(), text: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?", isBot: true, timestamp: new Date() }]);
+        // }
     }
-  }, [isOpen]);
+  }, [isOpen, esAnonimo, mode, rubroSeleccionado]); // Dependencias actualizadas
 
-  // Scroll al final de los mensajes
+  // Scroll al final de los mensajes (se mantiene igual)
   useEffect(() => {
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
@@ -111,7 +140,7 @@ const ChatWidget = ({
     }
   }, [messages, isTyping]);
 
-  // Enviar mensaje de resize cuando el chat se abre/cierra o los mensajes cambian (para ajustar altura)
+  // Enviar mensaje de resize (se mantiene igual)
   useEffect(() => {
     postResizeMessage();
   }, [isOpen, messages, isTyping, postResizeMessage]);
@@ -131,11 +160,9 @@ const ChatWidget = ({
 
   const handleSendMessage = useCallback(async (text: string) => {
     if (!text.trim()) return;
-    const authToken = getAuthToken();
-    const finalToken = authToken || getAnonToken();
-    const esAnonimo = !authToken;
 
-    if (esAnonimo && !rubroSeleccionado) {
+    // Validar rubro solo si es anónimo en modo standalone
+    if (esAnonimo && mode === "standalone" && !rubroSeleccionado) {
       setMessages(prev => [...prev, { id: Date.now(), text: "🛈 Por favor, seleccioná primero un rubro.", isBot: true, timestamp: new Date() }]);
       return;
     }
@@ -144,14 +171,12 @@ const ChatWidget = ({
     setMessages(prev => [...prev, userMessage]);
     setIsTyping(true);
 
-    // No necesitas setTimeout aquí si scrolltobottom se llama después de setMessages,
-    // y el useEffect de scroll ya lo maneja.
-    // setTimeout(() => scrollToBottom(), 50); // Comentado o eliminado
-
     const payload: any = { pregunta: text, contexto_previo: contexto };
-    if (esAnonimo) payload.rubro = rubroSeleccionado;
+    // Solo enviar rubro si es un usuario anónimo en modo standalone
+    if (esAnonimo && mode === "standalone" && rubroSeleccionado) payload.rubro = rubroSeleccionado;
 
     try {
+      // Usar finalAuthToken para la autorización
       const data = await apiFetch("/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalToken}` },
@@ -160,26 +185,24 @@ const ChatWidget = ({
 
       setContexto(data.contexto_actualizado || {});
       setMessages(prev => [...prev, {
-        id: Date.now(),
-        text: data.respuesta || "No pude procesar tu solicitud.",
+        id: Date.24, 7:38:32 PM -03:00, text: data.respuesta || "No pude procesar tu solicitud.",
         isBot: true,
         timestamp: new Date(),
         botones: data.botones || [],
       }]);
-      if (esAnonimo) setPreguntasUsadas(prev => prev + 1);
+      // Solo contar preguntas si es un usuario anónimo de la demo
+      if (esAnonimo && mode === "standalone") setPreguntasUsadas(prev => prev + 1);
     } catch (error) {
       const msg = error instanceof Error ? `⚠️ Error: ${error.message}` : "⚠️ No se pudo conectar con el servidor.";
       setMessages(prev => [...prev, { id: Date.now(), text: msg, isBot: true, timestamp: new Date() }]);
     } finally {
       setIsTyping(false);
     }
-  }, [contexto, rubroSeleccionado, preguntasUsadas]);
+  }, [contexto, rubroSeleccionado, preguntasUsadas, esAnonimo, mode, finalToken]); // Añadir esAnonimo y finalToken a las dependencias
 
   const toggleChat = () => setIsOpen(o => !o);
 
-  // --- LÓGICA DE ARRASTRE (DRAG) ---
-  // Esta lógica ya está en widget.js si el modo es "iframe" y el widget.js lo gestiona.
-  // Aquí solo es relevante si mode="standalone" y draggable=true.
+  // Lógica de arrastre (se mantiene igual)
   const onMouseDownDrag = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     if (mode === "standalone" && draggable && isOpen && !isMobile) {
       const startX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -233,7 +256,7 @@ const ChatWidget = ({
         title="Chatboc Asistente"
         showCloseButton={true}
         onClose={toggleChat}
-        isDraggable={mode === "standalone" && draggable && isOpen && !isMobile} // Solo draggable en standalone y no mobile
+        isDraggable={mode === "standalone" && draggable && isOpen && !isMobile}
         onMouseDownDrag={onMouseDownDrag} 
       />
       <div
@@ -245,7 +268,7 @@ const ChatWidget = ({
             key={msg.id} 
             message={msg} 
             isTyping={isTyping} 
-            onButtonClick={handleSendMessage} // <<<<<<<<<<<<<< PASAR handleSendMessage AQUÍ
+            onButtonClick={handleSendMessage} 
           />
         ))}
         {isTyping && <TypingIndicator />}
