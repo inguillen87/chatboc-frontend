@@ -11,12 +11,14 @@ const Integracion = () => {
   useEffect(() => {
     const stored = localStorage.getItem("user");
     let parsed = null;
+    console.log("Integracion: Valor de 'user' en localStorage:", stored); // Añade esto
 
     try {
       parsed = stored ? JSON.parse(stored) : null;
     } catch (err) {
       console.warn("❌ Error al parsear usuario:", err);
     }
+    console.log("Integracion: Usuario parseado:", parsed); // Y esto
 
     if (!parsed || !parsed.token) {
       navigate("/login");
