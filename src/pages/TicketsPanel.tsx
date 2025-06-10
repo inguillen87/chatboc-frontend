@@ -19,12 +19,12 @@ interface Ticket {
   comentarios?: Comment[];
 }
 
-const ESTADOS: Record<string, { label: string; color: string; bg: string; badge: string; }> = {
-  nuevo: { label: "Nuevo", color: "bg-blue-100 text-blue-700", badge: "bg-blue-600", bg: "bg-blue-50" },
-  en_proceso: { label: "En Proceso", color: "bg-yellow-100 text-yellow-800", badge: "bg-yellow-500", bg: "bg-yellow-50" },
-  derivado: { label: "Derivado", color: "bg-purple-100 text-purple-700", badge: "bg-purple-500", bg: "bg-purple-50" },
-  resuelto: { label: "Resuelto", color: "bg-green-100 text-green-700", badge: "bg-green-600", bg: "bg-green-50" },
-  cerrado: { label: "Cerrado", color: "bg-gray-200 text-gray-500", badge: "bg-gray-400", bg: "bg-gray-100" },
+const ESTADOS: Record<string, { label: string; color: string; badge: string; }> = {
+  nuevo: { label: "Nuevo", color: "text-blue-700", badge: "bg-blue-600" },
+  en_proceso: { label: "En Proceso", color: "text-yellow-800", badge: "bg-yellow-500" },
+  derivado: { label: "Derivado", color: "text-purple-700", badge: "bg-purple-500" },
+  resuelto: { label: "Resuelto", color: "text-green-700", badge: "bg-green-600" },
+  cerrado: { label: "Cerrado", color: "text-gray-500", badge: "bg-gray-400" },
 };
 
 function useIsMobile(breakpoint = 768) {
@@ -137,9 +137,13 @@ const TicketList: FC<{ tickets: Ticket[], selectedTicketId: number | null, onSel
   </div>
 );
 
+// Dentro de tu archivo TicketsPanel.tsx
+
 const TicketDetail: FC<{ ticket: Ticket, onBack: () => void, onTicketUpdate: (ticket: Ticket) => void }> = ({ ticket, onBack, onTicketUpdate }) => {
   const [newMessage, setNewMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
+  
+  // --- FIX 1: Añadimos las definiciones que faltaban ---
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
 
@@ -160,6 +164,21 @@ const TicketDetail: FC<{ ticket: Ticket, onBack: () => void, onTicketUpdate: (ti
       setIsSending(false);
     }
   };
+
+  // --- FIX 2: AÑADIMOS LA LÓGICA PARA CAMBIAR EL ESTADO ---
+  const handleEstadoChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const nuevoEstado = e.target.value;
+    try {
+      await apiFetch(`/tickets/${ticket.tipo}/${ticket.id}/estado`, {
+        method: 'PUT',
+        body: { estado: nuevoEstado },
+      });
+      onTicketUpdate({ ...ticket, estado: nuevoEstado as TicketStatus });
+    } catch (err) {
+      console.error("Error al cambiar estado:", err);
+      // Opcional: mostrar un toast de error al usuario
+    }
+  };
   
   useEffect(() => {
     setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
@@ -171,6 +190,19 @@ const TicketDetail: FC<{ ticket: Ticket, onBack: () => void, onTicketUpdate: (ti
         {isMobile && <Button variant="ghost" size="icon" onClick={onBack}><ArrowLeft /></Button>}
         <TicketIcon className="text-primary w-6 h-6" />
         <div className="flex-1"><h3 className="font-bold text-lg truncate text-foreground">Ticket #{ticket.nro_ticket}</h3></div>
+        
+        {/* --- FIX 3: AÑADIMOS EL MENÚ DESPLEGABLE DE ESTADOS --- */}
+        <div>
+          <select
+              value={ticket.estado}
+              onChange={handleEstadoChange}
+              className="bg-input border-border rounded-md px-2 py-1.5 text-sm font-semibold focus:ring-2 focus:ring-primary"
+          >
+              {Object.keys(ESTADOS).map(estado => (
+                  <option key={estado} value={estado}>{ESTADOS[estado].label}</option>
+              ))}
+          </select>
+        </div>
       </header>
       <div className="flex-1 p-4 overflow-y-auto space-y-4">
         <div className="pb-4 border-b border-border">
@@ -188,7 +220,7 @@ const TicketDetail: FC<{ ticket: Ticket, onBack: () => void, onTicketUpdate: (ti
         <div ref={chatBottomRef} />
       </div>
       <footer className="border-t border-border p-3 flex gap-2 bg-card">
-        <Input value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="Escribe tu respuesta como admin..." onKeyDown={e => e.key === 'Enter' && handleSendMessage()} disabled={isSending} />
+        <Input value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="Escribe tu respuesta como agente..." onKeyDown={e => e.key === 'Enter' && handleSendMessage()} disabled={isSending} />
         <Button onClick={handleSendMessage} disabled={isSending || !newMessage.trim()}>{isSending ? <Loader2 className="animate-spin" /> : <Send />}</Button>
       </footer>
     </div>
