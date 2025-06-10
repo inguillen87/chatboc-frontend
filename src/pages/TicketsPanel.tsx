@@ -7,7 +7,7 @@ import { apiFetch, ApiError } from "@/utils/api";
 
 // Definimos los tipos aquí para claridad
 type TicketStatus = "nuevo" | "en_proceso" | "derivado" | "resuelto" | "cerrado";
-interface Comment { id: number; comentario: string; fecha: string; es_agente: boolean; }
+interface Comment { id: number; comentario: string; fecha: string; es_admin: boolean; }
 interface Ticket {
   id: number;
   tipo: 'pyme' | 'municipio';
@@ -178,8 +178,8 @@ const TicketDetail: FC<{ ticket: Ticket, onBack: () => void, onTicketUpdate: (ti
           <p className="whitespace-pre-wrap text-muted-foreground">{ticket.detalles}</p>
         </div>
         {ticket.comentarios?.map(c => (
-          <div key={c.id} className={`flex ${c.es_agente ? "justify-end" : "justify-start"}`}>
-            <div className={`max-w-lg px-4 py-2 rounded-lg ${c.es_agente ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'}`}>
+          <div key={c.id} className={`flex ${c.es_admin ? "justify-end" : "justify-start"}`}>
+            <div className={`max-w-lg px-4 py-2 rounded-lg ${c.es_admin ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'}`}>
               <p className="whitespace-pre-wrap">{c.comentario}</p>
               <span className="text-xs opacity-70 block text-right mt-1">{fechaCorta(c.fecha)}</span>
             </div>
@@ -188,7 +188,7 @@ const TicketDetail: FC<{ ticket: Ticket, onBack: () => void, onTicketUpdate: (ti
         <div ref={chatBottomRef} />
       </div>
       <footer className="border-t border-border p-3 flex gap-2 bg-card">
-        <Input value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="Escribe tu respuesta como agente..." onKeyDown={e => e.key === 'Enter' && handleSendMessage()} disabled={isSending} />
+        <Input value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="Escribe tu respuesta como admin..." onKeyDown={e => e.key === 'Enter' && handleSendMessage()} disabled={isSending} />
         <Button onClick={handleSendMessage} disabled={isSending || !newMessage.trim()}>{isSending ? <Loader2 className="animate-spin" /> : <Send />}</Button>
       </footer>
     </div>
