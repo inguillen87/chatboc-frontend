@@ -53,27 +53,31 @@
 
   // --- Iframe ---
   const iframe = document.createElement("iframe");
-iframe.id = iframeId;
-// Pasamos defaultOpen y widgetId a ChatWidget.tsx para que sepa su estado inicial
-iframe.src = `${chatbocDomain}/iframe?token=${encodeURIComponent(token)}&widgetId=${iframeId}&defaultOpen=${defaultOpen}&initialWidth=${encodeURIComponent(currentDims.width)}&initialHeight=${encodeURIComponent(currentDims.height)}`; 
-iframe.style.position = "fixed";
-iframe.style.bottom = initialBottom;
-iframe.style.right = initialRight;
-iframe.style.left = "auto";
-iframe.style.top = "auto";
-iframe.style.width = currentDims.width; 
-iframe.style.height = currentDims.height; 
-iframe.style.border = "none";
-iframe.style.zIndex = zIndexBase.toString();
-iframe.style.borderRadius = iframeIsCurrentlyOpen ? "16px" : "50%";
-iframe.style.boxShadow = "0 4px 16px rgba(0,0,0,0.25)";
-iframe.style.transition = "width 0.25s cubic-bezier(0.4, 0, 0.2, 1), height 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-radius 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease-in-out";
-iframe.style.overflow = "hidden"; 
-iframe.style.opacity = "0"; 
-iframe.allow = "clipboard-write";
-iframe.setAttribute("title", "Chatboc Chatbot");
-// <<<<<<<<<<<<<< NUEVO: Asegurar que el iframe sea display block >>>>>>>>>>>>>>
-iframe.style.display = "block"; 
+  iframe.id = iframeId;
+  // Pasamos defaultOpen y widgetId a ChatWidget.tsx para que sepa su estado inicial
+  iframe.src = `${chatbocDomain}/iframe?token=${encodeURIComponent(token)}&widgetId=${iframeId}&defaultOpen=${defaultOpen}&initialWidth=${encodeURIComponent(currentDims.width)}&initialHeight=${encodeURIComponent(currentDims.height)}`; 
+  iframe.style.position = "fixed";
+  iframe.style.bottom = initialBottom;
+  iframe.style.right = initialRight;
+  iframe.style.left = "auto";
+  iframe.style.top = "auto";
+  iframe.style.width = currentDims.width; 
+  iframe.style.height = currentDims.height; 
+  iframe.style.border = "none";
+  iframe.style.zIndex = zIndexBase.toString();
+  iframe.style.borderRadius = iframeIsCurrentlyOpen ? "16px" : "50%";
+  iframe.style.boxShadow = "0 4px 16px rgba(0,0,0,0.25)";
+  iframe.style.transition = "width 0.25s cubic-bezier(0.4, 0, 0.2, 1), height 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-radius 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease-in-out";
+  iframe.style.overflow = "hidden"; 
+  iframe.style.opacity = "0"; 
+  iframe.allow = "clipboard-write";
+  iframe.setAttribute("title", "Chatboc Chatbot");
+  iframe.style.display = "block"; // Asegurar que el iframe sea display block desde el inicio
+  
+  // <<<<<<<<<<<<<< NUEVO: Establecer min-width/height en el iframe para que no se achique >>>>>>>>>>>>>>
+  iframe.style.minWidth = currentDims.width; // Mínimo igual a su ancho actual
+  iframe.style.minHeight = currentDims.height; // Mínimo igual a su alto actual
+  // <<<<<<<<<<<<<< FIN NUEVO >>>>>>>>>>>>>>
 
   let iframeHasLoaded = false;
   iframe.onload = function () {
@@ -91,23 +95,29 @@ iframe.style.display = "block";
 
   // Escuchar mensajes del iframe para redimensionar
   window.addEventListener("message", function(event) {
+    if (event.origin !== chatbocDomain && !(chatbocDomain.startsWith("http://localhost")) ) { // Asegurar origen
+        return;
+    }
+
     if (event.data && event.data.type === "chatboc-resize" && event.data.widgetId === iframeId) {
-    console.log("Chatboc widget.js: Mensaje 'chatboc-resize' recibido:", event.data);
-    const newDims = event.data.dimensions; 
-    iframeIsCurrentlyOpen = event.data.isOpen;
+      console.log("Chatboc widget.js: Mensaje 'chatboc-resize' recibido:", event.data);
+      const newDims = event.data.dimensions; 
+      iframeIsCurrentlyOpen = event.data.isOpen;
 
-    iframe.style.width = newDims.width; 
-    iframe.style.height = newDims.height;
-    iframe.style.borderRadius = iframeIsCurrentlyOpen ? "16px" : "50%";
-    iframe.style.boxShadow = iframeIsCurrentlyOpen ? "0 6px 20px rgba(0,0,0,0.2)" : "0 4px 12px rgba(0,0,0,0.15)";
-    
-    // <<<<<<<<<<<<<< NUEVO: Asegurar que el iframe sea display block >>>>>>>>>>>>>>
-    iframe.style.display = "block"; 
-    // <<<<<<<<<<<<<< FIN NUEVO >>>>>>>>>>>>>>
+      iframe.style.width = newDims.width; 
+      iframe.style.height = newDims.height;
+      iframe.style.borderRadius = iframeIsCurrentlyOpen ? "16px" : "50%";
+      iframe.style.boxShadow = iframeIsCurrentlyOpen ? "0 6px 20px rgba(0,0,0,0.2)" : "0 4px 12px rgba(0,0,0,0.15)";
+      iframe.style.display = "block"; 
+      
+      // <<<<<<<<<<<<<< NUEVO: Asegurar min-width/height también al redimensionar >>>>>>>>>>>>>>
+      iframe.style.minWidth = newDims.width; // Mínimo igual al nuevo ancho
+      iframe.style.minHeight = newDims.height; // Mínimo igual al nuevo alto
+      // <<<<<<<<<<<<<< FIN NUEVO >>>>>>>>>>>>>>
 
-    currentDims = newDims; 
-  }
-});
+      currentDims = newDims; 
+    }
+  });
 
   // --- Lógica de Arrastre (para el iframe) ---
   let isDragging = false, dragStartX, dragStartY, iframeStartLeft, iframeStartTop;
