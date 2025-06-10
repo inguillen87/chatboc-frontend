@@ -1,4 +1,4 @@
-// Contenido COMPLETO para: Login.tsx
+// Contenido COMPLETO y CORREGIDO para: Login.tsx
 
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -6,11 +6,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { apiFetch, ApiError } from "@/utils/api";
 
+// Asegúrate de que esta interfaz refleje EXACTAMENTE lo que tu backend devuelve en /login
 interface LoginResponse {
   id: number;
   token: string;
   name: string;
   email: string;
+  plan: string; // <<<<<<<<<<<<<< AÑADIDO: Asumo que el backend devuelve el plan
+  // También podríamos agregar otras propiedades del user si el backend las devuelve,
+  // como 'rubro', etc., para tener un objeto 'user' completo en localStorage.
 }
 
 const Login = () => {
@@ -31,17 +35,19 @@ const Login = () => {
         body: { email, password },
       });
 
-      localStorage.setItem("authToken", data.token);
-
-      const userProfileToStore = {
+      // ¡Aquí está la CLAVE! Guardar el token y el plan junto con el resto de los datos del usuario.
+      const userToStore = {
         id: data.id,
         name: data.name,
         email: data.email,
+        token: data.token, // <<<<<<<<<<<<<< INCLUYE EL TOKEN AQUÍ
+        plan: data.plan || "free", // <<<<<<<<<<<<<< INCLUYE EL PLAN AQUÍ (o "free" si el backend no lo envía)
       };
       
-      localStorage.setItem("user", JSON.stringify(userProfileToStore));
+      localStorage.setItem("user", JSON.stringify(userToStore));
+      localStorage.setItem("authToken", data.token); // Sigue guardándolo por separado para consistencia si otros módulos lo esperan.
 
-      navigate("/perfil");
+      navigate("/perfil"); // O a donde corresponda después del login exitoso
 
     } catch (err) {
       if (err instanceof ApiError) {

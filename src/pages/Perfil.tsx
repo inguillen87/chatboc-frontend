@@ -1,3 +1,5 @@
+// Contenido COMPLETO y CORREGIDO para: Perfil.tsx
+
 import React, { useEffect, useState, useCallback, FormEvent } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -63,34 +65,59 @@ export default function Perfil() {
         const errorMessage = data?.error || "Error al cargar el perfil.";
         setError(errorMessage);
         if (["Token inválido o sesión expirada", "Token faltante"].includes(data?.error)) {
-          localStorage.removeItem("user"); window.location.href = "/login";
+          localStorage.removeItem("user"); 
+          localStorage.removeItem("authToken"); 
+          window.location.href = "/login";
         } return;
       }
       let horariosUi = DIAS.map((_, idx) => ({ abre: "09:00", cierra: "20:00", cerrado: idx === 5 || idx === 6 }));
       if (data.horario_json && Array.isArray(data.horario_json) && data.horario_json.length === DIAS.length) {
-         horariosUi = data.horario_json.map((h: any, idx: number) => ({
-            dia: DIAS[idx], abre: h.abre || "09:00", cierra: h.cierra || "20:00",
-            cerrado: typeof h.cerrado === "boolean" ? h.cerrado : (idx === 5 || idx === 6)
-        }));
+           horariosUi = data.horario_json.map((h: any, idx: number) => ({
+             dia: DIAS[idx], abre: h.abre || "09:00", cierra: h.cierra || "20:00",
+             cerrado: typeof h.cerrado === "boolean" ? h.cerrado : (idx === 5 || idx === 6)
+         }));
       }
       setPerfil(prev => ({
         ...prev, nombre_empresa: data.nombre_empresa || "", telefono: data.telefono || "",
         direccion: data.direccion || "", ciudad: data.ciudad || "", provincia: data.provincia || "",
         pais: data.pais || "Argentina", latitud: data.latitud || null, longitud: data.longitud || null,
-        link_web: data.link_web || "", plan: data.plan || "gratis",
+        link_web: data.link_web || "", plan: data.plan || "gratis", // Este es el plan que viene del backend
         preguntas_usadas: data.preguntas_usadas ?? 0, limite_preguntas: data.limite_preguntas ?? 50,
         rubro: data.rubro?.toLowerCase() || "", logo_url: data.logo_url || "", horarios_ui: horariosUi,
       }));
+
+      // <<<<<<<<<<<<<< LO CLAVE: SINCRONIZAR localStorage.user CON LOS DATOS MÁS RECIENTES >>>>>>>>>>>>>>
+      const storedUserString = localStorage.getItem("user");
+      let parsedUserFromLS: { id?: number; name?: string; email?: string; token?: string; } | null = null;
+      try {
+          parsedUserFromLS = storedUserString ? JSON.parse(storedUserString) : {};
+      } catch (e) {
+          console.error("Error parsing user from localStorage in Perfil.tsx", e);
+          parsedUserFromLS = {}; // Fallback a objeto vacío
+      }
+      
+      const updatedUserForLS = {
+          id: data.id,
+          name: data.name,
+          email: data.email,
+          token: parsedUserFromLS?.token || token, // Mantiene el token que ya estaba o usa el del parámetro
+          plan: data.plan || "gratis", // <<<<<<<<<<<<<< ¡ACTUALIZA EL PLAN CON EL QUE VIENE DEL BACKEND!
+          rubro: data.rubro?.toLowerCase() || parsedUserFromLS?.rubro || "", 
+      };
+      localStorage.setItem("user", JSON.stringify(updatedUserForLS));
+      console.log("Perfil: localStorage.user actualizado con plan:", updatedUserForLS.plan); // Log para confirmar
+      // <<<<<<<<<<<<<< FIN DE LA LÓGICA CLAVE >>>>>>>>>>>>>>
+
     } catch (err) {
       setError("No se pudo conectar con el servidor para cargar el perfil.");
     } finally { setLoadingGuardar(false); }
   }, []);
 
   useEffect(() => {
-  const token = localStorage.getItem("authToken");
-  if (!token) { window.location.href = "/login"; return; }
-  fetchPerfil(token);
-}, [fetchPerfil]);
+    const token = localStorage.getItem("authToken");
+    if (!token) { window.location.href = "/login"; return; }
+    fetchPerfil(token);
+  }, [fetchPerfil]); 
 
   const handlePlaceSelected = (place: any) => {
     if (!place || !place.address_components || !place.geometry) {
@@ -156,13 +183,18 @@ export default function Perfil() {
     };
     try {
       const res = await fetch(`${API_BASE_URL}/perfil`, {
-        method: "PUT",
+        method: "PUT", 
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) { throw new Error(data.error || `Error ${res.status} al guardar cambios.`); }
       setMensaje(data.mensaje || "Cambios guardados correctamente ✔️");
+
+      // Opcional: Si el PUT /perfil devuelve el perfil actualizado, puedes usarlo para actualizar el estado local
+      // y localStorage nuevamente, para mayor consistencia.
+      // fetchPerfil(token); // Para re-obtener todos los datos actualizados y sincronizar localStorage
+
     } catch (err: any) {
       setError(err.message || "Error al guardar el perfil. Intenta de nuevo.");
     } finally { setLoadingGuardar(false); }
@@ -332,29 +364,29 @@ export default function Perfil() {
           </Card>
         </div>
 
-         {/* Columna Derecha (Plan y Catálogo) */}
-      <div className="flex flex-col gap-6 md:gap-8">
-        {/* Card Plan y Uso */}
-        <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm">
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold text-primary">Plan y Uso</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Plan actual:{" "}
-              <Badge variant="secondary" className={cn("bg-primary text-primary-foreground capitalize")}>
-                {perfil?.plan || "N/A"}
-              </Badge>
-            </p>
-            <div>
-              <p className="text-sm text-muted-foreground mb-1">Consultas usadas este mes:</p>
-              <div className="flex items-center gap-2">
-                <Progress value={porcentaje} className="h-3 bg-muted [&>div]:bg-primary" aria-label={`${porcentaje.toFixed(0)}% de consultas usadas`} />
-                <span className="text-xs text-muted-foreground min-w-[70px] text-right">
-                  {perfil?.preguntas_usadas} / {perfil?.limite_preguntas}
-                </span>
+          {/* Columna Derecha (Plan y Catálogo) */}
+        <div className="flex flex-col gap-6 md:gap-8">
+          {/* Card Plan y Uso */}
+          <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm">
+            <CardHeader>
+              <CardTitle className="text-lg font-semibold text-primary">Plan y Uso</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Plan actual:{" "}
+                <Badge variant="secondary" className={cn("bg-primary text-primary-foreground capitalize")}>
+                  {perfil?.plan || "N/A"}
+                </Badge>
+              </p>
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">Consultas usadas este mes:</p>
+                <div className="flex items-center gap-2">
+                  <Progress value={porcentaje} className="h-3 bg-muted [&>div]:bg-primary" aria-label={`${porcentaje.toFixed(0)}% de consultas usadas`} />
+                  <span className="text-xs text-muted-foreground min-w-[70px] text-right">
+                    {perfil?.preguntas_usadas} / {perfil?.limite_preguntas}
+                  </span>
+                </div>
               </div>
-            </div>
     {(perfil.plan !== "full" && perfil.plan !== "pro") && (
       <div className="space-y-2 mt-3">
         <Button
@@ -451,7 +483,7 @@ export default function Perfil() {
                 <UploadCloud className="w-4 h-4 mr-2" /> {loadingCatalogo ? "Procesando Catálogo..." : "Subir y Procesar Catálogo"}
               </Button>
               {resultadoCatalogo && ( <div className={`text-sm p-3 rounded-md flex items-center gap-2 ${resultadoCatalogo.type === "error" ? 'bg-destructive text-destructive-foreground' : 'bg-secondary text-secondary-foreground'}`}>
-                  {resultadoCatalogo.type === "error" ? <XCircle className="w-5 h-5"/> : <CheckCircle className="w-5 h-5"/>} {resultadoCatalogo.message}
+                {resultadoCatalogo.type === "error" ? <XCircle className="w-5 h-5"/> : <CheckCircle className="w-5 h-5"/>} {resultadoCatalogo.message}
               </div>)}
             </CardContent>
           </Card>
