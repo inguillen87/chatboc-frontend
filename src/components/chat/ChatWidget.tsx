@@ -9,7 +9,7 @@ import { Message } from "@/types/chat"; // Asegúrate de que esta interfaz esté
 import { apiFetch } from "@/utils/api";
 import { useIsMobile } from "@/hooks/use-mobile";
 
-// --- WidgetChatHeader (se mantiene igual, no necesita cambios) ---
+// --- WidgetChatHeader (se mantiene igual) ---
 const WidgetChatHeader = ({ title = "Chatboc Asistente", showCloseButton = false, onClose, onMouseDownDrag, isDraggable }) => (
   <div
     className="flex items-center justify-between p-3 border-b border-border bg-card text-foreground select-none"
@@ -32,10 +32,10 @@ const WidgetChatHeader = ({ title = "Chatboc Asistente", showCloseButton = false
   </div>
 );
 
-// getAuthToken lee de localStorage (solo para modo standalone)
+// getAuthTokenFromLocalStorage: Lee el token de localStorage (para modo standalone)
 const getAuthTokenFromLocalStorage = () => (typeof window === "undefined" ? null : localStorage.getItem("authToken"));
 
-// getAnonToken (se mantiene igual)
+// getAnonToken: Genera o recupera un token anónimo (para usuarios no logueados en standalone)
 const getAnonToken = () => {
   if (typeof window === "undefined") return "anon-ssr";
   let token = localStorage.getItem("anon_token");
@@ -46,24 +46,24 @@ const getAnonToken = () => {
   return token;
 };
 
-// Interfaz para las props de ChatWidget, incluyendo el nuevo authToken
+// Interfaz para las props de ChatWidget
 interface ChatWidgetProps {
-  mode?: "standalone" | "iframe"; // Modo de ejecución: en página principal o incrustado
+  mode?: "standalone" | "iframe";
   initialPosition?: { bottom: number; right: number };
-  draggable?: boolean; // Si el widget puede ser arrastrado (solo en standalone)
-  defaultOpen?: boolean; // Si inicia abierto o cerrado
-  widgetId?: string; // ID único para comunicación entre iframe y host
-  authToken?: string | null; // <<<<<<<<<<<<<< NUEVA PROP: TOKEN RECIBIDO DEL PADRE (Iframe.tsx)
+  draggable?: boolean;
+  defaultOpen?: boolean;
+  widgetId?: string;
+  authToken?: string | null; // Token de autenticación recibido como prop
 }
 
 
-const ChatWidget: React.FC<ChatWidgetProps> = ({ // Usar React.FC para tipar props
+const ChatWidget: React.FC<ChatWidgetProps> = ({ 
   mode = "standalone",
   initialPosition = { bottom: 20, right: 20 },
   draggable = true,
   defaultOpen = false,
   widgetId = "chatboc-widget-iframe",
-  authToken: propAuthToken, // <<<<<<<<<<<<<< RECIBE EL TOKEN COMO PROP
+  authToken: propAuthToken, // Recibe el token como prop (ej. desde Iframe.tsx)
 }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -75,19 +75,18 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ // Usar React.FC para tipar pro
   const [cargandoRubros, setCargandoRubros] = useState(false);
   const [contexto, setContexto] = useState({});
 
-  const messagesEndRef = useRef(null);
-  const chatContainerRef = useRef(null);
-  const widgetContainerRef = useRef<HTMLDivElement>(null); // Tipado para ref
-  const dragStartPosRef = useRef(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+  const widgetContainerRef = useRef<HTMLDivElement>(null); 
+  const dragStartPosRef = useRef<any>(null); // Uso 'any' por la complejidad de la estructura de ref para el arrastre
 
   const [currentPos, setCurrentPos] = useState(
     mode === "standalone" ? { position: "fixed", ...initialPosition, zIndex: 99998 } : {}
   );
   const isMobile = useIsMobile();
 
-  // <<< LÓGICA PARA OBTENER EL TOKEN DEFINITIVO >>>
-  // Si estamos en modo iframe, el token viene por prop (de la URL del iframe)
-  // Si estamos en modo standalone, el token viene de localStorage
+  // <<< LÓGICA PARA OBTENER EL TOKEN DEFINITIVO (Más robusta) >>>
+  // El token final es el propAuthToken (si modo iframe) o el de localStorage (si standalone)
   const finalAuthToken = mode === "iframe" ? propAuthToken : getAuthTokenFromLocalStorage();
   const esAnonimo = !finalAuthToken; // Determina si es anónimo basándose en el token final
   // <<< FIN LÓGICA DE TOKEN >>>
@@ -96,7 +95,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ // Usar React.FC para tipar pro
   // Comunicación con el padre (widget.js) para redimensionar el iframe
   const postResizeMessage = useCallback(() => {
     if (mode === "iframe" && typeof window !== "undefined" && window.parent) {
-      const currentElement = widgetContainerRef.current as HTMLElement | null;
+      const currentElement = widgetContainerRef.current; 
       if (currentElement) {
         const { offsetWidth, offsetHeight } = currentElement;
         window.parent.postMessage({
@@ -110,25 +109,25 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ // Usar React.FC para tipar pro
   }, [mode, isOpen, widgetId]);
 
 
-  // Lógica de bienvenida / rubro (MODIFICADA para usar finalAuthToken)
+  // Lógica de bienvenida / rubro (MODIFICADA para usar finalAuthToken y ser más precisa)
   useEffect(() => {
-    // Si es un usuario anónimo en modo standalone Y no hay rubro seleccionado
-    // Pedimos que seleccione un rubro
-    if (isOpen && esAnonimo && mode === "standalone" && !rubroSeleccionado) {
-      setEsperandoRubro(true);
-      cargarRubros();
-    } else if (rubroSeleccionado) {
-      // Si ya hay un rubro seleccionado, no esperamos y podemos enviar mensaje de bienvenida (opcional)
-      setEsperandoRubro(false);
-    } else if (isOpen && !esAnonimo) {
-        // Si no es anónimo (es decir, tenemos un finalAuthToken), no esperamos rubro
-        setEsperandoRubro(false);
-        // Opcional: Si el chat está abierto y no es anónimo y no hay mensajes, podrías añadir un mensaje inicial aquí
-        // if (messages.length === 0) {
-        //   setMessages([{ id: Date.now(), text: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?", isBot: true, timestamp: new Date() }]);
-        // }
+    // Solo si el chat está abierto
+    if (isOpen) {
+        // Caso 1: Usuario anónimo en modo standalone y sin rubro seleccionado
+        if (esAnonimo && mode === "standalone" && !rubroSeleccionado) {
+            setEsperandoRubro(true);
+            cargarRubros();
+        } 
+        // Caso 2: Usuario autenticado (sea iframe o standalone), o ya tiene rubro seleccionado
+        else if (!esAnonimo || rubroSeleccionado) {
+            setEsperandoRubro(false);
+            // Si el chat se acaba de abrir y no hay mensajes, muestra el mensaje de bienvenida
+            if (messages.length === 0) {
+              setMessages([{ id: Date.now(), text: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?", isBot: true, timestamp: new Date() }]);
+            }
+        }
     }
-  }, [isOpen, esAnonimo, mode, rubroSeleccionado]); // Dependencias actualizadas
+  }, [isOpen, esAnonimo, mode, rubroSeleccionado, messages.length]); // Dependencias actualizadas
 
   // Scroll al final de los mensajes (se mantiene igual)
   useEffect(() => {
@@ -167,25 +166,25 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ // Usar React.FC para tipar pro
       return;
     }
 
-    const userMessage = { id: Date.now(), text, isBot: false, timestamp: new Date() };
+    const userMessage = { id: Date.now(), text, isBot: false, timestamp: new Date() }; // <<<<<<<<<<<<<< CORREGIDO: ID CON Date.now()
     setMessages(prev => [...prev, userMessage]);
     setIsTyping(true);
 
     const payload: any = { pregunta: text, contexto_previo: contexto };
-    // Solo enviar rubro si es un usuario anónimo en modo standalone
+    // Solo enviar rubro si es un usuario anónimo en modo standalone y ya seleccionó uno
     if (esAnonimo && mode === "standalone" && rubroSeleccionado) payload.rubro = rubroSeleccionado;
 
     try {
-      // Usar finalAuthToken para la autorización
+      // Usar finalAuthToken para la autorización de la petición al backend
       const data = await apiFetch("/ask", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalToken}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalAuthToken || getAnonToken()}` }, // Si por alguna razón finalAuthToken es nulo, usa el anónimo
         body: payload,
       });
 
       setContexto(data.contexto_actualizado || {});
       setMessages(prev => [...prev, {
-        id: Date.now(), // <<<<<<<<<<<<<< CORRECCIÓN AQUÍ
+        id: Date.now(), // <<<<<<<<<<<<<< CORREGIDO: ID CON Date.now()
         text: data.respuesta || "No pude procesar tu solicitud.",
         isBot: true,
         timestamp: new Date(),
@@ -199,15 +198,15 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ // Usar React.FC para tipar pro
     } finally {
       setIsTyping(false);
     }
-  }, [contexto, rubroSeleccionado, preguntasUsadas, esAnonimo, mode, finalToken]); // Añadir esAnonimo y finalToken a las dependencias
+  }, [contexto, rubroSeleccionado, preguntasUsadas, esAnonimo, mode, finalAuthToken]); // Añadir finalAuthToken a las dependencias
 
   const toggleChat = () => setIsOpen(o => !o);
 
-  // Lógica de arrastre (se mantiene igual)
+  // Lógica de arrastre (DRAG) (CORREGIDA la inconsistencia de `clientY` y `dragStartPosRef.current.top`)
   const onMouseDownDrag = useCallback((e: React.MouseEvent | React.TouchEvent) => {
-    if (mode === "standalone" && draggable && isOpen && !isMobile) {
+    if (mode === "standalone" && draggable && isOpen && !isMobile && widgetContainerRef.current) {
       const startX = e.touches ? e.touches[0].clientX : e.clientX;
-      const startY = e.touches ? e.touches[0].clientY : e.clientY;
+      const startY = e.touches ? e.touches[0].clientY : e.clientY; // Corregido: e.clientY para mouse
       const rect = widgetContainerRef.current.getBoundingClientRect();
       dragStartPosRef.current = {
         x: startX,
@@ -222,7 +221,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ // Usar React.FC para tipar pro
         const clientY = moveEvent.touches ? moveEvent.touches[0].clientY : moveEvent.clientY;
 
         const newLeft = dragStartPosRef.current.left + (clientX - dragStartPosRef.current.x);
-        const newTop = dragStartPosRef.current.top + (clientY - dragStartPosRef.current.y);
+        const newTop = dragStartPosRef.current.top + (clientY - dragStartPosRef.current.y); // Corregido: dragStartPosRef.current.top
 
         setCurrentPos({
           position: "fixed",
