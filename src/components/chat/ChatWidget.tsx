@@ -1,15 +1,15 @@
-// src/components/chat/ChatWidget.tsx (Última versión COMPLETA y CORREGIDA)
+// src/components/chat/ChatWidget.tsx
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { X } from "lucide-react";
-import ChatMessage from "./ChatMessage";
-import TypingIndicator from "./TypingIndicator";
-import ChatInput from "./ChatInput";
-import { Message } from "@/types/chat"; 
-import { apiFetch } from "@/utils/api";
-import { useIsMobile } from "@/hooks/use-mobile";
+import ChatMessage from "./ChatMessage"; // Asegúrate de que este archivo exista y esté actualizado
+import TypingIndicator from "./TypingIndicator"; // Asegúrate de que este archivo exista
+import ChatInput from "./ChatInput"; // Asegúrate de que este archivo exista
+import { Message } from "@/types/chat"; // Asegúrate de que esta interfaz esté correcta y tenga 'botones?: BotonProps[];'
+import { apiFetch } from "@/utils/api"; // Asegúrate de que este archivo exista
+import { useIsMobile } from "@/hooks/use-mobile"; // Asegúrate de que este hook exista y esté correcto
 
-// --- WidgetChatHeader (se mantiene igual) ---
+// --- WidgetChatHeader (se mantiene igual y es el que me proporcionaste antes) ---
 const WidgetChatHeader = ({ title = "Chatboc Asistente", showCloseButton = false, onClose, onMouseDownDrag, isDraggable }) => (
   <div
     className="flex items-center justify-between p-3 border-b border-border bg-card text-foreground select-none"
@@ -32,8 +32,10 @@ const WidgetChatHeader = ({ title = "Chatboc Asistente", showCloseButton = false
   </div>
 );
 
+// getAuthTokenFromLocalStorage: Lee el token de localStorage (para modo standalone)
 const getAuthTokenFromLocalStorage = () => (typeof window === "undefined" ? null : localStorage.getItem("authToken"));
 
+// getAnonToken: Genera o recupera un token anónimo (para usuarios no logueados en standalone)
 const getAnonToken = () => {
   if (typeof window === "undefined") return "anon-ssr";
   let token = localStorage.getItem("anon_token");
@@ -44,13 +46,14 @@ const getAnonToken = () => {
   return token;
 };
 
+// Interfaz para las props de ChatWidget
 interface ChatWidgetProps {
-  mode?: "standalone" | "iframe"; 
+  mode?: "standalone" | "iframe"; // Modo de ejecución: en página principal o incrustado
   initialPosition?: { bottom: number; right: number };
-  draggable?: boolean; 
-  defaultOpen?: boolean; 
-  widgetId?: string; 
-  authToken?: string | null; 
+  draggable?: boolean; // Si el widget puede ser arrastrado (solo en standalone)
+  defaultOpen?: boolean; // Si inicia abierto o cerrado
+  widgetId?: string; // ID único para comunicación entre iframe y host
+  authToken?: string | null; // Token de autenticación recibido como prop desde Iframe.tsx
 }
 
 
@@ -60,7 +63,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   draggable = true,
   defaultOpen = false,
   widgetId = "chatboc-widget-iframe",
-  authToken: propAuthToken, 
+  authToken: propAuthToken, // Recibe el token como prop (ej. desde Iframe.tsx)
 }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -75,43 +78,54 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const widgetContainerRef = useRef<HTMLDivElement>(null); 
-  const dragStartPosRef = useRef<any>(null); 
+  const dragStartPosRef = useRef<any>(null); // Se usa 'any' para la estructura de la ref de arrastre
 
   const [currentPos, setCurrentPos] = useState(
     mode === "standalone" ? { position: "fixed", ...initialPosition, zIndex: 99998 } : {}
   );
   const isMobile = useIsMobile();
 
+  // <<< LÓGICA PARA OBTENER EL TOKEN DEFINITIVO (Más robusta) >>>
+  // Si estamos en modo iframe, el token viene por propAuthToken
+  // Si estamos en modo standalone, el token viene de localStorage
   const finalAuthToken = mode === "iframe" ? propAuthToken : getAuthTokenFromLocalStorage();
-  const esAnonimo = !finalAuthToken; 
+  const esAnonimo = !finalAuthToken; // Es anónimo si no hay token final
+  // <<< FIN LÓGICA DE TOKEN >>>
 
 
-  // <<< LÓGICA PARA ENVIAR DIMENSIONES FIJAS AL WIDGET.JS >>>
+  // Comunicación con el padre (widget.js) para redimensionar el iframe
   const postResizeMessage = useCallback(() => {
     if (mode === "iframe" && typeof window !== "undefined" && window.parent) {
-      // Definimos las dimensiones esperadas (deben coincidir con las de widget.js)
-      const dimensionsToSend = isOpen 
-        ? { width: '360px', height: '520px' } // Dimensiones cuando está ABIERTO
-        : { width: '80px', height: '80px' };  // Dimensiones cuando está CERRADO (globito)
+      const currentElement = widgetContainerRef.current; 
+      if (currentElement) {
+        // Definimos las dimensiones esperadas que el widget.js debe aplicar al iframe.
+        // Estas deben coincidir con las definidas en widget.js.
+        const dimensionsToSend = isOpen 
+          ? { width: '360px', height: '520px' } // Dimensiones cuando está ABIERTO
+          : { width: '80px', height: '80px' };  // Dimensiones cuando está CERRADO (globito)
 
-      window.parent.postMessage({
-        type: "chatboc-resize",
-        widgetId: widgetId,
-        dimensions: dimensionsToSend, // <<<<<<<<<<<<<< USAR ESTAS DIMENSIONES FIJAS
-        isOpen: isOpen,
-      }, "*");
+        window.parent.postMessage({
+          type: "chatboc-resize",
+          widgetId: widgetId,
+          dimensions: dimensionsToSend, // Usar estas dimensiones fijas
+          isOpen: isOpen,
+        }, "*"); // Usar '*' si el origen no es fijo (ej. si se incrusta en diferentes dominios)
+      }
     }
   }, [mode, isOpen, widgetId]); // Depende de `isOpen` para enviar el tamaño correcto al cambiar
 
   // Lógica de bienvenida / rubro
   useEffect(() => {
     if (isOpen) {
+        // Caso 1: Usuario anónimo en modo standalone y sin rubro seleccionado
         if (esAnonimo && mode === "standalone" && !rubroSeleccionado) {
             setEsperandoRubro(true);
             cargarRubros();
         } 
+        // Caso 2: Usuario autenticado (sea iframe o standalone), o ya tiene rubro seleccionado
         else if (!esAnonimo || rubroSeleccionado) {
             setEsperandoRubro(false);
+            // Si el chat se acaba de abrir y no hay mensajes, muestra el mensaje de bienvenida
             if (messages.length === 0) {
               setMessages([{ id: Date.now(), text: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?", isBot: true, timestamp: new Date() }]);
             }
@@ -188,6 +202,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   const toggleChat = () => setIsOpen(o => !o);
 
+  // Lógica de arrastre (DRAG)
   const onMouseDownDrag = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     if (mode === "standalone" && draggable && isOpen && !isMobile && widgetContainerRef.current) {
       const startX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -280,15 +295,16 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       )}
       {isOpen && (
         <div
-          // Clases de Tailwind CSS para el contenedor del chat principal
+          // ESTAS SON LAS CLASES CLAVE
           // w-full h-full le dice que ocupe el 100% del ancho y alto de su padre (el iframe)
           className="w-full h-full rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-slide-up bg-white border border-border dark:bg-gray-900" 
           // Eliminamos los estilos inline 'height' y 'minHeight' si existieran
+          // style={{ height: esperandoRubro ? "auto" : "500px", minHeight: esperandoRubro ? "240px" : "400px" }}
         >
           {esperandoRubro ? (
             <div
               className={`w-full h-full flex flex-col items-center justify-center p-6 text-foreground border border-border rounded-3xl ${isMobile ? "bg-white shadow-2xl dark:bg-gray-900" : "bg-card"}`}
-              // style={{ minHeight: 240 }} // Si este minHeight es muy restrictivo, también puede ser un problema.
+              // style={{ minHeight: 240 }} 
             >
               <h2 className="text-lg font-semibold mb-3 text-center text-primary">👋 ¡Bienvenido!</h2>
               <p className="mb-4 text-sm text-center text-muted-foreground">¿De qué rubro es tu negocio?</p>
