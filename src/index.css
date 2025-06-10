@@ -87,5 +87,16 @@
     font-family: 'Poppins', sans-serif;
   }
 }
+@keyframes pulse-subtle {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
 
+.animate-pulse-subtle {
+  animation: pulse-subtle 1.5s infinite ease-in-out;
+}
 /* ... otras clases y keyframes ... */
