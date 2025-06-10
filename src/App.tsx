@@ -22,14 +22,12 @@ import Privacy from "./pages/legal/Privacy";
 import Terms from "./pages/legal/Terms";
 import Cookies from "./pages/legal/Cookies";
 import NotFound from "./pages/NotFound";
-
+import PedidosPage from "./pages/PedidosPage";
 import Iframe from "./pages/Iframe";
 
 // Importá tu componente TicketsPanelPro aquí
 import TicketsPanelPro from "./pages/TicketsPanel";
 // --- NUEVO: Importa tu componente PedidosPage aquí ---
-import PedidosPage from "./pages/PedidosPage"; 
-
 const queryClient = new QueryClient();
 
 function AppRoutes() {
