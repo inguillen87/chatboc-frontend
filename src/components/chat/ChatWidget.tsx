@@ -1,11 +1,11 @@
-// src/components/chat/ChatWidget.tsx
+// src/components/chat/ChatWidget.tsx (Última versión COMPLETA y CORREGIDA)
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { X } from "lucide-react";
 import ChatMessage from "./ChatMessage";
 import TypingIndicator from "./TypingIndicator";
 import ChatInput from "./ChatInput";
-import { Message } from "@/types/chat"; // Asegúrate de que esta interfaz esté correcta y tenga 'botones?: BotonProps[];'
+import { Message } from "@/types/chat"; 
 import { apiFetch } from "@/utils/api";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -32,10 +32,8 @@ const WidgetChatHeader = ({ title = "Chatboc Asistente", showCloseButton = false
   </div>
 );
 
-// getAuthTokenFromLocalStorage: Lee el token de localStorage (para modo standalone)
 const getAuthTokenFromLocalStorage = () => (typeof window === "undefined" ? null : localStorage.getItem("authToken"));
 
-// getAnonToken: Genera o recupera un token anónimo (para usuarios no logueados en standalone)
 const getAnonToken = () => {
   if (typeof window === "undefined") return "anon-ssr";
   let token = localStorage.getItem("anon_token");
@@ -46,14 +44,13 @@ const getAnonToken = () => {
   return token;
 };
 
-// Interfaz para las props de ChatWidget
 interface ChatWidgetProps {
-  mode?: "standalone" | "iframe"; // Modo de ejecución: en página principal o incrustado
+  mode?: "standalone" | "iframe"; 
   initialPosition?: { bottom: number; right: number };
-  draggable?: boolean; // Si el widget puede ser arrastrado (solo en standalone)
-  defaultOpen?: boolean; // Si inicia abierto o cerrado
-  widgetId?: string; // ID único para comunicación entre iframe y host
-  authToken?: string | null; // Token de autenticación recibido como prop
+  draggable?: boolean; 
+  defaultOpen?: boolean; 
+  widgetId?: string; 
+  authToken?: string | null; 
 }
 
 
@@ -63,7 +60,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   draggable = true,
   defaultOpen = false,
   widgetId = "chatboc-widget-iframe",
-  authToken: propAuthToken, // Recibe el token como prop (ej. desde Iframe.tsx)
+  authToken: propAuthToken, 
 }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -85,32 +82,26 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   );
   const isMobile = useIsMobile();
 
-  // <<< LÓGICA PARA OBTENER EL TOKEN DEFINITIVO >>>
   const finalAuthToken = mode === "iframe" ? propAuthToken : getAuthTokenFromLocalStorage();
   const esAnonimo = !finalAuthToken; 
-  // <<< FIN LÓGICA DE TOKEN >>>
 
 
-  // Comunicación con el padre (widget.js) para redimensionar el iframe
+  // <<< LÓGICA PARA ENVIAR DIMENSIONES FIJAS AL WIDGET.JS >>>
   const postResizeMessage = useCallback(() => {
     if (mode === "iframe" && typeof window !== "undefined" && window.parent) {
-      const currentElement = widgetContainerRef.current; 
-      if (currentElement) {
-        // <<<<<<<<<<<<<< ESTA ES LA LÓGICA QUE NECESITA SER MÁS INTELIGENTE >>>>>>>>>>>>>>
-        // Necesitamos enviar las dimensiones correctas de OPEN o CLOSED.
-        const dimensionsToSend = isOpen 
-            ? { width: '360px', height: '520px' } // Dimensiones cuando está ABIERTO
-            : { width: '80px', height: '80px' };  // Dimensiones cuando está CERRADO (globito)
+      // Definimos las dimensiones esperadas (deben coincidir con las de widget.js)
+      const dimensionsToSend = isOpen 
+        ? { width: '360px', height: '520px' } // Dimensiones cuando está ABIERTO
+        : { width: '80px', height: '80px' };  // Dimensiones cuando está CERRADO (globito)
 
-        window.parent.postMessage({
-          type: "chatboc-resize",
-          widgetId: widgetId,
-          dimensions: dimensionsToSend, // Usar las dimensiones correctas aquí
-          isOpen: isOpen,
-        }, "*");
-      }
+      window.parent.postMessage({
+        type: "chatboc-resize",
+        widgetId: widgetId,
+        dimensions: dimensionsToSend, // <<<<<<<<<<<<<< USAR ESTAS DIMENSIONES FIJAS
+        isOpen: isOpen,
+      }, "*");
     }
-}, [mode, isOpen, widgetId]); // Asegúrate de que `isOpen` esté en las dependencias
+  }, [mode, isOpen, widgetId]); // Depende de `isOpen` para enviar el tamaño correcto al cambiar
 
   // Lógica de bienvenida / rubro
   useEffect(() => {
@@ -138,7 +129,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     }
   }, [messages, isTyping]);
 
-  // Enviar mensaje de resize
+  // Enviar mensaje de resize (se dispara al montar, y cada vez que isOpen, messages, isTyping cambien)
   useEffect(() => {
     postResizeMessage();
   }, [isOpen, messages, isTyping, postResizeMessage]);
@@ -197,7 +188,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   const toggleChat = () => setIsOpen(o => !o);
 
-  // Lógica de arrastre (DRAG) (CORREGIDA la inconsistencia de `clientY` y `dragStartPosRef.current.top`)
   const onMouseDownDrag = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     if (mode === "standalone" && draggable && isOpen && !isMobile && widgetContainerRef.current) {
       const startX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -216,7 +206,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         const clientY = moveEvent.touches ? moveEvent.touches[0].clientY : moveEvent.clientY;
 
         const newLeft = dragStartPosRef.current.left + (clientX - dragStartPosRef.current.x);
-        const newTop = dragStartPosRef.current.top + (clientY - dragStartPosRef.current.y); // Corregido: dragStartPosRef.current.y
+        const newTop = dragStartPosRef.current.top + (clientY - dragStartPosRef.current.y); 
 
         setCurrentPos({
           position: "fixed",
@@ -275,7 +265,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   return (
     <div ref={widgetContainerRef} style={currentPos} className="chatboc-standalone-widget">
-      {/* <<<<<<<<<<<<<< CORREGIDO: Asegurar que el botón exista aquí >>>>>>>>>>>>>> */}
+      {/* Botón para abrir el chat cuando está cerrado */}
       {!isOpen && (
         <button
           onClick={toggleChat}
@@ -290,16 +280,15 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       )}
       {isOpen && (
         <div
-          // ESTAS SON LAS CLASES CLAVE
+          // Clases de Tailwind CSS para el contenedor del chat principal
           // w-full h-full le dice que ocupe el 100% del ancho y alto de su padre (el iframe)
           className="w-full h-full rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-slide-up bg-white border border-border dark:bg-gray-900" 
-          // Eliminamos los estilos inline 'height' y 'minHeight' para que no anulen 'h-full'
-          // style={{ height: esperandoRubro ? "auto" : "500px", minHeight: esperandoRubro ? "240px" : "400px" }}
+          // Eliminamos los estilos inline 'height' y 'minHeight' si existieran
         >
           {esperandoRubro ? (
             <div
               className={`w-full h-full flex flex-col items-center justify-center p-6 text-foreground border border-border rounded-3xl ${isMobile ? "bg-white shadow-2xl dark:bg-gray-900" : "bg-card"}`}
-              // style={{ minHeight: 240 }} 
+              // style={{ minHeight: 240 }} // Si este minHeight es muy restrictivo, también puede ser un problema.
             >
               <h2 className="text-lg font-semibold mb-3 text-center text-primary">👋 ¡Bienvenido!</h2>
               <p className="mb-4 text-sm text-center text-muted-foreground">¿De qué rubro es tu negocio?</p>
