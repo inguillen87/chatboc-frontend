@@ -9,35 +9,35 @@
   }
 
   const token = script.getAttribute("data-token") || "demo-anon";
-  const initialBottom = script.getAttribute("data-bottom") || "20px";
-  const initialRight = script.getAttribute("data-right") || "20px";
-  const defaultOpen = script.getAttribute("data-default-open") === "true"; // Si el chat debe iniciar abierto
+  const initialBottom = script.getAttribute("data-bottom") || "24px"; // Usar 24px para ser consistente
+  const initialRight = script.getAttribute("data-right") || "24px"; // Usar 24px para ser consistente
+  const defaultOpen = script.getAttribute("data-default-open") === "true"; 
   const chatbocDomain = script.getAttribute("data-domain") || "https://www.chatboc.ar";
 
   const zIndexBase = parseInt(script.getAttribute("data-z") || "999990", 10);
   const iframeId = "chatboc-dynamic-iframe-" + Math.random().toString(36).substring(2, 9);
 
-  const WIDGET_DIMENSIONS_JS = { // Usar los mismos nombres que en ChatWidget.tsx
+  const WIDGET_DIMENSIONS_JS = {
     OPEN: {
       width: script.getAttribute("data-width") || "360px",
       height: script.getAttribute("data-height") || "520px",
     },
-    CLOSED: { // Dimensiones del globito
+    CLOSED: {
       width: script.getAttribute("data-closed-width") || "80px",
       height: script.getAttribute("data-closed-height") || "80px",
     },
   };
 
   let currentDims = defaultOpen ? WIDGET_DIMENSIONS_JS.OPEN : WIDGET_DIMENSIONS_JS.CLOSED;
-  let iframeIsCurrentlyOpen = defaultOpen; // Sincronizado con ChatWidget interno
+  let iframeIsCurrentlyOpen = defaultOpen; 
 
-  // --- Loader ---
+  // --- Loader (se mantiene igual, ya está bien) ---
   const loader = document.createElement("div");
   loader.id = "chatboc-loader-" + iframeId;
   loader.style.position = "fixed";
   loader.style.bottom = initialBottom;
   loader.style.right = initialRight;
-  loader.style.width = currentDims.width; // Tamaño inicial basado en defaultOpen
+  loader.style.width = currentDims.width;
   loader.style.height = currentDims.height;
   loader.style.zIndex = zIndexBase.toString();
   loader.style.display = "flex";
@@ -46,7 +46,7 @@
   loader.style.borderRadius = defaultOpen ? "16px" : "50%";
   loader.style.background = "rgba(230,230,230,0.8)";
   loader.style.boxShadow = "0 2px 8px rgba(0,0,0,0.1)";
-  loader.style.transition = "opacity 0.3s ease-out"; // Transición para el loader
+  loader.style.transition = "opacity 0.3s ease-out";
   loader.innerHTML = `<div style="font-family: Arial, sans-serif; color: #555; font-size:11px; text-align:center;">Cargando<br/>Chatboc...</div>`;
   if (!document.getElementById(loader.id)) document.body.appendChild(loader);
 
@@ -54,30 +54,30 @@
   // --- Iframe ---
   const iframe = document.createElement("iframe");
   iframe.id = iframeId;
-  // Pasamos defaultOpen y widgetId a ChatWidget.tsx para que sepa su estado inicial
   iframe.src = `${chatbocDomain}/iframe?token=${encodeURIComponent(token)}&widgetId=${iframeId}&defaultOpen=${defaultOpen}&initialWidth=${encodeURIComponent(currentDims.width)}&initialHeight=${encodeURIComponent(currentDims.height)}`; 
   iframe.style.position = "fixed";
   iframe.style.bottom = initialBottom;
   iframe.style.right = initialRight;
   iframe.style.left = "auto";
   iframe.style.top = "auto";
-  iframe.style.width = currentDims.width; 
-  iframe.style.height = currentDims.height; 
   iframe.style.border = "none";
   iframe.style.zIndex = zIndexBase.toString();
-  iframe.style.borderRadius = iframeIsCurrentlyOpen ? "16px" : "50%";
-  iframe.style.boxShadow = "0 4px 16px rgba(0,0,0,0.25)";
   iframe.style.transition = "width 0.25s cubic-bezier(0.4, 0, 0.2, 1), height 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-radius 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease-in-out";
   iframe.style.overflow = "hidden"; 
   iframe.style.opacity = "0"; 
   iframe.allow = "clipboard-write";
   iframe.setAttribute("title", "Chatboc Chatbot");
   iframe.style.display = "block"; // Asegurar que el iframe sea display block desde el inicio
-  
-  // <<<<<<<<<<<<<< NUEVO: Establecer min-width/height en el iframe para que no se achique >>>>>>>>>>>>>>
-  iframe.style.minWidth = currentDims.width; // Mínimo igual a su ancho actual
-  iframe.style.minHeight = currentDims.height; // Mínimo igual a su alto actual
-  // <<<<<<<<<<<<<< FIN NUEVO >>>>>>>>>>>>>>
+
+  // <<<<<<<<<<<<<< CORRECCIÓN CLAVE: Aplicar dimensiones y min/max width/height al inicio >>>>>>>>>>>>>>
+  iframe.style.width = currentDims.width; 
+  iframe.style.height = currentDims.height;
+  iframe.style.minWidth = WIDGET_DIMENSIONS_JS.CLOSED.width; // Min para el globito
+  iframe.style.minHeight = WIDGET_DIMENSIONS_JS.CLOSED.height; // Min para el globito
+  iframe.style.maxWidth = WIDGET_DIMENSIONS_JS.OPEN.width; // Max para la ventana
+  iframe.style.maxHeight = WIDGET_DIMENSIONS_JS.OPEN.height; // Max para la ventana
+  iframe.style.borderRadius = iframeIsCurrentlyOpen ? "16px" : "50%"; // Forma inicial
+  // <<<<<<<<<<<<<< FIN CORRECCIÓN >>>>>>>>>>>>>>
 
   let iframeHasLoaded = false;
   iframe.onload = function () {
@@ -86,7 +86,7 @@
     const loaderEl = document.getElementById(loader.id);
     if (loaderEl) {
         loaderEl.style.opacity = "0";
-        setTimeout(() => loaderEl.remove(), 300); // Quitar loader después de la transición
+        setTimeout(() => loaderEl.remove(), 300);
     }
     iframe.style.opacity = "1"; // Mostrar iframe
   };
@@ -95,7 +95,7 @@
 
   // Escuchar mensajes del iframe para redimensionar
   window.addEventListener("message", function(event) {
-    if (event.origin !== chatbocDomain && !(chatbocDomain.startsWith("http://localhost")) ) { // Asegurar origen
+    if (event.origin !== chatbocDomain && !(chatbocDomain.startsWith("http://localhost")) ) {
         return;
     }
 
@@ -104,16 +104,17 @@
       const newDims = event.data.dimensions; 
       iframeIsCurrentlyOpen = event.data.isOpen;
 
+      // <<<<<<<<<<<<<< CORRECCIÓN CLAVE: Aplicar dimensiones y min/max width/height al redimensionar >>>>>>>>>>>>>>
       iframe.style.width = newDims.width; 
       iframe.style.height = newDims.height;
-      iframe.style.borderRadius = iframeIsCurrentlyOpen ? "16px" : "50%";
+      iframe.style.minWidth = WIDGET_DIMENSIONS_JS.CLOSED.width; // Asegurar min width/height
+      iframe.style.minHeight = WIDGET_DIMENSIONS_JS.CLOSED.height;
+      iframe.style.maxWidth = WIDGET_DIMENSIONS_JS.OPEN.width; // Asegurar max width/height
+      iframe.style.maxHeight = WIDGET_DIMENSIONS_JS.OPEN.height;
+      iframe.style.borderRadius = iframeIsCurrentlyOpen ? "16px" : "50%"; // Cambiar forma
       iframe.style.boxShadow = iframeIsCurrentlyOpen ? "0 6px 20px rgba(0,0,0,0.2)" : "0 4px 12px rgba(0,0,0,0.15)";
-      iframe.style.display = "block"; 
-      
-      // <<<<<<<<<<<<<< NUEVO: Asegurar min-width/height también al redimensionar >>>>>>>>>>>>>>
-      iframe.style.minWidth = newDims.width; // Mínimo igual al nuevo ancho
-      iframe.style.minHeight = newDims.height; // Mínimo igual al nuevo alto
-      // <<<<<<<<<<<<<< FIN NUEVO >>>>>>>>>>>>>>
+      iframe.style.display = "block"; // Mantener display block
+      // <<<<<<<<<<<<<< FIN CORRECCIÓN >>>>>>>>>>>>>>
 
       currentDims = newDims; 
     }
@@ -126,10 +127,6 @@
   iframe.addEventListener("touchstart", dragStart, { passive: false });
 
   function dragStart(e) {
-    // Permitir arrastre tanto para el globito como para la ventana abierta.
-    // La heurística para no arrastrar inputs es difícil de hacer bien desde fuera del iframe.
-    // El ChatHeader dentro de ChatWidget ya no inicia el drag, así que no hay conflicto.
-    
     isDragging = true;
     const rect = iframe.getBoundingClientRect();
     iframeStartLeft = rect.left;
@@ -158,7 +155,7 @@
     let newLeft = iframeStartLeft + (clientX - dragStartX);
     let newTop = iframeStartTop + (clientY - dragStartY);
 
-    const currentIframeWidth = parseInt(currentDims.width); // Usa las dimensiones actuales del iframe
+    const currentIframeWidth = parseInt(currentDims.width); 
     const currentIframeHeight = parseInt(currentDims.height);
 
     newLeft = Math.max(0, Math.min(window.innerWidth - currentIframeWidth, newLeft));
