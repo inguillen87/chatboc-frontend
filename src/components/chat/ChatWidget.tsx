@@ -65,9 +65,9 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   draggable = true,
   defaultOpen = false,
   widgetId = "chatboc-widget-iframe",
-  authToken: propAuthToken, 
-  initialIframeWidth, 
-  initialIframeHeight, 
+  authToken: propAuthToken, // Recibe el token como prop (ej. desde Iframe.tsx)
+  initialIframeWidth, // Recibe la prop
+  initialIframeHeight, // Recibe la prop
 }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -90,7 +90,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       ? { position: "fixed", ...initialPosition, zIndex: 99998 }
       : { 
           // En modo iframe, las dimensiones iniciales vienen del iframe host a través de props
-          // No son 'position: fixed' porque el iframe ya es fijo.
+          // No son 'position: fixed' porque el iframe ya es fijo
           width: initialIframeWidth || "360px",
           height: initialIframeHeight || "520px",
           position: "relative", // El contenedor interno del iframe es relativo
@@ -288,15 +288,9 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   );
 
   return (
-    // Contenedor principal del ChatWidget.
-    // En modo iframe, sus estilos son controlados por el iframe host (Iframe.tsx y widget.js)
-    // En modo standalone, tiene 'position: fixed' para flotar en la página
-    <div ref={widgetContainerRef} 
-         style={mode === "standalone" ? currentPos : undefined} // currentPos solo si standalone
+    <div ref={widgetContainerRef} style={currentPos} 
          className={mode === "standalone" 
                       ? "chatboc-standalone-widget" 
-                      // En modo iframe, aseguramos que ocupe todo el espacio que le da el iframe host
-                      // Y que tenga un fondo blanco con borde y sombra (igual que el standalone, para que se vea bien)
                       : "w-full h-full flex flex-col rounded-3xl shadow-2xl overflow-hidden bg-white border border-border dark:bg-gray-900"} 
     >
       {/* Botón para abrir el chat (solo en modo standalone, porque el widget.js lo gestiona en iframe) */}
@@ -317,7 +311,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         <div
           className={mode === "standalone" ? 
             "w-80 md:w-96 rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-slide-up bg-white border border-border dark:bg-gray-900" :
-            "w-full h-full flex flex-col" // En iframe, solo necesita ser flex col para que el contenido se estire
+            "w-full h-full flex flex-col rounded-3xl shadow-2xl overflow-hidden bg-white border border-border dark:bg-gray-900" // Asegurar estilos de CARD también en iframe
           }
            style={mode === "standalone" ? { height: esperandoRubro ? "auto" : "500px", minHeight: esperandoRubro ? "240px" : "400px" } : undefined}
         >

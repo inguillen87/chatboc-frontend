@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, Suspense } from "react";
 
+// Ajusta la ruta si tu estructura es distinta
 const ChatWidget = React.lazy(() => import("@/components/chat/ChatWidget")); 
 
 const Iframe = () => {
