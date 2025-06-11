@@ -15,14 +15,6 @@ const ChatHeader: React.FC<Props> = ({ onClose }) => {
           <span className="ml-2 font-bold">Chatboc</span>
 
         <div className="flex flex-col leading-tight">
-          {/* MODIFICADO: Usar text-primary-foreground */}
-          <span className="text-sm font-semibold">
-            Chatboc
-          </span>
-          {/* MODIFICADO: Usar text-muted-foreground */}
-          <span className="text-xs text-muted-foreground">
-            Asistente Virtual
-          </span>
         </div>
       </div>
 
