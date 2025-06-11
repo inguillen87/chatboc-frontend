@@ -6,6 +6,7 @@ import TypingIndicator from "./TypingIndicator";
 import ChatInput from "./ChatInput";
 import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const CIRCLE_SIZE = 88;
 const CARD_WIDTH = 370;
@@ -36,7 +37,7 @@ const ChatWidget = ({
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const widgetContainerRef = useRef<HTMLDivElement>(null);
 
-  // SONRISA animada cada 3 seg cuando está cerrado
+  // ANIMACIÓN SONRISA cada 3 seg cuando está cerrado
   useEffect(() => {
     if (!isOpen) {
       const timer = setInterval(() => {
@@ -156,26 +157,28 @@ const ChatWidget = ({
     [contexto, rubroSeleccionado, preguntasUsadas, esAnonimo, mode, finalAuthToken]
   );
 
-  // --- Render: burbuja flotante (con tu logo animado) ---
+  // --- Render: burbuja flotante grande (con tu logo animado) ---
   if (!isOpen) {
     return (
       <div
         ref={widgetContainerRef}
-        className={`
-          fixed shadow-xl z-[999999]
-          flex items-center justify-center
-          transition-all duration-300
-          cursor-pointer
-          bg-white dark:bg-[#181f2a]
-        `}
         style={{
+          position: "fixed",
           bottom: 30,
           right: 30,
           width: `${CIRCLE_SIZE}px`,
           height: `${CIRCLE_SIZE}px`,
           borderRadius: "50%",
+          boxShadow: "0 8px 36px rgba(0,0,0,0.32)",
+          background: "#181f2a",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          cursor: "pointer",
+          zIndex: 999999,
+          transition: "all 0.3s cubic-bezier(.4,0,.2,1)",
         }}
-        onClick={() => setIsOpen(true)}
+        onClick={() => setIsOpen((prev) => !prev)}
         aria-label="Abrir chat"
       >
         <ChatbocLogoAnimated size={62} smiling={smile} movingEyes={smile} />
@@ -187,46 +190,54 @@ const ChatWidget = ({
   return (
     <div
       ref={widgetContainerRef}
-      className={`
-        fixed z-[999999]
-        flex flex-col overflow-hidden
-        shadow-2xl border
-        bg-white dark:bg-[#181f2a]
-        border-gray-200 dark:border-[#353c47]
-        transition-all duration-300
-      `}
       style={{
+        position: "fixed",
         bottom: 30,
         right: 30,
         width: `${CARD_WIDTH}px`,
         height: `${CARD_HEIGHT}px`,
         borderRadius: 24,
+        boxShadow: "0 8px 36px rgba(0,0,0,0.32)",
+        background: "#181f2a",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+        transition: "all 0.3s cubic-bezier(.4,0,.2,1)",
+        border: "1.8px solid #353c47",
+        zIndex: 999999,
       }}
     >
       <ChatHeader onClose={() => setIsOpen(false)} />
       <div
         ref={chatContainerRef}
-        className={`
-          flex-1 flex flex-col gap-3 overflow-y-auto overflow-x-hidden
-          px-4 pt-4 pb-2
-          text-gray-900 dark:text-gray-100
-          bg-white dark:bg-[#181f2a]
-        `}
+        style={{
+          flex: 1,
+          overflowY: "auto",
+          overflowX: "hidden",
+          background: "#181f2a",
+          padding: "18px 14px 12px 14px",
+          display: "flex",
+          flexDirection: "column",
+          gap: 12,
+          color: "#f3f4f7",
+        }}
       >
         {/* Mensajes y lógica */}
         {esperandoRubro ? (
-          <div className="text-center w-full">
-            <h2 className="text-green-500 mb-2">👋 ¡Bienvenido!</h2>
-            <div className="text-gray-500 dark:text-gray-300 mb-2">¿De qué rubro es tu negocio?</div>
+          <div style={{ textAlign: "center", width: "100%" }}>
+            <h2 style={{ color: "#18e36c", margin: "0 0 10px 0" }}>👋 ¡Bienvenido!</h2>
+            <div style={{ color: "#b7bed1", marginBottom: 8 }}>¿De qué rubro es tu negocio?</div>
             {cargandoRubros ? (
-              <div className="text-gray-400 my-5">Cargando rubros...</div>
+              <div style={{ color: "#6e7791", margin: "20px 0" }}>Cargando rubros...</div>
             ) : rubrosDisponibles.length === 0 ? (
-              <div className="text-red-500 my-5">
+              <div style={{ color: "#e85d5d", margin: "20px 0" }}>
                 No se pudieron cargar los rubros. <br />
                 <button
                   onClick={cargarRubros}
-                  className="mt-2 underline text-blue-600 dark:text-blue-400 hover:text-blue-800"
                   style={{
+                    marginTop: 10,
+                    textDecoration: "underline",
+                    color: "#238fff",
                     background: "none",
                     border: "none",
                     cursor: "pointer"
@@ -236,7 +247,7 @@ const ChatWidget = ({
                 </button>
               </div>
             ) : (
-              <div className="flex flex-wrap justify-center gap-2">
+              <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 8 }}>
                 {rubrosDisponibles.map((rubro) => (
                   <button
                     key={rubro.id}
@@ -253,7 +264,17 @@ const ChatWidget = ({
                         },
                       ]);
                     }}
-                    className="px-4 py-2 rounded-2xl font-semibold bg-blue-500 text-white hover:bg-blue-600 transition"
+                    style={{
+                      padding: "8px 18px",
+                      borderRadius: 18,
+                      fontSize: 14,
+                      fontWeight: 600,
+                      color: "#fff",
+                      background: "#238fff",
+                      border: "none",
+                      cursor: "pointer",
+                      margin: "4px 6px"
+                    }}
                   >
                     {rubro.nombre}
                   </button>
@@ -280,11 +301,9 @@ const ChatWidget = ({
         )}
       </div>
       {/* INPUT */}
-      {!esperandoRubro && (
-        <div className="bg-gray-100 dark:bg-[#1d2433] px-3 py-2">
-          <ChatInput onSendMessage={handleSendMessage} isTyping={isTyping} />
-        </div>
-      )}
+      {!esperandoRubro && <div style={{ padding: "10px 14px", background: "#1d2433" }}>
+        <ChatInput onSendMessage={handleSendMessage} isTyping={isTyping} />
+      </div>}
     </div>
   );
 };
