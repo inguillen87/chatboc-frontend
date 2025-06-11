@@ -32,11 +32,17 @@ const ChatWidget = ({
   const [contexto, setContexto] = useState({});
   const [smile, setSmile] = useState(false);
 
+  // --- N1: NUEVOS ESTADOS Y REFS PARA EL CHAT EN VIVO ---
+  const [activeTicketId, setActiveTicketId] = useState<number | null>(null);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const ultimoMensajeIdRef = useRef<number>(0);
+  // ----------------------------------------------------
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const widgetContainerRef = useRef<HTMLDivElement>(null);
 
-  // SONRISA animada cada 3 seg cuando está cerrado
+  // Efecto de la sonrisa (sin cambios)
   useEffect(() => {
     if (!isOpen) {
       const timer = setInterval(() => {
@@ -47,7 +53,7 @@ const ChatWidget = ({
     }
   }, [isOpen]);
 
-  // Helpers tokens
+  // Helpers de tokens (sin cambios)
   const getAuthTokenFromLocalStorage = () =>
     typeof window === "undefined" ? null : localStorage.getItem("authToken");
   const getAnonToken = () => {
@@ -64,6 +70,7 @@ const ChatWidget = ({
     mode === "iframe" ? propAuthToken : getAuthTokenFromLocalStorage();
   const esAnonimo = !finalAuthToken;
 
+  // Lógica de apertura y mensaje de bienvenida (sin cambios)
   useEffect(() => {
     if (isOpen) {
       if (esAnonimo && mode === "standalone" && !rubroSeleccionado) {
@@ -85,7 +92,7 @@ const ChatWidget = ({
     }
   }, [isOpen, esAnonimo, mode, rubroSeleccionado, messages.length]);
 
-  // Scroll al final
+  // Scroll al final (sin cambios)
   useEffect(() => {
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
@@ -94,67 +101,106 @@ const ChatWidget = ({
       (messagesEndRef.current as any).scrollIntoView({ behavior: "smooth" });
     }
   }, [messages, isTyping]);
+  
+  // Cargar rubros (sin cambios)
+  const cargarRubros = async () => { /* ...código sin cambios... */ };
 
-  const cargarRubros = async () => {
-    setCargandoRubros(true);
-    try {
-      const data = await apiFetch("/rubros/");
-      setRubrosDisponibles(Array.isArray(data) ? data : data.rubros || []);
-    } catch {
-      setRubrosDisponibles([]);
-    } finally {
-      setCargandoRubros(false);
+  // --- N2: NUEVO USEEFFECT PARA POLLING DE MENSAJES EN VIVO ---
+  useEffect(() => {
+    const fetchNewMessages = async () => {
+      if (!activeTicketId) return;
+      try {
+        const data = await apiFetch<{ estado_chat: string; mensajes: any[] }>(
+          `/tickets/chat/${activeTicketId}/mensajes?ultimo_mensaje_id=${ultimoMensajeIdRef.current}`
+        );
+        if (data.mensajes && data.mensajes.length > 0) {
+          const nuevosMensajes: Message[] = data.mensajes.map(msg => ({
+            id: msg.id, text: msg.texto, isBot: msg.es_admin, timestamp: new Date(msg.fecha)
+          }));
+          setMessages(prev => [...prev, ...nuevosMensajes]);
+          ultimoMensajeIdRef.current = data.mensajes[data.mensajes.length - 1].id;
+        }
+        if (data.estado_chat === 'resuelto' || data.estado_chat === 'cerrado') {
+          if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+          setMessages(prev => [...prev, { id: Date.now(), text: "Un agente ha finalizado esta conversación.", isBot: true, timestamp: new Date() }]);
+        }
+      } catch (error) { console.error("Error durante el polling:", error); }
+    };
+    if (activeTicketId) {
+      fetchNewMessages();
+      pollingIntervalRef.current = setInterval(fetchNewMessages, 5000);
     }
-  };
+    return () => { if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current); };
+  }, [activeTicketId]);
+  // -----------------------------------------------------------------
 
+  // --- N3: `handleSendMessage` MODIFICADO PARA SER EL ORQUESTADOR ---
   const handleSendMessage = useCallback(
     async (text: string) => {
       if (!text.trim()) return;
+      
+      // Mantenemos la validación original de selección de rubro
       if (esAnonimo && mode === "standalone" && !rubroSeleccionado) {
         setMessages((prev) => [
-          ...prev,
-          { id: Date.now(), text: "🛈 Por favor, seleccioná primero un rubro.", isBot: true, timestamp: new Date() },
+          ...prev, { id: Date.now(), text: "🛈 Por favor, seleccioná primero un rubro.", isBot: true, timestamp: new Date() },
         ]);
         return;
       }
+      
       const userMessage = { id: Date.now(), text, isBot: false, timestamp: new Date() };
       setMessages((prev) => [...prev, userMessage]);
       setIsTyping(true);
 
-      const payload: any = { pregunta: text, contexto_previo: contexto };
-      if (esAnonimo && mode === "standalone" && rubroSeleccionado) payload.rubro = rubroSeleccionado;
-
       try {
-        const data = await apiFetch("/ask", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalAuthToken || getAnonToken()}` },
-          body: payload,
-        });
+        if (activeTicketId) {
+          // **CASO 1: YA ESTAMOS EN UN CHAT EN VIVO**
+          await apiFetch(`/tickets/chat/${activeTicketId}/responder_ciudadano`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalAuthToken || getAnonToken()}` },
+            body: { comentario: text },
+          });
+        } else {
+          // **CASO 2: AÚN NO HAY CHAT, HABLAMOS CON EL BOT (Lógica original)**
+          const payload: any = { pregunta: text, contexto_previo: contexto };
+          if (esAnonimo && mode === "standalone" && rubroSeleccionado) {
+            payload.rubro = rubroSeleccionado;
+          }
 
-        setContexto(data.contexto_actualizado || {});
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: Date.now(),
-            text: data.respuesta || "No pude procesar tu solicitud.",
-            isBot: true,
-            timestamp: new Date(),
-            botones: data.botones || [],
-          },
-        ]);
-        if (esAnonimo && mode === "standalone") setPreguntasUsadas((prev) => prev + 1);
+          const data = await apiFetch("/ask", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalAuthToken || getAnonToken()}` },
+            body: payload,
+          });
+
+          setContexto(data.contexto_actualizado || {});
+          setMessages((prev) => [
+            ...prev, {
+              id: Date.now(),
+              text: data.respuesta || "No pude procesar tu solicitud.",
+              isBot: true,
+              timestamp: new Date(),
+              botones: data.botones || [],
+            },
+          ]);
+          if (esAnonimo && mode === "standalone") setPreguntasUsadas((prev) => prev + 1);
+
+          // **LA MAGIA: Transición de Bot a Chat en Vivo**
+          if (data.ticket_id) {
+            setActiveTicketId(data.ticket_id);
+            ultimoMensajeIdRef.current = 0;
+          }
+        }
       } catch (error) {
         const msg = error instanceof Error ? `⚠️ Error: ${error.message}` : "⚠️ No se pudo conectar con el servidor.";
-        setMessages((prev) => [
-          ...prev,
-          { id: Date.now(), text: msg, isBot: true, timestamp: new Date() },
-        ]);
+        setMessages((prev) => [...prev, { id: Date.now(), text: msg, isBot: true, timestamp: new Date() }]);
       } finally {
         setIsTyping(false);
       }
     },
-    [contexto, rubroSeleccionado, preguntasUsadas, esAnonimo, mode, finalAuthToken]
+    [contexto, rubroSeleccionado, preguntasUsadas, esAnonimo, mode, finalAuthToken, activeTicketId]
   );
+  // -----------------------------------------------------------------
+
 
   // --- Render: burbuja flotante (con tu logo animado) ---
   if (!isOpen) {

@@ -28,7 +28,9 @@ const ChatPage = () => {
   const chatMessagesContainerRef = useRef<HTMLDivElement>(null);
 
   const [contexto, setContexto] = useState({});
-
+  const [activeTicketId, setActiveTicketId] = useState<number | null>(null);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const ultimoMensajeIdRef = useRef<number>(0);
   const isMobile = useIsMobile();
   
   const scrollToBottom = useCallback(() => {
@@ -50,79 +52,114 @@ const ChatPage = () => {
     return () => clearTimeout(timer);
   }, [messages, isTyping, scrollToBottom]);
 
-  const handleSend = useCallback(async (text: string) => {
+// En ChatPage.tsx, reemplaza tu función handleSend
+
+const handleSend = useCallback(async (text: string) => {
     if (!text.trim()) return;
 
     const userMessage: Message = { id: Date.now(), text, isBot: false, timestamp: new Date() };
     setMessages(prev => [...prev, userMessage]);
     setIsTyping(true);
 
-    // No necesitas setTimeout aquí si scrolltobottom se llama después de setMessages,
-    // y el useEffect de scroll ya lo maneja.
-
-    const payload = {
-      pregunta: text,
-      contexto_previo: contexto 
-    };
-
     try {
-      const data = await apiFetch<any>("/ask", {
-        method: "POST",
-        body: payload,
-      });
+        // --- LÓGICA CONDICIONAL ---
+        if (activeTicketId) {
+            // **CASO 1: YA ESTAMOS EN UN CHAT EN VIVO**
+            // Simplemente enviamos el mensaje. El polling se encargará de mostrarlo.
+            // NOTA: Necesitamos una nueva ruta en el backend para que el ciudadano responda.
+            await apiFetch(`/tickets/chat/${activeTicketId}/responder_ciudadano`, { // <-- ¡NUEVA RUTA!
+                method: "POST",
+                body: { comentario: text },
+            });
+            // El mensaje del usuario ya se mostró, y su eco del servidor lo traerá el polling.
+            // Por simplicidad, no lo mostraremos dos veces.
 
-      setContexto(data.contexto_actualizado || {});
+        } else {
+            // **CASO 2: AÚN NO HAY CHAT EN VIVO, HABLAMOS CON EL BOT**
+            const payload = { pregunta: text, contexto_previo: contexto };
+            const data = await apiFetch<any>("/ask", {
+                method: "POST",
+                body: payload,
+            });
 
-      const botMessage: Message = {
-        id: Date.now(),
-        text: data?.respuesta || "⚠️ No se pudo generar una respuesta.",
-        isBot: true,
-        timestamp: new Date(),
-        botones: data?.botones || [] 
-      };
-      setMessages(prev => [...prev, botMessage]);
+            setContexto(data.contexto_actualizado || {});
 
-    } catch (error) {
-      setMessages(prev => [...prev, { id: Date.now(), text: "⚠️ No se pudo conectar con el servidor.", isBot: true, timestamp: new Date() }]);
-    } finally {
-      setIsTyping(false);
-    }
-  }, [contexto]);
+            const botMessage: Message = {
+                id: Date.now(),
+                text: data?.respuesta || "⚠️ No se pudo generar una respuesta.",
+                isBot: true,
+                timestamp: new Date(),
+                botones: data?.botones || []
+            };
+            setMessages(prev => [...prev, botMessage]);
 
-  // <<<<<<<<<<<<<< ELIMINAR O COMENTAR ESTE LISTENER DE CustomEvent >>>>>>>>>>>>>>
-  // Porque ChatButtons ahora llama directamente a onButtonClick, no emite un CustomEvent
-  /*
-  useEffect(() => {
-    const handleButtonSendMessage = (event: Event) => {
-      const customEvent = event as CustomEvent<string>;
-      if (customEvent.detail) {
-        handleSend(customEvent.detail);
-      }
-    };
-    window.addEventListener('sendChatMessage', handleButtonSendMessage);
-    return () => {
-      window.removeEventListener('sendChatMessage', handleButtonSendMessage);
-    };
-  }, [handleSend]);
-  */
-
-  // <<<<<<<<<<<<<< ELIMINAR O COMENTAR ESTA FUNCIÓN Y SU onClick EN EL DIV >>>>>>>>>>>>>>
-  // Porque los botones ahora se manejan a través de props y ChatButtons
-  /*
-  const handleDynamicButtonClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    const target = e.target as HTMLElement;
-    if (target.tagName === 'BUTTON') {
-      const onclickAttribute = target.getAttribute('onclick');
-      if (onclickAttribute && onclickAttribute.includes('enviarMensajeAsistente')) {
-        const match = onclickAttribute.match(/enviarMensajeAsistente\('(.+?)'\)/);
-        if (match && match[1]) {
-          const payload = match[1];
-          handleSend(payload);
+            // **¡AQUÍ OCURRE LA MAGIA!**
+            // Si la respuesta del bot incluye un ticket_id, significa que se escaló a un humano.
+            if (data.ticket_id) {
+                setActiveTicketId(data.ticket_id); // <-- ¡Activamos el modo polling!
+                ultimoMensajeIdRef.current = 0; // Reseteamos el contador de mensajes
+            }
         }
-      }
+    } catch (error) {
+        setMessages(prev => [...prev, { id: Date.now(), text: "⚠️ No se pudo conectar con el servidor.", isBot: true, timestamp: new Date() }]);
+    } finally {
+        setIsTyping(false);
     }
-  };
-  */
+}, [contexto, activeTicketId]); // Agregamos activeTicketId a las dependencias
+
+//UseEffect para manejasr mensajes en vivo
+
+useEffect(() => {
+    // Función para buscar nuevos mensajes
+    const fetchNewMessages = async () => {
+        if (!activeTicketId) return;
+
+        try {
+            // Llamamos a la API que construimos en el backend
+            const data = await apiFetch<{ estado_chat: string; mensajes: any[] }>(
+                `/tickets/chat/${activeTicketId}/mensajes?ultimo_mensaje_id=${ultimoMensajeIdRef.current}`
+            );
+
+            if (data.mensajes && data.mensajes.length > 0) {
+                const nuevosMensajes: Message[] = data.mensajes.map(msg => ({
+                    id: msg.id,
+                    text: msg.texto,
+                    isBot: msg.es_admin, // Los mensajes del agente se marcan como si fueran del "bot" para el estilo
+                    timestamp: new Date(msg.fecha),
+                }));
+
+                setMessages(prev => [...prev, ...nuevosMensajes]);
+                // Actualizamos la referencia al último ID recibido
+                ultimoMensajeIdRef.current = data.mensajes[data.mensajes.length - 1].id;
+            }
+
+            // Si el agente cierra el chat, detenemos el polling
+            if (data.estado_chat === 'resuelto' || data.estado_chat === 'cerrado') {
+                if (pollingIntervalRef.current) {
+                    clearInterval(pollingIntervalRef.current);
+                }
+                setMessages(prev => [...prev, { id: Date.now(), text: "Un agente ha finalizado esta conversación.", isBot: true, timestamp: new Date() }]);
+            }
+        } catch (error) {
+            console.error("Error durante el polling:", error);
+            // Opcional: podrías detener el polling si hay errores repetidos
+        }
+    };
+
+    // Iniciar o detener el polling
+    if (activeTicketId) {
+        // Inicia el polling inmediatamente una vez, y luego cada 5 segundos
+        fetchNewMessages(); 
+        pollingIntervalRef.current = setInterval(fetchNewMessages, 5000);
+    }
+
+    // Función de limpieza: se ejecuta cuando el componente se desmonta o activeTicketId cambia
+    return () => {
+        if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+        }
+    };
+}, [activeTicketId]); // Este efecto depende únicamente del ID del ticket activo
 
   return (
     <div className="min-h-screen flex flex-col bg-background dark:bg-gradient-to-b dark:from-[#0d1014] dark:to-[#161b22] text-foreground">
