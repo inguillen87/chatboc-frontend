@@ -2,11 +2,11 @@
 
 import React, { useEffect, useState, Suspense } from "react";
 
-// Ajusta la ruta si tu estructura es distinta
-const ChatWidget = React.lazy(() => import("@/components/chat/ChatWidget")); 
+// Si usás Vite y no tenés el alias '@', cambialo a la ruta relativa real:
+const ChatWidget = React.lazy(() => import("../components/chat/ChatWidget")); 
 
 const Iframe = () => {
-  const [defaultOpen, setDefaultOpen] = useState(false);
+  const [defaultOpen, setDefaultOpen] = useState(true); // <-- ABIERTO por default para debug
   const [widgetId, setWidgetId] = useState("chatboc-iframe-unknown");
   const [tokenFromUrl, setTokenFromUrl] = useState<string | null>(null);
   const [initialIframeWidth, setInitialIframeWidth] = useState<string | null>(null);
@@ -29,20 +29,16 @@ const Iframe = () => {
     }
   }, []);
 
-  // <<<<<<<<<<<<<< MODIFICACIÓN CRÍTICA: Asegurar 100% de alto en html y body dentro del iframe >>>>>>>>>>>>>>
+  // Forzar que el html/body/root ocupen el 100% del iframe
   useEffect(() => {
     if (typeof document !== "undefined") {
-      // Forzar html, body y el #root (o __next) a ocupar el 100% del iframe.
-      // Esto es crucial para que los elementos internos de React se estiren.
       document.documentElement.style.width = "100%"; 
       document.documentElement.style.height = "100%"; 
       document.body.style.margin = "0";
       document.body.style.padding = "0";
       document.body.style.width = "100%"; 
       document.body.style.height = "100%"; 
-      document.body.style.overflow = "hidden"; // El scroll lo manejará el div interno del ChatWidget
-      
-      // Asegurar que el body sea un contenedor flex para que el ChatWidget se estire
+      document.body.style.overflow = "hidden";
       document.body.style.display = "flex";
       document.body.style.flexDirection = "column";
 
@@ -50,16 +46,14 @@ const Iframe = () => {
       if (rootEl) {
         rootEl.style.height = "100%";
         rootEl.style.width = "100%";
-        rootEl.style.display = "flex"; // Asegurar flex para rootEl
+        rootEl.style.display = "flex";
         rootEl.style.flexDirection = "column"; 
         rootEl.style.overflow = "hidden";
       }
     }
   }, []);
-  // <<<<<<<<<<<<<< FIN MODIFICACIÓN >>>>>>>>>>>>>>
 
   return (
-    // Este div ahora solo necesita asegurar que ocupa el 100% de su padre (body)
     <div style={{
       width: "100%",
       height: "100%",
@@ -83,6 +77,7 @@ const Iframe = () => {
           initialIframeWidth={initialIframeWidth} 
           initialIframeHeight={initialIframeHeight}
         />
+        {console.log("ChatWidget montado!")} {/* Log para depurar */}
       </Suspense>
     </div>
   );
