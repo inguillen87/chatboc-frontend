@@ -6,9 +6,11 @@ import ChatInput from "./ChatInput";
 import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { ChatbocLogoAnimated } from "./ChatbocLogoAnimated";
 
-// --- Helper tokens ---
-const getAuthTokenFromLocalStorage = () => (typeof window === "undefined" ? null : localStorage.getItem("authToken"));
+// Helper tokens
+const getAuthTokenFromLocalStorage = () =>
+  typeof window === "undefined" ? null : localStorage.getItem("authToken");
 const getAnonToken = () => {
   if (typeof window === "undefined") return "anon-ssr";
   let token = localStorage.getItem("anon_token");
@@ -30,8 +32,8 @@ interface ChatWidgetProps {
   initialIframeHeight?: string | null;
 }
 
-const CIRCLE_SIZE = 88; // px, más grande
-const CARD_WIDTH = 370; // px, un toque más grande también
+const CIRCLE_SIZE = 88; // px
+const CARD_WIDTH = 370; // px
 const CARD_HEIGHT = 540; // px
 
 const ChatWidget: React.FC<ChatWidgetProps> = ({
@@ -53,12 +55,11 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const [esperandoRubro, setEsperandoRubro] = useState(false);
   const [cargandoRubros, setCargandoRubros] = useState(false);
   const [contexto, setContexto] = useState({});
-  const [smile, setSmile] = useState(false); // <--- para animación de la carita
+  const [mouth, setMouth] = useState<"normal" | "smile" | "open">("normal");
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const widgetContainerRef = useRef<HTMLDivElement>(null);
-  const dragStartPosRef = useRef<any>(null);
 
   // Posición/size real del widget flotante
   const [currentPos, setCurrentPos] = useState(
@@ -68,24 +69,50 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
           width: initialIframeWidth || `${CIRCLE_SIZE}px`,
           height: initialIframeHeight || `${CIRCLE_SIZE}px`,
           position: "relative",
-          zIndex: 1
+          zIndex: 1,
         }
   );
 
   const isMobile = useIsMobile();
+  // Modo dark/white mode real
+  const isDark =
+    typeof window !== "undefined"
+      ? document.documentElement.classList.contains("dark") ||
+        window.matchMedia("(prefers-color-scheme: dark)").matches
+      : true;
+
   const finalAuthToken = mode === "iframe" ? propAuthToken : getAuthTokenFromLocalStorage();
   const esAnonimo = !finalAuthToken;
 
-  // --- Animación de la carita sonriente ---
+  // --- Animación: sonrisa cíclica cuando está cerrado ---
   useEffect(() => {
     if (!isOpen) {
-      const timer = setInterval(() => {
-        setSmile(true);
-        setTimeout(() => setSmile(false), 950);
-      }, 2900);
-      return () => clearInterval(timer);
+      let running = true;
+      const animate = () => {
+        if (!running) return;
+        setMouth("smile");
+        setTimeout(() => {
+          setMouth("normal");
+          if (running) setTimeout(animate, 2300);
+        }, 900);
+      };
+      animate();
+      return () => {
+        running = false;
+      };
+    } else {
+      setMouth("normal");
     }
   }, [isOpen]);
+
+  // --- Boca abierta mientras piensa el bot
+  useEffect(() => {
+    if (isOpen && isTyping) {
+      setMouth("open");
+    } else if (isOpen) {
+      setMouth("normal");
+    }
+  }, [isTyping, isOpen]);
 
   // Comunicación con el parent (widget.js) para el resize animado
   const postResizeMessage = useCallback(() => {
@@ -202,7 +229,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     [contexto, rubroSeleccionado, preguntasUsadas, esAnonimo, mode, finalAuthToken]
   );
 
-  // --- Render: burbuja flotante grande (con carita SVG animada) ---
+  // --- Render: burbuja flotante grande (con tu logo SVG animado) ---
   if (!isOpen) {
     return (
       <div
@@ -212,8 +239,10 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
           width: `${CIRCLE_SIZE}px`,
           height: `${CIRCLE_SIZE}px`,
           borderRadius: "50%",
-          boxShadow: "0 8px 36px rgba(0,0,0,0.32)",
-          background: "#181f2a",
+          boxShadow: isDark
+            ? "0 8px 36px rgba(0,0,0,0.32)"
+            : "0 8px 32px rgba(30,90,200,0.13)",
+          background: isDark ? "#181f2a" : "#fff",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -223,28 +252,16 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
           right: 30,
           zIndex: 999999,
           transition: "all 0.3s cubic-bezier(.4,0,.2,1)",
+          border: isDark ? "none" : "1.5px solid #dde3ef",
         }}
         onClick={() => setIsOpen(true)}
         aria-label="Abrir chat"
       >
-        {/* Carita SVG animada */}
-        <svg width="62" height="62" viewBox="0 0 56 56" fill="none">
-          <circle cx="28" cy="28" r="28" fill="#238fff" />
-          {/* OJOS */}
-          <circle cx="19.5" cy="25.5" r="4.1" fill="#fff" />
-          <circle cx="36.5" cy="25.5" r="4.1" fill="#fff" />
-          {/* BOCA ANIMADA */}
-          <path
-            d={smile
-              ? "M17 37 Q28 48 39 37"
-              : "M22 36 Q28 41 34 36"}
-            stroke="#fff"
-            strokeWidth="3.2"
-            strokeLinecap="round"
-            fill="none"
-            style={{ transition: "d 0.22s" }}
-          />
-        </svg>
+        <ChatbocLogoAnimated
+          size={60}
+          mouth={mouth}
+          theme={isDark ? "dark" : "light"}
+        />
         {/* Puntito online */}
         <span
           style={{
@@ -255,7 +272,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             height: 13,
             background: "#18e36c",
             borderRadius: "50%",
-            border: "2.2px solid #181f2a"
+            border: `2.2px solid ${isDark ? "#181f2a" : "#fff"}`,
           }}
         />
       </div>
@@ -271,44 +288,72 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         width: `${CARD_WIDTH}px`,
         height: `${CARD_HEIGHT}px`,
         borderRadius: 24,
-        boxShadow: "0 8px 36px rgba(0,0,0,0.32)",
-        background: "#181f2a",
+        boxShadow: isDark
+          ? "0 8px 36px rgba(0,0,0,0.32)"
+          : "0 8px 32px rgba(30,90,200,0.13)",
+        background: isDark ? "#181f2a" : "#fff",
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
         transition: "all 0.3s cubic-bezier(.4,0,.2,1)",
-        border: "1.8px solid #353c47"
+        border: isDark ? "1.8px solid #353c47" : "1.8px solid #dde3ef",
       }}
     >
       {/* HEADER */}
-      <div style={{ background: "#232a38", borderBottom: "1px solid #313742", cursor: "pointer" }} onClick={() => setIsOpen(false)}>
-        <div style={{ display: "flex", alignItems: "center", padding: "16px 18px 8px 18px", userSelect: "none" }}>
-          {/* Carita SVG mini, también animada */}
-          <svg width="28" height="28" viewBox="0 0 28 28" style={{ marginRight: 8 }}>
-            <circle cx="14" cy="14" r="14" fill="#238fff" />
-            <circle cx="9.5" cy="12" r="2" fill="#fff" />
-            <circle cx="18.5" cy="12" r="2" fill="#fff" />
-            <path
-              d={smile
-                ? "M7 18 Q14 23 21 18"
-                : "M10 17 Q14 19 18 17"}
-              stroke="#fff"
-              strokeWidth="1.7"
-              strokeLinecap="round"
-              fill="none"
-            />
-          </svg>
-          <span style={{ color: "#d1d7e0", fontWeight: 700, fontSize: 15 }}>Chatboc Asistente</span>
-          <span style={{ marginLeft: "auto", color: "#36e17e", fontSize: 13, fontWeight: 600 }}>• Online</span>
+      <div
+        style={{
+          background: isDark ? "#232a38" : "#eaf2fc",
+          borderBottom: isDark ? "1px solid #313742" : "1.5px solid #dde3ef",
+          cursor: "pointer",
+        }}
+        onClick={() => setIsOpen(false)}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            padding: "16px 18px 8px 18px",
+            userSelect: "none",
+          }}
+        >
+          {/* Logo SVG animado chico */}
+          <ChatbocLogoAnimated
+            size={28}
+            mouth={mouth}
+            theme={isDark ? "dark" : "light"}
+            style={{ marginRight: 8 }}
+          />
+          <span
+            style={{
+              color: isDark ? "#d1d7e0" : "#273451",
+              fontWeight: 700,
+              fontSize: 15,
+            }}
+          >
+            Chatboc Asistente
+          </span>
+          <span
+            style={{
+              marginLeft: "auto",
+              color: "#36e17e",
+              fontSize: 13,
+              fontWeight: 600,
+            }}
+          >
+            • Online
+          </span>
           <button
-            onClick={(e) => { e.stopPropagation(); setIsOpen(false); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsOpen(false);
+            }}
             style={{
               marginLeft: 16,
-              color: "#8b97ad",
+              color: isDark ? "#8b97ad" : "#96aad1",
               background: "none",
               border: "none",
               cursor: "pointer",
-              fontSize: 19
+              fontSize: 19,
             }}
             aria-label="Cerrar o minimizar chat"
           >
@@ -323,19 +368,21 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
           flex: 1,
           overflowY: "auto",
           overflowX: "hidden",
-          background: "#181f2a",
+          background: isDark ? "#181f2a" : "#fff",
           padding: "18px 14px 12px 14px",
           display: "flex",
           flexDirection: "column",
           gap: 12,
-          color: "#f3f4f7"
+          color: isDark ? "#f3f4f7" : "#232a38",
         }}
       >
         {/* Mensajes y lógica */}
         {esperandoRubro ? (
           <div style={{ textAlign: "center", width: "100%" }}>
             <h2 style={{ color: "#18e36c", margin: "0 0 10px 0" }}>👋 ¡Bienvenido!</h2>
-            <div style={{ color: "#b7bed1", marginBottom: 8 }}>¿De qué rubro es tu negocio?</div>
+            <div style={{ color: isDark ? "#b7bed1" : "#5276aa", marginBottom: 8 }}>
+              ¿De qué rubro es tu negocio?
+            </div>
             {cargandoRubros ? (
               <div style={{ color: "#6e7791", margin: "20px 0" }}>Cargando rubros...</div>
             ) : rubrosDisponibles.length === 0 ? (
@@ -349,7 +396,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                     color: "#238fff",
                     background: "none",
                     border: "none",
-                    cursor: "pointer"
+                    cursor: "pointer",
                   }}
                 >
                   Reintentar
@@ -382,7 +429,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                       background: "#238fff",
                       border: "none",
                       cursor: "pointer",
-                      margin: "4px 6px"
+                      margin: "4px 6px",
                     }}
                   >
                     {rubro.nombre}
@@ -410,9 +457,11 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         )}
       </div>
       {/* INPUT */}
-      {!esperandoRubro && <div style={{ padding: "10px 14px", background: "#1d2433" }}>
-        <ChatInput onSendMessage={handleSendMessage} />
-      </div>}
+      {!esperandoRubro && (
+        <div style={{ padding: "10px 14px", background: isDark ? "#1d2433" : "#f6faff" }}>
+          <ChatInput onSendMessage={handleSendMessage} />
+        </div>
+      )}
     </div>
   );
 };
