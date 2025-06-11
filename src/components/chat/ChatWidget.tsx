@@ -65,9 +65,9 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   draggable = true,
   defaultOpen = false,
   widgetId = "chatboc-widget-iframe",
-  authToken: propAuthToken, // Recibe el token como prop (ej. desde Iframe.tsx)
-  initialIframeWidth, // Recibe la prop
-  initialIframeHeight, // Recibe la prop
+  authToken: propAuthToken, 
+  initialIframeWidth, 
+  initialIframeHeight, 
 }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [messages, setMessages] = useState<Message[]>([]);
