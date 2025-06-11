@@ -163,7 +163,7 @@ export default function PedidosPage() {
     dispatch({ type: 'FETCH_START' });
     try {
       // La API debería devolver un objeto con una clave "pedidos" que es un array
-      const data = await apiFetch<Pedido[]>('/user/pedidos');
+      const data = await apiFetch<Pedido[]>('/pedidos/');
       dispatch({ type: 'FETCH_SUCCESS', payload: data });
     } catch (err) {
       console.error('Error fetching pedidos:', err);
