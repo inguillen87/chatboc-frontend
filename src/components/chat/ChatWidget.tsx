@@ -48,14 +48,14 @@ const getAnonToken = () => {
 
 // Interfaz para las props de ChatWidget
 interface ChatWidgetProps {
-  mode?: "standalone" | "iframe"; 
+  mode?: "standalone" | "iframe"; // Modo de ejecución: en página principal o incrustado
   initialPosition?: { bottom: number; right: number };
-  draggable?: boolean; 
-  defaultOpen?: boolean; 
-  widgetId?: string; 
-  authToken?: string | null; 
-  initialIframeWidth?: string | null; // Nueva prop para ancho inicial del iframe
-  initialIframeHeight?: string | null; // Nueva prop para alto inicial del iframe
+  draggable?: boolean; // Si el widget puede ser arrastrado (solo en standalone)
+  defaultOpen?: boolean; // Si inicia abierto o cerrado
+  widgetId?: string; // ID único para comunicación entre iframe y host
+  authToken?: string | null; // Token de autenticación recibido como prop desde Iframe.tsx
+  initialIframeWidth?: string | null; // Prop para ancho inicial del iframe
+  initialIframeHeight?: string | null; // Prop para alto inicial del iframe
 }
 
 
@@ -65,9 +65,9 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   draggable = true,
   defaultOpen = false,
   widgetId = "chatboc-widget-iframe",
-  authToken: propAuthToken, 
-  initialIframeWidth, 
-  initialIframeHeight, 
+  authToken: propAuthToken, // Recibe el token como prop (ej. desde Iframe.tsx)
+  initialIframeWidth, // Recibe la prop
+  initialIframeHeight, // Recibe la prop
 }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -84,32 +84,33 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const widgetContainerRef = useRef<HTMLDivElement>(null); 
   const dragStartPosRef = useRef<any>(null); 
 
-  // <<< REFACTORIZADO: currentPos para standalone, en iframe las dimensiones vienen del host >>>
+  // currentPos: Define la posición y dimensiones del widget en modo standalone
   const [currentPos, setCurrentPos] = useState(
     mode === "standalone" 
       ? { position: "fixed", ...initialPosition, zIndex: 99998 }
       : { 
           // En modo iframe, las dimensiones iniciales vienen del iframe host a través de props
-          // No son 'position: fixed' porque el iframe ya es fijo
+          // No son 'position: fixed' porque el iframe ya es fijo.
+          // Aquí el ChatWidget simplemente ocupa el tamaño que el iframe le da.
           width: initialIframeWidth || "360px",
           height: initialIframeHeight || "520px",
-          position: "relative", // El contenedor interno del iframe es relativo
-          zIndex: 1 // O undefined
+          position: "relative", // Contenedor interno del iframe es relativo
+          zIndex: 1 // o undefined
         }
   );
-  // <<< FIN REFACTORIZADO >>>
-
   const isMobile = useIsMobile();
 
+  // finalAuthToken: Token que se usará para las peticiones al backend
   const finalAuthToken = mode === "iframe" ? propAuthToken : getAuthTokenFromLocalStorage();
   const esAnonimo = !finalAuthToken; 
 
 
-  // Comunicación con el padre (widget.js) para redimensionar el iframe
+  // postResizeMessage: Envía un mensaje al padre (widget.js) para que redimensione el iframe
   const postResizeMessage = useCallback(() => {
     if (mode === "iframe" && typeof window !== "undefined" && window.parent) {
       const currentElement = widgetContainerRef.current; 
       if (currentElement) {
+        // Dimensiones Fijas que el widget.js debe aplicar al iframe
         const dimensionsToSend = isOpen 
           ? { width: '360px', height: '520px' } 
           : { width: '80px', height: '80px' };  
@@ -124,16 +125,16 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     }
   }, [mode, isOpen, widgetId]); 
 
-  // Lógica de bienvenida / rubro
+  // Lógica de bienvenida / rubro (para usuarios anónimos en standalone)
   useEffect(() => {
     if (isOpen) {
         if (esAnonimo && mode === "standalone" && !rubroSeleccionado) {
             setEsperandoRubro(true);
             cargarRubros();
         } 
-        else if (!esAnonimo || rubroSeleccionado) {
+        else if (!esAnonimo || rubroSeleccionado) { // Si no es anónimo o ya tiene rubro
             setEsperandoRubro(false);
-            if (messages.length === 0) {
+            if (messages.length === 0) { // Si no hay mensajes, muestra el de bienvenida
               setMessages([{ id: Date.now(), text: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?", isBot: true, timestamp: new Date() }]);
             }
         }
@@ -150,7 +151,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     }
   }, [messages, isTyping]);
 
-  // Enviar mensaje de resize (se dispara al montar, y cada vez que isOpen, messages, isTyping cambien)
+  // Se dispara al montar y cada vez que isOpen, messages, isTyping cambien para redimensionar el iframe.
   useEffect(() => {
     postResizeMessage();
   }, [isOpen, messages, isTyping, postResizeMessage]);
@@ -286,9 +287,15 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   );
 
   return (
-    <div ref={widgetContainerRef} style={currentPos} 
+    // Contenedor principal del ChatWidget.
+    // En modo iframe, sus estilos son controlados por el iframe host (Iframe.tsx y widget.js)
+    // En modo standalone, tiene 'position: fixed' para flotar en la página
+    <div ref={widgetContainerRef} 
+         style={mode === "standalone" ? currentPos : undefined} // currentPos solo si standalone
          className={mode === "standalone" 
                       ? "chatboc-standalone-widget" 
+                      // En modo iframe, aseguramos que ocupe todo el espacio que le da el iframe host
+                      // Y que tenga un fondo blanco con borde y sombra (igual que el standalone, para que se vea bien)
                       : "w-full h-full flex flex-col rounded-3xl shadow-2xl overflow-hidden bg-white border border-border dark:bg-gray-900"} 
     >
       {/* Botón para abrir el chat (solo en modo standalone, porque el widget.js lo gestiona en iframe) */}
