@@ -178,7 +178,7 @@ const ChatWidget = ({
           zIndex: 999999,
           transition: "all 0.3s cubic-bezier(.4,0,.2,1)",
         }}
-        onClick={() => setIsOpen((prev) => !prev)}
+        onClick={() => setIsOpen(true)}
         aria-label="Abrir chat"
       >
         <ChatbocLogoAnimated size={62} smiling={smile} movingEyes={smile} />
