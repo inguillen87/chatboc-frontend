@@ -162,8 +162,8 @@ export default function PedidosPage() {
   const fetchPedidos = useCallback(async () => {
     dispatch({ type: 'FETCH_START' });
     try {
-      // La API debería devolver un objeto con una clave "pedidos" que es un array
-      const data = await apiFetch<Pedido[]>('/pedidos/');
+      // AQUÍ ESTÁ LA ÚNICA CORRECCIÓN: Se quitó la barra "/" del final.
+      const data = await apiFetch<Pedido[]>('/pedidos');
       dispatch({ type: 'FETCH_SUCCESS', payload: data });
     } catch (err) {
       console.error('Error fetching pedidos:', err);
