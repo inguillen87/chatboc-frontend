@@ -4,35 +4,44 @@ import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 
 interface Props {
   onClose: () => void;
-  isTyping?: boolean; // opcional, para animar la sonrisa
+  isTyping?: boolean;
 }
 
 const ChatHeader: React.FC<Props> = ({ onClose, isTyping = false }) => {
   return (
-    <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-primary text-primary-foreground">
-      {/* LOGO + NOMBRE */}
+    <div
+      className={`
+        flex items-center justify-between
+        px-4 py-3 border-b border-border
+        bg-white/80 backdrop-blur-md
+        dark:bg-[#19212f]/80 dark:backdrop-blur-md
+        text-gray-900 dark:text-gray-100
+        transition-all
+      `}
+      style={{
+        // El header hereda el fondo sutilmente y no es “un recorte”.
+        borderRadius: "24px 24px 0 0",
+      }}
+    >
+      {/* Logo y nombre sin cuadrado */}
       <div className="flex items-center gap-3">
-        {/* Logo bien visible y con animación */}
-        <div className="flex items-center justify-center w-11 h-11 rounded-lg bg-white/95 shadow-lg border border-blue-100 dark:bg-[#111a28] dark:border-blue-800">
+        <div className="flex items-center justify-center w-10 h-10">
+          {/* Sin fondo ni border ni shadow: que use tu PNG o SVG de logo */}
           <ChatbocLogoAnimated
             size={32}
             smiling={isTyping}
             movingEyes={isTyping}
-            
           />
         </div>
-        {/* Nombre y subtítulo */}
-        <div className="ml-2 flex flex-col leading-tight">
-          <span className="font-extrabold text-base tracking-wide" style={{letterSpacing: ".02em"}}>
+        <div className="ml-1 flex flex-col leading-tight">
+          <span className="font-extrabold text-base tracking-wide" style={{ letterSpacing: ".02em" }}>
             Chatboc
           </span>
-          <span className="text-xs text-muted-foreground" style={{fontWeight: 500}}>
+          <span className="text-xs text-muted-foreground" style={{ fontWeight: 500 }}>
             Asistente Virtual
           </span>
         </div>
       </div>
-
-      {/* ONLINE + CERRAR */}
       <div className="flex items-center gap-2">
         <span
           className="text-green-500 text-xs font-semibold"
