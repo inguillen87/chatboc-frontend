@@ -17,28 +17,21 @@
   const zIndexBase = parseInt(script.getAttribute("data-z") || "999990", 10);
   const iframeId = "chatboc-dynamic-iframe-" + Math.random().toString(36).substring(2, 9);
 
-  const WIDGET_DIMENSIONS_JS = {
-    OPEN: {
-      width: script.getAttribute("data-width") || "360px",
-      height: script.getAttribute("data-height") || "520px",
-    },
-    CLOSED: {
-      width: script.getAttribute("data-closed-width") || "80px",
-      height: script.getAttribute("data-closed-height") || "80px",
-    },
-  };
+  // Definimos las dimensiones aquí, para que sean la fuente de la verdad para el iframe
+  const IFRAME_OPEN_WIDTH = script.getAttribute("data-width") || "360px";
+  const IFRAME_OPEN_HEIGHT = script.getAttribute("data-height") || "520px";
+  const IFRAME_CLOSED_WIDTH = script.getAttribute("data-closed-width") || "80px";
+  const IFRAME_CLOSED_HEIGHT = script.getAttribute("data-closed-height") || "80px";
 
-  let currentDims = defaultOpen ? WIDGET_DIMENSIONS_JS.OPEN : WIDGET_DIMENSIONS_JS.CLOSED;
-  let iframeIsCurrentlyOpen = defaultOpen; 
 
-  // --- Loader (se mantiene igual, ya está bien) ---
+  // --- Loader (se mantiene igual) ---
   const loader = document.createElement("div");
   loader.id = "chatboc-loader-" + iframeId;
   loader.style.position = "fixed";
   loader.style.bottom = initialBottom;
   loader.style.right = initialRight;
-  loader.style.width = currentDims.width;
-  loader.style.height = currentDims.height;
+  loader.style.width = defaultOpen ? IFRAME_OPEN_WIDTH : IFRAME_CLOSED_WIDTH; // Usar dimensiones OPEN/CLOSED
+  loader.style.height = defaultOpen ? IFRAME_OPEN_HEIGHT : IFRAME_CLOSED_HEIGHT; // Usar dimensiones OPEN/CLOSED
   loader.style.zIndex = zIndexBase.toString();
   loader.style.display = "flex";
   loader.style.alignItems = "center";
@@ -52,32 +45,40 @@
 
 
   // --- Iframe ---
-  const iframe = document.createElement("iframe");
-  iframe.id = iframeId;
-  iframe.src = `${chatbocDomain}/iframe?token=${encodeURIComponent(token)}&widgetId=${iframeId}&defaultOpen=${defaultOpen}&initialWidth=${encodeURIComponent(currentDims.width)}&initialHeight=${encodeURIComponent(currentDims.height)}`; 
-  iframe.style.position = "fixed";
-  iframe.style.bottom = initialBottom;
-  iframe.style.right = initialRight;
-  iframe.style.left = "auto";
-  iframe.style.top = "auto";
-  iframe.style.border = "none";
-  iframe.style.zIndex = zIndexBase.toString();
-  iframe.style.transition = "width 0.25s cubic-bezier(0.4, 0, 0.2, 1), height 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-radius 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease-in-out";
-  iframe.style.overflow = "hidden"; 
-  iframe.style.opacity = "0"; 
-  iframe.allow = "clipboard-write";
-  iframe.setAttribute("title", "Chatboc Chatbot");
-  iframe.style.display = "block"; // Asegurar que el iframe sea display block desde el inicio
+const iframe = document.createElement("iframe");
+iframe.id = iframeId;
+iframe.src = `${chatbocDomain}/iframe?token=${encodeURIComponent(token)}&widgetId=${iframeId}&defaultOpen=${defaultOpen}&initialWidth=${encodeURIComponent(IFRAME_OPEN_WIDTH)}&initialHeight=${encodeURIComponent(IFRAME_OPEN_HEIGHT)}`; 
+iframe.style.position = "fixed";
+iframe.style.bottom = initialBottom;
+iframe.style.right = initialRight;
+iframe.style.left = "auto";
+iframe.style.top = "auto";
+iframe.style.border = "none";
+iframe.style.zIndex = zIndexBase.toString();
+iframe.style.transition = "width 0.25s cubic-bezier(0.4, 0, 0.2, 1), height 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-radius 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease-in-out";
+iframe.style.overflow = "hidden"; 
+iframe.style.opacity = "0"; 
+iframe.allow = "clipboard-write";
+iframe.setAttribute("title", "Chatboc Chatbot");
+iframe.style.display = "block"; 
 
-  // <<<<<<<<<<<<<< CORRECCIÓN CLAVE: Aplicar dimensiones y min/max width/height al inicio >>>>>>>>>>>>>>
-  iframe.style.width = currentDims.width; 
-  iframe.style.height = currentDims.height;
-  iframe.style.minWidth = WIDGET_DIMENSIONS_JS.CLOSED.width; // Min para el globito
-  iframe.style.minHeight = WIDGET_DIMENSIONS_JS.CLOSED.height; // Min para el globito
-  iframe.style.maxWidth = WIDGET_DIMENSIONS_JS.OPEN.width; // Max para la ventana
-  iframe.style.maxHeight = WIDGET_DIMENSIONS_JS.OPEN.height; // Max para la ventana
-  iframe.style.borderRadius = iframeIsCurrentlyOpen ? "16px" : "50%"; // Forma inicial
-  // <<<<<<<<<<<<<< FIN CORRECCIÓN >>>>>>>>>>>>>>
+// Aplicar estilos iniciales del IFRAME de forma explícita con !important
+if (defaultOpen) {
+  iframe.style.width = `${IFRAME_OPEN_WIDTH} !important`; // <<<<<<<<<<<<<< !important
+  iframe.style.height = `${IFRAME_OPEN_HEIGHT} !important`; // <<<<<<<<<<<<<< !important
+  iframe.style.borderRadius = "16px";
+  iframe.style.boxShadow = "0 4px 16px rgba(0,0,0,0.25)";
+} else {
+  iframe.style.width = `${IFRAME_CLOSED_WIDTH} !important`; // <<<<<<<<<<<<<< !important
+  iframe.style.height = `${IFRAME_CLOSED_HEIGHT} !important`; // <<<<<<<<<<<<<< !important
+  iframe.style.borderRadius = "50%";
+  iframe.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
+}
+iframe.style.minWidth = `${IFRAME_CLOSED_WIDTH} !important`; 
+iframe.style.minHeight = `${IFRAME_CLOSED_HEIGHT} !important`;
+iframe.style.maxWidth = `${IFRAME_OPEN_WIDTH} !important`; 
+iframe.style.maxHeight = `${IFRAME_OPEN_HEIGHT} !important`;
+
 
   let iframeHasLoaded = false;
   iframe.onload = function () {
@@ -93,40 +94,40 @@
   if (!document.getElementById(iframeId)) document.body.appendChild(iframe);
 
 
-  // Escuchar mensajes del iframe para redimensionar
+  // Escuchar mensajes del iframe para redimensionar (desde ChatWidget.tsx)
   window.addEventListener("message", function(event) {
-    if (event.origin !== chatbocDomain && !(chatbocDomain.startsWith("http://localhost")) ) {
-        return;
-    }
+  // ...
+  if (event.data && event.data.type === "chatboc-resize" && event.data.widgetId === iframeId) {
+    console.log("Chatboc widget.js: Mensaje 'chatboc-resize' recibido:", event.data);
+    const newDims = event.data.dimensions; 
+    const isOpenMessage = event.data.isOpen; 
 
-    if (event.data && event.data.type === "chatboc-resize" && event.data.widgetId === iframeId) {
-      console.log("Chatboc widget.js: Mensaje 'chatboc-resize' recibido:", event.data);
-      const newDims = event.data.dimensions; 
-      iframeIsCurrentlyOpen = event.data.isOpen;
-
-      // <<<<<<<<<<<<<< CORRECCIÓN CLAVE: Aplicar dimensiones y min/max width/height al redimensionar >>>>>>>>>>>>>>
-      iframe.style.width = newDims.width; 
-      iframe.style.height = newDims.height;
-      iframe.style.minWidth = WIDGET_DIMENSIONS_JS.CLOSED.width; // Asegurar min width/height
-      iframe.style.minHeight = WIDGET_DIMENSIONS_JS.CLOSED.height;
-      iframe.style.maxWidth = WIDGET_DIMENSIONS_JS.OPEN.width; // Asegurar max width/height
-      iframe.style.maxHeight = WIDGET_DIMENSIONS_JS.OPEN.height;
-      iframe.style.borderRadius = iframeIsCurrentlyOpen ? "16px" : "50%"; // Cambiar forma
-      iframe.style.boxShadow = iframeIsCurrentlyOpen ? "0 6px 20px rgba(0,0,0,0.2)" : "0 4px 12px rgba(0,0,0,0.15)";
-      iframe.style.display = "block"; // Mantener display block
-      // <<<<<<<<<<<<<< FIN CORRECCIÓN >>>>>>>>>>>>>>
-
-      currentDims = newDims; 
-    }
-  });
-
+    // <<<<<<<<<<<<<< APLICAR ESTILOS Y DIMENSIONES AL REDIMENSIONAR CON !important >>>>>>>>>>>>>>
+    iframe.style.width = `${newDims.width} !important`; 
+    iframe.style.height = `${newDims.height} !important`;
+    iframe.style.borderRadius = isOpenMessage ? "16px" : "50%"; 
+    iframe.style.boxShadow = isOpenMessage ? "0 6px 20px rgba(0,0,0,0.2)" : "0 4px 12px rgba(0,0,0,0.15)";
+    iframe.style.display = "block"; 
+    
+    iframe.style.minWidth = `${IFRAME_CLOSED_WIDTH} !important`; 
+    iframe.style.minHeight = `${IFRAME_CLOSED_HEIGHT} !important`;
+    iframe.style.maxWidth = `${IFRAME_OPEN_WIDTH} !important`; 
+    iframe.style.maxHeight = `${IFRAME_OPEN_HEIGHT} !important`;
+    // <<<<<<<<<<<<<< FIN APLICACIÓN AL REDIMENSIONAR >>>>>>>>>>>>>>
+  }
+});
   // --- Lógica de Arrastre (para el iframe) ---
+  // Esta lógica se mantiene independiente de los mensajes de resize
   let isDragging = false, dragStartX, dragStartY, iframeStartLeft, iframeStartTop;
   
   iframe.addEventListener("mousedown", dragStart);
   iframe.addEventListener("touchstart", dragStart, { passive: false });
 
   function dragStart(e) {
+    // Si el iframe está cerrado (globito), se puede arrastrar.
+    // Si está abierto, solo se permite arrastrar desde el header (gestionado por ChatWidget)
+    // o si no se detecta un clic dentro del contenido.
+    // Aquí, lo mantenemos como estaba, permitiendo el arrastre del iframe en general.
     isDragging = true;
     const rect = iframe.getBoundingClientRect();
     iframeStartLeft = rect.left;
@@ -155,11 +156,13 @@
     let newLeft = iframeStartLeft + (clientX - dragStartX);
     let newTop = iframeStartTop + (clientY - dragStartY);
 
-    const currentIframeWidth = parseInt(currentDims.width); 
-    const currentIframeHeight = parseInt(currentDims.height);
+    // currentDims ya no se actualiza por el mensaje de resize,
+    // por lo que usamos las dimensiones esperadas (abierto o cerrado)
+    const effectiveWidth = iframeIsCurrentlyOpen ? parseInt(IFRAME_OPEN_WIDTH) : parseInt(IFRAME_CLOSED_WIDTH);
+    const effectiveHeight = iframeIsCurrentlyOpen ? parseInt(IFRAME_OPEN_HEIGHT) : parseInt(IFRAME_CLOSED_HEIGHT);
 
-    newLeft = Math.max(0, Math.min(window.innerWidth - currentIframeWidth, newLeft));
-    newTop = Math.max(0, Math.min(window.innerHeight - currentIframeHeight, newTop));
+    newLeft = Math.max(0, Math.min(window.innerWidth - effectiveWidth, newLeft));
+    newTop = Math.max(0, Math.min(window.innerHeight - effectiveHeight, newTop));
 
     iframe.style.left = newLeft + "px";
     iframe.style.top = newTop + "px";
