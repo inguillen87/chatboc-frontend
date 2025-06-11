@@ -1,5 +1,6 @@
 import React from "react";
 import { X } from "lucide-react";
+import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 
 interface Props {
   onClose: () => void;
@@ -10,15 +11,8 @@ const ChatHeader: React.FC<Props> = ({ onClose }) => {
     // MODIFICADO: Usar bg-primary para el fondo y text-primary-foreground para el texto principal
     <div className="flex items-center justify-between p-3 border-b border-border bg-primary text-primary-foreground">
       <div className="flex items-center gap-3">
-        <img
-          src="/chatboc_logo_clean_transparent.png"
-          alt="Chatboc Logo"
-          className="w-9 h-9 rounded-full p-1"
-          style={{
-            backgroundColor: "transparent",
-            filter: "drop-shadow(0 0 2px rgba(0,0,0,0.2))", // Se mantiene el filtro de sombra
-          }}
-        />
+        <ChatbocLogoAnimated size={28} smiling={false} movingEyes={false} />
+          <span className="ml-2 font-bold">Chatboc</span>
 
         <div className="flex flex-col leading-tight">
           {/* MODIFICADO: Usar text-primary-foreground */}

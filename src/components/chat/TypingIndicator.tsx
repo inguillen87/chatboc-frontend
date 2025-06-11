@@ -13,7 +13,7 @@ const TypingIndicator: React.FC = () => (
         border-2 border-blue-500 shadow-lg shadow-blue-500/50 scale-105
       `}
     >
-      <ChatbocLogoAnimated size={28} smiling={true} />
+    <ChatbocLogoAnimated size={36} smiling={true} movingEyes={true} />
     </motion.div>
     <motion.div
       className={`
