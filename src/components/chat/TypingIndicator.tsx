@@ -10,8 +10,7 @@ const TypingIndicator: React.FC = () => (
       transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.1 }}
       className={`
         flex-shrink-0 w-10 h-10 rounded-full bg-card flex items-center justify-center 
-        border-2 transition-all duration-200 ease-in-out
-        border-blue-500 shadow-lg shadow-blue-500/50 scale-105
+        border-2 border-blue-500 shadow-lg shadow-blue-500/50 scale-105
       `}
     >
       <ChatbocLogoAnimated size={28} smiling={true} />

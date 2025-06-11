@@ -1,33 +1,44 @@
 import React from "react";
-import { X } from "lucide-react";
-import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
+import { motion } from "framer-motion";
 
 interface Props {
-  onClose: () => void;
+  size?: number;
+  smiling?: boolean; // true: sonrisa ancha, false: boca neutra
 }
 
-const ChatHeader: React.FC<Props> = ({ onClose }) => (
-  <div className="flex items-center justify-between p-3 border-b border-border bg-primary text-primary-foreground">
-    <div className="flex items-center gap-3">
-      <span className="rounded-full bg-transparent flex items-center justify-center">
-        <ChatbocLogoAnimated size={36} smiling={true} />
-      </span>
-      <div className="flex flex-col leading-tight">
-        <span className="text-sm font-semibold">Chatboc</span>
-        <span className="text-xs text-muted-foreground">Asistente Virtual</span>
-      </div>
-    </div>
-    <div className="flex items-center gap-2">
-      <span className="text-green-500 text-xs font-semibold" aria-label="Online">● Online</span>
-      <button
-        onClick={onClose}
-        className="text-muted-foreground hover:text-foreground transition"
-        aria-label="Cerrar chat"
-      >
-        <X size={18} />
-      </button>
-    </div>
-  </div>
+// Azul: #1876d1 (el que tenés en tu PNG)
+const ChatbocLogoAnimated: React.FC<Props> = ({ size = 36, smiling = false }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 96 96"
+    fill="none"
+    style={{ display: "block" }}
+  >
+    {/* Fondo azul marino */}
+    <circle cx="48" cy="48" r="48" fill="#1876d1" />
+    {/* OJOS */}
+    <ellipse cx="34" cy="43" rx="8" ry="8" fill="#fff" />
+    <ellipse cx="62" cy="43" rx="8" ry="8" fill="#fff" />
+    {/* BOCA animada */}
+    <motion.path
+      d={
+        smiling
+          ? "M32,64 Q48,80 64,64" // Sonrisa ancha
+          : "M38,62 Q48,70 58,62" // Sonrisa suave (neutra)
+      }
+      stroke="#fff"
+      strokeWidth="6"
+      strokeLinecap="round"
+      fill="none"
+      initial={false}
+      animate={{ d: smiling
+        ? "M32,64 Q48,80 64,64"
+        : "M38,62 Q48,70 58,62"
+      }}
+      transition={{ duration: 0.2 }}
+    />
+  </svg>
 );
 
-export default ChatHeader;
+export default ChatbocLogoAnimated;
