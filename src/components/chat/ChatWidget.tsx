@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 import ChatHeader from "./ChatHeader";
 import ChatMessage from "./ChatMessage";
 import TypingIndicator from "./TypingIndicator";
@@ -8,7 +7,7 @@ import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
 import { useIsMobile } from "@/hooks/use-mobile";
 
-const CIRCLE_SIZE = 88;
+const CIRCLE_SIZE = 82;
 const CARD_WIDTH = 370;
 const CARD_HEIGHT = 540;
 
@@ -84,6 +83,7 @@ const ChatWidget = ({
         }
       }
     }
+    // eslint-disable-next-line
   }, [isOpen, esAnonimo, mode, rubroSeleccionado, messages.length]);
 
   // Scroll al final
@@ -162,26 +162,27 @@ const ChatWidget = ({
     return (
       <div
         ref={widgetContainerRef}
-        style={{
-          position: "fixed",
-          bottom: 30,
-          right: 30,
-          width: `${CIRCLE_SIZE}px`,
-          height: `${CIRCLE_SIZE}px`,
-          borderRadius: "50%",
-          boxShadow: "0 8px 36px rgba(0,0,0,0.32)",
-          background: "#181f2a",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          cursor: "pointer",
-          zIndex: 999999,
-          transition: "all 0.3s cubic-bezier(.4,0,.2,1)",
-        }}
+        className={`
+          fixed
+          flex items-center justify-center
+          cursor-pointer
+          z-[999999]
+          transition-all duration-300
+          bottom-6 right-6
+          w-[${CIRCLE_SIZE}px] h-[${CIRCLE_SIZE}px]
+          rounded-full
+          bg-white dark:bg-[#181f2a]
+          shadow-xl
+        `}
         onClick={() => setIsOpen(true)}
         aria-label="Abrir chat"
       >
-        <ChatbocLogoAnimated size={62} smiling={smile} movingEyes={smile} />
+        {/* LOGO PNG animado */}
+        <img
+          src="/favicon/favicon-512x512.png"
+          alt="Chatboc"
+          className={`w-14 h-14 rounded-full shadow-lg border-2 border-blue-500 object-contain transition-all duration-300 ${smile ? "animate-pulse-subtle" : ""}`}
+        />
       </div>
     );
   }
@@ -190,64 +191,42 @@ const ChatWidget = ({
   return (
     <div
       ref={widgetContainerRef}
-      style={{
-        position: "fixed",
-        bottom: 30,
-        right: 30,
-        width: `${CARD_WIDTH}px`,
-        height: `${CARD_HEIGHT}px`,
-        borderRadius: 24,
-        boxShadow: "0 8px 36px rgba(0,0,0,0.32)",
-        background: "#181f2a",
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-        transition: "all 0.3s cubic-bezier(.4,0,.2,1)",
-        border: "1.8px solid #353c47",
-        zIndex: 999999,
-      }}
+      className={`
+        fixed z-[999999]
+        bottom-6 right-6
+        w-[${CARD_WIDTH}px] h-[${CARD_HEIGHT}px]
+        rounded-3xl shadow-2xl border border-border
+        flex flex-col overflow-hidden bg-card transition-all
+        duration-300
+      `}
     >
       <ChatHeader onClose={() => setIsOpen(false)} />
       <div
         ref={chatContainerRef}
-        style={{
-          flex: 1,
-          overflowY: "auto",
-          overflowX: "hidden",
-          background: "#181f2a",
-          padding: "18px 14px 12px 14px",
-          display: "flex",
-          flexDirection: "column",
-          gap: 12,
-          color: "#f3f4f7",
-        }}
+        className={`
+          flex-1 flex flex-col gap-3 overflow-y-auto overflow-x-hidden
+          p-5 bg-card text-foreground
+        `}
       >
         {/* Mensajes y lógica */}
         {esperandoRubro ? (
-          <div style={{ textAlign: "center", width: "100%" }}>
-            <h2 style={{ color: "#18e36c", margin: "0 0 10px 0" }}>👋 ¡Bienvenido!</h2>
-            <div style={{ color: "#b7bed1", marginBottom: 8 }}>¿De qué rubro es tu negocio?</div>
+          <div className="text-center w-full">
+            <h2 className="text-lg font-semibold text-green-500 mb-2">👋 ¡Bienvenido!</h2>
+            <div className="text-sm text-muted-foreground mb-3">¿De qué rubro es tu negocio?</div>
             {cargandoRubros ? (
-              <div style={{ color: "#6e7791", margin: "20px 0" }}>Cargando rubros...</div>
+              <div className="text-muted-foreground my-5">Cargando rubros...</div>
             ) : rubrosDisponibles.length === 0 ? (
-              <div style={{ color: "#e85d5d", margin: "20px 0" }}>
+              <div className="text-red-500 my-5">
                 No se pudieron cargar los rubros. <br />
                 <button
                   onClick={cargarRubros}
-                  style={{
-                    marginTop: 10,
-                    textDecoration: "underline",
-                    color: "#238fff",
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer"
-                  }}
+                  className="mt-2 underline text-primary"
                 >
                   Reintentar
                 </button>
               </div>
             ) : (
-              <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 8 }}>
+              <div className="flex flex-wrap justify-center gap-2">
                 {rubrosDisponibles.map((rubro) => (
                   <button
                     key={rubro.id}
@@ -264,17 +243,7 @@ const ChatWidget = ({
                         },
                       ]);
                     }}
-                    style={{
-                      padding: "8px 18px",
-                      borderRadius: 18,
-                      fontSize: 14,
-                      fontWeight: 600,
-                      color: "#fff",
-                      background: "#238fff",
-                      border: "none",
-                      cursor: "pointer",
-                      margin: "4px 6px"
-                    }}
+                    className="px-4 py-2 rounded-xl text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 shadow"
                   >
                     {rubro.nombre}
                   </button>
@@ -301,9 +270,11 @@ const ChatWidget = ({
         )}
       </div>
       {/* INPUT */}
-      {!esperandoRubro && <div style={{ padding: "10px 14px", background: "#1d2433" }}>
-        <ChatInput onSendMessage={handleSendMessage} isTyping={isTyping} />
-      </div>}
+      {!esperandoRubro && (
+        <div className="p-3 bg-muted border-t border-border">
+          <ChatInput onSendMessage={handleSendMessage} isTyping={isTyping} />
+        </div>
+      )}
     </div>
   );
 };
