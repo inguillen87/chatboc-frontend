@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 import ChatHeader from "./ChatHeader";
 import ChatMessage from "./ChatMessage";
 import TypingIndicator from "./TypingIndicator";
@@ -6,23 +7,10 @@ import ChatInput from "./ChatInput";
 import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
 import { useIsMobile } from "@/hooks/use-mobile";
-import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 
 const CIRCLE_SIZE = 88;
 const CARD_WIDTH = 370;
 const CARD_HEIGHT = 540;
-
-const getAuthTokenFromLocalStorage = () =>
-  typeof window === "undefined" ? null : localStorage.getItem("authToken");
-const getAnonToken = () => {
-  if (typeof window === "undefined") return "anon-ssr";
-  let token = localStorage.getItem("anon_token");
-  if (!token) {
-    token = `anon-${Math.random().toString(36).substring(2, 12)}`;
-    localStorage.setItem("anon_token", token);
-  }
-  return token;
-};
 
 const ChatWidget = ({
   mode = "standalone",
@@ -47,28 +35,36 @@ const ChatWidget = ({
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const widgetContainerRef = useRef<HTMLDivElement>(null);
 
-  // Detectar dark mode real
-  const prefersDark = typeof window !== "undefined"
-    ? window.matchMedia("(prefers-color-scheme: dark)").matches
-    : false;
-
-  const isMobile = useIsMobile();
-  const finalAuthToken = mode === "iframe" ? propAuthToken : getAuthTokenFromLocalStorage();
-  const esAnonimo = !finalAuthToken;
-
-  // Animar sonrisa periódica en la burbuja cerrada
+  // ANIMACIÓN SONRISA cada 3 seg cuando está cerrado
   useEffect(() => {
     if (!isOpen) {
       const timer = setInterval(() => {
         setSmile(true);
-        setTimeout(() => setSmile(false), 950);
-      }, 2900);
+        setTimeout(() => setSmile(false), 900);
+      }, 2700);
       return () => clearInterval(timer);
     }
   }, [isOpen]);
 
-  // --- Lógica original (bien pegada) ---
+  // Helpers tokens
+  const getAuthTokenFromLocalStorage = () =>
+    typeof window === "undefined" ? null : localStorage.getItem("authToken");
+  const getAnonToken = () => {
+    if (typeof window === "undefined") return "anon-ssr";
+    let token = localStorage.getItem("anon_token");
+    if (!token) {
+      token = `anon-${Math.random().toString(36).substring(2, 12)}`;
+      localStorage.setItem("anon_token", token);
+    }
+    return token;
+  };
+
+  const finalAuthToken =
+    mode === "iframe" ? propAuthToken : getAuthTokenFromLocalStorage();
+  const esAnonimo = !finalAuthToken;
+
   useEffect(() => {
     if (isOpen) {
       if (esAnonimo && mode === "standalone" && !rubroSeleccionado) {
@@ -90,6 +86,7 @@ const ChatWidget = ({
     }
   }, [isOpen, esAnonimo, mode, rubroSeleccionado, messages.length]);
 
+  // Scroll al final
   useEffect(() => {
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
@@ -160,51 +157,31 @@ const ChatWidget = ({
     [contexto, rubroSeleccionado, preguntasUsadas, esAnonimo, mode, finalAuthToken]
   );
 
-  // --- Render: burbuja flotante grande (con logo animado exacto) ---
+  // --- Render: burbuja flotante grande (con tu logo animado) ---
   if (!isOpen) {
     return (
       <div
+        ref={widgetContainerRef}
         style={{
           position: "fixed",
           bottom: 30,
           right: 30,
-          width: CIRCLE_SIZE,
-          height: CIRCLE_SIZE,
+          width: `${CIRCLE_SIZE}px`,
+          height: `${CIRCLE_SIZE}px`,
           borderRadius: "50%",
-          boxShadow: prefersDark
-            ? "0 8px 36px rgba(22,115,255,0.18)"
-            : "0 8px 36px rgba(22,115,255,0.28)",
-          background: prefersDark ? "#181f2a" : "#fff",
+          boxShadow: "0 8px 36px rgba(0,0,0,0.32)",
+          background: "#181f2a",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           cursor: "pointer",
           zIndex: 999999,
-          border: prefersDark ? "2.2px solid #202a45" : "2.2px solid #e2e8f0",
           transition: "all 0.3s cubic-bezier(.4,0,.2,1)",
         }}
         onClick={() => setIsOpen(true)}
         aria-label="Abrir chat"
       >
-        <ChatbocLogoAnimated
-          size={56}
-          smiling={smile}
-        />
-        {/* Puntito online */}
-        <span
-          style={{
-            position: "absolute",
-            top: 20,
-            right: 24,
-            width: 13,
-            height: 13,
-            background: "#18e36c",
-            borderRadius: "50%",
-            border: prefersDark
-              ? "2.2px solid #181f2a"
-              : "2.2px solid #fff"
-          }}
-        />
+        <ChatbocLogoAnimated size={62} smiling={smile} movingEyes={smile} />
       </div>
     );
   }
@@ -212,46 +189,44 @@ const ChatWidget = ({
   // --- Card/chat abierto ---
   return (
     <div
+      ref={widgetContainerRef}
       style={{
         position: "fixed",
         bottom: 30,
         right: 30,
-        width: CARD_WIDTH,
-        height: CARD_HEIGHT,
+        width: `${CARD_WIDTH}px`,
+        height: `${CARD_HEIGHT}px`,
         borderRadius: 24,
-        boxShadow: prefersDark
-          ? "0 8px 36px rgba(22,115,255,0.10)"
-          : "0 8px 36px rgba(22,115,255,0.16)",
-        background: prefersDark ? "#181f2a" : "#fff",
+        boxShadow: "0 8px 36px rgba(0,0,0,0.32)",
+        background: "#181f2a",
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
         transition: "all 0.3s cubic-bezier(.4,0,.2,1)",
-        border: prefersDark ? "1.8px solid #353c47" : "1.8px solid #1673ff33"
+        border: "1.8px solid #353c47",
+        zIndex: 999999,
       }}
     >
       <ChatHeader onClose={() => setIsOpen(false)} />
-      {/* MAIN CHAT */}
       <div
         ref={chatContainerRef}
         style={{
           flex: 1,
           overflowY: "auto",
           overflowX: "hidden",
-          background: prefersDark ? "#181f2a" : "#fff",
+          background: "#181f2a",
           padding: "18px 14px 12px 14px",
           display: "flex",
           flexDirection: "column",
           gap: 12,
-          color: prefersDark ? "#f3f4f7" : "#212534"
+          color: "#f3f4f7",
         }}
       >
+        {/* Mensajes y lógica */}
         {esperandoRubro ? (
           <div style={{ textAlign: "center", width: "100%" }}>
             <h2 style={{ color: "#18e36c", margin: "0 0 10px 0" }}>👋 ¡Bienvenido!</h2>
-            <div style={{ color: prefersDark ? "#b7bed1" : "#5060ab", marginBottom: 8 }}>
-              ¿De qué rubro es tu negocio?
-            </div>
+            <div style={{ color: "#b7bed1", marginBottom: 8 }}>¿De qué rubro es tu negocio?</div>
             {cargandoRubros ? (
               <div style={{ color: "#6e7791", margin: "20px 0" }}>Cargando rubros...</div>
             ) : rubrosDisponibles.length === 0 ? (
@@ -262,7 +237,7 @@ const ChatWidget = ({
                   style={{
                     marginTop: 10,
                     textDecoration: "underline",
-                    color: "#1673ff",
+                    color: "#238fff",
                     background: "none",
                     border: "none",
                     cursor: "pointer"
@@ -295,7 +270,7 @@ const ChatWidget = ({
                       fontSize: 14,
                       fontWeight: 600,
                       color: "#fff",
-                      background: "#1673ff",
+                      background: "#238fff",
                       border: "none",
                       cursor: "pointer",
                       margin: "4px 6px"
@@ -325,11 +300,9 @@ const ChatWidget = ({
           </>
         )}
       </div>
-      {!esperandoRubro && <div style={{
-        padding: "10px 14px",
-        background: prefersDark ? "#202a45" : "#f4f8fe"
-      }}>
-        <ChatInput onSendMessage={handleSendMessage} />
+      {/* INPUT */}
+      {!esperandoRubro && <div style={{ padding: "10px 14px", background: "#1d2433" }}>
+        <ChatInput onSendMessage={handleSendMessage} isTyping={isTyping} />
       </div>}
     </div>
   );

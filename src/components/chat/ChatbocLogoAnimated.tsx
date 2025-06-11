@@ -1,44 +1,67 @@
+// src/components/chat/ChatbocLogoAnimated.tsx
+
 import React from "react";
-import { motion } from "framer-motion";
 
-interface Props {
-  size?: number;
-  smiling?: boolean; // true: sonrisa ancha, false: boca neutra
-}
+const ChatbocLogoAnimated = ({
+  size = 48,
+  smiling = false,
+  movingEyes = false,
+  style = {},
+}) => {
+  // Ajusta los valores para que coincidan con tu logo si lo ves raro
+  const leftEye = movingEyes ? 20 : 18;
+  const rightEye = movingEyes ? 36 : 34;
+  const mouthPath = smiling
+    ? "M18,34 Q28,44 38,34"
+    : "M20,34 Q28,38 36,34";
 
-// Azul: #1876d1 (el que tenés en tu PNG)
-const ChatbocLogoAnimated: React.FC<Props> = ({ size = 36, smiling = false }) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 96 96"
-    fill="none"
-    style={{ display: "block" }}
-  >
-    {/* Fondo azul marino */}
-    <circle cx="48" cy="48" r="48" fill="#1876d1" />
-    {/* OJOS */}
-    <ellipse cx="34" cy="43" rx="8" ry="8" fill="#fff" />
-    <ellipse cx="62" cy="43" rx="8" ry="8" fill="#fff" />
-    {/* BOCA animada */}
-    <motion.path
-      d={
-        smiling
-          ? "M32,64 Q48,80 64,64" // Sonrisa ancha
-          : "M38,62 Q48,70 58,62" // Sonrisa suave (neutra)
-      }
-      stroke="#fff"
-      strokeWidth="6"
-      strokeLinecap="round"
-      fill="none"
-      initial={false}
-      animate={{ d: smiling
-        ? "M32,64 Q48,80 64,64"
-        : "M38,62 Q48,70 58,62"
+  return (
+    <div
+      style={{
+        width: size,
+        height: size,
+        position: "relative",
+        display: "inline-block",
+        ...style,
       }}
-      transition={{ duration: 0.2 }}
-    />
-  </svg>
-);
+    >
+      <img
+        src="/favicon/favicon-512x512.png"
+        alt="Chatboc"
+        style={{
+          width: size,
+          height: size,
+          display: "block",
+        }}
+        draggable={false}
+      />
+      {/* Capa de animación SVG encima */}
+      <svg
+        width={size}
+        height={size}
+        viewBox="0 0 56 56"
+        style={{
+          position: "absolute",
+          left: 0,
+          top: 0,
+          pointerEvents: "none",
+        }}
+      >
+        {/* Ojos */}
+        <circle cx={leftEye} cy="24" r="4" fill="#fff" />
+        <circle cx={rightEye} cy="24" r="4" fill="#fff" />
+        {/* Boca */}
+        <path
+          d={mouthPath}
+          stroke="#fff"
+          strokeWidth="3"
+          strokeLinecap="round"
+          fill="none"
+          style={{ transition: "d 0.25s" }}
+        />
+      </svg>
+    </div>
+  );
+};
 
 export default ChatbocLogoAnimated;
