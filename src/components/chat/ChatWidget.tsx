@@ -1,13 +1,13 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 import ChatHeader from "./ChatHeader";
 import ChatMessage from "./ChatMessage";
 import TypingIndicator from "./TypingIndicator";
 import ChatInput from "./ChatInput";
 import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
-import { useIsMobile } from "@/hooks/use-mobile";
 
-const CIRCLE_SIZE = 82;
+const CIRCLE_SIZE = 88;
 const CARD_WIDTH = 370;
 const CARD_HEIGHT = 540;
 
@@ -36,7 +36,7 @@ const ChatWidget = ({
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const widgetContainerRef = useRef<HTMLDivElement>(null);
 
-  // ANIMACIÓN SONRISA cada 3 seg cuando está cerrado
+  // SONRISA animada cada 3 seg cuando está cerrado
   useEffect(() => {
     if (!isOpen) {
       const timer = setInterval(() => {
@@ -83,7 +83,6 @@ const ChatWidget = ({
         }
       }
     }
-    // eslint-disable-next-line
   }, [isOpen, esAnonimo, mode, rubroSeleccionado, messages.length]);
 
   // Scroll al final
@@ -157,32 +156,29 @@ const ChatWidget = ({
     [contexto, rubroSeleccionado, preguntasUsadas, esAnonimo, mode, finalAuthToken]
   );
 
-  // --- Render: burbuja flotante grande (con tu logo animado) ---
+  // --- Render: burbuja flotante (con tu logo animado) ---
   if (!isOpen) {
     return (
       <div
         ref={widgetContainerRef}
         className={`
-          fixed
+          fixed shadow-xl z-[999999]
           flex items-center justify-center
-          cursor-pointer
-          z-[999999]
           transition-all duration-300
-          bottom-6 right-6
-          w-[${CIRCLE_SIZE}px] h-[${CIRCLE_SIZE}px]
-          rounded-full
+          cursor-pointer
           bg-white dark:bg-[#181f2a]
-          shadow-xl
         `}
+        style={{
+          bottom: 30,
+          right: 30,
+          width: `${CIRCLE_SIZE}px`,
+          height: `${CIRCLE_SIZE}px`,
+          borderRadius: "50%",
+        }}
         onClick={() => setIsOpen(true)}
         aria-label="Abrir chat"
       >
-        {/* LOGO PNG animado */}
-        <img
-          src="/favicon/favicon-512x512.png"
-          alt="Chatboc"
-          className={`w-14 h-14 rounded-full shadow-lg border-2 border-blue-500 object-contain transition-all duration-300 ${smile ? "animate-pulse-subtle" : ""}`}
-        />
+        <ChatbocLogoAnimated size={62} smiling={smile} movingEyes={smile} />
       </div>
     );
   }
@@ -193,34 +189,48 @@ const ChatWidget = ({
       ref={widgetContainerRef}
       className={`
         fixed z-[999999]
-        bottom-6 right-6
-        w-[${CARD_WIDTH}px] h-[${CARD_HEIGHT}px]
-        rounded-3xl shadow-2xl border border-border
-        flex flex-col overflow-hidden bg-card transition-all
-        duration-300
+        flex flex-col overflow-hidden
+        shadow-2xl border
+        bg-white dark:bg-[#181f2a]
+        border-gray-200 dark:border-[#353c47]
+        transition-all duration-300
       `}
+      style={{
+        bottom: 30,
+        right: 30,
+        width: `${CARD_WIDTH}px`,
+        height: `${CARD_HEIGHT}px`,
+        borderRadius: 24,
+      }}
     >
       <ChatHeader onClose={() => setIsOpen(false)} />
       <div
         ref={chatContainerRef}
         className={`
           flex-1 flex flex-col gap-3 overflow-y-auto overflow-x-hidden
-          p-5 bg-card text-foreground
+          px-4 pt-4 pb-2
+          text-gray-900 dark:text-gray-100
+          bg-white dark:bg-[#181f2a]
         `}
       >
         {/* Mensajes y lógica */}
         {esperandoRubro ? (
           <div className="text-center w-full">
-            <h2 className="text-lg font-semibold text-green-500 mb-2">👋 ¡Bienvenido!</h2>
-            <div className="text-sm text-muted-foreground mb-3">¿De qué rubro es tu negocio?</div>
+            <h2 className="text-green-500 mb-2">👋 ¡Bienvenido!</h2>
+            <div className="text-gray-500 dark:text-gray-300 mb-2">¿De qué rubro es tu negocio?</div>
             {cargandoRubros ? (
-              <div className="text-muted-foreground my-5">Cargando rubros...</div>
+              <div className="text-gray-400 my-5">Cargando rubros...</div>
             ) : rubrosDisponibles.length === 0 ? (
               <div className="text-red-500 my-5">
                 No se pudieron cargar los rubros. <br />
                 <button
                   onClick={cargarRubros}
-                  className="mt-2 underline text-primary"
+                  className="mt-2 underline text-blue-600 dark:text-blue-400 hover:text-blue-800"
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer"
+                  }}
                 >
                   Reintentar
                 </button>
@@ -243,7 +253,7 @@ const ChatWidget = ({
                         },
                       ]);
                     }}
-                    className="px-4 py-2 rounded-xl text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 shadow"
+                    className="px-4 py-2 rounded-2xl font-semibold bg-blue-500 text-white hover:bg-blue-600 transition"
                   >
                     {rubro.nombre}
                   </button>
@@ -271,7 +281,7 @@ const ChatWidget = ({
       </div>
       {/* INPUT */}
       {!esperandoRubro && (
-        <div className="p-3 bg-muted border-t border-border">
+        <div className="bg-gray-100 dark:bg-[#1d2433] px-3 py-2">
           <ChatInput onSendMessage={handleSendMessage} isTyping={isTyping} />
         </div>
       )}
