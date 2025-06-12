@@ -45,6 +45,8 @@ function fechaLarga(iso: string) { if (!iso) return ""; const d = new Date(iso);
 function fechaCorta(iso: string) { if (!iso) return ""; const d = new Date(iso); return `${d.getDate().toString().padStart(2, "0")}/${(d.getMonth() + 1).toString().padStart(2, "0")} ${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`; }
 
 // --- COMPONENTE PRINCIPAL DEL PANEL ---
+
+// --- COMPONENTE PRINCIPAL DEL PANEL ---
 export default function TicketsPanel() {
     const [categorizedTickets, setCategorizedTickets] = useState<CategorizedTickets>({});
     const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
@@ -53,19 +55,45 @@ export default function TicketsPanel() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [openCategories, setOpenCategories] = useState<Set<string>>(new Set());
 
-    const fetchCategorizedTickets = useCallback(async () => {
-        setIsLoading(true); setError(null);
+    // ======================= INICIO DE LA MEJORA PRINCIPAL =======================
+    // Nuevo estado para guardar el rubro del usuario de forma segura.
+    const [userRubro, setUserRubro] = useState<string | null>(null);
+    
+    // Este useEffect se ejecuta una sola vez al cargar el componente.
+    useEffect(() => {
+        // 1. Cargar el rubro del usuario desde localStorage.
         try {
-            const data = await apiFetch<CategorizedTickets>('/tickets/panel_por_categoria');
-            setCategorizedTickets(data);
-            setOpenCategories(new Set(Object.keys(data)));
-        } catch (err) {
-            const errorMessage = err instanceof ApiError ? err.message : "Ocurrió un error al cargar el panel.";
-            setError(errorMessage);
-        } finally { setIsLoading(false); }
-    }, []);
+            const userString = localStorage.getItem('user');
+            if (userString) {
+                const userData = JSON.parse(userString);
+                if (userData && userData.rubro) {
+                    setUserRubro(userData.rubro);
+                    console.log("Rubro del usuario cargado en el estado del panel:", userData.rubro);
+                } else {
+                     console.error("No se encontró 'rubro' en el objeto de usuario del localStorage.");
+                }
+            } else {
+                console.error("No se encontró el objeto 'user' en localStorage.");
+            }
+        } catch(e) {
+            console.error("Error al parsear datos del usuario desde localStorage", e);
+        }
 
-    useEffect(() => { fetchCategorizedTickets(); }, [fetchCategorizedTickets]);
+        // 2. Cargar la lista de tickets (como antes).
+        const fetchCategorizedTickets = async () => {
+            setIsLoading(true); setError(null);
+            try {
+                const data = await apiFetch<CategorizedTickets>('/tickets/panel_por_categoria');
+                setCategorizedTickets(data);
+                setOpenCategories(new Set(Object.keys(data)));
+            } catch (err) {
+                const errorMessage = err instanceof ApiError ? err.message : "Ocurrió un error al cargar el panel.";
+                setError(errorMessage);
+            } finally { setIsLoading(false); }
+        };
+
+        fetchCategorizedTickets();
+    }, []); // El array vacío [] asegura que esto se ejecute solo una vez.
 
     const toggleCategory = (category: string) => {
         setOpenCategories(prev => {
@@ -73,39 +101,42 @@ export default function TicketsPanel() {
         });
     };
 
-    // ======================= INICIO DE LA MEJORA 1 (ERROR 'undefined') =======================
     const handleSelectTicket = useCallback(async (ticketSummary: TicketSummary) => {
         setSelectedTicket(null); setIsModalOpen(true);
+        
+        // Ahora usamos la variable de estado 'userRubro', que es mucho más segura.
+        const ticketType = userRubro;
+
+        // Si por alguna razón el rubro no se pudo cargar, mostramos un error claro y nos detenemos.
+        if (!ticketType) {
+            console.error("Error crítico: No se pudo determinar el rubro del usuario para consultar el ticket.");
+            setError("No se pudo determinar tu tipo de cuenta para ver el ticket. Por favor, recarga la página o vuelve a iniciar sesión.");
+            setIsModalOpen(false);
+            return; 
+        }
+
         try {
-            let ticketType = ticketSummary.tipo;
-
-            // Si el 'tipo' no viene en los datos del ticket, lo buscamos en el localStorage del usuario logueado.
-            if (!ticketType) {
-                console.warn("El tipo de ticket no venía en el resumen. Usando fallback desde localStorage.");
-                const userString = localStorage.getItem('user');
-                if (userString) {
-                    const userData = JSON.parse(userString);
-                    ticketType = userData.rubro; // Asumimos que el 'rubro' del usuario es el 'tipo' del ticket.
-                }
-            }
-            
-            // Si después del fallback seguimos sin tipo, no podemos continuar.
-            if (!ticketType) {
-                throw new ApiError("No se pudo determinar el tipo de ticket para hacer la consulta.");
-            }
-
+            console.log(`Intentando buscar ticket con: /tickets/${ticketType}/${ticketSummary.id}`);
             const detailedTicket = await apiFetch<Ticket>(`/tickets/${ticketType}/${ticketSummary.id}`);
             setSelectedTicket(detailedTicket);
         } catch (err) {
-            const errorMessage = err instanceof ApiError ? err.message : "No se pudo cargar el detalle del ticket.";
+            const errorMessage = err instanceof ApiError ? err.message : `No se pudo cargar el detalle del ticket. (Error en /tickets/${ticketType}/${ticketSummary.id})`;
             setError(errorMessage); 
             setIsModalOpen(false);
         }
-    }, []);
-    // ======================== FIN DE LA MEJORA 1 ========================
+    }, [userRubro]); // Añadimos 'userRubro' a las dependencias de la función.
+    // ======================== FIN DE LA MEJORA PRINCIPAL ========================
 
-    const handleTicketUpdate = () => { fetchCategorizedTickets(); };
+    const handleTicketUpdate = () => { 
+        // Para refrescar la lista no necesitamos volver a buscar el rubro, así que creamos una función aparte.
+        const fetchTickets = async () => {
+             const data = await apiFetch<CategorizedTickets>('/tickets/panel_por_categoria');
+             setCategorizedTickets(data);
+        }
+        fetchTickets();
+    };
 
+    // --- El resto del JSX del componente (sin cambios) ---
     if (isLoading) return <div className="p-8 text-center"><Loader2 className="animate-spin text-primary mx-auto h-10 w-10" /></div>;
     if (error) return <div className="p-8 text-center text-destructive bg-destructive/10 rounded-md">{error}</div>;
 
@@ -136,7 +167,6 @@ export default function TicketsPanel() {
         </div>
     );
 }
-
 // --- SUB-COMPONENTE ACORDEÓN (sin cambios) ---
 const TicketCategoryAccordion: FC<{ category: string; tickets: TicketSummary[]; onSelectTicket: (ticket: TicketSummary) => void; isOpen: boolean; onToggle: () => void; }> = ({ category, tickets, onSelectTicket, isOpen, onToggle }) => (
     <motion.div layout className="bg-card dark:bg-slate-800/80 border border-border dark:border-slate-700 rounded-xl shadow-md overflow-hidden" initial={{ borderRadius: 12 }}>
