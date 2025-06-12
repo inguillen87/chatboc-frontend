@@ -240,15 +240,15 @@ export default function Perfil() {
           {/* ======================= INICIO DE LA MEJORA ======================= */}
           {/* El botón "Ver Pedidos" solo se muestra si el rubro NO es 'municipio' */}
           {perfil.rubro.toLowerCase() !== 'municipio' && (
-            <Button
-              variant="outline"
-              className="h-10 px-5 text-sm border-border text-foreground hover:bg-accent hover:text-accent-foreground"
-              onClick={() => navigate("/pedidos")}
-            >
-              Ver Pedidos
-            </Button>
-          )}
-          {/* ======================== FIN DE LA MEJORA ======================== */}
+  <Button
+    variant="outline"
+    className="h-10 px-5 text-sm border-border text-foreground hover:bg-accent hover:text-accent-foreground"
+    onClick={() => navigate("/pedidos")}
+  >
+    Ver Pedidos
+  </Button>
+)}
+==================== FIN DE LA MEJORA ======================== */}
           
           <Button
             variant="outline"
@@ -379,16 +379,24 @@ export default function Perfil() {
                     </span>
                   </div>
                 </div>
-                {(perfil.plan !== "full" && perfil.plan !== "pro") && (
-                  <div className="space-y-2 mt-3">
-                    <Button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold" onClick={() => window.open("https://pagar.ualabis.com.ar/order/517238bd80bb1e97539240a22b1707c414a73855d6b673a8", "_blank")}>
-                      Mejorar a PRO ($/mes)
-                    </Button>
-                    <Button className="w-full bg-accent hover:bg-accent/90 text-accent-foreground font-semibold" onClick={() => window.open("https://pagar.ualabis.com.ar/order/61f8ef497944c94964ba34a3c31e9d46d4ecc749d5d4c56a", "_blank")}>
-                      Mejorar a FULL ($/mes)
-                    </Button>
-                  </div>
-                )}
+               {perfil.rubro !== "municipio" && perfil.plan !== "full" && perfil.plan !== "pro" && (
+  <div className="space-y-2 mt-3">
+    <Button
+      className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
+      onClick={() => window.open("https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=2c9380849764e81a01976585767f0040", "_blank")}
+    >
+      Mejorar a PRO ($35.000/mes)
+    </Button>
+    <Button
+      className="w-full bg-accent hover:bg-accent/90 text-accent-foreground font-semibold"
+      onClick={() => window.open("https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=2c9380849763daeb0197658791ee00b1", "_blank")}
+    >
+      Mejorar a FULL ($60.000/mes)
+    </Button>
+  </div>
+)}
+
+
                 {(perfil.plan === "pro" || perfil.plan === "full") && (
                   <div className="text-primary bg-primary/10 rounded p-3 font-medium text-sm mt-3">
                     ¡Tu plan está activo! <br />
