@@ -51,35 +51,37 @@ export default function TicketsPanel() {
     const [openCategories, setOpenCategories] = useState<Set<string>>(new Set());
     const [userRubro, setUserRubro] = useState<string | null>(null);
 
-    // --- LÓGICA DE CARGA DE DATOS REFORZADA ---
-
-    // Paso 1: Al montar el componente, obtenemos el rubro del usuario desde localStorage.
+    // --- LÓGICA DE CARGA SECUENCIAL Y A PRUEBA DE ERRORES ---
     useEffect(() => {
+        let currentRubro: string | null = null;
+        
+        // --- PASO 1: LEER EL RUBRO ---
         try {
             const userString = localStorage.getItem('user');
             if (userString) {
                 const userData = JSON.parse(userString);
                 if (userData && userData.rubro) {
-                    setUserRubro(userData.rubro);
-                } else {
-                    setError("Error de sesión: Tu usuario no tiene un 'rubro' definido.");
-                    setIsLoading(false);
+                    currentRubro = userData.rubro;
                 }
-            } else {
-                setError("No se encontró una sesión de usuario. Por favor, vuelve a iniciar sesión.");
-                setIsLoading(false);
             }
         } catch (e) {
-            setError("Error al leer los datos de sesión.");
+            setError("Error crítico al leer datos de sesión.");
             setIsLoading(false);
+            return; // Detiene la ejecución si hay error de parseo
         }
-    }, []); // El array vacío [] asegura que esto se ejecute solo una vez al inicio.
 
-    // Paso 2: SÓLO cuando tengamos un 'userRubro' válido, buscamos los tickets.
-    useEffect(() => {
+        // --- PASO 2: VALIDAR EL RUBRO ---
+        if (!currentRubro) {
+            setError("No se pudo encontrar tu 'rubro' en la sesión. Por favor, vuelve a iniciar sesión.");
+            setIsLoading(false);
+            return; // Detiene la ejecución si no hay rubro
+        }
+        
+        // Si llegamos aquí, el rubro es válido. Lo guardamos en el estado.
+        setUserRubro(currentRubro);
+
+        // --- PASO 3: BUSCAR TICKETS (SOLO SI LOS PASOS ANTERIORES FUERON EXITOSOS) ---
         const fetchCategorizedTickets = async () => {
-            setIsLoading(true);
-            setError(null);
             try {
                 const data = await apiFetch<CategorizedTickets>('/tickets/panel_por_categoria');
                 setCategorizedTickets(data);
@@ -92,42 +94,34 @@ export default function TicketsPanel() {
             }
         };
 
-        if (userRubro) {
-            fetchCategorizedTickets();
-        }
-    }, [userRubro]); // Esta dependencia asegura que la función se ejecute solo cuando 'userRubro' tenga un valor.
+        fetchCategorizedTickets();
+    }, []); // El array vacío [] asegura que toda esta secuencia se ejecute solo una vez.
 
 
     const toggleCategory = (category: string) => {
         setOpenCategories(prev => {
-            const newSet = new Set(prev);
-            newSet.has(category) ? newSet.delete(category) : newSet.add(category);
-            return newSet;
+            const newSet = new Set(prev); newSet.has(category) ? newSet.delete(category) : newSet.add(category); return newSet;
         });
     };
 
     const handleSelectTicket = useCallback(async (ticketSummary: TicketSummary) => {
-        const ticketType = userRubro;
-        if (!ticketType) {
-            setError("Error: No se pudo determinar el tipo de cuenta para ver el ticket.");
+        if (!userRubro) {
+            setError("Error: El tipo de cuenta no está cargado. Por favor, recargue la página.");
             return;
         }
-
         setSelectedTicket(null);
         setIsModalOpen(true);
         try {
-            const detailedTicket = await apiFetch<Ticket>(`/tickets/${ticketType}/${ticketSummary.id}`);
+            const detailedTicket = await apiFetch<Ticket>(`/tickets/${userRubro}/${ticketSummary.id}`);
             setSelectedTicket(detailedTicket);
         } catch (err) {
             const errorMessage = err instanceof ApiError ? err.message : `No se pudo cargar el detalle del ticket.`;
-            setError(errorMessage);
-            setIsModalOpen(false);
+            setError(errorMessage); setIsModalOpen(false);
         }
     }, [userRubro]);
 
     const handleTicketUpdate = (updatedTicket: Ticket) => {
-        setSelectedTicket(updatedTicket); // Actualiza el ticket abierto en el modal
-        // Refresca la lista de tickets en segundo plano para reflejar cambios (ej: cambio de estado)
+        setSelectedTicket(updatedTicket);
         const fetchTickets = async () => {
             const data = await apiFetch<CategorizedTickets>('/tickets/panel_por_categoria');
             setCategorizedTickets(data);
@@ -155,11 +149,7 @@ export default function TicketsPanel() {
             </div>
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
                 <DialogContent className="max-w-4xl w-[95vw] h-[90vh] flex flex-col p-0 gap-0">
-                    {selectedTicket ? (
-                        <TicketDetail ticket={selectedTicket} onTicketUpdate={handleTicketUpdate} />
-                    ) : (
-                        <div className="flex items-center justify-center h-full"><Loader2 className="animate-spin text-primary w-8 h-8"/></div>
-                    )}
+                    {selectedTicket ? (<TicketDetail ticket={selectedTicket} onTicketUpdate={handleTicketUpdate} />) : (<div className="flex items-center justify-center h-full"><Loader2 className="animate-spin text-primary w-8 h-8"/></div>)}
                 </DialogContent>
             </Dialog>
         </div>
@@ -192,7 +182,7 @@ const TicketCategoryAccordion: FC<{ category: string; tickets: TicketSummary[]; 
     </motion.div>
 );
 
-// --- SUB-COMPONENTE PARA EL DETALLE DEL TICKET (CON LÓGICA COMPLETA) ---
+// --- SUB-COMPONENTE PARA EL DETALLE DEL TICKET ---
 const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => void }> = ({ ticket, onTicketUpdate }) => {
     const [newMessage, setNewMessage] = useState("");
     const [isSending, setIsSending] = useState(false);
