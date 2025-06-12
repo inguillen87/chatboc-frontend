@@ -405,7 +405,7 @@ export default function Perfil() {
                 )}
                 <div className="text-xs text-muted-foreground mt-2">
                   Una vez realizado el pago, tu cuenta se actualiza automáticamente.<br />
-                  Si no ves el cambio en unos minutos, comunicate con soporte.
+                  Si no ves el cambio en unos minutos, comunicate con soporte..
                 </div>
               </CardContent>
             </Card>
