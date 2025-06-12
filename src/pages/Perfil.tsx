@@ -248,8 +248,7 @@ export default function Perfil() {
     Ver Pedidos
   </Button>
 )}
-==================== FIN DE LA MEJORA ======================== */}
-          
+         
           <Button
             variant="outline"
             className="h-10 px-5 text-sm border-destructive text-destructive hover:bg-destructive/10"
