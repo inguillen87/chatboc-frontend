@@ -1,5 +1,3 @@
-// Contenido COMPLETO y CORREGIDO para: TicketsPanel.tsx (soluciona error 'undefined' y warning 'Description')
-
 import React, { useEffect, useState, useCallback, FC, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Loader2, Send, Ticket as TicketIcon, ChevronDown, ChevronUp, User, ShieldCheck } from "lucide-react";
@@ -44,9 +42,6 @@ const ESTADOS: Record<TicketStatus, { label: string; tailwind_class: string }> =
 function fechaLarga(iso: string) { if (!iso) return ""; const d = new Date(iso); return d.toLocaleString('es-AR', { dateStyle: 'long', timeStyle: 'short' }) + ' hs'; }
 function fechaCorta(iso: string) { if (!iso) return ""; const d = new Date(iso); return `${d.getDate().toString().padStart(2, "0")}/${(d.getMonth() + 1).toString().padStart(2, "0")} ${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`; }
 
-// --- COMPONENTE PRINCIPAL DEL PANEL ---
-
-// --- COMPONENTE PRINCIPAL DEL PANEL ---
 export default function TicketsPanel() {
     const [categorizedTickets, setCategorizedTickets] = useState<CategorizedTickets>({});
     const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
@@ -54,89 +49,92 @@ export default function TicketsPanel() {
     const [error, setError] = useState<string | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [openCategories, setOpenCategories] = useState<Set<string>>(new Set());
-
-    // ======================= INICIO DE LA MEJORA PRINCIPAL =======================
-    // Nuevo estado para guardar el rubro del usuario de forma segura.
     const [userRubro, setUserRubro] = useState<string | null>(null);
-    
-    // Este useEffect se ejecuta una sola vez al cargar el componente.
+
+    // --- LÓGICA DE CARGA DE DATOS REFORZADA ---
+
+    // Paso 1: Al montar el componente, obtenemos el rubro del usuario desde localStorage.
     useEffect(() => {
-        // 1. Cargar el rubro del usuario desde localStorage.
         try {
             const userString = localStorage.getItem('user');
             if (userString) {
                 const userData = JSON.parse(userString);
                 if (userData && userData.rubro) {
                     setUserRubro(userData.rubro);
-                    console.log("Rubro del usuario cargado en el estado del panel:", userData.rubro);
                 } else {
-                     console.error("No se encontró 'rubro' en el objeto de usuario del localStorage.");
+                    setError("Error de sesión: Tu usuario no tiene un 'rubro' definido.");
+                    setIsLoading(false);
                 }
             } else {
-                console.error("No se encontró el objeto 'user' en localStorage.");
+                setError("No se encontró una sesión de usuario. Por favor, vuelve a iniciar sesión.");
+                setIsLoading(false);
             }
-        } catch(e) {
-            console.error("Error al parsear datos del usuario desde localStorage", e);
+        } catch (e) {
+            setError("Error al leer los datos de sesión.");
+            setIsLoading(false);
         }
+    }, []); // El array vacío [] asegura que esto se ejecute solo una vez al inicio.
 
-        // 2. Cargar la lista de tickets (como antes).
+    // Paso 2: SÓLO cuando tengamos un 'userRubro' válido, buscamos los tickets.
+    useEffect(() => {
         const fetchCategorizedTickets = async () => {
-            setIsLoading(true); setError(null);
+            setIsLoading(true);
+            setError(null);
             try {
                 const data = await apiFetch<CategorizedTickets>('/tickets/panel_por_categoria');
                 setCategorizedTickets(data);
                 setOpenCategories(new Set(Object.keys(data)));
             } catch (err) {
-                const errorMessage = err instanceof ApiError ? err.message : "Ocurrió un error al cargar el panel.";
+                const errorMessage = err instanceof ApiError ? err.message : "Ocurrió un error al cargar el panel de tickets.";
                 setError(errorMessage);
-            } finally { setIsLoading(false); }
+            } finally {
+                setIsLoading(false);
+            }
         };
 
-        fetchCategorizedTickets();
-    }, []); // El array vacío [] asegura que esto se ejecute solo una vez.
+        if (userRubro) {
+            fetchCategorizedTickets();
+        }
+    }, [userRubro]); // Esta dependencia asegura que la función se ejecute solo cuando 'userRubro' tenga un valor.
+
 
     const toggleCategory = (category: string) => {
         setOpenCategories(prev => {
-            const newSet = new Set(prev); newSet.has(category) ? newSet.delete(category) : newSet.add(category); return newSet;
+            const newSet = new Set(prev);
+            newSet.has(category) ? newSet.delete(category) : newSet.add(category);
+            return newSet;
         });
     };
 
     const handleSelectTicket = useCallback(async (ticketSummary: TicketSummary) => {
-        setSelectedTicket(null); setIsModalOpen(true);
-        
-        // Ahora usamos la variable de estado 'userRubro', que es mucho más segura.
         const ticketType = userRubro;
-
-        // Si por alguna razón el rubro no se pudo cargar, mostramos un error claro y nos detenemos.
         if (!ticketType) {
-            console.error("Error crítico: No se pudo determinar el rubro del usuario para consultar el ticket.");
-            setError("No se pudo determinar tu tipo de cuenta para ver el ticket. Por favor, recarga la página o vuelve a iniciar sesión.");
-            setIsModalOpen(false);
-            return; 
+            setError("Error: No se pudo determinar el tipo de cuenta para ver el ticket.");
+            return;
         }
 
+        setSelectedTicket(null);
+        setIsModalOpen(true);
         try {
-            console.log(`Intentando buscar ticket con: /tickets/${ticketType}/${ticketSummary.id}`);
             const detailedTicket = await apiFetch<Ticket>(`/tickets/${ticketType}/${ticketSummary.id}`);
             setSelectedTicket(detailedTicket);
         } catch (err) {
-            const errorMessage = err instanceof ApiError ? err.message : `No se pudo cargar el detalle del ticket. (Error en /tickets/${ticketType}/${ticketSummary.id})`;
-            setError(errorMessage); 
+            const errorMessage = err instanceof ApiError ? err.message : `No se pudo cargar el detalle del ticket.`;
+            setError(errorMessage);
             setIsModalOpen(false);
         }
-    }, [userRubro]); // Añadimos 'userRubro' a las dependencias de la función.
-    // ======================== FIN DE LA MEJORA PRINCIPAL ========================
+    }, [userRubro]);
 
-    const handleTicketUpdate = () => { 
-        // Para refrescar la lista no necesitamos volver a buscar el rubro, así que creamos una función aparte.
+    const handleTicketUpdate = (updatedTicket: Ticket) => {
+        setSelectedTicket(updatedTicket); // Actualiza el ticket abierto en el modal
+        // Refresca la lista de tickets en segundo plano para reflejar cambios (ej: cambio de estado)
         const fetchTickets = async () => {
-             const data = await apiFetch<CategorizedTickets>('/tickets/panel_por_categoria');
-             setCategorizedTickets(data);
+            const data = await apiFetch<CategorizedTickets>('/tickets/panel_por_categoria');
+            setCategorizedTickets(data);
         }
         fetchTickets();
     };
-
-    // --- El resto del JSX del componente (sin cambios) ---
+    
     if (isLoading) return <div className="p-8 text-center"><Loader2 className="animate-spin text-primary mx-auto h-10 w-10" /></div>;
     if (error) return <div className="p-8 text-center text-destructive bg-destructive/10 rounded-md">{error}</div>;
 
@@ -158,7 +156,7 @@ export default function TicketsPanel() {
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
                 <DialogContent className="max-w-4xl w-[95vw] h-[90vh] flex flex-col p-0 gap-0">
                     {selectedTicket ? (
-                        <TicketDetail ticket={selectedTicket} onTicketUpdate={(updatedTicket) => { setSelectedTicket(updatedTicket); handleTicketUpdate(); }} />
+                        <TicketDetail ticket={selectedTicket} onTicketUpdate={handleTicketUpdate} />
                     ) : (
                         <div className="flex items-center justify-center h-full"><Loader2 className="animate-spin text-primary w-8 h-8"/></div>
                     )}
@@ -167,7 +165,8 @@ export default function TicketsPanel() {
         </div>
     );
 }
-// --- SUB-COMPONENTE ACORDEÓN (sin cambios) ---
+
+// --- SUB-COMPONENTE ACORDEÓN ---
 const TicketCategoryAccordion: FC<{ category: string; tickets: TicketSummary[]; onSelectTicket: (ticket: TicketSummary) => void; isOpen: boolean; onToggle: () => void; }> = ({ category, tickets, onSelectTicket, isOpen, onToggle }) => (
     <motion.div layout className="bg-card dark:bg-slate-800/80 border border-border dark:border-slate-700 rounded-xl shadow-md overflow-hidden" initial={{ borderRadius: 12 }}>
         <motion.header layout initial={false} onClick={onToggle} className="p-4 flex justify-between items-center cursor-pointer hover:bg-muted/50 dark:hover:bg-slate-700/50 transition-colors">
@@ -180,7 +179,7 @@ const TicketCategoryAccordion: FC<{ category: string; tickets: TicketSummary[]; 
                     <div className="p-2 sm:p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 border-t border-border dark:border-slate-700">
                         {tickets.map(ticket => (
                             <div key={ticket.id} onClick={() => onSelectTicket(ticket)} className="bg-background dark:bg-slate-800/50 p-3 rounded-lg border border-border dark:border-slate-700/50 cursor-pointer hover:border-primary dark:hover:border-primary transition-all shadow-sm hover:shadow-lg hover:-translate-y-1">
-                                <div className="flex justify-between items-center mb-1"><span className="font-semibold text-primary text-sm">#{ticket.nro_ticket}</span><Badge className={cn("text-xs border", ESTADOS[ticket.estado]?.tailwind_class)}>{ESTADOS[ticket.estado]?.label}</Badge></div>
+                                <div className="flex justify-between items-center mb-1"><span className="font-semibold text-primary text-sm">#{ticket.nro_ticket}</span><Badge className={cn("text-xs border", ESTADOS[ticket.estado as TicketStatus]?.tailwind_class)}>{ESTADOS[ticket.estado as TicketStatus]?.label}</Badge></div>
                                 <p className="font-medium text-foreground truncate" title={ticket.asunto}>{ticket.asunto}</p>
                                 {ticket.direccion && <p className="text-xs text-muted-foreground truncate" title={ticket.direccion}>{ticket.direccion}</p>}
                                 <p className="text-xs text-muted-foreground text-right mt-1">{fechaCorta(ticket.fecha)}</p>
@@ -193,35 +192,43 @@ const TicketCategoryAccordion: FC<{ category: string; tickets: TicketSummary[]; 
     </motion.div>
 );
 
-// --- SUB-COMPONENTE PARA EL DETALLE DEL TICKET ---
+// --- SUB-COMPONENTE PARA EL DETALLE DEL TICKET (CON LÓGICA COMPLETA) ---
 const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => void }> = ({ ticket, onTicketUpdate }) => {
     const [newMessage, setNewMessage] = useState("");
     const [isSending, setIsSending] = useState(false);
     const chatBottomRef = useRef<HTMLDivElement>(null);
 
-    const handleSendMessage = async () => { /* ... (código sin cambios) ... */ };
-    const handleEstadoChange = async (nuevoEstado: TicketStatus) => { /* ... (código sin cambios) ... */ };
+    const handleSendMessage = async () => {
+        if (!newMessage.trim() || isSending) return;
+        setIsSending(true);
+        try {
+            const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.id}/comentar`, { method: 'POST', body: { comentario: newMessage } });
+            onTicketUpdate(updatedTicket);
+            setNewMessage("");
+        } catch (error) { console.error("Error al enviar comentario", error); } finally { setIsSending(false); }
+    };
+    
+    const handleEstadoChange = async (nuevoEstado: TicketStatus) => {
+        try {
+            const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.id}/estado`, { method: 'PUT', body: { estado: nuevoEstado } });
+            onTicketUpdate(updatedTicket);
+        } catch (error) { console.error("Error al cambiar estado", error); }
+    };
 
-    useEffect(() => { chatBottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [ticket.comentarios]);
+    useEffect(() => {
+        chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, [ticket.comentarios]);
 
     return (
         <>
             <DialogHeader className="p-4 border-b border-border sticky top-0 bg-card z-10">
                 <DialogTitle className="flex items-center gap-3"><TicketIcon className="text-primary h-6 w-6"/><span className="truncate">Ticket #{ticket.nro_ticket} - {ticket.asunto}</span></DialogTitle>
-                
-                {/* ======================= INICIO DE LA MEJORA 2 (ADVERTENCIA 'Description') ======================= */}
-                <DialogDescription className="pt-2 text-left">
-                    Gestioná el historial completo del ticket, responde al usuario y cambia su estado desde este panel.
-                </DialogDescription>
-                {/* ======================== FIN DE LA MEJORA 2 ======================== */}
-
+                <DialogDescription className="pt-2 text-left">Gestioná el historial completo del ticket, responde al usuario y cambia su estado desde este panel.</DialogDescription>
             </DialogHeader>
-
             <div className="flex-1 grid grid-cols-1 md:grid-cols-3 overflow-hidden">
-                {/* Columna de Chat y Mensajes */}
                 <div className="md:col-span-2 flex flex-col overflow-hidden">
                     <main className="flex-1 p-4 space-y-4 overflow-y-auto custom-scroll">
-                         {ticket.comentarios?.map((comment) => (
+                        {ticket.comentarios?.map((comment) => (
                             <div key={comment.id} className={cn('flex items-end gap-2', comment.es_admin ? 'justify-end' : 'justify-start')}>
                                 {!comment.es_admin && <AvatarIcon type="user" />}
                                 <div className={cn("max-w-md rounded-lg px-4 py-2", comment.es_admin ? "bg-primary text-primary-foreground rounded-br-none" : "bg-muted text-foreground rounded-bl-none")}>
@@ -234,20 +241,13 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
                         <div ref={chatBottomRef} />
                     </main>
                     <footer className="border-t border-border p-3 flex gap-2 bg-card">
-                         <Input value={newMessage} onChange={(e) => setNewMessage(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()} placeholder="Escribe una respuesta como administrador..." disabled={isSending} className="bg-background"/>
+                        <Input value={newMessage} onChange={(e) => setNewMessage(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()} placeholder="Escribe una respuesta como administrador..." disabled={isSending} className="bg-background"/>
                         <Button onClick={handleSendMessage} disabled={isSending || !newMessage.trim()} aria-label="Enviar Mensaje">{isSending ? <Loader2 className="animate-spin" /> : <Send />}</Button>
                     </footer>
                 </div>
-                {/* Columna de Información y Acciones */}
                 <aside className="md:col-span-1 border-l border-border bg-muted/30 p-4 space-y-6 overflow-y-auto custom-scroll">
-                    <Card>
-                        <CardHeader className="pb-2"><CardTitle className="text-base">Estado del Ticket</CardTitle></CardHeader>
-                        <CardContent><Select onValueChange={handleEstadoChange} defaultValue={ticket.estado}><SelectTrigger className="w-full"><SelectValue placeholder="Cambiar estado..." /></SelectTrigger><SelectContent>{Object.entries(ESTADOS).map(([key, {label}]) => (<SelectItem key={key} value={key}>{label}</SelectItem>))}</SelectContent></Select></CardContent>
-                    </Card>
-                    <Card>
-                        <CardHeader className="pb-2"><CardTitle className="text-base">Detalles del Reclamo</CardTitle></CardHeader>
-                        <CardContent className="text-sm text-muted-foreground space-y-1"><p>{ticket.detalles || "No se proveyeron detalles adicionales."}</p></CardContent>
-                    </Card>
+                    <Card><CardHeader className="pb-2"><CardTitle className="text-base">Estado del Ticket</CardTitle></CardHeader><CardContent><Select onValueChange={handleEstadoChange} defaultValue={ticket.estado}><SelectTrigger className="w-full"><SelectValue placeholder="Cambiar estado..." /></SelectTrigger><SelectContent>{Object.entries(ESTADOS).map(([key, {label}]) => (<SelectItem key={key} value={key}>{label}</SelectItem>))}</SelectContent></Select></CardContent></Card>
+                    <Card><CardHeader className="pb-2"><CardTitle className="text-base">Detalles del Reclamo</CardTitle></CardHeader><CardContent className="text-sm text-muted-foreground space-y-1"><p>{ticket.detalles || "No se proveyeron detalles adicionales."}</p></CardContent></Card>
                     {ticket.nombre_usuario && (<Card><CardHeader className="pb-2"><CardTitle className="text-base">Información del Usuario</CardTitle></CardHeader><CardContent className="text-sm text-muted-foreground space-y-1"><p><strong>Nombre:</strong> {ticket.nombre_usuario}</p><p><strong>Email:</strong> {ticket.email_usuario}</p></CardContent></Card>)}
                 </aside>
             </div>
