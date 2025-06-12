@@ -39,7 +39,6 @@ const ESTADOS: Record<TicketStatus, { label: string; tailwind_class: string }> =
     cerrado: { label: "Cerrado", tailwind_class: "bg-gray-500/20 text-gray-500 border-gray-500/30" },
 };
 
-function fechaLarga(iso: string) { if (!iso) return ""; const d = new Date(iso); return d.toLocaleString('es-AR', { dateStyle: 'long', timeStyle: 'short' }) + ' hs'; }
 function fechaCorta(iso: string) { if (!iso) return ""; const d = new Date(iso); return `${d.getDate().toString().padStart(2, "0")}/${(d.getMonth() + 1).toString().padStart(2, "0")} ${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`; }
 
 export default function TicketsPanel() {
@@ -49,39 +48,16 @@ export default function TicketsPanel() {
     const [error, setError] = useState<string | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [openCategories, setOpenCategories] = useState<Set<string>>(new Set());
-    const [userRubro, setUserRubro] = useState<string | null>(null);
 
-    // --- LÓGICA DE CARGA SECUENCIAL Y A PRUEBA DE ERRORES ---
     useEffect(() => {
-        let currentRubro: string | null = null;
-        
-        // --- PASO 1: LEER EL RUBRO ---
-        try {
-            const userString = localStorage.getItem('user');
-            if (userString) {
-                const userData = JSON.parse(userString);
-                if (userData && userData.rubro) {
-                    currentRubro = userData.rubro;
-                }
+        const fetchInitialData = async () => {
+            // Validar sesión de agente
+            if (!localStorage.getItem('token')) {
+                setError("Sesión no válida. Por favor, inicie sesión de nuevo.");
+                setIsLoading(false);
+                return;
             }
-        } catch (e) {
-            setError("Error crítico al leer datos de sesión.");
-            setIsLoading(false);
-            return; // Detiene la ejecución si hay error de parseo
-        }
 
-        // --- PASO 2: VALIDAR EL RUBRO ---
-        if (!currentRubro) {
-            setError("No se pudo encontrar tu 'rubro' en la sesión. Por favor, vuelve a iniciar sesión.");
-            setIsLoading(false);
-            return; // Detiene la ejecución si no hay rubro
-        }
-        
-        // Si llegamos aquí, el rubro es válido. Lo guardamos en el estado.
-        setUserRubro(currentRubro);
-
-        // --- PASO 3: BUSCAR TICKETS (SOLO SI LOS PASOS ANTERIORES FUERON EXITOSOS) ---
-        const fetchCategorizedTickets = async () => {
             try {
                 const data = await apiFetch<CategorizedTickets>('/tickets/panel_por_categoria');
                 setCategorizedTickets(data);
@@ -94,37 +70,47 @@ export default function TicketsPanel() {
             }
         };
 
-        fetchCategorizedTickets();
-    }, []); // El array vacío [] asegura que toda esta secuencia se ejecute solo una vez.
-
+        fetchInitialData();
+    }, []);
 
     const toggleCategory = (category: string) => {
         setOpenCategories(prev => {
-            const newSet = new Set(prev); newSet.has(category) ? newSet.delete(category) : newSet.add(category); return newSet;
+            const newSet = new Set(prev);
+            newSet.has(category) ? newSet.delete(category) : newSet.add(category);
+            return newSet;
         });
     };
 
     const handleSelectTicket = useCallback(async (ticketSummary: TicketSummary) => {
-        if (!userRubro) {
-            setError("Error: El tipo de cuenta no está cargado. Por favor, recargue la página.");
+        if (!localStorage.getItem('token')) {
+            setError("Error de autenticación. Por favor, recargue la página.");
             return;
         }
         setSelectedTicket(null);
         setIsModalOpen(true);
         try {
-            const detailedTicket = await apiFetch<Ticket>(`/tickets/${userRubro}/${ticketSummary.id}`);
+            // --- CORRECCIÓN CLAVE AQUÍ ---
+            // Usamos ticketSummary.tipo en lugar de userRubro para construir la URL.
+            // Cada ticket ya sabe su propio tipo ('municipio' o 'pyme').
+            const detailedTicket = await apiFetch<Ticket>(`/tickets/${ticketSummary.tipo}/${ticketSummary.id}`);
             setSelectedTicket(detailedTicket);
         } catch (err) {
             const errorMessage = err instanceof ApiError ? err.message : `No se pudo cargar el detalle del ticket.`;
-            setError(errorMessage); setIsModalOpen(false);
+            setError(errorMessage);
+            setIsModalOpen(false);
         }
-    }, [userRubro]);
+    }, []); // Ya no dependemos de 'userRubro', por lo que lo quitamos del array de dependencias.
 
     const handleTicketUpdate = (updatedTicket: Ticket) => {
         setSelectedTicket(updatedTicket);
+        // Opcional: Refrescar la lista principal para reflejar cambios de estado
         const fetchTickets = async () => {
-            const data = await apiFetch<CategorizedTickets>('/tickets/panel_por_categoria');
-            setCategorizedTickets(data);
+            try {
+                const data = await apiFetch<CategorizedTickets>('/tickets/panel_por_categoria');
+                setCategorizedTickets(data);
+            } catch (error) {
+                console.error("No se pudo refrescar la lista de tickets.", error);
+            }
         }
         fetchTickets();
     };
@@ -147,9 +133,26 @@ export default function TicketsPanel() {
                     ))
                 )}
             </div>
+            
+            {/* --- DIÁLOGO CORREGIDO PARA ACCESIBILIDAD --- */}
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
                 <DialogContent className="max-w-4xl w-[95vw] h-[90vh] flex flex-col p-0 gap-0">
-                    {selectedTicket ? (<TicketDetail ticket={selectedTicket} onTicketUpdate={handleTicketUpdate} />) : (<div className="flex items-center justify-center h-full"><Loader2 className="animate-spin text-primary w-8 h-8"/></div>)}
+                    {selectedTicket ? (
+                        <>
+                            <DialogHeader className="p-4 border-b border-border sticky top-0 bg-card z-10">
+                                <DialogTitle className="flex items-center gap-3">
+                                    <TicketIcon className="text-primary h-6 w-6"/>
+                                    <span className="truncate">Ticket #{selectedTicket.nro_ticket} - {selectedTicket.asunto}</span>
+                                </DialogTitle>
+                                <DialogDescription className="pt-2 text-left">
+                                    Gestioná el historial completo del ticket, responde al usuario y cambia su estado desde este panel.
+                                </DialogDescription>
+                            </DialogHeader>
+                            <TicketDetail ticket={selectedTicket} onTicketUpdate={handleTicketUpdate} />
+                        </>
+                    ) : (
+                        <div className="flex items-center justify-center h-full"><Loader2 className="animate-spin text-primary w-8 h-8"/></div>
+                    )}
                 </DialogContent>
             </Dialog>
         </div>
@@ -182,7 +185,7 @@ const TicketCategoryAccordion: FC<{ category: string; tickets: TicketSummary[]; 
     </motion.div>
 );
 
-// --- SUB-COMPONENTE PARA EL DETALLE DEL TICKET ---
+// --- SUB-COMPONENTE PARA EL DETALLE DEL TICKET (AHORA MÁS LIMPIO) ---
 const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => void }> = ({ ticket, onTicketUpdate }) => {
     const [newMessage, setNewMessage] = useState("");
     const [isSending, setIsSending] = useState(false);
@@ -192,7 +195,8 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
         if (!newMessage.trim() || isSending) return;
         setIsSending(true);
         try {
-            const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.id}/comentar`, { method: 'POST', body: { comentario: newMessage } });
+            // La URL para comentar es relativa al ticket, así que no necesita el tipo
+            const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}/responder`, { method: 'POST', body: { comentario: newMessage } });
             onTicketUpdate(updatedTicket);
             setNewMessage("");
         } catch (error) { console.error("Error al enviar comentario", error); } finally { setIsSending(false); }
@@ -200,7 +204,8 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
     
     const handleEstadoChange = async (nuevoEstado: TicketStatus) => {
         try {
-            const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.id}/estado`, { method: 'PUT', body: { estado: nuevoEstado } });
+            // La URL para cambiar estado también es relativa al ticket
+            const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}/estado`, { method: 'PUT', body: { estado: nuevoEstado } });
             onTicketUpdate(updatedTicket);
         } catch (error) { console.error("Error al cambiar estado", error); }
     };
@@ -210,38 +215,33 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
     }, [ticket.comentarios]);
 
     return (
-        <>
-            <DialogHeader className="p-4 border-b border-border sticky top-0 bg-card z-10">
-                <DialogTitle className="flex items-center gap-3"><TicketIcon className="text-primary h-6 w-6"/><span className="truncate">Ticket #{ticket.nro_ticket} - {ticket.asunto}</span></DialogTitle>
-                <DialogDescription className="pt-2 text-left">Gestioná el historial completo del ticket, responde al usuario y cambia su estado desde este panel.</DialogDescription>
-            </DialogHeader>
-            <div className="flex-1 grid grid-cols-1 md:grid-cols-3 overflow-hidden">
-                <div className="md:col-span-2 flex flex-col overflow-hidden">
-                    <main className="flex-1 p-4 space-y-4 overflow-y-auto custom-scroll">
-                        {ticket.comentarios?.map((comment) => (
-                            <div key={comment.id} className={cn('flex items-end gap-2', comment.es_admin ? 'justify-end' : 'justify-start')}>
-                                {!comment.es_admin && <AvatarIcon type="user" />}
-                                <div className={cn("max-w-md rounded-lg px-4 py-2", comment.es_admin ? "bg-primary text-primary-foreground rounded-br-none" : "bg-muted text-foreground rounded-bl-none")}>
-                                    <p className="text-sm">{comment.comentario}</p>
-                                    <p className="text-xs opacity-70 text-right mt-1">{fechaCorta(comment.fecha)}</p>
-                                </div>
-                                {comment.es_admin && <AvatarIcon type="admin" />}
+        // Se ha eliminado el DialogHeader de aquí
+        <div className="flex-1 grid grid-cols-1 md:grid-cols-3 overflow-hidden">
+            <div className="md:col-span-2 flex flex-col overflow-hidden">
+                <main className="flex-1 p-4 space-y-4 overflow-y-auto custom-scroll">
+                    {ticket.comentarios?.map((comment) => (
+                        <div key={comment.id} className={cn('flex items-end gap-2', comment.es_admin ? 'justify-end' : 'justify-start')}>
+                            {!comment.es_admin && <AvatarIcon type="user" />}
+                            <div className={cn("max-w-md rounded-lg px-4 py-2", comment.es_admin ? "bg-primary text-primary-foreground rounded-br-none" : "bg-muted text-foreground rounded-bl-none")}>
+                                <p className="text-sm">{comment.comentario}</p>
+                                <p className="text-xs opacity-70 text-right mt-1">{fechaCorta(comment.fecha)}</p>
                             </div>
-                        ))}
-                        <div ref={chatBottomRef} />
-                    </main>
-                    <footer className="border-t border-border p-3 flex gap-2 bg-card">
-                        <Input value={newMessage} onChange={(e) => setNewMessage(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()} placeholder="Escribe una respuesta como administrador..." disabled={isSending} className="bg-background"/>
-                        <Button onClick={handleSendMessage} disabled={isSending || !newMessage.trim()} aria-label="Enviar Mensaje">{isSending ? <Loader2 className="animate-spin" /> : <Send />}</Button>
-                    </footer>
-                </div>
-                <aside className="md:col-span-1 border-l border-border bg-muted/30 p-4 space-y-6 overflow-y-auto custom-scroll">
-                    <Card><CardHeader className="pb-2"><CardTitle className="text-base">Estado del Ticket</CardTitle></CardHeader><CardContent><Select onValueChange={handleEstadoChange} defaultValue={ticket.estado}><SelectTrigger className="w-full"><SelectValue placeholder="Cambiar estado..." /></SelectTrigger><SelectContent>{Object.entries(ESTADOS).map(([key, {label}]) => (<SelectItem key={key} value={key}>{label}</SelectItem>))}</SelectContent></Select></CardContent></Card>
-                    <Card><CardHeader className="pb-2"><CardTitle className="text-base">Detalles del Reclamo</CardTitle></CardHeader><CardContent className="text-sm text-muted-foreground space-y-1"><p>{ticket.detalles || "No se proveyeron detalles adicionales."}</p></CardContent></Card>
-                    {ticket.nombre_usuario && (<Card><CardHeader className="pb-2"><CardTitle className="text-base">Información del Usuario</CardTitle></CardHeader><CardContent className="text-sm text-muted-foreground space-y-1"><p><strong>Nombre:</strong> {ticket.nombre_usuario}</p><p><strong>Email:</strong> {ticket.email_usuario}</p></CardContent></Card>)}
-                </aside>
+                            {comment.es_admin && <AvatarIcon type="admin" />}
+                        </div>
+                    ))}
+                    <div ref={chatBottomRef} />
+                </main>
+                <footer className="border-t border-border p-3 flex gap-2 bg-card">
+                    <Input value={newMessage} onChange={(e) => setNewMessage(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()} placeholder="Escribe una respuesta como administrador..." disabled={isSending} className="bg-background"/>
+                    <Button onClick={handleSendMessage} disabled={isSending || !newMessage.trim()} aria-label="Enviar Mensaje">{isSending ? <Loader2 className="animate-spin" /> : <Send />}</Button>
+                </footer>
             </div>
-        </>
+            <aside className="md:col-span-1 border-l border-border bg-muted/30 p-4 space-y-6 overflow-y-auto custom-scroll">
+                <Card><CardHeader className="pb-2"><CardTitle className="text-base">Estado del Ticket</CardTitle></CardHeader><CardContent><Select onValueChange={handleEstadoChange} defaultValue={ticket.estado}><SelectTrigger className="w-full"><SelectValue placeholder="Cambiar estado..." /></SelectTrigger><SelectContent>{Object.entries(ESTADOS).map(([key, {label}]) => (<SelectItem key={key} value={key}>{label}</SelectItem>))}</SelectContent></Select></CardContent></Card>
+                <Card><CardHeader className="pb-2"><CardTitle className="text-base">Detalles del Reclamo</CardTitle></CardHeader><CardContent className="text-sm text-muted-foreground space-y-1"><p>{ticket.detalles || "No se proveyeron detalles adicionales."}</p></CardContent></Card>
+                {ticket.nombre_usuario && (<Card><CardHeader className="pb-2"><CardTitle className="text-base">Información del Usuario</CardTitle></CardHeader><CardContent className="text-sm text-muted-foreground space-y-1"><p><strong>Nombre:</strong> {ticket.nombre_usuario}</p><p><strong>Email:</strong> {ticket.email_usuario}</p></CardContent></Card>)}
+            </aside>
+        </div>
     );
 };
 
