@@ -429,6 +429,35 @@ export default function Perfil() {
                 </div>)}
               </CardContent>
             </Card>
+            <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm">
+  <CardHeader>
+    <CardTitle className="text-lg font-semibold text-primary">Integrá Chatboc a tu web</CardTitle>
+  </CardHeader>
+  <CardContent className="space-y-3">
+    {(perfil.plan === "pro" || perfil.plan === "full") ? (
+      <Button
+        className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
+        onClick={() => navigate("/integracion")}
+      >
+        Ir a la guía de integración
+      </Button>
+    ) : (
+      <Button
+        className="w-full bg-muted text-muted-foreground cursor-not-allowed"
+        disabled
+        title="Solo para clientes con Plan PRO o FULL"
+        style={{ pointerEvents: 'none' }} // Doble seguridad visual
+      >
+        Plan PRO requerido para activar integración
+      </Button>
+    )}
+    <div className="text-xs text-muted-foreground mt-2">
+      Accedé a los códigos e instrucciones para pegar el widget de Chatboc en tu web solo si tu plan es PRO o superior.<br />
+      Cualquier duda, escribinos a <a href="mailto:soporte@chatboc.ar" className="underline text-primary">soporte@chatboc.ar</a>
+    </div>
+  </CardContent>
+</Card>
+
         </div>
       </div>
     </div>
