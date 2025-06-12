@@ -1,14 +1,14 @@
-import React, { useEffect, useState, useCallback, FC } from "react";
-import { Input } from "@/components/ui/input";
+import React, { useEffect, useState, useCallback, FC, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Loader2, ArrowLeft, Send, Ticket as TicketIcon, X } from "lucide-react";
+import { Loader2, Send, Ticket as TicketIcon, ChevronDown, ChevronUp } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { apiFetch, ApiError } from "@/utils/api";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 
-// --- TIPOS DE DATOS (SIN CAMBIOS) ---
+// --- TIPOS DE DATOS ---
 type TicketStatus = "nuevo" | "en_proceso" | "derivado" | "resuelto" | "cerrado";
 interface Comment { id: number; comentario: string; fecha: string; es_admin: boolean; }
 interface Ticket {
@@ -20,7 +20,6 @@ interface Ticket {
     fecha: string;
     detalles?: string;
     comentarios?: Comment[];
-    // ... otros campos ...
 }
 interface TicketSummary extends Omit<Ticket, 'detalles' | 'comentarios'> {
     direccion?: string;
@@ -44,22 +43,27 @@ function fechaCorta(iso: string) {
     return `${d.getDate().toString().padStart(2, "0")}/${(d.getMonth() + 1).toString().padStart(2, "0")} ${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
 }
 
-
-// --- COMPONENTE PRINCIPAL DEL PANEL ---
+// ======================= INICIO DE LA MEJORA =======================
+// --- COMPONENTE PRINCIPAL DEL PANEL (REDiseñado) ---
 export default function TicketsPanel() {
     const [categorizedTickets, setCategorizedTickets] = useState<CategorizedTickets>({});
     const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    
+    // Nuevo estado para controlar qué categorías están abiertas en el acordeón
+    const [openCategories, setOpenCategories] = useState<Set<string>>(new Set());
 
     const fetchCategorizedTickets = useCallback(async () => {
         setIsLoading(true);
         setError(null);
         try {
-            // 1. LLAMAMOS A LA NUEVA API QUE AGRUPA POR CATEGORÍA
             const data = await apiFetch<CategorizedTickets>('/tickets/panel_por_categoria');
             setCategorizedTickets(data);
+            // Por defecto, abrimos todas las categorías para que el usuario las vea al cargar.
+            // Si prefieres que empiecen cerradas, cambia esto a: new Set()
+            setOpenCategories(new Set(Object.keys(data))); 
         } catch (err) {
             const errorMessage = err instanceof ApiError ? err.message : "Ocurrió un error al cargar el panel.";
             setError(errorMessage);
@@ -71,55 +75,74 @@ export default function TicketsPanel() {
     useEffect(() => {
         fetchCategorizedTickets();
     }, [fetchCategorizedTickets]);
+    
+    // Nueva función para abrir/cerrar una categoría del acordeón
+    const toggleCategory = (category: string) => {
+        setOpenCategories(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(category)) {
+                newSet.delete(category);
+            } else {
+                newSet.add(category);
+            }
+            return newSet;
+        });
+    };
 
-    // Al hacer clic en una tarjeta, obtenemos sus detalles completos para el modal
     const handleSelectTicket = useCallback(async (ticketSummary: TicketSummary) => {
-        setSelectedTicket(null); // Resetea para la animación
+        setSelectedTicket(null);
         setIsModalOpen(true);
         try {
             const detailedTicket = await apiFetch<Ticket>(`/tickets/${ticketSummary.tipo}/${ticketSummary.id}`);
             setSelectedTicket(detailedTicket);
         } catch (err) {
             const errorMessage = err instanceof ApiError ? err.message : "No se pudo cargar el detalle del ticket.";
-            setError(errorMessage); // Podríamos mostrar este error en un toast
+            setError(errorMessage);
             setIsModalOpen(false);
         }
     }, []);
 
-    // Cuando el ticket se actualiza dentro del modal, refrescamos todo el panel
     const handleTicketUpdate = () => {
-        fetchCategorizedTickets(); // Vuelve a cargar todos los datos para reflejar el cambio de estado/categoría
+        fetchCategorizedTickets();
     };
 
-    if (isLoading) return <div className="p-8 text-center"><Loader2 className="animate-spin text-primary mx-auto" /></div>;
-    if (error) return <div className="p-8 text-center text-destructive">{error}</div>;
+    if (isLoading) return <div className="p-8 text-center"><Loader2 className="animate-spin text-primary mx-auto h-10 w-10" /></div>;
+    if (error) return <div className="p-8 text-center text-destructive bg-destructive/10 rounded-md">{error}</div>;
 
     return (
-        <div className="flex flex-col h-[calc(100vh-80px)] bg-muted/40 p-4">
-            <header className="mb-4">
-                <h1 className="text-2xl font-bold text-foreground">Panel de Reclamos</h1>
+        <div className="flex flex-col min-h-screen bg-muted/20 dark:bg-slate-900 text-foreground p-4 sm:p-6 md:p-8">
+            <header className="mb-6 max-w-7xl mx-auto w-full">
+                <h1 className="text-3xl font-bold text-foreground">Panel de Reclamos y Tickets</h1>
+                <p className="text-muted-foreground mt-1">Gestioná todos los tickets de tus usuarios en un solo lugar.</p>
             </header>
-
-            <div className="flex-1 flex gap-6 overflow-x-auto pb-4 custom-scroll">
-                {Object.keys(categorizedTickets).length === 0 ? (
-                    <p>No hay tickets para mostrar.</p>
+            
+            <div className="w-full max-w-7xl mx-auto space-y-4">
+                {Object.keys(categorizedTickets).length === 0 && !isLoading ? (
+                    <div className="text-center py-10 px-4 bg-card rounded-lg shadow-sm">
+                        <TicketIcon className="mx-auto h-12 w-12 text-muted-foreground" />
+                        <h3 className="mt-2 text-sm font-medium text-foreground">No hay tickets activos</h3>
+                        <p className="mt-1 text-sm text-muted-foreground">Cuando se genere un nuevo reclamo, aparecerá aquí.</p>
+                    </div>
                 ) : (
-                    <>
-                        {Object.entries(categorizedTickets).map(([category, tickets]) => (
-                            <TicketColumn key={category} category={category} tickets={tickets} onSelectTicket={handleSelectTicket} />
-                        ))}
-                    </>
+                    Object.entries(categorizedTickets).map(([category, tickets]) => (
+                        <TicketCategoryAccordion 
+                            key={category}
+                            category={category}
+                            tickets={tickets}
+                            onSelectTicket={handleSelectTicket}
+                            isOpen={openCategories.has(category)}
+                            onToggle={() => toggleCategory(category)}
+                        />
+                    ))
                 )}
             </div>
 
-            {/* --- DIÁLOGO MODAL PARA VER EL DETALLE DEL TICKET --- */}
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
                 <DialogContent className="max-w-3xl h-[80vh] flex flex-col p-0 gap-0">
                     {selectedTicket ? (
                         <TicketDetail 
                             ticket={selectedTicket} 
                             onTicketUpdate={(updatedTicket) => {
-                                // Actualiza el ticket en el modal y refresca el panel general en segundo plano
                                 setSelectedTicket(updatedTicket);
                                 handleTicketUpdate();
                             }} 
@@ -133,28 +156,66 @@ export default function TicketsPanel() {
     );
 }
 
-
-// --- SUB-COMPONENTE PARA CADA COLUMNA DE CATEGORÍA ---
-const TicketColumn: FC<{ category: string; tickets: TicketSummary[]; onSelectTicket: (ticket: TicketSummary) => void; }> = ({ category, tickets, onSelectTicket }) => (
-    <div className="w-80 bg-card rounded-xl shadow-sm flex-shrink-0 flex flex-col">
-        <div className="p-4 border-b border-border">
-            <h2 className="font-semibold text-foreground">{category} <Badge variant="secondary">{tickets.length}</Badge></h2>
-        </div>
-        <div className="flex-1 p-2 space-y-2 overflow-y-auto custom-scroll">
-            {tickets.map(ticket => (
-                <div key={ticket.id} onClick={() => onSelectTicket(ticket)} className="bg-background p-3 rounded-lg border border-border cursor-pointer hover:border-primary transition-all">
-                    <div className="flex justify-between items-center mb-1">
-                        <span className="font-semibold text-primary text-sm">#{ticket.nro_ticket}</span>
-                        <Badge className={cn("text-xs", ESTADOS[ticket.estado as TicketStatus]?.tailwind_class)}>{ESTADOS[ticket.estado as TicketStatus]?.label}</Badge>
-                    </div>
-                    <p className="font-medium text-foreground truncate">{ticket.asunto}</p>
-                    <p className="text-xs text-muted-foreground truncate">{ticket.direccion}</p>
-                    <p className="text-xs text-muted-foreground text-right mt-1">{fechaCorta(ticket.fecha)}</p>
+// --- NUEVO SUB-COMPONENTE PARA CADA FILA DEL ACORDEÓN ---
+const TicketCategoryAccordion: FC<{
+    category: string;
+    tickets: TicketSummary[];
+    onSelectTicket: (ticket: TicketSummary) => void;
+    isOpen: boolean;
+    onToggle: () => void;
+}> = ({ category, tickets, onSelectTicket, isOpen, onToggle }) => {
+    return (
+        <motion.div 
+            layout 
+            className="bg-card dark:bg-slate-800/80 border border-border dark:border-slate-700 rounded-xl shadow-md overflow-hidden backdrop-blur-sm"
+            initial={{ borderRadius: 12 }}
+        >
+            <motion.header
+                layout
+                initial={false}
+                onClick={onToggle}
+                className="p-4 flex justify-between items-center cursor-pointer hover:bg-muted/50 dark:hover:bg-slate-700/50 transition-colors"
+            >
+                <div className="flex items-center gap-3">
+                    <h2 className="font-semibold text-lg text-foreground">{category}</h2>
+                    <Badge variant="secondary" className="dark:bg-slate-600 dark:text-slate-200">{tickets.length}</Badge>
                 </div>
-            ))}
-        </div>
-    </div>
-);
+                {isOpen ? <ChevronUp className="text-muted-foreground" /> : <ChevronDown className="text-muted-foreground" />}
+            </motion.header>
+            <AnimatePresence>
+                {isOpen && (
+                    <motion.section
+                        key="content"
+                        initial="collapsed"
+                        animate="open"
+                        exit="collapsed"
+                        variants={{
+                            open: { opacity: 1, height: "auto" },
+                            collapsed: { opacity: 0, height: 0 }
+                        }}
+                        transition={{ duration: 0.3, ease: "easeInOut" }}
+                        className="overflow-hidden"
+                    >
+                        <div className="p-2 sm:p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 border-t border-border dark:border-slate-700">
+                            {tickets.map(ticket => (
+                                <div key={ticket.id} onClick={() => onSelectTicket(ticket)} className="bg-background dark:bg-slate-800/50 p-3 rounded-lg border border-border dark:border-slate-700/50 cursor-pointer hover:border-primary dark:hover:border-primary transition-all shadow-sm hover:shadow-lg hover:-translate-y-1">
+                                    <div className="flex justify-between items-center mb-1">
+                                        <span className="font-semibold text-primary text-sm">#{ticket.nro_ticket}</span>
+                                        <Badge className={cn("text-xs border", ESTADOS[ticket.estado as TicketStatus]?.tailwind_class)}>{ESTADOS[ticket.estado as TicketStatus]?.label}</Badge>
+                                    </div>
+                                    <p className="font-medium text-foreground truncate" title={ticket.asunto}>{ticket.asunto}</p>
+                                    {ticket.direccion && <p className="text-xs text-muted-foreground truncate" title={ticket.direccion}>{ticket.direccion}</p>}
+                                    <p className="text-xs text-muted-foreground text-right mt-1">{fechaCorta(ticket.fecha)}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </motion.section>
+                )}
+            </AnimatePresence>
+        </motion.div>
+    );
+};
+// ======================== FIN DE LA MEJORA ========================
 
 
 // --- SUB-COMPONENTE PARA EL DETALLE DEL TICKET (ADAPTADO) ---
@@ -164,10 +225,33 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
     const chatBottomRef = useRef<HTMLDivElement>(null);
 
     const handleSendMessage = async () => {
-        // ... (lógica de enviar mensaje sin cambios)
+        if (!newMessage.trim() || isSending) return;
+        setIsSending(true);
+        try {
+            const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.id}/comentar`, {
+                method: 'POST',
+                body: { comentario: newMessage },
+            });
+            onTicketUpdate(updatedTicket);
+            setNewMessage("");
+        } catch (error) {
+            console.error("Error al enviar comentario", error);
+        } finally {
+            setIsSending(false);
+        }
     };
+    
     const handleEstadoChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
-        // ... (lógica de cambiar estado sin cambios)
+        const nuevoEstado = e.target.value as TicketStatus;
+        try {
+            const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.id}/estado`, {
+                method: 'PUT',
+                body: { estado: nuevoEstado },
+            });
+            onTicketUpdate(updatedTicket);
+        } catch (error) {
+            console.error("Error al cambiar estado", error);
+        }
     };
 
     useEffect(() => {
@@ -183,10 +267,20 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
                 </DialogTitle>
             </DialogHeader>
             <div className="flex-1 p-4 overflow-y-auto space-y-4 custom-scroll">
-                {/* ... JSX del detalle del ticket, comentarios, etc. sin cambios ... */}
+                {/* Aquí va el detalle del ticket y la lista de comentarios */}
+                {/* Puedes pegar el código que ya tenías para esta sección */}
             </div>
             <footer className="border-t border-border p-3 flex gap-2 bg-card">
-                 {/* ... JSX del input de respuesta sin cambios ... */}
+                 <Input
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                    placeholder="Escribe un comentario..."
+                    disabled={isSending}
+                />
+                <Button onClick={handleSendMessage} disabled={isSending || !newMessage.trim()}>
+                    {isSending ? <Loader2 className="animate-spin" /> : <Send />}
+                </Button>
             </footer>
         </>
     );
