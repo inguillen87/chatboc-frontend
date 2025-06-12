@@ -1,15 +1,17 @@
+// src/types/chat.ts
 
-export interface FAQ {
-  question: string;
-  answer: string;
+// Define cómo es un objeto Botón
+export interface Boton {
+  texto: string;
+  url?: string;
+  accion_interna?: string;
 }
+
+// Define cómo es un objeto Mensaje
 export interface Message {
-  id: number | string;
+  id: number;
   text: string;
   isBot: boolean;
   timestamp: Date;
-  botones?: {
-    texto: string;
-    payload?: string;
-  }[];
+  botones?: Boton[]; // ¡Esta línea es crucial! Le dice a TypeScript que un mensaje PUEDE tener una lista de botones.
 }
