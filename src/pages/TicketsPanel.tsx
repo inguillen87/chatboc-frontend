@@ -78,8 +78,12 @@ export default function TicketsPanel() {
     };
 
     // AQUÍ ESTÁ LA CORRECCIÓN IMPORTANTE
-    const handleSelectTicket = useCallback(async (ticketSummary: TicketSummary) => {
-        if (!localStorage.getItem('token')) {
+   const handleSelectTicket = useCallback(async (ticketSummary: TicketSummary) => {
+        // --- CORRECCIÓN FINAL AQUÍ ---
+        // Usamos "authToken" para que coincida con cómo lo guardas al iniciar sesión.
+        const token = localStorage.getItem('authToken');
+        
+        if (!token) { 
             setError("Error de autenticación. Por favor, recargue la página.");
             return;
         }
@@ -87,7 +91,7 @@ export default function TicketsPanel() {
         setSelectedTicket(null);
         setIsModalOpen(true);
         try {
-            // Usamos ticketSummary.tipo que viene en los datos de cada ticket
+            // Esta llamada ahora sí se va a ejecutar
             const detailedTicket = await apiFetch<Ticket>(`/tickets/${ticketSummary.tipo}/${ticketSummary.id}`);
             setSelectedTicket(detailedTicket);
         } catch (err) {
@@ -95,8 +99,7 @@ export default function TicketsPanel() {
             setError(errorMessage);
             setIsModalOpen(false);
         }
-    }, []); // El array de dependencias vacío es correcto aquí
-
+    }, []);
     const handleTicketUpdate = (updatedTicket: Ticket) => {
         setSelectedTicket(updatedTicket);
         const fetchTickets = async () => {
