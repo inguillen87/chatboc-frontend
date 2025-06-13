@@ -131,31 +131,35 @@ export default function TicketsPanel() {
                 )}
             </div>
             
-            {/* --- ESTRUCTURA DEL DIÁLOGO CORREGIDA --- */}
-           <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-    <DialogContent className="max-w-4xl w-[95vw] h-[90vh] flex flex-col p-0 gap-0">
-        
-        {/* LA LÓGICA CLAVE ES ESTA: */}
-        {selectedTicket ? (
-            // Si hay un ticket, se renderiza TODO el contenido, incluyendo el Header
-            <>
-                <DialogHeader className="p-4 border-b border-border sticky top-0 bg-card z-10">
-                    <DialogTitle>Ticket #{selectedTicket.nro_ticket}</DialogTitle>
-                    <DialogDescription>
-                        Detalles del reclamo y conversación.
-                    </DialogDescription>
-                </DialogHeader>
-                <TicketDetail ticket={selectedTicket} onTicketUpdate={handleTicketUpdate} />
-            </>
-        ) : (
-            // Si NO hay un ticket, solo se muestra el cargador
-            <div className="flex items-center justify-center h-full">
-                <Loader2 className="animate-spin text-primary w-8 h-8"/>
-            </div>
-        )}
+       {/* --- ESTRUCTURA DEL DIÁLOGO FINAL Y A PRUEBA DE ERRORES --- */}
+            <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+                <DialogContent className="max-w-4xl w-[95vw] h-[90vh] flex flex-col p-0 gap-0">
+                    
+                    {/* Siempre renderizamos el Header para cumplir con la accesibilidad */}
+                    <DialogHeader className="p-4 border-b border-border sticky top-0 bg-card z-10">
+                        <DialogTitle className="flex items-center gap-3">
+                            <TicketIcon className="text-primary h-6 w-6"/>
+                            {/* El contenido del título cambia dinámicamente */}
+                            <span className="truncate">
+                                {selectedTicket ? `Ticket #${selectedTicket.nro_ticket} - ${selectedTicket.asunto}` : 'Cargando Ticket...'}
+                            </span>
+                        </DialogTitle>
+                        <DialogDescription className="pt-2 text-left">
+                            {selectedTicket ? 'Gestioná el historial completo del ticket desde este panel.' : 'Por favor, espere un momento.'}
+                        </DialogDescription>
+                    </DialogHeader>
+                    
+                    {/* El contenido principal del ticket es el que se muestra condicionalmente */}
+                    {selectedTicket ? (
+                        <TicketDetail ticket={selectedTicket} onTicketUpdate={handleTicketUpdate} />
+                    ) : (
+                        <div className="flex-1 flex items-center justify-center h-full">
+                            <Loader2 className="animate-spin text-primary w-8 h-8"/>
+                        </div>
+                    )}
 
-    </DialogContent>
-</Dialog>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
