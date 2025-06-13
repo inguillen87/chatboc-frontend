@@ -159,7 +159,6 @@ export default function TicketsPanel() {
                     ))
                 )}
             </div>
-            {/* EL DIALOG HA SIDO REMOVIDO COMPLETAMENTE DE AQUÍ */}
         </div>
     );
 }
@@ -320,7 +319,8 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
     return (
         // Usamos flex-grow y un grid de 3 columnas para la disposición del detalle
         <div className="flex-grow grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="md:col-span-2 flex flex-col h-[calc(100vh-250px)] max-h-[600px]"> {/* Altura ajustada */}
+            {/* Contenedor principal del chat, ahora con altura relativa para permitir scroll */}
+            <div className="md:col-span-2 flex flex-col h-[60vh] max-h-[600px] min-h-[300px]"> {/* Altura ajustada: usa vh con min/max para flexibilidad */}
                 <main className="flex-1 p-4 space-y-4 overflow-y-auto custom-scroll border rounded-md bg-background dark:bg-slate-700/50">
                     {ticket.comentarios && ticket.comentarios.length > 0 ? (
                         ticket.comentarios.map((comment) => (
