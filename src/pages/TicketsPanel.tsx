@@ -49,15 +49,17 @@ export default function TicketsPanel() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [openCategories, setOpenCategories] = useState<Set<string>>(new Set());
 
-    // DEJAMOS LA LÓGICA DE CARGA ORIGINAL QUE SÍ FUNCIONABA
     useEffect(() => {
-        const fetchCategorizedTickets = async () => {
-            setIsLoading(true);
+        const fetchInitialData = async () => {
+            if (!localStorage.getItem('authToken')) {
+                setError("Sesión no válida. Por favor, inicie sesión de nuevo.");
+                setIsLoading(false);
+                return;
+            }
+
             try {
-                // Se asume que apiFetch ya envía el token de autenticación
                 const data = await apiFetch<CategorizedTickets>('/tickets/panel_por_categoria');
                 setCategorizedTickets(data);
-                // Por defecto, abre todas las categorías
                 setOpenCategories(new Set(Object.keys(data)));
             } catch (err) {
                 const errorMessage = err instanceof ApiError ? err.message : "Ocurrió un error al cargar el panel de tickets.";
@@ -67,23 +69,20 @@ export default function TicketsPanel() {
             }
         };
 
-        fetchCategorizedTickets();
+        fetchInitialData();
     }, []);
-
 
     const toggleCategory = (category: string) => {
         setOpenCategories(prev => {
-            const newSet = new Set(prev); newSet.has(category) ? newSet.delete(category) : newSet.add(category); return newSet;
+            const newSet = new Set(prev);
+            newSet.has(category) ? newSet.delete(category) : newSet.add(category);
+            return newSet;
         });
     };
 
-    // AQUÍ ESTÁ LA CORRECCIÓN IMPORTANTE
-   const handleSelectTicket = useCallback(async (ticketSummary: TicketSummary) => {
-        // --- CORRECCIÓN FINAL AQUÍ ---
-        // Usamos "authToken" para que coincida con cómo lo guardas al iniciar sesión.
+    const handleSelectTicket = useCallback(async (ticketSummary: TicketSummary) => {
         const token = localStorage.getItem('authToken');
-        
-        if (!token) { 
+        if (!token) {
             setError("Error de autenticación. Por favor, recargue la página.");
             return;
         }
@@ -91,7 +90,6 @@ export default function TicketsPanel() {
         setSelectedTicket(null);
         setIsModalOpen(true);
         try {
-            // Esta llamada ahora sí se va a ejecutar
             const detailedTicket = await apiFetch<Ticket>(`/tickets/${ticketSummary.tipo}/${ticketSummary.id}`);
             setSelectedTicket(detailedTicket);
         } catch (err) {
@@ -100,11 +98,16 @@ export default function TicketsPanel() {
             setIsModalOpen(false);
         }
     }, []);
+
     const handleTicketUpdate = (updatedTicket: Ticket) => {
         setSelectedTicket(updatedTicket);
         const fetchTickets = async () => {
-            const data = await apiFetch<CategorizedTickets>('/tickets/panel_por_categoria');
-            setCategorizedTickets(data);
+            try {
+                const data = await apiFetch<CategorizedTickets>('/tickets/panel_por_categoria');
+                setCategorizedTickets(data);
+            } catch (error) {
+                console.error("No se pudo refrescar la lista de tickets.", error);
+            }
         }
         fetchTickets();
     };
@@ -128,7 +131,7 @@ export default function TicketsPanel() {
                 )}
             </div>
             
-            {/* CORRECCIÓN DE ACCESIBILIDAD PARA EL DIÁLOGO */}
+            {/* --- ESTRUCTURA DEL DIÁLOGO CORREGIDA --- */}
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
                 <DialogContent className="max-w-4xl w-[95vw] h-[90vh] flex flex-col p-0 gap-0">
                     {selectedTicket ? (
@@ -145,7 +148,10 @@ export default function TicketsPanel() {
                             <TicketDetail ticket={selectedTicket} onTicketUpdate={handleTicketUpdate} />
                         </>
                     ) : (
-                        <div className="flex items-center justify-center h-full"><Loader2 className="animate-spin text-primary w-8 h-8"/></div>
+                        <div className="flex items-center justify-center h-full">
+                            <Loader2 className="animate-spin text-primary w-8 h-8"/>
+                            <span className="sr-only">Cargando detalle del ticket...</span>
+                        </div>
                     )}
                 </DialogContent>
             </Dialog>
