@@ -182,7 +182,7 @@ const TicketCategoryAccordion: FC<{ category: string; tickets: TicketSummary[]; 
     </motion.div>
 );
 
-// --- SUB-COMPONENTE DETALLE (Sin DialogHeader) ---
+// --- SUB-COMPONENTE DETALLE (CON CORRECCIÓN FINAL DE CSS) ---
 const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => void }> = ({ ticket, onTicketUpdate }) => {
     const [newMessage, setNewMessage] = useState("");
     const [isSending, setIsSending] = useState(false);
@@ -210,8 +210,10 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
     }, [ticket.comentarios]);
 
     return (
-        <div className="flex-1 grid grid-cols-1 md:grid-cols-3 overflow-hidden">
-            <div className="md:col-span-2 flex flex-col overflow-hidden">
+        // CAMBIO #1: Se quitó 'overflow-hidden' de esta línea
+        <div className="flex-1 grid grid-cols-1 md:grid-cols-3">
+            {/* CAMBIO #2: Se quitó 'overflow-hidden' también de esta línea */}
+            <div className="md:col-span-2 flex flex-col">
                 <main className="flex-1 p-4 space-y-4 overflow-y-auto custom-scroll">
                     {ticket.comentarios?.map((comment) => (
                         <div key={comment.id} className={cn('flex items-end gap-2', comment.es_admin ? 'justify-end' : 'justify-start')}>
@@ -238,5 +240,3 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
         </div>
     );
 };
-
-const AvatarIcon: FC<{ type: 'user' | 'admin' }> = ({ type }) => ( <div className={cn('h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0', type === 'admin' ? 'bg-primary/20 text-primary' : 'bg-muted-foreground/20 text-muted-foreground')}>{type === 'admin' ? <ShieldCheck className="h-5 w-5" /> : <User className="h-5 w-5" />}</div>);
