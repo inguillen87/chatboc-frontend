@@ -5,9 +5,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { apiFetch, ApiError } from "@/utils/api";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-// No necesitamos Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription aquí.
-// Pero las mantengo comentadas si las necesitas para otros componentes.
-// import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -52,8 +49,8 @@ function fechaCorta(iso: string) {
 
 export default function TicketsPanel() {
     const [categorizedTickets, setCategorizedTickets] = useState<CategorizedTickets>({});
-    const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null); // Nuevo estado para el ID del ticket seleccionado
-    const [detailedTicket, setDetailedTicket] = useState<Ticket | null>(null); // Nuevo estado para el ticket con detalles
+    const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null);
+    const [detailedTicket, setDetailedTicket] = useState<Ticket | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [openCategories, setOpenCategories] = useState<Set<string>>(new Set());
@@ -87,47 +84,38 @@ export default function TicketsPanel() {
         });
     };
 
-    // Nueva función para cargar los detalles del ticket y establecerlo como el ticket a mostrar
     const loadAndSetDetailedTicket = useCallback(async (ticketSummary: TicketSummary) => {
         const token = localStorage.getItem('authToken');
         if (!token) {
             setError("Error de autenticación. Por favor, recargue la página.");
             return;
         }
-        // Si el ticket ya está abierto, lo cerramos
         if (selectedTicketId === ticketSummary.id) {
             setSelectedTicketId(null);
             setDetailedTicket(null);
             return;
         }
 
-        setSelectedTicketId(ticketSummary.id); // Establece el ID del ticket que queremos expandir
-        setDetailedTicket(null); // Limpia los detalles anteriores mientras carga el nuevo
-        setError(null); // Limpia errores anteriores
+        setSelectedTicketId(ticketSummary.id);
+        setDetailedTicket(null);
+        setError(null);
 
         try {
-            // Se asume que el tipo en ticketSummary es correcto ('municipio' o 'pyme')
             const data = await apiFetch<Ticket>(`/tickets/${ticketSummary.tipo}/${ticketSummary.id}`);
             setDetailedTicket(data);
         } catch (err) {
             const errorMessage = err instanceof ApiError ? err.message : `No se pudo cargar el detalle del ticket ${ticketSummary.nro_ticket}.`;
             setError(errorMessage);
-            setSelectedTicketId(null); // Si falla, colapsa la sección
+            setSelectedTicketId(null);
         }
-    }, [selectedTicketId]); // selectedTicketId en dependencias para saber si lo estamos cerrando o abriendo
+    }, [selectedTicketId]);
 
-
-    // Esta función se pasa al TicketDetail para que pueda actualizar el padre
     const handleTicketDetailUpdate = (updatedTicket: Ticket) => {
-        setDetailedTicket(updatedTicket); // Actualiza el ticket detallado en el estado
-        // Opcional: Si quieres refrescar la lista general de tickets después de una actualización
-        // const fetchTickets = async () => { /* ... */ }; fetchTickets();
+        setDetailedTicket(updatedTicket);
     };
-
 
     if (isLoading) return <div className="p-8 text-center"><Loader2 className="animate-spin text-primary mx-auto h-10 w-10" /></div>;
     if (error && !selectedTicketId) return <div className="p-8 text-center text-destructive bg-destructive/10 rounded-md">{error}</div>;
-
 
     return (
         <div className="flex flex-col min-h-screen bg-muted/20 dark:bg-slate-900 text-foreground p-4 sm:p-6 md:p-8">
@@ -148,13 +136,12 @@ export default function TicketsPanel() {
                             key={category}
                             category={category}
                             tickets={tickets}
-                            onSelectTicket={loadAndSetDetailedTicket} // Usamos la nueva función aquí
+                            onSelectTicket={loadAndSetDetailedTicket}
                             isOpen={openCategories.has(category)}
                             onToggle={() => toggleCategory(category)}
-                            selectedTicketId={selectedTicketId} // Pasamos el ID del ticket seleccionado
-                            detailedTicket={detailedTicket} // Pasamos el ticket detallado
-                            onTicketDetailUpdate={handleTicketDetailUpdate} // Pasamos la función de actualización
-                            // Aquí ya no hay modal, por lo tanto no se abre/cierra Dialog
+                            selectedTicketId={selectedTicketId}
+                            detailedTicket={detailedTicket}
+                            onTicketDetailUpdate={handleTicketDetailUpdate}
                         />
                     ))
                 )}
@@ -164,16 +151,15 @@ export default function TicketsPanel() {
 }
 
 // --- SUB-COMPONENTE ACORDEÓN DE CATEGORÍAS ---
-// Este componente ahora también maneja la expansión de tickets individuales
 const TicketCategoryAccordion: FC<{
     category: string;
     tickets: TicketSummary[];
     onSelectTicket: (ticket: TicketSummary) => void;
     isOpen: boolean;
     onToggle: () => void;
-    selectedTicketId: number | null; // El ID del ticket que está abierto para detalle
-    detailedTicket: Ticket | null; // El objeto completo del ticket detallado
-    onTicketDetailUpdate: (ticket: Ticket) => void; // Función para actualizar el detalle
+    selectedTicketId: number | null;
+    detailedTicket: Ticket | null;
+    onTicketDetailUpdate: (ticket: Ticket) => void;
 }> = ({ category, tickets, onSelectTicket, isOpen, onToggle, selectedTicketId, detailedTicket, onTicketDetailUpdate }) => (
     <motion.div layout className="bg-card dark:bg-slate-800/80 border border-border dark:border-slate-700 rounded-xl shadow-md overflow-hidden" initial={{ borderRadius: 12 }}>
         <motion.header layout initial={false} onClick={onToggle} className="p-4 flex justify-between items-center cursor-pointer hover:bg-muted/50 dark:hover:bg-slate-700/50 transition-colors">
@@ -192,8 +178,9 @@ const TicketCategoryAccordion: FC<{
                                 <div
                                     onClick={() => onSelectTicket(ticket)}
                                     className={cn(
-                                        "bg-background dark:bg-slate-800/50 p-3 rounded-lg border border-border dark:border-slate-700/50 cursor-pointer transition-all shadow-sm",
-                                        selectedTicketId === ticket.id ? "border-primary dark:border-primary ring-2 ring-primary/50 -translate-y-1" : "hover:border-primary dark:hover:border-primary hover:shadow-lg hover:-translate-y-1",
+                                        "bg-background dark:bg-slate-800/50 p-3 rounded-lg border cursor-pointer transition-all shadow-sm",
+                                        "hover:border-primary dark:hover:border-primary hover:shadow-lg hover:-translate-y-1",
+                                        selectedTicketId === ticket.id ? "border-primary dark:border-primary ring-2 ring-primary/50 -translate-y-1" : "border-border dark:border-slate-700/50",
                                         // Para que ocupe una columna completa si es el ticket abierto
                                         selectedTicketId === ticket.id ? "col-span-full" : ""
                                     )}
@@ -219,7 +206,7 @@ const TicketCategoryAccordion: FC<{
                                             className="col-span-full bg-card dark:bg-slate-800/80 rounded-lg p-4 border border-border dark:border-slate-700 shadow-md mt-2"
                                         >
                                             <div className="flex justify-between items-center mb-4">
-                                                <h3 className="text-lg font-bold">Detalle del Ticket #{detailedTicket.nro_ticket}</h3>
+                                                <h3 className="text-lg font-bold text-foreground">Detalle del Ticket #{detailedTicket.nro_ticket}</h3>
                                                 <Button variant="ghost" size="icon" onClick={() => onSelectTicket(ticket)} aria-label="Cerrar detalle">
                                                     <X className="h-5 w-5" />
                                                 </Button>
@@ -238,7 +225,7 @@ const TicketCategoryAccordion: FC<{
     </motion.div>
 );
 
-// --- SUB-COMPONENTE DETALLE DEL TICKET (Mismo código, pero ahora se usa dentro del acordeón) ---
+// --- SUB-COMPONENTE DETALLE DEL TICKET ---
 const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => void }> = ({ ticket, onTicketUpdate }) => {
     const [newMessage, setNewMessage] = useState("");
     const [isSending, setIsSending] = useState(false);
@@ -253,7 +240,6 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
         const fetchComentarios = async () => {
             try {
                 if (ticket.tipo === "municipio") {
-                    // Esta llamada es para refrescar los comentarios
                     const data = await apiFetch(`/tickets/chat/${ticket.id}/mensajes`);
                     if (mounted && data && data.mensajes) {
                         onTicketUpdate({
@@ -267,22 +253,19 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
                         });
                     }
                 }
-                // Si querés agregar polling para "pyme", agregalo acá
             } catch (e) {
                 console.error("Error en polling de comentarios:", e);
             }
         };
 
-        // Inicia el polling solo si estamos viendo el detalle de un ticket específico
         const interval = setInterval(fetchComentarios, 5000);
-        fetchComentarios(); // Fetch inicial al montar el componente
+        fetchComentarios();
 
         return () => {
             mounted = false;
             clearInterval(interval);
         };
-    }, [ticket?.id, ticket?.tipo, onTicketUpdate]); // Agregamos onTicketUpdate para evitar advertencias de React
-
+    }, [ticket?.id, ticket?.tipo, onTicketUpdate]);
 
     // --- Envío de Mensaje ---
     const handleSendMessage = async () => {
@@ -290,11 +273,10 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
         setIsSending(true);
         try {
             const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}/responder`, { method: 'POST', body: { comentario: newMessage } });
-            onTicketUpdate(updatedTicket); // Actualiza el ticket en el estado del padre
+            onTicketUpdate(updatedTicket);
             setNewMessage("");
         } catch (error) {
             console.error("Error al enviar comentario", error);
-            // Podrías agregar un setError aquí para mostrar un mensaje al usuario
         } finally {
             setIsSending(false);
         }
@@ -304,24 +286,26 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
     const handleEstadoChange = async (nuevoEstado: TicketStatus) => {
         try {
             const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}/estado`, { method: 'PUT', body: { estado: nuevoEstado } });
-            onTicketUpdate(updatedTicket); // Actualiza el ticket en el estado del padre
+            onTicketUpdate(updatedTicket);
         } catch (error) {
             console.error("Error al cambiar estado", error);
-            // Podrías agregar un setError aquí para mostrar un mensaje al usuario
         }
     };
 
     // --- Scroll al final del chat ---
     useEffect(() => {
-        chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, [ticket.comentarios]); // Se dispara cada vez que los comentarios se actualizan
+        if (chatBottomRef.current) {
+            chatBottomRef.current.scrollIntoView({ behavior: "smooth" });
+        }
+    }, [ticket.comentarios]);
 
     return (
-        // Usamos flex-grow y un grid de 3 columnas para la disposición del detalle
-        <div className="flex-grow grid grid-cols-1 md:grid-cols-3 gap-4">
+        // CAMBIO PRINCIPAL AQUÍ: flex-col en el contenedor del TicketDetail
+        // para asegurar que los elementos se apilan verticalmente dentro de él.
+        <div className="flex flex-col md:grid md:grid-cols-3 gap-4"> {/* Agregado flex flex-col para apilar verticalmente en móvil, y grid para desktop */}
             {/* Contenedor principal del chat, ahora con altura relativa para permitir scroll */}
-            <div className="md:col-span-2 flex flex-col h-[60vh] max-h-[600px] min-h-[300px]"> {/* Altura ajustada: usa vh con min/max para flexibilidad */}
-                <main className="flex-1 p-4 space-y-4 overflow-y-auto custom-scroll border rounded-md bg-background dark:bg-slate-700/50">
+            <div className="md:col-span-2 flex flex-col h-[60vh] max-h-[600px] min-h-[300px] border rounded-md bg-background dark:bg-slate-700/50"> {/* Mantuve estas clases */}
+                <main className="flex-1 p-4 space-y-4 overflow-y-auto custom-scroll">
                     {ticket.comentarios && ticket.comentarios.length > 0 ? (
                         ticket.comentarios.map((comment) => (
                             <div key={comment.id} className={cn('flex items-end gap-2', comment.es_admin ? 'justify-end' : 'justify-start')}>
