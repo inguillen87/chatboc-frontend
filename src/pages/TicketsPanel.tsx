@@ -49,18 +49,15 @@ export default function TicketsPanel() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [openCategories, setOpenCategories] = useState<Set<string>>(new Set());
 
+    // DEJAMOS LA LÓGICA DE CARGA ORIGINAL QUE SÍ FUNCIONABA
     useEffect(() => {
-        const fetchInitialData = async () => {
-            // Validar sesión de agente
-            if (!localStorage.getItem('token')) {
-                setError("Sesión no válida. Por favor, inicie sesión de nuevo.");
-                setIsLoading(false);
-                return;
-            }
-
+        const fetchCategorizedTickets = async () => {
+            setIsLoading(true);
             try {
+                // Se asume que apiFetch ya envía el token de autenticación
                 const data = await apiFetch<CategorizedTickets>('/tickets/panel_por_categoria');
                 setCategorizedTickets(data);
+                // Por defecto, abre todas las categorías
                 setOpenCategories(new Set(Object.keys(data)));
             } catch (err) {
                 const errorMessage = err instanceof ApiError ? err.message : "Ocurrió un error al cargar el panel de tickets.";
@@ -70,28 +67,27 @@ export default function TicketsPanel() {
             }
         };
 
-        fetchInitialData();
+        fetchCategorizedTickets();
     }, []);
+
 
     const toggleCategory = (category: string) => {
         setOpenCategories(prev => {
-            const newSet = new Set(prev);
-            newSet.has(category) ? newSet.delete(category) : newSet.add(category);
-            return newSet;
+            const newSet = new Set(prev); newSet.has(category) ? newSet.delete(category) : newSet.add(category); return newSet;
         });
     };
 
+    // AQUÍ ESTÁ LA CORRECCIÓN IMPORTANTE
     const handleSelectTicket = useCallback(async (ticketSummary: TicketSummary) => {
         if (!localStorage.getItem('token')) {
             setError("Error de autenticación. Por favor, recargue la página.");
             return;
         }
+
         setSelectedTicket(null);
         setIsModalOpen(true);
         try {
-            // --- CORRECCIÓN CLAVE AQUÍ ---
-            // Usamos ticketSummary.tipo en lugar de userRubro para construir la URL.
-            // Cada ticket ya sabe su propio tipo ('municipio' o 'pyme').
+            // Usamos ticketSummary.tipo que viene en los datos de cada ticket
             const detailedTicket = await apiFetch<Ticket>(`/tickets/${ticketSummary.tipo}/${ticketSummary.id}`);
             setSelectedTicket(detailedTicket);
         } catch (err) {
@@ -99,18 +95,13 @@ export default function TicketsPanel() {
             setError(errorMessage);
             setIsModalOpen(false);
         }
-    }, []); // Ya no dependemos de 'userRubro', por lo que lo quitamos del array de dependencias.
+    }, []); // El array de dependencias vacío es correcto aquí
 
     const handleTicketUpdate = (updatedTicket: Ticket) => {
         setSelectedTicket(updatedTicket);
-        // Opcional: Refrescar la lista principal para reflejar cambios de estado
         const fetchTickets = async () => {
-            try {
-                const data = await apiFetch<CategorizedTickets>('/tickets/panel_por_categoria');
-                setCategorizedTickets(data);
-            } catch (error) {
-                console.error("No se pudo refrescar la lista de tickets.", error);
-            }
+            const data = await apiFetch<CategorizedTickets>('/tickets/panel_por_categoria');
+            setCategorizedTickets(data);
         }
         fetchTickets();
     };
@@ -134,7 +125,7 @@ export default function TicketsPanel() {
                 )}
             </div>
             
-            {/* --- DIÁLOGO CORREGIDO PARA ACCESIBILIDAD --- */}
+            {/* CORRECCIÓN DE ACCESIBILIDAD PARA EL DIÁLOGO */}
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
                 <DialogContent className="max-w-4xl w-[95vw] h-[90vh] flex flex-col p-0 gap-0">
                     {selectedTicket ? (
@@ -159,7 +150,7 @@ export default function TicketsPanel() {
     );
 }
 
-// --- SUB-COMPONENTE ACORDEÓN ---
+// --- SUB-COMPONENTE ACORDEÓN (Sin cambios) ---
 const TicketCategoryAccordion: FC<{ category: string; tickets: TicketSummary[]; onSelectTicket: (ticket: TicketSummary) => void; isOpen: boolean; onToggle: () => void; }> = ({ category, tickets, onSelectTicket, isOpen, onToggle }) => (
     <motion.div layout className="bg-card dark:bg-slate-800/80 border border-border dark:border-slate-700 rounded-xl shadow-md overflow-hidden" initial={{ borderRadius: 12 }}>
         <motion.header layout initial={false} onClick={onToggle} className="p-4 flex justify-between items-center cursor-pointer hover:bg-muted/50 dark:hover:bg-slate-700/50 transition-colors">
@@ -185,7 +176,7 @@ const TicketCategoryAccordion: FC<{ category: string; tickets: TicketSummary[]; 
     </motion.div>
 );
 
-// --- SUB-COMPONENTE PARA EL DETALLE DEL TICKET (AHORA MÁS LIMPIO) ---
+// --- SUB-COMPONENTE DETALLE (Sin DialogHeader) ---
 const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => void }> = ({ ticket, onTicketUpdate }) => {
     const [newMessage, setNewMessage] = useState("");
     const [isSending, setIsSending] = useState(false);
@@ -195,7 +186,6 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
         if (!newMessage.trim() || isSending) return;
         setIsSending(true);
         try {
-            // La URL para comentar es relativa al ticket, así que no necesita el tipo
             const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}/responder`, { method: 'POST', body: { comentario: newMessage } });
             onTicketUpdate(updatedTicket);
             setNewMessage("");
@@ -204,7 +194,6 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
     
     const handleEstadoChange = async (nuevoEstado: TicketStatus) => {
         try {
-            // La URL para cambiar estado también es relativa al ticket
             const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}/estado`, { method: 'PUT', body: { estado: nuevoEstado } });
             onTicketUpdate(updatedTicket);
         } catch (error) { console.error("Error al cambiar estado", error); }
@@ -215,7 +204,6 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
     }, [ticket.comentarios]);
 
     return (
-        // Se ha eliminado el DialogHeader de aquí
         <div className="flex-1 grid grid-cols-1 md:grid-cols-3 overflow-hidden">
             <div className="md:col-span-2 flex flex-col overflow-hidden">
                 <main className="flex-1 p-4 space-y-4 overflow-y-auto custom-scroll">
