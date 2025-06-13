@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, FC, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Loader2, Send, Ticket as TicketIcon, ChevronDown, ChevronUp, User, ShieldCheck } from "lucide-react";
+import { Loader2, Send, Ticket as TicketIcon, ChevronDown, ChevronUp, User, ShieldCheck, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { apiFetch, ApiError } from "@/utils/api";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +24,9 @@ interface Ticket {
     comentarios?: Comment[];
     nombre_usuario?: string;
     email_usuario?: string;
+    telefono?: string;
+    direccion?: string;
+    archivo_url?: string;
 }
 interface TicketSummary extends Omit<Ticket, 'detalles' | 'comentarios'> {
     direccion?: string;
@@ -39,7 +42,11 @@ const ESTADOS: Record<TicketStatus, { label: string; tailwind_class: string }> =
     cerrado: { label: "Cerrado", tailwind_class: "bg-gray-500/20 text-gray-500 border-gray-500/30" },
 };
 
-function fechaCorta(iso: string) { if (!iso) return ""; const d = new Date(iso); return `${d.getDate().toString().padStart(2, "0")}/${(d.getMonth() + 1).toString().padStart(2, "0")} ${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`; }
+function fechaCorta(iso: string) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    return `${d.getDate().toString().padStart(2, "0")}/${(d.getMonth() + 1).toString().padStart(2, "0")} ${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
+}
 
 export default function TicketsPanel() {
     const [categorizedTickets, setCategorizedTickets] = useState<CategorizedTickets>({});
@@ -56,7 +63,6 @@ export default function TicketsPanel() {
                 setIsLoading(false);
                 return;
             }
-
             try {
                 const data = await apiFetch<CategorizedTickets>('/tickets/panel_por_categoria');
                 setCategorizedTickets(data);
@@ -68,7 +74,6 @@ export default function TicketsPanel() {
                 setIsLoading(false);
             }
         };
-
         fetchInitialData();
     }, []);
 
@@ -86,7 +91,6 @@ export default function TicketsPanel() {
             setError("Error de autenticación. Por favor, recargue la página.");
             return;
         }
-
         setSelectedTicket(null);
         setIsModalOpen(true);
         try {
@@ -111,7 +115,7 @@ export default function TicketsPanel() {
         }
         fetchTickets();
     };
-    
+
     if (isLoading) return <div className="p-8 text-center"><Loader2 className="animate-spin text-primary mx-auto h-10 w-10" /></div>;
     if (error) return <div className="p-8 text-center text-destructive bg-destructive/10 rounded-md">{error}</div>;
 
@@ -123,18 +127,29 @@ export default function TicketsPanel() {
             </header>
             <div className="w-full max-w-7xl mx-auto space-y-4">
                 {Object.keys(categorizedTickets).length === 0 && !isLoading ? (
-                    <div className="text-center py-10 px-4 bg-card rounded-lg shadow-sm"><TicketIcon className="mx-auto h-12 w-12 text-muted-foreground" /><h3 className="mt-2 text-sm font-medium text-foreground">No hay tickets activos</h3><p className="mt-1 text-sm text-muted-foreground">Cuando se genere un nuevo reclamo, aparecerá aquí.</p></div>
+                    <div className="text-center py-10 px-4 bg-card rounded-lg shadow-sm">
+                        <TicketIcon className="mx-auto h-12 w-12 text-muted-foreground" />
+                        <h3 className="mt-2 text-sm font-medium text-foreground">No hay tickets activos</h3>
+                        <p className="mt-1 text-sm text-muted-foreground">Cuando se genere un nuevo reclamo, aparecerá aquí.</p>
+                    </div>
                 ) : (
                     Object.entries(categorizedTickets).map(([category, tickets]) => (
-                        <TicketCategoryAccordion key={category} category={category} tickets={tickets} onSelectTicket={handleSelectTicket} isOpen={openCategories.has(category)} onToggle={() => toggleCategory(category)} />
+                        <TicketCategoryAccordion
+                            key={category}
+                            category={category}
+                            tickets={tickets}
+                            onSelectTicket={handleSelectTicket}
+                            isOpen={openCategories.has(category)}
+                            onToggle={() => toggleCategory(category)}
+                        />
                     ))
                 )}
             </div>
-            
+
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
                 {selectedTicket && (
                     <DialogContent className="max-w-4xl w-[95vw] h-[90vh] flex flex-col p-0 gap-0">
-                        <DialogHeader className="p-4 border-b border-border sticky top-0 bg-card z-10">
+                        <DialogHeader className="p-4 border-b border-border sticky top-0 bg-card z-10 relative">
                             <DialogTitle className="flex items-center gap-3">
                                 <TicketIcon className="text-primary h-6 w-6"/>
                                 <span className="truncate">Ticket #{selectedTicket.nro_ticket} - {selectedTicket.asunto}</span>
@@ -142,6 +157,15 @@ export default function TicketsPanel() {
                             <DialogDescription className="pt-2 text-left">
                                 Gestioná el historial completo del ticket desde este panel.
                             </DialogDescription>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setIsModalOpen(false)}
+                                className="absolute right-3 top-3"
+                                aria-label="Cerrar"
+                            >
+                                <X className="h-6 w-6" />
+                            </Button>
                         </DialogHeader>
                         <TicketDetail ticket={selectedTicket} onTicketUpdate={handleTicketUpdate} />
                     </DialogContent>
@@ -152,10 +176,14 @@ export default function TicketsPanel() {
 }
 
 // --- SUB-COMPONENTE ACORDEÓN ---
-const TicketCategoryAccordion: FC<{ category: string; tickets: TicketSummary[]; onSelectTicket: (ticket: TicketSummary) => void; isOpen: boolean; onToggle: () => void; }> = ({ category, tickets, onSelectTicket, isOpen, onToggle }) => (
+const TicketCategoryAccordion: FC<{ category: string; tickets: TicketSummary[]; onSelectTicket: (ticket: TicketSummary) => void; isOpen: boolean; onToggle: () => void; }> =
+({ category, tickets, onSelectTicket, isOpen, onToggle }) => (
     <motion.div layout className="bg-card dark:bg-slate-800/80 border border-border dark:border-slate-700 rounded-xl shadow-md overflow-hidden" initial={{ borderRadius: 12 }}>
         <motion.header layout initial={false} onClick={onToggle} className="p-4 flex justify-between items-center cursor-pointer hover:bg-muted/50 dark:hover:bg-slate-700/50 transition-colors">
-            <div className="flex items-center gap-3"><h2 className="font-semibold text-lg text-foreground">{category}</h2><Badge variant="secondary" className="dark:bg-slate-600 dark:text-slate-200">{tickets.length}</Badge></div>
+            <div className="flex items-center gap-3">
+                <h2 className="font-semibold text-lg text-foreground">{category}</h2>
+                <Badge variant="secondary" className="dark:bg-slate-600 dark:text-slate-200">{tickets.length}</Badge>
+            </div>
             {isOpen ? <ChevronUp className="text-muted-foreground" /> : <ChevronDown className="text-muted-foreground" />}
         </motion.header>
         <AnimatePresence>
@@ -164,7 +192,10 @@ const TicketCategoryAccordion: FC<{ category: string; tickets: TicketSummary[]; 
                     <div className="p-2 sm:p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 border-t border-border dark:border-slate-700">
                         {tickets.map(ticket => (
                             <div key={ticket.id} onClick={() => onSelectTicket(ticket)} className="bg-background dark:bg-slate-800/50 p-3 rounded-lg border border-border dark:border-slate-700/50 cursor-pointer hover:border-primary dark:hover:border-primary transition-all shadow-sm hover:shadow-lg hover:-translate-y-1">
-                                <div className="flex justify-between items-center mb-1"><span className="font-semibold text-primary text-sm">#{ticket.nro_ticket}</span><Badge className={cn("text-xs border", ESTADOS[ticket.estado as TicketStatus]?.tailwind_class)}>{ESTADOS[ticket.estado as TicketStatus]?.label}</Badge></div>
+                                <div className="flex justify-between items-center mb-1">
+                                    <span className="font-semibold text-primary text-sm">#{ticket.nro_ticket}</span>
+                                    <Badge className={cn("text-xs border", ESTADOS[ticket.estado as TicketStatus]?.tailwind_class)}>{ESTADOS[ticket.estado as TicketStatus]?.label}</Badge>
+                                </div>
                                 <p className="font-medium text-foreground truncate" title={ticket.asunto}>{ticket.asunto}</p>
                                 {ticket.direccion && <p className="text-xs text-muted-foreground truncate" title={ticket.direccion}>{ticket.direccion}</p>}
                                 <p className="text-xs text-muted-foreground text-right mt-1">{fechaCorta(ticket.fecha)}</p>
@@ -192,7 +223,7 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
             setNewMessage("");
         } catch (error) { console.error("Error al enviar comentario", error); } finally { setIsSending(false); }
     };
-    
+
     const handleEstadoChange = async (nuevoEstado: TicketStatus) => {
         try {
             const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}/estado`, { method: 'PUT', body: { estado: nuevoEstado } });
@@ -221,14 +252,65 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
                     <div ref={chatBottomRef} />
                 </main>
                 <footer className="border-t border-border p-3 flex gap-2 bg-card">
-                    <Input value={newMessage} onChange={(e) => setNewMessage(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()} placeholder="Escribe una respuesta como administrador..." disabled={isSending} className="bg-background"/>
-                    <Button onClick={handleSendMessage} disabled={isSending || !newMessage.trim()} aria-label="Enviar Mensaje">{isSending ? <Loader2 className="animate-spin" /> : <Send />}</Button>
+                    <Input
+                        value={newMessage}
+                        onChange={(e) => setNewMessage(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) handleSendMessage();
+                        }}
+                        placeholder="Escribe una respuesta como administrador..."
+                        disabled={isSending}
+                        className="bg-background"
+                    />
+                    <Button onClick={handleSendMessage} disabled={isSending || !newMessage.trim()} aria-label="Enviar Mensaje">
+                        {isSending ? <Loader2 className="animate-spin" /> : <Send />}
+                    </Button>
                 </footer>
             </div>
             <aside className="md:col-span-1 border-l border-border bg-muted/30 p-4 space-y-6 overflow-y-auto custom-scroll">
-                <Card><CardHeader className="pb-2"><CardTitle className="text-base">Estado del Ticket</CardTitle></CardHeader><CardContent><Select onValueChange={handleEstadoChange} defaultValue={ticket.estado}><SelectTrigger className="w-full"><SelectValue placeholder="Cambiar estado..." /></SelectTrigger><SelectContent>{Object.entries(ESTADOS).map(([key, {label}]) => (<SelectItem key={key} value={key}>{label}</SelectItem>))}</SelectContent></Select></CardContent></Card>
-                <Card><CardHeader className="pb-2"><CardTitle className="text-base">Detalles del Reclamo</CardTitle></CardHeader><CardContent className="text-sm text-muted-foreground space-y-1"><p>{ticket.detalles || "No se proveyeron detalles adicionales."}</p></CardContent></Card>
-                {ticket.nombre_usuario && (<Card><CardHeader className="pb-2"><CardTitle className="text-base">Información del Usuario</CardTitle></CardHeader><CardContent className="text-sm text-muted-foreground space-y-1"><p><strong>Nombre:</strong> {ticket.nombre_usuario}</p><p><strong>Email:</strong> {ticket.email_usuario}</p></CardContent></Card>)}
+                <Card>
+                    <CardHeader className="pb-2"><CardTitle className="text-base">Estado del Ticket</CardTitle></CardHeader>
+                    <CardContent>
+                        <Select onValueChange={handleEstadoChange} value={ticket.estado}>
+                            <SelectTrigger className="w-full"><SelectValue placeholder="Cambiar estado..." /></SelectTrigger>
+                            <SelectContent>
+                                {Object.entries(ESTADOS).map(([key, { label }]) => (
+                                    <SelectItem key={key} value={key}>{label}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="pb-2"><CardTitle className="text-base">Detalles del Reclamo</CardTitle></CardHeader>
+                    <CardContent className="text-sm text-muted-foreground space-y-1">
+                        {ticket.detalles
+                            ? ticket.detalles.split('\n').map((line, i) => <p key={i}>{line}</p>)
+                            : <p>No se proveyeron detalles adicionales.</p>
+                        }
+                    </CardContent>
+                </Card>
+                {(ticket.nombre_usuario || ticket.email_usuario || ticket.telefono || ticket.direccion) && (
+                    <Card>
+                        <CardHeader className="pb-2"><CardTitle className="text-base">Información del Usuario</CardTitle></CardHeader>
+                        <CardContent className="text-sm text-muted-foreground space-y-1">
+                            {ticket.nombre_usuario && <p><strong>Nombre:</strong> {ticket.nombre_usuario}</p>}
+                            {ticket.email_usuario && <p><strong>Email:</strong> {ticket.email_usuario}</p>}
+                            {ticket.telefono && <p><strong>Teléfono:</strong> {ticket.telefono}</p>}
+                            {ticket.direccion && <p><strong>Dirección:</strong> {ticket.direccion}</p>}
+                        </CardContent>
+                    </Card>
+                )}
+                {ticket.archivo_url && (
+                    <Card>
+                        <CardHeader className="pb-2"><CardTitle className="text-base">Archivo adjunto</CardTitle></CardHeader>
+                        <CardContent>
+                            <a href={ticket.archivo_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
+                                Descargar archivo
+                            </a>
+                        </CardContent>
+                    </Card>
+                )}
             </aside>
         </div>
     );
