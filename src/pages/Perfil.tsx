@@ -84,7 +84,6 @@ export default function Perfil() {
                 rubro: data.rubro?.toLowerCase() || "", logo_url: data.logo_url || "", horarios_ui: horariosUi,
             }));
             
-            // Sincronizar localStorage con datos frescos del backend
             const storedUserString = localStorage.getItem("user");
             let parsedUserFromLS: { id?: number; name?: string; email?: string; token?: string; rubro?: string } | null = null;
             try {
@@ -209,9 +208,9 @@ export default function Perfil() {
     };
 
     const porcentaje = perfil.limite_preguntas > 0 ? Math.min((perfil.preguntas_usadas / perfil.limite_preguntas) * 100, 100) : 0;
-    // Corregimos aquí también para que el avatar sea correcto
     const avatarEmoji = RUBRO_AVATAR[perfil.rubro] || RUBRO_AVATAR.default;
-
+    
+    // La variable esMunicipio sigue siendo útil para el botón "Ver Pedidos"
     const esMunicipio = perfil.rubro === 'municipios';
 
     return (
@@ -239,7 +238,6 @@ export default function Perfil() {
                         Ver Tickets
                     </Button>
 
-                    {/* --- CORRECCIÓN #1: El botón "Ver Pedidos" solo se muestra si NO es municipio --- */}
                     {!esMunicipio && (
                         <Button
                             variant="outline"
@@ -267,6 +265,7 @@ export default function Perfil() {
                         <CardHeader><CardTitle className="text-xl font-semibold text-primary">Datos de tu Empresa</CardTitle></CardHeader>
                         <CardContent>
                             <form onSubmit={handleGuardar} className="space-y-6">
+                                {/* ... Tu formulario sigue aquí igual que antes ... */}
                                 <div>
                                     <Label htmlFor="nombre_empresa" className="text-muted-foreground text-sm mb-1 block">Nombre de la empresa*</Label>
                                     <Input id="nombre_empresa" value={perfil.nombre_empresa} onChange={handleInputChange} required className="bg-input border-input text-foreground"/>
@@ -297,7 +296,7 @@ export default function Perfil() {
                                             placeholder="Ej: Av. San Martín 123, Mendoza"
                                         />
                                     ) : (
-                                        <Input id="direccion" value={perfil.direccion} onChange={handleInputChange} placeholder="Clave de Google Maps no configurada. Ingrese dirección manualmente." className="bg-input border-input text-foreground placeholder-destructive" required />
+                                        <Input id="direccion" value={perfil.direccion} onChange={handleInputChange} placeholder="Clave de Google Maps no configurada. Ingrese dirección manually." className="bg-input border-input text-foreground placeholder-destructive" required />
                                     )}
                                 </div>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -358,7 +357,6 @@ export default function Perfil() {
                 
                 {/* Columna Derecha (Plan y Catálogo) */}
                 <div className="flex flex-col gap-6 md:gap-8">
-                    {/* Card Plan y Uso */}
                     <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm">
                         <CardHeader>
                             <CardTitle className="text-lg font-semibold text-primary">Plan y Uso</CardTitle>
@@ -380,8 +378,8 @@ export default function Perfil() {
                                 </div>
                             </div>
                             
-                            {/* --- CORRECCIÓN #2: Los botones para mejorar plan solo se muestran si NO es municipio --- */}
-                            {!esMunicipio && perfil.plan !== "full" && perfil.plan !== "pro" && (
+                            {/* --- CORRECCIÓN: Se quita la condición !esMunicipio para que esta sección sea siempre visible --- */}
+                            {perfil.plan !== "full" && perfil.plan !== "pro" && (
                                 <div className="space-y-2 mt-3">
                                     <Button
                                         className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
@@ -411,57 +409,55 @@ export default function Perfil() {
                         </CardContent>
                     </Card>
 
-                    {/* --- CORRECCIÓN #3: Las tarjetas de Catálogo e Integración solo se muestran si NO es municipio --- */}
-                    {!esMunicipio && (
-                        <>
-                            <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm">
-                                <CardHeader>
-                                    <CardTitle className="text-lg font-semibold text-primary">Tu Catálogo de Productos</CardTitle>
-                                </CardHeader>
-                                <CardContent className="space-y-4">
-                                    <div>
-                                        <Label htmlFor="catalogoFile" className="text-sm text-muted-foreground mb-1 block">Subir nuevo o actualizar (PDF, Excel, CSV)</Label>
-                                        <Input id="catalogoFile" type="file" accept=".xlsx,.xls,.csv,.pdf" onChange={handleArchivoChange} className="text-muted-foreground file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 cursor-pointer"/>
-                                        <p className="text-xs text-muted-foreground mt-1.5">Tip: Para mayor precisión, usá Excel/CSV con columnas claras (ej: Nombre, Precio, Descripción).</p>
-                                    </div>
-                                    <Button onClick={handleSubirArchivo} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-2.5" disabled={loadingCatalogo || !archivo}>
-                                        <UploadCloud className="w-4 h-4 mr-2" /> {loadingCatalogo ? "Procesando Catálogo..." : "Subir y Procesar Catálogo"}
+                    {/* --- CORRECCIÓN: Se quita la condición !esMunicipio para que estas tarjetas sean siempre visibles --- */}
+                    <>
+                        <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm">
+                            <CardHeader>
+                                <CardTitle className="text-lg font-semibold text-primary">Tu Catálogo de Productos</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div>
+                                    <Label htmlFor="catalogoFile" className="text-sm text-muted-foreground mb-1 block">Subir nuevo o actualizar (PDF, Excel, CSV)</Label>
+                                    <Input id="catalogoFile" type="file" accept=".xlsx,.xls,.csv,.pdf" onChange={handleArchivoChange} className="text-muted-foreground file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 cursor-pointer"/>
+                                    <p className="text-xs text-muted-foreground mt-1.5">Tip: Para mayor precisión, usá Excel/CSV con columnas claras (ej: Nombre, Precio, Descripción).</p>
+                                </div>
+                                <Button onClick={handleSubirArchivo} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-2.5" disabled={loadingCatalogo || !archivo}>
+                                    <UploadCloud className="w-4 h-4 mr-2" /> {loadingCatalogo ? "Procesando Catálogo..." : "Subir y Procesar Catálogo"}
+                                </Button>
+                                {resultadoCatalogo && ( <div className={`text-sm p-3 rounded-md flex items-center gap-2 ${resultadoCatalogo.type === "error" ? 'bg-destructive text-destructive-foreground' : 'bg-green-100 text-green-800'}`}>
+                                    {resultadoCatalogo.type === "error" ? <XCircle className="w-5 h-5"/> : <CheckCircle className="w-5 h-5"/>} {resultadoCatalogo.message}
+                                </div>)}
+                            </CardContent>
+                        </Card>
+                        <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm">
+                            <CardHeader>
+                                <CardTitle className="text-lg font-semibold text-primary">Integrá Chatboc a tu web</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-3">
+                                {(perfil.plan === "pro" || perfil.plan === "full") ? (
+                                    <Button
+                                        className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
+                                        onClick={() => navigate("/integracion")}
+                                    >
+                                        Ir a la guía de integración
                                     </Button>
-                                    {resultadoCatalogo && ( <div className={`text-sm p-3 rounded-md flex items-center gap-2 ${resultadoCatalogo.type === "error" ? 'bg-destructive text-destructive-foreground' : 'bg-green-100 text-green-800'}`}>
-                                        {resultadoCatalogo.type === "error" ? <XCircle className="w-5 h-5"/> : <CheckCircle className="w-5 h-5"/>} {resultadoCatalogo.message}
-                                    </div>)}
-                                </CardContent>
-                            </Card>
-                            <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm">
-                                <CardHeader>
-                                    <CardTitle className="text-lg font-semibold text-primary">Integrá Chatboc a tu web</CardTitle>
-                                </CardHeader>
-                                <CardContent className="space-y-3">
-                                    {(perfil.plan === "pro" || perfil.plan === "full") ? (
-                                        <Button
-                                            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
-                                            onClick={() => navigate("/integracion")}
-                                        >
-                                            Ir a la guía de integración
-                                        </Button>
-                                    ) : (
-                                        <Button
-                                            className="w-full bg-muted text-muted-foreground cursor-not-allowed"
-                                            disabled
-                                            title="Solo para clientes con Plan PRO o FULL"
-                                            style={{ pointerEvents: 'none' }}
-                                        >
-                                            Plan PRO requerido para activar integración
-                                        </Button>
-                                    )}
-                                    <div className="text-xs text-muted-foreground mt-2">
-                                        Accedé a los códigos e instrucciones para pegar el widget de Chatboc en tu web solo si tu plan es PRO o superior.<br />
-                                        Cualquier duda, escribinos a <a href="mailto:soporte@chatboc.ar" className="underline text-primary">soporte@chatboc.ar</a>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        </>
-                    )}
+                                ) : (
+                                    <Button
+                                        className="w-full bg-muted text-muted-foreground cursor-not-allowed"
+                                        disabled
+                                        title="Solo para clientes con Plan PRO o FULL"
+                                        style={{ pointerEvents: 'none' }}
+                                    >
+                                        Plan PRO requerido para activar integración
+                                    </Button>
+                                )}
+                                <div className="text-xs text-muted-foreground mt-2">
+                                    Accedé a los códigos e instrucciones para pegar el widget de Chatboc en tu web solo si tu plan es PRO o superior.<br />
+                                    Cualquier duda, escribinos a <a href="mailto:soporte@chatboc.ar" className="underline text-primary">soporte@chatboc.ar</a>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </>
                 </div>
             </div>
         </div>
