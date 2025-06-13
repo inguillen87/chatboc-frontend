@@ -131,12 +131,7 @@ export default function TicketsPanel() {
                 )}
             </div>
             
-       {/* --- ESTRUCTURA DEL DIÁLOGO FINAL Y A PRUEBA DE ERRORES --- */}
-             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-                
-                {/* --- SOLUCIÓN FINAL Y SIMPLIFICADA --- */}
-                {/* Solo mostramos el contenido del modal CUANDO selectedTicket tiene datos. */}
-                {/* Esto previene cualquier error de renderizado o accesibilidad. */}
+            <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
                 {selectedTicket && (
                     <DialogContent className="max-w-4xl w-[95vw] h-[90vh] flex flex-col p-0 gap-0">
                         <DialogHeader className="p-4 border-b border-border sticky top-0 bg-card z-10">
@@ -156,7 +151,7 @@ export default function TicketsPanel() {
     );
 }
 
-// --- SUB-COMPONENTE ACORDEÓN (Sin cambios) ---
+// --- SUB-COMPONENTE ACORDEÓN ---
 const TicketCategoryAccordion: FC<{ category: string; tickets: TicketSummary[]; onSelectTicket: (ticket: TicketSummary) => void; isOpen: boolean; onToggle: () => void; }> = ({ category, tickets, onSelectTicket, isOpen, onToggle }) => (
     <motion.div layout className="bg-card dark:bg-slate-800/80 border border-border dark:border-slate-700 rounded-xl shadow-md overflow-hidden" initial={{ borderRadius: 12 }}>
         <motion.header layout initial={false} onClick={onToggle} className="p-4 flex justify-between items-center cursor-pointer hover:bg-muted/50 dark:hover:bg-slate-700/50 transition-colors">
@@ -182,7 +177,7 @@ const TicketCategoryAccordion: FC<{ category: string; tickets: TicketSummary[]; 
     </motion.div>
 );
 
-// --- SUB-COMPONENTE DETALLE (CON CORRECCIÓN FINAL DE CSS) ---
+// --- SUB-COMPONENTE DETALLE ---
 const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => void }> = ({ ticket, onTicketUpdate }) => {
     const [newMessage, setNewMessage] = useState("");
     const [isSending, setIsSending] = useState(false);
@@ -210,9 +205,7 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
     }, [ticket.comentarios]);
 
     return (
-        // CAMBIO #1: Se quitó 'overflow-hidden' de esta línea
         <div className="flex-1 grid grid-cols-1 md:grid-cols-3">
-            {/* CAMBIO #2: Se quitó 'overflow-hidden' también de esta línea */}
             <div className="md:col-span-2 flex flex-col">
                 <main className="flex-1 p-4 space-y-4 overflow-y-auto custom-scroll">
                     {ticket.comentarios?.map((comment) => (
@@ -240,3 +233,10 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
         </div>
     );
 };
+
+// --- ESTE ES EL COMPONENTE QUE FALTABA ---
+const AvatarIcon: FC<{ type: 'user' | 'admin' }> = ({ type }) => (
+    <div className={cn('h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0', type === 'admin' ? 'bg-primary/20 text-primary' : 'bg-muted-foreground/20 text-muted-foreground')}>
+        {type === 'admin' ? <ShieldCheck className="h-5 w-5" /> : <User className="h-5 w-5" />}
+    </div>
+);
