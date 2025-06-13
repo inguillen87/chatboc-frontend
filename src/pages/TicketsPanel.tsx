@@ -5,7 +5,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { apiFetch, ApiError } from "@/utils/api";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+// No necesitamos Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription aquí.
+// Pero las mantengo comentadas si las necesitas para otros componentes.
+// import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -50,10 +52,10 @@ function fechaCorta(iso: string) {
 
 export default function TicketsPanel() {
     const [categorizedTickets, setCategorizedTickets] = useState<CategorizedTickets>({});
-    const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
+    const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null); // Nuevo estado para el ID del ticket seleccionado
+    const [detailedTicket, setDetailedTicket] = useState<Ticket | null>(null); // Nuevo estado para el ticket con detalles
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [isModalOpen, setIsModalOpen] = useState(false);
     const [openCategories, setOpenCategories] = useState<Set<string>>(new Set());
 
     useEffect(() => {
@@ -85,39 +87,47 @@ export default function TicketsPanel() {
         });
     };
 
-    const handleSelectTicket = useCallback(async (ticketSummary: TicketSummary) => {
+    // Nueva función para cargar los detalles del ticket y establecerlo como el ticket a mostrar
+    const loadAndSetDetailedTicket = useCallback(async (ticketSummary: TicketSummary) => {
         const token = localStorage.getItem('authToken');
         if (!token) {
             setError("Error de autenticación. Por favor, recargue la página.");
             return;
         }
-        setSelectedTicket(null);
-        setIsModalOpen(true);
-        try {
-            const detailedTicket = await apiFetch<Ticket>(`/tickets/${ticketSummary.tipo}/${ticketSummary.id}`);
-            setSelectedTicket(detailedTicket);
-        } catch (err) {
-            const errorMessage = err instanceof ApiError ? err.message : `No se pudo cargar el detalle del ticket.`;
-            setError(errorMessage);
-            setIsModalOpen(false);
+        // Si el ticket ya está abierto, lo cerramos
+        if (selectedTicketId === ticketSummary.id) {
+            setSelectedTicketId(null);
+            setDetailedTicket(null);
+            return;
         }
-    }, []);
 
-    const handleTicketUpdate = (updatedTicket: Ticket) => {
-        setSelectedTicket(updatedTicket);
-        const fetchTickets = async () => {
-            try {
-                const data = await apiFetch<CategorizedTickets>('/tickets/panel_por_categoria');
-                setCategorizedTickets(data);
-            } catch (error) {
-                console.error("No se pudo refrescar la lista de tickets.", error);
-            }
+        setSelectedTicketId(ticketSummary.id); // Establece el ID del ticket que queremos expandir
+        setDetailedTicket(null); // Limpia los detalles anteriores mientras carga el nuevo
+        setError(null); // Limpia errores anteriores
+
+        try {
+            // Se asume que el tipo en ticketSummary es correcto ('municipio' o 'pyme')
+            const data = await apiFetch<Ticket>(`/tickets/${ticketSummary.tipo}/${ticketSummary.id}`);
+            setDetailedTicket(data);
+        } catch (err) {
+            const errorMessage = err instanceof ApiError ? err.message : `No se pudo cargar el detalle del ticket ${ticketSummary.nro_ticket}.`;
+            setError(errorMessage);
+            setSelectedTicketId(null); // Si falla, colapsa la sección
         }
-        fetchTickets();
+    }, [selectedTicketId]); // selectedTicketId en dependencias para saber si lo estamos cerrando o abriendo
+
+
+    // Esta función se pasa al TicketDetail para que pueda actualizar el padre
+    const handleTicketDetailUpdate = (updatedTicket: Ticket) => {
+        setDetailedTicket(updatedTicket); // Actualiza el ticket detallado en el estado
+        // Opcional: Si quieres refrescar la lista general de tickets después de una actualización
+        // const fetchTickets = async () => { /* ... */ }; fetchTickets();
     };
 
+
     if (isLoading) return <div className="p-8 text-center"><Loader2 className="animate-spin text-primary mx-auto h-10 w-10" /></div>;
-    if (error) return <div className="p-8 text-center text-destructive bg-destructive/10 rounded-md">{error}</div>;
+    if (error && !selectedTicketId) return <div className="p-8 text-center text-destructive bg-destructive/10 rounded-md">{error}</div>;
+
 
     return (
         <div className="flex flex-col min-h-screen bg-muted/20 dark:bg-slate-900 text-foreground p-4 sm:p-6 md:p-8">
@@ -138,51 +148,34 @@ export default function TicketsPanel() {
                             key={category}
                             category={category}
                             tickets={tickets}
-                            onSelectTicket={handleSelectTicket}
+                            onSelectTicket={loadAndSetDetailedTicket} // Usamos la nueva función aquí
                             isOpen={openCategories.has(category)}
                             onToggle={() => toggleCategory(category)}
+                            selectedTicketId={selectedTicketId} // Pasamos el ID del ticket seleccionado
+                            detailedTicket={detailedTicket} // Pasamos el ticket detallado
+                            onTicketDetailUpdate={handleTicketDetailUpdate} // Pasamos la función de actualización
+                            // Aquí ya no hay modal, por lo tanto no se abre/cierra Dialog
                         />
                     ))
                 )}
             </div>
-
-            <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-                {selectedTicket && (
-                    // CÓDIGO MODIFICADO AQUÍ PARA EL DialogContent
-                    // Hemos quitado h-[90vh], p-0, gap-0 y hemos añadido una altura mínima flexible (min-h-[80vh])
-                    // y un control de desbordamiento (overflow-hidden) para el DialogContent.
-                    // Los paddings se definen de manera más estándar.
-                    <DialogContent className="max-w-4xl w-[95vw] flex flex-col min-h-[80vh] overflow-hidden p-0 sm:p-0 md:p-0 lg:p-0">
-                        <DialogHeader className="p-4 border-b border-border sticky top-0 bg-card z-10 relative">
-                            <DialogTitle className="flex items-center gap-3">
-                                <TicketIcon className="text-primary h-6 w-6"/>
-                                <span className="truncate">Ticket #{selectedTicket.nro_ticket} - {selectedTicket.asunto}</span>
-                            </DialogTitle>
-                            <DialogDescription className="pt-2 text-left">
-                                Gestioná el historial completo del ticket desde este panel.
-                            </DialogDescription>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => setIsModalOpen(false)}
-                                className="absolute right-3 top-3"
-                                aria-label="Cerrar"
-                            >
-                                <X className="h-6 w-6" />
-                            </Button>
-                        </DialogHeader>
-                        {/* El TicketDetail tiene flex-1, por lo que crecerá y se hará scrollable si es necesario */}
-                        <TicketDetail ticket={selectedTicket} onTicketUpdate={handleTicketUpdate} />
-                    </DialogContent>
-                )}
-            </Dialog>
+            {/* EL DIALOG HA SIDO REMOVIDO COMPLETAMENTE DE AQUÍ */}
         </div>
     );
 }
 
-// --- SUB-COMPONENTE ACORDEÓN ---
-const TicketCategoryAccordion: FC<{ category: string; tickets: TicketSummary[]; onSelectTicket: (ticket: TicketSummary) => void; isOpen: boolean; onToggle: () => void; }> =
-({ category, tickets, onSelectTicket, isOpen, onToggle }) => (
+// --- SUB-COMPONENTE ACORDEÓN DE CATEGORÍAS ---
+// Este componente ahora también maneja la expansión de tickets individuales
+const TicketCategoryAccordion: FC<{
+    category: string;
+    tickets: TicketSummary[];
+    onSelectTicket: (ticket: TicketSummary) => void;
+    isOpen: boolean;
+    onToggle: () => void;
+    selectedTicketId: number | null; // El ID del ticket que está abierto para detalle
+    detailedTicket: Ticket | null; // El objeto completo del ticket detallado
+    onTicketDetailUpdate: (ticket: Ticket) => void; // Función para actualizar el detalle
+}> = ({ category, tickets, onSelectTicket, isOpen, onToggle, selectedTicketId, detailedTicket, onTicketDetailUpdate }) => (
     <motion.div layout className="bg-card dark:bg-slate-800/80 border border-border dark:border-slate-700 rounded-xl shadow-md overflow-hidden" initial={{ borderRadius: 12 }}>
         <motion.header layout initial={false} onClick={onToggle} className="p-4 flex justify-between items-center cursor-pointer hover:bg-muted/50 dark:hover:bg-slate-700/50 transition-colors">
             <div className="flex items-center gap-3">
@@ -196,15 +189,48 @@ const TicketCategoryAccordion: FC<{ category: string; tickets: TicketSummary[]; 
                 <motion.section key="content" initial="collapsed" animate="open" exit="collapsed" variants={{ open: { opacity: 1, height: "auto" }, collapsed: { opacity: 0, height: 0 } }} transition={{ duration: 0.3, ease: "easeInOut" }} className="overflow-hidden">
                     <div className="p-2 sm:p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 border-t border-border dark:border-slate-700">
                         {tickets.map(ticket => (
-                            <div key={ticket.id} onClick={() => onSelectTicket(ticket)} className="bg-background dark:bg-slate-800/50 p-3 rounded-lg border border-border dark:border-slate-700/50 cursor-pointer hover:border-primary dark:hover:border-primary transition-all shadow-sm hover:shadow-lg hover:-translate-y-1">
-                                <div className="flex justify-between items-center mb-1">
-                                    <span className="font-semibold text-primary text-sm">#{ticket.nro_ticket}</span>
-                                    <Badge className={cn("text-xs border", ESTADOS[ticket.estado as TicketStatus]?.tailwind_class)}>{ESTADOS[ticket.estado as TicketStatus]?.label}</Badge>
+                            <React.Fragment key={ticket.id}>
+                                <div
+                                    onClick={() => onSelectTicket(ticket)}
+                                    className={cn(
+                                        "bg-background dark:bg-slate-800/50 p-3 rounded-lg border border-border dark:border-slate-700/50 cursor-pointer transition-all shadow-sm",
+                                        selectedTicketId === ticket.id ? "border-primary dark:border-primary ring-2 ring-primary/50 -translate-y-1" : "hover:border-primary dark:hover:border-primary hover:shadow-lg hover:-translate-y-1",
+                                        // Para que ocupe una columna completa si es el ticket abierto
+                                        selectedTicketId === ticket.id ? "col-span-full" : ""
+                                    )}
+                                >
+                                    <div className="flex justify-between items-center mb-1">
+                                        <span className="font-semibold text-primary text-sm">#{ticket.nro_ticket}</span>
+                                        <Badge className={cn("text-xs border", ESTADOS[ticket.estado as TicketStatus]?.tailwind_class)}>{ESTADOS[ticket.estado as TicketStatus]?.label}</Badge>
+                                    </div>
+                                    <p className="font-medium text-foreground truncate" title={ticket.asunto}>{ticket.asunto}</p>
+                                    {ticket.direccion && <p className="text-xs text-muted-foreground truncate" title={ticket.direccion}>{ticket.direccion}</p>}
+                                    <p className="text-xs text-muted-foreground text-right mt-1">{fechaCorta(ticket.fecha)}</p>
                                 </div>
-                                <p className="font-medium text-foreground truncate" title={ticket.asunto}>{ticket.asunto}</p>
-                                {ticket.direccion && <p className="text-xs text-muted-foreground truncate" title={ticket.direccion}>{ticket.direccion}</p>}
-                                <p className="text-xs text-muted-foreground text-right mt-1">{fechaCorta(ticket.fecha)}</p>
-                            </div>
+                                {/* Si este ticket está seleccionado, muestra sus detalles */}
+                                <AnimatePresence>
+                                    {selectedTicketId === ticket.id && detailedTicket && (
+                                        <motion.div
+                                            key={`detail-${ticket.id}`}
+                                            initial="collapsed"
+                                            animate="open"
+                                            exit="collapsed"
+                                            variants={{ open: { opacity: 1, height: "auto" }, collapsed: { opacity: 0, height: 0 } }}
+                                            transition={{ duration: 0.3, ease: "easeInOut" }}
+                                            className="col-span-full bg-card dark:bg-slate-800/80 rounded-lg p-4 border border-border dark:border-slate-700 shadow-md mt-2"
+                                        >
+                                            <div className="flex justify-between items-center mb-4">
+                                                <h3 className="text-lg font-bold">Detalle del Ticket #{detailedTicket.nro_ticket}</h3>
+                                                <Button variant="ghost" size="icon" onClick={() => onSelectTicket(ticket)} aria-label="Cerrar detalle">
+                                                    <X className="h-5 w-5" />
+                                                </Button>
+                                            </div>
+                                            {/* Aquí renderizamos el componente TicketDetail */}
+                                            <TicketDetail ticket={detailedTicket} onTicketUpdate={onTicketDetailUpdate} />
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </React.Fragment>
                         ))}
                     </div>
                 </motion.section>
@@ -213,10 +239,11 @@ const TicketCategoryAccordion: FC<{ category: string; tickets: TicketSummary[]; 
     </motion.div>
 );
 
+// --- SUB-COMPONENTE DETALLE DEL TICKET (Mismo código, pero ahora se usa dentro del acordeón) ---
 const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => void }> = ({ ticket, onTicketUpdate }) => {
     const [newMessage, setNewMessage] = useState("");
     const [isSending, setIsSending] = useState(false);
-    const chatBottomRef = useRef<HTMLDivLement>(null);
+    const chatBottomRef = useRef<HTMLDivElement>(null);
 
     // --- POLLING cada 5 segundos ---
     useEffect(() => {
@@ -227,6 +254,7 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
         const fetchComentarios = async () => {
             try {
                 if (ticket.tipo === "municipio") {
+                    // Esta llamada es para refrescar los comentarios
                     const data = await apiFetch(`/tickets/chat/${ticket.id}/mensajes`);
                     if (mounted && data && data.mensajes) {
                         onTicketUpdate({
@@ -241,57 +269,78 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
                     }
                 }
                 // Si querés agregar polling para "pyme", agregalo acá
-            } catch (e) { }
+            } catch (e) {
+                console.error("Error en polling de comentarios:", e);
+            }
         };
 
+        // Inicia el polling solo si estamos viendo el detalle de un ticket específico
         const interval = setInterval(fetchComentarios, 5000);
-        fetchComentarios();
+        fetchComentarios(); // Fetch inicial al montar el componente
 
         return () => {
             mounted = false;
             clearInterval(interval);
         };
-    }, [ticket?.id, ticket?.tipo]); // <-- solo cuando cambia ticket abierto
+    }, [ticket?.id, ticket?.tipo, onTicketUpdate]); // Agregamos onTicketUpdate para evitar advertencias de React
 
-    // --- resto del código igual ---
+
+    // --- Envío de Mensaje ---
     const handleSendMessage = async () => {
         if (!newMessage.trim() || isSending) return;
         setIsSending(true);
         try {
             const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}/responder`, { method: 'POST', body: { comentario: newMessage } });
-            onTicketUpdate(updatedTicket);
+            onTicketUpdate(updatedTicket); // Actualiza el ticket en el estado del padre
             setNewMessage("");
-        } catch (error) { console.error("Error al enviar comentario", error); } finally { setIsSending(false); }
+        } catch (error) {
+            console.error("Error al enviar comentario", error);
+            // Podrías agregar un setError aquí para mostrar un mensaje al usuario
+        } finally {
+            setIsSending(false);
+        }
     };
 
+    // --- Cambio de Estado ---
     const handleEstadoChange = async (nuevoEstado: TicketStatus) => {
         try {
             const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}/estado`, { method: 'PUT', body: { estado: nuevoEstado } });
-            onTicketUpdate(updatedTicket);
-        } catch (error) { console.error("Error al cambiar estado", error); }
+            onTicketUpdate(updatedTicket); // Actualiza el ticket en el estado del padre
+        } catch (error) {
+            console.error("Error al cambiar estado", error);
+            // Podrías agregar un setError aquí para mostrar un mensaje al usuario
+        }
     };
 
+    // --- Scroll al final del chat ---
     useEffect(() => {
         chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, [ticket.comentarios]);
+    }, [ticket.comentarios]); // Se dispara cada vez que los comentarios se actualizan
 
     return (
-        <div className="flex-1 grid grid-cols-1 md:grid-cols-3">
-            <div className="md:col-span-2 flex flex-col">
-                <main className="flex-1 p-4 space-y-4 overflow-y-auto custom-scroll">
-                    {ticket.comentarios?.map((comment) => (
-                        <div key={comment.id} className={cn('flex items-end gap-2', comment.es_admin ? 'justify-end' : 'justify-start')}>
-                            {!comment.es_admin && <AvatarIcon type="user" />}
-                            <div className={cn("max-w-md rounded-lg px-4 py-2", comment.es_admin ? "bg-primary text-primary-foreground rounded-br-none" : "bg-muted text-foreground rounded-bl-none")}>
-                                <p className="text-sm">{comment.comentario}</p>
-                                <p className="text-xs opacity-70 text-right mt-1">{fechaCorta(comment.fecha)}</p>
+        // Usamos flex-grow y un grid de 3 columnas para la disposición del detalle
+        <div className="flex-grow grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="md:col-span-2 flex flex-col h-[calc(100vh-250px)] max-h-[600px]"> {/* Altura ajustada */}
+                <main className="flex-1 p-4 space-y-4 overflow-y-auto custom-scroll border rounded-md bg-background dark:bg-slate-700/50">
+                    {ticket.comentarios && ticket.comentarios.length > 0 ? (
+                        ticket.comentarios.map((comment) => (
+                            <div key={comment.id} className={cn('flex items-end gap-2', comment.es_admin ? 'justify-end' : 'justify-start')}>
+                                {!comment.es_admin && <AvatarIcon type="user" />}
+                                <div className={cn("max-w-md rounded-lg px-4 py-2", comment.es_admin ? "bg-primary text-primary-foreground rounded-br-none" : "bg-muted text-foreground rounded-bl-none")}>
+                                    <p className="text-sm">{comment.comentario}</p>
+                                    <p className="text-xs opacity-70 text-right mt-1">{fechaCorta(comment.fecha)}</p>
+                                </div>
+                                {comment.es_admin && <AvatarIcon type="admin" />}
                             </div>
-                            {comment.es_admin && <AvatarIcon type="admin" />}
+                        ))
+                    ) : (
+                        <div className="text-center text-muted-foreground py-10">
+                            No hay comentarios para este ticket.
                         </div>
-                    ))}
+                    )}
                     <div ref={chatBottomRef} />
                 </main>
-                <footer className="border-t border-border p-3 flex gap-2 bg-card">
+                <footer className="border-t border-border p-3 flex gap-2 bg-card rounded-b-md">
                     <Input
                         value={newMessage}
                         onChange={(e) => setNewMessage(e.target.value)}
@@ -307,7 +356,7 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
                     </Button>
                 </footer>
             </div>
-            <aside className="md:col-span-1 border-l border-border bg-muted/30 p-4 space-y-6 overflow-y-auto custom-scroll">
+            <aside className="md:col-span-1 bg-muted/30 p-4 space-y-6 overflow-y-auto custom-scroll rounded-md border">
                 <Card>
                     <CardHeader className="pb-2"><CardTitle className="text-base">Estado del Ticket</CardTitle></CardHeader>
                     <CardContent>
@@ -357,7 +406,7 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
 };
 
 
-// --- ESTE ES EL COMPONENTE QUE FALTABA ---
+// --- AVATAR ICON COMPONENT ---
 const AvatarIcon: FC<{ type: 'user' | 'admin' }> = ({ type }) => (
     <div className={cn('h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0', type === 'admin' ? 'bg-primary/20 text-primary' : 'bg-muted-foreground/20 text-muted-foreground')}>
         {type === 'admin' ? <ShieldCheck className="h-5 w-5" /> : <User className="h-5 w-5" />}
