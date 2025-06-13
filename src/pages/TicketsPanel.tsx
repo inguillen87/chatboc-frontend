@@ -148,8 +148,11 @@ export default function TicketsPanel() {
 
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
                 {selectedTicket && (
-                    // LA ÚNICA MODIFICACIÓN ESTÁ EN ESTA LÍNEA DE CLASES DEL DialogContent
-                    <DialogContent className="max-w-4xl w-[95vw] flex flex-col p-4 sm:p-6 md:p-8"> 
+                    // CÓDIGO MODIFICADO AQUÍ PARA EL DialogContent
+                    // Hemos quitado h-[90vh], p-0, gap-0 y hemos añadido una altura mínima flexible (min-h-[80vh])
+                    // y un control de desbordamiento (overflow-hidden) para el DialogContent.
+                    // Los paddings se definen de manera más estándar.
+                    <DialogContent className="max-w-4xl w-[95vw] flex flex-col min-h-[80vh] overflow-hidden p-0 sm:p-0 md:p-0 lg:p-0">
                         <DialogHeader className="p-4 border-b border-border sticky top-0 bg-card z-10 relative">
                             <DialogTitle className="flex items-center gap-3">
                                 <TicketIcon className="text-primary h-6 w-6"/>
@@ -168,6 +171,7 @@ export default function TicketsPanel() {
                                 <X className="h-6 w-6" />
                             </Button>
                         </DialogHeader>
+                        {/* El TicketDetail tiene flex-1, por lo que crecerá y se hará scrollable si es necesario */}
                         <TicketDetail ticket={selectedTicket} onTicketUpdate={handleTicketUpdate} />
                     </DialogContent>
                 )}
@@ -212,7 +216,7 @@ const TicketCategoryAccordion: FC<{ category: string; tickets: TicketSummary[]; 
 const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => void }> = ({ ticket, onTicketUpdate }) => {
     const [newMessage, setNewMessage] = useState("");
     const [isSending, setIsSending] = useState(false);
-    const chatBottomRef = useRef<HTMLDivElement>(null);
+    const chatBottomRef = useRef<HTMLDivLement>(null);
 
     // --- POLLING cada 5 segundos ---
     useEffect(() => {
