@@ -132,29 +132,30 @@ export default function TicketsPanel() {
             </div>
             
             {/* --- ESTRUCTURA DEL DIÁLOGO CORREGIDA --- */}
-            <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-                <DialogContent className="max-w-4xl w-[95vw] h-[90vh] flex flex-col p-0 gap-0">
-                    {selectedTicket ? (
-                        <>
-                            <DialogHeader className="p-4 border-b border-border sticky top-0 bg-card z-10">
-                                <DialogTitle className="flex items-center gap-3">
-                                    <TicketIcon className="text-primary h-6 w-6"/>
-                                    <span className="truncate">Ticket #{selectedTicket.nro_ticket} - {selectedTicket.asunto}</span>
-                                </DialogTitle>
-                                <DialogDescription className="pt-2 text-left">
-                                    Gestioná el historial completo del ticket, responde al usuario y cambia su estado desde este panel.
-                                </DialogDescription>
-                            </DialogHeader>
-                            <TicketDetail ticket={selectedTicket} onTicketUpdate={handleTicketUpdate} />
-                        </>
-                    ) : (
-                        <div className="flex items-center justify-center h-full">
-                            <Loader2 className="animate-spin text-primary w-8 h-8"/>
-                            <span className="sr-only">Cargando detalle del ticket...</span>
-                        </div>
-                    )}
-                </DialogContent>
-            </Dialog>
+           <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+    <DialogContent className="max-w-4xl w-[95vw] h-[90vh] flex flex-col p-0 gap-0">
+        
+        {/* LA LÓGICA CLAVE ES ESTA: */}
+        {selectedTicket ? (
+            // Si hay un ticket, se renderiza TODO el contenido, incluyendo el Header
+            <>
+                <DialogHeader className="p-4 border-b border-border sticky top-0 bg-card z-10">
+                    <DialogTitle>Ticket #{selectedTicket.nro_ticket}</DialogTitle>
+                    <DialogDescription>
+                        Detalles del reclamo y conversación.
+                    </DialogDescription>
+                </DialogHeader>
+                <TicketDetail ticket={selectedTicket} onTicketUpdate={handleTicketUpdate} />
+            </>
+        ) : (
+            // Si NO hay un ticket, solo se muestra el cargador
+            <div className="flex items-center justify-center h-full">
+                <Loader2 className="animate-spin text-primary w-8 h-8"/>
+            </div>
+        )}
+
+    </DialogContent>
+</Dialog>
         </div>
     );
 }
