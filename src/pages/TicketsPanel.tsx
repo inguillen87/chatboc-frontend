@@ -148,7 +148,8 @@ export default function TicketsPanel() {
 
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
                 {selectedTicket && (
-                    <DialogContent className="max-w-4xl w-[95vw] h-[90vh] flex flex-col p-0 gap-0">
+                    // LA ÚNICA MODIFICACIÓN ESTÁ EN ESTA LÍNEA DE CLASES DEL DialogContent
+                    <DialogContent className="max-w-4xl w-[95vw] flex flex-col p-4 sm:p-6 md:p-8"> 
                         <DialogHeader className="p-4 border-b border-border sticky top-0 bg-card z-10 relative">
                             <DialogTitle className="flex items-center gap-3">
                                 <TicketIcon className="text-primary h-6 w-6"/>
