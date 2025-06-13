@@ -208,12 +208,47 @@ const TicketCategoryAccordion: FC<{ category: string; tickets: TicketSummary[]; 
     </motion.div>
 );
 
-// --- SUB-COMPONENTE DETALLE ---
 const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => void }> = ({ ticket, onTicketUpdate }) => {
     const [newMessage, setNewMessage] = useState("");
     const [isSending, setIsSending] = useState(false);
     const chatBottomRef = useRef<HTMLDivElement>(null);
 
+    // --- POLLING cada 5 segundos ---
+    useEffect(() => {
+        if (!ticket || !ticket.id || !ticket.tipo) return;
+
+        let mounted = true;
+
+        const fetchComentarios = async () => {
+            try {
+                if (ticket.tipo === "municipio") {
+                    const data = await apiFetch(`/tickets/chat/${ticket.id}/mensajes`);
+                    if (mounted && data && data.mensajes) {
+                        onTicketUpdate({
+                            ...ticket,
+                            comentarios: data.mensajes.map((msg) => ({
+                                id: msg.id,
+                                comentario: msg.texto,
+                                fecha: msg.fecha,
+                                es_admin: msg.es_admin,
+                            })),
+                        });
+                    }
+                }
+                // Si querés agregar polling para "pyme", agregalo acá
+            } catch (e) { }
+        };
+
+        const interval = setInterval(fetchComentarios, 5000);
+        fetchComentarios();
+
+        return () => {
+            mounted = false;
+            clearInterval(interval);
+        };
+    }, [ticket?.id, ticket?.tipo]); // <-- solo cuando cambia ticket abierto
+
+    // --- resto del código igual ---
     const handleSendMessage = async () => {
         if (!newMessage.trim() || isSending) return;
         setIsSending(true);
@@ -315,6 +350,7 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
         </div>
     );
 };
+
 
 // --- ESTE ES EL COMPONENTE QUE FALTABA ---
 const AvatarIcon: FC<{ type: 'user' | 'admin' }> = ({ type }) => (
