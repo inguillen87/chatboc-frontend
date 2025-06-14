@@ -72,12 +72,12 @@ const ChatWidget = ({
       const width = initialIframeWidth
         ? parseInt(initialIframeWidth as string, 10)
         : typeof window !== "undefined"
-        ? window.innerWidth
+        ? Math.min(window.innerWidth, CARD_WIDTH)
         : CARD_WIDTH;
       const height = initialIframeHeight
         ? parseInt(initialIframeHeight as string, 10)
         : typeof window !== "undefined"
-        ? window.innerHeight
+        ? Math.min(window.innerHeight, CARD_HEIGHT)
         : CARD_HEIGHT;
       setOpenWidth(width);
       setOpenHeight(height);
