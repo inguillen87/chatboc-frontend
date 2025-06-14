@@ -302,12 +302,12 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
     const [isSending, setIsSending] = useState(false);
     const chatBottomRef = useRef<HTMLDivElement>(null);
 
-    // --- POLLING: CONTROLAR LA FRECUENCIA --- (Mismo que la versión que te funcionaba con polling a 10s)
+    // --- POLLING: CONTROLAR LA FRECUENCIA ---
     useEffect(() => {
         if (!ticket || !ticket.id || !ticket.tipo) return;
 
         let mounted = true;
-        const POLLING_INTERVAL = 10000; // Polling cada 10 segundos
+        const POLLING_INTERVAL = 10000; // Polling cada 10 segundos (10000 ms)
 
         const fetchComentarios = async () => {
             try {
@@ -340,7 +340,7 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
     }, [ticket?.id, ticket?.tipo, onTicketUpdate]);
 
 
-    // --- Envío de Mensaje --- (Misma lógica simple de scroll al enviar)
+    // --- Envío de Mensaje ---
     const handleSendMessage = async () => {
         if (!newMessage.trim() || isSending) return;
         setIsSending(true);
@@ -348,7 +348,7 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
             const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}/responder`, { method: 'POST', body: { comentario: newMessage } });
             onTicketUpdate(updatedTicket);
             setNewMessage("");
-            // Scroll directo al enviar, sin setTimeout si el DOM ya está listo.
+            // Scroll directo al enviar (TU LÓGICA ORIGINAL)
             if (chatBottomRef.current) {
                 chatBottomRef.current.scrollIntoView({ behavior: "smooth" });
             }
@@ -369,19 +369,19 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
         }
     };
 
-    // --- Scroll al final del chat: LÓGICA REVERTIDA A LA QUE TE FUNCIONABA BIEN ---
-    // Este useEffect se disparará cada vez que `ticket.comentarios` cambie.
-    // Con la altura controlada del chat, debería funcionar para mantener el scroll al final sin "volverse loco".
+    // --- Scroll al final del chat (TU LÓGICA ORIGINAL QUE FUNCIONABA BIEN) ---
     useEffect(() => {
         if (chatBottomRef.current) {
             chatBottomRef.current.scrollIntoView({ behavior: "smooth" });
         }
     }, [ticket.comentarios]);
 
-
     return (
+        // Contenedor principal de TicketDetail: Grid con 3 columnas en desktop, flex-col por defecto en móvil.
         <div className="flex flex-col md:grid md:grid-cols-3 gap-4">
+            {/* Contenedor del chat principal (columna 1 y 2 en desktop) */}
             <div className="md:col-span-2 flex flex-col h-[60vh] max-h-[600px] min-h-[300px] border rounded-md bg-background dark:bg-slate-700/50">
+                {/* Área de mensajes del chat con scrolling */}
                 <main className="flex-1 p-4 space-y-4 overflow-y-auto custom-scroll">
                     {ticket.comentarios && ticket.comentarios.length > 0 ? (
                         ticket.comentarios.map((comment) => (
@@ -401,6 +401,7 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
                     )}
                     <div ref={chatBottomRef} />
                 </main>
+                {/* Footer del chat con input para mensajes */}
                 <footer className="border-t border-border p-3 flex gap-2 bg-card rounded-b-md">
                     <Input
                         value={newMessage}
@@ -417,6 +418,7 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
                     </Button>
                 </footer>
             </div>
+            {/* Sidebar de detalles del ticket (columna 3 en desktop) */}
             <aside className="md:col-span-1 bg-muted/30 p-4 space-y-6 overflow-y-auto custom-scroll rounded-md border">
                 <Card>
                     <CardHeader className="pb-2"><CardTitle className="text-base">Estado del Ticket</CardTitle></CardHeader>
