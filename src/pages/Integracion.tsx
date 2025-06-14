@@ -82,7 +82,7 @@ const Integracion = () => {
 
   // Si llegó acá, ya tiene acceso PRO/FULL
   const url = `https://www.chatboc.ar/iframe?token=${user.token}`;
-  const codeIframe = `<iframe src="${url}" width="370" height="520" style="position:fixed;bottom:24px;right:24px;border:none;border-radius:32px;z-index:9999;box-shadow:0 4px 32px rgba(0,0,0,0.2);background:transparent;" allow="clipboard-write" loading="lazy"></iframe>`;
+  const codeIframe = `<iframe src="${url}" width="370" height="540" style="position:fixed;bottom:24px;right:24px;border:none;border-radius:32px;z-index:9999;box-shadow:0 4px 32px rgba(0,0,0,0.2);background:transparent;" allow="clipboard-write" loading="lazy"></iframe>`;
   const codeScript = `<script src="https://www.chatboc.ar/widget.js" data-token="${user.token}"></script>`;
 
   const copiarCodigo = async (tipo: "iframe" | "script") => {
@@ -148,17 +148,17 @@ const Integracion = () => {
 
       <div className="mt-10">
         <h2 className="text-xl font-semibold mb-2 text-foreground">🔍 Vista previa en vivo:</h2>
-        <div className="border border-border rounded overflow-hidden bg-background flex items-center justify-center" style={{ minHeight: 520 }}>
+        <div className="border border-border rounded overflow-hidden bg-background flex items-center justify-center" style={{ minHeight: 540 }}>
           <iframe
             src={url}
             width="370"
-            height="520"
+            height="540"
             style={{
               border: "none",
               borderRadius: "32px",
               width: "100%",
               maxWidth: 370,
-              minHeight: 520,
+              minHeight: 540,
               background: "var(--background)",
             }}
             loading="lazy"

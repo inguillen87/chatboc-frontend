@@ -19,8 +19,8 @@
 
   const WIDGET_DIMENSIONS_JS = { // Usar los mismos nombres que en ChatWidget.tsx
     OPEN: {
-      width: script.getAttribute("data-width") || "360px",
-      height: script.getAttribute("data-height") || "520px",
+      width: script.getAttribute("data-width") || "370px",
+      height: script.getAttribute("data-height") || "540px",
     },
     CLOSED: { // Dimensiones del globito
       width: script.getAttribute("data-closed-width") || "80px",
