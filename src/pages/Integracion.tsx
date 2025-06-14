@@ -82,8 +82,8 @@ const Integracion = () => {
 
   // Si llegó acá, ya tiene acceso PRO/FULL
   const url = `https://www.chatboc.ar/iframe?token=${user.token}`;
+  const codeScript = `<script>(function(){var s=document.createElement('script');s.src='https://www.chatboc.ar/widget.js';s.async=true;s.setAttribute('data-token','${user.token}');document.head.appendChild(s);})();</script>`;
   const codeIframe = `<iframe src="${url}" width="370" height="540" style="position:fixed;bottom:24px;right:24px;border:none;border-radius:32px;z-index:9999;box-shadow:0 4px 32px rgba(0,0,0,0.2);background:transparent;" allow="clipboard-write" loading="lazy"></iframe>`;
-  const codeScript = `<script src="https://www.chatboc.ar/widget.js" data-token="${user.token}"></script>`;
 
   const copiarCodigo = async (tipo: "iframe" | "script") => {
     try {
@@ -107,24 +107,7 @@ const Integracion = () => {
       </p>
 
       <div className="mb-5">
-        <div className="font-semibold mb-2 text-primary">Opción 1: <span className="text-foreground">Widget con &lt;iframe&gt; (universal, recomendado)</span></div>
-        <pre
-          className="bg-muted dark:bg-card p-3 rounded text-xs overflow-x-auto border border-border select-all cursor-pointer mb-2 text-foreground"
-          title="Click para copiar"
-          onClick={() => copiarCodigo("iframe")}
-          style={{ whiteSpace: "pre-line" }}
-        >{codeIframe}</pre>
-        <Button
-          className="w-full mb-4 bg-secondary text-secondary-foreground hover:bg-secondary/80"
-          onClick={() => copiarCodigo("iframe")}
-          variant="secondary"
-        >
-          {copiado === "iframe" ? "¡Copiado!" : "📋 Copiar código iframe"}
-        </Button>
-      </div>
-
-      <div className="mb-5">
-        <div className="font-semibold mb-2 text-primary">Opción 2: <span className="text-foreground">Widget con &lt;script&gt; (alternativo, para tiendas que lo permitan)</span></div>
+        <div className="font-semibold mb-2 text-primary">Opción 1: <span className="text-foreground">Widget con &lt;script&gt; (recomendado)</span></div>
         <pre
           className="bg-muted dark:bg-card p-3 rounded text-xs overflow-x-auto border border-border select-all cursor-pointer mb-2 text-foreground"
           title="Click para copiar"
@@ -132,11 +115,28 @@ const Integracion = () => {
           style={{ whiteSpace: "pre-line" }}
         >{codeScript}</pre>
         <Button
-          className="w-full bg-secondary text-secondary-foreground hover:bg-secondary/80"
+          className="w-full mb-4 bg-secondary text-secondary-foreground hover:bg-secondary/80"
           onClick={() => copiarCodigo("script")}
           variant="secondary"
         >
           {copiado === "script" ? "¡Copiado!" : "📋 Copiar código script"}
+        </Button>
+      </div>
+
+      <div className="mb-5">
+        <div className="font-semibold mb-2 text-primary">Opción 2: <span className="text-foreground">Widget con &lt;iframe&gt; (alternativo)</span></div>
+        <pre
+          className="bg-muted dark:bg-card p-3 rounded text-xs overflow-x-auto border border-border select-all cursor-pointer mb-2 text-foreground"
+          title="Click para copiar"
+          onClick={() => copiarCodigo("iframe")}
+          style={{ whiteSpace: "pre-line" }}
+        >{codeIframe}</pre>
+        <Button
+          className="w-full bg-secondary text-secondary-foreground hover:bg-secondary/80"
+          onClick={() => copiarCodigo("iframe")}
+          variant="secondary"
+        >
+          {copiado === "iframe" ? "¡Copiado!" : "📋 Copiar código iframe"}
         </Button>
       </div>
 
