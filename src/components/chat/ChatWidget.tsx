@@ -63,14 +63,26 @@ const ChatWidget = ({
   initialIframeHeight,
 }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
-  const openWidth =
-    mode === "iframe" && initialIframeWidth
-      ? parseInt(initialIframeWidth as string, 10)
-      : CARD_WIDTH;
-  const openHeight =
-    mode === "iframe" && initialIframeHeight
-      ? parseInt(initialIframeHeight as string, 10)
-      : CARD_HEIGHT;
+  const [openWidth, setOpenWidth] = useState<number>(CARD_WIDTH);
+  const [openHeight, setOpenHeight] = useState<number>(CARD_HEIGHT);
+
+  // Ajustar dimensiones cuando se usa como iframe sin widget.js
+  useEffect(() => {
+    if (mode === "iframe") {
+      const width = initialIframeWidth
+        ? parseInt(initialIframeWidth as string, 10)
+        : typeof window !== "undefined"
+        ? window.innerWidth
+        : CARD_WIDTH;
+      const height = initialIframeHeight
+        ? parseInt(initialIframeHeight as string, 10)
+        : typeof window !== "undefined"
+        ? window.innerHeight
+        : CARD_HEIGHT;
+      setOpenWidth(width);
+      setOpenHeight(height);
+    }
+  }, [mode, initialIframeWidth, initialIframeHeight]);
 
   const openDims = { width: `${openWidth}px`, height: `${openHeight}px` };
   const closedDims = { width: `${CIRCLE_SIZE}px`, height: `${CIRCLE_SIZE}px` };
@@ -409,6 +421,9 @@ const ChatWidget = ({
           height: closedDims.height,
           borderRadius: "50%",
         }}
+        initial={{ opacity: 0, scale: 0.8 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ type: "spring", stiffness: 260, damping: 20 }}
         whileHover={{ scale: 1.05, rotate: 3 }}
         whileTap={{ scale: 0.95 }}
         onClick={() => setIsOpen(true)}
