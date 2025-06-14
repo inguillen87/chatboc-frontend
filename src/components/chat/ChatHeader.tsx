@@ -13,8 +13,8 @@ const ChatHeader: React.FC<Props> = ({ onClose, isTyping = false }) => {
       className={`
         flex items-center justify-between
         px-4 py-3 border-b border-border
-        bg-[#19212f]/80 backdrop-blur-md
-        text-gray-100
+        bg-card/90 backdrop-blur-md
+        text-card-foreground
         transition-all
       `}
       style={{

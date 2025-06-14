@@ -412,7 +412,7 @@ const ChatWidget = ({
         flex items-center justify-center
         transition-all duration-300
         cursor-pointer
-        bg-transparent
+        bg-card text-card-foreground
       `}
       style={{
         bottom: initialPosition.bottom,
@@ -420,7 +420,7 @@ const ChatWidget = ({
         width: closedDims.width,
         height: closedDims.height,
         borderRadius: "50%",
-        background: "transparent", // refuerza por si acaso
+        background: "var(--background)",
       }}
       initial={{ opacity: 0, scale: 0.8 }}
       animate={{ opacity: 1, scale: 1 }}
@@ -443,8 +443,8 @@ const ChatWidget = ({
       fixed z-[999999]
       flex flex-col overflow-hidden
       shadow-2xl border
-      bg-[#181f2a] 
-      border-gray-200 dark:border-[#353c47]
+      bg-card text-card-foreground
+      border-border
       transition-all duration-300
     `}
     style={{
@@ -453,8 +453,7 @@ const ChatWidget = ({
       width: mode === "iframe" ? openDims.width : `${CARD_WIDTH}px`,
       height: mode === "iframe" ? openDims.height : `${CARD_HEIGHT}px`,
       borderRadius: 24,
-      // Forzamos el fondo oscuro en el iframe, aunque el padre sea blanco:
-      background: "#181f2a",
+      background: "var(--background)",
     }}
     initial={{ opacity: 0, scale: 0.9, y: 20 }}
     animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -468,8 +467,8 @@ const ChatWidget = ({
         className={`
           flex-1 flex flex-col gap-3 overflow-y-auto overflow-x-hidden
           px-4 pt-4 pb-2
-          text-gray-100
-          bg-[#181f2a]
+          text-card-foreground
+          bg-card
         `}
       >
         {esperandoRubro ? (
@@ -577,7 +576,7 @@ const ChatWidget = ({
       {!esperandoRubro &&
         !esperandoDireccion &&
         (!showCierre || !showCierre.show) && (
-          <div className="bg-[#1d2433] px-3 py-2">
+          <div className="bg-card px-3 py-2">
             <ChatInput onSendMessage={handleSendMessage} isTyping={isTyping} />
           </div>
         )}
