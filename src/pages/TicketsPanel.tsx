@@ -9,7 +9,6 @@ import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import TicketCategoryAccordion from "@/components/TicketCategoryAccordion";
 
 // --- TIPOS Y ESTADOS ---
 type TicketStatus = "nuevo" | "en_proceso" | "derivado" | "resuelto" | "cerrado" | "esperando_agente_en_vivo";
@@ -37,6 +36,7 @@ function fechaCorta(iso: string) {
     return `${d.getDate().toString().padStart(2, "0")}/${(d.getMonth() + 1).toString().padStart(2, "0")} ${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
 }
 
+// ----------- MAIN PANEL -----------
 export default function TicketsPanel() {
     const [categorizedTickets, setCategorizedTickets] = useState<CategorizedTickets>({});
     const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null);
@@ -146,55 +146,116 @@ export default function TicketsPanel() {
     );
 }
 
+// --------- TicketCategoryAccordion (en el mismo archivo, para pegar directo) ---------
+const TicketCategoryAccordion: FC<{
+    category: string;
+    tickets: TicketSummary[];
+    onSelectTicket: (ticket: TicketSummary) => void;
+    isOpen: boolean;
+    onToggle: () => void;
+    selectedTicketId: number | null;
+    detailedTicket: Ticket | null;
+    onTicketDetailUpdate: (ticket: Ticket) => void;
+}> = ({ category, tickets, onSelectTicket, isOpen, onToggle, selectedTicketId, detailedTicket, onTicketDetailUpdate }) => (
+    <motion.div layout className="bg-card dark:bg-slate-800/80 border border-border dark:border-slate-700 rounded-xl shadow-md overflow-hidden" initial={{ borderRadius: 12 }}>
+        <motion.header layout initial={false} onClick={onToggle} className="p-4 flex justify-between items-center cursor-pointer hover:bg-muted/50 dark:hover:bg-slate-700/50 transition-colors">
+            <div className="flex items-center gap-3">
+                <h2 className="font-semibold text-lg text-foreground">{category}</h2>
+                <Badge variant="secondary" className="dark:bg-slate-600 dark:text-slate-200">{tickets.length}</Badge>
+            </div>
+            {isOpen ? <ChevronUp className="text-muted-foreground" /> : <ChevronDown className="text-muted-foreground" />}
+        </motion.header>
+        <AnimatePresence>
+            {isOpen && (
+                <motion.section key="content" initial="collapsed" animate="open" exit="collapsed" variants={{ open: { opacity: 1, height: "auto" }, collapsed: { opacity: 0, height: 0 } }} transition={{ duration: 0.3, ease: "easeInOut" }} className="overflow-hidden">
+                    <div className="p-2 sm:p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 border-t border-border dark:border-slate-700">
+                        {tickets.map(ticket => (
+                            <React.Fragment key={ticket.id}>
+                                <div
+                                    onClick={() => onSelectTicket(ticket)}
+                                    className={cn(
+                                        "bg-background dark:bg-slate-800/50 p-3 rounded-lg border cursor-pointer transition-all shadow-sm",
+                                        "hover:border-primary dark:hover:border-primary hover:shadow-lg hover:-translate-y-1",
+                                        selectedTicketId === ticket.id ? "border-primary dark:border-primary ring-2 ring-primary/50 -translate-y-1" : "border-border dark:border-slate-700/50",
+                                        selectedTicketId === ticket.id ? "col-span-full" : ""
+                                    )}
+                                >
+                                    <div className="flex justify-between items-center mb-1">
+                                        <span className="font-semibold text-primary text-sm">#{ticket.nro_ticket}</span>
+                                        <Badge className={cn("text-xs border", ESTADOS[ticket.estado as TicketStatus]?.tailwind_class)}>{ESTADOS[ticket.estado as TicketStatus]?.label}</Badge>
+                                    </div>
+                                    <p className="font-medium text-foreground truncate" title={ticket.asunto}>{ticket.asunto}</p>
+                                    {ticket.direccion && <p className="text-xs text-muted-foreground truncate" title={ticket.direccion}>{ticket.direccion}</p>}
+                                    <p className="text-xs text-muted-foreground text-right mt-1">{fechaCorta(ticket.fecha)}</p>
+                                </div>
+                                <AnimatePresence>
+                                    {selectedTicketId === ticket.id && detailedTicket && (
+                                        <motion.div
+                                            key={`detail-${ticket.id}`}
+                                            initial="collapsed"
+                                            animate="open"
+                                            exit="collapsed"
+                                            variants={{ open: { opacity: 1, height: "auto" }, collapsed: { opacity: 0, height: 0 } }}
+                                            transition={{ duration: 0.3, ease: "easeInOut" }}
+                                            className="col-span-full bg-card dark:bg-slate-800/80 rounded-lg p-4 border border-border dark:border-slate-700 shadow-md mt-2"
+                                        >
+                                            <div className="flex justify-between items-center mb-4">
+                                                <h3 className="text-lg font-bold text-foreground">Detalle del Ticket #{detailedTicket.nro_ticket}</h3>
+                                                <Button variant="ghost" size="icon" onClick={() => onSelectTicket(ticket)} aria-label="Cerrar detalle">
+                                                    <X className="h-5 w-5" />
+                                                </Button>
+                                            </div>
+                                            <TicketDetail ticket={detailedTicket} onTicketUpdate={onTicketDetailUpdate} />
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </React.Fragment>
+                        ))}
+                    </div>
+                </motion.section>
+            )}
+        </AnimatePresence>
+    </motion.div>
+);
 
-// --- SUB-COMPONENTE DETALLE DEL TICKET ---
+// --------- TicketDetail ---------
 const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => void }> = ({ ticket, onTicketUpdate }) => {
     const [newMessage, setNewMessage] = useState("");
     const [isSending, setIsSending] = useState(false);
     const chatBottomRef = useRef<HTMLDivElement>(null);
 
-   
-    // --- POLLING: CONTROLAR LA FRECUENCIA ---
+    // --- POLLING SOLO EN "esperando_agente_en_vivo" ---
     useEffect(() => {
-  if (!ticket || !ticket.id || !ticket.tipo) return;
-
-  // 💡 SOLO hacemos polling si el ticket necesita atención activa
-const requiereActualizacion = ticket.estado === "esperando_agente_en_vivo";
-
-  if (!requiereActualizacion) return;
-
-  let mounted = true;
-  const POLLING_INTERVAL = 10000;
-
-  const fetchComentarios = async () => {
-    try {
-      const data = await apiFetch(`/tickets/chat/${ticket.id}/mensajes`);
-      if (mounted && data?.mensajes) {
-        onTicketUpdate({
-          ...ticket,
-          comentarios: data.mensajes.map((msg) => ({
-            id: msg.id,
-            comentario: msg.texto,
-            fecha: msg.fecha,
-            es_admin: msg.es_admin,
-          })),
-        });
-      }
-    } catch (e) {
-      console.error("Error en polling de comentarios:", e);
-    }
-  };
-
-  const interval = setInterval(fetchComentarios, POLLING_INTERVAL);
-  fetchComentarios();
-
-  return () => {
-    mounted = false;
-    clearInterval(interval);
-  };
-}, [ticket?.id, ticket?.estado, ticket?.tipo, onTicketUpdate]);
-
-
+        if (!ticket || !ticket.id || !ticket.tipo) return;
+        const requiereActualizacion = ticket.estado === "esperando_agente_en_vivo";
+        if (!requiereActualizacion) return;
+        let mounted = true;
+        const POLLING_INTERVAL = 10000;
+        const fetchComentarios = async () => {
+            try {
+                const data = await apiFetch(`/tickets/chat/${ticket.id}/mensajes`);
+                if (mounted && data?.mensajes) {
+                    onTicketUpdate({
+                        ...ticket,
+                        comentarios: data.mensajes.map((msg: any) => ({
+                            id: msg.id,
+                            comentario: msg.texto,
+                            fecha: msg.fecha,
+                            es_admin: msg.es_admin,
+                        })),
+                    });
+                }
+            } catch (e) {
+                console.error("Error en polling de comentarios:", e);
+            }
+        };
+        const interval = setInterval(fetchComentarios, POLLING_INTERVAL);
+        fetchComentarios();
+        return () => {
+            mounted = false;
+            clearInterval(interval);
+        };
+    }, [ticket?.id, ticket?.estado, ticket?.tipo, onTicketUpdate]);
 
     // --- Envío de Mensaje ---
     const handleSendMessage = async () => {
@@ -223,8 +284,6 @@ const requiereActualizacion = ticket.estado === "esperando_agente_en_vivo";
 
     // --- Scroll al final del chat ---
     useEffect(() => {
-        // Solo intenta scrollear si el ref existe, hay comentarios y la altura del scroll es mayor que la altura del cliente
-        // Esto previene scrolls innecesarios o saltos cuando no hay nada que scrollear.
         const mainElement = chatBottomRef.current?.parentElement;
         if (mainElement && mainElement.scrollHeight > mainElement.clientHeight && ticket.comentarios && ticket.comentarios.length > 0) {
             chatBottomRef.current.scrollIntoView({ behavior: "smooth" });
@@ -232,13 +291,9 @@ const requiereActualizacion = ticket.estado === "esperando_agente_en_vivo";
     }, [ticket.comentarios]);
 
     return (
-        // Contenedor principal de TicketDetail: Grid con 3 columnas en desktop, flex-col por defecto en móvil.
-        // AÑADIDO: min-h-0 para flex-basis y overflow-y-auto en el contenedor del chat
         <div className="flex flex-col md:grid md:grid-cols-3 gap-4">
-            {/* Contenedor del chat principal (columna 1 y 2 en desktop) */}
-            {/* CAMBIO CLAVE AQUÍ: Asegura que el div del chat tenga una altura explícita para que main flex-1 funcione con overflow */}
+            {/* Chat principal */}
             <div className="md:col-span-2 flex flex-col h-[60vh] max-h-[600px] min-h-[300px] border rounded-md bg-background dark:bg-slate-700/50">
-                {/* Área de mensajes del chat con scrolling */}
                 <main className="flex-1 p-4 space-y-4 overflow-y-auto custom-scroll">
                     {ticket.comentarios && ticket.comentarios.length > 0 ? (
                         ticket.comentarios.map((comment) => (
@@ -258,7 +313,6 @@ const requiereActualizacion = ticket.estado === "esperando_agente_en_vivo";
                     )}
                     <div ref={chatBottomRef} />
                 </main>
-                {/* Footer del chat con input para mensajes */}
                 <footer className="border-t border-border p-3 flex gap-2 bg-card rounded-b-md">
                     <Input
                         value={newMessage}
@@ -275,7 +329,7 @@ const requiereActualizacion = ticket.estado === "esperando_agente_en_vivo";
                     </Button>
                 </footer>
             </div>
-            {/* Sidebar de detalles del ticket (columna 3 en desktop) */}
+            {/* Sidebar de detalles */}
             <aside className="md:col-span-1 bg-muted/30 p-4 space-y-6 overflow-y-auto custom-scroll rounded-md border">
                 <Card>
                     <CardHeader className="pb-2"><CardTitle className="text-base">Estado del Ticket</CardTitle></CardHeader>
@@ -325,8 +379,7 @@ const requiereActualizacion = ticket.estado === "esperando_agente_en_vivo";
     );
 };
 
-
-// --- AVATAR ICON COMPONENT ---
+// --------- AvatarIcon ---------
 const AvatarIcon: FC<{ type: 'user' | 'admin' }> = ({ type }) => (
     <div className={cn('h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0', type === 'admin' ? 'bg-primary/20 text-primary' : 'bg-muted-foreground/20 text-muted-foreground')}>
         {type === 'admin' ? <ShieldCheck className="h-5 w-5" /> : <User className="h-5 w-5" />}
