@@ -20,27 +20,31 @@ const Iframe = () => {
       const tokenParam = params.get("token");
       const widthParam = params.get("initialWidth");
       const heightParam = params.get("initialHeight");
+      const themeParam = params.get("theme");
 
       setDefaultOpen(openParam === "true");
       if (idParam) setWidgetId(idParam);
       if (tokenParam) setTokenFromUrl(tokenParam); 
       if (widthParam) setInitialIframeWidth(widthParam); 
       if (heightParam) setInitialIframeHeight(heightParam);
-    }
-  }, []);
 
-  // Aplicar tema oscuro igual que en el sitio principal
-  useEffect(() => {
-    try {
-      if (
-        localStorage.theme === "dark" ||
-        (!("theme" in localStorage) &&
-          window.matchMedia("(prefers-color-scheme: dark)").matches)
-      ) {
-        document.documentElement.classList.add("dark");
+      // Tema: Si viene en URL, setealo y guardalo en localStorage para próximas veces
+      if (themeParam === "dark" || themeParam === "light") {
+        document.documentElement.classList.remove("dark", "light");
+        document.documentElement.classList.add(themeParam);
+        localStorage.setItem("theme", themeParam);
+      } else {
+        // Si no viene por URL, usá localStorage o el sistema
+        const storedTheme = localStorage.getItem("theme");
+        if (storedTheme === "dark" || storedTheme === "light") {
+          document.documentElement.classList.remove("dark", "light");
+          document.documentElement.classList.add(storedTheme);
+        } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
+          document.documentElement.classList.add("dark");
+        } else {
+          document.documentElement.classList.remove("dark");
+        }
       }
-    } catch (e) {
-      /* ignorar errores de acceso a storage */
     }
   }, []);
 
