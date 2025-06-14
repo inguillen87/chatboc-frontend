@@ -7,32 +7,42 @@ import TypingIndicator from "@/components/chat/TypingIndicator";
 import Navbar from "@/components/layout/Navbar";
 import { motion, AnimatePresence } from "framer-motion";
 import { apiFetch } from "@/utils/api";
-import GooglePlacesAutocomplete from "react-google-autocomplete";
+import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 
 // Frases para detectar pedido de dirección
 const FRASES_DIRECCION = [
-  "indicame la dirección", "necesito la dirección", "ingresa la dirección",
-  "especificá la dirección", "decime la dirección", "dirección exacta",
-  "¿cuál es la dirección?", "por favor indique la dirección", "por favor ingrese su dirección", "dirección completa"
+  "indicame la dirección",
+  "necesito la dirección",
+  "ingresa la dirección",
+  "especificá la dirección",
+  "decime la dirección",
+  "dirección exacta",
+  "¿cuál es la dirección?",
+  "por favor indique la dirección",
+  "por favor ingrese su dirección",
+  "dirección completa",
 ];
 const FRASES_EXITO = [
-  "Tu reclamo fue generado", "¡Muchas gracias por tu calificación!",
-  "Dejaré el ticket abierto", "El curso de seguridad vial es online",
-  "He abierto una sala de chat directa", "Tu número de chat es", "ticket **M-"
+  "Tu reclamo fue generado",
+  "¡Muchas gracias por tu calificación!",
+  "Dejaré el ticket abierto",
+  "El curso de seguridad vial es online",
+  "He abierto una sala de chat directa",
+  "Tu número de chat es",
+  "ticket **M-",
 ];
 
 function shouldShowAutocomplete(messages: Message[], contexto: any) {
-  const lastBotMsg = [...messages].reverse().find(m => m.isBot && m.text);
+  const lastBotMsg = [...messages].reverse().find((m) => m.isBot && m.text);
   if (!lastBotMsg) return false;
   const contenido = (lastBotMsg.text || "").toLowerCase();
-  if (FRASES_DIRECCION.some(frase => contenido.includes(frase))) return true;
+  if (FRASES_DIRECCION.some((frase) => contenido.includes(frase))) return true;
   if (
     contexto &&
     contexto.contexto_municipio &&
-    (
-      contexto.contexto_municipio.estado_conversacion === "ESPERANDO_DIRECCION_RECLAMO" ||
-      contexto.contexto_municipio.estado_conversacion === 4
-    )
+    (contexto.contexto_municipio.estado_conversacion ===
+      "ESPERANDO_DIRECCION_RECLAMO" ||
+      contexto.contexto_municipio.estado_conversacion === 4)
   ) {
     return true;
   }
@@ -40,16 +50,16 @@ function shouldShowAutocomplete(messages: Message[], contexto: any) {
 }
 
 function checkCierreExito(messages: Message[]) {
-  const lastBotMsg = [...messages].reverse().find(m => m.isBot && m.text);
+  const lastBotMsg = [...messages].reverse().find((m) => m.isBot && m.text);
   if (!lastBotMsg) return null;
   const contenido = (lastBotMsg.text || "").toLowerCase();
-  if (FRASES_EXITO.some(frase => contenido.includes(frase))) {
+  if (FRASES_EXITO.some((frase) => contenido.includes(frase))) {
     // Detectar número de ticket
     const match = contenido.match(/ticket \*\*m-(\d+)/i);
     if (match) {
       return {
         show: true,
-        text: `✅ ¡Listo! Tu ticket fue generado exitosamente. Número: M-${match[1]}.\nUn agente municipal te va a contactar para seguimiento.`
+        text: `✅ ¡Listo! Tu ticket fue generado exitosamente. Número: M-${match[1]}.\nUn agente municipal te va a contactar para seguimiento.`,
       };
     }
     return { show: true, text: lastBotMsg.text };
@@ -60,7 +70,7 @@ function checkCierreExito(messages: Message[]) {
 // Mobile detection
 function useIsMobile(breakpoint = 768) {
   const [isMobile, setIsMobile] = useState(
-    typeof window !== "undefined" ? window.innerWidth < breakpoint : false
+    typeof window !== "undefined" ? window.innerWidth < breakpoint : false,
   );
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < breakpoint);
@@ -69,8 +79,6 @@ function useIsMobile(breakpoint = 768) {
   }, [breakpoint]);
   return isMobile;
 }
-
-const Maps_API_KEY = import.meta.env.VITE_Maps_API_KEY;
 
 const ChatPage = () => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -86,18 +94,27 @@ const ChatPage = () => {
 
   // Estado de input dirección / cierre éxito
   const [esperandoDireccion, setEsperandoDireccion] = useState(false);
-  const [showCierre, setShowCierre] = useState<{ show: boolean, text: string } | null>(null);
+  const [showCierre, setShowCierre] = useState<{
+    show: boolean;
+    text: string;
+  } | null>(null);
 
   const scrollToBottom = useCallback(() => {
     if (chatMessagesContainerRef.current) {
-      chatMessagesContainerRef.current.scrollTop = chatMessagesContainerRef.current.scrollHeight;
+      chatMessagesContainerRef.current.scrollTop =
+        chatMessagesContainerRef.current.scrollHeight;
     }
   }, []);
 
   useEffect(() => {
     if (messages.length === 0) {
       setMessages([
-        { id: Date.now(), text: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?", isBot: true, timestamp: new Date() },
+        {
+          id: Date.now(),
+          text: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?",
+          isBot: true,
+          timestamp: new Date(),
+        },
       ]);
     }
   }, []);
@@ -115,54 +132,73 @@ const ChatPage = () => {
   }, [messages, isTyping, scrollToBottom, contexto]);
 
   // Maneja envío de mensaje O dirección seleccionada
-  const handleSend = useCallback(async (text: string) => {
-    if (!text.trim()) return;
+  const handleSend = useCallback(
+    async (text: string) => {
+      if (!text.trim()) return;
 
-    if (esperandoDireccion) setEsperandoDireccion(false);
-    setShowCierre(null);
+      if (esperandoDireccion) setEsperandoDireccion(false);
+      setShowCierre(null);
 
-    const userMessage: Message = { id: Date.now(), text, isBot: false, timestamp: new Date() };
-    setMessages(prev => [...prev, userMessage]);
-    setIsTyping(true);
+      const userMessage: Message = {
+        id: Date.now(),
+        text,
+        isBot: false,
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, userMessage]);
+      setIsTyping(true);
 
-    try {
-      // --- LÓGICA CONDICIONAL ---
-      if (activeTicketId) {
-        // Caso: chat en vivo
-        await apiFetch(`/tickets/chat/${activeTicketId}/responder_ciudadano`, {
-          method: "POST",
-          body: { comentario: text },
-        });
-      } else {
-        // Caso: todavía con el bot
-        const payload = { pregunta: text, contexto_previo: contexto };
-        const data = await apiFetch<any>("/ask", {
-          method: "POST",
-          body: payload,
-        });
+      try {
+        // --- LÓGICA CONDICIONAL ---
+        if (activeTicketId) {
+          // Caso: chat en vivo
+          await apiFetch(
+            `/tickets/chat/${activeTicketId}/responder_ciudadano`,
+            {
+              method: "POST",
+              body: { comentario: text },
+            },
+          );
+        } else {
+          // Caso: todavía con el bot
+          const payload = { pregunta: text, contexto_previo: contexto };
+          const data = await apiFetch<any>("/ask", {
+            method: "POST",
+            body: payload,
+          });
 
-        setContexto(data.contexto_actualizado || {});
+          setContexto(data.contexto_actualizado || {});
 
-        const botMessage: Message = {
-          id: Date.now(),
-          text: data?.respuesta || "⚠️ No se pudo generar una respuesta.",
-          isBot: true,
-          timestamp: new Date(),
-          botones: data?.botones || []
-        };
-        setMessages(prev => [...prev, botMessage]);
+          const botMessage: Message = {
+            id: Date.now(),
+            text: data?.respuesta || "⚠️ No se pudo generar una respuesta.",
+            isBot: true,
+            timestamp: new Date(),
+            botones: data?.botones || [],
+          };
+          setMessages((prev) => [...prev, botMessage]);
 
-        if (data.ticket_id) {
-          setActiveTicketId(data.ticket_id);
-          ultimoMensajeIdRef.current = 0;
+          if (data.ticket_id) {
+            setActiveTicketId(data.ticket_id);
+            ultimoMensajeIdRef.current = 0;
+          }
         }
+      } catch (error) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: Date.now(),
+            text: "⚠️ No se pudo conectar con el servidor.",
+            isBot: true,
+            timestamp: new Date(),
+          },
+        ]);
+      } finally {
+        setIsTyping(false);
       }
-    } catch (error) {
-      setMessages(prev => [...prev, { id: Date.now(), text: "⚠️ No se pudo conectar con el servidor.", isBot: true, timestamp: new Date() }]);
-    } finally {
-      setIsTyping(false);
-    }
-  }, [contexto, activeTicketId, esperandoDireccion]);
+    },
+    [contexto, activeTicketId, esperandoDireccion],
+  );
 
   // Polling para chat en vivo
   useEffect(() => {
@@ -170,23 +206,32 @@ const ChatPage = () => {
       if (!activeTicketId) return;
       try {
         const data = await apiFetch<{ estado_chat: string; mensajes: any[] }>(
-          `/tickets/chat/${activeTicketId}/mensajes?ultimo_mensaje_id=${ultimoMensajeIdRef.current}`
+          `/tickets/chat/${activeTicketId}/mensajes?ultimo_mensaje_id=${ultimoMensajeIdRef.current}`,
         );
         if (data.mensajes && data.mensajes.length > 0) {
-          const nuevosMensajes: Message[] = data.mensajes.map(msg => ({
+          const nuevosMensajes: Message[] = data.mensajes.map((msg) => ({
             id: msg.id,
             text: msg.texto,
             isBot: msg.es_admin,
             timestamp: new Date(msg.fecha),
           }));
-          setMessages(prev => [...prev, ...nuevosMensajes]);
-          ultimoMensajeIdRef.current = data.mensajes[data.mensajes.length - 1].id;
+          setMessages((prev) => [...prev, ...nuevosMensajes]);
+          ultimoMensajeIdRef.current =
+            data.mensajes[data.mensajes.length - 1].id;
         }
-        if (data.estado_chat === 'resuelto' || data.estado_chat === 'cerrado') {
+        if (data.estado_chat === "resuelto" || data.estado_chat === "cerrado") {
           if (pollingIntervalRef.current) {
             clearInterval(pollingIntervalRef.current);
           }
-          setMessages(prev => [...prev, { id: Date.now(), text: "Un agente ha finalizado esta conversación.", isBot: true, timestamp: new Date() }]);
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: Date.now(),
+              text: "Un agente ha finalizado esta conversación.",
+              isBot: true,
+              timestamp: new Date(),
+            },
+          ]);
         }
       } catch (error) {
         console.error("Error durante el polling:", error);
@@ -207,11 +252,13 @@ const ChatPage = () => {
     <div className="min-h-screen flex flex-col bg-background dark:bg-gradient-to-b dark:from-[#0d1014] dark:to-[#161b22] text-foreground">
       <Navbar />
 
-      <main className={`
+      <main
+        className={`
         flex-grow flex flex-col items-center justify-center
         pt-3 sm:pt-10 pb-2 sm:pb-6
         transition-all
-      `}>
+      `}
+      >
         <motion.div
           layout
           className={`
@@ -227,7 +274,9 @@ const ChatPage = () => {
             transition-all
           `}
           style={{
-            boxShadow: isMobile ? undefined : "0 8px 64px 0 rgba(30,40,90,0.10)",
+            boxShadow: isMobile
+              ? undefined
+              : "0 8px 64px 0 rgba(30,40,90,0.10)",
           }}
         >
           {/* Mensajes */}
@@ -252,7 +301,11 @@ const ChatPage = () => {
                   exit={{ opacity: 0, y: 14 }}
                   transition={{ duration: 0.18 }}
                 >
-                  <ChatMessage message={msg} isTyping={isTyping} onButtonClick={handleSend} />
+                  <ChatMessage
+                    message={msg}
+                    isTyping={isTyping}
+                    onButtonClick={handleSend}
+                  />
                 </motion.div>
               ))}
             </AnimatePresence>
@@ -279,27 +332,18 @@ const ChatPage = () => {
               backdrop-blur
             `}
           >
-            {esperandoDireccion && Maps_API_KEY ? (
+            {esperandoDireccion ? (
               <div>
-                <GooglePlacesAutocomplete
-                  apiKey={Maps_API_KEY}
-                  autocompletionRequest={{
-                    componentRestrictions: { country: "ar" },
-                    types: ['address'],
-                  }}
-                  onPlaceSelected={(place) => {
-                    if (place?.formatted_address) {
-                      handleSend(place.formatted_address);
-                    }
-                  }}
-                  className="w-full rounded-md border border-input bg-input px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary h-12 placeholder:text-muted-foreground"
+                <AddressAutocomplete
+                  onSelect={(addr) => handleSend(addr)}
+                  autoFocus
                   placeholder="Ej: Av. San Martín 123, Junín, Mendoza"
                 />
                 <div className="text-xs mt-2 text-muted-foreground">
                   Escribí o seleccioná tu dirección para el reclamo.
                 </div>
               </div>
-            ) : (!showCierre || !showCierre.show) ? (
+            ) : !showCierre || !showCierre.show ? (
               <ChatInput onSendMessage={handleSend} />
             ) : null}
           </div>
