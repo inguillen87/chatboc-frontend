@@ -48,11 +48,13 @@ const Iframe = () => {
     }
   }, []);
 
-  // Forzar que el html/body/root ocupen el 100% del iframe
+  // Forzar que el html/body/root ocupen el 100% del iframe y sean transparentes
   useEffect(() => {
     if (typeof document !== "undefined") {
       document.documentElement.style.width = "100%"; 
       document.documentElement.style.height = "100%"; 
+      document.documentElement.style.background = "transparent";
+      document.body.style.background = "transparent";
       document.body.style.margin = "0";
       document.body.style.padding = "0";
       document.body.style.width = "100%"; 
@@ -68,6 +70,7 @@ const Iframe = () => {
         rootEl.style.display = "flex";
         rootEl.style.flexDirection = "column"; 
         rootEl.style.overflow = "hidden";
+        rootEl.style.background = "transparent";
       }
     }
   }, []);
@@ -84,7 +87,16 @@ const Iframe = () => {
       flexDirection: "column"
     }}>
       <Suspense fallback={
-        <div style={{display: "flex", alignItems:"center", justifyContent:"center", width:"100%", height:"100%", fontFamily:"Arial, sans-serif", fontSize:"12px", color:"#555"}}>
+        <div style={{
+          display: "flex",
+          alignItems:"center",
+          justifyContent:"center",
+          width:"100%",
+          height:"100%",
+          fontFamily:"Arial, sans-serif",
+          fontSize:"12px",
+          color:"#555"
+        }}>
           Cargando Chatboc...
         </div>
       }>
