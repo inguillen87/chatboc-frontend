@@ -231,11 +231,12 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
     const [isSending, setIsSending] = useState(false);
     const chatBottomRef = useRef<HTMLDivElement>(null);
 
-    // --- POLLING cada 5 segundos ---
+    // --- POLLING: CONTROLAR LA FRECUENCIA ---
     useEffect(() => {
         if (!ticket || !ticket.id || !ticket.tipo) return;
 
         let mounted = true;
+        const POLLING_INTERVAL = 10000; // CAMBIO CLAVE: Polling cada 10 segundos (10000 ms)
 
         const fetchComentarios = async () => {
             try {
@@ -258,14 +259,15 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
             }
         };
 
-        const interval = setInterval(fetchComentarios, 5000);
-        fetchComentarios();
+        const interval = setInterval(fetchComentarios, POLLING_INTERVAL);
+        fetchComentarios(); // Fetch inicial al montar el componente
 
         return () => {
             mounted = false;
             clearInterval(interval);
         };
     }, [ticket?.id, ticket?.tipo, onTicketUpdate]);
+
 
     // --- Envío de Mensaje ---
     const handleSendMessage = async () => {
@@ -293,18 +295,19 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
     };
 
     // --- Scroll al final del chat ---
+    // AÑADIDO: Comprobar si hay comentarios antes de hacer scroll para evitar scroll innecesario.
     useEffect(() => {
-        if (chatBottomRef.current) {
+        if (chatBottomRef.current && ticket.comentarios && ticket.comentarios.length > 0) {
             chatBottomRef.current.scrollIntoView({ behavior: "smooth" });
         }
     }, [ticket.comentarios]);
 
     return (
-        // CAMBIO PRINCIPAL AQUÍ: flex-col en el contenedor del TicketDetail
-        // para asegurar que los elementos se apilan verticalmente dentro de él.
-        <div className="flex flex-col md:grid md:grid-cols-3 gap-4"> {/* Agregado flex flex-col para apilar verticalmente en móvil, y grid para desktop */}
-            {/* Contenedor principal del chat, ahora con altura relativa para permitir scroll */}
-            <div className="md:col-span-2 flex flex-col h-[60vh] max-h-[600px] min-h-[300px] border rounded-md bg-background dark:bg-slate-700/50"> {/* Mantuve estas clases */}
+        // Contenedor principal de TicketDetail: Grid con 3 columnas en desktop, flex-col por defecto en móvil.
+        <div className="flex flex-col md:grid md:grid-cols-3 gap-4">
+            {/* Contenedor del chat principal (columna 1 y 2 en desktop) */}
+            <div className="md:col-span-2 flex flex-col h-[60vh] max-h-[600px] min-h-[300px] border rounded-md bg-background dark:bg-slate-700/50">
+                {/* Área de mensajes del chat con scrolling */}
                 <main className="flex-1 p-4 space-y-4 overflow-y-auto custom-scroll">
                     {ticket.comentarios && ticket.comentarios.length > 0 ? (
                         ticket.comentarios.map((comment) => (
@@ -324,6 +327,7 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
                     )}
                     <div ref={chatBottomRef} />
                 </main>
+                {/* Footer del chat con input para mensajes */}
                 <footer className="border-t border-border p-3 flex gap-2 bg-card rounded-b-md">
                     <Input
                         value={newMessage}
@@ -340,6 +344,7 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
                     </Button>
                 </footer>
             </div>
+            {/* Sidebar de detalles del ticket (columna 3 en desktop) */}
             <aside className="md:col-span-1 bg-muted/30 p-4 space-y-6 overflow-y-auto custom-scroll rounded-md border">
                 <Card>
                     <CardHeader className="pb-2"><CardTitle className="text-base">Estado del Ticket</CardTitle></CardHeader>
