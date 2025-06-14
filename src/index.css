@@ -76,15 +76,16 @@
 /* body:not(.dark) .pac-item:hover {
   background: #f3f4f6 !important;
 } */
-
 @layer base {
   * {
     @apply border-border;
   }
 
   body {
-    @apply bg-background text-foreground;
+    /* NO le pongas fondo aquí */
+    color: var(--foreground); /* O usá @apply text-foreground si querés */
     font-family: 'Poppins', sans-serif;
+    background: transparent !important; /* Asegurá fondo transparente */
   }
 }
 @keyframes pulse-subtle {
