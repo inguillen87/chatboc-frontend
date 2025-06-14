@@ -225,8 +225,13 @@ const TicketCategoryAccordion: FC<{
   </motion.div>
 );
 
+const MAX_EVENTOS_RESUMIDOS = 4;
+
 // --------- TicketTimeline ---------
 const TicketTimeline: FC<{ ticket: Ticket }> = ({ ticket }) => {
+  const [verTodo, setVerTodo] = useState(false);
+
+  // Armá la lista completa de eventos
   const eventos = [
     { fecha: ticket.fecha, descripcion: "Ticket creado", estado: "nuevo" },
     ...(ticket.comentarios?.length
@@ -237,11 +242,15 @@ const TicketTimeline: FC<{ ticket: Ticket }> = ({ ticket }) => {
         }))
       : []),
   ];
+
+  // Mostrá los últimos MAX_EVENTOS_RESUMIDOS si no está expandido
+  const mostrarEventos = verTodo ? eventos : eventos.slice(-MAX_EVENTOS_RESUMIDOS);
+
   return (
     <div className="mb-6">
       <h4 className="font-semibold mb-2">Actividad</h4>
       <ol className="border-l-2 border-primary/60 pl-3 space-y-2 text-xs">
-        {eventos.map((ev, i) => (
+        {mostrarEventos.map((ev, i) => (
           <li key={i} className="relative pl-3">
             <span className="absolute left-[-9px] top-1.5 w-3 h-3 rounded-full border-2 border-primary bg-card" />
             <div>
@@ -251,6 +260,14 @@ const TicketTimeline: FC<{ ticket: Ticket }> = ({ ticket }) => {
           </li>
         ))}
       </ol>
+      {eventos.length > MAX_EVENTOS_RESUMIDOS && (
+        <button
+          className="mt-2 text-xs text-primary underline cursor-pointer"
+          onClick={() => setVerTodo((v) => !v)}
+        >
+          {verTodo ? "Ver menos" : `Ver todo (${eventos.length})`}
+        </button>
+      )}
     </div>
   );
 };
