@@ -1,6 +1,7 @@
 // src/components/chat/ChatbocLogoAnimated.tsx
 
 import React from "react";
+import { motion } from "framer-motion";
 
 const ChatbocLogoAnimated = ({
   size = 48,
@@ -16,7 +17,7 @@ const ChatbocLogoAnimated = ({
     : "M20,34 Q28,38 36,34";
 
   return (
-    <div
+    <motion.div
       style={{
         width: size,
         height: size,
@@ -24,6 +25,8 @@ const ChatbocLogoAnimated = ({
         display: "inline-block",
         ...style,
       }}
+      animate={smiling ? { rotate: [0, 8, -8, 0] } : {}}
+      transition={{ duration: 0.8 }}
     >
       <img
         src="/favicon/favicon-512x512.png"
@@ -36,7 +39,7 @@ const ChatbocLogoAnimated = ({
         draggable={false}
       />
       {/* Capa de animación SVG encima */}
-      <svg
+      <motion.svg
         width={size}
         height={size}
         viewBox="0 0 56 56"
@@ -48,10 +51,24 @@ const ChatbocLogoAnimated = ({
         }}
       >
         {/* Ojos */}
-        <circle cx={leftEye} cy="24" r="4" fill="#fff" />
-        <circle cx={rightEye} cy="24" r="4" fill="#fff" />
+        <motion.circle
+          cx={leftEye}
+          cy="24"
+          r="4"
+          fill="#fff"
+          animate={movingEyes ? { cy: [24, 22, 24] } : false}
+          transition={{ repeat: movingEyes ? Infinity : 0, duration: 1.5 }}
+        />
+        <motion.circle
+          cx={rightEye}
+          cy="24"
+          r="4"
+          fill="#fff"
+          animate={movingEyes ? { cy: [24, 26, 24] } : false}
+          transition={{ repeat: movingEyes ? Infinity : 0, duration: 1.5, delay: 0.2 }}
+        />
         {/* Boca */}
-        <path
+        <motion.path
           d={mouthPath}
           stroke="#fff"
           strokeWidth="3"
@@ -59,8 +76,8 @@ const ChatbocLogoAnimated = ({
           fill="none"
           style={{ transition: "d 0.25s" }}
         />
-      </svg>
-    </div>
+      </motion.svg>
+    </motion.div>
   );
 };
 
