@@ -79,6 +79,7 @@ const ChatWidget = ({
 
   // Para Google Autocomplete
   const [esperandoDireccion, setEsperandoDireccion] = useState(false);
+  const [direccionGuardada, setDireccionGuardada] = useState<string | null>(null);
   // Mensaje de cierre final
   const [showCierre, setShowCierre] = useState<{
     show: boolean;
@@ -88,6 +89,13 @@ const ChatWidget = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const widgetContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const stored = safeLocalStorage.getItem("ultima_direccion");
+    if (stored) {
+      setDireccionGuardada(stored);
+    }
+  }, []);
 
   // Sonrisa animada
   useEffect(() => {
@@ -231,7 +239,11 @@ const ChatWidget = ({
         ]);
         return;
       }
-      if (esperandoDireccion) setEsperandoDireccion(false);
+      if (esperandoDireccion) {
+        setEsperandoDireccion(false);
+        safeLocalStorage.setItem("ultima_direccion", text);
+        setDireccionGuardada(text);
+      }
       setShowCierre(null);
 
       const userMessage = {
@@ -465,9 +477,20 @@ const ChatWidget = ({
             <AddressAutocomplete
               onSelect={(addr) => {
                 handleSendMessage(addr);
+                safeLocalStorage.setItem("ultima_direccion", addr);
+                setDireccionGuardada(addr);
                 setEsperandoDireccion(false);
               }}
               autoFocus
+              value={
+                direccionGuardada
+                  ? { label: direccionGuardada, value: direccionGuardada }
+                  : undefined
+              }
+              onChange={(opt) =>
+                setDireccionGuardada(opt ? opt.value : null)
+              }
+              persistKey="ultima_direccion"
             />
             <div className="text-xs text-muted-foreground mt-2">
               Escribí y seleccioná tu dirección para continuar el trámite.
