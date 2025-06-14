@@ -310,69 +310,80 @@ const CATEGORIAS_CHAT_EN_VIVO = [
 const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => void }> = ({ ticket, onTicketUpdate }) => {
   const [newMessage, setNewMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [comentarios, setComentarios] = useState<Comment[]>(ticket.comentarios || []);
   const chatBottomRef = useRef<HTMLDivElement>(null);
+  const pollingRef = useRef<NodeJS.Timeout | null>(null);
+  const ultimoMensajeIdRef = useRef<number>(0);
 
-  // --- ¿ES CHAT EN VIVO? ---
-  const categoriaNormalizada = ((ticket.asunto || ticket.categoria || "") as string)
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-  const chatEnVivo =
-    CATEGORIAS_CHAT_EN_VIVO.some(cat =>
-      categoriaNormalizada.includes(
-        cat.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-      )
-    ) &&
-    ["esperando_agente_en_vivo", "en_proceso"].includes(ticket.estado);
-
-  // --- FUNCION MANUAL Y PARA POLLING ---
-  const fetchComentarios = useCallback(async () => {
-    try {
-      const data = await apiFetch(`/tickets/chat/${ticket.id}/mensajes`);
-      if (data?.mensajes) {
-        onTicketUpdate({
-          ...ticket,
-          comentarios: data.mensajes.map((msg: any) => ({
-            id: msg.id,
-            comentario: msg.texto,
-            fecha: msg.fecha,
-            es_admin: msg.es_admin,
-          })),
-        });
-      }
-    } catch (e) {
-      // Podés agregar manejo de error si querés
-    }
-  }, [ticket, onTicketUpdate]);
-
-  // -- POLLING SOLO EN CHATS EN VIVO --
+  // --- Polling SOLO en tickets "en vivo" ---
   useEffect(() => {
-    if (!chatEnVivo) return;
-    let mounted = true;
-    const POLLING_INTERVAL = 5000;
-    const fetchAndUpdate = async () => { if (mounted) await fetchComentarios(); };
-    fetchAndUpdate();
-    const interval = setInterval(fetchAndUpdate, POLLING_INTERVAL);
-    return () => { mounted = false; clearInterval(interval); };
-  }, [chatEnVivo, fetchComentarios]);
+    // Resetea comentarios y último ID si cambia de ticket
+    setComentarios(ticket.comentarios || []);
+    ultimoMensajeIdRef.current = (ticket.comentarios && ticket.comentarios.length)
+      ? ticket.comentarios[ticket.comentarios.length - 1].id
+      : 0;
 
-  // --- Envío de Mensaje ---
+    if (pollingRef.current) clearInterval(pollingRef.current);
+
+    const categoriaNormalizada = (ticket.asunto || ticket.categoria || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+
+    const chatEnVivo = CATEGORIAS_CHAT_EN_VIVO.some(cat =>
+      categoriaNormalizada.includes(cat.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""))
+    ) && ["esperando_agente_en_vivo", "en_proceso"].includes(ticket.estado);
+
+    if (!chatEnVivo) return;
+
+    const fetchComentarios = async () => {
+      try {
+        const data = await apiFetch(`/tickets/chat/${ticket.id}/mensajes?ultimo_mensaje_id=${ultimoMensajeIdRef.current}`);
+        if (data.mensajes && data.mensajes.length > 0) {
+          setComentarios(prev => {
+            const idsPrev = new Set(prev.map(m => m.id));
+            const nuevos = data.mensajes.filter(m => !idsPrev.has(m.id));
+            if (nuevos.length > 0) {
+              ultimoMensajeIdRef.current = nuevos[nuevos.length - 1].id;
+              return [...prev, ...nuevos.map(msg => ({
+                id: msg.id, comentario: msg.texto, fecha: msg.fecha, es_admin: msg.es_admin
+              }))];
+            }
+            return prev;
+          });
+        }
+      } catch (e) {
+        console.error("Error en polling de comentarios:", e);
+      }
+    };
+
+    fetchComentarios();
+    pollingRef.current = setInterval(fetchComentarios, 5000);
+    return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
+  }, [ticket.id, ticket.estado, ticket.asunto, ticket.categoria]);
+
+  // --- Scroll SOLO si cambian los comentarios ---
+  useEffect(() => {
+    if (chatBottomRef.current) {
+      chatBottomRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [comentarios.length]);
+
+  // --- Envío de mensaje (igual que antes) ---
   const handleSendMessage = async () => {
     if (!newMessage.trim() || isSending) return;
     setIsSending(true);
     try {
       const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}/responder`, {
         method: "POST",
-        body: { comentario: newMessage },
+        body: { comentario: newMessage }
       });
-      const mergedTicket = { ...ticket, ...updatedTicket };
-      if (!updatedTicket.comentarios && ticket.comentarios) {
-        mergedTicket.comentarios = ticket.comentarios;
-      }
-      onTicketUpdate(mergedTicket);
+      setComentarios(updatedTicket.comentarios || []);
       setNewMessage("");
+      // Si querés actualizar el ticket padre
+      onTicketUpdate({ ...ticket, ...updatedTicket });
     } catch (error) {
-      // Manejo de error opcional
+      console.error("Error al enviar comentario", error);
     } finally {
       setIsSending(false);
     }
