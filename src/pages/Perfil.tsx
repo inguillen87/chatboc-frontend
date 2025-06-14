@@ -21,7 +21,8 @@ import { useNavigate } from "react-router-dom";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "https://api.chatboc.ar";
-const Maps_API_KEY = import.meta.env.VITE_Maps_API_KEY;
+const Maps_API_KEY =
+  import.meta.env.VITE_Maps_API_KEY || "AIzaSyDbEoPzFgN5zJsIeywiRE7jRI8xr5ioGNI";
 const RUBRO_AVATAR = {
   bodega: "🍷",
   restaurante: "🍽️",
