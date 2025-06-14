@@ -179,11 +179,11 @@ body,
   background: transparent !important;
   margin: 0;
   padding: 0;
-  width: 100vw;
-  height: 100vh;
-  min-width: 100vw;
+  width: 100%;
+  min-width: 100%;
   min-height: 100vh;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 /* ... otras clases y keyframes ... */
