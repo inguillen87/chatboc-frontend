@@ -33,6 +33,7 @@ interface TicketSummary extends Omit<Ticket, 'detalles' | 'comentarios'> {
 type CategorizedTickets = { [category: string]: TicketSummary[]; };
 
 // --- MAPA DE ESTADOS ---
+// Se mantienen los colores con soporte dark-mode
 const ESTADOS: Record<TicketStatus, { label: string; tailwind_class: string }> = {
     nuevo: { label: "Nuevo", tailwind_class: "bg-blue-500/20 text-blue-500 border-blue-500/30 dark:bg-blue-700/30 dark:text-blue-300 dark:border-blue-700/50" },
     en_proceso: { label: "En Proceso", tailwind_class: "bg-yellow-500/20 text-yellow-500 border-yellow-500/30 dark:bg-yellow-700/30 dark:text-yellow-300 dark:border-yellow-700/50" },
@@ -65,7 +66,7 @@ export default function TicketsPanel() {
             try {
                 const data = await apiFetch<CategorizedTickets>('/tickets/panel_por_categoria');
                 
-                // --- Lógica para agrupar tickets resueltos/cerrados ---
+                // --- Lógica para agrupar tickets resueltos/cerrados (Mantenida) ---
                 const processedData: CategorizedTickets = {};
                 const resolvedAndClosedTickets: TicketSummary[] = [];
 
@@ -84,7 +85,6 @@ export default function TicketsPanel() {
                 });
 
                 if (resolvedAndClosedTickets.length > 0) {
-                    // Ordena los tickets resueltos/cerrados por fecha descendente
                     resolvedAndClosedTickets.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
                     processedData["Tickets Resueltos y Cerrados"] = resolvedAndClosedTickets;
                 }
@@ -165,13 +165,11 @@ export default function TicketsPanel() {
                 });
 
                 if (resolvedAndClosedTickets.length > 0) {
-                     // Ordena los tickets resueltos/cerrados por fecha descendente
-                    resolvedAndClosedTickets.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+                     resolvedAndClosedTickets.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
                     processedData["Tickets Resueltos y Cerrados"] = resolvedAndClosedTickets;
                 }
                 
                 setCategorizedTickets(processedData);
-                // Opcional: Si quieres que el ticket se cierre si se mueve a la categoría de resueltos/cerrados y ya no es "activo"
                 if (updatedTicket.estado === "resuelto" || updatedTicket.estado === "cerrado") {
                     setSelectedTicketId(null);
                     setDetailedTicket(null);
@@ -350,10 +348,10 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
             const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}/responder`, { method: 'POST', body: { comentario: newMessage } });
             onTicketUpdate(updatedTicket);
             setNewMessage("");
-            // SCROLL AQUI: Directamente después de enviar tu mensaje
+            // Scroll a la vista DESPUÉS de enviar un mensaje (lógica simple, similar a la que tenías antes)
             setTimeout(() => {
                 chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
-            }, 100); // Pequeño retraso para asegurar que el DOM se haya actualizado
+            }, 100); // Pequeño retraso
         } catch (error) {
             console.error("Error al enviar comentario", error);
         } finally {
@@ -371,21 +369,15 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
         }
     };
 
-    // --- Scroll al final del chat: LÓGICA REVERTIDA/SIMPLIFICADA ---
-    // Este useEffect solo se disparará en la carga inicial y cuando los comentarios cambien.
-    // La idea es que se scrollee al final inicialmente, y al enviar un mensaje,
-    // el scroll se maneje específicamente en handleSendMessage.
+    // --- Scroll al final del chat: LÓGICA MÁS SIMPLE Y DIRECTA (REVERTIDA) ---
+    // Este useEffect se disparará cada vez que `ticket.comentarios` cambie.
+    // Con la altura controlada del chat, debería funcionar para mantener el scroll al final.
     useEffect(() => {
         if (chatBottomRef.current) {
-            // Un pequeño retraso para asegurar que el DOM esté listo después de una actualización de comentarios.
-            // Esto es crucial para que scrollIntoView funcione correctamente.
-            const timer = setTimeout(() => {
-                chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
-            }, 0); // Un delay de 0ms simplemente pone la tarea al final de la cola de eventos
-
-            return () => clearTimeout(timer);
+            chatBottomRef.current.scrollIntoView({ behavior: "smooth" });
         }
-    }, [ticket.comentarios]); // Se dispara cada vez que los comentarios se actualizan
+    }, [ticket.comentarios]);
+
 
     return (
         <div className="flex flex-col md:grid md:grid-cols-3 gap-4">
@@ -429,9 +421,13 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
                 <Card>
                     <CardHeader className="pb-2"><CardTitle className="text-base">Estado del Ticket</CardTitle></CardHeader>
                     <CardContent>
+                        {/* Ajuste para el desplegable del Select */}
                         <Select onValueChange={handleEstadoChange} value={ticket.estado}>
-                            <SelectTrigger className="w-full"><SelectValue placeholder="Cambiar estado..." /></SelectTrigger>
-                            <SelectContent>
+                            <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Cambiar estado..." />
+                            </SelectTrigger>
+                            {/* Añadido position="popper" y un z-index alto para SelectContent si es necesario */}
+                            <SelectContent position="popper" className="z-[9999]"> 
                                 {Object.entries(ESTADOS).map(([key, { label }]) => (
                                     <SelectItem key={key} value={key}>{label}</SelectItem>
                                 ))}
