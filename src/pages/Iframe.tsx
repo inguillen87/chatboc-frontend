@@ -6,7 +6,7 @@ import React, { useEffect, useState, Suspense } from "react";
 const ChatWidget = React.lazy(() => import("../components/chat/ChatWidget")); 
 
 const Iframe = () => {
-  const [defaultOpen, setDefaultOpen] = useState(true); // <-- ABIERTO por default para debug
+  const [defaultOpen, setDefaultOpen] = useState(false);
   const [widgetId, setWidgetId] = useState("chatboc-iframe-unknown");
   const [tokenFromUrl, setTokenFromUrl] = useState<string | null>(null);
   const [initialIframeWidth, setInitialIframeWidth] = useState<string | null>(null);
@@ -17,11 +17,11 @@ const Iframe = () => {
       const params = new URLSearchParams(window.location.search);
       const openParam = params.get("defaultOpen");
       const idParam = params.get("widgetId");
-      const tokenParam = params.get("token"); 
-      const widthParam = params.get("initialWidth"); 
-      const heightParam = params.get("initialHeight"); 
-      
-      if (openParam === "true") setDefaultOpen(true);
+      const tokenParam = params.get("token");
+      const widthParam = params.get("initialWidth");
+      const heightParam = params.get("initialHeight");
+
+      setDefaultOpen(openParam === "true");
       if (idParam) setWidgetId(idParam);
       if (tokenParam) setTokenFromUrl(tokenParam); 
       if (widthParam) setInitialIframeWidth(widthParam); 
