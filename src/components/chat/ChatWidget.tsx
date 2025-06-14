@@ -4,12 +4,15 @@ import ChatHeader from "./ChatHeader";
 import ChatMessage from "./ChatMessage";
 import TypingIndicator from "./TypingIndicator";
 import ChatInput from "./ChatInput";
+import GooglePlacesAutocomplete from "react-google-autocomplete";
 import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
 
 const CIRCLE_SIZE = 88;
 const CARD_WIDTH = 370;
 const CARD_HEIGHT = 540;
+
+const Maps_API_KEY = import.meta.env.VITE_Maps_API_KEY;
 
 const ChatWidget = ({
   mode = "standalone",
@@ -32,17 +35,19 @@ const ChatWidget = ({
   const [contexto, setContexto] = useState({});
   const [smile, setSmile] = useState(false);
 
-  // --- N1: NUEVOS ESTADOS Y REFS PARA EL CHAT EN VIVO ---
+  // N1: CHAT EN VIVO
   const [activeTicketId, setActiveTicketId] = useState<number | null>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const ultimoMensajeIdRef = useRef<number>(0);
-  // ----------------------------------------------------
+
+  // PARA GOOGLE AUTOCOMPLETE EN EL CHAT
+  const [esperandoDireccion, setEsperandoDireccion] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const widgetContainerRef = useRef<HTMLDivElement>(null);
 
-  // Efecto de la sonrisa (sin cambios)
+  // Sonrisa animada
   useEffect(() => {
     if (!isOpen) {
       const timer = setInterval(() => {
@@ -53,7 +58,7 @@ const ChatWidget = ({
     }
   }, [isOpen]);
 
-  // Helpers de tokens (sin cambios)
+  // Token helpers
   const getAuthTokenFromLocalStorage = () =>
     typeof window === "undefined" ? null : localStorage.getItem("authToken");
   const getAnonToken = () => {
@@ -70,42 +75,37 @@ const ChatWidget = ({
     mode === "iframe" ? propAuthToken : getAuthTokenFromLocalStorage();
   const esAnonimo = !finalAuthToken;
 
-  // Lógica de apertura y mensaje de bienvenida (sin cambios)
-  useEffect(() => {
-    if (isOpen) {
-      if (esAnonimo && mode === "standalone" && !rubroSeleccionado) {
-        setEsperandoRubro(true);
-        cargarRubros();
-      } else if (!esAnonimo || rubroSeleccionado) {
-        setEsperandoRubro(false);
-        if (messages.length === 0) {
-          setMessages([
-            {
-              id: Date.now(),
-              text: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?",
-              isBot: true,
-              timestamp: new Date(),
-            },
-          ]);
-        }
-      }
-    }
-  }, [isOpen, esAnonimo, mode, rubroSeleccionado, messages.length]);
+  // --- FUNCION PARA DETECTAR SI EL BOT PIDE DIRECCION ---
+  function shouldShowAutocomplete(messages: Message[], contexto: any) {
+    const lastBotMsg = [...messages].reverse().find(m => m.isBot);
+    if (!lastBotMsg) return false;
+    const frasesDireccion = [
+      "indicame la dirección", "necesito la dirección", "ingresa la dirección",
+      "especificá la dirección", "decime la dirección", "dirección exacta",
+      "¿cuál es la dirección?", "por favor indique la dirección", "por favor ingrese su dirección", "dirección completa"
+    ];
+    const contenido = (lastBotMsg.text || "").toLowerCase();
+    if (frasesDireccion.some(frase => contenido.includes(frase))) return true;
+    if (
+      contexto &&
+      contexto.contexto_municipio &&
+      (
+        contexto.contexto_municipio.estado_conversacion === "ESPERANDO_DIRECCION_RECLAMO" ||
+        contexto.contexto_municipio.estado_conversacion === 4
+      )
+    ) return true;
+    return false;
+  }
 
-  // Scroll al final (sin cambios)
+  // --- AUTO-TOGGLE DEL AUTOCOMPLETE SEGUN EL MENSAJE DEL BOT ---
   useEffect(() => {
-    if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-    }
-    if (messagesEndRef.current) {
-      (messagesEndRef.current as any).scrollIntoView({ behavior: "smooth" });
-    }
-  }, [messages, isTyping]);
-  
-  // Cargar rubros (sin cambios)
+    setEsperandoDireccion(shouldShowAutocomplete(messages, contexto));
+  }, [messages, contexto]);
+
+  // Cargar rubros (igual que antes)
   const cargarRubros = async () => { /* ...código sin cambios... */ };
 
-  // --- N2: NUEVO USEEFFECT PARA POLLING DE MENSAJES EN VIVO ---
+  // Polling de mensajes en vivo (igual que antes)
   useEffect(() => {
     const fetchNewMessages = async () => {
       if (!activeTicketId) return;
@@ -132,46 +132,36 @@ const ChatWidget = ({
     }
     return () => { if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current); };
   }, [activeTicketId]);
-  // -----------------------------------------------------------------
 
-  // --- N3: `handleSendMessage` MODIFICADO PARA SER EL ORQUESTADOR ---
+  // --- handleSendMessage: acepta texto normal o dirección de Google ---
   const handleSendMessage = useCallback(
     async (text: string) => {
       if (!text.trim()) return;
-      
-      // Mantenemos la validación original de selección de rubro
       if (esAnonimo && mode === "standalone" && !rubroSeleccionado) {
         setMessages((prev) => [
           ...prev, { id: Date.now(), text: "🛈 Por favor, seleccioná primero un rubro.", isBot: true, timestamp: new Date() },
         ]);
         return;
       }
-      
       const userMessage = { id: Date.now(), text, isBot: false, timestamp: new Date() };
       setMessages((prev) => [...prev, userMessage]);
       setIsTyping(true);
 
       try {
         if (activeTicketId) {
-          // **CASO 1: YA ESTAMOS EN UN CHAT EN VIVO**
           await apiFetch(`/tickets/chat/${activeTicketId}/responder_ciudadano`, {
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalAuthToken || getAnonToken()}` },
             body: { comentario: text },
           });
         } else {
-          // **CASO 2: AÚN NO HAY CHAT, HABLAMOS CON EL BOT (Lógica original)**
           const payload: any = { pregunta: text, contexto_previo: contexto };
-          if (esAnonimo && mode === "standalone" && rubroSeleccionado) {
-            payload.rubro = rubroSeleccionado;
-          }
-
+          if (esAnonimo && mode === "standalone" && rubroSeleccionado) payload.rubro = rubroSeleccionado;
           const data = await apiFetch("/ask", {
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalAuthToken || getAnonToken()}` },
             body: payload,
           });
-
           setContexto(data.contexto_actualizado || {});
           setMessages((prev) => [
             ...prev, {
@@ -183,8 +173,6 @@ const ChatWidget = ({
             },
           ]);
           if (esAnonimo && mode === "standalone") setPreguntasUsadas((prev) => prev + 1);
-
-          // **LA MAGIA: Transición de Bot a Chat en Vivo**
           if (data.ticket_id) {
             setActiveTicketId(data.ticket_id);
             ultimoMensajeIdRef.current = 0;
@@ -199,10 +187,40 @@ const ChatWidget = ({
     },
     [contexto, rubroSeleccionado, preguntasUsadas, esAnonimo, mode, finalAuthToken, activeTicketId]
   );
-  // -----------------------------------------------------------------
 
+  // --- Bienvenida y rubro ---
+  useEffect(() => {
+    if (isOpen) {
+      if (esAnonimo && mode === "standalone" && !rubroSeleccionado) {
+        setEsperandoRubro(true);
+        cargarRubros();
+      } else if (!esAnonimo || rubroSeleccionado) {
+        setEsperandoRubro(false);
+        if (messages.length === 0) {
+          setMessages([
+            {
+              id: Date.now(),
+              text: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?",
+              isBot: true,
+              timestamp: new Date(),
+            },
+          ]);
+        }
+      }
+    }
+  }, [isOpen, esAnonimo, mode, rubroSeleccionado, messages.length]);
 
-  // --- Render: burbuja flotante (con tu logo animado) ---
+  // Scroll automático
+  useEffect(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
+    if (messagesEndRef.current) {
+      (messagesEndRef.current as any).scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, isTyping]);
+
+  // --- RENDER: BURBUJA FLOTANTE ---
   if (!isOpen) {
     return (
       <div
@@ -229,7 +247,7 @@ const ChatWidget = ({
     );
   }
 
-  // --- Card/chat abierto ---
+  // --- CARD: CHAT ABIERTO ---
   return (
     <div
       ref={widgetContainerRef}
@@ -250,6 +268,7 @@ const ChatWidget = ({
       }}
     >
       <ChatHeader onClose={() => setIsOpen(false)} />
+
       <div
         ref={chatContainerRef}
         className={`
@@ -259,7 +278,6 @@ const ChatWidget = ({
           bg-white dark:bg-[#181f2a]
         `}
       >
-        {/* Mensajes y lógica */}
         {esperandoRubro ? (
           <div className="text-center w-full">
             <h2 className="text-green-500 mb-2">👋 ¡Bienvenido!</h2>
@@ -307,6 +325,50 @@ const ChatWidget = ({
               </div>
             )}
           </div>
+        ) : esperandoDireccion && Maps_API_KEY ? (
+          <div className="flex flex-col items-center py-8 px-2 gap-4">
+            <div className="text-primary text-base font-semibold mb-2">
+              Indicá la dirección exacta (autocompleta con Google)
+            </div>
+            <GooglePlacesAutocomplete
+              apiKey={Maps_API_KEY}
+              autocompletionRequest={{
+                componentRestrictions: { country: "ar" },
+                types: ["address"],
+              }}
+              selectProps={{
+                onChange: (option: any) => {
+                  if (option && option.value) {
+                    // Cuando el usuario selecciona una dirección, la mandamos al chat.
+                    handleSendMessage(option.value);
+                  }
+                },
+                placeholder: "Ej: Av. San Martín 123, Mendoza",
+                isClearable: true,
+                styles: {
+                  control: (base: any) => ({
+                    ...base,
+                    backgroundColor: "#fff",
+                    color: "#0e1421",
+                    minHeight: "2.5rem",
+                    borderRadius: "0.75rem",
+                    fontSize: "1rem",
+                  }),
+                  singleValue: (base: any) => ({
+                    ...base,
+                    color: "#0e1421",
+                  }),
+                  input: (base: any) => ({
+                    ...base,
+                    color: "#0e1421",
+                  }),
+                }
+              }}
+            />
+            <div className="text-xs text-muted-foreground mt-2">
+              Escribí y seleccioná tu dirección para continuar el trámite.
+            </div>
+          </div>
         ) : (
           <>
             {messages.map(
@@ -325,8 +387,9 @@ const ChatWidget = ({
           </>
         )}
       </div>
-      {/* INPUT */}
-      {!esperandoRubro && (
+
+      {/* --- INPUT SÓLO SI NO SE ESPERA RUBRO NI DIRECCIÓN --- */}
+      {!esperandoRubro && !esperandoDireccion && (
         <div className="bg-gray-100 dark:bg-[#1d2433] px-3 py-2">
           <ChatInput onSendMessage={handleSendMessage} isTyping={isTyping} />
         </div>

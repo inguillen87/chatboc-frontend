@@ -9,8 +9,31 @@ import { motion, AnimatePresence } from "framer-motion";
 import { apiFetch } from "@/utils/api";
 import GooglePlacesAutocomplete from "react-google-autocomplete";
 
+// Helper para saber si mostrar autocomplete
+function shouldShowAutocomplete(messages: Message[], contexto: any) {
+  const lastBotMsg = [...messages].reverse().find(m => m.isBot);
+  if (!lastBotMsg) return false;
+  const frasesDireccion = [
+    "indicame la dirección", "necesito la dirección", "ingresa la dirección",
+    "especificá la dirección", "decime la dirección", "dirección exacta",
+    "¿cuál es la dirección?", "por favor indique la dirección", "por favor ingrese su dirección"
+  ];
+  const contenido = (lastBotMsg.text || "").toLowerCase();
+  if (frasesDireccion.some(frase => contenido.includes(frase))) return true;
+  if (
+    contexto &&
+    contexto.contexto_municipio &&
+    (
+      contexto.contexto_municipio.estado_conversacion === "ESPERANDO_DIRECCION_RECLAMO" ||
+      contexto.contexto_municipio.estado_conversacion === 4
+    )
+  ) {
+    return true;
+  }
+  return false;
+}
 
-// Hook para mobile detection (sin cambios)
+// Mobile detection
 function useIsMobile(breakpoint = 768) {
   const [isMobile, setIsMobile] = useState(
     typeof window !== "undefined" ? window.innerWidth < breakpoint : false
@@ -23,6 +46,8 @@ function useIsMobile(breakpoint = 768) {
   return isMobile;
 }
 
+const Maps_API_KEY = import.meta.env.VITE_Maps_API_KEY;
+
 const ChatPage = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
@@ -34,7 +59,7 @@ const ChatPage = () => {
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const ultimoMensajeIdRef = useRef<number>(0);
   const isMobile = useIsMobile();
-  
+
   const scrollToBottom = useCallback(() => {
     if (chatMessagesContainerRef.current) {
       chatMessagesContainerRef.current.scrollTop = chatMessagesContainerRef.current.scrollHeight;
@@ -42,21 +67,20 @@ const ChatPage = () => {
   }, []);
 
   useEffect(() => {
-    if (messages.length === 0) { 
+    if (messages.length === 0) {
       setMessages([
         { id: Date.now(), text: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?", isBot: true, timestamp: new Date() },
       ]);
     }
-  }, []); 
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => scrollToBottom(), 150);
     return () => clearTimeout(timer);
   }, [messages, isTyping, scrollToBottom]);
 
-// En ChatPage.tsx, reemplaza tu función handleSend
-
-const handleSend = useCallback(async (text: string) => {
+  // Maneja envío de mensaje O dirección seleccionada
+  const handleSend = useCallback(async (text: string) => {
     if (!text.trim()) return;
 
     const userMessage: Message = { id: Date.now(), text, isBot: false, timestamp: new Date() };
@@ -64,116 +88,92 @@ const handleSend = useCallback(async (text: string) => {
     setIsTyping(true);
 
     try {
-        // --- LÓGICA CONDICIONAL ---
-        if (activeTicketId) {
-            // **CASO 1: YA ESTAMOS EN UN CHAT EN VIVO**
-            // Simplemente enviamos el mensaje. El polling se encargará de mostrarlo.
-            // NOTA: Necesitamos una nueva ruta en el backend para que el ciudadano responda.
-            await apiFetch(`/tickets/chat/${activeTicketId}/responder_ciudadano`, { // <-- ¡NUEVA RUTA!
-                method: "POST",
-                body: { comentario: text },
-            });
-            // El mensaje del usuario ya se mostró, y su eco del servidor lo traerá el polling.
-            // Por simplicidad, no lo mostraremos dos veces.
+      // --- LÓGICA CONDICIONAL ---
+      if (activeTicketId) {
+        // Caso: chat en vivo
+        await apiFetch(`/tickets/chat/${activeTicketId}/responder_ciudadano`, {
+          method: "POST",
+          body: { comentario: text },
+        });
+      } else {
+        // Caso: todavía con el bot
+        const payload = { pregunta: text, contexto_previo: contexto };
+        const data = await apiFetch<any>("/ask", {
+          method: "POST",
+          body: payload,
+        });
 
-        } else {
-            // **CASO 2: AÚN NO HAY CHAT EN VIVO, HABLAMOS CON EL BOT**
-            const payload = { pregunta: text, contexto_previo: contexto };
-            const data = await apiFetch<any>("/ask", {
-                method: "POST",
-                body: payload,
-            });
+        setContexto(data.contexto_actualizado || {});
 
-            setContexto(data.contexto_actualizado || {});
+        const botMessage: Message = {
+          id: Date.now(),
+          text: data?.respuesta || "⚠️ No se pudo generar una respuesta.",
+          isBot: true,
+          timestamp: new Date(),
+          botones: data?.botones || []
+        };
+        setMessages(prev => [...prev, botMessage]);
 
-            const botMessage: Message = {
-                id: Date.now(),
-                text: data?.respuesta || "⚠️ No se pudo generar una respuesta.",
-                isBot: true,
-                timestamp: new Date(),
-                botones: data?.botones || []
-            };
-            setMessages(prev => [...prev, botMessage]);
-
-            // **¡AQUÍ OCURRE LA MAGIA!**
-            // Si la respuesta del bot incluye un ticket_id, significa que se escaló a un humano.
-            if (data.ticket_id) {
-                setActiveTicketId(data.ticket_id); // <-- ¡Activamos el modo polling!
-                ultimoMensajeIdRef.current = 0; // Reseteamos el contador de mensajes
-            }
+        if (data.ticket_id) {
+          setActiveTicketId(data.ticket_id);
+          ultimoMensajeIdRef.current = 0;
         }
+      }
     } catch (error) {
-        setMessages(prev => [...prev, { id: Date.now(), text: "⚠️ No se pudo conectar con el servidor.", isBot: true, timestamp: new Date() }]);
+      setMessages(prev => [...prev, { id: Date.now(), text: "⚠️ No se pudo conectar con el servidor.", isBot: true, timestamp: new Date() }]);
     } finally {
-        setIsTyping(false);
+      setIsTyping(false);
     }
-}, [contexto, activeTicketId]); // Agregamos activeTicketId a las dependencias
+  }, [contexto, activeTicketId]);
 
-//UseEffect para manejasr mensajes en vivo
-
-useEffect(() => {
-    // Función para buscar nuevos mensajes
+  // Polling para chat en vivo
+  useEffect(() => {
     const fetchNewMessages = async () => {
-        if (!activeTicketId) return;
-
-        try {
-            // Llamamos a la API que construimos en el backend
-            const data = await apiFetch<{ estado_chat: string; mensajes: any[] }>(
-                `/tickets/chat/${activeTicketId}/mensajes?ultimo_mensaje_id=${ultimoMensajeIdRef.current}`
-            );
-
-            if (data.mensajes && data.mensajes.length > 0) {
-                const nuevosMensajes: Message[] = data.mensajes.map(msg => ({
-                    id: msg.id,
-                    text: msg.texto,
-                    isBot: msg.es_admin, // Los mensajes del agente se marcan como si fueran del "bot" para el estilo
-                    timestamp: new Date(msg.fecha),
-                }));
-
-                setMessages(prev => [...prev, ...nuevosMensajes]);
-                // Actualizamos la referencia al último ID recibido
-                ultimoMensajeIdRef.current = data.mensajes[data.mensajes.length - 1].id;
-            }
-
-            // Si el agente cierra el chat, detenemos el polling
-            if (data.estado_chat === 'resuelto' || data.estado_chat === 'cerrado') {
-                if (pollingIntervalRef.current) {
-                    clearInterval(pollingIntervalRef.current);
-                }
-                setMessages(prev => [...prev, { id: Date.now(), text: "Un agente ha finalizado esta conversación.", isBot: true, timestamp: new Date() }]);
-            }
-        } catch (error) {
-            console.error("Error durante el polling:", error);
-            // Opcional: podrías detener el polling si hay errores repetidos
+      if (!activeTicketId) return;
+      try {
+        const data = await apiFetch<{ estado_chat: string; mensajes: any[] }>(
+          `/tickets/chat/${activeTicketId}/mensajes?ultimo_mensaje_id=${ultimoMensajeIdRef.current}`
+        );
+        if (data.mensajes && data.mensajes.length > 0) {
+          const nuevosMensajes: Message[] = data.mensajes.map(msg => ({
+            id: msg.id,
+            text: msg.texto,
+            isBot: msg.es_admin,
+            timestamp: new Date(msg.fecha),
+          }));
+          setMessages(prev => [...prev, ...nuevosMensajes]);
+          ultimoMensajeIdRef.current = data.mensajes[data.mensajes.length - 1].id;
         }
-    };
-
-    // Iniciar o detener el polling
-    if (activeTicketId) {
-        // Inicia el polling inmediatamente una vez, y luego cada 5 segundos
-        fetchNewMessages(); 
-        pollingIntervalRef.current = setInterval(fetchNewMessages, 5000);
-    }
-
-    // Función de limpieza: se ejecuta cuando el componente se desmonta o activeTicketId cambia
-    return () => {
-        if (pollingIntervalRef.current) {
+        if (data.estado_chat === 'resuelto' || data.estado_chat === 'cerrado') {
+          if (pollingIntervalRef.current) {
             clearInterval(pollingIntervalRef.current);
+          }
+          setMessages(prev => [...prev, { id: Date.now(), text: "Un agente ha finalizado esta conversación.", isBot: true, timestamp: new Date() }]);
         }
+      } catch (error) {
+        console.error("Error durante el polling:", error);
+      }
     };
-}, [activeTicketId]); // Este efecto depende únicamente del ID del ticket activo
+    if (activeTicketId) {
+      fetchNewMessages();
+      pollingIntervalRef.current = setInterval(fetchNewMessages, 5000);
+    }
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+      }
+    };
+  }, [activeTicketId]);
 
   return (
     <div className="min-h-screen flex flex-col bg-background dark:bg-gradient-to-b dark:from-[#0d1014] dark:to-[#161b22] text-foreground">
       <Navbar />
 
-      <main
-        className={`
-          flex-grow flex flex-col items-center justify-center
-          pt-3 sm:pt-10 pb-2 sm:pb-6
-          transition-all
-        `}
-      >
+      <main className={`
+        flex-grow flex flex-col items-center justify-center
+        pt-3 sm:pt-10 pb-2 sm:pb-6
+        transition-all
+      `}>
         <motion.div
           layout
           className={`
@@ -194,7 +194,6 @@ useEffect(() => {
         >
           {/* Mensajes */}
           <div
-            // onClick={handleDynamicButtonClick} // <<<<<<<<<<<<<< COMENTAR O REMOVER ESTO
             ref={chatMessagesContainerRef}
             className={`
               flex-1 overflow-y-auto
@@ -215,8 +214,7 @@ useEffect(() => {
                   exit={{ opacity: 0, y: 14 }}
                   transition={{ duration: 0.18 }}
                 >
-                  {/* Pasa onButtonClick a ChatMessage aquí también */}
-                  <ChatMessage message={msg} isTyping={isTyping} onButtonClick={handleSend} /> 
+                  <ChatMessage message={msg} isTyping={isTyping} onButtonClick={handleSend} />
                 </motion.div>
               ))}
             </AnimatePresence>
@@ -224,7 +222,7 @@ useEffect(() => {
             <div ref={chatEndRef} />
           </div>
 
-          {/* Input siempre visible abajo */}
+          {/* Autocomplete o Input según el estado */}
           <div
             className={`
               bg-gradient-to-t from-background via-card/60 to-transparent dark:from-card dark:via-card/80
@@ -237,39 +235,34 @@ useEffect(() => {
               backdrop-blur
             `}
           >
-            <ChatInput onSendMessage={handleSend} />
+            {shouldShowAutocomplete(messages, contexto) && Maps_API_KEY ? (
+              <div>
+                <GooglePlacesAutocomplete
+                  apiKey={Maps_API_KEY}
+                  autocompletionRequest={{
+                    componentRestrictions: { country: "ar" },
+                    types: ['address'],
+                  }}
+                  onPlaceSelected={(place) => {
+                    if (place?.formatted_address) {
+                      handleSend(place.formatted_address);
+                    }
+                  }}
+                  className="w-full rounded-md border border-input bg-input px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary h-12 placeholder:text-muted-foreground"
+                  placeholder="Ej: Av. San Martín 123, Junín, Mendoza"
+                />
+                <div className="text-xs mt-2 text-muted-foreground">
+                  Escribí o seleccioná tu dirección para el reclamo.
+                </div>
+              </div>
+            ) : (
+              <ChatInput onSendMessage={handleSend} />
+            )}
           </div>
         </motion.div>
       </main>
     </div>
   );
 };
-// --- Helper para detectar cuándo mostrar el Autocomplete de Google Places ---
-function shouldShowAutocomplete(messages: Message[], contexto: any) {
-  // 1. Revisa si el último mensaje del bot pide dirección (ajustá las frases a tu flujo real si hace falta)
-  const lastBotMsg = [...messages].reverse().find(m => m.isBot);
-  if (!lastBotMsg) return false;
-
-  const frasesDireccion = [
-    "indicame la dirección", "necesito la dirección", "ingresa la dirección",
-    "especificá la dirección", "decime la dirección", "dirección exacta",
-    "¿cuál es la dirección?", "por favor indique la dirección", "por favor ingrese su dirección"
-  ];
-  const contenido = (lastBotMsg.text || "").toLowerCase();
-  if (frasesDireccion.some(frase => contenido.includes(frase))) return true;
-
-  // 2. O si el contexto tiene el estado de espera por dirección (si lo usás)
-  if (
-    contexto &&
-    contexto.contexto_municipio &&
-    (
-      contexto.contexto_municipio.estado_conversacion === "ESPERANDO_DIRECCION_RECLAMO" ||
-      contexto.contexto_municipio.estado_conversacion === 4 // Enum, si aplica
-    )
-  ) {
-    return true;
-  }
-  return false;
-}
 
 export default ChatPage;
