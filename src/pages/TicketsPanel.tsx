@@ -345,29 +345,40 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
   }, [ticket?.id, ticket?.estado, ticket?.tipo, onTicketUpdate]);
 
   // --- Envío de Mensaje ---
-  const handleSendMessage = async () => {
-    if (!newMessage.trim() || isSending) return;
-    setIsSending(true);
-    try {
-      const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}/responder`, { method: 'POST', body: { comentario: newMessage } });
-      onTicketUpdate(updatedTicket);
-      setNewMessage("");
-    } catch (error) {
-      console.error("Error al enviar comentario", error);
-    } finally {
-      setIsSending(false);
+const handleSendMessage = async () => {
+  if (!newMessage.trim() || isSending) return;
+  setIsSending(true);
+  try {
+    const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}/responder`, { method: 'POST', body: { comentario: newMessage } });
+    // --- MERGE DEFENSIVO ---
+    const mergedTicket = { ...ticket, ...updatedTicket };
+    if (!updatedTicket.comentarios && ticket.comentarios) {
+      mergedTicket.comentarios = ticket.comentarios;
     }
-  };
+    onTicketUpdate(mergedTicket);
+    setNewMessage("");
+  } catch (error) {
+    console.error("Error al enviar comentario", error);
+  } finally {
+    setIsSending(false);
+  }
+};
 
-  // --- Cambio de Estado ---
-  const handleEstadoChange = async (nuevoEstado: TicketStatus) => {
-    try {
-      const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}/estado`, { method: 'PUT', body: { estado: nuevoEstado } });
-      onTicketUpdate(updatedTicket);
-    } catch (error) {
-      console.error("Error al cambiar estado", error);
+// --- Cambio de Estado ---
+const handleEstadoChange = async (nuevoEstado: TicketStatus) => {
+  try {
+    const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}/estado`, { method: 'PUT', body: { estado: nuevoEstado } });
+    // --- MERGE DEFENSIVO ---
+    const mergedTicket = { ...ticket, ...updatedTicket };
+    if (!updatedTicket.comentarios && ticket.comentarios) {
+      mergedTicket.comentarios = ticket.comentarios;
     }
-  };
+    onTicketUpdate(mergedTicket);
+  } catch (error) {
+    console.error("Error al cambiar estado", error);
+  }
+};
+
 
   // --- Scroll al final del chat ---
   useEffect(() => {

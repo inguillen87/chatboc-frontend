@@ -9,17 +9,23 @@ import { motion, AnimatePresence } from "framer-motion";
 import { apiFetch } from "@/utils/api";
 import GooglePlacesAutocomplete from "react-google-autocomplete";
 
-// Helper para saber si mostrar autocomplete
+// Frases para detectar pedido de dirección
+const FRASES_DIRECCION = [
+  "indicame la dirección", "necesito la dirección", "ingresa la dirección",
+  "especificá la dirección", "decime la dirección", "dirección exacta",
+  "¿cuál es la dirección?", "por favor indique la dirección", "por favor ingrese su dirección", "dirección completa"
+];
+const FRASES_EXITO = [
+  "Tu reclamo fue generado", "¡Muchas gracias por tu calificación!",
+  "Dejaré el ticket abierto", "El curso de seguridad vial es online",
+  "He abierto una sala de chat directa", "Tu número de chat es", "ticket **M-"
+];
+
 function shouldShowAutocomplete(messages: Message[], contexto: any) {
-  const lastBotMsg = [...messages].reverse().find(m => m.isBot);
+  const lastBotMsg = [...messages].reverse().find(m => m.isBot && m.text);
   if (!lastBotMsg) return false;
-  const frasesDireccion = [
-    "indicame la dirección", "necesito la dirección", "ingresa la dirección",
-    "especificá la dirección", "decime la dirección", "dirección exacta",
-    "¿cuál es la dirección?", "por favor indique la dirección", "por favor ingrese su dirección"
-  ];
   const contenido = (lastBotMsg.text || "").toLowerCase();
-  if (frasesDireccion.some(frase => contenido.includes(frase))) return true;
+  if (FRASES_DIRECCION.some(frase => contenido.includes(frase))) return true;
   if (
     contexto &&
     contexto.contexto_municipio &&
@@ -31,6 +37,24 @@ function shouldShowAutocomplete(messages: Message[], contexto: any) {
     return true;
   }
   return false;
+}
+
+function checkCierreExito(messages: Message[]) {
+  const lastBotMsg = [...messages].reverse().find(m => m.isBot && m.text);
+  if (!lastBotMsg) return null;
+  const contenido = (lastBotMsg.text || "").toLowerCase();
+  if (FRASES_EXITO.some(frase => contenido.includes(frase))) {
+    // Detectar número de ticket
+    const match = contenido.match(/ticket \*\*m-(\d+)/i);
+    if (match) {
+      return {
+        show: true,
+        text: `✅ ¡Listo! Tu ticket fue generado exitosamente. Número: M-${match[1]}.\nUn agente municipal te va a contactar para seguimiento.`
+      };
+    }
+    return { show: true, text: lastBotMsg.text };
+  }
+  return null;
 }
 
 // Mobile detection
@@ -60,6 +84,10 @@ const ChatPage = () => {
   const ultimoMensajeIdRef = useRef<number>(0);
   const isMobile = useIsMobile();
 
+  // Estado de input dirección / cierre éxito
+  const [esperandoDireccion, setEsperandoDireccion] = useState(false);
+  const [showCierre, setShowCierre] = useState<{ show: boolean, text: string } | null>(null);
+
   const scrollToBottom = useCallback(() => {
     if (chatMessagesContainerRef.current) {
       chatMessagesContainerRef.current.scrollTop = chatMessagesContainerRef.current.scrollHeight;
@@ -74,14 +102,24 @@ const ChatPage = () => {
     }
   }, []);
 
+  // Scroll y cierre UX
   useEffect(() => {
+    setEsperandoDireccion(shouldShowAutocomplete(messages, contexto));
+    if (!shouldShowAutocomplete(messages, contexto)) {
+      setShowCierre(checkCierreExito(messages));
+    } else {
+      setShowCierre(null);
+    }
     const timer = setTimeout(() => scrollToBottom(), 150);
     return () => clearTimeout(timer);
-  }, [messages, isTyping, scrollToBottom]);
+  }, [messages, isTyping, scrollToBottom, contexto]);
 
   // Maneja envío de mensaje O dirección seleccionada
   const handleSend = useCallback(async (text: string) => {
     if (!text.trim()) return;
+
+    if (esperandoDireccion) setEsperandoDireccion(false);
+    setShowCierre(null);
 
     const userMessage: Message = { id: Date.now(), text, isBot: false, timestamp: new Date() };
     setMessages(prev => [...prev, userMessage]);
@@ -124,7 +162,7 @@ const ChatPage = () => {
     } finally {
       setIsTyping(false);
     }
-  }, [contexto, activeTicketId]);
+  }, [contexto, activeTicketId, esperandoDireccion]);
 
   // Polling para chat en vivo
   useEffect(() => {
@@ -220,6 +258,12 @@ const ChatPage = () => {
             </AnimatePresence>
             {isTyping && <TypingIndicator />}
             <div ref={chatEndRef} />
+            {/* Mensaje de cierre SIEMPRE si corresponde */}
+            {showCierre && showCierre.show && (
+              <div className="my-3 p-3 rounded-lg bg-green-100 text-green-800 text-center font-bold shadow">
+                {showCierre.text}
+              </div>
+            )}
           </div>
 
           {/* Autocomplete o Input según el estado */}
@@ -235,7 +279,7 @@ const ChatPage = () => {
               backdrop-blur
             `}
           >
-            {shouldShowAutocomplete(messages, contexto) && Maps_API_KEY ? (
+            {esperandoDireccion && Maps_API_KEY ? (
               <div>
                 <GooglePlacesAutocomplete
                   apiKey={Maps_API_KEY}
@@ -255,9 +299,9 @@ const ChatPage = () => {
                   Escribí o seleccioná tu dirección para el reclamo.
                 </div>
               </div>
-            ) : (
+            ) : (!showCierre || !showCierre.show) ? (
               <ChatInput onSendMessage={handleSend} />
-            )}
+            ) : null}
           </div>
         </motion.div>
       </main>

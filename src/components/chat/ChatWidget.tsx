@@ -11,8 +11,19 @@ import { apiFetch } from "@/utils/api";
 const CIRCLE_SIZE = 88;
 const CARD_WIDTH = 370;
 const CARD_HEIGHT = 540;
-
 const Maps_API_KEY = import.meta.env.VITE_Maps_API_KEY;
+
+const FRASES_DIRECCION = [
+  "indicame la dirección", "necesito la dirección", "ingresa la dirección",
+  "especificá la dirección", "decime la dirección", "dirección exacta",
+  "¿cuál es la dirección?", "por favor indique la dirección", "por favor ingrese su dirección", "dirección completa"
+];
+
+const FRASES_EXITO = [
+  "Tu reclamo fue generado", "¡Muchas gracias por tu calificación!",
+  "Dejaré el ticket abierto", "El curso de seguridad vial es online",
+  "He abierto una sala de chat directa", "Tu número de chat es", "ticket **M-"
+];
 
 const ChatWidget = ({
   mode = "standalone",
@@ -34,14 +45,14 @@ const ChatWidget = ({
   const [cargandoRubros, setCargandoRubros] = useState(false);
   const [contexto, setContexto] = useState({});
   const [smile, setSmile] = useState(false);
-
-  // N1: CHAT EN VIVO
   const [activeTicketId, setActiveTicketId] = useState<number | null>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const ultimoMensajeIdRef = useRef<number>(0);
 
-  // PARA GOOGLE AUTOCOMPLETE EN EL CHAT
+  // Para Google Autocomplete
   const [esperandoDireccion, setEsperandoDireccion] = useState(false);
+  // Mensaje de cierre final
+  const [showCierre, setShowCierre] = useState<{ show: boolean, text: string } | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -70,22 +81,16 @@ const ChatWidget = ({
     }
     return token;
   };
-
   const finalAuthToken =
     mode === "iframe" ? propAuthToken : getAuthTokenFromLocalStorage();
   const esAnonimo = !finalAuthToken;
 
-  // --- FUNCION PARA DETECTAR SI EL BOT PIDE DIRECCION ---
+  // Detectar si el bot pide dirección
   function shouldShowAutocomplete(messages: Message[], contexto: any) {
-    const lastBotMsg = [...messages].reverse().find(m => m.isBot);
+    const lastBotMsg = [...messages].reverse().find(m => m.isBot && m.text);
     if (!lastBotMsg) return false;
-    const frasesDireccion = [
-      "indicame la dirección", "necesito la dirección", "ingresa la dirección",
-      "especificá la dirección", "decime la dirección", "dirección exacta",
-      "¿cuál es la dirección?", "por favor indique la dirección", "por favor ingrese su dirección", "dirección completa"
-    ];
     const contenido = (lastBotMsg.text || "").toLowerCase();
-    if (frasesDireccion.some(frase => contenido.includes(frase))) return true;
+    if (FRASES_DIRECCION.some(frase => contenido.includes(frase))) return true;
     if (
       contexto &&
       contexto.contexto_municipio &&
@@ -97,15 +102,48 @@ const ChatWidget = ({
     return false;
   }
 
-  // --- AUTO-TOGGLE DEL AUTOCOMPLETE SEGUN EL MENSAJE DEL BOT ---
+  // Mostrar cierre éxito si el mensaje lo amerita (nunca dejar el chat muerto)
+  function checkCierreExito(messages: Message[]) {
+    const lastBotMsg = [...messages].reverse().find(m => m.isBot && m.text);
+    if (!lastBotMsg) return null;
+    const contenido = (lastBotMsg.text || "").toLowerCase();
+    if (FRASES_EXITO.some(frase => contenido.includes(frase))) {
+      // Detectar número de ticket y destacarlo si existe
+      const match = contenido.match(/ticket \*\*m-(\d+)/i);
+      if (match) {
+        return {
+          show: true,
+          text: `✅ ¡Listo! Tu ticket fue generado exitosamente. Número: M-${match[1]}.\nUn agente municipal te va a contactar para seguimiento.`
+        };
+      }
+      return { show: true, text: lastBotMsg.text };
+    }
+    return null;
+  }
+
+  // --- AUTO-TOGGLE del autocomplete según mensaje del bot ---
   useEffect(() => {
-    setEsperandoDireccion(shouldShowAutocomplete(messages, contexto));
+    const autocomplete = shouldShowAutocomplete(messages, contexto);
+    setEsperandoDireccion(autocomplete);
+    if (!autocomplete) setShowCierre(checkCierreExito(messages));
+    else setShowCierre(null);
   }, [messages, contexto]);
 
-  // Cargar rubros (igual que antes)
-  const cargarRubros = async () => { /* ...código sin cambios... */ };
+  // Cargar rubros (idéntico que antes)
+  const cargarRubros = async () => {
+    setCargandoRubros(true);
+    setRubrosDisponibles([]);
+    try {
+      const data = await apiFetch("/rubros");
+      setRubrosDisponibles(data);
+    } catch (e) {
+      setRubrosDisponibles([]);
+    } finally {
+      setCargandoRubros(false);
+    }
+  };
 
-  // Polling de mensajes en vivo (igual que antes)
+  // Polling de chat en vivo
   useEffect(() => {
     const fetchNewMessages = async () => {
       if (!activeTicketId) return;
@@ -133,7 +171,7 @@ const ChatWidget = ({
     return () => { if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current); };
   }, [activeTicketId]);
 
-  // --- handleSendMessage: acepta texto normal o dirección de Google ---
+  // --- handleSendMessage ---
   const handleSendMessage = useCallback(
     async (text: string) => {
       if (!text.trim()) return;
@@ -143,6 +181,10 @@ const ChatWidget = ({
         ]);
         return;
       }
+      // Si es dirección, limpiá el estado para reactivar el input después
+      if (esperandoDireccion) setEsperandoDireccion(false);
+      setShowCierre(null);
+
       const userMessage = { id: Date.now(), text, isBot: false, timestamp: new Date() };
       setMessages((prev) => [...prev, userMessage]);
       setIsTyping(true);
@@ -185,10 +227,10 @@ const ChatWidget = ({
         setIsTyping(false);
       }
     },
-    [contexto, rubroSeleccionado, preguntasUsadas, esAnonimo, mode, finalAuthToken, activeTicketId]
+    [contexto, rubroSeleccionado, preguntasUsadas, esAnonimo, mode, finalAuthToken, activeTicketId, esperandoDireccion]
   );
 
-  // --- Bienvenida y rubro ---
+  // Bienvenida y rubro
   useEffect(() => {
     if (isOpen) {
       if (esAnonimo && mode === "standalone" && !rubroSeleccionado) {
@@ -220,7 +262,7 @@ const ChatWidget = ({
     }
   }, [messages, isTyping]);
 
-  // --- RENDER: BURBUJA FLOTANTE ---
+  // --- BURBUJA FLOTANTE ---
   if (!isOpen) {
     return (
       <div
@@ -339,8 +381,8 @@ const ChatWidget = ({
               selectProps={{
                 onChange: (option: any) => {
                   if (option && option.value) {
-                    // Cuando el usuario selecciona una dirección, la mandamos al chat.
                     handleSendMessage(option.value);
+                    setEsperandoDireccion(false); // ¡Que no se trabe!
                   }
                 },
                 placeholder: "Ej: Av. San Martín 123, Mendoza",
@@ -384,12 +426,18 @@ const ChatWidget = ({
             )}
             {isTyping && <TypingIndicator />}
             <div ref={messagesEndRef} />
+            {/* Mensaje de cierre SIEMPRE si corresponde */}
+            {showCierre && showCierre.show && (
+              <div className="my-3 p-3 rounded-lg bg-green-100 text-green-800 text-center font-bold shadow">
+                {showCierre.text}
+              </div>
+            )}
           </>
         )}
       </div>
 
-      {/* --- INPUT SÓLO SI NO SE ESPERA RUBRO NI DIRECCIÓN --- */}
-      {!esperandoRubro && !esperandoDireccion && (
+      {/* --- INPUT SÓLO SI NO SE ESPERA RUBRO NI DIRECCIÓN NI CIERRE --- */}
+      {!esperandoRubro && !esperandoDireccion && (!showCierre || !showCierre.show) && (
         <div className="bg-gray-100 dark:bg-[#1d2433] px-3 py-2">
           <ChatInput onSendMessage={handleSendMessage} isTyping={isTyping} />
         </div>
