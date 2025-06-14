@@ -28,7 +28,7 @@ type TicketStatus = "nuevo" | "en_proceso" | "derivado" | "resuelto" | "cerrado"
 interface Comment { id: number; comentario: string; fecha: string; es_admin: boolean; }
 interface Ticket {
   id: number; tipo: 'pyme' | 'municipio'; nro_ticket: number; asunto: string; estado: TicketStatus; fecha: string;
-  detalles?: string; comentarios?: Comment[]; nombre_usuario?: string; email_usuario?: string; telefono?: string; direccion?: string; archivo_url?: string;
+  detalles?: string; comentarios?: Comment[]; nombre_usuario?: string; email_usuario?: string; telefono?: string; direccion?: string; archivo_url?: string; categoria?: string;
   municipio_nombre?: string; // <- Opción para relacionar con municipio
 }
 interface TicketSummary extends Omit<Ticket, 'detalles' | 'comentarios'> { direccion?: string; }
@@ -229,14 +229,14 @@ const TicketCategoryAccordion: FC<{
 const MAX_EVENTOS_RESUMIDOS = 4;
 
 // --------- TicketTimeline ---------
-const TicketTimeline: FC<{ ticket: Ticket }> = ({ ticket }) => {
+const TicketTimeline: FC<{ ticket: Ticket; comentarios: Comment[] }> = ({ ticket, comentarios }) => {
   const [verTodo, setVerTodo] = useState(false);
 
   // Armá la lista completa de eventos
   const eventos = [
     { fecha: ticket.fecha, descripcion: "Ticket creado", estado: "nuevo" },
-    ...(ticket.comentarios?.length
-      ? ticket.comentarios.map((c) => ({
+    ...(comentarios.length
+      ? comentarios.map((c) => ({
           fecha: c.fecha,
           descripcion: c.es_admin ? "Respuesta de administrador" : "Comentario de usuario",
           estado: ticket.estado,
@@ -445,12 +445,12 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
     if (
       mainElement &&
       mainElement.scrollHeight > mainElement.clientHeight &&
-      ticket.comentarios &&
-      ticket.comentarios.length > 0
+      comentarios &&
+      comentarios.length > 0
     ) {
       chatBottomRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [ticket.comentarios]);
+  }, [comentarios]);
 
   return (
     <div className="flex flex-col md:grid md:grid-cols-3 gap-4">
@@ -465,8 +465,8 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
           </div>
         )}
         <main className="flex-1 p-4 space-y-4 overflow-y-auto custom-scroll">
-          {ticket.comentarios && ticket.comentarios.length > 0 ? (
-            ticket.comentarios.map((comment) => (
+          {comentarios && comentarios.length > 0 ? (
+            comentarios.map((comment) => (
               <div key={comment.id} className={cn('flex items-end gap-2', comment.es_admin ? 'justify-end' : 'justify-start')}>
                 {!comment.es_admin && <AvatarIcon type="user" />}
                 <div className={cn("max-w-md rounded-lg px-4 py-2", comment.es_admin ? "bg-primary text-primary-foreground rounded-br-none" : "bg-muted text-foreground rounded-bl-none")}>
@@ -501,7 +501,7 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
       </div>
       {/* Sidebar mejorado */}
       <aside className="md:col-span-1 bg-muted/30 p-4 space-y-6 overflow-y-auto custom-scroll rounded-md border">
-        <TicketTimeline ticket={ticket} />
+        <TicketTimeline ticket={ticket} comentarios={comentarios} />
         <TicketMap ticket={ticket} />
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-base">Estado del Ticket</CardTitle></CardHeader>
