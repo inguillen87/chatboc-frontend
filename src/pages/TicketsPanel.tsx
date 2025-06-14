@@ -33,7 +33,7 @@ interface TicketSummary extends Omit<Ticket, 'detalles' | 'comentarios'> {
 type CategorizedTickets = { [category: string]: TicketSummary[]; };
 
 // --- MAPA DE ESTADOS ---
-// Se mantienen los colores con soporte dark-mode
+// Se aplican las clases para el modo oscuro aquí
 const ESTADOS: Record<TicketStatus, { label: string; tailwind_class: string }> = {
     nuevo: { label: "Nuevo", tailwind_class: "bg-blue-500/20 text-blue-500 border-blue-500/30 dark:bg-blue-700/30 dark:text-blue-300 dark:border-blue-700/50" },
     en_proceso: { label: "En Proceso", tailwind_class: "bg-yellow-500/20 text-yellow-500 border-yellow-500/30 dark:bg-yellow-700/30 dark:text-yellow-300 dark:border-yellow-700/50" },
@@ -66,7 +66,7 @@ export default function TicketsPanel() {
             try {
                 const data = await apiFetch<CategorizedTickets>('/tickets/panel_por_categoria');
                 
-                // --- Lógica para agrupar tickets resueltos/cerrados (Mantenida) ---
+                // --- Lógica para agrupar tickets resueltos/cerrados (INTEGRADA) ---
                 const processedData: CategorizedTickets = {};
                 const resolvedAndClosedTickets: TicketSummary[] = [];
 
@@ -302,7 +302,7 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
     const [isSending, setIsSending] = useState(false);
     const chatBottomRef = useRef<HTMLDivElement>(null);
 
-    // --- POLLING: CONTROLAR LA FRECUENCIA ---
+    // --- POLLING: CONTROLAR LA FRECUENCIA --- (Se mantiene en 10 segundos)
     useEffect(() => {
         if (!ticket || !ticket.id || !ticket.tipo) return;
 
@@ -340,7 +340,7 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
     }, [ticket?.id, ticket?.tipo, onTicketUpdate]);
 
 
-    // --- Envío de Mensaje ---
+    // --- Envío de Mensaje --- (Se mantiene la lógica simple de scroll al enviar)
     const handleSendMessage = async () => {
         if (!newMessage.trim() || isSending) return;
         setIsSending(true);
@@ -348,10 +348,10 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
             const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}/responder`, { method: 'POST', body: { comentario: newMessage } });
             onTicketUpdate(updatedTicket);
             setNewMessage("");
-            // Scroll a la vista DESPUÉS de enviar un mensaje (lógica simple, similar a la que tenías antes)
-            setTimeout(() => {
-                chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
-            }, 100); // Pequeño retraso
+            // Scroll directo al enviar, similar a lo que te funcionaba antes
+            if (chatBottomRef.current) {
+                chatBottomRef.current.scrollIntoView({ behavior: "smooth" });
+            }
         } catch (error) {
             console.error("Error al enviar comentario", error);
         } finally {
@@ -369,9 +369,9 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
         }
     };
 
-    // --- Scroll al final del chat: LÓGICA MÁS SIMPLE Y DIRECTA (REVERTIDA) ---
+    // --- Scroll al final del chat: LÓGICA REVERTIDA A LA MÁS SIMPLE Y FUNCIONAL ---
     // Este useEffect se disparará cada vez que `ticket.comentarios` cambie.
-    // Con la altura controlada del chat, debería funcionar para mantener el scroll al final.
+    // Con la altura controlada del chat, debería funcionar para mantener el scroll al final sin "volverse loco".
     useEffect(() => {
         if (chatBottomRef.current) {
             chatBottomRef.current.scrollIntoView({ behavior: "smooth" });
@@ -421,12 +421,11 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
                 <Card>
                     <CardHeader className="pb-2"><CardTitle className="text-base">Estado del Ticket</CardTitle></CardHeader>
                     <CardContent>
-                        {/* Ajuste para el desplegable del Select */}
+                        {/* Ajuste para el desplegable del Select: position="popper" y z-index alto */}
                         <Select onValueChange={handleEstadoChange} value={ticket.estado}>
                             <SelectTrigger className="w-full">
                                 <SelectValue placeholder="Cambiar estado..." />
                             </SelectTrigger>
-                            {/* Añadido position="popper" y un z-index alto para SelectContent si es necesario */}
                             <SelectContent position="popper" className="z-[9999]"> 
                                 {Object.entries(ESTADOS).map(([key, { label }]) => (
                                     <SelectItem key={key} value={key}>{label}</SelectItem>
