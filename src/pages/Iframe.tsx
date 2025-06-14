@@ -25,7 +25,22 @@ const Iframe = () => {
       if (idParam) setWidgetId(idParam);
       if (tokenParam) setTokenFromUrl(tokenParam); 
       if (widthParam) setInitialIframeWidth(widthParam); 
-      if (heightParam) setInitialIframeHeight(heightParam); 
+      if (heightParam) setInitialIframeHeight(heightParam);
+    }
+  }, []);
+
+  // Aplicar tema oscuro igual que en el sitio principal
+  useEffect(() => {
+    try {
+      if (
+        localStorage.theme === "dark" ||
+        (!("theme" in localStorage) &&
+          window.matchMedia("(prefers-color-scheme: dark)").matches)
+      ) {
+        document.documentElement.classList.add("dark");
+      }
+    } catch (e) {
+      /* ignorar errores de acceso a storage */
     }
   }, []);
 

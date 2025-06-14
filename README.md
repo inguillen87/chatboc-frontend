@@ -71,3 +71,21 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+
+## Embedding the Chatboc widget
+
+You can embed the floating chat widget on any site by loading `widget.js` and passing your token. Example:
+
+```html
+<script>
+  (function () {
+    var s = document.createElement('script');
+    s.src = 'https://www.chatboc.ar/widget.js';
+    s.async = true;
+    s.setAttribute('data-token', 'TU_TOKEN_AQUI');
+    document.head.appendChild(s);
+  })();
+</script>
+```
+
+This snippet loads the widget without needing an iframe and creates a floating bubble styled just like on chatboc.ar.
