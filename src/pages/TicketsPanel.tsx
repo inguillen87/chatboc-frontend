@@ -24,6 +24,7 @@ interface Ticket {
     nombre_usuario?: string;
     email_usuario?: string;
     telefono?: string;
+    // id_usuario?: number; // No es necesario aquí si no se usa directamente en el frontend para este propósito
     direccion?: string;
     archivo_url?: string;
 }
@@ -34,11 +35,11 @@ type CategorizedTickets = { [category: string]: TicketSummary[]; };
 
 // --- MAPA DE ESTADOS ---
 const ESTADOS: Record<TicketStatus, { label: string; tailwind_class: string }> = {
-    nuevo: { label: "Nuevo", tailwind_class: "bg-blue-500/20 text-blue-500 border-blue-500/30" },
-    en_proceso: { label: "En Proceso", tailwind_class: "bg-yellow-500/20 text-yellow-500 border-yellow-500/30" },
-    derivado: { label: "Derivado", tailwind_class: "bg-purple-500/20 text-purple-500 border-purple-500/30" },
-    resuelto: { label: "Resuelto", tailwind_class: "bg-green-500/20 text-green-500 border-green-500/30" },
-    cerrado: { label: "Cerrado", tailwind_class: "bg-gray-500/20 text-gray-500 border-gray-500/30" },
+    nuevo: { label: "Nuevo", tailwind_class: "bg-blue-500/20 text-blue-500 border-blue-500/30 dark:bg-blue-700/30 dark:text-blue-300 dark:border-blue-700/50" },
+    en_proceso: { label: "En Proceso", tailwind_class: "bg-yellow-500/20 text-yellow-500 border-yellow-500/30 dark:bg-yellow-700/30 dark:text-yellow-300 dark:border-yellow-700/50" },
+    derivado: { label: "Derivado", tailwind_class: "bg-purple-500/20 text-purple-500 border-purple-500/30 dark:bg-purple-700/30 dark:text-purple-300 dark:border-purple-700/50" },
+    resuelto: { label: "Resuelto", tailwind_class: "bg-green-500/20 text-green-500 border-green-500/30 dark:bg-green-700/30 dark:text-green-300 dark:border-green-700/50" },
+    cerrado: { label: "Cerrado", tailwind_class: "bg-gray-500/20 text-gray-500 border-gray-500/30 dark:bg-gray-700/30 dark:text-gray-300 dark:border-gray-700/50" },
 };
 
 function fechaCorta(iso: string) {
@@ -64,8 +65,38 @@ export default function TicketsPanel() {
             }
             try {
                 const data = await apiFetch<CategorizedTickets>('/tickets/panel_por_categoria');
-                setCategorizedTickets(data);
-                setOpenCategories(new Set(Object.keys(data)));
+                
+                // --- Lógica para agrupar tickets resueltos/cerrados ---
+                const processedData: CategorizedTickets = {};
+                const resolvedAndClosedTickets: TicketSummary[] = [];
+
+                Object.entries(data).forEach(([category, tickets]) => {
+                    const activeTickets: TicketSummary[] = [];
+                    tickets.forEach(ticket => {
+                        if (ticket.estado === "resuelto" || ticket.estado === "cerrado") {
+                            resolvedAndClosedTickets.push(ticket);
+                        } else {
+                            activeTickets.push(ticket);
+                        }
+                    });
+                    if (activeTickets.length > 0) {
+                        processedData[category] = activeTickets;
+                    }
+                });
+
+                if (resolvedAndClosedTickets.length > 0) {
+                    // Ordena los tickets resueltos/cerrados por fecha descendente
+                    resolvedAndClosedTickets.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+                    processedData["Tickets Resueltos y Cerrados"] = resolvedAndClosedTickets;
+                }
+                // --- Fin de la lógica de agrupación ---
+
+                setCategorizedTickets(processedData);
+                
+                // Solo abre las categorías que NO son "Tickets Resueltos y Cerrados" por defecto
+                const initialOpenCategories = new Set(Object.keys(processedData).filter(cat => cat !== "Tickets Resueltos y Cerrados"));
+                setOpenCategories(initialOpenCategories);
+
             } catch (err) {
                 const errorMessage = err instanceof ApiError ? err.message : "Ocurrió un error al cargar el panel de tickets.";
                 setError(errorMessage);
@@ -112,10 +143,58 @@ export default function TicketsPanel() {
 
     const handleTicketDetailUpdate = (updatedTicket: Ticket) => {
         setDetailedTicket(updatedTicket);
+        // Cuando un ticket se actualiza (ej. cambia de estado a resuelto/cerrado),
+        // refresca toda la lista para que se mueva a la categoría de "Resueltos y Cerrados"
+        const fetchTickets = async () => {
+            try {
+                const data = await apiFetch<CategorizedTickets>('/tickets/panel_por_categoria');
+                const processedData: CategorizedTickets = {};
+                const resolvedAndClosedTickets: TicketSummary[] = [];
+
+                Object.entries(data).forEach(([category, tickets]) => {
+                    const activeTickets: TicketSummary[] = [];
+                    tickets.forEach(ticket => {
+                        if (ticket.estado === "resuelto" || ticket.estado === "cerrado") {
+                            resolvedAndClosedTickets.push(ticket);
+                        } else {
+                            activeTickets.push(ticket);
+                        }
+                    });
+                    if (activeTickets.length > 0) {
+                        processedData[category] = activeTickets;
+                    }
+                });
+
+                if (resolvedAndClosedTickets.length > 0) {
+                     // Ordena los tickets resueltos/cerrados por fecha descendente
+                    resolvedAndClosedTickets.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+                    processedData["Tickets Resueltos y Cerrados"] = resolvedAndClosedTickets;
+                }
+                
+                setCategorizedTickets(processedData);
+                // Mantiene el estado de categorías abiertas, excepto si "Tickets Resueltos y Cerrados" estaba abierto y se vacía
+                // setOpenCategories(new Set(Object.keys(processedData).filter(cat => cat !== "Tickets Resueltos y Cerrados")));
+                // Opcional: Si quieres que el ticket se cierre si se mueve a la categoría de resueltos/cerrados y ya no es "activo"
+                if (updatedTicket.estado === "resuelto" || updatedTicket.estado === "cerrado") {
+                    setSelectedTicketId(null);
+                    setDetailedTicket(null);
+                }
+
+            } catch (error) {
+                console.error("No se pudo refrescar la lista de tickets después de la actualización.", error);
+            }
+        };
+        fetchTickets();
     };
 
     if (isLoading) return <div className="p-8 text-center"><Loader2 className="animate-spin text-primary mx-auto h-10 w-10" /></div>;
     if (error && !selectedTicketId) return <div className="p-8 text-center text-destructive bg-destructive/10 rounded-md">{error}</div>;
+
+    // Obtener las categorías en el orden deseado: primero las activas, luego la de resueltos/cerrados
+    const orderedCategories = Object.keys(categorizedTickets).filter(cat => cat !== "Tickets Resueltos y Cerrados");
+    if (categorizedTickets["Tickets Resueltos y Cerrados"]) {
+        orderedCategories.push("Tickets Resueltos y Cerrados");
+    }
 
     return (
         <div className="flex flex-col min-h-screen bg-muted/20 dark:bg-slate-900 text-foreground p-4 sm:p-6 md:p-8">
@@ -131,11 +210,11 @@ export default function TicketsPanel() {
                         <p className="mt-1 text-sm text-muted-foreground">Cuando se genere un nuevo reclamo, aparecerá aquí.</p>
                     </div>
                 ) : (
-                    Object.entries(categorizedTickets).map(([category, tickets]) => (
+                    orderedCategories.map(category => ( // Usamos el orden de categorías aquí
                         <TicketCategoryAccordion
                             key={category}
                             category={category}
-                            tickets={tickets}
+                            tickets={categorizedTickets[category]}
                             onSelectTicket={loadAndSetDetailedTicket}
                             isOpen={openCategories.has(category)}
                             onToggle={() => toggleCategory(category)}
@@ -227,13 +306,14 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
     const [newMessage, setNewMessage] = useState("");
     const [isSending, setIsSending] = useState(false);
     const chatBottomRef = useRef<HTMLDivElement>(null);
+    const [lastAdminCommentId, setLastAdminCommentId] = useState<number | null>(null);
 
-    // --- POLLING: CONTROLAR LA FRECUENCIA ---
+    // --- POLLING ---
     useEffect(() => {
         if (!ticket || !ticket.id || !ticket.tipo) return;
 
         let mounted = true;
-        const POLLING_INTERVAL = 10000; // Polling cada 10 segundos (10000 ms)
+        const POLLING_INTERVAL = 10000; // Polling cada 10 segundos
 
         const fetchComentarios = async () => {
             try {
@@ -273,6 +353,12 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
         try {
             const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}/responder`, { method: 'POST', body: { comentario: newMessage } });
             onTicketUpdate(updatedTicket);
+            if (updatedTicket.comentarios && updatedTicket.comentarios.length > 0) {
+                const lastComment = updatedTicket.comentarios[updatedTicket.comentarios.length - 1];
+                if (lastComment.es_admin) {
+                    setLastAdminCommentId(lastComment.id);
+                }
+            }
             setNewMessage("");
         } catch (error) {
             console.error("Error al enviar comentario", error);
@@ -293,22 +379,30 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
 
     // --- Scroll al final del chat ---
     useEffect(() => {
-        // Solo intenta scrollear si el ref existe, hay comentarios y la altura del scroll es mayor que la altura del cliente
-        // Esto previene scrolls innecesarios o saltos cuando no hay nada que scrollear.
         const mainElement = chatBottomRef.current?.parentElement;
-        if (mainElement && mainElement.scrollHeight > mainElement.clientHeight && ticket.comentarios && ticket.comentarios.length > 0) {
-            chatBottomRef.current.scrollIntoView({ behavior: "smooth" });
+        if (mainElement && ticket.comentarios && ticket.comentarios.length > 0) {
+            const lastComment = ticket.comentarios[ticket.comentarios.length - 1];
+
+            // Comprobar si el scroll está cerca del final (umbral de 50px)
+            const isScrolledToBottom = mainElement.scrollHeight - mainElement.scrollTop - mainElement.clientHeight < 50;
+            
+            // Solo scrollear si:
+            // 1. Es nuestro propio mensaje recién enviado.
+            // 2. O el chat no tiene scrollbar (el contenido cabe perfectamente).
+            // 3. O el usuario ya estaba scrolleado al final cuando llegó un nuevo mensaje.
+            if (lastComment.id === lastAdminCommentId || 
+                mainElement.scrollHeight <= mainElement.clientHeight || 
+                isScrolledToBottom 
+            ) {
+                chatBottomRef.current.scrollIntoView({ behavior: "smooth" });
+                setLastAdminCommentId(null); // Resetea el ID después de scrollear por nuestro mensaje
+            }
         }
-    }, [ticket.comentarios]);
+    }, [ticket.comentarios, lastAdminCommentId]);
 
     return (
-        // Contenedor principal de TicketDetail: Grid con 3 columnas en desktop, flex-col por defecto en móvil.
-        // AÑADIDO: min-h-0 para flex-basis y overflow-y-auto en el contenedor del chat
         <div className="flex flex-col md:grid md:grid-cols-3 gap-4">
-            {/* Contenedor del chat principal (columna 1 y 2 en desktop) */}
-            {/* CAMBIO CLAVE AQUÍ: Asegura que el div del chat tenga una altura explícita para que main flex-1 funcione con overflow */}
             <div className="md:col-span-2 flex flex-col h-[60vh] max-h-[600px] min-h-[300px] border rounded-md bg-background dark:bg-slate-700/50">
-                {/* Área de mensajes del chat con scrolling */}
                 <main className="flex-1 p-4 space-y-4 overflow-y-auto custom-scroll">
                     {ticket.comentarios && ticket.comentarios.length > 0 ? (
                         ticket.comentarios.map((comment) => (
@@ -328,7 +422,6 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
                     )}
                     <div ref={chatBottomRef} />
                 </main>
-                {/* Footer del chat con input para mensajes */}
                 <footer className="border-t border-border p-3 flex gap-2 bg-card rounded-b-md">
                     <Input
                         value={newMessage}
@@ -345,7 +438,6 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
                     </Button>
                 </footer>
             </div>
-            {/* Sidebar de detalles del ticket (columna 3 en desktop) */}
             <aside className="md:col-span-1 bg-muted/30 p-4 space-y-6 overflow-y-auto custom-scroll rounded-md border">
                 <Card>
                     <CardHeader className="pb-2"><CardTitle className="text-base">Estado del Ticket</CardTitle></CardHeader>
