@@ -1,3 +1,4 @@
+// TicketsPanel optimizado con mejoras reales para municipios con alto volumen
 import React, { useEffect, useState, useCallback, FC, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Loader2, Send, Ticket as TicketIcon, ChevronDown, ChevronUp, User, ShieldCheck, X } from "lucide-react";
@@ -9,36 +10,23 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-// --- TIPOS DE DATOS ---
+// --- TIPOS Y ESTADOS ---
 type TicketStatus = "nuevo" | "en_proceso" | "derivado" | "resuelto" | "cerrado";
 interface Comment { id: number; comentario: string; fecha: string; es_admin: boolean; }
 interface Ticket {
-    id: number;
-    tipo: 'pyme' | 'municipio';
-    nro_ticket: number;
-    asunto: string;
-    estado: TicketStatus;
-    fecha: string;
-    detalles?: string;
-    comentarios?: Comment[];
-    nombre_usuario?: string;
-    email_usuario?: string;
-    telefono?: string;
-    direccion?: string;
-    archivo_url?: string;
+    id: number; tipo: 'pyme' | 'municipio'; nro_ticket: number; asunto: string; estado: TicketStatus; fecha: string;
+    detalles?: string; comentarios?: Comment[]; nombre_usuario?: string; email_usuario?: string; telefono?: string; direccion?: string; archivo_url?: string;
 }
-interface TicketSummary extends Omit<Ticket, 'detalles' | 'comentarios'> {
-    direccion?: string;
-}
+interface TicketSummary extends Omit<Ticket, 'detalles' | 'comentarios'> { direccion?: string; }
 type CategorizedTickets = { [category: string]: TicketSummary[]; };
 
-// --- MAPA DE ESTADOS ---
+const ESTADOS_ORDEN_PRIORIDAD: TicketStatus[] = ["nuevo", "en_proceso", "derivado", "resuelto", "cerrado"];
 const ESTADOS: Record<TicketStatus, { label: string; tailwind_class: string }> = {
-    nuevo: { label: "Nuevo", tailwind_class: "bg-blue-500/20 text-blue-500 border-blue-500/30" },
-    en_proceso: { label: "En Proceso", tailwind_class: "bg-yellow-500/20 text-yellow-500 border-yellow-500/30" },
-    derivado: { label: "Derivado", tailwind_class: "bg-purple-500/20 text-purple-500 border-purple-500/30" },
-    resuelto: { label: "Resuelto", tailwind_class: "bg-green-500/20 text-green-500 border-green-500/30" },
-    cerrado: { label: "Cerrado", tailwind_class: "bg-gray-500/20 text-gray-500 border-gray-500/30" },
+    nuevo: { label: "Nuevo", tailwind_class: "bg-blue-600 text-white border-blue-800 dark:bg-blue-400 dark:text-black" },
+    en_proceso: { label: "En Proceso", tailwind_class: "bg-yellow-600 text-white border-yellow-800 dark:bg-yellow-300 dark:text-black" },
+    derivado: { label: "Derivado", tailwind_class: "bg-purple-600 text-white border-purple-800 dark:bg-purple-400 dark:text-black" },
+    resuelto: { label: "Resuelto", tailwind_class: "bg-green-600 text-white border-green-800 dark:bg-green-300 dark:text-black" },
+    cerrado: { label: "Cerrado", tailwind_class: "bg-gray-600 text-white border-gray-800 dark:bg-gray-400 dark:text-black" },
 };
 
 function fechaCorta(iso: string) {
@@ -65,7 +53,8 @@ export default function TicketsPanel() {
             try {
                 const data = await apiFetch<CategorizedTickets>('/tickets/panel_por_categoria');
                 setCategorizedTickets(data);
-                setOpenCategories(new Set(Object.keys(data)));
+                const prioritarias = Object.keys(data).filter(c => !["cerrado", "resuelto"].includes(c.toLowerCase()));
+                setOpenCategories(new Set(prioritarias));
             } catch (err) {
                 const errorMessage = err instanceof ApiError ? err.message : "Ocurrió un error al cargar el panel de tickets.";
                 setError(errorMessage);
@@ -75,6 +64,12 @@ export default function TicketsPanel() {
         };
         fetchInitialData();
     }, []);
+
+    const sortedCategories = Object.entries(categorizedTickets).sort(([a], [b]) => {
+        const indexA = ESTADOS_ORDEN_PRIORIDAD.indexOf(a.toLowerCase() as TicketStatus);
+        const indexB = ESTADOS_ORDEN_PRIORIDAD.indexOf(b.toLowerCase() as TicketStatus);
+        return indexA - indexB;
+    });
 
     const toggleCategory = (category: string) => {
         setOpenCategories(prev => {
@@ -95,7 +90,6 @@ export default function TicketsPanel() {
             setDetailedTicket(null);
             return;
         }
-
         setSelectedTicketId(ticketSummary.id);
         setDetailedTicket(null);
         setError(null);
@@ -124,14 +118,14 @@ export default function TicketsPanel() {
                 <p className="text-muted-foreground mt-1">Gestioná todos los tickets de tus usuarios en un solo lugar.</p>
             </header>
             <div className="w-full max-w-7xl mx-auto space-y-4">
-                {Object.keys(categorizedTickets).length === 0 && !isLoading ? (
+                {sortedCategories.length === 0 && !isLoading ? (
                     <div className="text-center py-10 px-4 bg-card rounded-lg shadow-sm">
                         <TicketIcon className="mx-auto h-12 w-12 text-muted-foreground" />
                         <h3 className="mt-2 text-sm font-medium text-foreground">No hay tickets activos</h3>
                         <p className="mt-1 text-sm text-muted-foreground">Cuando se genere un nuevo reclamo, aparecerá aquí.</p>
                     </div>
                 ) : (
-                    Object.entries(categorizedTickets).map(([category, tickets]) => (
+                    sortedCategories.map(([category, tickets]) => (
                         <TicketCategoryAccordion
                             key={category}
                             category={category}
@@ -149,6 +143,7 @@ export default function TicketsPanel() {
         </div>
     );
 }
+
 
 // --- SUB-COMPONENTE ACORDEÓN DE CATEGORÍAS ---
 const TicketCategoryAccordion: FC<{
@@ -228,42 +223,47 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
     const [isSending, setIsSending] = useState(false);
     const chatBottomRef = useRef<HTMLDivElement>(null);
 
+   
     // --- POLLING: CONTROLAR LA FRECUENCIA ---
     useEffect(() => {
-        if (!ticket || !ticket.id || !ticket.tipo) return;
+  if (!ticket || !ticket.id || !ticket.tipo) return;
 
-        let mounted = true;
-        const POLLING_INTERVAL = 10000; // Polling cada 10 segundos (10000 ms)
+  // 💡 SOLO hacemos polling si el ticket necesita atención activa
+  const requiereActualizacion = ["nuevo", "en_proceso"].includes(ticket.estado);
 
-        const fetchComentarios = async () => {
-            try {
-                if (ticket.tipo === "municipio") {
-                    const data = await apiFetch(`/tickets/chat/${ticket.id}/mensajes`);
-                    if (mounted && data && data.mensajes) {
-                        onTicketUpdate({
-                            ...ticket,
-                            comentarios: data.mensajes.map((msg) => ({
-                                id: msg.id,
-                                comentario: msg.texto,
-                                fecha: msg.fecha,
-                                es_admin: msg.es_admin,
-                            })),
-                        });
-                    }
-                }
-            } catch (e) {
-                console.error("Error en polling de comentarios:", e);
-            }
-        };
+  if (!requiereActualizacion) return;
 
-        const interval = setInterval(fetchComentarios, POLLING_INTERVAL);
-        fetchComentarios();
+  let mounted = true;
+  const POLLING_INTERVAL = 10000;
 
-        return () => {
-            mounted = false;
-            clearInterval(interval);
-        };
-    }, [ticket?.id, ticket?.tipo, onTicketUpdate]);
+  const fetchComentarios = async () => {
+    try {
+      const data = await apiFetch(`/tickets/chat/${ticket.id}/mensajes`);
+      if (mounted && data?.mensajes) {
+        onTicketUpdate({
+          ...ticket,
+          comentarios: data.mensajes.map((msg) => ({
+            id: msg.id,
+            comentario: msg.texto,
+            fecha: msg.fecha,
+            es_admin: msg.es_admin,
+          })),
+        });
+      }
+    } catch (e) {
+      console.error("Error en polling de comentarios:", e);
+    }
+  };
+
+  const interval = setInterval(fetchComentarios, POLLING_INTERVAL);
+  fetchComentarios();
+
+  return () => {
+    mounted = false;
+    clearInterval(interval);
+  };
+}, [ticket?.id, ticket?.estado, ticket?.tipo, onTicketUpdate]);
+
 
 
     // --- Envío de Mensaje ---
