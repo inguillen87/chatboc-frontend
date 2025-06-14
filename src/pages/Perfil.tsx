@@ -316,7 +316,9 @@ export default function Perfil() {
           data.error || `Error ${res.status} al guardar cambios.`,
         );
       }
-      setMensaje(data.mensaje || "Cambios guardados correctamente ✔️");
+      const successMsg = data.mensaje || "Cambios guardados correctamente ✔️";
+      await fetchPerfil(token);
+      setMensaje(successMsg);
     } catch (err) {
       setError(err.message || "Error al guardar el perfil. Intenta de nuevo.");
     } finally {
