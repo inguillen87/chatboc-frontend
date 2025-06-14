@@ -11,7 +11,8 @@ interface AddressAutocompleteProps {
   autoFocus?: boolean;
 }
 
-const Maps_API_KEY = import.meta.env.VITE_Maps_API_KEY;
+const Maps_API_KEY =
+  import.meta.env.VITE_Maps_API_KEY || "AIzaSyDbEoPzFgN5zJsIeywiRE7jRI8xr5ioGNI";
 
 const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   onSelect,
