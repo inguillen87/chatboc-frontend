@@ -13,7 +13,7 @@ import { useNavigate } from "react-router-dom";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "https://api.chatboc.ar";
 const Maps_API_KEY = import.meta.env.VITE_Maps_API_KEY;
-const RUBRO_AVATAR: { [key: string]: string } = {
+const RUBRO_AVATAR = {
     bodega: "🍷", restaurante: "🍽️", almacen: "🛒", ecommerce: "🛍️", medico: "🩺", municipios: "🏛️", default: "🏢",
 };
 const PROVINCIAS = [
@@ -21,29 +21,21 @@ const PROVINCIAS = [
 ];
 const DIAS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
 
-interface HorarioUI { abre: string; cierra: string; cerrado: boolean; }
-interface PerfilState {
-    nombre_empresa: string; telefono: string; direccion: string; ciudad: string;
-    provincia: string; pais: string; latitud: number | null; longitud: number | null;
-    link_web: string; plan: string; preguntas_usadas: number; limite_preguntas: number;
-    rubro: string; horarios_ui: HorarioUI[]; logo_url: string;
-}
-interface HorarioBackend { dia: string; abre: string; cierra: string; cerrado: boolean; }
-
 export default function Perfil() {
     const navigate = useNavigate();
-    const [perfil, setPerfil] = useState<PerfilState>({
+    const [perfil, setPerfil] = useState({
         nombre_empresa: "", telefono: "", direccion: "", ciudad: "", provincia: "",
         pais: "Argentina", latitud: null, longitud: null, link_web: "", plan: "gratis",
         preguntas_usadas: 0, limite_preguntas: 50, rubro: "",
         horarios_ui: DIAS.map((_, idx) => ({ abre: "09:00", cierra: "20:00", cerrado: idx === 5 || idx === 6 })),
         logo_url: "",
     });
-    const [modoHorario, setModoHorario] = useState<"comercial" | "personalizado">("comercial");
-    const [archivo, setArchivo] = useState<File | null>(null);
-    const [resultadoCatalogo, setResultadoCatalogo] = useState<{ message: string, type: "success" | "error" } | null>(null);
-    const [mensaje, setMensaje] = useState<string | null>(null);
-    const [error, setError] = useState<string | null>(null);
+    const [direccionSeleccionada, setDireccionSeleccionada] = useState(null);
+    const [modoHorario, setModoHorario] = useState("comercial");
+    const [archivo, setArchivo] = useState(null);
+    const [resultadoCatalogo, setResultadoCatalogo] = useState(null);
+    const [mensaje, setMensaje] = useState(null);
+    const [error, setError] = useState(null);
     const [loadingGuardar, setLoadingGuardar] = useState(false);
     const [loadingCatalogo, setLoadingCatalogo] = useState(false);
     const [horariosOpen, setHorariosOpen] = useState(false);
@@ -54,7 +46,12 @@ export default function Perfil() {
         }
     }, []);
 
-    const fetchPerfil = useCallback(async (token: string) => {
+    // Sincronizá la dirección seleccionada cuando cambie perfil.direccion
+    useEffect(() => {
+        setDireccionSeleccionada(perfil.direccion ? { label: perfil.direccion, value: perfil.direccion } : null);
+    }, [perfil.direccion]);
+
+    const fetchPerfil = useCallback(async (token) => {
         setLoadingGuardar(true); setError(null); setMensaje(null);
         try {
             const res = await fetch(`${API_BASE_URL}/me`, { headers: { Authorization: `Bearer ${token}` } });
@@ -70,7 +67,7 @@ export default function Perfil() {
             }
             let horariosUi = DIAS.map((_, idx) => ({ abre: "09:00", cierra: "20:00", cerrado: idx === 5 || idx === 6 }));
             if (data.horario_json && Array.isArray(data.horario_json) && data.horario_json.length === DIAS.length) {
-                   horariosUi = data.horario_json.map((h: any, idx: number) => ({
+                   horariosUi = data.horario_json.map((h, idx) => ({
                      dia: DIAS[idx], abre: h.abre || "09:00", cierra: h.cierra || "20:00",
                      cerrado: typeof h.cerrado === "boolean" ? h.cerrado : (idx === 5 || idx === 6)
                    }));
@@ -83,15 +80,11 @@ export default function Perfil() {
                 preguntas_usadas: data.preguntas_usadas ?? 0, limite_preguntas: data.limite_preguntas ?? 50,
                 rubro: data.rubro?.toLowerCase() || "", logo_url: data.logo_url || "", horarios_ui: horariosUi,
             }));
-            
+            // Storage
             const storedUserString = localStorage.getItem("user");
-            let parsedUserFromLS: { id?: number; name?: string; email?: string; token?: string; rubro?: string } | null = null;
-            try {
-                parsedUserFromLS = storedUserString ? JSON.parse(storedUserString) : {};
-            } catch (e) {
-                console.error("Error parsing user from localStorage in Perfil.tsx", e);
-                parsedUserFromLS = {};
-            }
+            let parsedUserFromLS = null;
+            try { parsedUserFromLS = storedUserString ? JSON.parse(storedUserString) : {}; }
+            catch (e) { parsedUserFromLS = {}; }
             const updatedUserForLS = {
                 id: data.id,
                 name: data.name,
@@ -101,7 +94,6 @@ export default function Perfil() {
                 rubro: data.rubro?.toLowerCase() || parsedUserFromLS?.rubro || "",
             };
             localStorage.setItem("user", JSON.stringify(updatedUserForLS));
-
         } catch (err) {
             setError("No se pudo conectar con el servidor para cargar el perfil.");
         } finally { setLoadingGuardar(false); }
@@ -113,33 +105,34 @@ export default function Perfil() {
         fetchPerfil(token);
     }, [fetchPerfil]);
 
-    const handlePlaceSelected = (place: any) => {
-  if (!place || !place.address_components || !place.geometry) {
-    setError("No se pudo encontrar la dirección. Intenta de nuevo o escribila bien.");
-    setPerfil(prev => ({ ...prev, direccion: place?.formatted_address || "" }));
-    return;
-  }
-  const getAddressComponent = (type: string): string =>
-    place.address_components?.find((c: any) => c.types.includes(type))?.long_name || "";
-  setPerfil((prev) => ({
-    ...prev,
-    direccion: place.formatted_address || "",
-    ciudad: getAddressComponent("locality") || getAddressComponent("administrative_area_level_2") || "",
-    provincia: getAddressComponent("administrative_area_level_1") || "",
-    pais: getAddressComponent("country") || "",
-    latitud: place.geometry?.location?.lat() || null,
-    longitud: place.geometry?.location?.lng() || null,
-  }));
-  setError(null);
-};
-
-
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-        const { id, value } = e.target;
-        setPerfil(prev => ({ ...prev, [id]: value }));
+    const handlePlaceSelected = (place) => {
+      if (!place || !place.address_components || !place.geometry) {
+        setError("No se pudo encontrar la dirección. Intenta de nuevo o escribila bien.");
+        setPerfil(prev => ({ ...prev, direccion: place?.formatted_address || "" }));
+        return;
+      }
+      const getAddressComponent = (type) =>
+        place.address_components?.find((c) => c.types.includes(type))?.long_name || "";
+      setPerfil((prev) => ({
+        ...prev,
+        direccion: place.formatted_address || "",
+        ciudad: getAddressComponent("locality") || getAddressComponent("administrative_area_level_2") || "",
+        provincia: getAddressComponent("administrative_area_level_1") || "",
+        pais: getAddressComponent("country") || "",
+        latitud: place.geometry?.location?.lat() || null,
+        longitud: place.geometry?.location?.lng() || null,
+      }));
+      setError(null);
     };
 
-    const handleHorarioChange = (index: number, field: keyof HorarioUI, value: string | boolean) => {
+    const handleInputChange = (e) => {
+        const { id, value } = e.target;
+        setPerfil(prev => ({ ...prev, [id]: value }));
+        // Si toca el campo dirección manualmente, dejá el autocomplete limpio
+        if (id === "direccion") setDireccionSeleccionada(null);
+    };
+
+    const handleHorarioChange = (index, field, value) => {
         const nuevosHorarios = perfil.horarios_ui.map((h, idx) =>
             idx === index ? { ...h, [field]: value } : h
         );
@@ -152,7 +145,7 @@ export default function Perfil() {
     };
     const setHorarioPersonalizado = () => { setModoHorario("personalizado"); setHorariosOpen(true); };
 
-    const handleGuardar = async (e: FormEvent) => {
+    const handleGuardar = async (e) => {
         e.preventDefault();
         setMensaje(null); setError(null); setLoadingGuardar(true);
 
@@ -161,7 +154,7 @@ export default function Perfil() {
             setError("No se encontró sesión activa. Por favor, vuelve a iniciar sesión.");
             setLoadingGuardar(false); return;
         }
-        const horariosParaBackend: HorarioBackend[] = perfil.horarios_ui.map((h, idx) => ({
+        const horariosParaBackend = perfil.horarios_ui.map((h, idx) => ({
             dia: DIAS[idx], abre: h.cerrado ? "" : h.abre, cierra: h.cerrado ? "" : h.cierra, cerrado: h.cerrado,
         }));
 
@@ -180,12 +173,12 @@ export default function Perfil() {
             const data = await res.json();
             if (!res.ok) { throw new Error(data.error || `Error ${res.status} al guardar cambios.`); }
             setMensaje(data.mensaje || "Cambios guardados correctamente ✔️");
-        } catch (err: any) {
+        } catch (err) {
             setError(err.message || "Error al guardar el perfil. Intenta de nuevo.");
         } finally { setLoadingGuardar(false); }
     };
 
-    const handleArchivoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleArchivoChange = (e) => {
         if (e.target.files && e.target.files[0]) { setArchivo(e.target.files[0]); } else { setArchivo(null); }
         setResultadoCatalogo(null);
     };
@@ -211,8 +204,6 @@ export default function Perfil() {
 
     const porcentaje = perfil.limite_preguntas > 0 ? Math.min((perfil.preguntas_usadas / perfil.limite_preguntas) * 100, 100) : 0;
     const avatarEmoji = RUBRO_AVATAR[perfil.rubro] || RUBRO_AVATAR.default;
-    
-    // La variable esMunicipio sigue siendo útil para el botón "Ver Pedidos"
     const esMunicipio = perfil.rubro === 'municipios';
 
     return (
@@ -239,7 +230,6 @@ export default function Perfil() {
                     >
                         Ver Tickets
                     </Button>
-
                     {!esMunicipio && (
                         <Button
                             variant="outline"
@@ -249,7 +239,6 @@ export default function Perfil() {
                             Ver Pedidos
                         </Button>
                     )}
-                    
                     <Button
                         variant="outline"
                         className="h-10 px-5 text-sm border-destructive text-destructive hover:bg-destructive/10"
@@ -267,7 +256,6 @@ export default function Perfil() {
                         <CardHeader><CardTitle className="text-xl font-semibold text-primary">Datos de tu Empresa</CardTitle></CardHeader>
                         <CardContent>
                             <form onSubmit={handleGuardar} className="space-y-6">
-                                {/* ... Tu formulario sigue aquí igual que antes ... */}
                                 <div>
                                     <Label htmlFor="nombre_empresa" className="text-muted-foreground text-sm mb-1 block">Nombre de la empresa*</Label>
                                     <Input id="nombre_empresa" value={perfil.nombre_empresa} onChange={handleInputChange} required className="bg-input border-input text-foreground"/>
@@ -292,13 +280,13 @@ export default function Perfil() {
         types: ['address'],
       }}
       selectProps={{
-        value: perfil.direccion ? { label: perfil.direccion, value: perfil.direccion } : null,
-        onChange: (option: any) => {
+        value: direccionSeleccionada,
+        onChange: (option) => {
+          setDireccionSeleccionada(option || null);
           if (option && option.value) {
-            // Llama directo a geocode
             window?.google?.maps?.Geocoder && new window.google.maps.Geocoder().geocode(
               { address: option.value },
-              (results: any, status: any) => {
+              (results, status) => {
                 if (status === "OK" && results[0]) {
                   handlePlaceSelected(results[0]);
                 } else {
@@ -314,17 +302,17 @@ export default function Perfil() {
         placeholder: "Ej: Av. San Martín 123, Mendoza",
         isClearable: true,
         styles: {
-          control: (base: any) => ({
+          control: (base) => ({
             ...base,
             backgroundColor: "var(--input)",
             color: "var(--foreground)",
             minHeight: "2.5rem"
           }),
-          singleValue: (base: any) => ({
+          singleValue: (base) => ({
             ...base,
             color: "var(--foreground)"
           }),
-          input: (base: any) => ({
+          input: (base) => ({
             ...base,
             color: "var(--foreground)"
           }),
@@ -414,8 +402,6 @@ export default function Perfil() {
                                     </span>
                                 </div>
                             </div>
-                            
-                            {/* --- CORRECCIÓN: Se quita la condición !esMunicipio para que esta sección sea siempre visible --- */}
                             {perfil.plan !== "full" && perfil.plan !== "pro" && (
                                 <div className="space-y-2 mt-3">
                                     <Button
@@ -432,7 +418,6 @@ export default function Perfil() {
                                     </Button>
                                 </div>
                             )}
-
                             {(perfil.plan === "pro" || perfil.plan === "full") && (
                                 <div className="text-primary bg-primary/10 rounded p-3 font-medium text-sm mt-3">
                                     ¡Tu plan está activo! <br />
@@ -446,55 +431,52 @@ export default function Perfil() {
                         </CardContent>
                     </Card>
 
-                    {/* --- CORRECCIÓN: Se quita la condición !esMunicipio para que estas tarjetas sean siempre visibles --- */}
-                    <>
-                        <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm">
-                            <CardHeader>
-                                <CardTitle className="text-lg font-semibold text-primary">Tu Catálogo de Productos</CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                                <div>
-                                    <Label htmlFor="catalogoFile" className="text-sm text-muted-foreground mb-1 block">Subir nuevo o actualizar (PDF, Excel, CSV)</Label>
-                                    <Input id="catalogoFile" type="file" accept=".xlsx,.xls,.csv,.pdf" onChange={handleArchivoChange} className="text-muted-foreground file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 cursor-pointer"/>
-                                    <p className="text-xs text-muted-foreground mt-1.5">Tip: Para mayor precisión, usá Excel/CSV con columnas claras (ej: Nombre, Precio, Descripción).</p>
-                                </div>
-                                <Button onClick={handleSubirArchivo} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-2.5" disabled={loadingCatalogo || !archivo}>
-                                    <UploadCloud className="w-4 h-4 mr-2" /> {loadingCatalogo ? "Procesando Catálogo..." : "Subir y Procesar Catálogo"}
+                    <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm">
+                        <CardHeader>
+                            <CardTitle className="text-lg font-semibold text-primary">Tu Catálogo de Productos</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div>
+                                <Label htmlFor="catalogoFile" className="text-sm text-muted-foreground mb-1 block">Subir nuevo o actualizar (PDF, Excel, CSV)</Label>
+                                <Input id="catalogoFile" type="file" accept=".xlsx,.xls,.csv,.pdf" onChange={handleArchivoChange} className="text-muted-foreground file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 cursor-pointer"/>
+                                <p className="text-xs text-muted-foreground mt-1.5">Tip: Para mayor precisión, usá Excel/CSV con columnas claras (ej: Nombre, Precio, Descripción).</p>
+                            </div>
+                            <Button onClick={handleSubirArchivo} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-2.5" disabled={loadingCatalogo || !archivo}>
+                                <UploadCloud className="w-4 h-4 mr-2" /> {loadingCatalogo ? "Procesando Catálogo..." : "Subir y Procesar Catálogo"}
+                            </Button>
+                            {resultadoCatalogo && ( <div className={`text-sm p-3 rounded-md flex items-center gap-2 ${resultadoCatalogo.type === "error" ? 'bg-destructive text-destructive-foreground' : 'bg-green-100 text-green-800'}`}>
+                                {resultadoCatalogo.type === "error" ? <XCircle className="w-5 h-5"/> : <CheckCircle className="w-5 h-5"/>} {resultadoCatalogo.message}
+                            </div>)}
+                        </CardContent>
+                    </Card>
+                    <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm">
+                        <CardHeader>
+                            <CardTitle className="text-lg font-semibold text-primary">Integrá Chatboc a tu web</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                            {(perfil.plan === "pro" || perfil.plan === "full") ? (
+                                <Button
+                                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
+                                    onClick={() => navigate("/integracion")}
+                                >
+                                    Ir a la guía de integración
                                 </Button>
-                                {resultadoCatalogo && ( <div className={`text-sm p-3 rounded-md flex items-center gap-2 ${resultadoCatalogo.type === "error" ? 'bg-destructive text-destructive-foreground' : 'bg-green-100 text-green-800'}`}>
-                                    {resultadoCatalogo.type === "error" ? <XCircle className="w-5 h-5"/> : <CheckCircle className="w-5 h-5"/>} {resultadoCatalogo.message}
-                                </div>)}
-                            </CardContent>
-                        </Card>
-                        <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm">
-                            <CardHeader>
-                                <CardTitle className="text-lg font-semibold text-primary">Integrá Chatboc a tu web</CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-3">
-                                {(perfil.plan === "pro" || perfil.plan === "full") ? (
-                                    <Button
-                                        className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
-                                        onClick={() => navigate("/integracion")}
-                                    >
-                                        Ir a la guía de integración
-                                    </Button>
-                                ) : (
-                                    <Button
-                                        className="w-full bg-muted text-muted-foreground cursor-not-allowed"
-                                        disabled
-                                        title="Solo para clientes con Plan PRO o FULL"
-                                        style={{ pointerEvents: 'none' }}
-                                    >
-                                        Plan PRO requerido para activar integración
-                                    </Button>
-                                )}
-                                <div className="text-xs text-muted-foreground mt-2">
-                                    Accedé a los códigos e instrucciones para pegar el widget de Chatboc en tu web solo si tu plan es PRO o superior.<br />
-                                    Cualquier duda, escribinos a <a href="mailto:soporte@chatboc.ar" className="underline text-primary">soporte@chatboc.ar</a>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </>
+                            ) : (
+                                <Button
+                                    className="w-full bg-muted text-muted-foreground cursor-not-allowed"
+                                    disabled
+                                    title="Solo para clientes con Plan PRO o FULL"
+                                    style={{ pointerEvents: 'none' }}
+                                >
+                                    Plan PRO requerido para activar integración
+                                </Button>
+                            )}
+                            <div className="text-xs text-muted-foreground mt-2">
+                                Accedé a los códigos e instrucciones para pegar el widget de Chatboc en tu web solo si tu plan es PRO o superior.<br />
+                                Cualquier duda, escribinos a <a href="mailto:soporte@chatboc.ar" className="underline text-primary">soporte@chatboc.ar</a>
+                            </div>
+                        </CardContent>
+                    </Card>
                 </div>
             </div>
         </div>
