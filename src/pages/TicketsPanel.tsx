@@ -25,10 +25,12 @@ interface Ticket {
     email_usuario?: string;
     telefono?: string;
     direccion?: string;
+    categoria?: string; // Asegurarse de que categoría esté aquí, incluso si es opcional
     archivo_url?: string;
 }
 interface TicketSummary extends Omit<Ticket, 'detalles' | 'comentarios'> {
     direccion?: string;
+    categoria?: string; // Asegurarse de que categoría esté aquí
 }
 type CategorizedTickets = { [category: string]: TicketSummary[]; };
 
@@ -209,7 +211,7 @@ const TicketCategoryAccordion: FC<{
                                                     <X className="h-5 w-5" />
                                                 </Button>
                                             </div>
-                                            <TicketDetail ticket={detailedTicket} onTicketUpdate={onTicketDetailUpdate} />
+                                            <TicketDetail ticket={detailedTicket} onTicketUpdate={handleTicketDetailUpdate} />
                                         </motion.div>
                                     )}
                                 </AnimatePresence>
@@ -232,12 +234,16 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
     useEffect(() => {
         if (!ticket || !ticket.id || !ticket.tipo) return;
 
+        // Definir categorías que requieren polling (ajusta estos nombres para que coincidan EXACTAMENTE con tu backend)
+        const liveChatCategories = ["Atención en Vivo", "Solicitud de Chat en Vivo"]; 
+        const shouldPoll = ticket.categoria && liveChatCategories.includes(ticket.categoria);
+
         let mounted = true;
-        const POLLING_INTERVAL = 10000; // Polling cada 10 segundos (10000 ms)
+        const POLLING_INTERVAL = 10000; // Polling cada 10 segundos
 
         const fetchComentarios = async () => {
             try {
-                if (ticket.tipo === "municipio") {
+                if (ticket.tipo === "municipio") { 
                     const data = await apiFetch(`/tickets/chat/${ticket.id}/mensajes`);
                     if (mounted && data && data.mensajes) {
                         onTicketUpdate({
@@ -256,14 +262,23 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
             }
         };
 
-        const interval = setInterval(fetchComentarios, POLLING_INTERVAL);
-        fetchComentarios();
+        let interval: NodeJS.Timeout | null = null;
+        if (shouldPoll) {
+            // Solo iniciamos el polling si el ticket es de una categoría de chat en vivo
+            interval = setInterval(fetchComentarios, POLLING_INTERVAL);
+            fetchComentarios(); // Primer fetch al abrir el ticket
+        } else {
+            // Para tickets NO de chat en vivo, solo hacemos un fetch inicial para obtener todos los comentarios
+            fetchComentarios(); 
+        }
 
         return () => {
             mounted = false;
-            clearInterval(interval);
+            if (interval) { // Limpiamos el intervalo si se inició
+                clearInterval(interval);
+            }
         };
-    }, [ticket?.id, ticket?.tipo, onTicketUpdate]);
+    }, [ticket?.id, ticket?.tipo, ticket?.categoria, onTicketUpdate]); // Agregada ticket.categoria a las dependencias
 
 
     // --- Envío de Mensaje ---
@@ -274,6 +289,10 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
             const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}/responder`, { method: 'POST', body: { comentario: newMessage } });
             onTicketUpdate(updatedTicket);
             setNewMessage("");
+            // Scroll directo al enviar (TU LÓGICA ORIGINAL QUE FUNCIONABA BIEN)
+            if (chatBottomRef.current) {
+                chatBottomRef.current.scrollIntoView({ behavior: "smooth" });
+            }
         } catch (error) {
             console.error("Error al enviar comentario", error);
         } finally {
@@ -291,7 +310,7 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
         }
     };
 
-    // --- Scroll al final del chat ---
+    // --- Scroll al final del chat (TU LÓGICA ORIGINAL QUE FUNCIONABA BIEN) ---
     useEffect(() => {
         // Solo intenta scrollear si el ref existe, hay comentarios y la altura del scroll es mayor que la altura del cliente
         // Esto previene scrolls innecesarios o saltos cuando no hay nada que scrollear.
@@ -302,13 +321,8 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
     }, [ticket.comentarios]);
 
     return (
-        // Contenedor principal de TicketDetail: Grid con 3 columnas en desktop, flex-col por defecto en móvil.
-        // AÑADIDO: min-h-0 para flex-basis y overflow-y-auto en el contenedor del chat
         <div className="flex flex-col md:grid md:grid-cols-3 gap-4">
-            {/* Contenedor del chat principal (columna 1 y 2 en desktop) */}
-            {/* CAMBIO CLAVE AQUÍ: Asegura que el div del chat tenga una altura explícita para que main flex-1 funcione con overflow */}
             <div className="md:col-span-2 flex flex-col h-[60vh] max-h-[600px] min-h-[300px] border rounded-md bg-background dark:bg-slate-700/50">
-                {/* Área de mensajes del chat con scrolling */}
                 <main className="flex-1 p-4 space-y-4 overflow-y-auto custom-scroll">
                     {ticket.comentarios && ticket.comentarios.length > 0 ? (
                         ticket.comentarios.map((comment) => (
@@ -328,7 +342,6 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
                     )}
                     <div ref={chatBottomRef} />
                 </main>
-                {/* Footer del chat con input para mensajes */}
                 <footer className="border-t border-border p-3 flex gap-2 bg-card rounded-b-md">
                     <Input
                         value={newMessage}
@@ -345,7 +358,6 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
                     </Button>
                 </footer>
             </div>
-            {/* Sidebar de detalles del ticket (columna 3 en desktop) */}
             <aside className="md:col-span-1 bg-muted/30 p-4 space-y-6 overflow-y-auto custom-scroll rounded-md border">
                 <Card>
                     <CardHeader className="pb-2"><CardTitle className="text-base">Estado del Ticket</CardTitle></CardHeader>
