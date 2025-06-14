@@ -301,20 +301,37 @@ const TicketMap: FC<{ ticket: Ticket }> = ({ ticket }) => {
   ) : null;
 };
 
+const CATEGORIAS_CHAT_EN_VIVO = [
+  "Atención en Vivo", // Agregá variantes si las usás
+  "chat en vivo",
+  "soporte urgente"
+  ];
+
 // --------- TicketDetail ---------
-const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => void }> = ({ ticket, onTicketUpdate }) => {
+  const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => void }> = ({ ticket, onTicketUpdate }) => {
   const [newMessage, setNewMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
-  // --- POLLING SOLO EN "esperando_agente_en_vivo" ---
+  // -- POLLING SOLO EN CHATS EN VIVO --
   useEffect(() => {
     if (!ticket || !ticket.id || !ticket.tipo) return;
 
-    if (ticket.estado !== "esperando_agente_en_vivo") return;
+    const categoriaNormalizada = (ticket.asunto || ticket.categoria || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+
+    const chatEnVivo =
+      CATEGORIAS_CHAT_EN_VIVO.some(cat =>
+        categoriaNormalizada.includes(cat.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""))
+      ) &&
+      ["esperando_agente_en_vivo", "en_proceso"].includes(ticket.estado);
+
+    if (!chatEnVivo) return; // Solo activa el polling si cumple ambas condiciones
 
     let mounted = true;
-    const POLLING_INTERVAL = 10000;
+    const POLLING_INTERVAL = 5000;
 
     const fetchComentarios = async () => {
       try {
@@ -335,59 +352,65 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
       }
     };
 
-    const interval = setInterval(fetchComentarios, POLLING_INTERVAL);
     fetchComentarios();
+    const interval = setInterval(fetchComentarios, POLLING_INTERVAL);
 
     return () => {
       mounted = false;
       clearInterval(interval);
     };
-  }, [ticket?.id, ticket?.estado, ticket?.tipo, onTicketUpdate]);
+  }, [ticket?.id, ticket?.estado, ticket?.tipo, ticket?.asunto, ticket?.categoria, onTicketUpdate]);
 
-  // --- Envío de Mensaje ---
-const handleSendMessage = async () => {
-  if (!newMessage.trim() || isSending) return;
-  setIsSending(true);
-  try {
-    const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}/responder`, { method: 'POST', body: { comentario: newMessage } });
-    // --- MERGE DEFENSIVO ---
-    const mergedTicket = { ...ticket, ...updatedTicket };
-    if (!updatedTicket.comentarios && ticket.comentarios) {
-      mergedTicket.comentarios = ticket.comentarios;
+  // --- Envío de Mensaje (igual que antes) ---
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || isSending) return;
+    setIsSending(true);
+    try {
+      const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}/responder`, {
+        method: "POST",
+        body: { comentario: newMessage },
+      });
+      // --- MERGE DEFENSIVO ---
+      const mergedTicket = { ...ticket, ...updatedTicket };
+      if (!updatedTicket.comentarios && ticket.comentarios) {
+        mergedTicket.comentarios = ticket.comentarios;
+      }
+      onTicketUpdate(mergedTicket);
+      setNewMessage("");
+    } catch (error) {
+      console.error("Error al enviar comentario", error);
+    } finally {
+      setIsSending(false);
     }
-    onTicketUpdate(mergedTicket);
-    setNewMessage("");
-  } catch (error) {
-    console.error("Error al enviar comentario", error);
-  } finally {
-    setIsSending(false);
-  }
-};
-
-// --- Cambio de Estado ---
-const handleEstadoChange = async (nuevoEstado: TicketStatus) => {
-  try {
-    const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}/estado`, { method: 'PUT', body: { estado: nuevoEstado } });
-    // --- MERGE DEFENSIVO ---
-    const mergedTicket = { ...ticket, ...updatedTicket };
-    if (!updatedTicket.comentarios && ticket.comentarios) {
-      mergedTicket.comentarios = ticket.comentarios;
+  };
+  // --- Cambio de Estado (igual que antes) ---
+  const handleEstadoChange = async (nuevoEstado: TicketStatus) => {
+    try {
+      const updatedTicket = await apiFetch<Ticket>(
+        `/tickets/${ticket.tipo}/${ticket.id}/estado`,
+        { method: "PUT", body: { estado: nuevoEstado } }
+      );
+      const mergedTicket = { ...ticket, ...updatedTicket };
+      if (!updatedTicket.comentarios && ticket.comentarios) {
+        mergedTicket.comentarios = ticket.comentarios;
+      }
+      onTicketUpdate(mergedTicket);
+    } catch (error) {
+      console.error("Error al cambiar estado", error);
     }
-    onTicketUpdate(mergedTicket);
-  } catch (error) {
-    console.error("Error al cambiar estado", error);
-  }
-};
-
-
-  // --- Scroll al final del chat ---
+  };
+   // --- Scroll al final del chat (igual que antes) ---
   useEffect(() => {
     const mainElement = chatBottomRef.current?.parentElement;
-    if (mainElement && mainElement.scrollHeight > mainElement.clientHeight && ticket.comentarios && ticket.comentarios.length > 0) {
+    if (
+      mainElement &&
+      mainElement.scrollHeight > mainElement.clientHeight &&
+      ticket.comentarios &&
+      ticket.comentarios.length > 0
+    ) {
       chatBottomRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [ticket.comentarios]);
-
   return (
     <div className="flex flex-col md:grid md:grid-cols-3 gap-4">
       {/* Chat principal */}
