@@ -412,7 +412,7 @@ const ChatWidget = ({
           flex items-center justify-center
           transition-all duration-300
           cursor-pointer
-          bg-white dark:bg-[#181f2a]
+          bg-[#181f2a]
         `}
         style={{
           bottom: initialPosition.bottom,
@@ -442,7 +442,7 @@ const ChatWidget = ({
         fixed z-[999999]
         flex flex-col overflow-hidden
         shadow-2xl border
-        bg-white dark:bg-[#181f2a]
+        bg-[#181f2a]
         border-gray-200 dark:border-[#353c47]
         transition-all duration-300
       `}
@@ -465,8 +465,8 @@ const ChatWidget = ({
         className={`
           flex-1 flex flex-col gap-3 overflow-y-auto overflow-x-hidden
           px-4 pt-4 pb-2
-          text-gray-900 dark:text-gray-100
-          bg-white dark:bg-[#181f2a]
+          text-gray-100
+          bg-[#181f2a]
         `}
       >
         {esperandoRubro ? (
@@ -574,7 +574,7 @@ const ChatWidget = ({
       {!esperandoRubro &&
         !esperandoDireccion &&
         (!showCierre || !showCierre.show) && (
-          <div className="bg-gray-100 dark:bg-[#1d2433] px-3 py-2">
+          <div className="bg-[#1d2433] px-3 py-2">
             <ChatInput onSendMessage={handleSendMessage} isTyping={isTyping} />
           </div>
         )}

@@ -44,10 +44,10 @@
   loader.style.alignItems = "center";
   loader.style.justifyContent = "center";
   loader.style.borderRadius = defaultOpen ? "16px" : "50%";
-  loader.style.background = "rgba(230,230,230,0.8)";
-  loader.style.boxShadow = "0 2px 8px rgba(0,0,0,0.1)";
+  loader.style.background = "rgba(24,31,42,0.9)";
+  loader.style.boxShadow = "0 2px 8px rgba(0,0,0,0.2)";
   loader.style.transition = "opacity 0.3s ease-out"; // Transición para el loader
-  loader.innerHTML = `<div style="font-family: Arial, sans-serif; color: #555; font-size:11px; text-align:center;">Cargando<br/>Chatboc...</div>`;
+  loader.innerHTML = `<div style="font-family: Arial, sans-serif; color: #fff; font-size:11px; text-align:center;">Cargando<br/>Chatboc...</div>`;
   if (!document.getElementById(loader.id)) document.body.appendChild(loader);
 
 
