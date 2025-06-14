@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import HeroSection from '@/components/sections/HeroSection';
 import ProblemsSection from '@/components/sections/ProblemsSection';
 import SolutionSection from '@/components/sections/SolutionSection';
@@ -31,7 +32,7 @@ const Index = () => {
     // CONTROL VISIBILIDAD WIDGET POR LOGIN
     const checkLogin = () => {
       try {
-        const stored = localStorage.getItem("user");
+        const stored = safeLocalStorage.getItem("user");
         if (stored) {
           const user = JSON.parse(stored);
           // Verifica si tiene token "real" y no demo

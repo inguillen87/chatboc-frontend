@@ -1,5 +1,6 @@
 // --- src/services/apiService.ts (CORREGIDO Y COMPLETO) ---
 import type { Ticket, Comment, TicketStatus } from '@/types'; // CAMBIO: Se agrega TicketStatus a la importación
+import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 const API_URL = "https://api.chatboc.ar";
 
@@ -7,7 +8,7 @@ interface TicketsApiResponse { ok: boolean; tickets: Ticket[]; error?: string; }
 interface CommentsApiResponse { ok: boolean; comentarios: Comment[]; error?: string; }
 
 async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const token = localStorage.getItem("authToken");
+  const token = safeLocalStorage.getItem("authToken");
   const config: RequestInit = {
     ...options,
     headers: {

@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { apiFetch, ApiError } from "@/utils/api";
+import { safeLocalStorage } from "@/utils/safeLocalStorage";
 
 // Asegúrate de que esta interfaz refleje EXACTAMENTE lo que tu backend devuelve en /login
 interface LoginResponse {
@@ -44,8 +45,8 @@ const Login = () => {
         plan: data.plan || "free", // <<<<<<<<<<<<<< INCLUYE EL PLAN AQUÍ (o "free" si el backend no lo envía)
       };
       
-      localStorage.setItem("user", JSON.stringify(userToStore));
-      localStorage.setItem("authToken", data.token); // Sigue guardándolo por separado para consistencia si otros módulos lo esperan.
+      safeLocalStorage.setItem("user", JSON.stringify(userToStore));
+      safeLocalStorage.setItem("authToken", data.token); // Sigue guardándolo por separado para consistencia si otros módulos lo esperan.
 
       navigate("/perfil"); // O a donde corresponda después del login exitoso
 

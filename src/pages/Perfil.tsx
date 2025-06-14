@@ -18,6 +18,7 @@ import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import { useNavigate } from "react-router-dom";
+import { safeLocalStorage } from "@/utils/safeLocalStorage";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "https://api.chatboc.ar";
 const Maps_API_KEY = import.meta.env.VITE_Maps_API_KEY;
@@ -133,8 +134,8 @@ export default function Perfil() {
             data?.error,
           )
         ) {
-          localStorage.removeItem("user");
-          localStorage.removeItem("authToken");
+          safeLocalStorage.removeItem("user");
+          safeLocalStorage.removeItem("authToken");
           window.location.href = "/login";
         }
         return;
@@ -176,7 +177,7 @@ export default function Perfil() {
         horarios_ui: horariosUi,
       }));
       // Storage
-      const storedUserString = localStorage.getItem("user");
+      const storedUserString = safeLocalStorage.getItem("user");
       let parsedUserFromLS = null;
       try {
         parsedUserFromLS = storedUserString ? JSON.parse(storedUserString) : {};
@@ -191,7 +192,7 @@ export default function Perfil() {
         plan: data.plan || "gratis",
         rubro: data.rubro?.toLowerCase() || parsedUserFromLS?.rubro || "",
       };
-      localStorage.setItem("user", JSON.stringify(updatedUserForLS));
+      safeLocalStorage.setItem("user", JSON.stringify(updatedUserForLS));
     } catch (err) {
       setError("No se pudo conectar con el servidor para cargar el perfil.");
     } finally {
@@ -200,7 +201,7 @@ export default function Perfil() {
   }, []);
 
   useEffect(() => {
-    const token = localStorage.getItem("authToken");
+    const token = safeLocalStorage.getItem("authToken");
     if (!token) {
       window.location.href = "/login";
       return;
@@ -273,7 +274,7 @@ export default function Perfil() {
     setError(null);
     setLoadingGuardar(true);
 
-    const token = localStorage.getItem("authToken");
+    const token = safeLocalStorage.getItem("authToken");
     if (!token) {
       setError(
         "No se encontró sesión activa. Por favor, vuelve a iniciar sesión.",
@@ -342,7 +343,7 @@ export default function Perfil() {
       });
       return;
     }
-    const token = localStorage.getItem("authToken");
+    const token = safeLocalStorage.getItem("authToken");
     if (!token) {
       setResultadoCatalogo({
         message: "❌ Sesión no válida para subir catálogo.",
@@ -425,7 +426,7 @@ export default function Perfil() {
             variant="outline"
             className="h-10 px-5 text-sm border-destructive text-destructive hover:bg-destructive/10"
             onClick={() => {
-              localStorage.clear();
+              safeLocalStorage.clear();
               window.location.href = "/login";
             }}
           >

@@ -1,6 +1,7 @@
 // Archivo: Demo.tsx (ajustado para igualar la lógica del ChatWidget para anónimos)
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { AnimatePresence, motion } from "framer-motion";
 import ChatInput from "@/components/chat/ChatInput";
 import TypingIndicator from "@/components/chat/TypingIndicator";
@@ -13,7 +14,7 @@ const Demo = () => {
   const [isTyping, setIsTyping] = useState(false);
   const [preguntasUsadas, setPreguntasUsadas] = useState(0);
   const [rubroSeleccionado, setRubroSeleccionado] = useState<string | null>(() => {
-    return typeof window !== "undefined" ? localStorage.getItem("rubroSeleccionado") : null;
+    return typeof window !== "undefined" ? safeLocalStorage.getItem("rubroSeleccionado") : null;
   });
   const [rubrosDisponibles, setRubrosDisponibles] = useState<{ id: number; nombre: string }[]>([]);
   const [esperandoRubro, setEsperandoRubro] = useState(!rubroSeleccionado);
@@ -23,10 +24,10 @@ const Demo = () => {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      let currentToken = localStorage.getItem("anon_token");
+      let currentToken = safeLocalStorage.getItem("anon_token");
       if (!currentToken) {
         currentToken = `demo-anon-${Math.random().toString(36).substring(2, 10)}`;
-        localStorage.setItem("anon_token", currentToken);
+        safeLocalStorage.setItem("anon_token", currentToken);
       }
       setToken(currentToken);
     }
@@ -118,7 +119,7 @@ const Demo = () => {
               <button
                 key={rubro.id}
                 onClick={() => {
-                  localStorage.setItem("rubroSeleccionado", rubro.nombre);
+                  safeLocalStorage.setItem("rubroSeleccionado", rubro.nombre);
                   setRubroSeleccionado(rubro.nombre);
                   setEsperandoRubro(false);
                   setMessages([{ id: Date.now(), text: `¡Hola! Soy Chatboc, tu asistente para ${rubro.nombre.toLowerCase()}. ¿En qué puedo ayudarte hoy?`, isBot: true, timestamp: new Date() }]);
