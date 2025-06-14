@@ -332,52 +332,67 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
   const ultimoMensajeIdRef = useRef<number>(0);
 
-  // --- Polling SOLO en tickets "en vivo" ---
-  useEffect(() => {
-    // Resetea comentarios y último ID si cambia de ticket
-    setComentarios(ticket.comentarios || []);
-    ultimoMensajeIdRef.current = (ticket.comentarios && ticket.comentarios.length)
-      ? ticket.comentarios[ticket.comentarios.length - 1].id
-      : 0;
-
-    if (pollingRef.current) clearInterval(pollingRef.current);
-
+  const chatEnVivo = useMemo(() => {
     const categoriaNormalizada = (ticket.asunto || ticket.categoria || "")
       .toLowerCase()
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "");
 
-    const chatEnVivo = CATEGORIAS_CHAT_EN_VIVO.some(cat =>
-      categoriaNormalizada.includes(cat.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""))
-    ) && ["esperando_agente_en_vivo", "en_proceso"].includes(ticket.estado);
+    return (
+      CATEGORIAS_CHAT_EN_VIVO.some((cat) =>
+        categoriaNormalizada.includes(
+          cat.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        )
+      ) && ["esperando_agente_en_vivo", "en_proceso"].includes(ticket.estado)
+    );
+  }, [ticket.asunto, ticket.categoria, ticket.estado]);
+
+  const fetchComentarios = useCallback(async () => {
+    try {
+      const data = await apiFetch(`/tickets/chat/${ticket.id}/mensajes?ultimo_mensaje_id=${ultimoMensajeIdRef.current}`);
+      if (data.mensajes && data.mensajes.length > 0) {
+        setComentarios((prev) => {
+          const idsPrev = new Set(prev.map((m) => m.id));
+          const nuevos = data.mensajes.filter((m) => !idsPrev.has(m.id));
+          if (nuevos.length > 0) {
+            ultimoMensajeIdRef.current = nuevos[nuevos.length - 1].id;
+            return [
+              ...prev,
+              ...nuevos.map((msg) => ({
+                id: msg.id,
+                comentario: msg.texto,
+                fecha: msg.fecha,
+                es_admin: msg.es_admin,
+              })),
+            ];
+          }
+          return prev;
+        });
+      }
+    } catch (e) {
+      console.error("Error en polling de comentarios:", e);
+    }
+  }, [ticket.id]);
+
+  // --- Polling SOLO en tickets "en vivo" ---
+  useEffect(() => {
+    // Resetea comentarios y último ID si cambia de ticket
+    setComentarios(ticket.comentarios || []);
+    ultimoMensajeIdRef.current =
+      ticket.comentarios && ticket.comentarios.length
+        ? ticket.comentarios[ticket.comentarios.length - 1].id
+        : 0;
+
+    if (pollingRef.current) clearInterval(pollingRef.current);
 
     if (!chatEnVivo) return;
 
-    const fetchComentarios = async () => {
-      try {
-        const data = await apiFetch(`/tickets/chat/${ticket.id}/mensajes?ultimo_mensaje_id=${ultimoMensajeIdRef.current}`);
-        if (data.mensajes && data.mensajes.length > 0) {
-          setComentarios(prev => {
-            const idsPrev = new Set(prev.map(m => m.id));
-            const nuevos = data.mensajes.filter(m => !idsPrev.has(m.id));
-            if (nuevos.length > 0) {
-              ultimoMensajeIdRef.current = nuevos[nuevos.length - 1].id;
-              return [...prev, ...nuevos.map(msg => ({
-                id: msg.id, comentario: msg.texto, fecha: msg.fecha, es_admin: msg.es_admin
-              }))];
-            }
-            return prev;
-          });
-        }
-      } catch (e) {
-        console.error("Error en polling de comentarios:", e);
-      }
-    };
-
     fetchComentarios();
     pollingRef.current = setInterval(fetchComentarios, 5000);
-    return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
-  }, [ticket.id, ticket.estado, ticket.asunto, ticket.categoria]);
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    };
+  }, [ticket.id, ticket.comentarios, chatEnVivo, fetchComentarios]);
 
   // --- Scroll SOLO si cambian los comentarios ---
   useEffect(() => {
