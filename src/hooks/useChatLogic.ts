@@ -27,7 +27,7 @@ export function useChatLogic(initialWelcomeMessage: string) {
       if (!activeTicketId) return;
       try {
         const data = await apiFetch<{ estado_chat: string; mensajes: any[] }>(
-          `/tickets/chat/${activeTicket_id}/mensajes?ultimo_mensaje_id=${ultimoMensajeIdRef.current}`
+          `/tickets/chat/${activeTicketId}/mensajes?ultimo_mensaje_id=${ultimoMensajeIdRef.current}`
         );
         if (data.mensajes && data.mensajes.length > 0) {
           const nuevosMensajes: Message[] = data.mensajes.map(msg => ({

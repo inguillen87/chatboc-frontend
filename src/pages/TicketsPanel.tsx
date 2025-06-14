@@ -532,7 +532,7 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
           <CardHeader className="pb-2"><CardTitle className="text-base">Estado del Ticket</CardTitle></CardHeader>
           <CardContent>
             <Select onValueChange={handleEstadoChange} value={ticket.estado}>
-              <SelectTrigger className="w-full"><SelectValue placeholder="Cambiar estado..." /></SelectTrigger>
+              <SelectTrigger className="w-full bg-transparent border border-border dark:bg-transparent focus:ring-0"><SelectValue placeholder="Cambiar estado..." /></SelectTrigger>
               <SelectContent>
                 {Object.entries(ESTADOS).map(([key, { label }]) => (
                   <SelectItem key={key} value={key}>{label}</SelectItem>
