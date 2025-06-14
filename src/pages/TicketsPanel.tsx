@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 // --- TIPOS Y ESTADOS ---
-type TicketStatus = "nuevo" | "en_proceso" | "derivado" | "resuelto" | "cerrado";
+type TicketStatus = "nuevo" | "en_proceso" | "derivado" | "resuelto" | "cerrado" | "esperando_agente_en_vivo";
 interface Comment { id: number; comentario: string; fecha: string; es_admin: boolean; }
 interface Ticket {
     id: number; tipo: 'pyme' | 'municipio'; nro_ticket: number; asunto: string; estado: TicketStatus; fecha: string;
@@ -20,13 +20,14 @@ interface Ticket {
 interface TicketSummary extends Omit<Ticket, 'detalles' | 'comentarios'> { direccion?: string; }
 type CategorizedTickets = { [category: string]: TicketSummary[]; };
 
-const ESTADOS_ORDEN_PRIORIDAD: TicketStatus[] = ["nuevo", "en_proceso", "derivado", "resuelto", "cerrado"];
+const ESTADOS_ORDEN_PRIORIDAD: TicketStatus[] = ["nuevo", "en_proceso", "esperando_agente_en_vivo", "derivado", "resuelto", "cerrado"];
 const ESTADOS: Record<TicketStatus, { label: string; tailwind_class: string }> = {
     nuevo: { label: "Nuevo", tailwind_class: "bg-blue-600 text-white border-blue-800 dark:bg-blue-400 dark:text-black" },
     en_proceso: { label: "En Proceso", tailwind_class: "bg-yellow-600 text-white border-yellow-800 dark:bg-yellow-300 dark:text-black" },
     derivado: { label: "Derivado", tailwind_class: "bg-purple-600 text-white border-purple-800 dark:bg-purple-400 dark:text-black" },
     resuelto: { label: "Resuelto", tailwind_class: "bg-green-600 text-white border-green-800 dark:bg-green-300 dark:text-black" },
     cerrado: { label: "Cerrado", tailwind_class: "bg-gray-600 text-white border-gray-800 dark:bg-gray-400 dark:text-black" },
+    esperando_agente_en_vivo: { label: "Esperando agente", tailwind_class: "bg-red-600 text-white border-red-800 dark:bg-red-400 dark:text-black" }
 };
 
 function fechaCorta(iso: string) {
@@ -145,78 +146,6 @@ export default function TicketsPanel() {
 }
 
 
-// --- SUB-COMPONENTE ACORDEÓN DE CATEGORÍAS ---
-const TicketCategoryAccordion: FC<{
-    category: string;
-    tickets: TicketSummary[];
-    onSelectTicket: (ticket: TicketSummary) => void;
-    isOpen: boolean;
-    onToggle: () => void;
-    selectedTicketId: number | null;
-    detailedTicket: Ticket | null;
-    onTicketDetailUpdate: (ticket: Ticket) => void;
-}> = ({ category, tickets, onSelectTicket, isOpen, onToggle, selectedTicketId, detailedTicket, onTicketDetailUpdate }) => (
-    <motion.div layout className="bg-card dark:bg-slate-800/80 border border-border dark:border-slate-700 rounded-xl shadow-md overflow-hidden" initial={{ borderRadius: 12 }}>
-        <motion.header layout initial={false} onClick={onToggle} className="p-4 flex justify-between items-center cursor-pointer hover:bg-muted/50 dark:hover:bg-slate-700/50 transition-colors">
-            <div className="flex items-center gap-3">
-                <h2 className="font-semibold text-lg text-foreground">{category}</h2>
-                <Badge variant="secondary" className="dark:bg-slate-600 dark:text-slate-200">{tickets.length}</Badge>
-            </div>
-            {isOpen ? <ChevronUp className="text-muted-foreground" /> : <ChevronDown className="text-muted-foreground" />}
-        </motion.header>
-        <AnimatePresence>
-            {isOpen && (
-                <motion.section key="content" initial="collapsed" animate="open" exit="collapsed" variants={{ open: { opacity: 1, height: "auto" }, collapsed: { opacity: 0, height: 0 } }} transition={{ duration: 0.3, ease: "easeInOut" }} className="overflow-hidden">
-                    <div className="p-2 sm:p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 border-t border-border dark:border-slate-700">
-                        {tickets.map(ticket => (
-                            <React.Fragment key={ticket.id}>
-                                <div
-                                    onClick={() => onSelectTicket(ticket)}
-                                    className={cn(
-                                        "bg-background dark:bg-slate-800/50 p-3 rounded-lg border cursor-pointer transition-all shadow-sm",
-                                        "hover:border-primary dark:hover:border-primary hover:shadow-lg hover:-translate-y-1",
-                                        selectedTicketId === ticket.id ? "border-primary dark:border-primary ring-2 ring-primary/50 -translate-y-1" : "border-border dark:border-slate-700/50",
-                                        selectedTicketId === ticket.id ? "col-span-full" : ""
-                                    )}
-                                >
-                                    <div className="flex justify-between items-center mb-1">
-                                        <span className="font-semibold text-primary text-sm">#{ticket.nro_ticket}</span>
-                                        <Badge className={cn("text-xs border", ESTADOS[ticket.estado as TicketStatus]?.tailwind_class)}>{ESTADOS[ticket.estado as TicketStatus]?.label}</Badge>
-                                    </div>
-                                    <p className="font-medium text-foreground truncate" title={ticket.asunto}>{ticket.asunto}</p>
-                                    {ticket.direccion && <p className="text-xs text-muted-foreground truncate" title={ticket.direccion}>{ticket.direccion}</p>}
-                                    <p className="text-xs text-muted-foreground text-right mt-1">{fechaCorta(ticket.fecha)}</p>
-                                </div>
-                                <AnimatePresence>
-                                    {selectedTicketId === ticket.id && detailedTicket && (
-                                        <motion.div
-                                            key={`detail-${ticket.id}`}
-                                            initial="collapsed"
-                                            animate="open"
-                                            exit="collapsed"
-                                            variants={{ open: { opacity: 1, height: "auto" }, collapsed: { opacity: 0, height: 0 } }}
-                                            transition={{ duration: 0.3, ease: "easeInOut" }}
-                                            className="col-span-full bg-card dark:bg-slate-800/80 rounded-lg p-4 border border-border dark:border-slate-700 shadow-md mt-2"
-                                        >
-                                            <div className="flex justify-between items-center mb-4">
-                                                <h3 className="text-lg font-bold text-foreground">Detalle del Ticket #{detailedTicket.nro_ticket}</h3>
-                                                <Button variant="ghost" size="icon" onClick={() => onSelectTicket(ticket)} aria-label="Cerrar detalle">
-                                                    <X className="h-5 w-5" />
-                                                </Button>
-                                            </div>
-                                            <TicketDetail ticket={detailedTicket} onTicketUpdate={onTicketDetailUpdate} />
-                                        </motion.div>
-                                    )}
-                                </AnimatePresence>
-                            </React.Fragment>
-                        ))}
-                    </div>
-                </motion.section>
-            )}
-        </AnimatePresence>
-    </motion.div>
-);
-
 // --- SUB-COMPONENTE DETALLE DEL TICKET ---
 const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => void }> = ({ ticket, onTicketUpdate }) => {
     const [newMessage, setNewMessage] = useState("");
@@ -229,7 +158,7 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
   if (!ticket || !ticket.id || !ticket.tipo) return;
 
   // 💡 SOLO hacemos polling si el ticket necesita atención activa
-  const requiereActualizacion = ["nuevo", "en_proceso"].includes(ticket.estado);
+const requiereActualizacion = ticket.estado === "esperando_agente_en_vivo";
 
   if (!requiereActualizacion) return;
 
