@@ -151,34 +151,42 @@ const ChatWidget = ({
 
   // Polling de chat en vivo (manda siempre anon_id si es anónimo)
   useEffect(() => {
-    const fetchNewMessages = async () => {
-      if (!activeTicketId) return;
-      try {
-        const data = await apiFetch<{ estado_chat: string; mensajes: any[] }>(
-          `/tickets/chat/${activeTicketId}/mensajes?ultimo_mensaje_id=${ultimoMensajeIdRef.current}`,
-          {
-            headers: esAnonimo ? { "Anon-Id": anonId } : { Authorization: `Bearer ${finalAuthToken}` }
-          }
-        );
-        if (data.mensajes && data.mensajes.length > 0) {
-          const nuevosMensajes: Message[] = data.mensajes.map(msg => ({
-            id: msg.id, text: msg.texto, isBot: msg.es_admin, timestamp: new Date(msg.fecha)
-          }));
-          setMessages(prev => [...prev, ...nuevosMensajes]);
+  if (!activeTicketId) return;
+  let intervalId;
+  const fetchAllMessages = async () => {
+    try {
+      const data = await apiFetch<{ estado_chat: string; mensajes: any[] }>(
+        `/tickets/chat/${activeTicketId}/mensajes`,
+        {
+          headers: esAnonimo ? { "Anon-Id": anonId } : { Authorization: `Bearer ${finalAuthToken}` }
+        }
+      );
+      if (data.mensajes) {
+        const nuevosMensajes: Message[] = data.mensajes.map(msg => ({
+          id: msg.id,
+          text: msg.texto,
+          isBot: msg.es_admin,
+          timestamp: new Date(msg.fecha)
+        }));
+        setMessages(nuevosMensajes); // <-- REEMPLAZA la lista
+        if (data.mensajes.length > 0)
           ultimoMensajeIdRef.current = data.mensajes[data.mensajes.length - 1].id;
-        }
-        if (data.estado_chat === 'resuelto' || data.estado_chat === 'cerrado') {
-          if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
-          setMessages(prev => [...prev, { id: Date.now(), text: "Un agente ha finalizado esta conversación.", isBot: true, timestamp: new Date() }]);
-        }
-      } catch (error) { console.error("Error durante el polling:", error); }
-    };
-    if (activeTicketId) {
-      fetchNewMessages();
-      pollingIntervalRef.current = setInterval(fetchNewMessages, 5000);
+      }
+      if (data.estado_chat === 'resuelto' || data.estado_chat === 'cerrado') {
+        if (intervalId) clearInterval(intervalId);
+        setMessages(prev => [
+          ...prev,
+          { id: Date.now(), text: "Un agente ha finalizado esta conversación.", isBot: true, timestamp: new Date() }
+        ]);
+      }
+    } catch (error) {
+      console.error("Error durante el polling:", error);
     }
-    return () => { if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current); };
-  }, [activeTicketId, esAnonimo, anonId, finalAuthToken]);
+  };
+  fetchAllMessages();
+  intervalId = setInterval(fetchAllMessages, 5000);
+  return () => { if (intervalId) clearInterval(intervalId); };
+}, [activeTicketId, esAnonimo, anonId, finalAuthToken]);
 
   // --- handleSendMessage ---
   const handleSendMessage = useCallback(

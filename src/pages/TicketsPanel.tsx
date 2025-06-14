@@ -302,66 +302,61 @@ const TicketMap: FC<{ ticket: Ticket }> = ({ ticket }) => {
 };
 
 const CATEGORIAS_CHAT_EN_VIVO = [
-  "Atención en Vivo", // Agregá variantes si las usás
+  "atención en vivo",
   "chat en vivo",
   "soporte urgente"
-  ];
+];
 
-// --------- TicketDetail ---------
-  const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => void }> = ({ ticket, onTicketUpdate }) => {
+const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => void }> = ({ ticket, onTicketUpdate }) => {
   const [newMessage, setNewMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
+  // --- ¿ES CHAT EN VIVO? ---
+  const categoriaNormalizada = ((ticket.asunto || ticket.categoria || "") as string)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  const chatEnVivo =
+    CATEGORIAS_CHAT_EN_VIVO.some(cat =>
+      categoriaNormalizada.includes(
+        cat.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      )
+    ) &&
+    ["esperando_agente_en_vivo", "en_proceso"].includes(ticket.estado);
+
+  // --- FUNCION MANUAL Y PARA POLLING ---
+  const fetchComentarios = useCallback(async () => {
+    try {
+      const data = await apiFetch(`/tickets/chat/${ticket.id}/mensajes`);
+      if (data?.mensajes) {
+        onTicketUpdate({
+          ...ticket,
+          comentarios: data.mensajes.map((msg: any) => ({
+            id: msg.id,
+            comentario: msg.texto,
+            fecha: msg.fecha,
+            es_admin: msg.es_admin,
+          })),
+        });
+      }
+    } catch (e) {
+      // Podés agregar manejo de error si querés
+    }
+  }, [ticket, onTicketUpdate]);
+
   // -- POLLING SOLO EN CHATS EN VIVO --
   useEffect(() => {
-    if (!ticket || !ticket.id || !ticket.tipo) return;
-
-    const categoriaNormalizada = (ticket.asunto || ticket.categoria || "")
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "");
-
-    const chatEnVivo =
-      CATEGORIAS_CHAT_EN_VIVO.some(cat =>
-        categoriaNormalizada.includes(cat.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""))
-      ) &&
-      ["esperando_agente_en_vivo", "en_proceso"].includes(ticket.estado);
-
-    if (!chatEnVivo) return; // Solo activa el polling si cumple ambas condiciones
-
+    if (!chatEnVivo) return;
     let mounted = true;
     const POLLING_INTERVAL = 5000;
+    const fetchAndUpdate = async () => { if (mounted) await fetchComentarios(); };
+    fetchAndUpdate();
+    const interval = setInterval(fetchAndUpdate, POLLING_INTERVAL);
+    return () => { mounted = false; clearInterval(interval); };
+  }, [chatEnVivo, fetchComentarios]);
 
-    const fetchComentarios = async () => {
-      try {
-        const data = await apiFetch(`/tickets/chat/${ticket.id}/mensajes`);
-        if (mounted && data?.mensajes) {
-          onTicketUpdate({
-            ...ticket,
-            comentarios: data.mensajes.map((msg: any) => ({
-              id: msg.id,
-              comentario: msg.texto,
-              fecha: msg.fecha,
-              es_admin: msg.es_admin,
-            })),
-          });
-        }
-      } catch (e) {
-        console.error("Error en polling de comentarios:", e);
-      }
-    };
-
-    fetchComentarios();
-    const interval = setInterval(fetchComentarios, POLLING_INTERVAL);
-
-    return () => {
-      mounted = false;
-      clearInterval(interval);
-    };
-  }, [ticket?.id, ticket?.estado, ticket?.tipo, ticket?.asunto, ticket?.categoria, onTicketUpdate]);
-
-  // --- Envío de Mensaje (igual que antes) ---
+  // --- Envío de Mensaje ---
   const handleSendMessage = async () => {
     if (!newMessage.trim() || isSending) return;
     setIsSending(true);
@@ -370,7 +365,6 @@ const CATEGORIAS_CHAT_EN_VIVO = [
         method: "POST",
         body: { comentario: newMessage },
       });
-      // --- MERGE DEFENSIVO ---
       const mergedTicket = { ...ticket, ...updatedTicket };
       if (!updatedTicket.comentarios && ticket.comentarios) {
         mergedTicket.comentarios = ticket.comentarios;
@@ -378,12 +372,13 @@ const CATEGORIAS_CHAT_EN_VIVO = [
       onTicketUpdate(mergedTicket);
       setNewMessage("");
     } catch (error) {
-      console.error("Error al enviar comentario", error);
+      // Manejo de error opcional
     } finally {
       setIsSending(false);
     }
   };
-  // --- Cambio de Estado (igual que antes) ---
+
+  // --- Cambio de Estado ---
   const handleEstadoChange = async (nuevoEstado: TicketStatus) => {
     try {
       const updatedTicket = await apiFetch<Ticket>(
@@ -396,10 +391,11 @@ const CATEGORIAS_CHAT_EN_VIVO = [
       }
       onTicketUpdate(mergedTicket);
     } catch (error) {
-      console.error("Error al cambiar estado", error);
+      // Manejo de error opcional
     }
   };
-   // --- Scroll al final del chat (igual que antes) ---
+
+  // --- Scroll al final del chat ---
   useEffect(() => {
     const mainElement = chatBottomRef.current?.parentElement;
     if (
@@ -411,10 +407,19 @@ const CATEGORIAS_CHAT_EN_VIVO = [
       chatBottomRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [ticket.comentarios]);
+
   return (
     <div className="flex flex-col md:grid md:grid-cols-3 gap-4">
       {/* Chat principal */}
       <div className="md:col-span-2 flex flex-col h-[60vh] max-h-[600px] min-h-[300px] border rounded-md bg-background dark:bg-slate-700/50">
+        {/* BOTÓN SOLO PARA TICKETS NORMALES */}
+        {!chatEnVivo && (
+          <div className="p-2 flex justify-end">
+            <Button size="sm" variant="outline" onClick={fetchComentarios}>
+              Actualizar mensajes
+            </Button>
+          </div>
+        )}
         <main className="flex-1 p-4 space-y-4 overflow-y-auto custom-scroll">
           {ticket.comentarios && ticket.comentarios.length > 0 ? (
             ticket.comentarios.map((comment) => (
@@ -491,6 +496,7 @@ const CATEGORIAS_CHAT_EN_VIVO = [
     </div>
   );
 };
+
 
 // --------- AvatarIcon ---------
 const AvatarIcon: FC<{ type: 'user' | 'admin' }> = ({ type }) => (
