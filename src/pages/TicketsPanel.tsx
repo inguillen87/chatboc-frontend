@@ -226,36 +226,41 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
 
     // --- POLLING SOLO EN "esperando_agente_en_vivo" ---
     useEffect(() => {
-        if (!ticket || !ticket.id || !ticket.tipo) return;
-        const requiereActualizacion = ticket.estado === "esperando_agente_en_vivo";
-        if (!requiereActualizacion) return;
-        let mounted = true;
-        const POLLING_INTERVAL = 10000;
-        const fetchComentarios = async () => {
-            try {
-                const data = await apiFetch(`/tickets/chat/${ticket.id}/mensajes`);
-                if (mounted && data?.mensajes) {
-                    onTicketUpdate({
-                        ...ticket,
-                        comentarios: data.mensajes.map((msg: any) => ({
-                            id: msg.id,
-                            comentario: msg.texto,
-                            fecha: msg.fecha,
-                            es_admin: msg.es_admin,
-                        })),
-                    });
-                }
-            } catch (e) {
-                console.error("Error en polling de comentarios:", e);
-            }
-        };
-        const interval = setInterval(fetchComentarios, POLLING_INTERVAL);
-        fetchComentarios();
-        return () => {
-            mounted = false;
-            clearInterval(interval);
-        };
-    }, [ticket?.id, ticket?.estado, ticket?.tipo, onTicketUpdate]);
+  if (!ticket || !ticket.id || !ticket.tipo) return;
+
+  // SOLO hacemos polling si es chat en vivo
+  if (ticket.estado !== "esperando_agente_en_vivo") return;
+
+  let mounted = true;
+  const POLLING_INTERVAL = 10000;
+
+  const fetchComentarios = async () => {
+    try {
+      const data = await apiFetch(`/tickets/chat/${ticket.id}/mensajes`);
+      if (mounted && data?.mensajes) {
+        onTicketUpdate({
+          ...ticket,
+          comentarios: data.mensajes.map((msg) => ({
+            id: msg.id,
+            comentario: msg.texto,
+            fecha: msg.fecha,
+            es_admin: msg.es_admin,
+          })),
+        });
+      }
+    } catch (e) {
+      console.error("Error en polling de comentarios:", e);
+    }
+  };
+
+  const interval = setInterval(fetchComentarios, POLLING_INTERVAL);
+  fetchComentarios();
+
+  return () => {
+    mounted = false;
+    clearInterval(interval);
+  };
+}, [ticket?.id, ticket?.estado, ticket?.tipo, onTicketUpdate]);
 
     // --- Envío de Mensaje ---
     const handleSendMessage = async () => {
