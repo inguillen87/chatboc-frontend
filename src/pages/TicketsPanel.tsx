@@ -28,6 +28,7 @@ interface Comment { id: number; comentario: string; fecha: string; es_admin: boo
 interface Ticket {
   id: number; tipo: 'pyme' | 'municipio'; nro_ticket: number; asunto: string; estado: TicketStatus; fecha: string;
   detalles?: string; comentarios?: Comment[]; nombre_usuario?: string; email_usuario?: string; telefono?: string; direccion?: string; archivo_url?: string;
+  municipio_nombre?: string; // <- Opción para relacionar con municipio
 }
 interface TicketSummary extends Omit<Ticket, 'detalles' | 'comentarios'> { direccion?: string; }
 type CategorizedTickets = { [category: string]: TicketSummary[]; };
@@ -224,6 +225,82 @@ const TicketCategoryAccordion: FC<{
   </motion.div>
 );
 
+// --------- TicketTimeline ---------
+const TicketTimeline: FC<{ ticket: Ticket }> = ({ ticket }) => {
+  const eventos = [
+    { fecha: ticket.fecha, descripcion: "Ticket creado", estado: "nuevo" },
+    ...(ticket.comentarios?.length
+      ? ticket.comentarios.map((c) => ({
+          fecha: c.fecha,
+          descripcion: c.es_admin ? "Respuesta de administrador" : "Comentario de usuario",
+          estado: ticket.estado,
+        }))
+      : []),
+  ];
+  return (
+    <div className="mb-6">
+      <h4 className="font-semibold mb-2">Actividad</h4>
+      <ol className="border-l-2 border-primary/60 pl-3 space-y-2 text-xs">
+        {eventos.map((ev, i) => (
+          <li key={i} className="relative pl-3">
+            <span className="absolute left-[-9px] top-1.5 w-3 h-3 rounded-full border-2 border-primary bg-card" />
+            <div>
+              <span className="font-medium">{ev.descripcion}</span>
+              <span className="ml-2 text-muted-foreground">{fechaArgentina(ev.fecha)}</span>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+};
+
+// --------- TicketMap robusto ---------
+const buildFullAddress = (ticket: Ticket) => {
+  // Si la dirección ya tiene ciudad/provincia, la dejamos; si no, le agregamos info del municipio.
+  let direccion = ticket.direccion || "";
+  const partes = direccion.split(",");
+  const tieneCiudad =
+    direccion.toLowerCase().includes("mendoza") ||
+    direccion.toLowerCase().includes("junín") ||
+    direccion.toLowerCase().includes("san rafael") ||
+    direccion.toLowerCase().includes("argentina");
+
+  if (!tieneCiudad) {
+    // Usa el municipio si existe (ej: "Junín, Mendoza, Argentina")
+    if (ticket.municipio_nombre) {
+      direccion += (direccion ? ", " : "") + ticket.municipio_nombre + ", Mendoza, Argentina";
+    } else {
+      direccion += (direccion ? ", " : "") + "Mendoza, Argentina";
+    }
+  }
+  // Si sigue quedando muy corto, dale un fallback (solo para pruebas)
+  if (direccion.trim().length < 8) direccion = "Junín, Mendoza, Argentina";
+  return direccion;
+};
+
+const TicketMap: FC<{ ticket: Ticket }> = ({ ticket }) => {
+  const direccionCompleta = buildFullAddress(ticket);
+  return ticket.direccion ? (
+    <div className="mb-6">
+      <h4 className="font-semibold mb-2">Ubicación aproximada</h4>
+      <div className="w-full rounded overflow-hidden" style={{ height: 180 }}>
+        <iframe
+          width="100%"
+          height="180"
+          style={{ border: 0 }}
+          loading="lazy"
+          allowFullScreen
+          src={`https://www.google.com/maps?q=${encodeURIComponent(
+            direccionCompleta
+          )}&output=embed`}
+        />
+      </div>
+      <div className="text-xs mt-1 text-muted-foreground truncate">{direccionCompleta}</div>
+    </div>
+  ) : null;
+};
+
 // --------- TicketDetail ---------
 const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => void }> = ({ ticket, onTicketUpdate }) => {
   const [newMessage, setNewMessage] = useState("");
@@ -339,8 +416,10 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
           </Button>
         </footer>
       </div>
-      {/* Sidebar de detalles */}
+      {/* Sidebar mejorado */}
       <aside className="md:col-span-1 bg-muted/30 p-4 space-y-6 overflow-y-auto custom-scroll rounded-md border">
+        <TicketTimeline ticket={ticket} />
+        <TicketMap ticket={ticket} />
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-base">Estado del Ticket</CardTitle></CardHeader>
           <CardContent>
@@ -354,23 +433,13 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
             </Select>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-base">Detalles del Reclamo</CardTitle></CardHeader>
-          <CardContent className="text-sm text-muted-foreground space-y-1">
-            {ticket.detalles
-              ? ticket.detalles.split('\n').map((line, i) => <p key={i}>{line}</p>)
-              : <p>No se proveyeron detalles adicionales.</p>
-            }
-          </CardContent>
-        </Card>
-        {(ticket.nombre_usuario || ticket.email_usuario || ticket.telefono || ticket.direccion) && (
+        {(ticket.nombre_usuario || ticket.email_usuario || ticket.telefono) && (
           <Card>
             <CardHeader className="pb-2"><CardTitle className="text-base">Información del Usuario</CardTitle></CardHeader>
             <CardContent className="text-sm text-muted-foreground space-y-1">
               {ticket.nombre_usuario && <p><strong>Nombre:</strong> {ticket.nombre_usuario}</p>}
               {ticket.email_usuario && <p><strong>Email:</strong> {ticket.email_usuario}</p>}
               {ticket.telefono && <p><strong>Teléfono:</strong> {ticket.telefono}</p>}
-              {ticket.direccion && <p><strong>Dirección:</strong> {ticket.direccion}</p>}
             </CardContent>
           </Card>
         )}
