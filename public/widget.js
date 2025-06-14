@@ -12,6 +12,7 @@
   const initialBottom = script.getAttribute("data-bottom") || "20px";
   const initialRight = script.getAttribute("data-right") || "20px";
   const defaultOpen = script.getAttribute("data-default-open") === "true"; // Si el chat debe iniciar abierto
+  const theme = script.getAttribute("data-theme") || "";
   const chatbocDomain = script.getAttribute("data-domain") || "https://www.chatboc.ar";
 
   const zIndexBase = parseInt(script.getAttribute("data-z") || "999990", 10);
@@ -55,7 +56,7 @@
   const iframe = document.createElement("iframe");
   iframe.id = iframeId;
   // Pasamos defaultOpen y widgetId a ChatWidget.tsx para que sepa su estado inicial
-  iframe.src = `${chatbocDomain}/iframe?token=${encodeURIComponent(token)}&widgetId=${iframeId}&defaultOpen=${defaultOpen}&initialWidth=${encodeURIComponent(currentDims.width)}&initialHeight=${encodeURIComponent(currentDims.height)}`; 
+  iframe.src = `${chatbocDomain}/iframe?token=${encodeURIComponent(token)}&widgetId=${iframeId}&defaultOpen=${defaultOpen}&initialWidth=${encodeURIComponent(currentDims.width)}&initialHeight=${encodeURIComponent(currentDims.height)}${theme ? `&theme=${encodeURIComponent(theme)}` : ""}`;
   iframe.style.position = "fixed";
   iframe.style.bottom = initialBottom;
   iframe.style.right = initialRight;

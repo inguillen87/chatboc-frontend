@@ -83,9 +83,12 @@ You can embed the floating chat widget on any site by loading `widget.js` and pa
     s.src = 'https://www.chatboc.ar/widget.js';
     s.async = true;
     s.setAttribute('data-token', 'TU_TOKEN_AQUI');
+    // Optional: force light or dark theme
+    // s.setAttribute('data-theme', 'dark');
     document.head.appendChild(s);
   })();
 </script>
 ```
 
 This snippet loads the widget without needing an iframe and creates a floating bubble styled just like on chatboc.ar.
+You can also pass `data-theme="dark"` or `data-theme="light"` to force a specific theme inside the widget.
