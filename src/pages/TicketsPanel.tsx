@@ -26,14 +26,15 @@ interface Ticket {
     telefono?: string;
     direccion?: string;
     archivo_url?: string;
+    categoria: string; // Aseguramos que la categoría esté siempre presente
 }
 interface TicketSummary extends Omit<Ticket, 'detalles' | 'comentarios'> {
     direccion?: string;
+    categoria: string; // Aseguramos que la categoría esté siempre presente
 }
 type CategorizedTickets = { [category: string]: TicketSummary[]; };
 
 // --- MAPA DE ESTADOS ---
-// APLICADO: Clases Tailwind para modo oscuro para asegurar visibilidad
 const ESTADOS: Record<TicketStatus, { label: string; tailwind_class: string }> = {
     nuevo: { label: "Nuevo", tailwind_class: "bg-blue-500/20 text-blue-500 border-blue-500/30 dark:bg-blue-700/30 dark:text-blue-300 dark:border-blue-700/50" },
     en_proceso: { label: "En Proceso", tailwind_class: "bg-yellow-500/20 text-yellow-500 border-yellow-500/30 dark:bg-yellow-700/30 dark:text-yellow-300 dark:border-yellow-700/50" },
@@ -66,7 +67,6 @@ export default function TicketsPanel() {
             try {
                 const data = await apiFetch<CategorizedTickets>('/tickets/panel_por_categoria');
                 
-                // --- Lógica para agrupar tickets resueltos/cerrados (INTEGRADA) ---
                 const processedData: CategorizedTickets = {};
                 const resolvedAndClosedTickets: TicketSummary[] = [];
 
@@ -88,11 +88,9 @@ export default function TicketsPanel() {
                     resolvedAndClosedTickets.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
                     processedData["Tickets Resueltos y Cerrados"] = resolvedAndClosedTickets;
                 }
-                // --- Fin de la lógica de agrupación ---
-
+                
                 setCategorizedTickets(processedData);
                 
-                // Solo abre las categorías que NO son "Tickets Resueltos y Cerrados" por defecto
                 const initialOpenCategories = new Set(Object.keys(processedData).filter(cat => cat !== "Tickets Resueltos y Cerrados"));
                 setOpenCategories(initialOpenCategories);
 
@@ -142,8 +140,6 @@ export default function TicketsPanel() {
 
     const handleTicketDetailUpdate = (updatedTicket: Ticket) => {
         setDetailedTicket(updatedTicket);
-        // Cuando un ticket se actualiza (ej. cambia de estado a resuelto/cerrado),
-        // refresca toda la lista para que se mueva a la categoría de "Resueltos y Cerrados"
         const fetchTickets = async () => {
             try {
                 const data = await apiFetch<CategorizedTickets>('/tickets/panel_por_categoria');
@@ -185,7 +181,6 @@ export default function TicketsPanel() {
     if (isLoading) return <div className="p-8 text-center"><Loader2 className="animate-spin text-primary mx-auto h-10 w-10" /></div>;
     if (error && !selectedTicketId) return <div className="p-8 text-center text-destructive bg-destructive/10 rounded-md">{error}</div>;
 
-    // Obtener las categorías en el orden deseado: primero las activas, luego la de resueltos/cerrados
     const orderedCategories = Object.keys(categorizedTickets).filter(cat => cat !== "Tickets Resueltos y Cerrados");
     if (categorizedTickets["Tickets Resueltos y Cerrados"]) {
         orderedCategories.push("Tickets Resueltos y Cerrados");
@@ -311,7 +306,7 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
 
         const fetchComentarios = async () => {
             try {
-                if (ticket.tipo === "municipio") {
+                if (ticket.tipo === "municipio") { // Solo polling para tickets de municipio
                     const data = await apiFetch(`/tickets/chat/${ticket.id}/mensajes`);
                     if (mounted && data && data.mensajes) {
                         onTicketUpdate({
@@ -330,14 +325,27 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
             }
         };
 
-        const interval = setInterval(fetchComentarios, POLLING_INTERVAL);
-        fetchComentarios();
+        // Activamos el polling solo para categorías "vivas"
+        // Asegúrate de que el backend envía la categoría en el 'detailedTicket'
+        const liveChatCategories = ["Solicitud de Chat en Vivo", "Atención en Vivo"]; // Define tus categorías de chat en vivo aquí
+        const shouldPoll = ticket.categoria && liveChatCategories.includes(ticket.categoria);
+
+        let interval: NodeJS.Timeout | null = null;
+        if (shouldPoll) {
+            interval = setInterval(fetchComentarios, POLLING_INTERVAL);
+            fetchComentarios(); // Fetch inicial al montar el componente para la categoría de chat en vivo
+        } else {
+            // Para tickets NO de chat en vivo, solo hacemos un fetch inicial
+            fetchComentarios();
+        }
 
         return () => {
             mounted = false;
-            clearInterval(interval);
+            if (interval) {
+                clearInterval(interval);
+            }
         };
-    }, [ticket?.id, ticket?.tipo, onTicketUpdate]);
+    }, [ticket?.id, ticket?.tipo, ticket?.categoria, onTicketUpdate]); // Añadida ticket.categoria a las dependencias
 
 
     // --- Envío de Mensaje ---
@@ -348,8 +356,7 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
             const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}/responder`, { method: 'POST', body: { comentario: newMessage } });
             onTicketUpdate(updatedTicket);
             setNewMessage("");
-            // Scroll directo al enviar (TU LÓGICA ORIGINAL)
-            if (chatBottomRef.current) {
+            if (chatBottomRef.current) { // Scroll al final después de enviar (TU LÓGICA ORIGINAL)
                 chatBottomRef.current.scrollIntoView({ behavior: "smooth" });
             }
         } catch (error) {
@@ -377,11 +384,8 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
     }, [ticket.comentarios]);
 
     return (
-        // Contenedor principal de TicketDetail: Grid con 3 columnas en desktop, flex-col por defecto en móvil.
         <div className="flex flex-col md:grid md:grid-cols-3 gap-4">
-            {/* Contenedor del chat principal (columna 1 y 2 en desktop) */}
             <div className="md:col-span-2 flex flex-col h-[60vh] max-h-[600px] min-h-[300px] border rounded-md bg-background dark:bg-slate-700/50">
-                {/* Área de mensajes del chat con scrolling */}
                 <main className="flex-1 p-4 space-y-4 overflow-y-auto custom-scroll">
                     {ticket.comentarios && ticket.comentarios.length > 0 ? (
                         ticket.comentarios.map((comment) => (
@@ -401,7 +405,6 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
                     )}
                     <div ref={chatBottomRef} />
                 </main>
-                {/* Footer del chat con input para mensajes */}
                 <footer className="border-t border-border p-3 flex gap-2 bg-card rounded-b-md">
                     <Input
                         value={newMessage}
@@ -418,16 +421,15 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
                     </Button>
                 </footer>
             </div>
-            {/* Sidebar de detalles del ticket (columna 3 en desktop) */}
             <aside className="md:col-span-1 bg-muted/30 p-4 space-y-6 overflow-y-auto custom-scroll rounded-md border">
                 <Card>
                     <CardHeader className="pb-2"><CardTitle className="text-base">Estado del Ticket</CardTitle></CardHeader>
                     <CardContent>
-                        {/* APLICADO: position="popper" y z-index para SelectContent */}
                         <Select onValueChange={handleEstadoChange} value={ticket.estado}>
                             <SelectTrigger className="w-full">
                                 <SelectValue placeholder="Cambiar estado..." />
                             </SelectTrigger>
+                            {/* APLICADO: position="popper" y z-index para SelectContent */}
                             <SelectContent position="popper" className="z-[9999]"> 
                                 {Object.entries(ESTADOS).map(([key, { label }]) => (
                                     <SelectItem key={key} value={key}>{label}</SelectItem>
