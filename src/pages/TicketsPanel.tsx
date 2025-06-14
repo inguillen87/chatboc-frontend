@@ -53,20 +53,36 @@ export default function TicketsPanel() {
   const [error, setError] = useState<string | null>(null);
   const [openCategories, setOpenCategories] = useState<Set<string>>(new Set());
 
+  const fetchAndSetTickets = useCallback(async () => {
+    if (!safeLocalStorage.getItem('authToken')) return;
+    try {
+      const data = await apiFetch<CategorizedTickets>('/tickets/panel_por_categoria');
+      setCategorizedTickets(data);
+      setOpenCategories(prev => {
+        const newSet = new Set(prev);
+        Object.keys(data).forEach(cat => {
+          if (!newSet.has(cat) && !['cerrado', 'resuelto'].includes(cat.toLowerCase())) {
+            newSet.add(cat);
+          }
+        });
+        return newSet;
+      });
+    } catch (err) {
+      console.error('Error al actualizar el panel de tickets', err);
+    }
+  }, []);
+
   useEffect(() => {
     const fetchInitialData = async () => {
       if (!safeLocalStorage.getItem('authToken')) {
-        setError("Sesión no válida. Por favor, inicie sesión de nuevo.");
+        setError('Sesión no válida. Por favor, inicie sesión de nuevo.');
         setIsLoading(false);
         return;
       }
       try {
-        const data = await apiFetch<CategorizedTickets>('/tickets/panel_por_categoria');
-        setCategorizedTickets(data);
-        const prioritarias = Object.keys(data).filter(c => !["cerrado", "resuelto"].includes(c.toLowerCase()));
-        setOpenCategories(new Set(prioritarias));
+        await fetchAndSetTickets();
       } catch (err) {
-        const errorMessage = err instanceof ApiError ? err.message : "Ocurrió un error al cargar el panel de tickets.";
+        const errorMessage = err instanceof ApiError ? err.message : 'Ocurrió un error al cargar el panel de tickets.';
         setError(errorMessage);
       } finally {
         setIsLoading(false);
@@ -74,6 +90,15 @@ export default function TicketsPanel() {
     };
     fetchInitialData();
   }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchAndSetTickets();
+      }
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [fetchAndSetTickets]);
 
   const sortedCategories = Object.entries(categorizedTickets).sort(([a], [b]) => {
     const indexA = ESTADOS_ORDEN_PRIORIDAD.indexOf(a.toLowerCase() as TicketStatus);

@@ -8,6 +8,7 @@ import Navbar from "@/components/layout/Navbar";
 import { motion, AnimatePresence } from "framer-motion";
 import { apiFetch } from "@/utils/api";
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
+import { safeLocalStorage } from "@/utils/safeLocalStorage";
 
 // Frases para detectar pedido de dirección
 const FRASES_DIRECCION = [
@@ -94,6 +95,7 @@ const ChatPage = () => {
 
   // Estado de input dirección / cierre éxito
   const [esperandoDireccion, setEsperandoDireccion] = useState(false);
+  const [direccionGuardada, setDireccionGuardada] = useState<string | null>(null);
   const [showCierre, setShowCierre] = useState<{
     show: boolean;
     text: string;
@@ -117,6 +119,10 @@ const ChatPage = () => {
         },
       ]);
     }
+    const stored = safeLocalStorage.getItem("ultima_direccion");
+    if (stored) {
+      setDireccionGuardada(stored);
+    }
   }, []);
 
   // Scroll y cierre UX
@@ -136,7 +142,11 @@ const ChatPage = () => {
     async (text: string) => {
       if (!text.trim()) return;
 
-      if (esperandoDireccion) setEsperandoDireccion(false);
+      if (esperandoDireccion) {
+        setEsperandoDireccion(false);
+        safeLocalStorage.setItem("ultima_direccion", text);
+        setDireccionGuardada(text);
+      }
       setShowCierre(null);
 
       const userMessage: Message = {
@@ -338,6 +348,15 @@ const ChatPage = () => {
                   onSelect={(addr) => handleSend(addr)}
                   autoFocus
                   placeholder="Ej: Av. San Martín 123, Junín, Mendoza"
+                  value={
+                    direccionGuardada
+                      ? { label: direccionGuardada, value: direccionGuardada }
+                      : undefined
+                  }
+                  onChange={(opt) =>
+                    setDireccionGuardada(opt ? opt.value : null)
+                  }
+                  persistKey="ultima_direccion"
                 />
                 <div className="text-xs mt-2 text-muted-foreground">
                   Escribí o seleccioná tu dirección para el reclamo.
