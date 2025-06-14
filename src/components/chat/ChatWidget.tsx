@@ -25,6 +25,21 @@ const FRASES_EXITO = [
   "He abierto una sala de chat directa", "Tu número de chat es", "ticket **M-"
 ];
 
+// --- FUNCION PARA GENERAR/PERSISTIR anon_id ---
+function getOrCreateAnonId() {
+  if (typeof window === "undefined") return null;
+  let anonId = localStorage.getItem("anon_id");
+  if (!anonId) {
+    if (window.crypto && window.crypto.randomUUID) {
+      anonId = window.crypto.randomUUID();
+    } else {
+      anonId = `anon-${Math.random().toString(36).substr(2, 9)}-${Date.now()}`;
+    }
+    localStorage.setItem("anon_id", anonId);
+  }
+  return anonId;
+}
+
 const ChatWidget = ({
   mode = "standalone",
   initialPosition = { bottom: 30, right: 30 },
@@ -72,15 +87,7 @@ const ChatWidget = ({
   // Token helpers
   const getAuthTokenFromLocalStorage = () =>
     typeof window === "undefined" ? null : localStorage.getItem("authToken");
-  const getAnonToken = () => {
-    if (typeof window === "undefined") return "anon-ssr";
-    let token = localStorage.getItem("anon_token");
-    if (!token) {
-      token = `anon-${Math.random().toString(36).substring(2, 12)}`;
-      localStorage.setItem("anon_token", token);
-    }
-    return token;
-  };
+  const anonId = getOrCreateAnonId();
   const finalAuthToken =
     mode === "iframe" ? propAuthToken : getAuthTokenFromLocalStorage();
   const esAnonimo = !finalAuthToken;
@@ -108,7 +115,6 @@ const ChatWidget = ({
     if (!lastBotMsg) return null;
     const contenido = (lastBotMsg.text || "").toLowerCase();
     if (FRASES_EXITO.some(frase => contenido.includes(frase))) {
-      // Detectar número de ticket y destacarlo si existe
       const match = contenido.match(/ticket \*\*m-(\d+)/i);
       if (match) {
         return {
@@ -129,7 +135,7 @@ const ChatWidget = ({
     else setShowCierre(null);
   }, [messages, contexto]);
 
-  // Cargar rubros (idéntico que antes)
+  // Cargar rubros
   const cargarRubros = async () => {
     setCargandoRubros(true);
     setRubrosDisponibles([]);
@@ -143,13 +149,16 @@ const ChatWidget = ({
     }
   };
 
-  // Polling de chat en vivo
+  // Polling de chat en vivo (manda siempre anon_id si es anónimo)
   useEffect(() => {
     const fetchNewMessages = async () => {
       if (!activeTicketId) return;
       try {
         const data = await apiFetch<{ estado_chat: string; mensajes: any[] }>(
-          `/tickets/chat/${activeTicketId}/mensajes?ultimo_mensaje_id=${ultimoMensajeIdRef.current}`
+          `/tickets/chat/${activeTicketId}/mensajes?ultimo_mensaje_id=${ultimoMensajeIdRef.current}`,
+          {
+            headers: esAnonimo ? { "Anon-Id": anonId } : { Authorization: `Bearer ${finalAuthToken}` }
+          }
         );
         if (data.mensajes && data.mensajes.length > 0) {
           const nuevosMensajes: Message[] = data.mensajes.map(msg => ({
@@ -169,7 +178,7 @@ const ChatWidget = ({
       pollingIntervalRef.current = setInterval(fetchNewMessages, 5000);
     }
     return () => { if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current); };
-  }, [activeTicketId]);
+  }, [activeTicketId, esAnonimo, anonId, finalAuthToken]);
 
   // --- handleSendMessage ---
   const handleSendMessage = useCallback(
@@ -181,7 +190,6 @@ const ChatWidget = ({
         ]);
         return;
       }
-      // Si es dirección, limpiá el estado para reactivar el input después
       if (esperandoDireccion) setEsperandoDireccion(false);
       setShowCierre(null);
 
@@ -193,15 +201,22 @@ const ChatWidget = ({
         if (activeTicketId) {
           await apiFetch(`/tickets/chat/${activeTicketId}/responder_ciudadano`, {
             method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalAuthToken || getAnonToken()}` },
+            headers: {
+              "Content-Type": "application/json",
+              ...(esAnonimo ? { "Anon-Id": anonId } : { Authorization: `Bearer ${finalAuthToken}` })
+            },
             body: { comentario: text },
           });
         } else {
           const payload: any = { pregunta: text, contexto_previo: contexto };
           if (esAnonimo && mode === "standalone" && rubroSeleccionado) payload.rubro = rubroSeleccionado;
+          if (esAnonimo) payload.anon_id = anonId; // Para endpoint que lo soporte
           const data = await apiFetch("/ask", {
             method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${finalAuthToken || getAnonToken()}` },
+            headers: {
+              "Content-Type": "application/json",
+              ...(esAnonimo ? { "Anon-Id": anonId } : { Authorization: `Bearer ${finalAuthToken}` })
+            },
             body: payload,
           });
           setContexto(data.contexto_actualizado || {});
@@ -227,7 +242,7 @@ const ChatWidget = ({
         setIsTyping(false);
       }
     },
-    [contexto, rubroSeleccionado, preguntasUsadas, esAnonimo, mode, finalAuthToken, activeTicketId, esperandoDireccion]
+    [contexto, rubroSeleccionado, preguntasUsadas, esAnonimo, mode, finalAuthToken, activeTicketId, esperandoDireccion, anonId]
   );
 
   // Bienvenida y rubro
@@ -382,7 +397,7 @@ const ChatWidget = ({
                 onChange: (option: any) => {
                   if (option && option.value) {
                     handleSendMessage(option.value);
-                    setEsperandoDireccion(false); // ¡Que no se trabe!
+                    setEsperandoDireccion(false);
                   }
                 },
                 placeholder: "Ej: Av. San Martín 123, Mendoza",
