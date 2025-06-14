@@ -23,8 +23,8 @@
       height: script.getAttribute("data-height") || "540px",
     },
     CLOSED: { // Dimensiones del globito
-      width: script.getAttribute("data-closed-width") || "80px",
-      height: script.getAttribute("data-closed-height") || "80px",
+      width: script.getAttribute("data-closed-width") || "88px",
+      height: script.getAttribute("data-closed-height") || "88px",
     },
   };
 
