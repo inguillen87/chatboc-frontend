@@ -4,25 +4,35 @@ import ChatHeader from "./ChatHeader";
 import ChatMessage from "./ChatMessage";
 import TypingIndicator from "./TypingIndicator";
 import ChatInput from "./ChatInput";
-import GooglePlacesAutocomplete from "react-google-autocomplete";
+import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
 
 const CIRCLE_SIZE = 88;
 const CARD_WIDTH = 370;
 const CARD_HEIGHT = 540;
-const Maps_API_KEY = import.meta.env.VITE_Maps_API_KEY;
 
 const FRASES_DIRECCION = [
-  "indicame la dirección", "necesito la dirección", "ingresa la dirección",
-  "especificá la dirección", "decime la dirección", "dirección exacta",
-  "¿cuál es la dirección?", "por favor indique la dirección", "por favor ingrese su dirección", "dirección completa"
+  "indicame la dirección",
+  "necesito la dirección",
+  "ingresa la dirección",
+  "especificá la dirección",
+  "decime la dirección",
+  "dirección exacta",
+  "¿cuál es la dirección?",
+  "por favor indique la dirección",
+  "por favor ingrese su dirección",
+  "dirección completa",
 ];
 
 const FRASES_EXITO = [
-  "Tu reclamo fue generado", "¡Muchas gracias por tu calificación!",
-  "Dejaré el ticket abierto", "El curso de seguridad vial es online",
-  "He abierto una sala de chat directa", "Tu número de chat es", "ticket **M-"
+  "Tu reclamo fue generado",
+  "¡Muchas gracias por tu calificación!",
+  "Dejaré el ticket abierto",
+  "El curso de seguridad vial es online",
+  "He abierto una sala de chat directa",
+  "Tu número de chat es",
+  "ticket **M-",
 ];
 
 // --- FUNCION PARA GENERAR/PERSISTIR anon_id ---
@@ -54,7 +64,9 @@ const ChatWidget = ({
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [preguntasUsadas, setPreguntasUsadas] = useState(0);
-  const [rubroSeleccionado, setRubroSeleccionado] = useState<string | null>(null);
+  const [rubroSeleccionado, setRubroSeleccionado] = useState<string | null>(
+    null,
+  );
   const [rubrosDisponibles, setRubrosDisponibles] = useState([]);
   const [esperandoRubro, setEsperandoRubro] = useState(false);
   const [cargandoRubros, setCargandoRubros] = useState(false);
@@ -67,7 +79,10 @@ const ChatWidget = ({
   // Para Google Autocomplete
   const [esperandoDireccion, setEsperandoDireccion] = useState(false);
   // Mensaje de cierre final
-  const [showCierre, setShowCierre] = useState<{ show: boolean, text: string } | null>(null);
+  const [showCierre, setShowCierre] = useState<{
+    show: boolean;
+    text: string;
+  } | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -94,32 +109,33 @@ const ChatWidget = ({
 
   // Detectar si el bot pide dirección
   function shouldShowAutocomplete(messages: Message[], contexto: any) {
-    const lastBotMsg = [...messages].reverse().find(m => m.isBot && m.text);
+    const lastBotMsg = [...messages].reverse().find((m) => m.isBot && m.text);
     if (!lastBotMsg) return false;
     const contenido = (lastBotMsg.text || "").toLowerCase();
-    if (FRASES_DIRECCION.some(frase => contenido.includes(frase))) return true;
+    if (FRASES_DIRECCION.some((frase) => contenido.includes(frase)))
+      return true;
     if (
       contexto &&
       contexto.contexto_municipio &&
-      (
-        contexto.contexto_municipio.estado_conversacion === "ESPERANDO_DIRECCION_RECLAMO" ||
-        contexto.contexto_municipio.estado_conversacion === 4
-      )
-    ) return true;
+      (contexto.contexto_municipio.estado_conversacion ===
+        "ESPERANDO_DIRECCION_RECLAMO" ||
+        contexto.contexto_municipio.estado_conversacion === 4)
+    )
+      return true;
     return false;
   }
 
   // Mostrar cierre éxito si el mensaje lo amerita (nunca dejar el chat muerto)
   function checkCierreExito(messages: Message[]) {
-    const lastBotMsg = [...messages].reverse().find(m => m.isBot && m.text);
+    const lastBotMsg = [...messages].reverse().find((m) => m.isBot && m.text);
     if (!lastBotMsg) return null;
     const contenido = (lastBotMsg.text || "").toLowerCase();
-    if (FRASES_EXITO.some(frase => contenido.includes(frase))) {
+    if (FRASES_EXITO.some((frase) => contenido.includes(frase))) {
       const match = contenido.match(/ticket \*\*m-(\d+)/i);
       if (match) {
         return {
           show: true,
-          text: `✅ ¡Listo! Tu ticket fue generado exitosamente. Número: M-${match[1]}.\nUn agente municipal te va a contactar para seguimiento.`
+          text: `✅ ¡Listo! Tu ticket fue generado exitosamente. Número: M-${match[1]}.\nUn agente municipal te va a contactar para seguimiento.`,
         };
       }
       return { show: true, text: lastBotMsg.text };
@@ -151,42 +167,52 @@ const ChatWidget = ({
 
   // Polling de chat en vivo (manda siempre anon_id si es anónimo)
   useEffect(() => {
-  if (!activeTicketId) return;
-  let intervalId;
-  const fetchAllMessages = async () => {
-    try {
-      const data = await apiFetch<{ estado_chat: string; mensajes: any[] }>(
-        `/tickets/chat/${activeTicketId}/mensajes`,
-        {
-          headers: esAnonimo ? { "Anon-Id": anonId } : { Authorization: `Bearer ${finalAuthToken}` }
+    if (!activeTicketId) return;
+    let intervalId;
+    const fetchAllMessages = async () => {
+      try {
+        const data = await apiFetch<{ estado_chat: string; mensajes: any[] }>(
+          `/tickets/chat/${activeTicketId}/mensajes`,
+          {
+            headers: esAnonimo
+              ? { "Anon-Id": anonId }
+              : { Authorization: `Bearer ${finalAuthToken}` },
+          },
+        );
+        if (data.mensajes) {
+          const nuevosMensajes: Message[] = data.mensajes.map((msg) => ({
+            id: msg.id,
+            text: msg.texto,
+            isBot: msg.es_admin,
+            timestamp: new Date(msg.fecha),
+          }));
+          setMessages(nuevosMensajes); // <-- REEMPLAZA la lista
+          if (data.mensajes.length > 0)
+            ultimoMensajeIdRef.current =
+              data.mensajes[data.mensajes.length - 1].id;
         }
-      );
-      if (data.mensajes) {
-        const nuevosMensajes: Message[] = data.mensajes.map(msg => ({
-          id: msg.id,
-          text: msg.texto,
-          isBot: msg.es_admin,
-          timestamp: new Date(msg.fecha)
-        }));
-        setMessages(nuevosMensajes); // <-- REEMPLAZA la lista
-        if (data.mensajes.length > 0)
-          ultimoMensajeIdRef.current = data.mensajes[data.mensajes.length - 1].id;
+        if (data.estado_chat === "resuelto" || data.estado_chat === "cerrado") {
+          if (intervalId) clearInterval(intervalId);
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: Date.now(),
+              text: "Un agente ha finalizado esta conversación.",
+              isBot: true,
+              timestamp: new Date(),
+            },
+          ]);
+        }
+      } catch (error) {
+        console.error("Error durante el polling:", error);
       }
-      if (data.estado_chat === 'resuelto' || data.estado_chat === 'cerrado') {
-        if (intervalId) clearInterval(intervalId);
-        setMessages(prev => [
-          ...prev,
-          { id: Date.now(), text: "Un agente ha finalizado esta conversación.", isBot: true, timestamp: new Date() }
-        ]);
-      }
-    } catch (error) {
-      console.error("Error durante el polling:", error);
-    }
-  };
-  fetchAllMessages();
-  intervalId = setInterval(fetchAllMessages, 5000);
-  return () => { if (intervalId) clearInterval(intervalId); };
-}, [activeTicketId, esAnonimo, anonId, finalAuthToken]);
+    };
+    fetchAllMessages();
+    intervalId = setInterval(fetchAllMessages, 5000);
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [activeTicketId, esAnonimo, anonId, finalAuthToken]);
 
   // --- handleSendMessage ---
   const handleSendMessage = useCallback(
@@ -194,42 +220,62 @@ const ChatWidget = ({
       if (!text.trim()) return;
       if (esAnonimo && mode === "standalone" && !rubroSeleccionado) {
         setMessages((prev) => [
-          ...prev, { id: Date.now(), text: "🛈 Por favor, seleccioná primero un rubro.", isBot: true, timestamp: new Date() },
+          ...prev,
+          {
+            id: Date.now(),
+            text: "🛈 Por favor, seleccioná primero un rubro.",
+            isBot: true,
+            timestamp: new Date(),
+          },
         ]);
         return;
       }
       if (esperandoDireccion) setEsperandoDireccion(false);
       setShowCierre(null);
 
-      const userMessage = { id: Date.now(), text, isBot: false, timestamp: new Date() };
+      const userMessage = {
+        id: Date.now(),
+        text,
+        isBot: false,
+        timestamp: new Date(),
+      };
       setMessages((prev) => [...prev, userMessage]);
       setIsTyping(true);
 
       try {
         if (activeTicketId) {
-          await apiFetch(`/tickets/chat/${activeTicketId}/responder_ciudadano`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              ...(esAnonimo ? { "Anon-Id": anonId } : { Authorization: `Bearer ${finalAuthToken}` })
+          await apiFetch(
+            `/tickets/chat/${activeTicketId}/responder_ciudadano`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...(esAnonimo
+                  ? { "Anon-Id": anonId }
+                  : { Authorization: `Bearer ${finalAuthToken}` }),
+              },
+              body: { comentario: text },
             },
-            body: { comentario: text },
-          });
+          );
         } else {
           const payload: any = { pregunta: text, contexto_previo: contexto };
-          if (esAnonimo && mode === "standalone" && rubroSeleccionado) payload.rubro = rubroSeleccionado;
+          if (esAnonimo && mode === "standalone" && rubroSeleccionado)
+            payload.rubro = rubroSeleccionado;
           if (esAnonimo) payload.anon_id = anonId; // Para endpoint que lo soporte
           const data = await apiFetch("/ask", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              ...(esAnonimo ? { "Anon-Id": anonId } : { Authorization: `Bearer ${finalAuthToken}` })
+              ...(esAnonimo
+                ? { "Anon-Id": anonId }
+                : { Authorization: `Bearer ${finalAuthToken}` }),
             },
             body: payload,
           });
           setContexto(data.contexto_actualizado || {});
           setMessages((prev) => [
-            ...prev, {
+            ...prev,
+            {
               id: Date.now(),
               text: data.respuesta || "No pude procesar tu solicitud.",
               isBot: true,
@@ -237,20 +283,37 @@ const ChatWidget = ({
               botones: data.botones || [],
             },
           ]);
-          if (esAnonimo && mode === "standalone") setPreguntasUsadas((prev) => prev + 1);
+          if (esAnonimo && mode === "standalone")
+            setPreguntasUsadas((prev) => prev + 1);
           if (data.ticket_id) {
             setActiveTicketId(data.ticket_id);
             ultimoMensajeIdRef.current = 0;
           }
         }
       } catch (error) {
-        const msg = error instanceof Error ? `⚠️ Error: ${error.message}` : "⚠️ No se pudo conectar con el servidor.";
-        setMessages((prev) => [...prev, { id: Date.now(), text: msg, isBot: true, timestamp: new Date() }]);
+        const msg =
+          error instanceof Error
+            ? `⚠️ Error: ${error.message}`
+            : "⚠️ No se pudo conectar con el servidor.";
+        setMessages((prev) => [
+          ...prev,
+          { id: Date.now(), text: msg, isBot: true, timestamp: new Date() },
+        ]);
       } finally {
         setIsTyping(false);
       }
     },
-    [contexto, rubroSeleccionado, preguntasUsadas, esAnonimo, mode, finalAuthToken, activeTicketId, esperandoDireccion, anonId]
+    [
+      contexto,
+      rubroSeleccionado,
+      preguntasUsadas,
+      esAnonimo,
+      mode,
+      finalAuthToken,
+      activeTicketId,
+      esperandoDireccion,
+      anonId,
+    ],
   );
 
   // Bienvenida y rubro
@@ -278,7 +341,8 @@ const ChatWidget = ({
   // Scroll automático
   useEffect(() => {
     if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+      chatContainerRef.current.scrollTop =
+        chatContainerRef.current.scrollHeight;
     }
     if (messagesEndRef.current) {
       (messagesEndRef.current as any).scrollIntoView({ behavior: "smooth" });
@@ -346,7 +410,9 @@ const ChatWidget = ({
         {esperandoRubro ? (
           <div className="text-center w-full">
             <h2 className="text-green-500 mb-2">👋 ¡Bienvenido!</h2>
-            <div className="text-gray-500 dark:text-gray-300 mb-2">¿De qué rubro es tu negocio?</div>
+            <div className="text-gray-500 dark:text-gray-300 mb-2">
+              ¿De qué rubro es tu negocio?
+            </div>
             {cargandoRubros ? (
               <div className="text-gray-400 my-5">Cargando rubros...</div>
             ) : rubrosDisponibles.length === 0 ? (
@@ -358,7 +424,7 @@ const ChatWidget = ({
                   style={{
                     background: "none",
                     border: "none",
-                    cursor: "pointer"
+                    cursor: "pointer",
                   }}
                 >
                   Reintentar
@@ -390,45 +456,17 @@ const ChatWidget = ({
               </div>
             )}
           </div>
-        ) : esperandoDireccion && Maps_API_KEY ? (
+        ) : esperandoDireccion ? (
           <div className="flex flex-col items-center py-8 px-2 gap-4">
             <div className="text-primary text-base font-semibold mb-2">
               Indicá la dirección exacta (autocompleta con Google)
             </div>
-            <GooglePlacesAutocomplete
-              apiKey={Maps_API_KEY}
-              autocompletionRequest={{
-                componentRestrictions: { country: "ar" },
-                types: ["address"],
+            <AddressAutocomplete
+              onSelect={(addr) => {
+                handleSendMessage(addr);
+                setEsperandoDireccion(false);
               }}
-              selectProps={{
-                onChange: (option: any) => {
-                  if (option && option.value) {
-                    handleSendMessage(option.value);
-                    setEsperandoDireccion(false);
-                  }
-                },
-                placeholder: "Ej: Av. San Martín 123, Mendoza",
-                isClearable: true,
-                styles: {
-                  control: (base: any) => ({
-                    ...base,
-                    backgroundColor: "#fff",
-                    color: "#0e1421",
-                    minHeight: "2.5rem",
-                    borderRadius: "0.75rem",
-                    fontSize: "1rem",
-                  }),
-                  singleValue: (base: any) => ({
-                    ...base,
-                    color: "#0e1421",
-                  }),
-                  input: (base: any) => ({
-                    ...base,
-                    color: "#0e1421",
-                  }),
-                }
-              }}
+              autoFocus
             />
             <div className="text-xs text-muted-foreground mt-2">
               Escribí y seleccioná tu dirección para continuar el trámite.
@@ -445,7 +483,7 @@ const ChatWidget = ({
                     isTyping={isTyping}
                     onButtonClick={handleSendMessage}
                   />
-                )
+                ),
             )}
             {isTyping && <TypingIndicator />}
             <div ref={messagesEndRef} />
@@ -460,11 +498,13 @@ const ChatWidget = ({
       </div>
 
       {/* --- INPUT SÓLO SI NO SE ESPERA RUBRO NI DIRECCIÓN NI CIERRE --- */}
-      {!esperandoRubro && !esperandoDireccion && (!showCierre || !showCierre.show) && (
-        <div className="bg-gray-100 dark:bg-[#1d2433] px-3 py-2">
-          <ChatInput onSendMessage={handleSendMessage} isTyping={isTyping} />
-        </div>
-      )}
+      {!esperandoRubro &&
+        !esperandoDireccion &&
+        (!showCierre || !showCierre.show) && (
+          <div className="bg-gray-100 dark:bg-[#1d2433] px-3 py-2">
+            <ChatInput onSendMessage={handleSendMessage} isTyping={isTyping} />
+          </div>
+        )}
     </div>
   );
 };
