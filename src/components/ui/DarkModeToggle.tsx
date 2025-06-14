@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
+import { safeLocalStorage } from "@/utils/safeLocalStorage";
 
 const DarkModeToggle = () => {
   const [isDark, setIsDark] = useState(false);
 
   // Cargar preferencia desde localStorage o sistema
   useEffect(() => {
-    const stored = localStorage.getItem("theme");
+    const stored = safeLocalStorage.getItem("theme");
     const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
 
     if (stored === "dark" || (!stored && prefersDark)) {
@@ -19,11 +20,11 @@ const DarkModeToggle = () => {
 
     if (html.classList.contains("dark")) {
       html.classList.remove("dark");
-      localStorage.setItem("theme", "light");
+      safeLocalStorage.setItem("theme", "light");
       setIsDark(false);
     } else {
       html.classList.add("dark");
-      localStorage.setItem("theme", "dark");
+      safeLocalStorage.setItem("theme", "dark");
       setIsDark(true);
     }
   };

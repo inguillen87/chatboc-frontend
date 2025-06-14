@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { apiFetch, ApiError } from '@/utils/api';
 import { useNavigate } from 'react-router-dom';
+import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 interface Rubro { id: number; nombre: string; }
 interface RegisterResponse { id: number; token: string; name: string; email: string; }
@@ -46,14 +47,14 @@ const Register = () => {
       
       const data = await apiFetch<RegisterResponse>('/register', { method: 'POST', body: payload });
 
-      localStorage.setItem('authToken', data.token);
+      safeLocalStorage.setItem('authToken', data.token);
 
       const userProfile = {
         id: data.id,
         name: data.name,
         email: data.email,
       };
-      localStorage.setItem('user', JSON.stringify(userProfile));
+      safeLocalStorage.setItem('user', JSON.stringify(userProfile));
 
       navigate('/perfil');
 

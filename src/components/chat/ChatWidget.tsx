@@ -7,6 +7,7 @@ import ChatInput from "./ChatInput";
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
+import { safeLocalStorage } from "@/utils/safeLocalStorage";
 
 const CIRCLE_SIZE = 88;
 const CARD_WIDTH = 370;
@@ -38,14 +39,14 @@ const FRASES_EXITO = [
 // --- FUNCION PARA GENERAR/PERSISTIR anon_id ---
 function getOrCreateAnonId() {
   if (typeof window === "undefined") return null;
-  let anonId = localStorage.getItem("anon_id");
+  let anonId = safeLocalStorage.getItem("anon_id");
   if (!anonId) {
     if (window.crypto && window.crypto.randomUUID) {
       anonId = window.crypto.randomUUID();
     } else {
       anonId = `anon-${Math.random().toString(36).substr(2, 9)}-${Date.now()}`;
     }
-    localStorage.setItem("anon_id", anonId);
+    safeLocalStorage.setItem("anon_id", anonId);
   }
   return anonId;
 }
@@ -101,7 +102,7 @@ const ChatWidget = ({
 
   // Token helpers
   const getAuthTokenFromLocalStorage = () =>
-    typeof window === "undefined" ? null : localStorage.getItem("authToken");
+    typeof window === "undefined" ? null : safeLocalStorage.getItem("authToken");
   const anonId = getOrCreateAnonId();
   const finalAuthToken =
     mode === "iframe" ? propAuthToken : getAuthTokenFromLocalStorage();
@@ -436,7 +437,7 @@ const ChatWidget = ({
                   <button
                     key={rubro.id}
                     onClick={() => {
-                      localStorage.setItem("rubroSeleccionado", rubro.nombre);
+                      safeLocalStorage.setItem("rubroSeleccionado", rubro.nombre);
                       setRubroSeleccionado(rubro.nombre);
                       setEsperandoRubro(false);
                       setMessages([

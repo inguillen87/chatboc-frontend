@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { Link as RouterLink, useLocation } from "react-router-dom";
 import { Menu, X, Moon, Sun } from "lucide-react";
 
@@ -8,10 +9,10 @@ const Navbar: React.FC = () => {
   const location = useLocation();
 
   const isLanding = location.pathname === "/";
-  const isLoggedIn = !!localStorage.getItem("user");
+  const isLoggedIn = !!safeLocalStorage.getItem("user");
 
   useEffect(() => {
-    const currentTheme = localStorage.theme;
+    const currentTheme = safeLocalStorage.getItem("theme");
     if (currentTheme === "dark") {
       document.documentElement.classList.add("dark");
       setIsDark(true);
@@ -27,11 +28,11 @@ const Navbar: React.FC = () => {
 
     if (currentlyDark) {
       html.classList.remove("dark");
-      localStorage.theme = "light";
+      safeLocalStorage.setItem("theme", "light");
       setIsDark(false);
     } else {
       html.classList.add("dark");
-      localStorage.theme = "dark";
+      safeLocalStorage.setItem("theme", "dark");
       setIsDark(true);
     }
   };
@@ -85,7 +86,7 @@ const Navbar: React.FC = () => {
             <>
               <RouterLink to="/perfil" className="text-sm text-gray-700 dark:text-white hover:underline">Mi perfil</RouterLink>
               <RouterLink to="/chat" className="text-sm text-gray-700 dark:text-white hover:underline">Chat</RouterLink>
-              <RouterLink to="/" onClick={() => localStorage.removeItem("user")} className="text-sm text-red-500 hover:underline">Cerrar sesión</RouterLink>
+              <RouterLink to="/" onClick={() => safeLocalStorage.removeItem("user")} className="text-sm text-red-500 hover:underline">Cerrar sesión</RouterLink>
             </>
           ) : (
             <>
@@ -128,7 +129,7 @@ const Navbar: React.FC = () => {
               <>
                 <RouterLink to="/perfil" onClick={() => setMenuOpen(false)}>Mi Perfil</RouterLink>
                 <RouterLink to="/chat" onClick={() => setMenuOpen(false)}>Chat</RouterLink>
-                <RouterLink to="/" onClick={() => { localStorage.removeItem("user"); setMenuOpen(false); }} className="text-red-500">
+                <RouterLink to="/" onClick={() => { safeLocalStorage.removeItem("user"); setMenuOpen(false); }} className="text-red-500">
                   Cerrar sesión
                 </RouterLink>
               </>

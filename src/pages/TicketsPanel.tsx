@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, Send, Ticket as TicketIcon, ChevronDown, ChevronUp, User, ShieldCheck, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { apiFetch, ApiError } from "@/utils/api";
+import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -54,7 +55,7 @@ export default function TicketsPanel() {
 
   useEffect(() => {
     const fetchInitialData = async () => {
-      if (!localStorage.getItem('authToken')) {
+      if (!safeLocalStorage.getItem('authToken')) {
         setError("Sesión no válida. Por favor, inicie sesión de nuevo.");
         setIsLoading(false);
         return;
@@ -89,7 +90,7 @@ export default function TicketsPanel() {
   };
 
   const loadAndSetDetailedTicket = useCallback(async (ticketSummary: TicketSummary) => {
-    const token = localStorage.getItem('authToken');
+    const token = safeLocalStorage.getItem('authToken');
     if (!token) {
       setError("Error de autenticación. Por favor, recargue la página.");
       return;

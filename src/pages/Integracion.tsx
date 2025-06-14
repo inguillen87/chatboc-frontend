@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { safeLocalStorage } from "@/utils/safeLocalStorage";
 
 // Interfaz para el usuario
 interface User {
@@ -36,14 +37,14 @@ const Integracion = () => {
   };
 
   useEffect(() => {
-    const authToken = localStorage.getItem("authToken");
-    const storedUser = localStorage.getItem("user");
+    const authToken = safeLocalStorage.getItem("authToken");
+    const storedUser = safeLocalStorage.getItem("user");
     let parsedUser: Omit<User, 'token'> | null = null;
 
     try {
       parsedUser = storedUser ? JSON.parse(storedUser) : null;
     } catch (err) {
-      localStorage.removeItem("user");
+      safeLocalStorage.removeItem("user");
     }
 
     if (!authToken || !parsedUser || !parsedUser.id) {

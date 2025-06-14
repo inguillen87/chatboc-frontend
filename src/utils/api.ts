@@ -1,6 +1,7 @@
 // Contenido COMPLETO y FINAL para: utils/api.ts
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "https://api.chatboc.ar";
+import { safeLocalStorage } from "@/utils/safeLocalStorage";
 
 export class ApiError extends Error {
   public readonly status: number;
@@ -43,7 +44,7 @@ export async function apiFetch<T>(
 
   // --- CORRECCIÓN SUGERIDA: Solo añadir Authorization si no se omite y hay token ---
   if (!skipAuth) { // Si no estamos en una ruta que omite la autenticación
-    const token = localStorage.getItem("authToken");
+    const token = safeLocalStorage.getItem("authToken");
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
     }
@@ -57,7 +58,7 @@ export async function apiFetch<T>(
     });
 
     if (response.status === 401) {
-      localStorage.clear();
+      safeLocalStorage.clear();
       window.location.href = '/login';
       throw new ApiError('No autorizado. Redirigiendo a login...', 401, null);
     }

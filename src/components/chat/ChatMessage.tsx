@@ -5,6 +5,7 @@ import ChatButtons from "./ChatButtons";
 import { motion } from "framer-motion";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 import DOMPurify from 'dompurify'; // Importamos la librería de seguridad
+import { safeLocalStorage } from "@/utils/safeLocalStorage";
 
 // --- Componentes de Avatar (sin cambios) ---
 const AvatarBot: React.FC<{ isTyping: boolean }> = ({ isTyping }) => (
@@ -33,7 +34,7 @@ const UserAvatar = () => (
 // --- Componente para el Mensaje de Llamada a la Acción (Refactorizado) ---
 const CallToActionMessage = () => {
     // Verificamos si hay un usuario logueado para no mostrarlo si ya es cliente
-    const user = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("user") || "null") : null;
+    const user = typeof window !== "undefined" ? JSON.parse(safeLocalStorage.getItem("user") || "null") : null;
     if (user?.token) return null;
 
     return (

@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LogOut, ChevronLeft, AlertCircle, Inbox } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { safeLocalStorage } from "@/utils/safeLocalStorage";
 
 // --- Interfaces y Tipos ---
 interface Pedido {
@@ -155,7 +156,7 @@ export default function PedidosPage() {
   const [state, dispatch] = useReducer(pedidosReducer, initialState);
 
   const handleLogout = () => {
-    localStorage.clear();
+    safeLocalStorage.clear();
     navigate('/login');
   };
 
@@ -172,7 +173,7 @@ export default function PedidosPage() {
   }, []);
 
   useEffect(() => {
-    const token = localStorage.getItem("authToken");
+    const token = safeLocalStorage.getItem("authToken");
     if (!token) {
       navigate('/login');
       return;
