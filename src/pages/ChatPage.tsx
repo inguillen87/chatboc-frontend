@@ -7,6 +7,8 @@ import TypingIndicator from "@/components/chat/TypingIndicator";
 import Navbar from "@/components/layout/Navbar";
 import { motion, AnimatePresence } from "framer-motion";
 import { apiFetch } from "@/utils/api";
+import GooglePlacesAutocomplete from "react-google-autocomplete";
+
 
 // Hook para mobile detection (sin cambios)
 function useIsMobile(breakpoint = 768) {
@@ -242,5 +244,32 @@ useEffect(() => {
     </div>
   );
 };
+// --- Helper para detectar cuándo mostrar el Autocomplete de Google Places ---
+function shouldShowAutocomplete(messages: Message[], contexto: any) {
+  // 1. Revisa si el último mensaje del bot pide dirección (ajustá las frases a tu flujo real si hace falta)
+  const lastBotMsg = [...messages].reverse().find(m => m.isBot);
+  if (!lastBotMsg) return false;
+
+  const frasesDireccion = [
+    "indicame la dirección", "necesito la dirección", "ingresa la dirección",
+    "especificá la dirección", "decime la dirección", "dirección exacta",
+    "¿cuál es la dirección?", "por favor indique la dirección", "por favor ingrese su dirección"
+  ];
+  const contenido = (lastBotMsg.text || "").toLowerCase();
+  if (frasesDireccion.some(frase => contenido.includes(frase))) return true;
+
+  // 2. O si el contexto tiene el estado de espera por dirección (si lo usás)
+  if (
+    contexto &&
+    contexto.contexto_municipio &&
+    (
+      contexto.contexto_municipio.estado_conversacion === "ESPERANDO_DIRECCION_RECLAMO" ||
+      contexto.contexto_municipio.estado_conversacion === 4 // Enum, si aplica
+    )
+  ) {
+    return true;
+  }
+  return false;
+}
 
 export default ChatPage;

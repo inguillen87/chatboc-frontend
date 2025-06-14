@@ -114,23 +114,25 @@ export default function Perfil() {
     }, [fetchPerfil]);
 
     const handlePlaceSelected = (place: any) => {
-        if (!place || !place.address_components || !place.geometry) {
-            setError("Hubo un problema al seleccionar la dirección. Intenta de nuevo o ingrésala manualmente.");
-            return;
-        }
-        const getAddressComponent = (type: string): string =>
-            place.address_components?.find((c: any) => c.types.includes(type))?.long_name || "";
-        setPerfil((prev) => ({
-            ...prev,
-            direccion: place.formatted_address || "",
-            ciudad: getAddressComponent("locality") || getAddressComponent("administrative_area_level_2") || "",
-            provincia: getAddressComponent("administrative_area_level_1") || "",
-            pais: getAddressComponent("country") || "",
-            latitud: place.geometry?.location?.lat() || null,
-            longitud: place.geometry?.location?.lng() || null,
-        }));
-        setError(null);
-    };
+  if (!place || !place.address_components || !place.geometry) {
+    setError("No se pudo encontrar la dirección. Intenta de nuevo o escribila bien.");
+    setPerfil(prev => ({ ...prev, direccion: place?.formatted_address || "" }));
+    return;
+  }
+  const getAddressComponent = (type: string): string =>
+    place.address_components?.find((c: any) => c.types.includes(type))?.long_name || "";
+  setPerfil((prev) => ({
+    ...prev,
+    direccion: place.formatted_address || "",
+    ciudad: getAddressComponent("locality") || getAddressComponent("administrative_area_level_2") || "",
+    provincia: getAddressComponent("administrative_area_level_1") || "",
+    pais: getAddressComponent("country") || "",
+    latitud: place.geometry?.location?.lat() || null,
+    longitud: place.geometry?.location?.lng() || null,
+  }));
+  setError(null);
+};
+
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { id, value } = e.target;
@@ -281,24 +283,59 @@ export default function Perfil() {
                                     </div>
                                 </div>
                                 <div>
-                                    <Label htmlFor="google-places-input" className="text-muted-foreground text-sm mb-1 block">Dirección Completa*</Label>
-                                    {Maps_API_KEY ? (
-                                        <GooglePlacesAutocomplete
-                                            apiKey={Maps_API_KEY}
-                                            onPlaceSelected={handlePlaceSelected}
-                                            options={{
-                                                componentRestrictions: { country: "ar" },
-                                                types: ['address'],
-                                                fields: ["address_components", "formatted_address", "geometry.location"]
-                                            }}
-                                            defaultValue={perfil.direccion}
-                                            inputClassName="w-full rounded-md border border-input bg-input px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary h-10 placeholder:text-muted-foreground"
-                                            placeholder="Ej: Av. San Martín 123, Mendoza"
-                                        />
-                                    ) : (
-                                        <Input id="direccion" value={perfil.direccion} onChange={handleInputChange} placeholder="Clave de Google Maps no configurada. Ingrese dirección manually." className="bg-input border-input text-foreground placeholder-destructive" required />
-                                    )}
-                                </div>
+  <Label htmlFor="google-places-input" className="text-muted-foreground text-sm mb-1 block">Dirección Completa*</Label>
+  {Maps_API_KEY ? (
+    <GooglePlacesAutocomplete
+      apiKey={Maps_API_KEY}
+      autocompletionRequest={{
+        componentRestrictions: { country: "ar" },
+        types: ['address'],
+      }}
+      selectProps={{
+        value: perfil.direccion ? { label: perfil.direccion, value: perfil.direccion } : null,
+        onChange: (option: any) => {
+          if (option && option.value) {
+            // Llama directo a geocode
+            window?.google?.maps?.Geocoder && new window.google.maps.Geocoder().geocode(
+              { address: option.value },
+              (results: any, status: any) => {
+                if (status === "OK" && results[0]) {
+                  handlePlaceSelected(results[0]);
+                } else {
+                  setPerfil(prev => ({ ...prev, direccion: option.value }));
+                  setError("No se pudo verificar esa dirección. Intenta escribirla bien.");
+                }
+              }
+            );
+          } else {
+            setPerfil(prev => ({ ...prev, direccion: "" }));
+          }
+        },
+        placeholder: "Ej: Av. San Martín 123, Mendoza",
+        isClearable: true,
+        styles: {
+          control: (base: any) => ({
+            ...base,
+            backgroundColor: "var(--input)",
+            color: "var(--foreground)",
+            minHeight: "2.5rem"
+          }),
+          singleValue: (base: any) => ({
+            ...base,
+            color: "var(--foreground)"
+          }),
+          input: (base: any) => ({
+            ...base,
+            color: "var(--foreground)"
+          }),
+        }
+      }}
+    />
+  ) : (
+    <Input id="direccion" value={perfil.direccion} onChange={handleInputChange} placeholder="Clave de Google Maps no configurada. Ingrese dirección manualmente." className="bg-input border-input text-foreground placeholder-destructive" required />
+  )}
+</div>
+
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
                                         <Label htmlFor="ciudad" className="text-muted-foreground text-sm mb-1 block">Ciudad</Label>
