@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
 const WidgetEmbed = ({ token }: { token: string }) => {
-  const embedCode = `<iframe src="https://chatboc.ar/iframe?token=${token}" width="100%" height="540" frameborder="0"></iframe>`;
+  const embedCode = `<script>(function(){var s=document.createElement('script');s.src='https://www.chatboc.ar/widget.js';s.async=true;s.setAttribute('data-token','${token}');document.head.appendChild(s);})();</script>`;
 
   const copiar = () => {
     navigator.clipboard.writeText(embedCode)
