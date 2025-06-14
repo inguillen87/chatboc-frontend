@@ -181,7 +181,6 @@ const TicketCategoryAccordion: FC<{
                                         "bg-background dark:bg-slate-800/50 p-3 rounded-lg border cursor-pointer transition-all shadow-sm",
                                         "hover:border-primary dark:hover:border-primary hover:shadow-lg hover:-translate-y-1",
                                         selectedTicketId === ticket.id ? "border-primary dark:border-primary ring-2 ring-primary/50 -translate-y-1" : "border-border dark:border-slate-700/50",
-                                        // Para que ocupe una columna completa si es el ticket abierto
                                         selectedTicketId === ticket.id ? "col-span-full" : ""
                                     )}
                                 >
@@ -193,7 +192,6 @@ const TicketCategoryAccordion: FC<{
                                     {ticket.direccion && <p className="text-xs text-muted-foreground truncate" title={ticket.direccion}>{ticket.direccion}</p>}
                                     <p className="text-xs text-muted-foreground text-right mt-1">{fechaCorta(ticket.fecha)}</p>
                                 </div>
-                                {/* Si este ticket está seleccionado, muestra sus detalles */}
                                 <AnimatePresence>
                                     {selectedTicketId === ticket.id && detailedTicket && (
                                         <motion.div
@@ -211,7 +209,6 @@ const TicketCategoryAccordion: FC<{
                                                     <X className="h-5 w-5" />
                                                 </Button>
                                             </div>
-                                            {/* Aquí renderizamos el componente TicketDetail */}
                                             <TicketDetail ticket={detailedTicket} onTicketUpdate={onTicketDetailUpdate} />
                                         </motion.div>
                                     )}
@@ -236,7 +233,7 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
         if (!ticket || !ticket.id || !ticket.tipo) return;
 
         let mounted = true;
-        const POLLING_INTERVAL = 10000; // CAMBIO CLAVE: Polling cada 10 segundos (10000 ms)
+        const POLLING_INTERVAL = 10000; // Polling cada 10 segundos (10000 ms)
 
         const fetchComentarios = async () => {
             try {
@@ -260,7 +257,7 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
         };
 
         const interval = setInterval(fetchComentarios, POLLING_INTERVAL);
-        fetchComentarios(); // Fetch inicial al montar el componente
+        fetchComentarios();
 
         return () => {
             mounted = false;
@@ -295,17 +292,21 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
     };
 
     // --- Scroll al final del chat ---
-    // AÑADIDO: Comprobar si hay comentarios antes de hacer scroll para evitar scroll innecesario.
     useEffect(() => {
-        if (chatBottomRef.current && ticket.comentarios && ticket.comentarios.length > 0) {
+        // Solo intenta scrollear si el ref existe, hay comentarios y la altura del scroll es mayor que la altura del cliente
+        // Esto previene scrolls innecesarios o saltos cuando no hay nada que scrollear.
+        const mainElement = chatBottomRef.current?.parentElement;
+        if (mainElement && mainElement.scrollHeight > mainElement.clientHeight && ticket.comentarios && ticket.comentarios.length > 0) {
             chatBottomRef.current.scrollIntoView({ behavior: "smooth" });
         }
     }, [ticket.comentarios]);
 
     return (
         // Contenedor principal de TicketDetail: Grid con 3 columnas en desktop, flex-col por defecto en móvil.
+        // AÑADIDO: min-h-0 para flex-basis y overflow-y-auto en el contenedor del chat
         <div className="flex flex-col md:grid md:grid-cols-3 gap-4">
             {/* Contenedor del chat principal (columna 1 y 2 en desktop) */}
+            {/* CAMBIO CLAVE AQUÍ: Asegura que el div del chat tenga una altura explícita para que main flex-1 funcione con overflow */}
             <div className="md:col-span-2 flex flex-col h-[60vh] max-h-[600px] min-h-[300px] border rounded-md bg-background dark:bg-slate-700/50">
                 {/* Área de mensajes del chat con scrolling */}
                 <main className="flex-1 p-4 space-y-4 overflow-y-auto custom-scroll">
