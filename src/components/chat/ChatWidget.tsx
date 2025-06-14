@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
+import { motion } from "framer-motion";
 import ChatHeader from "./ChatHeader";
 import ChatMessage from "./ChatMessage";
 import TypingIndicator from "./TypingIndicator";
@@ -192,8 +193,8 @@ const ChatWidget = ({
     setCargandoRubros(true);
     setRubrosDisponibles([]);
     try {
-      const data = await apiFetch("/rubros");
-      setRubrosDisponibles(data);
+      const data = await apiFetch("/rubros/", { skipAuth: true });
+      setRubrosDisponibles(Array.isArray(data) ? data : []);
     } catch (e) {
       setRubrosDisponibles([]);
     } finally {
@@ -392,7 +393,7 @@ const ChatWidget = ({
   // --- BURBUJA FLOTANTE ---
   if (!isOpen) {
     return (
-      <div
+      <motion.div
         ref={widgetContainerRef}
         className={`
           fixed shadow-xl z-[999999]
@@ -408,17 +409,19 @@ const ChatWidget = ({
           height: closedDims.height,
           borderRadius: "50%",
         }}
+        whileHover={{ scale: 1.05, rotate: 3 }}
+        whileTap={{ scale: 0.95 }}
         onClick={() => setIsOpen(true)}
         aria-label="Abrir chat"
       >
         <ChatbocLogoAnimated size={62} smiling={smile} movingEyes={smile} />
-      </div>
+      </motion.div>
     );
   }
 
   // --- CARD: CHAT ABIERTO ---
   return (
-    <div
+    <motion.div
       ref={widgetContainerRef}
       className={`
         fixed z-[999999]
@@ -435,6 +438,10 @@ const ChatWidget = ({
         height: mode === "iframe" ? openDims.height : `${CARD_HEIGHT}px`,
         borderRadius: 24,
       }}
+      initial={{ opacity: 0, scale: 0.9, y: 20 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.9, y: 20 }}
+      transition={{ type: "spring", stiffness: 260, damping: 20 }}
     >
       <ChatHeader onClose={() => setIsOpen(false)} />
 
@@ -556,7 +563,7 @@ const ChatWidget = ({
             <ChatInput onSendMessage={handleSendMessage} isTyping={isTyping} />
           </div>
         )}
-    </div>
+    </motion.div>
   );
 };
 
