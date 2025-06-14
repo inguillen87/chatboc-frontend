@@ -867,7 +867,7 @@ export default function Perfil() {
                   href="mailto:info@chatboc.ar"
                   className="underline text-primary"
                 >
-                  soporte@chatboc.ar
+                  Info@chatboc.ar
                 </a>
               </div>
             </CardContent>
