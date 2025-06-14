@@ -62,6 +62,33 @@ const ChatWidget = ({
   initialIframeHeight,
 }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
+  const openWidth =
+    mode === "iframe" && initialIframeWidth
+      ? parseInt(initialIframeWidth as string, 10)
+      : CARD_WIDTH;
+  const openHeight =
+    mode === "iframe" && initialIframeHeight
+      ? parseInt(initialIframeHeight as string, 10)
+      : CARD_HEIGHT;
+
+  const openDims = { width: `${openWidth}px`, height: `${openHeight}px` };
+  const closedDims = { width: `${CIRCLE_SIZE}px`, height: `${CIRCLE_SIZE}px` };
+
+  const sendResizeMessage = useCallback(
+    (open: boolean) => {
+      if (mode !== "iframe" || typeof window === "undefined") return;
+      const dims = open ? openDims : closedDims;
+      window.parent.postMessage(
+        { type: "chatboc-resize", widgetId, dimensions: dims, isOpen: open },
+        "*",
+      );
+    },
+    [mode, widgetId, openDims, closedDims],
+  );
+
+  useEffect(() => {
+    sendResizeMessage(isOpen);
+  }, [isOpen, sendResizeMessage]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [preguntasUsadas, setPreguntasUsadas] = useState(0);
@@ -363,10 +390,10 @@ const ChatWidget = ({
           bg-white dark:bg-[#181f2a]
         `}
         style={{
-          bottom: 30,
-          right: 30,
-          width: `${CIRCLE_SIZE}px`,
-          height: `${CIRCLE_SIZE}px`,
+          bottom: initialPosition.bottom,
+          right: initialPosition.right,
+          width: closedDims.width,
+          height: closedDims.height,
           borderRadius: "50%",
         }}
         onClick={() => setIsOpen(true)}
@@ -390,10 +417,10 @@ const ChatWidget = ({
         transition-all duration-300
       `}
       style={{
-        bottom: 30,
-        right: 30,
-        width: `${CARD_WIDTH}px`,
-        height: `${CARD_HEIGHT}px`,
+        bottom: initialPosition.bottom,
+        right: initialPosition.right,
+        width: mode === "iframe" ? openDims.width : `${CARD_WIDTH}px`,
+        height: mode === "iframe" ? openDims.height : `${CARD_HEIGHT}px`,
         borderRadius: 24,
       }}
     >
