@@ -437,27 +437,29 @@ const ChatWidget = ({
 
   // --- CARD: CHAT ABIERTO ---
   return (
-    <motion.div
-      ref={widgetContainerRef}
-      className={`
-        fixed z-[999999]
-        flex flex-col overflow-hidden
-        shadow-2xl border
-        bg-[#181f2a]
-        border-gray-200 dark:border-[#353c47]
-        transition-all duration-300
-      `}
-      style={{
-        bottom: initialPosition.bottom,
-        right: initialPosition.right,
-        width: mode === "iframe" ? openDims.width : `${CARD_WIDTH}px`,
-        height: mode === "iframe" ? openDims.height : `${CARD_HEIGHT}px`,
-        borderRadius: 24,
-      }}
-      initial={{ opacity: 0, scale: 0.9, y: 20 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.9, y: 20 }}
-      transition={{ type: "spring", stiffness: 260, damping: 20 }}
+  <motion.div
+    ref={widgetContainerRef}
+    className={`
+      fixed z-[999999]
+      flex flex-col overflow-hidden
+      shadow-2xl border
+      bg-[#181f2a] 
+      border-gray-200 dark:border-[#353c47]
+      transition-all duration-300
+    `}
+    style={{
+      bottom: initialPosition.bottom,
+      right: initialPosition.right,
+      width: mode === "iframe" ? openDims.width : `${CARD_WIDTH}px`,
+      height: mode === "iframe" ? openDims.height : `${CARD_HEIGHT}px`,
+      borderRadius: 24,
+      // Forzamos el fondo oscuro en el iframe, aunque el padre sea blanco:
+      background: "#181f2a",
+    }}
+    initial={{ opacity: 0, scale: 0.9, y: 20 }}
+    animate={{ opacity: 1, scale: 1, y: 0 }}
+    exit={{ opacity: 0, scale: 0.9, y: 20 }}
+    transition={{ type: "spring", stiffness: 260, damping: 20 }}
     >
       <ChatHeader onClose={() => setIsOpen(false)} />
 
