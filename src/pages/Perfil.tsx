@@ -863,7 +863,7 @@ export default function Perfil() {
                 <br />
                 Cualquier duda, escribinos a{" "}
                 <a
-                  href="mailto:soporte@chatboc.ar"
+                  href="mailto:info@chatboc.ar"
                   className="underline text-primary"
                 >
                   soporte@chatboc.ar
