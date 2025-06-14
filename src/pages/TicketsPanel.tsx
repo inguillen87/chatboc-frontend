@@ -24,7 +24,6 @@ interface Ticket {
     nombre_usuario?: string;
     email_usuario?: string;
     telefono?: string;
-    // id_usuario?: number; // No es necesario aquí si no se usa directamente en el frontend para este propósito
     direccion?: string;
     archivo_url?: string;
 }
@@ -172,8 +171,6 @@ export default function TicketsPanel() {
                 }
                 
                 setCategorizedTickets(processedData);
-                // Mantiene el estado de categorías abiertas, excepto si "Tickets Resueltos y Cerrados" estaba abierto y se vacía
-                // setOpenCategories(new Set(Object.keys(processedData).filter(cat => cat !== "Tickets Resueltos y Cerrados")));
                 // Opcional: Si quieres que el ticket se cierre si se mueve a la categoría de resueltos/cerrados y ya no es "activo"
                 if (updatedTicket.estado === "resuelto" || updatedTicket.estado === "cerrado") {
                     setSelectedTicketId(null);
@@ -210,7 +207,7 @@ export default function TicketsPanel() {
                         <p className="mt-1 text-sm text-muted-foreground">Cuando se genere un nuevo reclamo, aparecerá aquí.</p>
                     </div>
                 ) : (
-                    orderedCategories.map(category => ( // Usamos el orden de categorías aquí
+                    orderedCategories.map(category => (
                         <TicketCategoryAccordion
                             key={category}
                             category={category}
@@ -306,9 +303,8 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
     const [newMessage, setNewMessage] = useState("");
     const [isSending, setIsSending] = useState(false);
     const chatBottomRef = useRef<HTMLDivElement>(null);
-    const [lastAdminCommentId, setLastAdminCommentId] = useState<number | null>(null);
 
-    // --- POLLING ---
+    // --- POLLING: CONTROLAR LA FRECUENCIA ---
     useEffect(() => {
         if (!ticket || !ticket.id || !ticket.tipo) return;
 
@@ -353,13 +349,11 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
         try {
             const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}/responder`, { method: 'POST', body: { comentario: newMessage } });
             onTicketUpdate(updatedTicket);
-            if (updatedTicket.comentarios && updatedTicket.comentarios.length > 0) {
-                const lastComment = updatedTicket.comentarios[updatedTicket.comentarios.length - 1];
-                if (lastComment.es_admin) {
-                    setLastAdminCommentId(lastComment.id);
-                }
-            }
             setNewMessage("");
+            // SCROLL AQUI: Directamente después de enviar tu mensaje
+            setTimeout(() => {
+                chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+            }, 100); // Pequeño retraso para asegurar que el DOM se haya actualizado
         } catch (error) {
             console.error("Error al enviar comentario", error);
         } finally {
@@ -377,28 +371,21 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
         }
     };
 
-    // --- Scroll al final del chat ---
+    // --- Scroll al final del chat: LÓGICA REVERTIDA/SIMPLIFICADA ---
+    // Este useEffect solo se disparará en la carga inicial y cuando los comentarios cambien.
+    // La idea es que se scrollee al final inicialmente, y al enviar un mensaje,
+    // el scroll se maneje específicamente en handleSendMessage.
     useEffect(() => {
-        const mainElement = chatBottomRef.current?.parentElement;
-        if (mainElement && ticket.comentarios && ticket.comentarios.length > 0) {
-            const lastComment = ticket.comentarios[ticket.comentarios.length - 1];
+        if (chatBottomRef.current) {
+            // Un pequeño retraso para asegurar que el DOM esté listo después de una actualización de comentarios.
+            // Esto es crucial para que scrollIntoView funcione correctamente.
+            const timer = setTimeout(() => {
+                chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+            }, 0); // Un delay de 0ms simplemente pone la tarea al final de la cola de eventos
 
-            // Comprobar si el scroll está cerca del final (umbral de 50px)
-            const isScrolledToBottom = mainElement.scrollHeight - mainElement.scrollTop - mainElement.clientHeight < 50;
-            
-            // Solo scrollear si:
-            // 1. Es nuestro propio mensaje recién enviado.
-            // 2. O el chat no tiene scrollbar (el contenido cabe perfectamente).
-            // 3. O el usuario ya estaba scrolleado al final cuando llegó un nuevo mensaje.
-            if (lastComment.id === lastAdminCommentId || 
-                mainElement.scrollHeight <= mainElement.clientHeight || 
-                isScrolledToBottom 
-            ) {
-                chatBottomRef.current.scrollIntoView({ behavior: "smooth" });
-                setLastAdminCommentId(null); // Resetea el ID después de scrollear por nuestro mensaje
-            }
+            return () => clearTimeout(timer);
         }
-    }, [ticket.comentarios, lastAdminCommentId]);
+    }, [ticket.comentarios]); // Se dispara cada vez que los comentarios se actualizan
 
     return (
         <div className="flex flex-col md:grid md:grid-cols-3 gap-4">
