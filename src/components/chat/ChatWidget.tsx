@@ -404,35 +404,36 @@ const ChatWidget = ({
 
   // --- BURBUJA FLOTANTE ---
   if (!isOpen) {
-    return (
-      <motion.div
-        ref={widgetContainerRef}
-        className={`
-          fixed shadow-xl z-[999999]
-          flex items-center justify-center
-          transition-all duration-300
-          cursor-pointer
-          bg-[#181f2a]
-        `}
-        style={{
-          bottom: initialPosition.bottom,
-          right: initialPosition.right,
-          width: closedDims.width,
-          height: closedDims.height,
-          borderRadius: "50%",
-        }}
-        initial={{ opacity: 0, scale: 0.8 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ type: "spring", stiffness: 260, damping: 20 }}
-        whileHover={{ scale: 1.05, rotate: 3 }}
-        whileTap={{ scale: 0.95 }}
-        onClick={() => setIsOpen(true)}
-        aria-label="Abrir chat"
-      >
-        <ChatbocLogoAnimated size={62} smiling={smile} movingEyes={smile} />
-      </motion.div>
-    );
-  }
+  return (
+    <motion.div
+      ref={widgetContainerRef}
+      className={`
+        fixed shadow-xl z-[999999]
+        flex items-center justify-center
+        transition-all duration-300
+        cursor-pointer
+        bg-transparent
+      `}
+      style={{
+        bottom: initialPosition.bottom,
+        right: initialPosition.right,
+        width: closedDims.width,
+        height: closedDims.height,
+        borderRadius: "50%",
+        background: "transparent", // refuerza por si acaso
+      }}
+      initial={{ opacity: 0, scale: 0.8 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ type: "spring", stiffness: 260, damping: 20 }}
+      whileHover={{ scale: 1.05, rotate: 3 }}
+      whileTap={{ scale: 0.95 }}
+      onClick={() => setIsOpen(true)}
+      aria-label="Abrir chat"
+    >
+      <ChatbocLogoAnimated size={62} smiling={smile} movingEyes={smile} />
+    </motion.div>
+  );
+}
 
   // --- CARD: CHAT ABIERTO ---
   return (
