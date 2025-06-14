@@ -32,6 +32,10 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
             onSelect(e.currentTarget.value.trim());
           }
         }}
+        onBlur={(e) => {
+          const val = e.currentTarget.value.trim();
+          if (val) onSelect(val);
+        }}
       />
     );
   }
@@ -49,6 +53,13 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
           if (onChange) onChange(option);
           if (option && option.value) {
             onSelect(option.value);
+          }
+        },
+        onBlur: (e: any) => {
+          const val = (e.target as HTMLInputElement).value;
+          if (val) {
+            if (onChange) onChange({ label: val, value: val });
+            onSelect(val);
           }
         },
         placeholder,
