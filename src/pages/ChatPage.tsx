@@ -87,6 +87,11 @@ const ChatPage = () => {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatMessagesContainerRef = useRef<HTMLDivElement>(null);
 
+  const authToken = safeLocalStorage.getItem("authToken");
+  const authHeaders: Record<string, string> = authToken
+    ? { Authorization: `Bearer ${authToken}` }
+    : {};
+
   const [contexto, setContexto] = useState({});
   const [activeTicketId, setActiveTicketId] = useState<number | null>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -150,11 +155,13 @@ const ChatPage = () => {
       try {
         await apiFetch(`/tickets/chat/${activeTicketId || ''}/ubicacion`, {
           method: 'POST',
+          headers: authHeaders,
           body: coords,
         });
         if (activeTicketId) {
           await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, {
             method: 'PUT',
+            headers: authHeaders,
             body: coords,
           });
         }
@@ -178,10 +185,12 @@ const ChatPage = () => {
           try {
             await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, {
               method: 'POST',
+              headers: authHeaders,
               body: coords,
             });
             await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, {
               method: 'PUT',
+              headers: authHeaders,
               body: coords,
             });
           } catch (e) {
@@ -209,10 +218,12 @@ const ChatPage = () => {
           try {
             await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, {
               method: 'POST',
+              headers: authHeaders,
               body: { direccion: text },
             });
             await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, {
               method: 'PUT',
+              headers: authHeaders,
               body: { direccion: text },
             });
           } catch (e) {

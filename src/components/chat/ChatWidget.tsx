@@ -143,13 +143,20 @@ const ChatWidget = ({
     navigator.geolocation.getCurrentPosition(async (pos) => {
       const coords = { latitud: pos.coords.latitude, longitud: pos.coords.longitude };
       try {
+        const authHeaders = esAnonimo
+          ? { "Anon-Id": anonId }
+          : finalAuthToken
+            ? { Authorization: `Bearer ${finalAuthToken}` }
+            : {};
         await apiFetch(`/tickets/chat/${activeTicketId || ''}/ubicacion`, {
           method: "POST",
+          headers: authHeaders,
           body: coords,
         });
         if (activeTicketId) {
           await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, {
             method: "PUT",
+            headers: authHeaders,
             body: coords,
           });
         }
@@ -168,12 +175,19 @@ const ChatWidget = ({
         async (pos) => {
           const coords = { latitud: pos.coords.latitude, longitud: pos.coords.longitude };
           try {
+            const authHeaders = esAnonimo
+              ? { "Anon-Id": anonId }
+              : finalAuthToken
+                ? { Authorization: `Bearer ${finalAuthToken}` }
+                : {};
             await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, {
               method: "POST",
+              headers: authHeaders,
               body: coords,
             });
             await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, {
               method: "PUT",
+              headers: authHeaders,
               body: coords,
             });
           } catch (e) {
@@ -270,13 +284,14 @@ const ChatWidget = ({
     let intervalId;
     const fetchAllMessages = async () => {
       try {
+        const authHeaders = esAnonimo
+          ? { "Anon-Id": anonId }
+          : finalAuthToken
+            ? { Authorization: `Bearer ${finalAuthToken}` }
+            : {};
         const data = await apiFetch<{ estado_chat: string; mensajes: any[] }>(
           `/tickets/chat/${activeTicketId}/mensajes`,
-          {
-            headers: esAnonimo
-              ? { "Anon-Id": anonId }
-              : { Authorization: `Bearer ${finalAuthToken}` },
-          },
+          { headers: authHeaders },
         );
         if (data.mensajes) {
           const nuevosMensajes: Message[] = data.mensajes.map((msg) => ({
@@ -336,12 +351,19 @@ const ChatWidget = ({
         setDireccionGuardada(text);
         if (activeTicketId) {
           try {
+            const authHeaders = esAnonimo
+              ? { "Anon-Id": anonId }
+              : finalAuthToken
+                ? { Authorization: `Bearer ${finalAuthToken}` }
+                : {};
             await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, {
               method: "POST",
+              headers: authHeaders,
               body: { direccion: text },
             });
             await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, {
               method: "PUT",
+              headers: authHeaders,
               body: { direccion: text },
             });
           } catch (e) {
