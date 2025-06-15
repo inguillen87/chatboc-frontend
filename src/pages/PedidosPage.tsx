@@ -57,60 +57,66 @@ const SkeletonCard = () => (
   </Card>
 );
 
-const PedidoCard: FC<{ pedido: Pedido; onSelect: (p: Pedido) => void; selected: boolean }> = ({ pedido, onSelect, selected }) => (
-  <div
-    onClick={() => onSelect(pedido)}
-    className={cn(
-      'bg-background p-3 rounded-lg border cursor-pointer transition-all shadow-sm',
-      'hover:border-primary hover:shadow-lg hover:-translate-y-1',
-      selected ? 'border-primary ring-2 ring-primary/50 -translate-y-1' : 'border-border'
-    )}
-  >
-    <div className="flex justify-between items-center mb-1">
-      <span className="font-semibold text-primary text-sm">#{pedido.nro_pedido}</span>
-      <Badge className={cn('text-xs border', PEDIDO_ESTADOS_INFO[pedido.estado]?.style)}>
-        {PEDIDO_ESTADOS_INFO[pedido.estado]?.label || pedido.estado}
-      </Badge>
-    </div>
-    <p className="font-medium text-foreground truncate" title={pedido.asunto}>{pedido.asunto}</p>
-    <p className="text-xs text-muted-foreground truncate">
-      {formatDate(pedido.fecha_creacion, timezone, locale)}
-    </p>
-  </div>
-);
-
-const PedidoDetail: FC<{ pedido: Pedido; onClose: () => void }> = ({ pedido, onClose }) => (
-  <div className="bg-card rounded-lg p-4 border border-border shadow-md mt-2">
-    <div className="flex justify-between items-center mb-3">
-      <h3 className="text-lg font-bold text-foreground">Detalle #{pedido.nro_pedido}</h3>
-      <Button variant="ghost" size="icon" onClick={onClose} aria-label="Cerrar detalle">
-        <X className="h-5 w-5" />
-      </Button>
-    </div>
-    <div className="text-sm space-y-1 mb-4">
-      <p><strong>Cliente:</strong> {pedido.nombre_cliente || 'N/A'}</p>
-      <p><strong>Email:</strong> {pedido.email_cliente || 'N/A'}</p>
-      <p><strong>Teléfono:</strong> {pedido.telefono_cliente || 'N/A'}</p>
-      <p><strong>Fecha:</strong> {formatDate(pedido.fecha_creacion, timezone, locale)}</p>
-      <p><strong>Rubro:</strong> <span className="capitalize">{pedido.rubro}</span></p>
-    </div>
-    {pedido.detalles && pedido.detalles.length > 0 && (
-      <div className="mb-4">
-        <h4 className="font-semibold mb-1">Items</h4>
-        <ul className="list-disc list-inside space-y-1 text-sm">
-          {pedido.detalles.map((item, idx) => (
-            <li key={idx}>
-              {item.cantidad} {item.unidad} de {item.nombre}
-            </li>
-          ))}
-        </ul>
+const PedidoCard: FC<{ pedido: Pedido; onSelect: (p: Pedido) => void; selected: boolean }> = ({ pedido, onSelect, selected }) => {
+  const { timezone, locale } = useDateSettings();
+  return (
+    <div
+      onClick={() => onSelect(pedido)}
+      className={cn(
+        'bg-background p-3 rounded-lg border cursor-pointer transition-all shadow-sm',
+        'hover:border-primary hover:shadow-lg hover:-translate-y-1',
+        selected ? 'border-primary ring-2 ring-primary/50 -translate-y-1' : 'border-border'
+      )}
+    >
+      <div className="flex justify-between items-center mb-1">
+        <span className="font-semibold text-primary text-sm">#{pedido.nro_pedido}</span>
+        <Badge className={cn('text-xs border', PEDIDO_ESTADOS_INFO[pedido.estado]?.style)}>
+          {PEDIDO_ESTADOS_INFO[pedido.estado]?.label || pedido.estado}
+        </Badge>
       </div>
-    )}
-    {pedido.monto_total !== null && (
-      <p className="font-bold text-right">Total: ${pedido.monto_total.toFixed(2)}</p>
-    )}
-  </div>
-);
+      <p className="font-medium text-foreground truncate" title={pedido.asunto}>{pedido.asunto}</p>
+      <p className="text-xs text-muted-foreground truncate">
+        {formatDate(pedido.fecha_creacion, timezone, locale)}
+      </p>
+    </div>
+  );
+};
+
+const PedidoDetail: FC<{ pedido: Pedido; onClose: () => void }> = ({ pedido, onClose }) => {
+  const { timezone, locale } = useDateSettings();
+  return (
+    <div className="bg-card rounded-lg p-4 border border-border shadow-md mt-2">
+      <div className="flex justify-between items-center mb-3">
+        <h3 className="text-lg font-bold text-foreground">Detalle #{pedido.nro_pedido}</h3>
+        <Button variant="ghost" size="icon" onClick={onClose} aria-label="Cerrar detalle">
+          <X className="h-5 w-5" />
+        </Button>
+      </div>
+      <div className="text-sm space-y-1 mb-4">
+        <p><strong>Cliente:</strong> {pedido.nombre_cliente || 'N/A'}</p>
+        <p><strong>Email:</strong> {pedido.email_cliente || 'N/A'}</p>
+        <p><strong>Teléfono:</strong> {pedido.telefono_cliente || 'N/A'}</p>
+        <p><strong>Fecha:</strong> {formatDate(pedido.fecha_creacion, timezone, locale)}</p>
+        <p><strong>Rubro:</strong> <span className="capitalize">{pedido.rubro}</span></p>
+      </div>
+      {pedido.detalles && pedido.detalles.length > 0 && (
+        <div className="mb-4">
+          <h4 className="font-semibold mb-1">Items</h4>
+          <ul className="list-disc list-inside space-y-1 text-sm">
+            {pedido.detalles.map((item, idx) => (
+              <li key={idx}>
+                {item.cantidad} {item.unidad} de {item.nombre}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {pedido.monto_total !== null && (
+        <p className="font-bold text-right">Total: ${pedido.monto_total.toFixed(2)}</p>
+      )}
+    </div>
+  );
+};
 
 const PedidoCategoryAccordion: FC<{
   estado: string;
