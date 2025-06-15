@@ -57,8 +57,12 @@ const SkeletonCard = () => (
   </Card>
 );
 
+<<<<<<< 9mtkqf-codex/corregir-problemas-con-la-dirección-en-el-panel-de-admin
+const PedidoCard: FC<{ pedido: Pedido; onSelect: (p: Pedido) => void; selected: boolean; timezone: string; locale: string }> = ({ pedido, onSelect, selected, timezone, locale }) => {
+=======
 const PedidoCard: FC<{ pedido: Pedido; onSelect: (p: Pedido) => void; selected: boolean }> = ({ pedido, onSelect, selected }) => {
   const { timezone, locale } = useDateSettings();
+>>>>>>> main
   return (
     <div
       onClick={() => onSelect(pedido)}
@@ -82,8 +86,12 @@ const PedidoCard: FC<{ pedido: Pedido; onSelect: (p: Pedido) => void; selected: 
   );
 };
 
+<<<<<<< 9mtkqf-codex/corregir-problemas-con-la-dirección-en-el-panel-de-admin
+const PedidoDetail: FC<{ pedido: Pedido; onClose: () => void; timezone: string; locale: string }> = ({ pedido, onClose, timezone, locale }) => {
+=======
 const PedidoDetail: FC<{ pedido: Pedido; onClose: () => void }> = ({ pedido, onClose }) => {
   const { timezone, locale } = useDateSettings();
+>>>>>>> main
   return (
     <div className="bg-card rounded-lg p-4 border border-border shadow-md mt-2">
       <div className="flex justify-between items-center mb-3">
@@ -125,7 +133,9 @@ const PedidoCategoryAccordion: FC<{
   onToggle: () => void;
   onSelect: (p: Pedido) => void;
   selectedPedidoId: number | null;
-}> = ({ estado, pedidos, isOpen, onToggle, onSelect, selectedPedidoId }) => (
+  timezone: string;
+  locale: string;
+}> = ({ estado, pedidos, isOpen, onToggle, onSelect, selectedPedidoId, timezone, locale }) => (
   <motion.div layout className="bg-card border border-border rounded-xl shadow-md overflow-hidden" initial={{ borderRadius: 12 }}>
     <motion.header
       layout
@@ -153,7 +163,13 @@ const PedidoCategoryAccordion: FC<{
           <div className="p-2 sm:p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 border-t border-border">
             {pedidos.map((pedido) => (
               <React.Fragment key={pedido.id}>
-                <PedidoCard pedido={pedido} onSelect={onSelect} selected={selectedPedidoId === pedido.id} />
+                <PedidoCard
+                  pedido={pedido}
+                  onSelect={onSelect}
+                  selected={selectedPedidoId === pedido.id}
+                  timezone={timezone}
+                  locale={locale}
+                />
                 <AnimatePresence>
                   {selectedPedidoId === pedido.id && (
                     <motion.div
@@ -165,7 +181,12 @@ const PedidoCategoryAccordion: FC<{
                       transition={{ duration: 0.3, ease: 'easeInOut' }}
                       className="col-span-full"
                     >
-                      <PedidoDetail pedido={pedido} onClose={() => onSelect(pedido)} />
+                      <PedidoDetail
+                        pedido={pedido}
+                        onClose={() => onSelect(pedido)}
+                        timezone={timezone}
+                        locale={locale}
+                      />
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -318,6 +339,8 @@ export default function PedidosPage() {
               onToggle={() => toggleCategory(estado)}
               onSelect={handleSelectPedido}
               selectedPedidoId={selectedPedidoId}
+              timezone={timezone}
+              locale={locale}
             />
           ))
         )}

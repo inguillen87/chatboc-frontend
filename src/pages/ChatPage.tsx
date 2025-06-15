@@ -1,351 +1,472 @@
-import React, { useEffect, useState, useCallback, FC } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { apiFetch } from '@/utils/api';
-import { safeLocalStorage } from '@/utils/safeLocalStorage';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import { AlertCircle, ChevronLeft, ChevronUp, ChevronDown, LogOut, Inbox, X } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { cn } from '@/lib/utils';
-import { formatDate } from '@/utils/fecha';
-import { useDateSettings } from '@/hooks/useDateSettings';
-import { LOCALE_OPTIONS } from '@/utils/localeOptions';
+// src/pages/ChatPage.tsx
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { Message } from "@/types/chat";
+import ChatMessage from "@/components/chat/ChatMessage";
+import ChatInput from "@/components/chat/ChatInput";
+import TypingIndicator from "@/components/chat/TypingIndicator";
+import Navbar from "@/components/layout/Navbar";
+import { motion, AnimatePresence } from "framer-motion";
+import { apiFetch } from "@/utils/api";
+import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
+import { safeLocalStorage } from "@/utils/safeLocalStorage";
 
-// ---------- Tipos ----------
-interface Pedido {
-  id: number;
-  nro_pedido: string;
-  asunto: string;
-  estado: string;
-  detalles: Array<{ cantidad: number; unidad: string; nombre: string; sku?: string; precio_str?: string }>;
-  monto_total: number | null;
-  fecha_creacion: string;
-  nombre_cliente: string | null;
-  email_cliente: string | null;
-  telefono_cliente: string | null;
-  rubro: string;
+// Frases para detectar pedido de dirección
+const FRASES_DIRECCION = [
+  "indicame la dirección",
+  "necesito la dirección",
+  "ingresa la dirección",
+  "especificá la dirección",
+  "decime la dirección",
+  "dirección exacta",
+  "¿cuál es la dirección?",
+  "por favor indique la dirección",
+  "por favor ingrese su dirección",
+  "dirección completa",
+];
+const FRASES_EXITO = [
+  "Tu reclamo fue generado",
+  "¡Muchas gracias por tu calificación!",
+  "Dejaré el ticket abierto",
+  "El curso de seguridad vial es online",
+  "He abierto una sala de chat directa",
+  "Tu número de chat es",
+  "ticket **M-",
+];
+
+function shouldShowAutocomplete(messages: Message[], contexto: any) {
+  const lastBotMsg = [...messages].reverse().find((m) => m.isBot && m.text);
+  if (!lastBotMsg) return false;
+  const contenido = (lastBotMsg.text || "").toLowerCase();
+  if (FRASES_DIRECCION.some((frase) => contenido.includes(frase))) return true;
+  if (
+    contexto &&
+    contexto.contexto_municipio &&
+    (contexto.contexto_municipio.estado_conversacion ===
+      "ESPERANDO_DIRECCION_RECLAMO" ||
+      contexto.contexto_municipio.estado_conversacion === 4)
+  ) {
+    return true;
+  }
+  return false;
 }
 
-type CategorizedPedidos = { [estado: string]: Pedido[] };
+function checkCierreExito(messages: Message[]) {
+  const lastBotMsg = [...messages].reverse().find((m) => m.isBot && m.text);
+  if (!lastBotMsg) return null;
+  const contenido = (lastBotMsg.text || "").toLowerCase();
+  if (FRASES_EXITO.some((frase) => contenido.includes(frase))) {
+    // Detectar número de ticket
+    const match = contenido.match(/ticket \*\*m-(\d+)/i);
+    if (match) {
+      return {
+        show: true,
+        text: `✅ ¡Listo! Tu ticket fue generado exitosamente. Número: M-${match[1]}.\nUn agente municipal te va a contactar para seguimiento.`,
+      };
+    }
+    return { show: true, text: lastBotMsg.text };
+  }
+  return null;
+}
 
-// ---------- Constantes de estado ----------
-const PEDIDO_ESTADOS_INFO: Record<string, { label: string; style: string }> = {
-  pendiente: { label: 'Pendiente', style: 'bg-yellow-500/20 text-yellow-600 border-yellow-400' },
-  en_proceso: { label: 'En Proceso', style: 'bg-blue-500/20 text-blue-600 border-blue-400' },
-  enviado: { label: 'Enviado', style: 'bg-purple-500/20 text-purple-600 border-purple-400' },
-  entregado: { label: 'Entregado', style: 'bg-green-500/20 text-green-600 border-green-400' },
-  satisfecho: { label: 'Satisfecho', style: 'bg-emerald-500/20 text-emerald-600 border-emerald-400' },
-  cancelado: { label: 'Cancelado', style: 'bg-red-500/20 text-red-600 border-red-400' },
-};
+// Mobile detection
+function useIsMobile(breakpoint = 768) {
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== "undefined" ? window.innerWidth < breakpoint : false,
+  );
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < breakpoint);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [breakpoint]);
+  return isMobile;
+}
 
-const ESTADOS_ORDEN_PRIORIDAD = ['pendiente', 'en_proceso', 'enviado', 'entregado', 'satisfecho', 'cancelado'];
+const ChatPage = () => {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [isTyping, setIsTyping] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatMessagesContainerRef = useRef<HTMLDivElement>(null);
 
-// ---------- Componentes utilitarios ----------
-const SkeletonCard = () => (
-  <Card className="bg-card shadow-lg rounded-xl border border-border">
-    <CardHeader className="pb-4">
-      <Skeleton className="h-7 w-3/4 rounded-md" />
-      <Skeleton className="h-4 w-1/2 mt-2 rounded-md" />
-    </CardHeader>
-    <CardContent className="space-y-3">
-      <Skeleton className="h-4 w-full rounded-md" />
-      <Skeleton className="h-4 w-5/6 rounded-md" />
-      <Skeleton className="h-10 w-full mt-4 rounded-md" />
-    </CardContent>
-  </Card>
-);
-
+  const authToken = safeLocalStorage.getItem("authToken");
 <<<<<<< 9mtkqf-codex/corregir-problemas-con-la-dirección-en-el-panel-de-admin
-const PedidoCard: FC<{ pedido: Pedido; onSelect: (p: Pedido) => void; selected: boolean; timezone: string; locale: string }> = ({ pedido, onSelect, selected, timezone, locale }) => {
+  const authHeaders: Record<string, string> = authToken
+    ? { Authorization: `Bearer ${authToken}` }
+    : {};
 =======
-const PedidoCard: FC<{ pedido: Pedido; onSelect: (p: Pedido) => void; selected: boolean }> = ({ pedido, onSelect, selected }) => {
-  const { timezone, locale } = useDateSettings();
+  const authHeaders = authToken
+    ? { Authorization: `Bearer ${authToken}` }
+    : undefined;
 >>>>>>> main
-  return (
-    <div
-      onClick={() => onSelect(pedido)}
-      className={cn(
-        'bg-background p-3 rounded-lg border cursor-pointer transition-all shadow-sm',
-        'hover:border-primary hover:shadow-lg hover:-translate-y-1',
-        selected ? 'border-primary ring-2 ring-primary/50 -translate-y-1' : 'border-border'
-      )}
-    >
-      <div className="flex justify-between items-center mb-1">
-        <span className="font-semibold text-primary text-sm">#{pedido.nro_pedido}</span>
-        <Badge className={cn('text-xs border', PEDIDO_ESTADOS_INFO[pedido.estado]?.style)}>
-          {PEDIDO_ESTADOS_INFO[pedido.estado]?.label || pedido.estado}
-        </Badge>
-      </div>
-      <p className="font-medium text-foreground truncate" title={pedido.asunto}>{pedido.asunto}</p>
-      <p className="text-xs text-muted-foreground truncate">
-        {formatDate(pedido.fecha_creacion, timezone, locale)}
-      </p>
-    </div>
-  );
-};
 
-<<<<<<< 9mtkqf-codex/corregir-problemas-con-la-dirección-en-el-panel-de-admin
-const PedidoDetail: FC<{ pedido: Pedido; onClose: () => void; timezone: string; locale: string }> = ({ pedido, onClose, timezone, locale }) => {
-=======
-const PedidoDetail: FC<{ pedido: Pedido; onClose: () => void }> = ({ pedido, onClose }) => {
-  const { timezone, locale } = useDateSettings();
->>>>>>> main
-  return (
-    <div className="bg-card rounded-lg p-4 border border-border shadow-md mt-2">
-      <div className="flex justify-between items-center mb-3">
-        <h3 className="text-lg font-bold text-foreground">Detalle #{pedido.nro_pedido}</h3>
-        <Button variant="ghost" size="icon" onClick={onClose} aria-label="Cerrar detalle">
-          <X className="h-5 w-5" />
-        </Button>
-      </div>
-      <div className="text-sm space-y-1 mb-4">
-        <p><strong>Cliente:</strong> {pedido.nombre_cliente || 'N/A'}</p>
-        <p><strong>Email:</strong> {pedido.email_cliente || 'N/A'}</p>
-        <p><strong>Teléfono:</strong> {pedido.telefono_cliente || 'N/A'}</p>
-        <p><strong>Fecha:</strong> {formatDate(pedido.fecha_creacion, timezone, locale)}</p>
-        <p><strong>Rubro:</strong> <span className="capitalize">{pedido.rubro}</span></p>
-      </div>
-      {pedido.detalles && pedido.detalles.length > 0 && (
-        <div className="mb-4">
-          <h4 className="font-semibold mb-1">Items</h4>
-          <ul className="list-disc list-inside space-y-1 text-sm">
-            {pedido.detalles.map((item, idx) => (
-              <li key={idx}>
-                {item.cantidad} {item.unidad} de {item.nombre}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {pedido.monto_total !== null && (
-        <p className="font-bold text-right">Total: ${pedido.monto_total.toFixed(2)}</p>
-      )}
-    </div>
-  );
-};
+  const [contexto, setContexto] = useState({});
+  const [activeTicketId, setActiveTicketId] = useState<number | null>(null);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const ultimoMensajeIdRef = useRef<number>(0);
+  const isMobile = useIsMobile();
 
-const PedidoCategoryAccordion: FC<{
-  estado: string;
-  pedidos: Pedido[];
-  isOpen: boolean;
-  onToggle: () => void;
-  onSelect: (p: Pedido) => void;
-  selectedPedidoId: number | null;
-  timezone: string;
-  locale: string;
-}> = ({ estado, pedidos, isOpen, onToggle, onSelect, selectedPedidoId, timezone, locale }) => (
-  <motion.div layout className="bg-card border border-border rounded-xl shadow-md overflow-hidden" initial={{ borderRadius: 12 }}>
-    <motion.header
-      layout
-      initial={false}
-      onClick={onToggle}
-      className="p-4 flex justify-between items-center cursor-pointer hover:bg-muted/50 transition-colors"
-    >
-      <div className="flex items-center gap-3">
-        <h2 className="font-semibold text-lg capitalize">{PEDIDO_ESTADOS_INFO[estado]?.label || estado}</h2>
-        <Badge variant="secondary">{pedidos.length}</Badge>
-      </div>
-      {isOpen ? <ChevronUp className="text-muted-foreground" /> : <ChevronDown className="text-muted-foreground" />}
-    </motion.header>
-    <AnimatePresence>
-      {isOpen && (
-        <motion.section
-          key="content"
-          initial="collapsed"
-          animate="open"
-          exit="collapsed"
-          variants={{ open: { opacity: 1, height: 'auto' }, collapsed: { opacity: 0, height: 0 } }}
-          transition={{ duration: 0.3, ease: 'easeInOut' }}
-          className="overflow-hidden"
-        >
-          <div className="p-2 sm:p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 border-t border-border">
-            {pedidos.map((pedido) => (
-              <React.Fragment key={pedido.id}>
-                <PedidoCard
-                  pedido={pedido}
-                  onSelect={onSelect}
-                  selected={selectedPedidoId === pedido.id}
-                  timezone={timezone}
-                  locale={locale}
-                />
-                <AnimatePresence>
-                  {selectedPedidoId === pedido.id && (
-                    <motion.div
-                      key={`detail-${pedido.id}`}
-                      initial="collapsed"
-                      animate="open"
-                      exit="collapsed"
-                      variants={{ open: { opacity: 1, height: 'auto' }, collapsed: { opacity: 0, height: 0 } }}
-                      transition={{ duration: 0.3, ease: 'easeInOut' }}
-                      className="col-span-full"
-                    >
-                      <PedidoDetail
-                        pedido={pedido}
-                        onClose={() => onSelect(pedido)}
-                        timezone={timezone}
-                        locale={locale}
-                      />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </React.Fragment>
-            ))}
-          </div>
-        </motion.section>
-      )}
-    </AnimatePresence>
-  </motion.div>
-);
+  // Estado de input dirección / cierre éxito
+  const [esperandoDireccion, setEsperandoDireccion] = useState(false);
+  const [forzarDireccion, setForzarDireccion] = useState(false);
+  const [direccionGuardada, setDireccionGuardada] = useState<string | null>(null);
+  const [showCierre, setShowCierre] = useState<{
+    show: boolean;
+    text: string;
+  } | null>(null);
 
-const PageHeader: FC<{ onLogout: () => void }> = ({ onLogout }) => {
-  const navigate = useNavigate();
-  const { locale, updateSettings } = useDateSettings();
-  return (
-    <div className="w-full max-w-7xl mx-auto mb-8 flex items-center justify-between">
-      <Button variant="ghost" onClick={() => navigate('/perfil')} className="text-muted-foreground hover:text-foreground">
-        <ChevronLeft className="w-5 h-5 mr-2" /> Volver al Perfil
-      </Button>
-      <h1 className="text-3xl sm:text-4xl font-extrabold text-primary leading-tight text-center flex-1 hidden sm:block">
-        Panel de Pedidos
-      </h1>
-      <div className="max-w-xs mr-4">
-        <Select
-          value={locale}
-          onValueChange={(val) => {
-            const opt = LOCALE_OPTIONS.find((o) => o.locale === val);
-            if (opt) updateSettings(opt.timezone, opt.locale);
-          }}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Idioma" />
-          </SelectTrigger>
-          <SelectContent>
-            {LOCALE_OPTIONS.map((opt) => (
-              <SelectItem key={opt.locale} value={opt.locale}>
-                {opt.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <Button
-        variant="outline"
-        className="h-10 px-5 text-sm border-destructive text-destructive hover:bg-destructive/10"
-        onClick={onLogout}
-      >
-        <LogOut className="w-4 h-4 mr-2" /> Salir
-      </Button>
-    </div>
-  );
-};
-
-// ---------- Página Principal ----------
-export default function PedidosPage() {
-  const navigate = useNavigate();
-  const { timezone, locale, updateSettings } = useDateSettings();
-  const [categorizedPedidos, setCategorizedPedidos] = useState<CategorizedPedidos>({});
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [openCategories, setOpenCategories] = useState<Set<string>>(new Set());
-  const [selectedPedidoId, setSelectedPedidoId] = useState<number | null>(null);
-
-  const handleLogout = () => {
-    safeLocalStorage.clear();
-    navigate('/login');
-  };
-
-  const fetchPedidos = useCallback(async () => {
-    try {
-      const data = await apiFetch<Pedido[]>('/pedidos');
-      const categorized = data.reduce<CategorizedPedidos>((acc, p) => {
-        acc[p.estado] = acc[p.estado] ? [...acc[p.estado], p] : [p];
-        return acc;
-      }, {});
-      setCategorizedPedidos(categorized);
-      setOpenCategories(new Set(Object.keys(categorized).filter((e) => !['satisfecho', 'cancelado'].includes(e))));
-    } catch (err) {
-      console.error('Error fetching pedidos:', err);
-      setError('Error al cargar los pedidos. Por favor, asegúrate de estar logueado.');
-    } finally {
-      setIsLoading(false);
+  const scrollToBottom = useCallback(() => {
+    if (chatMessagesContainerRef.current) {
+      chatMessagesContainerRef.current.scrollTop =
+        chatMessagesContainerRef.current.scrollHeight;
     }
   }, []);
 
   useEffect(() => {
-    const token = safeLocalStorage.getItem('authToken');
-    if (!token) {
-      navigate('/login');
-      return;
+    if (messages.length === 0) {
+      setMessages([
+        {
+          id: Date.now(),
+          text: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?",
+          isBot: true,
+          timestamp: new Date(),
+        },
+      ]);
     }
-    fetchPedidos();
-  }, [fetchPedidos, navigate]);
+    const stored = safeLocalStorage.getItem("ultima_direccion");
+    if (stored) {
+      setDireccionGuardada(stored);
+    }
+  }, []);
 
-  const sortedCategories = Object.entries(categorizedPedidos).sort(([a], [b]) => {
-    const indexA = ESTADOS_ORDEN_PRIORIDAD.indexOf(a);
-    const indexB = ESTADOS_ORDEN_PRIORIDAD.indexOf(b);
-    return indexA - indexB;
-  });
+  // Scroll y cierre UX
+  useEffect(() => {
+    const needsAddress =
+      shouldShowAutocomplete(messages, contexto) || forzarDireccion;
+    setEsperandoDireccion(needsAddress);
+    if (!needsAddress) {
+      setShowCierre(checkCierreExito(messages));
+    } else {
+      setShowCierre(null);
+    }
+    const timer = setTimeout(() => scrollToBottom(), 150);
+    return () => clearTimeout(timer);
+  }, [messages, isTyping, scrollToBottom, contexto, forzarDireccion]);
 
-  const toggleCategory = (estado: string) => {
-    setOpenCategories((prev) => {
-      const newSet = new Set(prev);
-      newSet.has(estado) ? newSet.delete(estado) : newSet.add(estado);
-      return newSet;
+  const handleShareGps = useCallback(() => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      const coords = {
+        latitud: pos.coords.latitude,
+        longitud: pos.coords.longitude,
+      };
+      try {
+        await apiFetch(`/tickets/chat/${activeTicketId || ''}/ubicacion`, {
+          method: 'POST',
+          headers: authHeaders,
+          body: coords,
+        });
+        if (activeTicketId) {
+          await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, {
+            method: 'PUT',
+            headers: authHeaders,
+            body: coords,
+          });
+        }
+        setForzarDireccion(false);
+      } catch (e) {
+        console.error('Error al enviar ubicación', e);
+      }
     });
-  };
+  }, [activeTicketId]);
 
-  const handleSelectPedido = (pedido: Pedido) => {
-    setSelectedPedidoId((id) => (id === pedido.id ? null : pedido.id));
-  };
+  // Solicitar GPS automáticamente al iniciar chat en vivo
+  useEffect(() => {
+    if (!activeTicketId) return;
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const coords = {
+            latitud: pos.coords.latitude,
+            longitud: pos.coords.longitude,
+          };
+          try {
+            await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, {
+              method: 'POST',
+              headers: authHeaders,
+              body: coords,
+            });
+            await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, {
+              method: 'PUT',
+              headers: authHeaders,
+              body: coords,
+            });
+          } catch (e) {
+            console.error('Error al enviar ubicación', e);
+          }
+        },
+        () => setForzarDireccion(true),
+      );
+    } else {
+      setForzarDireccion(true);
+    }
+  }, [activeTicketId]);
 
-  if (error) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-background text-foreground p-4">
-        <AlertCircle className="w-16 h-16 text-destructive mb-4" />
-        <h2 className="text-2xl font-semibold mb-2">Ocurrió un Error</h2>
-        <p className="text-red-500 mb-6 text-center">{error}</p>
-        <Button onClick={() => navigate('/login')} className="bg-primary hover:bg-primary/90">
-          <ChevronLeft className="w-4 h-4 mr-2" /> Volver a Iniciar Sesión
-        </Button>
-      </div>
-    );
-  }
+  // Maneja envío de mensaje O dirección seleccionada
+  const handleSend = useCallback(
+    async (text: string) => {
+      if (!text.trim()) return;
+
+      if (esperandoDireccion) {
+        setEsperandoDireccion(false);
+        setForzarDireccion(false);
+        safeLocalStorage.setItem("ultima_direccion", text);
+        setDireccionGuardada(text);
+        if (activeTicketId) {
+          try {
+            await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, {
+              method: 'POST',
+              headers: authHeaders,
+              body: { direccion: text },
+            });
+            await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, {
+              method: 'PUT',
+              headers: authHeaders,
+              body: { direccion: text },
+            });
+          } catch (e) {
+            console.error('Error al enviar dirección', e);
+          }
+        }
+      }
+      setShowCierre(null);
+
+      const userMessage: Message = {
+        id: Date.now(),
+        text,
+        isBot: false,
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, userMessage]);
+      setIsTyping(true);
+
+      try {
+        // --- LÓGICA CONDICIONAL ---
+        if (activeTicketId) {
+          // Caso: chat en vivo
+          await apiFetch(
+            `/tickets/chat/${activeTicketId}/responder_ciudadano`,
+            {
+              method: "POST",
+              body: { comentario: text },
+            },
+          );
+        } else {
+          // Caso: todavía con el bot
+          const payload = { pregunta: text, contexto_previo: contexto };
+          const data = await apiFetch<any>("/ask", {
+            method: "POST",
+            body: payload,
+          });
+
+          setContexto(data.contexto_actualizado || {});
+
+          const botMessage: Message = {
+            id: Date.now(),
+            text: data?.respuesta || "⚠️ No se pudo generar una respuesta.",
+            isBot: true,
+            timestamp: new Date(),
+            botones: data?.botones || [],
+          };
+          setMessages((prev) => [...prev, botMessage]);
+
+          if (data.ticket_id) {
+            setActiveTicketId(data.ticket_id);
+            ultimoMensajeIdRef.current = 0;
+          }
+        }
+      } catch (error) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: Date.now(),
+            text: "⚠️ No se pudo conectar con el servidor.",
+            isBot: true,
+            timestamp: new Date(),
+          },
+        ]);
+      } finally {
+        setIsTyping(false);
+      }
+    },
+    [contexto, activeTicketId, esperandoDireccion],
+  );
+
+  // Polling para chat en vivo
+  useEffect(() => {
+    const fetchNewMessages = async () => {
+      if (!activeTicketId) return;
+      try {
+        const data = await apiFetch<{ estado_chat: string; mensajes: any[] }>(
+          `/tickets/chat/${activeTicketId}/mensajes?ultimo_mensaje_id=${ultimoMensajeIdRef.current}`,
+        );
+        if (data.mensajes && data.mensajes.length > 0) {
+          const nuevosMensajes: Message[] = data.mensajes.map((msg) => ({
+            id: msg.id,
+            text: msg.texto,
+            isBot: msg.es_admin,
+            timestamp: new Date(msg.fecha),
+          }));
+          setMessages((prev) => [...prev, ...nuevosMensajes]);
+          ultimoMensajeIdRef.current =
+            data.mensajes[data.mensajes.length - 1].id;
+        }
+        if (data.estado_chat === "resuelto" || data.estado_chat === "cerrado") {
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+          }
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: Date.now(),
+              text: "Un agente ha finalizado esta conversación.",
+              isBot: true,
+              timestamp: new Date(),
+            },
+          ]);
+        }
+      } catch (error) {
+        console.error("Error durante el polling:", error);
+      }
+    };
+    if (activeTicketId) {
+      fetchNewMessages();
+      pollingIntervalRef.current = setInterval(fetchNewMessages, 5000);
+    }
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+      }
+    };
+  }, [activeTicketId]);
 
   return (
-    <div className="flex flex-col min-h-screen bg-muted/40 dark:bg-gradient-to-tr dark:from-slate-950 dark:to-slate-900 text-foreground py-8 px-4 md:px-6 lg:px-8">
-      <PageHeader onLogout={handleLogout} />
-      <main className="w-full max-w-7xl mx-auto space-y-4">
-        {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {Array.from({ length: 6 }).map((_, index) => (
-              <SkeletonCard key={index} />
-            ))}
+    <div className="min-h-screen flex flex-col bg-background dark:bg-gradient-to-b dark:from-[#0d1014] dark:to-[#161b22] text-foreground">
+      <Navbar />
+
+      <main
+        className={`
+        flex-grow flex flex-col items-center justify-center
+        pt-3 sm:pt-10 pb-2 sm:pb-6
+        transition-all
+      `}
+      >
+        <motion.div
+          layout
+          className={`
+            w-full max-w-[99vw] ${isMobile ? "h-[100svh]" : "sm:w-[480px] h-[83vh]"}
+            flex flex-col
+            rounded-none sm:rounded-3xl 
+            border-0 sm:border border-border
+            shadow-none sm:shadow-2xl
+            bg-card dark:bg-[#20232b]/95
+            backdrop-blur-0 sm:backdrop-blur-xl
+            relative
+            overflow-hidden
+            transition-all
+          `}
+          style={{
+            boxShadow: isMobile
+              ? undefined
+              : "0 8px 64px 0 rgba(30,40,90,0.10)",
+          }}
+        >
+          {/* Mensajes */}
+          <div
+            ref={chatMessagesContainerRef}
+            className={`
+              flex-1 overflow-y-auto
+              p-2 sm:p-4 space-y-3
+              custom-scroll
+              scrollbar-thin scrollbar-thumb-[#90caf9] scrollbar-track-transparent
+              bg-background dark:bg-[#22262b]
+              transition-all
+            `}
+            style={{ minHeight: 0 }}
+          >
+            <AnimatePresence>
+              {messages.map((msg) => (
+                <motion.div
+                  key={msg.id}
+                  initial={{ opacity: 0, y: 14 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 14 }}
+                  transition={{ duration: 0.18 }}
+                >
+                  <ChatMessage
+                    message={msg}
+                    isTyping={isTyping}
+                    onButtonClick={handleSend}
+                  />
+                </motion.div>
+              ))}
+            </AnimatePresence>
+            {isTyping && <TypingIndicator />}
+            <div ref={chatEndRef} />
+            {/* Mensaje de cierre SIEMPRE si corresponde */}
+            {showCierre && showCierre.show && (
+              <div className="my-3 p-3 rounded-lg bg-green-100 text-green-800 text-center font-bold shadow">
+                {showCierre.text}
+              </div>
+            )}
           </div>
-        ) : sortedCategories.length === 0 ? (
-          <div className="text-center text-muted-foreground text-lg mt-16">
-            <Inbox className="w-20 h-20 mx-auto text-gray-400 mb-4" />
-            <h3 className="text-2xl font-semibold text-foreground">No hay pedidos</h3>
-            <p>Aún no se han registrado pedidos. Los nuevos pedidos aparecerán aquí.</p>
+
+          {/* Autocomplete o Input según el estado */}
+          <div
+            className={`
+              bg-gradient-to-t from-background via-card/60 to-transparent dark:from-card dark:via-card/80
+              border-t border-border
+              p-2 sm:p-4
+              flex-shrink-0
+              sticky bottom-0
+              z-20
+              shadow-inner
+              backdrop-blur
+            `}
+          >
+            {esperandoDireccion ? (
+              <div>
+                <AddressAutocomplete
+                  onSelect={(addr) => handleSend(addr)}
+                  autoFocus
+                  placeholder="Ej: Av. Principal 123"
+                  value={
+                    direccionGuardada
+                      ? { label: direccionGuardada, value: direccionGuardada }
+                      : undefined
+                  }
+                  onChange={(opt) =>
+                    setDireccionGuardada(opt ? opt.value : null)
+                  }
+                  persistKey="ultima_direccion"
+                />
+                <button
+                  onClick={handleShareGps}
+                  className="mt-2 text-sm text-primary underline"
+                  type="button"
+                >
+                  Compartir ubicación por GPS
+                </button>
+                <div className="text-xs mt-2 text-muted-foreground">
+                  Escribí o seleccioná tu dirección para el reclamo.
+                </div>
+              </div>
+            ) : !showCierre || !showCierre.show ? (
+              <ChatInput onSendMessage={handleSend} />
+            ) : null}
           </div>
-        ) : (
-          sortedCategories.map(([estado, pedidos]) => (
-            <PedidoCategoryAccordion
-              key={estado}
-              estado={estado}
-              pedidos={pedidos}
-              isOpen={openCategories.has(estado)}
-              onToggle={() => toggleCategory(estado)}
-              onSelect={handleSelectPedido}
-              selectedPedidoId={selectedPedidoId}
-              timezone={timezone}
-              locale={locale}
-            />
-          ))
-        )}
+        </motion.div>
       </main>
     </div>
   );
-}
+};
 
+export default ChatPage;
