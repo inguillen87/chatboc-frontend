@@ -145,11 +145,17 @@ const ChatWidget = ({
       try {
         await apiFetch(`/tickets/chat/${activeTicketId || ''}/ubicacion`, {
           method: "POST",
+          headers: esAnonimo
+            ? { "Anon-Id": anonId }
+            : { Authorization: `Bearer ${finalAuthToken}` },
           body: coords,
         });
         if (activeTicketId) {
           await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, {
             method: "PUT",
+            headers: esAnonimo
+              ? { "Anon-Id": anonId }
+              : { Authorization: `Bearer ${finalAuthToken}` },
             body: coords,
           });
         }
@@ -170,10 +176,16 @@ const ChatWidget = ({
           try {
             await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, {
               method: "POST",
+              headers: esAnonimo
+                ? { "Anon-Id": anonId }
+                : { Authorization: `Bearer ${finalAuthToken}` },
               body: coords,
             });
             await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, {
               method: "PUT",
+              headers: esAnonimo
+                ? { "Anon-Id": anonId }
+                : { Authorization: `Bearer ${finalAuthToken}` },
               body: coords,
             });
           } catch (e) {
@@ -338,10 +350,16 @@ const ChatWidget = ({
           try {
             await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, {
               method: "POST",
+              headers: esAnonimo
+                ? { "Anon-Id": anonId }
+                : { Authorization: `Bearer ${finalAuthToken}` },
               body: { direccion: text },
             });
             await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, {
               method: "PUT",
+              headers: esAnonimo
+                ? { "Anon-Id": anonId }
+                : { Authorization: `Bearer ${finalAuthToken}` },
               body: { direccion: text },
             });
           } catch (e) {
