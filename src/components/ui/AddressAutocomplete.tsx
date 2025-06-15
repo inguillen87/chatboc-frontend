@@ -25,7 +25,7 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   onSelect,
   value,
   onChange,
-  placeholder = "Ej: Av. San Martín 123, Mendoza",
+  placeholder = "Ej: Av. Principal 123",
   className = "",
   autoFocus = false,
   persistKey,

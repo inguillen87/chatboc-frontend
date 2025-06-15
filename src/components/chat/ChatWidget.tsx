@@ -137,6 +137,21 @@ const ChatWidget = ({
     }
   }, []);
 
+  const handleShareGps = useCallback(() => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      const coords = { latitud: pos.coords.latitude, longitud: pos.coords.longitude };
+      try {
+        await apiFetch(`/tickets/chat/${activeTicketId || ''}/ubicacion`, {
+          method: "POST",
+          body: coords,
+        });
+      } catch (e) {
+        console.error("Error al enviar ubicación", e);
+      }
+    });
+  }, [activeTicketId]);
+
   // Sonrisa animada
   useEffect(() => {
     if (!isOpen) {
@@ -542,7 +557,15 @@ const ChatWidget = ({
                 setDireccionGuardada(opt ? opt.value : null)
               }
               persistKey="ultima_direccion"
+            placeholder="Ej: Av. Principal 123"
             />
+            <button
+              onClick={handleShareGps}
+              className="text-primary underline text-sm"
+              type="button"
+            >
+              Compartir ubicación por GPS
+            </button>
             <div className="text-xs text-muted-foreground mt-2">
               Escribí y seleccioná tu dirección para continuar el trámite.
             </div>
