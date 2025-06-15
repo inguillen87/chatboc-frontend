@@ -152,6 +152,12 @@ const ChatPage = () => {
           method: 'POST',
           body: coords,
         });
+        if (activeTicketId) {
+          await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, {
+            method: 'PUT',
+            body: coords,
+          });
+        }
         setForzarDireccion(false);
       } catch (e) {
         console.error('Error al enviar ubicación', e);
@@ -172,6 +178,10 @@ const ChatPage = () => {
           try {
             await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, {
               method: 'POST',
+              body: coords,
+            });
+            await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, {
+              method: 'PUT',
               body: coords,
             });
           } catch (e) {
@@ -199,6 +209,10 @@ const ChatPage = () => {
           try {
             await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, {
               method: 'POST',
+              body: { direccion: text },
+            });
+            await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, {
+              method: 'PUT',
               body: { direccion: text },
             });
           } catch (e) {
