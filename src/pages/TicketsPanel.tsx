@@ -9,7 +9,9 @@ import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { fechaArgentina } from "@/utils/fecha";
+import { formatDate } from "@/utils/fecha";
+import { useDateSettings } from "@/hooks/useDateSettings";
+import { LOCALE_OPTIONS } from "@/utils/localeOptions";
 
 // ----------- TIPOS Y ESTADOS -----------
 type TicketStatus = "nuevo" | "en_proceso" | "derivado" | "resuelto" | "cerrado" | "esperando_agente_en_vivo";
@@ -40,6 +42,7 @@ const ESTADOS: Record<TicketStatus, { label: string; tailwind_class: string }> =
 
 // ----------- MAIN PANEL -----------
 export default function TicketsPanel() {
+  const { timezone, locale, updateSettings } = useDateSettings();
   const [categorizedTickets, setCategorizedTickets] = useState<CategorizedTickets>({});
   const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null);
   const [detailedTicket, setDetailedTicket] = useState<Ticket | null>(null);
@@ -145,6 +148,26 @@ export default function TicketsPanel() {
       <header className="mb-6 max-w-7xl mx-auto w-full">
         <h1 className="text-3xl font-bold text-foreground">Panel de Reclamos y Tickets</h1>
         <p className="text-muted-foreground mt-1">Gestioná todos los tickets de tus usuarios en un solo lugar.</p>
+        <div className="mt-2 max-w-xs">
+          <Select
+            value={locale}
+            onValueChange={(val) => {
+              const opt = LOCALE_OPTIONS.find((o) => o.locale === val);
+              if (opt) updateSettings(opt.timezone, opt.locale);
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Idioma" />
+            </SelectTrigger>
+            <SelectContent>
+              {LOCALE_OPTIONS.map((opt) => (
+                <SelectItem key={opt.locale} value={opt.locale}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </header>
       <div className="w-full max-w-7xl mx-auto space-y-4">
         {sortedCategories.length === 0 && !isLoading ? (
@@ -213,7 +236,7 @@ const TicketCategoryAccordion: FC<{
                   </div>
                   <p className="font-medium text-foreground truncate" title={ticket.asunto}>{ticket.asunto}</p>
                   {ticket.direccion && <p className="text-xs text-muted-foreground truncate" title={ticket.direccion}>{ticket.direccion}</p>}
-                  <p className="text-xs text-muted-foreground text-right mt-1">{fechaArgentina(ticket.fecha)}</p>
+                  <p className="text-xs text-muted-foreground text-right mt-1">{formatDate(ticket.fecha, timezone, locale)}</p>
                 </div>
                 <AnimatePresence>
                   {selectedTicketId === ticket.id && detailedTicket && (
@@ -275,7 +298,7 @@ const TicketTimeline: FC<{ ticket: Ticket; comentarios: Comment[] }> = ({ ticket
             <span className="absolute left-[-9px] top-1.5 w-3 h-3 rounded-full border-2 border-primary bg-card" />
             <div>
               <span className="font-medium">{ev.descripcion}</span>
-              <span className="ml-2 text-muted-foreground">{fechaArgentina(ev.fecha)}</span>
+              <span className="ml-2 text-muted-foreground">{formatDate(ev.fecha, timezone, locale)}</span>
             </div>
           </li>
         ))}
@@ -481,7 +504,7 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
                 {!comment.es_admin && <AvatarIcon type="user" />}
                 <div className={cn("max-w-md rounded-lg px-4 py-2", comment.es_admin ? "bg-primary text-primary-foreground rounded-br-none" : "bg-muted text-foreground rounded-bl-none")}>
                   <p className="text-sm">{comment.comentario}</p>
-                  <p className="text-xs opacity-70 text-right mt-1">{fechaArgentina(comment.fecha)}</p>
+                  <p className="text-xs opacity-70 text-right mt-1">{formatDate(comment.fecha, timezone, locale)}</p>
                 </div>
                 {comment.es_admin && <AvatarIcon type="admin" />}
               </div>
