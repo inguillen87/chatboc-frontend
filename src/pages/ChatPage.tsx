@@ -88,9 +88,9 @@ const ChatPage = () => {
   const chatMessagesContainerRef = useRef<HTMLDivElement>(null);
 
   const authToken = safeLocalStorage.getItem("authToken");
-  const authHeaders: Record<string, string> = authToken
+  const authHeaders = authToken
     ? { Authorization: `Bearer ${authToken}` }
-    : {};
+    : undefined;
 
   const [contexto, setContexto] = useState({});
   const [activeTicketId, setActiveTicketId] = useState<number | null>(null);
