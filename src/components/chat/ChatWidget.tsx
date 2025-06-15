@@ -119,6 +119,7 @@ const ChatWidget = ({
 
   // Para Google Autocomplete
   const [esperandoDireccion, setEsperandoDireccion] = useState(false);
+  const [forzarDireccion, setForzarDireccion] = useState(false);
   const [direccionGuardada, setDireccionGuardada] = useState<string | null>(null);
   // Mensaje de cierre final
   const [showCierre, setShowCierre] = useState<{
@@ -146,10 +147,34 @@ const ChatWidget = ({
           method: "POST",
           body: coords,
         });
+        setForzarDireccion(false);
       } catch (e) {
         console.error("Error al enviar ubicación", e);
       }
     });
+  }, [activeTicketId]);
+
+  // Solicitar GPS automáticamente al iniciar chat en vivo
+  useEffect(() => {
+    if (!activeTicketId) return;
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const coords = { latitud: pos.coords.latitude, longitud: pos.coords.longitude };
+          try {
+            await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, {
+              method: "POST",
+              body: coords,
+            });
+          } catch (e) {
+            console.error("Error al enviar ubicación", e);
+          }
+        },
+        () => setForzarDireccion(true),
+      );
+    } else {
+      setForzarDireccion(true);
+    }
   }, [activeTicketId]);
 
   // Sonrisa animada
@@ -209,11 +234,11 @@ const ChatWidget = ({
 
   // --- AUTO-TOGGLE del autocomplete según mensaje del bot ---
   useEffect(() => {
-    const autocomplete = shouldShowAutocomplete(messages, contexto);
+    const autocomplete = shouldShowAutocomplete(messages, contexto) || forzarDireccion;
     setEsperandoDireccion(autocomplete);
     if (!autocomplete) setShowCierre(checkCierreExito(messages));
     else setShowCierre(null);
-  }, [messages, contexto]);
+  }, [messages, contexto, forzarDireccion]);
 
   // Cargar rubros
   const cargarRubros = async () => {
@@ -296,8 +321,19 @@ const ChatWidget = ({
       }
       if (esperandoDireccion) {
         setEsperandoDireccion(false);
+        setForzarDireccion(false);
         safeLocalStorage.setItem("ultima_direccion", text);
         setDireccionGuardada(text);
+        if (activeTicketId) {
+          try {
+            await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, {
+              method: "POST",
+              body: { direccion: text },
+            });
+          } catch (e) {
+            console.error("Error al enviar dirección", e);
+          }
+        }
       }
       setShowCierre(null);
 
