@@ -9,19 +9,7 @@ import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-
-// -------- UTIL FECHA ARGENTINA --------
-function fechaArgentina(iso: string) {
-  if (!iso) return "";
-  const fecha = new Date(iso);
-  return fecha.toLocaleString("es-AR", {
-    timeZone: "America/Argentina/Buenos_Aires",
-    day: "2-digit",
-    month: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).replace(",", "");
-}
+import { fechaArgentina } from "@/utils/fecha";
 
 // ----------- TIPOS Y ESTADOS -----------
 type TicketStatus = "nuevo" | "en_proceso" | "derivado" | "resuelto" | "cerrado" | "esperando_agente_en_vivo";

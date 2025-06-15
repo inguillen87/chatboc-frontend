@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { AlertCircle, ChevronLeft, ChevronUp, ChevronDown, LogOut, Inbox, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { fechaArgentina } from '@/utils/fecha';
 
 // ---------- Tipos ----------
 interface Pedido {
@@ -71,7 +72,7 @@ const PedidoCard: FC<{ pedido: Pedido; onSelect: (p: Pedido) => void; selected: 
     </div>
     <p className="font-medium text-foreground truncate" title={pedido.asunto}>{pedido.asunto}</p>
     <p className="text-xs text-muted-foreground truncate">
-      {new Date(pedido.fecha_creacion).toLocaleDateString('es-AR')}
+      {fechaArgentina(pedido.fecha_creacion)}
     </p>
   </div>
 );
@@ -88,7 +89,7 @@ const PedidoDetail: FC<{ pedido: Pedido; onClose: () => void }> = ({ pedido, onC
       <p><strong>Cliente:</strong> {pedido.nombre_cliente || 'N/A'}</p>
       <p><strong>Email:</strong> {pedido.email_cliente || 'N/A'}</p>
       <p><strong>Teléfono:</strong> {pedido.telefono_cliente || 'N/A'}</p>
-      <p><strong>Fecha:</strong> {new Date(pedido.fecha_creacion).toLocaleDateString('es-AR')}</p>
+      <p><strong>Fecha:</strong> {fechaArgentina(pedido.fecha_creacion)}</p>
       <p><strong>Rubro:</strong> <span className="capitalize">{pedido.rubro}</span></p>
     </div>
     {pedido.detalles && pedido.detalles.length > 0 && (
