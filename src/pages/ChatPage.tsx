@@ -95,6 +95,7 @@ const ChatPage = () => {
 
   // Estado de input dirección / cierre éxito
   const [esperandoDireccion, setEsperandoDireccion] = useState(false);
+  const [forzarDireccion, setForzarDireccion] = useState(false);
   const [direccionGuardada, setDireccionGuardada] = useState<string | null>(null);
   const [showCierre, setShowCierre] = useState<{
     show: boolean;
@@ -127,15 +128,17 @@ const ChatPage = () => {
 
   // Scroll y cierre UX
   useEffect(() => {
-    setEsperandoDireccion(shouldShowAutocomplete(messages, contexto));
-    if (!shouldShowAutocomplete(messages, contexto)) {
+    const needsAddress =
+      shouldShowAutocomplete(messages, contexto) || forzarDireccion;
+    setEsperandoDireccion(needsAddress);
+    if (!needsAddress) {
       setShowCierre(checkCierreExito(messages));
     } else {
       setShowCierre(null);
     }
     const timer = setTimeout(() => scrollToBottom(), 150);
     return () => clearTimeout(timer);
-  }, [messages, isTyping, scrollToBottom, contexto]);
+  }, [messages, isTyping, scrollToBottom, contexto, forzarDireccion]);
 
   const handleShareGps = useCallback(() => {
     if (!navigator.geolocation) return;
@@ -149,10 +152,37 @@ const ChatPage = () => {
           method: 'POST',
           body: coords,
         });
+        setForzarDireccion(false);
       } catch (e) {
         console.error('Error al enviar ubicación', e);
       }
     });
+  }, [activeTicketId]);
+
+  // Solicitar GPS automáticamente al iniciar chat en vivo
+  useEffect(() => {
+    if (!activeTicketId) return;
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const coords = {
+            latitud: pos.coords.latitude,
+            longitud: pos.coords.longitude,
+          };
+          try {
+            await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, {
+              method: 'POST',
+              body: coords,
+            });
+          } catch (e) {
+            console.error('Error al enviar ubicación', e);
+          }
+        },
+        () => setForzarDireccion(true),
+      );
+    } else {
+      setForzarDireccion(true);
+    }
   }, [activeTicketId]);
 
   // Maneja envío de mensaje O dirección seleccionada
@@ -162,8 +192,19 @@ const ChatPage = () => {
 
       if (esperandoDireccion) {
         setEsperandoDireccion(false);
+        setForzarDireccion(false);
         safeLocalStorage.setItem("ultima_direccion", text);
         setDireccionGuardada(text);
+        if (activeTicketId) {
+          try {
+            await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, {
+              method: 'POST',
+              body: { direccion: text },
+            });
+          } catch (e) {
+            console.error('Error al enviar dirección', e);
+          }
+        }
       }
       setShowCierre(null);
 
