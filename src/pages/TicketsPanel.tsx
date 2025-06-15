@@ -30,8 +30,14 @@ interface Ticket {
   id: number; tipo: 'pyme' | 'municipio'; nro_ticket: number; asunto: string; estado: TicketStatus; fecha: string;
   detalles?: string; comentarios?: Comment[]; nombre_usuario?: string; email_usuario?: string; telefono?: string; direccion?: string; archivo_url?: string; categoria?: string;
   municipio_nombre?: string; // <- Opción para relacionar con municipio
+  latitud?: number | null;
+  longitud?: number | null;
 }
-interface TicketSummary extends Omit<Ticket, 'detalles' | 'comentarios'> { direccion?: string; }
+interface TicketSummary extends Omit<Ticket, 'detalles' | 'comentarios'> {
+  direccion?: string;
+  latitud?: number | null;
+  longitud?: number | null;
+}
 type CategorizedTickets = { [category: string]: TicketSummary[]; };
 
 const ESTADOS_ORDEN_PRIORIDAD: TicketStatus[] = ["nuevo", "en_proceso", "esperando_agente_en_vivo", "derivado", "resuelto", "cerrado"];
@@ -300,31 +306,24 @@ const TicketTimeline: FC<{ ticket: Ticket; comentarios: Comment[] }> = ({ ticket
 
 // --------- TicketMap robusto ---------
 const buildFullAddress = (ticket: Ticket) => {
-  // Si la dirección ya tiene ciudad/provincia, la dejamos; si no, le agregamos info del municipio.
   let direccion = ticket.direccion || "";
-  const partes = direccion.split(",");
-  const tieneCiudad =
-    direccion.toLowerCase().includes("mendoza") ||
-    direccion.toLowerCase().includes("junín") ||
-    direccion.toLowerCase().includes("san rafael") ||
-    direccion.toLowerCase().includes("argentina");
-
-  if (!tieneCiudad) {
-    // Usa el municipio si existe (ej: "Junín, Mendoza, Argentina")
-    if (ticket.municipio_nombre) {
-      direccion += (direccion ? ", " : "") + ticket.municipio_nombre + ", Mendoza, Argentina";
-    } else {
-      direccion += (direccion ? ", " : "") + "Mendoza, Argentina";
-    }
+  if (
+    ticket.municipio_nombre &&
+    !direccion.toLowerCase().includes(ticket.municipio_nombre.toLowerCase())
+  ) {
+    direccion += (direccion ? ", " : "") + ticket.municipio_nombre;
   }
-  // Si sigue quedando muy corto, dale un fallback (solo para pruebas)
-  if (direccion.trim().length < 8) direccion = "Junín, Mendoza, Argentina";
   return direccion;
 };
 
 const TicketMap: FC<{ ticket: Ticket }> = ({ ticket }) => {
   const direccionCompleta = buildFullAddress(ticket);
-  return ticket.direccion ? (
+  const hasCoords =
+    typeof ticket.latitud === 'number' && typeof ticket.longitud === 'number';
+  const mapSrc = hasCoords
+    ? `https://www.google.com/maps?q=${ticket.latitud},${ticket.longitud}&output=embed`
+    : `https://www.google.com/maps?q=${encodeURIComponent(direccionCompleta)}&output=embed`;
+  return ticket.direccion || hasCoords ? (
     <div className="mb-6">
       <h4 className="font-semibold mb-2">Ubicación aproximada</h4>
       <div className="w-full rounded overflow-hidden" style={{ height: 180 }}>
@@ -334,9 +333,7 @@ const TicketMap: FC<{ ticket: Ticket }> = ({ ticket }) => {
           style={{ border: 0 }}
           loading="lazy"
           allowFullScreen
-          src={`https://www.google.com/maps?q=${encodeURIComponent(
-            direccionCompleta
-          )}&output=embed`}
+          src={mapSrc}
         />
       </div>
       <div className="text-xs mt-1 text-muted-foreground truncate">{direccionCompleta}</div>

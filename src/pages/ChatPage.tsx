@@ -137,6 +137,24 @@ const ChatPage = () => {
     return () => clearTimeout(timer);
   }, [messages, isTyping, scrollToBottom, contexto]);
 
+  const handleShareGps = useCallback(() => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      const coords = {
+        latitud: pos.coords.latitude,
+        longitud: pos.coords.longitude,
+      };
+      try {
+        await apiFetch(`/tickets/chat/${activeTicketId || ''}/ubicacion`, {
+          method: 'POST',
+          body: coords,
+        });
+      } catch (e) {
+        console.error('Error al enviar ubicación', e);
+      }
+    });
+  }, [activeTicketId]);
+
   // Maneja envío de mensaje O dirección seleccionada
   const handleSend = useCallback(
     async (text: string) => {
@@ -347,7 +365,7 @@ const ChatPage = () => {
                 <AddressAutocomplete
                   onSelect={(addr) => handleSend(addr)}
                   autoFocus
-                  placeholder="Ej: Av. San Martín 123, Junín, Mendoza"
+                  placeholder="Ej: Av. Principal 123"
                   value={
                     direccionGuardada
                       ? { label: direccionGuardada, value: direccionGuardada }
@@ -358,6 +376,13 @@ const ChatPage = () => {
                   }
                   persistKey="ultima_direccion"
                 />
+                <button
+                  onClick={handleShareGps}
+                  className="mt-2 text-sm text-primary underline"
+                  type="button"
+                >
+                  Compartir ubicación por GPS
+                </button>
                 <div className="text-xs mt-2 text-muted-foreground">
                   Escribí o seleccioná tu dirección para el reclamo.
                 </div>

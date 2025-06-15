@@ -20,4 +20,7 @@ export interface Ticket {
   nombre_empresa?: string;
   email?: string;
   telefono?: string;
+  /** Coordenadas GPS opcionales */
+  latitud?: number | null;
+  longitud?: number | null;
 }
