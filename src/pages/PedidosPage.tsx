@@ -9,6 +9,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { AlertCircle, ChevronLeft, ChevronUp, ChevronDown, LogOut, Inbox, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { formatDate } from '@/utils/fecha';
+import { useDateSettings } from '@/hooks/useDateSettings';
+import { LOCALE_OPTIONS } from '@/utils/localeOptions';
 
 // ---------- Tipos ----------
 interface Pedido {
@@ -71,7 +74,7 @@ const PedidoCard: FC<{ pedido: Pedido; onSelect: (p: Pedido) => void; selected: 
     </div>
     <p className="font-medium text-foreground truncate" title={pedido.asunto}>{pedido.asunto}</p>
     <p className="text-xs text-muted-foreground truncate">
-      {new Date(pedido.fecha_creacion).toLocaleDateString('es-AR')}
+      {formatDate(pedido.fecha_creacion, timezone, locale)}
     </p>
   </div>
 );
@@ -88,7 +91,7 @@ const PedidoDetail: FC<{ pedido: Pedido; onClose: () => void }> = ({ pedido, onC
       <p><strong>Cliente:</strong> {pedido.nombre_cliente || 'N/A'}</p>
       <p><strong>Email:</strong> {pedido.email_cliente || 'N/A'}</p>
       <p><strong>Teléfono:</strong> {pedido.telefono_cliente || 'N/A'}</p>
-      <p><strong>Fecha:</strong> {new Date(pedido.fecha_creacion).toLocaleDateString('es-AR')}</p>
+      <p><strong>Fecha:</strong> {formatDate(pedido.fecha_creacion, timezone, locale)}</p>
       <p><strong>Rubro:</strong> <span className="capitalize">{pedido.rubro}</span></p>
     </div>
     {pedido.detalles && pedido.detalles.length > 0 && (
@@ -171,6 +174,7 @@ const PedidoCategoryAccordion: FC<{
 
 const PageHeader: FC<{ onLogout: () => void }> = ({ onLogout }) => {
   const navigate = useNavigate();
+  const { locale, updateSettings } = useDateSettings();
   return (
     <div className="w-full max-w-7xl mx-auto mb-8 flex items-center justify-between">
       <Button variant="ghost" onClick={() => navigate('/perfil')} className="text-muted-foreground hover:text-foreground">
@@ -179,6 +183,26 @@ const PageHeader: FC<{ onLogout: () => void }> = ({ onLogout }) => {
       <h1 className="text-3xl sm:text-4xl font-extrabold text-primary leading-tight text-center flex-1 hidden sm:block">
         Panel de Pedidos
       </h1>
+      <div className="max-w-xs mr-4">
+        <Select
+          value={locale}
+          onValueChange={(val) => {
+            const opt = LOCALE_OPTIONS.find((o) => o.locale === val);
+            if (opt) updateSettings(opt.timezone, opt.locale);
+          }}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Idioma" />
+          </SelectTrigger>
+          <SelectContent>
+            {LOCALE_OPTIONS.map((opt) => (
+              <SelectItem key={opt.locale} value={opt.locale}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
       <Button
         variant="outline"
         className="h-10 px-5 text-sm border-destructive text-destructive hover:bg-destructive/10"
@@ -193,6 +217,7 @@ const PageHeader: FC<{ onLogout: () => void }> = ({ onLogout }) => {
 // ---------- Página Principal ----------
 export default function PedidosPage() {
   const navigate = useNavigate();
+  const { timezone, locale, updateSettings } = useDateSettings();
   const [categorizedPedidos, setCategorizedPedidos] = useState<CategorizedPedidos>({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

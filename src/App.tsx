@@ -27,6 +27,7 @@ import Iframe from "./pages/Iframe";
 
 // Importá tu componente TicketsPanelPro aquí
 import TicketsPanelPro from "./pages/TicketsPanel";
+import { DateSettingsProvider } from "./hooks/useDateSettings";
 // --- NUEVO: Importa tu componente PedidosPage aquí ---
 const queryClient = new QueryClient();
 
@@ -74,9 +75,11 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
-      <BrowserRouter>
-        <AppRoutes />
-      </BrowserRouter>
+      <DateSettingsProvider>
+        <BrowserRouter>
+          <AppRoutes />
+        </BrowserRouter>
+      </DateSettingsProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );
