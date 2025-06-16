@@ -146,7 +146,7 @@ const ChatWidget = ({
   }, []);
 
   const handleShareGps = useCallback(() => {
-    if (!navigator.geolocation) return;
+    if (!activeTicketId || !navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(async (pos) => {
       const coords = { latitud: pos.coords.latitude, longitud: pos.coords.longitude };
       try {
@@ -155,24 +155,23 @@ const ChatWidget = ({
           : finalAuthToken
             ? { Authorization: `Bearer ${finalAuthToken}` }
             : {};
-        await apiFetch(`/tickets/chat/${activeTicketId || ''}/ubicacion`, {
+        await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, {
           method: "POST",
           headers: authHeaders,
           body: coords,
         });
-        if (activeTicketId) {
-          await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, {
-            method: "PUT",
+        await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, {
+          method: "PUT",
           headers: authHeaders,
-            body: coords,
-          });
-        }
+          body: coords,
+        });
         setForzarDireccion(false);
+        fetchTicket();
       } catch (e) {
         console.error("Error al enviar ubicación", e);
       }
     });
-  }, [activeTicketId]);
+  }, [activeTicketId, fetchTicket]);
 
   useEffect(() => {
     fetchTicket();
@@ -389,15 +388,16 @@ const ChatWidget = ({
                 ? { Authorization: `Bearer ${finalAuthToken}` }
                 : {};
             await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, {
-          method: "POST",
-          headers: authHeaders,
+              method: "POST",
+              headers: authHeaders,
               body: { direccion: text },
             });
             await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, {
-          method: "PUT",
-          headers: authHeaders,
-          body: { direccion: text },
+              method: "PUT",
+              headers: authHeaders,
+              body: { direccion: text },
             });
+            fetchTicket();
           } catch (e) {
             console.error("Error al enviar dirección", e);
           }
