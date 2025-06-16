@@ -272,6 +272,7 @@ const MAX_EVENTOS_RESUMIDOS = 4;
 
 // --------- TicketTimeline ---------
 const TicketTimeline: FC<{ ticket: Ticket; comentarios: Comment[] }> = ({ ticket, comentarios }) => {
+  const { timezone, locale } = useDateSettings();
   const [verTodo, setVerTodo] = useState(false);
 
   // Armá la lista completa de eventos
@@ -359,6 +360,7 @@ const CATEGORIAS_CHAT_EN_VIVO = [
 ];
 
 const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => void }> = ({ ticket, onTicketUpdate }) => {
+  const { timezone, locale } = useDateSettings();
   const [newMessage, setNewMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [comentarios, setComentarios] = useState<Comment[]>(ticket.comentarios || []);
