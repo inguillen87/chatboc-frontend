@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { apiFetch } from "@/utils/api";
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
+import TicketMap from "@/components/TicketMap";
 
 // Frases para detectar pedido de dirección
 const FRASES_DIRECCION = [
@@ -94,6 +95,12 @@ const authHeaders: Record<string, string> = authToken
 
   const [contexto, setContexto] = useState({});
   const [activeTicketId, setActiveTicketId] = useState<number | null>(null);
+  const [ticketInfo, setTicketInfo] = useState<{
+    direccion?: string | null;
+    latitud?: number | null;
+    longitud?: number | null;
+    municipio_nombre?: string | null;
+  } | null>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const ultimoMensajeIdRef = useRef<number>(0);
   const isMobile = useIsMobile();
@@ -106,6 +113,25 @@ const authHeaders: Record<string, string> = authToken
     show: boolean;
     text: string;
   } | null>(null);
+
+  const fetchTicketInfo = useCallback(async () => {
+    if (!activeTicketId) return;
+    try {
+      const data = await apiFetch<{
+        direccion?: string | null;
+        latitud?: number | null;
+        longitud?: number | null;
+        municipio_nombre?: string | null;
+      }>(`/tickets/municipio/${activeTicketId}`, { headers: authHeaders });
+      setTicketInfo(data);
+    } catch (e) {
+      console.error('Error al refrescar ticket:', e);
+    }
+  }, [activeTicketId]);
+
+  useEffect(() => {
+    fetchTicketInfo();
+  }, [activeTicketId, fetchTicketInfo]);
 
   const scrollToBottom = useCallback(() => {
     if (chatMessagesContainerRef.current) {
@@ -143,7 +169,7 @@ const authHeaders: Record<string, string> = authToken
     }
     const timer = setTimeout(() => scrollToBottom(), 150);
     return () => clearTimeout(timer);
-  }, [messages, isTyping, scrollToBottom, contexto, forzarDireccion]);
+  }, [messages, isTyping, scrollToBottom, contexto, forzarDireccion, ticketInfo]);
 
   const handleShareGps = useCallback(() => {
     if (!navigator.geolocation) return;
@@ -327,6 +353,7 @@ const authHeaders: Record<string, string> = authToken
             },
           ]);
         }
+        await fetchTicketInfo();
       } catch (error) {
         console.error("Error durante el polling:", error);
       }
@@ -404,6 +431,7 @@ const authHeaders: Record<string, string> = authToken
               ))}
             </AnimatePresence>
             {isTyping && <TypingIndicator />}
+            {ticketInfo && <TicketMap ticket={ticketInfo} />}
             <div ref={chatEndRef} />
             {/* Mensaje de cierre SIEMPRE si corresponde */}
             {showCierre && showCierre.show && (
