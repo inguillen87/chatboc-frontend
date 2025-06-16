@@ -210,6 +210,10 @@ const TicketCategoryAccordion: FC<{
 <<<<<<< jfa1vl-codex/corregir-error-de-timezone-no-definido
   // Get timezone and locale for consistent date formatting
 =======
+<<<<<<< jfa1vl-codex/corregir-error-de-timezone-no-definido
+  // Get timezone and locale for consistent date formatting
+=======
+>>>>>>> main
 >>>>>>> main
   const { timezone, locale } = useDateSettings();
   return (
