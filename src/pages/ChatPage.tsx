@@ -172,31 +172,30 @@ const authHeaders: Record<string, string> = authToken
   }, [messages, isTyping, scrollToBottom, contexto, forzarDireccion, ticketInfo]);
 
   const handleShareGps = useCallback(() => {
-    if (!navigator.geolocation) return;
+    if (!activeTicketId || !navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(async (pos) => {
       const coords = {
         latitud: pos.coords.latitude,
         longitud: pos.coords.longitude,
       };
       try {
-        await apiFetch(`/tickets/chat/${activeTicketId || ''}/ubicacion`, {
+        await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, {
           method: 'POST',
           headers: authHeaders,
           body: coords,
         });
-        if (activeTicketId) {
-          await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, {
-            method: 'PUT',
-            headers: authHeaders,
-            body: coords,
-          });
-        }
+        await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, {
+          method: 'PUT',
+          headers: authHeaders,
+          body: coords,
+        });
         setForzarDireccion(false);
+        fetchTicketInfo();
       } catch (e) {
         console.error('Error al enviar ubicación', e);
       }
     });
-  }, [activeTicketId]);
+  }, [activeTicketId, fetchTicketInfo]);
 
   // Solicitar GPS automáticamente al iniciar chat en vivo
   useEffect(() => {
@@ -252,6 +251,7 @@ const authHeaders: Record<string, string> = authToken
               headers: authHeaders,
               body: { direccion: text },
             });
+            fetchTicketInfo();
           } catch (e) {
             console.error('Error al enviar dirección', e);
           }
