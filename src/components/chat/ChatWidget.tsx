@@ -150,25 +150,13 @@ const ChatWidget = ({
             : {};
         await apiFetch(`/tickets/chat/${activeTicketId || ''}/ubicacion`, {
           method: "POST",
-<<<<<<< 9mtkqf-codex/corregir-problemas-con-la-dirección-en-el-panel-de-admin
           headers: authHeaders,
-=======
-          headers: esAnonimo
-            ? { "Anon-Id": anonId }
-            : { Authorization: `Bearer ${finalAuthToken}` },
->>>>>>> main
           body: coords,
         });
         if (activeTicketId) {
           await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, {
             method: "PUT",
-<<<<<<< 9mtkqf-codex/corregir-problemas-con-la-dirección-en-el-panel-de-admin
-            headers: authHeaders,
-=======
-            headers: esAnonimo
-              ? { "Anon-Id": anonId }
-              : { Authorization: `Bearer ${finalAuthToken}` },
->>>>>>> main
+          headers: authHeaders,
             body: coords,
           });
         }
@@ -193,26 +181,14 @@ const ChatWidget = ({
                 ? { Authorization: `Bearer ${finalAuthToken}` }
                 : {};
             await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, {
-              method: "POST",
-<<<<<<< 9mtkqf-codex/corregir-problemas-con-la-dirección-en-el-panel-de-admin
-              headers: authHeaders,
-=======
-              headers: esAnonimo
-                ? { "Anon-Id": anonId }
-                : { Authorization: `Bearer ${finalAuthToken}` },
->>>>>>> main
+          method: "POST",
+          headers: authHeaders,
               body: coords,
             });
             await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, {
-              method: "PUT",
-<<<<<<< 9mtkqf-codex/corregir-problemas-con-la-dirección-en-el-panel-de-admin
-              headers: authHeaders,
-=======
-              headers: esAnonimo
-                ? { "Anon-Id": anonId }
-                : { Authorization: `Bearer ${finalAuthToken}` },
->>>>>>> main
-              body: coords,
+          method: "PUT",
+          headers: authHeaders,
+          body: coords,
             });
           } catch (e) {
             console.error("Error al enviar ubicación", e);
@@ -381,26 +357,14 @@ const ChatWidget = ({
                 ? { Authorization: `Bearer ${finalAuthToken}` }
                 : {};
             await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, {
-              method: "POST",
-<<<<<<< 9mtkqf-codex/corregir-problemas-con-la-dirección-en-el-panel-de-admin
-              headers: authHeaders,
-=======
-              headers: esAnonimo
-                ? { "Anon-Id": anonId }
-                : { Authorization: `Bearer ${finalAuthToken}` },
->>>>>>> main
+          method: "POST",
+          headers: authHeaders,
               body: { direccion: text },
             });
             await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, {
-              method: "PUT",
-<<<<<<< 9mtkqf-codex/corregir-problemas-con-la-dirección-en-el-panel-de-admin
-              headers: authHeaders,
-=======
-              headers: esAnonimo
-                ? { "Anon-Id": anonId }
-                : { Authorization: `Bearer ${finalAuthToken}` },
->>>>>>> main
-              body: { direccion: text },
+          method: "PUT",
+          headers: authHeaders,
+          body: { direccion: text },
             });
           } catch (e) {
             console.error("Error al enviar dirección", e);

@@ -87,16 +87,10 @@ const ChatPage = () => {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatMessagesContainerRef = useRef<HTMLDivElement>(null);
 
-  const authToken = safeLocalStorage.getItem("authToken");
-<<<<<<< 9mtkqf-codex/corregir-problemas-con-la-dirección-en-el-panel-de-admin
-  const authHeaders: Record<string, string> = authToken
-    ? { Authorization: `Bearer ${authToken}` }
-    : {};
-=======
-  const authHeaders = authToken
-    ? { Authorization: `Bearer ${authToken}` }
-    : undefined;
->>>>>>> main
+const authToken = safeLocalStorage.getItem("authToken");
+const authHeaders: Record<string, string> = authToken
+  ? { Authorization: `Bearer ${authToken}` }
+  : {};
 
   const [contexto, setContexto] = useState({});
   const [activeTicketId, setActiveTicketId] = useState<number | null>(null);
