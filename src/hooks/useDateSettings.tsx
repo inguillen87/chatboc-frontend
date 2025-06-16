@@ -15,8 +15,12 @@ const DateSettingsContext = React.createContext<DateSettingsContextValue>({
 });
 
 export const DateSettingsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const browserTz =
+    typeof Intl !== 'undefined'
+      ? Intl.DateTimeFormat().resolvedOptions().timeZone
+      : undefined;
   const [timezone, setTimezone] = useState(
-    safeLocalStorage.getItem('timezone') || TIMEZONE
+    safeLocalStorage.getItem('timezone') || browserTz || TIMEZONE
   );
   const [locale, setLocale] = useState(
     safeLocalStorage.getItem('locale') || LOCALE
