@@ -208,11 +208,15 @@ const TicketCategoryAccordion: FC<{
   onTicketDetailUpdate: (ticket: Ticket) => void;
 }> = ({ category, tickets, onSelectTicket, isOpen, onToggle, selectedTicketId, detailedTicket, onTicketDetailUpdate }) => {
 <<<<<<< jfa1vl-codex/corregir-error-de-timezone-no-definido
+  // Ensure timezone and locale are defined before formatting dates
+=======
+<<<<<<< jfa1vl-codex/corregir-error-de-timezone-no-definido
   // Get timezone and locale for consistent date formatting
 =======
 <<<<<<< jfa1vl-codex/corregir-error-de-timezone-no-definido
   // Get timezone and locale for consistent date formatting
 =======
+>>>>>>> main
 >>>>>>> main
 >>>>>>> main
   const { timezone, locale } = useDateSettings();
