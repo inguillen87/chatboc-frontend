@@ -92,3 +92,16 @@ You can embed the floating chat widget on any site by loading `widget.js` and pa
 
 This snippet loads the widget without needing an iframe and creates a floating bubble styled just like on chatboc.ar.
 You can also pass `data-theme="dark"` or `data-theme="light"` to force a specific theme inside the widget.
+
+## Live ticket location
+
+The application displays a map only when the backend provides location
+information. Each ticket must include either numeric `latitud` and
+`longitud` fields or a text `direccion`. While a ticket chat is open,
+the frontend polls `/tickets/{tipo}/{id}` every five seconds and updates
+the map with any new coordinates received. If no coordinates are
+returned, the map remains hidden.
+
+To see real‑time tracking, ensure the backend periodically sends the
+current coordinates for each ticket. Once those values are present, the
+map will refresh automatically without additional frontend changes.
