@@ -206,7 +206,9 @@ const TicketCategoryAccordion: FC<{
   selectedTicketId: number | null;
   detailedTicket: Ticket | null;
   onTicketDetailUpdate: (ticket: Ticket) => void;
-}> = ({ category, tickets, onSelectTicket, isOpen, onToggle, selectedTicketId, detailedTicket, onTicketDetailUpdate }) => (
+}> = ({ category, tickets, onSelectTicket, isOpen, onToggle, selectedTicketId, detailedTicket, onTicketDetailUpdate }) => {
+  const { timezone, locale } = useDateSettings();
+  return (
   <motion.div layout className="bg-card dark:bg-slate-800/80 border border-border dark:border-slate-700 rounded-xl shadow-md overflow-hidden" initial={{ borderRadius: 12 }}>
     <motion.header layout initial={false} onClick={onToggle} className="p-4 flex justify-between items-center cursor-pointer hover:bg-muted/50 dark:hover:bg-slate-700/50 transition-colors">
       <div className="flex items-center gap-3">
@@ -266,7 +268,8 @@ const TicketCategoryAccordion: FC<{
       )}
     </AnimatePresence>
   </motion.div>
-);
+  );
+};
 
 const MAX_EVENTOS_RESUMIDOS = 4;
 
