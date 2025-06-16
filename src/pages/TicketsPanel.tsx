@@ -207,6 +207,10 @@ const TicketCategoryAccordion: FC<{
   detailedTicket: Ticket | null;
   onTicketDetailUpdate: (ticket: Ticket) => void;
 }> = ({ category, tickets, onSelectTicket, isOpen, onToggle, selectedTicketId, detailedTicket, onTicketDetailUpdate }) => {
+<<<<<<< jfa1vl-codex/corregir-error-de-timezone-no-definido
+  // Get timezone and locale for consistent date formatting
+=======
+>>>>>>> main
   const { timezone, locale } = useDateSettings();
   return (
   <motion.div layout className="bg-card dark:bg-slate-800/80 border border-border dark:border-slate-700 rounded-xl shadow-md overflow-hidden" initial={{ borderRadius: 12 }}>
