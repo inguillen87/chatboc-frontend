@@ -57,12 +57,7 @@ const SkeletonCard = () => (
   </Card>
 );
 
-<<<<<<< 9mtkqf-codex/corregir-problemas-con-la-dirección-en-el-panel-de-admin
 const PedidoCard: FC<{ pedido: Pedido; onSelect: (p: Pedido) => void; selected: boolean; timezone: string; locale: string }> = ({ pedido, onSelect, selected, timezone, locale }) => {
-=======
-const PedidoCard: FC<{ pedido: Pedido; onSelect: (p: Pedido) => void; selected: boolean }> = ({ pedido, onSelect, selected }) => {
-  const { timezone, locale } = useDateSettings();
->>>>>>> main
   return (
     <div
       onClick={() => onSelect(pedido)}
@@ -86,12 +81,7 @@ const PedidoCard: FC<{ pedido: Pedido; onSelect: (p: Pedido) => void; selected: 
   );
 };
 
-<<<<<<< 9mtkqf-codex/corregir-problemas-con-la-dirección-en-el-panel-de-admin
 const PedidoDetail: FC<{ pedido: Pedido; onClose: () => void; timezone: string; locale: string }> = ({ pedido, onClose, timezone, locale }) => {
-=======
-const PedidoDetail: FC<{ pedido: Pedido; onClose: () => void }> = ({ pedido, onClose }) => {
-  const { timezone, locale } = useDateSettings();
->>>>>>> main
   return (
     <div className="bg-card rounded-lg p-4 border border-border shadow-md mt-2">
       <div className="flex justify-between items-center mb-3">

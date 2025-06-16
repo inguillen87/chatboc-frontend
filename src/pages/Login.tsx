@@ -13,9 +13,7 @@ interface LoginResponse {
   token: string;
   name: string;
   email: string;
-  plan: string; // <<<<<<<<<<<<<< AÑADIDO: Asumo que el backend devuelve el plan
-  // También podríamos agregar otras propiedades del user si el backend las devuelve,
-  // como 'rubro', etc., para tener un objeto 'user' completo en localStorage.
+  plan: string;
 }
 
 const Login = () => {
@@ -41,8 +39,8 @@ const Login = () => {
         id: data.id,
         name: data.name,
         email: data.email,
-        token: data.token, // <<<<<<<<<<<<<< INCLUYE EL TOKEN AQUÍ
-        plan: data.plan || "free", // <<<<<<<<<<<<<< INCLUYE EL PLAN AQUÍ (o "free" si el backend no lo envía)
+        token: data.token,
+        plan: data.plan || "free",
       };
       
       safeLocalStorage.setItem("user", JSON.stringify(userToStore));
