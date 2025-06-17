@@ -1,20 +1,14 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, Suspense } from "react";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
-import { motion } from "framer-motion";
-import ChatHeader from "./ChatHeader";
-import ChatMessage from "./ChatMessage";
-import TypingIndicator from "./TypingIndicator";
-import ChatInput from "./ChatInput";
-import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
-import TicketMap from "@/components/TicketMap";
-import { Message } from "@/types/chat";
-import { apiFetch } from "@/utils/api";
-import { safeLocalStorage } from "@/utils/safeLocalStorage";
+
+const ChatPanel = React.lazy(() => import("./ChatPanel"));
 
 const CIRCLE_SIZE = 88;
 const CARD_WIDTH = 370;
 const CARD_HEIGHT = 540;
 
+<<<<<<< 6yu7ac-codex/hacer-widget-de-chatbot-robusto-y-libre-de-errores-de-cors-y
+=======
 const FRASES_DIRECCION = [
   "indicame la dirección",
   "necesito la dirección",
@@ -57,13 +51,13 @@ function getOrCreateAnonId() {
   }
 }
 
+>>>>>>> main
 const ChatWidget = ({
   mode = "standalone",
   initialPosition = { bottom: 30, right: 30 },
-  draggable = true,
   defaultOpen = false,
   widgetId = "chatboc-widget-iframe",
-  authToken: propAuthToken,
+  authToken,
   initialIframeWidth,
   initialIframeHeight,
 }) => {
@@ -71,7 +65,6 @@ const ChatWidget = ({
   const [openWidth, setOpenWidth] = useState<number>(CARD_WIDTH);
   const [openHeight, setOpenHeight] = useState<number>(CARD_HEIGHT);
 
-  // Ajustar dimensiones cuando se usa como iframe sin widget.js
   useEffect(() => {
     if (mode === "iframe") {
       const width = initialIframeWidth
@@ -107,6 +100,9 @@ const ChatWidget = ({
   useEffect(() => {
     sendResizeMessage(isOpen);
   }, [isOpen, sendResizeMessage]);
+<<<<<<< 6yu7ac-codex/hacer-widget-de-chatbot-robusto-y-libre-de-errores-de-cors-y
+
+=======
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [preguntasUsadas, setPreguntasUsadas] = useState(0);
@@ -549,16 +545,11 @@ const ChatWidget = ({
   }, [messages, isTyping, ticketLocation]);
 
   // --- BURBUJA FLOTANTE ---
+>>>>>>> main
   if (!isOpen) {
     return (
-      <motion.div
-        ref={widgetContainerRef}
-        className={`
-          fixed shadow-xl z-[999999]
-          flex items-center justify-center
-          transition-all duration-300
-          cursor-pointer
-        `}
+      <div
+        className="fixed shadow-xl z-[999999] flex items-center justify-center transition-all duration-300 cursor-pointer"
         style={{
           bottom: initialPosition.bottom,
           right: initialPosition.right,
@@ -567,176 +558,28 @@ const ChatWidget = ({
           borderRadius: "50%",
           background: "transparent",
         }}
-      initial={{ opacity: 0, scale: 0.8 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ type: "spring", stiffness: 260, damping: 20 }}
-      whileHover={{ scale: 1.05, rotate: 3 }}
-      whileTap={{ scale: 0.95 }}
-      onClick={() => setIsOpen(true)}
-      aria-label="Abrir chat"
-    >
-      <ChatbocLogoAnimated size={62} smiling={smile} movingEyes={smile} />
-    </motion.div>
-  );
-}
-
-  // --- CARD: CHAT ABIERTO ---
-  return (
-  <motion.div
-    ref={widgetContainerRef}
-    className={`
-      fixed z-[999999]
-      flex flex-col overflow-hidden
-      shadow-2xl border
-      bg-card text-card-foreground
-      border-border
-      transition-all duration-300
-    `}
-    style={{
-      bottom: initialPosition.bottom,
-      right: initialPosition.right,
-      width: mode === "iframe" ? openDims.width : `${CARD_WIDTH}px`,
-      height: mode === "iframe" ? openDims.height : `${CARD_HEIGHT}px`,
-      borderRadius: 24,
-      background: "var(--background)",
-    }}
-    initial={{ opacity: 0, scale: 0.9, y: 20 }}
-    animate={{ opacity: 1, scale: 1, y: 0 }}
-    exit={{ opacity: 0, scale: 0.9, y: 20 }}
-    transition={{ type: "spring", stiffness: 260, damping: 20 }}
-    >
-      <ChatHeader onClose={() => setIsOpen(false)} />
-
-      <div
-        ref={chatContainerRef}
-        className={`
-          flex-1 flex flex-col gap-3 overflow-y-auto overflow-x-hidden
-          px-4 pt-4 pb-2
-          text-card-foreground
-          bg-card
-        `}
+        onClick={() => setIsOpen(true)}
+        aria-label="Abrir chat"
       >
-        {esperandoRubro ? (
-          <div className="text-center w-full">
-            <h2 className="text-green-500 mb-2">👋 ¡Bienvenido!</h2>
-            <div className="text-gray-500 dark:text-gray-300 mb-2">
-              ¿De qué rubro es tu negocio?
-            </div>
-            {cargandoRubros ? (
-              <div className="text-gray-400 my-5">Cargando rubros...</div>
-            ) : rubrosDisponibles.length === 0 ? (
-              <div className="text-red-500 my-5">
-                No se pudieron cargar los rubros. <br />
-                <button
-                  onClick={cargarRubros}
-                  className="mt-2 underline text-blue-600 dark:text-blue-400 hover:text-blue-800"
-                  style={{
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                  }}
-                >
-                  Reintentar
-                </button>
-              </div>
-            ) : (
-              <div className="flex flex-wrap justify-center gap-2">
-                {rubrosDisponibles.map((rubro) => (
-                  <button
-                    key={rubro.id}
-                    onClick={() => {
-                      safeLocalStorage.setItem("rubroSeleccionado", rubro.nombre);
-                      setRubroSeleccionado(rubro.nombre);
-                      setEsperandoRubro(false);
-                      setMessages([
-                        {
-                          id: Date.now(),
-                          text: `¡Hola! Soy Chatboc, tu asistente para ${rubro.nombre.toLowerCase()}. ¿En qué puedo ayudarte hoy?`,
-                          isBot: true,
-                          timestamp: new Date(),
-                        },
-                      ]);
-                    }}
-                    className="px-4 py-2 rounded-2xl font-semibold bg-blue-500 text-white hover:bg-blue-600 transition"
-                  >
-                    {rubro.nombre}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        ) : esperandoDireccion ? (
-          <div className="flex flex-col items-center py-8 px-2 gap-4">
-            <div className="text-primary text-base font-semibold mb-2">
-              Indicá la dirección exacta (autocompleta con Google)
-            </div>
-            <AddressAutocomplete
-              onSelect={(addr) => {
-                handleSendMessage(addr);
-                safeLocalStorage.setItem("ultima_direccion", addr);
-                setDireccionGuardada(addr);
-                setEsperandoDireccion(false);
-              }}
-              autoFocus
-              value={
-                direccionGuardada
-                  ? { label: direccionGuardada, value: direccionGuardada }
-                  : undefined
-              }
-              onChange={(opt) =>
-                setDireccionGuardada(opt ? opt.value : null)
-              }
-              persistKey="ultima_direccion"
-            placeholder="Ej: Av. Principal 123"
-            />
-            <button
-              onClick={handleShareGps}
-              className="text-primary underline text-sm"
-              type="button"
-            >
-              Compartir ubicación por GPS
-            </button>
-            <div className="text-xs text-muted-foreground mt-2">
-              Escribí y seleccioná tu dirección para continuar el trámite.
-            </div>
-          </div>
-        ) : (
-          <>
-            {messages.map(
-              (msg) =>
-                typeof msg.text === "string" && (
-                  <ChatMessage
-                    key={msg.id}
-                    message={msg}
-                    isTyping={isTyping}
-                    onButtonClick={handleSendMessage}
-                  />
-                ),
-            )}
-            {isTyping && <TypingIndicator />}
-            {ticketLocation && (
-              <TicketMap ticket={ticketLocation} />
-            )}
-            <div ref={messagesEndRef} />
-            {/* Mensaje de cierre SIEMPRE si corresponde */}
-            {showCierre && showCierre.show && (
-              <div className="my-3 p-3 rounded-lg bg-green-100 text-green-800 text-center font-bold shadow">
-                {showCierre.text}
-              </div>
-            )}
-          </>
-        )}
+        <ChatbocLogoAnimated size={62} />
       </div>
+    );
+  }
 
-      {/* --- INPUT SÓLO SI NO SE ESPERA RUBRO NI DIRECCIÓN NI CIERRE --- */}
-      {!esperandoRubro &&
-        !esperandoDireccion &&
-        (!showCierre || !showCierre.show) && (
-          <div className="bg-card px-3 py-2">
-            <ChatInput onSendMessage={handleSendMessage} isTyping={isTyping} />
-          </div>
-        )}
-    </motion.div>
+  return (
+    <Suspense fallback={null}>
+      <ChatPanel
+        mode={mode}
+        initialPosition={initialPosition}
+        widgetId={widgetId}
+        authToken={authToken}
+        initialIframeWidth={initialIframeWidth}
+        initialIframeHeight={initialIframeHeight}
+        onClose={() => setIsOpen(false)}
+        openWidth={openWidth}
+        openHeight={openHeight}
+      />
+    </Suspense>
   );
 };
 
