@@ -1,5 +1,6 @@
 export const safeLocalStorage = {
   getItem(key: string): string | null {
+    if (typeof window === "undefined") return null;
     try {
       return window.localStorage.getItem(key);
     } catch {
@@ -7,6 +8,7 @@ export const safeLocalStorage = {
     }
   },
   setItem(key: string, value: string) {
+    if (typeof window === "undefined") return;
     try {
       window.localStorage.setItem(key, value);
     } catch {
@@ -14,6 +16,7 @@ export const safeLocalStorage = {
     }
   },
   removeItem(key: string) {
+    if (typeof window === "undefined") return;
     try {
       window.localStorage.removeItem(key);
     } catch {
@@ -21,6 +24,7 @@ export const safeLocalStorage = {
     }
   },
   clear() {
+    if (typeof window === "undefined") return;
     try {
       window.localStorage.clear();
     } catch {
