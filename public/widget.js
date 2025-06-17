@@ -1,7 +1,6 @@
 // Chatboc embeddable widget loader
 (function () {
   "use strict";
-  console.log("Chatboc widget.js: execution started.");
 
   function init() {
     const script =
@@ -91,7 +90,6 @@
     }
   }, 10000);
   iframe.onload = function () {
-    console.log("Chatboc widget.js: Iframe onload disparado.");
     iframeHasLoaded = true;
     clearTimeout(loadTimeout);
     const loaderEl = document.getElementById(loader.id);
@@ -105,6 +103,7 @@
 
   iframe.onerror = function () {
     clearTimeout(loadTimeout);
+
     loader.innerHTML = '<div style="font-family: Arial, sans-serif; color: #fff; font-size:11px; text-align:center;">Servicio no disponible</div>';
     iframe.style.display = 'none';
   };
@@ -117,7 +116,6 @@
     }
 
     if (event.data && event.data.type === "chatboc-resize" && event.data.widgetId === iframeId) {
-      console.log("Chatboc widget.js: Mensaje 'chatboc-resize' recibido:", event.data);
       const newDims = event.data.dimensions; 
       iframeIsCurrentlyOpen = event.data.isOpen;
 
@@ -192,7 +190,7 @@
     document.removeEventListener("touchmove", dragMove);
     document.removeEventListener("touchend", dragEnd);
   }
-  console.log("Chatboc widget.js: v16-style ejecución finalizada.");
+
 }
 
   if (document.readyState === "loading") {

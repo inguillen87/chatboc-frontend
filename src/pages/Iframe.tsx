@@ -84,7 +84,7 @@ const Iframe = () => {
           initialIframeHeight={initialIframeHeight}
         />
       </ErrorBoundary>
-      {console.log("ChatWidget montado!")}
+
     </div>
   );
 };
