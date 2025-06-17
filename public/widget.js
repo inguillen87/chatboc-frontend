@@ -84,9 +84,7 @@
   let iframeHasLoaded = false;
   const loadTimeout = setTimeout(() => {
     if (!iframeHasLoaded) {
-      loader.style.background = 'rgba(24,31,42,0.9)';
-      loader.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
-      loader.style.borderRadius = '16px';
+
       loader.innerHTML = '<div style="font-family: Arial, sans-serif; color: #fff; font-size:11px; text-align:center;">Servicio no disponible</div>';
       iframe.style.display = 'none';
     }
@@ -105,10 +103,7 @@
 
   iframe.onerror = function () {
     clearTimeout(loadTimeout);
-    console.error("Chatboc widget.js: iframe failed to load");
-    loader.style.background = 'rgba(24,31,42,0.9)';
-    loader.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
-    loader.style.borderRadius = '16px';
+
     loader.innerHTML = '<div style="font-family: Arial, sans-serif; color: #fff; font-size:11px; text-align:center;">Servicio no disponible</div>';
     iframe.style.display = 'none';
   };
@@ -195,6 +190,7 @@
     document.removeEventListener("touchmove", dragMove);
     document.removeEventListener("touchend", dragEnd);
   }
+
 }
 
   if (document.readyState === "loading") {
