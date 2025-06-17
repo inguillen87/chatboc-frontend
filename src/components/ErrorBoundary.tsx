@@ -1,11 +1,15 @@
 import React from 'react';
 
+interface ErrorBoundaryProps {
+  fallbackMessage?: string;
+}
+
 interface ErrorBoundaryState {
   hasError: boolean;
 }
 
-class ErrorBoundary extends React.Component<React.PropsWithChildren, ErrorBoundaryState> {
-  constructor(props: React.PropsWithChildren) {
+class ErrorBoundary extends React.Component<React.PropsWithChildren<ErrorBoundaryProps>, ErrorBoundaryState> {
+  constructor(props: React.PropsWithChildren<ErrorBoundaryProps>) {
     super(props);
     this.state = { hasError: false };
   }
@@ -20,9 +24,11 @@ class ErrorBoundary extends React.Component<React.PropsWithChildren, ErrorBounda
 
   render() {
     if (this.state.hasError) {
+      const message = this.props.fallbackMessage ||
+        'Ocurrió un error inesperado. Por favor, recargá la página.';
       return (
         <div className="p-4 text-center text-red-500">
-          Ocurrió un error inesperado. Por favor, recargá la página.
+          {message}
         </div>
       );
     }

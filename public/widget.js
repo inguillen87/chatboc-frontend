@@ -76,9 +76,16 @@
   iframe.style.display = "block"; // Asegurar que el iframe sea display block desde el inicio
 
   let iframeHasLoaded = false;
+  const loadTimeout = setTimeout(() => {
+    if (!iframeHasLoaded) {
+      loader.innerHTML = '<div style="font-family: Arial, sans-serif; color: #fff; font-size:11px; text-align:center;">Servicio no disponible</div>';
+      iframe.style.display = 'none';
+    }
+  }, 10000);
   iframe.onload = function () {
     console.log("Chatboc widget.js: Iframe onload disparado.");
     iframeHasLoaded = true;
+    clearTimeout(loadTimeout);
     const loaderEl = document.getElementById(loader.id);
     if (loaderEl) {
         loaderEl.style.opacity = "0";
@@ -87,6 +94,12 @@
     iframe.style.opacity = "1"; // Mostrar iframe
   };
   if (!document.getElementById(iframeId)) document.body.appendChild(iframe);
+
+  iframe.onerror = function () {
+    clearTimeout(loadTimeout);
+    loader.innerHTML = '<div style="font-family: Arial, sans-serif; color: #fff; font-size:11px; text-align:center;">Servicio no disponible</div>';
+    iframe.style.display = 'none';
+  };
 
 
   // Escuchar mensajes del iframe para redimensionar

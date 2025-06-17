@@ -5,6 +5,7 @@ import { safeLocalStorage } from "@/utils/safeLocalStorage";
 
 // Importa directamente para evitar problemas con React.lazy en algunos entornos
 import ChatWidget from "../components/chat/ChatWidget";
+import ErrorBoundary from "../components/ErrorBoundary";
 
 const Iframe = () => {
   const [defaultOpen, setDefaultOpen] = useState(false);
@@ -73,14 +74,16 @@ const Iframe = () => {
         flexDirection: "column",
       }}
     >
-      <ChatWidget
-        mode="iframe"
-        defaultOpen={defaultOpen}
-        widgetId={widgetId}
-        authToken={tokenFromUrl}
-        initialIframeWidth={initialIframeWidth}
-        initialIframeHeight={initialIframeHeight}
-      />
+      <ErrorBoundary fallbackMessage="⚠️ Servicio no disponible.">
+        <ChatWidget
+          mode="iframe"
+          defaultOpen={defaultOpen}
+          widgetId={widgetId}
+          authToken={tokenFromUrl}
+          initialIframeWidth={initialIframeWidth}
+          initialIframeHeight={initialIframeHeight}
+        />
+      </ErrorBoundary>
       {console.log("ChatWidget montado!")}
     </div>
   );
