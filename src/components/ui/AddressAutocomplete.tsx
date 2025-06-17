@@ -134,38 +134,38 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
         styles: {
           control: (base: any) => ({
             ...base,
-            backgroundColor: "var(--input)",
-            color: "var(--foreground)",
+            backgroundColor: "hsl(var(--input))",
+            color: "hsl(var(--foreground))",
             minHeight: "2.5rem",
             borderRadius: "0.75rem",
-            borderColor: "var(--border)",
+            borderColor: "hsl(var(--border))",
             fontSize: "0.95rem",
           }),
           menu: (base: any) => ({
             ...base,
-            backgroundColor: "var(--card)",
-            color: "var(--foreground)",
+            backgroundColor: "hsl(var(--card))",
+            color: "hsl(var(--foreground))",
             zIndex: 999999,
           }),
           option: (base: any, state: any) => ({
             ...base,
             backgroundColor: state.isFocused
-              ? "var(--accent)"
-              : "var(--card)",
-            color: "var(--foreground)",
+              ? "hsl(var(--accent))"
+              : "hsl(var(--card))",
+            color: "hsl(var(--foreground))",
             cursor: "pointer",
           }),
           singleValue: (base: any) => ({
             ...base,
-            color: "var(--foreground)",
+            color: "hsl(var(--foreground))",
           }),
           input: (base: any) => ({
             ...base,
-            color: "var(--foreground)",
+            color: "hsl(var(--foreground))",
           }),
           placeholder: (base: any) => ({
             ...base,
-            color: "var(--muted-foreground)",
+            color: "hsl(var(--muted-foreground))",
           }),
         },
         onKeyDown: (e: any) => {

@@ -159,7 +159,7 @@ const Integracion = () => {
               width: "100%",
               maxWidth: 370,
               minHeight: 540,
-              background: "var(--background)",
+              background: "hsl(var(--background))",
             }}
             loading="lazy"
             title="Chatboc Preview"
