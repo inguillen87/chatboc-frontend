@@ -24,3 +24,4 @@ export interface Ticket {
   latitud?: number | null;
   longitud?: number | null;
 }
+export * from "./product";

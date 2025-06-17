@@ -116,3 +116,18 @@ returned, the map remains hidden.
 To see real‑time tracking, ensure the backend periodically sends the
 current coordinates for each ticket. Once those values are present, the
 map will refresh automatically without additional frontend changes.
+
+## Product catalog API
+
+Any endpoint that returns products (e.g. `/catalogo`, `/productos`, `/ask`)
+should provide a list of objects with clear fields ready to display. Each
+product includes at least:
+
+- `nombre` — full product name
+- `categoria` — main category or rubro
+- `presentacion` — unit, pack, etc.
+- `precio_unitario` — unit price (or `null` to indicate "Consultar precio")
+
+Optional fields like `descripcion`, `sku`, `talles`, `colores`, `precio_pack`,
+`stock`, `marca` and `imagen_url` can be included when available. The frontend
+simply renders these values without extra parsing.
