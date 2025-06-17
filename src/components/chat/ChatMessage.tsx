@@ -6,6 +6,8 @@ import { motion } from "framer-motion";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 import DOMPurify from 'dompurify'; // Importamos la librería de seguridad
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
+import ProductCard from '@/components/product/ProductCard';
+import { parseProductMessage } from '@/utils/productParser';
 
 // --- Componentes de Avatar (sin cambios) ---
 const AvatarBot: React.FC<{ isTyping: boolean }> = ({ isTyping }) => (
@@ -78,6 +80,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, isTyping, onButtonCl
 
     // 3. Sanitización del HTML para seguridad
     const sanitizedHtml = DOMPurify.sanitize(message.text);
+    const parsedProducts = parseProductMessage(message.text);
 
     const isBot = message.isBot;
     const bubbleVariants = {
@@ -97,11 +100,18 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, isTyping, onButtonCl
                     initial="hidden"
                     animate="visible"
                 >
-                    {/* Usamos el HTML ya limpio y seguro */}
-                    <div
-                        className="prose prose-sm dark:prose-invert max-w-none [&_p]:my-0"
-                        dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
-                    />
+                    {parsedProducts ? (
+                        <div className="grid gap-2">
+                            {parsedProducts.map((p, idx) => (
+                                <ProductCard key={idx} product={p} />
+                            ))}
+                        </div>
+                    ) : (
+                        <div
+                            className="prose prose-sm dark:prose-invert max-w-none [&_p]:my-0"
+                            dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
+                        />
+                    )}
                 </motion.div>
                 
                 {/* Lógica para mostrar botones (se mantiene, ahora usa el nuevo componente) */}
