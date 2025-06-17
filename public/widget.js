@@ -1,19 +1,25 @@
+// Chatboc embeddable widget loader
 (function () {
   "use strict";
-  console.log("Chatboc widget.js: v16-style execution started.");
 
-  const script = document.currentScript;
-  if (!script) {
-    console.error("Chatboc widget.js FATAL: document.currentScript is null.");
-    return;
-  }
+  function init() {
+    const script =
+      document.currentScript ||
+      Array.from(document.getElementsByTagName("script")).find((s) =>
+        s.src && s.src.includes("widget.js")
+      );
+    if (!script) {
+      console.error("Chatboc widget.js FATAL: script tag not found.");
+      return;
+    }
 
   const token = script.getAttribute("data-token") || "demo-anon";
   const initialBottom = script.getAttribute("data-bottom") || "20px";
   const initialRight = script.getAttribute("data-right") || "20px";
   const defaultOpen = script.getAttribute("data-default-open") === "true"; // Si el chat debe iniciar abierto
   const theme = script.getAttribute("data-theme") || "";
-  const chatbocDomain = script.getAttribute("data-domain") || "https://www.chatboc.ar";
+  const scriptOrigin = (script.getAttribute("src") && new URL(script.getAttribute("src"), window.location.href).origin) || "https://www.chatboc.ar";
+  const chatbocDomain = script.getAttribute("data-domain") || scriptOrigin;
 
   const zIndexBase = parseInt(script.getAttribute("data-z") || "999990", 10);
   const iframeId = "chatboc-dynamic-iframe-" + Math.random().toString(36).substring(2, 9);
@@ -45,10 +51,10 @@
   loader.style.alignItems = "center";
   loader.style.justifyContent = "center";
   loader.style.borderRadius = defaultOpen ? "16px" : "50%";
-  loader.style.background = "rgba(24,31,42,0.9)";
-  loader.style.boxShadow = "0 2px 8px rgba(0,0,0,0.2)";
+  loader.style.background = "transparent";
+  loader.style.boxShadow = "none";
   loader.style.transition = "opacity 0.3s ease-out"; // Transición para el loader
-  loader.innerHTML = `<div style="font-family: Arial, sans-serif; color: #fff; font-size:11px; text-align:center;">Cargando<br/>Chatboc...</div>`;
+  loader.innerHTML = `<img src="${chatbocDomain}/favicon/favicon-48x48.png" alt="Chatboc" style="width:48px;height:48px;"/>`;
   if (!document.getElementById(loader.id)) document.body.appendChild(loader);
 
 
@@ -76,9 +82,18 @@
   iframe.style.display = "block"; // Asegurar que el iframe sea display block desde el inicio
 
   let iframeHasLoaded = false;
+  const loadTimeout = setTimeout(() => {
+    if (!iframeHasLoaded) {
+      loader.style.background = 'rgba(24,31,42,0.9)';
+      loader.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
+      loader.style.borderRadius = '16px';
+      loader.innerHTML = '<div style="font-family: Arial, sans-serif; color: #fff; font-size:11px; text-align:center;">Servicio no disponible</div>';
+      iframe.style.display = 'none';
+    }
+  }, 10000);
   iframe.onload = function () {
-    console.log("Chatboc widget.js: Iframe onload disparado.");
     iframeHasLoaded = true;
+    clearTimeout(loadTimeout);
     const loaderEl = document.getElementById(loader.id);
     if (loaderEl) {
         loaderEl.style.opacity = "0";
@@ -88,6 +103,16 @@
   };
   if (!document.getElementById(iframeId)) document.body.appendChild(iframe);
 
+  iframe.onerror = function () {
+    clearTimeout(loadTimeout);
+    console.error("Chatboc widget.js: iframe failed to load");
+    loader.style.background = 'rgba(24,31,42,0.9)';
+    loader.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
+    loader.style.borderRadius = '16px';
+    loader.innerHTML = '<div style="font-family: Arial, sans-serif; color: #fff; font-size:11px; text-align:center;">Servicio no disponible</div>';
+    iframe.style.display = 'none';
+  };
+
 
   // Escuchar mensajes del iframe para redimensionar
   window.addEventListener("message", function(event) {
@@ -96,7 +121,6 @@
     }
 
     if (event.data && event.data.type === "chatboc-resize" && event.data.widgetId === iframeId) {
-      console.log("Chatboc widget.js: Mensaje 'chatboc-resize' recibido:", event.data);
       const newDims = event.data.dimensions; 
       iframeIsCurrentlyOpen = event.data.isOpen;
 
@@ -171,5 +195,11 @@
     document.removeEventListener("touchmove", dragMove);
     document.removeEventListener("touchend", dragEnd);
   }
-  console.log("Chatboc widget.js: v16-style ejecución finalizada.");
+}
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
 })();
