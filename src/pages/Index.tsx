@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
+import { safeSessionStorage } from '@/utils/safeSessionStorage';
 import HeroSection from '@/components/sections/HeroSection';
 import ProblemsSection from '@/components/sections/ProblemsSection';
 import SolutionSection from '@/components/sections/SolutionSection';
@@ -18,14 +19,14 @@ const Index = () => {
     document.title = 'Chatboc - Tu Experto Virtual para Pymes';
 
     // AUTO SCROLL SI HAY UN PENDIENTE
-    const sectionId = sessionStorage.getItem("pendingScrollSection");
+    const sectionId = safeSessionStorage.getItem("pendingScrollSection");
     if (sectionId) {
       setTimeout(() => {
         const el = document.getElementById(sectionId);
         if (el) {
           el.scrollIntoView({ behavior: "smooth" });
         }
-        sessionStorage.removeItem("pendingScrollSection");
+        safeSessionStorage.removeItem("pendingScrollSection");
       }, 200);
     }
 
