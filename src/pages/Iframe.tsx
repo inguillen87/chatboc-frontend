@@ -1,6 +1,7 @@
 // src/pages/Iframe.tsx
 
 import React, { useEffect, useState, Suspense } from "react";
+import { safeLocalStorage } from "@/utils/safeLocalStorage";
 
 // Si usás Vite y no tenés el alias '@', cambialo a la ruta relativa real:
 const ChatWidget = React.lazy(() => import("../components/chat/ChatWidget"));
@@ -32,10 +33,10 @@ const Iframe = () => {
       if (themeParam === "dark" || themeParam === "light") {
         document.documentElement.classList.remove("dark", "light");
         document.documentElement.classList.add(themeParam);
-        localStorage.setItem("theme", themeParam);
+        safeLocalStorage.setItem("theme", themeParam);
       } else {
         // Si no viene por URL, usá localStorage o el sistema
-        const storedTheme = localStorage.getItem("theme");
+        const storedTheme = safeLocalStorage.getItem("theme");
         if (storedTheme === "dark" || storedTheme === "light") {
           document.documentElement.classList.remove("dark", "light");
           document.documentElement.classList.add(storedTheme);

@@ -1,4 +1,5 @@
 import { useNavigate, useLocation } from "react-router-dom";
+import { safeSessionStorage } from "@/utils/safeSessionStorage";
 
 export const useScrollToSection = () => {
   const navigate = useNavigate();
@@ -13,7 +14,7 @@ export const useScrollToSection = () => {
       }
     } else {
       // Guarda la sección deseada y redirige
-      sessionStorage.setItem("pendingScrollSection", sectionId);
+      safeSessionStorage.setItem("pendingScrollSection", sectionId);
       navigate("/");
     }
   };
