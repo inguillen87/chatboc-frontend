@@ -50,7 +50,7 @@ export function useChatLogic(initialWelcomeMessage: string) {
 
     if (activeTicketId) {
       fetchNewMessages();
-      pollingIntervalRef.current = setInterval(fetchNewMessages, 5000);
+      pollingIntervalRef.current = setInterval(fetchNewMessages, 10000);
     }
 
     return () => {

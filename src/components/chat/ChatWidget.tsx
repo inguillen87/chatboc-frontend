@@ -353,7 +353,7 @@ const ChatWidget = ({
       }
     };
     fetchAllMessages();
-    intervalId = setInterval(fetchAllMessages, 5000);
+    intervalId = setInterval(fetchAllMessages, 10000);
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
@@ -512,12 +512,14 @@ const ChatWidget = ({
 
   // Scroll automático
   useEffect(() => {
-    if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTop =
-        chatContainerRef.current.scrollHeight;
-    }
-    if (messagesEndRef.current) {
-      (messagesEndRef.current as any).scrollIntoView({ behavior: "smooth" });
+    const container = chatContainerRef.current;
+    if (container) {
+      const atBottom =
+        container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+      if (atBottom) {
+        container.scrollTop = container.scrollHeight;
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      }
     }
   }, [messages, isTyping, ticketLocation]);
 
