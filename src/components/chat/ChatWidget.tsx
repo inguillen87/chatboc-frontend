@@ -525,24 +525,23 @@ const ChatWidget = ({
 
   // --- BURBUJA FLOTANTE ---
   if (!isOpen) {
-  return (
-    <motion.div
-      ref={widgetContainerRef}
-      className={`
-        fixed shadow-xl z-[999999]
-        flex items-center justify-center
-        transition-all duration-300
-        cursor-pointer
-        bg-card text-card-foreground
-      `}
-      style={{
-        bottom: initialPosition.bottom,
-        right: initialPosition.right,
-        width: closedDims.width,
-        height: closedDims.height,
-        borderRadius: "50%",
-        background: "var(--background)",
-      }}
+    return (
+      <motion.div
+        ref={widgetContainerRef}
+        className={`
+          fixed shadow-xl z-[999999]
+          flex items-center justify-center
+          transition-all duration-300
+          cursor-pointer
+        `}
+        style={{
+          bottom: initialPosition.bottom,
+          right: initialPosition.right,
+          width: closedDims.width,
+          height: closedDims.height,
+          borderRadius: "50%",
+          background: "transparent",
+        }}
       initial={{ opacity: 0, scale: 0.8 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ type: "spring", stiffness: 260, damping: 20 }}
