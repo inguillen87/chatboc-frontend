@@ -1,10 +1,10 @@
 // src/pages/Iframe.tsx
 
-import React, { useEffect, useState, Suspense } from "react";
+import React, { useEffect, useState } from "react";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 
-// Si usás Vite y no tenés el alias '@', cambialo a la ruta relativa real:
-const ChatWidget = React.lazy(() => import("../components/chat/ChatWidget"));
+// Importa directamente para evitar problemas con React.lazy en algunos entornos
+import ChatWidget from "../components/chat/ChatWidget";
 
 const Iframe = () => {
   const [defaultOpen, setDefaultOpen] = useState(false);
@@ -73,34 +73,15 @@ const Iframe = () => {
         flexDirection: "column",
       }}
     >
-      <Suspense
-        fallback={
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: "100%",
-              height: "100%",
-              fontFamily: "Arial, sans-serif",
-              fontSize: "12px",
-              color: "#555",
-            }}
-          >
-            Cargando Chatboc...
-          </div>
-        }
-      >
-        <ChatWidget
-          mode="iframe"
-          defaultOpen={defaultOpen}
-          widgetId={widgetId}
-          authToken={tokenFromUrl}
-          initialIframeWidth={initialIframeWidth}
-          initialIframeHeight={initialIframeHeight}
-        />
-        {console.log("ChatWidget montado!")}
-      </Suspense>
+      <ChatWidget
+        mode="iframe"
+        defaultOpen={defaultOpen}
+        widgetId={widgetId}
+        authToken={tokenFromUrl}
+        initialIframeWidth={initialIframeWidth}
+        initialIframeHeight={initialIframeHeight}
+      />
+      {console.log("ChatWidget montado!")}
     </div>
   );
 };
