@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import ChatInput from "@/components/ChatInput";
 import ChatMessage from "@/components/ChatMessage";
 import TypingIndicator from "@/components/TypingIndicator";
@@ -35,7 +36,7 @@ const Demo: React.FC = () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token") || "demo-token"}`,
+          Authorization: `Bearer ${safeLocalStorage.getItem("token") || "demo-token"}`,
         },
         body: JSON.stringify({ pregunta: text }),
       });

@@ -7,6 +7,7 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { apiFetch } from "@/utils/api";
 import { motion, AnimatePresence } from "framer-motion";
+import { safeLocalStorage } from "@/utils/safeLocalStorage";
 
 // --- CONFIGURA ACÁ EL RUBRO PARA DEMO O WIDGET
 const DEFAULT_WIDGET_RUBRO = "municipios"; // Cambia por "bodega", "almacen", etc. según corresponda
@@ -18,7 +19,7 @@ const ChatPage = () => {
 
   const path = window.location.pathname;
   const isDemo = path.includes("demo");
-  const user = JSON.parse(localStorage.getItem("user") || "null");
+  const user = JSON.parse(safeLocalStorage.getItem("user") || "null");
   const token = isDemo ? "demo-token" : user?.token || "demo-token";
   // Si hay rubro en usuario, lo usamos. Si no, usamos el default
   const rubro = user?.rubro || DEFAULT_WIDGET_RUBRO;
