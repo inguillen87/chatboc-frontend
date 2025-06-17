@@ -435,7 +435,7 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
     if (!chatEnVivo) return;
 
     fetchComentarios();
-    pollingRef.current = setInterval(fetchComentarios, 5000);
+    pollingRef.current = setInterval(fetchComentarios, 10000);
     return () => {
       if (pollingRef.current) clearInterval(pollingRef.current);
     };

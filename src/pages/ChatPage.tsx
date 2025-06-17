@@ -134,9 +134,13 @@ const authHeaders: Record<string, string> = authToken
   }, [activeTicketId, fetchTicketInfo]);
 
   const scrollToBottom = useCallback(() => {
-    if (chatMessagesContainerRef.current) {
-      chatMessagesContainerRef.current.scrollTop =
-        chatMessagesContainerRef.current.scrollHeight;
+    const container = chatMessagesContainerRef.current;
+    if (container) {
+      const atBottom =
+        container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+      if (atBottom) {
+        container.scrollTop = container.scrollHeight;
+      }
     }
   }, []);
 
@@ -360,7 +364,7 @@ const authHeaders: Record<string, string> = authToken
     };
     if (activeTicketId) {
       fetchNewMessages();
-      pollingIntervalRef.current = setInterval(fetchNewMessages, 5000);
+      pollingIntervalRef.current = setInterval(fetchNewMessages, 10000);
     }
     return () => {
       if (pollingIntervalRef.current) {
