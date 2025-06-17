@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '@/utils/api';
+import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -18,8 +19,8 @@ const Login = () => {
       const data = await apiFetch('/login', 'POST', { email, password });
 
       if (data && data.token) {
-        // Guardar usuario en localStorage
-        localStorage.setItem('user', JSON.stringify(data));
+        // Guardar usuario de forma segura
+        safeLocalStorage.setItem('user', JSON.stringify(data));
         // Redirigir al perfil
         navigate('/perfil');
       } else {
