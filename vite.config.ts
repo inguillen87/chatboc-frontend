@@ -12,14 +12,6 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
-  // --- SECCIÓN AÑADIDA PARA SOLUCIONAR LA ADVERTENCIA ---
-  build: {
-    rollupOptions: {
-      external: [
-        // Le decimos a Vite: "No te preocupes por el módulo 'path',
-        // sé que es solo para la configuración y no debe ir en el código final."
-        'path'
-      ]
-    }
-  }
+  // No es necesario marcar "path" como externo ya que solo se
+  // utiliza en la configuración y no en el bundle final.
 });
