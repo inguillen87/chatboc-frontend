@@ -50,11 +50,11 @@ const Iframe = () => {
     }
   }, []);
 
-  // Seteamos fondos acordes al tema sin romper el overflow ni el scroll
+  // Evitamos establecer un fondo opaco para que el iframe sea completamente transparent
   useEffect(() => {
     if (typeof document !== "undefined") {
-      document.documentElement.style.background = "var(--background)";
-      document.body.style.background = "var(--background)";
+      document.documentElement.style.background = "transparent";
+      document.body.style.background = "transparent";
       document.body.style.margin = "0";
       document.body.style.padding = "0";
       // NO tocar overflow, NO tocar height/width acá
@@ -66,7 +66,7 @@ const Iframe = () => {
       style={{
         width: "100%",
         height: "100%",
-        background: "var(--background)",
+        background: "transparent",
         margin: 0,
         padding: 0,
         overflow: "visible", // permite que el contenido crezca si hace falta
