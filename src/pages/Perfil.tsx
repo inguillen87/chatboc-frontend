@@ -714,8 +714,8 @@ export default function Perfil() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                Plan actual:{" "}
+              <div className="text-sm text-muted-foreground flex items-center gap-2">
+                <span>Plan actual:</span>
                 <Badge
                   variant="secondary"
                   className={cn(
@@ -724,7 +724,7 @@ export default function Perfil() {
                 >
                   {perfil?.plan || "N/A"}
                 </Badge>
-              </p>
+              </div>
               <div>
                 <p className="text-sm text-muted-foreground mb-1">
                   Consultas usadas este mes:

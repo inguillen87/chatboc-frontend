@@ -83,7 +83,7 @@ const Integracion = () => {
   // Si llegó acá, ya tiene acceso PRO/FULL
   const url = `https://www.chatboc.ar/iframe?token=${user.token}`;
   const codeScript = `<script>(function(){var s=document.createElement('script');s.src='https://www.chatboc.ar/widget.js';s.async=true;s.setAttribute('data-token','${user.token}');document.head.appendChild(s);})();</script>`;
-  const codeIframe = `<iframe src="${url}" width="370" height="540" style="position:fixed;bottom:24px;right:24px;border:none;border-radius:32px;z-index:9999;box-shadow:0 4px 32px rgba(0,0,0,0.2);background:var(--background);" allow="clipboard-write" loading="lazy"></iframe>`;
+  const codeIframe = `<iframe id="chatboc-iframe" src="${url}" width="88" height="88" style="position:fixed;bottom:24px;right:24px;border:none;border-radius:50%;z-index:9999;box-shadow:0 4px 32px rgba(0,0,0,0.2);background:transparent;overflow:hidden" allow="clipboard-write" loading="lazy"></iframe><script>(function(){var f=document.getElementById('chatboc-iframe');window.addEventListener('message',function(e){if(e.data&&e.data.type==='chatboc-resize'){f.style.width=e.data.dimensions.width;f.style.height=e.data.dimensions.height;f.style.borderRadius=e.data.isOpen?'16px':'50%';}});})();</script>`;
 
   const copiarCodigo = async (tipo: "iframe" | "script") => {
     try {

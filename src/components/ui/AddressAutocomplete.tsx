@@ -31,6 +31,29 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   persistKey,
 }) => {
   const [internalValue, setInternalValue] = useState<any>(value || null);
+  const [scriptLoaded, setScriptLoaded] = useState<boolean>(false);
+
+  // Ensure Google Maps script loads with async attribute
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if ((window as any).google) {
+      setScriptLoaded(true);
+      return;
+    }
+
+    const existing = document.getElementById("chatboc-google-maps");
+    if (existing) {
+      existing.addEventListener("load", () => setScriptLoaded(true));
+      return;
+    }
+
+    const s = document.createElement("script");
+    s.id = "chatboc-google-maps";
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${Maps_API_KEY}&libraries=places&loading=async`;
+    s.async = true;
+    s.onload = () => setScriptLoaded(true);
+    document.head.appendChild(s);
+  }, []);
 
   // Load from storage on mount if persistKey provided
   useEffect(() => {
@@ -52,7 +75,7 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
       setInternalValue(value);
     }
   }, [value]);
-  if (!Maps_API_KEY) {
+  if (!Maps_API_KEY || !scriptLoaded) {
     return (
       <Input
         placeholder="Ingrese dirección"
