@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import GooglePlacesAutocomplete from "react-google-autocomplete";
+import GooglePlacesAutocomplete from "react-google-places-autocomplete";
 import { Input } from "./input";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 
