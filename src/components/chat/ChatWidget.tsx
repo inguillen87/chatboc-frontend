@@ -7,16 +7,7 @@ const CIRCLE_SIZE = 88;
 const CARD_WIDTH = 370;
 const CARD_HEIGHT = 540;
 
-<<<<<<< 6yu7ac-codex/hacer-widget-de-chatbot-robusto-y-libre-de-errores-de-cors-y
-=======
-<<<<<<< 6yu7ac-codex/hacer-widget-de-chatbot-robusto-y-libre-de-errores-de-cors-y
-=======
-<<<<<<< 6yu7ac-codex/hacer-widget-de-chatbot-robusto-y-libre-de-errores-de-cors-y
-=======
-<<<<<<< 6yu7ac-codex/hacer-widget-de-chatbot-robusto-y-libre-de-errores-de-cors-y
-=======
-<<<<<<< 6yu7ac-codex/hacer-widget-de-chatbot-robusto-y-libre-de-errores-de-cors-y
-=======
+
 const FRASES_DIRECCION = [
   "indicame la dirección",
   "necesito la dirección",
@@ -59,11 +50,6 @@ function getOrCreateAnonId() {
   }
 }
 
->>>>>>> main
->>>>>>> main
->>>>>>> main
->>>>>>> main
->>>>>>> main
 const ChatWidget = ({
   mode = "standalone",
   initialPosition = { bottom: 30, right: 30 },
@@ -112,24 +98,7 @@ const ChatWidget = ({
   useEffect(() => {
     sendResizeMessage(isOpen);
   }, [isOpen, sendResizeMessage]);
-<<<<<<< 6yu7ac-codex/hacer-widget-de-chatbot-robusto-y-libre-de-errores-de-cors-y
 
-=======
-<<<<<<< 6yu7ac-codex/hacer-widget-de-chatbot-robusto-y-libre-de-errores-de-cors-y
-
-=======
-<<<<<<< 6yu7ac-codex/hacer-widget-de-chatbot-robusto-y-libre-de-errores-de-cors-y
-
-=======
-<<<<<<< 6yu7ac-codex/hacer-widget-de-chatbot-robusto-y-libre-de-errores-de-cors-y
-
-=======
-<<<<<<< 6yu7ac-codex/hacer-widget-de-chatbot-robusto-y-libre-de-errores-de-cors-y
-
-=======
-<<<<<<< 6yu7ac-codex/hacer-widget-de-chatbot-robusto-y-libre-de-errores-de-cors-y
-
-=======
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [preguntasUsadas, setPreguntasUsadas] = useState(0);
@@ -572,12 +541,6 @@ const ChatWidget = ({
   }, [messages, isTyping, ticketLocation]);
 
   // --- BURBUJA FLOTANTE ---
->>>>>>> main
->>>>>>> main
->>>>>>> main
->>>>>>> main
->>>>>>> main
->>>>>>> main
   if (!isOpen) {
     return (
       <div
