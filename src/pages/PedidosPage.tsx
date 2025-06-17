@@ -12,6 +12,13 @@ import { cn } from '@/lib/utils';
 import { formatDate } from '@/utils/fecha';
 import { useDateSettings } from '@/hooks/useDateSettings';
 import { LOCALE_OPTIONS } from '@/utils/localeOptions';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 // ---------- Tipos ----------
 interface Pedido {
