@@ -443,8 +443,13 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
 
   // --- Scroll SOLO si cambian los comentarios ---
   useEffect(() => {
-    if (chatBottomRef.current) {
-      chatBottomRef.current.scrollIntoView({ behavior: "smooth" });
+    const container = chatBottomRef.current?.parentElement;
+    if (container && chatBottomRef.current) {
+      const atBottom =
+        container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+      if (atBottom) {
+        chatBottomRef.current.scrollIntoView({ behavior: "smooth" });
+      }
     }
   }, [comentarios.length]);
 
