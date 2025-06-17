@@ -89,9 +89,11 @@ const ChatPage = () => {
   const chatMessagesContainerRef = useRef<HTMLDivElement>(null);
 
 const authToken = safeLocalStorage.getItem("authToken");
-const authHeaders: Record<string, string> = authToken
-  ? { Authorization: `Bearer ${authToken}` }
-  : {};
+// Si el usuario no está logueado, usamos un token de demo para evitar 401
+const finalToken = authToken || "demo-token";
+const authHeaders: Record<string, string> = {
+  Authorization: `Bearer ${finalToken}`,
+};
 
   const [contexto, setContexto] = useState({});
   const [activeTicketId, setActiveTicketId] = useState<number | null>(null);
@@ -280,6 +282,7 @@ const authHeaders: Record<string, string> = authToken
             `/tickets/chat/${activeTicketId}/responder_ciudadano`,
             {
               method: "POST",
+              headers: authHeaders,
               body: { comentario: text },
             },
           );
@@ -288,6 +291,7 @@ const authHeaders: Record<string, string> = authToken
           const payload = { pregunta: text, contexto_previo: contexto };
           const data = await apiFetch<any>("/ask", {
             method: "POST",
+            headers: authHeaders,
             body: payload,
           });
 
@@ -337,6 +341,7 @@ const authHeaders: Record<string, string> = authToken
       try {
         const data = await apiFetch<{ estado_chat: string; mensajes: any[] }>(
           `/tickets/chat/${activeTicketId}/mensajes?ultimo_mensaje_id=${ultimoMensajeIdRef.current}`,
+          { headers: authHeaders },
         );
         if (data.mensajes && data.mensajes.length > 0) {
           const nuevosMensajes: Message[] = data.mensajes.map((msg) => ({
