@@ -93,6 +93,17 @@ You can embed the floating chat widget on any site by loading `widget.js` and pa
 This snippet loads the widget without needing an iframe and creates a floating bubble styled just like on chatboc.ar.
 You can also pass `data-theme="dark"` or `data-theme="light"` to force a specific theme inside the widget.
 
+### Customization
+
+The `<script>` tag accepts several extra `data-*` attributes to control the widget's look:
+
+- `data-bottom` and `data-right` – offset from the bottom-right corner (`20px` by default).
+- `data-default-open="true"` – open the chat automatically when the page loads.
+- `data-width` / `data-height` – size of the open chat window (defaults to `370px` × `540px`).
+- `data-closed-width` / `data-closed-height` – size of the closed bubble (`88px` × `88px`).
+- `data-z` – base `z-index` if you need to adjust stacking order.
+- `data-domain` – custom domain hosting the widget, if different from `chatboc.ar`.
+
 ## Live ticket location
 
 The application displays a map only when the backend provides location
