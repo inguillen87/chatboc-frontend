@@ -91,8 +91,17 @@ export function useChatLogic(initialWelcomeMessage: string) {
           ultimoMensajeIdRef.current = 0;
         }
       }
-    } catch (error) {
-      setMessages(prev => [...prev, { id: Date.now(), text: "⚠️ No se pudo conectar con el servidor.", isBot: true, timestamp: new Date() }]);
+    } catch (error: any) {
+      let errorMsg = "⚠️ No se pudo conectar con el servidor.";
+      if (error?.body?.error) {
+        errorMsg = error.body.error;
+      } else if (error?.message) {
+        errorMsg = error.message;
+      }
+      setMessages(prev => [
+        ...prev,
+        { id: Date.now(), text: errorMsg, isBot: true, timestamp: new Date() }
+      ]);
     } finally {
       setIsTyping(false);
     }

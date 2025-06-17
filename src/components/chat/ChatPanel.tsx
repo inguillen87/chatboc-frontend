@@ -460,14 +460,16 @@ const ChatPanel = ({
             ultimoMensajeIdRef.current = 0;
           }
         }
-      } catch (error) {
-        const msg =
-          error instanceof Error
-            ? `⚠️ Error: ${error.message}`
-            : "⚠️ No se pudo conectar con el servidor.";
+      } catch (error: any) {
+        let errorMsg = "⚠️ No se pudo conectar con el servidor.";
+        if (error?.body?.error) {
+          errorMsg = error.body.error;
+        } else if (error?.message) {
+          errorMsg = error.message;
+        }
         setMessages((prev) => [
           ...prev,
-          { id: Date.now(), text: msg, isBot: true, timestamp: new Date() },
+          { id: Date.now(), text: errorMsg, isBot: true, timestamp: new Date() },
         ]);
       } finally {
         setIsTyping(false);

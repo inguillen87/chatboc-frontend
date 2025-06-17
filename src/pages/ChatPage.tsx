@@ -307,12 +307,18 @@ const authHeaders: Record<string, string> = authToken
             ultimoMensajeIdRef.current = 0;
           }
         }
-      } catch (error) {
+      } catch (error: any) {
+        let errorMsg = "⚠️ No se pudo conectar con el servidor.";
+        if (error?.body?.error) {
+          errorMsg = error.body.error;
+        } else if (error?.message) {
+          errorMsg = error.message;
+        }
         setMessages((prev) => [
           ...prev,
           {
             id: Date.now(),
-            text: "⚠️ No se pudo conectar con el servidor.",
+            text: errorMsg,
             isBot: true,
             timestamp: new Date(),
           },
