@@ -57,6 +57,12 @@ const Documentacion = () => (
             Cargá tu catálogo de productos por PDF o Excel para que el bot lo use en consultas.
           </span>
         </li>
+        <li>
+          <strong>GET /productos</strong> — Obtener productos normalizados.<br />
+          <span className="text-sm text-muted-foreground">
+            Devuelve el catálogo con cada producto y sus campos separados.
+          </span>
+        </li>
       </ul>
 
       <h3 className="text-lg font-semibold mt-4 mb-2 text-primary">Ejemplo: consulta al bot vía API (Python)</h3>
@@ -92,6 +98,21 @@ files = {"archivo": open("catalogo.xlsx", "rb")}
 response = requests.post(url, files=files, headers=headers)
 print(response.json())
 `}
+      </div>
+
+      <h3 className="text-lg font-semibold mt-6 mb-2 text-primary">Ejemplo de respuesta de producto</h3>
+      <div className="bg-black rounded-lg text-green-300 text-sm p-4 font-mono mb-4 overflow-auto">
+{`{
+  "nombre": "Taladro Percutor Black+Decker 500W",
+  "categoria": "Herramientas eléctricas",
+  "descripcion": "Taladro percutor 500W con maletín y accesorios",
+  "sku": "BD500W",
+  "presentacion": "Unidad",
+  "precio_unitario": 58900,
+  "stock": 7,
+  "marca": "Black+Decker",
+  "imagen_url": "https://miferreteria.com/img/taladro_bd500w.jpg"
+}`}
       </div>
 
       {/* ACLARACIÓN SEGURIDAD */}
