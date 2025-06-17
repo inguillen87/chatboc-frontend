@@ -105,7 +105,6 @@
 
   iframe.onerror = function () {
     clearTimeout(loadTimeout);
-
     loader.innerHTML = '<div style="font-family: Arial, sans-serif; color: #fff; font-size:11px; text-align:center;">Servicio no disponible</div>';
     iframe.style.display = 'none';
   };

@@ -537,7 +537,7 @@ const ChatPanel = ({
       width: mode === "iframe" ? openDims.width : `${CARD_WIDTH}px`,
       height: mode === "iframe" ? openDims.height : `${CARD_HEIGHT}px`,
       borderRadius: 24,
-      background: "var(--background)",
+
     }}
     initial={{ opacity: 0, scale: 0.9, y: 20 }}
     animate={{ opacity: 1, scale: 1, y: 0 }}
