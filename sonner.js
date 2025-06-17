@@ -43,7 +43,8 @@ var Dt = () => {
     return document.addEventListener("visibilitychange", t), () => window.removeEventListener("visibilitychange", t);
   }, []), s;
 };
-var ct = 1;
+// Unique counter for toast IDs
+var toastCounter = 1;
 var ut = class {
   constructor() {
     this.subscribe = (o) => (this.subscribers.push(o), () => {
@@ -58,7 +59,12 @@ var ut = class {
     };
     this.create = (o) => {
       var b;
-      let { message: t, ...n } = o, h = typeof (o == null ? void 0 : o.id) == "number" || ((b = o.id) == null ? void 0 : b.length) > 0 ? o.id : ct++, u = this.toasts.find((d) => d.id === h), g = o.dismissible === void 0 ? true : o.dismissible;
+      let { message: t, ...n } = o,
+        h = typeof (o == null ? void 0 : o.id) == "number" || ((b = o.id) == null ? void 0 : b.length) > 0
+          ? o.id
+          : toastCounter++,
+        u = this.toasts.find((d) => d.id === h),
+        g = o.dismissible === void 0 ? true : o.dismissible;
       return u ? this.toasts = this.toasts.map((d) => d.id === h ? (this.publish({ ...d, ...o, id: h, title: t }), { ...d, ...o, id: h, dismissible: g, title: t }) : d) : this.addToast({ title: t, ...n, dismissible: g, id: h }), h;
     };
     this.dismiss = (o) => (o || this.toasts.forEach((t) => {
@@ -97,7 +103,7 @@ var ut = class {
       }), n;
     };
     this.custom = (o, t) => {
-      let n = (t == null ? void 0 : t.id) || ct++;
+      let n = (t == null ? void 0 : t.id) || toastCounter++;
       return this.create({ jsx: o(n), id: n, ...t }), n;
     };
     this.subscribers = [], this.toasts = [];
@@ -105,7 +111,7 @@ var ut = class {
 };
 var v = new ut();
 var Vt = (s, o) => {
-  let t = (o == null ? void 0 : o.id) || ct++;
+  let t = (o == null ? void 0 : o.id) || toastCounter++;
   return v.addToast({ title: s, ...o, id: t }), t;
 };
 var Ot = (s) => s && typeof s == "object" && "ok" in s && typeof s.ok == "boolean" && "status" in s && typeof s.status == "number";
