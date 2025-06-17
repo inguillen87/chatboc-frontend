@@ -5,15 +5,17 @@ interface TicketLocation {
   longitud?: number | null;
   direccion?: string | null;
   municipio_nombre?: string | null;
+  tipo?: 'pyme' | 'municipio';
 }
 
 const buildFullAddress = (ticket: TicketLocation) => {
-  let direccion = ticket.direccion || '';
+  const direccion = ticket.direccion || '';
   if (
+    ticket.tipo !== 'pyme' &&
     ticket.municipio_nombre &&
     !direccion.toLowerCase().includes(ticket.municipio_nombre.toLowerCase())
   ) {
-    direccion += (direccion ? ', ' : '') + ticket.municipio_nombre;
+    return `${direccion ? `${direccion}, ` : ''}${ticket.municipio_nombre}`;
   }
   return direccion;
 };

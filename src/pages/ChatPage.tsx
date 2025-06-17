@@ -441,7 +441,7 @@ const authHeaders: Record<string, string> = authToken
               ))}
             </AnimatePresence>
             {isTyping && <TypingIndicator />}
-            {ticketInfo && <TicketMap ticket={ticketInfo} />}
+            {ticketInfo && <TicketMap ticket={{ ...ticketInfo, tipo: 'municipio' }} />}
             <div ref={chatEndRef} />
             {/* Mensaje de cierre SIEMPRE si corresponde */}
             {showCierre && showCierre.show && (

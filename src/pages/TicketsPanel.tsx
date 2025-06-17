@@ -322,12 +322,13 @@ const TicketTimeline: FC<{ ticket: Ticket; comentarios: Comment[] }> = ({ ticket
 
 // --------- TicketMap robusto ---------
 const buildFullAddress = (ticket: Ticket) => {
-  let direccion = ticket.direccion || "";
+  const direccion = ticket.direccion || "";
   if (
+    ticket.tipo !== "pyme" &&
     ticket.municipio_nombre &&
     !direccion.toLowerCase().includes(ticket.municipio_nombre.toLowerCase())
   ) {
-    direccion += (direccion ? ", " : "") + ticket.municipio_nombre;
+    return `${direccion ? `${direccion}, ` : ""}${ticket.municipio_nombre}`;
   }
   return direccion;
 };

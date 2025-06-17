@@ -656,7 +656,7 @@ const ChatPanel = ({
             )}
             {isTyping && <TypingIndicator />}
             {ticketLocation && (
-              <TicketMap ticket={ticketLocation} />
+              <TicketMap ticket={{ ...ticketLocation, tipo: 'municipio' }} />
             )}
             <div ref={messagesEndRef} />
             {/* Mensaje de cierre SIEMPRE si corresponde */}
