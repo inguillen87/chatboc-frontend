@@ -41,16 +41,20 @@ const FRASES_EXITO = [
 // --- FUNCION PARA GENERAR/PERSISTIR anon_id ---
 function getOrCreateAnonId() {
   if (typeof window === "undefined") return null;
-  let anonId = safeLocalStorage.getItem("anon_id");
-  if (!anonId) {
-    if (window.crypto && window.crypto.randomUUID) {
-      anonId = window.crypto.randomUUID();
-    } else {
-      anonId = `anon-${Math.random().toString(36).substr(2, 9)}-${Date.now()}`;
+  try {
+    let anonId = safeLocalStorage.getItem("anon_id");
+    if (!anonId) {
+      if (window.crypto && window.crypto.randomUUID) {
+        anonId = window.crypto.randomUUID();
+      } else {
+        anonId = `anon-${Math.random().toString(36).substr(2, 9)}-${Date.now()}`;
+      }
+      safeLocalStorage.setItem("anon_id", anonId);
     }
-    safeLocalStorage.setItem("anon_id", anonId);
+    return anonId;
+  } catch {
+    return `anon-${Math.random().toString(36).substr(2, 9)}-${Date.now()}`;
   }
-  return anonId;
 }
 
 const ChatWidget = ({
@@ -121,6 +125,7 @@ const ChatWidget = ({
     longitud?: number | null;
     municipio_nombre?: string | null;
   } | null>(null);
+  const [pollingErrorShown, setPollingErrorShown] = useState(false);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const ultimoMensajeIdRef = useRef<number>(0);
 
@@ -175,7 +180,8 @@ const ChatWidget = ({
 
   const handleShareGps = useCallback(() => {
     if (!activeTicketId || !navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(async (pos) => {
+    try {
+      navigator.geolocation.getCurrentPosition(async (pos) => {
       const coords = { latitud: pos.coords.latitude, longitud: pos.coords.longitude };
       try {
         const authHeaders = esAnonimo
@@ -198,7 +204,10 @@ const ChatWidget = ({
       } catch (e) {
         console.error("Error al enviar ubicación", e);
       }
-    });
+      });
+    } catch {
+      /* ignore */
+    }
   }, [activeTicketId, fetchTicket]);
 
   useEffect(() => {
@@ -209,6 +218,7 @@ const ChatWidget = ({
   useEffect(() => {
     if (!activeTicketId) return;
     if (navigator.geolocation) {
+      try {
       navigator.geolocation.getCurrentPosition(
         async (pos) => {
           const coords = { latitud: pos.coords.latitude, longitud: pos.coords.longitude };
@@ -234,6 +244,9 @@ const ChatWidget = ({
         },
         () => setForzarDireccion(true),
       );
+      } catch {
+        setForzarDireccion(true);
+      }
     } else {
       setForzarDireccion(true);
     }
@@ -350,6 +363,18 @@ const ChatWidget = ({
         }
       } catch (error) {
         console.error("Error durante el polling:", error);
+        if (!pollingErrorShown) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: Date.now(),
+              text: "⚠️ Servicio no disponible.",
+              isBot: true,
+              timestamp: new Date(),
+            },
+          ]);
+          setPollingErrorShown(true);
+        }
       }
     };
     fetchAllMessages();
