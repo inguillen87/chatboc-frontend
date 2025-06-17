@@ -1,23 +1,26 @@
+// Chatboc embeddable widget loader
 (function () {
   "use strict";
-  console.log("Chatboc widget.js: v16-style execution started.");
+  console.log("Chatboc widget.js: execution started.");
 
-  const script =
-    document.currentScript ||
-    Array.from(document.getElementsByTagName("script")).find((s) =>
-      s.src && s.src.includes("widget.js")
-    );
-  if (!script) {
-    console.error("Chatboc widget.js FATAL: script tag not found.");
-    return;
-  }
+  function init() {
+    const script =
+      document.currentScript ||
+      Array.from(document.getElementsByTagName("script")).find((s) =>
+        s.src && s.src.includes("widget.js")
+      );
+    if (!script) {
+      console.error("Chatboc widget.js FATAL: script tag not found.");
+      return;
+    }
 
   const token = script.getAttribute("data-token") || "demo-anon";
   const initialBottom = script.getAttribute("data-bottom") || "20px";
   const initialRight = script.getAttribute("data-right") || "20px";
   const defaultOpen = script.getAttribute("data-default-open") === "true"; // Si el chat debe iniciar abierto
   const theme = script.getAttribute("data-theme") || "";
-  const chatbocDomain = script.getAttribute("data-domain") || "https://www.chatboc.ar";
+  const scriptOrigin = (script.getAttribute("src") && new URL(script.getAttribute("src"), window.location.href).origin) || "https://www.chatboc.ar";
+  const chatbocDomain = script.getAttribute("data-domain") || scriptOrigin;
 
   const zIndexBase = parseInt(script.getAttribute("data-z") || "999990", 10);
   const iframeId = "chatboc-dynamic-iframe-" + Math.random().toString(36).substring(2, 9);
@@ -104,6 +107,7 @@
 
   iframe.onerror = function () {
     clearTimeout(loadTimeout);
+    console.error("Chatboc widget.js: iframe failed to load");
     loader.style.background = 'rgba(24,31,42,0.9)';
     loader.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
     loader.style.borderRadius = '16px';
@@ -195,4 +199,11 @@
     document.removeEventListener("touchend", dragEnd);
   }
   console.log("Chatboc widget.js: v16-style ejecución finalizada.");
+}
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
 })();
