@@ -7,6 +7,7 @@ const CIRCLE_SIZE = 88;
 const CARD_WIDTH = 370;
 const CARD_HEIGHT = 540;
 
+
 const ChatWidget = ({
   mode = "standalone",
   initialPosition = { bottom: 30, right: 30 },
