@@ -7,7 +7,17 @@ const CIRCLE_SIZE = 88;
 const CARD_WIDTH = 370;
 const CARD_HEIGHT = 540;
 
-const ChatWidget = ({
+interface ChatWidgetProps {
+  mode?: "standalone" | "iframe" | "script";
+  initialPosition?: { bottom: number; right: number };
+  defaultOpen?: boolean;
+  widgetId?: string;
+  authToken?: string;
+  initialIframeWidth?: string;
+  initialIframeHeight?: string;
+}
+
+const ChatWidget: React.FC<ChatWidgetProps> = ({
   mode = "standalone",
   initialPosition = { bottom: 30, right: 30 },
   defaultOpen = false,
