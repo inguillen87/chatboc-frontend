@@ -2,9 +2,13 @@
   "use strict";
   console.log("Chatboc widget.js: v16-style execution started.");
 
-  const script = document.currentScript;
+  const script =
+    document.currentScript ||
+    Array.from(document.getElementsByTagName("script")).find((s) =>
+      s.src && s.src.includes("widget.js")
+    );
   if (!script) {
-    console.error("Chatboc widget.js FATAL: document.currentScript is null.");
+    console.error("Chatboc widget.js FATAL: script tag not found.");
     return;
   }
 
@@ -45,10 +49,10 @@
   loader.style.alignItems = "center";
   loader.style.justifyContent = "center";
   loader.style.borderRadius = defaultOpen ? "16px" : "50%";
-  loader.style.background = "rgba(24,31,42,0.9)";
-  loader.style.boxShadow = "0 2px 8px rgba(0,0,0,0.2)";
+  loader.style.background = "transparent";
+  loader.style.boxShadow = "none";
   loader.style.transition = "opacity 0.3s ease-out"; // Transición para el loader
-  loader.innerHTML = `<div style="font-family: Arial, sans-serif; color: #fff; font-size:11px; text-align:center;">Cargando<br/>Chatboc...</div>`;
+  loader.innerHTML = `<img src="${chatbocDomain}/favicon/favicon-48x48.png" alt="Chatboc" style="width:48px;height:48px;"/>`;
   if (!document.getElementById(loader.id)) document.body.appendChild(loader);
 
 
@@ -76,9 +80,19 @@
   iframe.style.display = "block"; // Asegurar que el iframe sea display block desde el inicio
 
   let iframeHasLoaded = false;
+  const loadTimeout = setTimeout(() => {
+    if (!iframeHasLoaded) {
+      loader.style.background = 'rgba(24,31,42,0.9)';
+      loader.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
+      loader.style.borderRadius = '16px';
+      loader.innerHTML = '<div style="font-family: Arial, sans-serif; color: #fff; font-size:11px; text-align:center;">Servicio no disponible</div>';
+      iframe.style.display = 'none';
+    }
+  }, 10000);
   iframe.onload = function () {
     console.log("Chatboc widget.js: Iframe onload disparado.");
     iframeHasLoaded = true;
+    clearTimeout(loadTimeout);
     const loaderEl = document.getElementById(loader.id);
     if (loaderEl) {
         loaderEl.style.opacity = "0";
@@ -87,6 +101,15 @@
     iframe.style.opacity = "1"; // Mostrar iframe
   };
   if (!document.getElementById(iframeId)) document.body.appendChild(iframe);
+
+  iframe.onerror = function () {
+    clearTimeout(loadTimeout);
+    loader.style.background = 'rgba(24,31,42,0.9)';
+    loader.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
+    loader.style.borderRadius = '16px';
+    loader.innerHTML = '<div style="font-family: Arial, sans-serif; color: #fff; font-size:11px; text-align:center;">Servicio no disponible</div>';
+    iframe.style.display = 'none';
+  };
 
 
   // Escuchar mensajes del iframe para redimensionar
