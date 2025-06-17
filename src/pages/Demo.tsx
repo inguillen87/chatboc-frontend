@@ -85,8 +85,14 @@ const Demo = () => {
 
       setMessages((prev) => [...prev, botMessage]);
       setPreguntasUsadas((prev) => prev + 1);
-    } catch (error) {
-      const errorMessage: Message = { id: Date.now(), text: "⚠️ No se pudo conectar con el servidor.", isBot: true, timestamp: new Date() };
+    } catch (error: any) {
+      let errorMsg = "⚠️ No se pudo conectar con el servidor.";
+      if (error?.body?.error) {
+        errorMsg = error.body.error;
+      } else if (error?.message) {
+        errorMsg = error.message;
+      }
+      const errorMessage: Message = { id: Date.now(), text: errorMsg, isBot: true, timestamp: new Date() };
       setMessages((prev) => [...prev, errorMessage]);
     } finally {
       setIsTyping(false);
