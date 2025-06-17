@@ -1,5 +1,7 @@
-import { createRoot } from 'react-dom/client'
-import App from './App.tsx'
-import './index.css'
+import './index.css';
 
-createRoot(document.getElementById("root")!).render(<App />);
+(async () => {
+  const { createRoot } = await import('react-dom/client');
+  const { default: App } = await import('./App.tsx');
+  createRoot(document.getElementById('root')!).render(<App />);
+})();
