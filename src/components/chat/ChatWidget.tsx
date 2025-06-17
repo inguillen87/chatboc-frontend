@@ -11,6 +11,8 @@ const CARD_HEIGHT = 540;
 =======
 <<<<<<< 6yu7ac-codex/hacer-widget-de-chatbot-robusto-y-libre-de-errores-de-cors-y
 =======
+<<<<<<< 6yu7ac-codex/hacer-widget-de-chatbot-robusto-y-libre-de-errores-de-cors-y
+=======
 const FRASES_DIRECCION = [
   "indicame la dirección",
   "necesito la dirección",
@@ -53,6 +55,7 @@ function getOrCreateAnonId() {
   }
 }
 
+>>>>>>> main
 >>>>>>> main
 >>>>>>> main
 const ChatWidget = ({
@@ -103,6 +106,9 @@ const ChatWidget = ({
   useEffect(() => {
     sendResizeMessage(isOpen);
   }, [isOpen, sendResizeMessage]);
+<<<<<<< 6yu7ac-codex/hacer-widget-de-chatbot-robusto-y-libre-de-errores-de-cors-y
+
+=======
 <<<<<<< 6yu7ac-codex/hacer-widget-de-chatbot-robusto-y-libre-de-errores-de-cors-y
 
 =======
@@ -554,6 +560,7 @@ const ChatWidget = ({
   }, [messages, isTyping, ticketLocation]);
 
   // --- BURBUJA FLOTANTE ---
+>>>>>>> main
 >>>>>>> main
 >>>>>>> main
 >>>>>>> main
