@@ -145,6 +145,34 @@ const ChatWidget = ({
     }
   }, []);
 
+  // Token helpers
+  const getAuthTokenFromLocalStorage = () =>
+    typeof window === "undefined" ? null : safeLocalStorage.getItem("authToken");
+  const anonId = getOrCreateAnonId();
+  const finalAuthToken =
+    mode === "iframe" ? propAuthToken : getAuthTokenFromLocalStorage();
+  const esAnonimo = !finalAuthToken;
+
+  const fetchTicket = useCallback(async () => {
+    if (!activeTicketId) return;
+    try {
+      const authHeaders = esAnonimo
+        ? { 'Anon-Id': anonId }
+        : finalAuthToken
+          ? { Authorization: `Bearer ${finalAuthToken}` }
+          : {};
+      const data = await apiFetch<{
+        direccion?: string | null;
+        latitud?: number | null;
+        longitud?: number | null;
+        municipio_nombre?: string | null;
+      }>(`/tickets/municipio/${activeTicketId}`, { headers: authHeaders });
+      setTicketLocation(data);
+    } catch (e) {
+      console.error('Error al refrescar ticket:', e);
+    }
+  }, [activeTicketId, esAnonimo, anonId, finalAuthToken]);
+
   const handleShareGps = useCallback(() => {
     if (!activeTicketId || !navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(async (pos) => {
@@ -221,34 +249,6 @@ const ChatWidget = ({
       return () => clearInterval(timer);
     }
   }, [isOpen]);
-
-  // Token helpers
-  const getAuthTokenFromLocalStorage = () =>
-    typeof window === "undefined" ? null : safeLocalStorage.getItem("authToken");
-  const anonId = getOrCreateAnonId();
-  const finalAuthToken =
-    mode === "iframe" ? propAuthToken : getAuthTokenFromLocalStorage();
-  const esAnonimo = !finalAuthToken;
-
-  const fetchTicket = useCallback(async () => {
-    if (!activeTicketId) return;
-    try {
-      const authHeaders = esAnonimo
-        ? { 'Anon-Id': anonId }
-        : finalAuthToken
-          ? { Authorization: `Bearer ${finalAuthToken}` }
-          : {};
-      const data = await apiFetch<{
-        direccion?: string | null;
-        latitud?: number | null;
-        longitud?: number | null;
-        municipio_nombre?: string | null;
-      }>(`/tickets/municipio/${activeTicketId}`, { headers: authHeaders });
-      setTicketLocation(data);
-    } catch (e) {
-      console.error('Error al refrescar ticket:', e);
-    }
-  }, [activeTicketId, esAnonimo, anonId, finalAuthToken]);
 
   // Detectar si el bot pide dirección
   function shouldShowAutocomplete(messages: Message[], contexto: any) {
