@@ -98,7 +98,7 @@ You can also pass `data-theme="dark"` or `data-theme="light"` to force a specifi
 The application displays a map only when the backend provides location
 information. Each ticket must include either numeric `latitud` and
 `longitud` fields or a text `direccion`. While a ticket chat is open,
-the frontend polls `/tickets/{tipo}/{id}` every five seconds and updates
+the frontend polls `/tickets/{tipo}/{id}` every ten seconds and updates
 the map with any new coordinates received. If no coordinates are
 returned, the map remains hidden.
 
