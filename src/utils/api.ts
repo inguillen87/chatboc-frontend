@@ -57,10 +57,14 @@ export async function apiFetch<T>(
       body: isForm ? body : (body ? JSON.stringify(body) : undefined),
     });
 
-    if (response.status === 401) {
+    if (response.status === 401 || response.status === 403) {
       safeLocalStorage.clear();
       window.location.href = '/login';
-      throw new ApiError('No autorizado. Redirigiendo a login...', 401, null);
+      throw new ApiError(
+        'No autorizado. Redirigiendo a login...',
+        response.status,
+        null
+      );
     }
 
     if (response.status === 204) {
