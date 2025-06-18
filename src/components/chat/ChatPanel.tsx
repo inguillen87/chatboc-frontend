@@ -9,6 +9,7 @@ import TicketMap from "@/components/TicketMap";
 import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
+import { APP_TARGET } from "@/config";
 
 const CARD_WIDTH = 370;
 const CARD_HEIGHT = 540;
@@ -445,7 +446,11 @@ const ChatPanel = ({
             },
           );
         } else {
-          const payload: any = { pregunta: text, contexto_previo: contexto };
+          const payload: any = {
+            pregunta: text,
+            contexto_previo: contexto,
+            tipo_chat: APP_TARGET,
+          };
           if (esAnonimo && mode === "standalone" && rubroSeleccionado)
             payload.rubro = rubroSeleccionado;
           if (esAnonimo) payload.anon_id = anonId; // Para endpoint que lo soporte

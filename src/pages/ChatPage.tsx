@@ -344,7 +344,11 @@ const DEFAULT_RUBRO = APP_TARGET === "municipio" ? "municipios" : undefined;
           );
         } else {
           // Caso: todavía con el bot
-          const payload: any = { pregunta: text, contexto_previo: contexto };
+          const payload: any = {
+            pregunta: text,
+            contexto_previo: contexto,
+            tipo_chat: APP_TARGET,
+          };
           if (isAnonimo) {
             if (DEFAULT_RUBRO) payload.rubro = DEFAULT_RUBRO;
             payload.anon_id = anonId;
