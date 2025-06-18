@@ -123,7 +123,23 @@ const authHeaders: Record<string, string> = authToken
   : {};
 const anonParam = !authToken ? `anon_id=${anonId}` : '';
 const queryPrefix = anonParam ? `?${anonParam}` : '';
-const DEFAULT_RUBRO = tipoChat === "municipio" ? "municipios" : undefined;
+const storedUser =
+  typeof window !== 'undefined'
+    ? JSON.parse(safeLocalStorage.getItem('user') || 'null')
+    : null;
+const rubroActual =
+  storedUser?.rubro?.clave ||
+  storedUser?.rubro?.nombre ||
+  (typeof storedUser?.rubro === 'string' ? storedUser.rubro : null);
+const rubroNormalizado =
+  typeof rubroActual === 'string' ? rubroActual.toLowerCase() : null;
+const isMunicipioRubro = esRubroPublico(rubroNormalizado || undefined);
+const tipoChatActual: 'pyme' | 'municipio' = isMunicipioRubro
+  ? 'municipio'
+  : rubroNormalizado
+    ? 'pyme'
+    : tipoChat;
+const DEFAULT_RUBRO = tipoChatActual === 'municipio' ? 'municipios' : undefined;
 
   const [contexto, setContexto] = useState({});
   const [activeTicketId, setActiveTicketId] = useState<number | null>(null);
@@ -341,7 +357,7 @@ const DEFAULT_RUBRO = tipoChat === "municipio" ? "municipios" : undefined;
       const payload: Record<string, any> = {
         pregunta: text,
         contexto_previo: contexto,
-        tipo_chat: tipoChat,
+        tipo_chat: tipoChatActual,
       };
 
       try {
@@ -362,7 +378,7 @@ const DEFAULT_RUBRO = tipoChat === "municipio" ? "municipios" : undefined;
   const payload: any = {
     pregunta: text,
     contexto_previo: contexto,
-    tipo_chat: tipoChat,
+    tipo_chat: tipoChatActual,
   };
 
   if (isAnonimo) {
@@ -373,8 +389,8 @@ const DEFAULT_RUBRO = tipoChat === "municipio" ? "municipios" : undefined;
     typeof window !== 'undefined'
       ? JSON.parse(safeLocalStorage.getItem('user') || 'null')
       : null;
-  const rubro = DEFAULT_RUBRO || storedUser?.rubro?.clave || storedUser?.rubro?.nombre;
-  const endpoint = getAskEndpoint({ tipoChat, rubro });
+  const rubro = rubroNormalizado || storedUser?.rubro?.clave || storedUser?.rubro?.nombre;
+  const endpoint = getAskEndpoint({ tipoChat: tipoChatActual, rubro });
   const esPublico = esRubroPublico(rubro);
   console.log(
     "Voy a pedir a endpoint:",
@@ -382,7 +398,7 @@ const DEFAULT_RUBRO = tipoChat === "municipio" ? "municipios" : undefined;
     "rubro:",
     rubro,
     "tipoChat:",
-    tipoChat,
+    tipoChatActual,
     "esPublico:",
     esPublico,
   );
@@ -540,7 +556,7 @@ const DEFAULT_RUBRO = tipoChat === "municipio" ? "municipios" : undefined;
                     message={msg}
                     isTyping={isTyping}
                     onButtonClick={handleSend}
-                    tipoChat={tipoChat}
+                    tipoChat={tipoChatActual}
                   />
                 </motion.div>
               ))}
