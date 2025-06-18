@@ -26,7 +26,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   initialIframeWidth,
   initialIframeHeight,
 }) => {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
+  const [isOpen, setIsOpen] = useState(true);
   const [openWidth, setOpenWidth] = useState<number>(CARD_WIDTH);
   const [openHeight, setOpenHeight] = useState<number>(CARD_HEIGHT);
 

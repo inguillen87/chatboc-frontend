@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Chatboc Iframe Test Real</title>
+</head>
+<body style="background: #f3f3f3;">
+  <iframe id="chatboc-iframe"
+    src="https://www.chatboc.ar/iframe?token=4d70d4e9-5923-4308-96fd-be06317ffa9d"
+    style="position: fixed; bottom: 24px; right: 24px; border: none; width: 88px; height: 88px; border-radius: 50%; z-index: 9999; box-shadow: 0px 4px 8px rgba(0,0,0,0.2);"
+    allow="clipboard-write"
+    loading="lazy"></iframe>
+  <script>
+    window.addEventListener('message', function(e){
+      if(e.data && e.data.type === 'chatboc-resize'){
+        var f = document.getElementById('chatboc-iframe');
+        if(f){
+          console.log('Recibiendo chatboc-resize:', e.data);
+          f.style.width = e.data.dimensions.width;
+          f.style.height = e.data.dimensions.height;
+          f.style.borderRadius = e.data.isOpen ? '16px' : '50%';
+        }
+      }
+    });
+  </script>
+</body>
+</html>
