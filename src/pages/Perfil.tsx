@@ -30,6 +30,8 @@ const RUBRO_AVATAR = {
   almacen: "🛒",
   ecommerce: "🛍️",
   medico: "🩺",
+  ferreteria: "🔧",
+  corralon: "🧱",
   municipios: "🏛️",
   default: "🏢",
 };

@@ -57,26 +57,28 @@ export async function apiFetch<T>(
       body: isForm ? body : (body ? JSON.stringify(body) : undefined),
     });
 
+    const text = await response.text().catch(() => '');
+    let data: any = null;
+    try {
+      if (text) data = JSON.parse(text);
+    } catch {
+      // cuerpo no es JSON válido
+    }
+
     if (response.status === 401) {
-      safeLocalStorage.clear();
-      window.location.href = '/login';
+      if (!skipAuth) {
+        safeLocalStorage.clear();
+        window.location.href = '/login';
+      }
       throw new ApiError(
-        'No autorizado. Redirigiendo a login...',
+        data?.error || data?.message || 'No autorizado',
         response.status,
-        null
+        data
       );
     }
 
     if (response.status === 204) {
       return {} as T;
-    }
-
-    let data: any = null;
-    try {
-      const text = await response.text();
-      if(text) data = JSON.parse(text);
-    } catch (e) {
-      // No hacer nada si el cuerpo está vacío o no es JSON válido
     }
     
     if (response.status === 403) {
