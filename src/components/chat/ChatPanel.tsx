@@ -201,6 +201,7 @@ const ChatPanel = ({
         municipio_nombre?: string | null;
       }>(`/tickets/municipio/${activeTicketId}${anonQuery}`, {
         headers: authHeaders,
+        skipAuth: !finalAuthToken,
       });
       const normalized = {
         ...data,
@@ -238,6 +239,7 @@ const ChatPanel = ({
               method: "PUT",
               headers: authHeaders,
               body: coords,
+              skipAuth: !finalAuthToken,
             },
           );
           await apiFetch(
@@ -246,6 +248,7 @@ const ChatPanel = ({
               method: "PUT",
               headers: authHeaders,
               body: coords,
+              skipAuth: !finalAuthToken,
             },
           );
           setForzarDireccion(false);
@@ -285,6 +288,7 @@ const ChatPanel = ({
                   method: "PUT",
                   headers: authHeaders,
                   body: coords,
+                  skipAuth: !finalAuthToken,
                 },
               );
               await apiFetch(
@@ -293,6 +297,7 @@ const ChatPanel = ({
                   method: "PUT",
                   headers: authHeaders,
                   body: coords,
+                  skipAuth: !finalAuthToken,
                 },
               );
               // Actualizar información del ticket con las nuevas coordenadas
@@ -487,22 +492,24 @@ const ChatPanel = ({
               ? { Authorization: `Bearer ${finalAuthToken}` }
               : {};
             const anonQuery = esAnonimo ? `?anon_id=${anonId}` : "";
-            await apiFetch(
-              `/tickets/chat/${activeTicketId}/ubicacion${anonQuery}`,
-              {
-                method: "PUT",
-                headers: authHeaders,
-                body: { direccion: text },
-              },
-            );
-            await apiFetch(
-              `/tickets/municipio/${activeTicketId}/ubicacion${anonQuery}`,
-              {
-                method: "PUT",
-                headers: authHeaders,
-                body: { direccion: text },
-              },
-            );
+              await apiFetch(
+                `/tickets/chat/${activeTicketId}/ubicacion${anonQuery}`,
+                {
+                  method: "PUT",
+                  headers: authHeaders,
+                  body: { direccion: text },
+                  skipAuth: !finalAuthToken,
+                },
+              );
+              await apiFetch(
+                `/tickets/municipio/${activeTicketId}/ubicacion${anonQuery}`,
+                {
+                  method: "PUT",
+                  headers: authHeaders,
+                  body: { direccion: text },
+                  skipAuth: !finalAuthToken,
+                },
+              );
             fetchTicket();
           } catch (e) {
             console.error("Error al enviar dirección", e);
@@ -532,6 +539,7 @@ const ChatPanel = ({
               method: "POST",
               headers: { "Content-Type": "application/json", ...authHeaders },
               body: { comentario: text },
+              skipAuth: !finalAuthToken,
             },
           );
         } else {
@@ -563,6 +571,7 @@ const ChatPanel = ({
                 : {}),
             },
             body: payload,
+            skipAuth: !finalAuthToken,
           });
           setContexto(data.contexto_actualizado || {});
           setMessages((prev) => [
