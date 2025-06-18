@@ -7,7 +7,8 @@ import ChatInput from "./ChatInput";
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import TicketMap from "@/components/TicketMap";
 import { Message } from "@/types/chat";
-import { apiFetch } from "@/utils/api";
+import { apiFetch, ApiError } from "@/utils/api";
+import { toast } from "@/components/ui/sonner";
 import { getAskEndpoint, esRubroPublico } from "@/utils/chatEndpoints";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 
@@ -255,6 +256,8 @@ const ChatPanel = ({
           fetchTicket();
         } catch (e) {
           console.error("Error al enviar ubicación", e);
+          if (e instanceof ApiError) toast.error(e.body?.error || e.message);
+          else toast.error("Error al enviar ubicación");
         }
       });
     } catch {
@@ -304,6 +307,8 @@ const ChatPanel = ({
               fetchTicket();
             } catch (e) {
               console.error("Error al enviar ubicación", e);
+              if (e instanceof ApiError) toast.error(e.body?.error || e.message);
+              else toast.error("Error al enviar ubicación");
             }
           },
           () => setForzarDireccion(true),
@@ -513,6 +518,8 @@ const ChatPanel = ({
             fetchTicket();
           } catch (e) {
             console.error("Error al enviar dirección", e);
+            if (e instanceof ApiError) toast.error(e.body?.error || e.message);
+            else toast.error("Error al enviar dirección");
           }
         }
       }

@@ -7,7 +7,8 @@ import ChatInput from "@/components/chat/ChatInput";
 import TypingIndicator from "@/components/chat/TypingIndicator";
 import Navbar from "@/components/layout/Navbar";
 import { motion, AnimatePresence } from "framer-motion";
-import { apiFetch } from "@/utils/api";
+import { apiFetch, ApiError } from "@/utils/api";
+import { toast } from "@/components/ui/sonner";
 import { getAskEndpoint, esRubroPublico } from "@/utils/chatEndpoints";
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
@@ -276,6 +277,8 @@ useEffect(() => {
         fetchTicketInfo();
       } catch (e) {
         console.error('Error al enviar ubicación', e);
+        if (e instanceof ApiError) toast.error(e.body?.error || e.message);
+        else toast.error('Error al enviar ubicación');
       }
     });
   }, [activeTicketId, fetchTicketInfo]);
@@ -311,6 +314,8 @@ useEffect(() => {
             fetchTicketInfo();
           } catch (e) {
             console.error('Error al enviar ubicación', e);
+            if (e instanceof ApiError) toast.error(e.body?.error || e.message);
+            else toast.error('Error al enviar ubicación');
           }
         },
         () => setForzarDireccion(true),
@@ -351,6 +356,8 @@ useEffect(() => {
             fetchTicketInfo();
           } catch (e) {
             console.error('Error al enviar dirección', e);
+            if (e instanceof ApiError) toast.error(e.body?.error || e.message);
+            else toast.error('Error al enviar dirección');
           }
         }
       }
