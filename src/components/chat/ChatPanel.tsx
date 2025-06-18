@@ -484,13 +484,14 @@ const ChatPanel = ({
           const payload: Record<string, any> = {
             pregunta: text,
             contexto_previo: contexto,
-            tipo_chat: tipoChat,
           };
 
           if (esAnonimo && mode === "standalone" && rubroSeleccionado)
             payload.rubro = rubroSeleccionado;
           if (esAnonimo) payload.anon_id = anonId; // Para endpoint que lo soporte
-          const data = await apiFetch("/ask", {
+          const endpoint =
+            tipoChat === "municipio" ? "/ask/municipio" : "/ask/pyme";
+          const data = await apiFetch(endpoint, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
