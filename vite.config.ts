@@ -6,6 +6,15 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 8080,
+    // Proxy API requests during development to avoid CORS issues
+    proxy: {
+      '/api': {
+        target: 'https://api.chatboc.ar',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/api/, ''),
+      },
+    },
   },
   resolve: {
     alias: {

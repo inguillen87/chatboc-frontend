@@ -183,3 +183,17 @@ Running `npm run dev` will then load the municipal chat components.
 Every request to `/ask` now includes a `tipo_chat` field derived from
 `VITE_APP_TARGET`. The backend uses this value to route questions
 to either the municipal or pyme logic.
+
+### Local API proxy
+
+To avoid CORS issues while developing, the Vite dev server proxies any
+request starting with `/api` to `https://api.chatboc.ar`. Create your
+own `.env` file from `.env.example` and ensure it contains:
+
+```bash
+VITE_API_URL=/api
+```
+
+With this setting all frontend requests go through the proxy, so your
+local environment can talk to the production API without cross-origin
+errors.
