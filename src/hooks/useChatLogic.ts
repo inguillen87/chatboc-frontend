@@ -76,9 +76,9 @@ export function useChatLogic(initialWelcomeMessage: string) {
         const payload = {
           pregunta: text,
           contexto_previo: contexto,
-          tipo_chat: APP_TARGET,
         };
-        const data = await apiFetch<any>("/ask", {
+        const endpoint = APP_TARGET === 'municipio' ? '/ask/municipio' : '/ask/pyme';
+        const data = await apiFetch<any>(endpoint, {
           method: "POST",
           body: payload,
         });

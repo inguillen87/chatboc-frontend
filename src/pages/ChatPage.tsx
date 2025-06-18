@@ -361,14 +361,14 @@ const DEFAULT_RUBRO = tipoChat === "municipio" ? "municipios" : undefined;
   const payload: any = {
     pregunta: text,
     contexto_previo: contexto,
-    tipo_chat: tipoChat,
   };
 
   if (isAnonimo) {
     if (DEFAULT_RUBRO) payload.rubro = DEFAULT_RUBRO;
     payload.anon_id = anonId;
   }
-  const data = await apiFetch<any>("/ask", {
+  const endpoint = tipoChat === 'municipio' ? '/ask/municipio' : '/ask/pyme';
+  const data = await apiFetch<any>(endpoint, {
     method: "POST",
     headers: authHeaders,
     body: payload,
