@@ -18,6 +18,10 @@ const Documentacion = () => (
         <li>Integrá Chatboc en tu web copiando el código del <b>iframe/widget</b> (disponible en tu panel).</li>
         <li>Gestioná las respuestas, consultas y upgrades de tu plan desde la web.</li>
       </ul>
+
+      <div className="bg-yellow-50 dark:bg-gray-900 border-l-4 border-yellow-500 p-3 rounded text-sm text-yellow-800 dark:text-yellow-200 mb-4">
+        <b>Importante:</b> el rubro y el <code>tipo_chat</code> deben coincidir en todas las consultas. Si tu rubro pertenece a los públicos, usá siempre el endpoint y la estética de municipio. Para el resto de los rubros, utilizá pyme.
+      </div>
       <p className="mb-4 text-base">
         Si tenés dudas frecuentes, visitá el <a href="/faqs" className="text-blue-500 underline">Centro de Ayuda</a> o escribinos por WhatsApp.
       </p>

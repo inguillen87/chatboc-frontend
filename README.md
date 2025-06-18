@@ -183,6 +183,10 @@ Running `npm run dev` will then load the municipal chat components.
 Requests to the bot should target `/ask/municipio` or `/ask/pyme`.
 Choose the endpoint based on the business sector or use the
 `tipo_chat` field to override the decision.
+The rubro and `tipo_chat` must always align: if the rubro is listed as
+public in the backend, use the municipio endpoint and layout; for any
+other rubro, use pyme. Any mismatch will trigger an error from the
+backend.
 
 ### Local API proxy
 

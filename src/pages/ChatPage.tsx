@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Message } from "@/types/chat";
 import ChatMessage from "@/components/chat/ChatMessage";
-import { getCurrentTipoChat } from "@/utils/tipoChat";
+import { getCurrentTipoChat, enforceTipoChatForRubro } from "@/utils/tipoChat";
 import ChatInput from "@/components/chat/ChatInput";
 import TypingIndicator from "@/components/chat/TypingIndicator";
 import Navbar from "@/components/layout/Navbar";
@@ -375,67 +375,6 @@ useEffect(() => {
             },
           );
         } else {
-          // Caso: todavía con el bot
-          const storedUser =
-            typeof window !== 'undefined'
-              ? JSON.parse(safeLocalStorage.getItem('user') || 'null')
-              : null;
-          const rubro =
-            rubroNormalizado ||
-            user?.rubro ||
-            storedUser?.rubro?.clave ||
-            storedUser?.rubro?.nombre;
-
-          if (!isAnonimo && loading) {
-            setMessages((prev) => [
-              ...prev,
-              {
-                id: Date.now(),
-                text: '⏳ Cargando tu perfil, intentá nuevamente...',
-                isBot: true,
-                timestamp: new Date(),
-              },
-            ]);
-            return;
-          }
-          if (!isAnonimo && !rubro) {
-            setMessages((prev) => [
-              ...prev,
-              {
-                id: Date.now(),
-                text: '🛈 Definí tu rubro en el perfil antes de usar el chat.',
-                isBot: true,
-                timestamp: new Date(),
-              },
-            ]);
-            return;
-          }
-
-          const payload: Record<string, any> = {
-            pregunta: text,
-            contexto_previo: contexto,
-            tipo_chat: tipoChatActual,
-          };
-          if (rubro) payload.rubro_clave = rubro;
-          if (isAnonimo) payload.anon_id = anonId;
-
-          const endpoint = getAskEndpoint({ tipoChat: tipoChatActual, rubro });
-          const esPublico = esRubroPublico(rubro);
-          console.log(
-            "Voy a pedir a endpoint:",
-            endpoint,
-            "rubro:",
-            rubro,
-            "tipoChat:",
-            tipoChatActual,
-            "esPublico:",
-            esPublico,
-          );
-          const data = await apiFetch<any>(endpoint, {
-            method: 'POST',
-            headers: authHeaders,
-            body: payload,
-          });
 
   setContexto(data.contexto_actualizado || {});
 

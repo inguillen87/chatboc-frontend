@@ -8,7 +8,7 @@ import TypingIndicator from "@/components/chat/TypingIndicator";
 import ChatMessage from "@/components/chat/ChatMessage";
 import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
-import { getCurrentTipoChat } from "@/utils/tipoChat";
+import { getCurrentTipoChat, enforceTipoChatForRubro } from "@/utils/tipoChat";
 import { getAskEndpoint, esRubroPublico } from "@/utils/chatEndpoints";
 
 function getOrCreateAnonId() {
@@ -72,15 +72,17 @@ const Demo = () => {
     setIsTyping(true);
 
     try {
+      const currentTipo = getCurrentTipoChat();
+      const adjustedTipo = enforceTipoChatForRubro(currentTipo, rubroSeleccionado);
       const payload = {
         pregunta: text,
         rubro_clave: rubroSeleccionado,
         contexto_previo: contexto,
         anon_id: anonId,
-        tipo_chat: getCurrentTipoChat(),
+        tipo_chat: adjustedTipo,
       };
 
-      const endpoint = getAskEndpoint({ tipoChat: getCurrentTipoChat(), rubro: rubroSeleccionado });
+      const endpoint = getAskEndpoint({ tipoChat: adjustedTipo, rubro: rubroSeleccionado });
       const esPublico = esRubroPublico(rubroSeleccionado);
       console.log(
         "Voy a pedir a endpoint:",
@@ -88,7 +90,7 @@ const Demo = () => {
         "rubro:",
         rubroSeleccionado,
         "tipoChat:",
-        getCurrentTipoChat(),
+        adjustedTipo,
         "esPublico:",
         esPublico,
       );

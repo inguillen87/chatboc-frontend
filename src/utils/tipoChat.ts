@@ -52,3 +52,23 @@ export function getCurrentTipoChat(): 'pyme' | 'municipio' {
   }
   return 'municipio';
 }
+
+/**
+ * Asegura que el tipo de chat coincida con el rubro proporcionado.
+ * Si hay discrepancia, se ajusta al valor correcto y se muestra una
+ * advertencia en consola. No lanza errores para evitar romper la UX.
+ */
+export function enforceTipoChatForRubro(
+  tipoChat: 'pyme' | 'municipio',
+  rubro: string | null,
+): 'pyme' | 'municipio' {
+  if (!rubro) return tipoChat;
+  const esperado = esRubroPublico(rubro) ? 'municipio' : 'pyme';
+  if (tipoChat !== esperado) {
+    console.warn(
+      `Tipo de chat '${tipoChat}' no coincide con el rubro '${rubro}'. Ajustando a '${esperado}'.`,
+    );
+    return esperado;
+  }
+  return tipoChat;
+}
