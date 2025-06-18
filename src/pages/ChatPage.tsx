@@ -349,7 +349,7 @@ const DEFAULT_RUBRO = tipoChat === "municipio" ? "municipios" : undefined;
               body: { comentario: text },
             },
           );
-        else {
+        } else {
   // Caso: todavía con el bot
 
   const payload: any = {
