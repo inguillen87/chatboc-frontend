@@ -5,7 +5,6 @@ import { safeLocalStorage } from "@/utils/safeLocalStorage";
 
 // Importa directamente para evitar problemas con React.lazy en algunos entornos
 import ChatWidget from "../components/chat/ChatWidget";
-import ErrorBoundary from "../components/ErrorBoundary";
 
 const Iframe = () => {
   const [defaultOpen, setDefaultOpen] = useState(false);
@@ -50,11 +49,11 @@ const Iframe = () => {
     }
   }, []);
 
-  // Evitamos establecer un fondo opaco para que el iframe sea completamente transparent
+  // Seteamos fondos acordes al tema sin romper el overflow ni el scroll
   useEffect(() => {
     if (typeof document !== "undefined") {
-      document.documentElement.style.background = "transparent";
-      document.body.style.background = "transparent";
+      document.documentElement.style.background = "var(--background)";
+      document.body.style.background = "var(--background)";
       document.body.style.margin = "0";
       document.body.style.padding = "0";
       // NO tocar overflow, NO tocar height/width acá
@@ -66,7 +65,7 @@ const Iframe = () => {
       style={{
         width: "100%",
         height: "100%",
-        background: "transparent",
+        background: "var(--background)",
         margin: 0,
         padding: 0,
         overflow: "visible", // permite que el contenido crezca si hace falta
@@ -74,17 +73,15 @@ const Iframe = () => {
         flexDirection: "column",
       }}
     >
-      <ErrorBoundary fallbackMessage="⚠️ Servicio no disponible.">
-        <ChatWidget
-          mode="iframe"
-          defaultOpen={defaultOpen}
-          widgetId={widgetId}
-          authToken={tokenFromUrl}
-          initialIframeWidth={initialIframeWidth}
-          initialIframeHeight={initialIframeHeight}
-        />
-      </ErrorBoundary>
-
+      <ChatWidget
+        mode="iframe"
+        defaultOpen={defaultOpen}
+        widgetId={widgetId}
+        authToken={tokenFromUrl}
+        initialIframeWidth={initialIframeWidth}
+        initialIframeHeight={initialIframeHeight}
+      />
+      {console.log("ChatWidget montado!")}
     </div>
   );
 };
