@@ -7,6 +7,7 @@ import {
 import {
   __toESM
 } from "./chunk-4MBMRILA.js";
+import { safeSessionStorageGetItem, safeSessionStorageSetItem } from "./utils/safeStorage.js";
 
 // node_modules/react-router-dom/dist/index.js
 var React2 = __toESM(require_react());
@@ -3691,7 +3692,7 @@ function getDoneFetcher(data) {
 }
 function restoreAppliedTransitions(_window, transitions) {
   try {
-    let sessionPositions = _window.sessionStorage.getItem(TRANSITIONS_STORAGE_KEY);
+    let sessionPositions = safeSessionStorageGetItem(TRANSITIONS_STORAGE_KEY);
     if (sessionPositions) {
       let json3 = JSON.parse(sessionPositions);
       for (let [k, v] of Object.entries(json3 || {})) {
@@ -3710,7 +3711,7 @@ function persistAppliedTransitions(_window, transitions) {
       json3[k] = [...v];
     }
     try {
-      _window.sessionStorage.setItem(TRANSITIONS_STORAGE_KEY, JSON.stringify(json3));
+      safeSessionStorageSetItem(TRANSITIONS_STORAGE_KEY, JSON.stringify(json3));
     } catch (error) {
       warning(false, "Failed to save applied view transitions in sessionStorage (" + error + ").");
     }
@@ -5744,7 +5745,7 @@ function useScrollRestoration(_temp4) {
       savedScrollPositions[key] = window.scrollY;
     }
     try {
-      sessionStorage.setItem(storageKey || SCROLL_RESTORATION_STORAGE_KEY, JSON.stringify(savedScrollPositions));
+      safeSessionStorageSetItem(storageKey || SCROLL_RESTORATION_STORAGE_KEY, JSON.stringify(savedScrollPositions));
     } catch (error) {
       true ? warning(false, "Failed to save scroll positions in sessionStorage, <ScrollRestoration /> will not work properly (" + error + ").") : void 0;
     }
@@ -5753,7 +5754,7 @@ function useScrollRestoration(_temp4) {
   if (typeof document !== "undefined") {
     React2.useLayoutEffect(() => {
       try {
-        let sessionPositions = sessionStorage.getItem(storageKey || SCROLL_RESTORATION_STORAGE_KEY);
+        let sessionPositions = safeSessionStorageGetItem(storageKey || SCROLL_RESTORATION_STORAGE_KEY);
         if (sessionPositions) {
           savedScrollPositions = JSON.parse(sessionPositions);
         }
