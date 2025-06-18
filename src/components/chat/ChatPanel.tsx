@@ -450,6 +450,12 @@ const ChatPanel = ({
       setMessages((prev) => [...prev, userMessage]);
       setIsTyping(true);
 
+      const payload: Record<string, any> = {
+        pregunta: text,
+        contexto_previo: contexto,
+        tipo_chat: tipoChat,
+      };
+
       try {
         if (activeTicketId) {
           const authHeaders =
