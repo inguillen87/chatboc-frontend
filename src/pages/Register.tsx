@@ -7,6 +7,7 @@ import { apiFetch, ApiError } from '@/utils/api';
 import { useNavigate } from 'react-router-dom';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { APP_TARGET } from '@/config';
+import { enforceTipoChatForRubro } from '@/utils/tipoChat';
 
 interface Rubro { id: number; nombre: string; }
 interface RegisterResponse {
@@ -71,13 +72,17 @@ const Register = () => {
         /* ignore */
       }
 
+      const finalTipo = enforceTipoChatForRubro(
+        (tipoChat || APP_TARGET) as 'pyme' | 'municipio',
+        rubroRegistrado || null,
+      );
       const userProfile = {
         id: data.id,
         name: data.name,
         email: data.email,
         token: data.token,
         rubro: rubroRegistrado,
-        tipo_chat: tipoChat || APP_TARGET,
+        tipo_chat: finalTipo,
       };
       safeLocalStorage.setItem("user", JSON.stringify(userProfile));
 

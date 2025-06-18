@@ -10,7 +10,7 @@ import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
 import { getAskEndpoint, esRubroPublico } from "@/utils/chatEndpoints";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
-import { getCurrentTipoChat } from "@/utils/tipoChat";
+import { getCurrentTipoChat, enforceTipoChatForRubro } from "@/utils/tipoChat";
 
 const CARD_WIDTH = 370;
 const CARD_HEIGHT = 540;
@@ -503,15 +503,16 @@ const ChatPanel = ({
           const payload: Record<string, any> = {
             pregunta: text,
             contexto_previo: contexto,
-            tipo_chat: tipoChatActual,
           };
 
-          if (esAnonimo && mode === "standalone" && rubroSeleccionado)
-            payload.rubro_clave = rubroSeleccionado;
-          if (esAnonimo) payload.anon_id = anonId; // Para endpoint que lo soporte
-
           const rubroParaEndpoint = rubroNormalizado;
-          const endpoint = getAskEndpoint({ tipoChat: tipoChatActual, rubro: rubroParaEndpoint });
+          if (rubroParaEndpoint) payload.rubro_clave = rubroParaEndpoint;
+
+          if (esAnonimo && mode === "standalone") payload.anon_id = anonId;
+
+          const adjustedTipo = enforceTipoChatForRubro(tipoChatActual, rubroParaEndpoint || null);
+          payload.tipo_chat = adjustedTipo;
+          const endpoint = getAskEndpoint({ tipoChat: adjustedTipo, rubro: rubroParaEndpoint });
           const esPublico = esRubroPublico(rubroParaEndpoint || undefined);
           console.log(
             "Voy a pedir a endpoint:",
@@ -519,7 +520,7 @@ const ChatPanel = ({
             "rubro:",
             rubroParaEndpoint,
             "tipoChat:",
-            tipoChatActual,
+            adjustedTipo,
             "esPublico:",
             esPublico,
           );

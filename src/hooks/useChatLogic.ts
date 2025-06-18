@@ -4,6 +4,7 @@ import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
 import { APP_TARGET } from "@/config";
 import { getAskEndpoint, esRubroPublico } from "@/utils/chatEndpoints";
+import { enforceTipoChatForRubro } from "@/utils/tipoChat";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 
 export function useChatLogic(initialWelcomeMessage: string) {
@@ -75,17 +76,19 @@ export function useChatLogic(initialWelcomeMessage: string) {
           body: { comentario: text },
         });
       } else {
-        const payload = {
-          pregunta: text,
-          contexto_previo: contexto,
-          tipo_chat: APP_TARGET,
-        };
         const stored =
           typeof window !== 'undefined'
             ? JSON.parse(safeLocalStorage.getItem('user') || 'null')
             : null;
         const rubro = stored?.rubro?.clave || stored?.rubro?.nombre || null;
-        const endpoint = getAskEndpoint({ tipoChat: APP_TARGET, rubro });
+        const adjustedTipo = enforceTipoChatForRubro(APP_TARGET, rubro);
+        const payload = {
+          pregunta: text,
+          contexto_previo: contexto,
+          tipo_chat: adjustedTipo,
+          ...(rubro ? { rubro_clave: rubro } : {}),
+        };
+        const endpoint = getAskEndpoint({ tipoChat: adjustedTipo, rubro });
         const esPublico = esRubroPublico(rubro);
         console.log(
           'Voy a pedir a endpoint:',
@@ -93,7 +96,7 @@ export function useChatLogic(initialWelcomeMessage: string) {
           'rubro:',
           rubro,
           'tipoChat:',
-          APP_TARGET,
+          adjustedTipo,
           'esPublico:',
           esPublico,
         );

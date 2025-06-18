@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Message } from "@/types/chat";
 import ChatMessage from "@/components/chat/ChatMessage";
-import { getCurrentTipoChat } from "@/utils/tipoChat";
+import { getCurrentTipoChat, enforceTipoChatForRubro } from "@/utils/tipoChat";
 import ChatInput from "@/components/chat/ChatInput";
 import TypingIndicator from "@/components/chat/TypingIndicator";
 import Navbar from "@/components/layout/Navbar";
@@ -354,12 +354,6 @@ const DEFAULT_RUBRO = tipoChatActual === 'municipio' ? 'municipios' : undefined;
       setMessages((prev) => [...prev, userMessage]);
       setIsTyping(true);
 
-      const payload: Record<string, any> = {
-        pregunta: text,
-        contexto_previo: contexto,
-        tipo_chat: tipoChatActual,
-      };
-
       try {
         // --- LÓGICA CONDICIONAL ---
         if (activeTicketId) {
@@ -378,7 +372,6 @@ const DEFAULT_RUBRO = tipoChatActual === 'municipio' ? 'municipios' : undefined;
   const payload: any = {
     pregunta: text,
     contexto_previo: contexto,
-    tipo_chat: tipoChatActual,
   };
 
   if (isAnonimo) {
@@ -389,8 +382,12 @@ const DEFAULT_RUBRO = tipoChatActual === 'municipio' ? 'municipios' : undefined;
     typeof window !== 'undefined'
       ? JSON.parse(safeLocalStorage.getItem('user') || 'null')
       : null;
-  const rubro = rubroNormalizado || storedUser?.rubro?.clave || storedUser?.rubro?.nombre;
-  const endpoint = getAskEndpoint({ tipoChat: tipoChatActual, rubro });
+  const rubro =
+    rubroNormalizado || storedUser?.rubro?.clave || storedUser?.rubro?.nombre;
+  if (rubro) payload.rubro_clave = rubro;
+  const adjustedTipo = enforceTipoChatForRubro(tipoChatActual, rubro);
+  payload.tipo_chat = adjustedTipo;
+  const endpoint = getAskEndpoint({ tipoChat: adjustedTipo, rubro });
   const esPublico = esRubroPublico(rubro);
   console.log(
     "Voy a pedir a endpoint:",
@@ -398,7 +395,7 @@ const DEFAULT_RUBRO = tipoChatActual === 'municipio' ? 'municipios' : undefined;
     "rubro:",
     rubro,
     "tipoChat:",
-    tipoChatActual,
+    adjustedTipo,
     "esPublico:",
     esPublico,
   );

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { apiFetch, ApiError } from "@/utils/api";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { APP_TARGET } from "@/config";
+import { enforceTipoChatForRubro } from "@/utils/tipoChat";
 
 // Asegúrate de que esta interfaz refleje EXACTAMENTE lo que tu backend devuelve en /login
 interface LoginResponse {
@@ -50,6 +51,10 @@ const Login = () => {
         /* ignore */
       }
 
+      const finalTipo = enforceTipoChatForRubro(
+        (tipoChat || APP_TARGET) as 'pyme' | 'municipio',
+        rubro || null,
+      );
       const userToStore = {
         id: data.id,
         name: data.name,
@@ -57,7 +62,7 @@ const Login = () => {
         token: data.token,
         plan: data.plan || "free",
         rubro,
-        tipo_chat: tipoChat || APP_TARGET,
+        tipo_chat: finalTipo,
       };
 
       safeLocalStorage.setItem("user", JSON.stringify(userToStore));
