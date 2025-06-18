@@ -349,40 +349,41 @@ const DEFAULT_RUBRO = tipoChat === "municipio" ? "municipios" : undefined;
               body: { comentario: text },
             },
           );
-        } else {
-          // Caso: todavía con el bot
-        // 💥 ACA FALTABA ESTO:
-          const payload: any = {
-            pregunta: text,
-            contexto_previo: contexto,
-            tipo_chat: tipoChat,      // Mandá el tipo de chat siempre
-    // podés sumar otros campos si hace falta
-          if (isAnonimo) {
-            if (DEFAULT_RUBRO) payload.rubro = DEFAULT_RUBRO;
-            payload.anon_id = anonId;
-          }
-          const data = await apiFetch<any>("/ask", {
-            method: "POST",
-            headers: authHeaders,
-            body: payload,
-          });
+        else {
+  // Caso: todavía con el bot
 
-          setContexto(data.contexto_actualizado || {});
+  const payload: any = {
+    pregunta: text,
+    contexto_previo: contexto,
+    tipo_chat: tipoChat,
+  };
 
-          const botMessage: Message = {
-            id: Date.now(),
-            text: data?.respuesta || "⚠️ No se pudo generar una respuesta.",
-            isBot: true,
-            timestamp: new Date(),
-            botones: data?.botones || [],
-          };
-          setMessages((prev) => [...prev, botMessage]);
+  if (isAnonimo) {
+    if (DEFAULT_RUBRO) payload.rubro = DEFAULT_RUBRO;
+    payload.anon_id = anonId;
+  }
+  const data = await apiFetch<any>("/ask", {
+    method: "POST",
+    headers: authHeaders,
+    body: payload,
+  });
 
-          if (data.ticket_id) {
-            setActiveTicketId(data.ticket_id);
-            ultimoMensajeIdRef.current = 0;
-          }
-        }
+  setContexto(data.contexto_actualizado || {});
+
+  const botMessage: Message = {
+    id: Date.now(),
+    text: data?.respuesta || "⚠️ No se pudo generar una respuesta.",
+    isBot: true,
+    timestamp: new Date(),
+    botones: data?.botones || [],
+  };
+  setMessages((prev) => [...prev, botMessage]);
+
+  if (data.ticket_id) {
+    setActiveTicketId(data.ticket_id);
+    ultimoMensajeIdRef.current = 0;
+  }
+}
       } catch (error: any) {
         let errorMsg = "⚠️ No se pudo conectar con el servidor.";
         if (error?.body?.error) {
