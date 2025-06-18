@@ -143,11 +143,22 @@ const DEFAULT_RUBRO = APP_TARGET === "municipio" ? "municipios" : undefined;
     try {
       const data = await apiFetch<{
         direccion?: string | null;
-        latitud?: number | null;
-        longitud?: number | null;
+        latitud?: number | string | null;
+        longitud?: number | string | null;
         municipio_nombre?: string | null;
       }>(`/tickets/municipio/${activeTicketId}`, { headers: authHeaders });
-      setTicketInfo(data);
+      const normalized = {
+        ...data,
+        latitud:
+          data.latitud !== null && data.latitud !== undefined
+            ? Number(data.latitud)
+            : null,
+        longitud:
+          data.longitud !== null && data.longitud !== undefined
+            ? Number(data.longitud)
+            : null,
+      };
+      setTicketInfo(normalized);
     } catch (e) {
       console.error('Error al refrescar ticket:', e);
     }
