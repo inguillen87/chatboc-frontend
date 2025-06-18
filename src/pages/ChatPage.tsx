@@ -12,6 +12,7 @@ import { getAskEndpoint, esRubroPublico } from "@/utils/chatEndpoints";
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import TicketMap from "@/components/TicketMap";
+import { useUser } from "@/hooks/useUser";
 
 // Frases para detectar pedido de dirección
 const FRASES_DIRECCION = [
@@ -115,6 +116,7 @@ const ChatPage = () => {
       ? (tipoChatParam as 'pyme' | 'municipio')
       : getCurrentTipoChat();
 
+const { user, refreshUser, loading } = useUser();
 const authToken = safeLocalStorage.getItem("authToken");
 const anonId = getOrCreateAnonId();
 const isAnonimo = !authToken;
@@ -128,6 +130,7 @@ const storedUser =
     ? JSON.parse(safeLocalStorage.getItem('user') || 'null')
     : null;
 const rubroActual =
+  user?.rubro ||
   storedUser?.rubro?.clave ||
   storedUser?.rubro?.nombre ||
   (typeof storedUser?.rubro === 'string' ? storedUser.rubro : null);
@@ -140,6 +143,12 @@ const tipoChatActual: 'pyme' | 'municipio' = isMunicipioRubro
     ? 'pyme'
     : tipoChat;
 const DEFAULT_RUBRO = tipoChatActual === 'municipio' ? 'municipios' : undefined;
+
+useEffect(() => {
+  if (!isAnonimo && (!user || !user.rubro) && !loading) {
+    refreshUser();
+  }
+}, [isAnonimo, user, refreshUser, loading]);
 
   const [contexto, setContexto] = useState({});
   const [activeTicketId, setActiveTicketId] = useState<number | null>(null);
@@ -354,14 +363,7 @@ const DEFAULT_RUBRO = tipoChatActual === 'municipio' ? 'municipios' : undefined;
       setMessages((prev) => [...prev, userMessage]);
       setIsTyping(true);
 
-      const payload: Record<string, any> = {
-        pregunta: text,
-        contexto_previo: contexto,
-        tipo_chat: tipoChatActual,
-      };
-
       try {
-        // --- LÓGICA CONDICIONAL ---
         if (activeTicketId) {
           // Caso: chat en vivo
           await apiFetch(
@@ -373,40 +375,67 @@ const DEFAULT_RUBRO = tipoChatActual === 'municipio' ? 'municipios' : undefined;
             },
           );
         } else {
-  // Caso: todavía con el bot
+          // Caso: todavía con el bot
+          const storedUser =
+            typeof window !== 'undefined'
+              ? JSON.parse(safeLocalStorage.getItem('user') || 'null')
+              : null;
+          const rubro =
+            rubroNormalizado ||
+            user?.rubro ||
+            storedUser?.rubro?.clave ||
+            storedUser?.rubro?.nombre;
 
-  const payload: any = {
-    pregunta: text,
-    contexto_previo: contexto,
-    tipo_chat: tipoChatActual,
-  };
+          if (!isAnonimo && loading) {
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: Date.now(),
+                text: '⏳ Cargando tu perfil, intentá nuevamente...',
+                isBot: true,
+                timestamp: new Date(),
+              },
+            ]);
+            return;
+          }
+          if (!isAnonimo && !rubro) {
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: Date.now(),
+                text: '🛈 Definí tu rubro en el perfil antes de usar el chat.',
+                isBot: true,
+                timestamp: new Date(),
+              },
+            ]);
+            return;
+          }
 
-  if (isAnonimo) {
-    if (DEFAULT_RUBRO) payload.rubro_clave = DEFAULT_RUBRO;
-    payload.anon_id = anonId;
-  }
-  const storedUser =
-    typeof window !== 'undefined'
-      ? JSON.parse(safeLocalStorage.getItem('user') || 'null')
-      : null;
-  const rubro = rubroNormalizado || storedUser?.rubro?.clave || storedUser?.rubro?.nombre;
-  const endpoint = getAskEndpoint({ tipoChat: tipoChatActual, rubro });
-  const esPublico = esRubroPublico(rubro);
-  console.log(
-    "Voy a pedir a endpoint:",
-    endpoint,
-    "rubro:",
-    rubro,
-    "tipoChat:",
-    tipoChatActual,
-    "esPublico:",
-    esPublico,
-  );
-  const data = await apiFetch<any>(endpoint, {
-    method: 'POST',
-    headers: authHeaders,
-    body: payload,
-  });
+          const payload: Record<string, any> = {
+            pregunta: text,
+            contexto_previo: contexto,
+            tipo_chat: tipoChatActual,
+          };
+          if (rubro) payload.rubro_clave = rubro;
+          if (isAnonimo) payload.anon_id = anonId;
+
+          const endpoint = getAskEndpoint({ tipoChat: tipoChatActual, rubro });
+          const esPublico = esRubroPublico(rubro);
+          console.log(
+            "Voy a pedir a endpoint:",
+            endpoint,
+            "rubro:",
+            rubro,
+            "tipoChat:",
+            tipoChatActual,
+            "esPublico:",
+            esPublico,
+          );
+          const data = await apiFetch<any>(endpoint, {
+            method: 'POST',
+            headers: authHeaders,
+            body: payload,
+          });
 
   setContexto(data.contexto_actualizado || {});
 
