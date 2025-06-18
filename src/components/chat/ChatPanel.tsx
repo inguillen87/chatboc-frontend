@@ -162,6 +162,24 @@ const ChatPanel = ({
     mode === "iframe" ? propAuthToken : getAuthTokenFromLocalStorage();
   const esAnonimo = !finalAuthToken;
 
+  const storedUser =
+    typeof window !== "undefined"
+      ? JSON.parse(safeLocalStorage.getItem("user") || "null")
+      : null;
+  const rubroActual =
+    rubroSeleccionado ||
+    storedUser?.rubro?.clave ||
+    storedUser?.rubro?.nombre ||
+    (typeof storedUser?.rubro === "string" ? storedUser.rubro : null);
+  const rubroNormalizado =
+    typeof rubroActual === "string" ? rubroActual.toLowerCase() : null;
+  const isMunicipioRubro = esRubroPublico(rubroNormalizado || undefined);
+  const tipoChatActual: "pyme" | "municipio" = isMunicipioRubro
+    ? "municipio"
+    : rubroNormalizado
+      ? "pyme"
+      : getCurrentTipoChat();
+
   const fetchTicket = useCallback(async () => {
     if (!activeTicketId) return;
     try {
@@ -485,27 +503,23 @@ const ChatPanel = ({
           const payload: Record<string, any> = {
             pregunta: text,
             contexto_previo: contexto,
-            tipo_chat: tipoChat,
+            tipo_chat: tipoChatActual,
           };
 
           if (esAnonimo && mode === "standalone" && rubroSeleccionado)
             payload.rubro_clave = rubroSeleccionado;
           if (esAnonimo) payload.anon_id = anonId; // Para endpoint que lo soporte
 
-          const rubroParaEndpoint =
-            rubroSeleccionado ||
-            (typeof window !== "undefined"
-              ? JSON.parse(safeLocalStorage.getItem("user") || "null")?.rubro?.clave
-              : null);
-          const endpoint = getAskEndpoint({ tipoChat, rubro: rubroParaEndpoint });
-          const esPublico = esRubroPublico(rubroParaEndpoint);
+          const rubroParaEndpoint = rubroNormalizado;
+          const endpoint = getAskEndpoint({ tipoChat: tipoChatActual, rubro: rubroParaEndpoint });
+          const esPublico = esRubroPublico(rubroParaEndpoint || undefined);
           console.log(
             "Voy a pedir a endpoint:",
             endpoint,
             "rubro:",
             rubroParaEndpoint,
             "tipoChat:",
-            tipoChat,
+            tipoChatActual,
             "esPublico:",
             esPublico,
           );
@@ -743,7 +757,7 @@ const ChatPanel = ({
                     message={msg}
                     isTyping={isTyping}
                     onButtonClick={handleSendMessage}
-                    tipoChat={tipoChat}
+                    tipoChat={tipoChatActual}
                   />
                 ),
             )}
