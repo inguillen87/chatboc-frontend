@@ -10,6 +10,22 @@ import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
 
+function getOrCreateAnonId() {
+  if (typeof window === "undefined") return "";
+  try {
+    let anon = safeLocalStorage.getItem("anon_id");
+    if (!anon) {
+      anon =
+        window.crypto?.randomUUID?.() ||
+        `anon-${Math.random().toString(36).slice(2, 9)}-${Date.now()}`;
+      safeLocalStorage.setItem("anon_id", anon);
+    }
+    return anon;
+  } catch {
+    return `anon-${Math.random().toString(36).slice(2, 9)}-${Date.now()}`;
+  }
+}
+
 const Demo = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
@@ -19,19 +35,12 @@ const Demo = () => {
   });
   const [rubrosDisponibles, setRubrosDisponibles] = useState<{ id: number; nombre: string }[]>([]);
   const [esperandoRubro, setEsperandoRubro] = useState(!rubroSeleccionado);
-  const [token, setToken] = useState<string>("");
+  const [anonId, setAnonId] = useState<string>("");
   const [contexto, setContexto] = useState({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      let currentToken = safeLocalStorage.getItem("anon_token");
-      if (!currentToken) {
-        currentToken = `demo-anon-${Math.random().toString(36).substring(2, 10)}`;
-        safeLocalStorage.setItem("anon_token", currentToken);
-      }
-      setToken(currentToken);
-    }
+    setAnonId(getOrCreateAnonId());
   }, []);
 
   useEffect(() => {
@@ -51,7 +60,7 @@ const Demo = () => {
   }, [messages, isTyping]);
 
   const handleSendMessage = useCallback(async (text: string) => {
-    if (!text.trim() || !rubroSeleccionado || !token) return;
+    if (!text.trim() || !rubroSeleccionado) return;
     if (preguntasUsadas >= 15) {
       setMessages((prev) => [...prev, { id: Date.now(), text: `🔒 Límite de 15 preguntas en la demo alcanzado.`, isBot: true, timestamp: new Date() }]);
       return;
@@ -67,12 +76,14 @@ const Demo = () => {
         rubro: rubroSeleccionado,
         contexto_previo: contexto,
         tipo_chat: getCurrentTipoChat(),
+        anon_id: anonId,
       };
 
       const response = await apiFetch<any>("/ask", {
         method: "POST",
         body: payload,
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json" },
+        skipAuth: true,
       });
 
       setContexto(response.contexto_actualizado || {});
@@ -99,7 +110,7 @@ const Demo = () => {
     } finally {
       setIsTyping(false);
     }
-  }, [contexto, rubroSeleccionado, token, preguntasUsadas]);
+  }, [contexto, rubroSeleccionado, anonId, preguntasUsadas]);
 
   useEffect(() => {
     const handleButtonSendMessage = (event: Event) => {
