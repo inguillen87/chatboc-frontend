@@ -114,7 +114,9 @@ const anonId = getOrCreateAnonId();
 const isAnonimo = !authToken;
 const authHeaders: Record<string, string> = authToken
   ? { Authorization: `Bearer ${authToken}` }
-  : { "Anon-Id": anonId || "" };
+  : {};
+const anonParam = !authToken ? `anon_id=${anonId}` : '';
+const queryPrefix = anonParam ? `?${anonParam}` : '';
 const DEFAULT_RUBRO = APP_TARGET === "municipio" ? "municipios" : undefined;
 
   const [contexto, setContexto] = useState({});
@@ -146,7 +148,10 @@ const DEFAULT_RUBRO = APP_TARGET === "municipio" ? "municipios" : undefined;
         latitud?: number | string | null;
         longitud?: number | string | null;
         municipio_nombre?: string | null;
-      }>(`/tickets/municipio/${activeTicketId}`, { headers: authHeaders });
+      }>(
+        `/tickets/municipio/${activeTicketId}${queryPrefix}`,
+        { headers: authHeaders },
+      );
       const normalized = {
         ...data,
         latitud:
@@ -218,16 +223,22 @@ const DEFAULT_RUBRO = APP_TARGET === "municipio" ? "municipios" : undefined;
         longitud: pos.coords.longitude,
       };
       try {
-        await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, {
-          method: 'POST',
-          headers: authHeaders,
-          body: coords,
-        });
-        await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, {
-          method: 'PUT',
-          headers: authHeaders,
-          body: coords,
-        });
+        await apiFetch(
+          `/tickets/chat/${activeTicketId}/ubicacion${queryPrefix}`,
+          {
+            method: 'POST',
+            headers: authHeaders,
+            body: coords,
+          },
+        );
+        await apiFetch(
+          `/tickets/municipio/${activeTicketId}/ubicacion${queryPrefix}`,
+          {
+            method: 'PUT',
+            headers: authHeaders,
+            body: coords,
+          },
+        );
         setForzarDireccion(false);
         fetchTicketInfo();
       } catch (e) {
@@ -247,16 +258,22 @@ const DEFAULT_RUBRO = APP_TARGET === "municipio" ? "municipios" : undefined;
             longitud: pos.coords.longitude,
           };
           try {
-            await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, {
-              method: 'POST',
-              headers: authHeaders,
-              body: coords,
-            });
-            await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, {
-              method: 'PUT',
-              headers: authHeaders,
-              body: coords,
-            });
+            await apiFetch(
+              `/tickets/chat/${activeTicketId}/ubicacion${queryPrefix}`,
+              {
+                method: 'POST',
+                headers: authHeaders,
+                body: coords,
+              },
+            );
+            await apiFetch(
+              `/tickets/municipio/${activeTicketId}/ubicacion${queryPrefix}`,
+              {
+                method: 'PUT',
+                headers: authHeaders,
+                body: coords,
+              },
+            );
           } catch (e) {
             console.error('Error al enviar ubicación', e);
           }
@@ -280,16 +297,22 @@ const DEFAULT_RUBRO = APP_TARGET === "municipio" ? "municipios" : undefined;
         setDireccionGuardada(text);
         if (activeTicketId) {
           try {
-            await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, {
-              method: 'POST',
-              headers: authHeaders,
-              body: { direccion: text },
-            });
-            await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, {
-              method: 'PUT',
-              headers: authHeaders,
-              body: { direccion: text },
-            });
+            await apiFetch(
+              `/tickets/chat/${activeTicketId}/ubicacion${queryPrefix}`,
+              {
+                method: 'POST',
+                headers: authHeaders,
+                body: { direccion: text },
+              },
+            );
+            await apiFetch(
+              `/tickets/municipio/${activeTicketId}/ubicacion${queryPrefix}`,
+              {
+                method: 'PUT',
+                headers: authHeaders,
+                body: { direccion: text },
+              },
+            );
             fetchTicketInfo();
           } catch (e) {
             console.error('Error al enviar dirección', e);
@@ -312,7 +335,7 @@ const DEFAULT_RUBRO = APP_TARGET === "municipio" ? "municipios" : undefined;
         if (activeTicketId) {
           // Caso: chat en vivo
           await apiFetch(
-            `/tickets/chat/${activeTicketId}/responder_ciudadano`,
+            `/tickets/chat/${activeTicketId}/responder_ciudadano${queryPrefix}`,
             {
               method: "POST",
               headers: authHeaders,
@@ -376,8 +399,10 @@ const DEFAULT_RUBRO = APP_TARGET === "municipio" ? "municipios" : undefined;
     const fetchNewMessages = async () => {
       if (!activeTicketId) return;
       try {
+        const base = `/tickets/chat/${activeTicketId}/mensajes`;
+        const query = `${queryPrefix}${queryPrefix ? '&' : '?'}ultimo_mensaje_id=${ultimoMensajeIdRef.current}`;
         const data = await apiFetch<{ estado_chat: string; mensajes: any[] }>(
-          `/tickets/chat/${activeTicketId}/mensajes?ultimo_mensaje_id=${ultimoMensajeIdRef.current}`,
+          `${base}${query}`,
           { headers: authHeaders },
         );
         if (data.mensajes && data.mensajes.length > 0) {
