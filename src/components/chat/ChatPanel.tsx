@@ -8,6 +8,7 @@ import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import TicketMap from "@/components/TicketMap";
 import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
+import { getAskEndpoint } from "@/utils/chatEndpoints";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
 
@@ -490,7 +491,17 @@ const ChatPanel = ({
           if (esAnonimo && mode === "standalone" && rubroSeleccionado)
             payload.rubro_clave = rubroSeleccionado;
           if (esAnonimo) payload.anon_id = anonId; // Para endpoint que lo soporte
-          const data = await apiFetch("/ask", {
+
+          const endpoint = getAskEndpoint({
+            tipoChat,
+            rubro:
+              rubroSeleccionado ||
+              (typeof window !== "undefined"
+                ? JSON.parse(safeLocalStorage.getItem("user") || "null")?.rubro?.clave
+                : null),
+          });
+
+          const data = await apiFetch(endpoint, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",

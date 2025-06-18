@@ -8,6 +8,7 @@ import TypingIndicator from "@/components/chat/TypingIndicator";
 import Navbar from "@/components/layout/Navbar";
 import { motion, AnimatePresence } from "framer-motion";
 import { apiFetch } from "@/utils/api";
+import { getAskEndpoint } from "@/utils/chatEndpoints";
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import TicketMap from "@/components/TicketMap";
@@ -368,8 +369,14 @@ const DEFAULT_RUBRO = tipoChat === "municipio" ? "municipios" : undefined;
     if (DEFAULT_RUBRO) payload.rubro_clave = DEFAULT_RUBRO;
     payload.anon_id = anonId;
   }
-  const data = await apiFetch<any>("/ask", {
-    method: "POST",
+  const storedUser =
+    typeof window !== 'undefined'
+      ? JSON.parse(safeLocalStorage.getItem('user') || 'null')
+      : null;
+  const rubro = DEFAULT_RUBRO || storedUser?.rubro?.clave || storedUser?.rubro?.nombre;
+  const endpoint = getAskEndpoint({ tipoChat, rubro });
+  const data = await apiFetch<any>(endpoint, {
+    method: 'POST',
     headers: authHeaders,
     body: payload,
   });
