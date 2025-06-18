@@ -52,6 +52,7 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
     s.src = `https://maps.googleapis.com/maps/api/js?key=${Maps_API_KEY}&libraries=places&loading=async`;
     s.async = true;
     s.onload = () => setScriptLoaded(true);
+    s.onerror = () => setScriptLoaded(false);
     document.head.appendChild(s);
   }, []);
 
@@ -75,7 +76,11 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
       setInternalValue(value);
     }
   }, [value]);
-  if (!Maps_API_KEY || !scriptLoaded) {
+  const googlePlacesAvailable =
+    typeof window !== "undefined" &&
+    (window as any).google?.maps?.places !== undefined;
+
+  if (!Maps_API_KEY || !scriptLoaded || !googlePlacesAvailable) {
     return (
       <Input
         placeholder="Ingrese dirección"
