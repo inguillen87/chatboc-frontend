@@ -351,7 +351,12 @@ const DEFAULT_RUBRO = tipoChat === "municipio" ? "municipios" : undefined;
           );
         } else {
           // Caso: todavía con el bot
-
+        // 💥 ACA FALTABA ESTO:
+          const payload: any = {
+            pregunta: text,
+            contexto_previo: contexto,
+            tipo_chat: tipoChat,      // Mandá el tipo de chat siempre
+    // podés sumar otros campos si hace falta
           if (isAnonimo) {
             if (DEFAULT_RUBRO) payload.rubro = DEFAULT_RUBRO;
             payload.anon_id = anonId;
