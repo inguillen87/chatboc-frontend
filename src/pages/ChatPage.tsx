@@ -274,6 +274,8 @@ const DEFAULT_RUBRO = APP_TARGET === "municipio" ? "municipios" : undefined;
                 body: coords,
               },
             );
+            // Refrescar los datos del ticket para mostrar la ubicación
+            fetchTicketInfo();
           } catch (e) {
             console.error('Error al enviar ubicación', e);
           }
@@ -283,7 +285,7 @@ const DEFAULT_RUBRO = APP_TARGET === "municipio" ? "municipios" : undefined;
     } else {
       setForzarDireccion(true);
     }
-  }, [activeTicketId]);
+  }, [activeTicketId, authHeaders, fetchTicketInfo]);
 
   // Maneja envío de mensaje O dirección seleccionada
   const handleSend = useCallback(
