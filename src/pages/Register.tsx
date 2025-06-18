@@ -6,9 +6,16 @@ import { Input } from '@/components/ui/input';
 import { apiFetch, ApiError } from '@/utils/api';
 import { useNavigate } from 'react-router-dom';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
+import { APP_TARGET } from '@/config';
 
 interface Rubro { id: number; nombre: string; }
-interface RegisterResponse { id: number; token: string; name: string; email: string; }
+interface RegisterResponse {
+  id: number;
+  token: string;
+  name: string;
+  email: string;
+  tipo_chat?: 'pyme' | 'municipio';
+}
 
 const Register = () => {
   const navigate = useNavigate();
@@ -45,14 +52,21 @@ const Register = () => {
         acepto_terminos: accepted,
       };
       
-      const data = await apiFetch<RegisterResponse>("/register", { method: "POST", body: payload });
+      const data = await apiFetch<RegisterResponse>("/register", {
+        method: "POST",
+        body: payload,
+      });
 
       safeLocalStorage.setItem("authToken", data.token);
 
       let rubroRegistrado = "";
+      let tipoChat = data.tipo_chat;
       try {
         const me = await apiFetch<any>("/me");
         rubroRegistrado = me?.rubro?.toLowerCase() || "";
+        if (!tipoChat && me?.tipo_chat) {
+          tipoChat = me.tipo_chat;
+        }
       } catch {
         /* ignore */
       }
@@ -63,6 +77,7 @@ const Register = () => {
         email: data.email,
         token: data.token,
         rubro: rubroRegistrado,
+        tipo_chat: tipoChat || APP_TARGET,
       };
       safeLocalStorage.setItem("user", JSON.stringify(userProfile));
 

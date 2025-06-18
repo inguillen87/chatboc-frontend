@@ -10,6 +10,11 @@ export function getCurrentTipoChat(): 'pyme' | 'municipio' {
     const stored = safeLocalStorage.getItem('user');
     if (stored) {
       const user = JSON.parse(stored);
+      const tipoChat = user?.tipo_chat;
+      if (tipoChat === 'pyme' || tipoChat === 'municipio') {
+        return tipoChat;
+      }
+      // Compatibilidad con versiones antiguas basadas en rubro
       const rubro = (user?.rubro || '').toLowerCase();
       if (rubro === 'municipios') return 'municipio';
       if (rubro) return 'pyme';

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { apiFetch, ApiError } from "@/utils/api";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
+import { APP_TARGET } from "@/config";
 
 // Asegúrate de que esta interfaz refleje EXACTAMENTE lo que tu backend devuelve en /login
 interface LoginResponse {
@@ -14,6 +15,7 @@ interface LoginResponse {
   name: string;
   email: string;
   plan: string;
+  tipo_chat?: 'pyme' | 'municipio';
 }
 
 const Login = () => {
@@ -37,9 +39,13 @@ const Login = () => {
       safeLocalStorage.setItem("authToken", data.token);
 
       let rubro = "";
+      let tipoChat = data.tipo_chat;
       try {
         const me = await apiFetch<any>("/me");
         rubro = me?.rubro?.toLowerCase() || "";
+        if (!tipoChat && me?.tipo_chat) {
+          tipoChat = me.tipo_chat;
+        }
       } catch {
         /* ignore */
       }
@@ -51,6 +57,7 @@ const Login = () => {
         token: data.token,
         plan: data.plan || "free",
         rubro,
+        tipo_chat: tipoChat || APP_TARGET,
       };
 
       safeLocalStorage.setItem("user", JSON.stringify(userToStore));
