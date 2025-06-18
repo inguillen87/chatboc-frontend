@@ -231,7 +231,7 @@ const DEFAULT_RUBRO = tipoChat === "municipio" ? "municipios" : undefined;
         await apiFetch(
           `/tickets/chat/${activeTicketId}/ubicacion${queryPrefix}`,
           {
-            method: 'POST',
+            method: 'PUT',
             headers: authHeaders,
             body: coords,
           },
@@ -266,7 +266,7 @@ const DEFAULT_RUBRO = tipoChat === "municipio" ? "municipios" : undefined;
             await apiFetch(
               `/tickets/chat/${activeTicketId}/ubicacion${queryPrefix}`,
               {
-                method: 'POST',
+                method: 'PUT',
                 headers: authHeaders,
                 body: coords,
               },
@@ -307,7 +307,7 @@ const DEFAULT_RUBRO = tipoChat === "municipio" ? "municipios" : undefined;
             await apiFetch(
               `/tickets/chat/${activeTicketId}/ubicacion${queryPrefix}`,
               {
-                method: 'POST',
+                method: 'PUT',
                 headers: authHeaders,
                 body: { direccion: text },
               },
