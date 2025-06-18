@@ -87,6 +87,22 @@ function useIsMobile(breakpoint = 768) {
   return isMobile;
 }
 
+// --- Generar/Persistir anon_id para usuarios no logueados ---
+function getOrCreateAnonId() {
+  if (typeof window === "undefined") return null;
+  try {
+    let anonId = safeLocalStorage.getItem("anon_id");
+    if (!anonId) {
+      anonId = window.crypto?.randomUUID?.() ||
+        `anon-${Math.random().toString(36).slice(2, 9)}-${Date.now()}`;
+      safeLocalStorage.setItem("anon_id", anonId);
+    }
+    return anonId;
+  } catch {
+    return `anon-${Math.random().toString(36).slice(2, 9)}-${Date.now()}`;
+  }
+}
+
 const ChatPage = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
@@ -94,11 +110,12 @@ const ChatPage = () => {
   const chatMessagesContainerRef = useRef<HTMLDivElement>(null);
 
 const authToken = safeLocalStorage.getItem("authToken");
-// Si el usuario no está logueado, usamos un token de demo para evitar 401
-const finalToken = authToken || "demo-token";
-const authHeaders: Record<string, string> = {
-  Authorization: `Bearer ${finalToken}`,
-};
+const anonId = getOrCreateAnonId();
+const isAnonimo = !authToken;
+const authHeaders: Record<string, string> = authToken
+  ? { Authorization: `Bearer ${authToken}` }
+  : { "Anon-Id": anonId || "" };
+const DEFAULT_RUBRO = APP_TARGET === "municipio" ? "municipios" : undefined;
 
   const [contexto, setContexto] = useState({});
   const [activeTicketId, setActiveTicketId] = useState<number | null>(null);
@@ -134,7 +151,7 @@ const authHeaders: Record<string, string> = {
     } catch (e) {
       console.error('Error al refrescar ticket:', e);
     }
-  }, [activeTicketId]);
+  }, [activeTicketId, authHeaders]);
 
   useEffect(() => {
     fetchTicketInfo();
@@ -293,7 +310,11 @@ const authHeaders: Record<string, string> = {
           );
         } else {
           // Caso: todavía con el bot
-          const payload = { pregunta: text, contexto_previo: contexto };
+          const payload: any = { pregunta: text, contexto_previo: contexto };
+          if (isAnonimo) {
+            if (DEFAULT_RUBRO) payload.rubro = DEFAULT_RUBRO;
+            payload.anon_id = anonId;
+          }
           const data = await apiFetch<any>("/ask", {
             method: "POST",
             headers: authHeaders,
