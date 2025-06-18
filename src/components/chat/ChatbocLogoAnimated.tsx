@@ -56,16 +56,22 @@ const ChatbocLogoAnimated = ({
           cy={24}
           r={4}
           fill="#fff"
-          animate={movingEyes ? { cy: [24, 22, 24] } : false}
-          transition={{ repeat: movingEyes ? Infinity : 0, duration: 1.5 }}
+          animate={movingEyes ? { cy: [24, 22, 24] } : undefined}
+          transition={
+            movingEyes ? { repeat: Infinity, duration: 1.5 } : undefined
+          }
         />
         <motion.circle
           cx={rightEye}
           cy={24}
           r={4}
           fill="#fff"
-          animate={movingEyes ? { cy: [24, 26, 24] } : false}
-          transition={{ repeat: movingEyes ? Infinity : 0, duration: 1.5, delay: 0.2 }}
+          animate={movingEyes ? { cy: [24, 26, 24] } : undefined}
+          transition={
+            movingEyes
+              ? { repeat: Infinity, duration: 1.5, delay: 0.2 }
+              : undefined
+          }
         />
         {/* Boca */}
         <motion.path
