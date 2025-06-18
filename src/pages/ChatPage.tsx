@@ -1,7 +1,9 @@
 // src/pages/ChatPage.tsx
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Message } from "@/types/chat";
-import ChatMessage from "@/components/chat/ChatMessage";
+import ChatMessageMunicipio from "@/components/chat/ChatMessageMunicipio";
+import ChatMessagePyme from "@/components/chat/ChatMessagePyme";
+import { APP_TARGET } from "@/config";
 import ChatInput from "@/components/chat/ChatInput";
 import TypingIndicator from "@/components/chat/TypingIndicator";
 import Navbar from "@/components/layout/Navbar";
@@ -10,6 +12,9 @@ import { apiFetch } from "@/utils/api";
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import TicketMap from "@/components/TicketMap";
+
+const ChatMessageComponent =
+  APP_TARGET === "municipio" ? ChatMessageMunicipio : ChatMessagePyme;
 
 // Frases para detectar pedido de dirección
 const FRASES_DIRECCION = [
@@ -437,7 +442,7 @@ const authHeaders: Record<string, string> = {
                   exit={{ opacity: 0, y: 14 }}
                   transition={{ duration: 0.18 }}
                 >
-                  <ChatMessage
+                  <ChatMessageComponent
                     message={msg}
                     isTyping={isTyping}
                     onButtonClick={handleSend}
