@@ -3,7 +3,7 @@ import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 
 const ChatPanel = React.lazy(() => import("./ChatPanel"));
 
-const CIRCLE_SIZE = 9999999;
+const CIRCLE_SIZE = 999;
 const CARD_WIDTH = 370;
 const CARD_HEIGHT = 540;
 
