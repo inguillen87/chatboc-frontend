@@ -40,7 +40,8 @@ const FRASES_EXITO = [
 function shouldShowAutocomplete(messages: Message[], contexto: any) {
   const lastBotMsg = [...messages].reverse().find((m) => m.isBot && m.text);
   if (!lastBotMsg) return false;
-  const contenido = (lastBotMsg.text || "").toLowerCase();
+  const contenido =
+    typeof lastBotMsg.text === "string" ? lastBotMsg.text.toLowerCase() : "";
   if (FRASES_DIRECCION.some((frase) => contenido.includes(frase))) return true;
   if (
     contexto &&
@@ -57,7 +58,8 @@ function shouldShowAutocomplete(messages: Message[], contexto: any) {
 function checkCierreExito(messages: Message[]) {
   const lastBotMsg = [...messages].reverse().find((m) => m.isBot && m.text);
   if (!lastBotMsg) return null;
-  const contenido = (lastBotMsg.text || "").toLowerCase();
+  const contenido =
+    typeof lastBotMsg.text === "string" ? lastBotMsg.text.toLowerCase() : "";
   if (FRASES_EXITO.some((frase) => contenido.includes(frase))) {
     // Detectar número de ticket
     const match = contenido.match(/ticket \*\*m-(\d+)/i);
