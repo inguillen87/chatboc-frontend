@@ -7,8 +7,12 @@ export const RUBROS_PUBLICOS = [
   'entidad_publica',
 ];
 
+import { safeLocalStorage } from "@/utils/safeLocalStorage";
+
 export const esRubroPublico = (rubro?: string | null): boolean => {
   if (!rubro) return false;
+  const loggedIn = Boolean(safeLocalStorage.getItem("authToken"));
+  if (loggedIn) return false;
   return RUBROS_PUBLICOS.includes(rubro.trim().toLowerCase());
 };
 
