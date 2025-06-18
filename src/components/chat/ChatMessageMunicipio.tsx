@@ -37,10 +37,11 @@ interface ChatMessageProps {
     message: Message;
     isTyping: boolean;
     onButtonClick: (valueToSend: string) => void;
+    tipoChat?: 'pyme' | 'municipio';
 }
 
 // --- Componente Principal Mejorado ---
-const ChatMessageMunicipio: React.FC<ChatMessageProps> = ({ message, isTyping, onButtonClick }) => {
+const ChatMessageMunicipio: React.FC<ChatMessageProps> = ({ message, isTyping, onButtonClick, tipoChat }) => {
     // 1. Manejo de mensajes inválidos (se mantiene)
     if (!message || typeof message.text !== "string") {
         return <div className="text-xs text-destructive italic mt-2 px-3">❌ Mensaje inválido o malformado.</div>;

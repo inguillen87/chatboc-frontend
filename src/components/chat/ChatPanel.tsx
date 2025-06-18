@@ -8,6 +8,7 @@ import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import TicketMap from "@/components/TicketMap";
 import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
+import { APP_TARGET } from "@/config";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { APP_TARGET } from "@/config";
 
@@ -56,6 +57,20 @@ function getOrCreateAnonId() {
   }
 }
 
+interface ChatPanelProps {
+  mode?: "standalone" | "iframe" | "script";
+  initialPosition?: { bottom: number; right: number };
+  draggable?: boolean;
+  widgetId?: string;
+  authToken?: string;
+  initialIframeWidth?: string;
+  initialIframeHeight?: string;
+  onClose?: () => void;
+  openWidth?: number;
+  openHeight?: number;
+  tipoChat?: 'pyme' | 'municipio';
+}
+
 const ChatPanel = ({
   mode = "standalone",
   initialPosition = { bottom: 30, right: 30 },
@@ -67,7 +82,8 @@ const ChatPanel = ({
   onClose,
   openWidth: propOpenWidth,
   openHeight: propOpenHeight,
-}) => {
+  tipoChat = APP_TARGET,
+}: ChatPanelProps) => {
   const openWidthInitial = propOpenWidth ?? CARD_WIDTH;
   const openHeightInitial = propOpenHeight ?? CARD_HEIGHT;
   const [openWidth, setOpenWidth] = useState<number>(openWidthInitial);
@@ -239,6 +255,8 @@ const ChatPanel = ({
                 body: coords,
               },
             );
+            // Actualizar información del ticket con las nuevas coordenadas
+            fetchTicket();
           } catch (e) {
             console.error("Error al enviar ubicación", e);
           }
@@ -251,7 +269,7 @@ const ChatPanel = ({
     } else {
       setForzarDireccion(true);
     }
-  }, [activeTicketId]);
+  }, [activeTicketId, fetchTicket, finalAuthToken, esAnonimo, anonId]);
 
 
   // Detectar si el bot pide dirección
@@ -446,11 +464,7 @@ const ChatPanel = ({
             },
           );
         } else {
-          const payload: any = {
-            pregunta: text,
-            contexto_previo: contexto,
-            tipo_chat: APP_TARGET,
-          };
+
           if (esAnonimo && mode === "standalone" && rubroSeleccionado)
             payload.rubro = rubroSeleccionado;
           if (esAnonimo) payload.anon_id = anonId; // Para endpoint que lo soporte
@@ -679,6 +693,7 @@ const ChatPanel = ({
                     message={msg}
                     isTyping={isTyping}
                     onButtonClick={handleSendMessage}
+                    tipoChat={tipoChat}
                   />
                 ),
             )}

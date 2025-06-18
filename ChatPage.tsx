@@ -20,6 +20,11 @@ const ChatPage = () => {
 
   const path = window.location.pathname;
   const isDemo = path.includes("demo");
+  const tipoChatParam = new URLSearchParams(window.location.search).get('tipo_chat');
+  const tipoChat: 'pyme' | 'municipio' =
+    tipoChatParam === 'pyme' || tipoChatParam === 'municipio'
+      ? (tipoChatParam as 'pyme' | 'municipio')
+      : 'municipio';
   const user = JSON.parse(safeLocalStorage.getItem("user") || "null");
   const token = isDemo ? "demo-token" : user?.token || "demo-token";
   // Si hay rubro en usuario, lo usamos. Si no, usamos el default
@@ -56,7 +61,7 @@ const ChatPage = () => {
 
     try {
       // --- Arma el body universal ---
-      const body: any = { question: text, tipo_chat: APP_TARGET };
+
       // Si no hay user logueado o es demo, incluye el rubro
       if (!user || isDemo) {
         body.rubro = rubro;
