@@ -73,7 +73,7 @@ const Demo = () => {
     try {
       const payload = {
         pregunta: text,
-        rubro: rubroSeleccionado,
+        rubro_clave: rubroSeleccionado,
         contexto_previo: contexto,
         anon_id: anonId,
         tipo_chat: getCurrentTipoChat(),

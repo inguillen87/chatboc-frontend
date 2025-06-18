@@ -488,7 +488,7 @@ const ChatPanel = ({
           };
 
           if (esAnonimo && mode === "standalone" && rubroSeleccionado)
-            payload.rubro = rubroSeleccionado;
+            payload.rubro_clave = rubroSeleccionado;
           if (esAnonimo) payload.anon_id = anonId; // Para endpoint que lo soporte
           const data = await apiFetch("/ask", {
             method: "POST",

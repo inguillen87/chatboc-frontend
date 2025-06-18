@@ -365,7 +365,7 @@ const DEFAULT_RUBRO = tipoChat === "municipio" ? "municipios" : undefined;
   };
 
   if (isAnonimo) {
-    if (DEFAULT_RUBRO) payload.rubro = DEFAULT_RUBRO;
+    if (DEFAULT_RUBRO) payload.rubro_clave = DEFAULT_RUBRO;
     payload.anon_id = anonId;
   }
   const data = await apiFetch<any>("/ask", {
