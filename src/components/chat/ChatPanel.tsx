@@ -625,7 +625,13 @@ const ChatPanel = ({
                   : undefined
               }
               onChange={(opt) =>
-                setDireccionGuardada(opt ? opt.value : null)
+                setDireccionGuardada(
+                  opt
+                    ? typeof opt.value === "string"
+                      ? opt.value
+                      : opt.value?.description ?? null
+                    : null,
+                )
               }
               persistKey="ultima_direccion"
             placeholder="Ej: Av. Principal 123"
