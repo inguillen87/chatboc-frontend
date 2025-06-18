@@ -9,6 +9,7 @@ import ChatMessage from "@/components/chat/ChatMessage";
 import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
+import { getAskEndpoint } from "@/utils/chatEndpoints";
 
 function getOrCreateAnonId() {
   if (typeof window === "undefined") return "";
@@ -79,10 +80,11 @@ const Demo = () => {
         tipo_chat: getCurrentTipoChat(),
       };
 
-      const response = await apiFetch<any>('/ask', {
-        method: "POST",
+      const endpoint = getAskEndpoint({ tipoChat: getCurrentTipoChat(), rubro: rubroSeleccionado });
+      const response = await apiFetch<any>(endpoint, {
+        method: 'POST',
         body: payload,
-        headers: { "Content-Type": "application/json" },
+        headers: { 'Content-Type': 'application/json' },
         skipAuth: true,
       });
 

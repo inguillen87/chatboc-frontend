@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
 import { APP_TARGET } from "@/config";
+import { getAskEndpoint } from "@/utils/chatEndpoints";
 
 export function useChatLogic(initialWelcomeMessage: string) {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -78,8 +79,9 @@ export function useChatLogic(initialWelcomeMessage: string) {
           contexto_previo: contexto,
           tipo_chat: APP_TARGET,
         };
-        const data = await apiFetch<any>('/ask', {
-          method: "POST",
+        const endpoint = getAskEndpoint({ tipoChat: APP_TARGET });
+        const data = await apiFetch<any>(endpoint, {
+          method: 'POST',
           body: payload,
         });
         setContexto(data.contexto_actualizado || {});
