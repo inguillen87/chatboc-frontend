@@ -200,7 +200,7 @@ const ChatPanel = ({
         finalAuthToken ? { Authorization: `Bearer ${finalAuthToken}` } : {};
         const anonQuery = esAnonimo ? `?anon_id=${anonId}` : '';
         await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion${anonQuery}`, {
-          method: "POST",
+          method: "PUT",
           headers: authHeaders,
           body: coords,
         });
@@ -242,7 +242,7 @@ const ChatPanel = ({
             await apiFetch(
               `/tickets/chat/${activeTicketId}/ubicacion${anonQuery}`,
               {
-                method: "POST",
+                method: "PUT",
                 headers: authHeaders,
                 body: coords,
               },
@@ -420,7 +420,7 @@ const ChatPanel = ({
             await apiFetch(
               `/tickets/chat/${activeTicketId}/ubicacion${anonQuery}`,
               {
-                method: "POST",
+                method: "PUT",
                 headers: authHeaders,
                 body: { direccion: text },
               },
