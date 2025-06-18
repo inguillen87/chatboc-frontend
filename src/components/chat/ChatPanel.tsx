@@ -464,6 +464,11 @@ const ChatPanel = ({
             },
           );
         } else {
+          const payload: Record<string, any> = {
+            pregunta: text,
+            contexto_previo: contexto,
+            tipo_chat: APP_TARGET,
+          };
 
           if (esAnonimo && mode === "standalone" && rubroSeleccionado)
             payload.rubro = rubroSeleccionado;
