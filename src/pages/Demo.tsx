@@ -8,7 +8,7 @@ import TypingIndicator from "@/components/chat/TypingIndicator";
 import ChatMessage from "@/components/chat/ChatMessage";
 import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
-import { APP_TARGET } from "@/config";
+import { getCurrentTipoChat } from "@/utils/tipoChat";
 
 const Demo = () => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -66,7 +66,7 @@ const Demo = () => {
         pregunta: text,
         rubro: rubroSeleccionado,
         contexto_previo: contexto,
-        tipo_chat: APP_TARGET,
+        tipo_chat: getCurrentTipoChat(),
       };
 
       const response = await apiFetch<any>("/ask", {

@@ -45,16 +45,26 @@ const Register = () => {
         acepto_terminos: accepted,
       };
       
-      const data = await apiFetch<RegisterResponse>('/register', { method: 'POST', body: payload });
+      const data = await apiFetch<RegisterResponse>("/register", { method: "POST", body: payload });
 
-      safeLocalStorage.setItem('authToken', data.token);
+      safeLocalStorage.setItem("authToken", data.token);
+
+      let rubroRegistrado = "";
+      try {
+        const me = await apiFetch<any>("/me");
+        rubroRegistrado = me?.rubro?.toLowerCase() || "";
+      } catch {
+        /* ignore */
+      }
 
       const userProfile = {
         id: data.id,
         name: data.name,
         email: data.email,
+        token: data.token,
+        rubro: rubroRegistrado,
       };
-      safeLocalStorage.setItem('user', JSON.stringify(userProfile));
+      safeLocalStorage.setItem("user", JSON.stringify(userProfile));
 
       navigate('/perfil');
 

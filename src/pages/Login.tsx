@@ -29,22 +29,31 @@ const Login = () => {
     setIsLoading(true);
 
     try {
-      const data = await apiFetch<LoginResponse>('/login', {
-        method: 'POST',
+      const data = await apiFetch<LoginResponse>("/login", {
+        method: "POST",
         body: { email, password },
       });
 
-      // ¡Aquí está la CLAVE! Guardar el token y el plan junto con el resto de los datos del usuario.
+      safeLocalStorage.setItem("authToken", data.token);
+
+      let rubro = "";
+      try {
+        const me = await apiFetch<any>("/me");
+        rubro = me?.rubro?.toLowerCase() || "";
+      } catch {
+        /* ignore */
+      }
+
       const userToStore = {
         id: data.id,
         name: data.name,
         email: data.email,
         token: data.token,
         plan: data.plan || "free",
+        rubro,
       };
-      
+
       safeLocalStorage.setItem("user", JSON.stringify(userToStore));
-      safeLocalStorage.setItem("authToken", data.token); // Sigue guardándolo por separado para consistencia si otros módulos lo esperan.
 
       navigate("/perfil"); // O a donde corresponda después del login exitoso
 

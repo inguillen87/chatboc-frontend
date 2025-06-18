@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, Suspense } from "react";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
+import { getCurrentTipoChat } from "@/utils/tipoChat";
 
 const ChatPanel = React.lazy(() => import("./ChatPanel"));
 
@@ -26,7 +27,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   authToken,
   initialIframeWidth,
   initialIframeHeight,
-  tipoChat,
+  tipoChat = getCurrentTipoChat(),
 }) => {
 const [isOpen, setIsOpen] = useState(defaultOpen);
   const [openWidth, setOpenWidth] = useState<number>(CARD_WIDTH);

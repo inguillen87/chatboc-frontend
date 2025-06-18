@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Message } from "@/types/chat";
 import ChatMessage from "@/components/chat/ChatMessage";
-import { APP_TARGET } from "@/config";
+import { getCurrentTipoChat } from "@/utils/tipoChat";
 import ChatInput from "@/components/chat/ChatInput";
 import TypingIndicator from "@/components/chat/TypingIndicator";
 import Navbar from "@/components/layout/Navbar";
@@ -112,7 +112,7 @@ const ChatPage = () => {
   const tipoChat: 'pyme' | 'municipio' =
     tipoChatParam === 'pyme' || tipoChatParam === 'municipio'
       ? (tipoChatParam as 'pyme' | 'municipio')
-      : APP_TARGET;
+      : getCurrentTipoChat();
 
 const authToken = safeLocalStorage.getItem("authToken");
 const anonId = getOrCreateAnonId();

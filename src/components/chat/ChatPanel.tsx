@@ -8,8 +8,8 @@ import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import TicketMap from "@/components/TicketMap";
 import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
-import { APP_TARGET } from "@/config";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
+import { getCurrentTipoChat } from "@/utils/tipoChat";
 
 const CARD_WIDTH = 370;
 const CARD_HEIGHT = 540;
@@ -81,7 +81,7 @@ const ChatPanel = ({
   onClose,
   openWidth: propOpenWidth,
   openHeight: propOpenHeight,
-  tipoChat = APP_TARGET,
+  tipoChat = getCurrentTipoChat(),
 }: ChatPanelProps) => {
   const openWidthInitial = propOpenWidth ?? CARD_WIDTH;
   const openHeightInitial = propOpenHeight ?? CARD_HEIGHT;
