@@ -10,7 +10,6 @@ import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
 import { APP_TARGET } from "@/config";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
-import { APP_TARGET } from "@/config";
 
 const CARD_WIDTH = 370;
 const CARD_HEIGHT = 540;
@@ -68,7 +67,7 @@ interface ChatPanelProps {
   onClose?: () => void;
   openWidth?: number;
   openHeight?: number;
-  tipoChat?: 'pyme' | 'municipio';
+  tipoChat?: "pyme" | "municipio";
 }
 
 const ChatPanel = ({
@@ -96,13 +95,13 @@ const ChatPanel = ({
       const width = initialIframeWidth
         ? parseInt(initialIframeWidth as string, 10)
         : typeof window !== "undefined"
-        ? Math.min(window.innerWidth, CARD_WIDTH)
-        : CARD_WIDTH;
+          ? Math.min(window.innerWidth, CARD_WIDTH)
+          : CARD_WIDTH;
       const height = initialIframeHeight
         ? parseInt(initialIframeHeight as string, 10)
         : typeof window !== "undefined"
-        ? Math.min(window.innerHeight, CARD_HEIGHT)
-        : CARD_HEIGHT;
+          ? Math.min(window.innerHeight, CARD_HEIGHT)
+          : CARD_HEIGHT;
       setOpenWidth(width);
       setOpenHeight(height);
     }
@@ -132,7 +131,9 @@ const ChatPanel = ({
   // Para Google Autocomplete
   const [esperandoDireccion, setEsperandoDireccion] = useState(false);
   const [forzarDireccion, setForzarDireccion] = useState(false);
-  const [direccionGuardada, setDireccionGuardada] = useState<string | null>(null);
+  const [direccionGuardada, setDireccionGuardada] = useState<string | null>(
+    null,
+  );
   // Mensaje de cierre final
   const [showCierre, setShowCierre] = useState<{
     show: boolean;
@@ -152,7 +153,9 @@ const ChatPanel = ({
 
   // Token helpers
   const getAuthTokenFromLocalStorage = () =>
-    typeof window === "undefined" ? null : safeLocalStorage.getItem("authToken");
+    typeof window === "undefined"
+      ? null
+      : safeLocalStorage.getItem("authToken");
   const anonId = getOrCreateAnonId();
   const finalAuthToken =
     mode === "iframe" ? propAuthToken : getAuthTokenFromLocalStorage();
@@ -161,18 +164,18 @@ const ChatPanel = ({
   const fetchTicket = useCallback(async () => {
     if (!activeTicketId) return;
     try {
-      const authHeaders =
-        finalAuthToken ? { Authorization: `Bearer ${finalAuthToken}` } : {};
-      const anonQuery = esAnonimo ? `?anon_id=${anonId}` : '';
+      const authHeaders = finalAuthToken
+        ? { Authorization: `Bearer ${finalAuthToken}` }
+        : {};
+      const anonQuery = esAnonimo ? `?anon_id=${anonId}` : "";
       const data = await apiFetch<{
         direccion?: string | null;
         latitud?: number | string | null;
         longitud?: number | string | null;
         municipio_nombre?: string | null;
-      }>(
-        `/tickets/municipio/${activeTicketId}${anonQuery}`,
-        { headers: authHeaders },
-      );
+      }>(`/tickets/municipio/${activeTicketId}${anonQuery}`, {
+        headers: authHeaders,
+      });
       const normalized = {
         ...data,
         latitud:
@@ -186,7 +189,7 @@ const ChatPanel = ({
       };
       setTicketLocation(normalized);
     } catch (e) {
-      console.error('Error al refrescar ticket:', e);
+      console.error("Error al refrescar ticket:", e);
     }
   }, [activeTicketId, esAnonimo, anonId, finalAuthToken]);
 
@@ -194,29 +197,36 @@ const ChatPanel = ({
     if (!activeTicketId || !navigator.geolocation) return;
     try {
       navigator.geolocation.getCurrentPosition(async (pos) => {
-      const coords = { latitud: pos.coords.latitude, longitud: pos.coords.longitude };
-      try {
-      const authHeaders =
-        finalAuthToken ? { Authorization: `Bearer ${finalAuthToken}` } : {};
-        const anonQuery = esAnonimo ? `?anon_id=${anonId}` : '';
-        await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion${anonQuery}`, {
-          method: "PUT",
-          headers: authHeaders,
-          body: coords,
-        });
-        await apiFetch(
-          `/tickets/municipio/${activeTicketId}/ubicacion${anonQuery}`,
-          {
-            method: "PUT",
-            headers: authHeaders,
-            body: coords,
-          },
-        );
-        setForzarDireccion(false);
-        fetchTicket();
-      } catch (e) {
-        console.error("Error al enviar ubicación", e);
-      }
+        const coords = {
+          latitud: pos.coords.latitude,
+          longitud: pos.coords.longitude,
+        };
+        try {
+          const authHeaders = finalAuthToken
+            ? { Authorization: `Bearer ${finalAuthToken}` }
+            : {};
+          const anonQuery = esAnonimo ? `?anon_id=${anonId}` : "";
+          await apiFetch(
+            `/tickets/chat/${activeTicketId}/ubicacion${anonQuery}`,
+            {
+              method: "PUT",
+              headers: authHeaders,
+              body: coords,
+            },
+          );
+          await apiFetch(
+            `/tickets/municipio/${activeTicketId}/ubicacion${anonQuery}`,
+            {
+              method: "PUT",
+              headers: authHeaders,
+              body: coords,
+            },
+          );
+          setForzarDireccion(false);
+          fetchTicket();
+        } catch (e) {
+          console.error("Error al enviar ubicación", e);
+        }
       });
     } catch {
       /* ignore */
@@ -232,37 +242,41 @@ const ChatPanel = ({
     if (!activeTicketId) return;
     if (navigator.geolocation) {
       try {
-      navigator.geolocation.getCurrentPosition(
-        async (pos) => {
-          const coords = { latitud: pos.coords.latitude, longitud: pos.coords.longitude };
-          try {
-            const authHeaders =
-              finalAuthToken ? { Authorization: `Bearer ${finalAuthToken}` } : {};
-            const anonQuery = esAnonimo ? `?anon_id=${anonId}` : '';
-            await apiFetch(
-              `/tickets/chat/${activeTicketId}/ubicacion${anonQuery}`,
-              {
-                method: "PUT",
-                headers: authHeaders,
-                body: coords,
-              },
-            );
-            await apiFetch(
-              `/tickets/municipio/${activeTicketId}/ubicacion${anonQuery}`,
-              {
-                method: "PUT",
-                headers: authHeaders,
-                body: coords,
-              },
-            );
-            // Actualizar información del ticket con las nuevas coordenadas
-            fetchTicket();
-          } catch (e) {
-            console.error("Error al enviar ubicación", e);
-          }
-        },
-        () => setForzarDireccion(true),
-      );
+        navigator.geolocation.getCurrentPosition(
+          async (pos) => {
+            const coords = {
+              latitud: pos.coords.latitude,
+              longitud: pos.coords.longitude,
+            };
+            try {
+              const authHeaders = finalAuthToken
+                ? { Authorization: `Bearer ${finalAuthToken}` }
+                : {};
+              const anonQuery = esAnonimo ? `?anon_id=${anonId}` : "";
+              await apiFetch(
+                `/tickets/chat/${activeTicketId}/ubicacion${anonQuery}`,
+                {
+                  method: "PUT",
+                  headers: authHeaders,
+                  body: coords,
+                },
+              );
+              await apiFetch(
+                `/tickets/municipio/${activeTicketId}/ubicacion${anonQuery}`,
+                {
+                  method: "PUT",
+                  headers: authHeaders,
+                  body: coords,
+                },
+              );
+              // Actualizar información del ticket con las nuevas coordenadas
+              fetchTicket();
+            } catch (e) {
+              console.error("Error al enviar ubicación", e);
+            }
+          },
+          () => setForzarDireccion(true),
+        );
       } catch {
         setForzarDireccion(true);
       }
@@ -270,7 +284,6 @@ const ChatPanel = ({
       setForzarDireccion(true);
     }
   }, [activeTicketId, fetchTicket, finalAuthToken, esAnonimo, anonId]);
-
 
   // Detectar si el bot pide dirección
   function shouldShowAutocomplete(messages: Message[], contexto: any) {
@@ -310,7 +323,8 @@ const ChatPanel = ({
 
   // --- AUTO-TOGGLE del autocomplete según mensaje del bot ---
   useEffect(() => {
-    const autocomplete = shouldShowAutocomplete(messages, contexto) || forzarDireccion;
+    const autocomplete =
+      shouldShowAutocomplete(messages, contexto) || forzarDireccion;
     setEsperandoDireccion(autocomplete);
     if (!autocomplete) setShowCierre(checkCierreExito(messages));
     else setShowCierre(null);
@@ -336,9 +350,10 @@ const ChatPanel = ({
     let intervalId;
     const fetchAllMessages = async () => {
       try {
-        const authHeaders =
-          finalAuthToken ? { Authorization: `Bearer ${finalAuthToken}` } : {};
-        const anonQuery = esAnonimo ? `?anon_id=${anonId}` : '';
+        const authHeaders = finalAuthToken
+          ? { Authorization: `Bearer ${finalAuthToken}` }
+          : {};
+        const anonQuery = esAnonimo ? `?anon_id=${anonId}` : "";
         const data = await apiFetch<{ estado_chat: string; mensajes: any[] }>(
           `/tickets/chat/${activeTicketId}/mensajes${anonQuery}`,
           { headers: authHeaders },
@@ -414,9 +429,10 @@ const ChatPanel = ({
         setDireccionGuardada(text);
         if (activeTicketId) {
           try {
-            const authHeaders =
-              finalAuthToken ? { Authorization: `Bearer ${finalAuthToken}` } : {};
-            const anonQuery = esAnonimo ? `?anon_id=${anonId}` : '';
+            const authHeaders = finalAuthToken
+              ? { Authorization: `Bearer ${finalAuthToken}` }
+              : {};
+            const anonQuery = esAnonimo ? `?anon_id=${anonId}` : "";
             await apiFetch(
               `/tickets/chat/${activeTicketId}/ubicacion${anonQuery}`,
               {
@@ -450,17 +466,12 @@ const ChatPanel = ({
       setMessages((prev) => [...prev, userMessage]);
       setIsTyping(true);
 
-      const payload: Record<string, any> = {
-        pregunta: text,
-        contexto_previo: contexto,
-        tipo_chat: tipoChat,
-      };
-
       try {
         if (activeTicketId) {
-          const authHeaders =
-            finalAuthToken ? { Authorization: `Bearer ${finalAuthToken}` } : {};
-          const anonQuery = esAnonimo ? `?anon_id=${anonId}` : '';
+          const authHeaders = finalAuthToken
+            ? { Authorization: `Bearer ${finalAuthToken}` }
+            : {};
+          const anonQuery = esAnonimo ? `?anon_id=${anonId}` : "";
           await apiFetch(
             `/tickets/chat/${activeTicketId}/responder_ciudadano${anonQuery}`,
             {
@@ -473,7 +484,7 @@ const ChatPanel = ({
           const payload: Record<string, any> = {
             pregunta: text,
             contexto_previo: contexto,
-            tipo_chat: APP_TARGET,
+            tipo_chat: tipoChat,
           };
 
           if (esAnonimo && mode === "standalone" && rubroSeleccionado)
@@ -516,7 +527,12 @@ const ChatPanel = ({
         }
         setMessages((prev) => [
           ...prev,
-          { id: Date.now(), text: errorMsg, isBot: true, timestamp: new Date() },
+          {
+            id: Date.now(),
+            text: errorMsg,
+            isBot: true,
+            timestamp: new Date(),
+          },
         ]);
       } finally {
         setIsTyping(false);
@@ -537,22 +553,22 @@ const ChatPanel = ({
 
   // Bienvenida y rubro
   useEffect(() => {
-      if (esAnonimo && mode === "standalone" && !rubroSeleccionado) {
-        setEsperandoRubro(true);
-        cargarRubros();
-      } else if (!esAnonimo || rubroSeleccionado) {
-        setEsperandoRubro(false);
-        if (messages.length === 0) {
-          setMessages([
-            {
-              id: Date.now(),
-              text: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?",
-              isBot: true,
-              timestamp: new Date(),
-            },
-          ]);
-        }
+    if (esAnonimo && mode === "standalone" && !rubroSeleccionado) {
+      setEsperandoRubro(true);
+      cargarRubros();
+    } else if (!esAnonimo || rubroSeleccionado) {
+      setEsperandoRubro(false);
+      if (messages.length === 0) {
+        setMessages([
+          {
+            id: Date.now(),
+            text: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?",
+            isBot: true,
+            timestamp: new Date(),
+          },
+        ]);
       }
+    }
   }, [esAnonimo, mode, rubroSeleccionado, messages.length]);
 
   // Scroll automático
@@ -560,7 +576,8 @@ const ChatPanel = ({
     const container = chatContainerRef.current;
     if (container) {
       const atBottom =
-        container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+        container.scrollHeight - container.scrollTop - container.clientHeight <
+        100;
       if (atBottom) {
         container.scrollTop = container.scrollHeight;
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -570,9 +587,9 @@ const ChatPanel = ({
 
   // --- CARD: CHAT ABIERTO ---
   return (
-  <motion.div
-    ref={widgetContainerRef}
-    className={`
+    <motion.div
+      ref={widgetContainerRef}
+      className={`
       fixed z-[999999]
       flex flex-col overflow-hidden
       shadow-2xl border
@@ -580,18 +597,17 @@ const ChatPanel = ({
       border-border
       transition-all duration-300
     `}
-    style={{
-      bottom: initialPosition.bottom,
-      right: initialPosition.right,
-      width: mode === "iframe" ? openDims.width : `${CARD_WIDTH}px`,
-      height: mode === "iframe" ? openDims.height : `${CARD_HEIGHT}px`,
-      borderRadius: 24,
-
-    }}
-    initial={{ opacity: 0, scale: 0.9, y: 20 }}
-    animate={{ opacity: 1, scale: 1, y: 0 }}
-    exit={{ opacity: 0, scale: 0.9, y: 20 }}
-    transition={{ type: "spring", stiffness: 260, damping: 20 }}
+      style={{
+        bottom: initialPosition.bottom,
+        right: initialPosition.right,
+        width: mode === "iframe" ? openDims.width : `${CARD_WIDTH}px`,
+        height: mode === "iframe" ? openDims.height : `${CARD_HEIGHT}px`,
+        borderRadius: 24,
+      }}
+      initial={{ opacity: 0, scale: 0.9, y: 20 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.9, y: 20 }}
+      transition={{ type: "spring", stiffness: 260, damping: 20 }}
     >
       <ChatHeader onClose={onClose} />
 
@@ -633,7 +649,10 @@ const ChatPanel = ({
                   <button
                     key={rubro.id}
                     onClick={() => {
-                      safeLocalStorage.setItem("rubroSeleccionado", rubro.nombre);
+                      safeLocalStorage.setItem(
+                        "rubroSeleccionado",
+                        rubro.nombre,
+                      );
                       setRubroSeleccionado(rubro.nombre);
                       setEsperandoRubro(false);
                       setMessages([
@@ -676,12 +695,12 @@ const ChatPanel = ({
                   opt
                     ? typeof opt.value === "string"
                       ? opt.value
-                      : opt.value?.description ?? null
+                      : (opt.value?.description ?? null)
                     : null,
                 )
               }
               persistKey="ultima_direccion"
-            placeholder="Ej: Av. Principal 123"
+              placeholder="Ej: Av. Principal 123"
             />
             <button
               onClick={handleShareGps}
@@ -710,7 +729,7 @@ const ChatPanel = ({
             )}
             {isTyping && <TypingIndicator />}
             {ticketLocation && (
-              <TicketMap ticket={{ ...ticketLocation, tipo: 'municipio' }} />
+              <TicketMap ticket={{ ...ticketLocation, tipo: "municipio" }} />
             )}
             <div ref={messagesEndRef} />
             {/* Mensaje de cierre SIEMPRE si corresponde */}
