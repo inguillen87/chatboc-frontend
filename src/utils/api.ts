@@ -57,7 +57,7 @@ export async function apiFetch<T>(
       body: isForm ? body : (body ? JSON.stringify(body) : undefined),
     });
 
-    if (response.status === 401 || response.status === 403) {
+    if (response.status === 401) {
       safeLocalStorage.clear();
       window.location.href = '/login';
       throw new ApiError(
@@ -79,6 +79,14 @@ export async function apiFetch<T>(
       // No hacer nada si el cuerpo está vacío o no es JSON válido
     }
     
+    if (response.status === 403) {
+      throw new ApiError(
+        data?.error || data?.message || 'Acceso prohibido',
+        response.status,
+        data
+      );
+    }
+
     if (!response.ok) {
       throw new ApiError(
         data?.error || data?.message || 'Error en la respuesta de la API',
