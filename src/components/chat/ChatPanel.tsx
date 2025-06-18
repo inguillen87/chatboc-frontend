@@ -11,6 +11,7 @@ import { apiFetch } from "@/utils/api";
 import { getAskEndpoint, esRubroPublico } from "@/utils/chatEndpoints";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
+import { useUser } from "@/hooks/useUser";
 
 const CARD_WIDTH = 370;
 const CARD_HEIGHT = 540;
@@ -162,12 +163,20 @@ const ChatPanel = ({
     mode === "iframe" ? propAuthToken : getAuthTokenFromLocalStorage();
   const esAnonimo = !finalAuthToken;
 
+  const { user, refreshUser, loading } = useUser();
+
+  useEffect(() => {
+    if (!esAnonimo && (!user || !user.rubro) && !loading) {
+      refreshUser();
+    }
+  }, [esAnonimo, user, refreshUser, loading]);
   const storedUser =
     typeof window !== "undefined"
       ? JSON.parse(safeLocalStorage.getItem("user") || "null")
       : null;
   const rubroActual =
     rubroSeleccionado ||
+    user?.rubro ||
     storedUser?.rubro?.clave ||
     storedUser?.rubro?.nombre ||
     (typeof storedUser?.rubro === "string" ? storedUser.rubro : null);
@@ -441,6 +450,32 @@ const ChatPanel = ({
         ]);
         return;
       }
+      if (!esAnonimo) {
+        if (loading) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: Date.now(),
+              text: "⏳ Cargando tu perfil, intentá nuevamente...",
+              isBot: true,
+              timestamp: new Date(),
+            },
+          ]);
+          return;
+        }
+        if (!rubroNormalizado) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: Date.now(),
+              text: "🛈 Definí tu rubro en el perfil antes de usar el chat.",
+              isBot: true,
+              timestamp: new Date(),
+            },
+          ]);
+          return;
+        }
+      }
       if (esperandoDireccion) {
         setEsperandoDireccion(false);
         setForzarDireccion(false);
@@ -500,17 +535,15 @@ const ChatPanel = ({
             },
           );
         } else {
+          const rubroParaEndpoint = rubroNormalizado;
           const payload: Record<string, any> = {
             pregunta: text,
             contexto_previo: contexto,
             tipo_chat: tipoChatActual,
           };
 
-          if (esAnonimo && mode === "standalone" && rubroSeleccionado)
-            payload.rubro_clave = rubroSeleccionado;
+          if (rubroParaEndpoint) payload.rubro_clave = rubroParaEndpoint;
           if (esAnonimo) payload.anon_id = anonId; // Para endpoint que lo soporte
-
-          const rubroParaEndpoint = rubroNormalizado;
           const endpoint = getAskEndpoint({ tipoChat: tipoChatActual, rubro: rubroParaEndpoint });
           const esPublico = esRubroPublico(rubroParaEndpoint || undefined);
           console.log(
