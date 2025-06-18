@@ -3,7 +3,7 @@ import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 
 const ChatPanel = React.lazy(() => import("./ChatPanel"));
 
-const CIRCLE_SIZE = 88;
+const CIRCLE_SIZE = 9999999;
 const CARD_WIDTH = 370;
 const CARD_HEIGHT = 540;
 
@@ -26,7 +26,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   initialIframeWidth,
   initialIframeHeight,
 }) => {
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(defaultOpen);
   const [openWidth, setOpenWidth] = useState<number>(CARD_WIDTH);
   const [openHeight, setOpenHeight] = useState<number>(CARD_HEIGHT);
 
