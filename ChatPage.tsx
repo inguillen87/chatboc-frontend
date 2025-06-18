@@ -6,7 +6,7 @@ import TypingIndicator from "@/components/chat/TypingIndicator";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { apiFetch } from "@/utils/api";
-import { APP_TARGET } from "@/config";
+import { getCurrentTipoChat } from "@/utils/tipoChat";
 import { motion, AnimatePresence } from "framer-motion";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 
@@ -21,10 +21,11 @@ const ChatPage = () => {
   const path = window.location.pathname;
   const isDemo = path.includes("demo");
   const tipoChatParam = new URLSearchParams(window.location.search).get('tipo_chat');
+  const tipoChatDefault = getCurrentTipoChat();
   const tipoChat: 'pyme' | 'municipio' =
     tipoChatParam === 'pyme' || tipoChatParam === 'municipio'
       ? (tipoChatParam as 'pyme' | 'municipio')
-      : 'municipio';
+      : tipoChatDefault;
   const user = JSON.parse(safeLocalStorage.getItem("user") || "null");
   const token = isDemo ? "demo-token" : user?.token || "demo-token";
   // Si hay rubro en usuario, lo usamos. Si no, usamos el default
@@ -61,23 +62,24 @@ const ChatPage = () => {
 
     try {
       // --- Arma el body universal ---
+      const body: Record<string, any> = {
+        pregunta: text,
+        tipo_chat: tipoChat,
+      };
 
       // Si no hay user logueado o es demo, incluye el rubro
       if (!user || isDemo) {
         body.rubro = rubro;
       }
 
-      const response = await apiFetch(
-        "/ask",
-        "POST",
+      const response = await apiFetch<any>("/ask", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body,
-        {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      });
 
       const botMessage: Message = {
         id: updatedMessages.length + 1,
