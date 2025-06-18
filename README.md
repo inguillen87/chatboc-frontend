@@ -110,6 +110,33 @@ The `<script>` tag accepts several extra `data-*` attributes to control the widg
 - `data-z` – base `z-index` if you need to adjust stacking order.
 - `data-domain` – custom domain hosting the widget, if different from `chatboc.ar`.
 
+### Iframe fallback
+
+If your site blocks external JavaScript, you can embed the chatbot using an
+`<iframe>` instead. Replace `TU_TOKEN_AQUI` with your token:
+
+```html
+<iframe
+  id="chatboc-iframe"
+  src="https://www.chatboc.ar/iframe?token=TU_TOKEN_AQUI"
+  style="position:fixed;bottom:24px;right:24px;border:none;border-radius:50%;z-index:9999;box-shadow:0 4px 32px rgba(0,0,0,0.2);background:transparent;overflow:hidden;width:88px!important;height:88px!important;display:block"
+  allow="clipboard-write"
+  loading="lazy"
+></iframe>
+<script>
+  (function () {
+    var f = document.getElementById('chatboc-iframe');
+    window.addEventListener('message', function (e) {
+      if (e.data && e.data.type === 'chatboc-resize') {
+        f.style.width = e.data.dimensions.width;
+        f.style.height = e.data.dimensions.height;
+        f.style.borderRadius = e.data.isOpen ? '16px' : '50%';
+      }
+    });
+  })();
+</script>
+```
+
 ## Live ticket location
 
 The application displays a map only when the backend provides location
