@@ -96,7 +96,6 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
 
   return (
     <GooglePlacesAutocomplete
-      apiKey={Maps_API_KEY}
       autocompletionRequest={{
         componentRestrictions: { country: "ar" },
         types: ["address"],
@@ -105,16 +104,20 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
         value: internalValue,
         onChange: (option: any) => {
           setInternalValue(option);
+          const selected =
+            typeof option?.value === "string"
+              ? option.value
+              : option?.value?.description;
           if (persistKey) {
-            if (option && option.value) {
-              safeLocalStorage.setItem(persistKey, option.value);
+            if (selected) {
+              safeLocalStorage.setItem(persistKey, selected);
             } else {
               safeLocalStorage.removeItem(persistKey);
             }
           }
           if (onChange) onChange(option);
-          if (option && option.value) {
-            onSelect(option.value);
+          if (selected) {
+            onSelect(selected);
           }
         },
         onBlur: (e: any) => {
