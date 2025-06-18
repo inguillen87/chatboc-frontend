@@ -131,3 +131,16 @@ product includes at least:
 Optional fields like `descripcion`, `sku`, `talles`, `colores`, `precio_pack`,
 `stock`, `marca` and `imagen_url` can be included when available. The frontend
 simply renders these values without extra parsing.
+
+## Configuring the UI mode
+
+Set the `VITE_APP_TARGET` environment variable to choose between the
+municipality-oriented interface and the business (pyme) layout. Create a `.env`
+file based on `.env.example` and adjust the value:
+
+```bash
+# .env
+VITE_APP_TARGET=municipio
+```
+
+Running `npm run dev` will then load the municipal chat components.
