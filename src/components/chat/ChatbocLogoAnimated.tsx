@@ -53,16 +53,16 @@ const ChatbocLogoAnimated = ({
         {/* Ojos */}
         <motion.circle
           cx={leftEye}
-          cy="24"
-          r="4"
+          cy={24}
+          r={4}
           fill="#fff"
           animate={movingEyes ? { cy: [24, 22, 24] } : false}
           transition={{ repeat: movingEyes ? Infinity : 0, duration: 1.5 }}
         />
         <motion.circle
           cx={rightEye}
-          cy="24"
-          r="4"
+          cy={24}
+          r={4}
           fill="#fff"
           animate={movingEyes ? { cy: [24, 26, 24] } : false}
           transition={{ repeat: movingEyes ? Infinity : 0, duration: 1.5, delay: 0.2 }}
@@ -71,7 +71,7 @@ const ChatbocLogoAnimated = ({
         <motion.path
           d={mouthPath}
           stroke="#fff"
-          strokeWidth="3"
+          strokeWidth={3}
           strokeLinecap="round"
           fill="none"
           style={{ transition: "d 0.25s" }}
