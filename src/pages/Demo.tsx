@@ -76,10 +76,10 @@ const Demo = () => {
         rubro: rubroSeleccionado,
         contexto_previo: contexto,
         anon_id: anonId,
+        tipo_chat: getCurrentTipoChat(),
       };
 
-      const endpoint = getCurrentTipoChat() === 'municipio' ? '/ask/municipio' : '/ask/pyme';
-      const response = await apiFetch<any>(endpoint, {
+      const response = await apiFetch<any>('/ask', {
         method: "POST",
         body: payload,
         headers: { "Content-Type": "application/json" },
