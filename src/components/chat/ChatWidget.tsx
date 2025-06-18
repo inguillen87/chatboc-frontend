@@ -15,6 +15,7 @@ interface ChatWidgetProps {
   authToken?: string;
   initialIframeWidth?: string;
   initialIframeHeight?: string;
+  tipoChat?: 'pyme' | 'municipio';
 }
 
 const ChatWidget: React.FC<ChatWidgetProps> = ({
@@ -25,6 +26,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   authToken,
   initialIframeWidth,
   initialIframeHeight,
+  tipoChat,
 }) => {
 const [isOpen, setIsOpen] = useState(defaultOpen);
   const [openWidth, setOpenWidth] = useState<number>(CARD_WIDTH);
@@ -98,6 +100,7 @@ const [isOpen, setIsOpen] = useState(defaultOpen);
         onClose={() => setIsOpen(false)}
         openWidth={openWidth}
         openHeight={openHeight}
+        tipoChat={tipoChat}
       />
     </Suspense>
   );

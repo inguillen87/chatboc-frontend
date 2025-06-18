@@ -1,8 +1,7 @@
 // src/pages/ChatPage.tsx
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Message } from "@/types/chat";
-import ChatMessageMunicipio from "@/components/chat/ChatMessageMunicipio";
-import ChatMessagePyme from "@/components/chat/ChatMessagePyme";
+import ChatMessage from "@/components/chat/ChatMessage";
 import { APP_TARGET } from "@/config";
 import ChatInput from "@/components/chat/ChatInput";
 import TypingIndicator from "@/components/chat/TypingIndicator";
@@ -12,9 +11,6 @@ import { apiFetch } from "@/utils/api";
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import TicketMap from "@/components/TicketMap";
-
-const ChatMessageComponent =
-  APP_TARGET === "municipio" ? ChatMessageMunicipio : ChatMessagePyme;
 
 // Frases para detectar pedido de dirección
 const FRASES_DIRECCION = [
@@ -109,6 +105,15 @@ const ChatPage = () => {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatMessagesContainerRef = useRef<HTMLDivElement>(null);
 
+  const tipoChatParam =
+    typeof window !== 'undefined'
+      ? new URLSearchParams(window.location.search).get('tipo_chat')
+      : null;
+  const tipoChat: 'pyme' | 'municipio' =
+    tipoChatParam === 'pyme' || tipoChatParam === 'municipio'
+      ? (tipoChatParam as 'pyme' | 'municipio')
+      : APP_TARGET;
+
 const authToken = safeLocalStorage.getItem("authToken");
 const anonId = getOrCreateAnonId();
 const isAnonimo = !authToken;
@@ -117,7 +122,7 @@ const authHeaders: Record<string, string> = authToken
   : {};
 const anonParam = !authToken ? `anon_id=${anonId}` : '';
 const queryPrefix = anonParam ? `?${anonParam}` : '';
-const DEFAULT_RUBRO = APP_TARGET === "municipio" ? "municipios" : undefined;
+const DEFAULT_RUBRO = tipoChat === "municipio" ? "municipios" : undefined;
 
   const [contexto, setContexto] = useState({});
   const [activeTicketId, setActiveTicketId] = useState<number | null>(null);
@@ -346,7 +351,7 @@ const DEFAULT_RUBRO = APP_TARGET === "municipio" ? "municipios" : undefined;
           );
         } else {
           // Caso: todavía con el bot
-          const payload: any = { pregunta: text, contexto_previo: contexto };
+          const payload: any = { pregunta: text, contexto_previo: contexto, tipo_chat: tipoChat };
           if (isAnonimo) {
             if (DEFAULT_RUBRO) payload.rubro = DEFAULT_RUBRO;
             payload.anon_id = anonId;
@@ -501,10 +506,11 @@ const DEFAULT_RUBRO = APP_TARGET === "municipio" ? "municipios" : undefined;
                   exit={{ opacity: 0, y: 14 }}
                   transition={{ duration: 0.18 }}
                 >
-                  <ChatMessageComponent
+                  <ChatMessage
                     message={msg}
                     isTyping={isTyping}
                     onButtonClick={handleSend}
+                    tipoChat={tipoChat}
                   />
                 </motion.div>
               ))}
