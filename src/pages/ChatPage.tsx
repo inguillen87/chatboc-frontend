@@ -8,7 +8,7 @@ import TypingIndicator from "@/components/chat/TypingIndicator";
 import Navbar from "@/components/layout/Navbar";
 import { motion, AnimatePresence } from "framer-motion";
 import { apiFetch } from "@/utils/api";
-import { getAskEndpoint } from "@/utils/chatEndpoints";
+import { getAskEndpoint, esRubroPublico } from "@/utils/chatEndpoints";
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import TicketMap from "@/components/TicketMap";
@@ -375,6 +375,17 @@ const DEFAULT_RUBRO = tipoChat === "municipio" ? "municipios" : undefined;
       : null;
   const rubro = DEFAULT_RUBRO || storedUser?.rubro?.clave || storedUser?.rubro?.nombre;
   const endpoint = getAskEndpoint({ tipoChat, rubro });
+  const esPublico = esRubroPublico(rubro);
+  console.log(
+    "Voy a pedir a endpoint:",
+    endpoint,
+    "rubro:",
+    rubro,
+    "tipoChat:",
+    tipoChat,
+    "esPublico:",
+    esPublico,
+  );
   const data = await apiFetch<any>(endpoint, {
     method: 'POST',
     headers: authHeaders,

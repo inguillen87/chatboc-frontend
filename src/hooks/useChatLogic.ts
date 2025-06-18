@@ -3,7 +3,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
 import { APP_TARGET } from "@/config";
-import { getAskEndpoint } from "@/utils/chatEndpoints";
+import { getAskEndpoint, esRubroPublico } from "@/utils/chatEndpoints";
+import { safeLocalStorage } from "@/utils/safeLocalStorage";
 
 export function useChatLogic(initialWelcomeMessage: string) {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -79,7 +80,23 @@ export function useChatLogic(initialWelcomeMessage: string) {
           contexto_previo: contexto,
           tipo_chat: APP_TARGET,
         };
-        const endpoint = getAskEndpoint({ tipoChat: APP_TARGET });
+        const stored =
+          typeof window !== 'undefined'
+            ? JSON.parse(safeLocalStorage.getItem('user') || 'null')
+            : null;
+        const rubro = stored?.rubro?.clave || stored?.rubro?.nombre || null;
+        const endpoint = getAskEndpoint({ tipoChat: APP_TARGET, rubro });
+        const esPublico = esRubroPublico(rubro);
+        console.log(
+          'Voy a pedir a endpoint:',
+          endpoint,
+          'rubro:',
+          rubro,
+          'tipoChat:',
+          APP_TARGET,
+          'esPublico:',
+          esPublico,
+        );
         const data = await apiFetch<any>(endpoint, {
           method: 'POST',
           body: payload,

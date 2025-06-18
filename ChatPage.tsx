@@ -7,7 +7,7 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { apiFetch } from "@/utils/api";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
-import { getAskEndpoint } from "@/utils/chatEndpoints";
+import { getAskEndpoint, esRubroPublico } from "@/utils/chatEndpoints";
 import { motion, AnimatePresence } from "framer-motion";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 
@@ -75,6 +75,17 @@ const ChatPage = () => {
       }
 
       const endpoint = getAskEndpoint({ tipoChat, rubro });
+      const esPublico = esRubroPublico(rubro);
+      console.log(
+        "Voy a pedir a endpoint:",
+        endpoint,
+        "rubro:",
+        rubro,
+        "tipoChat:",
+        tipoChat,
+        "esPublico:",
+        esPublico,
+      );
       const response = await apiFetch<any>(endpoint, {
         method: "POST",
         headers: {
