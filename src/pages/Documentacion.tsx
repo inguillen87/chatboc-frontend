@@ -40,9 +40,10 @@ const Documentacion = () => (
       <h3 className="text-lg font-semibold mt-4 mb-2 text-primary">Principales endpoints</h3>
       <ul className="list-disc ml-6 mb-4">
         <li>
-          <strong>POST /ask</strong> — Consultar al agente IA.<br />
+          <strong>POST /ask/municipio</strong> o <strong>/ask/pyme</strong>
+          <br />
           <span className="text-sm text-muted-foreground">
-            Envía una pregunta y recibí respuesta de Chatboc usando tu token.
+            Elegí el endpoint según tu rubro para consultar al agente IA.
           </span>
         </li>
         <li>
@@ -69,7 +70,7 @@ const Documentacion = () => (
       <div className="bg-black rounded-lg text-green-300 text-sm p-4 font-mono mb-4 overflow-auto">
 {`import requests
 
-url = "https://api.chatboc.ar/ask"
+url = "https://api.chatboc.ar/ask/municipio"  # o "/ask/pyme" según corresponda
 headers = {
     "Authorization": "Bearer TU_TOKEN_AQUI",
     "Content-Type": "application/json"

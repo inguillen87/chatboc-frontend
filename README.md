@@ -152,7 +152,7 @@ map will refresh automatically without additional frontend changes.
 
 ## Product catalog API
 
-Any endpoint that returns products (e.g. `/catalogo`, `/productos`, `/ask`)
+Any endpoint that returns products (e.g. `/catalogo`, `/productos`, `/ask/municipio` or `/ask/pyme`)
 should provide a list of objects with clear fields ready to display. Each
 product includes at least:
 
@@ -180,9 +180,9 @@ Running `npm run dev` will then load the municipal chat components.
 
 ### Chat type parameter
 
-Every request to `/ask` now includes a `tipo_chat` field derived from
-`VITE_APP_TARGET`. The backend uses this value to route questions
-to either the municipal or pyme logic.
+Requests to the bot should target `/ask/municipio` or `/ask/pyme`.
+Choose the endpoint based on the business sector or use the
+`tipo_chat` field to override the decision.
 
 ### Local API proxy
 
