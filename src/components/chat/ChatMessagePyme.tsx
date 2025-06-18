@@ -8,7 +8,7 @@ import DOMPurify from 'dompurify'; // Importamos la librería de seguridad
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import ProductCard from '@/components/product/ProductCard';
 import { parseProductMessage } from '@/utils/productParser';
-import { APP_TARGET } from '@/config';
+import { getCurrentTipoChat } from '@/utils/tipoChat';
 
 // --- Componentes de Avatar (sin cambios) ---
 const AvatarBot: React.FC<{ isTyping: boolean }> = ({ isTyping }) => (
@@ -82,7 +82,7 @@ const ChatMessagePyme: React.FC<ChatMessageProps> = ({ message, isTyping, onButt
 
     // 3. Sanitización del HTML para seguridad
     const sanitizedHtml = DOMPurify.sanitize(message.text);
-    const shouldParseProducts = (tipoChat || APP_TARGET) === 'pyme';
+    const shouldParseProducts = (tipoChat || getCurrentTipoChat()) === 'pyme';
     const parsedProducts = shouldParseProducts
         ? parseProductMessage(message.text)
         : null;

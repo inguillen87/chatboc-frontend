@@ -1,4 +1,4 @@
-import { APP_TARGET } from '@/config';
+import { getCurrentTipoChat } from '@/utils/tipoChat';
 import ChatMessagePyme from './ChatMessagePyme';
 import ChatMessageMunicipio from './ChatMessageMunicipio';
 import { Message } from '@/types/chat';
@@ -10,7 +10,7 @@ export interface ChatMessageProps {
   tipoChat?: 'pyme' | 'municipio';
 }
 
-const ChatMessage = ({ tipoChat = APP_TARGET, ...props }: ChatMessageProps) => {
+const ChatMessage = ({ tipoChat = getCurrentTipoChat(), ...props }: ChatMessageProps) => {
   const Component =
     tipoChat === 'municipio' ? ChatMessageMunicipio : ChatMessagePyme;
   return <Component {...props} />;
