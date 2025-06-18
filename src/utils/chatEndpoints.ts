@@ -9,11 +9,20 @@ export const RUBROS_PUBLICOS = [
 
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 
-export const esRubroPublico = (rubro?: string | null): boolean => {
+export const esRubroPublico = (
+  rubro?: string | { nombre?: string; clave?: string } | null,
+): boolean => {
   if (!rubro) return false;
+  let rubroStr: string | null = null;
+  if (typeof rubro === "string") {
+    rubroStr = rubro;
+  } else if (typeof rubro === "object") {
+    rubroStr = rubro.clave || rubro.nombre || null;
+  }
+  if (!rubroStr) return false;
   const loggedIn = Boolean(safeLocalStorage.getItem("authToken"));
   if (loggedIn) return false;
-  return RUBROS_PUBLICOS.includes(rubro.trim().toLowerCase());
+  return RUBROS_PUBLICOS.includes(rubroStr.trim().toLowerCase());
 };
 
 interface GetEndpointOptions {
