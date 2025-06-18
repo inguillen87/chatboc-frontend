@@ -18,8 +18,8 @@ interface GetEndpointOptions {
 }
 
 export function getAskEndpoint({ tipoChat, rubro }: GetEndpointOptions): string {
-  if (tipoChat === 'municipio' || esRubroPublico(rubro)) {
-    return '/ask/municipio';
+  if (rubro) {
+    return esRubroPublico(rubro) ? '/ask/municipio' : '/ask/pyme';
   }
-  return '/ask/pyme';
+  return tipoChat === 'municipio' ? '/ask/municipio' : '/ask/pyme';
 }
