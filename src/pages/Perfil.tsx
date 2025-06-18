@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import { useNavigate } from "react-router-dom";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
+import { getCurrentTipoChat } from "@/utils/tipoChat";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "https://api.chatboc.ar";
 const Maps_API_KEY =
@@ -192,6 +193,8 @@ export default function Perfil() {
         token: parsedUserFromLS?.token || token,
         plan: data.plan || "gratis",
         rubro: data.rubro?.toLowerCase() || parsedUserFromLS?.rubro || "",
+        tipo_chat:
+          data.tipo_chat || parsedUserFromLS?.tipo_chat || getCurrentTipoChat(),
       };
       safeLocalStorage.setItem("user", JSON.stringify(updatedUserForLS));
     } catch (err) {
