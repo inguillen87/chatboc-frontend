@@ -7,6 +7,7 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { apiFetch } from "@/utils/api";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
+import { getAskEndpoint } from "@/utils/chatEndpoints";
 import { motion, AnimatePresence } from "framer-motion";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 
@@ -73,7 +74,8 @@ const ChatPage = () => {
         body.rubro_clave = rubro;
       }
 
-      const response = await apiFetch<any>("/ask", {
+      const endpoint = getAskEndpoint({ tipoChat, rubro });
+      const response = await apiFetch<any>(endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

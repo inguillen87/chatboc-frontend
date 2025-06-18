@@ -4,6 +4,8 @@ import ChatInput from "@/components/ChatInput";
 import ChatMessage from "@/components/ChatMessage";
 import TypingIndicator from "@/components/TypingIndicator";
 import { Message } from "@/types/chat";
+import { getCurrentTipoChat } from "@/utils/tipoChat";
+import { getAskEndpoint } from "@/utils/chatEndpoints";
 
 const Demo: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -32,7 +34,12 @@ const Demo: React.FC = () => {
     setIsTyping(true);
 
     try {
-      const res = await fetch("https://api.chatboc.ar/ask", {
+      const storedUser = JSON.parse(safeLocalStorage.getItem("user") || "null");
+      const rubro = storedUser?.rubro?.clave || storedUser?.rubro?.nombre;
+      const tipoChat = getCurrentTipoChat();
+      const endpoint = getAskEndpoint({ tipoChat, rubro });
+
+      const res = await fetch(`https://api.chatboc.ar${endpoint}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
