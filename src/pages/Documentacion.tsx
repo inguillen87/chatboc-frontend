@@ -77,6 +77,7 @@ headers = {
 data = {
     "pregunta": "¿Cuáles son los horarios de atención?",
     "rubro_frontend": "",   # opcional, según integración
+    "tipo_chat": "municipio",  # o "pyme" según el caso
 }
 
 response = requests.post(url, json=data, headers=headers)

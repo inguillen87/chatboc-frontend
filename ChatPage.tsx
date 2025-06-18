@@ -6,6 +6,7 @@ import TypingIndicator from "@/components/chat/TypingIndicator";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { apiFetch } from "@/utils/api";
+import { APP_TARGET } from "@/config";
 import { motion, AnimatePresence } from "framer-motion";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 
@@ -60,7 +61,7 @@ const ChatPage = () => {
 
     try {
       // --- Arma el body universal ---
-      const body: any = { question: text, tipo_chat: tipoChat };
+
       // Si no hay user logueado o es demo, incluye el rubro
       if (!user || isDemo) {
         body.rubro = rubro;

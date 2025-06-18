@@ -177,3 +177,9 @@ VITE_APP_TARGET=municipio
 ```
 
 Running `npm run dev` will then load the municipal chat components.
+
+### Chat type parameter
+
+Every request to `/ask` now includes a `tipo_chat` field derived from
+`VITE_APP_TARGET`. The backend uses this value to route questions
+to either the municipal or pyme logic.

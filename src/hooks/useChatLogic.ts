@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
+import { APP_TARGET } from "@/config";
 
 export function useChatLogic(initialWelcomeMessage: string) {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -72,7 +73,11 @@ export function useChatLogic(initialWelcomeMessage: string) {
           body: { comentario: text },
         });
       } else {
-        const payload = { pregunta: text, contexto_previo: contexto };
+        const payload = {
+          pregunta: text,
+          contexto_previo: contexto,
+          tipo_chat: APP_TARGET,
+        };
         const data = await apiFetch<any>("/ask", {
           method: "POST",
           body: payload,

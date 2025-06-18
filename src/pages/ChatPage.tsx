@@ -351,7 +351,7 @@ const DEFAULT_RUBRO = tipoChat === "municipio" ? "municipios" : undefined;
           );
         } else {
           // Caso: todavía con el bot
-          const payload: any = { pregunta: text, contexto_previo: contexto, tipo_chat: tipoChat };
+
           if (isAnonimo) {
             if (DEFAULT_RUBRO) payload.rubro = DEFAULT_RUBRO;
             payload.anon_id = anonId;
