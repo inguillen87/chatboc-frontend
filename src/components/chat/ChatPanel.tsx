@@ -238,6 +238,8 @@ const ChatPanel = ({
                 body: coords,
               },
             );
+            // Actualizar información del ticket con las nuevas coordenadas
+            fetchTicket();
           } catch (e) {
             console.error("Error al enviar ubicación", e);
           }
@@ -250,7 +252,7 @@ const ChatPanel = ({
     } else {
       setForzarDireccion(true);
     }
-  }, [activeTicketId]);
+  }, [activeTicketId, fetchTicket, finalAuthToken, esAnonimo, anonId]);
 
 
   // Detectar si el bot pide dirección
