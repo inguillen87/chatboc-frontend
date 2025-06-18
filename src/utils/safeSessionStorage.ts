@@ -1,30 +1,32 @@
+import {
+  safeSessionStorageGetItem,
+  safeSessionStorageSetItem,
+  safeSessionStorageRemoveItem,
+  safeSessionStorageClear,
+} from '../../utils/safeStorage.js';
+
 export const safeSessionStorage = {
   getItem(key: string): string | null {
-    try {
-      return window.sessionStorage.getItem(key);
-    } catch {
-      return null;
-    }
+    if (typeof window === 'undefined') return null;
+    return safeSessionStorageGetItem(key);
   },
   setItem(key: string, value: string) {
-    try {
-      window.sessionStorage.setItem(key, value);
-    } catch {
-      // ignore
-    }
+    if (typeof window === 'undefined') return;
+    safeSessionStorageSetItem(key, value);
   },
   removeItem(key: string) {
-    try {
-      window.sessionStorage.removeItem(key);
-    } catch {
-      // ignore
-    }
+    if (typeof window === 'undefined') return;
+    safeSessionStorageRemoveItem(key);
   },
   clear() {
-    try {
-      window.sessionStorage.clear();
-    } catch {
-      // ignore
-    }
+    if (typeof window === 'undefined') return;
+    safeSessionStorageClear();
   },
+};
+
+export {
+  safeSessionStorageGetItem,
+  safeSessionStorageSetItem,
+  safeSessionStorageRemoveItem,
+  safeSessionStorageClear,
 };

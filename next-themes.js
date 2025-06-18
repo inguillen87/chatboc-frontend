@@ -5,6 +5,7 @@ import {
 import {
   __toESM
 } from "./chunk-4MBMRILA.js";
+import { safeLocalStorageGetItem, safeLocalStorageSetItem } from "./utils/safeStorage.js";
 
 // node_modules/next-themes/dist/index.mjs
 var t = __toESM(require_react(), 1);
@@ -35,7 +36,7 @@ var O = ({ forcedTheme: e, disableTransitionOnChange: a = false, enableSystem: n
     let r = typeof s == "function" ? s(s) : s;
     d(r);
     try {
-      localStorage.setItem(m, r);
+      safeLocalStorageSetItem(m, r);
     } catch (v) {
     }
   }, [e]), p = t.useCallback((s) => {
@@ -69,7 +70,7 @@ var M = (e, a) => {
   if (Q) return;
   let n;
   try {
-    n = localStorage.getItem(e) || void 0;
+    n = safeLocalStorageGetItem(e) || void 0;
   } catch (g) {
   }
   return n || a;
