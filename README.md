@@ -60,6 +60,12 @@ This project is built with:
 - shadcn-ui
 - Tailwind CSS
 
+## Configuration
+
+The chat interface defaults to the "municipio" style. To switch to the
+"pyme" variant, set `VITE_APP_TARGET=pyme` in your environment or `.env`
+file before running `npm run dev`.
+
 ## How can I deploy this project?
 
 Simply open [Lovable](https://lovable.dev/projects/a97ee1e3-5a88-429f-8969-dcd039ee2482) and click on Share -> Publish.
