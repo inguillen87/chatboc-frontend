@@ -9,7 +9,7 @@ import ChatMessage from "@/components/chat/ChatMessage";
 import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
-import { getAskEndpoint } from "@/utils/chatEndpoints";
+import { getAskEndpoint, esRubroPublico } from "@/utils/chatEndpoints";
 
 function getOrCreateAnonId() {
   if (typeof window === "undefined") return "";
@@ -81,6 +81,17 @@ const Demo = () => {
       };
 
       const endpoint = getAskEndpoint({ tipoChat: getCurrentTipoChat(), rubro: rubroSeleccionado });
+      const esPublico = esRubroPublico(rubroSeleccionado);
+      console.log(
+        "Voy a pedir a endpoint:",
+        endpoint,
+        "rubro:",
+        rubroSeleccionado,
+        "tipoChat:",
+        getCurrentTipoChat(),
+        "esPublico:",
+        esPublico,
+      );
       const response = await apiFetch<any>(endpoint, {
         method: 'POST',
         body: payload,

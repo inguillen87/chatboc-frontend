@@ -5,7 +5,7 @@ import ChatMessage from "@/components/ChatMessage";
 import TypingIndicator from "@/components/TypingIndicator";
 import { Message } from "@/types/chat";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
-import { getAskEndpoint } from "@/utils/chatEndpoints";
+import { getAskEndpoint, esRubroPublico } from "@/utils/chatEndpoints";
 
 const Demo: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -38,6 +38,17 @@ const Demo: React.FC = () => {
       const rubro = storedUser?.rubro?.clave || storedUser?.rubro?.nombre;
       const tipoChat = getCurrentTipoChat();
       const endpoint = getAskEndpoint({ tipoChat, rubro });
+      const esPublico = esRubroPublico(rubro);
+      console.log(
+        "Voy a pedir a endpoint:",
+        endpoint,
+        "rubro:",
+        rubro,
+        "tipoChat:",
+        tipoChat,
+        "esPublico:",
+        esPublico,
+      );
 
       const res = await fetch(`https://api.chatboc.ar${endpoint}`, {
         method: "POST",
