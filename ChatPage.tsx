@@ -67,9 +67,10 @@ const ChatPage = () => {
         tipo_chat: tipoChat,
       };
 
-      // Si no hay user logueado o es demo, incluye el rubro
+      // Si no hay user logueado o es demo, incluimos la clave del rubro
+      // según lo que espera el backend
       if (!user || isDemo) {
-        body.rubro = rubro;
+        body.rubro_clave = rubro;
       }
 
       const response = await apiFetch<any>("/ask", {
