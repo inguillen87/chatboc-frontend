@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
+import getOrCreateAnonId from "@/utils/anonId";
 import { AnimatePresence, motion } from "framer-motion";
 import ChatInput from "@/components/chat/ChatInput";
 import TypingIndicator from "@/components/chat/TypingIndicator";
@@ -10,21 +11,6 @@ import { getCurrentTipoChat, enforceTipoChatForRubro, parseRubro } from "@/utils
 import { getAskEndpoint, esRubroPublico } from "@/utils/chatEndpoints";
 import { parseChatResponse } from "@/utils/parseChatResponse";
 
-function getOrCreateAnonId() {
-  if (typeof window === "undefined") return "";
-  try {
-    let anon = safeLocalStorage.getItem("anon_id");
-    if (!anon) {
-      anon =
-        window.crypto?.randomUUID?.() ||
-        `anon-${Math.random().toString(36).slice(2, 9)}-${Date.now()}`;
-      safeLocalStorage.setItem("anon_id", anon);
-    }
-    return anon;
-  } catch {
-    return `anon-${Math.random().toString(36).slice(2, 9)}-${Date.now()}`;
-  }
-}
 
 const Demo = () => {
   const [messages, setMessages] = useState<Message[]>([]);

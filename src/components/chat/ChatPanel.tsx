@@ -11,6 +11,7 @@ import { apiFetch } from "@/utils/api";
 import { useUser } from "@/hooks/useUser";
 import { parseRubro, esRubroPublico, getAskEndpoint } from "@/utils/chatEndpoints";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
+import getOrCreateAnonId from "@/utils/anonId";
 import { parseChatResponse } from "@/utils/parseChatResponse";
 
 const CARD_WIDTH = 370;
@@ -39,24 +40,6 @@ const FRASES_EXITO = [
   "ticket **M-",
 ];
 
-// --- FUNCION PARA GENERAR/PERSISTIR anon_id ---
-function getOrCreateAnonId() {
-  if (typeof window === "undefined") return null;
-  try {
-    let anonId = safeLocalStorage.getItem("anon_id");
-    if (!anonId) {
-      if (window.crypto && window.crypto.randomUUID) {
-        anonId = window.crypto.randomUUID();
-      } else {
-        anonId = `anon-${Math.random().toString(36).substr(2, 9)}-${Date.now()}`;
-      }
-      safeLocalStorage.setItem("anon_id", anonId);
-    }
-    return anonId;
-  } catch {
-    return `anon-${Math.random().toString(36).substr(2, 9)}-${Date.now()}`;
-  }
-}
 
 interface ChatPanelProps {
   mode?: "standalone" | "iframe" | "script";
