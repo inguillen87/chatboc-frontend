@@ -1,5 +1,6 @@
+// src/utils/tipoChat.ts
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
-import { esRubroPublico } from './chatEndpoints';
+import { esRubroPublico, normalizeRubro } from './chatEndpoints'; // Importar normalizeRubro
 
 export function parseRubro(raw: any): string | null {
   if (!raw) return null;
@@ -10,20 +11,13 @@ export function parseRubro(raw: any): string | null {
     rubroStr = raw.clave || raw.nombre || null;
   }
   if (!rubroStr) return null;
-  return rubroStr
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[_-]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return normalizeRubro(rubroStr); // Usar la normalizeRubro de chatEndpoints para consistencia
 }
 
 export function getCurrentRubro(): string | null {
   try {
     const selected = safeLocalStorage.getItem('rubroSeleccionado');
-    if (selected) return selected.toLowerCase();
+    if (selected) return parseRubro(selected); // Usar parseRubro para normalizar
     const stored = safeLocalStorage.getItem('user');
     if (stored) {
       const user = JSON.parse(stored);
@@ -37,26 +31,21 @@ export function getCurrentRubro(): string | null {
 
 /**
  * Devuelve el tipo de chat actual basándose en el usuario guardado.
- * Si no hay usuario o no se puede determinar, usa APP_TARGET.
+ * Si no hay usuario o no se puede determinar, usa 'pyme' como default para demos.
  */
 export function getCurrentTipoChat(): 'pyme' | 'municipio' {
   const rubro = getCurrentRubro();
   if (rubro) {
     return esRubroPublico(rubro) ? 'municipio' : 'pyme';
   }
-  try {
-    const stored = safeLocalStorage.getItem('user');
-    if (stored) {
-      const user = JSON.parse(stored);
-      const tipoChat = user?.tipo_chat;
-      if (tipoChat === 'pyme' || tipoChat === 'municipio') {
-        return tipoChat;
-      }
-    }
-  } catch {
-    /* ignore */
-  }
-  return 'municipio';
+  
+  // Si no hay rubro (ej. demo anónima sin rubro pre-seleccionado),
+  // por defecto debería ser 'pyme' para las demos generales.
+  // Tu APP_TARGET en src/config.ts debería ser 'pyme' si esa es la configuración por defecto de la app.
+  // Si el APP_TARGET es 'municipio', entonces el fallback seguirá siendo 'municipio' aquí.
+  // Ajusta esto según el default deseado.
+  // return 'municipio'; // <-- Tu default actual, cámbialo si quieres que la app por defecto sea PYME
+  return 'pyme'; // <-- Sugerencia si la demo principal es PYME sin selección de rubro
 }
 
 /**
@@ -66,15 +55,19 @@ export function getCurrentTipoChat(): 'pyme' | 'municipio' {
  */
 export function enforceTipoChatForRubro(
   tipoChat: 'pyme' | 'municipio',
-  rubro: string | null,
+  rubro?: string | null
 ): 'pyme' | 'municipio' {
-  if (!rubro) return tipoChat;
-  const esperado = esRubroPublico(rubro) ? 'municipio' : 'pyme';
-  if (tipoChat !== esperado) {
-    console.warn(
-      `Tipo de chat '${tipoChat}' no coincide con el rubro '${rubro}'. Ajustando a '${esperado}'.`,
-    );
-    return esperado;
+  const rubroStr = parseRubro(rubro);
+  if (rubroStr) {
+    const isPublico = esRubroPublico(rubroStr);
+    if (isPublico && tipoChat === 'pyme') {
+      console.warn(`Discrepancia: tipoChat 'pyme' con rubro público '${rubroStr}'. Forzando a 'municipio'.`);
+      return 'municipio';
+    }
+    if (!isPublico && tipoChat === 'municipio') {
+      console.warn(`Discrepancia: tipoChat 'municipio' con rubro no público '${rubroStr}'. Forzando a 'pyme'.`);
+      return 'pyme';
+    }
   }
   return tipoChat;
 }
