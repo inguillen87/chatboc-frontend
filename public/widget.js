@@ -18,8 +18,9 @@
   const initialRight = script.getAttribute("data-right") || "20px";
   const defaultOpen = script.getAttribute("data-default-open") === "true"; // Si el chat debe iniciar abierto
   const theme = script.getAttribute("data-theme") || "";
-  const scriptOrigin = (script.getAttribute("src") && new URL(script.getAttribute("src"), window.location.href).origin) || "https://www.chatboc.ar";
-  const chatbocDomain = script.getAttribute("data-domain") || scriptOrigin;
+  const defaultDomain = "https://www.chatboc.ar";
+  const scriptOrigin = (script.getAttribute("src") && new URL(script.getAttribute("src"), window.location.href).origin) || defaultDomain;
+  const chatbocDomain = script.getAttribute("data-domain") || defaultDomain;
 
   const zIndexBase = parseInt(script.getAttribute("data-z") || "999990", 10);
   const iframeId = "chatboc-dynamic-iframe-" + Math.random().toString(36).substring(2, 9);
