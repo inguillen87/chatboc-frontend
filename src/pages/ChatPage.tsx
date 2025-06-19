@@ -516,7 +516,10 @@ const ChatPage = () => {
 
           // **Asegurarnos de que el tipo de chat en el payload refleje el actual**
           payload.tipo_chat = currentEffectiveChatType;
-
+          // PATCH CRÍTICO: agrega anon_id si es usuario anónimo
+          if (isAnonimo && anonId) {
+            payload.anon_id = anonId;
+          }
 
           // Determinar el endpoint final utilizando la función de chatEndpoints
           const endpoint = getAskEndpoint({
