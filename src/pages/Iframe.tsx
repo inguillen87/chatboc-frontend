@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import ChatWidget from "../components/chat/ChatWidget";
-import { Toaster } from '@/components/ui/sonner';
+
 
 const Iframe = () => {
   const [widgetParams, setWidgetParams] = useState({
@@ -30,6 +30,7 @@ const Iframe = () => {
       const closedWidthParam = params.get("closedWidth");
       const closedHeightParam = params.get("closedHeight");
       const themeParam = params.get("theme");
+
       setWidgetParams({
         defaultOpen: openParam === "true",
         widgetId: idParam || "chatboc-iframe-unknown",
@@ -42,6 +43,7 @@ const Iframe = () => {
         closedHeight: closedHeightParam,
         theme: themeParam === "dark" || themeParam === "light" ? themeParam : "light",
       });
+
       if (themeParam === "dark" || themeParam === "light") {
         document.documentElement.classList.remove("dark", "light");
         document.documentElement.classList.add(themeParam);
@@ -75,20 +77,7 @@ const Iframe = () => {
     }
   }, []);
 
-  if (!widgetParams.token) return <div>Cargando Chatboc...</div>;
 
-  return (
-    <div
-      style={{
-        width: "100%",
-        height: "100%",
-        background: "var(--background)",
-        margin: 0,
-        padding: 0,
-        overflow: "hidden",
-        display: "flex",
-        flexDirection: "column",
-      }}
       className="relative"
     >
       <ChatWidget
