@@ -36,7 +36,6 @@ const Index = () => {
         const stored = safeLocalStorage.getItem("user");
         if (stored) {
           const user = JSON.parse(stored);
-          // Verifica si tiene token "real" y no demo
           if (user && typeof user.token === "string" && !user.token.startsWith("demo")) {
             setShowWidget(false);
             return;
