@@ -13,6 +13,10 @@ export function useChatLogic(initialWelcomeMessage: string) {
   const [contexto, setContexto] = useState({});
   const [activeTicketId, setActiveTicketId] = useState<number | null>(null);
 
+  const token = safeLocalStorage.getItem('authToken');
+  const anonId = safeLocalStorage.getItem('anon_id');
+  const isAnonimo = !token && !!anonId;
+
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const ultimoMensajeIdRef = useRef<number>(0);
 
@@ -31,7 +35,8 @@ export function useChatLogic(initialWelcomeMessage: string) {
       if (!activeTicketId) return;
       try {
         const data = await apiFetch<{ estado_chat: string; mensajes: any[] }>(
-          `/tickets/chat/${activeTicketId}/mensajes?ultimo_mensaje_id=${ultimoMensajeIdRef.current}`
+          `/tickets/chat/${activeTicketId}/mensajes?ultimo_mensaje_id=${ultimoMensajeIdRef.current}`,
+          { sendAnonId: isAnonimo }
         );
         if (data.mensajes && data.mensajes.length > 0) {
           const nuevosMensajes: Message[] = data.mensajes.map(msg => ({
@@ -74,6 +79,7 @@ export function useChatLogic(initialWelcomeMessage: string) {
         await apiFetch(`/tickets/chat/${activeTicketId}/responder_ciudadano`, {
           method: "POST",
           body: { comentario: text },
+          sendAnonId: isAnonimo,
         });
       } else {
         const stored =

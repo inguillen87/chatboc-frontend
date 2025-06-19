@@ -194,15 +194,15 @@ const ChatPanel = ({
       const authHeaders = finalAuthToken
         ? { Authorization: `Bearer ${finalAuthToken}` }
         : {};
-      const anonQuery = esAnonimo ? `?anon_id=${anonId}` : "";
       const data = await apiFetch<{
         direccion?: string | null;
         latitud?: number | string | null;
         longitud?: number | string | null;
         municipio_nombre?: string | null;
-      }>(`/tickets/municipio/${activeTicketId}${anonQuery}`, {
+      }>(`/tickets/municipio/${activeTicketId}`, {
         headers: authHeaders,
         skipAuth: !finalAuthToken,
+        sendAnonId: esAnonimo,
       });
       const normalized = {
         ...data,
@@ -233,23 +233,24 @@ const ChatPanel = ({
           const authHeaders = finalAuthToken
             ? { Authorization: `Bearer ${finalAuthToken}` }
             : {};
-          const anonQuery = esAnonimo ? `?anon_id=${anonId}` : "";
           await apiFetch(
-            `/tickets/chat/${activeTicketId}/ubicacion${anonQuery}`,
+            `/tickets/chat/${activeTicketId}/ubicacion`,
             {
               method: "PUT",
               headers: authHeaders,
               body: coords,
               skipAuth: !finalAuthToken,
+              sendAnonId: esAnonimo,
             },
           );
           await apiFetch(
-            `/tickets/municipio/${activeTicketId}/ubicacion${anonQuery}`,
+            `/tickets/municipio/${activeTicketId}/ubicacion`,
             {
               method: "PUT",
               headers: authHeaders,
               body: coords,
               skipAuth: !finalAuthToken,
+              sendAnonId: esAnonimo,
             },
           );
           setForzarDireccion(false);
@@ -294,23 +295,24 @@ const ChatPanel = ({
               const authHeaders = finalAuthToken
                 ? { Authorization: `Bearer ${finalAuthToken}` }
                 : {};
-              const anonQuery = esAnonimo ? `?anon_id=${anonId}` : "";
               await apiFetch(
-                `/tickets/chat/${activeTicketId}/ubicacion${anonQuery}`,
+                `/tickets/chat/${activeTicketId}/ubicacion`,
                 {
                   method: "PUT",
                   headers: authHeaders,
                   body: coords,
                   skipAuth: !finalAuthToken,
+                  sendAnonId: esAnonimo,
                 },
               );
               await apiFetch(
-                `/tickets/municipio/${activeTicketId}/ubicacion${anonQuery}`,
+                `/tickets/municipio/${activeTicketId}/ubicacion`,
                 {
                   method: "PUT",
                   headers: authHeaders,
                   body: coords,
                   skipAuth: !finalAuthToken,
+                  sendAnonId: esAnonimo,
                 },
               );
               fetchTicket();
@@ -411,10 +413,9 @@ const ChatPanel = ({
         const authHeaders = finalAuthToken
           ? { Authorization: `Bearer ${finalAuthToken}` }
           : {};
-        const anonQuery = esAnonimo ? `?anon_id=${anonId}` : "";
         const data = await apiFetch<{ estado_chat: string; mensajes: any[] }>(
-          `/tickets/chat/${activeTicketId}/mensajes${anonQuery}`,
-          { headers: authHeaders },
+          `/tickets/chat/${activeTicketId}/mensajes`,
+          { headers: authHeaders, sendAnonId: esAnonimo },
         );
         if (data.mensajes) {
           const nuevosMensajes: Message[] = data.mensajes.map((msg) => ({
@@ -516,23 +517,24 @@ const ChatPanel = ({
             const authHeaders = finalAuthToken
               ? { Authorization: `Bearer ${finalAuthToken}` }
               : {};
-            const anonQuery = esAnonimo ? `?anon_id=${anonId}` : "";
             await apiFetch(
-              `/tickets/chat/${activeTicketId}/ubicacion${anonQuery}`,
+              `/tickets/chat/${activeTicketId}/ubicacion`,
               {
                 method: "PUT",
                 headers: authHeaders,
                 body: { direccion: text },
                 skipAuth: !finalAuthToken,
+                sendAnonId: esAnonimo,
               },
             );
             await apiFetch(
-              `/tickets/municipio/${activeTicketId}/ubicacion${anonQuery}`,
+              `/tickets/municipio/${activeTicketId}/ubicacion`,
               {
                 method: "PUT",
                 headers: authHeaders,
                 body: { direccion: text },
                 skipAuth: !finalAuthToken,
+                sendAnonId: esAnonimo,
               },
             );
             fetchTicket();
@@ -557,14 +559,14 @@ const ChatPanel = ({
           const authHeaders = finalAuthToken
             ? { Authorization: `Bearer ${finalAuthToken}` }
             : {};
-          const anonQuery = esAnonimo ? `?anon_id=${anonId}` : "";
           await apiFetch(
-            `/tickets/chat/${activeTicketId}/responder_ciudadano${anonQuery}`,
+            `/tickets/chat/${activeTicketId}/responder_ciudadano`,
             {
               method: "POST",
               headers: { "Content-Type": "application/json", ...authHeaders },
               body: { comentario: text },
               skipAuth: !finalAuthToken,
+              sendAnonId: esAnonimo,
             },
           );
         } else {

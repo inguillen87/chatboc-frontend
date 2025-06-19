@@ -43,7 +43,7 @@ export async function apiFetch<T>(
   const isForm = body instanceof FormData;
   if (!isForm) headers["Content-Type"] = "application/json";
 
-  // --- Autenticación y anónimos ---
+
   if (!skipAuth && token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
