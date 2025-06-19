@@ -1,15 +1,5 @@
 export const RUBROS_PUBLICOS = [
-  "municipio",
-  "municipios",
-  "ong",
-  "gobierno",
-  "hospital_publico",
-  "entidad_publica",
-  "municipalidad",
-  "ciudad",
-  "administracion publica",
-  "intendente",
-  // agregá todas las variantes que uses en tu sistema o que puedan venir de la DB
+
 ];
 
 // Función robusta, siempre compara en minúsculas y sin tildes
@@ -30,9 +20,7 @@ export const esRubroPublico = (
     .trim()
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
 
-  return RUBROS_PUBLICOS.includes(normalized);
 };
 
 interface GetEndpointOptions {
