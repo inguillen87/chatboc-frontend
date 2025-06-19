@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Message } from "@/types/chat";
 import ChatMessage from "@/components/chat/ChatMessage";
-import { getCurrentTipoChat, enforceTipoChatForRubro, parseRubro } from "@/utils/tipoChat";
+import { getCurrentTipoChat, enforceTipoChatForRubro, parseRubro as parseRubroUtil } from "@/utils/tipoChat"; // Renombrar parseRubro para evitar conflicto
 import ChatInput from "@/components/chat/ChatInput";
 import TypingIndicator from "@/components/chat/TypingIndicator";
 import Navbar from "@/components/layout/Navbar";
@@ -13,6 +13,7 @@ import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import TicketMap from "@/components/TicketMap";
 import { useUser } from "@/hooks/useUser";
+import { toast } from "@/components/ui/use-toast"; // Asegúrate de tener toast
 
 // Frases para detectar pedido de dirección
 const FRASES_DIRECCION = [
@@ -109,61 +110,70 @@ const ChatPage = () => {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatMessagesContainerRef = useRef<HTMLDivElement>(null);
 
-  const tipoChatParam =
-    typeof window !== 'undefined'
-      ? new URLSearchParams(window.location.search).get('tipo_chat')
-      : null;
-  const tipoChat: 'pyme' | 'municipio' =
-    tipoChatParam === 'pyme' || tipoChatParam === 'municipio'
-      ? (tipoChatParam as 'pyme' | 'municipio')
-      : getCurrentTipoChat();
+  const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+  const tipoChatParam = urlParams?.get('tipo_chat');
+  const demoRubroIdParam = urlParams?.get('rubroId');
+  const demoRubroNameParam = urlParams?.get('rubroName'); // Este es tu rubro_clave para la demo
 
-const { user, refreshUser, loading } = useUser();
-const authToken = safeLocalStorage.getItem("authToken");
-const anonId = getOrCreateAnonId();
-const isAnonimo = !authToken;
-const authHeaders: Record<string, string> = authToken
-  ? { Authorization: `Bearer ${authToken}` }
-  : {};
-const anonParam = !authToken ? `anon_id=${anonId}` : '';
-const queryPrefix = anonParam ? `?${anonParam}` : '';
-const storedUser =
-  typeof window !== 'undefined'
-    ? JSON.parse(safeLocalStorage.getItem('user') || 'null')
+  // Usamos el hook useUser para obtener el usuario autenticado
+  const { user, refreshUser, loading } = useUser();
+  const authToken = safeLocalStorage.getItem("authToken");
+  const anonId = getOrCreateAnonId();
+  const isAnonimo = !authToken; // Determina si el usuario no está autenticado
+
+  // Lógica para determinar el rubro del usuario, priorizando autenticado
+  const rubroActualFromUser = user?.rubro ? parseRubroUtil(user.rubro) : null;
+  const rubroActualFromStorage = typeof window !== 'undefined'
+    ? parseRubroUtil(safeLocalStorage.getItem('rubroSeleccionado') || 'null') // rubroSeleccionado podría ser un ID o nombre
     : null;
-const rubroSeleccionado =
-  typeof window !== 'undefined'
-    ? safeLocalStorage.getItem('rubroSeleccionado')?.toLowerCase() || null
-    : null;
-const rubroActual =
-  parseRubro(user?.rubro) ||
-  parseRubro(storedUser?.rubro) ||
-  null;
-const rubroNormalizado = rubroActual;
-const isMunicipioRubro = esRubroPublico(rubroNormalizado || undefined);
-const tipoChatActual: 'pyme' | 'municipio' = isMunicipioRubro
-  ? 'municipio'
-  : rubroNormalizado
-    ? 'pyme'
-    : tipoChat;
-const DEFAULT_RUBRO = tipoChatActual === 'municipio' ? 'municipios' : undefined;
+  
+  // El rubro "normalizado" que usaremos para determinar el tipo de bot.
+  // Para demos anónimas, el rubro viene de la URL.
+  const rubroNormalizadoFinal = (isAnonimo && demoRubroNameParam) 
+    ? parseRubroUtil(demoRubroNameParam) // Priorizar rubro de URL para demo anónima
+    : rubroActualFromUser || rubroActualFromStorage;
 
-useEffect(() => {
-  console.log('ChatPage render', {
-    user,
-    rubroSeleccionado,
-    storedUser,
-    rubroActual,
-    rubroNormalizado,
-    isMunicipioRubro,
-  });
-});
 
-useEffect(() => {
-  if (!isAnonimo && (!user || !user.rubro) && !loading) {
-    refreshUser();
+  // Determinar el tipo de chat principal (pyme/municipio)
+  let currentEffectiveChatType: 'pyme' | 'municipio';
+  
+  if (esRubroPublico(rubroNormalizadoFinal)) {
+    currentEffectiveChatType = 'municipio';
+  } else {
+    // Si no es un rubro público, por defecto es PYME.
+    // También, si el `tipoChatParam` es 'pyme', lo respetamos.
+    currentEffectiveChatType = 'pyme'; 
   }
-}, [isAnonimo, user, refreshUser, loading]);
+
+  // Si hay un tipoChatParam explícito en la URL, lo podemos usar para anular el default si es necesario
+  // PERO la lógica de `getAskEndpoint` y `esRubroPublico` es más fuerte.
+  // Si tipoChatParam fuera 'municipio' y el rubro no es público, la llamada a getAskEndpoint lo corregirá.
+
+  // APLICAR enforceTipoChatForRubro para asegurar consistencia
+  const adjustedTipoForEndpoint = enforceTipoChatForRubro(currentEffectiveChatType, rubroNormalizadoFinal);
+
+  // console.log para depuración avanzada:
+  console.log('ChatPage - DEBUG Variables Iniciales:', {
+    isAuthenticated: !isAnonimo,
+    userFromHook: user,
+    rubroActualFromUser,
+    rubroActualFromStorage,
+    rubroNormalizadoFinal,
+    isAnonimo,
+    demoRubroIdParam,
+    demoRubroNameParam,
+    currentEffectiveChatType, // Tipo de chat inicial
+    adjustedTipoForEndpoint,  // Tipo de chat ajustado para el endpoint
+  });
+
+
+  useEffect(() => {
+    // Si no está autenticado y no hay datos de usuario, intenta refrescar.
+    // Esto es útil si el token está presente pero el `user` object no se cargó aún.
+    if (!isAnonimo && (!user || !user.rubro) && !loading) {
+      refreshUser();
+    }
+  }, [isAnonimo, user, refreshUser, loading]);
 
   const [contexto, setContexto] = useState({});
   const [activeTicketId, setActiveTicketId] = useState<number | null>(null);
@@ -195,8 +205,11 @@ useEffect(() => {
         longitud?: number | string | null;
         municipio_nombre?: string | null;
       }>(
-        `/tickets/municipio/${activeTicketId}${queryPrefix}`,
-        { headers: authHeaders },
+        // Asegúrate de que el backend pueda manejar anon_id para tickets si es un ticket anónimo
+        `/tickets/municipio/${activeTicketId}`, // apiFetch se encargará de anon_id en headers
+        { 
+            sendAnonId: isAnonimo // apiFetch lo manejará
+        },
       );
       const normalized = {
         ...data,
@@ -213,7 +226,7 @@ useEffect(() => {
     } catch (e) {
       console.error('Error al refrescar ticket:', e);
     }
-  }, [activeTicketId, authHeaders]);
+  }, [activeTicketId, isAnonimo]); // Añadir dependencias
 
   useEffect(() => {
     fetchTicketInfo();
@@ -262,56 +275,86 @@ useEffect(() => {
   }, [messages, isTyping, scrollToBottom, contexto, forzarDireccion, ticketInfo]);
 
   const handleShareGps = useCallback(() => {
-    if (!activeTicketId || !navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const coords = {
-          latitud: pos.coords.latitude,
-          longitud: pos.coords.longitude,
-        };
-        try {
-          await apiFetch(
-            `/tickets/chat/${activeTicketId}/ubicacion${queryPrefix}`,
+
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const coords = {
+            latitud: pos.coords.latitude,
+            longitud: pos.coords.longitude,
+          };
+          try {
+            // Envía la ubicación al ticket de chat
+            await apiFetch(
+              `/tickets/chat/${activeTicketId}/ubicacion`, // No queryPrefix, apiFetch lo añade
+              {
+                method: 'PUT',
+                body: coords,
+                sendAnonId: isAnonimo // Importante para anónimos
+              },
+            );
+            // Envía la ubicación al ticket municipal (si es un ticket municipal)
+            await apiFetch(
+              `/tickets/municipio/${activeTicketId}/ubicacion`, // No queryPrefix, apiFetch lo añade
+              {
+                method: 'PUT',
+                body: coords,
+                sendAnonId: isAnonimo // Importante para anónimos
+              },
+            );
+            setForzarDireccion(false);
+            fetchTicketInfo(); // Refresca info del ticket
+            toast({
+                title: "Ubicación enviada",
+                description: "Tu ubicación ha sido compartida con el agente.",
+                duration: 3000,
+            });
+          } catch (e) {
+            console.error('Error al enviar ubicación por GPS:', e);
+            toast({
+                title: "Error al enviar ubicación",
+                description: "Hubo un problema al enviar tu ubicación. Inténtalo de nuevo.",
+                variant: "destructive",
+                duration: 3000,
+            });
+          }
+        },
+        (error) => {
+
+          setForzarDireccion(true);
+          setEsperandoDireccion(true);
+          setMessages((prev) => [
+            ...prev,
             {
-              method: 'PUT',
-              headers: authHeaders,
-              body: coords,
+              id: Date.now(),
+              text:
+                'No pudimos acceder a tu ubicación por GPS (error de permisos o configuración). Ingresá la dirección manualmente para continuar.',
+              isBot: true,
+              timestamp: new Date(),
             },
-          );
-          await apiFetch(
-            `/tickets/municipio/${activeTicketId}/ubicacion${queryPrefix}`,
-            {
-              method: 'PUT',
-              headers: authHeaders,
-              body: coords,
-            },
-          );
-          setForzarDireccion(false);
-          fetchTicketInfo();
-        } catch (e) {
-          console.error('Error al enviar ubicación', e);
-        }
-      },
-      (error) => {
-        setForzarDireccion(true);
-        setEsperandoDireccion(true);
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: Date.now(),
-            text:
-              'No pudimos acceder a tu ubicación por GPS. Ingresá la dirección manualmente para continuar.',
-            isBot: true,
-            timestamp: new Date(),
-          },
-        ]);
-      },
-    );
-  }, [activeTicketId, fetchTicketInfo]);
+          ]);
+          toast({
+            title: "Ubicación no autorizada",
+            description: "Por favor, permite el acceso a la ubicación en tu navegador.",
+            variant: "destructive",
+            duration: 5000,
+          });
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 } // Opciones para precisión
+      );
+    } else {
+        toast({
+            title: "Función no aplicable",
+            description: "La función de ubicación por GPS está disponible solo para reclamos municipales en vivo.",
+            duration: 4000,
+        });
+    }
+  }, [activeTicketId, fetchTicketInfo, currentEffectiveChatType, isAnonimo]);
+
 
   // Solicitar GPS automáticamente al iniciar chat en vivo
   useEffect(() => {
-    if (!activeTicketId) return;
+    if (!activeTicketId || currentEffectiveChatType !== 'municipio') return; // Solo para tickets municipales
+    
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         async (pos) => {
@@ -321,46 +364,42 @@ useEffect(() => {
           };
           try {
             await apiFetch(
-              `/tickets/chat/${activeTicketId}/ubicacion${queryPrefix}`,
-              {
-                method: 'PUT',
-                headers: authHeaders,
-                body: coords,
-              },
+              `/tickets/chat/${activeTicketId}/ubicacion`,
+              { method: 'PUT', body: coords, sendAnonId: isAnonimo },
             );
             await apiFetch(
-              `/tickets/municipio/${activeTicketId}/ubicacion${queryPrefix}`,
-              {
-                method: 'PUT',
-                headers: authHeaders,
-                body: coords,
-              },
+              `/tickets/municipio/${activeTicketId}/ubicacion`,
+              { method: 'PUT', body: coords, sendAnonId: isAnonimo },
             );
-            // Refrescar los datos del ticket para mostrar la ubicación
             fetchTicketInfo();
+            toast({ title: "Ubicación enviada automáticamente", duration: 2000 });
           } catch (e) {
-            console.error('Error al enviar ubicación', e);
+            console.error('Error al enviar ubicación automática:', e);
           }
         },
         (error) => {
-          setForzarDireccion(true);
+          console.warn("Permiso de ubicación denegado o error automático:", error);
+          setForzarDireccion(true); // Solicitar dirección manual
           setEsperandoDireccion(true);
           setMessages((prev) => [
             ...prev,
             {
               id: Date.now(),
               text:
-                'No pudimos acceder a tu ubicación por GPS. Ingresá la dirección manualmente para continuar.',
+                'No pudimos acceder a tu ubicación automáticamente. Por favor, ingresa la dirección para tu reclamo.',
               isBot: true,
               timestamp: new Date(),
             },
           ]);
         },
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
       );
     } else {
       setForzarDireccion(true);
+      setEsperandoDireccion(true);
     }
-  }, [activeTicketId, authHeaders, fetchTicketInfo]);
+  }, [activeTicketId, fetchTicketInfo, currentEffectiveChatType, isAnonimo]);
+
 
   // Maneja envío de mensaje O dirección seleccionada
   const handleSend = useCallback(
@@ -375,24 +414,26 @@ useEffect(() => {
         if (activeTicketId) {
           try {
             await apiFetch(
-              `/tickets/chat/${activeTicketId}/ubicacion${queryPrefix}`,
+              `/tickets/chat/${activeTicketId}/ubicacion`,
               {
                 method: 'PUT',
-                headers: authHeaders,
                 body: { direccion: text },
+                sendAnonId: isAnonimo
               },
             );
             await apiFetch(
-              `/tickets/municipio/${activeTicketId}/ubicacion${queryPrefix}`,
+              `/tickets/municipio/${activeTicketId}/ubicacion`,
               {
                 method: 'PUT',
-                headers: authHeaders,
                 body: { direccion: text },
+                sendAnonId: isAnonimo
               },
             );
             fetchTicketInfo();
+            toast({ title: "Dirección enviada", duration: 2000 });
           } catch (e) {
-            console.error('Error al enviar dirección', e);
+            console.error('Error al enviar dirección manual:', e);
+            toast({ title: "Error enviando dirección", variant: "destructive" });
           }
         }
       }
@@ -409,46 +450,71 @@ useEffect(() => {
 
       try {
         if (activeTicketId) {
-          // Caso: chat en vivo
+          // Caso: chat en vivo con ticket activo
           await apiFetch(
-            `/tickets/chat/${activeTicketId}/responder_ciudadano${queryPrefix}`,
+            `/tickets/chat/${activeTicketId}/responder_ciudadano`,
             {
               method: "POST",
-              headers: authHeaders,
               body: { comentario: text },
+              sendAnonId: isAnonimo // Importante para anónimos
             },
           );
         } else {
-          const rubroParaEndpoint = rubroNormalizado || DEFAULT_RUBRO || null;
-          const adjustedTipo = enforceTipoChatForRubro(
-            tipoChatActual,
-            rubroParaEndpoint,
-          );
+          // Caso: todavía con el bot (llamada a /ask/pyme o /ask/municipio)
           const payload: Record<string, any> = {
             pregunta: text,
             contexto_previo: contexto,
-            tipo_chat: adjustedTipo,
-            ...(rubroParaEndpoint ? { rubro_clave: rubroParaEndpoint } : {}),
           };
+
+          // Definir rubro_clave y rubro_id para el payload (para el backend)
+          let rubroClaveParaPayload: string | undefined = undefined;
+          let rubroIdParaPayload: number | undefined = undefined;
+
+          if (currentEffectiveChatType === 'pyme') {
+              if (user?.rubro?.clave) { // Usuario autenticado
+                  rubroClaveParaPayload = parseRubroUtil(user.rubro) || undefined;
+                  rubroIdParaPayload = user.rubro.id;
+              } else if (isAnonimo && demoRubroNameParam) { // Demo anónima
+                  rubroClaveParaPayload = demoRubroNameParam;
+                  rubroIdParaPayload = demoRubroIdParam ? Number(demoRubroIdParam) : undefined;
+              }
+          } else if (currentEffectiveChatType === 'municipio') {
+              rubroClaveParaPayload = "municipios"; // Clave fija para el bot municipal
+              // Si tienes un ID fijo para el rubro "municipios", también puedes enviarlo aquí
+              // rubroIdParaPayload = ID_FIJO_MUNICIPIOS; 
+          }
+          
+          if (rubroClaveParaPayload) {
+              payload.rubro_clave = rubroClaveParaPayload;
+          }
+          if (rubroIdParaPayload) {
+              payload.rubro_id = rubroIdParaPayload;
+          }
+
+          // **Asegurarnos de que el tipo de chat en el payload refleje el actual**
+          payload.tipo_chat = currentEffectiveChatType;
+
+
+          // Determinar el endpoint final utilizando la función de chatEndpoints
           const endpoint = getAskEndpoint({
-            tipoChat: adjustedTipo,
-            rubro: rubroParaEndpoint || undefined,
+            tipoChat: adjustedTipoForEndpoint, // Usar el tipo de chat ajustado
+            rubro: rubroClaveParaPayload // Pasamos el rubro clave (ya normalizado)
           });
-          const esPublico = esRubroPublico(rubroParaEndpoint || undefined);
-          console.log(
-            "Voy a pedir a endpoint:",
-            endpoint,
-            "rubro:",
-            rubroParaEndpoint,
-            "tipoChat:",
-            adjustedTipo,
-            "esPublico:",
-            esPublico,
-          );
+
+          // --- ¡CLAVE PARA DEPURAR! ---
+          console.log("DEBUG - isAuthenticated:", isAuthenticated);
+          console.log("DEBUG - user (hook):", user); // Para ver el objeto completo del usuario
+          console.log("DEBUG - rubroNormalizadoFinal (derivado):", rubroNormalizadoFinal);
+          console.log("DEBUG - currentEffectiveChatType (determinado):", currentEffectiveChatType);
+          console.log("DEBUG - adjustedTipoForEndpoint (final para endpoint):", adjustedTipoForEndpoint);
+          console.log("DEBUG - rubroClaveParaPayload (en payload):", rubroClaveParaPayload);
+          console.log("DEBUG - rubroIdParaPayload (en payload):", rubroIdParaPayload);
+          console.log("DEBUG - Endpoint a llamar:", endpoint);
+          console.log("DEBUG - Payload a enviar:", payload);
+
 
           const data = await apiFetch<any>(endpoint, {
             method: "POST",
-            headers: { "Content-Type": "application/json", ...authHeaders },
             body: payload,
           });
 
@@ -484,11 +550,21 @@ useEffect(() => {
             timestamp: new Date(),
           },
         ]);
+        toast({
+            title: "Error de comunicación",
+            description: errorMsg,
+            variant: "destructive",
+            duration: 5000,
+        });
       } finally {
         setIsTyping(false);
       }
     },
-    [contexto, activeTicketId, esperandoDireccion],
+    [
+      contexto, activeTicketId, esperandoDireccion, isAuthenticated, user,
+      anonId, currentEffectiveChatType, demoRubroIdParam, demoRubroNameParam,
+      fetchTicketInfo, rubroNormalizadoFinal, adjustedTipoForEndpoint // Añadir dependencias relevantes
+    ],
   );
 
   // Polling para chat en vivo
@@ -497,10 +573,11 @@ useEffect(() => {
       if (!activeTicketId) return;
       try {
         const base = `/tickets/chat/${activeTicketId}/mensajes`;
-        const query = `${queryPrefix}${queryPrefix ? '&' : '?'}ultimo_mensaje_id=${ultimoMensajeIdRef.current}`;
+        // apiFetch ya manejará el anon_id en los headers
+        const query = `?ultimo_mensaje_id=${ultimoMensajeIdRef.current}`; 
         const data = await apiFetch<{ estado_chat: string; mensajes: any[] }>(
           `${base}${query}`,
-          { headers: authHeaders },
+          { sendAnonId: isAnonimo }, // Enviar anonId si no autenticado
         );
         if (data.mensajes && data.mensajes.length > 0) {
           const nuevosMensajes: Message[] = data.mensajes.map((msg) => ({
@@ -541,7 +618,7 @@ useEffect(() => {
         clearInterval(pollingIntervalRef.current);
       }
     };
-  }, [activeTicketId]);
+  }, [activeTicketId, fetchTicketInfo, isAnonimo]); // Añadir isAnonimo a dependencias
 
   return (
     <div className="min-h-screen flex flex-col bg-background dark:bg-gradient-to-b dark:from-[#0d1014] dark:to-[#161b22] text-foreground">
@@ -549,10 +626,10 @@ useEffect(() => {
 
       <main
         className={`
-        flex-grow flex flex-col items-center justify-center
-        pt-3 sm:pt-10 pb-2 sm:pb-6
-        transition-all
-      `}
+          flex-grow flex flex-col items-center justify-center
+          pt-3 sm:pt-10 pb-2 sm:pb-6
+          transition-all
+        `}
       >
         <motion.div
           layout
@@ -600,7 +677,7 @@ useEffect(() => {
                     message={msg}
                     isTyping={isTyping}
                     onButtonClick={handleSend}
-                    tipoChat={tipoChatActual}
+                    tipoChat={adjustedTipoForEndpoint} // Usar el tipo de chat ajustado para ChatMessage
                   />
                 </motion.div>
               ))}
@@ -663,7 +740,7 @@ useEffect(() => {
                 </div>
               </div>
             ) : !showCierre || !showCierre.show ? (
-              <ChatInput onSendMessage={handleSend} />
+              <ChatInput onSendMessage={handleSend} isTyping={isTyping} />
             ) : null}
           </div>
         </motion.div>
