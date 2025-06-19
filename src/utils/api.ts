@@ -57,6 +57,11 @@ export async function apiFetch<T>(
     headers["Content-Type"] = "application/json";
   }
 
+  // --- Adjuntar Anon-Id cuando corresponda ---
+  if ((sendAnonId || (!token && !!anonId)) && anonId) {
+    headers["Anon-Id"] = anonId;
+  }
+
   // --- Agregar Authorization solo si no se omite y hay token ---
   if (!skipAuth && token) {
     headers["Authorization"] = `Bearer ${token}`;

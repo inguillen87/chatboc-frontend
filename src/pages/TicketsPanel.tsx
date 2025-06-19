@@ -373,6 +373,10 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
   const ultimoMensajeIdRef = useRef<number>(0);
 
+  const token = safeLocalStorage.getItem('authToken');
+  const anonId = safeLocalStorage.getItem('anon_id');
+  const isAnonimo = !token && !!anonId;
+
   const chatEnVivo = useMemo(() => {
     const categoriaNormalizada = (ticket.asunto || ticket.categoria || "")
       .toLowerCase()
@@ -390,7 +394,9 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
 
   const fetchComentarios = useCallback(async () => {
     try {
-      const data = await apiFetch(`/tickets/chat/${ticket.id}/mensajes?ultimo_mensaje_id=${ultimoMensajeIdRef.current}`);
+      const data = await apiFetch(`/tickets/chat/${ticket.id}/mensajes?ultimo_mensaje_id=${ultimoMensajeIdRef.current}`, {
+        sendAnonId: isAnonimo,
+      });
       if (data.mensajes && data.mensajes.length > 0) {
         setComentarios((prev) => {
           const idsPrev = new Set(prev.map((m) => m.id));
@@ -415,7 +421,9 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
     }
     // Siempre refrescar el ticket para detectar nueva ubicación u otros cambios
     try {
-      const updated = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}`);
+      const updated = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}`, {
+        sendAnonId: isAnonimo,
+      });
       onTicketUpdate({ ...ticket, ...updated });
     } catch (e) {
       console.error("Error al refrescar ticket:", e);
@@ -461,7 +469,8 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
     try {
       const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}/responder`, {
         method: "POST",
-        body: { comentario: newMessage }
+        body: { comentario: newMessage },
+        sendAnonId: isAnonimo,
       });
       setComentarios(updatedTicket.comentarios || []);
       setNewMessage("");
@@ -479,7 +488,7 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
     try {
       const updatedTicket = await apiFetch<Ticket>(
         `/tickets/${ticket.tipo}/${ticket.id}/estado`,
-        { method: "PUT", body: { estado: nuevoEstado } }
+        { method: "PUT", body: { estado: nuevoEstado }, sendAnonId: isAnonimo }
       );
       const mergedTicket = { ...ticket, ...updatedTicket };
       if (!updatedTicket.comentarios && ticket.comentarios) {
