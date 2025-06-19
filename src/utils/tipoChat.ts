@@ -1,17 +1,9 @@
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
-import { esRubroPublico } from './chatEndpoints';
+import { esRubroPublico, normalizeRubro } from './chatEndpoints';
 
 function parseRubro(raw: any): string | null {
-  if (!raw) return null;
-  if (typeof raw === 'string') return raw.toLowerCase();
-  if (typeof raw === 'object') {
-    return (
-      raw.clave?.toLowerCase() ||
-      raw.nombre?.toLowerCase() ||
-      null
-    );
-  }
-  return null;
+  const val = normalizeRubro(raw);
+  return typeof val === 'string' ? val.toLowerCase() : null;
 }
 
 export function getCurrentRubro(): string | null {
