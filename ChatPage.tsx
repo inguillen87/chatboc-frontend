@@ -10,6 +10,7 @@ import { getCurrentTipoChat } from "@/utils/tipoChat";
 import { getAskEndpoint, esRubroPublico } from "@/utils/chatEndpoints";
 import { motion, AnimatePresence } from "framer-motion";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
+import { parseChatResponse } from "@/utils/parseChatResponse";
 
 // --- CONFIGURA ACÁ EL RUBRO PARA DEMO O WIDGET
 const DEFAULT_WIDGET_RUBRO = "municipios"; // Cambia por "bodega", "almacen", etc. según corresponda
@@ -95,14 +96,14 @@ const ChatPage = () => {
         body,
       });
 
+      const { text: respuestaText, botones } = parseChatResponse(response);
       const botMessage: Message = {
         id: updatedMessages.length + 1,
-        text:
-          response?.respuesta?.respuesta ||
-          response?.respuesta ||
+        text: respuestaText ||
           "⚠️ No se pudo generar una respuesta.",
         isBot: true,
         timestamp: new Date(),
+        botones,
       };
 
       const newMessages = [...updatedMessages, botMessage];
