@@ -20,7 +20,9 @@ interface ApiFetchOptions {
   headers?: Record<string, string>;
   body?: any;
   // Opcional: una bandera para indicar que una ruta no necesita autenticación
-  skipAuth?: boolean; 
+  skipAuth?: boolean;
+  // Si se establece o si no hay token y es una ruta de tickets, se manda anon_id
+  sendAnonId?: boolean;
 }
 
 /**
@@ -32,8 +34,21 @@ export async function apiFetch<T>(
   path: string,
   options: ApiFetchOptions = {}
 ): Promise<T> {
-  const { method = 'GET', body, skipAuth } = options; // Desestructurar skipAuth
-  const url = `${API_BASE_URL}${path}`;
+  const { method = 'GET', body, skipAuth, sendAnonId } = options; // Desestructurar opciones
+
+  const token = safeLocalStorage.getItem('authToken');
+  const anonId = safeLocalStorage.getItem('anon_id');
+  let finalPath = path;
+  const needsAnon =
+    (sendAnonId || (!token && !!anonId)) &&
+    /\/tickets\/(municipio|chat)/.test(path) &&
+    !path.includes('anon_id=');
+  if (needsAnon && anonId) {
+    const sep = path.includes('?') ? '&' : '?';
+    finalPath = `${path}${sep}anon_id=${anonId}`;
+  }
+
+  const url = `${API_BASE_URL}${finalPath}`;
 
   const headers: Record<string, string> = { ...(options.headers || {}) };
   const isForm = body instanceof FormData;
@@ -42,12 +57,9 @@ export async function apiFetch<T>(
     headers["Content-Type"] = "application/json";
   }
 
-  // --- CORRECCIÓN SUGERIDA: Solo añadir Authorization si no se omite y hay token ---
-  if (!skipAuth) { // Si no estamos en una ruta que omite la autenticación
-    const token = safeLocalStorage.getItem("authToken");
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
-    }
+  // --- Agregar Authorization solo si no se omite y hay token ---
+  if (!skipAuth && token) {
+    headers["Authorization"] = `Bearer ${token}`;
   }
 
   try {
@@ -67,8 +79,10 @@ export async function apiFetch<T>(
 
     if (response.status === 401) {
       if (!skipAuth) {
-        safeLocalStorage.clear();
-        window.location.href = '/login';
+        safeLocalStorage.removeItem('authToken');
+        if (!anonId) {
+          window.location.href = '/login';
+        }
       }
       throw new ApiError(
         data?.error || data?.message || 'No autorizado',
