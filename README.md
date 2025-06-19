@@ -98,6 +98,7 @@ You can embed the floating chat widget on any site by loading `widget.js` and pa
 
 This snippet loads the widget without needing an iframe and creates a floating bubble styled just like on chatboc.ar.
 You can also pass `data-theme="dark"` or `data-theme="light"` to force a specific theme inside the widget.
+If you host `widget.js` yourself, remember to add `data-domain="https://www.chatboc.ar"` so the iframe loads from our servers.
 
 ### Customization
 
