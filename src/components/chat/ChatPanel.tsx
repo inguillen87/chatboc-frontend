@@ -9,9 +9,8 @@ import TicketMap from "@/components/TicketMap";
 import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
 import { useUser } from "@/hooks/useUser";
-import { getAskEndpoint, esRubroPublico } from "@/utils/chatEndpoints";
+import { parseRubro, esRubroPublico, getAskEndpoint } from "@/utils/chatEndpoints";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
-import { getCurrentTipoChat } from "@/utils/tipoChat"; // o la ruta correcta
 
 const CARD_WIDTH = 370;
 const CARD_HEIGHT = 540;
@@ -69,7 +68,7 @@ interface ChatPanelProps {
   onClose?: () => void;
   openWidth?: number;
   openHeight?: number;
-  tipoChat?: "pyme" | "municipios";
+  tipoChat?: "pyme" | "municipio";
 }
 
 const ChatPanel = ({
@@ -83,8 +82,8 @@ const ChatPanel = ({
   onClose,
   openWidth: propOpenWidth,
   openHeight: propOpenHeight,
-  tipoChat = getCurrentTipoChat(),
 }: ChatPanelProps) => {
+  
   const openWidthInitial = propOpenWidth ?? CARD_WIDTH;
   const openHeightInitial = propOpenHeight ?? CARD_HEIGHT;
   const [openWidth, setOpenWidth] = useState<number>(openWidthInitial);
@@ -168,6 +167,7 @@ const ChatPanel = ({
 
   const { user, refreshUser, loading } = useUser();
 
+
   useEffect(() => {
     if (!esAnonimo && (!user || !user.rubro) && !loading) {
       refreshUser();
@@ -177,6 +177,8 @@ const ChatPanel = ({
     typeof window !== "undefined"
       ? JSON.parse(safeLocalStorage.getItem("user") || "null")
       : null;
+
+  // ------- AQUÍ ARMÁS EL RUBRO Y EL TIPO DE CHAT FINAL -------
   const rubroActual =
     parseRubro(rubroSeleccionado) ||
     parseRubro(user?.rubro) ||
