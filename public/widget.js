@@ -1,3 +1,4 @@
+// Chatboc embeddable widget loader
 (function () {
   "use strict";
 
@@ -37,7 +38,28 @@
     let currentDims = defaultOpen ? WIDGET_DIMENSIONS_JS.OPEN : WIDGET_DIMENSIONS_JS.CLOSED;
     let iframeIsCurrentlyOpen = defaultOpen;
 
+    const targetElementId = script.getAttribute("data-target-element-id");
+    let targetElement = null;
+    let isFixedPosition = true;
 
+    if (targetElementId) {
+      targetElement = document.getElementById(targetElementId);
+      if (targetElement) {
+        isFixedPosition = false;
+      }
+    }
+
+    const widgetContainer = document.createElement("div");
+    widgetContainer.id = "chatboc-widget-container-" + iframeId;
+    Object.assign(widgetContainer.style, {
+      position: isFixedPosition ? "fixed" : "absolute",
+      ...(isFixedPosition && {
+        bottom: initialBottom,
+        right: initialRight,
+      }),
+      width: currentDims.width,
+      height: currentDims.height,
+      zIndex: isFixedPosition ? zIndexBase.toString() : "auto",
       borderRadius: iframeIsCurrentlyOpen ? "16px" : "50%",
       boxShadow: iframeIsCurrentlyOpen ? "0 6px 20px rgba(0,0,0,0.2)" : "0 4px 12px rgba(0,0,0,0.15)",
       transition: "width 0.25s cubic-bezier(0.4, 0, 0.2, 1), height 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-radius 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s ease-in-out",
@@ -47,8 +69,16 @@
       justifyContent: "center",
       cursor: "pointer",
     });
-    if (!document.getElementById(widgetContainer.id)) document.body.appendChild(widgetContainer);
-
+    if (!document.getElementById(widgetContainer.id)) {
+      if (targetElement) {
+        if (getComputedStyle(targetElement).position === "static") {
+          targetElement.style.position = "relative";
+        }
+        targetElement.appendChild(widgetContainer);
+      } else {
+        document.body.appendChild(widgetContainer);
+      }
+    }
 
     const loader = document.createElement("div");
     loader.id = "chatboc-loader-" + iframeId;
@@ -90,7 +120,7 @@
     const loadTimeout = setTimeout(() => {
       if (!iframeHasLoaded) {
         loader.innerHTML = '<div style="font-family: Arial, sans-serif; color: #777; font-size:11px; text-align:center;">Servicio no disponible</div>';
-        loader.style.backgroundColor = 'lightgray';
+        loader.style.backgroundColor = "lightgray";
       }
     }, 10000);
 
@@ -106,8 +136,8 @@
       iframeHasLoaded = true;
       clearTimeout(loadTimeout);
       loader.innerHTML = '<div style="font-family: Arial, sans-serif; color: #777; font-size:11px; text-align:center;">Servicio no disponible</div>';
-      loader.style.backgroundColor = 'lightgray';
-      iframe.style.display = 'none';
+      loader.style.backgroundColor = "lightgray";
+      iframe.style.display = "none";
     };
 
     window.addEventListener("message", function (event) {
@@ -126,7 +156,73 @@
       }
     });
 
+    if (isFixedPosition) {
+      let isDragging = false,
+        dragStartX,
+        dragStartY,
+        containerStartLeft,
+        containerStartTop;
 
+      widgetContainer.addEventListener("mousedown", dragStart);
+      widgetContainer.addEventListener("touchstart", dragStart, { passive: false });
+
+      function dragStart(e) {
+        if (iframeIsCurrentlyOpen) {
+          return;
+        }
+        isDragging = true;
+        const rect = widgetContainer.getBoundingClientRect();
+        containerStartLeft = rect.left;
+        containerStartTop = rect.top;
+        dragStartX = e.touches ? e.touches[0].clientX : e.clientX;
+        dragStartY = e.touches ? e.touches[0].clientY : e.clientY;
+
+        widgetContainer.style.transition = "none";
+        widgetContainer.style.userSelect = "none";
+        document.body.style.cursor = "move";
+
+        document.addEventListener("mousemove", dragMove);
+        document.addEventListener("mouseup", dragEnd);
+        document.addEventListener("touchmove", dragMove, { passive: false });
+        document.addEventListener("touchend", dragEnd);
+        if (e.type === "touchstart" && e.cancelable) e.preventDefault();
+      }
+
+      function dragMove(e) {
+        if (!isDragging) return;
+        if (e.type === "touchmove" && e.cancelable) e.preventDefault();
+
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+        let newLeft = containerStartLeft + (clientX - dragStartX);
+        let newTop = containerStartTop + (clientY - dragStartY);
+
+        const currentContainerWidth = parseInt(currentDims.width);
+        const currentContainerHeight = parseInt(currentDims.height);
+
+        newLeft = Math.max(0, Math.min(window.innerWidth - currentContainerWidth, newLeft));
+        newTop = Math.max(0, Math.min(window.innerHeight - currentContainerHeight, newTop));
+
+        widgetContainer.style.left = newLeft + "px";
+        widgetContainer.style.top = newTop + "px";
+        widgetContainer.style.right = "auto";
+        widgetContainer.style.bottom = "auto";
+      }
+
+      function dragEnd() {
+        if (!isDragging) return;
+        isDragging = false;
+        widgetContainer.style.userSelect = "";
+        document.body.style.cursor = "default";
+        setTimeout(() => {
+          widgetContainer.style.transition = "width 0.25s cubic-bezier(0.4, 0, 0.2, 1), height 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-radius 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s ease-in-out";
+        }, 50);
+        document.removeEventListener("mousemove", dragMove);
+        document.removeEventListener("mouseup", dragEnd);
+        document.removeEventListener("touchmove", dragMove);
+        document.removeEventListener("touchend", dragEnd);
+      }
     }
   }
 
