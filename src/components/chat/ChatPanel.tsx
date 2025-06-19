@@ -1,5 +1,6 @@
+// src/components/chat/ChatPanel.tsx (Versión Final y Estable)
+
 import React, { useState, useRef, useEffect, useCallback } from "react";
-// import { motion } from "framer-motion"; // No necesario si ChatPanel ya no es el motion.div principal
 import ChatHeader from "./ChatHeader";
 import ChatMessage from "./ChatMessage";
 import TypingIndicator from "./TypingIndicator";
@@ -13,11 +14,7 @@ import { parseRubro, esRubroPublico, getAskEndpoint } from "@/utils/chatEndpoint
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateAnonId from "@/utils/anonId";
 import { parseChatResponse } from "@/utils/parseChatResponse";
-import { ScrollArea } from '@/components/ui/scroll-area'; // Importa ScrollArea para el contenido del chat
-
-// No necesitamos estas constantes aquí, las dimensiones vienen por props del padre
-// const CARD_WIDTH = 370;
-// const CARD_HEIGHT = 540;
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 const FRASES_DIRECCION = [
   "indicame la dirección",
@@ -44,37 +41,29 @@ const FRASES_EXITO = [
 
 interface ChatPanelProps {
   mode?: "standalone" | "iframe" | "script";
-  // initialPosition y draggable ya no son directamente manejadas por ChatPanel
-  // porque el widget.js y ChatWidget se encargan del posicionamiento
   widgetId?: string;
   authToken?: string;
-  initialIframeWidth?: string; // Todavía se pasa, pero no se usa para cálculo de tamaño de ChatPanel
-  initialIframeHeight?: string; // Todavía se pasa, pero no se usa para cálculo de tamaño de ChatPanel
+  initialIframeWidth?: string;
+  initialIframeHeight?: string;
   onClose?: () => void;
-  openWidth?: string; // Ahora es string porque viene de las props del padre
-  openHeight?: string; // Ahora es string porque viene de las props del padre
+  openWidth?: string;
+  openHeight?: string;
   tipoChat?: 'pyme' | 'municipio';
   onRequireAuth?: () => void;
 }
 
 const ChatPanel = ({
   mode = "standalone",
-  // initialPosition, // Ya no se desestructura aquí
-  // draggable, // Ya no se desestructura aquí
   widgetId = "chatboc-widget-iframe",
   authToken: propAuthToken,
   initialIframeWidth,
   initialIframeHeight,
   onClose,
-  openWidth, // Se usan directamente las props para el tamaño (no estados locales)
-  openHeight, // Se usan directamente las props para el tamaño (no estados locales)
+  openWidth,
+  openHeight,
   tipoChat = getCurrentTipoChat(),
   onRequireAuth,
 }: ChatPanelProps) => {
-
-  // Eliminamos los estados locales openWidth, openHeight y el useEffect asociado
-  // ya que ChatPanel ahora toma sus dimensiones directamente de las props openWidth y openHeight
-  // que le envía ChatWidget.tsx.
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
@@ -100,13 +89,11 @@ const ChatPanel = ({
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const ultimoMensajeIdRef = useRef<number>(0);
 
-  // Para Google Autocomplete
   const [esperandoDireccion, setEsperandoDireccion] = useState(false);
   const [forzarDireccion, setForzarDireccion] = useState(false);
   const [direccionGuardada, setDireccionGuardada] = useState<string | null>(
     null,
   );
-  // Mensaje de cierre final
   const [showCierre, setShowCierre] = useState<{
     show: boolean;
     text: string;
@@ -114,8 +101,6 @@ const ChatPanel = ({
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
-  // Eliminamos widgetContainerRef de aquí, ya que ChatWidget lo maneja.
-  // const widgetContainerRef = useRef<HTMLDivElement>(null); 
 
   useEffect(() => {
     const stored = safeLocalStorage.getItem("ultima_direccion");
@@ -124,7 +109,6 @@ const ChatPanel = ({
     }
   }, []);
 
-  // Token helpers
   const getAuthTokenFromLocalStorage = () =>
     typeof window === "undefined"
       ? null
@@ -146,7 +130,6 @@ const ChatPanel = ({
       ? JSON.parse(safeLocalStorage.getItem("user") || "null")
       : null;
 
-  // ------ BLOQUE CLAVE: RUBRO Y TIPO DE CHAT ------
   const rubroActual =
     parseRubro(rubroSeleccionado) ||
     parseRubro(user?.rubro) ||
@@ -156,7 +139,6 @@ const ChatPanel = ({
   const isMunicipioRubro = esRubroPublico(rubroNormalizado || undefined);
   const tipoChatActual: "pyme" | "municipio" =
     rubroNormalizado && isMunicipioRubro ? "municipio" : "pyme";
-  // -----------------------------------------------
 
   const fetchTicket = useCallback(async () => {
     if (!activeTicketId) return;
@@ -254,7 +236,6 @@ const ChatPanel = ({
     fetchTicket();
   }, [activeTicketId, fetchTicket]);
 
-  // Solicitar GPS automáticamente al iniciar chat en vivo
   useEffect(() => {
     if (!activeTicketId) return;
     if (esAnonimo) {
@@ -319,9 +300,8 @@ const ChatPanel = ({
     } else {
       setForzarDireccion(true);
     }
-  }, [activeTicketId, fetchTicket, finalAuthToken, esAnonimo, anonId, onRequireAuth]); // Se añadió onRequireAuth a las dependencias
+  }, [activeTicketId, fetchTicket, finalAuthToken, esAnonimo, anonId, onRequireAuth]);
 
-  // Detectar si el bot pide dirección
   function shouldShowAutocomplete(messages: Message[], contexto: any) {
     const lastBotMsg = [...messages].reverse().find((m) => m.isBot && m.text);
     if (!lastBotMsg) return false;
@@ -340,7 +320,6 @@ const ChatPanel = ({
     return false;
   }
 
-  // Mostrar cierre éxito si el mensaje lo amerita (nunca dejar el chat muerto)
   function checkCierreExito(messages: Message[]) {
     const lastBotMsg = [...messages].reverse().find((m) => m.isBot && m.text);
     if (!lastBotMsg) return null;
@@ -359,7 +338,6 @@ const ChatPanel = ({
     return null;
   }
 
-  // --- AUTO-TOGGLE del autocomplete según mensaje del bot ---
   useEffect(() => {
     const autocomplete =
       shouldShowAutocomplete(messages, contexto) || forzarDireccion;
@@ -368,7 +346,6 @@ const ChatPanel = ({
     else setShowCierre(null);
   }, [messages, contexto, forzarDireccion]);
 
-  // Cargar rubros
   const cargarRubros = async () => {
     setCargandoRubros(true);
     setRubrosDisponibles([]);
@@ -382,10 +359,9 @@ const ChatPanel = ({
     }
   };
 
-  // Polling de chat en vivo (manda siempre anon_id si es anónimo)
   useEffect(() => {
     if (!activeTicketId) return;
-    let intervalId: NodeJS.Timeout | undefined; // Definir intervalId como NodeJS.Timeout | undefined
+    let intervalId: NodeJS.Timeout | undefined;
     const fetchAllMessages = async () => {
       try {
         const authHeaders = finalAuthToken
@@ -402,7 +378,7 @@ const ChatPanel = ({
             isBot: msg.es_admin,
             timestamp: new Date(msg.fecha),
           }));
-          setMessages(nuevosMensajes); // <-- REEMPLAZA la lista
+          setMessages(nuevosMensajes);
           if (data.mensajes.length > 0)
             ultimoMensajeIdRef.current =
               data.mensajes[data.mensajes.length - 1].id;
@@ -441,9 +417,8 @@ const ChatPanel = ({
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
-  }, [activeTicketId, esAnonimo, anonId, finalAuthToken, pollingErrorShown, fetchTicket]); // Se añadió fetchTicket a las dependencias
+  }, [activeTicketId, esAnonimo, anonId, finalAuthToken, pollingErrorShown, fetchTicket]);
 
-  // --- handleSendMessage ---
   const handleSendMessage = useCallback(
     async (text: string) => {
       if (!text.trim()) return;
@@ -556,8 +531,6 @@ const ChatPanel = ({
             pregunta: text,
             contexto_previo: contexto,
           };
-          // const esPublico = esRubroPublico(rubroNormalizado || undefined); // Ya no se usa directamente
-
           const data = await apiFetch(endpoint, {
             method: "POST",
             headers: {
@@ -624,13 +597,12 @@ const ChatPanel = ({
       anonId,
       rubroNormalizado,
       tipoChatActual,
-      fetchTicket, // Agregado fetchTicket a las dependencias
-      onRequireAuth, // Agregado onRequireAuth a las dependencias
-      loading, // Agregado loading a las dependencias
+      fetchTicket,
+      onRequireAuth,
+      loading,
     ],
   );
 
-  // Bienvenida y rubro
   useEffect(() => {
     if (esAnonimo && mode === "standalone" && !rubroSeleccionado) {
       setEsperandoRubro(true);
@@ -650,7 +622,6 @@ const ChatPanel = ({
     }
   }, [esAnonimo, mode, rubroSeleccionado, messages.length]);
 
-  // Scroll automático
   useEffect(() => {
     const container = chatContainerRef.current;
     if (container) {
@@ -664,141 +635,137 @@ const ChatPanel = ({
     }
   }, [messages, isTyping, ticketLocation]);
 
-  // --- CONTENEDOR PRINCIPAL del ChatPanel ---
-  // Este div debe ocupar el 100% del espacio que le da su padre (ChatWidget),
-  // no posicionarse fijo.
   return (
     <div
-      // Eliminamos las clases 'fixed', 'z-[...]', 'shadow-2xl', 'border', 'bg-card', etc.
-      // porque estas son manejadas por el ChatWidget (el motion.div de framer-motion)
-      // Aseguramos que ocupe todo el espacio de su padre.
       className="flex flex-col w-full h-full overflow-hidden" 
     >
       <ChatHeader onClose={onClose} />
 
-      <ScrollArea // Usamos ScrollArea para el contenido de los mensajes
-        ref={chatContainerRef} // Referencia para el scroll automático
+      <ScrollArea 
+        ref={chatContainerRef}
         className="flex-1 px-4 pt-4 pb-2 text-card-foreground bg-card"
       >
-        {esperandoRubro ? (
-          <div className="text-center w-full">
-            <h2 className="text-green-500 mb-2">👋 ¡Bienvenido!</h2>
-            <div className="text-gray-500 dark:text-gray-300 mb-2">
-              ¿De qué rubro es tu negocio?
-            </div>
-            {cargandoRubros ? (
-              <div className="text-gray-400 my-5">Cargando rubros...</div>
-            ) : rubrosDisponibles.length === 0 ? (
-              <div className="text-red-500 my-5">
-                No se pudieron cargar los rubros. <br />
-                <button
-                  onClick={cargarRubros}
-                  className="mt-2 underline text-blue-600 dark:text-blue-400 hover:text-blue-800"
-                  style={{
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                  }}
-                >
-                  Reintentar
-                </button>
+        <div className="flex flex-col gap-3 min-h-full">
+          {esperandoRubro ? (
+            <div className="text-center w-full">
+              <h2 className="text-green-500 mb-2">👋 ¡Bienvenido!</h2>
+              <div className="text-gray-500 dark:text-gray-300 mb-2">
+                ¿De qué rubro es tu negocio?
               </div>
-            ) : (
-              <div className="flex flex-wrap justify-center gap-2">
-                {rubrosDisponibles.map((rubro: any) => (
+              {cargandoRubros ? (
+                <div className="text-gray-400 my-5">Cargando rubros...</div>
+              ) : rubrosDisponibles.length === 0 ? (
+                <div className="text-red-500 my-5">
+                  No se pudieron cargar los rubros. <br />
                   <button
-                    key={rubro.id}
-                    onClick={() => {
-                      safeLocalStorage.setItem(
-                        "rubroSeleccionado",
-                        rubro.nombre,
-                      );
-                      setRubroSeleccionado(rubro.nombre);
-                      setEsperandoRubro(false);
-                      setMessages([
-                        {
-                          id: Date.now(),
-                          text: `¡Hola! Soy Chatboc, tu asistente para ${rubro.nombre.toLowerCase()}. ¿En qué puedo ayudarte hoy?`,
-                          isBot: true,
-                          timestamp: new Date(),
-                        },
-                      ]);
+                    onClick={cargarRubros}
+                    className="mt-2 underline text-blue-600 dark:text-blue-400 hover:text-blue-800"
+                    style={{
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
                     }}
-                    className="px-4 py-2 rounded-2xl font-semibold bg-blue-500 text-white hover:bg-blue-600 transition"
                   >
-                    {rubro.nombre}
+                    Reintentar
                   </button>
-                ))}
-              </div>
-            )}
-          </div>
-        ) : esperandoDireccion ? (
-          <div className="flex flex-col items-center py-8 px-2 gap-4">
-            <div className="text-primary text-base font-semibold mb-2">
-              Indicá la dirección exacta (autocompleta con Google)
+                </div>
+              ) : (
+                <div className="flex flex-wrap justify-center gap-2">
+                  {rubrosDisponibles.map((rubro: any) => (
+                    <button
+                      key={rubro.id}
+                      onClick={() => {
+                        safeLocalStorage.setItem(
+                          "rubroSeleccionado",
+                          rubro.nombre,
+                        );
+                        setRubroSeleccionado(rubro.nombre);
+                        setEsperandoRubro(false);
+                        setMessages([
+                          {
+                            id: Date.now(),
+                            text: `¡Hola! Soy Chatboc, tu asistente para ${rubro.nombre.toLowerCase()}. ¿En qué puedo ayudarte hoy?`,
+                            isBot: true,
+                            timestamp: new Date(),
+                          },
+                        ]);
+                      }}
+                      className="px-4 py-2 rounded-2xl font-semibold bg-blue-500 text-white hover:bg-blue-600 transition"
+                    >
+                      {rubro.nombre}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-            <AddressAutocomplete
-              onSelect={(addr) => {
-                handleSendMessage(addr);
-                safeLocalStorage.setItem("ultima_direccion", addr);
-                setDireccionGuardada(addr);
-                setEsperandoDireccion(false);
-              }}
-              autoFocus
-              value={
-                direccionGuardada
-                  ? { label: direccionGuardada, value: direccionGuardada }
-                  : undefined
-              }
-              onChange={(opt) =>
-                setDireccionGuardada(
-                  opt
-                    ? typeof opt.value === "string"
-                      ? opt.value
-                      : (opt.value?.description ?? null)
-                    : null,
-                )
-              }
-              persistKey="ultima_direccion"
-              placeholder="Ej: Av. Principal 123"
-            />
-            <button
-              onClick={handleShareGps}
-              className="text-primary underline text-sm"
-              type="button"
-            >
-              Compartir ubicación por GPS
-            </button>
-            <div className="text-xs text-muted-foreground mt-2">
-              Escribí y seleccioná tu dirección para continuar el trámite.
-            </div>
-          </div>
-        ) : (
-          <>
-            {messages.map(
-              (msg) =>
-                typeof msg.text === "string" && (
-                  <ChatMessage
-                    key={msg.id}
-                    message={msg}
-                    isTyping={isTyping}
-                    onButtonClick={handleSendMessage}
-                    tipoChat={tipoChatActual}
-                  />
-                ),
-            )}
-            {isTyping && <TypingIndicator />}
-            {ticketLocation && (
-              <TicketMap ticket={{ ...ticketLocation, tipo: "municipio" }} />
-            )}
-            <div ref={messagesEndRef} />
-            {showCierre && showCierre.show && (
-              <div className="my-3 p-3 rounded-lg bg-green-100 text-green-800 text-center font-bold shadow">
-                {showCierre.text}
+          ) : esperandoDireccion ? (
+            <div className="flex flex-col items-center py-8 px-2 gap-4">
+              <div className="text-primary text-base font-semibold mb-2">
+                Indicá la dirección exacta (autocompleta con Google)
               </div>
-            )}
-          </>
-        )}
+              <AddressAutocomplete
+                onSelect={(addr) => {
+                  handleSendMessage(addr);
+                  safeLocalStorage.setItem("ultima_direccion", addr);
+                  setDireccionGuardada(addr);
+                  setEsperandoDireccion(false);
+                }}
+                autoFocus
+                value={
+                  direccionGuardada
+                    ? { label: direccionGuardada, value: direccionGuardada }
+                    : undefined
+                }
+                onChange={(opt) =>
+                  setDireccionGuardada(
+                    opt
+                      ? typeof opt.value === "string"
+                        ? opt.value
+                        : (opt.value?.description ?? null)
+                      : null,
+                  )
+                }
+                persistKey="ultima_direccion"
+                placeholder="Ej: Av. Principal 123"
+              />
+              <button
+                onClick={handleShareGps}
+                className="text-primary underline text-sm"
+                type="button"
+              >
+                Compartir ubicación por GPS
+              </button>
+              <div className="text-xs text-muted-foreground mt-2">
+                Escribí y seleccioná tu dirección para continuar el trámite.
+              </div>
+            </div>
+          ) : (
+            <>
+              {messages.map(
+                (msg) =>
+                  typeof msg.text === "string" && (
+                    <ChatMessage
+                      key={msg.id}
+                      message={msg}
+                      isTyping={isTyping}
+                      onButtonClick={handleSendMessage}
+                      tipoChat={tipoChatActual}
+                    />
+                  ),
+              )}
+              {isTyping && <TypingIndicator />}
+              {ticketLocation && (
+                <TicketMap ticket={{ ...ticketLocation, tipo: "municipio" }} />
+              )}
+              <div ref={messagesEndRef} />
+              {showCierre && showCierre.show && (
+                <div className="my-3 p-3 rounded-lg bg-green-100 text-green-800 text-center font-bold shadow">
+                  {showCierre.text}
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </ScrollArea>
 
       {/* --- INPUT SÓLO SI NO SE ESPERA RUBRO NI DIRECCIÓN NI CIERRE --- */}

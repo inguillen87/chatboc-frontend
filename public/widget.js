@@ -1,4 +1,4 @@
-// public/widget.js
+// public/widget.js (VERSIÓN FINAL Y COMPLETA)
 
 (function () {
   "use strict";
@@ -176,7 +176,7 @@
 
     // --- Lógica de Arrastre (solo para el modo fixed) ---
     // Solo permitir arrastrar si el widget está en modo fixed (flotante)
-    if (isFixedPosition) { // <-- Lógica de arrastre solo para modo fixed
+    if (isFixedPosition) { 
         let isDragging = false, dragStartX, dragStartY, containerStartLeft, containerStartTop;
         
         widgetContainer.addEventListener("mousedown", dragStart);
@@ -193,7 +193,7 @@
           dragStartX = e.touches ? e.touches[0].clientX : e.clientX;
           dragStartY = e.touches ? e.touches[0].clientY : e.clientY;
 
-          widgetContainer.style.transition = "none"; 
+          widgetContainer.style.transition = "none";
           widgetContainer.style.userSelect = 'none';
           document.body.style.cursor = 'move';
 
@@ -222,7 +222,7 @@
 
           widgetContainer.style.left = newLeft + "px";
           widgetContainer.style.top = newTop + "px";
-          widgetContainer.style.right = "auto"; 
+          widgetContainer.style.right = "auto";
           widgetContainer.style.bottom = "auto";
         }
 
@@ -239,7 +239,7 @@
           document.removeEventListener("touchmove", dragMove);
           document.removeEventListener("touchend", dragEnd);
         }
-    } // Cierre del if (isFixedPosition)
+    }
   }
 
   if (document.readyState === "loading") {
