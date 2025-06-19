@@ -8,7 +8,7 @@ import TypingIndicator from "@/components/chat/TypingIndicator";
 import ChatMessage from "@/components/chat/ChatMessage";
 import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
-import { getCurrentTipoChat, enforceTipoChatForRubro } from "@/utils/tipoChat";
+import { getCurrentTipoChat, enforceTipoChatForRubro, parseRubro } from "@/utils/tipoChat";
 import { getAskEndpoint, esRubroPublico } from "@/utils/chatEndpoints";
 
 function getOrCreateAnonId() {
@@ -39,6 +39,17 @@ const Demo = () => {
   const [anonId, setAnonId] = useState<string>("");
   const [contexto, setContexto] = useState({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const rubroNormalizado = parseRubro(rubroSeleccionado);
+  const isMunicipioRubro = esRubroPublico(rubroNormalizado || undefined);
+
+  useEffect(() => {
+    console.log('Demo render', {
+      rubroSeleccionado,
+      rubroNormalizado,
+      isMunicipioRubro,
+    });
+  });
 
   useEffect(() => {
     setAnonId(getOrCreateAnonId());
@@ -82,13 +93,13 @@ const Demo = () => {
         tipo_chat: adjustedTipo,
       };
 
-      const endpoint = getAskEndpoint({ tipoChat: adjustedTipo, rubro: rubroSeleccionado });
-      const esPublico = esRubroPublico(rubroSeleccionado);
+      const endpoint = getAskEndpoint({ tipoChat: adjustedTipo, rubro: rubroNormalizado || undefined });
+      const esPublico = isMunicipioRubro;
       console.log(
         "Voy a pedir a endpoint:",
         endpoint,
         "rubro:",
-        rubroSeleccionado,
+        rubroNormalizado,
         "tipoChat:",
         adjustedTipo,
         "esPublico:",

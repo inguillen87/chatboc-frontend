@@ -1,7 +1,7 @@
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { esRubroPublico } from './chatEndpoints';
 
-function parseRubro(raw: any): string | null {
+export function parseRubro(raw: any): string | null {
   if (!raw) return null;
   if (typeof raw === 'string') return raw.toLowerCase();
   if (typeof raw === 'object') {
