@@ -223,8 +223,8 @@ const ChatPanel = ({
 
   const handleShareGps = useCallback(() => {
     if (!activeTicketId || !navigator.geolocation) return;
-    try {
-      navigator.geolocation.getCurrentPosition(async (pos) => {
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
         const coords = {
           latitud: pos.coords.latitude,
           longitud: pos.coords.longitude,
@@ -257,10 +257,22 @@ const ChatPanel = ({
         } catch (e) {
           console.error("Error al enviar ubicación", e);
         }
-      });
-    } catch {
-      /* ignore */
-    }
+      },
+      () => {
+        setForzarDireccion(true);
+        setEsperandoDireccion(true);
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: Date.now(),
+            text:
+              "No pudimos acceder a tu ubicación por GPS. Ingresá la dirección manualmente para continuar.",
+            isBot: true,
+            timestamp: new Date(),
+          },
+        ]);
+      },
+    );
   }, [activeTicketId, fetchTicket]);
 
   useEffect(() => {
@@ -306,7 +318,20 @@ const ChatPanel = ({
               console.error("Error al enviar ubicación", e);
             }
           },
-          () => setForzarDireccion(true),
+          () => {
+            setForzarDireccion(true);
+            setEsperandoDireccion(true);
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: Date.now(),
+                text:
+                  "No pudimos acceder a tu ubicación por GPS. Ingresá la dirección manualmente para continuar.",
+                isBot: true,
+                timestamp: new Date(),
+              },
+            ]);
+          },
         );
       } catch {
         setForzarDireccion(true);

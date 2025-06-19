@@ -263,34 +263,50 @@ useEffect(() => {
 
   const handleShareGps = useCallback(() => {
     if (!activeTicketId || !navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(async (pos) => {
-      const coords = {
-        latitud: pos.coords.latitude,
-        longitud: pos.coords.longitude,
-      };
-      try {
-        await apiFetch(
-          `/tickets/chat/${activeTicketId}/ubicacion${queryPrefix}`,
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const coords = {
+          latitud: pos.coords.latitude,
+          longitud: pos.coords.longitude,
+        };
+        try {
+          await apiFetch(
+            `/tickets/chat/${activeTicketId}/ubicacion${queryPrefix}`,
+            {
+              method: 'PUT',
+              headers: authHeaders,
+              body: coords,
+            },
+          );
+          await apiFetch(
+            `/tickets/municipio/${activeTicketId}/ubicacion${queryPrefix}`,
+            {
+              method: 'PUT',
+              headers: authHeaders,
+              body: coords,
+            },
+          );
+          setForzarDireccion(false);
+          fetchTicketInfo();
+        } catch (e) {
+          console.error('Error al enviar ubicación', e);
+        }
+      },
+      () => {
+        setForzarDireccion(true);
+        setEsperandoDireccion(true);
+        setMessages((prev) => [
+          ...prev,
           {
-            method: 'PUT',
-            headers: authHeaders,
-            body: coords,
+            id: Date.now(),
+            text:
+              'No pudimos acceder a tu ubicación por GPS. Ingresá la dirección manualmente para continuar.',
+            isBot: true,
+            timestamp: new Date(),
           },
-        );
-        await apiFetch(
-          `/tickets/municipio/${activeTicketId}/ubicacion${queryPrefix}`,
-          {
-            method: 'PUT',
-            headers: authHeaders,
-            body: coords,
-          },
-        );
-        setForzarDireccion(false);
-        fetchTicketInfo();
-      } catch (e) {
-        console.error('Error al enviar ubicación', e);
-      }
-    });
+        ]);
+      },
+    );
   }, [activeTicketId, fetchTicketInfo]);
 
   // Solicitar GPS automáticamente al iniciar chat en vivo
@@ -326,7 +342,20 @@ useEffect(() => {
             console.error('Error al enviar ubicación', e);
           }
         },
-        () => setForzarDireccion(true),
+        () => {
+          setForzarDireccion(true);
+          setEsperandoDireccion(true);
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: Date.now(),
+              text:
+                'No pudimos acceder a tu ubicación por GPS. Ingresá la dirección manualmente para continuar.',
+              isBot: true,
+              timestamp: new Date(),
+            },
+          ]);
+        },
       );
     } else {
       setForzarDireccion(true);
