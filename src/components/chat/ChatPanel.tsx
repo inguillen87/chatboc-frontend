@@ -11,7 +11,7 @@ import { apiFetch } from "@/utils/api";
 import { useUser } from "@/hooks/useUser";
 import { getAskEndpoint, esRubroPublico } from "@/utils/chatEndpoints";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
-import { getCurrentTipoChat } from "@/utils/chatEndpoints"; // o la ruta real donde la tengas
+import { getCurrentTipoChat } from "@/utils/tipoChat"; // o la ruta real donde la tengas
 
 const CARD_WIDTH = 370;
 const CARD_HEIGHT = 540;
@@ -69,7 +69,7 @@ interface ChatPanelProps {
   onClose?: () => void;
   openWidth?: number;
   openHeight?: number;
-  tipoChat?: "pyme" | "municipio";
+  tipoChat?: "pyme" | "municipios";
 }
 
 const ChatPanel = ({
@@ -183,8 +183,8 @@ const ChatPanel = ({
   const rubroNormalizado =
     typeof rubroActual === "string" ? rubroActual.toLowerCase() : null;
   const isMunicipioRubro = esRubroPublico(rubroNormalizado || undefined);
-  const tipoChatActual: "pyme" | "municipio" = isMunicipioRubro
-    ? "municipio"
+  const tipoChatActual: "pyme" | "municipios" = isMunicipioRubro
+    ? "municipios"
     : rubroNormalizado
       ? "pyme"
       : getCurrentTipoChat();
