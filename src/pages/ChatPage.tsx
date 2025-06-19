@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Message } from "@/types/chat";
 import ChatMessage from "@/components/chat/ChatMessage";
-import { getCurrentTipoChat, enforceTipoChatForRubro } from "@/utils/tipoChat";
+import { getCurrentTipoChat, enforceTipoChatForRubro, parseRubro } from "@/utils/tipoChat";
 import ChatInput from "@/components/chat/ChatInput";
 import TypingIndicator from "@/components/chat/TypingIndicator";
 import Navbar from "@/components/layout/Navbar";
@@ -131,13 +131,15 @@ const storedUser =
   typeof window !== 'undefined'
     ? JSON.parse(safeLocalStorage.getItem('user') || 'null')
     : null;
+const rubroSeleccionado =
+  typeof window !== 'undefined'
+    ? safeLocalStorage.getItem('rubroSeleccionado')?.toLowerCase() || null
+    : null;
 const rubroActual =
-  user?.rubro ||
-  storedUser?.rubro?.clave ||
-  storedUser?.rubro?.nombre ||
-  (typeof storedUser?.rubro === 'string' ? storedUser.rubro : null);
-const rubroNormalizado =
-  typeof rubroActual === 'string' ? rubroActual.toLowerCase() : null;
+  parseRubro(user?.rubro) ||
+  parseRubro(storedUser?.rubro) ||
+  null;
+const rubroNormalizado = rubroActual;
 const isMunicipioRubro = esRubroPublico(rubroNormalizado || undefined);
 const tipoChatActual: 'pyme' | 'municipio' = isMunicipioRubro
   ? 'municipio'
@@ -145,6 +147,17 @@ const tipoChatActual: 'pyme' | 'municipio' = isMunicipioRubro
     ? 'pyme'
     : tipoChat;
 const DEFAULT_RUBRO = tipoChatActual === 'municipio' ? 'municipios' : undefined;
+
+useEffect(() => {
+  console.log('ChatPage render', {
+    user,
+    rubroSeleccionado,
+    storedUser,
+    rubroActual,
+    rubroNormalizado,
+    isMunicipioRubro,
+  });
+});
 
 useEffect(() => {
   if (!isAnonimo && (!user || !user.rubro) && !loading) {

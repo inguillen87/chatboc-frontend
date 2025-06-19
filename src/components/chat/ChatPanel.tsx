@@ -11,7 +11,7 @@ import { apiFetch } from "@/utils/api";
 import { useUser } from "@/hooks/useUser";
 import { getAskEndpoint, esRubroPublico } from "@/utils/chatEndpoints";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
-import { getCurrentTipoChat } from "@/utils/tipoChat";
+import { getCurrentTipoChat, parseRubro } from "@/utils/tipoChat";
 
 const CARD_WIDTH = 370;
 const CARD_HEIGHT = 540;
@@ -113,7 +113,10 @@ const ChatPanel = ({
   const [isTyping, setIsTyping] = useState(false);
   const [preguntasUsadas, setPreguntasUsadas] = useState(0);
   const [rubroSeleccionado, setRubroSeleccionado] = useState<string | null>(
-    null,
+    () =>
+      typeof window !== "undefined"
+        ? safeLocalStorage.getItem("rubroSeleccionado")?.toLowerCase() || null
+        : null,
   );
   const [rubrosDisponibles, setRubrosDisponibles] = useState([]);
   const [esperandoRubro, setEsperandoRubro] = useState(false);
@@ -175,14 +178,23 @@ const ChatPanel = ({
       ? JSON.parse(safeLocalStorage.getItem("user") || "null")
       : null;
   const rubroActual =
-    rubroSeleccionado ||
-    user?.rubro ||
-    storedUser?.rubro?.clave ||
-    storedUser?.rubro?.nombre ||
-    (typeof storedUser?.rubro === "string" ? storedUser.rubro : null);
-  const rubroNormalizado =
-    typeof rubroActual === "string" ? rubroActual.toLowerCase() : null;
+    parseRubro(rubroSeleccionado) ||
+    parseRubro(user?.rubro) ||
+    parseRubro(storedUser?.rubro) ||
+    null;
+  const rubroNormalizado = rubroActual;
   const isMunicipioRubro = esRubroPublico(rubroNormalizado || undefined);
+
+  useEffect(() => {
+    console.log('ChatPanel render', {
+      user,
+      rubroSeleccionado,
+      storedUser,
+      rubroActual,
+      rubroNormalizado,
+      isMunicipioRubro,
+    });
+  });
   const tipoChatActual: "pyme" | "municipio" = isMunicipioRubro
     ? "municipio"
     : rubroNormalizado
@@ -546,11 +558,12 @@ const ChatPanel = ({
           );
         } else {
           const rubroParaEndpoint = rubroNormalizado;
+          const adjustedTipo: "pyme" | "municipio" = isMunicipioRubro ? "municipio" : "pyme";
+          const endpoint = getAskEndpoint({ tipoChat: adjustedTipo, rubro: rubroParaEndpoint || undefined });
           const payload: Record<string, any> = {
             pregunta: text,
             contexto_previo: contexto,
           };
-
 
           const esPublico = esRubroPublico(rubroParaEndpoint || undefined);
           console.log(

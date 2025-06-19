@@ -1,5 +1,16 @@
 export const RUBROS_PUBLICOS = [
-
+  'municipio',
+  'municipios',
+  'gobierno',
+  'ciudad',
+  'intendente',
+  'administracion publica',
+  'municipalidad',
+  'ayuntamiento',
+  'gobierno municipal',
+  'ong',
+  'hospital publico',
+  'entidad publica',
 ];
 
 // Función robusta, siempre compara en minúsculas y sin tildes
@@ -20,7 +31,15 @@ export const esRubroPublico = (
     .trim()
     .toLowerCase()
     .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[_-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
+  return RUBROS_PUBLICOS.some(
+    (publico) =>
+      normalized === publico || normalized.startsWith(`${publico} `),
+  );
 };
 
 interface GetEndpointOptions {
