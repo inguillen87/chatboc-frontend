@@ -35,13 +35,11 @@ const Integracion = () => {
     const authToken = safeLocalStorage.getItem("authToken");
     const storedUser = safeLocalStorage.getItem("user");
     let parsedUser: Omit<User, 'token'> | null = null;
-
     try {
       parsedUser = storedUser ? JSON.parse(storedUser) : null;
     } catch {
       safeLocalStorage.removeItem("user");
     }
-
     if (!authToken || !parsedUser || !parsedUser.id) {
       navigate("/login");
       return;
@@ -53,9 +51,7 @@ const Integracion = () => {
   }, [navigate]);
 
   useEffect(() => {
-    if (user) {
-      validarAcceso(user);
-    }
+    if (user) validarAcceso(user);
   }, [user]);
 
   if (!user) {
@@ -97,15 +93,14 @@ const Integracion = () => {
       </p>
       <div className="mb-5">
         <div className="font-semibold mb-2 text-primary">Opción 1: <span className="text-foreground">Widget con &lt;script&gt; (recomendado)</span></div>
-        <pre className="bg-muted dark:bg-card p-3 rounded text-xs overflow-x-auto border border-border select-all cursor-pointer mb-2 text-foreground" title="Click para copiar" onClick={() => copiarCodigo("script") } style={{ whiteSpace: "pre-line" }}>{codeScript}</pre>
+
         <Button className="w-full mb-4 bg-secondary text-secondary-foreground hover:bg-secondary/80" onClick={() => copiarCodigo("script") } variant="secondary">
           {copiado === "script" ? "¡Copiado!" : "📋 Copiar código script"}
         </Button>
       </div>
       <div className="mb-5">
         <div className="font-semibold mb-2 text-primary">Opción 2: <span className="text-foreground">Widget con &lt;iframe&gt; (alternativo)</span></div>
-        <pre className="bg-muted dark:bg-card p-3 rounded text-xs overflow-x-auto border border-border select-all cursor-pointer mb-2 text-foreground" title="Click para copiar" onClick={() => copiarCodigo("iframe") } style={{ whiteSpace: "pre-line" }}>{codeIframe}</pre>
-        <Button className="w-full bg-secondary text-secondary-foreground hover:bg-secondary/80" onClick={() => copiarCodigo("iframe") } variant="secondary">
+
           {copiado === "iframe" ? "¡Copiado!" : "📋 Copiar código iframe"}
         </Button>
       </div>
@@ -121,7 +116,7 @@ const Integracion = () => {
             src={url}
             width="370"
             height="540"
-            style={{ border: "none", borderRadius: "16px", width: "100%", maxWidth: 370, minHeight: 540, background: "hsl(var(--background))" }}
+
             loading="lazy"
             title="Chatboc Preview"
           />

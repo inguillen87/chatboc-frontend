@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import ChatWidget from "../components/chat/ChatWidget";
-import { Toaster } from "@/components/ui/sonner";
+
 
 const Iframe = () => {
   const [widgetParams, setWidgetParams] = useState({
@@ -77,13 +77,7 @@ const Iframe = () => {
     }
   }, []);
 
-  if (!widgetParams.token) {
-    return <div>Cargando Chatboc...</div>;
-  }
 
-  return (
-    <div
-      style={{ width: "100%", height: "100%", background: "var(--background)", margin: 0, padding: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}
       className="relative"
     >
       <ChatWidget

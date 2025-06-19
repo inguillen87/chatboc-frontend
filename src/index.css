@@ -35,6 +35,7 @@
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
+
   .dark {
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
@@ -87,12 +88,14 @@
   color: hsl(var(--foreground)) !important;
   border-color: hsl(var(--border)) !important;
 }
+
 .pac-container {
   background: hsl(var(--card)) !important;
   color: hsl(var(--foreground)) !important;
   border-radius: 0.5rem !important;
   z-index: 999999 !important;
 }
+n
 .pac-item {
   color: inherit !important;
   background: transparent !important;
@@ -102,6 +105,7 @@
 .pac-item:hover {
   background: hsl(var(--accent)) !important;
 }
+
 html,
 body,
 #root,
@@ -116,10 +120,7 @@ body,
   overflow-x: hidden;
   overflow-y: auto;
 }
-@keyframes pulse-subtle {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.8; }
-}
+
 .animate-pulse-subtle {
   animation: pulse-subtle 1.5s infinite ease-in-out;
 }

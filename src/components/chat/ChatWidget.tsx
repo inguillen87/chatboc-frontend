@@ -38,39 +38,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [view, setView] = useState<'chat' | 'register'>('chat');
 
-  const sendStateMessageToParent = useCallback(
-    (open: boolean) => {
-      if (mode === "iframe" && typeof window !== "undefined" && window.parent !== window && widgetId) {
-        const dims = open ? { width: openWidth, height: openHeight } : { width: closedWidth, height: closedHeight };
-        window.parent.postMessage({ type: "chatboc-state-change", widgetId, dimensions: dims, isOpen: open }, "*");
-      }
-    },
-    [mode, widgetId, openWidth, openHeight, closedWidth, closedHeight]
-  );
-
-  useEffect(() => {
-    sendStateMessageToParent(isOpen);
-  }, [isOpen, sendStateMessageToParent]);
-
-  useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data && event.data.type === "TOGGLE_CHAT" && event.data.widgetId === widgetId) {
-        const newIsOpen = event.data.isOpen;
-        if (newIsOpen !== isOpen) {
-          setIsOpen(newIsOpen);
-        }
-      }
-    };
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, [widgetId, isOpen]);
-
-  const toggleChat = () => {
-    setIsOpen((prev) => !prev);
-  };
-
-  return (
-    <div className={cn("relative w-full h-full", "flex flex-col items-end justify-end")}>      
       <Suspense fallback={null}>
         <motion.div
           className={cn(
@@ -110,12 +77,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         <Button
           className={cn(
             "chatboc-toggle-button",
-            "absolute bottom-0 right-0",
-            "rounded-full",
-            "flex items-center justify-center",
-            "bg-primary text-primary-foreground hover:bg-primary/90",
-            "shadow-lg",
-            "transition-all duration-300 ease-in-out",
+
             isOpen ? "opacity-0 scale-0 pointer-events-none" : "opacity-100 scale-100 pointer-events-auto"
           )}
           onClick={toggleChat}
