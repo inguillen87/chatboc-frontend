@@ -1,6 +1,8 @@
 export const RUBROS_PUBLICOS = [
   'municipio',
   'municipios',
+  'municipalidad',
+  'ayuntamiento',
   'gobierno',
   'ciudad',
   'intendente',
@@ -24,11 +26,13 @@ export const esRubroPublico = (
   if (!rubroStr) return false;
   const normalized = rubroStr
     .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/_/g, " ")
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/_/g, ' ')
     .trim();
-  return RUBROS_PUBLICOS.includes(normalized);
+  return RUBROS_PUBLICOS.some(
+    (publico) => normalized === publico || normalized.startsWith(`${publico} `),
+  );
 };
 
 interface GetEndpointOptions {
