@@ -294,22 +294,26 @@ const ChatPage = () => {
             longitud: pos.coords.longitude,
           };
           try {
-            // Envía la ubicación al ticket de chat
+            // Envía la ubicación al ticket de chat, si existe
+            try {
+              await apiFetch(
+                `/tickets/chat/${activeTicketId}/ubicacion`,
+                {
+                  method: 'PUT',
+                  body: coords,
+                  sendAnonId: isAnonimo,
+                },
+              );
+            } catch (e) {
+              console.warn('Ticket de chat no encontrado:', e);
+            }
+            // También intenta actualizar el ticket municipal
             await apiFetch(
-              `/tickets/chat/${activeTicketId}/ubicacion`, // No queryPrefix, apiFetch lo añade
+              `/tickets/municipio/${activeTicketId}/ubicacion`,
               {
                 method: 'PUT',
                 body: coords,
-                sendAnonId: isAnonimo // Importante para anónimos
-              },
-            );
-            // Envía la ubicación al ticket municipal (si es un ticket municipal)
-            await apiFetch(
-              `/tickets/municipio/${activeTicketId}/ubicacion`, // No queryPrefix, apiFetch lo añade
-              {
-                method: 'PUT',
-                body: coords,
-                sendAnonId: isAnonimo // Importante para anónimos
+                sendAnonId: isAnonimo,
               },
             );
             setForzarDireccion(false);
@@ -374,10 +378,14 @@ const ChatPage = () => {
             longitud: pos.coords.longitude,
           };
           try {
-            await apiFetch(
-              `/tickets/chat/${activeTicketId}/ubicacion`,
-              { method: 'PUT', body: coords, sendAnonId: isAnonimo },
-            );
+            try {
+              await apiFetch(
+                `/tickets/chat/${activeTicketId}/ubicacion`,
+                { method: 'PUT', body: coords, sendAnonId: isAnonimo },
+              );
+            } catch (e) {
+              console.warn('Ticket de chat no encontrado:', e);
+            }
             await apiFetch(
               `/tickets/municipio/${activeTicketId}/ubicacion`,
               { method: 'PUT', body: coords, sendAnonId: isAnonimo },
@@ -424,14 +432,18 @@ const ChatPage = () => {
         setDireccionGuardada(text);
         if (activeTicketId) {
           try {
-            await apiFetch(
-              `/tickets/chat/${activeTicketId}/ubicacion`,
-              {
-                method: 'PUT',
-                body: { direccion: text },
-                sendAnonId: isAnonimo
-              },
-            );
+            try {
+              await apiFetch(
+                `/tickets/chat/${activeTicketId}/ubicacion`,
+                {
+                  method: 'PUT',
+                  body: { direccion: text },
+                  sendAnonId: isAnonimo
+                },
+              );
+            } catch (e) {
+              console.warn('Ticket de chat no encontrado:', e);
+            }
             await apiFetch(
               `/tickets/municipio/${activeTicketId}/ubicacion`,
               {
