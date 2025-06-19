@@ -3,15 +3,21 @@ import { esRubroPublico } from './chatEndpoints';
 
 export function parseRubro(raw: any): string | null {
   if (!raw) return null;
-  if (typeof raw === 'string') return raw.toLowerCase();
-  if (typeof raw === 'object') {
-    return (
-      raw.clave?.toLowerCase() ||
-      raw.nombre?.toLowerCase() ||
-      null
-    );
+  let rubroStr: string | null = null;
+  if (typeof raw === 'string') {
+    rubroStr = raw;
+  } else if (typeof raw === 'object') {
+    rubroStr = raw.clave || raw.nombre || null;
   }
-  return null;
+  if (!rubroStr) return null;
+  return rubroStr
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[_-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 export function getCurrentRubro(): string | null {

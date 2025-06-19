@@ -11,7 +11,7 @@ import { apiFetch } from "@/utils/api";
 import { useUser } from "@/hooks/useUser";
 import { getAskEndpoint, esRubroPublico } from "@/utils/chatEndpoints";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
-import { getCurrentTipoChat } from "@/utils/tipoChat"; // o la ruta correcta
+import { getCurrentTipoChat, parseRubro } from "@/utils/tipoChat"; // o la ruta correcta
 
 const CARD_WIDTH = 370;
 const CARD_HEIGHT = 540;
@@ -184,6 +184,12 @@ const ChatPanel = ({
     null;
   const rubroNormalizado = rubroActual;
   const isMunicipioRubro = esRubroPublico(rubroNormalizado || undefined);
+  console.log("[ChatPanel] rubro debug", {
+    userRubro: user?.rubro,
+    rubroSeleccionado,
+    rubroNormalizado,
+    isMunicipioRubro,
+  });
 
     : rubroNormalizado
       ? "pyme"
