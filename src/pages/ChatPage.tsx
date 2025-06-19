@@ -154,7 +154,6 @@ const ChatPage = () => {
 
   // console.log para depuración avanzada:
   console.log('ChatPage - DEBUG Variables Iniciales:', {
-    isAuthenticated: !isAnonimo,
     userFromHook: user,
     rubroActualFromUser,
     rubroActualFromStorage,
@@ -514,7 +513,6 @@ const ChatPage = () => {
           });
 
           // --- ¡CLAVE PARA DEPURAR! ---
-          console.log("DEBUG - isAuthenticated:", isAuthenticated);
           console.log("DEBUG - user (hook):", user); // Para ver el objeto completo del usuario
           console.log("DEBUG - rubroNormalizadoFinal (derivado):", rubroNormalizadoFinal);
           console.log("DEBUG - currentEffectiveChatType (determinado):", currentEffectiveChatType);
@@ -573,7 +571,7 @@ const ChatPage = () => {
       }
     },
     [
-      contexto, activeTicketId, esperandoDireccion, isAuthenticated, user,
+      contexto, activeTicketId, esperandoDireccion, user,
       anonId, currentEffectiveChatType, demoRubroIdParam, demoRubroNameParam,
       fetchTicketInfo, rubroNormalizadoFinal, adjustedTipoForEndpoint // Añadir dependencias relevantes
     ],
