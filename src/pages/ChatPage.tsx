@@ -292,7 +292,7 @@ useEffect(() => {
           console.error('Error al enviar ubicación', e);
         }
       },
-      () => {
+      (error) => {
         setForzarDireccion(true);
         setEsperandoDireccion(true);
         setMessages((prev) => [
@@ -342,7 +342,7 @@ useEffect(() => {
             console.error('Error al enviar ubicación', e);
           }
         },
-        () => {
+        (error) => {
           setForzarDireccion(true);
           setEsperandoDireccion(true);
           setMessages((prev) => [
