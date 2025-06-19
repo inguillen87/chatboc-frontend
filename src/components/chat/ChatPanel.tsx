@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { motion } from "framer-motion";
+// import { motion } from "framer-motion"; // No necesario si ChatPanel ya no es el motion.div principal
 import ChatHeader from "./ChatHeader";
 import ChatMessage from "./ChatMessage";
 import TypingIndicator from "./TypingIndicator";
@@ -13,9 +13,11 @@ import { parseRubro, esRubroPublico, getAskEndpoint } from "@/utils/chatEndpoint
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateAnonId from "@/utils/anonId";
 import { parseChatResponse } from "@/utils/parseChatResponse";
+import { ScrollArea } from '@/components/ui/scroll-area'; // Importa ScrollArea para el contenido del chat
 
-const CARD_WIDTH = 370;
-const CARD_HEIGHT = 540;
+// No necesitamos estas constantes aquí, las dimensiones vienen por props del padre
+// const CARD_WIDTH = 370;
+// const CARD_HEIGHT = 540;
 
 const FRASES_DIRECCION = [
   "indicame la dirección",
@@ -40,57 +42,39 @@ const FRASES_EXITO = [
   "ticket **M-",
 ];
 
-
 interface ChatPanelProps {
   mode?: "standalone" | "iframe" | "script";
-  initialPosition?: { bottom: number; right: number };
-  draggable?: boolean;
+  // initialPosition y draggable ya no son directamente manejadas por ChatPanel
+  // porque el widget.js y ChatWidget se encargan del posicionamiento
   widgetId?: string;
   authToken?: string;
-  initialIframeWidth?: string;
-  initialIframeHeight?: string;
+  initialIframeWidth?: string; // Todavía se pasa, pero no se usa para cálculo de tamaño de ChatPanel
+  initialIframeHeight?: string; // Todavía se pasa, pero no se usa para cálculo de tamaño de ChatPanel
   onClose?: () => void;
-  openWidth?: number;
-  openHeight?: number;
+  openWidth?: string; // Ahora es string porque viene de las props del padre
+  openHeight?: string; // Ahora es string porque viene de las props del padre
+  tipoChat?: 'pyme' | 'municipio';
   onRequireAuth?: () => void;
 }
 
 const ChatPanel = ({
   mode = "standalone",
-  initialPosition = { bottom: 30, right: 30 },
-  draggable = true,
+  // initialPosition, // Ya no se desestructura aquí
+  // draggable, // Ya no se desestructura aquí
   widgetId = "chatboc-widget-iframe",
   authToken: propAuthToken,
   initialIframeWidth,
   initialIframeHeight,
   onClose,
-  openWidth: propOpenWidth,
-  openHeight: propOpenHeight,
+  openWidth, // Se usan directamente las props para el tamaño (no estados locales)
+  openHeight, // Se usan directamente las props para el tamaño (no estados locales)
+  tipoChat = getCurrentTipoChat(),
   onRequireAuth,
 }: ChatPanelProps) => {
-  const openWidthInitial = propOpenWidth ?? CARD_WIDTH;
-  const openHeightInitial = propOpenHeight ?? CARD_HEIGHT;
-  const [openWidth, setOpenWidth] = useState<number>(openWidthInitial);
-  const [openHeight, setOpenHeight] = useState<number>(openHeightInitial);
-  const openDims = { width: `${openWidth}px`, height: `${openHeight}px` };
 
-  // Ajustar dimensiones cuando se usa como iframe sin widget.js
-  useEffect(() => {
-    if (mode === "iframe") {
-      const width = initialIframeWidth
-        ? parseInt(initialIframeWidth as string, 10)
-        : typeof window !== "undefined"
-          ? Math.min(window.innerWidth, CARD_WIDTH)
-          : CARD_WIDTH;
-      const height = initialIframeHeight
-        ? parseInt(initialIframeHeight as string, 10)
-        : typeof window !== "undefined"
-          ? Math.min(window.innerHeight, CARD_HEIGHT)
-          : CARD_HEIGHT;
-      setOpenWidth(width);
-      setOpenHeight(height);
-    }
-  }, [mode, initialIframeWidth, initialIframeHeight]);
+  // Eliminamos los estados locales openWidth, openHeight y el useEffect asociado
+  // ya que ChatPanel ahora toma sus dimensiones directamente de las props openWidth y openHeight
+  // que le envía ChatWidget.tsx.
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
@@ -130,7 +114,8 @@ const ChatPanel = ({
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
-  const widgetContainerRef = useRef<HTMLDivElement>(null);
+  // Eliminamos widgetContainerRef de aquí, ya que ChatWidget lo maneja.
+  // const widgetContainerRef = useRef<HTMLDivElement>(null); 
 
   useEffect(() => {
     const stored = safeLocalStorage.getItem("ultima_direccion");
@@ -263,7 +248,7 @@ const ChatPanel = ({
         ]);
       },
     );
-  }, [activeTicketId, fetchTicket]);
+  }, [activeTicketId, fetchTicket, esAnonimo, onRequireAuth, finalAuthToken]);
 
   useEffect(() => {
     fetchTicket();
@@ -334,7 +319,7 @@ const ChatPanel = ({
     } else {
       setForzarDireccion(true);
     }
-  }, [activeTicketId, fetchTicket, finalAuthToken, esAnonimo, anonId]);
+  }, [activeTicketId, fetchTicket, finalAuthToken, esAnonimo, anonId, onRequireAuth]); // Se añadió onRequireAuth a las dependencias
 
   // Detectar si el bot pide dirección
   function shouldShowAutocomplete(messages: Message[], contexto: any) {
@@ -400,7 +385,7 @@ const ChatPanel = ({
   // Polling de chat en vivo (manda siempre anon_id si es anónimo)
   useEffect(() => {
     if (!activeTicketId) return;
-    let intervalId;
+    let intervalId: NodeJS.Timeout | undefined; // Definir intervalId como NodeJS.Timeout | undefined
     const fetchAllMessages = async () => {
       try {
         const authHeaders = finalAuthToken
@@ -456,7 +441,7 @@ const ChatPanel = ({
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
-  }, [activeTicketId, esAnonimo, anonId, finalAuthToken]);
+  }, [activeTicketId, esAnonimo, anonId, finalAuthToken, pollingErrorShown, fetchTicket]); // Se añadió fetchTicket a las dependencias
 
   // --- handleSendMessage ---
   const handleSendMessage = useCallback(
@@ -571,7 +556,7 @@ const ChatPanel = ({
             pregunta: text,
             contexto_previo: contexto,
           };
-          const esPublico = esRubroPublico(rubroNormalizado || undefined);
+          // const esPublico = esRubroPublico(rubroNormalizado || undefined); // Ya no se usa directamente
 
           const data = await apiFetch(endpoint, {
             method: "POST",
@@ -639,6 +624,9 @@ const ChatPanel = ({
       anonId,
       rubroNormalizado,
       tipoChatActual,
+      fetchTicket, // Agregado fetchTicket a las dependencias
+      onRequireAuth, // Agregado onRequireAuth a las dependencias
+      loading, // Agregado loading a las dependencias
     ],
   );
 
@@ -676,40 +664,21 @@ const ChatPanel = ({
     }
   }, [messages, isTyping, ticketLocation]);
 
-  // --- CARD: CHAT ABIERTO ---
+  // --- CONTENEDOR PRINCIPAL del ChatPanel ---
+  // Este div debe ocupar el 100% del espacio que le da su padre (ChatWidget),
+  // no posicionarse fijo.
   return (
-    <motion.div
-      ref={widgetContainerRef}
-      className={`
-      fixed z-[999999]
-      flex flex-col overflow-hidden
-      shadow-2xl border
-      bg-card text-card-foreground
-      border-border
-      transition-all duration-300
-    `}
-      style={{
-        bottom: initialPosition.bottom,
-        right: initialPosition.right,
-        width: mode === "iframe" ? openDims.width : `${CARD_WIDTH}px`,
-        height: mode === "iframe" ? openDims.height : `${CARD_HEIGHT}px`,
-        borderRadius: 24,
-      }}
-      initial={{ opacity: 0, scale: 0.9, y: 20 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.9, y: 20 }}
-      transition={{ type: "spring", stiffness: 260, damping: 20 }}
+    <div
+      // Eliminamos las clases 'fixed', 'z-[...]', 'shadow-2xl', 'border', 'bg-card', etc.
+      // porque estas son manejadas por el ChatWidget (el motion.div de framer-motion)
+      // Aseguramos que ocupe todo el espacio de su padre.
+      className="flex flex-col w-full h-full overflow-hidden" 
     >
       <ChatHeader onClose={onClose} />
 
-      <div
-        ref={chatContainerRef}
-        className={`
-          flex-1 flex flex-col gap-3 overflow-y-auto overflow-x-hidden
-          px-4 pt-4 pb-2
-          text-card-foreground
-          bg-card
-        `}
+      <ScrollArea // Usamos ScrollArea para el contenido de los mensajes
+        ref={chatContainerRef} // Referencia para el scroll automático
+        className="flex-1 px-4 pt-4 pb-2 text-card-foreground bg-card"
       >
         {esperandoRubro ? (
           <div className="text-center w-full">
@@ -823,7 +792,6 @@ const ChatPanel = ({
               <TicketMap ticket={{ ...ticketLocation, tipo: "municipio" }} />
             )}
             <div ref={messagesEndRef} />
-            {/* Mensaje de cierre SIEMPRE si corresponde */}
             {showCierre && showCierre.show && (
               <div className="my-3 p-3 rounded-lg bg-green-100 text-green-800 text-center font-bold shadow">
                 {showCierre.text}
@@ -831,7 +799,7 @@ const ChatPanel = ({
             )}
           </>
         )}
-      </div>
+      </ScrollArea>
 
       {/* --- INPUT SÓLO SI NO SE ESPERA RUBRO NI DIRECCIÓN NI CIERRE --- */}
       {!esperandoRubro &&
@@ -841,7 +809,7 @@ const ChatPanel = ({
             <ChatInput onSendMessage={handleSendMessage} isTyping={isTyping} />
           </div>
         )}
-    </motion.div>
+    </div>
   );
 };
 
