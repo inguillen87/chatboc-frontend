@@ -17,7 +17,7 @@
     const token = script.getAttribute("data-token") || "demo-anon";
     const initialBottom = script.getAttribute("data-bottom") || "20px";
     const initialRight = script.getAttribute("data-right") || "20px";
-    const defaultOpen = script.getAttribute("data-default-open") === "true"; // Si el chat debe iniciar abierto
+    const defaultOpen = script.getAttribute("data-default-open") === "true";
     const theme = script.getAttribute("data-theme") || "";
     const scriptOrigin = (script.getAttribute("src") && new URL(script.getAttribute("src"), window.location.href).origin) || "https://www.chatboc.ar";
     const chatbocDomain = script.getAttribute("data-domain") || scriptOrigin;
@@ -30,28 +30,45 @@
         width: script.getAttribute("data-width") || "370px",
         height: script.getAttribute("data-height") || "540px",
       },
-      CLOSED: { // Dimensiones del globito
+      CLOSED: {
         width: script.getAttribute("data-closed-width") || "88px",
         height: script.getAttribute("data-closed-height") || "88px",
       },
     };
 
     let currentDims = defaultOpen ? WIDGET_DIMENSIONS_JS.OPEN : WIDGET_DIMENSIONS_JS.CLOSED;
-    let iframeIsCurrentlyOpen = defaultOpen; // Sincronizado con ChatWidget interno
+    let iframeIsCurrentlyOpen = defaultOpen;
+
+    // --- Lógica para incrustar en un elemento específico o como fixed ---
+    const targetElementId = script.getAttribute("data-target-element-id");
+    let targetElement = null;
+    let isFixedPosition = true; // Por defecto es fixed
+
+    if (targetElementId) {
+      targetElement = document.getElementById(targetElementId);
+      if (targetElement) {
+        isFixedPosition = false; // Si hay un elemento objetivo válido, no es fixed
+      }
+    }
+    // --- Fin de la lógica de incrustación ---
+
 
     // --- Contenedor principal del widget (loader y iframe) ---
-    // Este div es el que realmente manejará el tamaño y la forma
     const widgetContainer = document.createElement("div");
     widgetContainer.id = "chatboc-widget-container-" + iframeId;
     Object.assign(widgetContainer.style, {
-      position: "fixed",
-      bottom: initialBottom,
-      right: initialRight,
+      position: isFixedPosition ? "fixed" : "absolute", // CAMBIADO: fixed o absolute
+      // bottom y right solo se aplican si la posición es fixed
+      ...(isFixedPosition && {
+        bottom: initialBottom,
+        right: initialRight,
+      }),
       width: currentDims.width,
       height: currentDims.height,
-      zIndex: zIndexBase.toString(),
-      borderRadius: iframeIsCurrentlyOpen ? "16px" : "50%", // Inicial según defaultOpen
-      boxShadow: iframeIsCurrentlyOpen ? "0 6px 20px rgba(0,0,0,0.2)" : "0 4px 12px rgba(0,0,0,0.15)", // Sombra inicial
+      // zIndex solo se aplica si la posición es fixed, si no, se gestiona por el padre.
+      zIndex: isFixedPosition ? zIndexBase.toString() : "auto", 
+      borderRadius: iframeIsCurrentlyOpen ? "16px" : "50%",
+      boxShadow: iframeIsCurrentlyOpen ? "0 6px 20px rgba(0,0,0,0.2)" : "0 4px 12px rgba(0,0,0,0.15)",
       transition: "width 0.25s cubic-bezier(0.4, 0, 0.2, 1), height 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-radius 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s ease-in-out",
       overflow: "hidden", // Crucial para recortar el contenido en estado circular
       display: "flex",
@@ -59,13 +76,28 @@
       justifyContent: "center",
       cursor: "pointer" // Indica que es clickeable
     });
-    if (!document.getElementById(widgetContainer.id)) document.body.appendChild(widgetContainer);
+
+    // --- Añadir el widgetContainer al DOM ---
+    if (!document.getElementById(widgetContainer.id)) {
+      if (targetElement) {
+        // Asegurarse de que el elemento objetivo es un contexto de posicionamiento
+        // para que los elementos "absolute" dentro de él funcionen correctamente
+        if (getComputedStyle(targetElement).position === 'static') {
+            targetElement.style.position = 'relative';
+        }
+        targetElement.appendChild(widgetContainer);
+      } else {
+        document.body.appendChild(widgetContainer);
+      }
+    }
+    // --- Fin de añadir al DOM ---
+
 
     // --- Loader ---
     const loader = document.createElement("div");
     loader.id = "chatboc-loader-" + iframeId;
     Object.assign(loader.style, {
-      position: "absolute", // Posicionado dentro del widgetContainer
+      position: "absolute",
       top: "0",
       left: "0",
       width: "100%",
@@ -73,10 +105,10 @@
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
-      background: "white", // Fondo del loader
+      background: "white",
       transition: "opacity 0.3s ease-out",
-      pointerEvents: "auto", // Para que reciba clics mientras está visible
-      zIndex: "2" // Por encima del iframe inicialmente
+      pointerEvents: "auto",
+      zIndex: "2"
     });
     loader.innerHTML = `<img src="${chatbocDomain}/favicon/favicon-48x48.png" alt="Chatboc" style="width:48px;height:48px;"/>`;
     widgetContainer.appendChild(loader);
@@ -84,17 +116,16 @@
     // --- Iframe ---
     const iframe = document.createElement("iframe");
     iframe.id = iframeId;
-    // Pasa TODAS las dimensiones posibles para que ChatWidget.tsx tenga toda la info
     iframe.src = `${chatbocDomain}/iframe?token=${encodeURIComponent(token)}&widgetId=${iframeId}&defaultOpen=${defaultOpen}&openWidth=${encodeURIComponent(WIDGET_DIMENSIONS_JS.OPEN.width)}&openHeight=${encodeURIComponent(WIDGET_DIMENSIONS_JS.OPEN.height)}&closedWidth=${encodeURIComponent(WIDGET_DIMENSIONS_JS.CLOSED.width)}&closedHeight=${encodeURIComponent(WIDGET_DIMENSIONS_JS.CLOSED.height)}${theme ? `&theme=${encodeURIComponent(theme)}` : ""}`;
     Object.assign(iframe.style, {
       border: "none",
-      width: "100%", // Siempre 100% del contenedor padre (widgetContainer)
-      height: "100%", // Siempre 100% del contenedor padre (widgetContainer)
+      width: "100%",
+      height: "100%",
       backgroundColor: "transparent",
       display: "block",
-      opacity: "0", // Oculto inicialmente, se muestra cuando carga
+      opacity: "0",
       transition: "opacity 0.3s ease-in",
-      zIndex: "1" // Por debajo del loader inicialmente
+      zIndex: "1"
     });
     iframe.allow = "clipboard-write";
     iframe.setAttribute("title", "Chatboc Chatbot");
@@ -104,8 +135,7 @@
     const loadTimeout = setTimeout(() => {
       if (!iframeHasLoaded) {
         loader.innerHTML = '<div style="font-family: Arial, sans-serif; color: #777; font-size:11px; text-align:center;">Servicio no disponible</div>';
-        loader.style.backgroundColor = 'lightgray'; // Cambiar fondo del loader si falla
-        // widgetContainer.style.display = 'none'; // No ocultar el contenedor, solo cambiar el loader
+        loader.style.backgroundColor = 'lightgray';
       }
     }, 10000);
 
@@ -113,22 +143,20 @@
       iframeHasLoaded = true;
       clearTimeout(loadTimeout);
       loader.style.opacity = "0";
-      // Añade un pequeño retraso para que la transición de opacidad sea visible antes de eliminarlo
       setTimeout(() => loader.remove(), 300);
-      iframe.style.opacity = "1"; // Muestra el iframe
+      iframe.style.opacity = "1";
     };
 
     iframe.onerror = function () {
-      iframeHasLoaded = true; // Considerar esto como "cargado" para no disparar el timeout
+      iframeHasLoaded = true;
       clearTimeout(loadTimeout);
       loader.innerHTML = '<div style="font-family: Arial, sans-serif; color: #777; font-size:11px; text-align:center;">Servicio no disponible</div>';
       loader.style.backgroundColor = 'lightgray';
-      iframe.style.display = 'none'; // Ocultar el iframe si hay un error
+      iframe.style.display = 'none';
     };
 
     // Escuchar mensajes del iframe para redimensionar y cambiar estado
     window.addEventListener("message", function (event) {
-      // Si el origen no coincide y no es localhost, ignora por seguridad
       if (event.origin !== chatbocDomain && !(chatbocDomain.startsWith("http://localhost"))) {
         return;
       }
@@ -146,88 +174,72 @@
       }
     });
 
-    // --- Lógica de Arrastre (para el contenedor del widget) ---
-    // Asociamos la lógica de arrastre al widgetContainer
-    let isDragging = false, dragStartX, dragStartY, containerStartLeft, containerStartTop;
+    // --- Lógica de Arrastre (solo para el modo fixed) ---
+    // Solo permitir arrastrar si el widget está en modo fixed (flotante)
+    if (isFixedPosition) { // <-- Lógica de arrastre solo para modo fixed
+        let isDragging = false, dragStartX, dragStartY, containerStartLeft, containerStartTop;
+        
+        widgetContainer.addEventListener("mousedown", dragStart);
+        widgetContainer.addEventListener("touchstart", dragStart, { passive: false });
 
-    widgetContainer.addEventListener("mousedown", dragStart);
-    widgetContainer.addEventListener("touchstart", dragStart, { passive: false });
+        function dragStart(e) {
+          if (iframeIsCurrentlyOpen) {
+              return; 
+          }
+          isDragging = true;
+          const rect = widgetContainer.getBoundingClientRect();
+          containerStartLeft = rect.left;
+          containerStartTop = rect.top;
+          dragStartX = e.touches ? e.touches[0].clientX : e.clientX;
+          dragStartY = e.touches ? e.touches[0].clientY : e.clientY;
 
-    function dragStart(e) {
-      if (iframeIsCurrentlyOpen) {
-          // Si el chat está abierto, permitimos la interacción normal DENTRO del iframe
-          // Solo iniciamos el arrastre si el click es en una zona específica o si queremos que todo el panel se arrastre
-          // Para evitar que arrastre cuando se intenta interactuar con el chat.
-          // Podríamos, por ejemplo, adjuntar un listener de arrastre a un "handle" de arrastre en el header del chat.
-          // Por ahora, solo permitimos arrastrar si el click no es para interactuar con el chat.
-          // Si el ChatWidget.tsx maneja su propio botón, no queremos que un click en el botón lo arrastre.
-          return; // No arrastrar si el chat está abierto para permitir interacción interna
-      }
+          widgetContainer.style.transition = "none"; 
+          widgetContainer.style.userSelect = 'none';
+          document.body.style.cursor = 'move';
 
-      isDragging = true;
-      const rect = widgetContainer.getBoundingClientRect();
-      containerStartLeft = rect.left;
-      containerStartTop = rect.top;
-      dragStartX = e.touches ? e.touches[0].clientX : e.clientX;
-      dragStartY = e.touches ? e.touches[0].clientY : e.clientY;
+          document.addEventListener("mousemove", dragMove);
+          document.addEventListener("mouseup", dragEnd);
+          document.addEventListener("touchmove", dragMove, { passive: false });
+          document.addEventListener("touchend", dragEnd);
+          if (e.type === 'touchstart' && e.cancelable) e.preventDefault();
+        }
 
-      widgetContainer.style.transition = "none"; // Desactivar transiciones durante el arrastre
-      widgetContainer.style.userSelect = 'none';
-      document.body.style.cursor = 'move';
+        function dragMove(e) {
+          if (!isDragging) return;
+          if (e.type === 'touchmove' && e.cancelable) e.preventDefault();
 
-      document.addEventListener("mousemove", dragMove);
-      document.addEventListener("mouseup", dragEnd);
-      document.addEventListener("touchmove", dragMove, { passive: false });
-      document.addEventListener("touchend", dragEnd);
-      if (e.type === 'touchstart' && e.cancelable) e.preventDefault();
-    }
+          const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+          const clientY = e.touches ? e.touches[0].clientY : e.clientY;
 
-    function dragMove(e) {
-      if (!isDragging) return;
-      if (e.type === 'touchmove' && e.cancelable) e.preventDefault();
+          let newLeft = containerStartLeft + (clientX - dragStartX);
+          let newTop = containerStartTop + (clientY - dragStartY);
 
-      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+          const currentContainerWidth = parseInt(currentDims.width);
+          const currentContainerHeight = parseInt(currentDims.height);
 
-      let newLeft = containerStartLeft + (clientX - dragStartX);
-      let newTop = containerStartTop + (clientY - dragStartY);
+          newLeft = Math.max(0, Math.min(window.innerWidth - currentContainerWidth, newLeft));
+          newTop = Math.max(0, Math.min(window.innerHeight - currentContainerHeight, newTop));
 
-      const currentContainerWidth = parseInt(currentDims.width);
-      const currentContainerHeight = parseInt(currentDims.height);
+          widgetContainer.style.left = newLeft + "px";
+          widgetContainer.style.top = newTop + "px";
+          widgetContainer.style.right = "auto"; 
+          widgetContainer.style.bottom = "auto";
+        }
 
-      // Limitar el arrastre a los límites de la ventana
-      newLeft = Math.max(0, Math.min(window.innerWidth - currentContainerWidth, newLeft));
-      newTop = Math.max(0, Math.min(window.innerHeight - currentContainerHeight, newTop));
-
-      widgetContainer.style.left = newLeft + "px";
-      widgetContainer.style.top = newTop + "px";
-      widgetContainer.style.right = "auto"; // Asegurar que no haya conflicto con right/bottom
-      widgetContainer.style.bottom = "auto";
-    }
-
-    function dragEnd() {
-      if (!isDragging) return;
-      isDragging = false;
-      widgetContainer.style.userSelect = '';
-      document.body.style.cursor = 'default';
-      // Reactivar transición después de un breve retraso
-      setTimeout(() => {
-        widgetContainer.style.transition = "width 0.25s cubic-bezier(0.4, 0, 0.2, 1), height 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-radius 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s ease-in-out";
-      }, 50);
-      document.removeEventListener("mousemove", dragMove);
-      document.removeEventListener("mouseup", dragEnd);
-      document.removeEventListener("touchmove", dragMove);
-      document.removeEventListener("touchend", dragEnd);
-    }
-
-    // Si el chat está cerrado, un click en el contenedor (el globito) debería abrirlo
-    // Esto se maneja dentro del iframe por el ChatWidget, pero el widget.js debe permitir el evento
-    // o comunicar al iframe que se abra si el click es en el globito.
-    // La forma más robusta es que el ChatWidget internamente tenga el botón
-    // y al clickearlo, envíe un mensaje al padre.
-    // Esto lo veremos en ChatWidget.tsx.
-    // Eliminamos el listener de click directo en el contenedor para evitar conflictos con el botón interno del iframe.
-    // El iframe en sí mismo tendrá su botón que manejará el estado.
+        function dragEnd() {
+          if (!isDragging) return;
+          isDragging = false;
+          widgetContainer.style.userSelect = '';
+          document.body.style.cursor = 'default';
+          setTimeout(() => {
+            widgetContainer.style.transition = "width 0.25s cubic-bezier(0.4, 0, 0.2, 1), height 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-radius 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s ease-in-out";
+          }, 50);
+          document.removeEventListener("mousemove", dragMove);
+          document.removeEventListener("mouseup", dragEnd);
+          document.removeEventListener("touchmove", dragMove);
+          document.removeEventListener("touchend", dragEnd);
+        }
+    } // Cierre del if (isFixedPosition)
   }
 
   if (document.readyState === "loading") {
