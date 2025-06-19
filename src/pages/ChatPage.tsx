@@ -275,7 +275,19 @@ const ChatPage = () => {
   }, [messages, isTyping, scrollToBottom, contexto, forzarDireccion, ticketInfo]);
 
   const handleShareGps = useCallback(() => {
-
+    if (!activeTicketId || !navigator.geolocation) {
+      toast({
+        title: "Ubicación no disponible",
+        description: "Tu navegador no soporta la geolocalización o el ticket no está activo.",
+        variant: "destructive",
+        duration: 3000,
+      });
+      return;
+    }
+    
+    // Si ya estamos en un flujo de un ticket municipal, intentamos obtener GPS
+    // Y si el tipo de chat es municipio, tiene más sentido esta funcionalidad.
+    if (currentEffectiveChatType === 'municipio') { // Usar currentEffectiveChatType
       navigator.geolocation.getCurrentPosition(
         async (pos) => {
           const coords = {
@@ -319,7 +331,7 @@ const ChatPage = () => {
           }
         },
         (error) => {
-
+          console.error("Error obteniendo ubicación:", error);
           setForzarDireccion(true);
           setEsperandoDireccion(true);
           setMessages((prev) => [
