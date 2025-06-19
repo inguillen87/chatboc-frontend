@@ -1,5 +1,3 @@
-// Archivo: Demo.tsx (ajustado para igualar la lógica del ChatWidget para anónimos)
-
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { AnimatePresence, motion } from "framer-motion";
@@ -45,14 +43,6 @@ const Demo = () => {
   const isMunicipioRubro = esRubroPublico(rubroNormalizado || undefined);
 
   useEffect(() => {
-    console.log('Demo render', {
-      rubroSeleccionado,
-      rubroNormalizado,
-      isMunicipioRubro,
-    });
-  });
-
-  useEffect(() => {
     setAnonId(getOrCreateAnonId());
   }, []);
 
@@ -96,16 +86,6 @@ const Demo = () => {
 
       const endpoint = getAskEndpoint({ tipoChat: adjustedTipo, rubro: rubroNormalizado || undefined });
       const esPublico = isMunicipioRubro;
-      console.log(
-        "Voy a pedir a endpoint:",
-        endpoint,
-        "rubro:",
-        rubroNormalizado,
-        "tipoChat:",
-        adjustedTipo,
-        "esPublico:",
-        esPublico,
-      );
       const response = await apiFetch<any>(endpoint, {
         method: 'POST',
         body: payload,
@@ -139,6 +119,7 @@ const Demo = () => {
     }
   }, [contexto, rubroSeleccionado, anonId, preguntasUsadas]);
 
+  // ESCUCHA PARA BOTONES EXTERNOS (por si usás custom events, opcional)
   useEffect(() => {
     const handleButtonSendMessage = (event: Event) => {
       const customEvent = event as CustomEvent<string>;
@@ -194,7 +175,12 @@ const Demo = () => {
         <AnimatePresence>
           {messages.map((msg) => (
             <motion.div key={msg.id} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 14 }} transition={{ duration: 0.18 }}>
-              <ChatMessage message={msg} />
+              <ChatMessage
+                message={msg}
+                isTyping={isTyping}
+                onButtonClick={handleSendMessage}
+                tipoChat={isMunicipioRubro ? "municipio" : "pyme"}
+              />
             </motion.div>
           ))}
         </AnimatePresence>
@@ -202,7 +188,7 @@ const Demo = () => {
         <div ref={messagesEndRef} />
       </div>
       <div className="border-t border-border p-2 bg-card sticky bottom-0 z-10">
-        <ChatInput onSendMessage={handleSendMessage} />
+        <ChatInput onSendMessage={handleSendMessage} isTyping={isTyping} />
       </div>
     </div>
   );
