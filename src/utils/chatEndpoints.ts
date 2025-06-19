@@ -1,4 +1,5 @@
 export const RUBROS_PUBLICOS = [
+<<<<<<< HEAD
   "municipio",
   "municipios",
   "ong",
@@ -13,6 +14,24 @@ export const RUBROS_PUBLICOS = [
 ];
 
 // Función robusta, siempre compara en minúsculas y sin tildes
+=======
+  'municipio',
+  'municipios',
+  'municipalidad',
+
+  'gobierno',
+  'ciudad',
+  'intendente',
+  'administracion publica',
+  'alcaldia',
+  'ayuntamiento',
+  'ong',
+  'hospital publico',
+  'entidad publica',
+];
+
+
+>>>>>>> f8a348e0f5ebdd40ae319eabec1f32f793e15a88
 export const esRubroPublico = (
   rubro?: string | { nombre?: string; clave?: string } | null,
 ): boolean => {
@@ -24,6 +43,7 @@ export const esRubroPublico = (
     rubroStr = rubro.clave || rubro.nombre || null;
   }
   if (!rubroStr) return false;
+<<<<<<< HEAD
 
   // Normalizo el texto: minúsculas y sin tildes
   const normalized = rubroStr
@@ -33,6 +53,15 @@ export const esRubroPublico = (
     .replace(/[\u0300-\u036f]/g, "");
 
   return RUBROS_PUBLICOS.includes(normalized);
+=======
+  const normalized = rubroStr
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/_/g, ' ')
+    .trim();
+
+>>>>>>> f8a348e0f5ebdd40ae319eabec1f32f793e15a88
 };
 
 interface GetEndpointOptions {

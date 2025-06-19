@@ -12,6 +12,8 @@ const ChatbocLogoAnimated = ({
   // Ajusta los valores para que coincidan con tu logo si lo ves raro
   const leftEye = movingEyes ? 20 : 18;
   const rightEye = movingEyes ? 36 : 34;
+  const safeLeftEye = leftEye || 0;
+  const safeRightEye = rightEye || 0;
   const mouthPath = smiling
     ? "M18,34 Q28,44 38,34"
     : "M20,34 Q28,38 36,34";
@@ -52,8 +54,8 @@ const ChatbocLogoAnimated = ({
       >
         {/* Ojos */}
         <motion.circle
-          cx={leftEye}
-          cy={24}
+          cx={safeLeftEye}
+          cy={24 || 0}
           r={4}
           fill="#fff"
           animate={movingEyes ? { cy: [24, 22, 24] } : undefined}
@@ -62,8 +64,8 @@ const ChatbocLogoAnimated = ({
           }
         />
         <motion.circle
-          cx={rightEye}
-          cy={24}
+          cx={safeRightEye}
+          cy={24 || 0}
           r={4}
           fill="#fff"
           animate={movingEyes ? { cy: [24, 26, 24] } : undefined}
