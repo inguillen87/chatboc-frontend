@@ -12,7 +12,6 @@ import { toast } from "@/components/ui/sonner";
 import { getAskEndpoint, esRubroPublico } from "@/utils/chatEndpoints";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { useUser } from "@/hooks/useUser";
-import { getCurrentTipoChat } from "@/utils/tipoChat";
 
 const CARD_WIDTH = 370;
 const CARD_HEIGHT = 540;
