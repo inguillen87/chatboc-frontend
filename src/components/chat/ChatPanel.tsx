@@ -52,6 +52,7 @@ interface ChatPanelProps {
   onClose?: () => void;
   openWidth?: number;
   openHeight?: number;
+  onRequireAuth?: () => void;
 }
 
 const ChatPanel = ({
@@ -65,6 +66,7 @@ const ChatPanel = ({
   onClose,
   openWidth: propOpenWidth,
   openHeight: propOpenHeight,
+  onRequireAuth,
 }: ChatPanelProps) => {
   const openWidthInitial = propOpenWidth ?? CARD_WIDTH;
   const openHeightInitial = propOpenHeight ?? CARD_HEIGHT;
@@ -205,6 +207,10 @@ const ChatPanel = ({
   }, [activeTicketId, esAnonimo, anonId, finalAuthToken]);
 
   const handleShareGps = useCallback(() => {
+    if (esAnonimo) {
+      onRequireAuth && onRequireAuth();
+      return;
+    }
     if (!activeTicketId || !navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
@@ -266,6 +272,10 @@ const ChatPanel = ({
   // Solicitar GPS automáticamente al iniciar chat en vivo
   useEffect(() => {
     if (!activeTicketId) return;
+    if (esAnonimo) {
+      onRequireAuth && onRequireAuth();
+      return;
+    }
     if (navigator.geolocation) {
       try {
         navigator.geolocation.getCurrentPosition(
@@ -562,16 +572,6 @@ const ChatPanel = ({
             contexto_previo: contexto,
           };
           const esPublico = esRubroPublico(rubroNormalizado || undefined);
-          console.log(
-            "Voy a pedir a endpoint:",
-            endpoint,
-            "rubro:",
-            rubroNormalizado,
-            "tipoChat:",
-            tipoChatActual,
-            "esPublico:",
-            esPublico,
-          );
 
           const data = await apiFetch(endpoint, {
             method: "POST",
@@ -599,8 +599,12 @@ const ChatPanel = ({
           if (esAnonimo && mode === "standalone")
             setPreguntasUsadas((prev) => prev + 1);
           if (data.ticket_id) {
-            setActiveTicketId(data.ticket_id);
-            ultimoMensajeIdRef.current = 0;
+            if (esAnonimo) {
+              onRequireAuth && onRequireAuth();
+            } else {
+              setActiveTicketId(data.ticket_id);
+              ultimoMensajeIdRef.current = 0;
+            }
           }
         }
       } catch (error: any) {

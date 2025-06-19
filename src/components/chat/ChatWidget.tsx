@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useCallback, Suspense } from "react";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
+import { motion } from "framer-motion";
+const ChatRegisterPanel = React.lazy(() => import("./ChatRegisterPanel"));
+import ChatHeader from "./ChatHeader";
 
 const ChatPanel = React.lazy(() => import("./ChatPanel"));
 
@@ -30,6 +33,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   tipoChat = getCurrentTipoChat(),
 }) => {
 const [isOpen, setIsOpen] = useState(defaultOpen);
+const [view, setView] = useState<'chat' | 'register'>('chat');
   const [openWidth, setOpenWidth] = useState<number>(CARD_WIDTH);
   const [openHeight, setOpenHeight] = useState<number>(CARD_HEIGHT);
 
@@ -81,7 +85,10 @@ const [isOpen, setIsOpen] = useState(defaultOpen);
           borderRadius: "50%",
           background: "transparent",
         }}
-        onClick={() => setIsOpen(true)}
+        onClick={() => {
+          setView('chat');
+          setIsOpen(true);
+        }}
         aria-label="Abrir chat"
       >
         <ChatbocLogoAnimated size={62} />
@@ -91,18 +98,39 @@ const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
     <Suspense fallback={null}>
-      <ChatPanel
-        mode={mode}
-        initialPosition={initialPosition}
-        widgetId={widgetId}
-        authToken={authToken}
-        initialIframeWidth={initialIframeWidth}
-        initialIframeHeight={initialIframeHeight}
-        onClose={() => setIsOpen(false)}
-        openWidth={openWidth}
-        openHeight={openHeight}
-        tipoChat={tipoChat}
-      />
+      {view === 'register' ? (
+        <motion.div
+          className="fixed z-[999999] flex flex-col shadow-2xl border bg-card text-card-foreground border-border"
+          style={{
+            bottom: initialPosition.bottom,
+            right: initialPosition.right,
+            width: mode === 'iframe' ? openDims.width : `${CARD_WIDTH}px`,
+            height: mode === 'iframe' ? openDims.height : 'auto',
+            borderRadius: 24,
+          }}
+          initial={{ opacity: 0, scale: 0.9, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.9, y: 20 }}
+          transition={{ type: 'spring', stiffness: 260, damping: 20 }}
+        >
+          <ChatHeader onClose={() => { setIsOpen(false); setView('chat'); }} />
+          <ChatRegisterPanel onSuccess={() => setView('chat')} />
+        </motion.div>
+      ) : (
+        <ChatPanel
+          mode={mode}
+          initialPosition={initialPosition}
+          widgetId={widgetId}
+          authToken={authToken}
+          initialIframeWidth={initialIframeWidth}
+          initialIframeHeight={initialIframeHeight}
+          onClose={() => setIsOpen(false)}
+          openWidth={openWidth}
+          openHeight={openHeight}
+          tipoChat={tipoChat}
+          onRequireAuth={() => setView('register')}
+        />
+      )}
     </Suspense>
   );
 };
