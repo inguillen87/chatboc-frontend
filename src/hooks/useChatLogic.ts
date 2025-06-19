@@ -6,6 +6,7 @@ import { APP_TARGET } from "@/config";
 import { getAskEndpoint, esRubroPublico } from "@/utils/chatEndpoints";
 import { enforceTipoChatForRubro } from "@/utils/tipoChat";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
+import getOrCreateAnonId from "@/utils/anonId";
 
 export function useChatLogic(initialWelcomeMessage: string) {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -14,8 +15,8 @@ export function useChatLogic(initialWelcomeMessage: string) {
   const [activeTicketId, setActiveTicketId] = useState<number | null>(null);
 
   const token = safeLocalStorage.getItem('authToken');
-  const anonId = safeLocalStorage.getItem('anon_id');
-  const isAnonimo = !token && !!anonId;
+  const anonId = getOrCreateAnonId();
+  const isAnonimo = !token;
 
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const ultimoMensajeIdRef = useRef<number>(0);

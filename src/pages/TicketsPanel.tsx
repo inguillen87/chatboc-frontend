@@ -4,6 +4,7 @@ import { Loader2, Send, Ticket as TicketIcon, ChevronDown, ChevronUp, User, Shie
 import { motion, AnimatePresence } from "framer-motion";
 import { apiFetch, ApiError } from "@/utils/api";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
+import getOrCreateAnonId from "@/utils/anonId";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -374,8 +375,8 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
   const ultimoMensajeIdRef = useRef<number>(0);
 
   const token = safeLocalStorage.getItem('authToken');
-  const anonId = safeLocalStorage.getItem('anon_id');
-  const isAnonimo = !token && !!anonId;
+  const anonId = getOrCreateAnonId();
+  const isAnonimo = !token;
 
   const chatEnVivo = useMemo(() => {
     const categoriaNormalizada = (ticket.asunto || ticket.categoria || "")

@@ -11,6 +11,7 @@ import { apiFetch } from "@/utils/api";
 import { getAskEndpoint, esRubroPublico } from "@/utils/chatEndpoints";
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
+import getOrCreateAnonId from "@/utils/anonId";
 import TicketMap from "@/components/TicketMap";
 import { useUser } from "@/hooks/useUser";
 import { toast } from "@/components/ui/use-toast"; // Asegúrate de tener toast
@@ -88,21 +89,6 @@ function useIsMobile(breakpoint = 768) {
   return isMobile;
 }
 
-// --- Generar/Persistir anon_id para usuarios no logueados ---
-function getOrCreateAnonId() {
-  if (typeof window === "undefined") return null;
-  try {
-    let anonId = safeLocalStorage.getItem("anon_id");
-    if (!anonId) {
-      anonId = window.crypto?.randomUUID?.() ||
-        `anon-${Math.random().toString(36).slice(2, 9)}-${Date.now()}`;
-      safeLocalStorage.setItem("anon_id", anonId);
-    }
-    return anonId;
-  } catch {
-    return `anon-${Math.random().toString(36).slice(2, 9)}-${Date.now()}`;
-  }
-}
 
 const ChatPage = () => {
   const [messages, setMessages] = useState<Message[]>([]);
