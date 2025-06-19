@@ -8,6 +8,7 @@ import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import TicketMap from "@/components/TicketMap";
 import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
+import { useUser } from "@/hooks/useUser";
 import { getAskEndpoint, esRubroPublico } from "@/utils/chatEndpoints";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 
