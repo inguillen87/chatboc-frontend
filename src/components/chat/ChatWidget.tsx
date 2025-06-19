@@ -2,14 +2,13 @@ import React, { useState, useEffect, useCallback, Suspense } from "react";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
 import { motion } from "framer-motion";
+import { Button } from '@/components/ui/button';
+import { MessageCircle, X } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
 const ChatRegisterPanel = React.lazy(() => import("./ChatRegisterPanel"));
 import ChatHeader from "./ChatHeader";
-
 const ChatPanel = React.lazy(() => import("./ChatPanel"));
-
-const CIRCLE_SIZE = 88;
-const CARD_WIDTH = 370;
-const CARD_HEIGHT = 540;
 
 interface ChatWidgetProps {
   mode?: "standalone" | "iframe" | "script";
@@ -17,8 +16,10 @@ interface ChatWidgetProps {
   defaultOpen?: boolean;
   widgetId?: string;
   authToken?: string;
-  initialIframeWidth?: string;
-  initialIframeHeight?: string;
+  openWidth?: string;
+  openHeight?: string;
+  closedWidth?: string;
+  closedHeight?: string;
   tipoChat?: 'pyme' | 'municipio';
 }
 
@@ -28,110 +29,104 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   defaultOpen = false,
   widgetId = "chatboc-widget-iframe",
   authToken,
-  initialIframeWidth,
-  initialIframeHeight,
+  openWidth = "370px",
+  openHeight = "540px",
+  closedWidth = "88px",
+  closedHeight = "88px",
   tipoChat = getCurrentTipoChat(),
 }) => {
-const [isOpen, setIsOpen] = useState(defaultOpen);
-const [view, setView] = useState<'chat' | 'register'>('chat');
-  const [openWidth, setOpenWidth] = useState<number>(CARD_WIDTH);
-  const [openHeight, setOpenHeight] = useState<number>(CARD_HEIGHT);
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+  const [view, setView] = useState<'chat' | 'register'>('chat');
 
-  useEffect(() => {
-    if (mode === "iframe") {
-      const width = initialIframeWidth
-        ? parseInt(initialIframeWidth as string, 10)
-        : typeof window !== "undefined"
-          ? Math.min(window.innerWidth, CARD_WIDTH)
-          : CARD_WIDTH;
-      const height = initialIframeHeight
-        ? parseInt(initialIframeHeight as string, 10)
-        : typeof window !== "undefined"
-          ? Math.min(window.innerHeight, CARD_HEIGHT)
-          : CARD_HEIGHT;
-      setOpenWidth(width);
-      setOpenHeight(height);
-    }
-  }, [mode, initialIframeWidth, initialIframeHeight]);
-
-  const openDims = { width: `${openWidth}px`, height: `${openHeight}px` };
-  const closedDims = { width: `${CIRCLE_SIZE}px`, height: `${CIRCLE_SIZE}px` };
-
-  const sendResizeMessage = useCallback(
+  const sendStateMessageToParent = useCallback(
     (open: boolean) => {
-      if (mode !== "iframe" || typeof window === "undefined") return;
-      const dims = open ? openDims : closedDims;
-      window.parent.postMessage(
-        { type: "chatboc-resize", widgetId, dimensions: dims, isOpen: open },
-        "*",
-      );
+      if (mode === "iframe" && typeof window !== "undefined" && window.parent !== window && widgetId) {
+        const dims = open ? { width: openWidth, height: openHeight } : { width: closedWidth, height: closedHeight };
+        window.parent.postMessage({ type: "chatboc-state-change", widgetId, dimensions: dims, isOpen: open }, "*");
+      }
     },
-    [mode, widgetId, openDims, closedDims],
+    [mode, widgetId, openWidth, openHeight, closedWidth, closedHeight]
   );
 
   useEffect(() => {
-    sendResizeMessage(isOpen);
-  }, [isOpen, sendResizeMessage]);
+    sendStateMessageToParent(isOpen);
+  }, [isOpen, sendStateMessageToParent]);
 
-  if (!isOpen) {
-    return (
-      <div
-        className="fixed shadow-xl z-[999999] flex items-center justify-center transition-all duration-300 cursor-pointer"
-        style={{
-          bottom: initialPosition.bottom,
-          right: initialPosition.right,
-          width: closedDims.width,
-          height: closedDims.height,
-          borderRadius: "50%",
-          background: "transparent",
-        }}
-        onClick={() => {
-          setView('chat');
-          setIsOpen(true);
-        }}
-        aria-label="Abrir chat"
-      >
-        <ChatbocLogoAnimated size={62} />
-      </div>
-    );
-  }
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data && event.data.type === "TOGGLE_CHAT" && event.data.widgetId === widgetId) {
+        const newIsOpen = event.data.isOpen;
+        if (newIsOpen !== isOpen) {
+          setIsOpen(newIsOpen);
+        }
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [widgetId, isOpen]);
+
+  const toggleChat = () => {
+    setIsOpen((prev) => !prev);
+  };
 
   return (
-    <Suspense fallback={null}>
-      {view === 'register' ? (
+    <div className={cn("relative w-full h-full", "flex flex-col items-end justify-end")}>      
+      <Suspense fallback={null}>
         <motion.div
-          className="fixed z-[999999] flex flex-col shadow-2xl border bg-card text-card-foreground border-border"
-          style={{
-            bottom: initialPosition.bottom,
-            right: initialPosition.right,
-            width: mode === 'iframe' ? openDims.width : `${CARD_WIDTH}px`,
-            height: mode === 'iframe' ? openDims.height : 'auto',
-            borderRadius: 24,
-          }}
+          className={cn(
+            "chatboc-panel-wrapper",
+            "absolute bottom-0 right-0",
+            "bg-card border shadow-2xl rounded-lg",
+            "flex flex-col overflow-hidden",
+            "transform transition-all duration-300 ease-in-out",
+            isOpen ? "opacity-100 scale-100 pointer-events-auto" : "opacity-0 scale-95 pointer-events-none"
+          )}
           initial={{ opacity: 0, scale: 0.9, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
+          animate={isOpen ? { opacity: 1, scale: 1, y: 0 } : { opacity: 0, scale: 0.9, y: 20 }}
           exit={{ opacity: 0, scale: 0.9, y: 20 }}
           transition={{ type: 'spring', stiffness: 260, damping: 20 }}
+          style={{ width: openWidth, height: openHeight, borderRadius: "16px" }}
         >
-          <ChatHeader onClose={() => { setIsOpen(false); setView('chat'); }} />
-          <ChatRegisterPanel onSuccess={() => setView('chat')} />
+          {isOpen && (
+            <>
+              <ChatHeader onClose={toggleChat} />
+              {view === 'register' ? (
+                <ChatRegisterPanel onSuccess={() => setView('chat')} />
+              ) : (
+                <ChatPanel
+                  mode={mode}
+                  widgetId={widgetId}
+                  authToken={authToken}
+                  openWidth={openWidth}
+                  openHeight={openHeight}
+                  onClose={toggleChat}
+                  tipoChat={tipoChat}
+                  onRequireAuth={() => setView('register')}
+                />
+              )}
+            </>
+          )}
         </motion.div>
-      ) : (
-        <ChatPanel
-          mode={mode}
-          initialPosition={initialPosition}
-          widgetId={widgetId}
-          authToken={authToken}
-          initialIframeWidth={initialIframeWidth}
-          initialIframeHeight={initialIframeHeight}
-          onClose={() => setIsOpen(false)}
-          openWidth={openWidth}
-          openHeight={openHeight}
-          tipoChat={tipoChat}
-          onRequireAuth={() => setView('register')}
-        />
-      )}
-    </Suspense>
+        <Button
+          className={cn(
+            "chatboc-toggle-button",
+            "absolute bottom-0 right-0",
+            "rounded-full",
+            "flex items-center justify-center",
+            "bg-primary text-primary-foreground hover:bg-primary/90",
+            "shadow-lg",
+            "transition-all duration-300 ease-in-out",
+            isOpen ? "opacity-0 scale-0 pointer-events-none" : "opacity-100 scale-100 pointer-events-auto"
+          )}
+          onClick={toggleChat}
+          aria-label={isOpen ? "Cerrar chat" : "Abrir chat"}
+          style={{ width: closedWidth, height: closedHeight, background: 'var(--primary)' }}
+        >
+          {isOpen ? <X className="h-8 w-8" /> : <MessageCircle className="h-8 w-8" />}
+          {!isOpen && <ChatbocLogoAnimated size={parseInt(closedWidth, 10) * 0.7} />}
+        </Button>
+      </Suspense>
+    </div>
   );
 };
 

@@ -1,5 +1,3 @@
-// public/widget.js (VERSIÓN FINAL Y COMPLETA)
-
 (function () {
   "use strict";
 
@@ -39,61 +37,26 @@
     let currentDims = defaultOpen ? WIDGET_DIMENSIONS_JS.OPEN : WIDGET_DIMENSIONS_JS.CLOSED;
     let iframeIsCurrentlyOpen = defaultOpen;
 
-    // --- Lógica para incrustar en un elemento específico o como fixed ---
-    const targetElementId = script.getAttribute("data-target-element-id");
-    let targetElement = null;
-    let isFixedPosition = true; // Por defecto es fixed
-
-    if (targetElementId) {
-      targetElement = document.getElementById(targetElementId);
-      if (targetElement) {
-        isFixedPosition = false; // Si hay un elemento objetivo válido, no es fixed
-      }
-    }
-    // --- Fin de la lógica de incrustación ---
-
-
-    // --- Contenedor principal del widget (loader y iframe) ---
     const widgetContainer = document.createElement("div");
     widgetContainer.id = "chatboc-widget-container-" + iframeId;
     Object.assign(widgetContainer.style, {
-      position: isFixedPosition ? "fixed" : "absolute", // CAMBIADO: fixed o absolute
-      // bottom y right solo se aplican si la posición es fixed
-      ...(isFixedPosition && {
-        bottom: initialBottom,
-        right: initialRight,
-      }),
+      position: "fixed",
+      bottom: initialBottom,
+      right: initialRight,
       width: currentDims.width,
       height: currentDims.height,
-      // zIndex solo se aplica si la posición es fixed, si no, se gestiona por el padre.
-      zIndex: isFixedPosition ? zIndexBase.toString() : "auto", 
+      zIndex: zIndexBase.toString(),
       borderRadius: iframeIsCurrentlyOpen ? "16px" : "50%",
       boxShadow: iframeIsCurrentlyOpen ? "0 6px 20px rgba(0,0,0,0.2)" : "0 4px 12px rgba(0,0,0,0.15)",
       transition: "width 0.25s cubic-bezier(0.4, 0, 0.2, 1), height 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-radius 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s ease-in-out",
-      overflow: "hidden", // Crucial para recortar el contenido en estado circular
+      overflow: "hidden",
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
-      cursor: "pointer" // Indica que es clickeable
+      cursor: "pointer",
     });
+    if (!document.getElementById(widgetContainer.id)) document.body.appendChild(widgetContainer);
 
-    // --- Añadir el widgetContainer al DOM ---
-    if (!document.getElementById(widgetContainer.id)) {
-      if (targetElement) {
-        // Asegurarse de que el elemento objetivo es un contexto de posicionamiento
-        // para que los elementos "absolute" dentro de él funcionen correctamente
-        if (getComputedStyle(targetElement).position === 'static') {
-            targetElement.style.position = 'relative';
-        }
-        targetElement.appendChild(widgetContainer);
-      } else {
-        document.body.appendChild(widgetContainer);
-      }
-    }
-    // --- Fin de añadir al DOM ---
-
-
-    // --- Loader ---
     const loader = document.createElement("div");
     loader.id = "chatboc-loader-" + iframeId;
     Object.assign(loader.style, {
@@ -108,12 +71,11 @@
       background: "white",
       transition: "opacity 0.3s ease-out",
       pointerEvents: "auto",
-      zIndex: "2"
+      zIndex: "2",
     });
     loader.innerHTML = `<img src="${chatbocDomain}/favicon/favicon-48x48.png" alt="Chatboc" style="width:48px;height:48px;"/>`;
     widgetContainer.appendChild(loader);
 
-    // --- Iframe ---
     const iframe = document.createElement("iframe");
     iframe.id = iframeId;
     iframe.src = `${chatbocDomain}/iframe?token=${encodeURIComponent(token)}&widgetId=${iframeId}&defaultOpen=${defaultOpen}&openWidth=${encodeURIComponent(WIDGET_DIMENSIONS_JS.OPEN.width)}&openHeight=${encodeURIComponent(WIDGET_DIMENSIONS_JS.OPEN.height)}&closedWidth=${encodeURIComponent(WIDGET_DIMENSIONS_JS.CLOSED.width)}&closedHeight=${encodeURIComponent(WIDGET_DIMENSIONS_JS.CLOSED.height)}${theme ? `&theme=${encodeURIComponent(theme)}` : ""}`;
@@ -125,7 +87,7 @@
       display: "block",
       opacity: "0",
       transition: "opacity 0.3s ease-in",
-      zIndex: "1"
+      zIndex: "1",
     });
     iframe.allow = "clipboard-write";
     iframe.setAttribute("title", "Chatboc Chatbot");
@@ -155,7 +117,6 @@
       iframe.style.display = 'none';
     };
 
-    // Escuchar mensajes del iframe para redimensionar y cambiar estado
     window.addEventListener("message", function (event) {
       if (event.origin !== chatbocDomain && !(chatbocDomain.startsWith("http://localhost"))) {
         return;
@@ -174,71 +135,67 @@
       }
     });
 
-    // --- Lógica de Arrastre (solo para el modo fixed) ---
-    // Solo permitir arrastrar si el widget está en modo fixed (flotante)
-    if (isFixedPosition) { 
-        let isDragging = false, dragStartX, dragStartY, containerStartLeft, containerStartTop;
-        
-        widgetContainer.addEventListener("mousedown", dragStart);
-        widgetContainer.addEventListener("touchstart", dragStart, { passive: false });
+    let isDragging = false, dragStartX, dragStartY, containerStartLeft, containerStartTop;
 
-        function dragStart(e) {
-          if (iframeIsCurrentlyOpen) {
-              return; 
-          }
-          isDragging = true;
-          const rect = widgetContainer.getBoundingClientRect();
-          containerStartLeft = rect.left;
-          containerStartTop = rect.top;
-          dragStartX = e.touches ? e.touches[0].clientX : e.clientX;
-          dragStartY = e.touches ? e.touches[0].clientY : e.clientY;
+    widgetContainer.addEventListener("mousedown", dragStart);
+    widgetContainer.addEventListener("touchstart", dragStart, { passive: false });
 
-          widgetContainer.style.transition = "none";
-          widgetContainer.style.userSelect = 'none';
-          document.body.style.cursor = 'move';
+    function dragStart(e) {
+      if (iframeIsCurrentlyOpen) {
+        return;
+      }
+      isDragging = true;
+      const rect = widgetContainer.getBoundingClientRect();
+      containerStartLeft = rect.left;
+      containerStartTop = rect.top;
+      dragStartX = e.touches ? e.touches[0].clientX : e.clientX;
+      dragStartY = e.touches ? e.touches[0].clientY : e.clientY;
 
-          document.addEventListener("mousemove", dragMove);
-          document.addEventListener("mouseup", dragEnd);
-          document.addEventListener("touchmove", dragMove, { passive: false });
-          document.addEventListener("touchend", dragEnd);
-          if (e.type === 'touchstart' && e.cancelable) e.preventDefault();
-        }
+      widgetContainer.style.transition = "none";
+      widgetContainer.style.userSelect = 'none';
+      document.body.style.cursor = 'move';
 
-        function dragMove(e) {
-          if (!isDragging) return;
-          if (e.type === 'touchmove' && e.cancelable) e.preventDefault();
+      document.addEventListener("mousemove", dragMove);
+      document.addEventListener("mouseup", dragEnd);
+      document.addEventListener("touchmove", dragMove, { passive: false });
+      document.addEventListener("touchend", dragEnd);
+      if (e.type === 'touchstart' && e.cancelable) e.preventDefault();
+    }
 
-          const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-          const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    function dragMove(e) {
+      if (!isDragging) return;
+      if (e.type === 'touchmove' && e.cancelable) e.preventDefault();
 
-          let newLeft = containerStartLeft + (clientX - dragStartX);
-          let newTop = containerStartTop + (clientY - dragStartY);
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
 
-          const currentContainerWidth = parseInt(currentDims.width);
-          const currentContainerHeight = parseInt(currentDims.height);
+      let newLeft = containerStartLeft + (clientX - dragStartX);
+      let newTop = containerStartTop + (clientY - dragStartY);
 
-          newLeft = Math.max(0, Math.min(window.innerWidth - currentContainerWidth, newLeft));
-          newTop = Math.max(0, Math.min(window.innerHeight - currentContainerHeight, newTop));
+      const currentContainerWidth = parseInt(currentDims.width);
+      const currentContainerHeight = parseInt(currentDims.height);
 
-          widgetContainer.style.left = newLeft + "px";
-          widgetContainer.style.top = newTop + "px";
-          widgetContainer.style.right = "auto";
-          widgetContainer.style.bottom = "auto";
-        }
+      newLeft = Math.max(0, Math.min(window.innerWidth - currentContainerWidth, newLeft));
+      newTop = Math.max(0, Math.min(window.innerHeight - currentContainerHeight, newTop));
 
-        function dragEnd() {
-          if (!isDragging) return;
-          isDragging = false;
-          widgetContainer.style.userSelect = '';
-          document.body.style.cursor = 'default';
-          setTimeout(() => {
-            widgetContainer.style.transition = "width 0.25s cubic-bezier(0.4, 0, 0.2, 1), height 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-radius 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s ease-in-out";
-          }, 50);
-          document.removeEventListener("mousemove", dragMove);
-          document.removeEventListener("mouseup", dragEnd);
-          document.removeEventListener("touchmove", dragMove);
-          document.removeEventListener("touchend", dragEnd);
-        }
+      widgetContainer.style.left = newLeft + "px";
+      widgetContainer.style.top = newTop + "px";
+      widgetContainer.style.right = "auto";
+      widgetContainer.style.bottom = "auto";
+    }
+
+    function dragEnd() {
+      if (!isDragging) return;
+      isDragging = false;
+      widgetContainer.style.userSelect = '';
+      document.body.style.cursor = 'default';
+      setTimeout(() => {
+        widgetContainer.style.transition = "width 0.25s cubic-bezier(0.4, 0, 0.2, 1), height 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-radius 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s ease-in-out";
+      }, 50);
+      document.removeEventListener("mousemove", dragMove);
+      document.removeEventListener("mouseup", dragEnd);
+      document.removeEventListener("touchmove", dragMove);
+      document.removeEventListener("touchend", dragEnd);
     }
   }
 
