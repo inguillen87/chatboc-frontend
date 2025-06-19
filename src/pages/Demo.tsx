@@ -10,6 +10,7 @@ import { Message } from "@/types/chat";
 import { apiFetch } from "@/utils/api";
 import { getCurrentTipoChat, enforceTipoChatForRubro, parseRubro } from "@/utils/tipoChat";
 import { getAskEndpoint, esRubroPublico } from "@/utils/chatEndpoints";
+import { parseChatResponse } from "@/utils/parseChatResponse";
 
 function getOrCreateAnonId() {
   if (typeof window === "undefined") return "";
@@ -113,13 +114,13 @@ const Demo = () => {
       });
 
       setContexto(response.contexto_actualizado || {});
-
+      const { text: respuestaText, botones } = parseChatResponse(response);
       const botMessage: Message = {
         id: Date.now(),
-        text: response?.respuesta || "⚠️ No se pudo generar una respuesta.",
+        text: respuestaText || "⚠️ No se pudo generar una respuesta.",
         isBot: true,
         timestamp: new Date(),
-        botones: response?.botones || [],
+        botones,
       };
 
       setMessages((prev) => [...prev, botMessage]);

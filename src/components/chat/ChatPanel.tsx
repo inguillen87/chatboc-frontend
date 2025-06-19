@@ -11,6 +11,7 @@ import { apiFetch } from "@/utils/api";
 import { useUser } from "@/hooks/useUser";
 import { parseRubro, esRubroPublico, getAskEndpoint } from "@/utils/chatEndpoints";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
+import { parseChatResponse } from "@/utils/parseChatResponse";
 
 const CARD_WIDTH = 370;
 const CARD_HEIGHT = 540;
@@ -574,14 +575,15 @@ const ChatPanel = ({
             skipAuth: !finalAuthToken,
           });
           setContexto(data.contexto_actualizado || {});
+          const { text: respuestaText, botones } = parseChatResponse(data);
           setMessages((prev) => [
             ...prev,
             {
               id: Date.now(),
-              text: data.respuesta || "No pude procesar tu solicitud.",
+              text: respuestaText || "No pude procesar tu solicitud.",
               isBot: true,
               timestamp: new Date(),
-              botones: data.botones || [],
+              botones,
             },
           ]);
           if (esAnonimo && mode === "standalone")
