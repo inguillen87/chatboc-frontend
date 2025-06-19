@@ -377,23 +377,55 @@ useEffect(() => {
             },
           );
         } else {
+          const rubroParaEndpoint = rubroNormalizado || DEFAULT_RUBRO || null;
+          const adjustedTipo = enforceTipoChatForRubro(
+            tipoChatActual,
+            rubroParaEndpoint,
+          );
+          const payload: Record<string, any> = {
+            pregunta: text,
+            contexto_previo: contexto,
+            tipo_chat: adjustedTipo,
+            ...(rubroParaEndpoint ? { rubro_clave: rubroParaEndpoint } : {}),
+          };
+          const endpoint = getAskEndpoint({
+            tipoChat: adjustedTipo,
+            rubro: rubroParaEndpoint || undefined,
+          });
+          const esPublico = esRubroPublico(rubroParaEndpoint || undefined);
+          console.log(
+            "Voy a pedir a endpoint:",
+            endpoint,
+            "rubro:",
+            rubroParaEndpoint,
+            "tipoChat:",
+            adjustedTipo,
+            "esPublico:",
+            esPublico,
+          );
 
-  setContexto(data.contexto_actualizado || {});
+          const data = await apiFetch<any>(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...authHeaders },
+            body: payload,
+          });
 
-  const botMessage: Message = {
-    id: Date.now(),
-    text: data?.respuesta || "⚠️ No se pudo generar una respuesta.",
-    isBot: true,
-    timestamp: new Date(),
-    botones: data?.botones || [],
-  };
-  setMessages((prev) => [...prev, botMessage]);
+          setContexto(data.contexto_actualizado || {});
 
-  if (data.ticket_id) {
-    setActiveTicketId(data.ticket_id);
-    ultimoMensajeIdRef.current = 0;
-  }
-}
+          const botMessage: Message = {
+            id: Date.now(),
+            text: data?.respuesta || "⚠️ No se pudo generar una respuesta.",
+            isBot: true,
+            timestamp: new Date(),
+            botones: data?.botones || [],
+          };
+          setMessages((prev) => [...prev, botMessage]);
+
+          if (data.ticket_id) {
+            setActiveTicketId(data.ticket_id);
+            ultimoMensajeIdRef.current = 0;
+          }
+        }
       } catch (error: any) {
         let errorMsg = "⚠️ No se pudo conectar con el servidor.";
         if (error?.body?.error) {
