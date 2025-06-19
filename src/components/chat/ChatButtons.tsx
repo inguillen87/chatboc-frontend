@@ -27,8 +27,8 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({ botones, onButtonClick }) => 
     };
 
     return (
-        <motion.div 
-            className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-white/10"
+        <motion.div
+            className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-border"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.2, duration: 0.3 }}
@@ -39,11 +39,11 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({ botones, onButtonClick }) => 
                     onClick={() => handleButtonClick(boton)}
                     className="
                         px-3 py-1.5 text-sm rounded-full
-                        bg-blue-500 hover:bg-blue-600 
-                        text-white font-semibold 
-                        transition-all duration-200 
-                        shadow-md hover:shadow-lg focus:outline-none 
-                        focus:ring-2 focus:ring-blue-400 focus:ring-opacity-75
+                        bg-primary text-primary-foreground
+                        hover:bg-primary/90
+                        font-semibold transition-colors duration-200
+                        shadow-md hover:shadow-lg focus:outline-none
+                        focus:ring-2 focus:ring-primary focus:ring-opacity-75
                         cursor-pointer
                     "
                 >
