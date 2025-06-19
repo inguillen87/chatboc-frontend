@@ -1,6 +1,4 @@
-// src/pages/Integracion.tsx (VERSIÓN FINAL Y COMPLETA)
-
-import React, { useEffect, useState, useRef } from "react"; 
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -18,8 +16,6 @@ const Integracion = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [copiado, setCopiado] = useState<"iframe" | "script" | null>(null);
-  // Eliminamos previewContainerRef ya que la vista previa volverá a ser un iframe estático
-  // const previewContainerRef = useRef<HTMLDivElement>(null); 
 
   const validarAcceso = (user: User | null) => {
     if (!user) {
@@ -39,40 +35,23 @@ const Integracion = () => {
     const authToken = safeLocalStorage.getItem("authToken");
     const storedUser = safeLocalStorage.getItem("user");
     let parsedUser: Omit<User, 'token'> | null = null;
-
     try {
       parsedUser = storedUser ? JSON.parse(storedUser) : null;
-    } catch (err) {
+    } catch {
       safeLocalStorage.removeItem("user");
     }
-
     if (!authToken || !parsedUser || !parsedUser.id) {
       navigate("/login");
       return;
     }
-
-    const fullUser: User = {
-      ...parsedUser,
-      token: authToken,
-      plan: parsedUser.plan || "free"
-    };
+    const fullUser: User = { ...parsedUser, token: authToken, plan: parsedUser.plan || "free" };
     setUser(fullUser);
-
     validarAcceso(fullUser);
   }, [navigate]);
 
   useEffect(() => {
-    if (user) {
-      validarAcceso(user);
-    }
+    if (user) validarAcceso(user);
   }, [user]);
-
-  // ELIMINAMOS TODA LA LÓGICA DE USEEFFECT PARA LA VISTA PREVIA DINÁMICA
-  // Si esta lógica está aquí, se ejecutará en la página de Integración,
-  // inyectando un widget flotante. Si la vista previa es un iframe estático,
-  // esta lógica es innecesaria y podría causar conflictos.
-  // useEffect(() => { ... }, [user]);
-
 
   if (!user) {
     return (
@@ -82,21 +61,15 @@ const Integracion = () => {
     );
   }
 
-  // Definir las dimensiones estándar del widget para los códigos de copia
   const WIDGET_STD_WIDTH = "370px";
   const WIDGET_STD_HEIGHT = "540px";
-  const WIDGET_STD_CLOSED_WIDTH = "88px"; // Para los atributos data-
-  const WIDGET_STD_CLOSED_HEIGHT = "88px"; // Para los atributos data-
+  const WIDGET_STD_CLOSED_WIDTH = "88px";
+  const WIDGET_STD_CLOSED_HEIGHT = "88px";
 
-  // Reconstruir codeScript para incluir todos los data-atributos
   const codeScript = `<script>(function(){var s=document.createElement('script');s.src='https://www.chatboc.ar/widget.js';s.async=true;s.setAttribute('data-token','${user.token}');s.setAttribute('data-default-open','false');s.setAttribute('data-width','${WIDGET_STD_WIDTH}');s.setAttribute('data-height','${WIDGET_STD_HEIGHT}');s.setAttribute('data-closed-width','${WIDGET_STD_CLOSED_WIDTH}');s.setAttribute('data-closed-height','${WIDGET_STD_CLOSED_HEIGHT}');s.setAttribute('data-bottom','20px');s.setAttribute('data-right','20px');document.head.appendChild(s);})();</script>`;
-  
-  // codeIframe vuelve a ser un iframe directo (como lo tenías),
-  // pero la URL src incluye todos los data-atributos para que el iframe interno los reciba,
-  // y el style del iframe ahora usa 16px para el border-radius cuando está abierto.
+
   const url = `https://www.chatboc.ar/iframe?token=${user.token}&defaultOpen=true&openWidth=${WIDGET_STD_WIDTH}&openHeight=${WIDGET_STD_HEIGHT}&closedWidth=${WIDGET_STD_CLOSED_WIDTH}&closedHeight=${WIDGET_STD_CLOSED_HEIGHT}`;
   const codeIframe = `<iframe id="chatboc-iframe" src="${url}" style="position:fixed;bottom:24px;right:24px;border:none;border-radius:16px;z-index:9999;box-shadow:0 4px 32px rgba(0,0,0,0.2);background:transparent;overflow:hidden;width:${WIDGET_STD_WIDTH}!important;height:${WIDGET_STD_HEIGHT}!important;display:block" allow="clipboard-write" loading="lazy"></iframe><script>(function(){var f=document.getElementById('chatboc-iframe');window.addEventListener('message',function(e){if(e.data&&e.data.type==='chatboc-state-change'){f.style.width=e.data.dimensions.width;f.style.height=e.data.dimensions.height;f.style.borderRadius=e.data.isOpen?'16px':'50%';}});})();</script>`;
-
 
   const copiarCodigo = async (tipo: "iframe" | "script") => {
     try {
@@ -104,7 +77,7 @@ const Integracion = () => {
       setCopiado(tipo);
       setTimeout(() => setCopiado(null), 2000);
       toast.success("✅ Código copiado al portapapeles");
-    } catch (e) {
+    } catch {
       window.prompt("Copiá el código manualmente:", tipo === "iframe" ? codeIframe : codeScript);
       toast.error("❌ No se pudo copiar automáticamente.");
     }
@@ -113,63 +86,39 @@ const Integracion = () => {
   return (
     <div className="p-8 max-w-2xl mx-auto bg-background text-foreground">
       <h1 className="text-3xl font-bold mb-6 text-primary">🧩 Integración del Chatbot Chatboc</h1>
-
       <p className="mb-4 text-muted-foreground">
         Pegá este código en el <code>&lt;body&gt;</code> de tu web, Tiendanube, WooCommerce, Shopify, etc.
         Tu asistente aparecerá automáticamente abajo a la derecha y responderá con los datos de tu empresa y catálogo.
       </p>
-
       <div className="mb-5">
         <div className="font-semibold mb-2 text-primary">Opción 1: <span className="text-foreground">Widget con &lt;script&gt; (recomendado)</span></div>
-        <pre
-          className="bg-muted dark:bg-card p-3 rounded text-xs overflow-x-auto border border-border select-all cursor-pointer mb-2 text-foreground"
-          title="Click para copiar"
-          onClick={() => copiarCodigo("script")}
-          style={{ whiteSpace: "pre-line" }}
-        >{codeScript}</pre>
-        <Button
-          className="w-full mb-4 bg-secondary text-secondary-foreground hover:bg-secondary/80"
-          onClick={() => copiarCodigo("script")}
-          variant="secondary"
-        >
+        <pre className="bg-muted dark:bg-card p-3 rounded text-xs overflow-x-auto border border-border select-all cursor-pointer mb-2 text-foreground" title="Click para copiar" onClick={() => copiarCodigo("script")} style={{ whiteSpace: "pre-line" }}>{codeScript}</pre>
+        <Button className="w-full mb-4 bg-secondary text-secondary-foreground hover:bg-secondary/80" onClick={() => copiarCodigo("script") } variant="secondary">
           {copiado === "script" ? "¡Copiado!" : "📋 Copiar código script"}
         </Button>
       </div>
-
       <div className="mb-5">
         <div className="font-semibold mb-2 text-primary">Opción 2: <span className="text-foreground">Widget con &lt;iframe&gt; (alternativo)</span></div>
-        <pre
-          className="bg-muted dark:bg-card p-3 rounded text-xs overflow-x-auto border border-border select-all cursor-pointer mb-2 text-foreground"
-          title="Click para copiar"
-          onClick={() => copiarCodigo("iframe")}
-          style={{ whiteSpace: "pre-line" }}
-        >{codeIframe}</pre>
-        <Button
-          className="w-full bg-secondary text-secondary-foreground hover:bg-secondary/80"
-          onClick={() => copiarCodigo("iframe")}
-          variant="secondary"
-        >
+        <pre className="bg-muted dark:bg-card p-3 rounded text-xs overflow-x-auto border border-border select-all cursor-pointer mb-2 text-foreground" title="Click para copiar" onClick={() => copiarCodigo("iframe")} style={{ whiteSpace: "pre-line" }}>{codeIframe}</pre>
+        <Button className="w-full bg-secondary text-secondary-foreground hover:bg-secondary/80" onClick={() => copiarCodigo("iframe")} variant="secondary">
           {copiado === "iframe" ? "¡Copiado!" : "📋 Copiar código iframe"}
         </Button>
       </div>
-
       <div className="bg-muted text-muted-foreground p-4 rounded mb-8 text-xs border border-border">
         <b>¿No ves el widget?</b> Verificá que el código esté bien pegado, y que tu tienda permita iframes/scripts.<br />
         Si usás Tiendanube: pegalo en “Editar Código Avanzado” o consultá a soporte.<br />
         Ante cualquier problema <a href="mailto:soporte@chatboc.ar" className="underline text-primary">escribinos</a>.
       </div>
-
       <div className="mt-10">
         <h2 className="text-xl font-semibold mb-2 text-foreground">🔍 Vista previa en vivo:</h2>
         <div className="border border-border rounded overflow-hidden bg-background flex items-center justify-center" style={{ minHeight: 540 }}>
-          {/* Este iframe muestra una vista previa del panel de chat abierto */}
           <iframe
-            src={url} // Usa la misma URL que para el codeIframe
+            src={url}
             width="370"
             height="540"
             style={{
               border: "none",
-              borderRadius: "16px", // Ajustado para ser consistente con el panel abierto
+              borderRadius: "16px",
               width: "100%",
               maxWidth: 370,
               minHeight: 540,
