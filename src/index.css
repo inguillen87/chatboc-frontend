@@ -89,29 +89,51 @@
 }
 
 /* Google Places Input Dark/Light - MODIFICADO */
+/* Aseguramos que los estilos de Google Places también usen las variables de tu tema
+   si son aplicables, o que definan claramente sus propios colores para ambos modos.
+   Si tu input del chat no es un pac-target-input, estas reglas no deberían afectarlo,
+   pero si lo es, ahora se adaptarán mejor. */
 .pac-target-input {
-  background-color: hsl(var(--input)) !important;
-  color: hsl(var(--foreground)) !important;
-  border: 1px solid hsl(var(--border)) !important;
+  background-color: hsl(var(--input)) !important; /* Usar tu variable --input */
+  color: hsl(var(--foreground)) !important; /* Usar tu variable --foreground */
+  border: 1px solid hsl(var(--border)) !important; /* Usar tu variable --border */
   border-radius: 0.5rem !important;
   padding: 0.5rem 0.75rem !important;
   font-size: 1rem !important;
   transition: background 0.2s;
 }
 
+/* No necesitas body:not(.dark) si usas las variables, ya que --input etc. cambian automáticamente */
+/* Puedes dejarlo si quieres forzar un color específico que no esté en tus variables */
+/* body:not(.dark) .pac-target-input {
+  background-color: #fff !important;
+  color: #111 !important;
+  border: 1px solid #e5e7eb !important;
+} */
+
+
+/* MODIFICADO: Definir colores explícitamente para el modo oscuro para Google Places
+   para evitar conflictos si el input del chat comparte esta clase por error.
+   Esto debería *sobreescribir* cualquier `!important` no temático. */
 .dark .pac-target-input {
-  background-color: hsl(var(--input)) !important;
-  color: hsl(var(--foreground)) !important;
-  border-color: hsl(var(--border)) !important;
+    background-color: hsl(var(--input)) !important; /* Gris oscuro temático */
+    color: hsl(var(--foreground)) !important; /* Texto claro temático */
+    border-color: hsl(var(--border)) !important; /* Borde temático */
 }
 
 /* Container de Google Places */
 .pac-container {
-  background: hsl(var(--card)) !important;
-  color: hsl(var(--foreground)) !important;
+  background: hsl(var(--card)) !important; /* Usar tu variable --card */
+  color: hsl(var(--foreground)) !important; /* Usar tu variable --foreground */
   border-radius: 0.5rem !important;
   z-index: 999999 !important;
 }
+/* Puedes quitar body:not(.dark) .pac-container si usas las variables CSS de tema */
+/* body:not(.dark) .pac-container {
+  background: #fff !important;
+  color: #111 !important;
+} */
+
 
 .pac-item {
   color: inherit !important;
@@ -120,8 +142,12 @@
   padding: 0.4rem 1rem !important;
 }
 .pac-item:hover {
-  background: hsl(var(--accent)) !important;
+  background: hsl(var(--accent)) !important; /* Usar tu variable --accent */
 }
+/* Puedes quitar body:not(.dark) .pac-item:hover si usas las variables CSS de tema */
+/* body:not(.dark) .pac-item:hover {
+  background: #f3f4f6 !important;
+} */
 
 @layer base {
   * {
@@ -133,7 +159,6 @@
     font-family: 'Poppins', sans-serif;
   }
 }
-
 @keyframes pulse-subtle {
   0%, 100% {
     opacity: 1;
@@ -146,26 +171,19 @@
 .animate-pulse-subtle {
   animation: pulse-subtle 1.5s infinite ease-in-out;
 }
-
-/* --- ¡INICIO DE LA MEJORA CLAVE! --- */
-/* Estas reglas son para el HTML, BODY y el #root dentro del IFRAME.
-   Aseguramos que no tengan un height mínimo o overflow que cause doble scroll.
-   El tamaño y overflow principal los controla el widget.js para el iframe.
-   El scroll interno de los mensajes es manejado por el ScrollArea en ChatPanel. */
 html,
 body,
 #root,
-#__next, /* Si usas Next.js en alguna parte */
-#app { /* Si tienes un div #app */
+#__next,
+#app {
   background: transparent !important;
-  margin: 0 !important; /* Resetea márgenes */
-  padding: 0 !important; /* Resetea paddings */
-  width: 100% !important;
-  height: 100% !important; /* Importante: ocupa el 100% del iframe */
-  min-width: 100% !important;
-  min-height: 100% !important; /* Cambiado de 100vh a 100% */
-  overflow: hidden !important; /* Cambiado de overflow-x:hidden, overflow-y:auto a solo hidden */
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-width: 100%;
+  min-height: 100vh;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
-/* --- ¡FIN DE LA MEJORA CLAVE! --- */
 
 /* ... otras clases y keyframes ... */
