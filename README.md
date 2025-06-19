@@ -187,6 +187,10 @@ The rubro and `tipo_chat` must always align: if the rubro is listed as
 public in the backend, use the municipio endpoint and layout; for any
 other rubro, use pyme. Any mismatch will trigger an error from the
 backend.
+To decide correctly, inspect the `esPublico` flag returned by `/perfil`
+or the rubros endpoint. When `esPublico` is `true`, send the request to
+`/ask/municipio` and set `tipo_chat` to `municipio`; otherwise use
+`/ask/pyme` and `tipo_chat` set to `pyme`.
 
 ### Local API proxy
 
