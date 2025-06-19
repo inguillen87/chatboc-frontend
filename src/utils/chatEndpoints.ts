@@ -1,13 +1,15 @@
 export const RUBROS_PUBLICOS = [
   'municipio',
   'municipios',
-  'ong',
   'gobierno',
-  'hospital_publico',
-  'entidad_publica',
+  'ciudad',
+  'intendente',
+  'administracion publica',
+  'ong',
+  'hospital publico',
+  'entidad publica',
 ];
 
-import { safeLocalStorage } from "@/utils/safeLocalStorage";
 
 export const esRubroPublico = (
   rubro?: string | { nombre?: string; clave?: string } | null,
@@ -20,9 +22,13 @@ export const esRubroPublico = (
     rubroStr = rubro.clave || rubro.nombre || null;
   }
   if (!rubroStr) return false;
-  const loggedIn = Boolean(safeLocalStorage.getItem("authToken"));
-  if (loggedIn) return false;
-  return RUBROS_PUBLICOS.includes(rubroStr.trim().toLowerCase());
+  const normalized = rubroStr
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/_/g, " ")
+    .trim();
+  return RUBROS_PUBLICOS.includes(normalized);
 };
 
 interface GetEndpointOptions {
