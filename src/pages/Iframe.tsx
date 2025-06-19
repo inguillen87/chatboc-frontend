@@ -1,23 +1,17 @@
-// src/pages/Iframe.tsx (VERSIÓN FINAL Y COMPLETA)
+// src/pages/Iframe.tsx
 
 import React, { useEffect, useState } from "react";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
+
+// Importa directamente para evitar problemas con React.lazy en algunos entornos
 import ChatWidget from "../components/chat/ChatWidget";
-import { Toaster } from "@/components/ui/sonner"; 
 
 const Iframe = () => {
-  const [widgetParams, setWidgetParams] = useState({
-    defaultOpen: false,
-    widgetId: "chatboc-iframe-unknown",
-    token: null as string | null,
-    initialIframeWidth: null as string | null,
-    initialIframeHeight: null as string | null,
-    openWidth: null as string | null,
-    openHeight: null as string | null,
-    closedWidth: null as string | null,
-    closedHeight: null as string | null,
-    theme: "light",
-  });
+  const [defaultOpen, setDefaultOpen] = useState(false);
+  const [widgetId, setWidgetId] = useState("chatboc-iframe-unknown");
+  const [tokenFromUrl, setTokenFromUrl] = useState<string | null>(null);
+  const [initialIframeWidth, setInitialIframeWidth] = useState<string | null>(null);
+  const [initialIframeHeight, setInitialIframeHeight] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -25,33 +19,23 @@ const Iframe = () => {
       const openParam = params.get("defaultOpen");
       const idParam = params.get("widgetId");
       const tokenParam = params.get("token");
-      
-      const initialWidthParam = params.get("initialWidth");
-      const initialHeightParam = params.get("initialHeight");
-      const openWidthParam = params.get("openWidth");
-      const openHeightParam = params.get("openHeight");
-      const closedWidthParam = params.get("closedWidth");
-      const closedHeightParam = params.get("closedHeight");
+      const widthParam = params.get("initialWidth");
+      const heightParam = params.get("initialHeight");
       const themeParam = params.get("theme");
 
-      setWidgetParams({
-        defaultOpen: openParam === "true",
-        widgetId: idParam || "chatboc-iframe-unknown",
-        token: tokenParam,
-        initialIframeWidth: initialWidthParam,
-        initialIframeHeight: initialHeightParam,
-        openWidth: openWidthParam,
-        openHeight: openHeightParam,
-        closedWidth: closedWidthParam,
-        closedHeight: closedHeightParam,
-        theme: themeParam === "dark" || themeParam === "light" ? themeParam : "light",
-      });
+      setDefaultOpen(openParam === "true");
+      if (idParam) setWidgetId(idParam);
+      if (tokenParam) setTokenFromUrl(tokenParam);
+      if (widthParam) setInitialIframeWidth(widthParam);
+      if (heightParam) setInitialIframeHeight(heightParam);
 
+      // Tema: Si viene en URL, setea y guarda en localStorage para próximas veces
       if (themeParam === "dark" || themeParam === "light") {
         document.documentElement.classList.remove("dark", "light");
         document.documentElement.classList.add(themeParam);
         safeLocalStorage.setItem("theme", themeParam);
       } else {
+        // Si no viene por URL, usá localStorage o el sistema
         const storedTheme = safeLocalStorage.getItem("theme");
         if (storedTheme === "dark" || storedTheme === "light") {
           document.documentElement.classList.remove("dark", "light");
@@ -65,24 +49,16 @@ const Iframe = () => {
     }
   }, []);
 
+  // Seteamos fondos acordes al tema sin romper el overflow ni el scroll
   useEffect(() => {
     if (typeof document !== "undefined") {
       document.documentElement.style.background = "var(--background)";
       document.body.style.background = "var(--background)";
       document.body.style.margin = "0";
       document.body.style.padding = "0";
-      document.body.style.overflow = "hidden"; 
-      document.documentElement.style.overflow = "hidden"; // También para el html del iframe
-      document.body.style.height = "100%";
-      document.documentElement.style.height = "100%"; // También para el html del iframe
-      document.body.style.width = "100%";
-      document.documentElement.style.width = "100%"; // También para el html del iframe
+      // NO tocar overflow, NO tocar height/width acá
     }
   }, []);
-
-  if (!widgetParams.token) {
-    return <div>Cargando Chatboc...</div>;
-  }
 
   return (
     <div
@@ -92,25 +68,19 @@ const Iframe = () => {
         background: "var(--background)",
         margin: 0,
         padding: 0,
-        overflow: "hidden", 
+        overflow: "visible", // permite que el contenido crezca si hace falta
         display: "flex",
         flexDirection: "column",
       }}
-      className="relative"
     >
       <ChatWidget
         mode="iframe"
-        defaultOpen={widgetParams.defaultOpen}
-        widgetId={widgetParams.widgetId}
-        authToken={widgetParams.token}
-        initialIframeWidth={widgetParams.initialIframeWidth}
-        initialIframeHeight={widgetParams.initialIframeHeight}
-        openWidth={widgetParams.openWidth}
-        openHeight={widgetParams.openHeight}
-        closedWidth={widgetParams.closedWidth}
-        closedHeight={widgetParams.closedHeight}
+        defaultOpen={defaultOpen}
+        widgetId={widgetId}
+        authToken={tokenFromUrl}
+        initialIframeWidth={initialIframeWidth}
+        initialIframeHeight={initialIframeHeight}
       />
-      <Toaster /> 
       {console.log("ChatWidget montado!")}
     </div>
   );

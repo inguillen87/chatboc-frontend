@@ -1,6 +1,5 @@
-// src/components/chat/ChatPanel.tsx (Versión Final y Estable)
-
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import { motion } from "framer-motion";
 import ChatHeader from "./ChatHeader";
 import ChatMessage from "./ChatMessage";
 import TypingIndicator from "./TypingIndicator";
@@ -14,7 +13,9 @@ import { parseRubro, esRubroPublico, getAskEndpoint } from "@/utils/chatEndpoint
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateAnonId from "@/utils/anonId";
 import { parseChatResponse } from "@/utils/parseChatResponse";
-import { ScrollArea } from '@/components/ui/scroll-area';
+
+const CARD_WIDTH = 370;
+const CARD_HEIGHT = 540;
 
 const FRASES_DIRECCION = [
   "indicame la dirección",
@@ -39,31 +40,57 @@ const FRASES_EXITO = [
   "ticket **M-",
 ];
 
+
 interface ChatPanelProps {
   mode?: "standalone" | "iframe" | "script";
+  initialPosition?: { bottom: number; right: number };
+  draggable?: boolean;
   widgetId?: string;
   authToken?: string;
   initialIframeWidth?: string;
   initialIframeHeight?: string;
   onClose?: () => void;
-  openWidth?: string;
-  openHeight?: string;
-  tipoChat?: 'pyme' | 'municipio';
+  openWidth?: number;
+  openHeight?: number;
   onRequireAuth?: () => void;
 }
 
 const ChatPanel = ({
   mode = "standalone",
+  initialPosition = { bottom: 30, right: 30 },
+  draggable = true,
   widgetId = "chatboc-widget-iframe",
   authToken: propAuthToken,
   initialIframeWidth,
   initialIframeHeight,
   onClose,
-  openWidth,
-  openHeight,
-  tipoChat = getCurrentTipoChat(),
+  openWidth: propOpenWidth,
+  openHeight: propOpenHeight,
   onRequireAuth,
 }: ChatPanelProps) => {
+  const openWidthInitial = propOpenWidth ?? CARD_WIDTH;
+  const openHeightInitial = propOpenHeight ?? CARD_HEIGHT;
+  const [openWidth, setOpenWidth] = useState<number>(openWidthInitial);
+  const [openHeight, setOpenHeight] = useState<number>(openHeightInitial);
+  const openDims = { width: `${openWidth}px`, height: `${openHeight}px` };
+
+  // Ajustar dimensiones cuando se usa como iframe sin widget.js
+  useEffect(() => {
+    if (mode === "iframe") {
+      const width = initialIframeWidth
+        ? parseInt(initialIframeWidth as string, 10)
+        : typeof window !== "undefined"
+          ? Math.min(window.innerWidth, CARD_WIDTH)
+          : CARD_WIDTH;
+      const height = initialIframeHeight
+        ? parseInt(initialIframeHeight as string, 10)
+        : typeof window !== "undefined"
+          ? Math.min(window.innerHeight, CARD_HEIGHT)
+          : CARD_HEIGHT;
+      setOpenWidth(width);
+      setOpenHeight(height);
+    }
+  }, [mode, initialIframeWidth, initialIframeHeight]);
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
@@ -89,11 +116,13 @@ const ChatPanel = ({
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const ultimoMensajeIdRef = useRef<number>(0);
 
+  // Para Google Autocomplete
   const [esperandoDireccion, setEsperandoDireccion] = useState(false);
   const [forzarDireccion, setForzarDireccion] = useState(false);
   const [direccionGuardada, setDireccionGuardada] = useState<string | null>(
     null,
   );
+  // Mensaje de cierre final
   const [showCierre, setShowCierre] = useState<{
     show: boolean;
     text: string;
@@ -101,6 +130,7 @@ const ChatPanel = ({
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const widgetContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const stored = safeLocalStorage.getItem("ultima_direccion");
@@ -109,6 +139,7 @@ const ChatPanel = ({
     }
   }, []);
 
+  // Token helpers
   const getAuthTokenFromLocalStorage = () =>
     typeof window === "undefined"
       ? null
@@ -130,6 +161,7 @@ const ChatPanel = ({
       ? JSON.parse(safeLocalStorage.getItem("user") || "null")
       : null;
 
+  // ------ BLOQUE CLAVE: RUBRO Y TIPO DE CHAT ------
   const rubroActual =
     parseRubro(rubroSeleccionado) ||
     parseRubro(user?.rubro) ||
@@ -139,6 +171,7 @@ const ChatPanel = ({
   const isMunicipioRubro = esRubroPublico(rubroNormalizado || undefined);
   const tipoChatActual: "pyme" | "municipio" =
     rubroNormalizado && isMunicipioRubro ? "municipio" : "pyme";
+  // -----------------------------------------------
 
   const fetchTicket = useCallback(async () => {
     if (!activeTicketId) return;
@@ -230,12 +263,13 @@ const ChatPanel = ({
         ]);
       },
     );
-  }, [activeTicketId, fetchTicket, esAnonimo, onRequireAuth, finalAuthToken]);
+  }, [activeTicketId, fetchTicket]);
 
   useEffect(() => {
     fetchTicket();
   }, [activeTicketId, fetchTicket]);
 
+  // Solicitar GPS automáticamente al iniciar chat en vivo
   useEffect(() => {
     if (!activeTicketId) return;
     if (esAnonimo) {
@@ -300,8 +334,9 @@ const ChatPanel = ({
     } else {
       setForzarDireccion(true);
     }
-  }, [activeTicketId, fetchTicket, finalAuthToken, esAnonimo, anonId, onRequireAuth]);
+  }, [activeTicketId, fetchTicket, finalAuthToken, esAnonimo, anonId]);
 
+  // Detectar si el bot pide dirección
   function shouldShowAutocomplete(messages: Message[], contexto: any) {
     const lastBotMsg = [...messages].reverse().find((m) => m.isBot && m.text);
     if (!lastBotMsg) return false;
@@ -320,6 +355,7 @@ const ChatPanel = ({
     return false;
   }
 
+  // Mostrar cierre éxito si el mensaje lo amerita (nunca dejar el chat muerto)
   function checkCierreExito(messages: Message[]) {
     const lastBotMsg = [...messages].reverse().find((m) => m.isBot && m.text);
     if (!lastBotMsg) return null;
@@ -338,6 +374,7 @@ const ChatPanel = ({
     return null;
   }
 
+  // --- AUTO-TOGGLE del autocomplete según mensaje del bot ---
   useEffect(() => {
     const autocomplete =
       shouldShowAutocomplete(messages, contexto) || forzarDireccion;
@@ -346,6 +383,7 @@ const ChatPanel = ({
     else setShowCierre(null);
   }, [messages, contexto, forzarDireccion]);
 
+  // Cargar rubros
   const cargarRubros = async () => {
     setCargandoRubros(true);
     setRubrosDisponibles([]);
@@ -359,9 +397,10 @@ const ChatPanel = ({
     }
   };
 
+  // Polling de chat en vivo (manda siempre anon_id si es anónimo)
   useEffect(() => {
     if (!activeTicketId) return;
-    let intervalId: NodeJS.Timeout | undefined;
+    let intervalId;
     const fetchAllMessages = async () => {
       try {
         const authHeaders = finalAuthToken
@@ -378,7 +417,7 @@ const ChatPanel = ({
             isBot: msg.es_admin,
             timestamp: new Date(msg.fecha),
           }));
-          setMessages(nuevosMensajes);
+          setMessages(nuevosMensajes); // <-- REEMPLAZA la lista
           if (data.mensajes.length > 0)
             ultimoMensajeIdRef.current =
               data.mensajes[data.mensajes.length - 1].id;
@@ -417,8 +456,9 @@ const ChatPanel = ({
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
-  }, [activeTicketId, esAnonimo, anonId, finalAuthToken, pollingErrorShown, fetchTicket]);
+  }, [activeTicketId, esAnonimo, anonId, finalAuthToken]);
 
+  // --- handleSendMessage ---
   const handleSendMessage = useCallback(
     async (text: string) => {
       if (!text.trim()) return;
@@ -531,6 +571,8 @@ const ChatPanel = ({
             pregunta: text,
             contexto_previo: contexto,
           };
+          const esPublico = esRubroPublico(rubroNormalizado || undefined);
+
           const data = await apiFetch(endpoint, {
             method: "POST",
             headers: {
@@ -597,12 +639,10 @@ const ChatPanel = ({
       anonId,
       rubroNormalizado,
       tipoChatActual,
-      fetchTicket,
-      onRequireAuth,
-      loading,
     ],
   );
 
+  // Bienvenida y rubro
   useEffect(() => {
     if (esAnonimo && mode === "standalone" && !rubroSeleccionado) {
       setEsperandoRubro(true);
@@ -622,6 +662,7 @@ const ChatPanel = ({
     }
   }, [esAnonimo, mode, rubroSeleccionado, messages.length]);
 
+  // Scroll automático
   useEffect(() => {
     const container = chatContainerRef.current;
     if (container) {
@@ -635,138 +676,162 @@ const ChatPanel = ({
     }
   }, [messages, isTyping, ticketLocation]);
 
+  // --- CARD: CHAT ABIERTO ---
   return (
-    <div
-      className="flex flex-col w-full h-full overflow-hidden" 
+    <motion.div
+      ref={widgetContainerRef}
+      className={`
+      fixed z-[999999]
+      flex flex-col overflow-hidden
+      shadow-2xl border
+      bg-card text-card-foreground
+      border-border
+      transition-all duration-300
+    `}
+      style={{
+        bottom: initialPosition.bottom,
+        right: initialPosition.right,
+        width: mode === "iframe" ? openDims.width : `${CARD_WIDTH}px`,
+        height: mode === "iframe" ? openDims.height : `${CARD_HEIGHT}px`,
+        borderRadius: 24,
+      }}
+      initial={{ opacity: 0, scale: 0.9, y: 20 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.9, y: 20 }}
+      transition={{ type: "spring", stiffness: 260, damping: 20 }}
     >
       <ChatHeader onClose={onClose} />
 
-      <ScrollArea 
+      <div
         ref={chatContainerRef}
-        className="flex-1 px-4 pt-4 pb-2 text-card-foreground bg-card"
+        className={`
+          flex-1 flex flex-col gap-3 overflow-y-auto overflow-x-hidden
+          px-4 pt-4 pb-2
+          text-card-foreground
+          bg-card
+        `}
       >
-        <div className="flex flex-col gap-3 min-h-full">
-          {esperandoRubro ? (
-            <div className="text-center w-full">
-              <h2 className="text-green-500 mb-2">👋 ¡Bienvenido!</h2>
-              <div className="text-gray-500 dark:text-gray-300 mb-2">
-                ¿De qué rubro es tu negocio?
+        {esperandoRubro ? (
+          <div className="text-center w-full">
+            <h2 className="text-green-500 mb-2">👋 ¡Bienvenido!</h2>
+            <div className="text-gray-500 dark:text-gray-300 mb-2">
+              ¿De qué rubro es tu negocio?
+            </div>
+            {cargandoRubros ? (
+              <div className="text-gray-400 my-5">Cargando rubros...</div>
+            ) : rubrosDisponibles.length === 0 ? (
+              <div className="text-red-500 my-5">
+                No se pudieron cargar los rubros. <br />
+                <button
+                  onClick={cargarRubros}
+                  className="mt-2 underline text-blue-600 dark:text-blue-400 hover:text-blue-800"
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                  }}
+                >
+                  Reintentar
+                </button>
               </div>
-              {cargandoRubros ? (
-                <div className="text-gray-400 my-5">Cargando rubros...</div>
-              ) : rubrosDisponibles.length === 0 ? (
-                <div className="text-red-500 my-5">
-                  No se pudieron cargar los rubros. <br />
+            ) : (
+              <div className="flex flex-wrap justify-center gap-2">
+                {rubrosDisponibles.map((rubro: any) => (
                   <button
-                    onClick={cargarRubros}
-                    className="mt-2 underline text-blue-600 dark:text-blue-400 hover:text-blue-800"
-                    style={{
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
+                    key={rubro.id}
+                    onClick={() => {
+                      safeLocalStorage.setItem(
+                        "rubroSeleccionado",
+                        rubro.nombre,
+                      );
+                      setRubroSeleccionado(rubro.nombre);
+                      setEsperandoRubro(false);
+                      setMessages([
+                        {
+                          id: Date.now(),
+                          text: `¡Hola! Soy Chatboc, tu asistente para ${rubro.nombre.toLowerCase()}. ¿En qué puedo ayudarte hoy?`,
+                          isBot: true,
+                          timestamp: new Date(),
+                        },
+                      ]);
                     }}
+                    className="px-4 py-2 rounded-2xl font-semibold bg-blue-500 text-white hover:bg-blue-600 transition"
                   >
-                    Reintentar
+                    {rubro.nombre}
                   </button>
-                </div>
-              ) : (
-                <div className="flex flex-wrap justify-center gap-2">
-                  {rubrosDisponibles.map((rubro: any) => (
-                    <button
-                      key={rubro.id}
-                      onClick={() => {
-                        safeLocalStorage.setItem(
-                          "rubroSeleccionado",
-                          rubro.nombre,
-                        );
-                        setRubroSeleccionado(rubro.nombre);
-                        setEsperandoRubro(false);
-                        setMessages([
-                          {
-                            id: Date.now(),
-                            text: `¡Hola! Soy Chatboc, tu asistente para ${rubro.nombre.toLowerCase()}. ¿En qué puedo ayudarte hoy?`,
-                            isBot: true,
-                            timestamp: new Date(),
-                          },
-                        ]);
-                      }}
-                      className="px-4 py-2 rounded-2xl font-semibold bg-blue-500 text-white hover:bg-blue-600 transition"
-                    >
-                      {rubro.nombre}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : esperandoDireccion ? (
-            <div className="flex flex-col items-center py-8 px-2 gap-4">
-              <div className="text-primary text-base font-semibold mb-2">
-                Indicá la dirección exacta (autocompleta con Google)
+                ))}
               </div>
-              <AddressAutocomplete
-                onSelect={(addr) => {
-                  handleSendMessage(addr);
-                  safeLocalStorage.setItem("ultima_direccion", addr);
-                  setDireccionGuardada(addr);
-                  setEsperandoDireccion(false);
-                }}
-                autoFocus
-                value={
-                  direccionGuardada
-                    ? { label: direccionGuardada, value: direccionGuardada }
-                    : undefined
-                }
-                onChange={(opt) =>
-                  setDireccionGuardada(
-                    opt
-                      ? typeof opt.value === "string"
-                        ? opt.value
-                        : (opt.value?.description ?? null)
-                      : null,
-                  )
-                }
-                persistKey="ultima_direccion"
-                placeholder="Ej: Av. Principal 123"
-              />
-              <button
-                onClick={handleShareGps}
-                className="text-primary underline text-sm"
-                type="button"
-              >
-                Compartir ubicación por GPS
-              </button>
-              <div className="text-xs text-muted-foreground mt-2">
-                Escribí y seleccioná tu dirección para continuar el trámite.
-              </div>
+            )}
+          </div>
+        ) : esperandoDireccion ? (
+          <div className="flex flex-col items-center py-8 px-2 gap-4">
+            <div className="text-primary text-base font-semibold mb-2">
+              Indicá la dirección exacta (autocompleta con Google)
             </div>
-          ) : (
-            <>
-              {messages.map(
-                (msg) =>
-                  typeof msg.text === "string" && (
-                    <ChatMessage
-                      key={msg.id}
-                      message={msg}
-                      isTyping={isTyping}
-                      onButtonClick={handleSendMessage}
-                      tipoChat={tipoChatActual}
-                    />
-                  ),
-              )}
-              {isTyping && <TypingIndicator />}
-              {ticketLocation && (
-                <TicketMap ticket={{ ...ticketLocation, tipo: "municipio" }} />
-              )}
-              <div ref={messagesEndRef} />
-              {showCierre && showCierre.show && (
-                <div className="my-3 p-3 rounded-lg bg-green-100 text-green-800 text-center font-bold shadow">
-                  {showCierre.text}
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </ScrollArea>
+            <AddressAutocomplete
+              onSelect={(addr) => {
+                handleSendMessage(addr);
+                safeLocalStorage.setItem("ultima_direccion", addr);
+                setDireccionGuardada(addr);
+                setEsperandoDireccion(false);
+              }}
+              autoFocus
+              value={
+                direccionGuardada
+                  ? { label: direccionGuardada, value: direccionGuardada }
+                  : undefined
+              }
+              onChange={(opt) =>
+                setDireccionGuardada(
+                  opt
+                    ? typeof opt.value === "string"
+                      ? opt.value
+                      : (opt.value?.description ?? null)
+                    : null,
+                )
+              }
+              persistKey="ultima_direccion"
+              placeholder="Ej: Av. Principal 123"
+            />
+            <button
+              onClick={handleShareGps}
+              className="text-primary underline text-sm"
+              type="button"
+            >
+              Compartir ubicación por GPS
+            </button>
+            <div className="text-xs text-muted-foreground mt-2">
+              Escribí y seleccioná tu dirección para continuar el trámite.
+            </div>
+          </div>
+        ) : (
+          <>
+            {messages.map(
+              (msg) =>
+                typeof msg.text === "string" && (
+                  <ChatMessage
+                    key={msg.id}
+                    message={msg}
+                    isTyping={isTyping}
+                    onButtonClick={handleSendMessage}
+                    tipoChat={tipoChatActual}
+                  />
+                ),
+            )}
+            {isTyping && <TypingIndicator />}
+            {ticketLocation && (
+              <TicketMap ticket={{ ...ticketLocation, tipo: "municipio" }} />
+            )}
+            <div ref={messagesEndRef} />
+            {/* Mensaje de cierre SIEMPRE si corresponde */}
+            {showCierre && showCierre.show && (
+              <div className="my-3 p-3 rounded-lg bg-green-100 text-green-800 text-center font-bold shadow">
+                {showCierre.text}
+              </div>
+            )}
+          </>
+        )}
+      </div>
 
       {/* --- INPUT SÓLO SI NO SE ESPERA RUBRO NI DIRECCIÓN NI CIERRE --- */}
       {!esperandoRubro &&
@@ -776,7 +841,7 @@ const ChatPanel = ({
             <ChatInput onSendMessage={handleSendMessage} isTyping={isTyping} />
           </div>
         )}
-    </div>
+    </motion.div>
   );
 };
 
