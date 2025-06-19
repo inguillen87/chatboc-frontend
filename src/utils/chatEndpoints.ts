@@ -2,8 +2,7 @@ export const RUBROS_PUBLICOS = [
   'municipio',
   'municipios',
   'municipalidad',
-  'municipalidades',
-  'municipal',
+
   'gobierno',
   'ciudad',
   'intendente',
@@ -33,7 +32,7 @@ export const esRubroPublico = (
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/_/g, " ")
     .trim();
-  return RUBROS_PUBLICOS.includes(normalized);
+  return RUBROS_PUBLICOS.some((r) => normalized === r || normalized.includes(r));
 };
 
 interface GetEndpointOptions {
