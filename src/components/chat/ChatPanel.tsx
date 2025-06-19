@@ -68,7 +68,6 @@ interface ChatPanelProps {
   onClose?: () => void;
   openWidth?: number;
   openHeight?: number;
-  tipoChat?: "pyme" | "municipio";
 }
 
 const ChatPanel = ({
@@ -83,7 +82,6 @@ const ChatPanel = ({
   openWidth: propOpenWidth,
   openHeight: propOpenHeight,
 }: ChatPanelProps) => {
-  
   const openWidthInitial = propOpenWidth ?? CARD_WIDTH;
   const openHeightInitial = propOpenHeight ?? CARD_HEIGHT;
   const [openWidth, setOpenWidth] = useState<number>(openWidthInitial);
@@ -167,7 +165,6 @@ const ChatPanel = ({
 
   const { user, refreshUser, loading } = useUser();
 
-
   useEffect(() => {
     if (!esAnonimo && (!user || !user.rubro) && !loading) {
       refreshUser();
@@ -178,7 +175,7 @@ const ChatPanel = ({
       ? JSON.parse(safeLocalStorage.getItem("user") || "null")
       : null;
 
-  // ------- AQUÍ ARMÁS EL RUBRO Y EL TIPO DE CHAT FINAL -------
+  // ------ BLOQUE CLAVE: RUBRO Y TIPO DE CHAT ------
   const rubroActual =
     parseRubro(rubroSeleccionado) ||
     parseRubro(user?.rubro) ||
@@ -186,10 +183,9 @@ const ChatPanel = ({
     null;
   const rubroNormalizado = rubroActual;
   const isMunicipioRubro = esRubroPublico(rubroNormalizado || undefined);
-
-    : rubroNormalizado
-      ? "pyme"
-      : getCurrentTipoChat();
+  const tipoChatActual: "pyme" | "municipio" =
+    rubroNormalizado && isMunicipioRubro ? "municipio" : "pyme";
+  // -----------------------------------------------
 
   const fetchTicket = useCallback(async () => {
     if (!activeTicketId) return;
@@ -304,7 +300,6 @@ const ChatPanel = ({
                   skipAuth: !finalAuthToken,
                 },
               );
-              // Actualizar información del ticket con las nuevas coordenadas
               fetchTicket();
             } catch (e) {
               console.error("Error al enviar ubicación", e);
@@ -496,24 +491,24 @@ const ChatPanel = ({
               ? { Authorization: `Bearer ${finalAuthToken}` }
               : {};
             const anonQuery = esAnonimo ? `?anon_id=${anonId}` : "";
-              await apiFetch(
-                `/tickets/chat/${activeTicketId}/ubicacion${anonQuery}`,
-                {
-                  method: "PUT",
-                  headers: authHeaders,
-                  body: { direccion: text },
-                  skipAuth: !finalAuthToken,
-                },
-              );
-              await apiFetch(
-                `/tickets/municipio/${activeTicketId}/ubicacion${anonQuery}`,
-                {
-                  method: "PUT",
-                  headers: authHeaders,
-                  body: { direccion: text },
-                  skipAuth: !finalAuthToken,
-                },
-              );
+            await apiFetch(
+              `/tickets/chat/${activeTicketId}/ubicacion${anonQuery}`,
+              {
+                method: "PUT",
+                headers: authHeaders,
+                body: { direccion: text },
+                skipAuth: !finalAuthToken,
+              },
+            );
+            await apiFetch(
+              `/tickets/municipio/${activeTicketId}/ubicacion${anonQuery}`,
+              {
+                method: "PUT",
+                headers: authHeaders,
+                body: { direccion: text },
+                skipAuth: !finalAuthToken,
+              },
+            );
             fetchTicket();
           } catch (e) {
             console.error("Error al enviar dirección", e);
@@ -547,22 +542,22 @@ const ChatPanel = ({
             },
           );
         } else {
-          const rubroParaEndpoint = rubroNormalizado;
-          const adjustedTipo: "pyme" | "municipio" = isMunicipioRubro ? "municipio" : "pyme";
-          const endpoint = getAskEndpoint({ tipoChat: adjustedTipo, rubro: rubroParaEndpoint || undefined });
+          const endpoint = getAskEndpoint({
+            tipoChat: tipoChatActual,
+            rubro: rubroNormalizado || undefined,
+          });
           const payload: Record<string, any> = {
             pregunta: text,
             contexto_previo: contexto,
           };
-
-          const esPublico = esRubroPublico(rubroParaEndpoint || undefined);
+          const esPublico = esRubroPublico(rubroNormalizado || undefined);
           console.log(
             "Voy a pedir a endpoint:",
             endpoint,
             "rubro:",
-            rubroParaEndpoint,
+            rubroNormalizado,
             "tipoChat:",
-            adjustedTipo,
+            tipoChatActual,
             "esPublico:",
             esPublico,
           );
@@ -626,6 +621,8 @@ const ChatPanel = ({
       activeTicketId,
       esperandoDireccion,
       anonId,
+      rubroNormalizado,
+      tipoChatActual,
     ],
   );
 
@@ -723,7 +720,7 @@ const ChatPanel = ({
               </div>
             ) : (
               <div className="flex flex-wrap justify-center gap-2">
-                {rubrosDisponibles.map((rubro) => (
+                {rubrosDisponibles.map((rubro: any) => (
                   <button
                     key={rubro.id}
                     onClick={() => {
