@@ -258,7 +258,7 @@ const ChatPanel = ({
           console.error("Error al enviar ubicación", e);
         }
       },
-      () => {
+      (error) => {
         setForzarDireccion(true);
         setEsperandoDireccion(true);
         setMessages((prev) => [
@@ -318,7 +318,7 @@ const ChatPanel = ({
               console.error("Error al enviar ubicación", e);
             }
           },
-          () => {
+          (error) => {
             setForzarDireccion(true);
             setEsperandoDireccion(true);
             setMessages((prev) => [
