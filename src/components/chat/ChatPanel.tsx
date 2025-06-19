@@ -96,9 +96,7 @@ const ChatPanel = ({
 
   useEffect(() => {
     const stored = safeLocalStorage.getItem("ultima_direccion");
-    if (stored) {
-      setDireccionGuardada(stored);
-    }
+    if (stored) setDireccionGuardada(stored);
   }, []);
 
   const getAuthTokenFromLocalStorage = () =>
@@ -114,14 +112,7 @@ const ChatPanel = ({
       refreshUser();
     }
   }, [esAnonimo, user, refreshUser, loading]);
-  const storedUser =
-    typeof window !== "undefined" ? JSON.parse(safeLocalStorage.getItem("user") || "null") : null;
 
-  const rubroActual =
-    parseRubro(rubroSeleccionado) ||
-    parseRubro(user?.rubro) ||
-    parseRubro(storedUser?.rubro) ||
-    null;
   const rubroNormalizado = rubroActual;
   const isMunicipioRubro = esRubroPublico(rubroNormalizado || undefined);
   const tipoChatActual: "pyme" | "municipio" = rubroNormalizado && isMunicipioRubro ? "municipio" : "pyme";
@@ -162,20 +153,7 @@ const ChatPanel = ({
         const coords = { latitud: pos.coords.latitude, longitud: pos.coords.longitude };
         try {
           const authHeaders = finalAuthToken ? { Authorization: `Bearer ${finalAuthToken}` } : {};
-          await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, {
-            method: "PUT",
-            headers: authHeaders,
-            body: coords,
-            skipAuth: !finalAuthToken,
-            sendAnonId: esAnonimo,
-          });
-          await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, {
-            method: "PUT",
-            headers: authHeaders,
-            body: coords,
-            skipAuth: !finalAuthToken,
-            sendAnonId: esAnonimo,
-          });
+
           setForzarDireccion(false);
           fetchTicket();
         } catch (e) {
@@ -189,13 +167,11 @@ const ChatPanel = ({
           ...prev,
           { id: Date.now(), text: "No pudimos acceder a tu ubicación por GPS. Ingresá la dirección manualmente para continuar.", isBot: true, timestamp: new Date() },
         ]);
-      },
+      }
     );
   }, [activeTicketId, fetchTicket, esAnonimo, onRequireAuth, finalAuthToken]);
 
-  useEffect(() => {
-    fetchTicket();
-  }, [activeTicketId, fetchTicket]);
+  useEffect(() => { fetchTicket(); }, [activeTicketId, fetchTicket]);
 
   useEffect(() => {
     if (!activeTicketId) return;
@@ -210,20 +186,7 @@ const ChatPanel = ({
             const coords = { latitud: pos.coords.latitude, longitud: pos.coords.longitude };
             try {
               const authHeaders = finalAuthToken ? { Authorization: `Bearer ${finalAuthToken}` } : {};
-              await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, {
-                method: "PUT",
-                headers: authHeaders,
-                body: coords,
-                skipAuth: !finalAuthToken,
-                sendAnonId: esAnonimo,
-              });
-              await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, {
-                method: "PUT",
-                headers: authHeaders,
-                body: coords,
-                skipAuth: !finalAuthToken,
-                sendAnonId: esAnonimo,
-              });
+
               fetchTicket();
             } catch (e) {
               console.error("Error al enviar ubicación", e);
@@ -236,7 +199,7 @@ const ChatPanel = ({
               ...prev,
               { id: Date.now(), text: "No pudimos acceder a tu ubicación por GPS. Ingresá la dirección manualmente para continuar.", isBot: true, timestamp: new Date() },
             ]);
-          },
+          }
         );
       } catch {
         setForzarDireccion(true);
@@ -251,12 +214,7 @@ const ChatPanel = ({
     if (!lastBotMsg) return false;
     const contenido = typeof lastBotMsg.text === "string" ? lastBotMsg.text.toLowerCase() : "";
     if (FRASES_DIRECCION.some((frase) => contenido.includes(frase))) return true;
-    if (
-      contexto &&
-      contexto.contexto_municipio &&
-      (contexto.contexto_municipio.estado_conversacion === "ESPERANDO_DIRECCION_RECLAMO" || contexto.contexto_municipio.estado_conversacion === 4)
-    )
-      return true;
+
     return false;
   }
 
@@ -300,17 +258,7 @@ const ChatPanel = ({
     const fetchAllMessages = async () => {
       try {
         const authHeaders = finalAuthToken ? { Authorization: `Bearer ${finalAuthToken}` } : {};
-        const data = await apiFetch<{ estado_chat: string; mensajes: any[] }>(
-          `/tickets/chat/${activeTicketId}/mensajes`,
-          { headers: authHeaders, sendAnonId: esAnonimo },
-        );
-        if (data.mensajes) {
-          const nuevosMensajes: Message[] = data.mensajes.map((msg) => ({
-            id: msg.id,
-            text: msg.texto,
-            isBot: msg.es_admin,
-            timestamp: new Date(msg.fecha),
-          }));
+
           setMessages(nuevosMensajes);
           if (data.mensajes.length > 0) ultimoMensajeIdRef.current = data.mensajes[data.mensajes.length - 1].id;
         }
@@ -329,9 +277,7 @@ const ChatPanel = ({
     };
     fetchAllMessages();
     intervalId = setInterval(fetchAllMessages, 10000);
-    return () => {
-      if (intervalId) clearInterval(intervalId);
-    };
+
   }, [activeTicketId, esAnonimo, anonId, finalAuthToken, pollingErrorShown, fetchTicket]);
 
   const handleSendMessage = useCallback(
@@ -359,20 +305,7 @@ const ChatPanel = ({
         if (activeTicketId) {
           try {
             const authHeaders = finalAuthToken ? { Authorization: `Bearer ${finalAuthToken}` } : {};
-            await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, {
-              method: "PUT",
-              headers: authHeaders,
-              body: { direccion: text },
-              skipAuth: !finalAuthToken,
-              sendAnonId: esAnonimo,
-            });
-            await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, {
-              method: "PUT",
-              headers: authHeaders,
-              body: { direccion: text },
-              skipAuth: !finalAuthToken,
-              sendAnonId: esAnonimo,
-            });
+
             fetchTicket();
           } catch (e) {
             console.error("Error al enviar dirección", e);
@@ -386,71 +319,31 @@ const ChatPanel = ({
       try {
         if (activeTicketId) {
           const authHeaders = finalAuthToken ? { Authorization: `Bearer ${finalAuthToken}` } : {};
-          await apiFetch(`/tickets/chat/${activeTicketId}/responder_ciudadano`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", ...authHeaders },
-            body: { comentario: text },
-            skipAuth: !finalAuthToken,
-            sendAnonId: esAnonimo,
-          });
-        } else {
-          const endpoint = getAskEndpoint({ tipoChat: tipoChatActual, rubro: rubroNormalizado || undefined });
-          const payload: Record<string, any> = { pregunta: text, contexto_previo: contexto };
-          const data = await apiFetch(endpoint, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", ...(finalAuthToken ? { Authorization: `Bearer ${finalAuthToken}` } : {}) },
-            body: payload,
-            skipAuth: !finalAuthToken,
-          });
+
           setContexto(data.contexto_actualizado || {});
           const { text: respuestaText, botones } = parseChatResponse(data);
           setMessages((prev) => [...prev, { id: Date.now(), text: respuestaText || "No pude procesar tu solicitud.", isBot: true, timestamp: new Date(), botones }]);
           if (esAnonimo && mode === "standalone") setPreguntasUsadas((prev) => prev + 1);
           if (data.ticket_id) {
-            if (esAnonimo) {
-              onRequireAuth && onRequireAuth();
-            } else {
-              setActiveTicketId(data.ticket_id);
-              ultimoMensajeIdRef.current = 0;
-            }
+            if (esAnonimo) onRequireAuth && onRequireAuth();
+            else { setActiveTicketId(data.ticket_id); ultimoMensajeIdRef.current = 0; }
           }
         }
       } catch (error: any) {
         let errorMsg = "⚠️ No se pudo conectar con el servidor.";
-        if (error?.body?.error) errorMsg = error.body.error;
-        else if (error?.message) errorMsg = error.message;
+
         setMessages((prev) => [...prev, { id: Date.now(), text: errorMsg, isBot: true, timestamp: new Date() }]);
       } finally {
         setIsTyping(false);
       }
-    },
-    [
-      contexto,
-      rubroSeleccionado,
-      preguntasUsadas,
-      esAnonimo,
-      mode,
-      finalAuthToken,
-      activeTicketId,
-      esperandoDireccion,
-      anonId,
-      rubroNormalizado,
-      tipoChatActual,
-      fetchTicket,
-      onRequireAuth,
-      loading,
-    ],
-  );
+
 
   useEffect(() => {
     if (esAnonimo && mode === "standalone" && !rubroSeleccionado) {
-      setEsperandoRubro(true);
-      cargarRubros();
+      setEsperandoRubro(true); cargarRubros();
     } else if (!esAnonimo || rubroSeleccionado) {
       setEsperandoRubro(false);
-      if (messages.length === 0) {
-        setMessages([{ id: Date.now(), text: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?", isBot: true, timestamp: new Date() }]);
-      }
+
     }
   }, [esAnonimo, mode, rubroSeleccionado, messages.length]);
 
@@ -479,11 +372,7 @@ const ChatPanel = ({
               ) : rubrosDisponibles.length === 0 ? (
                 <div className="text-red-500 my-5">
                   No se pudieron cargar los rubros. <br />
-                  <button
-                    onClick={cargarRubros}
-                    className="mt-2 underline text-blue-600 dark:text-blue-400 hover:text-blue-800"
-                    style={{ background: "none", border: "none", cursor: "pointer" }}
-                  >
+
                     Reintentar
                   </button>
                 </div>
@@ -522,26 +411,12 @@ const ChatPanel = ({
                 persistKey="ultima_direccion"
                 placeholder="Ej: Av. Principal 123"
               />
-              <button onClick={handleShareGps} className="text-primary underline text-sm" type="button">
-                Compartir ubicación por GPS
-              </button>
+
               <div className="text-xs text-muted-foreground mt-2">Escribí y seleccioná tu dirección para continuar el trámite.</div>
             </div>
           ) : (
             <>
-              {messages.map((msg) =>
-                typeof msg.text === "string" ? (
-                  <ChatMessage key={msg.id} message={msg} isTyping={isTyping} onButtonClick={handleSendMessage} tipoChat={tipoChatActual} />
-                ) : null,
-              )}
-              {isTyping && <TypingIndicator />}
-              {ticketLocation && <TicketMap ticket={{ ...ticketLocation, tipo: "municipio" }} />}
-              <div ref={messagesEndRef} />
-              {showCierre && showCierre.show && (
-                <div className="my-3 p-3 rounded-lg bg-green-100 text-green-800 text-center font-bold shadow">
-                  {showCierre.text}
-                </div>
-              )}
+
             </>
           )}
         </div>
