@@ -5,6 +5,9 @@ export const RUBROS_PUBLICOS = [
   'ciudad',
   'intendente',
   'administracion publica',
+  'municipalidad',
+  'ayuntamiento',
+  'gobierno municipal',
   'ong',
   'hospital publico',
   'entidad publica',
@@ -26,9 +29,13 @@ export const esRubroPublico = (
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/_/g, " ")
+    .replace(/[_-]/g, " ")
+    .replace(/\s+/g, " ")
     .trim();
-  return RUBROS_PUBLICOS.includes(normalized);
+  return RUBROS_PUBLICOS.some(
+    (publico) =>
+      normalized === publico || normalized.startsWith(`${publico} `),
+  );
 };
 
 interface GetEndpointOptions {
