@@ -28,11 +28,11 @@ export const esRubroPublico = (
   if (!rubroStr) return false;
   const normalized = rubroStr
     .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/_/g, " ")
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/_/g, ' ')
     .trim();
-  return RUBROS_PUBLICOS.some((r) => normalized === r || normalized.includes(r));
+
 };
 
 interface GetEndpointOptions {
