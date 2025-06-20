@@ -14,8 +14,8 @@
     }
 
     const token = script.getAttribute("data-token") || "demo-anon";
-    const initialBottom = script.getAttribute("data-bottom") || "24px";
-    const initialRight = script.getAttribute("data-right") || "24px";
+    const initialBottom = script.getAttribute("data-bottom") || "32px";
+    const initialRight = script.getAttribute("data-right") || "32px";
     const defaultOpen = script.getAttribute("data-default-open") === "true";
     const theme = script.getAttribute("data-theme") || "";
     const endpointAttr = script.getAttribute("data-endpoint") || "pyme";
@@ -45,8 +45,8 @@
     widgetContainer.id = "chatboc-widget-container-" + iframeId;
     Object.assign(widgetContainer.style, {
       position: "fixed",
-      bottom: initialBottom,
-      right: initialRight,
+      bottom: `calc(${initialBottom} + env(safe-area-inset-bottom))`,
+      right: `calc(${initialRight} + env(safe-area-inset-right))`,
       width: currentDims.width,
       height: currentDims.height,
       zIndex: zIndexBase.toString(),
@@ -65,9 +65,16 @@
     loader.id = "chatboc-loader-" + iframeId;
     Object.assign(loader.style, {
       position: "absolute",
-      top: "0", left: "0", width: "100%", height: "100%",
-      display: "flex", alignItems: "center", justifyContent: "center",
-      background: "white", zIndex: "2", pointerEvents: "none"
+      top: "0",
+      left: "0",
+      width: "100%",
+      height: "100%",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      background: "var(--background, #f8fafc)",
+      zIndex: "2",
+      pointerEvents: "none"
     });
     loader.innerHTML = `<img src="${chatbocDomain}/favicon/favicon-48x48.png" alt="Chatboc" style="width:48px;height:48px;"/>`;
     widgetContainer.appendChild(loader);
@@ -96,7 +103,7 @@
     const loadTimeout = setTimeout(() => {
       if (!iframeHasLoaded) {
         loader.innerHTML = '<div style="font-family: Arial, sans-serif; color: #777; font-size:12px; text-align:center;">Servicio no disponible</div>';
-        loader.style.backgroundColor = "lightgray";
+        loader.style.backgroundColor = "var(--background, #f8fafc)";
       }
     }, 10000);
 
@@ -112,7 +119,7 @@
       iframeHasLoaded = true;
       clearTimeout(loadTimeout);
       loader.innerHTML = '<div style="font-family: Arial, sans-serif; color: #777; font-size:12px; text-align:center;">Servicio no disponible</div>';
-      loader.style.backgroundColor = "lightgray";
+      loader.style.backgroundColor = "var(--background, #f8fafc)";
       iframe.style.display = "none";
     };
 
@@ -127,6 +134,10 @@
         Object.assign(widgetContainer.style, {
           width: currentDims.width,
           height: currentDims.height,
+          bottom: `calc(${initialBottom} + env(safe-area-inset-bottom))`,
+          right: `calc(${initialRight} + env(safe-area-inset-right))`,
+          left: "",
+          top: "",
         });
       }
     });
