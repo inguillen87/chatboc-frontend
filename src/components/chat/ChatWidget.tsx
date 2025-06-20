@@ -76,17 +76,16 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const bubbleSize = isMobile ? "64px" : closedWidth;
 
   return (
-    <div className="z-[999999]">
+    <div className="relative w-full h-full flex flex-col items-end justify-end z-[999999]">
       {/* Chat abierto */}
       <Suspense fallback={null}>
         <motion.div
           className={cn(
             "chatboc-panel-wrapper",
-            "fixed",
-            "bottom-6 right-6",
-            "bg-card border shadow-2xl rounded-2xl",
+            "absolute bottom-0 right-0",
+            "bg-card border shadow-2xl rounded-lg",
             "flex flex-col overflow-hidden",
-            "transition-all duration-300",
+            "transform transition-all duration-300 ease-in-out",
             isOpen
               ? "opacity-100 scale-100 pointer-events-auto"
               : "opacity-0 scale-95 pointer-events-none"
@@ -97,7 +96,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             minWidth: "300px",
             maxWidth: "98vw",
             maxHeight: "98vh",
-            zIndex: 999999
+            zIndex: 999999,
+            borderRadius: "16px"
           }}
           initial={{ opacity: 0, scale: 0.9, y: 20 }}
           animate={isOpen ? { opacity: 1, scale: 1, y: 0 } : { opacity: 0, scale: 0.9, y: 20 }}
@@ -129,16 +129,17 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         <Button
           className={cn(
             "chatboc-toggle-button",
-            "fixed bottom-6 right-6",
+            "absolute bottom-0 right-0",
             "rounded-full flex items-center justify-center",
             "bg-primary text-primary-foreground hover:bg-primary/90",
-            "shadow-lg transition-all duration-300",
+            "shadow-lg transition-all duration-300 ease-in-out",
             isOpen ? "opacity-0 scale-0 pointer-events-none" : "opacity-100 scale-100 pointer-events-auto"
           )}
           style={{
             width: bubbleSize,
             height: bubbleSize,
-            zIndex: 999999
+            zIndex: 999999,
+            background: "var(--primary)"
           }}
           onClick={toggleChat}
           aria-label={isOpen ? "Cerrar chat" : "Abrir chat"}
