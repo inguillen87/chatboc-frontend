@@ -10,10 +10,10 @@ const Iframe = () => {
     token: null as string | null,
     initialIframeWidth: null as string | null,
     initialIframeHeight: null as string | null,
-    openWidth: "370px" as string | null,
-    openHeight: "540px" as string | null,
-    closedWidth: "88px" as string | null,
-    closedHeight: "88px" as string | null,
+    openWidth: null as string | null,
+    openHeight: null as string | null,
+    closedWidth: null as string | null,
+    closedHeight: null as string | null,
     theme: "light",
   });
 
@@ -25,10 +25,10 @@ const Iframe = () => {
       const tokenParam = params.get("token");
       const initialWidthParam = params.get("initialWidth");
       const initialHeightParam = params.get("initialHeight");
-      const openWidthParam = params.get("openWidth") || "370px";
-      const openHeightParam = params.get("openHeight") || "540px";
-      const closedWidthParam = params.get("closedWidth") || "88px";
-      const closedHeightParam = params.get("closedHeight") || "88px";
+      const openWidthParam = params.get("openWidth");
+      const openHeightParam = params.get("openHeight");
+      const closedWidthParam = params.get("closedWidth");
+      const closedHeightParam = params.get("closedHeight");
       const themeParam = params.get("theme");
 
       setWidgetParams({
