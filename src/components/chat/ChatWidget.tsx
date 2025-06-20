@@ -16,10 +16,10 @@ interface ChatWidgetProps {
   defaultOpen?: boolean;
   widgetId?: string;
   authToken?: string;
-  openWidth?: string;
-  openHeight?: string;
-  closedWidth?: string;
-  closedHeight?: string;
+  openWidth?: string | null;
+  openHeight?: string | null;
+  closedWidth?: string | null;
+  closedHeight?: string | null;
   tipoChat?: "pyme" | "municipio";
 }
 
@@ -28,12 +28,16 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   defaultOpen = false,
   widgetId = "chatboc-widget-iframe",
   authToken,
-  openWidth = "370px",
-  openHeight = "540px",
-  closedWidth = "88px",
-  closedHeight = "88px",
+  openWidth: propOpenWidth = "370px",
+  openHeight: propOpenHeight = "540px",
+  closedWidth: propClosedWidth = "88px",
+  closedHeight: propClosedHeight = "88px",
   tipoChat = getCurrentTipoChat(),
 }) => {
+  const openWidth = propOpenWidth ?? "370px";
+  const openHeight = propOpenHeight ?? "540px";
+  const closedWidth = propClosedWidth ?? "88px";
+  const closedHeight = propClosedHeight ?? "88px";
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [view, setView] = useState<'chat' | 'register'>('chat');
 
