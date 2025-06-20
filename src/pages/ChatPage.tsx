@@ -1,8 +1,7 @@
-// src/pages/ChatPage.tsx
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Message } from "@/types/chat";
 import ChatMessage from "@/components/chat/ChatMessage";
-import { getCurrentTipoChat, enforceTipoChatForRubro, parseRubro as parseRubroUtil } from "@/utils/tipoChat"; // Renombrar parseRubro para evitar conflicto
+import { getCurrentTipoChat, enforceTipoChatForRubro, parseRubro as parseRubroUtil } from "@/utils/tipoChat";
 import ChatInput from "@/components/chat/ChatInput";
 import TypingIndicator from "@/components/chat/TypingIndicator";
 import Navbar from "@/components/layout/Navbar";
@@ -14,7 +13,7 @@ import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateAnonId from "@/utils/anonId";
 import TicketMap from "@/components/TicketMap";
 import { useUser } from "@/hooks/useUser";
-import { toast } from "@/components/ui/use-toast"; // Asegúrate de tener toast
+import { toast } from "@/components/ui/use-toast";
 
 // Frases para detectar pedido de dirección
 const FRASES_DIRECCION = [
@@ -631,7 +630,7 @@ const ChatPage = () => {
     };
   }, [activeTicketId, fetchTicketInfo, isAnonimo]); // Añadir isAnonimo a dependencias
 
-  return (
+   return (
     <div className="min-h-screen flex flex-col bg-background dark:bg-gradient-to-b dark:from-[#0d1014] dark:to-[#161b22] text-foreground">
       <Navbar />
 
@@ -688,15 +687,15 @@ const ChatPage = () => {
                     message={msg}
                     isTyping={isTyping}
                     onButtonClick={handleSend}
-                    tipoChat={adjustedTipoForEndpoint} // Usar el tipo de chat ajustado para ChatMessage
+                    tipoChat={adjustedTipoForEndpoint}
                   />
                 </motion.div>
               ))}
             </AnimatePresence>
             {isTyping && <TypingIndicator />}
-            {ticketInfo && <TicketMap ticket={{ ...ticketInfo, tipo: 'municipio' }} />}
+            {/* Solo muestra el mapa si la ubicación es válida */}
+            {isTicketLocationValid && <TicketMap ticket={{ ...ticketInfo, tipo: 'municipio' }} />}
             <div ref={chatEndRef} />
-            {/* Mensaje de cierre SIEMPRE si corresponde */}
             {showCierre && showCierre.show && (
               <div className="my-3 p-3 rounded-lg bg-green-100 text-green-800 text-center font-bold shadow">
                 {showCierre.text}
@@ -704,7 +703,7 @@ const ChatPage = () => {
             )}
           </div>
 
-          {/* Autocomplete o Input según el estado */}
+          {/* Input o Autocomplete según corresponda */}
           <div
             className={`
               bg-gradient-to-t from-background via-card/60 to-transparent dark:from-card dark:via-card/80
@@ -720,7 +719,7 @@ const ChatPage = () => {
             {esperandoDireccion ? (
               <div>
                 <AddressAutocomplete
-                  onSelect={(addr) => handleSend(addr)}
+                  onSelect={handleSend}
                   autoFocus
                   placeholder="Ej: Av. Principal 123"
                   value={
@@ -734,7 +733,7 @@ const ChatPage = () => {
                         ? typeof opt.value === "string"
                           ? opt.value
                           : opt.value?.description ?? null
-                        : null,
+                        : null
                     )
                   }
                   persistKey="ultima_direccion"
