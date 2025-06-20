@@ -341,12 +341,11 @@ const tipoChatActual: "pyme" | "municipio" =
               safeLocalStorage.setItem(PENDING_TICKET_KEY, String(data.ticket_id));
               onRequireAuth && onRequireAuth();
             } else {
-              setActiveTicketId(Number(data.ticket_id)); // <- SIEMPRE forzalo a number
+              setActiveTicketId(data.ticket_id);
               ultimoMensajeIdRef.current = 0;
             }
           }
-
-          }
+        }
       } catch (error: any) {
         let errorMsg = "⚠️ No se pudo conectar con el servidor.";
         if (error?.body?.error) errorMsg = error.body.error;
