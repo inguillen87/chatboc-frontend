@@ -83,10 +83,10 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
           className={cn(
             "chatboc-panel-wrapper",
             "fixed z-[999999]",
-            "bg-card border shadow-2xl rounded-2xl",
+            "bg-card border shadow-2xl rounded-3xl",
             "flex flex-col overflow-hidden",
             "transition-all duration-300",
-            isOpen ? "opacity-100 scale-100 pointer-events-auto" : "opacity-0 scale-95 pointer-events-none"
+            isOpen ? "opacity-100 scale-100 pointer-events-auto" : "opacity-0 scale-90 pointer-events-none"
           )}
           style={{
             bottom: initialPosition.bottom,
@@ -96,11 +96,11 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             minWidth: "280px",
             maxWidth: "98vw",
             maxHeight: "98vh",
-            borderRadius: "16px",
+            borderRadius: "24px",
           }}
-          initial={{ opacity: 0, scale: 0.9, y: 20 }}
-          animate={isOpen ? { opacity: 1, scale: 1, y: 0 } : { opacity: 0, scale: 0.9, y: 20 }}
-          exit={{ opacity: 0, scale: 0.9, y: 20 }}
+          initial={{ opacity: 0, scale: 0.6, y: 30 }}
+          animate={isOpen ? { opacity: 1, scale: 1, y: 0 } : { opacity: 0, scale: 0.6, y: 30 }}
+          exit={{ opacity: 0, scale: 0.6, y: 30 }}
           transition={{ type: "spring", stiffness: 260, damping: 20 }}
         >
           {isOpen && (
@@ -147,9 +147,14 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         >
           {isOpen ? <X className="h-8 w-8" /> : <MessageCircle className="h-8 w-8" />}
           {!isOpen && (
-            <span className="animate-bounce">
-              <ChatbocLogoAnimated size={parseInt(bubbleSize.toString(), 10) * 0.7} />
-            </span>
+            <motion.span
+              animate={{ y: [0, -10, 0] }}
+              transition={{ repeat: Infinity, duration: 0.8, repeatDelay: 4 }}
+            >
+              <ChatbocLogoAnimated
+                size={parseInt(bubbleSize.toString(), 10) * 0.7}
+              />
+            </motion.span>
           )}
         </Button>
       </Suspense>
