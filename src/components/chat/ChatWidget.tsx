@@ -45,24 +45,33 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   // Responsive único: todo controlado desde acá
   const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
-  const widgetWidth = isOpen
-    ? mode === "iframe"
-      ? openWidth
-      : isMobile
-      ? "96vw"
-      : openWidth
-    : isMobile && mode !== "iframe"
-    ? "64px"
-    : closedWidth;
-  const widgetHeight = isOpen
-    ? mode === "iframe"
-      ? openHeight
-      : isMobile
-      ? "96vh"
-      : openHeight
-    : isMobile && mode !== "iframe"
-    ? "64px"
-    : closedHeight;
+
+  const computeWidth = (open: boolean) =>
+    open
+      ? mode === "iframe"
+        ? finalOpenWidth
+        : isMobile
+        ? "96vw"
+        : finalOpenWidth
+      : isMobile && mode !== "iframe"
+      ? "64px"
+      : finalClosedWidth;
+
+  const computeHeight = (open: boolean) =>
+    open
+      ? mode === "iframe"
+        ? finalOpenHeight
+        : isMobile
+        ? "96vh"
+        : finalOpenHeight
+      : isMobile && mode !== "iframe"
+      ? "64px"
+      : finalClosedHeight;
+
+  const widgetWidth = computeWidth(isOpen);
+  const widgetHeight = computeHeight(isOpen);
+  const initialWidgetWidth = computeWidth(defaultOpen);
+  const initialWidgetHeight = computeHeight(defaultOpen);
 
   // Comando para avisar a parent (NO TOCAR)
   const sendStateMessageToParent = useCallback(
@@ -124,20 +133,33 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                   bottom: `calc(${initialPosition.bottom}px + env(safe-area-inset-bottom))`,
                   right: `calc(${initialPosition.right}px + env(safe-area-inset-right))`,
                 }),
-            width: widgetWidth,
-            height: widgetHeight,
-            minWidth: "320px",
-            minHeight: "64px",
+            minWidth: isOpen ? "320px" : closedWidth,
+            minHeight: isOpen ? "64px" : closedHeight,
             maxWidth: "98vw",
             maxHeight: "98vh",
+            transformOrigin: mode === "iframe" ? "center" : "bottom right",
+          }}
+          initial={{
+            width: initialWidgetWidth,
+            height: initialWidgetHeight,
+            borderRadius: defaultOpen ? "24px" : "50%",
+            opacity: defaultOpen ? 1 : 0,
+            scale: defaultOpen ? 1 : 0.7,
+          }}
+          animate={{
+            width: widgetWidth,
+            height: widgetHeight,
             borderRadius: isOpen ? "24px" : "50%",
             opacity: isOpen ? 1 : 0,
             scale: isOpen ? 1 : 0.85,
-            transformOrigin: mode === "iframe" ? "center" : "bottom right",
           }}
-          initial={{ opacity: 0, scale: 0.7 }}
-          animate={isOpen ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.7 }}
-          exit={{ opacity: 0, scale: 0.7 }}
+          exit={{
+            opacity: 0,
+            scale: 0.7,
+            width: finalClosedWidth,
+            height: finalClosedHeight,
+            borderRadius: "50%",
+          }}
           transition={{ type: "spring", stiffness: 260, damping: 20 }}
         >
           {isOpen && (
