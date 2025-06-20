@@ -38,9 +38,14 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [view, setView] = useState<'chat' | 'register'>('chat');
 
-  // Adaptabilidad real: mobile, iframe, script, etc
   const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
 
+  const finalOpenWidth = openWidth || "370px";
+  const finalOpenHeight = openHeight || "540px";
+  const finalClosedWidth = closedWidth || "88px";
+  const finalClosedHeight = closedHeight || "88px";
+
+  // Sizing helpers
   const computeWidth = (open: boolean) =>
     open
       ? mode === "iframe"
@@ -68,7 +73,23 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const initialWidgetWidth = computeWidth(defaultOpen);
   const initialWidgetHeight = computeHeight(defaultOpen);
 
+  // Posicionamiento para el botón flotante fuera de iframe
+  const buttonPosition =
+    mode === "iframe"
+      ? {
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%, -50%)",
+        }
+      : {
+          position: "fixed" as const,
+          bottom: `calc(${initialPosition.bottom}px + env(safe-area-inset-bottom))`,
+          right: `calc(${initialPosition.right}px + env(safe-area-inset-right))`,
+          left: "auto",
+          top: "auto",
+        };
 
+  // Permite avisar a parent (iframe) para redimensionar si hace falta
   const sendStateMessageToParent = useCallback(
     (open: boolean) => {
       if (
@@ -79,14 +100,14 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       ) {
         const dims = open
           ? { width: widgetWidth, height: widgetHeight }
-          : { width: closedWidth, height: closedHeight };
+          : { width: finalClosedWidth, height: finalClosedHeight };
         window.parent.postMessage(
           { type: "chatboc-state-change", widgetId, dimensions: dims, isOpen: open },
           "*"
         );
       }
     },
-    [mode, widgetId, widgetWidth, widgetHeight, closedWidth, closedHeight]
+    [mode, widgetId, widgetWidth, widgetHeight, finalClosedWidth, finalClosedHeight]
   );
 
   useEffect(() => {
@@ -112,9 +133,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     }
   }, [entityToken]);
 
-  // --- STYLES y estructura ---
   return (
-    <div style={{ zIndex: 999999, position: "relative" }}>
+    <div>
       <Suspense fallback={null}>
         <motion.div
           className={cn(
@@ -122,6 +142,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             "bg-card border shadow-2xl",
             "flex flex-col overflow-hidden",
             "transition-all duration-300",
+            "fixed z-[999999]",
             isOpen ? "pointer-events-auto" : "pointer-events-none"
           )}
           style={{
@@ -134,11 +155,19 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
               : {
                   bottom: `calc(${initialPosition.bottom}px + env(safe-area-inset-bottom))`,
                   right: `calc(${initialPosition.right}px + env(safe-area-inset-right))`,
+                  left: "auto",
+                  top: "auto",
+                  transform: "none",
                 }),
-            minWidth: isOpen ? "320px" : closedWidth,
-            minHeight: isOpen ? "64px" : closedHeight,
+            width: widgetWidth,
+            height: widgetHeight,
+            minWidth: isOpen ? "320px" : finalClosedWidth,
+            minHeight: isOpen ? "64px" : finalClosedHeight,
             maxWidth: "98vw",
             maxHeight: "98vh",
+            borderRadius: isOpen ? "24px" : "50%",
+            opacity: isOpen ? 1 : 0,
+            scale: isOpen ? 1 : 0.85,
             transformOrigin: mode === "iframe" ? "center" : "bottom right",
           }}
           initial={{
@@ -184,7 +213,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             </>
           )}
         </motion.div>
-
         {/* Botón flotante */}
         {!isOpen && (
           <Button
@@ -193,17 +221,17 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
               "rounded-full flex items-center justify-center",
               "bg-primary text-primary-foreground hover:bg-primary/90",
               "shadow-lg transition-all duration-300",
-              "opacity-100 scale-100 pointer-events-auto"
+              "opacity-100 scale-100 pointer-events-auto",
+              "fixed z-[999999]"
             )}
             style={{
-              ...mainPosition,
-              width: closedWidth,
-              height: closedHeight,
+              ...buttonPosition,
+              width: finalClosedWidth,
+              height: finalClosedHeight,
               borderRadius: "50%",
               background: "var(--primary, #2260ff)",
-              minWidth: isMobile ? "60px" : closedWidth,
-              minHeight: isMobile ? "60px" : closedHeight,
-              zIndex: 999999,
+              minWidth: isMobile ? "60px" : finalClosedWidth,
+              minHeight: isMobile ? "60px" : finalClosedHeight,
             }}
             onClick={toggleChat}
             aria-label="Abrir chat"
@@ -213,7 +241,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
               transition={{ repeat: Infinity, duration: 0.8, repeatDelay: 4 }}
             >
               <ChatbocLogoAnimated
-                size={parseInt((isMobile ? "60" : closedWidth).toString(), 10) * 0.7}
+                size={parseInt((isMobile ? "60" : finalClosedWidth).toString(), 10) * 0.7}
                 blinking
               />
             </motion.span>
