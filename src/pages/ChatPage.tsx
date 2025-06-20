@@ -629,6 +629,14 @@ const ChatPage = () => {
       }
     };
   }, [activeTicketId, fetchTicketInfo, isAnonimo]); // Añadir isAnonimo a dependencias
+  
+  const isTicketLocationValid =
+  !!ticketInfo &&
+  typeof ticketInfo.latitud === "number" &&
+  typeof ticketInfo.longitud === "number" &&
+  !isNaN(ticketInfo.latitud) &&
+  !isNaN(ticketInfo.longitud) &&
+  currentEffectiveChatType === "municipio";
 
    return (
     <div className="min-h-screen flex flex-col bg-background dark:bg-gradient-to-b dark:from-[#0d1014] dark:to-[#161b22] text-foreground">
