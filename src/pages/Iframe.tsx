@@ -50,56 +50,26 @@ const Iframe = () => {
     theme: "light",
     tipoChat: "pyme" as "pyme" | "municipio",
   });
-  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
       // Parámetros por URL
       const params = new URLSearchParams(window.location.search);
-      const openParam = params.get("defaultOpen");
-      const idParam = params.get("widgetId");
-      const tokenParam = params.get("token");
-      const initialWidthParam = params.get("initialWidth");
-      const initialHeightParam = params.get("initialHeight");
-      const openWidthParam = params.get("openWidth");
-      const openHeightParam = params.get("openHeight");
-      const closedWidthParam = params.get("closedWidth");
-      const closedHeightParam = params.get("closedHeight");
-      const themeParam = params.get("theme");
-      const tipoChatParam = params.get("tipo_chat");
-
       setWidgetParams({
-        defaultOpen: openParam === "true",
-        widgetId: idParam || "chatboc-iframe-unknown",
-        token: tokenParam,
-        initialIframeWidth: initialWidthParam,
-        initialIframeHeight: initialHeightParam,
-        openWidth: openWidthParam,
-        openHeight: openHeightParam,
-        closedWidth: closedWidthParam,
-        closedHeight: closedHeightParam,
-        theme: themeParam === "dark" || themeParam === "light" ? themeParam : "light",
-        tipoChat: tipoChatParam === "municipio" ? "municipio" : "pyme",
+        defaultOpen: params.get("defaultOpen") === "true",
+        widgetId: params.get("widgetId") || "chatboc-iframe-unknown",
+        token: params.get("token"),
+        initialIframeWidth: params.get("initialWidth"),
+        initialIframeHeight: params.get("initialHeight"),
+        openWidth: params.get("openWidth"),
+        openHeight: params.get("openHeight"),
+        closedWidth: params.get("closedWidth"),
+        closedHeight: params.get("closedHeight"),
+        theme: ["dark", "light"].includes(params.get("theme") || "") ? params.get("theme")! : "light",
+        tipoChat: params.get("tipo_chat") === "municipio" ? "municipio" : "pyme",
       });
 
-      // ---- Tema: dark/light forzado para el iframe ----
-      if (themeParam === "dark" || themeParam === "light") {
-        document.documentElement.classList.remove("dark", "light");
-        document.documentElement.classList.add(themeParam);
-        safeLocalStorage.setItem("theme", themeParam);
-      } else {
-        const storedTheme = safeLocalStorage.getItem("theme");
-        if (storedTheme === "dark" || storedTheme === "light") {
-          document.documentElement.classList.remove("dark", "light");
-          document.documentElement.classList.add(storedTheme);
-        } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
-          document.documentElement.classList.add("dark");
-        } else {
-          document.documentElement.classList.remove("dark");
-        }
-      }
-
-      // ---- Fijamos todos los estilos base del iframe (sin scrolls, ni barras ni padding) ----
+      // Forzar estilos base SÓLIDOS para aislar el widget (esto es CLAVE)
       document.documentElement.style.background = "var(--background, #f8fafc)";
       document.body.style.background = "var(--background, #f8fafc)";
       document.body.style.margin = "0";
@@ -113,11 +83,10 @@ const Iframe = () => {
       // Safe area para iPhone notch
       document.body.style.paddingTop = "env(safe-area-inset-top)";
       document.body.style.paddingBottom = "env(safe-area-inset-bottom)";
-      setReady(true);
     }
   }, []);
 
-  // ---- Loader mientras no hay token (o no parseó la url) ----
+  // Loader mientras no hay token
   if (!widgetParams.token) return <Loader />;
 
   return (
@@ -126,6 +95,9 @@ const Iframe = () => {
         width: "100vw",
         height: "100vh",
         minHeight: "320px",
+        minWidth: "320px",
+        maxWidth: "100vw",
+        maxHeight: "100vh",
         background: "var(--background, #f8fafc)",
         margin: 0,
         padding: 0,
@@ -134,8 +106,9 @@ const Iframe = () => {
         alignItems: "center",
         justifyContent: "center",
         position: "relative",
+        boxSizing: "border-box"
       }}
-      className="relative"
+      className="w-screen h-screen min-h-[320px] min-w-[320px] bg-card m-0 p-0 overflow-hidden flex items-center justify-center relative"
     >
       <ChatWidget
         mode="iframe"

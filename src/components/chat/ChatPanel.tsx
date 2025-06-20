@@ -378,9 +378,9 @@ const tipoChatActual: "pyme" | "municipio" =
   }, [messages, isTyping, ticketLocation]);
 
  return (
-    <div className="flex flex-col w-full h-full bg-card text-card-foreground overflow-hidden rounded-3xl">
-      <ScrollArea ref={chatContainerRef} className="flex-1 p-4 min-h-0">
-        <div className="flex flex-col gap-3 min-h-full">
+  <div className="flex flex-col w-full h-full min-w-0 min-h-0 bg-card text-card-foreground overflow-hidden rounded-3xl">
+    <ScrollArea ref={chatContainerRef} className="flex-1 p-4 min-h-0 min-w-0">
+      <div className="flex flex-col gap-3 min-h-full min-w-0">
           {/* Selección de rubro */}
           {esperandoRubro ? (
             <div className="text-center w-full">
@@ -439,9 +439,9 @@ const tipoChatActual: "pyme" | "municipio" =
         </div>
       </ScrollArea>
       {/* Input abajo: solo cuando corresponde */}
-      {!esperandoRubro && !esperandoDireccion && (!showCierre || !showCierre.show) && (
-        <div className="bg-card px-3 py-2 border-t">
-          <ChatInput onSendMessage={handleSendMessage} isTyping={isTyping} />
+       {!esperandoRubro && !esperandoDireccion && (!showCierre || !showCierre.show) && (
+      <div className="bg-card px-3 py-2 border-t min-w-0">
+        <ChatInput onSendMessage={handleSendMessage} isTyping={isTyping} />
         </div>
       )}
     </div>
