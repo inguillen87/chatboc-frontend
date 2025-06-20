@@ -88,9 +88,19 @@ const ChatPanel = ({
     if (stored) setDireccionGuardada(stored);
   }, []);
 
-  const getAuthTokenFromLocalStorage = () => (typeof window === "undefined" ? null : safeLocalStorage.getItem("authToken"));
+  const getAuthTokenFromLocalStorage = () =>
+    typeof window === "undefined" ? null : safeLocalStorage.getItem("authToken");
   const anonId = getOrCreateAnonId();
-  const finalAuthToken = mode === "iframe" ? propAuthToken : getAuthTokenFromLocalStorage();
+  const finalAuthToken =
+    mode === "iframe" ? propAuthToken : getAuthTokenFromLocalStorage();
+
+  // Cuando el widget se carga dentro de un iframe externo, aseguramos
+  // que el token se persista para que `useUser` pueda obtener el perfil.
+  useEffect(() => {
+    if (mode === "iframe" && propAuthToken) {
+      safeLocalStorage.setItem("authToken", propAuthToken);
+    }
+  }, [mode, propAuthToken]);
   const esAnonimo = !finalAuthToken;
   const { user, refreshUser, loading } = useUser();
 
