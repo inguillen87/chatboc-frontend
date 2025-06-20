@@ -54,7 +54,9 @@
       padding: "0",
       margin: "0",
       background: "transparent",
-      boxSizing: "border-box"
+      boxSizing: "border-box",
+      fontFamily: "Arial, sans-serif",
+      fontSize: "14px"
     });
     if (!document.getElementById(widgetContainer.id)) {
       document.body.appendChild(widgetContainer);
