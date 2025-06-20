@@ -64,23 +64,38 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   const toggleChat = () => setIsOpen(!isOpen);
 
+  // Responsive: adapta tamaños en mobile
+  const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
+  const widgetWidth = isMobile ? "98vw" : openWidth;
+  const widgetHeight = isMobile ? "80vh" : openHeight;
+  const bubbleSize = isMobile ? "64px" : closedWidth;
+
   return (
-    <div className={cn("relative w-full h-full", "flex flex-col items-end justify-end")}> 
+    <div className="z-[999999]">
       <Suspense fallback={null}>
+        {/* Chat abierto */}
         <motion.div
           className={cn(
             "chatboc-panel-wrapper",
-            "absolute bottom-0 right-0",
+            "fixed bottom-6 right-6", // <- LO ÚNICO FUNDAMENTAL para que nunca se rompa
             "bg-card border shadow-2xl rounded-lg",
             "flex flex-col overflow-hidden",
             "transform transition-all duration-300 ease-in-out",
             isOpen ? "opacity-100 scale-100 pointer-events-auto" : "opacity-0 scale-95 pointer-events-none"
           )}
+          style={{
+            width: widgetWidth,
+            height: widgetHeight,
+            minWidth: "300px",
+            maxWidth: "98vw",
+            maxHeight: "98vh",
+            zIndex: 999999,
+            borderRadius: "16px"
+          }}
           initial={{ opacity: 0, scale: 0.9, y: 20 }}
           animate={isOpen ? { opacity: 1, scale: 1, y: 0 } : { opacity: 0, scale: 0.9, y: 20 }}
           exit={{ opacity: 0, scale: 0.9, y: 20 }}
-          transition={{ type: "spring", stiffness: 260, damping: 20 }}
-          style={{ width: openWidth, height: openHeight, borderRadius: "16px" }}
+          transition={{ type: "spring", stiffness: 240, damping: 18 }}
         >
           {isOpen && (
             <>
@@ -103,10 +118,11 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
           )}
         </motion.div>
 
+        {/* Botón flotante con burbuja animada */}
         <Button
           className={cn(
             "chatboc-toggle-button",
-            "absolute bottom-0 right-0",
+            "fixed bottom-6 right-6",
             "rounded-full flex items-center justify-center",
             "bg-primary text-primary-foreground hover:bg-primary/90",
             "shadow-lg transition-all duration-300 ease-in-out",
@@ -114,12 +130,12 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
           )}
           onClick={toggleChat}
           aria-label={isOpen ? "Cerrar chat" : "Abrir chat"}
-          style={{ width: closedWidth, height: closedHeight, background: 'var(--primary)' }}
+          style={{ width: bubbleSize, height: bubbleSize, background: 'var(--primary)', zIndex: 999999 }}
         >
           {isOpen ? <X className="h-8 w-8" /> : <MessageCircle className="h-8 w-8" />}
           {!isOpen && (
             <span className="animate-bounce">
-              <ChatbocLogoAnimated size={parseInt(closedWidth, 10) * 0.7} />
+              <ChatbocLogoAnimated size={parseInt(bubbleSize as string, 10) * 0.7} />
             </span>
           )}
         </Button>
