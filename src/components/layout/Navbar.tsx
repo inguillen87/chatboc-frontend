@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import ChatbocLogoAnimated from "../chat/ChatbocLogoAnimated";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { Link as RouterLink, useLocation } from "react-router-dom";
 import { Menu, X, Moon, Sun } from "lucide-react";
@@ -61,7 +62,7 @@ const Navbar: React.FC = () => {
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         {/* Logo */}
         <button onClick={handleLogoClick} className="flex items-center gap-2">
-          <img src="/chatboc_widget_64x64.webp" alt="Chatboc" className="h-9 w-9" />
+          <ChatbocLogoAnimated size={36} blinking />
           <span className="text-2xl font-bold bg-gradient-to-r from-blue-700 to-cyan-400 text-transparent bg-clip-text">
             Chatboc
           </span>

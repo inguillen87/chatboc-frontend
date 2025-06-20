@@ -33,15 +33,31 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   closedWidth = "88px",
   closedHeight = "88px",
   tipoChat = getCurrentTipoChat(),
-  initialPosition = { bottom: 30, right: 30 },
+  initialPosition = { bottom: 32, right: 32 },
 }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [view, setView] = useState<'chat' | 'register'>('chat');
 
   // Responsive único: todo controlado desde acá
   const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
-  const widgetWidth = isOpen ? (isMobile ? "98vw" : openWidth) : (isMobile ? "64px" : closedWidth);
-  const widgetHeight = isOpen ? (isMobile ? "80vh" : openHeight) : (isMobile ? "64px" : closedHeight);
+  const widgetWidth = isOpen
+    ? mode === "iframe"
+      ? openWidth
+      : isMobile
+      ? "96vw"
+      : openWidth
+    : isMobile && mode !== "iframe"
+    ? "64px"
+    : closedWidth;
+  const widgetHeight = isOpen
+    ? mode === "iframe"
+      ? openHeight
+      : isMobile
+      ? "96vh"
+      : openHeight
+    : isMobile && mode !== "iframe"
+    ? "64px"
+    : closedHeight;
 
   // Comando para avisar a parent (NO TOCAR)
   const sendStateMessageToParent = useCallback(
@@ -93,8 +109,16 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             isOpen ? "pointer-events-auto" : "pointer-events-none"
           )}
           style={{
-            bottom: initialPosition.bottom,
-            right: initialPosition.right,
+            ...(mode === "iframe"
+              ? {
+                  top: "50%",
+                  left: "50%",
+                  transform: "translate(-50%, -50%)",
+                }
+              : {
+                  bottom: `calc(${initialPosition.bottom}px + env(safe-area-inset-bottom))`,
+                  right: `calc(${initialPosition.right}px + env(safe-area-inset-right))`,
+                }),
             width: widgetWidth,
             height: widgetHeight,
             minWidth: "220px",
@@ -104,10 +128,11 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             borderRadius: isOpen ? "24px" : "50%",
             opacity: isOpen ? 1 : 0,
             scale: isOpen ? 1 : 0.85,
+            transformOrigin: mode === "iframe" ? "center" : "bottom right",
           }}
-          initial={{ opacity: 0, scale: 0.7, y: 30 }}
-          animate={isOpen ? { opacity: 1, scale: 1, y: 0 } : { opacity: 0, scale: 0.7, y: 30 }}
-          exit={{ opacity: 0, scale: 0.7, y: 30 }}
+          initial={{ opacity: 0, scale: 0.7 }}
+          animate={isOpen ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.7 }}
+          exit={{ opacity: 0, scale: 0.7 }}
           transition={{ type: "spring", stiffness: 260, damping: 20 }}
         >
           {isOpen && (
@@ -143,8 +168,16 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
               "opacity-100 scale-100 pointer-events-auto"
             )}
             style={{
-              bottom: initialPosition.bottom,
-              right: initialPosition.right,
+              ...(mode === "iframe"
+                ? {
+                    top: "50%",
+                    left: "50%",
+                    transform: "translate(-50%, -50%)",
+                  }
+                : {
+                    bottom: `calc(${initialPosition.bottom}px + env(safe-area-inset-bottom))`,
+                    right: `calc(${initialPosition.right}px + env(safe-area-inset-right))`,
+                  }),
               width: closedWidth,
               height: closedHeight,
               borderRadius: "50%",
@@ -159,7 +192,10 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
               animate={{ y: [0, -10, 0] }}
               transition={{ repeat: Infinity, duration: 0.8, repeatDelay: 4 }}
             >
-              <ChatbocLogoAnimated size={parseInt((isMobile ? "64" : closedWidth).toString(), 10) * 0.7} />
+              <ChatbocLogoAnimated
+                size={parseInt((isMobile ? "64" : closedWidth).toString(), 10) * 0.7}
+                blinking
+              />
             </motion.span>
           </Button>
         )}
