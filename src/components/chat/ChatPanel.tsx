@@ -123,7 +123,10 @@ const ChatPanel = ({
   const rubroActual = parseRubro(rubroSeleccionado) || parseRubro(user?.rubro) || parseRubro(storedUser?.rubro) || null;
   const rubroNormalizado = rubroActual;
   const isMunicipioRubro = esRubroPublico(rubroNormalizado || undefined);
-  const tipoChatActual: "pyme" | "municipio" = rubroNormalizado && isMunicipioRubro ? "municipio" : "pyme";
+const tipoChatActual: "pyme" | "municipio" =
+  (tipoChat && (tipoChat === "municipio" || tipoChat === "pyme"))
+    ? tipoChat
+    : (rubroNormalizado && isMunicipioRubro ? "municipio" : "pyme");
 
   const fetchTicket = useCallback(async () => {
     if (!activeTicketId) return;
