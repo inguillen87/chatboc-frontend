@@ -70,10 +70,45 @@ const Integracion = () => {
 
   const endpoint = user.tipo_chat === "municipio" ? "municipio" : "pyme";
 
-  const codeScript = `<script>(function(){var s=document.createElement('script');s.src='https://www.chatboc.ar/widget.js';s.async=true;s.setAttribute('data-token','${user.token}');s.setAttribute('data-endpoint','${endpoint}');s.setAttribute('data-default-open','false');s.setAttribute('data-width','${WIDGET_STD_WIDTH}');s.setAttribute('data-height','${WIDGET_STD_HEIGHT}');s.setAttribute('data-closed-width','${WIDGET_STD_CLOSED_WIDTH}');s.setAttribute('data-closed-height','${WIDGET_STD_CLOSED_HEIGHT}');s.setAttribute('data-bottom','32px');s.setAttribute('data-right','32px');s.setAttribute('data-z','999999');document.head.appendChild(s);})();</script>`;
+  const codeScript = `<script>
+  (function () {
+    var s = document.createElement('script');
+    s.src = 'https://www.chatboc.ar/widget.js';
+    s.async = true;
+    s.setAttribute('data-token', '${user.token}');
+    s.setAttribute('data-endpoint', '${endpoint}');
+    s.setAttribute('data-default-open', 'false');
+    s.setAttribute('data-width', '${WIDGET_STD_WIDTH}');
+    s.setAttribute('data-height', '${WIDGET_STD_HEIGHT}');
+    s.setAttribute('data-closed-width', '${WIDGET_STD_CLOSED_WIDTH}');
+    s.setAttribute('data-closed-height', '${WIDGET_STD_CLOSED_HEIGHT}');
+    s.setAttribute('data-bottom', '32px');
+    s.setAttribute('data-right', '32px');
+    s.setAttribute('data-z', '999999');
+    document.head.appendChild(s);
+  })();
+</script>`;
 
   const url = `https://www.chatboc.ar/iframe?token=${user.token}&defaultOpen=true&openWidth=${WIDGET_STD_WIDTH}&openHeight=${WIDGET_STD_HEIGHT}&closedWidth=${WIDGET_STD_CLOSED_WIDTH}&closedHeight=${WIDGET_STD_CLOSED_HEIGHT}&tipo_chat=${endpoint}`;
-  const codeIframe = `<iframe id="chatboc-iframe" src="${url}" style="position:fixed;bottom:32px;right:32px;border:none;border-radius:16px;z-index:999999;box-shadow:0 4px 32px rgba(0,0,0,0.2);background:transparent;overflow:hidden;width:${WIDGET_STD_WIDTH}!important;height:${WIDGET_STD_HEIGHT}!important;display:block" allow="clipboard-write" loading="lazy"></iframe><script>(function(){var f=document.getElementById('chatboc-iframe');window.addEventListener('message',function(e){if(e.data&&e.data.type==='chatboc-state-change'){f.style.width=e.data.dimensions.width;f.style.height=e.data.dimensions.height;f.style.borderRadius=e.data.isOpen?'16px':'50%';}});})();</script>`;
+  const codeIframe = `<iframe
+    id="chatboc-iframe"
+    src="${url}"
+    style="position:fixed;bottom:32px;right:32px;border:none;border-radius:16px;z-index:999999;box-shadow:0 4px 32px rgba(0,0,0,0.2);background:transparent;overflow:hidden;width:${WIDGET_STD_WIDTH}!important;height:${WIDGET_STD_HEIGHT}!important;display:block"
+    allow="clipboard-write"
+    loading="lazy"
+  ></iframe>
+  <script>
+    (function () {
+      var f = document.getElementById('chatboc-iframe');
+      window.addEventListener('message', function (e) {
+        if (e.data && e.data.type === 'chatboc-state-change') {
+          f.style.width = e.data.dimensions.width;
+          f.style.height = e.data.dimensions.height;
+          f.style.borderRadius = e.data.isOpen ? '16px' : '50%';
+        }
+      });
+    })();
+  </script>`;
 
   const copiarCodigo = async (tipo: "iframe" | "script") => {
     try {
@@ -108,6 +143,9 @@ const Integracion = () => {
           {copiado === 'iframe' ? '¡Copiado!' : '📋 Copiar código iframe'}
         </Button>
       </div>
+      <p className="text-xs text-muted-foreground mb-6">
+        Estas configuraciones se aplican dentro del widget y no modifican el CSS de tu sitio ni de la burbuja flotante.
+      </p>
       <div className="bg-muted text-muted-foreground p-4 rounded mb-8 text-xs border border-border">
         <b>¿No ves el widget?</b> Verificá que el código esté bien pegado, y que tu tienda permita iframes/scripts.<br />
         Si usás Tiendanube: pegalo en “Editar Código Avanzado” o consultá a soporte.<br />
