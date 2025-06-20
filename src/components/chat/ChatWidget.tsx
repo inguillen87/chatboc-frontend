@@ -127,10 +127,11 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             borderRadius: isOpen ? "24px" : "50%",
             opacity: isOpen ? 1 : 0,
             scale: isOpen ? 1 : 0.85,
+            transformOrigin: "bottom right",
           }}
-          initial={{ opacity: 0, scale: 0.7, y: 30 }}
-          animate={isOpen ? { opacity: 1, scale: 1, y: 0 } : { opacity: 0, scale: 0.7, y: 30 }}
-          exit={{ opacity: 0, scale: 0.7, y: 30 }}
+          initial={{ opacity: 0, scale: 0.7 }}
+          animate={isOpen ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.7 }}
+          exit={{ opacity: 0, scale: 0.7 }}
           transition={{ type: "spring", stiffness: 260, damping: 20 }}
         >
           {isOpen && (
