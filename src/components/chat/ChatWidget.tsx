@@ -5,9 +5,9 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { MessageCircle, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import ChatHeader from "./ChatHeader";
 
 const ChatRegisterPanel = React.lazy(() => import("./ChatRegisterPanel"));
-import ChatHeader from "./ChatHeader";
 const ChatPanel = React.lazy(() => import("./ChatPanel"));
 
 interface ChatWidgetProps {
@@ -25,7 +25,6 @@ interface ChatWidgetProps {
 
 const ChatWidget: React.FC<ChatWidgetProps> = ({
   mode = "standalone",
-  initialPosition = { bottom: 30, right: 30 },
   defaultOpen = false,
   widgetId = "chatboc-widget-iframe",
   authToken,
@@ -38,6 +37,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [view, setView] = useState<'chat' | 'register'>('chat');
 
+  // Notifica al parent cuando cambia el estado si está en iframe
   const sendStateMessageToParent = useCallback(
     (open: boolean) => {
       if (mode === "iframe" && typeof window !== "undefined" && window.parent !== window && widgetId) {
@@ -65,23 +65,40 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   const toggleChat = () => setIsOpen(!isOpen);
 
+  // Lógica para mobile: usa 98vw y 80vh en pantallas chicas
+  const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
+  const widgetWidth = isMobile ? "98vw" : openWidth;
+  const widgetHeight = isMobile ? "80vh" : openHeight;
+  const bubbleSize = isMobile ? "64px" : closedWidth;
+
   return (
-    <div className={cn("relative w-full h-full", "flex flex-col items-end justify-end")}> 
+    <div className="z-[999999]">
+      {/* Chat abierto */}
       <Suspense fallback={null}>
         <motion.div
           className={cn(
             "chatboc-panel-wrapper",
-            "absolute bottom-0 right-0",
-            "bg-card border shadow-2xl rounded-lg",
+            "fixed",
+            "bottom-6 right-6",
+            "bg-card border shadow-2xl rounded-2xl",
             "flex flex-col overflow-hidden",
-            "transform transition-all duration-300 ease-in-out",
-            isOpen ? "opacity-100 scale-100 pointer-events-auto" : "opacity-0 scale-95 pointer-events-none"
+            "transition-all duration-300",
+            isOpen
+              ? "opacity-100 scale-100 pointer-events-auto"
+              : "opacity-0 scale-95 pointer-events-none"
           )}
+          style={{
+            width: widgetWidth,
+            height: widgetHeight,
+            minWidth: "300px",
+            maxWidth: "98vw",
+            maxHeight: "98vh",
+            zIndex: 999999
+          }}
           initial={{ opacity: 0, scale: 0.9, y: 20 }}
           animate={isOpen ? { opacity: 1, scale: 1, y: 0 } : { opacity: 0, scale: 0.9, y: 20 }}
           exit={{ opacity: 0, scale: 0.9, y: 20 }}
           transition={{ type: "spring", stiffness: 260, damping: 20 }}
-          style={{ width: openWidth, height: openHeight, borderRadius: "16px" }}
         >
           {isOpen && (
             <>
@@ -104,21 +121,26 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
           )}
         </motion.div>
 
+        {/* Botón flotante */}
         <Button
           className={cn(
             "chatboc-toggle-button",
-            "absolute bottom-0 right-0",
+            "fixed bottom-6 right-6",
             "rounded-full flex items-center justify-center",
             "bg-primary text-primary-foreground hover:bg-primary/90",
-            "shadow-lg transition-all duration-300 ease-in-out",
+            "shadow-lg transition-all duration-300",
             isOpen ? "opacity-0 scale-0 pointer-events-none" : "opacity-100 scale-100 pointer-events-auto"
           )}
+          style={{
+            width: bubbleSize,
+            height: bubbleSize,
+            zIndex: 999999
+          }}
           onClick={toggleChat}
           aria-label={isOpen ? "Cerrar chat" : "Abrir chat"}
-          style={{ width: closedWidth, height: closedHeight, background: 'var(--primary)' }}
         >
           {isOpen ? <X className="h-8 w-8" /> : <MessageCircle className="h-8 w-8" />}
-          {!isOpen && <ChatbocLogoAnimated size={parseInt(closedWidth, 10) * 0.7} />}
+          {!isOpen && <ChatbocLogoAnimated size={parseInt(bubbleSize, 10) * 0.7} />}
         </Button>
       </Suspense>
     </div>
