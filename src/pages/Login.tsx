@@ -81,7 +81,7 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-[calc(100vh-80px)] flex items-center justify-center px-4 bg-background text-foreground">
+    <div className="min-h-[calc(100vh-80px)] flex items-center justify-center px-4 bg-gradient-to-br from-background via-card to-muted text-foreground">
       <div className="w-full max-w-md bg-card p-8 rounded-xl shadow-xl border border-border">
         <h2 className="text-2xl font-bold mb-6 text-center text-foreground">
           Iniciar Sesión
@@ -90,7 +90,11 @@ const Login = () => {
           <Input type="email" placeholder="Correo electrónico" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={isLoading} className="bg-input border-input text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/50" />
           <Input type="password" placeholder="Contraseña" value={password} onChange={(e) => setPassword(e.target.value)} required disabled={isLoading} className="bg-input border-input text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/50" />
           {error && <p className="text-destructive text-sm text-center">{error}</p>}
-          <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" disabled={isLoading}>
+          <Button
+            type="submit"
+            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-2.5 text-base"
+            disabled={isLoading}
+          >
             {isLoading ? "Ingresando..." : "Iniciar Sesión"}
           </Button>
         </form>
