@@ -42,13 +42,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
   const widgetWidth = isOpen ? (isMobile ? "96vw" : openWidth) : (isMobile ? "64px" : closedWidth);
   const widgetHeight = isOpen ? (isMobile ? "96vh" : openHeight) : (isMobile ? "64px" : closedHeight);
-<<<<<<< kbh1a8-codex/corregir-problemas-de-posicionamiento-del-widget-y-iframe
   const standaloneIframe =
     mode === "iframe" && typeof window !== "undefined" && window.parent === window;
-=======
-  const embeddedIframe =
-    mode === "iframe" && typeof window !== "undefined" && window.parent !== window;
->>>>>>> main
 
   // Comando para avisar a parent (NO TOCAR)
   const sendStateMessageToParent = useCallback(
@@ -100,21 +95,20 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             isOpen ? "pointer-events-auto" : "pointer-events-none"
           )}
           style={{
-<<<<<<< kbh1a8-codex/corregir-problemas-de-posicionamiento-del-widget-y-iframe
+
             bottom: standaloneIframe ? undefined : `calc(${initialPosition.bottom}px + env(safe-area-inset-bottom))`,
             right: standaloneIframe ? undefined : `calc(${initialPosition.right}px + env(safe-area-inset-right))`,
             top: standaloneIframe ? "50%" : undefined,
             left: standaloneIframe ? "50%" : undefined,
             transform: standaloneIframe ? "translate(-50%, -50%)" : undefined,
             transformOrigin: standaloneIframe ? "center" : "bottom right",
-=======
+
             bottom: embeddedIframe ? undefined : `calc(${initialPosition.bottom}px + env(safe-area-inset-bottom))`,
             right: embeddedIframe ? undefined : `calc(${initialPosition.right}px + env(safe-area-inset-right))`,
             top: embeddedIframe ? "50%" : undefined,
             left: embeddedIframe ? "50%" : undefined,
             transform: embeddedIframe ? "translate(-50%, -50%)" : undefined,
             transformOrigin: embeddedIframe ? "center" : "bottom right",
->>>>>>> main
             background: "var(--background, #f8fafc)",
             width: widgetWidth,
             height: widgetHeight,
