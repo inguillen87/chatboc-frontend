@@ -292,6 +292,7 @@ const ChatPanel = ({
         }
       }
       setShowCierre(null);
+
       const userMessage = { id: Date.now(), text, isBot: false, timestamp: new Date() };
       setMessages((prev) => [...prev, userMessage]);
       setIsTyping(true);
