@@ -1,4 +1,6 @@
-import React, { useEffect, useState } from "react";
+// src/pages/Integracion.tsx (VERSIÓN FINAL Y COMPLETA)
+
+import React, { useEffect, useState } from "react"; 
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -10,6 +12,7 @@ interface User {
   email: string;
   token: string;
   plan?: string;
+  tipo_chat?: "pyme" | "municipio"; 
 }
 
 const Integracion = () => {
@@ -34,25 +37,33 @@ const Integracion = () => {
   useEffect(() => {
     const authToken = safeLocalStorage.getItem("authToken");
     const storedUser = safeLocalStorage.getItem("user");
-    let parsedUser: Omit<User, "token"> | null = null;
+    let parsedUser: Omit<User, 'token'> | null = null;
 
     try {
       parsedUser = storedUser ? JSON.parse(storedUser) : null;
-    } catch {
+    } catch (err) {
       safeLocalStorage.removeItem("user");
     }
+
     if (!authToken || !parsedUser || !parsedUser.id) {
       navigate("/login");
       return;
     }
 
-    const fullUser: User = { ...parsedUser, token: authToken, plan: parsedUser.plan || "free" };
+    const fullUser: User = {
+      ...parsedUser,
+      token: authToken,
+      plan: parsedUser.plan || "free"
+    };
     setUser(fullUser);
+
     validarAcceso(fullUser);
   }, [navigate]);
 
   useEffect(() => {
-    if (user) validarAcceso(user);
+    if (user) {
+      validarAcceso(user);
+    }
   }, [user]);
 
   if (!user) {
@@ -63,52 +74,26 @@ const Integracion = () => {
     );
   }
 
+  // Definir las dimensiones estándar del widget para los códigos de copia
   const WIDGET_STD_WIDTH = "370px";
   const WIDGET_STD_HEIGHT = "540px";
-  const WIDGET_STD_CLOSED_WIDTH = "88px";
-  const WIDGET_STD_CLOSED_HEIGHT = "88px";
+  const WIDGET_STD_CLOSED_WIDTH = "88px"; 
+  const WIDGET_STD_CLOSED_HEIGHT = "88px"; 
+  const WIDGET_STD_BOTTOM = "20px"; 
+  const WIDGET_STD_RIGHT = "20px"; 
 
-  const endpoint = user.tipo_chat === "municipio" ? "municipio" : "pyme";
+  // Asegúrate de que user.tipo_chat existe y es 'municipio' o 'pyme'
+  const endpoint = (user.tipo_chat === "municipio" ? "municipio" : "pyme");
 
-  const codeScript = `<script>
-  (function () {
-    var s = document.createElement('script');
-    s.src = 'https://www.chatboc.ar/widget.js';
-    s.async = true;
-    s.setAttribute('data-token', '${user.token}');
-    s.setAttribute('data-endpoint', '${endpoint}');
-    s.setAttribute('data-default-open', 'false');
-    s.setAttribute('data-width', '${WIDGET_STD_WIDTH}');
-    s.setAttribute('data-height', '${WIDGET_STD_HEIGHT}');
-    s.setAttribute('data-closed-width', '${WIDGET_STD_CLOSED_WIDTH}');
-    s.setAttribute('data-closed-height', '${WIDGET_STD_CLOSED_HEIGHT}');
-    s.setAttribute('data-bottom', '32px');
-    s.setAttribute('data-right', '32px');
-    s.setAttribute('data-z', '999999');
-    document.head.appendChild(s);
-  })();
-</script>`;
-
+  // codeScript ahora incluye todos los data-atributos para la configuración
+  const codeScript = `<script>(function(){var s=document.createElement('script');s.src='https://www.chatboc.ar/widget.js';s.async=true;s.setAttribute('data-token','${user.token}');s.setAttribute('data-default-open','false');s.setAttribute('data-width','${WIDGET_STD_WIDTH}');s.setAttribute('data-height','${WIDGET_STD_HEIGHT}');s.setAttribute('data-closed-width','${WIDGET_STD_CLOSED_WIDTH}');s.setAttribute('data-closed-height','${WIDGET_STD_CLOSED_HEIGHT}');s.setAttribute('data-bottom','${WIDGET_STD_BOTTOM}');s.setAttribute('data-right','${WIDGET_STD_RIGHT}');s.setAttribute('data-tipo-chat','${endpoint}');document.head.appendChild(s);})();</script>`;
+  
+  // codeIframe vuelve a ser un iframe directo (como lo tenías),
+  // pero la URL src incluye todos los data-atributos para que el iframe interno los reciba,
+  // y el style del iframe ahora usa 16px para el border-radius cuando está abierto.
   const url = `https://www.chatboc.ar/iframe?token=${user.token}&defaultOpen=true&openWidth=${WIDGET_STD_WIDTH}&openHeight=${WIDGET_STD_HEIGHT}&closedWidth=${WIDGET_STD_CLOSED_WIDTH}&closedHeight=${WIDGET_STD_CLOSED_HEIGHT}&tipo_chat=${endpoint}`;
-  const codeIframe = `<iframe
-    id="chatboc-iframe"
-    src="${url}"
-    style="position:fixed;bottom:32px;right:32px;border:none;border-radius:16px;z-index:999999;box-shadow:0 4px 32px rgba(0,0,0,0.2);background:transparent;overflow:hidden;width:${WIDGET_STD_WIDTH}!important;height:${WIDGET_STD_HEIGHT}!important;display:block"
-    allow="clipboard-write"
-    loading="lazy"
-  ></iframe>
-  <script>
-    (function () {
-      var f = document.getElementById('chatboc-iframe');
-      window.addEventListener('message', function (e) {
-        if (e.data && e.data.type === 'chatboc-state-change') {
-          f.style.width = e.data.dimensions.width;
-          f.style.height = e.data.dimensions.height;
-          f.style.borderRadius = e.data.isOpen ? '16px' : '50%';
-        }
-      });
-    })();
-  </script>`;
+  const codeIframe = `<iframe id="chatboc-iframe" src="${url}" style="position:fixed;bottom:24px;right:24px;border:none;border-radius:16px;z-index:9999;box-shadow:0 4px 32px rgba(0,0,0,0.2);background:transparent;overflow:hidden;width:${WIDGET_STD_WIDTH}!important;height:${WIDGET_STD_HEIGHT}!important;display:block" allow="clipboard-write" loading="lazy"></iframe><script>(function(){var f=document.getElementById('chatboc-iframe');window.addEventListener('message',function(e){if(e.data&&e.data.type==='chatboc-state-change'){f.style.width=e.data.dimensions.width;f.style.height=e.data.dimensions.height;f.style.borderRadius=e.data.isOpen?'16px':'50%';}});})();</script>`;
+
 
   const copiarCodigo = async (tipo: "iframe" | "script") => {
     try {
@@ -116,7 +101,7 @@ const Integracion = () => {
       setCopiado(tipo);
       setTimeout(() => setCopiado(null), 2000);
       toast.success("✅ Código copiado al portapapeles");
-    } catch {
+    } catch (e) {
       window.prompt("Copiá el código manualmente:", tipo === "iframe" ? codeIframe : codeScript);
       toast.error("❌ No se pudo copiar automáticamente.");
     }
@@ -125,40 +110,68 @@ const Integracion = () => {
   return (
     <div className="p-8 max-w-2xl mx-auto bg-background text-foreground">
       <h1 className="text-3xl font-bold mb-6 text-primary">🧩 Integración del Chatbot Chatboc</h1>
+
       <p className="mb-4 text-muted-foreground">
         Pegá este código en el <code>&lt;body&gt;</code> de tu web, Tiendanube, WooCommerce, Shopify, etc.
         Tu asistente aparecerá automáticamente abajo a la derecha y responderá con los datos de tu empresa y catálogo.
       </p>
+
       <div className="mb-5">
         <div className="font-semibold mb-2 text-primary">Opción 1: <span className="text-foreground">Widget con &lt;script&gt; (recomendado)</span></div>
-        <pre className="bg-muted dark:bg-card p-3 rounded text-xs overflow-x-auto border border-border select-all cursor-pointer mb-2 text-foreground" title="Click para copiar" onClick={() => copiarCodigo('script')} style={{ whiteSpace: 'pre-line' }}>{codeScript}</pre>
-        <Button className="w-full mb-4 bg-secondary text-secondary-foreground hover:bg-secondary/80" onClick={() => copiarCodigo('script')} variant="secondary">
-          {copiado === 'script' ? '¡Copiado!' : '📋 Copiar código script'}
+        <pre
+          className="bg-muted dark:bg-card p-3 rounded text-xs overflow-x-auto border border-border select-all cursor-pointer mb-2 text-foreground"
+          title="Click para copiar"
+          onClick={() => copiarCodigo("script")}
+          style={{ whiteSpace: "pre-line" }}
+        >{codeScript}</pre>
+        <Button
+          className="w-full mb-4 bg-secondary text-secondary-foreground hover:bg-secondary/80"
+          onClick={() => copiarCodigo("script")}
+          variant="secondary"
+        >
+          {copiado === "script" ? "¡Copiado!" : "📋 Copiar código script"}
         </Button>
       </div>
+
       <div className="mb-5">
         <div className="font-semibold mb-2 text-primary">Opción 2: <span className="text-foreground">Widget con &lt;iframe&gt; (alternativo)</span></div>
-        <pre className="bg-muted dark:bg-card p-3 rounded text-xs overflow-x-auto border border-border select-all cursor-pointer mb-2 text-foreground" title="Click para copiar" onClick={() => copiarCodigo('iframe')} style={{ whiteSpace: 'pre-line' }}>{codeIframe}</pre>
-        <Button className="w-full bg-secondary text-secondary-foreground hover:bg-secondary/80" onClick={() => copiarCodigo('iframe')} variant="secondary">
-          {copiado === 'iframe' ? '¡Copiado!' : '📋 Copiar código iframe'}
+        <pre
+          className="bg-muted dark:bg-card p-3 rounded text-xs overflow-x-auto border border-border select-all cursor-pointer mb-2 text-foreground"
+          title="Click para copiar"
+          onClick={() => copiarCodigo("iframe")}
+          style={{ whiteSpace: "pre-line" }}
+        >{codeIframe}</pre>
+        <Button
+          className="w-full bg-secondary text-secondary-foreground hover:bg-secondary/80"
+          onClick={() => copiarCodigo("iframe")}
+          variant="secondary"
+        >
+          {copiado === "iframe" ? "¡Copiado!" : "📋 Copiar código iframe"}
         </Button>
       </div>
-      <p className="text-xs text-muted-foreground mb-6">
-        Estas configuraciones se aplican dentro del widget y no modifican el CSS de tu sitio ni de la burbuja flotante.
-      </p>
+
       <div className="bg-muted text-muted-foreground p-4 rounded mb-8 text-xs border border-border">
         <b>¿No ves el widget?</b> Verificá que el código esté bien pegado, y que tu tienda permita iframes/scripts.<br />
         Si usás Tiendanube: pegalo en “Editar Código Avanzado” o consultá a soporte.<br />
         Ante cualquier problema <a href="mailto:soporte@chatboc.ar" className="underline text-primary">escribinos</a>.
       </div>
+
       <div className="mt-10">
         <h2 className="text-xl font-semibold mb-2 text-foreground">🔍 Vista previa en vivo:</h2>
         <div className="border border-border rounded overflow-hidden bg-background flex items-center justify-center" style={{ minHeight: 540 }}>
+          {/* Este iframe muestra una vista previa del panel de chat abierto */}
           <iframe
-            src={url}
+            src={url} // Usa la misma URL que para el codeIframe
             width="370"
             height="540"
-            style={{ border: 'none', borderRadius: '16px', width: '100%', maxWidth: 370, minHeight: 540, background: 'hsl(var(--background))' }}
+            style={{
+              border: "none",
+              borderRadius: "16px", // Ajustado para ser consistente con el panel abierto
+              width: "100%",
+              maxWidth: 370,
+              minHeight: 540,
+              background: "hsl(var(--background))",
+            }}
             loading="lazy"
             title="Chatboc Preview"
           />
