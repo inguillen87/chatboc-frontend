@@ -3,11 +3,11 @@
 import React, { useState, useEffect, useCallback, Suspense } from "react";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
-import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { MessageCircle, X } from "lucide-react"; 
 import { cn } from "@/lib/utils";
 import { safeLocalStorage } from "@/utils/safeLocalStorage"; 
+import { motion, AnimatePresence } from "framer-motion";
 
 const ChatRegisterPanel = React.lazy(() => import("./ChatRegisterPanel"));
 import ChatHeader from "./ChatHeader"; 
