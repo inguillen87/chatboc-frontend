@@ -90,7 +90,7 @@ const Iframe = () => {
         mode="iframe"
         defaultOpen={widgetParams.defaultOpen}
         widgetId={widgetParams.widgetId}
-        authToken={widgetParams.token}
+        entityToken={widgetParams.token}
         initialIframeWidth={widgetParams.initialIframeWidth}
         initialIframeHeight={widgetParams.initialIframeHeight}
         openWidth={widgetParams.openWidth}

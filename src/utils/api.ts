@@ -21,6 +21,7 @@ interface ApiFetchOptions {
   body?: any;
   skipAuth?: boolean;
   sendAnonId?: boolean;
+  sendEntityToken?: boolean;
 }
 
 /**
@@ -32,10 +33,11 @@ export async function apiFetch<T>(
   path: string,
   options: ApiFetchOptions = {}
 ): Promise<T> {
-  const { method = "GET", body, skipAuth, sendAnonId } = options;
+  const { method = "GET", body, skipAuth, sendAnonId, sendEntityToken } = options;
 
   const token = safeLocalStorage.getItem("authToken");
   const anonId = safeLocalStorage.getItem("anon_id");
+  const entityToken = safeLocalStorage.getItem("entityToken");
 
   const url = `${API_BASE_URL}${path}`;
   const headers: Record<string, string> = { ...(options.headers || {}) };
@@ -50,6 +52,9 @@ export async function apiFetch<T>(
   // Si el endpoint necesita identificar usuario anónimo, mandá siempre el header "Anon-Id"
   if (((!token && anonId) || sendAnonId) && anonId) {
     headers["Anon-Id"] = anonId;
+  }
+  if ((sendEntityToken || false) && entityToken) {
+    headers["X-Entity-Token"] = entityToken;
   }
 
   try {

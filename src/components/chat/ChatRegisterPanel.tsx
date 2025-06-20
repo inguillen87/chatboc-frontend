@@ -33,7 +33,7 @@ const ChatRegisterPanel: React.FC<Props> = ({ onSuccess }) => {
   useEffect(() => {
     const fetchRubros = async () => {
       try {
-        const data = await apiFetch<{ id: number; nombre: string }[]>('/rubros/', { skipAuth: true });
+        const data = await apiFetch<{ id: number; nombre: string }[]>('/rubros/', { skipAuth: true, sendEntityToken: true });
         if (Array.isArray(data)) setRubrosDisponibles(data);
       } catch {
         /* ignore */
@@ -59,10 +59,14 @@ const ChatRegisterPanel: React.FC<Props> = ({ onSuccess }) => {
         rubro,
         acepto_terminos: accepted,
       };
+      const anon = safeLocalStorage.getItem('anon_id');
+      if (anon) payload.anon_id = anon;
       if (phone) payload.telefono = phone;
       const data = await apiFetch<RegisterResponse>('/register', {
         method: 'POST',
         body: payload,
+        sendAnonId: true,
+        sendEntityToken: true,
       });
       safeLocalStorage.setItem('authToken', data.token);
       let finalTipo = data.tipo_chat;

@@ -42,7 +42,7 @@ const PENDING_TICKET_KEY = 'pending_ticket_id';
 interface ChatPanelProps {
   mode?: "standalone" | "iframe" | "script";
   widgetId?: string;
-  authToken?: string;
+  entityToken?: string;
   initialIframeWidth?: string;
   initialIframeHeight?: string;
   onClose?: () => void;
@@ -55,7 +55,7 @@ interface ChatPanelProps {
 const ChatPanel = ({
   mode = "standalone",
   widgetId = "chatboc-widget-iframe",
-  authToken: propAuthToken,
+  entityToken: propEntityToken,
   initialIframeWidth,
   initialIframeHeight,
   onClose,
@@ -103,16 +103,14 @@ const ChatPanel = ({
   const getAuthTokenFromLocalStorage = () =>
     typeof window === "undefined" ? null : safeLocalStorage.getItem("authToken");
   const anonId = getOrCreateAnonId();
-  const finalAuthToken =
-    mode === "iframe" ? propAuthToken : getAuthTokenFromLocalStorage();
+  const finalAuthToken = getAuthTokenFromLocalStorage();
 
-  // Cuando el widget se carga dentro de un iframe externo, aseguramos
-  // que el token se persista para que `useUser` pueda obtener el perfil.
+  // Persistimos el token de la entidad para enviarlo en todas las requests
   useEffect(() => {
-    if (mode === "iframe" && propAuthToken) {
-      safeLocalStorage.setItem("authToken", propAuthToken);
+    if (mode === "iframe" && propEntityToken) {
+      safeLocalStorage.setItem("entityToken", propEntityToken);
     }
-  }, [mode, propAuthToken]);
+  }, [mode, propEntityToken]);
   const esAnonimo = !finalAuthToken;
   const { user, refreshUser, loading } = useUser();
 
@@ -132,7 +130,7 @@ const ChatPanel = ({
     if (!activeTicketId) return;
     try {
       const authHeaders = finalAuthToken ? { Authorization: `Bearer ${finalAuthToken}` } : {};
-      const data = await apiFetch<{ direccion?: string | null; latitud?: number | string | null; longitud?: number | string | null; municipio_nombre?: string | null }>(`/tickets/municipio/${activeTicketId}`, { headers: authHeaders, skipAuth: !finalAuthToken, sendAnonId: esAnonimo });
+      const data = await apiFetch<{ direccion?: string | null; latitud?: number | string | null; longitud?: number | string | null; municipio_nombre?: string | null }>(`/tickets/municipio/${activeTicketId}`, { headers: authHeaders, skipAuth: !finalAuthToken, sendAnonId: esAnonimo, sendEntityToken: true });
       const normalized = {
         ...data,
         latitud: data.latitud != null ? Number(data.latitud) : null,
@@ -158,8 +156,8 @@ const ChatPanel = ({
         const coords = { latitud: pos.coords.latitude, longitud: pos.coords.longitude };
         try {
           const authHeaders = finalAuthToken ? { Authorization: `Bearer ${finalAuthToken}` } : {};
-          await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, { method: "PUT", headers: authHeaders, body: coords, skipAuth: !finalAuthToken, sendAnonId: esAnonimo });
-          await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, { method: "PUT", headers: authHeaders, body: coords, skipAuth: !finalAuthToken, sendAnonId: esAnonimo });
+          await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, { method: "PUT", headers: authHeaders, body: coords, skipAuth: !finalAuthToken, sendAnonId: esAnonimo, sendEntityToken: true });
+          await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, { method: "PUT", headers: authHeaders, body: coords, skipAuth: !finalAuthToken, sendAnonId: esAnonimo, sendEntityToken: true });
           setForzarDireccion(false);
           fetchTicket();
         } catch (e) {
@@ -190,8 +188,8 @@ const ChatPanel = ({
             const coords = { latitud: pos.coords.latitude, longitud: pos.coords.longitude };
             try {
               const authHeaders = finalAuthToken ? { Authorization: `Bearer ${finalAuthToken}` } : {};
-              await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, { method: "PUT", headers: authHeaders, body: coords, skipAuth: !finalAuthToken, sendAnonId: esAnonimo });
-              await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, { method: "PUT", headers: authHeaders, body: coords, skipAuth: !finalAuthToken, sendAnonId: esAnonimo });
+              await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, { method: "PUT", headers: authHeaders, body: coords, skipAuth: !finalAuthToken, sendAnonId: esAnonimo, sendEntityToken: true });
+              await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, { method: "PUT", headers: authHeaders, body: coords, skipAuth: !finalAuthToken, sendAnonId: esAnonimo, sendEntityToken: true });
               fetchTicket();
             } catch (e) {
               console.error("Error al enviar ubicación", e);
@@ -245,7 +243,7 @@ const ChatPanel = ({
     setCargandoRubros(true);
     setRubrosDisponibles([]);
     try {
-      const data = await apiFetch("/rubros/", { skipAuth: true });
+      const data = await apiFetch("/rubros/", { skipAuth: true, sendEntityToken: true });
       setRubrosDisponibles(Array.isArray(data) ? data : []);
     } catch {
       setRubrosDisponibles([]);
@@ -260,7 +258,7 @@ const ChatPanel = ({
     const fetchAllMessages = async () => {
       try {
         const authHeaders = finalAuthToken ? { Authorization: `Bearer ${finalAuthToken}` } : {};
-        const data = await apiFetch<{ estado_chat: string; mensajes: any[] }>(`/tickets/chat/${activeTicketId}/mensajes`, { headers: authHeaders, sendAnonId: esAnonimo });
+        const data = await apiFetch<{ estado_chat: string; mensajes: any[] }>(`/tickets/chat/${activeTicketId}/mensajes`, { headers: authHeaders, sendAnonId: esAnonimo, sendEntityToken: true });
         if (data.mensajes) {
           const nuevosMensajes: Message[] = data.mensajes.map((msg) => ({ id: msg.id, text: msg.texto, isBot: msg.es_admin, timestamp: new Date(msg.fecha) }));
           setMessages(nuevosMensajes);
@@ -309,8 +307,8 @@ const ChatPanel = ({
         if (activeTicketId) {
           try {
             const authHeaders = finalAuthToken ? { Authorization: `Bearer ${finalAuthToken}` } : {};
-            await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, { method: "PUT", headers: authHeaders, body: { direccion: text }, skipAuth: !finalAuthToken, sendAnonId: esAnonimo });
-            await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, { method: "PUT", headers: authHeaders, body: { direccion: text }, skipAuth: !finalAuthToken, sendAnonId: esAnonimo });
+          await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, { method: "PUT", headers: authHeaders, body: { direccion: text }, skipAuth: !finalAuthToken, sendAnonId: esAnonimo, sendEntityToken: true });
+          await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, { method: "PUT", headers: authHeaders, body: { direccion: text }, skipAuth: !finalAuthToken, sendAnonId: esAnonimo, sendEntityToken: true });
             fetchTicket();
           } catch (e) {
             console.error("Error al enviar dirección", e);
@@ -325,11 +323,11 @@ const ChatPanel = ({
       try {
         if (activeTicketId) {
           const authHeaders = finalAuthToken ? { Authorization: `Bearer ${finalAuthToken}` } : {};
-          await apiFetch(`/tickets/chat/${activeTicketId}/responder_ciudadano`, { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders }, body: { comentario: text }, skipAuth: !finalAuthToken, sendAnonId: esAnonimo });
+          await apiFetch(`/tickets/chat/${activeTicketId}/responder_ciudadano`, { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders }, body: { comentario: text }, skipAuth: !finalAuthToken, sendAnonId: esAnonimo, sendEntityToken: true });
         } else {
           const endpoint = getAskEndpoint({ tipoChat: tipoChatActual, rubro: rubroNormalizado || undefined });
           const payload: Record<string, any> = { pregunta: text, contexto_previo: contexto };
-          const data = await apiFetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json", ...(finalAuthToken ? { Authorization: `Bearer ${finalAuthToken}` } : {}) }, body: payload, skipAuth: !finalAuthToken });
+          const data = await apiFetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json", ...(finalAuthToken ? { Authorization: `Bearer ${finalAuthToken}` } : {}) }, body: payload, skipAuth: !finalAuthToken, sendEntityToken: true });
           setContexto(data.contexto_actualizado || {});
           const { text: respuestaText, botones } = parseChatResponse(data);
           setMessages((prev) => [...prev, { id: Date.now(), text: respuestaText || "No pude procesar tu solicitud.", isBot: true, timestamp: new Date(), botones }]);
