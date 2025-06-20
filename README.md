@@ -206,3 +206,9 @@ VITE_API_URL=/api
 With this setting all frontend requests go through the proxy, so your
 local environment can talk to the production API without cross-origin
 errors.
+
+## Widget integration guidelines
+Detailed requirements for the embedded widget can be found in [docs/widget-requirements.md](docs/widget-requirements.md).
+
+
+Fix widget instructions
