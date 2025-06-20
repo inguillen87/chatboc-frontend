@@ -3,7 +3,6 @@ import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import ChatWidget from "../components/chat/ChatWidget";
 import { Toaster } from "@/components/ui/sonner";
 
-
 const Iframe = () => {
   const [widgetParams, setWidgetParams] = useState({
     defaultOpen: false,
