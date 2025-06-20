@@ -16,10 +16,10 @@ interface ChatWidgetProps {
   defaultOpen?: boolean;
   widgetId?: string;
   authToken?: string;
-  openWidth?: string | null;
-  openHeight?: string | null;
-  closedWidth?: string | null;
-  closedHeight?: string | null;
+  openWidth?: string;
+  openHeight?: string;
+  closedWidth?: string;
+  closedHeight?: string;
   tipoChat?: "pyme" | "municipio";
 }
 
@@ -28,16 +28,12 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   defaultOpen = false,
   widgetId = "chatboc-widget-iframe",
   authToken,
-  openWidth: propOpenWidth = "370px",
-  openHeight: propOpenHeight = "540px",
-  closedWidth: propClosedWidth = "88px",
-  closedHeight: propClosedHeight = "88px",
+  openWidth = "370px",
+  openHeight = "540px",
+  closedWidth = "88px",
+  closedHeight = "88px",
   tipoChat = getCurrentTipoChat(),
 }) => {
-  const openWidth = propOpenWidth ?? "370px";
-  const openHeight = propOpenHeight ?? "540px";
-  const closedWidth = propClosedWidth ?? "88px";
-  const closedHeight = propClosedHeight ?? "88px";
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [view, setView] = useState<'chat' | 'register'>('chat');
 
@@ -76,16 +72,17 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const bubbleSize = isMobile ? "64px" : closedWidth;
 
   return (
-    <div className="relative w-full h-full flex flex-col items-end justify-end z-[999999]">
+    <div className="z-[999999]">
       {/* Chat abierto */}
       <Suspense fallback={null}>
         <motion.div
           className={cn(
             "chatboc-panel-wrapper",
-            "absolute bottom-0 right-0",
-            "bg-card border shadow-2xl rounded-lg",
+            "fixed",
+            "bottom-6 right-6",
+            "bg-card border shadow-2xl rounded-2xl",
             "flex flex-col overflow-hidden",
-            "transform transition-all duration-300 ease-in-out",
+            "transition-all duration-300",
             isOpen
               ? "opacity-100 scale-100 pointer-events-auto"
               : "opacity-0 scale-95 pointer-events-none"
@@ -96,8 +93,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             minWidth: "300px",
             maxWidth: "98vw",
             maxHeight: "98vh",
-            zIndex: 999999,
-            borderRadius: "16px"
+            zIndex: 999999
           }}
           initial={{ opacity: 0, scale: 0.9, y: 20 }}
           animate={isOpen ? { opacity: 1, scale: 1, y: 0 } : { opacity: 0, scale: 0.9, y: 20 }}
@@ -129,17 +125,16 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         <Button
           className={cn(
             "chatboc-toggle-button",
-            "absolute bottom-0 right-0",
+            "fixed bottom-6 right-6",
             "rounded-full flex items-center justify-center",
             "bg-primary text-primary-foreground hover:bg-primary/90",
-            "shadow-lg transition-all duration-300 ease-in-out",
+            "shadow-lg transition-all duration-300",
             isOpen ? "opacity-0 scale-0 pointer-events-none" : "opacity-100 scale-100 pointer-events-auto"
           )}
           style={{
             width: bubbleSize,
             height: bubbleSize,
-            zIndex: 999999,
-            background: "var(--primary)"
+            zIndex: 999999
           }}
           onClick={toggleChat}
           aria-label={isOpen ? "Cerrar chat" : "Abrir chat"}
