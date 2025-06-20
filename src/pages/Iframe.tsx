@@ -1,11 +1,9 @@
-// src/pages/Iframe.tsx (VERSIÓN FINAL Y CORREGIDA)
-
 import React, { useEffect, useState } from "react";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import ChatWidget from "../components/chat/ChatWidget";
-import { Toaster } from "@/components/ui/sonner"; 
+import { Toaster } from "@/components/ui/sonner";
 
-// Loader visual elegante (se mantiene igual)
+// Loader visual elegante
 function Loader() {
   return (
     <div
@@ -42,7 +40,7 @@ const Iframe = () => {
   const [widgetParams, setWidgetParams] = useState({
     defaultOpen: false,
     widgetId: "chatboc-iframe-unknown",
-    token: null as string | null, // Este es el entityToken que viene de la URL
+    token: null as string | null,
     initialIframeWidth: null as string | null,
     initialIframeHeight: null as string | null,
     openWidth: null as string | null,
@@ -52,53 +50,26 @@ const Iframe = () => {
     theme: "light",
     tipoChat: "pyme" as "pyme" | "municipio",
   });
-  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
+      // Parámetros por URL
       const params = new URLSearchParams(window.location.search);
-      const openParam = params.get("defaultOpen");
-      const idParam = params.get("widgetId");
-      const tokenParam = params.get("token");
-      const initialWidthParam = params.get("initialWidth");
-      const initialHeightParam = params.get("initialHeight");
-      const openWidthParam = params.get("openWidth");
-      const openHeightParam = params.get("openHeight");
-      const closedWidthParam = params.get("closedWidth");
-      const closedHeightParam = params.get("closedHeight");
-      const themeParam = params.get("theme");
-      const tipoChatParam = params.get("tipo_chat");
-
       setWidgetParams({
-        defaultOpen: openParam === "true",
-        widgetId: idParam || "chatboc-iframe-unknown",
-        token: tokenParam,
-        initialIframeWidth: initialWidthParam,
-        initialIframeHeight: initialHeightParam,
-        openWidth: openWidthParam,
-        openHeight: openHeightParam,
-        closedWidth: closedWidthParam,
-        closedHeight: closedHeightParam,
-        theme: themeParam === "dark" || themeParam === "light" ? themeParam : "light",
-        tipoChat: tipoChatParam === "municipio" ? "municipio" : "pyme",
+        defaultOpen: params.get("defaultOpen") === "true",
+        widgetId: params.get("widgetId") || "chatboc-iframe-unknown",
+        token: params.get("token"),
+        initialIframeWidth: params.get("initialWidth"),
+        initialIframeHeight: params.get("initialHeight"),
+        openWidth: params.get("openWidth"),
+        openHeight: params.get("openHeight"),
+        closedWidth: params.get("closedWidth"),
+        closedHeight: params.get("closedHeight"),
+        theme: ["dark", "light"].includes(params.get("theme") || "") ? params.get("theme")! : "light",
+        tipoChat: params.get("tipo_chat") === "municipio" ? "municipio" : "pyme",
       });
 
-      if (themeParam === "dark" || themeParam === "light") {
-        document.documentElement.classList.remove("dark", "light");
-        document.documentElement.classList.add(themeParam);
-        safeLocalStorage.setItem("theme", themeParam);
-      } else {
-        const storedTheme = safeLocalStorage.getItem("theme");
-        if (storedTheme === "dark" || storedTheme === "light") {
-          document.documentElement.classList.remove("dark", "light");
-          document.documentElement.classList.add(storedTheme);
-        } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
-          document.documentElement.classList.add("dark");
-        } else {
-          document.documentElement.classList.remove("dark");
-        }
-      }
-
+      // Forzar estilos base SÓLIDOS para aislar el widget (esto es CLAVE)
       document.documentElement.style.background = "var(--background, #f8fafc)";
       document.body.style.background = "var(--background, #f8fafc)";
       document.body.style.margin = "0";
@@ -109,41 +80,50 @@ const Iframe = () => {
       document.documentElement.style.height = "100%";
       document.body.style.width = "100%";
       document.documentElement.style.width = "100%";
+      // Safe area para iPhone notch
       document.body.style.paddingTop = "env(safe-area-inset-top)";
       document.body.style.paddingBottom = "env(safe-area-inset-bottom)";
-      setReady(true);
     }
   }, []);
 
+  // Loader mientras no hay token
   if (!widgetParams.token) return <Loader />;
 
   return (
     <div
       style={{
-        width: "100%", 
-        height: "100%", 
-        minHeight: "320px", 
+        width: "100vw",
+        height: "100vh",
+        minHeight: "320px",
+        minWidth: "320px",
+        maxWidth: "100vw",
+        maxHeight: "100vh",
         background: "var(--background, #f8fafc)",
         margin: 0,
         padding: 0,
         overflow: "hidden",
-        position: "relative", 
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        position: "relative",
+        boxSizing: "border-box"
       }}
-      className="relative" 
+      className="w-screen h-screen min-h-[320px] min-w-[320px] bg-card m-0 p-0 overflow-hidden flex items-center justify-center relative"
     >
       <ChatWidget
         mode="iframe"
         defaultOpen={widgetParams.defaultOpen}
         widgetId={widgetParams.widgetId}
-        entityToken={widgetParams.token} // <-- Propiedad cambiada de authToken a entityToken
+        entityToken={widgetParams.token}
         tipoChat={widgetParams.tipoChat}
+        initialIframeWidth={widgetParams.initialIframeWidth}
+        initialIframeHeight={widgetParams.initialIframeHeight}
         openWidth={widgetParams.openWidth}
         openHeight={widgetParams.openHeight}
         closedWidth={widgetParams.closedWidth}
         closedHeight={widgetParams.closedHeight}
       />
-      <Toaster /> 
-      {console.log("ChatWidget montado!")}
+      <Toaster />
     </div>
   );
 };

@@ -1,7 +1,4 @@
-// src/components/chat/ChatPanel.tsx (VERSIÓN FINAL Y ESTABLE)
-
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import ChatHeader from "./ChatHeader"; 
 import ChatMessage from "./ChatMessage";
 import TypingIndicator from "./TypingIndicator";
 import ChatInput from "./ChatInput";
@@ -14,7 +11,7 @@ import { parseRubro, esRubroPublico, getAskEndpoint } from "@/utils/chatEndpoint
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateAnonId from "@/utils/anonId";
 import { parseChatResponse } from "@/utils/parseChatResponse";
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
 
 const FRASES_DIRECCION = [
@@ -46,11 +43,11 @@ interface ChatPanelProps {
   mode?: "standalone" | "iframe" | "script";
   widgetId?: string;
   entityToken?: string;
-  initialIframeWidth?: string; 
-  initialIframeHeight?: string; 
+  initialIframeWidth?: string;
+  initialIframeHeight?: string;
   onClose?: () => void;
-  openWidth?: string; 
-  openHeight?: string; 
+  openWidth?: string;
+  openHeight?: string;
   tipoChat?: "pyme" | "municipio";
   onRequireAuth?: () => void;
 }
@@ -62,12 +59,11 @@ const ChatPanel = ({
   initialIframeWidth,
   initialIframeHeight,
   onClose,
-  openWidth, 
-  openHeight, 
+  openWidth,
+  openHeight,
   tipoChat = getCurrentTipoChat(),
   onRequireAuth,
 }: ChatPanelProps) => {
-
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [preguntasUsadas, setPreguntasUsadas] = useState(0);
@@ -109,14 +105,12 @@ const ChatPanel = ({
   const anonId = getOrCreateAnonId();
   const finalAuthToken = getAuthTokenFromLocalStorage();
 
+  // Persistimos el token de la entidad para enviarlo en todas las requests
   useEffect(() => {
     if (mode === "iframe" && propEntityToken) {
       safeLocalStorage.setItem("entityToken", propEntityToken);
-    } else if (mode === "iframe" && !propEntityToken) {
-      safeLocalStorage.removeItem("entityToken");
     }
   }, [mode, propEntityToken]);
-
   const esAnonimo = !finalAuthToken;
   const { user, refreshUser, loading } = useUser();
 
@@ -130,19 +124,16 @@ const ChatPanel = ({
   const rubroActual = parseRubro(rubroSeleccionado) || parseRubro(user?.rubro) || parseRubro(storedUser?.rubro) || null;
   const rubroNormalizado = rubroActual;
   const isMunicipioRubro = esRubroPublico(rubroNormalizado || undefined);
-  const tipoChatActual: "pyme" | "municipio" =
-    (tipoChat && (tipoChat === "municipio" || tipoChat === "pyme"))
-      ? tipoChat
-      : (rubroNormalizado && isMunicipioRubro ? "municipio" : "pyme");
+const tipoChatActual: "pyme" | "municipio" =
+  (tipoChat && (tipoChat === "municipio" || tipoChat === "pyme"))
+    ? tipoChat
+    : (rubroNormalizado && isMunicipioRubro ? "municipio" : "pyme");
 
   const fetchTicket = useCallback(async () => {
     if (!activeTicketId) return;
     try {
       const authHeaders = finalAuthToken ? { Authorization: `Bearer ${finalAuthToken}` } : {};
-      const entityTokenFromStorage = safeLocalStorage.getItem("entityToken");
-      const entityHeaders = entityTokenFromStorage ? { 'X-Entity-Token': entityTokenFromStorage } : {};
-
-      const data = await apiFetch<{ direccion?: string | null; latitud?: number | string | null; longitud?: number | null; municipio_nombre?: string | null }>(`/tickets/municipio/${activeTicketId}`, { headers: { ...authHeaders, ...entityHeaders }, skipAuth: !finalAuthToken, sendAnonId: esAnonimo });
+      const data = await apiFetch<{ direccion?: string | null; latitud?: number | string | null; longitud?: number | string | null; municipio_nombre?: string | null }>(`/tickets/municipio/${activeTicketId}`, { headers: authHeaders, skipAuth: !finalAuthToken, sendAnonId: esAnonimo, sendEntityToken: true });
       const normalized = {
         ...data,
         latitud: data.latitud != null ? Number(data.latitud) : null,
@@ -168,11 +159,8 @@ const ChatPanel = ({
         const coords = { latitud: pos.coords.latitude, longitud: pos.coords.longitude };
         try {
           const authHeaders = finalAuthToken ? { Authorization: `Bearer ${finalAuthToken}` } : {};
-          const entityTokenFromStorage = safeLocalStorage.getItem("entityToken");
-          const entityHeaders = entityTokenFromStorage ? { 'X-Entity-Token': entityTokenFromStorage } : {};
-
-          await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, { method: "PUT", headers: { ...authHeaders, ...entityHeaders }, body: coords, skipAuth: !finalAuthToken, sendAnonId: esAnonimo });
-          await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, { method: "PUT", headers: { ...authHeaders, ...entityHeaders }, body: coords, skipAuth: !finalAuthToken, sendAnonId: esAnonimo });
+          await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, { method: "PUT", headers: authHeaders, body: coords, skipAuth: !finalAuthToken, sendAnonId: esAnonimo, sendEntityToken: true });
+          await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, { method: "PUT", headers: authHeaders, body: coords, skipAuth: !finalAuthToken, sendAnonId: esAnonimo, sendEntityToken: true });
           setForzarDireccion(false);
           fetchTicket();
         } catch (e) {
@@ -203,11 +191,8 @@ const ChatPanel = ({
             const coords = { latitud: pos.coords.latitude, longitud: pos.coords.longitude };
             try {
               const authHeaders = finalAuthToken ? { Authorization: `Bearer ${finalAuthToken}` } : {};
-              const entityTokenFromStorage = safeLocalStorage.getItem("entityToken");
-              const entityHeaders = entityTokenFromStorage ? { 'X-Entity-Token': entityTokenFromStorage } : {};
-
-              await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, { method: "PUT", headers: { ...authHeaders, ...entityHeaders }, body: coords, skipAuth: !finalAuthToken, sendAnonId: esAnonimo });
-              await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, { method: "PUT", headers: { ...authHeaders, ...entityHeaders }, body: coords, skipAuth: !finalAuthToken, sendAnonId: esAnonimo });
+              await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, { method: "PUT", headers: authHeaders, body: coords, skipAuth: !finalAuthToken, sendAnonId: esAnonimo, sendEntityToken: true });
+              await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, { method: "PUT", headers: authHeaders, body: coords, skipAuth: !finalAuthToken, sendAnonId: esAnonimo, sendEntityToken: true });
               fetchTicket();
             } catch (e) {
               console.error("Error al enviar ubicación", e);
@@ -276,10 +261,7 @@ const ChatPanel = ({
     const fetchAllMessages = async () => {
       try {
         const authHeaders = finalAuthToken ? { Authorization: `Bearer ${finalAuthToken}` } : {};
-        const entityTokenFromStorage = safeLocalStorage.getItem("entityToken");
-        const entityHeaders = entityTokenFromStorage ? { 'X-Entity-Token': entityTokenFromStorage } : {};
-
-        const data = await apiFetch<{ estado_chat: string; mensajes: any[] }>(`/tickets/chat/${activeTicketId}/mensajes`, { headers: { ...authHeaders, ...entityHeaders }, sendAnonId: esAnonimo });
+        const data = await apiFetch<{ estado_chat: string; mensajes: any[] }>(`/tickets/chat/${activeTicketId}/mensajes`, { headers: authHeaders, sendAnonId: esAnonimo, sendEntityToken: true });
         if (data.mensajes) {
           const nuevosMensajes: Message[] = data.mensajes.map((msg) => ({ id: msg.id, text: msg.texto, isBot: msg.es_admin, timestamp: new Date(msg.fecha) }));
           setMessages(nuevosMensajes);
@@ -328,11 +310,8 @@ const ChatPanel = ({
         if (activeTicketId) {
           try {
             const authHeaders = finalAuthToken ? { Authorization: `Bearer ${finalAuthToken}` } : {};
-            const entityTokenFromStorage = safeLocalStorage.getItem("entityToken");
-            const entityHeaders = entityTokenFromStorage ? { 'X-Entity-Token': entityTokenFromStorage } : {};
-
-            await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, { method: "PUT", headers: { ...authHeaders, ...entityHeaders }, body: { direccion: text }, skipAuth: !finalAuthToken, sendAnonId: esAnonimo });
-            await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, { method: "PUT", headers: { ...authHeaders, ...entityHeaders }, body: { direccion: text }, skipAuth: !finalAuthToken, sendAnonId: esAnonimo });
+          await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, { method: "PUT", headers: authHeaders, body: { direccion: text }, skipAuth: !finalAuthToken, sendAnonId: esAnonimo, sendEntityToken: true });
+          await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, { method: "PUT", headers: authHeaders, body: { direccion: text }, skipAuth: !finalAuthToken, sendAnonId: esAnonimo, sendEntityToken: true });
             fetchTicket();
           } catch (e) {
             console.error("Error al enviar dirección", e);
@@ -347,10 +326,7 @@ const ChatPanel = ({
       try {
         if (activeTicketId) {
           const authHeaders = finalAuthToken ? { Authorization: `Bearer ${finalAuthToken}` } : {};
-          const entityTokenFromStorage = safeLocalStorage.getItem("entityToken");
-          const entityHeaders = entityTokenFromStorage ? { 'X-Entity-Token': entityTokenFromStorage } : {};
-
-          await apiFetch(`/tickets/chat/${activeTicketId}/responder_ciudadano`, { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders, ...entityHeaders }, body: { comentario: text }, skipAuth: !finalAuthToken, sendAnonId: esAnonimo });
+          await apiFetch(`/tickets/chat/${activeTicketId}/responder_ciudadano`, { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders }, body: { comentario: text }, skipAuth: !finalAuthToken, sendAnonId: esAnonimo, sendEntityToken: true });
         } else {
           const endpoint = getAskEndpoint({ tipoChat: tipoChatActual, rubro: rubroNormalizado || undefined });
           const payload: Record<string, any> = { pregunta: text, contexto_previo: contexto };
@@ -377,8 +353,7 @@ const ChatPanel = ({
       } finally {
         setIsTyping(false);
       }
-    },
-    [contexto, rubroSeleccionado, preguntasUsadas, esAnonimo, mode, finalAuthToken, activeTicketId, esperandoDireccion, anonId, rubroNormalizado, tipoChatActual, fetchTicket, onRequireAuth, loading]);
+    }, [contexto, rubroSeleccionado, preguntasUsadas, esAnonimo, mode, finalAuthToken, activeTicketId, esperandoDireccion, anonId, rubroNormalizado, tipoChatActual, fetchTicket, onRequireAuth, loading]);
 
   useEffect(() => {
     if (esAnonimo && mode === "standalone" && !rubroSeleccionado) {
@@ -402,11 +377,11 @@ const ChatPanel = ({
     }
   }, [messages, isTyping, ticketLocation]);
 
-  return (
-    <div className="flex flex-col w-full h-full bg-card text-card-foreground overflow-hidden rounded-3xl">
-      <ChatHeader onClose={onClose} />
-      <ScrollArea ref={chatContainerRef} className="flex-1 p-4 min-h-0">
-        <div className="flex flex-col gap-3 min-h-full">
+ return (
+  <div className="flex flex-col w-full h-full min-w-0 min-h-0 bg-card text-card-foreground overflow-hidden rounded-3xl">
+    <ScrollArea ref={chatContainerRef} className="flex-1 p-4 min-h-0 min-w-0">
+      <div className="flex flex-col gap-3 min-h-full min-w-0">
+          {/* Selección de rubro */}
           {esperandoRubro ? (
             <div className="text-center w-full">
               <h2 className="text-green-500 mb-2">👋 ¡Bienvenido!</h2>
@@ -432,6 +407,7 @@ const ChatPanel = ({
               )}
             </div>
           ) : esperandoDireccion ? (
+            // Solicitud de dirección
             <div className="flex flex-col items-center py-8 px-2 gap-4">
               <div className="text-primary text-base font-semibold mb-2">Indicá la dirección exacta (autocompleta con Google)</div>
               <AddressAutocomplete
@@ -446,18 +422,25 @@ const ChatPanel = ({
               <div className="text-xs text-muted-foreground mt-2">Escribí y seleccioná tu dirección para continuar el trámite.</div>
             </div>
           ) : (
+            // Mensajes y lógica central del chat
             <>
-              {messages.map((msg) => typeof msg.text === "string" && (<ChatMessage key={msg.id} message={msg} isTyping={isTyping} onButtonClick={handleSendMessage} tipoChat={tipoChatActual} />))}
+              {messages.map(
+                (msg) =>
+                  typeof msg.text === "string" && (
+                    <ChatMessage key={msg.id} message={msg} isTyping={isTyping} onButtonClick={handleSendMessage} tipoChat={tipoChatActual} />
+                  )
+              )}
               {isTyping && <TypingIndicator />}
-              {ticketLocation && (<TicketMap ticket={{ ...ticketLocation, tipo: 'municipio' }} />)}
+              {ticketLocation && <TicketMap ticket={{ ...ticketLocation, tipo: 'municipio' }} />}
               <div ref={messagesEndRef} />
               {showCierre && showCierre.show && <div className="my-3 p-3 rounded-lg bg-green-100 text-green-800 text-center font-bold shadow">{showCierre.text}</div>}
             </>
           )}
         </div>
       </ScrollArea>
+      {/* Input abajo: solo cuando corresponde */}
       {!esperandoRubro && !esperandoDireccion && (!showCierre || !showCierre.show) && (
-        <div className="bg-card px-3 py-2 border-t min-w-0">
+        <div className="bg-card px-3 py-2 border-t">
           <ChatInput onSendMessage={handleSendMessage} isTyping={isTyping} />
         </div>
       )}

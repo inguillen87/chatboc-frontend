@@ -1,4 +1,4 @@
-// public/widget.js (VERSIÓN FINAL Y ROBUSTA PARA EXPORTACIÓN)
+// public/widget.js (VERSIÓN FINAL Y COMPLETA - SIN SHADOW DOM)
 
 (function () {
   "use strict";
@@ -40,6 +40,7 @@
     let iframeIsCurrentlyOpen = defaultOpen;
 
     // --- Contenedor principal del widget (loader y iframe) ---
+    // Este div es el que realmente manejará el tamaño y la forma en la página host.
     const widgetContainer = document.createElement("div");
     widgetContainer.id = "chatboc-widget-container-" + iframeId;
     Object.assign(widgetContainer.style, {
@@ -59,6 +60,7 @@
       cursor: "pointer", // Indica que es clickeable
       background: "transparent", // Asegurar que el fondo sea transparente por defecto
     });
+    // Se añade directamente al body, no a un Shadow DOM.
     if (!document.getElementById(widgetContainer.id)) document.body.appendChild(widgetContainer);
 
     // --- Loader ---
@@ -143,6 +145,7 @@
     });
 
     // --- Lógica de Arrastre (solo para el modo fixed) ---
+    // Esta lógica ya está bien y solo se activa en modo fixed.
     let isDragging = false, dragStartX, dragStartY, containerStartLeft, containerStartTop;
     widgetContainer.addEventListener("mousedown", dragStart);
     widgetContainer.addEventListener("touchstart", dragStart, { passive: false });
