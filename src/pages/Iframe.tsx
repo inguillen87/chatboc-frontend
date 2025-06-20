@@ -3,6 +3,39 @@ import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import ChatWidget from "../components/chat/ChatWidget";
 import { Toaster } from "@/components/ui/sonner";
 
+// Loader visual elegante
+function Loader() {
+  return (
+    <div
+      style={{
+        width: "100vw",
+        height: "100vh",
+        minHeight: "320px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "var(--background, #f8fafc)",
+        fontFamily: "Inter, Arial, sans-serif",
+        fontWeight: 500,
+        color: "#666",
+        fontSize: "1.1rem",
+        letterSpacing: "0.02em",
+      }}
+    >
+      <div className="flex flex-col items-center gap-2">
+        <img
+          src="/favicon/favicon-48x48.png"
+          alt="Chatboc"
+          width={48}
+          height={48}
+          style={{ filter: "drop-shadow(0 2px 10px #2c82ef44)", marginBottom: 4 }}
+        />
+        <span>Cargando Chatboc...</span>
+      </div>
+    </div>
+  );
+}
+
 const Iframe = () => {
   const [widgetParams, setWidgetParams] = useState({
     defaultOpen: false,
@@ -17,9 +50,11 @@ const Iframe = () => {
     theme: "light",
     tipoChat: "pyme" as "pyme" | "municipio",
   });
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
+      // Parámetros por URL
       const params = new URLSearchParams(window.location.search);
       const openParam = params.get("defaultOpen");
       const idParam = params.get("widgetId");
@@ -47,6 +82,7 @@ const Iframe = () => {
         tipoChat: tipoChatParam === "municipio" ? "municipio" : "pyme",
       });
 
+      // ---- Tema: dark/light forzado para el iframe ----
       if (themeParam === "dark" || themeParam === "light") {
         document.documentElement.classList.remove("dark", "light");
         document.documentElement.classList.add(themeParam);
@@ -62,13 +98,10 @@ const Iframe = () => {
           document.documentElement.classList.remove("dark");
         }
       }
-    }
-  }, []);
 
-  useEffect(() => {
-    if (typeof document !== "undefined") {
-      document.documentElement.style.background = "var(--background)";
-      document.body.style.background = "var(--background)";
+      // ---- Fijamos todos los estilos base del iframe (sin scrolls, ni barras ni padding) ----
+      document.documentElement.style.background = "var(--background, #f8fafc)";
+      document.body.style.background = "var(--background, #f8fafc)";
       document.body.style.margin = "0";
       document.body.style.padding = "0";
       document.body.style.overflow = "hidden";
@@ -77,16 +110,30 @@ const Iframe = () => {
       document.documentElement.style.height = "100%";
       document.body.style.width = "100%";
       document.documentElement.style.width = "100%";
+      // Safe area para iPhone notch
+      document.body.style.paddingTop = "env(safe-area-inset-top)";
+      document.body.style.paddingBottom = "env(safe-area-inset-bottom)";
+      setReady(true);
     }
   }, []);
 
-  if (!widgetParams.token) {
-    return <div>Cargando Chatboc...</div>;
-  }
+  // ---- Loader mientras no hay token (o no parseó la url) ----
+  if (!widgetParams.token) return <Loader />;
 
   return (
     <div
-      style={{ width: "100%", height: "100%", background: "var(--background)", margin: 0, padding: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}
+      style={{
+        width: "100vw",
+        height: "100vh",
+        minHeight: "320px",
+        background: "var(--background, #f8fafc)",
+        margin: 0,
+        padding: 0,
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+        position: "relative",
+      }}
       className="relative"
     >
       <ChatWidget
