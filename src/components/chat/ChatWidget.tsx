@@ -110,24 +110,20 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
           exit={{ opacity: 0, scale: 0.6, y: 30 }}
           transition={{ type: "spring", stiffness: 260, damping: 20 }}
         >
-          {isOpen && (
-            <>
-              <ChatHeader onClose={toggleChat} />
-              {view === 'register' ? (
-                <ChatRegisterPanel onSuccess={() => setView('chat')} />
-              ) : (
-                <ChatPanel
-                  mode={mode}
-                  widgetId={widgetId}
-                  entityToken={entityToken}
-                  openWidth={widgetWidth}
-                  openHeight={widgetHeight}
-                  onClose={toggleChat}
-                  tipoChat={tipoChat}
-                  onRequireAuth={() => setView('register')}
-                />
-              )}
-            </>
+          <ChatHeader onClose={toggleChat} />
+          {view === 'register' ? (
+            <ChatRegisterPanel onSuccess={() => setView('chat')} />
+          ) : (
+            <ChatPanel
+              mode={mode}
+              widgetId={widgetId}
+              entityToken={entityToken}
+              openWidth={widgetWidth}
+              openHeight={widgetHeight}
+              onClose={toggleChat}
+              tipoChat={tipoChat}
+              onRequireAuth={() => setView('register')}
+            />
           )}
         </motion.div>
 

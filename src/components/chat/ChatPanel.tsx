@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import ChatHeader from "./ChatHeader";
 import ChatMessage from "./ChatMessage";
 import TypingIndicator from "./TypingIndicator";
 import ChatInput from "./ChatInput";
@@ -376,7 +375,6 @@ const ChatPanel = ({
 
   return (
     <div className="flex flex-col w-full h-full overflow-hidden">
-      <ChatHeader onClose={onClose} />
       <ScrollArea ref={chatContainerRef} className="flex-1 px-4 pt-4 pb-2 text-card-foreground bg-card min-h-0">
         <div className="flex flex-col gap-3 min-h-full">
           {esperandoRubro ? (
