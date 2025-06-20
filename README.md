@@ -210,4 +210,3 @@ errors.
 ## Widget integration guidelines
 Detailed requirements for the embedded widget can be found in [docs/widget-requirements.md](docs/widget-requirements.md).
 
-

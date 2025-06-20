@@ -14,14 +14,14 @@
     }
 
     const token = script.getAttribute("data-token") || "demo-anon";
-    const initialBottom = script.getAttribute("data-bottom") || "20px";
-    const initialRight = script.getAttribute("data-right") || "20px";
+    const initialBottom = script.getAttribute("data-bottom") || "24px";
+    const initialRight = script.getAttribute("data-right") || "24px";
     const defaultOpen = script.getAttribute("data-default-open") === "true";
     const theme = script.getAttribute("data-theme") || "";
     const scriptOrigin = (script.getAttribute("src") && new URL(script.getAttribute("src"), window.location.href).origin) || "https://www.chatboc.ar";
     const chatbocDomain = script.getAttribute("data-domain") || scriptOrigin;
 
-    const zIndexBase = parseInt(script.getAttribute("data-z") || "999990", 10);
+    const zIndexBase = parseInt(script.getAttribute("data-z") || "999999", 10);
     const iframeId = "chatboc-dynamic-iframe-" + Math.random().toString(36).substring(2, 9);
 
     const WIDGET_DIMENSIONS_JS = {
