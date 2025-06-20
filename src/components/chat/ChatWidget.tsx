@@ -33,15 +33,33 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   closedWidth = "88px",
   closedHeight = "88px",
   tipoChat = getCurrentTipoChat(),
-  initialPosition = { bottom: 30, right: 30 },
+  initialPosition = { bottom: 32, right: 32 },
 }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [view, setView] = useState<'chat' | 'register'>('chat');
 
+  const finalOpenWidth = openWidth || "370px";
+  const finalOpenHeight = openHeight || "540px";
+  const finalClosedWidth = closedWidth || "88px";
+  const finalClosedHeight = closedHeight || "88px";
+
   // Responsive único: todo controlado desde acá
   const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
-  const widgetWidth = isOpen ? (isMobile ? "98vw" : openWidth) : (isMobile ? "64px" : closedWidth);
-  const widgetHeight = isOpen ? (isMobile ? "80vh" : openHeight) : (isMobile ? "64px" : closedHeight);
+  const widgetWidth = isOpen
+    ? isMobile
+      ? "96vw"
+      : finalOpenWidth
+    : isMobile
+    ? "64px"
+    : finalClosedWidth;
+  const widgetHeight = isOpen
+    ? isMobile
+      ? "96vh"
+      : finalOpenHeight
+    : isMobile
+    ? "64px"
+    : finalClosedHeight;
+  const standaloneIframe = mode === "iframe";
 
   // Comando para avisar a parent (NO TOCAR)
   const sendStateMessageToParent = useCallback(
@@ -49,11 +67,11 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       if (mode === "iframe" && typeof window !== "undefined" && window.parent !== window && widgetId) {
         const dims = open
           ? { width: widgetWidth, height: widgetHeight }
-          : { width: closedWidth, height: closedHeight };
+          : { width: finalClosedWidth, height: finalClosedHeight };
         window.parent.postMessage({ type: "chatboc-state-change", widgetId, dimensions: dims, isOpen: open }, "*");
       }
     },
-    [mode, widgetId, widgetWidth, widgetHeight, closedWidth, closedHeight]
+    [mode, widgetId, widgetWidth, widgetHeight, finalClosedWidth, finalClosedHeight]
   );
 
   useEffect(() => {
@@ -93,11 +111,16 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             isOpen ? "pointer-events-auto" : "pointer-events-none"
           )}
           style={{
-            bottom: initialPosition.bottom,
-            right: initialPosition.right,
+            bottom: standaloneIframe ? undefined : `calc(${initialPosition.bottom}px + env(safe-area-inset-bottom))`,
+            right: standaloneIframe ? undefined : `calc(${initialPosition.right}px + env(safe-area-inset-right))`,
+            top: standaloneIframe ? "50%" : undefined,
+            left: standaloneIframe ? "50%" : undefined,
+            transform: standaloneIframe ? "translate(-50%, -50%)" : undefined,
+            transformOrigin: standaloneIframe ? "center" : "bottom right",
+            background: "var(--background, #f8fafc)",
             width: widgetWidth,
             height: widgetHeight,
-            minWidth: "220px",
+            minWidth: "320px",
             minHeight: "64px",
             maxWidth: "98vw",
             maxHeight: "98vh",
@@ -143,14 +166,14 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
               "opacity-100 scale-100 pointer-events-auto"
             )}
             style={{
-              bottom: initialPosition.bottom,
-              right: initialPosition.right,
-              width: closedWidth,
-              height: closedHeight,
+              bottom: `calc(${initialPosition.bottom}px + env(safe-area-inset-bottom))`,
+              right: `calc(${initialPosition.right}px + env(safe-area-inset-right))`,
+              width: finalClosedWidth,
+              height: finalClosedHeight,
               borderRadius: "50%",
               background: 'var(--primary)',
-              minWidth: isMobile ? "64px" : closedWidth,
-              minHeight: isMobile ? "64px" : closedHeight,
+              minWidth: isMobile ? "64px" : finalClosedWidth,
+              minHeight: isMobile ? "64px" : finalClosedHeight,
             }}
             onClick={toggleChat}
             aria-label="Abrir chat"
@@ -159,7 +182,9 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
               animate={{ y: [0, -10, 0] }}
               transition={{ repeat: Infinity, duration: 0.8, repeatDelay: 4 }}
             >
-              <ChatbocLogoAnimated size={parseInt((isMobile ? "64" : closedWidth).toString(), 10) * 0.7} />
+              <ChatbocLogoAnimated
+                size={parseInt((isMobile ? "64" : finalClosedWidth).toString(), 10) * 0.7}
+              />
             </motion.span>
           </Button>
         )}
