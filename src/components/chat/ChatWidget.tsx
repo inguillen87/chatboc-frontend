@@ -46,20 +46,23 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   // Responsive único: todo controlado desde acá
   const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
   const widgetWidth = isOpen
-    ? isMobile
+    ? mode === "iframe"
+      ? openWidth
+      : isMobile
       ? "96vw"
-      : finalOpenWidth
-    : isMobile
+      : openWidth
+    : isMobile && mode !== "iframe"
     ? "64px"
-    : finalClosedWidth;
+    : closedWidth;
   const widgetHeight = isOpen
-    ? isMobile
+    ? mode === "iframe"
+      ? openHeight
+      : isMobile
       ? "96vh"
-      : finalOpenHeight
-    : isMobile
+      : openHeight
+    : isMobile && mode !== "iframe"
     ? "64px"
-    : finalClosedHeight;
-  const standaloneIframe = mode === "iframe";
+    : closedHeight;
 
   // Comando para avisar a parent (NO TOCAR)
   const sendStateMessageToParent = useCallback(
@@ -111,13 +114,16 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             isOpen ? "pointer-events-auto" : "pointer-events-none"
           )}
           style={{
-            bottom: standaloneIframe ? undefined : `calc(${initialPosition.bottom}px + env(safe-area-inset-bottom))`,
-            right: standaloneIframe ? undefined : `calc(${initialPosition.right}px + env(safe-area-inset-right))`,
-            top: standaloneIframe ? "50%" : undefined,
-            left: standaloneIframe ? "50%" : undefined,
-            transform: standaloneIframe ? "translate(-50%, -50%)" : undefined,
-            transformOrigin: standaloneIframe ? "center" : "bottom right",
-            background: "var(--background, #f8fafc)",
+            ...(mode === "iframe"
+              ? {
+                  top: "50%",
+                  left: "50%",
+                  transform: "translate(-50%, -50%)",
+                }
+              : {
+                  bottom: `calc(${initialPosition.bottom}px + env(safe-area-inset-bottom))`,
+                  right: `calc(${initialPosition.right}px + env(safe-area-inset-right))`,
+                }),
             width: widgetWidth,
             height: widgetHeight,
             minWidth: "320px",
@@ -127,7 +133,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             borderRadius: isOpen ? "24px" : "50%",
             opacity: isOpen ? 1 : 0,
             scale: isOpen ? 1 : 0.85,
-            transformOrigin: "bottom right",
+            transformOrigin: mode === "iframe" ? "center" : "bottom right",
           }}
           initial={{ opacity: 0, scale: 0.7 }}
           animate={isOpen ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.7 }}
@@ -167,10 +173,18 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
               "opacity-100 scale-100 pointer-events-auto"
             )}
             style={{
-              bottom: `calc(${initialPosition.bottom}px + env(safe-area-inset-bottom))`,
-              right: `calc(${initialPosition.right}px + env(safe-area-inset-right))`,
-              width: finalClosedWidth,
-              height: finalClosedHeight,
+              ...(mode === "iframe"
+                ? {
+                    top: "50%",
+                    left: "50%",
+                    transform: "translate(-50%, -50%)",
+                  }
+                : {
+                    bottom: `calc(${initialPosition.bottom}px + env(safe-area-inset-bottom))`,
+                    right: `calc(${initialPosition.right}px + env(safe-area-inset-right))`,
+                  }),
+              width: closedWidth,
+              height: closedHeight,
               borderRadius: "50%",
               background: 'var(--primary)',
               minWidth: isMobile ? "64px" : finalClosedWidth,
