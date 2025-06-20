@@ -18,7 +18,7 @@ interface ChatWidgetProps {
   initialPosition?: { bottom: number; right: number }; // Solo para modo standalone
   defaultOpen?: boolean;
   widgetId?: string;
-  entityToken?: string; // Propiedad para el token de la entidad
+  entityToken?: string; 
   openWidth?: string;
   openHeight?: string;
   closedWidth?: string;
@@ -43,7 +43,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
 
-  // Las dimensiones finales provienen directamente de las props, ya que widget.js las controla.
   const finalOpenWidth = openWidth;
   const finalOpenHeight = openHeight;
   const finalClosedWidth = closedWidth;
@@ -66,7 +65,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     "shadow-lg transition-all duration-300 ease-in-out",
   );
 
-  // Avisar a parent (iframe) para redimensionar si hace falta
   const sendStateMessageToParent = useCallback(
     (open: boolean) => {
       if (
