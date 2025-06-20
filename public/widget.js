@@ -56,11 +56,18 @@
       background: "transparent",
       boxSizing: "border-box",
       fontFamily: "Arial, sans-serif",
-      fontSize: "14px"
+      fontSize: "14px",
     });
     if (!document.getElementById(widgetContainer.id)) {
       document.body.appendChild(widgetContainer);
     }
+
+    // Create shadow root to isolate styles
+    const shadow = widgetContainer.attachShadow({ mode: "open" });
+    const resetStyle = document.createElement("style");
+    resetStyle.textContent = `:host{all:initial;font-family:Arial,sans-serif;font-size:14px;}
+      *,*::before,*::after{box-sizing:border-box;}`;
+    shadow.appendChild(resetStyle);
 
     // Loader simple
     const loader = document.createElement("div");
@@ -79,7 +86,7 @@
       pointerEvents: "none"
     });
     loader.innerHTML = `<img src="${chatbocDomain}/favicon/favicon-48x48.png" alt="Chatboc" style="width:48px;height:48px;"/>`;
-    widgetContainer.appendChild(loader);
+    shadow.appendChild(loader);
 
     // Iframe ocupa todo, sin estilos visuales extra
     const iframe = document.createElement("iframe");
@@ -98,7 +105,7 @@
     });
     iframe.allow = "clipboard-write";
     iframe.setAttribute("title", "Chatboc Chatbot");
-    widgetContainer.appendChild(iframe);
+    shadow.appendChild(iframe);
 
     // Loader de fallback (10s)
     let iframeHasLoaded = false;
@@ -136,8 +143,8 @@
         Object.assign(widgetContainer.style, {
           width: currentDims.width,
           height: currentDims.height,
-          bottom: `calc(${initialBottom} + env(safe-area-inset-bottom))`,
-          right: `calc(${initialRight} + env(safe-area-inset-right))`,
+          bottom: initialBottom,
+          right: initialRight,
           left: "",
           top: "",
         });
