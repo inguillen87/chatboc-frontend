@@ -68,6 +68,33 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const initialWidgetWidth = computeWidth(defaultOpen);
   const initialWidgetHeight = computeHeight(defaultOpen);
 
+  const computeWidth = (open: boolean) =>
+    open
+      ? mode === "iframe"
+        ? finalOpenWidth
+        : isMobile
+        ? "96vw"
+        : finalOpenWidth
+      : isMobile && mode !== "iframe"
+      ? "64px"
+      : finalClosedWidth;
+
+  const computeHeight = (open: boolean) =>
+    open
+      ? mode === "iframe"
+        ? finalOpenHeight
+        : isMobile
+        ? "96vh"
+        : finalOpenHeight
+      : isMobile && mode !== "iframe"
+      ? "64px"
+      : finalClosedHeight;
+
+  const widgetWidth = computeWidth(isOpen);
+  const widgetHeight = computeHeight(isOpen);
+  const initialWidgetWidth = computeWidth(defaultOpen);
+  const initialWidgetHeight = computeHeight(defaultOpen);
+
   // Permite avisar a parent (iframe) para redimensionar si hace falta
   const sendStateMessageToParent = useCallback(
     (open: boolean) => {
