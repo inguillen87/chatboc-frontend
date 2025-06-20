@@ -135,7 +135,7 @@ const Demo = () => {
       <div className="min-h-screen flex flex-col items-center justify-center p-4 text-center bg-background dark:bg-gradient-to-b dark:from-[#10141b] dark:to-[#181d24] text-foreground">
         <div className="w-full max-w-md p-7 rounded-3xl shadow-xl border border-border bg-card/90 dark:bg-[#191f2b]">
           <img
-            src="/chatboc_widget_64x64.png"
+            src="/chatboc_logo_clean_transparent.png"
             alt="Chatboc"
             className="mx-auto w-14 h-14 mb-3"
             style={{ filter: "drop-shadow(0 4px 16px #1d69e0cc)" }}
