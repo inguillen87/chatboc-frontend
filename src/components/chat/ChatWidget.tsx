@@ -33,7 +33,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   closedWidth = "88px",
   closedHeight = "88px",
   tipoChat = getCurrentTipoChat(),
-  initialPosition = { bottom: 30, right: 30 },
+  initialPosition = { bottom: 32, right: 32 },
 }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [view, setView] = useState<'chat' | 'register'>('chat');
@@ -159,7 +159,10 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
               animate={{ y: [0, -10, 0] }}
               transition={{ repeat: Infinity, duration: 0.8, repeatDelay: 4 }}
             >
-              <ChatbocLogoAnimated size={parseInt((isMobile ? "64" : closedWidth).toString(), 10) * 0.7} />
+              <ChatbocLogoAnimated
+                size={parseInt((isMobile ? "64" : closedWidth).toString(), 10) * 0.7}
+                blinking
+              />
             </motion.span>
           </Button>
         )}
