@@ -1,4 +1,4 @@
-// public/widget.js (VERSIÓN FINAL Y COMPLETA - SIN SHADOW DOM)
+// public/widget.js (VERSIÓN FINAL Y FUNCIONAL - CON CORRECCIÓN DE FONDO BLANCO)
 
 (function () {
   "use strict";
@@ -40,30 +40,29 @@
     let iframeIsCurrentlyOpen = defaultOpen;
 
     // --- Contenedor principal del widget (loader y iframe) ---
-    // Este div es el que realmente manejará el tamaño y la forma en la página host.
     const widgetContainer = document.createElement("div");
     widgetContainer.id = "chatboc-widget-container-" + iframeId;
     Object.assign(widgetContainer.style, {
-      position: "fixed", // Siempre fixed para la incrustación externa
+      position: "fixed", 
       bottom: initialBottom,
       right: initialRight,
       width: currentDims.width,
       height: currentDims.height,
       zIndex: zIndexBase.toString(),
-      borderRadius: iframeIsCurrentlyOpen ? "16px" : "50%", // APLICADO AQUÍ
-      boxShadow: iframeIsCurrentlyOpen ? "0 6px 20px rgba(0,0,0,0.2)" : "0 4px 12px rgba(0,0,0,0.15)", // APLICADO AQUÍ
+      borderRadius: iframeIsCurrentlyOpen ? "16px" : "50%", // Aplicado al contenedor
+      boxShadow: iframeIsCurrentlyOpen ? "0 6px 20px rgba(0,0,0,0.2)" : "0 4px 12px rgba(0,0,0,0.15)", // Aplicado al contenedor
       transition: "width 0.25s cubic-bezier(0.4, 0, 0.2, 1), height 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-radius 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s ease-in-out",
       overflow: "hidden", // Crucial para recortar el contenido en estado circular
-      display: "flex",
+      display: "flex", // Para centrar el loader/iframe
       alignItems: "center",
       justifyContent: "center",
-      cursor: "pointer", // Indica que es clickeable
-      background: "transparent", // Asegurar que el fondo sea transparente por defecto
+      cursor: "pointer", 
+      background: "transparent", // Asegurar transparencia para que el background del loader se vea si es un div simple.
     });
-    // Se añade directamente al body, no a un Shadow DOM.
+    // Se añade directamente al body del host.
     if (!document.getElementById(widgetContainer.id)) document.body.appendChild(widgetContainer);
 
-    // --- Loader ---
+    // --- Loader (El círculo blanco proviene de aquí o del iframe transparente sin contenido) ---
     const loader = document.createElement("div");
     loader.id = "chatboc-loader-" + iframeId;
     Object.assign(loader.style, {
@@ -75,11 +74,13 @@
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
-      background: "white", // Fondo del loader
+      background: "white", // Fondo blanco visible para el loader
+      borderRadius: "inherit", // Hereda el border-radius del contenedor padre
       transition: "opacity 0.3s ease-out",
-      pointerEvents: "auto",
-      zIndex: "2"
+      pointerEvents: "auto", // Para que reciba clics mientras está visible
+      zIndex: "2", // Por encima del iframe inicialmente
     });
+    // El logo aquí solo se muestra hasta que el iframe carga
     loader.innerHTML = `<img src="${chatbocDomain}/favicon/favicon-48x48.png" alt="Chatboc" style="width:48px;height:48px;"/>`;
     widgetContainer.appendChild(loader); 
 
@@ -89,13 +90,13 @@
     iframe.src = `${chatbocDomain}/iframe?token=${encodeURIComponent(token)}&widgetId=${iframeId}&defaultOpen=${defaultOpen}&openWidth=${encodeURIComponent(WIDGET_DIMENSIONS_JS.OPEN.width)}&openHeight=${encodeURIComponent(WIDGET_DIMENSIONS_JS.OPEN.height)}&closedWidth=${encodeURIComponent(WIDGET_DIMENSIONS_JS.CLOSED.width)}&closedHeight=${encodeURIComponent(WIDGET_DIMENSIONS_JS.CLOSED.height)}${theme ? `&theme=${encodeURIComponent(theme)}` : ""}`;
     Object.assign(iframe.style, {
       border: "none",
-      width: "100%", // Siempre 100% del contenedor padre (widgetContainer)
-      height: "100%", // Siempre 100% del contenedor padre (widgetContainer)
-      backgroundColor: "transparent",
+      width: "100%",
+      height: "100%",
+      backgroundColor: "transparent", // El iframe es transparente, el fondo lo da el widgetContainer o el contenido de React
       display: "block",
-      opacity: "0",
+      opacity: "0", // Oculto inicialmente, se muestra cuando carga
       transition: "opacity 0.3s ease-in",
-      zIndex: "1"
+      zIndex: "1" // Por debajo del loader inicialmente
     });
     iframe.allow = "clipboard-write";
     iframe.setAttribute("title", "Chatboc Chatbot");
@@ -105,23 +106,23 @@
     const loadTimeout = setTimeout(() => {
       if (!iframeHasLoaded) {
         loader.innerHTML = '<div style="font-family: Arial, sans-serif; color: #777; font-size:12px; text-align:center;">Servicio no disponible</div>';
-        loader.style.backgroundColor = "var(--background, #f8fafc)";
+        loader.style.backgroundColor = "lightgray"; // Fondo si falla la carga
       }
     }, 10000);
 
     iframe.onload = function () {
       iframeHasLoaded = true;
       clearTimeout(loadTimeout);
-      loader.style.opacity = "0";
-      setTimeout(() => loader.remove(), 250);
-      iframe.style.opacity = "1";
+      loader.style.opacity = "0"; // Oculta el loader
+      setTimeout(() => loader.remove(), 250); // Remueve el loader después de la transición
+      iframe.style.opacity = "1"; // Muestra el iframe
     };
 
     iframe.onerror = function () {
       iframeHasLoaded = true;
       clearTimeout(loadTimeout);
       loader.innerHTML = '<div style="font-family: Arial, sans-serif; color: #777; font-size:12px; text-align:center;">Servicio no disponible</div>';
-      loader.style.backgroundColor = "var(--background, #f8fafc)";
+      loader.style.backgroundColor = "lightgray";
       iframe.style.display = "none";
     };
 
@@ -145,7 +146,6 @@
     });
 
     // --- Lógica de Arrastre (solo para el modo fixed) ---
-    // Esta lógica ya está bien y solo se activa en modo fixed.
     let isDragging = false, dragStartX, dragStartY, containerStartLeft, containerStartTop;
     widgetContainer.addEventListener("mousedown", dragStart);
     widgetContainer.addEventListener("touchstart", dragStart, { passive: false });
