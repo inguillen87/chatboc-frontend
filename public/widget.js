@@ -144,6 +144,27 @@
       }
     });
 
+    // Si el iframe no responde, forzar apertura al hacer click en el contenedor
+    widgetContainer.addEventListener("click", function () {
+      if (!iframeIsCurrentlyOpen) {
+        if (iframe && iframe.contentWindow) {
+          iframe.contentWindow.postMessage(
+            { type: "TOGGLE_CHAT", widgetId: iframeId, isOpen: true },
+            "*"
+          );
+        }
+        // Aplicar estilos de apertura como respaldo inmediato
+        iframeIsCurrentlyOpen = true;
+        currentDims = WIDGET_DIMENSIONS_JS.OPEN;
+        Object.assign(widgetContainer.style, {
+          width: currentDims.width,
+          height: currentDims.height,
+          borderRadius: "16px",
+          boxShadow: "0 6px 20px rgba(0,0,0,0.2)",
+        });
+      }
+    });
+
     // --- Lógica de Arrastre (solo para el modo fixed) ---
     // Esta lógica ya está bien y solo se activa en modo fixed.
     let isDragging = false, dragStartX, dragStartY, containerStartLeft, containerStartTop;
