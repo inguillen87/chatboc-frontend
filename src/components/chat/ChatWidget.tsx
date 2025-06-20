@@ -118,7 +118,11 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
           style={{ width: closedWidth, height: closedHeight, background: 'var(--primary)' }}
         >
           {isOpen ? <X className="h-8 w-8" /> : <MessageCircle className="h-8 w-8" />}
-          {!isOpen && <ChatbocLogoAnimated size={parseInt(closedWidth, 10) * 0.7} />}
+          {!isOpen && (
+            <span className="animate-bounce">
+              <ChatbocLogoAnimated size={parseInt(closedWidth, 10) * 0.7} />
+            </span>
+          )}
         </Button>
       </Suspense>
     </div>
