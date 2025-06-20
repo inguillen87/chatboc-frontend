@@ -38,16 +38,7 @@
     let currentDims = defaultOpen ? WIDGET_DIMENSIONS_JS.OPEN : WIDGET_DIMENSIONS_JS.CLOSED;
     let iframeIsCurrentlyOpen = defaultOpen;
 
-    const targetElementId = script.getAttribute("data-target-element-id");
-    let targetElement = null;
-    let isFixedPosition = true;
-
-    if (targetElementId) {
-      targetElement = document.getElementById(targetElementId);
-      if (targetElement) {
-        isFixedPosition = false;
-      }
-    }
+    const isFixedPosition = true;
 
     const widgetContainer = document.createElement("div");
     widgetContainer.id = "chatboc-widget-container-" + iframeId;
@@ -70,14 +61,7 @@
       cursor: "pointer",
     });
     if (!document.getElementById(widgetContainer.id)) {
-      if (targetElement) {
-        if (getComputedStyle(targetElement).position === "static") {
-          targetElement.style.position = "relative";
-        }
-        targetElement.appendChild(widgetContainer);
-      } else {
-        document.body.appendChild(widgetContainer);
-      }
+      document.body.appendChild(widgetContainer);
     }
 
     const loader = document.createElement("div");

@@ -348,7 +348,7 @@ const ChatPanel = ({
   return (
     <div className="flex flex-col w-full h-full overflow-hidden">
       <ChatHeader onClose={onClose} />
-      <ScrollArea ref={chatContainerRef} className="flex-1 px-4 pt-4 pb-2 text-card-foreground bg-card">
+      <ScrollArea ref={chatContainerRef} className="flex-1 px-4 pt-4 pb-2 text-card-foreground bg-card min-h-0">
         <div className="flex flex-col gap-3 min-h-full">
           {esperandoRubro ? (
             <div className="text-center w-full">
