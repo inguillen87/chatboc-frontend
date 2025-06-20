@@ -131,7 +131,8 @@ const Iframe = () => {
         padding: 0,
         overflow: "hidden",
         display: "flex",
-        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
         position: "relative",
       }}
       className="relative"
