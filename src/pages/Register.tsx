@@ -101,7 +101,7 @@ const Register = () => {
 
   return (
     // MODIFICADO: Fondo de la página y colores del formulario
-    <div className="min-h-[calc(100vh-80px)] flex items-center justify-center px-4 bg-background text-foreground">
+    <div className="min-h-[calc(100vh-80px)] flex items-center justify-center px-4 bg-gradient-to-br from-background via-card to-muted text-foreground">
       <div className="w-full max-w-md bg-card p-8 rounded-xl shadow-xl border border-border">
         <h2 className="text-2xl font-bold mb-6 text-center text-foreground">
           Registrarse
@@ -129,7 +129,11 @@ const Register = () => {
             <label htmlFor="terms" className="text-xs text-muted-foreground">Acepto los <a href="/legal/terms" target="_blank" className="underline text-primary hover:text-primary/80">Términos</a> y <a href="/legal/privacy" target="_blank" className="underline text-primary hover:text-primary/80">Política de Privacidad</a>.</label>
           </div>
           {error && <p className="text-destructive text-sm">{error}</p>}
-          <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" disabled={!accepted || isLoading}>
+          <Button
+            type="submit"
+            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-2.5 text-base"
+            disabled={!accepted || isLoading}
+          >
             {isLoading ? "Registrando..." : "Registrarse"}
           </Button>
         </form>
