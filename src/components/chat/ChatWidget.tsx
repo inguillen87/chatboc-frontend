@@ -111,121 +111,45 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   // Renderizado principal del ChatWidget
   if (mode === "standalone") {
-    // Modo standalone (tu app principal, no el iframe incrustado)
-    // Se posiciona fijo en la pantalla.
-    return (
-      <div
-        className={cn(
-          "chatboc-container-standalone",
-          "fixed z-[999999]", // Sigue fixed para standalone
-          isOpen ? "pointer-events-auto" : "pointer-events-none",
-        )}
-        style={{
-          bottom: `calc(${initialPosition.bottom}px + env(safe-area-inset-bottom))`,
-          right: `calc(${initialPosition.right}px + env(safe-area-inset-right))`,
-          left: "auto",
-          top: "auto",
-          width: isMobile ? "96vw" : finalOpenWidth,
-          height: isMobile ? "96vh" : finalOpenHeight,
-          minWidth: "320px",
-          minHeight: "64px",
-          maxWidth: "98vw",
-          maxHeight: "98vh",
-          borderRadius: isOpen ? "24px" : "50%", // Redondez para standalone
-          opacity: isOpen ? 1 : 0,
-          scale: isOpen ? 1 : 0.85,
-          transformOrigin: "bottom right",
-        }}
-      >
-        <Suspense fallback={null}>
-          <motion.div
-            className={cn(commonPanelAndButtonAbsoluteClasses, commonPanelStyles, "w-full h-full")} // w-full h-full para llenar el contenedor fijo
-            style={{ borderRadius: isOpen ? "24px" : "50%" }} // Asegurar el borde para standalone
-            initial={{ opacity: 0, scale: 0.85 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.85 }}
-            transition={{ type: "spring", stiffness: 260, damping: 20 }}
-          >
-            {isOpen && (
-              <>
-                <ChatHeader onClose={toggleChat} />
-                {view === "register" ? (
-                  <ChatRegisterPanel onSuccess={() => setView("chat")} />
-                ) : (
-                  <ChatPanel
-                    mode={mode}
-                    widgetId={widgetId}
-                    entityToken={entityToken}
-                    openWidth={finalOpenWidth}
-                    openHeight={finalOpenHeight}
-                    onClose={toggleChat}
-                    tipoChat={tipoChat}
-                    onRequireAuth={() => setView("register")}
-                  />
-                )}
-              </>
-            )}
-          </motion.div>
-          {!isOpen && (
-            <Button
-              className={cn(commonButtonStyles, "w-[88px] h-[88px]")} // Tamaño fijo para el botón standalone
-              style={{
-                position: "absolute", // Posicionar el botón absoluto dentro del contenedor standalone
-                bottom: "0px",
-                right: "0px",
-                borderRadius: "50%",
-                background: "var(--primary)",
-              }}
-              onClick={toggleChat}
-              aria-label="Abrir chat"
-            >
-              <motion.span
-                animate={{ y: [0, -10, 0] }}
-                transition={{ repeat: Infinity, duration: 0.8, repeatDelay: 4 }}
-              >
-                <ChatbocLogoAnimated size={isMobile ? 42 : 62} blinking />
-              </motion.span>
-            </Button>
-          )}
-        </Suspense>
-      </div>
-    );
-  }
-
-  // Modo iframe (este es el que se usa cuando el widget se incrusta en otras páginas)
-  // Este div NO debe ser fixed. Su padre (el iframe) ya es fixed.
-  // Este div ocupará el 100% del iframe.
   return (
     <div
       className={cn(
-        "relative w-full h-full", // Este div ocupa el 100% del iframe y es el contenedor relativo
-        "flex flex-col items-end justify-end", // Alinea el botón/panel a la esquina inferior derecha
+        "chatboc-container-standalone fixed z-[999999]",
       )}
+      style={{
+        bottom: `calc(${initialPosition.bottom}px + env(safe-area-inset-bottom))`,
+        right: `calc(${initialPosition.right}px + env(safe-area-inset-right))`,
+        left: "auto",
+        top: "auto",
+        width: isOpen ? (isMobile ? "96vw" : finalOpenWidth) : finalClosedWidth,
+        height: isOpen ? (isMobile ? "96vh" : finalOpenHeight) : finalClosedHeight,
+        minWidth: isOpen ? "320px" : finalClosedWidth,
+        minHeight: isOpen ? "64px" : finalClosedHeight,
+        maxWidth: "98vw",
+        maxHeight: "98vh",
+        borderRadius: isOpen ? "24px" : "50%",
+        overflow: "hidden",
+        boxShadow: "0 8px 32px 0 rgba(0,0,0,0.20)",
+        background: isOpen ? "#fff" : "var(--primary, #2563eb)",
+        transition: "all 0.25s cubic-bezier(.42,0,.58,1)",
+        padding: 0,
+        display: "flex",
+        alignItems: "flex-end",
+        justifyContent: "flex-end",
+      }}
     >
       <Suspense fallback={null}>
-        {/* Panel del chat, se posiciona de forma absoluta dentro del div raíz de ChatWidget */}
-        <motion.div
-          className={cn(
-            commonPanelAndButtonAbsoluteClasses, // absolute bottom-0 right-0
-            commonPanelStyles, // bg-card border shadow-2xl etc.
-            isOpen ? "pointer-events-auto" : "pointer-events-none" // Control de eventos
-          )}
-          style={{
-            width: finalOpenWidth, 
-            height: finalOpenHeight, 
-            borderRadius: "16px", // Mantener el borde del panel del chat
-            opacity: isOpen ? 1 : 0, // Controlar la opacidad
-            scale: isOpen ? 1 : 0.95, // Controlar la escala
-            transformOrigin: "bottom right", // Origen de la transformación
-          }}
-          initial={{ opacity: 0, scale: 0.95 }} // Ajustado initial scale para iframe
-          animate={{ opacity: isOpen ? 1 : 0, scale: isOpen ? 1 : 0.95 }} // Ajustado animate scale para iframe
-          exit={{ opacity: 0, scale: 0.95 }} // Ajustado exit scale para iframe
-          transition={{ type: "spring", stiffness: 260, damping: 20 }}
-        >
-          {/* Renderiza el contenido del panel solo si está abierto */}
-          {isOpen && ( 
-            <>
+        <AnimatePresence>
+          {isOpen && (
+            <motion.div
+              key="chatboc-panel"
+              className={cn(commonPanelStyles, "w-full h-full")}
+              style={{ borderRadius: "24px", background: "#fff" }}
+              initial={{ opacity: 0, scale: 0.85 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.85 }}
+              transition={{ type: "spring", stiffness: 250, damping: 18 }}
+            >
               <ChatHeader onClose={toggleChat} />
               {view === "register" ? (
                 <ChatRegisterPanel onSuccess={() => setView("chat")} />
@@ -233,41 +157,139 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                 <ChatPanel
                   mode={mode}
                   widgetId={widgetId}
-                  entityToken={entityToken} 
-                  openWidth={finalOpenWidth} 
+                  entityToken={entityToken}
+                  openWidth={finalOpenWidth}
                   openHeight={finalOpenHeight}
                   onClose={toggleChat}
                   tipoChat={tipoChat}
                   onRequireAuth={() => setView("register")}
                 />
               )}
-            </>
+            </motion.div>
           )}
-        </motion.div>
-
-        {/* Botón flotante para abrir/cerrar el chat (en modo iframe) */}
-        <Button
-          className={cn(
-            commonButtonStyles, // rounded-full flex items-center justify-center, bg-primary, etc.
-            commonPanelAndButtonAbsoluteClasses, // absolute bottom-0 right-0
-            isOpen ? "opacity-0 scale-0 pointer-events-none" : "opacity-100 scale-100 pointer-events-auto"
-          )}
-          onClick={toggleChat}
-          aria-label={isOpen ? "Cerrar chat" : "Abrir chat"}
-          style={{
-             width: finalClosedWidth, 
-             height: finalClosedHeight, 
-             background: "var(--primary)",
-             opacity: isOpen ? 0 : 1,
-             scale: isOpen ? 0 : 1,
-          }}
-        >
-          {isOpen ? <X className="h-8 w-8" /> : <MessageCircle className="h-8 w-8" />} 
-          {!isOpen && <ChatbocLogoAnimated size={parseInt(finalClosedWidth, 10) * 0.7} />} 
-        </Button>
+        </AnimatePresence>
+        {!isOpen && (
+          <motion.button
+            key="chatboc-btn"
+            className={cn(
+              commonButtonStyles,
+              "w-[88px] h-[88px] absolute bottom-0 right-0 border-none shadow-xl",
+            )}
+            style={{
+              borderRadius: "50%",
+              background: "var(--primary, #2563eb)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              boxShadow: "0 6px 24px 0 rgba(0,0,0,0.15)",
+            }}
+            initial={{ opacity: 0, scale: 0.85 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.85 }}
+            transition={{ type: "spring", stiffness: 320, damping: 18 }}
+            onClick={toggleChat}
+            aria-label="Abrir chat"
+          >
+            <motion.span
+              animate={{ y: [0, -8, 0] }}
+              transition={{ repeat: Infinity, duration: 1, repeatDelay: 3 }}
+            >
+              <ChatbocLogoAnimated size={isMobile ? 42 : 62} blinking />
+            </motion.span>
+          </motion.button>
+        )}
       </Suspense>
     </div>
   );
-};
+}
+
+
+  // Modo iframe (este es el que se usa cuando el widget se incrusta en otras páginas)
+  // Este div NO debe ser fixed. Su padre (el iframe) ya es fixed.
+  // Este div ocupará el 100% del iframe.
+  return (
+  <div
+    className={cn(
+      "relative w-full h-full",
+      "flex flex-col items-end justify-end",
+    )}
+    style={{ overflow: "visible" }}
+  >
+    <Suspense fallback={null}>
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            key="chatboc-panel"
+            className={cn(commonPanelStyles, commonPanelAndButtonAbsoluteClasses)}
+            style={{
+              width: finalOpenWidth,
+              height: finalOpenHeight,
+              borderRadius: "20px",
+              background: "#fff",
+              opacity: 1,
+              zIndex: 10,
+              boxShadow: "0 12px 40px 0 rgba(0,0,0,0.18)",
+            }}
+            initial={{ opacity: 0, scale: 0.93 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.93 }}
+            transition={{ type: "spring", stiffness: 250, damping: 22 }}
+          >
+            <ChatHeader onClose={toggleChat} />
+            {view === "register" ? (
+              <ChatRegisterPanel onSuccess={() => setView("chat")} />
+            ) : (
+              <ChatPanel
+                mode={mode}
+                widgetId={widgetId}
+                entityToken={entityToken}
+                openWidth={finalOpenWidth}
+                openHeight={finalOpenHeight}
+                onClose={toggleChat}
+                tipoChat={tipoChat}
+                onRequireAuth={() => setView("register")}
+              />
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {!isOpen && (
+          <motion.button
+            key="chatboc-btn"
+            className={cn(
+              commonButtonStyles,
+              commonPanelAndButtonAbsoluteClasses,
+              "w-[88px] h-[88px] border-none shadow-xl",
+            )}
+            style={{
+              borderRadius: "50%",
+              background: "var(--primary, #2563eb)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 20,
+            }}
+            initial={{ opacity: 0, scale: 0.87 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.87 }}
+            transition={{ type: "spring", stiffness: 320, damping: 16 }}
+            onClick={toggleChat}
+            aria-label="Abrir chat"
+          >
+            <motion.span
+              animate={{ y: [0, -10, 0] }}
+              transition={{ repeat: Infinity, duration: 0.9, repeatDelay: 4 }}
+            >
+              <ChatbocLogoAnimated size={62} blinking />
+            </motion.span>
+          </motion.button>
+        )}
+      </AnimatePresence>
+    </Suspense>
+   </div>
+  );
+} // <-- ¡NO TE
+
 
 export default ChatWidget;
