@@ -33,24 +33,35 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   closedWidth = "88px",
   closedHeight = "88px",
   tipoChat = getCurrentTipoChat(),
+  initialPosition = { bottom: 30, right: 30 },
 }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [view, setView] = useState<'chat' | 'register'>('chat');
 
+  // Responsive para mobile
+  const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
+  const widgetWidth = isMobile ? "98vw" : openWidth;
+  const widgetHeight = isMobile ? "80vh" : openHeight;
+  const bubbleSize = isMobile ? "64px" : closedWidth;
+
+  // Mensaje al parent si está en iframe
   const sendStateMessageToParent = useCallback(
     (open: boolean) => {
       if (mode === "iframe" && typeof window !== "undefined" && window.parent !== window && widgetId) {
-        const dims = open ? { width: openWidth, height: openHeight } : { width: closedWidth, height: closedHeight };
+        const dims = open
+          ? { width: widgetWidth, height: widgetHeight }
+          : { width: bubbleSize, height: bubbleSize };
         window.parent.postMessage({ type: "chatboc-state-change", widgetId, dimensions: dims, isOpen: open }, "*");
       }
     },
-    [mode, widgetId, openWidth, openHeight, closedWidth, closedHeight]
+    [mode, widgetId, widgetWidth, widgetHeight, bubbleSize]
   );
 
   useEffect(() => {
     sendStateMessageToParent(isOpen);
   }, [isOpen, sendStateMessageToParent]);
 
+  // Escucha de toggle externo (postMessage)
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       if (event.data && event.data.type === "TOGGLE_CHAT" && event.data.widgetId === widgetId) {
@@ -62,40 +73,35 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     return () => window.removeEventListener("message", handleMessage);
   }, [widgetId, isOpen]);
 
-  const toggleChat = () => setIsOpen(!isOpen);
-
-  // Responsive: adapta tamaños en mobile
-  const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
-  const widgetWidth = isMobile ? "98vw" : openWidth;
-  const widgetHeight = isMobile ? "80vh" : openHeight;
-  const bubbleSize = isMobile ? "64px" : closedWidth;
+  const toggleChat = () => setIsOpen((open) => !open);
 
   return (
     <div className="z-[999999]">
       <Suspense fallback={null}>
-        {/* Chat abierto */}
+        {/* Panel principal */}
         <motion.div
           className={cn(
             "chatboc-panel-wrapper",
-            "fixed bottom-6 right-6", // <- LO ÚNICO FUNDAMENTAL para que nunca se rompa
-            "bg-card border shadow-2xl rounded-lg",
+            "fixed z-[999999]",
+            "bg-card border shadow-2xl rounded-2xl",
             "flex flex-col overflow-hidden",
-            "transform transition-all duration-300 ease-in-out",
+            "transition-all duration-300",
             isOpen ? "opacity-100 scale-100 pointer-events-auto" : "opacity-0 scale-95 pointer-events-none"
           )}
           style={{
+            bottom: initialPosition.bottom,
+            right: initialPosition.right,
             width: widgetWidth,
             height: widgetHeight,
-            minWidth: "300px",
+            minWidth: "280px",
             maxWidth: "98vw",
             maxHeight: "98vh",
-            zIndex: 999999,
-            borderRadius: "16px"
+            borderRadius: "16px",
           }}
           initial={{ opacity: 0, scale: 0.9, y: 20 }}
           animate={isOpen ? { opacity: 1, scale: 1, y: 0 } : { opacity: 0, scale: 0.9, y: 20 }}
           exit={{ opacity: 0, scale: 0.9, y: 20 }}
-          transition={{ type: "spring", stiffness: 240, damping: 18 }}
+          transition={{ type: "spring", stiffness: 260, damping: 20 }}
         >
           {isOpen && (
             <>
@@ -107,8 +113,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                   mode={mode}
                   widgetId={widgetId}
                   authToken={authToken}
-                  openWidth={openWidth}
-                  openHeight={openHeight}
+                  openWidth={widgetWidth}
+                  openHeight={widgetHeight}
                   onClose={toggleChat}
                   tipoChat={tipoChat}
                   onRequireAuth={() => setView('register')}
@@ -118,24 +124,31 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
           )}
         </motion.div>
 
-        {/* Botón flotante con burbuja animada */}
+        {/* Botón flotante */}
         <Button
           className={cn(
             "chatboc-toggle-button",
-            "fixed bottom-6 right-6",
+            "fixed z-[999999]",
             "rounded-full flex items-center justify-center",
             "bg-primary text-primary-foreground hover:bg-primary/90",
-            "shadow-lg transition-all duration-300 ease-in-out",
+            "shadow-lg transition-all duration-300",
             isOpen ? "opacity-0 scale-0 pointer-events-none" : "opacity-100 scale-100 pointer-events-auto"
           )}
+          style={{
+            bottom: initialPosition.bottom,
+            right: initialPosition.right,
+            width: bubbleSize,
+            height: bubbleSize,
+            borderRadius: "50%",
+            background: 'var(--primary)',
+          }}
           onClick={toggleChat}
           aria-label={isOpen ? "Cerrar chat" : "Abrir chat"}
-          style={{ width: bubbleSize, height: bubbleSize, background: 'var(--primary)', zIndex: 999999 }}
         >
           {isOpen ? <X className="h-8 w-8" /> : <MessageCircle className="h-8 w-8" />}
           {!isOpen && (
             <span className="animate-bounce">
-              <ChatbocLogoAnimated size={parseInt(bubbleSize as string, 10) * 0.7} />
+              <ChatbocLogoAnimated size={parseInt(bubbleSize.toString(), 10) * 0.7} />
             </span>
           )}
         </Button>
