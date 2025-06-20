@@ -1,6 +1,7 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { MessageSquare, Sparkles, UserPlus, LogIn } from "lucide-react";
+import ChatbocLogoAnimated from "../chat/ChatbocLogoAnimated";
 import { useNavigate } from "react-router-dom";
 
 const HeroSection = () => {
@@ -56,12 +57,7 @@ const HeroSection = () => {
             <div className="bg-card text-card-foreground rounded-2xl shadow-xl p-5 border border-border max-w-full sm:max-w-md mx-auto animate-float">
               <div className="flex items-center border-b border-border pb-3 mb-3">
                 <div className="mr-3">
-                  <img
-                    src="/chatboc_widget_64x64.png"
-                    alt="Chatboc"
-                    className="w-8 h-8 rounded"
-                    style={{ padding: "2px" }}
-                  />
+                  <ChatbocLogoAnimated size={32} blinking />
                 </div>
                 <div>
                   <h3 className="font-medium text-sm">Chatboc</h3>
