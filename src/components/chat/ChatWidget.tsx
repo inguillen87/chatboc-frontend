@@ -95,20 +95,12 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             isOpen ? "pointer-events-auto" : "pointer-events-none"
           )}
           style={{
-
             bottom: standaloneIframe ? undefined : `calc(${initialPosition.bottom}px + env(safe-area-inset-bottom))`,
             right: standaloneIframe ? undefined : `calc(${initialPosition.right}px + env(safe-area-inset-right))`,
             top: standaloneIframe ? "50%" : undefined,
             left: standaloneIframe ? "50%" : undefined,
             transform: standaloneIframe ? "translate(-50%, -50%)" : undefined,
             transformOrigin: standaloneIframe ? "center" : "bottom right",
-
-            bottom: embeddedIframe ? undefined : `calc(${initialPosition.bottom}px + env(safe-area-inset-bottom))`,
-            right: embeddedIframe ? undefined : `calc(${initialPosition.right}px + env(safe-area-inset-right))`,
-            top: embeddedIframe ? "50%" : undefined,
-            left: embeddedIframe ? "50%" : undefined,
-            transform: embeddedIframe ? "translate(-50%, -50%)" : undefined,
-            transformOrigin: embeddedIframe ? "center" : "bottom right",
             background: "var(--background, #f8fafc)",
             width: widgetWidth,
             height: widgetHeight,
