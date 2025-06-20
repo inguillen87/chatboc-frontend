@@ -182,7 +182,7 @@ const Demo = () => {
       <div className="bg-primary text-primary-foreground py-3 px-4 flex items-center justify-between shadow sticky top-0 z-10 rounded-t-3xl">
         <div className="flex items-center gap-3">
           <img
-            src="/chatboc_widget_white_outline.webp"
+            src="/chatboc_logo_clean_transparent.png"
             alt="Chatboc"
             className="w-8 h-8 rounded-full"
             style={{ background: "#2462a6" }}
