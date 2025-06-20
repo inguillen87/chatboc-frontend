@@ -15,6 +15,7 @@ const Iframe = () => {
     closedWidth: null as string | null,
     closedHeight: null as string | null,
     theme: "light",
+    tipoChat: "pyme" as "pyme" | "municipio",
   });
 
   useEffect(() => {
@@ -30,6 +31,7 @@ const Iframe = () => {
       const closedWidthParam = params.get("closedWidth");
       const closedHeightParam = params.get("closedHeight");
       const themeParam = params.get("theme");
+      const tipoChatParam = params.get("tipo_chat");
 
       setWidgetParams({
         defaultOpen: openParam === "true",
@@ -42,6 +44,7 @@ const Iframe = () => {
         closedWidth: closedWidthParam,
         closedHeight: closedHeightParam,
         theme: themeParam === "dark" || themeParam === "light" ? themeParam : "light",
+        tipoChat: tipoChatParam === "municipio" ? "municipio" : "pyme",
       });
 
       if (themeParam === "dark" || themeParam === "light") {
@@ -91,6 +94,7 @@ const Iframe = () => {
         defaultOpen={widgetParams.defaultOpen}
         widgetId={widgetParams.widgetId}
         entityToken={widgetParams.token}
+        tipoChat={widgetParams.tipoChat}
         initialIframeWidth={widgetParams.initialIframeWidth}
         initialIframeHeight={widgetParams.initialIframeHeight}
         openWidth={widgetParams.openWidth}
