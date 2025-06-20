@@ -37,6 +37,8 @@ const FRASES_EXITO = [
   "ticket **M-",
 ];
 
+const PENDING_TICKET_KEY = 'pending_ticket_id';
+
 interface ChatPanelProps {
   mode?: "standalone" | "iframe" | "script";
   widgetId?: string;
@@ -72,7 +74,11 @@ const ChatPanel = ({
   const [esperandoRubro, setEsperandoRubro] = useState(false);
   const [cargandoRubros, setCargandoRubros] = useState(false);
   const [contexto, setContexto] = useState({});
-  const [activeTicketId, setActiveTicketId] = useState<number | null>(null);
+  const [activeTicketId, setActiveTicketId] = useState<number | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const stored = safeLocalStorage.getItem(PENDING_TICKET_KEY);
+    return stored ? Number(stored) : null;
+  });
   const [ticketLocation, setTicketLocation] = useState<{ direccion?: string | null; latitud?: number | null; longitud?: number | null; municipio_nombre?: string | null } | null>(null);
   const [pollingErrorShown, setPollingErrorShown] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -82,6 +88,12 @@ const ChatPanel = ({
   const [forzarDireccion, setForzarDireccion] = useState(false);
   const [direccionGuardada, setDireccionGuardada] = useState<string | null>(null);
   const [showCierre, setShowCierre] = useState<{ show: boolean; text: string } | null>(null);
+
+  useEffect(() => {
+    if (activeTicketId) {
+      safeLocalStorage.removeItem(PENDING_TICKET_KEY);
+    }
+  }, [activeTicketId]);
 
   useEffect(() => {
     const stored = safeLocalStorage.getItem("ultima_direccion");
@@ -134,6 +146,9 @@ const ChatPanel = ({
 
   const handleShareGps = useCallback(() => {
     if (esAnonimo) {
+      if (activeTicketId) {
+        safeLocalStorage.setItem(PENDING_TICKET_KEY, String(activeTicketId));
+      }
       onRequireAuth && onRequireAuth();
       return;
     }
@@ -164,6 +179,7 @@ const ChatPanel = ({
   useEffect(() => {
     if (!activeTicketId) return;
     if (esAnonimo) {
+      safeLocalStorage.setItem(PENDING_TICKET_KEY, String(activeTicketId));
       onRequireAuth && onRequireAuth();
       return;
     }
@@ -319,8 +335,13 @@ const ChatPanel = ({
           setMessages((prev) => [...prev, { id: Date.now(), text: respuestaText || "No pude procesar tu solicitud.", isBot: true, timestamp: new Date(), botones }]);
           if (esAnonimo && mode === "standalone") setPreguntasUsadas((prev) => prev + 1);
           if (data.ticket_id) {
-            if (esAnonimo) onRequireAuth && onRequireAuth();
-            else { setActiveTicketId(data.ticket_id); ultimoMensajeIdRef.current = 0; }
+            if (esAnonimo) {
+              safeLocalStorage.setItem(PENDING_TICKET_KEY, String(data.ticket_id));
+              onRequireAuth && onRequireAuth();
+            } else {
+              setActiveTicketId(data.ticket_id);
+              ultimoMensajeIdRef.current = 0;
+            }
           }
         }
       } catch (error: any) {
