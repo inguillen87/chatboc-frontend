@@ -38,14 +38,16 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [view, setView] = useState<'chat' | 'register'>('chat');
 
+  // Responsive real
   const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
 
+  // Siempre definí primero los tamaños finales
   const finalOpenWidth = openWidth || "370px";
   const finalOpenHeight = openHeight || "540px";
   const finalClosedWidth = closedWidth || "88px";
   const finalClosedHeight = closedHeight || "88px";
 
-  // Sizing helpers
+  // Helpers para tamaño
   const computeWidth = (open: boolean) =>
     open
       ? mode === "iframe"
@@ -73,7 +75,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const initialWidgetWidth = computeWidth(defaultOpen);
   const initialWidgetHeight = computeHeight(defaultOpen);
 
-  // Posicionamiento para el botón flotante fuera de iframe
+  // Posicionamiento del botón flotante (fuera de iframe)
   const buttonPosition =
     mode === "iframe"
       ? {
@@ -136,6 +138,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   return (
     <div>
       <Suspense fallback={null}>
+        {/* Panel principal */}
         <motion.div
           className={cn(
             "chatboc-panel-wrapper",
