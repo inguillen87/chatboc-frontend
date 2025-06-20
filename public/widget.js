@@ -14,8 +14,8 @@
     }
 
     const token = script.getAttribute("data-token") || "demo-anon";
-    const initialBottom = script.getAttribute("data-bottom") || "24px";
-    const initialRight = script.getAttribute("data-right") || "24px";
+    const initialBottom = script.getAttribute("data-bottom") || "32px";
+    const initialRight = script.getAttribute("data-right") || "32px";
     const defaultOpen = script.getAttribute("data-default-open") === "true";
     const theme = script.getAttribute("data-theme") || "";
     const endpointAttr = script.getAttribute("data-endpoint") || "pyme";
@@ -54,23 +54,39 @@
       padding: "0",
       margin: "0",
       background: "transparent",
-      boxSizing: "border-box"
+      boxSizing: "border-box",
+      fontFamily: "Arial, sans-serif",
+      fontSize: "14px",
     });
     if (!document.getElementById(widgetContainer.id)) {
       document.body.appendChild(widgetContainer);
     }
+
+    // Create shadow root to isolate styles
+    const shadow = widgetContainer.attachShadow({ mode: "open" });
+    const resetStyle = document.createElement("style");
+    resetStyle.textContent = `:host{all:initial;font-family:Arial,sans-serif;font-size:14px;}
+      *,*::before,*::after{box-sizing:border-box;}`;
+    shadow.appendChild(resetStyle);
 
     // Loader simple
     const loader = document.createElement("div");
     loader.id = "chatboc-loader-" + iframeId;
     Object.assign(loader.style, {
       position: "absolute",
-      top: "0", left: "0", width: "100%", height: "100%",
-      display: "flex", alignItems: "center", justifyContent: "center",
-      background: "white", zIndex: "2", pointerEvents: "none"
+      top: "0",
+      left: "0",
+      width: "100%",
+      height: "100%",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      background: "var(--background, #f8fafc)",
+      zIndex: "2",
+      pointerEvents: "none"
     });
     loader.innerHTML = `<img src="${chatbocDomain}/favicon/favicon-48x48.png" alt="Chatboc" style="width:48px;height:48px;"/>`;
-    widgetContainer.appendChild(loader);
+    shadow.appendChild(loader);
 
     // Iframe ocupa todo, sin estilos visuales extra
     const iframe = document.createElement("iframe");
@@ -89,14 +105,14 @@
     });
     iframe.allow = "clipboard-write";
     iframe.setAttribute("title", "Chatboc Chatbot");
-    widgetContainer.appendChild(iframe);
+    shadow.appendChild(iframe);
 
     // Loader de fallback (10s)
     let iframeHasLoaded = false;
     const loadTimeout = setTimeout(() => {
       if (!iframeHasLoaded) {
         loader.innerHTML = '<div style="font-family: Arial, sans-serif; color: #777; font-size:12px; text-align:center;">Servicio no disponible</div>';
-        loader.style.backgroundColor = "lightgray";
+        loader.style.backgroundColor = "var(--background, #f8fafc)";
       }
     }, 10000);
 
@@ -112,7 +128,7 @@
       iframeHasLoaded = true;
       clearTimeout(loadTimeout);
       loader.innerHTML = '<div style="font-family: Arial, sans-serif; color: #777; font-size:12px; text-align:center;">Servicio no disponible</div>';
-      loader.style.backgroundColor = "lightgray";
+      loader.style.backgroundColor = "var(--background, #f8fafc)";
       iframe.style.display = "none";
     };
 
@@ -127,6 +143,10 @@
         Object.assign(widgetContainer.style, {
           width: currentDims.width,
           height: currentDims.height,
+          bottom: initialBottom,
+          right: initialRight,
+          left: "",
+          top: "",
         });
       }
     });

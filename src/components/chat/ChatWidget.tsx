@@ -33,7 +33,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   closedWidth = "88px",
   closedHeight = "88px",
   tipoChat = getCurrentTipoChat(),
-  initialPosition = { bottom: 30, right: 30 },
+  initialPosition = { bottom: 32, right: 32 },
 }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [view, setView] = useState<'chat' | 'register'>('chat');
@@ -104,10 +104,11 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             borderRadius: isOpen ? "24px" : "50%",
             opacity: isOpen ? 1 : 0,
             scale: isOpen ? 1 : 0.85,
+            transformOrigin: "bottom right",
           }}
-          initial={{ opacity: 0, scale: 0.7, y: 30 }}
-          animate={isOpen ? { opacity: 1, scale: 1, y: 0 } : { opacity: 0, scale: 0.7, y: 30 }}
-          exit={{ opacity: 0, scale: 0.7, y: 30 }}
+          initial={{ opacity: 0, scale: 0.7 }}
+          animate={isOpen ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.7 }}
+          exit={{ opacity: 0, scale: 0.7 }}
           transition={{ type: "spring", stiffness: 260, damping: 20 }}
         >
           {isOpen && (
@@ -159,7 +160,10 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
               animate={{ y: [0, -10, 0] }}
               transition={{ repeat: Infinity, duration: 0.8, repeatDelay: 4 }}
             >
-              <ChatbocLogoAnimated size={parseInt((isMobile ? "64" : closedWidth).toString(), 10) * 0.7} />
+              <ChatbocLogoAnimated
+                size={parseInt((isMobile ? "64" : closedWidth).toString(), 10) * 0.7}
+                blinking
+              />
             </motion.span>
           </Button>
         )}

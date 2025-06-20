@@ -7,6 +7,7 @@ const ChatbocLogoAnimated = ({
   size = 48,
   smiling = false,
   movingEyes = false,
+  blinking = false,
   style = {},
 }) => {
   // Ajusta los valores para que coincidan con tu logo si lo ves raro
@@ -58,22 +59,42 @@ const ChatbocLogoAnimated = ({
           cy={24 || 0}
           r={4}
           fill="#fff"
-          animate={movingEyes ? { cy: [24, 22, 24] } : undefined}
-          transition={
-            movingEyes ? { repeat: Infinity, duration: 1.5 } : undefined
+          animate={
+            blinking
+              ? { scaleY: [1, 0.1, 1] }
+              : movingEyes
+              ? { cy: [24, 22, 24] }
+              : undefined
           }
+          transition={
+            blinking
+              ? { repeat: Infinity, duration: 0.15, repeatDelay: 4 }
+              : movingEyes
+              ? { repeat: Infinity, duration: 1.5 }
+              : undefined
+          }
+          style={{ transformOrigin: "center" }}
         />
         <motion.circle
           cx={safeRightEye}
           cy={24 || 0}
           r={4}
           fill="#fff"
-          animate={movingEyes ? { cy: [24, 26, 24] } : undefined}
+          animate={
+            blinking
+              ? { scaleY: [1, 0.1, 1] }
+              : movingEyes
+              ? { cy: [24, 26, 24] }
+              : undefined
+          }
           transition={
-            movingEyes
+            blinking
+              ? { repeat: Infinity, duration: 0.15, repeatDelay: 4.2 }
+              : movingEyes
               ? { repeat: Infinity, duration: 1.5, delay: 0.2 }
               : undefined
           }
+          style={{ transformOrigin: "center" }}
         />
         {/* Boca */}
         <motion.path
