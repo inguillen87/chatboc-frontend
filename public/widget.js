@@ -143,8 +143,8 @@
         Object.assign(widgetContainer.style, {
           width: currentDims.width,
           height: currentDims.height,
-          bottom: initialBottom,
-          right: initialRight,
+          bottom: `calc(${initialBottom} + env(safe-area-inset-bottom))`,
+          right: `calc(${initialRight} + env(safe-area-inset-right))`,
           left: "",
           top: "",
         });
