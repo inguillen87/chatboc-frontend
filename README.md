@@ -211,4 +211,3 @@ errors.
 Detailed requirements for the embedded widget can be found in [docs/widget-requirements.md](docs/widget-requirements.md).
 
 
-Fix widget instructions

@@ -144,11 +144,9 @@
       if (event.origin !== chatbocDomain && !(chatbocDomain.startsWith("http://localhost"))) {
         return;
       }
-
       if (event.data && event.data.type === "chatboc-state-change" && event.data.widgetId === iframeId) {
         iframeIsCurrentlyOpen = event.data.isOpen;
         currentDims = iframeIsCurrentlyOpen ? WIDGET_DIMENSIONS_JS.OPEN : WIDGET_DIMENSIONS_JS.CLOSED;
-
         Object.assign(widgetContainer.style, {
           width: currentDims.width,
           height: currentDims.height,
