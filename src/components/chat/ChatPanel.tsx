@@ -12,6 +12,7 @@ import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateAnonId from "@/utils/anonId";
 import { parseChatResponse } from "@/utils/parseChatResponse";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { getCurrentTipoChat } from "@/utils/tipoChat";
 
 const FRASES_DIRECCION = [
   "indicame la dirección",
@@ -37,6 +38,7 @@ const FRASES_EXITO = [
 ];
 
 const PENDING_TICKET_KEY = 'pending_ticket_id';
+const ultimoMensajeIdRef = useRef<number | null>(null);
 
 interface ChatPanelProps {
   mode?: "standalone" | "iframe" | "script";
@@ -339,11 +341,12 @@ const tipoChatActual: "pyme" | "municipio" =
               safeLocalStorage.setItem(PENDING_TICKET_KEY, String(data.ticket_id));
               onRequireAuth && onRequireAuth();
             } else {
-              setActiveTicketId(data.ticket_id);
+              setActiveTicketId(Number(data.ticket_id)); // <- SIEMPRE forzalo a number
               ultimoMensajeIdRef.current = 0;
             }
           }
-        }
+
+          }
       } catch (error: any) {
         let errorMsg = "⚠️ No se pudo conectar con el servidor.";
         if (error?.body?.error) errorMsg = error.body.error;
