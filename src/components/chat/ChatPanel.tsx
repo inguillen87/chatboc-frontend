@@ -376,10 +376,11 @@ const tipoChatActual: "pyme" | "municipio" =
     }
   }, [messages, isTyping, ticketLocation]);
 
-  return (
-    <div className="flex flex-col w-full h-full overflow-hidden">
-      <ScrollArea ref={chatContainerRef} className="flex-1 px-4 pt-4 pb-2 text-card-foreground bg-card min-h-0">
+ return (
+    <div className="flex flex-col w-full h-full bg-card text-card-foreground overflow-hidden rounded-3xl">
+      <ScrollArea ref={chatContainerRef} className="flex-1 p-4 min-h-0">
         <div className="flex flex-col gap-3 min-h-full">
+          {/* Selección de rubro */}
           {esperandoRubro ? (
             <div className="text-center w-full">
               <h2 className="text-green-500 mb-2">👋 ¡Bienvenido!</h2>
@@ -394,12 +395,18 @@ const tipoChatActual: "pyme" | "municipio" =
               ) : (
                 <div className="flex flex-wrap justify-center gap-2">
                   {rubrosDisponibles.map((rubro: any) => (
-                    <button key={rubro.id} onClick={() => { safeLocalStorage.setItem('rubroSeleccionado', rubro.nombre); setRubroSeleccionado(rubro.nombre); setEsperandoRubro(false); setMessages([{ id: Date.now(), text: `¡Hola! Soy Chatboc, tu asistente para ${rubro.nombre.toLowerCase()}. ¿En qué puedo ayudarte hoy?`, isBot: true, timestamp: new Date() }]); }} className="px-4 py-2 rounded-2xl font-semibold bg-blue-500 text-white hover:bg-blue-600 transition">{rubro.nombre}</button>
+                    <button key={rubro.id} onClick={() => {
+                      safeLocalStorage.setItem('rubroSeleccionado', rubro.nombre);
+                      setRubroSeleccionado(rubro.nombre);
+                      setEsperandoRubro(false);
+                      setMessages([{ id: Date.now(), text: `¡Hola! Soy Chatboc, tu asistente para ${rubro.nombre.toLowerCase()}. ¿En qué puedo ayudarte hoy?`, isBot: true, timestamp: new Date() }]);
+                    }} className="px-4 py-2 rounded-2xl font-semibold bg-blue-500 text-white hover:bg-blue-600 transition">{rubro.nombre}</button>
                   ))}
                 </div>
               )}
             </div>
           ) : esperandoDireccion ? (
+            // Solicitud de dirección
             <div className="flex flex-col items-center py-8 px-2 gap-4">
               <div className="text-primary text-base font-semibold mb-2">Indicá la dirección exacta (autocompleta con Google)</div>
               <AddressAutocomplete
@@ -414,6 +421,7 @@ const tipoChatActual: "pyme" | "municipio" =
               <div className="text-xs text-muted-foreground mt-2">Escribí y seleccioná tu dirección para continuar el trámite.</div>
             </div>
           ) : (
+            // Mensajes y lógica central del chat
             <>
               {messages.map(
                 (msg) =>
@@ -429,8 +437,9 @@ const tipoChatActual: "pyme" | "municipio" =
           )}
         </div>
       </ScrollArea>
+      {/* Input abajo: solo cuando corresponde */}
       {!esperandoRubro && !esperandoDireccion && (!showCierre || !showCierre.show) && (
-        <div className="bg-card px-3 py-2">
+        <div className="bg-card px-3 py-2 border-t">
           <ChatInput onSendMessage={handleSendMessage} isTyping={isTyping} />
         </div>
       )}

@@ -1,4 +1,4 @@
-// Chatboc embeddable widget loader (LIMPIO, SOLO LO BÁSICO)
+// Chatboc embeddable widget loader (LIMPIO Y MINIMALISTA)
 (function () {
   "use strict";
 
@@ -19,17 +19,14 @@
     const defaultOpen = script.getAttribute("data-default-open") === "true";
     const theme = script.getAttribute("data-theme") || "";
     const endpointAttr = script.getAttribute("data-endpoint") || "pyme";
-    const endpoint = endpointAttr === "municipio" ? "municipio" : endpointAttr === "pyme" || !endpointAttr ? "pyme" : null;
-    if (!endpoint) {
-      console.error("Chatboc widget.js: data-endpoint debe ser 'pyme' o 'municipio'. Valor recibido:", endpointAttr);
-      return;
-    }
+    const endpoint = endpointAttr === "municipio" ? "municipio" : "pyme";
+
     const scriptOrigin = (script.getAttribute("src") && new URL(script.getAttribute("src"), window.location.href).origin) || "https://www.chatboc.ar";
     const chatbocDomain = script.getAttribute("data-domain") || scriptOrigin;
     const zIndexBase = parseInt(script.getAttribute("data-z") || "999999", 10);
     const iframeId = "chatboc-dynamic-iframe-" + Math.random().toString(36).substring(2, 9);
 
-    const WIDGET_DIMENSIONS_JS = {
+    const WIDGET_DIMENSIONS = {
       OPEN: {
         width: script.getAttribute("data-width") || "370px",
         height: script.getAttribute("data-height") || "540px",
@@ -40,10 +37,10 @@
       },
     };
 
-    let currentDims = defaultOpen ? WIDGET_DIMENSIONS_JS.OPEN : WIDGET_DIMENSIONS_JS.CLOSED;
-    let iframeIsCurrentlyOpen = defaultOpen;
+    let currentDims = defaultOpen ? WIDGET_DIMENSIONS.OPEN : WIDGET_DIMENSIONS.CLOSED;
+    let iframeIsOpen = defaultOpen;
 
-    // Solo lo fundamental de posicionamiento y tamaño
+    // Contenedor básico, solo lo esencial
     const widgetContainer = document.createElement("div");
     widgetContainer.id = "chatboc-widget-container-" + iframeId;
     Object.assign(widgetContainer.style, {
@@ -54,50 +51,51 @@
       height: currentDims.height,
       zIndex: zIndexBase.toString(),
       overflow: "hidden",
+      padding: "0",
+      margin: "0",
+      background: "transparent",
+      boxSizing: "border-box"
     });
     if (!document.getElementById(widgetContainer.id)) {
       document.body.appendChild(widgetContainer);
     }
 
-    // Loader simple (solo imagen)
+    // Loader simple
     const loader = document.createElement("div");
     loader.id = "chatboc-loader-" + iframeId;
     Object.assign(loader.style, {
       position: "absolute",
-      top: "0",
-      left: "0",
-      width: "100%",
-      height: "100%",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      background: "white",
-      zIndex: "2",
+      top: "0", left: "0", width: "100%", height: "100%",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      background: "white", zIndex: "2", pointerEvents: "none"
     });
     loader.innerHTML = `<img src="${chatbocDomain}/favicon/favicon-48x48.png" alt="Chatboc" style="width:48px;height:48px;"/>`;
     widgetContainer.appendChild(loader);
 
-    // Iframe ocupa todo el contenedor, sin estilos visuales extra
+    // Iframe ocupa todo, sin estilos visuales extra
     const iframe = document.createElement("iframe");
     iframe.id = iframeId;
-    iframe.src = `${chatbocDomain}/iframe?token=${encodeURIComponent(token)}&widgetId=${iframeId}&defaultOpen=${defaultOpen}&openWidth=${encodeURIComponent(WIDGET_DIMENSIONS_JS.OPEN.width)}&openHeight=${encodeURIComponent(WIDGET_DIMENSIONS_JS.OPEN.height)}&closedWidth=${encodeURIComponent(WIDGET_DIMENSIONS_JS.CLOSED.width)}&closedHeight=${encodeURIComponent(WIDGET_DIMENSIONS_JS.CLOSED.height)}${theme ? `&theme=${encodeURIComponent(theme)}` : ""}&tipo_chat=${endpoint}`;
+    iframe.src = `${chatbocDomain}/iframe?token=${encodeURIComponent(token)}&widgetId=${iframeId}&defaultOpen=${defaultOpen}&openWidth=${encodeURIComponent(WIDGET_DIMENSIONS.OPEN.width)}&openHeight=${encodeURIComponent(WIDGET_DIMENSIONS.OPEN.height)}&closedWidth=${encodeURIComponent(WIDGET_DIMENSIONS.CLOSED.width)}&closedHeight=${encodeURIComponent(WIDGET_DIMENSIONS.CLOSED.height)}${theme ? `&theme=${encodeURIComponent(theme)}` : ""}&tipo_chat=${endpoint}`;
     Object.assign(iframe.style, {
       border: "none",
       width: "100%",
       height: "100%",
-      backgroundColor: "transparent",
+      background: "transparent",
       display: "block",
       opacity: "0",
       zIndex: "1",
+      margin: "0",
+      padding: "0"
     });
     iframe.allow = "clipboard-write";
     iframe.setAttribute("title", "Chatboc Chatbot");
     widgetContainer.appendChild(iframe);
 
+    // Loader de fallback (10s)
     let iframeHasLoaded = false;
     const loadTimeout = setTimeout(() => {
       if (!iframeHasLoaded) {
-        loader.innerHTML = '<div style="font-family: Arial, sans-serif; color: #777; font-size:11px; text-align:center;">Servicio no disponible</div>';
+        loader.innerHTML = '<div style="font-family: Arial, sans-serif; color: #777; font-size:12px; text-align:center;">Servicio no disponible</div>';
         loader.style.backgroundColor = "lightgray";
       }
     }, 10000);
@@ -106,26 +104,26 @@
       iframeHasLoaded = true;
       clearTimeout(loadTimeout);
       loader.style.opacity = "0";
-      setTimeout(() => loader.remove(), 300);
+      setTimeout(() => loader.remove(), 250);
       iframe.style.opacity = "1";
     };
 
     iframe.onerror = function () {
       iframeHasLoaded = true;
       clearTimeout(loadTimeout);
-      loader.innerHTML = '<div style="font-family: Arial, sans-serif; color: #777; font-size:11px; text-align:center;">Servicio no disponible</div>';
+      loader.innerHTML = '<div style="font-family: Arial, sans-serif; color: #777; font-size:12px; text-align:center;">Servicio no disponible</div>';
       loader.style.backgroundColor = "lightgray";
       iframe.style.display = "none";
     };
 
-    // Sólo cambiar tamaño, nada más
+    // Solo cambia tamaño: el diseño está 100% adentro del iframe.
     window.addEventListener("message", function (event) {
       if (event.origin !== chatbocDomain && !(chatbocDomain.startsWith("http://localhost"))) {
         return;
       }
       if (event.data && event.data.type === "chatboc-state-change" && event.data.widgetId === iframeId) {
-        iframeIsCurrentlyOpen = event.data.isOpen;
-        currentDims = iframeIsCurrentlyOpen ? WIDGET_DIMENSIONS_JS.OPEN : WIDGET_DIMENSIONS_JS.CLOSED;
+        iframeIsOpen = event.data.isOpen;
+        currentDims = iframeIsOpen ? WIDGET_DIMENSIONS.OPEN : WIDGET_DIMENSIONS.CLOSED;
         Object.assign(widgetContainer.style, {
           width: currentDims.width,
           height: currentDims.height,
@@ -133,28 +131,21 @@
       }
     });
 
-    // Drag (opcional, solo si querés mantenerlo)
-    let isDragging = false,
-      dragStartX,
-      dragStartY,
-      containerStartLeft,
-      containerStartTop;
-
+    // Drag solo si está cerrado (opcional)
+    let isDragging = false, dragStartX, dragStartY, containerStartLeft, containerStartTop;
     widgetContainer.addEventListener("mousedown", dragStart);
     widgetContainer.addEventListener("touchstart", dragStart, { passive: false });
 
     function dragStart(e) {
-      if (iframeIsCurrentlyOpen) return;
+      if (iframeIsOpen) return; // Solo cuando está cerrado
       isDragging = true;
       const rect = widgetContainer.getBoundingClientRect();
       containerStartLeft = rect.left;
       containerStartTop = rect.top;
       dragStartX = e.touches ? e.touches[0].clientX : e.clientX;
       dragStartY = e.touches ? e.touches[0].clientY : e.clientY;
-
       widgetContainer.style.userSelect = "none";
       document.body.style.cursor = "move";
-
       document.addEventListener("mousemove", dragMove);
       document.addEventListener("mouseup", dragEnd);
       document.addEventListener("touchmove", dragMove, { passive: false });
@@ -169,13 +160,10 @@
       const clientY = e.touches ? e.touches[0].clientY : e.clientY;
       let newLeft = containerStartLeft + (clientX - dragStartX);
       let newTop = containerStartTop + (clientY - dragStartY);
-
       const currentContainerWidth = parseInt(currentDims.width);
       const currentContainerHeight = parseInt(currentDims.height);
-
       newLeft = Math.max(0, Math.min(window.innerWidth - currentContainerWidth, newLeft));
       newTop = Math.max(0, Math.min(window.innerHeight - currentContainerHeight, newTop));
-
       widgetContainer.style.left = newLeft + "px";
       widgetContainer.style.top = newTop + "px";
       widgetContainer.style.right = "auto";
