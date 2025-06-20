@@ -183,7 +183,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
               transition={{ repeat: Infinity, duration: 0.8, repeatDelay: 4 }}
             >
               <ChatbocLogoAnimated
-                size={parseInt((isMobile ? "64" : finalClosedWidth).toString(), 10) * 0.7}
+                size={parseInt((isMobile ? "64" : closedWidth).toString(), 10) * 0.7}
+                blinking
               />
             </motion.span>
           </Button>
