@@ -1,4 +1,4 @@
-// public/widget.js (VERSIÓN FINAL Y FUNCIONAL - CON CORRECCIÓN DE FONDO BLANCO)
+// public/widget.js (VERSIÓN FINAL Y FUNCIONAL - CORRECCIÓN DEFINITIVA)
 
 (function () {
   "use strict";
@@ -40,6 +40,7 @@
     let iframeIsCurrentlyOpen = defaultOpen;
 
     // --- Contenedor principal del widget (loader y iframe) ---
+    // Este div es el que realmente manejará el tamaño, forma y color de fondo inicial.
     const widgetContainer = document.createElement("div");
     widgetContainer.id = "chatboc-widget-container-" + iframeId;
     Object.assign(widgetContainer.style, {
@@ -49,24 +50,24 @@
       width: currentDims.width,
       height: currentDims.height,
       zIndex: zIndexBase.toString(),
-      borderRadius: iframeIsCurrentlyOpen ? "16px" : "50%", // Aplicado al contenedor
-      boxShadow: iframeIsCurrentlyOpen ? "0 6px 20px rgba(0,0,0,0.2)" : "0 4px 12px rgba(0,0,0,0.15)", // Aplicado al contenedor
+      borderRadius: iframeIsCurrentlyOpen ? "16px" : "50%", 
+      boxShadow: iframeIsCurrentlyOpen ? "0 6px 20px rgba(0,0,0,0.2)" : "0 4px 12px rgba(0,0,0,0.15)",
       transition: "width 0.25s cubic-bezier(0.4, 0, 0.2, 1), height 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-radius 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s ease-in-out",
-      overflow: "hidden", // Crucial para recortar el contenido en estado circular
-      display: "flex", // Para centrar el loader/iframe
+      overflow: "hidden", 
+      display: "flex",
       alignItems: "center",
       justifyContent: "center",
       cursor: "pointer", 
-      background: "transparent", // Asegurar transparencia para que el background del loader se vea si es un div simple.
+      // El background del contenedor principal DEBE tener un color sólido para el estado de botón cerrado.
+      background: "hsl(var(--primary, 218 92% 41%))", // Usar el color primario de tu tema para el botón
     });
-    // Se añade directamente al body del host.
     if (!document.getElementById(widgetContainer.id)) document.body.appendChild(widgetContainer);
 
-    // --- Loader (El círculo blanco proviene de aquí o del iframe transparente sin contenido) ---
+    // --- Loader (Aseguramos que el logo del loader siempre se vea sobre un fondo) ---
     const loader = document.createElement("div");
     loader.id = "chatboc-loader-" + iframeId;
     Object.assign(loader.style, {
-      position: "absolute", // Posicionado dentro del widgetContainer
+      position: "absolute", 
       top: "0",
       left: "0",
       width: "100%",
@@ -74,14 +75,14 @@
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
-      background: "white", // Fondo blanco visible para el loader
+      background: "hsl(var(--primary, 218 92% 41%))", // Fondo del loader, igual que el botón
       borderRadius: "inherit", // Hereda el border-radius del contenedor padre
       transition: "opacity 0.3s ease-out",
-      pointerEvents: "auto", // Para que reciba clics mientras está visible
+      pointerEvents: "auto", // Puede recibir clics
       zIndex: "2", // Por encima del iframe inicialmente
     });
-    // El logo aquí solo se muestra hasta que el iframe carga
-    loader.innerHTML = `<img src="${chatbocDomain}/favicon/favicon-48x48.png" alt="Chatboc" style="width:48px;height:48px;"/>`;
+    // El logo en el loader
+    loader.innerHTML = `<img src="${chatbocDomain}/favicon/favicon-48x48.png" alt="Chatboc" style="width:48px;height:48px; filter: invert(100%);"/>`; // Invertir color si el fondo es oscuro
     widgetContainer.appendChild(loader); 
 
     // --- Iframe ---
@@ -90,9 +91,9 @@
     iframe.src = `${chatbocDomain}/iframe?token=${encodeURIComponent(token)}&widgetId=${iframeId}&defaultOpen=${defaultOpen}&openWidth=${encodeURIComponent(WIDGET_DIMENSIONS_JS.OPEN.width)}&openHeight=${encodeURIComponent(WIDGET_DIMENSIONS_JS.OPEN.height)}&closedWidth=${encodeURIComponent(WIDGET_DIMENSIONS_JS.CLOSED.width)}&closedHeight=${encodeURIComponent(WIDGET_DIMENSIONS_JS.CLOSED.height)}${theme ? `&theme=${encodeURIComponent(theme)}` : ""}`;
     Object.assign(iframe.style, {
       border: "none",
-      width: "100%",
-      height: "100%",
-      backgroundColor: "transparent", // El iframe es transparente, el fondo lo da el widgetContainer o el contenido de React
+      width: "100%", 
+      height: "100%", 
+      backgroundColor: "transparent", // Sigue transparente, el fondo lo dará el contenido de React
       display: "block",
       opacity: "0", // Oculto inicialmente, se muestra cuando carga
       transition: "opacity 0.3s ease-in",
@@ -105,8 +106,8 @@
     let iframeHasLoaded = false;
     const loadTimeout = setTimeout(() => {
       if (!iframeHasLoaded) {
-        loader.innerHTML = '<div style="font-family: Arial, sans-serif; color: #777; font-size:12px; text-align:center;">Servicio no disponible</div>';
-        loader.style.backgroundColor = "lightgray"; // Fondo si falla la carga
+        loader.innerHTML = '<div style="font-family: Arial, sans-serif; color: white; font-size:12px; text-align:center;">Servicio no disponible</div>'; // Texto de error en blanco
+        loader.style.backgroundColor = "hsl(var(--destructive, 0 84.2% 60.2%))"; // Fondo de error
       }
     }, 10000);
 
@@ -121,8 +122,8 @@
     iframe.onerror = function () {
       iframeHasLoaded = true;
       clearTimeout(loadTimeout);
-      loader.innerHTML = '<div style="font-family: Arial, sans-serif; color: #777; font-size:12px; text-align:center;">Servicio no disponible</div>';
-      loader.style.backgroundColor = "lightgray";
+      loader.innerHTML = '<div style="font-family: Arial, sans-serif; color: white; font-size:12px; text-align:center;">Servicio no disponible</div>';
+      loader.style.backgroundColor = "hsl(var(--destructive, 0 84.2% 60.2%))";
       iframe.style.display = "none";
     };
 
@@ -141,6 +142,8 @@
           height: currentDims.height,
           borderRadius: iframeIsCurrentlyOpen ? "16px" : "50%",
           boxShadow: iframeIsCurrentlyOpen ? "0 6px 20px rgba(0,0,0,0.2)" : "0 4px 12px rgba(0,0,0,0.15)",
+          // El color de fondo del widgetContainer cambia si el panel está abierto
+          background: iframeIsCurrentlyOpen ? "transparent" : "hsl(var(--primary, 218 92% 41%))", 
         });
       }
     });
