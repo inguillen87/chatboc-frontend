@@ -296,7 +296,6 @@ const ChatPanel = ({
       const userMessage = { id: Date.now(), text, isBot: false, timestamp: new Date() };
       setMessages((prev) => [...prev, userMessage]);
       setIsTyping(true);
-
       try {
         if (activeTicketId) {
           const authHeaders = finalAuthToken ? { Authorization: `Bearer ${finalAuthToken}` } : {};
@@ -310,12 +309,8 @@ const ChatPanel = ({
           setMessages((prev) => [...prev, { id: Date.now(), text: respuestaText || "No pude procesar tu solicitud.", isBot: true, timestamp: new Date(), botones }]);
           if (esAnonimo && mode === "standalone") setPreguntasUsadas((prev) => prev + 1);
           if (data.ticket_id) {
-            if (esAnonimo) {
-              onRequireAuth && onRequireAuth();
-            } else {
-              setActiveTicketId(data.ticket_id);
-              ultimoMensajeIdRef.current = 0;
-            }
+            if (esAnonimo) onRequireAuth && onRequireAuth();
+            else { setActiveTicketId(data.ticket_id); ultimoMensajeIdRef.current = 0; }
           }
         }
       } catch (error: any) {
@@ -330,8 +325,7 @@ const ChatPanel = ({
 
   useEffect(() => {
     if (esAnonimo && mode === "standalone" && !rubroSeleccionado) {
-      setEsperandoRubro(true);
-      cargarRubros();
+      setEsperandoRubro(true); cargarRubros();
     } else if (!esAnonimo || rubroSeleccionado) {
       setEsperandoRubro(false);
       if (messages.length === 0) {
