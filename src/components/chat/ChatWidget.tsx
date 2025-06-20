@@ -33,15 +33,17 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   closedWidth = "88px",
   closedHeight = "88px",
   tipoChat = getCurrentTipoChat(),
-  initialPosition = { bottom: 30, right: 30 },
+  initialPosition = { bottom: 32, right: 32 },
 }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [view, setView] = useState<'chat' | 'register'>('chat');
 
   // Responsive único: todo controlado desde acá
   const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
-  const widgetWidth = isOpen ? (isMobile ? "98vw" : openWidth) : (isMobile ? "64px" : closedWidth);
-  const widgetHeight = isOpen ? (isMobile ? "80vh" : openHeight) : (isMobile ? "64px" : closedHeight);
+  const widgetWidth = isOpen ? (isMobile ? "96vw" : openWidth) : (isMobile ? "64px" : closedWidth);
+  const widgetHeight = isOpen ? (isMobile ? "96vh" : openHeight) : (isMobile ? "64px" : closedHeight);
+  const standaloneIframe =
+    mode === "iframe" && typeof window !== "undefined" && window.parent === window;
 
   // Comando para avisar a parent (NO TOCAR)
   const sendStateMessageToParent = useCallback(
@@ -93,11 +95,16 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             isOpen ? "pointer-events-auto" : "pointer-events-none"
           )}
           style={{
-            bottom: initialPosition.bottom,
-            right: initialPosition.right,
+            bottom: standaloneIframe ? undefined : `calc(${initialPosition.bottom}px + env(safe-area-inset-bottom))`,
+            right: standaloneIframe ? undefined : `calc(${initialPosition.right}px + env(safe-area-inset-right))`,
+            top: standaloneIframe ? "50%" : undefined,
+            left: standaloneIframe ? "50%" : undefined,
+            transform: standaloneIframe ? "translate(-50%, -50%)" : undefined,
+            transformOrigin: standaloneIframe ? "center" : "bottom right",
+            background: "var(--background, #f8fafc)",
             width: widgetWidth,
             height: widgetHeight,
-            minWidth: "220px",
+            minWidth: "320px",
             minHeight: "64px",
             maxWidth: "98vw",
             maxHeight: "98vh",
@@ -143,8 +150,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
               "opacity-100 scale-100 pointer-events-auto"
             )}
             style={{
-              bottom: initialPosition.bottom,
-              right: initialPosition.right,
+              bottom: `calc(${initialPosition.bottom}px + env(safe-area-inset-bottom))`,
+              right: `calc(${initialPosition.right}px + env(safe-area-inset-right))`,
               width: closedWidth,
               height: closedHeight,
               borderRadius: "50%",
