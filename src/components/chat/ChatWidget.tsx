@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { MessageCircle, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { safeLocalStorage } from "@/utils/safeLocalStorage";
 
 const ChatRegisterPanel = React.lazy(() => import("./ChatRegisterPanel"));
 import ChatHeader from "./ChatHeader";
@@ -15,7 +16,7 @@ interface ChatWidgetProps {
   initialPosition?: { bottom: number; right: number };
   defaultOpen?: boolean;
   widgetId?: string;
-  authToken?: string;
+  entityToken?: string;
   openWidth?: string;
   openHeight?: string;
   closedWidth?: string;
@@ -27,7 +28,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   mode = "standalone",
   defaultOpen = false,
   widgetId = "chatboc-widget-iframe",
-  authToken,
+  entityToken,
   openWidth = "370px",
   openHeight = "540px",
   closedWidth = "88px",
@@ -75,6 +76,12 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   const toggleChat = () => setIsOpen((open) => !open);
 
+  useEffect(() => {
+    if (entityToken) {
+      safeLocalStorage.setItem("entityToken", entityToken);
+    }
+  }, [entityToken]);
+
   return (
     <div className="z-[999999]">
       <Suspense fallback={null}>
@@ -112,7 +119,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                 <ChatPanel
                   mode={mode}
                   widgetId={widgetId}
-                  authToken={authToken}
+                  entityToken={entityToken}
                   openWidth={widgetWidth}
                   openHeight={widgetHeight}
                   onClose={toggleChat}
