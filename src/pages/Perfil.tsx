@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
+import TicketMap from "@/components/TicketMap";
 import { useNavigate } from "react-router-dom";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
@@ -706,6 +707,17 @@ export default function Perfil() {
                   </div>
                 )}
               </form>
+              {(perfil.direccion || (perfil.latitud !== null && perfil.longitud !== null)) && (
+                <TicketMap
+                  ticket={{
+                    latitud: perfil.latitud ?? undefined,
+                    longitud: perfil.longitud ?? undefined,
+                    direccion: perfil.direccion,
+                    municipio_nombre: perfil.ciudad || undefined,
+                    tipo: 'pyme',
+                  }}
+                />
+              )}
             </CardContent>
           </Card>
         </div>
