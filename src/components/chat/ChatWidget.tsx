@@ -25,7 +25,6 @@ interface ChatWidgetProps {
 
 const ChatWidget: React.FC<ChatWidgetProps> = ({
   mode = "standalone",
-  initialPosition = { bottom: 30, right: 30 },
   defaultOpen = false,
   widgetId = "chatboc-widget-iframe",
   authToken,

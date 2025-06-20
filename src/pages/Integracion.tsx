@@ -41,7 +41,6 @@ const Integracion = () => {
     } catch {
       safeLocalStorage.removeItem("user");
     }
-
     if (!authToken || !parsedUser || !parsedUser.id) {
       navigate("/login");
       return;
@@ -53,9 +52,7 @@ const Integracion = () => {
   }, [navigate]);
 
   useEffect(() => {
-    if (user) {
-      validarAcceso(user);
-    }
+    if (user) validarAcceso(user);
   }, [user]);
 
   if (!user) {
