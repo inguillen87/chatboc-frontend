@@ -40,32 +40,33 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   // Adaptabilidad real: mobile, iframe, script, etc
   const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
-  // Usar solo width/height, NUNCA min/max ni hardcodear px de más.
-  const widgetWidth = isOpen
-    ? (isMobile ? "98vw" : openWidth)
-    : (isMobile ? "60px" : closedWidth);
 
-  const widgetHeight = isOpen
-    ? (isMobile ? "96vh" : openHeight)
-    : (isMobile ? "60px" : closedHeight);
+  const computeWidth = (open: boolean) =>
+    open
+      ? mode === "iframe"
+        ? finalOpenWidth
+        : isMobile
+        ? "96vw"
+        : finalOpenWidth
+      : isMobile && mode !== "iframe"
+      ? "64px"
+      : finalClosedWidth;
 
-  // Modo iframe: centrado. Script/standalone: abajo a la derecha.
-  const mainPosition = mode === "iframe"
-    ? {
-        position: "fixed" as "fixed",
-        top: "50%",
-        left: "50%",
-        transform: "translate(-50%, -50%)",
-        margin: 0,
-        padding: 0,
-      }
-    : {
-        position: "fixed" as "fixed",
-        bottom: `calc(${initialPosition.bottom}px + env(safe-area-inset-bottom, 0px))`,
-        right: `calc(${initialPosition.right}px + env(safe-area-inset-right, 0px))`,
-        margin: 0,
-        padding: 0,
-      };
+  const computeHeight = (open: boolean) =>
+    open
+      ? mode === "iframe"
+        ? finalOpenHeight
+        : isMobile
+        ? "96vh"
+        : finalOpenHeight
+      : isMobile && mode !== "iframe"
+      ? "64px"
+      : finalClosedHeight;
+
+  const widgetWidth = computeWidth(isOpen);
+  const widgetHeight = computeHeight(isOpen);
+  const initialWidgetWidth = computeWidth(defaultOpen);
+  const initialWidgetHeight = computeHeight(defaultOpen);
 
   // Permite avisar a parent (iframe) para redimensionar si hace falta
   const sendStateMessageToParent = useCallback(
@@ -124,25 +125,43 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             isOpen ? "pointer-events-auto" : "pointer-events-none"
           )}
           style={{
-            ...mainPosition,
-            zIndex: 999999,
+            ...(mode === "iframe"
+              ? {
+                  top: "50%",
+                  left: "50%",
+                  transform: "translate(-50%, -50%)",
+                }
+              : {
+                  bottom: `calc(${initialPosition.bottom}px + env(safe-area-inset-bottom))`,
+                  right: `calc(${initialPosition.right}px + env(safe-area-inset-right))`,
+                }),
+            minWidth: isOpen ? "320px" : closedWidth,
+            minHeight: isOpen ? "64px" : closedHeight,
+            maxWidth: "98vw",
+            maxHeight: "98vh",
+            transformOrigin: mode === "iframe" ? "center" : "bottom right",
+          }}
+          initial={{
+            width: initialWidgetWidth,
+            height: initialWidgetHeight,
+            borderRadius: defaultOpen ? "24px" : "50%",
+            opacity: defaultOpen ? 1 : 0,
+            scale: defaultOpen ? 1 : 0.7,
+          }}
+          animate={{
             width: widgetWidth,
             height: widgetHeight,
             borderRadius: isOpen ? "24px" : "50%",
             opacity: isOpen ? 1 : 0,
-            scale: isOpen ? 1 : 0.90,
-            boxShadow: "0 10px 36px 0 rgba(0,0,0,0.20)",
-            background: "var(--background, #f5f8fa)", // fallback seguro
-            maxWidth: "98vw",
-            maxHeight: "98vh",
-            minWidth: isOpen ? (isMobile ? "180px" : "320px") : (isMobile ? "60px" : closedWidth),
-            minHeight: isOpen ? (isMobile ? "180px" : "160px") : (isMobile ? "60px" : closedHeight),
-            overflow: "hidden",
-            transition: "all 0.2s cubic-bezier(.4,2,.4,1)",
+            scale: isOpen ? 1 : 0.85,
           }}
-          initial={{ opacity: 0, scale: 0.7 }}
-          animate={isOpen ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.7 }}
-          exit={{ opacity: 0, scale: 0.7 }}
+          exit={{
+            opacity: 0,
+            scale: 0.7,
+            width: finalClosedWidth,
+            height: finalClosedHeight,
+            borderRadius: "50%",
+          }}
           transition={{ type: "spring", stiffness: 260, damping: 20 }}
         >
           {isOpen && (
