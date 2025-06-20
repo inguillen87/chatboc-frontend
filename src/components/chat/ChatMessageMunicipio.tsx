@@ -17,7 +17,12 @@ const AvatarBot: React.FC<{ isTyping: boolean }> = ({ isTyping }) => (
         : "border-border shadow-sm"
     }`}
   >
-    <ChatbocLogoAnimated size={36} smiling={isTyping} movingEyes={isTyping} />
+    <ChatbocLogoAnimated
+      size={36}
+      smiling={isTyping}
+      movingEyes={isTyping}
+      blinking
+    />
   </motion.div>
 );
 

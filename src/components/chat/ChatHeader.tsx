@@ -30,6 +30,7 @@ const ChatHeader: React.FC<Props> = ({ onClose, isTyping = false }) => {
             size={32}
             smiling={isTyping}
             movingEyes={isTyping}
+            blinking
           />
         </div>
         <div className="ml-1 flex flex-col leading-tight">
