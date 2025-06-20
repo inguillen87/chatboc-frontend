@@ -38,7 +38,6 @@ const FRASES_EXITO = [
 ];
 
 const PENDING_TICKET_KEY = 'pending_ticket_id';
-const ultimoMensajeIdRef = useRef<number | null>(null);
 
 interface ChatPanelProps {
   mode?: "standalone" | "iframe" | "script";
