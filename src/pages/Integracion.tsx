@@ -1,6 +1,6 @@
-// src/pages/Integracion.tsx (VERSIÓN FINAL Y COMPLETA)
+// src/pages/Integracion.tsx (VERSIÓN FINAL Y CORREGIDA)
 
-import React, { useEffect, useState } from "react"; 
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -12,7 +12,7 @@ interface User {
   email: string;
   token: string;
   plan?: string;
-  tipo_chat?: "pyme" | "municipio"; 
+  tipo_chat?: "pyme" | "municipio";
 }
 
 const Integracion = () => {
@@ -77,23 +77,20 @@ const Integracion = () => {
   // Definir las dimensiones estándar del widget para los códigos de copia
   const WIDGET_STD_WIDTH = "370px";
   const WIDGET_STD_HEIGHT = "540px";
-  const WIDGET_STD_CLOSED_WIDTH = "88px"; 
-  const WIDGET_STD_CLOSED_HEIGHT = "88px"; 
-  const WIDGET_STD_BOTTOM = "20px"; 
-  const WIDGET_STD_RIGHT = "20px"; 
+  const WIDGET_STD_CLOSED_WIDTH = "88px";
+  const WIDGET_STD_CLOSED_HEIGHT = "88px";
+  const WIDGET_STD_BOTTOM = "20px";
+  const WIDGET_STD_RIGHT = "20px";
 
   // Asegúrate de que user.tipo_chat existe y es 'municipio' o 'pyme'
   const endpoint = (user.tipo_chat === "municipio" ? "municipio" : "pyme");
 
   // codeScript ahora incluye todos los data-atributos para la configuración
   const codeScript = `<script>(function(){var s=document.createElement('script');s.src='https://www.chatboc.ar/widget.js';s.async=true;s.setAttribute('data-token','${user.token}');s.setAttribute('data-default-open','false');s.setAttribute('data-width','${WIDGET_STD_WIDTH}');s.setAttribute('data-height','${WIDGET_STD_HEIGHT}');s.setAttribute('data-closed-width','${WIDGET_STD_CLOSED_WIDTH}');s.setAttribute('data-closed-height','${WIDGET_STD_CLOSED_HEIGHT}');s.setAttribute('data-bottom','${WIDGET_STD_BOTTOM}');s.setAttribute('data-right','${WIDGET_STD_RIGHT}');s.setAttribute('data-tipo-chat','${endpoint}');document.head.appendChild(s);})();</script>`;
-  
-  // codeIframe vuelve a ser un iframe directo (como lo tenías),
-  // pero la URL src incluye todos los data-atributos para que el iframe interno los reciba,
-  // y el style del iframe ahora usa 16px para el border-radius cuando está abierto.
+
+  // codeIframe vuelve a ser un iframe directo (como lo tenías)
   const url = `https://www.chatboc.ar/iframe?token=${user.token}&defaultOpen=true&openWidth=${WIDGET_STD_WIDTH}&openHeight=${WIDGET_STD_HEIGHT}&closedWidth=${WIDGET_STD_CLOSED_WIDTH}&closedHeight=${WIDGET_STD_CLOSED_HEIGHT}&tipo_chat=${endpoint}`;
   const codeIframe = `<iframe id="chatboc-iframe" src="${url}" style="position:fixed;bottom:24px;right:24px;border:none;border-radius:16px;z-index:9999;box-shadow:0 4px 32px rgba(0,0,0,0.2);background:transparent;overflow:hidden;width:${WIDGET_STD_WIDTH}!important;height:${WIDGET_STD_HEIGHT}!important;display:block" allow="clipboard-write" loading="lazy"></iframe><script>(function(){var f=document.getElementById('chatboc-iframe');window.addEventListener('message',function(e){if(e.data&&e.data.type==='chatboc-state-change'){f.style.width=e.data.dimensions.width;f.style.height=e.data.dimensions.height;f.style.borderRadius=e.data.isOpen?'16px':'50%';}});})();</script>`;
-
 
   const copiarCodigo = async (tipo: "iframe" | "script") => {
     try {
@@ -158,23 +155,41 @@ const Integracion = () => {
 
       <div className="mt-10">
         <h2 className="text-xl font-semibold mb-2 text-foreground">🔍 Vista previa en vivo:</h2>
-        <div className="border border-border rounded overflow-hidden bg-background flex items-center justify-center" style={{ minHeight: 540 }}>
-          {/* Este iframe muestra una vista previa del panel de chat abierto */}
-          <iframe
-            src={url} // Usa la misma URL que para el codeIframe
-            width="370"
-            height="540"
+        <div
+          className="flex items-center justify-center"
+          style={{ minHeight: 540 }}
+        >
+          <div
             style={{
-              border: "none",
-              borderRadius: "16px", // Ajustado para ser consistente con el panel abierto
-              width: "100%",
-              maxWidth: 370,
-              minHeight: 540,
-              background: "hsl(var(--background))",
+              width: 370,
+              height: 540,
+              border: "1px solid #e3e3e3",
+              borderRadius: 16,
+              overflow: "hidden",
+              background: "#fff",
+              boxShadow: "0 4px 24px rgba(0,0,0,0.13)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
             }}
-            loading="lazy"
-            title="Chatboc Preview"
-          />
+          >
+            <iframe
+              src={url}
+              width="370"
+              height="540"
+              style={{
+                border: "none",
+                width: "370px",
+                height: "540px",
+                borderRadius: "16px",
+                background: "transparent",
+                display: "block"
+              }}
+              loading="lazy"
+              title="Vista previa Chatboc"
+              allow="clipboard-write"
+            />
+          </div>
         </div>
       </div>
     </div>

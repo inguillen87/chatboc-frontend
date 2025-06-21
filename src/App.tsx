@@ -24,6 +24,7 @@ import Cookies from "./pages/legal/Cookies";
 import NotFound from "./pages/NotFound";
 import PedidosPage from "./pages/PedidosPage";
 import Iframe from "./pages/Iframe";
+import ChatWidget from "@/components/chat/ChatWidget"; // No te olvides importar el widget!
 
 // Importá tu componente TicketsPanelPro aquí
 import TicketsPanelPro from "./pages/TicketsPanel";
@@ -34,7 +35,8 @@ const queryClient = new QueryClient();
 
 function AppRoutes() {
   const location = useLocation();
-  const RutasDondeOcultarWidgetGlobal = ["/iframe", "/login", "/register"];
+  // AGREGÁ /integracion ACÁ ABAJO 👇
+  const RutasDondeOcultarWidgetGlobal = ["/iframe", "/login", "/register", "/integracion"];
   const ocultarWidgetGlobalEnApp = RutasDondeOcultarWidgetGlobal.includes(location.pathname);
 
   return (
@@ -50,28 +52,26 @@ function AppRoutes() {
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/chatpos" element={<ChatPosPage />} />
           <Route path="/chatcrm" element={<ChatCRMPage />} />
-          <Route path="/integracion" element={<Integracion />} />
+          <Route path="/integracion" element={<Integracion />} /> {/* <- este es el que suma */}
           <Route path="/documentacion" element={<Documentacion />} />
           <Route path="/faqs" element={<Faqs />} />
           <Route path="/legal/privacy" element={<Privacy />} />
           <Route path="/legal/terms" element={<Terms />} />
           <Route path="/legal/cookies" element={<Cookies />} />
-          {/* Ruta para panel de tickets */}
           <Route path="/tickets" element={<TicketsPanelPro />} />
-          {/* --- NUEVA RUTA PARA PANEL DE PEDIDOS --- */}
           <Route path="/pedidos" element={<PedidosPage />} /> 
         </Route>
-
         <Route path="/iframe" element={<Iframe />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
 
-      {/* Aquí puedes reactivar el chatwidget global si querés */}
-      {/* {!ocultarWidgetGlobalEnApp && <ChatWidget mode="standalone" defaultOpen={false} />} */}
+      {/* MONTÁ el widget global solo si no estamos en una ruta donde hay que ocultarlo */}
+      {!ocultarWidgetGlobalEnApp && (
+        <ChatWidget mode="standalone" defaultOpen={false} />
+      )}
     </>
   );
 }
-
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
