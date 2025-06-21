@@ -15,6 +15,10 @@
     }
 
     const token = script.getAttribute("data-token") || "demo-anon";
+    const tipoChat =
+      script.getAttribute("data-endpoint") === "municipio"
+        ? "municipio"
+        : "pyme";
     const initialBottom = script.getAttribute("data-bottom") || "20px";
     const initialRight = script.getAttribute("data-right") || "20px";
     const defaultOpen = script.getAttribute("data-default-open") === "true";
@@ -88,7 +92,7 @@
     // --- Iframe ---
     const iframe = document.createElement("iframe");
     iframe.id = iframeId;
-    iframe.src = `${chatbocDomain}/iframe?token=${encodeURIComponent(token)}&widgetId=${iframeId}&defaultOpen=${defaultOpen}&openWidth=${encodeURIComponent(WIDGET_DIMENSIONS_JS.OPEN.width)}&openHeight=${encodeURIComponent(WIDGET_DIMENSIONS_JS.OPEN.height)}&closedWidth=${encodeURIComponent(WIDGET_DIMENSIONS_JS.CLOSED.width)}&closedHeight=${encodeURIComponent(WIDGET_DIMENSIONS_JS.CLOSED.height)}${theme ? `&theme=${encodeURIComponent(theme)}` : ""}`;
+    iframe.src = `${chatbocDomain}/iframe?token=${encodeURIComponent(token)}&widgetId=${iframeId}&defaultOpen=${defaultOpen}&tipo_chat=${tipoChat}&openWidth=${encodeURIComponent(WIDGET_DIMENSIONS_JS.OPEN.width)}&openHeight=${encodeURIComponent(WIDGET_DIMENSIONS_JS.OPEN.height)}&closedWidth=${encodeURIComponent(WIDGET_DIMENSIONS_JS.CLOSED.width)}&closedHeight=${encodeURIComponent(WIDGET_DIMENSIONS_JS.CLOSED.height)}${theme ? `&theme=${encodeURIComponent(theme)}` : ""}`;
     Object.assign(iframe.style, {
       border: "none",
       width: "100%", 
