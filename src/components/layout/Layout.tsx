@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import Navbar from './Navbar';
 import Footer from './Footer';
+import ScrollToTopButton from '../ui/ScrollToTopButton';
 
 const Layout = () => {
   const location = useLocation();
@@ -17,6 +18,7 @@ const Layout = () => {
       <main className="flex-1 pt-20 px-4 sm:px-6 md:px-8 lg:px-16 max-w-7xl mx-auto w-full">
         <Outlet />
       </main>
+      <ScrollToTopButton />
       <Footer />
     </div>
   );
