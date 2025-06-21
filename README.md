@@ -89,6 +89,7 @@ You can embed the floating chat widget on any site by loading `widget.js` and pa
     s.src = 'https://www.chatboc.ar/widget.js';
     s.async = true;
     s.setAttribute('data-token', 'TU_TOKEN_AQUI');
+    // Choose the API endpoint. Defaults to "pyme" if omitted
     s.setAttribute('data-endpoint', 'pyme'); // or "municipio"
     // Optional: force light or dark theme
     // s.setAttribute('data-theme', 'dark');
@@ -106,7 +107,8 @@ If you host `widget.js` yourself, remember to add `data-domain="https://www.chat
 The `<script>` tag accepts several extra `data-*` attributes to control the widget's look:
 
 - `data-bottom` and `data-right` – offset from the bottom-right corner (`20px` by default).
-- `data-endpoint` – `pyme` or `municipio` to pick the API endpoint.
+- `data-endpoint` – `pyme` or `municipio` to pick the API endpoint. If not
+  specified, `pyme` is used.
 - `data-default-open="true"` – open the chat automatically when the page loads.
 - `data-width` / `data-height` – size of the open chat window (defaults to `370px` × `540px`).
 - `data-closed-width` / `data-closed-height` – size of the closed bubble (`88px` × `88px`).
