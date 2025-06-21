@@ -36,7 +36,7 @@ const queryClient = new QueryClient();
 function AppRoutes() {
   const location = useLocation();
   // AGREGÁ /integracion ACÁ ABAJO 👇
-  const RutasDondeOcultarWidgetGlobal = ["/iframe", "/login", "/register", "/integracion"];
+  const RutasDondeOcultarWidgetGlobal = ["/iframe", "/login", "/register", "/integracion", "/demo"];
   const ocultarWidgetGlobalEnApp = RutasDondeOcultarWidgetGlobal.includes(location.pathname);
 
   return (
