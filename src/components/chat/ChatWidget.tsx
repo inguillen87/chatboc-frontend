@@ -85,8 +85,10 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         window.parent !== window &&
         widgetId
       ) {
-        const panelWidth = isMobile ? "96vw" : finalOpenWidth;
-        const panelHeight = isMobile ? "96vh" : finalOpenHeight;
+        const panelWidth = isMobile ? "100vw" : finalOpenWidth;
+        const panelHeight = isMobile
+          ? "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))"
+          : finalOpenHeight;
         const dims = open
           ? { width: panelWidth, height: panelHeight }
           : { width: finalClosedWidth, height: finalClosedHeight };
@@ -135,12 +137,16 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         right: `calc(${initialPosition.right}px + env(safe-area-inset-right))`,
         left: "auto",
         top: "auto",
-        width: isOpen ? (isMobile ? "96vw" : finalOpenWidth) : finalClosedWidth,
-        height: isOpen ? (isMobile ? "96vh" : finalOpenHeight) : finalClosedHeight,
+        width: isOpen ? (isMobile ? "100vw" : finalOpenWidth) : finalClosedWidth,
+        height: isOpen
+          ? isMobile
+            ? "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))"
+            : finalOpenHeight
+          : finalClosedHeight,
         minWidth: isOpen ? "320px" : finalClosedWidth,
         minHeight: isOpen ? "64px" : finalClosedHeight,
-        maxWidth: "98vw",
-        maxHeight: "98vh",
+        maxWidth: "100vw",
+        maxHeight: "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))",
         borderRadius: isOpen ? "24px" : "50%",
         overflow: "hidden",
         boxShadow: "0 8px 32px 0 rgba(0,0,0,0.20)",
@@ -236,8 +242,10 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             key="chatboc-panel"
             className={cn(commonPanelStyles, commonPanelAndButtonAbsoluteClasses)}
             style={{
-              width: isMobile ? "96vw" : finalOpenWidth,
-              height: isMobile ? "96vh" : finalOpenHeight,
+              width: isMobile ? "100vw" : finalOpenWidth,
+              height: isMobile
+                ? "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))"
+                : finalOpenHeight,
               borderRadius: "20px",
               background: "#fff",
               opacity: 1,
