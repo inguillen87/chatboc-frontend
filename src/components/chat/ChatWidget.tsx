@@ -41,7 +41,19 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [view, setView] = useState<'chat' | 'register'>('chat');
 
-  const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== "undefined" && window.innerWidth < 640
+  );
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (typeof window !== "undefined") {
+        setIsMobile(window.innerWidth < 640);
+      }
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   const finalOpenWidth = openWidth;
   const finalOpenHeight = openHeight;
@@ -73,8 +85,10 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         window.parent !== window &&
         widgetId
       ) {
+        const panelWidth = isMobile ? "96vw" : finalOpenWidth;
+        const panelHeight = isMobile ? "96vh" : finalOpenHeight;
         const dims = open
-          ? { width: finalOpenWidth, height: finalOpenHeight }
+          ? { width: panelWidth, height: panelHeight }
           : { width: finalClosedWidth, height: finalClosedHeight };
         window.parent.postMessage(
           { type: "chatboc-state-change", widgetId, dimensions: dims, isOpen: open },
@@ -82,7 +96,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         );
       }
     },
-    [mode, widgetId, finalOpenWidth, finalOpenHeight, finalClosedWidth, finalClosedHeight]
+    [mode, widgetId, finalOpenWidth, finalOpenHeight, finalClosedWidth, finalClosedHeight, isMobile]
   );
 
   useEffect(() => {
@@ -222,8 +236,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             key="chatboc-panel"
             className={cn(commonPanelStyles, commonPanelAndButtonAbsoluteClasses)}
             style={{
-              width: finalOpenWidth,
-              height: finalOpenHeight,
+              width: isMobile ? "96vw" : finalOpenWidth,
+              height: isMobile ? "96vh" : finalOpenHeight,
               borderRadius: "20px",
               background: "#fff",
               opacity: 1,
