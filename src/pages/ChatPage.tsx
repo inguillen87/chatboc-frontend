@@ -139,18 +139,7 @@ const ChatPage = () => {
   // APLICAR enforceTipoChatForRubro para asegurar consistencia
   const adjustedTipoForEndpoint = enforceTipoChatForRubro(currentEffectiveChatType, rubroNormalizadoFinal);
 
-  // console.log para depuración avanzada:
-  console.log('ChatPage - DEBUG Variables Iniciales:', {
-    userFromHook: user,
-    rubroActualFromUser,
-    rubroActualFromStorage,
-    rubroNormalizadoFinal,
-    isAnonimo,
-    demoRubroIdParam,
-    demoRubroNameParam,
-    currentEffectiveChatType, // Tipo de chat inicial
-    adjustedTipoForEndpoint,  // Tipo de chat ajustado para el endpoint
-  });
+  // Eliminamos logs de depuración para producción
 
 
   useEffect(() => {
@@ -491,6 +480,8 @@ const ChatPage = () => {
               } else if (isAnonimo && demoRubroNameParam) { // Demo anónima
                   rubroClaveParaPayload = demoRubroNameParam;
                   rubroIdParaPayload = demoRubroIdParam ? Number(demoRubroIdParam) : undefined;
+              } else if (rubroNormalizadoFinal) { // Rubro desde storage o contexto
+                  rubroClaveParaPayload = rubroNormalizadoFinal;
               }
           } else if (currentEffectiveChatType === 'municipio') {
               rubroClaveParaPayload = "municipios"; // Clave fija para el bot municipal
@@ -518,15 +509,7 @@ const ChatPage = () => {
             rubro: rubroClaveParaPayload // Pasamos el rubro clave (ya normalizado)
           });
 
-          // --- ¡CLAVE PARA DEPURAR! ---
-          console.log("DEBUG - user (hook):", user); // Para ver el objeto completo del usuario
-          console.log("DEBUG - rubroNormalizadoFinal (derivado):", rubroNormalizadoFinal);
-          console.log("DEBUG - currentEffectiveChatType (determinado):", currentEffectiveChatType);
-          console.log("DEBUG - adjustedTipoForEndpoint (final para endpoint):", adjustedTipoForEndpoint);
-          console.log("DEBUG - rubroClaveParaPayload (en payload):", rubroClaveParaPayload);
-          console.log("DEBUG - rubroIdParaPayload (en payload):", rubroIdParaPayload);
-          console.log("DEBUG - Endpoint a llamar:", endpoint);
-          console.log("DEBUG - Payload a enviar:", payload);
+
 
 
           const data = await apiFetch<any>(endpoint, {
