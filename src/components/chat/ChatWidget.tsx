@@ -224,9 +224,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 }
 
 
-  // Modo iframe (este es el que se usa cuando el widget se incrusta en otras páginas)
-  // Este div NO debe ser fixed. Su padre (el iframe) ya es fixed.
-  // Este div ocupará el 100% del iframe.
+  // Modo iframe (se incrusta dentro de un iframe externo)
+  // No uses wrappers que hagan fullscreen; solo posiciona el botón/panel.
   return (
   <div
     className={cn(
@@ -311,7 +310,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     </Suspense>
    </div>
   );
-} // <-- ¡NO TE
-
+}
 
 export default ChatWidget;
