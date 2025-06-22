@@ -62,6 +62,7 @@ Este documento resume los lineamientos para que el widget de Chatboc funcione de
 - El mensaje se define desde el backend y se pasa al componente como `ctaMessage`.
 - Si se envía, el globo aparece unos segundos para invitar al usuario a abrir el chat.
 
+
 ## Soporte y mensajes de error
 - Si ocurre un fallo de carga se muestra un mensaje amigable con enlace a soporte.
 
