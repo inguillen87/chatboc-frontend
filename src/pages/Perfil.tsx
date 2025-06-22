@@ -431,6 +431,13 @@ export default function Perfil() {
           )}
           <Button
             variant="outline"
+            className="h-10 px-5 text-sm border-border text-foreground hover:bg-accent hover:text-accent-foreground"
+            onClick={() => navigate("/usuarios")}
+          >
+            {esMunicipio ? "Ver Vecinos" : "Ver Clientes"}
+          </Button>
+          <Button
+            variant="outline"
             className="h-10 px-5 text-sm border-destructive text-destructive hover:bg-destructive/10"
             onClick={() => {
               safeLocalStorage.clear();

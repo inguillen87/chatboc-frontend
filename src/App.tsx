@@ -27,6 +27,7 @@ import NotFound from "./pages/NotFound";
 import PedidosPage from "./pages/PedidosPage";
 import ChatWidget from "@/components/chat/ChatWidget";
 import TicketsPanelPro from "./pages/TicketsPanel";
+import UsuariosPage from "./pages/UsuariosPage";
 import { DateSettingsProvider } from "./hooks/useDateSettings";
 import { UserProvider } from "./hooks/useUser";
 
@@ -71,6 +72,7 @@ function AppRoutes() {
           <Route path="/legal/cookies" element={<Cookies />} />
           <Route path="/tickets" element={<TicketsPanelPro />} />
           <Route path="/pedidos" element={<PedidosPage />} />
+          <Route path="/usuarios" element={<UsuariosPage />} />
         </Route>
         <Route path="*" element={<NotFound />} />
       </Routes>
