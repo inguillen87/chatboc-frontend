@@ -33,7 +33,7 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping }) => { // <-- Rec
   };
 
   return (
-    <div className="w-full max-w-[460px] mx-auto flex items-center gap-2 px-3 py-2"> {/* Quitamos border-t, bg-card, backdrop-blur-md, ya están en ChatPage */}
+    <div className="w-full max-w-[420px] mx-auto flex items-center gap-2 px-3 py-2"> {/* Quitamos border-t, bg-card, backdrop-blur-md, ya están en ChatPage */}
       <input
         ref={inputRef}
         className={`

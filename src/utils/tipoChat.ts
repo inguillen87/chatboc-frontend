@@ -1,7 +1,6 @@
 // src/utils/tipoChat.ts
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { esRubroPublico, normalizeRubro } from './chatEndpoints'; // Importar normalizeRubro
-import { APP_TARGET } from '@/config';
 
 export function parseRubro(raw: any): string | null {
   if (!raw) return null;
@@ -45,7 +44,8 @@ export function getCurrentTipoChat(): 'pyme' | 'municipio' {
   // Tu APP_TARGET en src/config.ts debería ser 'pyme' si esa es la configuración por defecto de la app.
   // Si el APP_TARGET es 'municipio', entonces el fallback seguirá siendo 'municipio' aquí.
   // Ajusta esto según el default deseado.
-  return APP_TARGET;
+  // return 'municipio'; // <-- Tu default actual, cámbialo si quieres que la app por defecto sea PYME
+  return 'pyme'; // <-- Sugerencia si la demo principal es PYME sin selección de rubro
 }
 
 /**

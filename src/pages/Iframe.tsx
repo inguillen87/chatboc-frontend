@@ -4,10 +4,10 @@ import React, { useEffect, useState } from "react";
 import ChatWidget from "../components/chat/ChatWidget";
 
 const DEFAULTS = {
-  openWidth: "460px",
-  openHeight: "680px",
-  closedWidth: "96px",
-  closedHeight: "96px",
+  openWidth: "370px",
+  openHeight: "540px",
+  closedWidth: "88px",
+  closedHeight: "88px",
 };
 
 const Iframe = () => {
