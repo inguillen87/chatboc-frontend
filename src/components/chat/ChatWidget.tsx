@@ -46,6 +46,14 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const [view, setView] = useState<'chat' | 'register' | 'user'>('chat');
   const { user } = useUser();
 
+  const openUserPanel = useCallback(() => {
+    if (user) {
+      setView('user');
+    } else {
+      setView('register');
+    }
+  }, [user]);
+
   const [isMobile, setIsMobile] = useState(
     typeof window !== "undefined" && window.innerWidth < 640
   );
@@ -179,6 +187,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                 <ChatHeader
                   onClose={toggleChat}
                   onBack={view === "user" ? () => setView("chat") : undefined}
+                  showProfile={false}
                 />
               )}
               {view === "register" ? (
@@ -195,7 +204,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                   onClose={toggleChat}
                   tipoChat={tipoChat}
                   onRequireAuth={() => setView("register")}
-                  onOpenUserPanel={() => setView("user")}
+                  onOpenUserPanel={openUserPanel}
                 />
               )}
             </motion.div>
@@ -273,6 +282,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
               <ChatHeader
                 onClose={toggleChat}
                 onBack={view === "user" ? () => setView("chat") : undefined}
+                showProfile={false}
               />
             )}
             {view === "register" ? (
@@ -289,7 +299,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                 onClose={toggleChat}
                 tipoChat={tipoChat}
                 onRequireAuth={() => setView("register")}
-                onOpenUserPanel={() => setView("user")}
+                onOpenUserPanel={openUserPanel}
               />
             )}
           </motion.div>

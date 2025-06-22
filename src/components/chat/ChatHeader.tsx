@@ -7,6 +7,7 @@ interface Props {
   isTyping?: boolean;
   onProfile?: () => void;
   onBack?: () => void;
+  showProfile?: boolean;
 }
 
 const ChatHeader: React.FC<Props> = ({
@@ -14,6 +15,7 @@ const ChatHeader: React.FC<Props> = ({
   isTyping = false,
   onProfile,
   onBack,
+  showProfile = true,
 }) => {
   return (
     <div
@@ -64,7 +66,7 @@ const ChatHeader: React.FC<Props> = ({
           >
             <ChevronLeft size={20} />
           </button>
-        ) : onProfile ? (
+        ) : onProfile && showProfile ? (
           <button
             onClick={onProfile}
             className="text-muted-foreground hover:text-foreground transition"
