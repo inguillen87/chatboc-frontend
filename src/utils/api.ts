@@ -1,6 +1,9 @@
 // utils/api.ts
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "https://api.chatboc.ar";
+// If no VITE_API_URL is provided fall back to "/api" so the Vite dev
+// proxy handles CORS automatically. In production the env variable will
+// point to the real backend URL.
+const API_BASE_URL = import.meta.env.VITE_API_URL || "/api";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 
 export class ApiError extends Error {

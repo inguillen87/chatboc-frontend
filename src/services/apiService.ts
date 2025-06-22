@@ -2,7 +2,9 @@
 import type { Ticket, Comment, TicketStatus } from '@/types'; // CAMBIO: Se agrega TicketStatus a la importación
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
-const API_URL = "https://api.chatboc.ar";
+// Use the same base URL resolution as api.ts. Default to the Vite dev
+// proxy path when no env variable is provided.
+const API_URL = import.meta.env.VITE_API_URL || "/api";
 
 interface TicketsApiResponse { ok: boolean; tickets: Ticket[]; error?: string; }
 interface CommentsApiResponse { ok: boolean; comentarios: Comment[]; error?: string; }

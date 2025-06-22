@@ -22,7 +22,9 @@ import { useNavigate } from "react-router-dom";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "https://api.chatboc.ar";
+// During development we proxy requests under "/api" to avoid CORS problems.
+// Default to that path when no env variable is provided.
+const API_BASE_URL = import.meta.env.VITE_API_URL || "/api";
 const Maps_API_KEY =
   import.meta.env.VITE_Maps_API_KEY || "AIzaSyDbEoPzFgN5zJsIeywiRE7jRI8xr5ioGNI";
 const RUBRO_AVATAR = {

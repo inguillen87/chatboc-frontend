@@ -50,7 +50,8 @@ const Demo: React.FC = () => {
         esPublico,
       );
 
-      const res = await fetch(`https://api.chatboc.ar${endpoint}`, {
+      const base = import.meta.env.VITE_API_URL || "/api";
+      const res = await fetch(`${base}${endpoint}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
