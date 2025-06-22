@@ -480,6 +480,8 @@ const ChatPage = () => {
               } else if (isAnonimo && demoRubroNameParam) { // Demo anónima
                   rubroClaveParaPayload = demoRubroNameParam;
                   rubroIdParaPayload = demoRubroIdParam ? Number(demoRubroIdParam) : undefined;
+              } else if (rubroNormalizadoFinal) { // Rubro desde storage o contexto
+                  rubroClaveParaPayload = rubroNormalizadoFinal;
               }
           } else if (currentEffectiveChatType === 'municipio') {
               rubroClaveParaPayload = "municipios"; // Clave fija para el bot municipal
