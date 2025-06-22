@@ -15,6 +15,11 @@
     }
 
     const token = script.getAttribute("data-token") || "demo-anon";
+    const registry = (window.__chatbocWidgets = window.__chatbocWidgets || {});
+    if (registry[token] && typeof registry[token].destroy === "function") {
+      registry[token].destroy();
+      delete registry[token];
+    }
     const tipoChat =
       script.getAttribute("data-endpoint") === "municipio"
         ? "municipio"
@@ -47,6 +52,7 @@
     // Este div es el que realmente manejará el tamaño, forma y color de fondo inicial.
     const widgetContainer = document.createElement("div");
     widgetContainer.id = "chatboc-widget-container-" + iframeId;
+    widgetContainer.setAttribute("data-chatboc-token", token);
     Object.assign(widgetContainer.style, {
       position: "fixed", 
       bottom: initialBottom,
@@ -65,7 +71,7 @@
       // El background del contenedor principal DEBE tener un color sólido para el estado de botón cerrado.
       background: "hsl(var(--primary, 218 92% 41%))", // Usar el color primario de tu tema para el botón
     });
-    if (!document.getElementById(widgetContainer.id)) document.body.appendChild(widgetContainer);
+    document.body.appendChild(widgetContainer);
 
     // --- Loader (Aseguramos que el logo del loader siempre se vea sobre un fondo) ---
     const loader = document.createElement("div");
@@ -132,7 +138,7 @@
     };
 
     // Escuchar mensajes del iframe para redimensionar y cambiar estado
-    window.addEventListener("message", function (event) {
+    function messageHandler(event) {
       if (event.origin !== chatbocDomain && !(chatbocDomain.startsWith("http://localhost"))) {
         return;
       }
@@ -147,10 +153,11 @@
           borderRadius: iframeIsCurrentlyOpen ? "16px" : "50%",
           boxShadow: iframeIsCurrentlyOpen ? "0 6px 20px rgba(0,0,0,0.2)" : "0 4px 12px rgba(0,0,0,0.15)",
           // El color de fondo del widgetContainer cambia si el panel está abierto
-          background: iframeIsCurrentlyOpen ? "transparent" : "hsl(var(--primary, 218 92% 41%))", 
+          background: iframeIsCurrentlyOpen ? "transparent" : "hsl(var(--primary, 218 92% 41%))",
         });
       }
-    });
+    }
+    window.addEventListener("message", messageHandler);
 
     // Si el iframe no responde, forzar apertura al hacer click en el contenedor
     widgetContainer.addEventListener("click", function () {
@@ -225,6 +232,23 @@
       document.removeEventListener("mouseup", dragEnd);
       document.removeEventListener("touchmove", dragMove);
       document.removeEventListener("touchend", dragEnd);
+    }
+
+    function destroy() {
+      window.removeEventListener("message", messageHandler);
+      widgetContainer.removeEventListener("mousedown", dragStart);
+      widgetContainer.removeEventListener("touchstart", dragStart);
+      widgetContainer.remove();
+    }
+
+    registry[token] = { destroy, container: widgetContainer };
+    if (!window.chatbocDestroyWidget) {
+      window.chatbocDestroyWidget = function (tok) {
+        if (registry[tok] && typeof registry[tok].destroy === "function") {
+          registry[tok].destroy();
+          delete registry[tok];
+        }
+      };
     }
   }
 

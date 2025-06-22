@@ -46,31 +46,17 @@ const Iframe = () => {
   if (!ready || !widgetParams.token) return null;
 
   return (
-    <div
-      style={{
-        width: "100%",
-        height: "100%",
-        minWidth: "64px",
-        minHeight: "64px",
-        background: "transparent",
-        margin: 0,
-        padding: 0,
-        overflow: "visible",
-        position: "relative",
-      }}
-    >
-      <ChatWidget
-        mode="iframe"
-        defaultOpen={widgetParams.defaultOpen}
-        widgetId={widgetParams.widgetId}
-        entityToken={widgetParams.token}
-        tipoChat={widgetParams.tipoChat}
-        openWidth={widgetParams.openWidth}
-        openHeight={widgetParams.openHeight}
-        closedWidth={widgetParams.closedWidth}
-        closedHeight={widgetParams.closedHeight}
-      />
-    </div>
+    <ChatWidget
+      mode="iframe"
+      defaultOpen={widgetParams.defaultOpen}
+      widgetId={widgetParams.widgetId}
+      entityToken={widgetParams.token}
+      tipoChat={widgetParams.tipoChat}
+      openWidth={widgetParams.openWidth}
+      openHeight={widgetParams.openHeight}
+      closedWidth={widgetParams.closedWidth}
+      closedHeight={widgetParams.closedHeight}
+    />
   );
 };
 
