@@ -38,10 +38,10 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   defaultOpen = false,
   widgetId = "chatboc-widget-iframe",
   entityToken, 
-  openWidth = "370px",
-  openHeight = "540px",
-  closedWidth = "88px", 
-  closedHeight = "88px",
+  openWidth = "460px",
+  openHeight = "680px",
+  closedWidth = "96px",
+  closedHeight = "96px",
   tipoChat = getCurrentTipoChat(),
   initialPosition = { bottom: 32, right: 32 }, // Mantener para standalone
 }) => {
@@ -149,10 +149,14 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         "chatboc-container-standalone fixed z-[999999]",
       )}
       style={{
-        bottom: `calc(${initialPosition.bottom}px + env(safe-area-inset-bottom))`,
-        right: `calc(${initialPosition.right}px + env(safe-area-inset-right))`,
-        left: "auto",
-        top: "auto",
+        bottom: isOpen && isMobile
+          ? 0
+          : `calc(${initialPosition.bottom}px + env(safe-area-inset-bottom))`,
+        right: isOpen && isMobile
+          ? 0
+          : `calc(${initialPosition.right}px + env(safe-area-inset-right))`,
+        left: isOpen && isMobile ? 0 : "auto",
+        top: isOpen && isMobile ? "env(safe-area-inset-top)" : "auto",
         width: isOpen ? (isMobile ? "100vw" : finalOpenWidth) : finalClosedWidth,
         height: isOpen
           ? isMobile
@@ -163,10 +167,10 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         minHeight: isOpen ? "64px" : finalClosedHeight,
         maxWidth: "100vw",
         maxHeight: "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))",
-        borderRadius: isOpen ? "24px" : "50%",
+        borderRadius: isOpen ? (isMobile ? "0" : "16px") : "50%",
         overflow: "hidden",
         boxShadow: "0 8px 32px 0 rgba(0,0,0,0.20)",
-        background: isOpen ? "#fff" : "var(--primary, #2563eb)",
+        background: isOpen ? "transparent" : "var(--primary, #2563eb)",
         transition: "all 0.25s cubic-bezier(.42,0,.58,1)",
         padding: 0,
         display: "flex",
@@ -180,7 +184,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             <motion.div
               key="chatboc-panel"
               className={cn(commonPanelStyles, "w-full h-full")}
-              style={{ borderRadius: "24px", background: "#fff" }}
+              style={{ borderRadius: isMobile ? "0" : "16px", background: "#fff" }}
               initial={{ opacity: 0, scale: 0.85 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.85 }}
@@ -226,7 +230,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             key="chatboc-btn"
             className={cn(
               commonButtonStyles,
-              "w-[88px] h-[88px] absolute bottom-0 right-0 border-none shadow-xl",
+              "w-[96px] h-[96px] absolute bottom-0 right-0 border-none shadow-xl",
             )}
             style={{
               borderRadius: "50%",
@@ -278,7 +282,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
               height: isMobile
                 ? "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))"
                 : finalOpenHeight,
-              borderRadius: "20px",
+              borderRadius: isMobile ? "0" : "16px",
               background: "#fff",
               opacity: 1,
               zIndex: 10,
@@ -331,7 +335,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             className={cn(
               commonButtonStyles,
               commonPanelAndButtonAbsoluteClasses,
-              "w-[88px] h-[88px] border-none shadow-xl",
+              "w-[96px] h-[96px] border-none shadow-xl",
             )}
             style={{
               borderRadius: "50%",
