@@ -38,6 +38,7 @@ import InternalUsers from "./pages/InternalUsers";
 import WhatsappIntegration from "./pages/WhatsappIntegration";
 import MunicipalSystems from "./pages/MunicipalSystems";
 import SatisfactionSurveys from "./pages/SatisfactionSurveys";
+import CustomerHistory from "./pages/CustomerHistory";
 import { DateSettingsProvider } from "./hooks/useDateSettings";
 import { UserProvider } from "./hooks/useUser";
 
@@ -85,6 +86,7 @@ function AppRoutes() {
           <Route path="/pedidos" element={<PedidosPage />} />
           <Route path="/usuarios" element={<UsuariosPage />} />
           <Route path="/notifications" element={<NotificationSettings />} />
+          <Route path="/historial" element={<CustomerHistory />} />
           <Route path="/pyme/catalog" element={<ProductCatalog />} />
           <Route path="/municipal/tramites" element={<TramitesCatalog />} />
           <Route path="/municipal/usuarios" element={<InternalUsers />} />
