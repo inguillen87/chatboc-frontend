@@ -31,6 +31,13 @@ Este documento resume los lineamientos para que el widget de Chatboc funcione de
 
 ## Mini panel de usuario
 - Al iniciar sesión se muestra un pequeño dashboard con historial, perfil y promociones. Allí el usuario puede actualizar sus datos personales sin acceder al panel administrativo de la empresa.
+- El ícono de usuario en el encabezado del chat abre este panel. Si el visitante no está autenticado se le muestra el formulario de registro dentro del widget.
+- Desde este panel el usuario ve sus reclamos abiertos y cerrados y puede editar su nombre, email o teléfono sin salir del chat.
+
+## Panel CRM para administradores
+- En el perfil del administrador existe una sección para listar clientes o vecinos registrados.
+- El listado permite filtrar por nombre, edad o zona y exportar los datos para campañas de marketing.
+- Como futuro desarrollo se podrán enviar mensajes masivos por email o WhatsApp.
 
 ## Permisos de GPS y CORS
 - Solo se solicitan coordenadas a usuarios registrados y se muestra un mensaje claro si se niegan permisos.
