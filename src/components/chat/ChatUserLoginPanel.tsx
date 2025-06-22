@@ -4,12 +4,16 @@ import { Button } from "@/components/ui/button";
 import { apiFetch, ApiError } from "@/utils/api";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { useUser } from "@/hooks/useUser";
+import { APP_TARGET } from "@/config";
+import { enforceTipoChatForRubro } from "@/utils/tipoChat";
 
 interface LoginResponse {
   id: number;
   token: string;
   name: string;
   email: string;
+  plan?: string;
+  tipo_chat?: 'pyme' | 'municipio';
 }
 
 interface Props {
@@ -37,14 +41,34 @@ const ChatUserLoginPanel: React.FC<Props> = ({ onSuccess, onShowRegister }) => {
       const payload: Record<string, any> = { email, password };
       const anon = safeLocalStorage.getItem("anon_id");
       if (anon) payload.anon_id = anon;
-      const data = await apiFetch<LoginResponse>("/usuarios/login", {
+      const data = await apiFetch<LoginResponse>("/login", {
         method: "POST",
         body: payload,
         sendAnonId: true,
         sendEntityToken: true,
       });
       safeLocalStorage.setItem("authToken", data.token);
-      const profile = { id: data.id, name: data.name, email: data.email, token: data.token };
+      let rubro = "";
+      let tipoChat = (data as any).tipo_chat as 'pyme' | 'municipio' | undefined;
+      try {
+        const me = await apiFetch<any>("/me");
+        rubro = me?.rubro?.toLowerCase() || "";
+        if (!tipoChat && me?.tipo_chat) tipoChat = me.tipo_chat;
+      } catch {
+        /* ignore */
+      }
+      const finalTipo = enforceTipoChatForRubro(
+        (tipoChat || APP_TARGET) as 'pyme' | 'municipio',
+        rubro || null,
+      );
+      const profile = {
+        id: data.id,
+        name: data.name,
+        email: data.email,
+        token: data.token,
+        rubro,
+        tipo_chat: finalTipo,
+      };
       safeLocalStorage.setItem("user", JSON.stringify(profile));
       setUser(profile);
       onSuccess();
