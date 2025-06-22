@@ -13,7 +13,9 @@ import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { parseChatResponse } from "@/utils/parseChatResponse";
 
 // --- CONFIGURA ACÁ EL RUBRO PARA DEMO O WIDGET
-const DEFAULT_WIDGET_RUBRO = "municipios"; // Cambia por "bodega", "almacen", etc. según corresponda
+// Rubro genérico para el widget. Cambialo según la
+// empresa que integra el chat para que consulte su catálogo.
+const DEFAULT_WIDGET_RUBRO = "almacen";
 
 const ChatPage = () => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -159,7 +161,8 @@ const ChatPage = () => {
             {isTyping && <TypingIndicator />}
             <div ref={messagesEndRef} />
           </div>
-          <ChatInput onSendMessage={handleSend} />
+          {/* Pasamos isTyping para deshabilitar el input mientras responde */}
+          <ChatInput onSendMessage={handleSend} isTyping={isTyping} />
         </div>
       </main>
     </div>
