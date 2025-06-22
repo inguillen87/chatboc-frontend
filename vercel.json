@@ -1,5 +1,7 @@
 {
   "rewrites": [
+    { "source": "/iframe", "destination": "/iframe.html" },
+    { "source": "/iframe/(.*)", "destination": "/iframe.html" },
     { "source": "/(.*)", "destination": "/" }
   ]
 }
