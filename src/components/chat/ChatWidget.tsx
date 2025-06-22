@@ -166,7 +166,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         borderRadius: isOpen ? "24px" : "50%",
         overflow: "hidden",
         boxShadow: "0 8px 32px 0 rgba(0,0,0,0.20)",
-        background: isOpen ? "#fff" : "var(--primary, #2563eb)",
+        background: isOpen ? "transparent" : "var(--primary, #2563eb)",
         transition: "all 0.25s cubic-bezier(.42,0,.58,1)",
         padding: 0,
         display: "flex",
