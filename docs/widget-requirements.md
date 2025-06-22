@@ -57,6 +57,11 @@ Este documento resume los lineamientos para que el widget de Chatboc funcione de
 ## Facilidad de integración
 - El código para incrustar el widget debe ser de copiar y pegar, con ejemplos para WordPress, Tiendanube, Shopify y sitios HTML simples.
 
+## Propiedad opcional `ctaMessage`
+- Se puede mostrar un globo de texto junto al botón de chat cuando está cerrado.
+- El mensaje se define desde el backend y se pasa al componente como `ctaMessage`.
+- Si se envía, el globo aparece unos segundos para invitar al usuario a abrir el chat.
+
 ## Soporte y mensajes de error
 - Si ocurre un fallo de carga se muestra un mensaje amigable con enlace a soporte.
 
