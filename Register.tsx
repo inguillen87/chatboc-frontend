@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useNavigate } from 'react-router-dom';
+import GoogleLoginButton from '@/components/auth/GoogleLoginButton';
 
 const Register = () => {
   const navigate = useNavigate();
@@ -46,6 +47,7 @@ const Register = () => {
           <Button type="submit" className="w-full">
             Registrarme
           </Button>
+          <GoogleLoginButton className="mt-2" />
         </form>
         <div className="text-center text-sm text-gray-600 mt-4">
           ¿Ya tenés cuenta?{' '}

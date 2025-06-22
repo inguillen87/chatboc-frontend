@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '@/utils/api';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
+import GoogleLoginButton from '@/components/auth/GoogleLoginButton';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -57,6 +58,7 @@ const Login = () => {
           <Button type="submit" className="w-full">
             Iniciar Sesión
           </Button>
+          <GoogleLoginButton className="mt-2" />
         </form>
         <div className="text-center text-sm text-gray-600 mt-4">
           ¿No tenés cuenta?{' '}
