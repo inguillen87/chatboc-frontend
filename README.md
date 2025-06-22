@@ -242,6 +242,21 @@ Note: after closing the Google login popup you may see a console message like
 `Cross-Origin-Opener-Policy policy would block the window.closed call`. This
 warning comes from the Google library and does not affect the login flow.
 
+### Troubleshooting common console errors
+
+When the API requests fail with messages like `Failed to load resource: the
+server responded with a status of 403` or `Access to fetch has been blocked by
+CORS policy`, make sure your `.env` file uses `VITE_API_URL=/api`. The Vite
+proxy only works with this relative path; pointing `VITE_API_URL` directly to
+`https://api.chatboc.ar` will bypass the proxy and trigger CORS errors.
+
+Some browser extensions (for example crypto wallets) inject scripts that modify
+`window.ethereum` or `window.tronLink`. These scripts may log warnings such as
+`Cannot assign to read only property 'ethereum' of object '#<Window>'` or
+`This document requires 'TrustedScript' assignment`. They originate from the
+extension and do not affect the application. Disable the extension if the
+messages become distracting.
+
 ## Animated logo
 
 The `ChatbocLogoAnimated` component now supports two optional props:
