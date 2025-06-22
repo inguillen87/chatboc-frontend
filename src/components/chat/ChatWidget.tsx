@@ -31,6 +31,7 @@ interface ChatWidgetProps {
   closedWidth?: string;
   closedHeight?: string;
   tipoChat?: "pyme" | "municipio";
+  ctaMessage?: string;
 }
 
 const ChatWidget: React.FC<ChatWidgetProps> = ({
@@ -44,6 +45,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   closedHeight = "96px",
   tipoChat = getCurrentTipoChat(),
   initialPosition = { bottom: 32, right: 32 }, // Mantener para standalone
+  ctaMessage,
 }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [view, setView] = useState<'chat' | 'register' | 'login' | 'user'>('chat');
@@ -133,6 +135,19 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   const toggleChat = () => setIsOpen((open) => !open);
 
+  const [showCta, setShowCta] = useState(false);
+
+  // Muestra la burbuja cada vez que se recibe `ctaMessage` y el chat está cerrado
+  useEffect(() => {
+    if (!ctaMessage || isOpen) {
+      setShowCta(false);
+      return;
+    }
+    setShowCta(true);
+    const timer = setTimeout(() => setShowCta(false), 8000);
+    return () => clearTimeout(timer);
+  }, [ctaMessage, isOpen]);
+
   useEffect(() => {
     if (mode === "iframe" && entityToken) {
       safeLocalStorage.setItem("entityToken", entityToken);
@@ -168,7 +183,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         maxWidth: "100vw",
         maxHeight: "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))",
         borderRadius: isOpen ? (isMobile ? "0" : "16px") : "50%",
-        overflow: "hidden",
+        overflow: isOpen ? "hidden" : "visible",
         boxShadow: "0 8px 32px 0 rgba(0,0,0,0.20)",
         background: isOpen ? "transparent" : "var(--primary, #2563eb)",
         transition: "all 0.25s cubic-bezier(.42,0,.58,1)",
@@ -226,34 +241,51 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
           )}
         </AnimatePresence>
         {!isOpen && (
-          <motion.button
-            key="chatboc-btn"
-            className={cn(
-              commonButtonStyles,
-              "w-[96px] h-[96px] absolute bottom-0 right-0 border-none shadow-xl",
-            )}
-            style={{
-              borderRadius: "50%",
-              background: "var(--primary, #2563eb)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              boxShadow: "0 6px 24px 0 rgba(0,0,0,0.15)",
-            }}
-            initial={{ opacity: 0, scale: 0.85 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.85 }}
-            transition={{ type: "spring", stiffness: 320, damping: 18 }}
-            onClick={toggleChat}
-            aria-label="Abrir chat"
-          >
-            <motion.span
-              animate={{ y: [0, -8, 0] }}
-              transition={{ repeat: Infinity, duration: 1, repeatDelay: 3 }}
+          <>
+            <AnimatePresence>
+              {showCta && ctaMessage && (
+                <motion.div
+                  key="chatboc-cta"
+                  className="absolute right-0 text-sm bg-background border rounded-lg shadow-lg px-3 py-2"
+                  style={{ bottom: "calc(100% + 8px)" }}
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  {ctaMessage}
+                </motion.div>
+              )}
+            </AnimatePresence>
+            <motion.button
+              key="chatboc-btn"
+              className={cn(
+                commonButtonStyles,
+                "w-[96px] h-[96px] absolute bottom-0 right-0 border-none shadow-xl",
+              )}
+              style={{
+                borderRadius: "50%",
+                background: "var(--primary, #2563eb)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                boxShadow: "0 6px 24px 0 rgba(0,0,0,0.15)",
+              }}
+              initial={{ opacity: 0, scale: 0.85 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.85 }}
+              transition={{ type: "spring", stiffness: 320, damping: 18 }}
+              onClick={toggleChat}
+              aria-label="Abrir chat"
             >
-              <ChatbocLogoAnimated size={isMobile ? 42 : 62} blinking floating pulsing />
-            </motion.span>
-          </motion.button>
+              <motion.span
+                animate={{ y: [0, -8, 0] }}
+                transition={{ repeat: Infinity, duration: 1, repeatDelay: 3 }}
+              >
+                <ChatbocLogoAnimated size={isMobile ? 42 : 62} blinking floating pulsing />
+              </motion.span>
+            </motion.button>
+          </>
         )}
       </Suspense>
     </div>
@@ -330,35 +362,52 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       </AnimatePresence>
       <AnimatePresence>
         {!isOpen && (
-          <motion.button
-            key="chatboc-btn"
-            className={cn(
-              commonButtonStyles,
-              commonPanelAndButtonAbsoluteClasses,
-              "w-[96px] h-[96px] border-none shadow-xl",
-            )}
-            style={{
-              borderRadius: "50%",
-              background: "var(--primary, #2563eb)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              zIndex: 20,
-            }}
-            initial={{ opacity: 0, scale: 0.87 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.87 }}
-            transition={{ type: "spring", stiffness: 320, damping: 16 }}
-            onClick={toggleChat}
-            aria-label="Abrir chat"
-          >
-            <motion.span
-              animate={{ y: [0, -10, 0] }}
-              transition={{ repeat: Infinity, duration: 0.9, repeatDelay: 4 }}
+          <>
+            <AnimatePresence>
+              {showCta && ctaMessage && (
+                <motion.div
+                  key="chatboc-cta"
+                  className="absolute right-0 text-sm bg-background border rounded-lg shadow-lg px-3 py-2"
+                  style={{ bottom: "calc(100% + 8px)" }}
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  {ctaMessage}
+                </motion.div>
+              )}
+            </AnimatePresence>
+            <motion.button
+              key="chatboc-btn"
+              className={cn(
+                commonButtonStyles,
+                commonPanelAndButtonAbsoluteClasses,
+                "w-[96px] h-[96px] border-none shadow-xl",
+              )}
+              style={{
+                borderRadius: "50%",
+                background: "var(--primary, #2563eb)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 20,
+              }}
+              initial={{ opacity: 0, scale: 0.87 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.87 }}
+              transition={{ type: "spring", stiffness: 320, damping: 16 }}
+              onClick={toggleChat}
+              aria-label="Abrir chat"
             >
-              <ChatbocLogoAnimated size={62} blinking floating pulsing />
-            </motion.span>
-          </motion.button>
+              <motion.span
+                animate={{ y: [0, -10, 0] }}
+                transition={{ repeat: Infinity, duration: 0.9, repeatDelay: 4 }}
+              >
+                <ChatbocLogoAnimated size={62} blinking floating pulsing />
+              </motion.span>
+            </motion.button>
+          </>
         )}
       </AnimatePresence>
     </Suspense>

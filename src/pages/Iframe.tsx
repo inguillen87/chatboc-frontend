@@ -26,6 +26,7 @@ const Iframe = () => {
         closedHeight: urlParams.get("closedHeight") || DEFAULTS.closedHeight,
         tipoChat:
           urlParams.get("tipo_chat") === "municipio" ? "municipio" : "pyme",
+        ctaMessage: urlParams.get("ctaMessage") || undefined,
       });
     }
   }, []);
@@ -42,6 +43,7 @@ const Iframe = () => {
       openHeight={params.openHeight}
       closedWidth={params.closedWidth}
       closedHeight={params.closedHeight}
+      ctaMessage={params.ctaMessage}
     />
   );
 };
