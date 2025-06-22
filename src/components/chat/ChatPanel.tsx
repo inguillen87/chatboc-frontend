@@ -7,6 +7,7 @@ import ChatHeader from "./ChatHeader";
 import ChatMessage from "./ChatMessage";
 import TypingIndicator from "./TypingIndicator";
 import ChatInput from "./ChatInput";
+import ScrollToBottomButton from "@/components/ui/ScrollToBottomButton";
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import TicketMap from "@/components/TicketMap";
 import { Message } from "@/types/chat";
@@ -82,6 +83,7 @@ const ChatPanel = ({
   const [esperandoRubro, setEsperandoRubro] = useState(false);
   const [cargandoRubros, setCargandoRubros] = useState(false);
   const [contexto, setContexto] = useState({});
+  const [showScrollDown, setShowScrollDown] = useState(false);
   const [activeTicketId, setActiveTicketId] = useState<number | null>(() => {
     if (typeof window === 'undefined') return null;
     const stored = safeLocalStorage.getItem(PENDING_TICKET_KEY);
@@ -512,14 +514,29 @@ const ChatPanel = ({
       if (atBottom) {
         container.scrollTop = container.scrollHeight;
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        setShowScrollDown(false);
+      } else {
+        setShowScrollDown(true);
       }
     }
   }, [messages, isTyping, ticketLocation]);
 
+  useEffect(() => {
+    const container = chatContainerRef.current;
+    if (!container) return;
+    const onScroll = () => {
+      const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+      setShowScrollDown(!atBottom);
+    };
+    container.addEventListener('scroll', onScroll);
+    onScroll();
+    return () => container.removeEventListener('scroll', onScroll);
+  }, []);
+
   return (
     <div
       className={cn(
-        "flex flex-col w-full h-full bg-card text-card-foreground overflow-hidden",
+        "flex flex-col w-full h-full bg-card text-card-foreground overflow-hidden relative",
         isMobile ? undefined : "rounded-2xl"
       )}
     >
@@ -594,6 +611,7 @@ const ChatPanel = ({
           )}
         </div>
       </ScrollArea>
+      <ScrollToBottomButton target={chatContainerRef.current} />
       {!esperandoRubro && !esperandoDireccion && (!showCierre || !showCierre.show) && (
         <div className="bg-card px-3 py-2 border-t min-w-0">
           <ChatInput onSendMessage={handleSendMessage} isTyping={isTyping} />
