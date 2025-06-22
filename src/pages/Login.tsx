@@ -8,6 +8,7 @@ import { apiFetch, ApiError } from "@/utils/api";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { APP_TARGET } from "@/config";
 import { enforceTipoChatForRubro } from "@/utils/tipoChat";
+import GoogleLoginButton from "@/components/auth/GoogleLoginButton";
 
 // Asegúrate de que esta interfaz refleje EXACTAMENTE lo que tu backend devuelve en /login
 interface LoginResponse {
@@ -97,6 +98,7 @@ const Login = () => {
           >
             {isLoading ? "Ingresando..." : "Iniciar Sesión"}
           </Button>
+          <GoogleLoginButton className="mt-2" />
         </form>
         <div className="text-center text-sm text-muted-foreground mt-4">
           ¿No tenés cuenta?{" "}

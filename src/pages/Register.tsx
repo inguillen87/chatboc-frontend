@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { APP_TARGET } from '@/config';
 import { enforceTipoChatForRubro } from '@/utils/tipoChat';
+import GoogleLoginButton from '@/components/auth/GoogleLoginButton';
 
 interface Rubro { id: number; nombre: string; }
 interface RegisterResponse {
@@ -136,6 +137,7 @@ const Register = () => {
           >
             {isLoading ? "Registrando..." : "Registrarse"}
           </Button>
+          <GoogleLoginButton className="mt-2" />
         </form>
         <div className="text-center text-sm mt-4 text-muted-foreground">
           ¿Ya tenés cuenta?{' '}
