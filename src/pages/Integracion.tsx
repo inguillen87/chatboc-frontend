@@ -75,10 +75,10 @@ const Integracion = () => {
   }
 
   // Definir las dimensiones estándar del widget para los códigos de copia
-  const WIDGET_STD_WIDTH = "460px";
-  const WIDGET_STD_HEIGHT = "680px";
-  const WIDGET_STD_CLOSED_WIDTH = "96px";
-  const WIDGET_STD_CLOSED_HEIGHT = "96px";
+  const WIDGET_STD_WIDTH = "370px";
+  const WIDGET_STD_HEIGHT = "540px";
+  const WIDGET_STD_CLOSED_WIDTH = "88px";
+  const WIDGET_STD_CLOSED_HEIGHT = "88px";
   const WIDGET_STD_BOTTOM = "20px";
   const WIDGET_STD_RIGHT = "20px";
 
@@ -157,12 +157,12 @@ const Integracion = () => {
         <h2 className="text-xl font-semibold mb-2 text-foreground">🔍 Vista previa en vivo:</h2>
         <div
           className="flex items-center justify-center"
-          style={{ minHeight: 680 }}
+          style={{ minHeight: 540 }}
         >
           <div
             style={{
-              width: 460,
-              height: 680,
+              width: 370,
+              height: 540,
               border: "1px solid #e3e3e3",
               borderRadius: 16,
               overflow: "hidden",
@@ -175,12 +175,12 @@ const Integracion = () => {
           >
             <iframe
               src={url}
-              width="460"
-              height="680"
+              width="370"
+              height="540"
               style={{
                 border: "none",
-                width: "460px",
-                height: "680px",
+                width: "370px",
+                height: "540px",
                 borderRadius: "16px",
                 background: "transparent",
                 display: "block"

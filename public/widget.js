@@ -29,13 +29,10 @@
         return;
       }
     }
-    const endpointAttr = script.getAttribute("data-endpoint");
     const tipoChat =
-      endpointAttr === "municipio" || endpointAttr === "pyme"
-        ? endpointAttr
-        : (typeof window !== "undefined" && window.APP_TARGET === "municipio"
-            ? "municipio"
-            : "pyme");
+      script.getAttribute("data-endpoint") === "municipio"
+        ? "municipio"
+        : "pyme";
     const initialBottom = script.getAttribute("data-bottom") || "20px";
     const initialRight = script.getAttribute("data-right") || "20px";
     const defaultOpen = script.getAttribute("data-default-open") === "true";
@@ -48,12 +45,12 @@
 
     const WIDGET_DIMENSIONS_JS = {
       OPEN: {
-        width: script.getAttribute("data-width") || "460px",
-        height: script.getAttribute("data-height") || "680px",
+        width: script.getAttribute("data-width") || "370px",
+        height: script.getAttribute("data-height") || "540px",
       },
       CLOSED: {
-        width: script.getAttribute("data-closed-width") || "96px",
-        height: script.getAttribute("data-closed-height") || "96px",
+        width: script.getAttribute("data-closed-width") || "88px",
+        height: script.getAttribute("data-closed-height") || "88px",
       },
     };
 

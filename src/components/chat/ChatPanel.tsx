@@ -1,8 +1,6 @@
 // src/components/chat/ChatPanel.tsx (VERSIÓN FINAL Y ESTABLE)
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { useIsMobile } from "@/hooks/use-mobile";
-import { cn } from "@/lib/utils";
 import ChatHeader from "./ChatHeader"; 
 import ChatMessage from "./ChatMessage";
 import TypingIndicator from "./TypingIndicator";
@@ -138,8 +136,6 @@ const ChatPanel = ({
     (tipoChat && (tipoChat === "municipio" || tipoChat === "pyme"))
       ? tipoChat
       : (rubroNormalizado && isMunicipioRubro ? "municipio" : "pyme");
-
-  const isMobile = useIsMobile();
 
   const fetchTicket = useCallback(async () => {
     if (!activeTicketId) return;
@@ -409,12 +405,7 @@ const ChatPanel = ({
   }, [messages, isTyping, ticketLocation]);
 
   return (
-    <div
-      className={cn(
-        "flex flex-col w-full h-full bg-card text-card-foreground overflow-hidden",
-        isMobile ? undefined : "rounded-3xl"
-      )}
-    >
+    <div className="flex flex-col w-full h-full bg-card text-card-foreground overflow-hidden rounded-3xl">
       <ChatHeader onClose={onClose} onProfile={onOpenUserPanel} />
       <ScrollArea ref={chatContainerRef} className="flex-1 p-4 min-h-0">
         <div className="flex flex-col gap-3 min-h-full">
