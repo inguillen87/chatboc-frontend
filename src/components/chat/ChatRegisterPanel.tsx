@@ -1,76 +1,53 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import GoogleLoginButton from "@/components/auth/GoogleLoginButton";
 import { apiFetch, ApiError } from "@/utils/api";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { useUser } from "@/hooks/useUser";
+import { APP_TARGET } from "@/config";
+import { enforceTipoChatForRubro } from "@/utils/tipoChat";
 
 interface RegisterResponse {
   id: number;
   token: string;
   name: string;
   email: string;
-  tipo_chat?: "pyme" | "municipio";
+  tipo_chat?: 'pyme' | 'municipio';
 }
 
 interface Props {
   onSuccess: () => void;
+  onShowLogin: () => void;
 }
 
-const ChatRegisterPanel: React.FC<Props> = ({ onSuccess }) => {
+const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin }) => {
   const { setUser } = useUser();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [phone, setPhone] = useState("");
-  const [nombreEmpresa, setNombreEmpresa] = useState("");
-  const [rubro, setRubro] = useState("");
-  const [rubrosDisponibles, setRubrosDisponibles] = useState<{ id: number; nombre: string }[]>([]);
-  const [accepted, setAccepted] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
 
-  // UX: Autofocus al primer input
   useEffect(() => {
     nameRef.current?.focus();
   }, []);
 
-  // Traemos los rubros al inicio
-  useEffect(() => {
-    const fetchRubros = async () => {
-      try {
-        const data = await apiFetch<{ id: number; nombre: string }[]>("/rubros/", {
-          skipAuth: true,
-          sendEntityToken: true,
-        });
-        if (Array.isArray(data)) setRubrosDisponibles(data);
-      } catch {/* ignore */}
-    };
-    fetchRubros();
-  }, []);
-
-  // Manejamos el envío del form
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    if (!accepted) {
-      setError("Debés aceptar los Términos y Condiciones.");
-      return;
-    }
     setLoading(true);
     try {
       const payload: Record<string, any> = {
         name,
         email,
         password,
-        nombre_empresa: nombreEmpresa,
-        rubro,
-        acepto_terminos: accepted,
       };
+      if (phone) payload.telefono = phone;
       const anon = safeLocalStorage.getItem("anon_id");
       if (anon) payload.anon_id = anon;
-      if (phone) payload.telefono = phone;
       const data = await apiFetch<RegisterResponse>("/register", {
         method: "POST",
         body: payload,
@@ -78,23 +55,29 @@ const ChatRegisterPanel: React.FC<Props> = ({ onSuccess }) => {
         sendEntityToken: true,
       });
       safeLocalStorage.setItem("authToken", data.token);
-      let finalTipo = data.tipo_chat;
+      let rubro = "";
+      let tipoChat = (data as any).tipo_chat as 'pyme' | 'municipio' | undefined;
       try {
         const me = await apiFetch<any>("/me");
-        finalTipo = me?.tipo_chat || finalTipo;
-        const profile = {
-          id: data.id,
-          name: data.name,
-          email: data.email,
-          token: data.token,
-          rubro: me?.rubro?.toLowerCase() || "",
-          tipo_chat: finalTipo || "pyme",
-        };
-        safeLocalStorage.setItem("user", JSON.stringify(profile));
-        setUser(profile);
-      } catch {/* ignore */}
-      // UX: feedback de éxito (opcional: reemplazá por tu toast/snackbar preferido)
-      // alert('Registro exitoso');
+        rubro = me?.rubro?.toLowerCase() || "";
+        if (!tipoChat && me?.tipo_chat) tipoChat = me.tipo_chat;
+      } catch {
+        /* ignore */
+      }
+      const finalTipo = enforceTipoChatForRubro(
+        (tipoChat || APP_TARGET) as 'pyme' | 'municipio',
+        rubro || null,
+      );
+      const profile = {
+        id: data.id,
+        name: data.name,
+        email: data.email,
+        token: data.token,
+        rubro,
+        tipo_chat: finalTipo,
+      };
+      safeLocalStorage.setItem("user", JSON.stringify(profile));
+      setUser(profile);
       onSuccess();
     } catch (err) {
       if (err instanceof ApiError) {
@@ -109,7 +92,9 @@ const ChatRegisterPanel: React.FC<Props> = ({ onSuccess }) => {
 
   return (
     <div className="p-4 flex flex-col gap-4 w-full max-w-md mx-auto animate-fade-in">
-      <h2 className="text-xl font-extrabold text-center tracking-tight text-primary">Crear cuenta</h2>
+      <h2 className="text-xl font-extrabold text-center tracking-tight text-primary">
+        Registrarme
+      </h2>
       <form
         onSubmit={handleSubmit}
         className="space-y-3"
@@ -152,62 +137,6 @@ const ChatRegisterPanel: React.FC<Props> = ({ onSuccess }) => {
           autoComplete="tel"
           disabled={loading}
         />
-        <Input
-          type="text"
-          placeholder="Nombre de la empresa"
-          value={nombreEmpresa}
-          onChange={e => setNombreEmpresa(e.target.value)}
-          autoComplete="organization"
-          required
-          disabled={loading}
-        />
-        <select
-          value={rubro}
-          onChange={e => setRubro(e.target.value)}
-          required
-          disabled={loading}
-          className="w-full p-2 border rounded text-sm bg-input border-input text-foreground"
-        >
-          <option value="">Seleccioná tu rubro</option>
-          {rubrosDisponibles.map(r => (
-            <option key={r.id} value={r.nombre}>
-              {r.nombre}
-            </option>
-          ))}
-        </select>
-        <div className="flex items-center space-x-2">
-          <input
-            type="checkbox"
-            id="terms"
-            checked={accepted}
-            onChange={() => setAccepted(!accepted)}
-            required
-            disabled={loading}
-            className="form-checkbox h-4 w-4 text-primary bg-input border-border rounded focus:ring-primary cursor-pointer"
-          />
-          <label htmlFor="terms" className="text-xs text-muted-foreground">
-            Acepto los{" "}
-            <a
-              href="/legal/terms"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline text-primary hover:text-primary/80"
-            >
-              Términos
-            </a>{" "}
-            y{" "}
-            <a
-              href="/legal/privacy"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline text-primary hover:text-primary/80"
-            >
-              Política de Privacidad
-            </a>
-            .
-          </label>
-        </div>
-        {/* Error animado */}
         {error && (
           <div className="text-destructive text-sm animate-pulse px-2">{error}</div>
         )}
@@ -221,9 +150,16 @@ const ChatRegisterPanel: React.FC<Props> = ({ onSuccess }) => {
             "Registrarme y continuar"
           )}
         </Button>
+        <GoogleLoginButton className="mt-2" onLoggedIn={onSuccess} />
       </form>
+      <div className="text-center text-sm">
+        ¿Ya tenés cuenta?{' '}
+        <button onClick={onShowLogin} className="underline text-primary">
+          Iniciar sesión
+        </button>
+      </div>
     </div>
   );
 };
 
-export default ChatRegisterPanel;
+export default ChatUserRegisterPanel;
