@@ -147,6 +147,15 @@ const Demo = () => {
     [contexto, rubroSeleccionado, anonId, preguntasUsadas]
   );
 
+  const handleFileUploaded = useCallback(
+    (data: any) => {
+      if (data?.url) {
+        handleSendMessage(data.url);
+      }
+    },
+    [handleSendMessage]
+  );
+
   // Rubros selector UI
   if (esperandoRubro) {
     return (
@@ -242,7 +251,11 @@ const Demo = () => {
       </div>
       {/* INPUT */}
       <div className="border-t border-border p-3 bg-card/95 sticky bottom-0 z-20">
-        <ChatInput onSendMessage={handleSendMessage} isTyping={isTyping} />
+        <ChatInput
+          onSendMessage={handleSendMessage}
+          isTyping={isTyping}
+          onFileUploaded={handleFileUploaded}
+        />
       </div>
       {/* PIE/CTA */}
       <div className="text-center text-xs text-muted-foreground py-2 bg-transparent font-medium">
