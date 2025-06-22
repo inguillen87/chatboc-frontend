@@ -434,7 +434,7 @@ export default function Perfil() {
             className="h-10 px-5 text-sm border-border text-foreground hover:bg-accent hover:text-accent-foreground"
             onClick={() => navigate("/usuarios")}
           >
-            {esMunicipio ? "Ver Vecinos" : "Ver Clientes"}
+            Ver Usuarios
           </Button>
           <Button
             variant="outline"

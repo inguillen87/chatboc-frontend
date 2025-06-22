@@ -14,9 +14,10 @@ interface RegisterResponse {
 
 interface Props {
   onSuccess: () => void;
+  onShowLogin: () => void;
 }
 
-const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess }) => {
+const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin }) => {
   const { setUser } = useUser();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -131,6 +132,12 @@ const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess }) => {
           )}
         </Button>
       </form>
+      <div className="text-center text-sm">
+        ¿Ya tenés cuenta?{' '}
+        <button onClick={onShowLogin} className="underline text-primary">
+          Iniciar sesión
+        </button>
+      </div>
     </div>
   );
 };

@@ -13,6 +13,9 @@ import { useUser } from "@/hooks/useUser";
 const ChatUserRegisterPanel = React.lazy(
   () => import("./ChatUserRegisterPanel")
 );
+const ChatUserLoginPanel = React.lazy(
+  () => import("./ChatUserLoginPanel")
+);
 const ChatUserPanel = React.lazy(() => import("./ChatUserPanel"));
 import ChatHeader from "./ChatHeader"; 
 const ChatPanel = React.lazy(() => import("./ChatPanel")); 
@@ -43,14 +46,14 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   initialPosition = { bottom: 32, right: 32 }, // Mantener para standalone
 }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
-  const [view, setView] = useState<'chat' | 'register' | 'user'>('chat');
+  const [view, setView] = useState<'chat' | 'register' | 'login' | 'user'>('chat');
   const { user } = useUser();
 
   const openUserPanel = useCallback(() => {
     if (user) {
       setView('user');
     } else {
-      setView('register');
+      setView('login');
     }
   }, [user]);
 
@@ -183,7 +186,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
               exit={{ opacity: 0, scale: 0.85 }}
               transition={{ type: "spring", stiffness: 250, damping: 18 }}
             >
-              {(view === "register" || view === "user") && (
+              {(view === "register" || view === "login" || view === "user") && (
                 <ChatHeader
                   onClose={toggleChat}
                   onBack={view === "user" ? () => setView("chat") : undefined}
@@ -191,7 +194,15 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                 />
               )}
               {view === "register" ? (
-                <ChatUserRegisterPanel onSuccess={() => setView("chat")} />
+                <ChatUserRegisterPanel
+                  onSuccess={() => setView("chat")}
+                  onShowLogin={() => setView("login")}
+                />
+              ) : view === "login" ? (
+                <ChatUserLoginPanel
+                  onSuccess={() => setView("chat")}
+                  onShowRegister={() => setView("register")}
+                />
               ) : view === "user" ? (
                 <ChatUserPanel onClose={() => setView("chat")} />
               ) : (
@@ -278,7 +289,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             exit={{ opacity: 0, scale: 0.93 }}
             transition={{ type: "spring", stiffness: 250, damping: 22 }}
           >
-            {(view === "register" || view === "user") && (
+            {(view === "register" || view === "login" || view === "user") && (
               <ChatHeader
                 onClose={toggleChat}
                 onBack={view === "user" ? () => setView("chat") : undefined}
@@ -286,7 +297,15 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
               />
             )}
             {view === "register" ? (
-              <ChatUserRegisterPanel onSuccess={() => setView("chat")} />
+              <ChatUserRegisterPanel
+                onSuccess={() => setView("chat")}
+                onShowLogin={() => setView("login")}
+              />
+            ) : view === "login" ? (
+              <ChatUserLoginPanel
+                onSuccess={() => setView("chat")}
+                onShowRegister={() => setView("register")}
+              />
             ) : view === "user" ? (
               <ChatUserPanel onClose={() => setView("chat")} />
             ) : (
