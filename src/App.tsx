@@ -42,6 +42,8 @@ import CustomerHistory from "./pages/CustomerHistory";
 import BudgetRequest from "./pages/BudgetRequest";
 import Reminders from "./pages/Reminders";
 import BusinessMetrics from "./pages/BusinessMetrics";
+import CrmIntegrations from "./pages/CrmIntegrations";
+import PredefinedQueries from "./pages/PredefinedQueries";
 import { DateSettingsProvider } from "./hooks/useDateSettings";
 import { UserProvider } from "./hooks/useUser";
 
@@ -93,6 +95,8 @@ function AppRoutes() {
           <Route path="/presupuestos" element={<BudgetRequest />} />
           <Route path="/recordatorios" element={<Reminders />} />
           <Route path="/pyme/metrics" element={<BusinessMetrics />} />
+          <Route path="/crm/integrations" element={<CrmIntegrations />} />
+          <Route path="/consultas" element={<PredefinedQueries />} />
           <Route path="/pyme/catalog" element={<ProductCatalog />} />
           <Route path="/municipal/tramites" element={<TramitesCatalog />} />
           <Route path="/municipal/usuarios" element={<InternalUsers />} />

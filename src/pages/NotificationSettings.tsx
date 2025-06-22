@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 interface Settings {
   email: boolean;
   sms: boolean;
+  ticket: boolean;
 }
 
 export default function NotificationSettings() {
@@ -16,7 +17,7 @@ export default function NotificationSettings() {
   useEffect(() => {
     apiFetch<Settings>('/notifications')
       .then((data) => setSettings(data))
-      .catch(() => setSettings({ email: false, sms: false }));
+      .catch(() => setSettings({ email: false, sms: false, ticket: false }));
   }, []);
 
   const handleSave = async () => {
@@ -52,6 +53,13 @@ export default function NotificationSettings() {
         <Switch
           checked={settings.sms}
           onCheckedChange={(v) => setSettings({ ...settings, sms: v })}
+        />
+      </div>
+      <div className="flex items-center justify-between">
+        <span>Cambios en tickets</span>
+        <Switch
+          checked={settings.ticket}
+          onCheckedChange={(v) => setSettings({ ...settings, ticket: v })}
         />
       </div>
       {error && <p className="text-destructive text-sm">{error}</p>}
