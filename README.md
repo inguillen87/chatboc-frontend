@@ -225,6 +225,9 @@ own `.env` file from `.env.example` and ensure it contains:
 VITE_API_URL=/api
 ```
 
+Running `npm install` will automatically copy `.env.example` to `.env` if the
+file does not exist. You can also run `npm run setup-env` manually to create it.
+
 With this setting all frontend requests go through the proxy, so your
 local environment can talk to the production API without cross-origin
 errors.
