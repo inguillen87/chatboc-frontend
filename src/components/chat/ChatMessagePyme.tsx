@@ -108,9 +108,10 @@ const ChatMessagePyme: React.FC<ChatMessageProps> = ({
   // Limpiamos HTML
   const sanitizedHtml = DOMPurify.sanitize(message.text);
   const shouldParseProducts = (tipoChat || getCurrentTipoChat()) === "pyme";
-  const parsedProducts = shouldParseProducts
-    ? parseProductMessage(message.text)
-    : null;
+  const parsedProducts =
+    shouldParseProducts && message.isBot
+      ? parseProductMessage(message.text)
+      : null;
   const filteredProducts =
     parsedProducts && query
       ? filterProducts(parsedProducts, query)
