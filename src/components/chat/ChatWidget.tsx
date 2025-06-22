@@ -135,17 +135,18 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   const toggleChat = () => setIsOpen((open) => !open);
 
-  const [showCta, setShowCta] = useState(!!ctaMessage);
+  const [showCta, setShowCta] = useState(false);
 
+  // Muestra la burbuja cada vez que se recibe `ctaMessage` y el chat está cerrado
   useEffect(() => {
-    if (!ctaMessage) return;
+    if (!ctaMessage || isOpen) {
+      setShowCta(false);
+      return;
+    }
+    setShowCta(true);
     const timer = setTimeout(() => setShowCta(false), 8000);
     return () => clearTimeout(timer);
-  }, [ctaMessage]);
-
-  useEffect(() => {
-    if (isOpen) setShowCta(false);
-  }, [isOpen]);
+  }, [ctaMessage, isOpen]);
 
   useEffect(() => {
     if (mode === "iframe" && entityToken) {
@@ -182,7 +183,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         maxWidth: "100vw",
         maxHeight: "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))",
         borderRadius: isOpen ? (isMobile ? "0" : "16px") : "50%",
-        overflow: "hidden",
+        overflow: isOpen ? "hidden" : "visible",
         boxShadow: "0 8px 32px 0 rgba(0,0,0,0.20)",
         background: isOpen ? "transparent" : "var(--primary, #2563eb)",
         transition: "all 0.25s cubic-bezier(.42,0,.58,1)",
