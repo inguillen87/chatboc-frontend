@@ -21,6 +21,14 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, "index.html"),
+        iframe: path.resolve(__dirname, "iframe.html"),
+      },
+    },
+  },
   // No es necesario marcar "path" como externo ya que solo se
   // utiliza en la configuración y no en el bundle final.
 });

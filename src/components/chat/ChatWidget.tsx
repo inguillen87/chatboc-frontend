@@ -4,12 +4,14 @@ import React, { useState, useEffect, useCallback, Suspense } from "react";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
 import { Button } from "@/components/ui/button";
-import { MessageCircle, X } from "lucide-react"; 
+import { MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { safeLocalStorage } from "@/utils/safeLocalStorage"; 
 import { motion, AnimatePresence } from "framer-motion";
 
-const ChatRegisterPanel = React.lazy(() => import("./ChatRegisterPanel"));
+const ChatUserRegisterPanel = React.lazy(
+  () => import("./ChatUserRegisterPanel")
+);
 import ChatHeader from "./ChatHeader"; 
 const ChatPanel = React.lazy(() => import("./ChatPanel")); 
 
@@ -170,9 +172,9 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
               exit={{ opacity: 0, scale: 0.85 }}
               transition={{ type: "spring", stiffness: 250, damping: 18 }}
             >
-              <ChatHeader onClose={toggleChat} />
+              {view === "register" && <ChatHeader onClose={toggleChat} />}
               {view === "register" ? (
-                <ChatRegisterPanel onSuccess={() => setView("chat")} />
+                <ChatUserRegisterPanel onSuccess={() => setView("chat")} />
               ) : (
                 <ChatPanel
                   mode={mode}
@@ -256,9 +258,9 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             exit={{ opacity: 0, scale: 0.93 }}
             transition={{ type: "spring", stiffness: 250, damping: 22 }}
           >
-            <ChatHeader onClose={toggleChat} />
+            {view === "register" && <ChatHeader onClose={toggleChat} />}
             {view === "register" ? (
-              <ChatRegisterPanel onSuccess={() => setView("chat")} />
+              <ChatUserRegisterPanel onSuccess={() => setView("chat")} />
             ) : (
               <ChatPanel
                 mode={mode}

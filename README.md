@@ -141,9 +141,7 @@ If your site blocks external JavaScript, you can embed the chatbot using an
   })();
 </script>
 ```
-Make sure the iframe keeps its fixed size. Avoid wrapping it in a flex or grid
-layout or giving it `width: 100vw`/`100vh`, otherwise the widget will expand and
-look like a full page instead of a small chat bubble.
+
 ### Removing an existing widget
 If your site loads the script multiple times (for example when navigating a SPA), call `window.chatbocDestroyWidget('<TOKEN>')` before injecting a new one.
 This ensures only one widget per token remains active.

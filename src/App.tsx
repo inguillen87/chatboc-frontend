@@ -1,10 +1,12 @@
+// src/App.tsx
+
 import React from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 
-// Páginas principales (Asegúrate que existan estos componentes)
+// Páginas principales
 import Layout from "./components/layout/Layout";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
@@ -23,21 +25,30 @@ import Terms from "./pages/legal/Terms";
 import Cookies from "./pages/legal/Cookies";
 import NotFound from "./pages/NotFound";
 import PedidosPage from "./pages/PedidosPage";
-import Iframe from "./pages/Iframe";
-import ChatWidget from "@/components/chat/ChatWidget"; // No te olvides importar el widget!
-
-// Importá tu componente TicketsPanelPro aquí
+import ChatWidget from "@/components/chat/ChatWidget";
 import TicketsPanelPro from "./pages/TicketsPanel";
 import { DateSettingsProvider } from "./hooks/useDateSettings";
 import { UserProvider } from "./hooks/useUser";
-// --- NUEVO: Importa tu componente PedidosPage aquí ---
+
 const queryClient = new QueryClient();
 
 function AppRoutes() {
   const location = useLocation();
-  // AGREGÁ /integracion ACÁ ABAJO 👇
-  const RutasDondeOcultarWidgetGlobal = ["/iframe", "/login", "/register", "/integracion", "/demo"];
-  const ocultarWidgetGlobalEnApp = RutasDondeOcultarWidgetGlobal.includes(location.pathname);
+
+  // Ahora el array soporta rutas exactas y subrutas tipo "/integracion/preview"
+  const rutasSinWidget = [
+    "/iframe",
+    "/login",
+    "/register",
+    "/integracion",
+    "/demo"
+  ];
+
+  // El .some() detecta si la ruta actual *empieza* igual que alguna de la lista
+  const ocultarWidgetGlobalEnApp = rutasSinWidget.some(
+    (ruta) =>
+      location.pathname === ruta || location.pathname.startsWith(ruta + "/")
+  );
 
   return (
     <>
@@ -52,26 +63,26 @@ function AppRoutes() {
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/chatpos" element={<ChatPosPage />} />
           <Route path="/chatcrm" element={<ChatCRMPage />} />
-          <Route path="/integracion" element={<Integracion />} /> {/* <- este es el que suma */}
+          <Route path="/integracion" element={<Integracion />} />
           <Route path="/documentacion" element={<Documentacion />} />
           <Route path="/faqs" element={<Faqs />} />
           <Route path="/legal/privacy" element={<Privacy />} />
           <Route path="/legal/terms" element={<Terms />} />
           <Route path="/legal/cookies" element={<Cookies />} />
           <Route path="/tickets" element={<TicketsPanelPro />} />
-          <Route path="/pedidos" element={<PedidosPage />} /> 
+          <Route path="/pedidos" element={<PedidosPage />} />
         </Route>
-        <Route path="/iframe" element={<Iframe />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
 
-      {/* MONTÁ el widget global solo si no estamos en una ruta donde hay que ocultarlo */}
+      {/* Monta el widget global SOLO si no estás en demo/integracion/login/register/iframe */}
       {!ocultarWidgetGlobalEnApp && (
         <ChatWidget mode="standalone" defaultOpen={false} />
       )}
     </>
   );
 }
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
