@@ -5,6 +5,7 @@ import ChatHeader from "./ChatHeader";
 import ChatMessage from "./ChatMessage";
 import TypingIndicator from "./TypingIndicator";
 import ChatInput from "./ChatInput";
+import { useIsMobile } from "@/hooks/use-mobile";
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import TicketMap from "@/components/TicketMap";
 import { Message } from "@/types/chat";
@@ -136,6 +137,8 @@ const ChatPanel = ({
     (tipoChat && (tipoChat === "municipio" || tipoChat === "pyme"))
       ? tipoChat
       : (rubroNormalizado && isMunicipioRubro ? "municipio" : "pyme");
+
+        const isMobile = useIsMobile();
 
   const fetchTicket = useCallback(async () => {
     if (!activeTicketId) return;
@@ -405,6 +408,12 @@ const ChatPanel = ({
   }, [messages, isTyping, ticketLocation]);
 
   return (
+     <div
+      className={cn(
+        "flex flex-col w-full h-full bg-card text-card-foreground overflow-hidden",
+        isMobile ? undefined : "rounded-3xl"
+      )}
+    >
     <div className="flex flex-col w-full h-full bg-card text-card-foreground overflow-hidden rounded-3xl">
       <ChatHeader onClose={onClose} onProfile={onOpenUserPanel} />
       <ScrollArea ref={chatContainerRef} className="flex-1 p-4 min-h-0">
