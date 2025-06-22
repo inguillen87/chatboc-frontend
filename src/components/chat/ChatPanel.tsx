@@ -486,7 +486,16 @@ const ChatPanel = ({
         setIsTyping(false);
       }
     },
-    [contexto, rubroSeleccionado, preguntasUsadas, esAnonimo, mode, finalAuthToken, activeTicketId, esperandoDireccion, anonId, rubroNormalizado, tipoChatActual, fetchTicket, onRequireAuth, loading]);
+      [contexto, rubroSeleccionado, preguntasUsadas, esAnonimo, mode, finalAuthToken, activeTicketId, esperandoDireccion, anonId, rubroNormalizado, tipoChatActual, fetchTicket, onRequireAuth, loading]);
+
+  const handleFileUploaded = useCallback(
+    (data: any) => {
+      if (data?.url) {
+        handleSendMessage(data.url);
+      }
+    },
+    [handleSendMessage]
+  );
 
   useEffect(() => {
     if (esAnonimo && mode === "standalone" && !rubroSeleccionado) {
@@ -614,7 +623,11 @@ const ChatPanel = ({
       <ScrollToBottomButton target={chatContainerRef.current} />
       {!esperandoRubro && !esperandoDireccion && (!showCierre || !showCierre.show) && (
         <div className="bg-card px-3 py-2 border-t min-w-0">
-          <ChatInput onSendMessage={handleSendMessage} isTyping={isTyping} />
+          <ChatInput
+            onSendMessage={handleSendMessage}
+            isTyping={isTyping}
+            onFileUploaded={handleFileUploaded}
+          />
         </div>
       )}
     </div>

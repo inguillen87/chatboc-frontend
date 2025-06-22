@@ -15,7 +15,7 @@ const PLACEHOLDERS = [
   "¿Cuánto cuesta el servicio?",
 ];
 
-const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping }) => { // <-- Recibimos isTyping
+const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, onFileUploaded }) => { // <-- Recibimos isTyping y el callback de archivos
   const [input, setInput] = useState("");
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);

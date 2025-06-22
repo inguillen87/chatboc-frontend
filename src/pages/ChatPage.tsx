@@ -572,11 +572,20 @@ const ChatPage = () => {
         setIsTyping(false);
       }
     },
-    [
-      contexto, activeTicketId, esperandoDireccion, user,
-      anonId, currentEffectiveChatType, demoRubroIdParam, demoRubroNameParam,
-      fetchTicketInfo, rubroNormalizadoFinal, adjustedTipoForEndpoint // Añadir dependencias relevantes
-    ],
+      [
+        contexto, activeTicketId, esperandoDireccion, user,
+        anonId, currentEffectiveChatType, demoRubroIdParam, demoRubroNameParam,
+        fetchTicketInfo, rubroNormalizadoFinal, adjustedTipoForEndpoint // Añadir dependencias relevantes
+      ],
+  );
+
+  const handleFileUploaded = useCallback(
+    (data: any) => {
+      if (data?.url) {
+        handleSend(data.url);
+      }
+    },
+    [handleSend]
   );
 
   // Polling para chat en vivo
@@ -763,7 +772,11 @@ const ChatPage = () => {
                 </div>
               </div>
             ) : !showCierre || !showCierre.show ? (
-              <ChatInput onSendMessage={handleSend} isTyping={isTyping} />
+              <ChatInput
+                onSendMessage={handleSend}
+                isTyping={isTyping}
+                onFileUploaded={handleFileUploaded}
+              />
             ) : null}
           </div>
         </motion.div>
