@@ -40,6 +40,7 @@ const ChatHeader: React.FC<Props> = ({
             smiling={isTyping}
             movingEyes={isTyping}
             blinking
+            pulsing
           />
         </div>
         <div className="ml-1 flex flex-col leading-tight">

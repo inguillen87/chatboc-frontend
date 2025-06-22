@@ -57,7 +57,7 @@ const HeroSection = () => {
             <div className="bg-card text-card-foreground rounded-2xl shadow-xl p-5 border border-border max-w-full sm:max-w-md mx-auto animate-float">
               <div className="flex items-center border-b border-border pb-3 mb-3">
                 <div className="mr-3">
-                  <ChatbocLogoAnimated size={32} blinking />
+                  <ChatbocLogoAnimated size={32} blinking floating pulsing />
                 </div>
                 <div>
                   <h3 className="font-medium text-sm">Chatboc</h3>

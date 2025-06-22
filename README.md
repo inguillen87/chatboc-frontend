@@ -242,6 +242,13 @@ Note: after closing the Google login popup you may see a console message like
 `Cross-Origin-Opener-Policy policy would block the window.closed call`. This
 warning comes from the Google library and does not affect the login flow.
 
+## Animated logo
+
+The `ChatbocLogoAnimated` component now supports two optional props:
+`floating` and `pulsing`. When enabled, the logo gently floats up and down
+or scales in and out to draw attention. These effects use Framer Motion and
+can be combined with the existing `blinking` and `smiling` animations.
+
 
 ## Widget integration guidelines
 Detailed requirements for the embedded widget can be found in [docs/widget-requirements.md](docs/widget-requirements.md).

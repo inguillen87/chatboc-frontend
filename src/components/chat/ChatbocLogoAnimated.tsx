@@ -8,6 +8,8 @@ const ChatbocLogoAnimated = ({
   smiling = false,
   movingEyes = false,
   blinking = false,
+  floating = false,
+  pulsing = false,
   style = {},
 }) => {
   // Ajusta los valores para que coincidan con tu logo si lo ves raro
@@ -28,8 +30,20 @@ const ChatbocLogoAnimated = ({
         display: "inline-block",
         ...style,
       }}
-      animate={smiling ? { rotate: [0, 8, -8, 0] } : {}}
-      transition={{ duration: 0.8 }}
+      animate={{
+        rotate: smiling ? [0, 8, -8, 0] : 0,
+        y: floating ? [0, -4, 0] : 0,
+        scale: pulsing ? [1, 1.05, 1] : 1,
+      }}
+      transition={{
+        rotate: smiling ? { duration: 0.8 } : {},
+        y: floating
+          ? { repeat: Infinity, duration: 2, repeatType: "reverse" }
+          : {},
+        scale: pulsing
+          ? { repeat: Infinity, duration: 1.6, repeatType: "reverse" }
+          : {},
+      }}
     >
       <img
         src="/favicon/favicon-512x512.png"

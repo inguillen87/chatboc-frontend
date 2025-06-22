@@ -62,7 +62,7 @@ const Navbar: React.FC = () => {
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         {/* Logo */}
         <button onClick={handleLogoClick} className="flex items-center gap-2">
-          <ChatbocLogoAnimated size={36} blinking />
+          <ChatbocLogoAnimated size={36} blinking pulsing />
           <span className="text-2xl font-bold bg-gradient-to-r from-blue-700 to-cyan-400 text-transparent bg-clip-text">
             Chatboc
           </span>

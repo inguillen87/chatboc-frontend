@@ -27,6 +27,7 @@ const AvatarBot: React.FC<{ isTyping: boolean }> = ({ isTyping }) => (
       smiling={isTyping}
       movingEyes={isTyping}
       blinking
+      pulsing
     />
   </motion.div>
 );
