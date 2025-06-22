@@ -229,6 +229,16 @@ With this setting all frontend requests go through the proxy, so your
 local environment can talk to the production API without cross-origin
 errors.
 
+### Google authentication
+
+Social login now uses [`@react-oauth/google`](https://www.npmjs.com/package/@react-oauth/google).
+Provide your OAuth client ID through `VITE_GOOGLE_CLIENT_ID` in your `.env` file:
+
+```bash
+VITE_GOOGLE_CLIENT_ID=YOUR_GOOGLE_CLIENT_ID
+```
+
+
 ## Widget integration guidelines
 Detailed requirements for the embedded widget can be found in [docs/widget-requirements.md](docs/widget-requirements.md).
 
