@@ -6,16 +6,17 @@ import TypingIndicator from "@/components/chat/TypingIndicator";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { apiFetch } from "@/utils/api";
-import { getCurrentTipoChat } from "@/utils/tipoChat";
-import { getAskEndpoint, esRubroPublico } from "@/utils/chatEndpoints";
+import { getCurrentTipoChat, enforceTipoChatForRubro } from "@/utils/tipoChat";
+import {
+  getAskEndpoint,
+  esRubroPublico,
+  parseRubro,
+} from "@/utils/chatEndpoints";
 import { motion, AnimatePresence } from "framer-motion";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { parseChatResponse } from "@/utils/parseChatResponse";
 
-// --- CONFIGURA ACÁ EL RUBRO PARA DEMO O WIDGET
-// Rubro genérico para el widget. Cambialo según la
-// empresa que integra el chat para que consulte su catálogo.
-const DEFAULT_WIDGET_RUBRO = "almacen";
+
 
 const ChatPage = () => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -32,8 +33,18 @@ const ChatPage = () => {
       : tipoChatDefault;
   const user = JSON.parse(safeLocalStorage.getItem("user") || "null");
   const token = isDemo ? "demo-token" : user?.token || "demo-token";
-  // Si hay rubro en usuario, lo usamos. Si no, usamos el default
-  const rubro = user?.rubro || DEFAULT_WIDGET_RUBRO;
+
+  // Detectar rubro de forma inteligente
+  const params = new URLSearchParams(window.location.search);
+  const rubroFromUrl = params.get("rubro") || params.get("rubroName");
+  const rubroFromStorage = safeLocalStorage.getItem("rubroSeleccionado");
+  const rubro =
+    parseRubro(user?.rubro) ||
+    parseRubro(rubroFromUrl) ||
+    parseRubro(rubroFromStorage);
+
+  // Ajustamos tipoChat según el rubro detectado
+  const finalTipoChat = enforceTipoChatForRubro(tipoChat, rubro);
 
   useEffect(() => {
     setMessages([
@@ -68,16 +79,15 @@ const ChatPage = () => {
       // --- Arma el body universal ---
       const body: Record<string, any> = {
         pregunta: text,
-        tipo_chat: tipoChat,
+        tipo_chat: finalTipoChat,
       };
 
-      // Si no hay user logueado o es demo, incluimos la clave del rubro
-      // según lo que espera el backend
-      if (!user || isDemo) {
+      // Si conocemos el rubro, siempre lo enviamos
+      if (rubro) {
         body.rubro_clave = rubro;
       }
 
-      const endpoint = getAskEndpoint({ tipoChat, rubro });
+      const endpoint = getAskEndpoint({ tipoChat: finalTipoChat, rubro });
       const esPublico = esRubroPublico(rubro);
       console.log(
         "Voy a pedir a endpoint:",
@@ -85,7 +95,7 @@ const ChatPage = () => {
         "rubro:",
         rubro,
         "tipoChat:",
-        tipoChat,
+        finalTipoChat,
         "esPublico:",
         esPublico,
       );
