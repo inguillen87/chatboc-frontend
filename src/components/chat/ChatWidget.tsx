@@ -251,7 +251,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
               animate={{ y: [0, -8, 0] }}
               transition={{ repeat: Infinity, duration: 1, repeatDelay: 3 }}
             >
-              <ChatbocLogoAnimated size={isMobile ? 42 : 62} blinking />
+              <ChatbocLogoAnimated size={isMobile ? 42 : 62} blinking floating pulsing />
             </motion.span>
           </motion.button>
         )}
@@ -356,7 +356,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
               animate={{ y: [0, -10, 0] }}
               transition={{ repeat: Infinity, duration: 0.9, repeatDelay: 4 }}
             >
-              <ChatbocLogoAnimated size={62} blinking />
+              <ChatbocLogoAnimated size={62} blinking floating pulsing />
             </motion.span>
           </motion.button>
         )}
