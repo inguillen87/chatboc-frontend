@@ -39,6 +39,9 @@ import WhatsappIntegration from "./pages/WhatsappIntegration";
 import MunicipalSystems from "./pages/MunicipalSystems";
 import SatisfactionSurveys from "./pages/SatisfactionSurveys";
 import CustomerHistory from "./pages/CustomerHistory";
+import BudgetRequest from "./pages/BudgetRequest";
+import Reminders from "./pages/Reminders";
+import BusinessMetrics from "./pages/BusinessMetrics";
 import { DateSettingsProvider } from "./hooks/useDateSettings";
 import { UserProvider } from "./hooks/useUser";
 
@@ -87,6 +90,9 @@ function AppRoutes() {
           <Route path="/usuarios" element={<UsuariosPage />} />
           <Route path="/notifications" element={<NotificationSettings />} />
           <Route path="/historial" element={<CustomerHistory />} />
+          <Route path="/presupuestos" element={<BudgetRequest />} />
+          <Route path="/recordatorios" element={<Reminders />} />
+          <Route path="/pyme/metrics" element={<BusinessMetrics />} />
           <Route path="/pyme/catalog" element={<ProductCatalog />} />
           <Route path="/municipal/tramites" element={<TramitesCatalog />} />
           <Route path="/municipal/usuarios" element={<InternalUsers />} />
