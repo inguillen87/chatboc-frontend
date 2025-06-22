@@ -9,7 +9,9 @@ import { cn } from "@/lib/utils";
 import { safeLocalStorage } from "@/utils/safeLocalStorage"; 
 import { motion, AnimatePresence } from "framer-motion";
 
-const ChatRegisterPanel = React.lazy(() => import("./ChatRegisterPanel"));
+const ChatUserRegisterPanel = React.lazy(
+  () => import("./ChatUserRegisterPanel")
+);
 import ChatHeader from "./ChatHeader"; 
 const ChatPanel = React.lazy(() => import("./ChatPanel")); 
 
@@ -172,7 +174,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             >
               {view === "register" && <ChatHeader onClose={toggleChat} />}
               {view === "register" ? (
-                <ChatRegisterPanel onSuccess={() => setView("chat")} />
+                <ChatUserRegisterPanel onSuccess={() => setView("chat")} />
               ) : (
                 <ChatPanel
                   mode={mode}
@@ -258,7 +260,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
           >
             {view === "register" && <ChatHeader onClose={toggleChat} />}
             {view === "register" ? (
-              <ChatRegisterPanel onSuccess={() => setView("chat")} />
+              <ChatUserRegisterPanel onSuccess={() => setView("chat")} />
             ) : (
               <ChatPanel
                 mode={mode}
