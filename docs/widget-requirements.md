@@ -10,6 +10,7 @@ Este documento resume los lineamientos para que el widget de Chatboc funcione de
 ## Soporte responsivo
 - El widget no debe provocar desplazamientos dobles ni romper el diseño en pantallas pequeñas.
 - El teclado en móvil no debe ocultar la interfaz ni dejar elementos fuera de vista.
+- Incluir `viewport-fit=cover` en la meta `viewport` para aprovechar las zonas de seguridad (notches) en iOS y Android.
 
 ## Aislamiento de estilos
 - El CSS del sitio host no debe afectar al widget. Usar Shadow DOM o clases únicas si es necesario.
