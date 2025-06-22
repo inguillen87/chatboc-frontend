@@ -10,6 +10,7 @@ Este documento resume los lineamientos para que el widget de Chatboc funcione de
 ## Soporte responsivo
 - El widget no debe provocar desplazamientos dobles ni romper el diseño en pantallas pequeñas.
 - El teclado en móvil no debe ocultar la interfaz ni dejar elementos fuera de vista.
+- Incluir `viewport-fit=cover` en la meta `viewport` para aprovechar las zonas de seguridad (notches) en iOS y Android.
 
 ## Aislamiento de estilos
 - El CSS del sitio host no debe afectar al widget. Usar Shadow DOM o clases únicas si es necesario.
@@ -29,7 +30,7 @@ Este documento resume los lineamientos para que el widget de Chatboc funcione de
 - Cuando una acción requiere autenticación se abre un formulario dentro del widget con nombre, email, celular y contraseña. El usuario queda asociado a la empresa o municipio según el token del iframe.
 - Usuarios registrados acceden con email y contraseña, y ven su historial y archivos según la empresa asociada.
 - Si el visitante ya tiene cuenta puede iniciar sesión desde el mismo widget sin salir de la página.
-- Al iniciar sesión desde el widget el token se almacena en `localStorage` para reutilizarlo en el CRM y futuros contactos.
+
 
 ## Mini panel de usuario
 - Al iniciar sesión se muestra un pequeño dashboard con historial, perfil y promociones. Allí el usuario puede actualizar sus datos personales sin acceder al panel administrativo de la empresa.

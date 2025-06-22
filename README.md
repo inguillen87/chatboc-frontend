@@ -141,6 +141,7 @@ If your site blocks external JavaScript, you can embed the chatbot using an
   })();
 </script>
 ```
+
 ### Removing an existing widget
 If your site loads the script multiple times (for example when navigating a SPA), call `window.chatbocDestroyWidget('<TOKEN>')` before injecting a new one.
 This ensures only one widget per token remains active.
