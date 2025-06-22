@@ -274,3 +274,11 @@ can be combined with the existing `blinking` and `smiling` animations.
 ## Widget integration guidelines
 Detailed requirements for the embedded widget can be found in [docs/widget-requirements.md](docs/widget-requirements.md).
 
+
+## Municipal feature ideas
+A list of potential enhancements for municipal deployments is available in [docs/municipal-features.md](docs/municipal-features.md).
+Some of these ideas already have prototype pages under `/municipal/stats`, `/municipal/incidents`, `/municipal/tramites`, `/municipal/usuarios`, `/municipal/whatsapp`, `/municipal/integrations`, `/municipal/surveys` and `/notifications`.
+
+## Pyme feature ideas
+See [docs/pyme-features.md](docs/pyme-features.md) for potential improvements.
+A prototype catalog viewer is available under `/pyme/catalog`.

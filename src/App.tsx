@@ -29,6 +29,15 @@ import PedidosPage from "./pages/PedidosPage";
 import ChatWidget from "@/components/chat/ChatWidget";
 import TicketsPanelPro from "./pages/TicketsPanel";
 import UsuariosPage from "./pages/UsuariosPage";
+import ProductCatalog from "./pages/ProductCatalog";
+import MunicipalStats from "./pages/MunicipalStats";
+import IncidentsMap from "./pages/IncidentsMap";
+import NotificationSettings from "./pages/NotificationSettings";
+import TramitesCatalog from "./pages/TramitesCatalog";
+import InternalUsers from "./pages/InternalUsers";
+import WhatsappIntegration from "./pages/WhatsappIntegration";
+import MunicipalSystems from "./pages/MunicipalSystems";
+import SatisfactionSurveys from "./pages/SatisfactionSurveys";
 import { DateSettingsProvider } from "./hooks/useDateSettings";
 import { UserProvider } from "./hooks/useUser";
 
@@ -75,6 +84,15 @@ function AppRoutes() {
           <Route path="/tickets" element={<TicketsPanelPro />} />
           <Route path="/pedidos" element={<PedidosPage />} />
           <Route path="/usuarios" element={<UsuariosPage />} />
+          <Route path="/notifications" element={<NotificationSettings />} />
+          <Route path="/pyme/catalog" element={<ProductCatalog />} />
+          <Route path="/municipal/tramites" element={<TramitesCatalog />} />
+          <Route path="/municipal/usuarios" element={<InternalUsers />} />
+          <Route path="/municipal/whatsapp" element={<WhatsappIntegration />} />
+          <Route path="/municipal/integrations" element={<MunicipalSystems />} />
+          <Route path="/municipal/surveys" element={<SatisfactionSurveys />} />
+          <Route path="/municipal/stats" element={<MunicipalStats />} />
+          <Route path="/municipal/incidents" element={<IncidentsMap />} />
         </Route>
         <Route path="*" element={<NotFound />} />
       </Routes>
