@@ -89,7 +89,8 @@ You can embed the floating chat widget on any site by loading `widget.js` and pa
     s.src = 'https://www.chatboc.ar/widget.js';
     s.async = true;
     s.setAttribute('data-token', 'TU_TOKEN_AQUI');
-    // Choose the API endpoint. Defaults to "pyme" if omitted
+    // Choose the API endpoint. If omitted, the widget falls back
+    // to `window.APP_TARGET` and then "pyme" if none is set
     s.setAttribute('data-endpoint', 'pyme'); // or "municipio"
     // Optional: force light or dark theme
     // s.setAttribute('data-theme', 'dark');
@@ -108,10 +109,10 @@ The `<script>` tag accepts several extra `data-*` attributes to control the widg
 
 - `data-bottom` and `data-right` – offset from the bottom-right corner (`20px` by default).
 - `data-endpoint` – `pyme` or `municipio` to pick the API endpoint. If not
-  specified, `pyme` is used.
+  specified, the widget falls back to the global `APP_TARGET` (usually `pyme`).
 - `data-default-open="true"` – open the chat automatically when the page loads.
-- `data-width` / `data-height` – size of the open chat window (defaults to `370px` × `540px`).
-- `data-closed-width` / `data-closed-height` – size of the closed bubble (`88px` × `88px`).
+- `data-width` / `data-height` – size of the open chat window (defaults to `460px` × `680px`).
+- `data-closed-width` / `data-closed-height` – size of the closed bubble (`96px` × `96px`).
 - `data-z` – base `z-index` if you need to adjust stacking order.
 - `data-domain` – custom domain hosting the widget, if different from `chatboc.ar`.
 
@@ -124,7 +125,7 @@ If your site blocks external JavaScript, you can embed the chatbot using an
 <iframe
   id="chatboc-iframe"
   src="https://www.chatboc.ar/iframe?token=TU_TOKEN_AQUI&tipo_chat=pyme"
-  style="position:fixed;bottom:24px;right:24px;border:none;border-radius:50%;z-index:9999;box-shadow:0 4px 32px rgba(0,0,0,0.2);background:transparent;overflow:hidden;width:88px!important;height:88px!important;display:block"
+  style="position:fixed;bottom:24px;right:24px;border:none;border-radius:50%;z-index:9999;box-shadow:0 4px 32px rgba(0,0,0,0.2);background:transparent;overflow:hidden;width:96px!important;height:96px!important;display:block"
   allow="clipboard-write"
   loading="lazy"
 ></iframe>
