@@ -6,12 +6,14 @@ import { getCurrentTipoChat } from "@/utils/tipoChat";
 import { Button } from "@/components/ui/button";
 import { MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { safeLocalStorage } from "@/utils/safeLocalStorage"; 
+import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { motion, AnimatePresence } from "framer-motion";
+import { useUser } from "@/hooks/useUser";
 
 const ChatUserRegisterPanel = React.lazy(
   () => import("./ChatUserRegisterPanel")
 );
+const ChatUserPanel = React.lazy(() => import("./ChatUserPanel"));
 import ChatHeader from "./ChatHeader"; 
 const ChatPanel = React.lazy(() => import("./ChatPanel")); 
 
@@ -41,7 +43,16 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   initialPosition = { bottom: 32, right: 32 }, // Mantener para standalone
 }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
-  const [view, setView] = useState<'chat' | 'register'>('chat');
+  const [view, setView] = useState<'chat' | 'register' | 'user'>('chat');
+  const { user } = useUser();
+
+  const openUserPanel = useCallback(() => {
+    if (user) {
+      setView('user');
+    } else {
+      setView('register');
+    }
+  }, [user]);
 
   const [isMobile, setIsMobile] = useState(
     typeof window !== "undefined" && window.innerWidth < 640
@@ -172,9 +183,17 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
               exit={{ opacity: 0, scale: 0.85 }}
               transition={{ type: "spring", stiffness: 250, damping: 18 }}
             >
-              {view === "register" && <ChatHeader onClose={toggleChat} />}
+              {(view === "register" || view === "user") && (
+                <ChatHeader
+                  onClose={toggleChat}
+                  onBack={view === "user" ? () => setView("chat") : undefined}
+                  showProfile={false}
+                />
+              )}
               {view === "register" ? (
                 <ChatUserRegisterPanel onSuccess={() => setView("chat")} />
+              ) : view === "user" ? (
+                <ChatUserPanel onClose={() => setView("chat")} />
               ) : (
                 <ChatPanel
                   mode={mode}
@@ -185,6 +204,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                   onClose={toggleChat}
                   tipoChat={tipoChat}
                   onRequireAuth={() => setView("register")}
+                  onOpenUserPanel={openUserPanel}
                 />
               )}
             </motion.div>
@@ -258,9 +278,17 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             exit={{ opacity: 0, scale: 0.93 }}
             transition={{ type: "spring", stiffness: 250, damping: 22 }}
           >
-            {view === "register" && <ChatHeader onClose={toggleChat} />}
+            {(view === "register" || view === "user") && (
+              <ChatHeader
+                onClose={toggleChat}
+                onBack={view === "user" ? () => setView("chat") : undefined}
+                showProfile={false}
+              />
+            )}
             {view === "register" ? (
               <ChatUserRegisterPanel onSuccess={() => setView("chat")} />
+            ) : view === "user" ? (
+              <ChatUserPanel onClose={() => setView("chat")} />
             ) : (
               <ChatPanel
                 mode={mode}
@@ -271,6 +299,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                 onClose={toggleChat}
                 tipoChat={tipoChat}
                 onRequireAuth={() => setView("register")}
+                onOpenUserPanel={openUserPanel}
               />
             )}
           </motion.div>
