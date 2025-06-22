@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Send } from "lucide-react";
+import AdjuntarArchivo from "@/components/ui/AdjuntarArchivo";
 
 interface Props {
   onSendMessage: (text: string) => void;
   isTyping: boolean; // <-- NUEVO: Para deshabilitar el input si el bot está escribiendo
+  onFileUploaded?: (data: any) => void;
 }
 
 const PLACEHOLDERS = [
@@ -34,6 +36,7 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping }) => { // <-- Rec
 
   return (
     <div className="w-full max-w-[460px] mx-auto flex items-center gap-2 px-3 py-2"> {/* Quitamos border-t, bg-card, backdrop-blur-md, ya están en ChatPage */}
+      <AdjuntarArchivo onUpload={onFileUploaded} />
       <input
         ref={inputRef}
         className={`
