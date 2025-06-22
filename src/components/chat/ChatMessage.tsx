@@ -9,6 +9,7 @@ export interface ChatMessageProps {
   isTyping: boolean;
   onButtonClick: (valueToSend: string) => void;
   tipoChat?: 'pyme' | 'municipio';
+  query?: string;
 }
 
 // Habilitás forwardRef para animaciones o scroll.

@@ -44,12 +44,14 @@ interface ChatMessageProps {
   isTyping: boolean;
   onButtonClick: (valueToSend: string) => void;
   tipoChat?: "pyme" | "municipio";
+  query?: string;
 }
 
 const ChatMessageMunicipio: React.FC<ChatMessageProps> = ({
   message,
   isTyping,
   onButtonClick,
+  query: _query, // not used but kept for prop consistency
 }) => {
   // Seguridad ante mensajes rotos
   if (!message || typeof message.text !== "string") {

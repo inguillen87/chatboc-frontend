@@ -91,6 +91,7 @@ const ChatPanel = ({
   const [pollingErrorShown, setPollingErrorShown] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const lastQueryRef = useRef<string | null>(null);
 
   const [esperandoDireccion, setEsperandoDireccion] = useState(false);
   const [forzarDireccion, setForzarDireccion] = useState(false);
@@ -188,7 +189,16 @@ const ChatPanel = ({
       () => {
         setForzarDireccion(true);
         setEsperandoDireccion(true);
-        setMessages((prev) => [...prev, { id: Date.now(), text: "No pudimos acceder a tu ubicación por GPS. Ingresá la dirección manualmente para continuar.", isBot: true, timestamp: new Date() }]);
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: Date.now(),
+            text: "No pudimos acceder a tu ubicación por GPS. Ingresá la dirección manualmente para continuar.",
+            isBot: true,
+            timestamp: new Date(),
+            query: undefined,
+          },
+        ]);
       }
     );
   }, [activeTicketId, fetchTicket, esAnonimo, onRequireAuth, finalAuthToken]);
@@ -222,7 +232,16 @@ const ChatPanel = ({
           () => {
             setForzarDireccion(true);
             setEsperandoDireccion(true);
-            setMessages((prev) => [...prev, { id: Date.now(), text: "No pudimos acceder a tu ubicación por GPS. Ingresá la dirección manualmente para continuar.", isBot: true, timestamp: new Date() }]);
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: Date.now(),
+                text: "No pudimos acceder a tu ubicación por GPS. Ingresá la dirección manualmente para continuar.",
+                isBot: true,
+                timestamp: new Date(),
+                query: undefined,
+              },
+            ]);
           }
         );
       } catch {
@@ -287,19 +306,43 @@ const ChatPanel = ({
 
         const data = await apiFetch<{ estado_chat: string; mensajes: any[] }>(`/tickets/chat/${activeTicketId}/mensajes`, { headers: { ...authHeaders, ...entityHeaders }, sendAnonId: esAnonimo });
         if (data.mensajes) {
-          const nuevosMensajes: Message[] = data.mensajes.map((msg) => ({ id: msg.id, text: msg.texto, isBot: msg.es_admin, timestamp: new Date(msg.fecha) }));
+          const nuevosMensajes: Message[] = data.mensajes.map((msg) => ({
+            id: msg.id,
+            text: msg.texto,
+            isBot: msg.es_admin,
+            timestamp: new Date(msg.fecha),
+            query: undefined,
+          }));
           setMessages(nuevosMensajes);
           if (data.mensajes.length > 0) ultimoMensajeIdRef.current = data.mensajes[data.mensajes.length - 1].id;
         }
         await fetchTicket();
         if (data.estado_chat === "resuelto" || data.estado_chat === "cerrado") {
           if (intervalId) clearInterval(intervalId);
-          setMessages((prev) => [...prev, { id: Date.now(), text: "Un agente ha finalizado esta conversación.", isBot: true, timestamp: new Date() }]);
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: Date.now(),
+              text: "Un agente ha finalizado esta conversación.",
+              isBot: true,
+              timestamp: new Date(),
+              query: undefined,
+            },
+          ]);
         }
       } catch (error) {
         console.error("Error durante el polling:", error);
         if (!pollingErrorShown) {
-          setMessages((prev) => [...prev, { id: Date.now(), text: "⚠️ Servicio no disponible.", isBot: true, timestamp: new Date() }]);
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: Date.now(),
+              text: "⚠️ Servicio no disponible.",
+              isBot: true,
+              timestamp: new Date(),
+              query: undefined,
+            },
+          ]);
           setPollingErrorShown(true);
         }
       }
@@ -313,16 +356,43 @@ const ChatPanel = ({
     async (text: string) => {
       if (!text.trim()) return;
       if (esAnonimo && mode === "standalone" && !rubroSeleccionado) {
-        setMessages((prev) => [...prev, { id: Date.now(), text: "🛈 Por favor, seleccioná primero un rubro.", isBot: true, timestamp: new Date() }]);
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: Date.now(),
+            text: "🛈 Por favor, seleccioná primero un rubro.",
+            isBot: true,
+            timestamp: new Date(),
+            query: undefined,
+          },
+        ]);
         return;
       }
       if (!esAnonimo) {
         if (loading) {
-          setMessages((prev) => [...prev, { id: Date.now(), text: "⏳ Cargando tu perfil, intentá nuevamente...", isBot: true, timestamp: new Date() }]);
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: Date.now(),
+              text: "⏳ Cargando tu perfil, intentá nuevamente...",
+              isBot: true,
+              timestamp: new Date(),
+              query: undefined,
+            },
+          ]);
           return;
         }
         if (!rubroNormalizado) {
-          setMessages((prev) => [...prev, { id: Date.now(), text: "🛈 Definí tu rubro en el perfil antes de usar el chat.", isBot: true, timestamp: new Date() }]);
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: Date.now(),
+              text: "🛈 Definí tu rubro en el perfil antes de usar el chat.",
+              isBot: true,
+              timestamp: new Date(),
+              query: undefined,
+            },
+          ]);
           return;
         }
       }
@@ -347,8 +417,15 @@ const ChatPanel = ({
       }
       setShowCierre(null);
 
-      const userMessage = { id: Date.now(), text, isBot: false, timestamp: new Date() };
+      const userMessage = {
+        id: Date.now(),
+        text,
+        isBot: false,
+        timestamp: new Date(),
+        query: undefined,
+      };
       setMessages((prev) => [...prev, userMessage]);
+      lastQueryRef.current = text;
       setIsTyping(true);
       try {
         if (activeTicketId) {
@@ -363,7 +440,18 @@ const ChatPanel = ({
           const data = await apiFetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json", ...(finalAuthToken ? { Authorization: `Bearer ${finalAuthToken}` } : {}) }, body: payload, skipAuth: !finalAuthToken, sendEntityToken: true });
           setContexto(data.contexto_actualizado || {});
           const { text: respuestaText, botones } = parseChatResponse(data);
-          setMessages((prev) => [...prev, { id: Date.now(), text: respuestaText || "No pude procesar tu solicitud.", isBot: true, timestamp: new Date(), botones }]);
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: Date.now(),
+              text: respuestaText || "No pude procesar tu solicitud.",
+              isBot: true,
+              timestamp: new Date(),
+              botones,
+              query: lastQueryRef.current || undefined,
+            },
+          ]);
+          lastQueryRef.current = null;
           if (esAnonimo && mode === "standalone") setPreguntasUsadas((prev) => prev + 1);
           if (data.ticket_id) {
             if (esAnonimo) {
@@ -374,12 +462,24 @@ const ChatPanel = ({
               ultimoMensajeIdRef.current = 0;
             }
           }
+          if (!esAnonimo) {
+            await refreshUser();
+          }
         }
       } catch (error: any) {
         let errorMsg = "⚠️ No se pudo conectar con el servidor.";
         if (error?.body?.error) errorMsg = error.body.error;
         else if (error?.message) errorMsg = error.message;
-        setMessages((prev) => [...prev, { id: Date.now(), text: errorMsg, isBot: true, timestamp: new Date() }]);
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: Date.now(),
+            text: errorMsg,
+            isBot: true,
+            timestamp: new Date(),
+            query: undefined,
+          },
+        ]);
       } finally {
         setIsTyping(false);
       }
@@ -392,7 +492,15 @@ const ChatPanel = ({
     } else if (!esAnonimo || rubroSeleccionado) {
       setEsperandoRubro(false);
       if (messages.length === 0) {
-        setMessages([{ id: Date.now(), text: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?", isBot: true, timestamp: new Date() }]);
+        setMessages([
+          {
+            id: Date.now(),
+            text: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?",
+            isBot: true,
+            timestamp: new Date(),
+            query: undefined,
+          },
+        ]);
       }
     }
   }, [esAnonimo, mode, rubroSeleccionado, messages.length]);
@@ -436,7 +544,15 @@ const ChatPanel = ({
                       safeLocalStorage.setItem('rubroSeleccionado', rubro.nombre);
                       setRubroSeleccionado(rubro.nombre);
                       setEsperandoRubro(false);
-                      setMessages([{ id: Date.now(), text: `¡Hola! Soy Chatboc, tu asistente para ${rubro.nombre.toLowerCase()}. ¿En qué puedo ayudarte hoy?`, isBot: true, timestamp: new Date() }]);
+                      setMessages([
+                        {
+                          id: Date.now(),
+                          text: `¡Hola! Soy Chatboc, tu asistente para ${rubro.nombre.toLowerCase()}. ¿En qué puedo ayudarte hoy?`,
+                          isBot: true,
+                          timestamp: new Date(),
+                          query: undefined,
+                        },
+                      ]);
                     }} className="px-4 py-2 rounded-2xl font-semibold bg-blue-500 text-white hover:bg-blue-600 transition">{rubro.nombre}</button>
                   ))}
                 </div>
@@ -458,7 +574,18 @@ const ChatPanel = ({
             </div>
           ) : (
             <>
-              {messages.map((msg) => typeof msg.text === "string" && (<ChatMessage key={msg.id} message={msg} isTyping={isTyping} onButtonClick={handleSendMessage} tipoChat={tipoChatActual} />))}
+              {messages.map((msg) =>
+                typeof msg.text === "string" && (
+                  <ChatMessage
+                    key={msg.id}
+                    message={msg}
+                    isTyping={isTyping}
+                    onButtonClick={handleSendMessage}
+                    tipoChat={tipoChatActual}
+                    query={msg.query}
+                  />
+                )
+              )}
               {isTyping && <TypingIndicator />}
               {ticketLocation && (<TicketMap ticket={{ ...ticketLocation, tipo: 'municipio' }} />)}
               <div ref={messagesEndRef} />

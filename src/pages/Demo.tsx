@@ -25,6 +25,7 @@ const Demo = () => {
   const [anonId, setAnonId] = useState<string>("");
   const [contexto, setContexto] = useState({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const lastQueryRef = useRef<string | null>(null);
 
   const rubroNormalizado = parseRubro(rubroSeleccionado);
   const isMunicipioRubro = esRubroPublico(rubroNormalizado || undefined);
@@ -46,6 +47,7 @@ const Demo = () => {
           text: `¡Hola! Soy Chatboc, tu asistente para ${rubroSeleccionado.toLowerCase()}. ¿En qué puedo ayudarte hoy?`,
           isBot: true,
           timestamp: new Date(),
+          query: undefined,
         },
       ]);
       setEsperandoRubro(false);
@@ -68,13 +70,21 @@ const Demo = () => {
               "🔒 Límite de 15 preguntas en la demo alcanzado.<br><span class='block mt-2'><a href='/register' class='underline text-primary hover:text-primary/80'>Registrate para usar Chatboc sin límites</a> o <a href='https://wa.me/5492613168608?text=Hola! Estoy probando Chatboc y quiero implementarlo en mi empresa.' class='underline text-primary hover:text-primary/80' target='_blank'>contactanos</a> para planes comerciales.</span>",
             isBot: true,
             timestamp: new Date(),
+            query: undefined,
           },
         ]);
         return;
       }
 
-      const userMessage: Message = { id: Date.now(), text, isBot: false, timestamp: new Date() };
+      const userMessage: Message = {
+        id: Date.now(),
+        text,
+        isBot: false,
+        timestamp: new Date(),
+        query: undefined,
+      };
       setMessages((prev) => [...prev, userMessage]);
+      lastQueryRef.current = text;
       setIsTyping(true);
 
       try {
@@ -107,9 +117,11 @@ const Demo = () => {
           isBot: true,
           timestamp: new Date(),
           botones,
+          query: lastQueryRef.current || undefined,
         };
 
         setMessages((prev) => [...prev, botMessage]);
+        lastQueryRef.current = null;
         setPreguntasUsadas((prev) => prev + 1);
       } catch (error: any) {
         let errorMsg = "⚠️ No se pudo conectar con el servidor.";
@@ -120,7 +132,13 @@ const Demo = () => {
         }
         setMessages((prev) => [
           ...prev,
-          { id: Date.now(), text: errorMsg, isBot: true, timestamp: new Date() },
+          {
+            id: Date.now(),
+            text: errorMsg,
+            isBot: true,
+            timestamp: new Date(),
+            query: undefined,
+          },
         ]);
       } finally {
         setIsTyping(false);
@@ -214,6 +232,7 @@ const Demo = () => {
                 isTyping={isTyping}
                 onButtonClick={handleSendMessage}
                 tipoChat={isMunicipioRubro ? "municipio" : "pyme"}
+                query={msg.query}
               />
             </motion.div>
           ))}

@@ -385,9 +385,19 @@ export default function Perfil() {
     }
   };
 
+  const plan = (perfil.plan || '').toLowerCase();
+  const limitePlan =
+    plan === 'full'
+      ? Infinity
+      : plan === 'pro'
+      ? 200
+      : perfil.limite_preguntas;
+
   const porcentaje =
-    perfil.limite_preguntas > 0
-      ? Math.min((perfil.preguntas_usadas / perfil.limite_preguntas) * 100, 100)
+    limitePlan === Infinity
+      ? 100
+      : limitePlan > 0
+      ? Math.min((perfil.preguntas_usadas / limitePlan) * 100, 100)
       : 0;
   const avatarEmoji = RUBRO_AVATAR[perfil.rubro] || RUBRO_AVATAR.default;
   const esMunicipio = perfil.rubro === "municipios";
@@ -760,7 +770,8 @@ export default function Perfil() {
                     aria-label={`${porcentaje.toFixed(0)}% de consultas usadas`}
                   />
                   <span className="text-xs text-muted-foreground min-w-[70px] text-right">
-                    {perfil?.preguntas_usadas} / {perfil?.limite_preguntas}
+                    {perfil?.preguntas_usadas} /
+                    {limitePlan === Infinity ? '∞' : limitePlan}
                   </span>
                 </div>
               </div>
