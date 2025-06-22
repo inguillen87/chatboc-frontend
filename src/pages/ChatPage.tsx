@@ -14,6 +14,7 @@ import getOrCreateAnonId from "@/utils/anonId";
 import TicketMap from "@/components/TicketMap";
 import { useUser } from "@/hooks/useUser";
 import { toast } from "@/components/ui/use-toast";
+import { parseChatResponse } from "@/utils/parseChatResponse";
 
 // Frases para detectar pedido de dirección
 const FRASES_DIRECCION = [
@@ -531,16 +532,20 @@ const ChatPage = () => {
           const data = await apiFetch<any>(endpoint, {
             method: "POST",
             body: payload,
+            skipAuth: !authToken,
+            sendEntityToken: true,
           });
 
           setContexto(data.contexto_actualizado || {});
 
+          const { text: respuestaText, botones } = parseChatResponse(data);
+
           const botMessage: Message = {
             id: Date.now(),
-            text: data?.respuesta || "⚠️ No se pudo generar una respuesta.",
+            text: respuestaText || "⚠️ No se pudo generar una respuesta.",
             isBot: true,
             timestamp: new Date(),
-            botones: data?.botones || [],
+            botones,
             query: lastQueryRef.current || undefined,
           };
           setMessages((prev) => [...prev, botMessage]);
