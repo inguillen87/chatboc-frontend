@@ -25,7 +25,6 @@ import Terms from "./pages/legal/Terms";
 import Cookies from "./pages/legal/Cookies";
 import NotFound from "./pages/NotFound";
 import PedidosPage from "./pages/PedidosPage";
-import Iframe from "./pages/Iframe";
 import ChatWidget from "@/components/chat/ChatWidget";
 import TicketsPanelPro from "./pages/TicketsPanel";
 import { DateSettingsProvider } from "./hooks/useDateSettings";
@@ -73,7 +72,6 @@ function AppRoutes() {
           <Route path="/tickets" element={<TicketsPanelPro />} />
           <Route path="/pedidos" element={<PedidosPage />} />
         </Route>
-        <Route path="/iframe" element={<Iframe />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
 
