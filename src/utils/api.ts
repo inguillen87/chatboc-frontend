@@ -77,7 +77,7 @@ export async function apiFetch<T>(
       // Sólo limpia sesión si no es skipAuth
       if (!skipAuth) {
         safeLocalStorage.removeItem("authToken");
-        if (!anonId) window.location.href = "/login";
+        // El widget maneja la autenticación sin salir del chat
       }
       throw new ApiError(
         data?.error || data?.message || "No autorizado",
