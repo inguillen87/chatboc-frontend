@@ -51,19 +51,34 @@ export function parseProductMessage(text: string): ParsedProduct[] | null {
   } catch {
     // not JSON, try line parsing
   }
-  const lines = text.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+  const lines = trimmed.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+  if (lines.length === 0) return null;
+
+  const groups: string[][] = [];
+  let current: string[] = [];
+
+  for (const rawLine of lines) {
+    const line = rawLine.replace(/^[\-*•]+\s*/, "");
+    if (/^\$[1.]?$/.test(line)) {
+      continue; // evitar líneas sueltas con símbolos de precio
+    }
+    if (/^ART\b/i.test(line) && current.length) {
+      groups.push(current);
+      current = [line];
+    } else {
+      current.push(line);
+    }
+  }
+  if (current.length) groups.push(current);
+
   const products: ParsedProduct[] = [];
-  let found = false;
-  for (const line of lines) {
-    const parsed = parseProductString(line);
-    if (
-      parsed.precio_unitario ||
-      parsed.presentacion ||
-      parsed.nombre !== line
-    ) {
-      found = true;
+  for (const g of groups) {
+    const joined = g.join(" ");
+    const parsed = parseProductString(joined);
+    if (parsed.nombre) {
       products.push(parsed);
     }
   }
-  return found ? products : null;
+
+  return products.length > 0 ? products : null;
 }

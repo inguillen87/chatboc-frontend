@@ -17,9 +17,9 @@ const ProductCard: React.FC<Props> = ({ product }) => {
         />
       )}
       <h4 className="font-semibold text-sm text-foreground">{nombre}</h4>
-      <p className="text-xs text-muted-foreground">
-        {presentacion || 'Sin presentación'}
-      </p>
+      {presentacion && (
+        <p className="text-xs text-muted-foreground">{presentacion}</p>
+      )}
       <p className="font-bold text-sm text-primary">
         {precio_unitario ? `$${precio_unitario}` : 'Consultar precio'}
       </p>
