@@ -150,7 +150,7 @@ const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin }) => {
             "Registrarme y continuar"
           )}
         </Button>
-        <GoogleLoginButton className="mt-2" onLoggedIn={onSuccess} />
+
       </form>
       <div className="text-center text-sm">
         ¿Ya tenés cuenta?{' '}
