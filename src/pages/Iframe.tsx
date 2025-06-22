@@ -3,8 +3,6 @@
 import React, { useEffect, useState } from "react";
 import ChatWidget from "../components/chat/ChatWidget";
 
-// NO pongas Loader ni Toaster, ni fondo, ni nada más.
-
 const DEFAULTS = {
   openWidth: "370px",
   openHeight: "540px",
@@ -13,49 +11,37 @@ const DEFAULTS = {
 };
 
 const Iframe = () => {
-  const [widgetParams, setWidgetParams] = useState({
-    defaultOpen: false,
-    widgetId: "chatboc-iframe-unknown",
-    token: null as string | null,
-    openWidth: DEFAULTS.openWidth,
-    openHeight: DEFAULTS.openHeight,
-    closedWidth: DEFAULTS.closedWidth,
-    closedHeight: DEFAULTS.closedHeight,
-    tipoChat: "pyme" as "pyme" | "municipio",
-  });
-  const [ready, setReady] = useState(false);
+  const [params, setParams] = useState<any>(null);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      setWidgetParams({
-        defaultOpen: params.get("defaultOpen") === "true",
-        widgetId: params.get("widgetId") || "chatboc-iframe-unknown",
-        token: params.get("token"),
-        openWidth: params.get("openWidth") || DEFAULTS.openWidth,
-        openHeight: params.get("openHeight") || DEFAULTS.openHeight,
-        closedWidth: params.get("closedWidth") || DEFAULTS.closedWidth,
-        closedHeight: params.get("closedHeight") || DEFAULTS.closedHeight,
-        tipoChat: params.get("tipo_chat") === "municipio" ? "municipio" : "pyme",
+      const urlParams = new URLSearchParams(window.location.search);
+      setParams({
+        defaultOpen: urlParams.get("defaultOpen") === "true",
+        widgetId: urlParams.get("widgetId") || "chatboc-iframe-unknown",
+        token: urlParams.get("token"),
+        openWidth: urlParams.get("openWidth") || DEFAULTS.openWidth,
+        openHeight: urlParams.get("openHeight") || DEFAULTS.openHeight,
+        closedWidth: urlParams.get("closedWidth") || DEFAULTS.closedWidth,
+        closedHeight: urlParams.get("closedHeight") || DEFAULTS.closedHeight,
+        tipoChat:
+          urlParams.get("tipo_chat") === "municipio" ? "municipio" : "pyme",
       });
-      setReady(true);
     }
   }, []);
 
-  // Mientras no está listo o no hay token, no muestres nada
-  if (!ready || !widgetParams.token) return null;
-
+  if (!params || !params.token) return null;
   return (
     <ChatWidget
       mode="iframe"
-      defaultOpen={widgetParams.defaultOpen}
-      widgetId={widgetParams.widgetId}
-      entityToken={widgetParams.token}
-      tipoChat={widgetParams.tipoChat}
-      openWidth={widgetParams.openWidth}
-      openHeight={widgetParams.openHeight}
-      closedWidth={widgetParams.closedWidth}
-      closedHeight={widgetParams.closedHeight}
+      defaultOpen={params.defaultOpen}
+      widgetId={params.widgetId}
+      entityToken={params.token}
+      tipoChat={params.tipoChat}
+      openWidth={params.openWidth}
+      openHeight={params.openHeight}
+      closedWidth={params.closedWidth}
+      closedHeight={params.closedHeight}
     />
   );
 };
