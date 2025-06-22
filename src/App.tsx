@@ -4,6 +4,7 @@ import React from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { GoogleOAuthProvider } from "@react-oauth/google";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 
 // Páginas principales
@@ -32,6 +33,7 @@ import { DateSettingsProvider } from "./hooks/useDateSettings";
 import { UserProvider } from "./hooks/useUser";
 
 const queryClient = new QueryClient();
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
 function AppRoutes() {
   const location = useLocation();
@@ -86,18 +88,20 @@ function AppRoutes() {
 }
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <UserProvider>
-        <DateSettingsProvider>
-          <BrowserRouter>
-            <AppRoutes />
-          </BrowserRouter>
-        </DateSettingsProvider>
-      </UserProvider>
-    </TooltipProvider>
-  </QueryClientProvider>
+  <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <UserProvider>
+          <DateSettingsProvider>
+            <BrowserRouter>
+              <AppRoutes />
+            </BrowserRouter>
+          </DateSettingsProvider>
+        </UserProvider>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </GoogleOAuthProvider>
 );
 
 export default App;
