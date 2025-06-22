@@ -141,10 +141,16 @@ If your site blocks external JavaScript, you can embed the chatbot using an
   })();
 </script>
 ```
+If the same page injects this iframe snippet more than once (for example in a single-page application), remove any existing element with id="chatboc-iframe" before creating a new one. Otherwise the widget may reload and flicker.
 
 ### Removing an existing widget
 If your site loads the script multiple times (for example when navigating a SPA), call `window.chatbocDestroyWidget('<TOKEN>')` before injecting a new one.
 This ensures only one widget per token remains active.
+
+From version X.X onward, `widget.js` automatically ignores duplicate script tags
+for the same token. To reload the widget manually, include
+`data-force="true"` on the `<script>` tag or call
+`window.chatbocDestroyWidget('<TOKEN>')` before reinserting it.
 
 
 ## Live ticket location

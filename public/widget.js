@@ -16,9 +16,18 @@
 
     const token = script.getAttribute("data-token") || "demo-anon";
     const registry = (window.__chatbocWidgets = window.__chatbocWidgets || {});
-    if (registry[token] && typeof registry[token].destroy === "function") {
-      registry[token].destroy();
-      delete registry[token];
+    if (registry[token]) {
+      if (script.getAttribute("data-force") === "true") {
+        if (typeof registry[token].destroy === "function") {
+          registry[token].destroy();
+        }
+        delete registry[token];
+      } else {
+        console.warn(
+          "Chatboc widget already loaded for token " + token + ". Skipping."
+        );
+        return;
+      }
     }
     const tipoChat =
       script.getAttribute("data-endpoint") === "municipio"
