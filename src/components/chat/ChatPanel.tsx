@@ -53,6 +53,7 @@ interface ChatPanelProps {
   openHeight?: string; 
   tipoChat?: "pyme" | "municipio";
   onRequireAuth?: () => void;
+  onOpenUserPanel?: () => void;
 }
 
 const ChatPanel = ({
@@ -66,6 +67,7 @@ const ChatPanel = ({
   openHeight, 
   tipoChat = getCurrentTipoChat(),
   onRequireAuth,
+  onOpenUserPanel,
 }: ChatPanelProps) => {
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -404,7 +406,7 @@ const ChatPanel = ({
 
   return (
     <div className="flex flex-col w-full h-full bg-card text-card-foreground overflow-hidden rounded-3xl">
-      <ChatHeader onClose={onClose} />
+      <ChatHeader onClose={onClose} onProfile={onOpenUserPanel} showProfile={!esAnonimo} />
       <ScrollArea ref={chatContainerRef} className="flex-1 p-4 min-h-0">
         <div className="flex flex-col gap-3 min-h-full">
           {esperandoRubro ? (

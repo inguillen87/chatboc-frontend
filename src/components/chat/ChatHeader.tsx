@@ -1,13 +1,22 @@
 import React from "react";
-import { X } from "lucide-react";
+import { X, User, ChevronLeft } from "lucide-react";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 
 interface Props {
   onClose: () => void;
   isTyping?: boolean;
+  onProfile?: () => void;
+  onBack?: () => void;
+  showProfile?: boolean;
 }
 
-const ChatHeader: React.FC<Props> = ({ onClose, isTyping = false }) => {
+const ChatHeader: React.FC<Props> = ({
+  onClose,
+  isTyping = false,
+  onProfile,
+  onBack,
+  showProfile = true,
+}) => {
   return (
     <div
       className={`
@@ -49,6 +58,23 @@ const ChatHeader: React.FC<Props> = ({ onClose, isTyping = false }) => {
         >
           ● Online
         </span>
+        {onBack ? (
+          <button
+            onClick={onBack}
+            className="text-muted-foreground hover:text-foreground transition"
+            aria-label="Volver"
+          >
+            <ChevronLeft size={20} />
+          </button>
+        ) : onProfile && showProfile ? (
+          <button
+            onClick={onProfile}
+            className="text-muted-foreground hover:text-foreground transition"
+            aria-label="Mi perfil"
+          >
+            <User size={20} />
+          </button>
+        ) : null}
         <button
           onClick={onClose}
           className="text-muted-foreground hover:text-foreground transition"
