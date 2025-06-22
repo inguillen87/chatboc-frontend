@@ -10,6 +10,8 @@ Este documento compila ideas orientadas a los comercios y empresas que usan Chat
 - **Consultas frecuentes prearmadas** y completamente configurables desde el panel.
 - **Notificaciones automáticas** cuando un ticket cambia de estado.
 - **Panel de métricas** con ventas, consultas y productos más solicitados.
+- **Actualizaciones en tiempo real** de los tickets mediante un canal de eventos.
+- **Visualización de métricas** en gráficos para un seguimiento rápido.
 
 En el frontend se incorporaron páginas dedicadas para solicitar presupuestos, revisar recordatorios, métricas, historial de clientes, consultas frecuentes e integraciones con sistemas CRM.
 

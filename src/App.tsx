@@ -46,12 +46,14 @@ import CrmIntegrations from "./pages/CrmIntegrations";
 import PredefinedQueries from "./pages/PredefinedQueries";
 import { DateSettingsProvider } from "./hooks/useDateSettings";
 import { UserProvider } from "./hooks/useUser";
+import useTicketUpdates from "./hooks/useTicketUpdates";
 
 const queryClient = new QueryClient();
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
 function AppRoutes() {
   const location = useLocation();
+  useTicketUpdates();
 
   // Ahora el array soporta rutas exactas y subrutas tipo "/integracion/preview"
   const rutasSinWidget = [
