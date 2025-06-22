@@ -28,10 +28,12 @@ Este documento resume los lineamientos para que el widget de Chatboc funcione de
 - Usuarios anónimos tienen funcionalidades limitadas (sin GPS, sin chat en vivo).
 - Cuando una acción requiere autenticación se abre un formulario dentro del widget con nombre, email, celular y contraseña. El usuario queda asociado a la empresa o municipio según el token del iframe.
 - Usuarios registrados acceden con email y contraseña, y ven su historial y archivos según la empresa asociada.
+- Si el visitante ya tiene cuenta puede iniciar sesión desde el mismo widget sin salir de la página.
 
 ## Mini panel de usuario
 - Al iniciar sesión se muestra un pequeño dashboard con historial, perfil y promociones. Allí el usuario puede actualizar sus datos personales sin acceder al panel administrativo de la empresa.
 - El ícono de usuario en el encabezado del chat abre este panel. Si el visitante no está autenticado se le muestra el formulario de registro dentro del widget.
+- Desde el formulario de registro hay un enlace para ir a la pantalla de inicio de sesión y viceversa.
 - Desde este panel el usuario ve sus reclamos abiertos y cerrados y puede editar su nombre, email o teléfono sin salir del chat.
 
 ## Panel CRM para administradores
