@@ -26,10 +26,11 @@ Este documento resume los lineamientos para que el widget de Chatboc funcione de
 
 ## Usuarios registrados y anónimos
 - Usuarios anónimos tienen funcionalidades limitadas (sin GPS, sin chat en vivo).
+- Cuando una acción requiere autenticación se abre un formulario dentro del widget con nombre, email, celular y contraseña. El usuario queda asociado a la empresa o municipio según el token del iframe.
 - Usuarios registrados acceden con email y contraseña, y ven su historial y archivos según la empresa asociada.
 
 ## Mini panel de usuario
-- Al iniciar sesión se muestra un pequeño dashboard con historial, perfil y promociones.
+- Al iniciar sesión se muestra un pequeño dashboard con historial, perfil y promociones. Allí el usuario puede actualizar sus datos personales sin acceder al panel administrativo de la empresa.
 
 ## Permisos de GPS y CORS
 - Solo se solicitan coordenadas a usuarios registrados y se muestra un mensaje claro si se niegan permisos.
