@@ -98,7 +98,7 @@ const Login = () => {
           >
             {isLoading ? "Ingresando..." : "Iniciar Sesión"}
           </Button>
-          <GoogleLoginButton className="mt-2" />
+          <GoogleLoginButton className="mt-2" onLoggedIn={() => navigate('/perfil')} />
         </form>
         <div className="text-center text-sm text-muted-foreground mt-4">
           ¿No tenés cuenta?{" "}

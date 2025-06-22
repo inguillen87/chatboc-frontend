@@ -137,7 +137,7 @@ const Register = () => {
           >
             {isLoading ? "Registrando..." : "Registrarse"}
           </Button>
-          <GoogleLoginButton className="mt-2" />
+          <GoogleLoginButton className="mt-2" onLoggedIn={() => navigate('/perfil')} />
         </form>
         <div className="text-center text-sm mt-4 text-muted-foreground">
           ¿Ya tenés cuenta?{' '}

@@ -231,12 +231,11 @@ errors.
 
 ### Google authentication
 
-Social login buttons redirect the user to a backend endpoint that starts
-the OAuth flow. Configure the URL via `VITE_GOOGLE_AUTH_URL` in your
-`.env` file. When developing locally, point it to the proxied API path:
+Social login now uses [`@react-oauth/google`](https://www.npmjs.com/package/@react-oauth/google).
+Provide your OAuth client ID through `VITE_GOOGLE_CLIENT_ID` in your `.env` file:
 
 ```bash
-VITE_GOOGLE_AUTH_URL=/api/auth/google
+VITE_GOOGLE_CLIENT_ID=YOUR_GOOGLE_CLIENT_ID
 ```
 
 

@@ -111,7 +111,7 @@ const ChatUserLoginPanel: React.FC<Props> = ({ onSuccess, onShowRegister }) => {
         <Button type="submit" className="w-full mt-2" disabled={loading}>
           {loading ? "Ingresando..." : "Ingresar"}
         </Button>
-        <GoogleLoginButton className="mt-2" />
+        <GoogleLoginButton className="mt-2" onLoggedIn={onSuccess} />
       </form>
       <div className="text-center text-sm">
         ¿No tenés cuenta?{' '}
