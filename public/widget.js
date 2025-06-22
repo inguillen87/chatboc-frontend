@@ -154,12 +154,21 @@
 
       if (event.data && event.data.type === "chatboc-state-change" && event.data.widgetId === iframeId) {
         iframeIsCurrentlyOpen = event.data.isOpen;
-        currentDims = iframeIsCurrentlyOpen ? WIDGET_DIMENSIONS_JS.OPEN : WIDGET_DIMENSIONS_JS.CLOSED;
+        if (event.data.dimensions) {
+          currentDims = event.data.dimensions;
+        } else if (iframeIsCurrentlyOpen && window.innerWidth < 640) {
+          currentDims = {
+            width: "100vw",
+            height: "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))",
+          };
+        } else {
+          currentDims = iframeIsCurrentlyOpen ? WIDGET_DIMENSIONS_JS.OPEN : WIDGET_DIMENSIONS_JS.CLOSED;
+        }
 
         Object.assign(widgetContainer.style, {
           width: currentDims.width,
           height: currentDims.height,
-          borderRadius: iframeIsCurrentlyOpen ? "16px" : "50%",
+          borderRadius: iframeIsCurrentlyOpen && window.innerWidth < 640 ? "0" : iframeIsCurrentlyOpen ? "16px" : "50%",
           boxShadow: iframeIsCurrentlyOpen ? "0 6px 20px rgba(0,0,0,0.2)" : "0 4px 12px rgba(0,0,0,0.15)",
           // El color de fondo del widgetContainer cambia si el panel está abierto
           background: iframeIsCurrentlyOpen ? "transparent" : "hsl(var(--primary, 218 92% 41%))",
@@ -167,6 +176,30 @@
       }
     }
     window.addEventListener("message", messageHandler);
+
+    function adjustOpenDimensions() {
+      if (!iframeIsCurrentlyOpen) return;
+      if (window.innerWidth < 640) {
+        currentDims = {
+          width: "100vw",
+          height: "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))",
+        };
+        Object.assign(widgetContainer.style, {
+          width: currentDims.width,
+          height: currentDims.height,
+          borderRadius: "0",
+        });
+      } else {
+        currentDims = WIDGET_DIMENSIONS_JS.OPEN;
+        Object.assign(widgetContainer.style, {
+          width: currentDims.width,
+          height: currentDims.height,
+          borderRadius: "16px",
+        });
+      }
+    }
+
+    window.addEventListener("resize", adjustOpenDimensions);
 
     // Si el iframe no responde, forzar apertura al hacer click en el contenedor
     widgetContainer.addEventListener("click", function () {
@@ -179,11 +212,18 @@
         }
         // Aplicar estilos de apertura como respaldo inmediato
         iframeIsCurrentlyOpen = true;
-        currentDims = WIDGET_DIMENSIONS_JS.OPEN;
+        currentDims =
+          window.innerWidth < 640
+            ? {
+                width: "100vw",
+                height:
+                  "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))",
+              }
+            : WIDGET_DIMENSIONS_JS.OPEN;
         Object.assign(widgetContainer.style, {
           width: currentDims.width,
           height: currentDims.height,
-          borderRadius: "16px",
+          borderRadius: window.innerWidth < 640 ? "0" : "16px",
           boxShadow: "0 6px 20px rgba(0,0,0,0.2)",
         });
       }
@@ -245,6 +285,7 @@
 
     function destroy() {
       window.removeEventListener("message", messageHandler);
+      window.removeEventListener("resize", adjustOpenDimensions);
       widgetContainer.removeEventListener("mousedown", dragStart);
       widgetContainer.removeEventListener("touchstart", dragStart);
       widgetContainer.remove();
