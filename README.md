@@ -238,6 +238,11 @@ Provide your OAuth client ID through `VITE_GOOGLE_CLIENT_ID` in your `.env` file
 VITE_GOOGLE_CLIENT_ID=YOUR_GOOGLE_CLIENT_ID
 ```
 
+Make sure the client ID is configured in the Google console with
+`http://localhost:8080` (or the hostname used during development) under
+"Authorized JavaScript origins". Otherwise the popup will return a
+403 error stating that the origin is not allowed.
+
 Note: after closing the Google login popup you may see a console message like
 `Cross-Origin-Opener-Policy policy would block the window.closed call`. This
 warning comes from the Google library and does not affect the login flow.
@@ -246,16 +251,17 @@ warning comes from the Google library and does not affect the login flow.
 
 When the API requests fail with messages like `Failed to load resource: the
 server responded with a status of 403` or `Access to fetch has been blocked by
-CORS policy`, make sure your `.env` file uses `VITE_API_URL=/api`. The Vite
-proxy only works with this relative path; pointing `VITE_API_URL` directly to
-`https://api.chatboc.ar` will bypass the proxy and trigger CORS errors.
+CORS policy`, verify that your `.env` file uses `VITE_API_URL=/api`. The Vite
+proxy only works with this exact relative path; pointing `VITE_API_URL`
+directly to `https://api.chatboc.ar` will bypass the proxy and trigger CORS
+errors.
 
 Some browser extensions (for example crypto wallets) inject scripts that modify
-`window.ethereum` or `window.tronLink`. These scripts may log warnings such as
+`window.ethereum` or `window.tronLink`. These scripts can log warnings such as
 `Cannot assign to read only property 'ethereum' of object '#<Window>'` or
 `This document requires 'TrustedScript' assignment`. They originate from the
-extension and do not affect the application. Disable the extension if the
-messages become distracting.
+extension itself and do not affect the application. Disable the extension if
+the messages become distracting.
 
 ## Animated logo
 
