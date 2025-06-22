@@ -38,14 +38,22 @@ import InternalUsers from "./pages/InternalUsers";
 import WhatsappIntegration from "./pages/WhatsappIntegration";
 import MunicipalSystems from "./pages/MunicipalSystems";
 import SatisfactionSurveys from "./pages/SatisfactionSurveys";
+import CustomerHistory from "./pages/CustomerHistory";
+import BudgetRequest from "./pages/BudgetRequest";
+import Reminders from "./pages/Reminders";
+import BusinessMetrics from "./pages/BusinessMetrics";
+import CrmIntegrations from "./pages/CrmIntegrations";
+import PredefinedQueries from "./pages/PredefinedQueries";
 import { DateSettingsProvider } from "./hooks/useDateSettings";
 import { UserProvider } from "./hooks/useUser";
+import useTicketUpdates from "./hooks/useTicketUpdates";
 
 const queryClient = new QueryClient();
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
 function AppRoutes() {
   const location = useLocation();
+  useTicketUpdates();
 
   // Ahora el array soporta rutas exactas y subrutas tipo "/integracion/preview"
   const rutasSinWidget = [
@@ -85,6 +93,12 @@ function AppRoutes() {
           <Route path="/pedidos" element={<PedidosPage />} />
           <Route path="/usuarios" element={<UsuariosPage />} />
           <Route path="/notifications" element={<NotificationSettings />} />
+          <Route path="/historial" element={<CustomerHistory />} />
+          <Route path="/presupuestos" element={<BudgetRequest />} />
+          <Route path="/recordatorios" element={<Reminders />} />
+          <Route path="/pyme/metrics" element={<BusinessMetrics />} />
+          <Route path="/crm/integrations" element={<CrmIntegrations />} />
+          <Route path="/consultas" element={<PredefinedQueries />} />
           <Route path="/pyme/catalog" element={<ProductCatalog />} />
           <Route path="/municipal/tramites" element={<TramitesCatalog />} />
           <Route path="/municipal/usuarios" element={<InternalUsers />} />
