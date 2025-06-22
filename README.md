@@ -229,6 +229,17 @@ With this setting all frontend requests go through the proxy, so your
 local environment can talk to the production API without cross-origin
 errors.
 
+### Google authentication
+
+Social login buttons redirect the user to a backend endpoint that starts
+the OAuth flow. Configure the URL via `VITE_GOOGLE_AUTH_URL` in your
+`.env` file. When developing locally, point it to the proxied API path:
+
+```bash
+VITE_GOOGLE_AUTH_URL=/api/auth/google
+```
+
+
 ## Widget integration guidelines
 Detailed requirements for the embedded widget can be found in [docs/widget-requirements.md](docs/widget-requirements.md).
 

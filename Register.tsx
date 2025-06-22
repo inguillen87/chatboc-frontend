@@ -1,18 +1,35 @@
-import React, { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { useNavigate } from 'react-router-dom';
+import React, { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useNavigate } from "react-router-dom";
+import GoogleLoginButton from "@/components/auth/GoogleLoginButton";
+import { apiFetch } from "@/utils/api";
+import { safeLocalStorage } from "@/utils/safeLocalStorage";
 
 const Register = () => {
   const navigate = useNavigate();
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: conectar con backend
-    console.log('Register with:', { name, email, password });
+    try {
+      const data = await apiFetch("/register", "POST", {
+        name,
+        email,
+        password,
+      });
+
+      if (data && (data as any).token) {
+        safeLocalStorage.setItem("user", JSON.stringify(data));
+        navigate("/perfil");
+      } else {
+        console.error("Registro sin token:", data);
+      }
+    } catch (err) {
+      console.error("❌ Error al registrar usuario:", err);
+    }
   };
 
   return (
@@ -46,11 +63,12 @@ const Register = () => {
           <Button type="submit" className="w-full">
             Registrarme
           </Button>
+          <GoogleLoginButton className="mt-2" />
         </form>
         <div className="text-center text-sm text-gray-600 mt-4">
-          ¿Ya tenés cuenta?{' '}
+          ¿Ya tenés cuenta?{" "}
           <button
-            onClick={() => navigate('/login')}
+            onClick={() => navigate("/login")}
             className="text-blue-600 hover:underline"
           >
             Iniciar sesión
