@@ -7,7 +7,7 @@ import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 import DOMPurify from "dompurify";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import ProductCard from "@/components/product/ProductCard";
-import { parseProductMessage } from "@/utils/productParser";
+import { parseProductMessage, filterProducts } from "@/utils/productParser";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
 
 // --- Avatares reutilizados ---
@@ -82,6 +82,7 @@ interface ChatMessageProps {
   isTyping: boolean;
   onButtonClick: (valueToSend: string) => void;
   tipoChat?: "pyme" | "municipio";
+  query?: string;
 }
 
 const ChatMessagePyme: React.FC<ChatMessageProps> = ({
@@ -89,6 +90,7 @@ const ChatMessagePyme: React.FC<ChatMessageProps> = ({
   isTyping,
   onButtonClick,
   tipoChat,
+  query,
 }) => {
   if (!message || typeof message.text !== "string") {
     return (
@@ -109,6 +111,10 @@ const ChatMessagePyme: React.FC<ChatMessageProps> = ({
   const parsedProducts = shouldParseProducts
     ? parseProductMessage(message.text)
     : null;
+  const filteredProducts =
+    parsedProducts && query
+      ? filterProducts(parsedProducts, query)
+      : parsedProducts;
 
   const isBot = message.isBot;
   const bubbleClass = isBot
@@ -134,9 +140,9 @@ const ChatMessagePyme: React.FC<ChatMessageProps> = ({
           animate="visible"
           transition={{ duration: 0.28, ease: "easeOut" }}
         >
-          {parsedProducts ? (
+          {filteredProducts ? (
             <div className="grid gap-2">
-              {parsedProducts.map((p, idx) => (
+              {filteredProducts.map((p, idx) => (
                 <ProductCard key={idx} product={p} />
               ))}
             </div>

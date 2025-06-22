@@ -94,6 +94,7 @@ const ChatPage = () => {
   const [isTyping, setIsTyping] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatMessagesContainerRef = useRef<HTMLDivElement>(null);
+  const lastQueryRef = useRef<string | null>(null);
 
   const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
   const tipoChatParam = urlParams?.get('tipo_chat');
@@ -235,6 +236,7 @@ const ChatPage = () => {
           text: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?",
           isBot: true,
           timestamp: new Date(),
+          query: undefined,
         },
       ]);
     }
@@ -330,6 +332,7 @@ const ChatPage = () => {
                 'No pudimos acceder a tu ubicación por GPS (error de permisos o configuración). Ingresá la dirección manualmente para continuar.',
               isBot: true,
               timestamp: new Date(),
+              query: undefined,
             },
           ]);
           toast({
@@ -393,6 +396,7 @@ const ChatPage = () => {
                 'No pudimos acceder a tu ubicación automáticamente. Por favor, ingresa la dirección para tu reclamo.',
               isBot: true,
               timestamp: new Date(),
+              query: undefined,
             },
           ]);
         },
@@ -454,6 +458,7 @@ const ChatPage = () => {
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, userMessage]);
+      lastQueryRef.current = text;
       setIsTyping(true);
 
       try {
@@ -536,12 +541,17 @@ const ChatPage = () => {
             isBot: true,
             timestamp: new Date(),
             botones: data?.botones || [],
+            query: lastQueryRef.current || undefined,
           };
           setMessages((prev) => [...prev, botMessage]);
+          lastQueryRef.current = null;
 
           if (data.ticket_id) {
             setActiveTicketId(data.ticket_id);
             ultimoMensajeIdRef.current = 0;
+          }
+          if (!isAnonimo) {
+            await refreshUser();
           }
         }
       } catch (error: any) {
@@ -558,6 +568,7 @@ const ChatPage = () => {
             text: errorMsg,
             isBot: true,
             timestamp: new Date(),
+            query: undefined,
           },
         ]);
         toast({
@@ -595,6 +606,7 @@ const ChatPage = () => {
             text: msg.texto,
             isBot: msg.es_admin,
             timestamp: new Date(msg.fecha),
+            query: undefined,
           }));
           setMessages((prev) => [...prev, ...nuevosMensajes]);
           ultimoMensajeIdRef.current =
@@ -611,6 +623,7 @@ const ChatPage = () => {
               text: "Un agente ha finalizado esta conversación.",
               isBot: true,
               timestamp: new Date(),
+              query: undefined,
             },
           ]);
         }
@@ -696,6 +709,7 @@ const ChatPage = () => {
                     isTyping={isTyping}
                     onButtonClick={handleSend}
                     tipoChat={adjustedTipoForEndpoint}
+                    query={msg.query}
                   />
                 </motion.div>
               ))}

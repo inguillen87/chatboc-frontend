@@ -6,6 +6,23 @@ export interface ParsedProduct {
   imagen_url?: string;
 }
 
+export function filterProducts(
+  products: ParsedProduct[],
+  query: string,
+): ParsedProduct[] {
+  const terms = query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (terms.length === 0) return products;
+  return products.filter((p) => {
+    const searchable = (
+      p.nombre + " " + (p.presentacion || "")
+    ).toLowerCase();
+    return terms.every((t) => searchable.includes(t));
+  });
+}
+
 export function parseProductString(text: string): ParsedProduct {
   let remaining = text.trim();
   let precio = '';
