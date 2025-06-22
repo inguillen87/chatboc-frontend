@@ -111,7 +111,10 @@ const ChatPage = () => {
   // Lógica para determinar el rubro del usuario, priorizando autenticado
   const rubroActualFromUser = user?.rubro ? parseRubroUtil(user.rubro) : null;
   const rubroActualFromStorage = typeof window !== 'undefined'
-    ? parseRubroUtil(safeLocalStorage.getItem('rubroSeleccionado') || 'null') // rubroSeleccionado podría ser un ID o nombre
+    ? (() => {
+        const stored = safeLocalStorage.getItem('rubroSeleccionado');
+        return stored ? parseRubroUtil(stored) : null;
+      })()
     : null;
   
   // El rubro "normalizado" que usaremos para determinar el tipo de bot.
