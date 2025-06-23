@@ -10,12 +10,11 @@ import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 // Páginas principales
 import Layout from "./components/layout/Layout";
 import Index from "./pages/Index";
-import Login from "./pages/Login";
-import Register from "./pages/Register";
 import UserLogin from "./pages/UserLogin";
 import UserRegister from "./pages/UserRegister";
 import Demo from "./pages/Demo";
 import Perfil from "./pages/Perfil";
+import UserAccount from "./pages/UserAccount";
 import ChatPage from "./pages/ChatPage";
 import ChatPosPage from "./pages/ChatPosPage";
 import ChatCRMPage from "./pages/ChatCRMPage";
@@ -69,6 +68,7 @@ function AppRoutes() {
     "/register",
     "/user/login",
     "/user/register",
+    "/cuenta",
     "/integracion",
     "/demo"
   ];
@@ -84,10 +84,11 @@ function AppRoutes() {
       <Routes>
         <Route element={<Layout />}>
           <Route path="/" element={<Index />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
+          <Route path="/login" element={<UserLogin />} />
+          <Route path="/register" element={<UserRegister />} />
           <Route path="/user/login" element={<UserLogin />} />
           <Route path="/user/register" element={<UserRegister />} />
+          <Route path="/cuenta" element={<UserAccount />} />
           <Route path="/demo" element={<Demo />} />
           <Route path="/perfil" element={<Perfil />} />
           <Route path="/chat" element={<ChatPage />} />
