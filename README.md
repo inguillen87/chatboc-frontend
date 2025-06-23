@@ -302,8 +302,7 @@ can be combined with the existing `blinking` and `smiling` animations.
 
 Final users sign up and log in through `/chatuserregisterpanel` and
 `/chatuserloginpanel`. These endpoints associate the account with the
-current business or municipality by reading the `X-Entity-Token` header and
-also expect an `empresa_token` field in the JSON body.
+current business or municipality by reading the `X-Entity-Token` header.
 Admins continue to use `/register` and `/login` for their panel. The
 standalone pages `/user/register` and `/user/login` also mount these
 user panels and are hidden from the global widget.
