@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useUser } from '@/hooks/useUser';
+import { normalizeRole } from '@/utils/roles';
 
 interface NavItem {
   label: string;
@@ -25,7 +26,7 @@ export default function ProfileNav() {
   const { user } = useUser();
 
   if (!user) return null;
-  const role = user.rol || '';
+  const role = normalizeRole(user.rol);
   const tipo = (user.tipo_chat || 'pyme') as 'pyme' | 'municipio';
 
   const items = NAV_ITEMS.filter(

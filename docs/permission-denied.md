@@ -8,4 +8,4 @@ Si el backend registra mensajes como:
 
 y la respuesta HTTP es `403`, el usuario no posee los roles necesarios para ese endpoint.
 
-Verificá en el panel de administración o mediante la CLI del backend que el usuario tenga asignado el rol `admin` o `empleado`. Después de actualizar el rol, volvé a intentar la operación.
+Verificá en el panel de administración o mediante la CLI del backend que el usuario tenga asignado el rol `admin` o `empleado`. El backend puede reportar alias como `admin_municipio` o `empleado_pyme`, que la interfaz trata como equivalentes. Después de actualizar el rol, volvé a intentar la operación.
