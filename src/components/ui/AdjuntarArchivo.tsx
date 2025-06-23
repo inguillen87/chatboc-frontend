@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { Paperclip } from 'lucide-react'
 import { apiFetch } from '@/utils/api'
 import { useUser } from '@/hooks/useUser'
 
@@ -60,9 +61,11 @@ const AdjuntarArchivo: React.FC<AdjuntarArchivoProps> = ({ onUpload }) => {
       <Button
         onClick={() => inputRef.current?.click()}
         variant="outline"
+        size="icon"
         type="button"
+        aria-label="Adjuntar archivo"
       >
-        📎 Adjuntar archivo
+        <Paperclip className="w-4 h-4" />
       </Button>
       <input
         ref={inputRef}
