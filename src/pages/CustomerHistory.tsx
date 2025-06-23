@@ -16,9 +16,20 @@ export default function CustomerHistory() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    apiFetch<RecordItem[]>('/historial')
+    apiFetch('/historial')
       .then((data) => {
-        setRecords(data);
+        // ⚠️ Chequeamos el tipo
+        if (Array.isArray(data)) {
+          setRecords(data);
+        } else if (data && Array.isArray(data.mensajes)) {
+          setRecords(data.mensajes);
+        } else if (data && Array.isArray(data.records)) {
+          setRecords(data.records);
+        } else {
+          setRecords([]);
+          console.warn("Respuesta inesperada en /historial:", data);
+          setError("No se encontraron registros.");
+        }
         setLoading(false);
       })
       .catch((err: any) => {
