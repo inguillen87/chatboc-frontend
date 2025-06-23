@@ -105,12 +105,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         window.parent !== window &&
         widgetId
       ) {
-        const panelWidth = isMobile ? "100vw" : finalOpenWidth;
-        const panelHeight = isMobile
-          ? "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))"
-          : finalOpenHeight;
         const dims = open
-          ? { width: panelWidth, height: panelHeight }
+          ? { width: finalOpenWidth, height: finalOpenHeight }
           : { width: finalClosedWidth, height: finalClosedHeight };
         window.parent.postMessage(
           { type: "chatboc-state-change", widgetId, dimensions: dims, isOpen: open },
