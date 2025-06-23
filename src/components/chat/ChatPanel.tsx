@@ -322,7 +322,10 @@ const ChatPanel = ({
         const entityTokenFromStorage = safeLocalStorage.getItem("entityToken");
         const entityHeaders = entityTokenFromStorage ? { 'X-Entity-Token': entityTokenFromStorage } : {};
 
-        const data = await apiFetch<{ estado_chat: string; mensajes: any[] }>(`/tickets/chat/${activeTicketId}/mensajes`, { headers: { ...authHeaders, ...entityHeaders }, sendAnonId: esAnonimo });
+        const data = await apiFetch<{ estado_chat: string; mensajes: any[] }>(
+          `/tickets/chat/${activeTicketId}/mensajes?ultimo_mensaje_id=${ultimoMensajeIdRef.current}`,
+          { headers: { ...authHeaders, ...entityHeaders }, sendAnonId: esAnonimo }
+        );
         if (data.mensajes) {
           const nuevosMensajes: Message[] = data.mensajes.map((msg) => ({
             id: msg.id,
@@ -331,7 +334,7 @@ const ChatPanel = ({
             timestamp: new Date(msg.fecha),
             query: undefined,
           }));
-          setMessages(nuevosMensajes);
+          setMessages((prev) => [...prev, ...nuevosMensajes]);
           if (data.mensajes.length > 0) ultimoMensajeIdRef.current = data.mensajes[data.mensajes.length - 1].id;
         }
         await fetchTicket();
