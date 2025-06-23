@@ -1,6 +1,18 @@
-import React, { useEffect, useState } from 'react';
-import { apiFetch } from '@/utils/api';
-import { Button } from '@/components/ui/button';
+import React, { useEffect, useMemo, useState } from "react";
+import { apiFetch } from "@/utils/api";
+import { formatDate } from "@/utils/fecha";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Inbox, MessageSquare, Ticket, Paperclip } from "lucide-react";
 
 interface HistorialItem {
   id: number;
@@ -8,13 +20,20 @@ interface HistorialItem {
   tipo: string;
   descripcion?: string | null;
   archivo_url?: string | null;
-  // cualquier otro campo extra que venga de tickets, archivos, consultas...
+  [key: string]: any;
 }
 
 export default function CustomerHistory() {
   const [items, setItems] = useState<HistorialItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [filter, setFilter] = useState<'Todos' | 'Consulta' | 'Archivo' | 'Ticket'>('Todos');
+  const [search, setSearch] = useState('');
+  const [date, setDate] = useState('');
+  const [page, setPage] = useState(1);
+  const [selected, setSelected] = useState<HistorialItem | null>(null);
+  const PAGE_SIZE = 20;
 
   useEffect(() => {
     apiFetch('/historial')
@@ -45,41 +64,134 @@ export default function CustomerHistory() {
         setLoading(false);
       });
   }, []);
+  const filtered = useMemo(() => {
+    return items.filter((it) => {
+      if (filter !== 'Todos' && it.tipo !== filter) return false;
+      if (search && !JSON.stringify(it).toLowerCase().includes(search.toLowerCase())) return false;
+      if (date && !it.fecha.startsWith(date)) return false;
+      return true;
+    });
+  }, [items, filter, search, date]);
+
+  const displayed = useMemo(
+    () => filtered.slice(0, page * PAGE_SIZE),
+    [filtered, page],
+  );
 
   if (loading) return <p className="p-4">Cargando...</p>;
   if (error) return <p className="p-4 text-destructive">{error}</p>;
 
   return (
-    <div className="p-4 max-w-2xl mx-auto space-y-4">
-      <h1 className="text-2xl font-bold mb-4">Historial completo</h1>
-      <ul className="grid gap-3">
-        {items.map((item) => (
-          <li key={item.tipo + '-' + item.id} className="border-b pb-2">
-            <div className="flex items-center justify-between">
-              <span className="font-medium">
-                {new Date(item.fecha).toLocaleDateString()} 
-                {' · '}
-                <span className="uppercase text-xs tracking-wide font-bold">{item.tipo}</span>
-              </span>
-              {item.archivo_url && (
-                <Button
-                  asChild
-                  variant="outline"
-                  size="sm"
-                  className="ml-2"
+    <div className="p-4 max-w-3xl mx-auto space-y-4">
+      <h1 className="text-2xl font-bold">Historial completo</h1>
+      <div className="flex flex-col sm:flex-row sm:items-end gap-2">
+        <Tabs value={filter} onValueChange={(v) => setFilter(v as any)}>
+          <TabsList>
+            <TabsTrigger value="Todos">Todos</TabsTrigger>
+            <TabsTrigger value="Consulta">Consultas</TabsTrigger>
+            <TabsTrigger value="Ticket">Tickets</TabsTrigger>
+            <TabsTrigger value="Archivo">Archivos</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <Input
+          placeholder="Buscar"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="sm:ml-auto"
+        />
+        <Input
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+        />
+      </div>
+
+      {displayed.length === 0 ? (
+        <div className="text-center text-muted-foreground py-20 space-y-2">
+          <Inbox className="w-12 h-12 mx-auto" />
+          <p>No hay actividad</p>
+        </div>
+      ) : (
+        <ScrollArea className="h-[60vh] pr-4">
+          <ul className="relative border-l pl-6">
+            {displayed.map((item) => (
+              <li key={item.tipo + '-' + item.id} className="mb-6 ml-4">
+                <span className="absolute -left-3 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-background border">
+                  {item.tipo === 'Consulta' && <MessageSquare className="w-4 h-4" />}
+                  {item.tipo === 'Ticket' && <Ticket className="w-4 h-4" />}
+                  {item.tipo === 'Archivo' && <Paperclip className="w-4 h-4" />}
+                </span>
+                <Card
+                  onClick={() => setSelected(item)}
+                  className="p-4 cursor-pointer hover:bg-accent"
                 >
-                  <a href={item.archivo_url} target="_blank" rel="noopener noreferrer">
-                    Ver archivo
+                  <div className="flex justify-between items-center">
+                    <span className="font-medium">
+                      {formatDate(item.fecha)}
+                    </span>
+                    {item.archivo_url && (
+                      <Button asChild variant="outline" size="sm">
+                        <a
+                          href={item.archivo_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Ver archivo
+                        </a>
+                      </Button>
+                    )}
+                  </div>
+                  {item.descripcion && (
+                    <p className="text-sm text-muted-foreground line-clamp-2">
+                      {item.descripcion}
+                    </p>
+                  )}
+                </Card>
+              </li>
+            ))}
+          </ul>
+        </ScrollArea>
+      )}
+
+      {displayed.length < filtered.length && (
+        <Button
+          variant="ghost"
+          className="mx-auto block"
+          onClick={() => setPage((p) => p + 1)}
+        >
+          Ver más
+        </Button>
+      )}
+
+      <Dialog open={!!selected} onOpenChange={() => setSelected(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{selected?.tipo}</DialogTitle>
+          </DialogHeader>
+          {selected && (
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">
+                {formatDate(selected.fecha)}
+              </p>
+              {selected.descripcion && <p>{selected.descripcion}</p>}
+              {selected.archivo_url && (
+                <Button asChild variant="secondary" className="mt-2">
+                  <a
+                    href={selected.archivo_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Descargar archivo
                   </a>
                 </Button>
               )}
+              <pre className="bg-muted p-2 rounded text-xs overflow-x-auto">
+                {JSON.stringify(selected, null, 2)}
+              </pre>
             </div>
-            {item.descripcion && (
-              <p className="text-sm text-muted-foreground">{item.descripcion}</p>
-            )}
-          </li>
-        ))}
-      </ul>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
