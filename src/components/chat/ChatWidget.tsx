@@ -1,5 +1,3 @@
-// src/components/chat/ChatWidget.tsx (VERSIÓN FINAL Y OPTIMIZADA)
-
 import React, { useState, useEffect, useCallback, Suspense } from "react";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 import { getCurrentTipoChat } from "@/utils/tipoChat";

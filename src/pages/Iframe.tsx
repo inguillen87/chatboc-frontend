@@ -1,5 +1,3 @@
-// src/pages/Iframe.tsx
-
 import React, { useEffect, useState } from "react";
 import ChatWidget from "../components/chat/ChatWidget";
 

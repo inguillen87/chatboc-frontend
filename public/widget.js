@@ -1,5 +1,3 @@
-// public/widget.js (VERSIÓN FINAL Y FUNCIONAL - CORRECCIÓN DEFINITIVA)
-
 (function () {
   "use strict";
 
