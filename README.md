@@ -282,6 +282,11 @@ Some browser extensions (for example crypto wallets) inject scripts that modify
 extension itself and do not affect the application. Disable the extension if
 the messages become distracting.
 
+If the console shows `[GSI_LOGGER]: Provided button width is invalid: 100%`,
+update the `width` prop in `src/components/auth/GoogleLoginButton.tsx` to a
+numeric value like `width={300}`. The Google OAuth library does not accept
+percentage values.
+
 ## Animated logo
 
 The `ChatbocLogoAnimated` component now supports two optional props:
