@@ -494,9 +494,12 @@ const ChatPanel = ({
 
   const handleInternalAction = useCallback(
     (action: string) => {
-      if (action === 'login') {
+      const normalized = action.toLowerCase();
+      if (["login", "loginpanel", "chatuserloginpanel"].includes(normalized)) {
         onShowLogin && onShowLogin();
-      } else if (action === 'register') {
+      } else if (
+        ["register", "registerpanel", "chatuserregisterpanel"].includes(normalized)
+      ) {
         onShowRegister && onShowRegister();
       } else {
         handleSendMessage(action);
