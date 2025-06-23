@@ -2,40 +2,42 @@ import React, { useEffect, useState } from 'react';
 import { apiFetch } from '@/utils/api';
 import { Button } from '@/components/ui/button';
 
-interface RecordItem {
+interface HistorialItem {
   id: number;
   fecha: string;
   tipo: string;
   descripcion?: string | null;
   archivo_url?: string | null;
+  // cualquier otro campo extra que venga de tickets, archivos, consultas...
 }
 
 export default function CustomerHistory() {
-  const [records, setRecords] = useState<RecordItem[]>([]);
+  const [items, setItems] = useState<HistorialItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     apiFetch('/historial')
       .then((data) => {
-        if (!data || (typeof data !== 'object')) {
-          setRecords([]);
-          setError('Sin datos');
-        } else {
-          // Unificás todos los arrays
-          const consultas = Array.isArray(data.consultas) ? data.consultas : [];
-          const archivos = Array.isArray(data.archivos) ? data.archivos : [];
-          const tickets = Array.isArray(data.tickets) ? data.tickets : [];
-          // Le agregás "tipo" si falta para poder mostrar
-          const all = [
-            ...consultas.map((x) => ({ ...x, tipo: x.tipo || 'Consulta' })),
-            ...archivos.map((x) => ({ ...x, tipo: x.tipo || 'Archivo' })),
-            ...tickets.map((x) => ({ ...x, tipo: x.tipo || 'Ticket' })),
-          ];
-          // Ordena por fecha descendente
-          all.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
-          setRecords(all);
-        }
+        // Unificar los tres arrays en uno solo
+        const consultas = (data.consultas || []).map((c: any) => ({
+          ...c,
+          tipo: 'Consulta',
+        }));
+        const archivos = (data.archivos || []).map((a: any) => ({
+          ...a,
+          tipo: 'Archivo',
+        }));
+        const tickets = (data.tickets || []).map((t: any) => ({
+          ...t,
+          tipo: 'Ticket',
+        }));
+
+        // Unir y ordenar por fecha descendente
+        const todos = [...consultas, ...archivos, ...tickets].sort((a, b) =>
+          new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
+        );
+        setItems(todos);
         setLoading(false);
       })
       .catch((err: any) => {
@@ -49,28 +51,31 @@ export default function CustomerHistory() {
 
   return (
     <div className="p-4 max-w-2xl mx-auto space-y-4">
-      <h1 className="text-2xl font-bold mb-4">Historial</h1>
+      <h1 className="text-2xl font-bold mb-4">Historial completo</h1>
       <ul className="grid gap-3">
-        {records.map((r) => (
-          <li key={r.id + '-' + r.tipo} className="border-b pb-2">
-            <p className="font-medium">
-              <span className="mr-2">{new Date(r.fecha).toLocaleDateString()}</span>
-              {r.tipo}
-            </p>
-            {r.descripcion && (
-              <p className="text-sm text-muted-foreground">{r.descripcion}</p>
-            )}
-            {r.archivo_url && (
-              <Button
-                asChild
-                variant="outline"
-                size="sm"
-                className="mt-1"
-              >
-                <a href={r.archivo_url} target="_blank" rel="noopener noreferrer">
-                  Ver archivo
-                </a>
-              </Button>
+        {items.map((item) => (
+          <li key={item.tipo + '-' + item.id} className="border-b pb-2">
+            <div className="flex items-center justify-between">
+              <span className="font-medium">
+                {new Date(item.fecha).toLocaleDateString()} 
+                {' · '}
+                <span className="uppercase text-xs tracking-wide font-bold">{item.tipo}</span>
+              </span>
+              {item.archivo_url && (
+                <Button
+                  asChild
+                  variant="outline"
+                  size="sm"
+                  className="ml-2"
+                >
+                  <a href={item.archivo_url} target="_blank" rel="noopener noreferrer">
+                    Ver archivo
+                  </a>
+                </Button>
+              )}
+            </div>
+            {item.descripcion && (
+              <p className="text-sm text-muted-foreground">{item.descripcion}</p>
             )}
           </li>
         ))}
