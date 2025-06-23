@@ -90,7 +90,15 @@ You can embed the floating chat widget on any site by loading `widget.js` and pa
 
 ```html
 <script>
-  (function () {
+  document.addEventListener('DOMContentLoaded', function () {
+    // Set the target before loading the widget so the style matches
+    window.APP_TARGET = 'pyme'; // or 'municipio'
+
+    // If the widget was already injected, destroy it to avoid flicker
+    if (window.chatbocDestroyWidget) {
+      window.chatbocDestroyWidget('TU_TOKEN_AQUI');
+    }
+
     var s = document.createElement('script');
     s.src = 'https://www.chatboc.ar/widget.js';
     s.async = true;
@@ -100,8 +108,8 @@ You can embed the floating chat widget on any site by loading `widget.js` and pa
     s.setAttribute('data-endpoint', 'pyme'); // or "municipio"
     // Optional: force light or dark theme
     // s.setAttribute('data-theme', 'dark');
-    document.head.appendChild(s);
-  })();
+    document.body.appendChild(s); // append once the DOM is ready
+  });
 </script>
 ```
 
@@ -130,22 +138,30 @@ If your site blocks external JavaScript, you can embed the chatbot using an
 ```html
 <iframe
   id="chatboc-iframe"
-  src="https://www.chatboc.ar/iframe?token=TU_TOKEN_AQUI&tipo_chat=pyme"
+  src="https://www.chatboc.ar/iframe?token=TU_TOKEN_AQUI&tipo_chat=pyme" <!-- or "municipio" -->
   style="position:fixed;bottom:24px;right:24px;border:none;border-radius:50%;z-index:9999;box-shadow:0 4px 32px rgba(0,0,0,0.2);background:transparent;overflow:hidden;width:96px!important;height:96px!important;display:block"
   allow="clipboard-write"
   loading="lazy"
 ></iframe>
 <script>
-  (function () {
+  document.addEventListener('DOMContentLoaded', function () {
+    window.APP_TARGET = 'pyme'; // or 'municipio'
+
+    // Remove any existing iframe to avoid reload flicker
+    var old = document.getElementById('chatboc-iframe');
+    if (old) old.remove();
+
     var f = document.getElementById('chatboc-iframe');
     window.addEventListener('message', function (e) {
-      if (e.data && e.data.type === 'chatboc-resize') {
-        f.style.width = e.data.dimensions.width;
-        f.style.height = e.data.dimensions.height;
+      if (e.data && e.data.type === 'chatboc-state-change') {
+        if (e.data.dimensions) {
+          f.style.width = e.data.dimensions.width;
+          f.style.height = e.data.dimensions.height;
+        }
         f.style.borderRadius = e.data.isOpen ? '16px' : '50%';
       }
     });
-  })();
+  });
 </script>
 ```
 If the same page injects this iframe snippet more than once (for example in a single-page application), remove any existing element with id="chatboc-iframe" before creating a new one. Otherwise the widget may reload and flicker.

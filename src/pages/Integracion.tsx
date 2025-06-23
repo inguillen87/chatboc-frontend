@@ -85,12 +85,55 @@ const Integracion = () => {
   // Asegúrate de que user.tipo_chat existe y es 'municipio' o 'pyme'
   const endpoint = (user.tipo_chat === "municipio" ? "municipio" : "pyme");
 
-  // codeScript ahora incluye todos los data-atributos para la configuración
-  const codeScript = `<script>(function(){var s=document.createElement('script');s.src='https://www.chatboc.ar/widget.js';s.async=true;s.setAttribute('data-token','${user.token}');s.setAttribute('data-default-open','false');s.setAttribute('data-width','${WIDGET_STD_WIDTH}');s.setAttribute('data-height','${WIDGET_STD_HEIGHT}');s.setAttribute('data-closed-width','${WIDGET_STD_CLOSED_WIDTH}');s.setAttribute('data-closed-height','${WIDGET_STD_CLOSED_HEIGHT}');s.setAttribute('data-bottom','${WIDGET_STD_BOTTOM}');s.setAttribute('data-right','${WIDGET_STD_RIGHT}');s.setAttribute('data-endpoint','${endpoint}');document.head.appendChild(s);})();</script>`;
+  // Código para incrustar el widget vía <script>
+  const codeScript = `<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    window.APP_TARGET = '${endpoint}';
+    if (window.chatbocDestroyWidget) {
+      window.chatbocDestroyWidget('${user.token}');
+    }
+    var s = document.createElement('script');
+    s.src = 'https://www.chatboc.ar/widget.js';
+    s.async = true;
+    s.setAttribute('data-token', '${user.token}');
+    s.setAttribute('data-default-open', 'false');
+    s.setAttribute('data-width', '${WIDGET_STD_WIDTH}');
+    s.setAttribute('data-height', '${WIDGET_STD_HEIGHT}');
+    s.setAttribute('data-closed-width', '${WIDGET_STD_CLOSED_WIDTH}');
+    s.setAttribute('data-closed-height', '${WIDGET_STD_CLOSED_HEIGHT}');
+    s.setAttribute('data-bottom', '${WIDGET_STD_BOTTOM}');
+    s.setAttribute('data-right', '${WIDGET_STD_RIGHT}');
+    s.setAttribute('data-endpoint', '${endpoint}');
+    document.body.appendChild(s);
+  });
+  </script>`;
 
-  // codeIframe vuelve a ser un iframe directo (como lo tenías)
-  const url = `https://www.chatboc.ar/iframe?token=${user.token}&defaultOpen=true&openWidth=${WIDGET_STD_WIDTH}&openHeight=${WIDGET_STD_HEIGHT}&closedWidth=${WIDGET_STD_CLOSED_WIDTH}&closedHeight=${WIDGET_STD_CLOSED_HEIGHT}&tipo_chat=${endpoint}`;
-  const codeIframe = `<iframe id="chatboc-iframe" src="${url}" style="position:fixed;bottom:24px;right:24px;border:none;border-radius:16px;z-index:9999;box-shadow:0 4px 32px rgba(0,0,0,0.2);background:transparent;overflow:hidden;width:${WIDGET_STD_WIDTH}!important;height:${WIDGET_STD_HEIGHT}!important;display:block" allow="clipboard-write" loading="lazy"></iframe><script>(function(){var f=document.getElementById('chatboc-iframe');window.addEventListener('message',function(e){if(e.data&&e.data.type==='chatboc-state-change'){f.style.width=e.data.dimensions.width;f.style.height=e.data.dimensions.height;f.style.borderRadius=e.data.isOpen?'16px':'50%';}});})();</script>`;
+  // Código alternativo usando un <iframe>
+  const url = `https://www.chatboc.ar/iframe?token=${user.token}&tipo_chat=${endpoint}`;
+  const codeIframe = `<iframe
+  id="chatboc-iframe"
+  src="${url}"
+  style="position:fixed;bottom:24px;right:24px;border:none;border-radius:50%;z-index:9999;box-shadow:0 4px 32px rgba(0,0,0,0.2);background:transparent;overflow:hidden;width:96px!important;height:96px!important;display:block"
+  allow="clipboard-write"
+  loading="lazy"
+></iframe>
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    window.APP_TARGET = '${endpoint}';
+    var old = document.getElementById('chatboc-iframe');
+    if (old) old.remove();
+    var f = document.getElementById('chatboc-iframe');
+    window.addEventListener('message', function (e) {
+      if (e.data && e.data.type === 'chatboc-state-change') {
+        if (e.data.dimensions) {
+          f.style.width = e.data.dimensions.width;
+          f.style.height = e.data.dimensions.height;
+        }
+        f.style.borderRadius = e.data.isOpen ? '16px' : '50%';
+      }
+    });
+  });
+</script>`;
 
   const copiarCodigo = async (tipo: "iframe" | "script") => {
     try {
