@@ -42,7 +42,7 @@ const ChatUserLoginPanel: React.FC<Props> = ({ onSuccess, onShowRegister }) => {
       const payload: Record<string, any> = { email, password };
       const anon = safeLocalStorage.getItem("anon_id");
       if (anon) payload.anon_id = anon;
-      const data = await apiFetch<LoginResponse>("/login", {
+      const data = await apiFetch<LoginResponse>("/chatuserloginpanel", {
         method: "POST",
         body: payload,
         sendAnonId: true,
