@@ -21,27 +21,30 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
     onButtonClick,
     onInternalAction,
 }) => {
+    const normalize = (v: string) =>
+        v.toLowerCase().replace(/[_\s-]+/g, "");
+
     const loginActions = [
         "login",
         "loginpanel",
         "chatuserloginpanel",
-    ];
+    ].map(normalize);
     const registerActions = [
         "register",
         "registerpanel",
         "chatuserregisterpanel",
-    ];
+    ].map(normalize);
 
     const handleButtonClick = (boton: Boton) => {
         // Nuevos botones pueden traer `action` en lugar de `url` para acciones internas
         if (boton.action) {
-            const normalized = boton.action.trim().toLowerCase();
+            const normalized = normalize(boton.action);
             onInternalAction && onInternalAction(normalized);
             return;
         }
 
         if (boton.accion_interna) {
-            const normalized = boton.accion_interna.trim().toLowerCase();
+            const normalized = normalize(boton.accion_interna);
             onInternalAction && onInternalAction(normalized);
             if (
                 !loginActions.includes(normalized) &&

@@ -505,7 +505,9 @@ const ChatPanel = ({
 
   const handleInternalAction = useCallback(
     (action: string) => {
-      const normalized = action.toLowerCase();
+      const normalized = action
+        .toLowerCase()
+        .replace(/[_\s-]+/g, "");
       if (["login", "loginpanel", "chatuserloginpanel"].includes(normalized)) {
         onShowLogin && onShowLogin();
         return;
