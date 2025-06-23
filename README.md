@@ -302,10 +302,16 @@ can be combined with the existing `blinking` and `smiling` animations.
 
 Final users sign up and log in through `/chatuserregisterpanel` and
 `/chatuserloginpanel`. These endpoints associate the account with the
-current business or municipality by reading the `X-Entity-Token` header.
+current business or municipality by reading the `X-Entity-Token` header and
+also expect an `empresa_token` field in the JSON body.
 Admins continue to use `/register` and `/login` for their panel. The
 standalone pages `/user/register` and `/user/login` also mount these
 user panels and are hidden from the global widget.
+
+After logging in, the `rol` field returned by the backend decides where the
+user is redirected. Admins and employees land on the full management panel
+(`/perfil`), while regular users see the limited account page available at
+`/cuenta`.
 
 
 ## Widget integration guidelines

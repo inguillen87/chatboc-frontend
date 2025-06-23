@@ -15,10 +15,11 @@ interface LoginResponse {
   email: string;
   plan?: string;
   tipo_chat?: 'pyme' | 'municipio';
+  rol?: string;
 }
 
 interface Props {
-  onSuccess: () => void;
+  onSuccess: (rol?: string) => void;
   onShowRegister: () => void;
 }
 
@@ -40,6 +41,8 @@ const ChatUserLoginPanel: React.FC<Props> = ({ onSuccess, onShowRegister }) => {
     setLoading(true);
     try {
       const payload: Record<string, any> = { email, password };
+      const empresaToken = safeLocalStorage.getItem("entityToken");
+      payload.empresa_token = empresaToken;
       const anon = safeLocalStorage.getItem("anon_id");
       if (anon) payload.anon_id = anon;
       const data = await apiFetch<LoginResponse>("/chatuserloginpanel", {
@@ -51,10 +54,12 @@ const ChatUserLoginPanel: React.FC<Props> = ({ onSuccess, onShowRegister }) => {
       safeLocalStorage.setItem("authToken", data.token);
       let rubro = "";
       let tipoChat = (data as any).tipo_chat as 'pyme' | 'municipio' | undefined;
+      let rol = (data as any).rol as string | undefined;
       try {
         const me = await apiFetch<any>("/me");
         rubro = me?.rubro?.toLowerCase() || "";
         if (!tipoChat && me?.tipo_chat) tipoChat = me.tipo_chat;
+        if (!rol && me?.rol) rol = me.rol;
       } catch {
         /* ignore */
       }
@@ -69,10 +74,11 @@ const ChatUserLoginPanel: React.FC<Props> = ({ onSuccess, onShowRegister }) => {
         token: data.token,
         rubro,
         tipo_chat: finalTipo,
+        rol,
       };
       safeLocalStorage.setItem("user", JSON.stringify(profile));
       setUser(profile);
-      onSuccess();
+      onSuccess(rol);
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.body?.error || "Credenciales inválidas");

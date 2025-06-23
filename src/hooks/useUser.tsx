@@ -11,6 +11,7 @@ interface UserData {
   plan?: string;
   rubro?: string;
   tipo_chat?: 'pyme' | 'municipio';
+  rol?: string;
 }
 
 interface UserContextValue {
@@ -51,6 +52,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         plan: data.plan || 'free',
         rubro: data.rubro?.toLowerCase() || '',
         tipo_chat: data.tipo_chat || getCurrentTipoChat(),
+        rol: data.rol,
         token,
       };
       safeLocalStorage.setItem('user', JSON.stringify(updated));
