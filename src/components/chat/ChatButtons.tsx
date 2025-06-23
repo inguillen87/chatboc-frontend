@@ -12,17 +12,21 @@ interface Boton {
 interface ChatButtonsProps {
     botones: Boton[];
     onButtonClick: (valueToSend: string) => void;
+    onInternalAction?: (action: string) => void;
 }
 
-const ChatButtons: React.FC<ChatButtonsProps> = ({ botones, onButtonClick }) => {
+const ChatButtons: React.FC<ChatButtonsProps> = ({ botones, onButtonClick, onInternalAction }) => {
 
     const handleButtonClick = (boton: Boton) => {
         if (boton.url) {
             window.open(boton.url, '_blank', 'noopener,noreferrer');
+        } else if (boton.accion_interna) {
+            onInternalAction && onInternalAction(boton.accion_interna);
+            if (boton.accion_interna !== 'login' && boton.accion_interna !== 'register') {
+                onButtonClick(boton.accion_interna);
+            }
         } else {
-            // Si tiene una acción interna, la enviamos. Si no, enviamos el texto.
-            const valueToSend = boton.accion_interna || boton.texto;
-            onButtonClick(valueToSend);
+            onButtonClick(boton.texto);
         }
     };
 

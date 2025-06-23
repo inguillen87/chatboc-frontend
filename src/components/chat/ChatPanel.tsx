@@ -57,6 +57,8 @@ interface ChatPanelProps {
   tipoChat?: "pyme" | "municipio";
   onRequireAuth?: () => void;
   onOpenUserPanel?: () => void;
+  onShowLogin?: () => void;
+  onShowRegister?: () => void;
 }
 
 const ChatPanel = ({
@@ -71,6 +73,8 @@ const ChatPanel = ({
   tipoChat = getCurrentTipoChat(),
   onRequireAuth,
   onOpenUserPanel,
+  onShowLogin,
+  onShowRegister,
 }: ChatPanelProps) => {
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -488,6 +492,19 @@ const ChatPanel = ({
     },
       [contexto, rubroSeleccionado, preguntasUsadas, esAnonimo, mode, finalAuthToken, activeTicketId, esperandoDireccion, anonId, rubroNormalizado, tipoChatActual, fetchTicket, onRequireAuth, loading]);
 
+  const handleInternalAction = useCallback(
+    (action: string) => {
+      if (action === 'login') {
+        onShowLogin && onShowLogin();
+      } else if (action === 'register') {
+        onShowRegister && onShowRegister();
+      } else {
+        handleSendMessage(action);
+      }
+    },
+    [onShowLogin, onShowRegister, handleSendMessage]
+  );
+
   const handleFileUploaded = useCallback(
     (data: any) => {
       if (data?.url) {
@@ -607,6 +624,7 @@ const ChatPanel = ({
                     message={msg}
                     isTyping={isTyping}
                     onButtonClick={handleSendMessage}
+                    onInternalAction={handleInternalAction}
                     tipoChat={tipoChatActual}
                     query={msg.query}
                   />

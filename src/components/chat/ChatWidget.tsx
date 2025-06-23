@@ -240,6 +240,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                   onClose={toggleChat}
                   tipoChat={tipoChat}
                   onRequireAuth={() => setView("register")}
+                  onShowLogin={() => setView("login")}
+                  onShowRegister={() => setView("register")}
                   onOpenUserPanel={openUserPanel}
                 />
               )}
@@ -360,6 +362,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                 onClose={toggleChat}
                 tipoChat={tipoChat}
                 onRequireAuth={() => setView("register")}
+                onShowLogin={() => setView("login")}
+                onShowRegister={() => setView("register")}
                 onOpenUserPanel={openUserPanel}
               />
             )}
