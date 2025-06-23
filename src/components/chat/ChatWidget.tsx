@@ -25,6 +25,7 @@ interface ChatWidgetProps {
   initialView?: 'chat' | 'register' | 'login' | 'user';
   widgetId?: string;
   entityToken?: string;
+  initialRubro?: string;
   openWidth?: string;
   openHeight?: string;
   closedWidth?: string;
@@ -39,6 +40,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   initialView = 'chat',
   widgetId = "chatboc-widget-iframe",
   entityToken,
+  initialRubro,
   openWidth = "460px",
   openHeight = "680px",
   closedWidth = "96px",
@@ -235,6 +237,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                   mode={mode}
                   widgetId={widgetId}
                   entityToken={entityToken}
+                  initialRubro={initialRubro}
                   openWidth={finalOpenWidth}
                   openHeight={finalOpenHeight}
                   onClose={toggleChat}
@@ -357,6 +360,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                 mode={mode}
                 widgetId={widgetId}
                 entityToken={entityToken}
+                initialRubro={initialRubro}
                 openWidth={finalOpenWidth}
                 openHeight={finalOpenHeight}
                 onClose={toggleChat}
