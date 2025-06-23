@@ -257,10 +257,11 @@ Provide your OAuth client ID through `VITE_GOOGLE_CLIENT_ID` in your `.env` file
 VITE_GOOGLE_CLIENT_ID=32341370449-g1757v5k948nrreul5ueonqf00c43m8o.apps.googleusercontent.com
 ```
 
-Make sure the client ID is configured in the Google console with
+Make sure the client ID is configured in the Google console with **all** the
+front‑end origins you plan to use. At a minimum include
 `http://localhost:8080` (or the hostname used during development) under
-"Authorized JavaScript origins". Otherwise the popup will return a
-403 error stating that the origin is not allowed.
+"Authorized JavaScript origins". Otherwise the popup will return a 403 error
+stating that the origin is not allowed.
 
 Note: after closing the Google login popup you may see a console message like
 `Cross-Origin-Opener-Policy policy would block the window.closed call`. This
@@ -286,6 +287,10 @@ If the console shows `[GSI_LOGGER]: Provided button width is invalid: 100%`,
 update the `width` prop in `src/components/auth/GoogleLoginButton.tsx` to a
 numeric value like `width="300"`. The Google OAuth library does not accept
 percentage values.
+
+If `/auth/google-login` responds with a 404 error, ensure the backend registers
+its authentication blueprint with `url_prefix="/auth"` or adjust the URL in the
+frontend accordingly.
 
 ## Animated logo
 
