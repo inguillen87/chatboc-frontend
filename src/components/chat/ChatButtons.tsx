@@ -7,6 +7,7 @@ interface Boton {
     texto: string;
     url?: string;
     accion_interna?: string;
+    action?: string;
 }
 
 interface ChatButtonsProps {
@@ -17,9 +18,29 @@ interface ChatButtonsProps {
 
 const ChatButtons: React.FC<ChatButtonsProps> = ({ botones, onButtonClick, onInternalAction }) => {
 
-    const handleInternal = (accion: string) => {
-        const normalized = accion.trim().toLowerCase();
-        onInternalAction && onInternalAction(normalized);
+    const loginActions = ['login', 'loginpanel', 'chatuserloginpanel'];
+    const registerActions = ['register', 'registerpanel', 'chatuserregisterpanel'];
+
+    const handleButtonClick = (boton: Boton) => {
+        // Los nuevos botones de login/register vienen con `action` en lugar de URL.
+        // Cuando existe esta propiedad disparamos la acción interna y no
+        // reenviamos el texto al backend.
+        if (boton.action) {
+            const normalized = boton.action.trim().toLowerCase();
+            onInternalAction && onInternalAction(normalized);
+            return;
+        }
+        if (boton.accion_interna) {
+            const normalized = boton.accion_interna.trim().toLowerCase();
+            onInternalAction && onInternalAction(normalized);
+            if (!loginActions.includes(normalized) && !registerActions.includes(normalized)) {
+                onButtonClick(normalized);
+            }
+        } else if (boton.url) {
+            window.open(boton.url, '_blank', 'noopener,noreferrer');
+        } else {
+            onButtonClick(boton.texto);
+        }
     };
 
     const baseClass =
