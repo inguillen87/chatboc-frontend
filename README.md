@@ -235,7 +235,7 @@ errors.
 ### Google authentication
 
 Social login now uses [`@react-oauth/google`](https://www.npmjs.com/package/@react-oauth/google).
-Provide your OAuth client ID through `VITE_GOOGLE_CLIENT_ID` in your `.env` file:
+Provide your OAuth client ID through `VITE_GOOGLE_CLIENT_ID` in your `.env` file (note the `VITE_` prefix used by Vite):
 
 ```bash
 VITE_GOOGLE_CLIENT_ID=YOUR_GOOGLE_CLIENT_ID
