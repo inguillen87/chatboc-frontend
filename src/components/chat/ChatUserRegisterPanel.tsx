@@ -69,8 +69,6 @@ const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin }) => {
         telefono: phone.trim(),
         acepto_terminos: accepted,
       };
-      const empresaToken = safeLocalStorage.getItem("entityToken");
-      payload.empresa_token = empresaToken;
       const anon = safeLocalStorage.getItem("anon_id");
       if (anon) payload.anon_id = anon;
       const data = await apiFetch<RegisterResponse>("/chatuserregisterpanel", {
