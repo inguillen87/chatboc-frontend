@@ -79,7 +79,7 @@ const GoogleLoginButton: React.FC<Props> = ({
         onError={() => console.error('Google OAuth popup closed')}
         useOneTap={false}
         locale="es"
-        width="300"
+        width={300}
         text="continue_with"
       />
     </div>

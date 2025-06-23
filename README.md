@@ -285,12 +285,8 @@ the messages become distracting.
 
 If the console shows `[GSI_LOGGER]: Provided button width is invalid: 100%`,
 update the `width` prop in `src/components/auth/GoogleLoginButton.tsx` to a
-numeric value like `width="300"`. The Google OAuth library does not accept
+numeric value like `width={300}`. The Google OAuth library does not accept
 percentage values.
-
-If `/auth/google-login` responds with a 404 error, ensure the backend registers
-its authentication blueprint with `url_prefix="/auth"` or adjust the URL in the
-frontend accordingly.
 
 ## Animated logo
 
