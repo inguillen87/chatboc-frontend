@@ -114,7 +114,7 @@ const Integracion = () => {
   id="chatboc-iframe"
   src="${url}"
   style="position:fixed;bottom:24px;right:24px;border:none;border-radius:50%;z-index:9999;box-shadow:0 4px 32px rgba(0,0,0,0.2);background:transparent;overflow:hidden;width:96px!important;height:96px!important;display:block"
-  allow="clipboard-write geolocation"
+  allow="clipboard-write; geolocation"
   loading="lazy"
 ></iframe>
 <script>
@@ -230,7 +230,7 @@ const Integracion = () => {
               }}
               loading="lazy"
               title="Vista previa Chatboc"
-              allow="clipboard-write geolocation"
+              allow="clipboard-write; geolocation"
             />
           </div>
         </div>
