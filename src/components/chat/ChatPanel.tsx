@@ -57,6 +57,8 @@ interface ChatPanelProps {
   tipoChat?: "pyme" | "municipio";
   onRequireAuth?: () => void;
   onOpenUserPanel?: () => void;
+  onShowLogin?: () => void;
+  onShowRegister?: () => void;
 }
 
 const ChatPanel = ({
@@ -65,6 +67,8 @@ const ChatPanel = ({
   entityToken: propEntityToken,
   initialIframeWidth,
   initialIframeHeight,
+  onShowLogin,
+  onShowRegister,
   onClose,
   openWidth, 
   openHeight, 
@@ -356,6 +360,8 @@ const ChatPanel = ({
 
   const handleSendMessage = useCallback(
     async (text: string) => {
+      if (text === "login") { onShowLogin && onShowLogin(); return; }
+      if (text === "register") { onShowRegister && onShowRegister(); return; }
       if (!text.trim()) return;
       if (esAnonimo && mode === "standalone" && !rubroSeleccionado) {
         setMessages((prev) => [
@@ -486,7 +492,7 @@ const ChatPanel = ({
         setIsTyping(false);
       }
     },
-      [contexto, rubroSeleccionado, preguntasUsadas, esAnonimo, mode, finalAuthToken, activeTicketId, esperandoDireccion, anonId, rubroNormalizado, tipoChatActual, fetchTicket, onRequireAuth, loading]);
+      [contexto, rubroSeleccionado, preguntasUsadas, esAnonimo, mode, finalAuthToken, activeTicketId, esperandoDireccion, anonId, rubroNormalizado, tipoChatActual, fetchTicket, onRequireAuth, loading, onShowLogin, onShowRegister]);
 
   const handleFileUploaded = useCallback(
     (data: any) => {

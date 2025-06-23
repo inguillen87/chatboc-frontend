@@ -1,5 +1,3 @@
-// public/widget.js (VERSIÓN FINAL Y FUNCIONAL - CORRECCIÓN DEFINITIVA)
-
 (function () {
   "use strict";
 
@@ -281,6 +279,12 @@
       document.removeEventListener("touchend", dragEnd);
     }
 
+    function postToIframe(msg) {
+      if (iframe && iframe.contentWindow) {
+        iframe.contentWindow.postMessage({ ...msg, widgetId: iframeId }, "*");
+      }
+    }
+
     function destroy() {
       window.removeEventListener("message", messageHandler);
       window.removeEventListener("resize", adjustOpenDimensions);
@@ -289,7 +293,21 @@
       widgetContainer.remove();
     }
 
-    registry[token] = { destroy, container: widgetContainer };
+    registry[token] = { destroy, container: widgetContainer, post: postToIframe };
+
+    if (!window.Chatboc) window.Chatboc = {};
+    window.Chatboc.setView = function (view) {
+      postToIframe({ type: "SET_VIEW", view });
+    };
+    window.Chatboc.open = function () {
+      postToIframe({ type: "TOGGLE_CHAT", isOpen: true });
+    };
+    window.Chatboc.close = function () {
+      postToIframe({ type: "TOGGLE_CHAT", isOpen: false });
+    };
+    window.Chatboc.toggle = function () {
+      postToIframe({ type: "TOGGLE_CHAT", isOpen: !iframeIsCurrentlyOpen });
+    };
     if (!window.chatbocDestroyWidget) {
       window.chatbocDestroyWidget = function (tok) {
         if (registry[tok] && typeof registry[tok].destroy === "function") {
