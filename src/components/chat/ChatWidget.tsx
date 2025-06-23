@@ -233,6 +233,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
               ) : (
                 <ChatPanel
                   mode={mode}
+                  onShowLogin={() => setView("login")}
+                  onShowRegister={() => setView("register")}
                   widgetId={widgetId}
                   entityToken={entityToken}
                   openWidth={finalOpenWidth}
@@ -355,6 +357,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             ) : (
               <ChatPanel
                 mode={mode}
+                onShowLogin={() => setView("login")}
+                onShowRegister={() => setView("register")}
                 widgetId={widgetId}
                 entityToken={entityToken}
                 openWidth={finalOpenWidth}
