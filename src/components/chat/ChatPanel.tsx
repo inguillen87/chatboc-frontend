@@ -495,6 +495,7 @@ const ChatPanel = ({
   const handleInternalAction = useCallback(
     (action: string) => {
       const normalized = action.toLowerCase();
+          console.log("handleInternalAction >>", { action, normalized });
       if (["login", "loginpanel", "chatuserloginpanel"].includes(normalized)) {
         onShowLogin && onShowLogin();
       } else if (
