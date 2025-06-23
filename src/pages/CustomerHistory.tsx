@@ -12,7 +12,17 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Inbox, MessageSquare, Ticket, Paperclip } from "lucide-react";
+import TicketMap from "@/components/TicketMap";
+import {
+  Inbox,
+  MessageSquare,
+  Ticket,
+  Paperclip,
+  User,
+  CheckCircle,
+  Tag,
+  FileDown,
+} from "lucide-react";
 
 interface HistorialItem {
   id: number;
@@ -34,6 +44,33 @@ export default function CustomerHistory() {
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<HistorialItem | null>(null);
   const PAGE_SIZE = 20;
+
+  const renderFilePreview = (url: string) => {
+    const ext = url.split('.').pop()?.toLowerCase();
+    if (!ext) return null;
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
+      return (
+        <img
+          src={url}
+          alt="previsualización"
+          className="max-h-60 mx-auto rounded"
+        />
+      );
+    }
+    if (ext === 'pdf') {
+      return (
+        <iframe
+          src={url}
+          className="w-full h-60 border rounded"
+          title="PDF"
+        />
+      );
+    }
+    if (['mp3', 'wav', 'ogg'].includes(ext)) {
+      return <audio controls src={url} className="w-full" />;
+    }
+    return null;
+  };
 
   useEffect(() => {
     apiFetch('/historial')
@@ -166,7 +203,12 @@ export default function CustomerHistory() {
       <Dialog open={!!selected} onOpenChange={() => setSelected(null)}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>{selected?.tipo}</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              {selected?.tipo === 'Consulta' && <MessageSquare className="w-5 h-5" />}
+              {selected?.tipo === 'Ticket' && <Ticket className="w-5 h-5" />}
+              {selected?.tipo === 'Archivo' && <Paperclip className="w-5 h-5" />}
+              <span>{selected?.tipo}</span>
+            </DialogTitle>
           </DialogHeader>
           {selected && (
             <div className="space-y-2">
@@ -174,6 +216,26 @@ export default function CustomerHistory() {
                 {formatDate(selected.fecha)}
               </p>
               {selected.descripcion && <p>{selected.descripcion}</p>}
+              {selected.usuario && (
+                <p className="flex items-center gap-2 text-sm">
+                  <User className="w-4 h-4" /> {selected.usuario}
+                </p>
+              )}
+              {selected.estado && (
+                <p className="flex items-center gap-2 text-sm">
+                  <CheckCircle className="w-4 h-4" /> {selected.estado}
+                </p>
+              )}
+              {selected.resultado && (
+                <p className="text-sm">{selected.resultado}</p>
+              )}
+              {selected.tags && Array.isArray(selected.tags) && (
+                <p className="flex items-center gap-2 text-sm flex-wrap">
+                  <Tag className="w-4 h-4" />
+                  {selected.tags.join(', ')}
+                </p>
+              )}
+              {selected.archivo_url && renderFilePreview(selected.archivo_url)}
               {selected.archivo_url && (
                 <Button asChild variant="secondary" className="mt-2">
                   <a
@@ -181,9 +243,33 @@ export default function CustomerHistory() {
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    Descargar archivo
+                    <FileDown className="w-4 h-4 mr-1" /> Descargar
                   </a>
                 </Button>
+              )}
+              {selected.mensajes && Array.isArray(selected.mensajes) && (
+                <div className="space-y-2 mt-4">
+                  {selected.mensajes.map((m: any) => (
+                    <div
+                      key={m.id}
+                      className="text-sm border rounded p-2"
+                    >
+                      <p>{m.texto || m.mensaje}</p>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        {m.es_admin ? (
+                          <User className="w-3 h-3" />
+                        ) : (
+                          <MessageSquare className="w-3 h-3" />
+                        )}
+                        {m.usuario || m.nombre}
+                        <span className="ml-auto">{formatDate(m.fecha)}</span>
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {(selected.latitud || selected.longitud || selected.direccion) && (
+                <TicketMap ticket={selected} />
               )}
               <pre className="bg-muted p-2 rounded text-xs overflow-x-auto">
                 {JSON.stringify(selected, null, 2)}
