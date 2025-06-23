@@ -38,6 +38,7 @@
     const initialRight = script.getAttribute("data-right") || "20px";
     const defaultOpen = script.getAttribute("data-default-open") === "true";
     const theme = script.getAttribute("data-theme") || "";
+    const rubroAttr = script.getAttribute("data-rubro") || "";
     const scriptOrigin = (script.getAttribute("src") && new URL(script.getAttribute("src"), window.location.href).origin) || "https://www.chatboc.ar";
     const chatbocDomain = script.getAttribute("data-domain") || scriptOrigin;
 
@@ -125,7 +126,7 @@
     // --- Iframe ---
     const iframe = document.createElement("iframe");
     iframe.id = iframeId;
-    iframe.src = `${chatbocDomain}/iframe?token=${encodeURIComponent(token)}&widgetId=${iframeId}&defaultOpen=${defaultOpen}&tipo_chat=${tipoChat}&openWidth=${encodeURIComponent(WIDGET_DIMENSIONS_JS.OPEN.width)}&openHeight=${encodeURIComponent(WIDGET_DIMENSIONS_JS.OPEN.height)}&closedWidth=${encodeURIComponent(WIDGET_DIMENSIONS_JS.CLOSED.width)}&closedHeight=${encodeURIComponent(WIDGET_DIMENSIONS_JS.CLOSED.height)}${theme ? `&theme=${encodeURIComponent(theme)}` : ""}`;
+    iframe.src = `${chatbocDomain}/iframe?token=${encodeURIComponent(token)}&widgetId=${iframeId}&defaultOpen=${defaultOpen}&tipo_chat=${tipoChat}&openWidth=${encodeURIComponent(WIDGET_DIMENSIONS_JS.OPEN.width)}&openHeight=${encodeURIComponent(WIDGET_DIMENSIONS_JS.OPEN.height)}&closedWidth=${encodeURIComponent(WIDGET_DIMENSIONS_JS.CLOSED.width)}&closedHeight=${encodeURIComponent(WIDGET_DIMENSIONS_JS.CLOSED.height)}${theme ? `&theme=${encodeURIComponent(theme)}` : ""}${rubroAttr ? `&rubro=${encodeURIComponent(rubroAttr)}` : ""}`;
     Object.assign(iframe.style, {
       border: "none",
       width: "100%", 

@@ -22,6 +22,7 @@ Este documento resume los lineamientos para que el widget de Chatboc funcione de
 
 ## Seguridad y tokens
 - El token puede recibirse vía atributo `data`, querystring o header.
+- El rubro también puede enviarse con el atributo `data-rubro` del script para que el iframe lo reciba desde el inicio.
 - Cada token está asociado a un único rubro/empresa/municipio.
 - Se deben poder cargar múltiples widgets en una misma página sin mezclar la información.
 
