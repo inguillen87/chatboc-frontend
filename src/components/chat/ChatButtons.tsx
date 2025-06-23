@@ -21,14 +21,14 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({ botones, onButtonClick, onInt
     const registerActions = ['register', 'registerpanel', 'chatuserregisterpanel'];
 
     const handleButtonClick = (boton: Boton) => {
-        if (boton.url) {
-            window.open(boton.url, '_blank', 'noopener,noreferrer');
-        } else if (boton.accion_interna) {
+        if (boton.accion_interna) {
             const normalized = boton.accion_interna.trim().toLowerCase();
             onInternalAction && onInternalAction(normalized);
             if (!loginActions.includes(normalized) && !registerActions.includes(normalized)) {
                 onButtonClick(normalized);
             }
+        } else if (boton.url) {
+            window.open(boton.url, '_blank', 'noopener,noreferrer');
         } else {
             onButtonClick(boton.texto);
         }
