@@ -1,7 +1,11 @@
 import React, { useContext, useState, useCallback, useEffect } from 'react';
 import { apiFetch } from '@/utils/api';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
-import { getCurrentTipoChat } from '@/utils/tipoChat';
+import {
+  getCurrentTipoChat,
+  enforceTipoChatForRubro,
+  parseRubro,
+} from '@/utils/tipoChat';
 
 interface UserData {
   id?: number;
@@ -44,19 +48,24 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!token) return;
     setLoading(true);
     try {
-      const data = await apiFetch<any>('/me');
-      const updated: UserData = {
-        id: data.id,
-        name: data.name,
-        email: data.email,
-        plan: data.plan || 'free',
-        rubro: data.rubro?.toLowerCase() || '',
-        tipo_chat: data.tipo_chat || getCurrentTipoChat(),
-        rol: data.rol,
-        token,
-      };
-      safeLocalStorage.setItem('user', JSON.stringify(updated));
-      setUser(updated);
+    const data = await apiFetch<any>('/me');
+    const rubroNorm = parseRubro(data.rubro) || '';
+    const finalTipo = enforceTipoChatForRubro(
+      (data.tipo_chat || getCurrentTipoChat()) as 'pyme' | 'municipio',
+      rubroNorm,
+    );
+    const updated: UserData = {
+      id: data.id,
+      name: data.name,
+      email: data.email,
+      plan: data.plan || 'free',
+      rubro: rubroNorm,
+      tipo_chat: finalTipo,
+      rol: data.rol,
+      token,
+    };
+    safeLocalStorage.setItem('user', JSON.stringify(updated));
+    setUser(updated);
     } catch (e) {
       console.error('Error fetching user profile', e);
     } finally {

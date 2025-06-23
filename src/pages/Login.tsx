@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { apiFetch, ApiError } from "@/utils/api";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { APP_TARGET } from "@/config";
-import { enforceTipoChatForRubro } from "@/utils/tipoChat";
+import { enforceTipoChatForRubro, parseRubro } from "@/utils/tipoChat";
 import GoogleLoginButton from "@/components/auth/GoogleLoginButton";
 
 // Asegúrate de que esta interfaz refleje EXACTAMENTE lo que tu backend devuelve en /login
@@ -44,7 +44,7 @@ const Login = () => {
       let tipoChat = data.tipo_chat;
       try {
         const me = await apiFetch<any>("/me");
-        rubro = me?.rubro?.toLowerCase() || "";
+        rubro = parseRubro(me?.rubro) || "";
         if (!tipoChat && me?.tipo_chat) {
           tipoChat = me.tipo_chat;
         }
