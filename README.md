@@ -298,6 +298,15 @@ The `ChatbocLogoAnimated` component now supports two optional props:
 or scales in and out to draw attention. These effects use Framer Motion and
 can be combined with the existing `blinking` and `smiling` animations.
 
+## User vs admin authentication
+
+Final users sign up and log in through `/chatuserregisterpanel` and
+`/chatuserloginpanel`. These endpoints associate the account with the
+current business or municipality by reading the `X-Entity-Token` header.
+Admins continue to use `/register` and `/login` for their panel. The
+standalone pages `/user/register` and `/user/login` also mount these
+user panels and are hidden from the global widget.
+
 
 ## Widget integration guidelines
 Detailed requirements for the embedded widget can be found in [docs/widget-requirements.md](docs/widget-requirements.md).
