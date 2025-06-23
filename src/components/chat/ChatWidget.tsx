@@ -8,15 +8,11 @@ import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { motion, AnimatePresence } from "framer-motion";
 import { useUser } from "@/hooks/useUser";
 
-const ChatUserRegisterPanel = React.lazy(
-  () => import("./ChatUserRegisterPanel")
-);
-const ChatUserLoginPanel = React.lazy(
-  () => import("./ChatUserLoginPanel")
-);
-const ChatUserPanel = React.lazy(() => import("./ChatUserPanel"));
-import ChatHeader from "./ChatHeader"; 
-const ChatPanel = React.lazy(() => import("./ChatPanel")); 
+import ChatUserRegisterPanel from "./ChatUserRegisterPanel";
+import ChatUserLoginPanel from "./ChatUserLoginPanel";
+import ChatUserPanel from "./ChatUserPanel";
+import ChatHeader from "./ChatHeader";
+const ChatPanel = React.lazy(() => import("./ChatPanel"));
 
 interface ChatWidgetProps {
   mode?: "standalone" | "iframe" | "script";
