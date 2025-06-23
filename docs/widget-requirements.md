@@ -30,7 +30,7 @@ Este documento resume los lineamientos para que el widget de Chatboc funcione de
 - Cuando una acción requiere autenticación se abre un formulario dentro del widget con nombre, email, celular y contraseña. El usuario queda asociado a la empresa o municipio según el token del iframe.
 - Usuarios registrados acceden con email y contraseña, y ven su historial y archivos según la empresa asociada.
 - Si el visitante ya tiene cuenta puede iniciar sesión desde el mismo widget sin salir de la página.
-- El bot puede incluir botones con `accion_interna` `login` o `register` (también `chatuserloginpanel` o `chatuserregisterpanel`) para abrir esos formularios directamente dentro del chat.
+- El bot puede incluir botones con `accion_interna` `login` o `register` (también `loginpanel`, `registerpanel`, `chatuserloginpanel` o `chatuserregisterpanel`) para abrir esos formularios directamente dentro del chat.
 
 
 ## Mini panel de usuario
