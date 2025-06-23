@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useUser } from './useUser';
+import { normalizeRole } from '@/utils/roles';
 
 export default function useRequireRole(allowedRoles: string[]) {
   const { user, loading } = useUser();
@@ -8,7 +9,7 @@ export default function useRequireRole(allowedRoles: string[]) {
 
   useEffect(() => {
     if (!loading) {
-      const role = user?.rol || '';
+      const role = normalizeRole(user?.rol);
       if (!allowedRoles.includes(role)) {
         navigate('/');
       }

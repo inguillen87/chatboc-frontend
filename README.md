@@ -297,7 +297,8 @@ percentage values.
 When the server logs show messages such as `PERMISO DENEGADO` and the HTTP
 response is `403`, the user lacks the required role for that endpoint. Check
 the assigned role in the backend (via the admin panel or CLI) and ensure it is
-`admin` or `empleado` before retrying. See
+`admin` or `empleado` (the backend may return role aliases like
+`admin_municipio` or `empleado_pyme`, which the frontend normalizes). See
 [docs/permission-denied.md](docs/permission-denied.md) for details.
 
 ## Animated logo
