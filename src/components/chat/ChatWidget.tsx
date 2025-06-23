@@ -55,7 +55,11 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   const openUserPanel = useCallback(() => {
     if (user) {
-      setView('user');
+      if (user.rol && user.rol !== 'usuario') {
+        window.location.href = '/perfil';
+      } else {
+        setView('user');
+      }
     } else {
       setView('login');
     }

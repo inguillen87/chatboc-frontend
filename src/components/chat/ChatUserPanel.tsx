@@ -114,6 +114,17 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
           ))}
         </ul>
       )}
+      <Button
+        variant="secondary"
+        className="w-full mt-6"
+        onClick={() => {
+          safeLocalStorage.removeItem('authToken');
+          safeLocalStorage.removeItem('user');
+          onClose();
+        }}
+      >
+        Cerrar sesión
+      </Button>
     </div>
   );
 };
