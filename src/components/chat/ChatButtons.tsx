@@ -17,13 +17,17 @@ interface ChatButtonsProps {
 
 const ChatButtons: React.FC<ChatButtonsProps> = ({ botones, onButtonClick, onInternalAction }) => {
 
+    const loginActions = ['login', 'loginpanel', 'chatuserloginpanel'];
+    const registerActions = ['register', 'registerpanel', 'chatuserregisterpanel'];
+
     const handleButtonClick = (boton: Boton) => {
         if (boton.url) {
             window.open(boton.url, '_blank', 'noopener,noreferrer');
         } else if (boton.accion_interna) {
-            onInternalAction && onInternalAction(boton.accion_interna);
-            if (boton.accion_interna !== 'login' && boton.accion_interna !== 'register') {
-                onButtonClick(boton.accion_interna);
+            const normalized = boton.accion_interna.toLowerCase();
+            onInternalAction && onInternalAction(normalized);
+            if (!loginActions.includes(normalized) && !registerActions.includes(normalized)) {
+                onButtonClick(normalized);
             }
         } else {
             onButtonClick(boton.texto);
