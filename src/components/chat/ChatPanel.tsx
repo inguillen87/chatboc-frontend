@@ -1,5 +1,3 @@
-// src/components/chat/ChatPanel.tsx (VERSIÓN FINAL Y ESTABLE)
-
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
@@ -91,6 +89,7 @@ const ChatPanel = ({
   const [rubrosDisponibles, setRubrosDisponibles] = useState([]);
   const [esperandoRubro, setEsperandoRubro] = useState(false);
   const [cargandoRubros, setCargandoRubros] = useState(false);
+  const [pendingAction, setPendingAction] = useState<"login" | "register" | null>(null);
   const [contexto, setContexto] = useState({});
   const [showScrollDown, setShowScrollDown] = useState(false);
   const [activeTicketId, setActiveTicketId] = useState<number | null>(() => {
@@ -511,6 +510,7 @@ const ChatPanel = ({
       const isRegister = ["register", "registerpanel", "chatuserregisterpanel"].includes(normalized);
       if (isLogin || isRegister) {
         if (!rubroSeleccionado) {
+          setPendingAction(isLogin ? "login" : "register");
           setEsperandoRubro(true);
           cargarRubros();
           return;
@@ -605,20 +605,32 @@ const ChatPanel = ({
               ) : (
                 <div className="flex flex-wrap justify-center gap-2">
                   {rubrosDisponibles.map((rubro: any) => (
-                    <button key={rubro.id} onClick={() => {
-                      safeLocalStorage.setItem('rubroSeleccionado', rubro.nombre);
-                      setRubroSeleccionado(rubro.nombre);
-                      setEsperandoRubro(false);
-                      setMessages([
-                        {
-                          id: Date.now(),
-                          text: `¡Hola! Soy Chatboc, tu asistente para ${rubro.nombre.toLowerCase()}. ¿En qué puedo ayudarte hoy?`,
-                          isBot: true,
-                          timestamp: new Date(),
-                          query: undefined,
-                        },
-                      ]);
-                    }} className="px-4 py-2 rounded-2xl font-semibold bg-blue-500 text-white hover:bg-blue-600 transition">{rubro.nombre}</button>
+                    <button
+                      key={rubro.id}
+                      onClick={() => {
+                        safeLocalStorage.setItem('rubroSeleccionado', rubro.nombre);
+                        setRubroSeleccionado(rubro.nombre);
+                        setEsperandoRubro(false);
+                        setMessages([
+                          {
+                            id: Date.now(),
+                            text: `¡Hola! Soy Chatboc, tu asistente para ${rubro.nombre.toLowerCase()}. ¿En qué puedo ayudarte hoy?`,
+                            isBot: true,
+                            timestamp: new Date(),
+                            query: undefined,
+                          },
+                        ]);
+                        if (pendingAction === 'login') {
+                          onShowLogin && onShowLogin();
+                        } else if (pendingAction === 'register') {
+                          onShowRegister && onShowRegister();
+                        }
+                        setPendingAction(null);
+                      }}
+                      className="px-4 py-2 rounded-2xl font-semibold bg-blue-500 text-white hover:bg-blue-600 transition"
+                    >
+                      {rubro.nombre}
+                    </button>
                   ))}
                 </div>
               )}
