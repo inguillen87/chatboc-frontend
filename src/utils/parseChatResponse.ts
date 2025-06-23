@@ -2,6 +2,7 @@ export interface Boton {
   texto: string;
   url?: string;
   accion_interna?: string;
+  action?: string;
 }
 
 export interface ChatApiResponse {

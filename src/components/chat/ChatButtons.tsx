@@ -7,6 +7,7 @@ interface Boton {
     texto: string;
     url?: string;
     accion_interna?: string;
+    action?: string;
 }
 
 interface ChatButtonsProps {
@@ -21,6 +22,11 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({ botones, onButtonClick, onInt
     const registerActions = ['register', 'registerpanel', 'chatuserregisterpanel'];
 
     const handleButtonClick = (boton: Boton) => {
+        if (boton.action) {
+            const normalized = boton.action.trim().toLowerCase();
+            onInternalAction && onInternalAction(normalized);
+            return;
+        }
         if (boton.accion_interna) {
             const normalized = boton.accion_interna.trim().toLowerCase();
             onInternalAction && onInternalAction(normalized);

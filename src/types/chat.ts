@@ -5,6 +5,7 @@ export interface Boton {
   texto: string;
   url?: string;
   accion_interna?: string;
+  action?: string;
 }
 
 // Define cómo es un objeto Mensaje
