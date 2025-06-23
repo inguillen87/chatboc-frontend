@@ -16,31 +16,48 @@ interface ChatButtonsProps {
     onInternalAction?: (action: string) => void;
 }
 
-const ChatButtons: React.FC<ChatButtonsProps> = ({ botones, onButtonClick, onInternalAction }) => {
-
-    const loginActions = ['login', 'loginpanel', 'chatuserloginpanel'];
-    const registerActions = ['register', 'registerpanel', 'chatuserregisterpanel'];
+const ChatButtons: React.FC<ChatButtonsProps> = ({
+    botones,
+    onButtonClick,
+    onInternalAction,
+}) => {
+    const loginActions = [
+        "login",
+        "loginpanel",
+        "chatuserloginpanel",
+    ];
+    const registerActions = [
+        "register",
+        "registerpanel",
+        "chatuserregisterpanel",
+    ];
 
     const handleButtonClick = (boton: Boton) => {
-        // Los nuevos botones de login/register vienen con `action` en lugar de URL.
-        // Cuando existe esta propiedad disparamos la acción interna y no
-        // reenviamos el texto al backend.
+        // Nuevos botones pueden traer `action` en lugar de `url` para acciones internas
         if (boton.action) {
             const normalized = boton.action.trim().toLowerCase();
             onInternalAction && onInternalAction(normalized);
             return;
         }
+
         if (boton.accion_interna) {
             const normalized = boton.accion_interna.trim().toLowerCase();
             onInternalAction && onInternalAction(normalized);
-            if (!loginActions.includes(normalized) && !registerActions.includes(normalized)) {
+            if (
+                !loginActions.includes(normalized) &&
+                !registerActions.includes(normalized)
+            ) {
                 onButtonClick(normalized);
             }
-        } else if (boton.url) {
-            window.open(boton.url, '_blank', 'noopener,noreferrer');
-        } else {
-            onButtonClick(boton.texto);
+            return;
         }
+
+        if (boton.url) {
+            window.open(boton.url, "_blank", "noopener,noreferrer");
+            return;
+        }
+
+        onButtonClick(boton.texto);
     };
 
     const baseClass =
@@ -54,15 +71,7 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({ botones, onButtonClick, onInt
             transition={{ delay: 0.2, duration: 0.3 }}
         >
             {botones.map((boton, index) =>
-                boton.accion_interna ? (
-                    <button
-                        key={index}
-                        onClick={() => handleInternal(boton.accion_interna!)}
-                        className={baseClass}
-                    >
-                        {boton.texto}
-                    </button>
-                ) : boton.url ? (
+                boton.url ? (
                     <a
                         key={index}
                         href={boton.url}
@@ -75,7 +84,7 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({ botones, onButtonClick, onInt
                 ) : (
                     <button
                         key={index}
-                        onClick={() => onButtonClick(boton.texto)}
+                        onClick={() => handleButtonClick(boton)}
                         className={baseClass}
                     >
                         {boton.texto}
