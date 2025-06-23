@@ -505,26 +505,18 @@ const ChatPanel = ({
 
   const handleInternalAction = useCallback(
     (action: string) => {
-      const normalized = action.trim().toLowerCase();
-      const isLogin = ["login", "loginpanel", "chatuserloginpanel"].includes(normalized);
-      const isRegister = ["register", "registerpanel", "chatuserregisterpanel"].includes(normalized);
-      if (isLogin || isRegister) {
-        if (!rubroSeleccionado) {
-          setPendingAction(isLogin ? "login" : "register");
-          setEsperandoRubro(true);
-          cargarRubros();
-          return;
-        }
-        if (isLogin) {
-          onShowLogin && onShowLogin();
-        } else {
-          onShowRegister && onShowRegister();
-        }
-      } else {
-        handleSendMessage(action);
+      const normalized = action.toLowerCase();
+      if (["login", "loginpanel", "chatuserloginpanel"].includes(normalized)) {
+        onShowLogin && onShowLogin();
+        return;
       }
+      if (["register", "registerpanel", "chatuserregisterpanel"].includes(normalized)) {
+        onShowRegister && onShowRegister();
+        return;
+      }
+      handleSendMessage(action);
     },
-    [onShowLogin, onShowRegister, handleSendMessage, rubroSeleccionado]
+    [onShowLogin, onShowRegister, handleSendMessage]
   );
 
   const handleFileUploaded = useCallback(
