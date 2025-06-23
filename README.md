@@ -254,7 +254,7 @@ Social login now uses [`@react-oauth/google`](https://www.npmjs.com/package/@rea
 Provide your OAuth client ID through `VITE_GOOGLE_CLIENT_ID` in your `.env` file (note the `VITE_` prefix used by Vite):
 
 ```bash
-VITE_GOOGLE_CLIENT_ID=YOUR_GOOGLE_CLIENT_ID
+VITE_GOOGLE_CLIENT_ID=32341370449-g1757v5k948nrreul5ueonqf00c43m8o.apps.googleusercontent.com
 ```
 
 Make sure the client ID is configured in the Google console with
