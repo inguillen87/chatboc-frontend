@@ -143,7 +143,7 @@ If your site blocks external JavaScript, you can embed the chatbot using an
   id="chatboc-iframe"
   src="https://www.chatboc.ar/iframe?token=TU_TOKEN_AQUI&tipo_chat=pyme&rubro=comercio" <!-- or "municipio" -->
   style="position:fixed;bottom:24px;right:24px;border:none;border-radius:50%;z-index:9999;box-shadow:0 4px 32px rgba(0,0,0,0.2);background:transparent;overflow:hidden;width:96px!important;height:96px!important;display:block"
-  allow="clipboard-write"
+  allow="clipboard-write geolocation"
   loading="lazy"
 ></iframe>
 <script>
@@ -167,6 +167,9 @@ If your site blocks external JavaScript, you can embed the chatbot using an
   });
 </script>
 ```
+The `allow="geolocation"` attribute is required so the widget can request GPS
+permissions from the browser. Without it, users will need to enter their address
+manually.
 If the same page injects this iframe snippet more than once (for example in a single-page application), remove any existing element with id="chatboc-iframe" before creating a new one. Otherwise the widget may reload and flicker.
 
 ### Removing an existing widget

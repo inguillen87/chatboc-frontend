@@ -102,7 +102,7 @@ const ChatPanel = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const lastQueryRef = useRef<string | null>(null);
-  const ultimoMensajeIdRef = useRef<number>(0);
+  const ultimoMensajeIdRef = useRef<number | null>(null);
 
   const [esperandoDireccion, setEsperandoDireccion] = useState(false);
   const [forzarDireccion, setForzarDireccion] = useState(false);
@@ -323,7 +323,7 @@ const ChatPanel = ({
         const entityHeaders = entityTokenFromStorage ? { 'X-Entity-Token': entityTokenFromStorage } : {};
 
         const data = await apiFetch<{ estado_chat: string; mensajes: any[] }>(
-          `/tickets/chat/${activeTicketId}/mensajes?ultimo_mensaje_id=${ultimoMensajeIdRef.current}`,
+          `/tickets/chat/${activeTicketId}/mensajes?ultimo_mensaje_id=${ultimoMensajeIdRef.current ?? 0}`,
           { headers: { ...authHeaders, ...entityHeaders }, sendAnonId: esAnonimo }
         );
         if (data.mensajes) {
