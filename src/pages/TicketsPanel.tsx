@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDate } from "@/utils/fecha";
 import { useDateSettings } from "@/hooks/useDateSettings";
 import { LOCALE_OPTIONS } from "@/utils/localeOptions";
+import useRequireRole from "@/hooks/useRequireRole";
 
 // ----------- TIPOS Y ESTADOS -----------
 type TicketStatus = "nuevo" | "en_proceso" | "derivado" | "resuelto" | "cerrado" | "esperando_agente_en_vivo";
@@ -43,6 +44,7 @@ const ESTADOS: Record<TicketStatus, { label: string; tailwind_class: string }> =
 
 // ----------- MAIN PANEL -----------
 export default function TicketsPanel() {
+  useRequireRole(['admin', 'empleado']);
   const { timezone, locale, updateSettings } = useDateSettings();
   const [categorizedTickets, setCategorizedTickets] = useState<CategorizedTickets>({});
   const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null);

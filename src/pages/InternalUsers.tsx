@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { apiFetch } from '@/utils/api';
+import useRequireRole from '@/hooks/useRequireRole';
 
 interface InternalUser {
   id: number;
@@ -10,6 +11,7 @@ interface InternalUser {
 }
 
 export default function InternalUsers() {
+  useRequireRole(['admin']);
   const [users, setUsers] = useState<InternalUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
