@@ -1,5 +1,3 @@
-// src/components/chat/ChatWidget.tsx (VERSIÓN FINAL Y OPTIMIZADA)
-
 import React, { useState, useEffect, useCallback, Suspense } from "react";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
@@ -24,8 +22,9 @@ interface ChatWidgetProps {
   mode?: "standalone" | "iframe" | "script";
   initialPosition?: { bottom: number; right: number }; // Solo para modo standalone
   defaultOpen?: boolean;
+  initialView?: 'chat' | 'register' | 'login' | 'user';
   widgetId?: string;
-  entityToken?: string; 
+  entityToken?: string;
   openWidth?: string;
   openHeight?: string;
   closedWidth?: string;
@@ -37,8 +36,9 @@ interface ChatWidgetProps {
 const ChatWidget: React.FC<ChatWidgetProps> = ({
   mode = "standalone",
   defaultOpen = false,
+  initialView = 'chat',
   widgetId = "chatboc-widget-iframe",
-  entityToken, 
+  entityToken,
   openWidth = "460px",
   openHeight = "680px",
   closedWidth = "96px",
@@ -48,7 +48,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   ctaMessage,
 }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
-  const [view, setView] = useState<'chat' | 'register' | 'login' | 'user'>('chat');
+  const [view, setView] = useState<'chat' | 'register' | 'login' | 'user'>(initialView);
   const { user } = useUser();
 
   const openUserPanel = useCallback(() => {
@@ -125,8 +125,14 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      if (event.data && event.data.type === "TOGGLE_CHAT" && event.data.widgetId === widgetId) {
+      if (!event.data || event.data.widgetId !== widgetId) return;
+      if (event.data.type === "TOGGLE_CHAT") {
         setIsOpen(event.data.isOpen);
+      } else if (event.data.type === "SET_VIEW") {
+        const v = event.data.view;
+        if (v === 'chat' || v === 'register' || v === 'login' || v === 'user') {
+          setView(v);
+        }
       }
     };
     window.addEventListener("message", handleMessage);
@@ -208,7 +214,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
               {(view === "register" || view === "login" || view === "user") && (
                 <ChatHeader
                   onClose={toggleChat}
-                  onBack={view === "user" ? () => setView("chat") : undefined}
+                  onBack={() => setView("chat")}
                   showProfile={false}
                 />
               )}
@@ -328,7 +334,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             {(view === "register" || view === "login" || view === "user") && (
               <ChatHeader
                 onClose={toggleChat}
-                onBack={view === "user" ? () => setView("chat") : undefined}
+                onBack={() => setView("chat")}
                 showProfile={false}
               />
             )}
