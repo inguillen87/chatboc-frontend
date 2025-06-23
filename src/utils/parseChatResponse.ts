@@ -2,6 +2,7 @@ export interface Boton {
   texto: string;
   url?: string;
   accion_interna?: string;
+  action?: string;
 }
 
 export interface ChatApiResponse {
@@ -31,6 +32,13 @@ export function parseChatResponse(data: ChatApiResponse | any): { text?: string;
   if (Array.isArray(data.botones)) {
     botones = botones.length > 0 ? botones : data.botones;
   }
+
+  // Normalizamos la propiedad de accion interna para soportar tanto
+  // `accion_interna` como `action` según lo que envíe el backend.
+  botones = botones.map((b) => ({
+    ...b,
+    action: b.action ?? b.accion_interna,
+  }));
 
   return { text, botones };
 }
