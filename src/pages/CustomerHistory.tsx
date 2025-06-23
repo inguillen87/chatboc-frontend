@@ -18,17 +18,23 @@ export default function CustomerHistory() {
   useEffect(() => {
     apiFetch('/historial')
       .then((data) => {
-        // ⚠️ Chequeamos el tipo
-        if (Array.isArray(data)) {
-          setRecords(data);
-        } else if (data && Array.isArray(data.mensajes)) {
-          setRecords(data.mensajes);
-        } else if (data && Array.isArray(data.records)) {
-          setRecords(data.records);
-        } else {
+        if (!data || (typeof data !== 'object')) {
           setRecords([]);
-          console.warn("Respuesta inesperada en /historial:", data);
-          setError("No se encontraron registros.");
+          setError('Sin datos');
+        } else {
+          // Unificás todos los arrays
+          const consultas = Array.isArray(data.consultas) ? data.consultas : [];
+          const archivos = Array.isArray(data.archivos) ? data.archivos : [];
+          const tickets = Array.isArray(data.tickets) ? data.tickets : [];
+          // Le agregás "tipo" si falta para poder mostrar
+          const all = [
+            ...consultas.map((x) => ({ ...x, tipo: x.tipo || 'Consulta' })),
+            ...archivos.map((x) => ({ ...x, tipo: x.tipo || 'Archivo' })),
+            ...tickets.map((x) => ({ ...x, tipo: x.tipo || 'Ticket' })),
+          ];
+          // Ordena por fecha descendente
+          all.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+          setRecords(all);
         }
         setLoading(false);
       })
@@ -46,7 +52,7 @@ export default function CustomerHistory() {
       <h1 className="text-2xl font-bold mb-4">Historial</h1>
       <ul className="grid gap-3">
         {records.map((r) => (
-          <li key={r.id} className="border-b pb-2">
+          <li key={r.id + '-' + r.tipo} className="border-b pb-2">
             <p className="font-medium">
               <span className="mr-2">{new Date(r.fecha).toLocaleDateString()}</span>
               {r.tipo}
