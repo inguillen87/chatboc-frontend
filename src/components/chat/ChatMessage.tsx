@@ -8,6 +8,7 @@ export interface ChatMessageProps {
   message: Message;
   isTyping: boolean;
   onButtonClick: (valueToSend: string) => void;
+  onInternalAction?: (action: string) => void;
   tipoChat?: 'pyme' | 'municipio';
   query?: string;
 }
