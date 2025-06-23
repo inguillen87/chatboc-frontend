@@ -44,6 +44,7 @@ interface ChatMessageProps {
   message: Message;
   isTyping: boolean;
   onButtonClick: (valueToSend: string) => void;
+  onInternalAction?: (action: string) => void;
   tipoChat?: "pyme" | "municipio";
   query?: string;
 }
@@ -52,6 +53,7 @@ const ChatMessageMunicipio: React.FC<ChatMessageProps> = ({
   message,
   isTyping,
   onButtonClick,
+  onInternalAction,
   query: _query, // not used but kept for prop consistency
 }) => {
   // Seguridad ante mensajes rotos
@@ -98,7 +100,11 @@ const ChatMessageMunicipio: React.FC<ChatMessageProps> = ({
         </motion.div>
 
         {isBot && message.botones && message.botones.length > 0 && (
-          <ChatButtons botones={message.botones} onButtonClick={onButtonClick} />
+          <ChatButtons
+            botones={message.botones}
+            onButtonClick={onButtonClick}
+            onInternalAction={onInternalAction}
+          />
         )}
       </div>
 
