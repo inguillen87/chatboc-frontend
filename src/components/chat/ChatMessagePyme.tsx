@@ -82,6 +82,7 @@ interface ChatMessageProps {
   message: Message;
   isTyping: boolean;
   onButtonClick: (valueToSend: string) => void;
+  onInternalAction?: (action: string) => void;
   tipoChat?: "pyme" | "municipio";
   query?: string;
 }
@@ -90,6 +91,7 @@ const ChatMessagePyme: React.FC<ChatMessageProps> = ({
   message,
   isTyping,
   onButtonClick,
+  onInternalAction,
   tipoChat,
   query,
 }) => {
@@ -160,6 +162,7 @@ const ChatMessagePyme: React.FC<ChatMessageProps> = ({
           <ChatButtons
             botones={message.botones}
             onButtonClick={onButtonClick}
+            onInternalAction={onInternalAction}
           />
         )}
       </div>
