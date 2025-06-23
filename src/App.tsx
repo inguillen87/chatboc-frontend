@@ -50,6 +50,11 @@ import useTicketUpdates from "./hooks/useTicketUpdates";
 
 const queryClient = new QueryClient();
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+if (!GOOGLE_CLIENT_ID) {
+  console.warn(
+    'VITE_GOOGLE_CLIENT_ID is missing. Google OAuth login will fail until this variable is set.'
+  );
+}
 
 function AppRoutes() {
   const location = useLocation();
