@@ -48,6 +48,7 @@ Este documento resume los lineamientos para que el widget de Chatboc funcione de
 ## Permisos de GPS y CORS
 - Solo se solicitan coordenadas a usuarios registrados y se muestra un mensaje claro si se niegan permisos.
 - Documentar cualquier uso de cookies o configuración de CORS necesaria.
+- Si incrustás el widget con un `<iframe>`, incluí `allow="clipboard-write; geolocation"` para habilitar la solicitud de ubicación.
 
 ## Soporte para `iframe` y `script`
 - Ambas formas deben comportarse de la misma manera. Documentar pros y contras.
