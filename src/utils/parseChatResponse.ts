@@ -33,5 +33,12 @@ export function parseChatResponse(data: ChatApiResponse | any): { text?: string;
     botones = botones.length > 0 ? botones : data.botones;
   }
 
+  // Normalizamos la propiedad de accion interna para soportar tanto
+  // `accion_interna` como `action` según lo que envíe el backend.
+  botones = botones.map((b) => ({
+    ...b,
+    action: b.action ?? b.accion_interna,
+  }));
+
   return { text, botones };
 }

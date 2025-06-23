@@ -22,6 +22,9 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({ botones, onButtonClick, onInt
     const registerActions = ['register', 'registerpanel', 'chatuserregisterpanel'];
 
     const handleButtonClick = (boton: Boton) => {
+        // Los nuevos botones de login/register vienen con `action` en lugar de URL.
+        // Cuando existe esta propiedad disparamos la acción interna y no
+        // reenviamos el texto al backend.
         if (boton.action) {
             const normalized = boton.action.trim().toLowerCase();
             onInternalAction && onInternalAction(normalized);
