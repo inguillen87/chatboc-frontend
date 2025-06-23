@@ -49,16 +49,17 @@ interface ChatPanelProps {
   mode?: "standalone" | "iframe" | "script";
   widgetId?: string;
   entityToken?: string;
-  initialIframeWidth?: string; 
-  initialIframeHeight?: string; 
+  initialIframeWidth?: string;
+  initialIframeHeight?: string;
   onClose?: () => void;
-  openWidth?: string; 
-  openHeight?: string; 
+  openWidth?: string;
+  openHeight?: string;
   tipoChat?: "pyme" | "municipio";
   onRequireAuth?: () => void;
   onOpenUserPanel?: () => void;
   onShowLogin?: () => void;
   onShowRegister?: () => void;
+  initialRubro?: string;
 }
 
 const ChatPanel = ({
@@ -68,24 +69,29 @@ const ChatPanel = ({
   initialIframeWidth,
   initialIframeHeight,
   onClose,
-  openWidth, 
-  openHeight, 
+  openWidth,
+  openHeight,
   tipoChat = getCurrentTipoChat(),
   onRequireAuth,
   onOpenUserPanel,
   onShowLogin,
   onShowRegister,
+  initialRubro,
 }: ChatPanelProps) => {
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [preguntasUsadas, setPreguntasUsadas] = useState(0);
-  const [rubroSeleccionado, setRubroSeleccionado] = useState<string | null>(
-    () => (typeof window !== "undefined" ? safeLocalStorage.getItem("rubroSeleccionado")?.toLowerCase() || null : null)
-  );
+  const [rubroSeleccionado, setRubroSeleccionado] = useState<string | null>(() => {
+    if (initialRubro) return initialRubro.toLowerCase();
+    return typeof window !== "undefined"
+      ? safeLocalStorage.getItem("rubroSeleccionado")?.toLowerCase() || null
+      : null;
+  });
   const [rubrosDisponibles, setRubrosDisponibles] = useState([]);
   const [esperandoRubro, setEsperandoRubro] = useState(false);
   const [cargandoRubros, setCargandoRubros] = useState(false);
+  const [pendingAction, setPendingAction] = useState<"login" | "register" | null>(null);
   const [contexto, setContexto] = useState({});
   const [showScrollDown, setShowScrollDown] = useState(false);
   const [activeTicketId, setActiveTicketId] = useState<number | null>(() => {
@@ -109,6 +115,13 @@ const ChatPanel = ({
       safeLocalStorage.removeItem(PENDING_TICKET_KEY);
     }
   }, [activeTicketId]);
+
+  useEffect(() => {
+    if (initialRubro && !rubroSeleccionado) {
+      safeLocalStorage.setItem('rubroSeleccionado', initialRubro);
+      setRubroSeleccionado(initialRubro.toLowerCase());
+    }
+  }, [initialRubro, rubroSeleccionado]);
 
   useEffect(() => {
     const stored = safeLocalStorage.getItem("ultima_direccion");
@@ -495,17 +508,25 @@ const ChatPanel = ({
   const handleInternalAction = useCallback(
     (action: string) => {
       const normalized = action.trim().toLowerCase();
-      if (["login", "loginpanel", "chatuserloginpanel"].includes(normalized)) {
-        onShowLogin && onShowLogin();
-      } else if (
-        ["register", "registerpanel", "chatuserregisterpanel"].includes(normalized)
-      ) {
-        onShowRegister && onShowRegister();
+      const isLogin = ["login", "loginpanel", "chatuserloginpanel"].includes(normalized);
+      const isRegister = ["register", "registerpanel", "chatuserregisterpanel"].includes(normalized);
+      if (isLogin || isRegister) {
+        if (!rubroSeleccionado) {
+          setPendingAction(isLogin ? "login" : "register");
+          setEsperandoRubro(true);
+          cargarRubros();
+          return;
+        }
+        if (isLogin) {
+          onShowLogin && onShowLogin();
+        } else {
+          onShowRegister && onShowRegister();
+        }
       } else {
         handleSendMessage(action);
       }
     },
-    [onShowLogin, onShowRegister, handleSendMessage]
+    [onShowLogin, onShowRegister, handleSendMessage, rubroSeleccionado]
   );
 
   const handleFileUploaded = useCallback(
@@ -586,20 +607,32 @@ const ChatPanel = ({
               ) : (
                 <div className="flex flex-wrap justify-center gap-2">
                   {rubrosDisponibles.map((rubro: any) => (
-                    <button key={rubro.id} onClick={() => {
-                      safeLocalStorage.setItem('rubroSeleccionado', rubro.nombre);
-                      setRubroSeleccionado(rubro.nombre);
-                      setEsperandoRubro(false);
-                      setMessages([
-                        {
-                          id: Date.now(),
-                          text: `¡Hola! Soy Chatboc, tu asistente para ${rubro.nombre.toLowerCase()}. ¿En qué puedo ayudarte hoy?`,
-                          isBot: true,
-                          timestamp: new Date(),
-                          query: undefined,
-                        },
-                      ]);
-                    }} className="px-4 py-2 rounded-2xl font-semibold bg-blue-500 text-white hover:bg-blue-600 transition">{rubro.nombre}</button>
+                    <button
+                      key={rubro.id}
+                      onClick={() => {
+                        safeLocalStorage.setItem('rubroSeleccionado', rubro.nombre);
+                        setRubroSeleccionado(rubro.nombre);
+                        setEsperandoRubro(false);
+                        setMessages([
+                          {
+                            id: Date.now(),
+                            text: `¡Hola! Soy Chatboc, tu asistente para ${rubro.nombre.toLowerCase()}. ¿En qué puedo ayudarte hoy?`,
+                            isBot: true,
+                            timestamp: new Date(),
+                            query: undefined,
+                          },
+                        ]);
+                        if (pendingAction === 'login') {
+                          onShowLogin && onShowLogin();
+                        } else if (pendingAction === 'register') {
+                          onShowRegister && onShowRegister();
+                        }
+                        setPendingAction(null);
+                      }}
+                      className="px-4 py-2 rounded-2xl font-semibold bg-blue-500 text-white hover:bg-blue-600 transition"
+                    >
+                      {rubro.nombre}
+                    </button>
                   ))}
                 </div>
               )}

@@ -106,6 +106,8 @@ You can embed the floating chat widget on any site by loading `widget.js` and pa
     // Choose the API endpoint. If omitted, the widget falls back
     // to `window.APP_TARGET` and then "pyme" if none is set
     s.setAttribute('data-endpoint', 'pyme'); // or "municipio"
+    // Optional: preselect the business category
+    // s.setAttribute('data-rubro', 'comercio');
     // Optional: force light or dark theme
     // s.setAttribute('data-theme', 'dark');
     document.body.appendChild(s); // append once the DOM is ready
@@ -129,6 +131,7 @@ The `<script>` tag accepts several extra `data-*` attributes to control the widg
 - `data-closed-width` / `data-closed-height` – size of the closed bubble (`96px` × `96px`).
 - `data-z` – base `z-index` if you need to adjust stacking order.
 - `data-domain` – custom domain hosting the widget, if different from `chatboc.ar`.
+- `data-rubro` – optional category so the chat knows the business type from the start.
 
 ### Iframe fallback
 
@@ -138,7 +141,7 @@ If your site blocks external JavaScript, you can embed the chatbot using an
 ```html
 <iframe
   id="chatboc-iframe"
-  src="https://www.chatboc.ar/iframe?token=TU_TOKEN_AQUI&tipo_chat=pyme" <!-- or "municipio" -->
+  src="https://www.chatboc.ar/iframe?token=TU_TOKEN_AQUI&tipo_chat=pyme&rubro=comercio" <!-- or "municipio" -->
   style="position:fixed;bottom:24px;right:24px;border:none;border-radius:50%;z-index:9999;box-shadow:0 4px 32px rgba(0,0,0,0.2);background:transparent;overflow:hidden;width:96px!important;height:96px!important;display:block"
   allow="clipboard-write"
   loading="lazy"
