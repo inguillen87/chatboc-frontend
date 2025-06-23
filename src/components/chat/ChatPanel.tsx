@@ -49,16 +49,17 @@ interface ChatPanelProps {
   mode?: "standalone" | "iframe" | "script";
   widgetId?: string;
   entityToken?: string;
-  initialIframeWidth?: string; 
-  initialIframeHeight?: string; 
+  initialIframeWidth?: string;
+  initialIframeHeight?: string;
   onClose?: () => void;
-  openWidth?: string; 
-  openHeight?: string; 
+  openWidth?: string;
+  openHeight?: string;
   tipoChat?: "pyme" | "municipio";
   onRequireAuth?: () => void;
   onOpenUserPanel?: () => void;
   onShowLogin?: () => void;
   onShowRegister?: () => void;
+  initialRubro?: string;
 }
 
 const ChatPanel = ({
@@ -80,9 +81,12 @@ const ChatPanel = ({
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [preguntasUsadas, setPreguntasUsadas] = useState(0);
-  const [rubroSeleccionado, setRubroSeleccionado] = useState<string | null>(
-    () => (typeof window !== "undefined" ? safeLocalStorage.getItem("rubroSeleccionado")?.toLowerCase() || null : null)
-  );
+  const [rubroSeleccionado, setRubroSeleccionado] = useState<string | null>(() => {
+    if (initialRubro) return initialRubro.toLowerCase();
+    return typeof window !== "undefined"
+      ? safeLocalStorage.getItem("rubroSeleccionado")?.toLowerCase() || null
+      : null;
+  });
   const [rubrosDisponibles, setRubrosDisponibles] = useState([]);
   const [esperandoRubro, setEsperandoRubro] = useState(false);
   const [cargandoRubros, setCargandoRubros] = useState(false);
@@ -109,6 +113,13 @@ const ChatPanel = ({
       safeLocalStorage.removeItem(PENDING_TICKET_KEY);
     }
   }, [activeTicketId]);
+
+  useEffect(() => {
+    if (initialRubro && !rubroSeleccionado) {
+      safeLocalStorage.setItem('rubroSeleccionado', initialRubro);
+      setRubroSeleccionado(initialRubro.toLowerCase());
+    }
+  }, [initialRubro, rubroSeleccionado]);
 
   useEffect(() => {
     const stored = safeLocalStorage.getItem("ultima_direccion");
