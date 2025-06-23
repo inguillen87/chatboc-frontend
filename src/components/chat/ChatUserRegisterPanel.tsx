@@ -28,9 +28,6 @@ const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [phone, setPhone] = useState("");
-  const [nombreEmpresa, setNombreEmpresa] = useState("");
-  const [rubro, setRubro] = useState("");
-  const [rubrosDisponibles, setRubrosDisponibles] = useState<{ id: number; nombre: string }[]>([]);
   const [accepted, setAccepted] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -38,18 +35,6 @@ const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin }) => {
 
   useEffect(() => {
     nameRef.current?.focus();
-    const fetchRubros = async () => {
-      try {
-        const data = await apiFetch<{ id: number; nombre: string }[]>(
-          "/rubros/",
-          { skipAuth: true, sendEntityToken: true },
-        );
-        if (Array.isArray(data)) setRubrosDisponibles(data);
-      } catch {
-        /* ignore */
-      }
-    };
-    fetchRubros();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -65,11 +50,9 @@ const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin }) => {
         name: name.trim(),
         email: email.trim(),
         password,
-        nombre_empresa: nombreEmpresa.trim(),
-        rubro: rubro.trim(),
-        telefono: phone.trim(),
         acepto_terminos: accepted,
       };
+      if (phone.trim()) payload.telefono = phone.trim();
       const empresaToken = safeLocalStorage.getItem("entityToken");
       payload.empresa_token = empresaToken;
       const anon = safeLocalStorage.getItem("anon_id");
@@ -160,34 +143,11 @@ const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin }) => {
           disabled={loading}
         />
         <Input
-          type="text"
-          placeholder="Nombre de la empresa"
-          value={nombreEmpresa}
-          onChange={e => setNombreEmpresa(e.target.value)}
-          required
-          disabled={loading}
-        />
-        <select
-          value={rubro}
-          onChange={e => setRubro(e.target.value)}
-          required
-          disabled={loading}
-          className="w-full p-2 border rounded text-sm bg-input border-input text-foreground"
-        >
-          <option value="">Seleccioná tu rubro</option>
-          {rubrosDisponibles.map((r) => (
-            <option key={r.id} value={r.nombre}>
-              {r.nombre}
-            </option>
-          ))}
-        </select>
-        <Input
           type="tel"
-          placeholder="Teléfono"
+          placeholder="Teléfono (opcional)"
           value={phone}
           onChange={e => setPhone(e.target.value)}
           autoComplete="tel"
-          required
           disabled={loading}
         />
         <div className="flex items-center space-x-2">
