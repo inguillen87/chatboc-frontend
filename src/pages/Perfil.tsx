@@ -19,6 +19,8 @@ import { cn } from "@/lib/utils";
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import TicketMap from "@/components/TicketMap";
 import { useNavigate } from "react-router-dom";
+import ProfileNav from "@/components/ProfileNav";
+import { useUser } from "@/hooks/useUser";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
 
@@ -76,6 +78,7 @@ const DIAS = [
 
 export default function Perfil() {
   const navigate = useNavigate();
+  const { user } = useUser();
   const [perfil, setPerfil] = useState({
     nombre_empresa: "",
     telefono: "",
@@ -402,7 +405,7 @@ export default function Perfil() {
       ? Math.min((perfil.preguntas_usadas / limitePlan) * 100, 100)
       : 0;
   const avatarEmoji = RUBRO_AVATAR[perfil.rubro] || RUBRO_AVATAR.default;
-  const esMunicipio = perfil.rubro === "municipios";
+  const esMunicipio = (user?.tipo_chat || perfil.rubro) === "municipio" || perfil.rubro === "municipios";
 
   return (
     <div className="flex flex-col min-h-screen bg-background dark:bg-gradient-to-tr dark:from-slate-950 dark:to-slate-900 text-foreground py-8 px-2 sm:px-4 md:px-6 lg:px-8">
@@ -424,30 +427,8 @@ export default function Perfil() {
             </span>
           </div>
         </div>
-        <div className="flex gap-3 items-center">
-          <Button
-            variant="outline"
-            className="h-10 px-5 text-sm border-border text-foreground hover:bg-accent hover:text-accent-foreground"
-            onClick={() => navigate("/tickets")}
-          >
-            Ver Tickets
-          </Button>
-          {!esMunicipio && (
-            <Button
-              variant="outline"
-              className="h-10 px-5 text-sm border-border text-foreground hover:bg-accent hover:text-accent-foreground"
-              onClick={() => navigate("/pedidos")}
-            >
-              Ver Pedidos
-            </Button>
-          )}
-          <Button
-            variant="outline"
-            className="h-10 px-5 text-sm border-border text-foreground hover:bg-accent hover:text-accent-foreground"
-            onClick={() => navigate("/usuarios")}
-          >
-            Ver Usuarios
-          </Button>
+        <div className="flex gap-3 items-center flex-wrap">
+          <ProfileNav />
           <Button
             variant="outline"
             className="h-10 px-5 text-sm border-destructive text-destructive hover:bg-destructive/10"
