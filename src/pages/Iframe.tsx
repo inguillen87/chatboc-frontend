@@ -20,6 +20,7 @@ const Iframe = () => {
         defaultOpen: urlParams.get("defaultOpen") === "true",
         widgetId: urlParams.get("widgetId") || "chatboc-iframe-unknown",
         token: urlParams.get("token"),
+        view: urlParams.get("view") || 'chat',
         openWidth: urlParams.get("openWidth") || DEFAULTS.openWidth,
         openHeight: urlParams.get("openHeight") || DEFAULTS.openHeight,
         closedWidth: urlParams.get("closedWidth") || DEFAULTS.closedWidth,
@@ -44,6 +45,7 @@ const Iframe = () => {
       closedWidth={params.closedWidth}
       closedHeight={params.closedHeight}
       ctaMessage={params.ctaMessage}
+      initialView={params.view}
     />
   );
 };
