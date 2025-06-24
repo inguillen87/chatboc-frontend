@@ -17,7 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
-import TicketMap from "@/components/TicketMap";
+import LocationMap from "@/components/LocationMap";
 import { useNavigate } from "react-router-dom";
 import ProfileNav from "@/components/ProfileNav";
 import QuickLinksCard from "@/components/QuickLinksCard";
@@ -709,14 +709,12 @@ export default function Perfil() {
                 )}
               </form>
               {(perfil.direccion || (perfil.latitud !== null && perfil.longitud !== null)) && (
-                <TicketMap
-                  ticket={{
-                    latitud: perfil.latitud ?? undefined,
-                    longitud: perfil.longitud ?? undefined,
-                    direccion: perfil.direccion,
-                    municipio_nombre: perfil.ciudad || undefined,
-                    tipo: 'pyme',
-                  }}
+                <LocationMap
+                  lat={perfil.latitud ?? undefined}
+                  lng={perfil.longitud ?? undefined}
+                  onMove={(la, ln) =>
+                    setPerfil((prev) => ({ ...prev, latitud: la, longitud: ln }))
+                  }
                 />
               )}
             </CardContent>
