@@ -11,7 +11,7 @@ export default function useRequireRole(allowedRoles: Role[]) {
     if (!loading) {
       const role = normalizeRole(user?.rol);
       if (!allowedRoles.includes(role)) {
-        navigate('/');
+        navigate('/403');
       }
     }
   }, [user, loading, navigate, allowedRoles]);

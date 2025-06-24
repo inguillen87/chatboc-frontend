@@ -23,3 +23,5 @@ trámites** en `/municipal/tramites`, un listado de **usuarios internos** en
 sistemas municipales** en `/municipal/integrations` y un módulo de **encuestas de
 satisfacción** en `/municipal/surveys`. Todas estas secciones consumen la
 información que provee el backend y no requieren configuración por municipio.
+
+Antes de habilitar estas páginas verificá que los endpoints mencionados existan en el backend. Si el servidor responde 404, actualizá la ruta o implementá el endpoint para evitar errores en la interfaz.
