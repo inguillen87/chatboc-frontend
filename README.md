@@ -72,6 +72,22 @@ The chat interface defaults to the "municipio" style. To switch to the
 "pyme" variant, set `VITE_APP_TARGET=pyme` in your environment or `.env`
 file before running `npm run dev`.
 
+### Timezone and locale
+
+All dates are formatted using the timezone from `VITE_TIMEZONE` and the locale
+from `VITE_LOCALE`. These values default to the Argentinian settings
+`America/Argentina/Buenos_Aires` (GMT‑3) and `es-AR`. To display times for a
+different country, override the variables in your `.env` file:
+
+```bash
+# .env
+VITE_TIMEZONE=America/Santiago
+VITE_LOCALE=es-CL
+```
+
+The `DateSettingsProvider` also reads any `timezone` or `locale` stored in
+`localStorage`, so user preferences persist across sessions.
+
 ## How can I deploy this project?
 
 Simply open [Lovable](https://lovable.dev/projects/a97ee1e3-5a88-429f-8969-dcd039ee2482) and click on Share -> Publish.
