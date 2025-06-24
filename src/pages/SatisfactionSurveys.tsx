@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { apiFetch } from '@/utils/api';
+import { apiFetch, getErrorMessage } from '@/utils/api';
 import { Button } from '@/components/ui/button';
 
 interface Survey {
@@ -30,7 +30,7 @@ export default function SatisfactionSurveys() {
         body: { respuesta: answers[id] },
       });
     } catch (e: any) {
-      setError(e.message || 'Error');
+      setError(getErrorMessage(e, 'Error'));
     } finally {
       setSaving(false);
     }

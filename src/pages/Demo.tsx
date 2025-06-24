@@ -6,7 +6,7 @@ import ChatInput from "@/components/chat/ChatInput";
 import TypingIndicator from "@/components/chat/TypingIndicator";
 import ChatMessage from "@/components/chat/ChatMessage";
 import { Message } from "@/types/chat";
-import { apiFetch } from "@/utils/api";
+import { apiFetch, getErrorMessage } from "@/utils/api";
 import { getCurrentTipoChat, enforceTipoChatForRubro, parseRubro } from "@/utils/tipoChat";
 import { getAskEndpoint, esRubroPublico } from "@/utils/chatEndpoints";
 import { parseChatResponse } from "@/utils/parseChatResponse";
@@ -124,12 +124,10 @@ const Demo = () => {
         lastQueryRef.current = null;
         setPreguntasUsadas((prev) => prev + 1);
       } catch (error: any) {
-        let errorMsg = "⚠️ No se pudo conectar con el servidor.";
-        if (error?.body?.error) {
-          errorMsg = error.body.error;
-        } else if (error?.message) {
-          errorMsg = error.message;
-        }
+        const errorMsg = getErrorMessage(
+          error,
+          '⚠️ No se pudo conectar con el servidor.'
+        );
         setMessages((prev) => [
           ...prev,
           {

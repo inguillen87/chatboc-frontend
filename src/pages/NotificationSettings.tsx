@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { apiFetch } from '@/utils/api';
+import { apiFetch, getErrorMessage } from '@/utils/api';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 
@@ -30,7 +30,7 @@ export default function NotificationSettings() {
         body: settings,
       });
     } catch (e: any) {
-      setError(e.message || 'Error');
+      setError(getErrorMessage(e, 'Error'));
     } finally {
       setSaving(false);
     }

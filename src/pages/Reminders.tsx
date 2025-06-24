@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { apiFetch } from '@/utils/api';
+import { apiFetch, getErrorMessage } from '@/utils/api';
 
 interface Reminder {
   id: number;
@@ -19,7 +19,7 @@ export default function Reminders() {
         setLoading(false);
       })
       .catch((err: any) => {
-        setError(err.message || 'Error');
+        setError(getErrorMessage(err, 'Error'));
         setLoading(false);
       });
   }, []);

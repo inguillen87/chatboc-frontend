@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { apiFetch } from "@/utils/api";
+import { apiFetch, getErrorMessage } from "@/utils/api";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -33,7 +33,7 @@ export default function UsuariosPage() {
         const data = await apiFetch<Usuario[]>("/crm/usuarios");
         if (Array.isArray(data)) setUsuarios(data);
       } catch (e) {
-        setError("No se pudieron cargar los usuarios");
+        setError(getErrorMessage(e, 'No se pudieron cargar los usuarios'));
       } finally {
         setLoading(false);
       }
