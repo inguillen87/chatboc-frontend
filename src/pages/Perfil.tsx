@@ -3,12 +3,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   LogOut,
   UploadCloud,
   CheckCircle,
   XCircle,
+  Check,
+  X,
   Info,
   ChevronDown,
   ChevronUp,
@@ -26,7 +27,6 @@ import { cn } from "@/lib/utils";
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import LocationMap from "@/components/LocationMap";
 import { useNavigate } from "react-router-dom";
-import ProfileNav from "@/components/ProfileNav";
 import QuickLinksCard from "@/components/QuickLinksCard";
 import { useUser } from "@/hooks/useUser";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
@@ -37,17 +37,6 @@ import { getCurrentTipoChat } from "@/utils/tipoChat";
 const API_BASE_URL = import.meta.env.VITE_API_URL || "/api";
 const Maps_API_KEY =
   import.meta.env.VITE_Maps_API_KEY || "AIzaSyDbEoPzFgN5zJsIeywiRE7jRI8xr5ioGNI";
-const RUBRO_AVATAR = {
-  bodega: "🍷",
-  restaurante: "🍽️",
-  almacen: "🛒",
-  ecommerce: "🛍️",
-  medico: "🩺",
-  ferreteria: "🔧",
-  corralon: "🧱",
-  municipios: "🏛️",
-  default: "🏢",
-};
 const PROVINCIAS = [
   "Buenos Aires",
   "CABA",
@@ -262,8 +251,11 @@ export default function Perfil() {
     const { id, value } = e.target;
     setPerfil((prev) => ({ ...prev, [id]: value }));
     // Si toca el campo dirección manualmente, dejá el autocomplete limpio
-    if (id === "direccion") setDireccionSeleccionada(null);
+    if (id === "direccion") {
+      setDireccionSeleccionada(null);
+    }
   };
+
 
   const handleHorarioChange = (index, field, value) => {
     const nuevosHorarios = perfil.horarios_ui.map((h, idx) =>
@@ -412,44 +404,29 @@ export default function Perfil() {
       : limitePlan > 0
       ? Math.min((perfil.preguntas_usadas / limitePlan) * 100, 100)
       : 0;
-  const avatarEmoji = RUBRO_AVATAR[perfil.rubro] || RUBRO_AVATAR.default;
   const esMunicipio = (user?.tipo_chat || perfil.rubro) === "municipio" || perfil.rubro === "municipios";
 
   return (
     <div className="flex flex-col min-h-screen bg-background dark:bg-gradient-to-tr dark:from-slate-950 dark:to-slate-900 text-foreground py-8 px-2 sm:px-4 md:px-6 lg:px-8">
-      <div className="w-full max-w-6xl mx-auto grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] items-center gap-4 mb-6 px-2">
-        <div className="flex items-center gap-4">
-          <Avatar className="w-16 h-16 sm:w-20 sm:h-20 bg-secondary border-2 border-border shadow-lg">
-            <AvatarFallback className="bg-transparent">
-              <span className="text-3xl sm:text-4xl text-primary">
-                {avatarEmoji}
-              </span>
-            </AvatarFallback>
-          </Avatar>
-          <div>
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-primary leading-tight mb-0.5 flex items-center gap-2">
-              <Building className="w-6 h-6" />
-              {perfil.nombre_empresa || "Panel de Empresa"}
-            </h1>
-            <span className="text-muted-foreground text-sm sm:text-base font-medium capitalize block">
-              {perfil.rubro || "Rubro no especificado"}
-            </span>
-          </div>
-        </div>
-        <div className="flex justify-center justify-self-center">
-          <ProfileNav />
-        </div>
-        <div className="justify-self-end">
-          <Button
-            variant="outline"
-            className="h-10 px-5 text-sm rounded-lg border-destructive text-destructive hover:bg-destructive/10"
-            onClick={() => {
-              safeLocalStorage.clear();
-              window.location.href = "/login";
-            }}
-          >
-            <LogOut className="w-4 h-4 mr-2" /> Salir
-          </Button>
+      <div className="w-full max-w-6xl mx-auto mb-6 relative px-2">
+        <Button
+          variant="outline"
+          className="absolute right-0 top-0 h-10 px-5 text-sm rounded-lg border-destructive text-destructive hover:bg-destructive/10"
+          onClick={() => {
+            safeLocalStorage.clear();
+            window.location.href = "/login";
+          }}
+        >
+          <LogOut className="w-4 h-4 mr-2" /> Salir
+        </Button>
+        <div className="flex flex-col items-center text-center gap-2">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-primary leading-tight flex items-center gap-2">
+            <Building className="w-6 h-6" />
+            {perfil.nombre_empresa || "Panel de Empresa"}
+          </h1>
+          <span className="text-muted-foreground text-sm sm:text-base font-medium capitalize">
+            {perfil.rubro || "Rubro no especificado"}
+          </span>
         </div>
       </div>
 
@@ -518,7 +495,7 @@ export default function Perfil() {
                     />
                   </div>
                 </div>
-                <div>
+                <div className="relative">
                   <Label
                     htmlFor="google-places-input"
                     className="text-muted-foreground text-sm mb-1 block"
@@ -539,6 +516,7 @@ export default function Perfil() {
                           (results, status) => {
                             if (status === "OK" && results[0]) {
                               handlePlaceSelected(results[0]);
+                              setDireccionSeleccionada({ label: addr, value: addr });
                             } else {
                               setPerfil((prev) => ({
                                 ...prev,
@@ -551,8 +529,33 @@ export default function Perfil() {
                           },
                         );
                     }}
+                    disabled={!!perfil.direccion && !!direccionSeleccionada}
                     placeholder="Ej: Av. Principal 123"
                   />
+                  {!!perfil.direccion && !!direccionSeleccionada && (
+                    <div className="absolute right-2 top-9 flex gap-2">
+                      <button
+                        type="button"
+                        className="p-1 rounded-full hover:bg-destructive/10 text-destructive"
+                        onClick={() => {
+                          setDireccionSeleccionada(null);
+                          setPerfil((prev) => ({ ...prev, direccion: "" }));
+                        }}
+                        title="Borrar dirección"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        className="p-1 rounded-full hover:bg-green-100 text-green-700"
+                        title="Dirección confirmada"
+                        disabled
+                        tabIndex={-1}
+                      >
+                        <Check className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

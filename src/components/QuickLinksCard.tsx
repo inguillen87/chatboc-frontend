@@ -1,13 +1,13 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Ticket,
   Users,
   BarChart2,
   UserCog,
-  LayoutDashboard,
   MapPin,
 } from "lucide-react";
 import { useUser } from "@/hooks/useUser";
@@ -31,9 +31,25 @@ const ITEMS: LinkItem[] = [
 
 export default function QuickLinksCard() {
   const navigate = useNavigate();
-  const { user } = useUser();
+  const { user, refreshUser } = useUser();
 
-  if (!user) return null;
+  useEffect(() => {
+    if (!user) {
+      refreshUser();
+    }
+  }, [user, refreshUser]);
+
+  if (!user) {
+    return (
+      <Card className="bg-card shadow-xl rounded-xl border border-border">
+        <CardContent className="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="aspect-square w-full rounded-xl" />
+          ))}
+        </CardContent>
+      </Card>
+    );
+  }
 
   const role = normalizeRole(user.rol);
   const tipo = user.tipo_chat as "pyme" | "municipio";
@@ -46,12 +62,7 @@ export default function QuickLinksCard() {
 
   return (
     <Card className="bg-card shadow-xl rounded-xl border border-border hover:shadow-2xl transition-shadow">
-      <CardHeader>
-        <CardTitle className="text-lg font-semibold text-primary flex items-center gap-2">
-          <LayoutDashboard className="w-5 h-5" /> Accesos rápidos
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+      <CardContent className="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
         {items.map(({ label, path, icon: Icon }) => (
           <Button
             key={path}
