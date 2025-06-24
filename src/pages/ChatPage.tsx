@@ -431,6 +431,9 @@ const ChatPage = () => {
                   }
                   persistKey="ultima_direccion"
                 />
+                {direccionGuardada && (
+                  <TicketMap ticket={{ direccion: direccionGuardada }} />
+                )}
                 <button
                   onClick={handleShareGps}
                   className="mt-2 text-sm text-primary underline"
