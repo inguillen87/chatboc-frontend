@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Ticket,
   Users,
@@ -30,9 +31,25 @@ const ITEMS: LinkItem[] = [
 
 export default function QuickLinksCard() {
   const navigate = useNavigate();
-  const { user } = useUser();
+  const { user, refreshUser } = useUser();
 
-  if (!user) return null;
+  useEffect(() => {
+    if (!user) {
+      refreshUser();
+    }
+  }, [user, refreshUser]);
+
+  if (!user) {
+    return (
+      <Card className="bg-card shadow-xl rounded-xl border border-border">
+        <CardContent className="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="aspect-square w-full rounded-xl" />
+          ))}
+        </CardContent>
+      </Card>
+    );
+  }
 
   const role = normalizeRole(user.rol);
   const tipo = user.tipo_chat as "pyme" | "municipio";
