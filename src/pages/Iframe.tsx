@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import ChatWidget from "../components/chat/ChatWidget";
+import { GoogleOAuthProvider } from "@react-oauth/google";
 
 const DEFAULTS = {
   openWidth: "460px",
@@ -7,6 +8,13 @@ const DEFAULTS = {
   closedWidth: "96px",
   closedHeight: "96px",
 };
+
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+if (!GOOGLE_CLIENT_ID) {
+  console.warn(
+    'VITE_GOOGLE_CLIENT_ID is missing. Google OAuth login will fail until this variable is set. See README.md for setup instructions.'
+  );
+}
 
 const Iframe = () => {
   const [params, setParams] = useState<any>(null);
@@ -33,20 +41,22 @@ const Iframe = () => {
 
   if (!params || !params.token) return null;
   return (
-    <ChatWidget
-      mode="iframe"
-      defaultOpen={params.defaultOpen}
-      widgetId={params.widgetId}
-      entityToken={params.token}
-      tipoChat={params.tipoChat}
-      openWidth={params.openWidth}
-      openHeight={params.openHeight}
-      closedWidth={params.closedWidth}
-      closedHeight={params.closedHeight}
-      ctaMessage={params.ctaMessage}
-      initialView={params.view}
-      initialRubro={params.rubro}
-    />
+    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+      <ChatWidget
+        mode="iframe"
+        defaultOpen={params.defaultOpen}
+        widgetId={params.widgetId}
+        entityToken={params.token}
+        tipoChat={params.tipoChat}
+        openWidth={params.openWidth}
+        openHeight={params.openHeight}
+        closedWidth={params.closedWidth}
+        closedHeight={params.closedHeight}
+        ctaMessage={params.ctaMessage}
+        initialView={params.view}
+        initialRubro={params.rubro}
+      />
+    </GoogleOAuthProvider>
   );
 };
 
