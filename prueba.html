@@ -16,6 +16,10 @@
     s.setAttribute('data-bottom', '20px');
     s.setAttribute('data-right', '20px');
     s.setAttribute('data-endpoint', 'municipio');
+    // widget.js establecerá allow="clipboard-write; geolocation" en su iframe
+    // para poder solicitar la ubicación del visitante
+    // Si este código corre dentro de otro iframe, ese contenedor externo
+    // también debe incluir allow="clipboard-write; geolocation"
     document.body.appendChild(s);
   });
   </script>
