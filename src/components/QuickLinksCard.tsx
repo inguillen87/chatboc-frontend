@@ -49,15 +49,15 @@ export default function QuickLinksCard() {
           <LayoutDashboard className="w-5 h-5" /> Accesos rápidos
         </CardTitle>
       </CardHeader>
-      <CardContent className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <CardContent className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-4">
         {items.map(({ label, path, icon: Icon }) => (
           <Button
             key={path}
             variant="outline"
-            className="flex flex-col items-center justify-center gap-2 py-5 text-sm rounded-lg shadow hover:bg-accent hover:text-accent-foreground"
+            className="flex flex-col items-center justify-center gap-2 aspect-square w-full text-xs sm:text-sm rounded-xl shadow-sm hover:bg-accent hover:text-accent-foreground"
             onClick={() => navigate(path)}
           >
-            <Icon className="w-5 h-5" />
+            <Icon className="w-6 h-6" />
             {label}
           </Button>
         ))}
