@@ -17,6 +17,7 @@ import getOrCreateAnonId from "@/utils/anonId";
 import { parseChatResponse } from "@/utils/parseChatResponse";
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { getCurrentTipoChat } from "@/utils/tipoChat";
+import { requestLocation } from "@/utils/geolocation";
 
 const FRASES_DIRECCION = [
   "indicame la dirección",
@@ -187,38 +188,36 @@ const ChatPanel = ({
       onRequireAuth && onRequireAuth();
       return;
     }
-    if (!activeTicketId || !navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const coords = { latitud: pos.coords.latitude, longitud: pos.coords.longitude };
-        try {
-          const authHeaders = finalAuthToken ? { Authorization: `Bearer ${finalAuthToken}` } : {};
-          const entityTokenFromStorage = safeLocalStorage.getItem("entityToken");
-          const entityHeaders = entityTokenFromStorage ? { 'X-Entity-Token': entityTokenFromStorage } : {};
-
-          await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, { method: "PUT", headers: { ...authHeaders, ...entityHeaders }, body: coords, skipAuth: !finalAuthToken, sendAnonId: esAnonimo });
-          await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, { method: "PUT", headers: { ...authHeaders, ...entityHeaders }, body: coords, skipAuth: !finalAuthToken, sendAnonId: esAnonimo });
-          setForzarDireccion(false);
-          fetchTicket();
-        } catch (e) {
-          console.error("Error al enviar ubicación", e);
-        }
-      },
-      () => {
+    if (!activeTicketId) return;
+    requestLocation({ enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }).then(async (coords) => {
+      if (!coords) {
         setForzarDireccion(true);
         setEsperandoDireccion(true);
         setMessages((prev) => [
           ...prev,
           {
             id: Date.now(),
-            text: "No pudimos acceder a tu ubicación por GPS. Ingresá la dirección manualmente para continuar.",
+            text: "No pudimos acceder a tu ubicación por GPS. Verificá los permisos y que estés usando una conexión segura (https). Ingresá la dirección manualmente para continuar.",
             isBot: true,
             timestamp: new Date(),
             query: undefined,
           },
         ]);
+        return;
       }
-    );
+      try {
+        const authHeaders = finalAuthToken ? { Authorization: `Bearer ${finalAuthToken}` } : {};
+        const entityTokenFromStorage = safeLocalStorage.getItem("entityToken");
+        const entityHeaders = entityTokenFromStorage ? { 'X-Entity-Token': entityTokenFromStorage } : {};
+
+        await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, { method: "PUT", headers: { ...authHeaders, ...entityHeaders }, body: coords, skipAuth: !finalAuthToken, sendAnonId: esAnonimo });
+        await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, { method: "PUT", headers: { ...authHeaders, ...entityHeaders }, body: coords, skipAuth: !finalAuthToken, sendAnonId: esAnonimo });
+        setForzarDireccion(false);
+        fetchTicket();
+      } catch (e) {
+        console.error("Error al enviar ubicación", e);
+      }
+    });
   }, [activeTicketId, fetchTicket, esAnonimo, onRequireAuth, finalAuthToken]);
 
   useEffect(() => { fetchTicket(); }, [activeTicketId, fetchTicket]);
@@ -230,44 +229,34 @@ const ChatPanel = ({
       onRequireAuth && onRequireAuth();
       return;
     }
-    if (navigator.geolocation) {
-      try {
-        navigator.geolocation.getCurrentPosition(
-          async (pos) => {
-            const coords = { latitud: pos.coords.latitude, longitud: pos.coords.longitude };
-            try {
-              const authHeaders = finalAuthToken ? { Authorization: `Bearer ${finalAuthToken}` } : {};
-              const entityTokenFromStorage = safeLocalStorage.getItem("entityToken");
-              const entityHeaders = entityTokenFromStorage ? { 'X-Entity-Token': entityTokenFromStorage } : {};
-
-              await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, { method: "PUT", headers: { ...authHeaders, ...entityHeaders }, body: coords, skipAuth: !finalAuthToken, sendAnonId: esAnonimo });
-              await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, { method: "PUT", headers: { ...authHeaders, ...entityHeaders }, body: coords, skipAuth: !finalAuthToken, sendAnonId: esAnonimo });
-              fetchTicket();
-            } catch (e) {
-              console.error("Error al enviar ubicación", e);
-            }
-          },
-          () => {
-            setForzarDireccion(true);
-            setEsperandoDireccion(true);
-            setMessages((prev) => [
-              ...prev,
-              {
-                id: Date.now(),
-                text: "No pudimos acceder a tu ubicación por GPS. Ingresá la dirección manualmente para continuar.",
-                isBot: true,
-                timestamp: new Date(),
-                query: undefined,
-              },
-            ]);
-          }
-        );
-      } catch {
+    requestLocation({ enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }).then(async (coords) => {
+      if (!coords) {
         setForzarDireccion(true);
+        setEsperandoDireccion(true);
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: Date.now(),
+            text: "No pudimos acceder a tu ubicación por GPS. Verificá los permisos y que estés usando una conexión segura (https). Ingresá la dirección manualmente para continuar.",
+            isBot: true,
+            timestamp: new Date(),
+            query: undefined,
+          },
+        ]);
+        return;
       }
-    } else {
-      setForzarDireccion(true);
-    }
+      try {
+        const authHeaders = finalAuthToken ? { Authorization: `Bearer ${finalAuthToken}` } : {};
+        const entityTokenFromStorage = safeLocalStorage.getItem("entityToken");
+        const entityHeaders = entityTokenFromStorage ? { 'X-Entity-Token': entityTokenFromStorage } : {};
+
+        await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, { method: "PUT", headers: { ...authHeaders, ...entityHeaders }, body: coords, skipAuth: !finalAuthToken, sendAnonId: esAnonimo });
+        await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, { method: "PUT", headers: { ...authHeaders, ...entityHeaders }, body: coords, skipAuth: !finalAuthToken, sendAnonId: esAnonimo });
+        fetchTicket();
+      } catch (e) {
+        console.error("Error al enviar ubicación", e);
+      }
+    }).catch(() => setForzarDireccion(true));
   }, [activeTicketId, fetchTicket, finalAuthToken, esAnonimo, anonId, onRequireAuth]);
 
   function shouldShowAutocomplete(messages: Message[], contexto: any) {
