@@ -23,7 +23,7 @@ export default function IncidentsMap() {
   useEffect(() => {
     apiFetch<Incident[]>('/municipal/incidents')
       .then((data) => {
-        setIncidents(data);
+        setIncidents(Array.isArray(data) ? data : []);
         setLoading(false);
       })
       .catch((err: any) => {
