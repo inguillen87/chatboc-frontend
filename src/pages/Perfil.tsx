@@ -38,9 +38,6 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || "/api";
 const Maps_API_KEY =
   import.meta.env.VITE_Maps_API_KEY || "AIzaSyDbEoPzFgN5zJsIeywiRE7jRI8xr5ioGNI";
 const PROVINCIAS = [
-=======
-  const PROVINCIAS = [
->>>>>>> main
   "Buenos Aires",
   "CABA",
   "Catamarca",
