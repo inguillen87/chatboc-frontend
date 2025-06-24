@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { apiFetch } from '@/utils/api';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import useRequireRole from '@/hooks/useRequireRole';
+import type { Role } from '@/utils/roles';
 
 interface StatItem {
   label: string;
@@ -12,6 +14,7 @@ interface StatsResponse {
 }
 
 export default function MunicipalStats() {
+  useRequireRole(['admin'] as Role[]);
   const [data, setData] = useState<StatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

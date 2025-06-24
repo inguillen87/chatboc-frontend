@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { apiFetch } from '@/utils/api';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import useRequireRole from '@/hooks/useRequireRole';
+import type { Role } from '@/utils/roles';
 
 interface Tramite {
   id: number;
@@ -11,6 +13,7 @@ interface Tramite {
 }
 
 export default function TramitesCatalog() {
+  useRequireRole(['admin'] as Role[]);
   const [tramites, setTramites] = useState<Tramite[]>([]);
   const [filtered, setFiltered] = useState<Tramite[]>([]);
   const [loading, setLoading] = useState(true);

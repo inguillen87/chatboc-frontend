@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { apiFetch } from '@/utils/api';
 import { Button } from '@/components/ui/button';
+import useRequireRole from '@/hooks/useRequireRole';
+import type { Role } from '@/utils/roles';
 
 interface Integration {
   id: number;
@@ -10,6 +12,7 @@ interface Integration {
 }
 
 export default function MunicipalSystems() {
+  useRequireRole(['admin'] as Role[]);
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
