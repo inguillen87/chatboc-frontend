@@ -1,6 +1,6 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useUser } from '@/hooks/useUser';
 import { normalizeRole } from '@/utils/roles';
 
@@ -23,6 +23,7 @@ const NAV_ITEMS: NavItem[] = [
 
 export default function ProfileNav() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useUser();
 
   if (!user) return null;
@@ -45,17 +46,14 @@ export default function ProfileNav() {
   if (!items.length) return null;
 
   return (
-    <div className="flex gap-3 items-center flex-wrap">
-      {items.map((it) => (
-        <Button
-          key={it.path}
-          variant="outline"
-          className="h-10 px-5 text-sm border-border text-foreground hover:bg-accent hover:text-accent-foreground"
-          onClick={() => navigate(it.path)}
-        >
-          {it.label}
-        </Button>
-      ))}
-    </div>
+    <Tabs value={location.pathname} onValueChange={(v) => navigate(v)}>
+      <TabsList>
+        {items.map((it) => (
+          <TabsTrigger key={it.path} value={it.path} className="px-3 py-2">
+            {it.label}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+    </Tabs>
   );
 }

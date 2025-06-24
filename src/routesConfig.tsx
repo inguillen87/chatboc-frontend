@@ -72,14 +72,14 @@ const routes: RouteConfig[] = [
   { path: '/pyme/metrics', element: <BusinessMetrics /> },
   { path: '/crm/integrations', element: <CrmIntegrations /> },
   { path: '/consultas', element: <PredefinedQueries /> },
-  { path: '/pyme/catalog', element: <ProductCatalog /> },
-  { path: '/municipal/tramites', element: <TramitesCatalog /> },
+  { path: '/pyme/catalog', element: <ProductCatalog />, roles: ['admin'] },
+  { path: '/municipal/tramites', element: <TramitesCatalog />, roles: ['admin'] },
   { path: '/municipal/usuarios', element: <InternalUsers />, roles: ['admin'] },
-  { path: '/municipal/whatsapp', element: <WhatsappIntegration /> },
-  { path: '/municipal/integrations', element: <MunicipalSystems /> },
+  { path: '/municipal/whatsapp', element: <WhatsappIntegration />, roles: ['admin'] },
+  { path: '/municipal/integrations', element: <MunicipalSystems />, roles: ['admin'] },
   { path: '/municipal/surveys', element: <SatisfactionSurveys /> },
-  { path: '/municipal/stats', element: <MunicipalStats /> },
-  { path: '/municipal/incidents', element: <IncidentsMap /> },
+  { path: '/municipal/stats', element: <MunicipalStats />, roles: ['admin'] },
+  { path: '/municipal/incidents', element: <IncidentsMap />, roles: ['admin'] },
 ];
 
 export default routes;
