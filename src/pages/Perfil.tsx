@@ -20,6 +20,7 @@ import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import TicketMap from "@/components/TicketMap";
 import { useNavigate } from "react-router-dom";
 import ProfileNav from "@/components/ProfileNav";
+import QuickLinksCard from "@/components/QuickLinksCard";
 import { useUser } from "@/hooks/useUser";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
@@ -799,10 +800,12 @@ export default function Perfil() {
                 <br />
                 Si no ves el cambio en unos minutos, comunicate con soporte..
               </div>
-            </CardContent>
-          </Card>
+          </CardContent>
+        </Card>
 
-          <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm">
+        <QuickLinksCard />
+
+        <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm">
             <CardHeader>
               <CardTitle className="text-lg font-semibold text-primary">
                 {esMunicipio
