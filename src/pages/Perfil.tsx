@@ -13,8 +13,8 @@ import {
   Info,
   ChevronDown,
   ChevronUp,
-  Building,
 } from "lucide-react";
+import MunicipioIcon from "@/components/ui/MunicipioIcon";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -428,8 +428,10 @@ export default function Perfil() {
           <LogOut className="w-4 h-4 mr-2" /> Salir
         </Button>
         <div className="flex flex-col items-center text-center gap-2">
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-primary leading-tight flex items-center gap-2">
-            <Building className="w-6 h-6" />
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-primary leading-tight flex items-center gap-4">
+            <span className="inline-block align-middle">
+              <MunicipioIcon />
+            </span>
             {perfil.nombre_empresa || "Panel de Empresa"}
           </h1>
           <span className="text-muted-foreground text-sm sm:text-base font-medium capitalize">
