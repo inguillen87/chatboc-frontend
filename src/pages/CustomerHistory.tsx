@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { apiFetch } from "@/utils/api";
+import { apiFetch, getErrorMessage } from "@/utils/api";
 import { formatDate } from "@/utils/fecha";
 import {
   Dialog,
@@ -156,7 +156,7 @@ export default function CustomerHistory() {
         setLoading(false);
       })
       .catch((err: any) => {
-        setError(err.message || 'Error');
+        setError(getErrorMessage(err, 'Error'));
         setLoading(false);
       });
   }, []);

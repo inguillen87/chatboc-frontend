@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, FC } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { apiFetch } from '@/utils/api';
+import { apiFetch, getErrorMessage } from '@/utils/api';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -264,7 +264,7 @@ export default function PedidosPage() {
       setOpenCategories(new Set(Object.keys(categorized).filter((e) => !['satisfecho', 'cancelado'].includes(e))));
     } catch (err) {
       console.error('Error fetching pedidos:', err);
-      setError('Error al cargar los pedidos. Por favor, asegúrate de estar logueado.');
+      setError(getErrorMessage(err, 'Error al cargar los pedidos.'));
     } finally {
       setIsLoading(false);
     }

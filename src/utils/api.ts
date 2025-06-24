@@ -116,3 +116,18 @@ export async function apiFetch<T>(
     throw new Error("Error de conexión con el servidor.");
   }
 }
+
+/**
+ * Extrae un mensaje amigable de error para mostrar en la interfaz.
+ */
+export function getErrorMessage(error: unknown, fallback = "Error") {
+  if (error instanceof ApiError) {
+    if (error.status === 403) return "Acceso prohibido";
+    if (error.status === 404) return "No encontrado";
+    return error.message;
+  }
+  if (error && typeof (error as any).message === "string") {
+    return (error as any).message;
+  }
+  return fallback;
+}

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { apiFetch } from '@/utils/api';
+import { apiFetch, getErrorMessage } from '@/utils/api';
 import { Button } from '@/components/ui/button';
 
 interface CrmSystem {
@@ -21,7 +21,7 @@ export default function CrmIntegrations() {
         setLoading(false);
       })
       .catch((err: any) => {
-        setError(err.message || 'Error');
+        setError(getErrorMessage(err, 'Error'));
         setLoading(false);
       });
   }, []);

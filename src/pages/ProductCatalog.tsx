@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { apiFetch } from '@/utils/api';
+import { apiFetch, getErrorMessage } from '@/utils/api';
 
 interface Product {
   id: number;
@@ -26,7 +26,7 @@ export default function ProductCatalog() {
         setLoading(false);
       })
       .catch((err: any) => {
-        setError(err.message || 'Error');
+        setError(getErrorMessage(err, 'Error'));
         setLoading(false);
       });
   }, []);

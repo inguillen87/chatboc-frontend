@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { apiFetch } from '@/utils/api';
+import { apiFetch, getErrorMessage } from '@/utils/api';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 
@@ -21,7 +21,7 @@ export default function BudgetRequest() {
       });
       setPdfUrl(data.pdf_url);
     } catch (err: any) {
-      setError(err.message || 'Error');
+      setError(getErrorMessage(err, 'Error'));
     } finally {
       setLoading(false);
     }

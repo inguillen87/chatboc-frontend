@@ -5,7 +5,7 @@ import ChatInput from "@/components/chat/ChatInput";
 import TypingIndicator from "@/components/chat/TypingIndicator";
 import Navbar from "@/components/layout/Navbar";
 import { motion, AnimatePresence } from "framer-motion";
-import { apiFetch } from "@/utils/api";
+import { apiFetch, getErrorMessage } from "@/utils/api";
 import { getAskEndpoint, esRubroPublico, parseRubro } from "@/utils/chatEndpoints";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { useUser } from "@/hooks/useUser";
@@ -309,17 +309,26 @@ const ChatPage = () => {
           if (!isAnonimo) await refreshUser();
         }
       } catch (error: any) {
-        let errorMsg = "⚠️ No se pudo conectar con el servidor.";
-        if (error?.body?.error) errorMsg = error.body.error;
-        else if (error?.message) errorMsg = error.message;
-        setMessages((prev) => [...prev, {
-          id: Date.now(),
-          text: errorMsg,
-          isBot: true,
-          timestamp: new Date(),
-          query: undefined,
-        }]);
-        toast({ title: "Error de comunicación", description: errorMsg, variant: "destructive", duration: 5000 });
+        const errorMsg = getErrorMessage(
+          error,
+          '⚠️ No se pudo conectar con el servidor.'
+        );
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: Date.now(),
+            text: errorMsg,
+            isBot: true,
+            timestamp: new Date(),
+            query: undefined,
+          },
+        ]);
+        toast({
+          title: 'Error de comunicación',
+          description: errorMsg,
+          variant: 'destructive',
+          duration: 5000,
+        });
       } finally {
         setIsTyping(false);
       }
