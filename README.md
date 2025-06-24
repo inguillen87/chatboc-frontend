@@ -369,6 +369,10 @@ The page `/municipal/usuarios` relies on `useRequireRole(['admin'])` so only
 admins can view or manage internal users. If a non-admin attempts to open that
 section, the hook redirects back to the start page.
 
+The `/municipal/usuarios` page now includes a small form to register employees.
+Admins must provide name, email, password, role and a category fetched from the
+backend. After creating the employee the list refreshes automatically.
+
 
 ## Widget integration guidelines
 Detailed requirements for the embedded widget can be found in [docs/widget-requirements.md](docs/widget-requirements.md).
