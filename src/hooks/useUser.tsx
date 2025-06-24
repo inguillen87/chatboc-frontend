@@ -1,11 +1,7 @@
 import React, { useContext, useState, useCallback, useEffect } from 'react';
 import { apiFetch } from '@/utils/api';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
-import {
-  getCurrentTipoChat,
-  enforceTipoChatForRubro,
-  parseRubro,
-} from '@/utils/tipoChat';
+import { enforceTipoChatForRubro, parseRubro } from '@/utils/tipoChat';
 
 interface UserData {
   id?: number;
@@ -50,10 +46,15 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
     const data = await apiFetch<any>('/me');
     const rubroNorm = parseRubro(data.rubro) || '';
-    const finalTipo = enforceTipoChatForRubro(
-      (data.tipo_chat || getCurrentTipoChat()) as 'pyme' | 'municipio',
-      rubroNorm,
-    );
+    if (!data.tipo_chat) {
+      console.warn('tipo_chat faltante en respuesta de /me');
+    }
+    if (!data.rol) {
+      console.warn('rol faltante en respuesta de /me');
+    }
+    const finalTipo = data.tipo_chat
+      ? enforceTipoChatForRubro(data.tipo_chat as 'pyme' | 'municipio', rubroNorm)
+      : undefined;
     const updated: UserData = {
       id: data.id,
       name: data.name,

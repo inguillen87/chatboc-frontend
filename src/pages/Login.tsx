@@ -6,8 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { apiFetch, ApiError } from "@/utils/api";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
-import { APP_TARGET } from "@/config";
-import { enforceTipoChatForRubro, parseRubro } from "@/utils/tipoChat";
+import { useUser } from "@/hooks/useUser";
 import GoogleLoginButton from "@/components/auth/GoogleLoginButton";
 
 // Asegúrate de que esta interfaz refleje EXACTAMENTE lo que tu backend devuelve en /login
@@ -22,6 +21,7 @@ interface LoginResponse {
 
 const Login = () => {
   const navigate = useNavigate();
+  const { refreshUser } = useUser();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -40,35 +40,8 @@ const Login = () => {
 
       safeLocalStorage.setItem("authToken", data.token);
 
-      let rubro = "";
-      let tipoChat = data.tipo_chat;
-      try {
-        const me = await apiFetch<any>("/me");
-        rubro = parseRubro(me?.rubro) || "";
-        if (!tipoChat && me?.tipo_chat) {
-          tipoChat = me.tipo_chat;
-        }
-      } catch {
-        /* ignore */
-      }
-
-      const finalTipo = enforceTipoChatForRubro(
-        (tipoChat || APP_TARGET) as 'pyme' | 'municipio',
-        rubro || null,
-      );
-      const userToStore = {
-        id: data.id,
-        name: data.name,
-        email: data.email,
-        token: data.token,
-        plan: data.plan || "free",
-        rubro,
-        tipo_chat: finalTipo,
-      };
-
-      safeLocalStorage.setItem("user", JSON.stringify(userToStore));
-
-      navigate("/perfil"); // O a donde corresponda después del login exitoso
+      await refreshUser();
+      navigate("/perfil");
 
     } catch (err) {
       if (err instanceof ApiError) {
