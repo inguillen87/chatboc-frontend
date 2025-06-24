@@ -37,7 +37,10 @@ import { getCurrentTipoChat } from "@/utils/tipoChat";
 const API_BASE_URL = import.meta.env.VITE_API_URL || "/api";
 const Maps_API_KEY =
   import.meta.env.VITE_Maps_API_KEY || "AIzaSyDbEoPzFgN5zJsIeywiRE7jRI8xr5ioGNI";
+const PROVINCIAS = [
+=======
   const PROVINCIAS = [
+>>>>>>> main
   "Buenos Aires",
   "CABA",
   "Catamarca",
@@ -258,26 +261,9 @@ export default function Perfil() {
     // Si toca el campo dirección manualmente, dejá el autocomplete limpio
     if (id === "direccion") {
       setDireccionSeleccionada(null);
-      setDireccionConfirmada(false);
     }
   };
 
-  const handleClearDireccion = () => {
-    setDireccionSeleccionada(null);
-    setPerfil((prev) => ({
-      ...prev,
-      direccion: "",
-      latitud: null,
-      longitud: null,
-    }));
-    setDireccionConfirmada(false);
-  };
-
-  const handleConfirmDireccion = () => {
-    if (perfil.direccion) {
-      setDireccionConfirmada(true);
-    }
-  };
 
   const handleHorarioChange = (index, field, value) => {
     const nuevosHorarios = perfil.horarios_ui.map((h, idx) =>
@@ -517,66 +503,67 @@ export default function Perfil() {
                     />
                   </div>
                 </div>
-                <div>
+                <div className="relative">
                   <Label
                     htmlFor="google-places-input"
                     className="text-muted-foreground text-sm mb-1 block"
                   >
                     Dirección Completa*
                   </Label>
-                  <div className="relative">
-                    <AddressAutocomplete
-                      value={direccionSeleccionada}
-                      onChange={(option) => {
-                        setDireccionSeleccionada(option || null);
-                        if (!option)
+                  <AddressAutocomplete
+                    value={direccionSeleccionada}
+                    onChange={(option) => {
+                      setDireccionSeleccionada(option || null);
+                      if (!option)
+                        setPerfil((prev) => ({ ...prev, direccion: "" }));
+                    }}
+                    onSelect={(addr) => {
+                      window?.google?.maps?.Geocoder &&
+                        new window.google.maps.Geocoder().geocode(
+                          { address: addr },
+                          (results, status) => {
+                            if (status === "OK" && results[0]) {
+                              handlePlaceSelected(results[0]);
+                              setDireccionSeleccionada({ label: addr, value: addr });
+                            } else {
+                              setPerfil((prev) => ({
+                                ...prev,
+                                direccion: addr,
+                              }));
+                              setError(
+                                "No se pudo verificar esa dirección. Intenta escribirla bien.",
+                              );
+                            }
+                          },
+                        );
+                    }}
+                    disabled={!!perfil.direccion && !!direccionSeleccionada}
+                    placeholder="Ej: Av. Principal 123"
+                  />
+                  {!!perfil.direccion && !!direccionSeleccionada && (
+                    <div className="absolute right-2 top-9 flex gap-2">
+                      <button
+                        type="button"
+                        className="p-1 rounded-full hover:bg-destructive/10 text-destructive"
+                        onClick={() => {
+                          setDireccionSeleccionada(null);
                           setPerfil((prev) => ({ ...prev, direccion: "" }));
-                        setDireccionConfirmada(false);
-                      }}
-                      onSelect={(addr) => {
-                        window?.google?.maps?.Geocoder &&
-                          new window.google.maps.Geocoder().geocode(
-                            { address: addr },
-                            (results, status) => {
-                              if (status === "OK" && results[0]) {
-                                handlePlaceSelected(results[0]);
-                              } else {
-                                setPerfil((prev) => ({
-                                  ...prev,
-                                  direccion: addr,
-                                }));
-                                setError(
-                                  "No se pudo verificar esa dirección. Intenta escribirla bien.",
-                                );
-                              }
-                            },
-                          );
-                      }}
-                      placeholder="Ej: Av. Principal 123"
-                      readOnly={direccionConfirmada}
-                    />
-                    <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex gap-1">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={handleConfirmDireccion}
-                        disabled={direccionConfirmada || !perfil.direccion}
-                        aria-label="Confirmar dirección"
-                      >
-                        <Check className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={handleClearDireccion}
-                        aria-label="Borrar dirección"
+                        }}
+                        title="Borrar dirección"
                       >
                         <X className="w-4 h-4" />
-                      </Button>
+                      </button>
+                      <button
+                        type="button"
+                        className="p-1 rounded-full hover:bg-green-100 text-green-700"
+                        title="Dirección confirmada"
+                        disabled
+                        tabIndex={-1}
+                      >
+                        <Check className="w-4 h-4" />
+                      </button>
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
