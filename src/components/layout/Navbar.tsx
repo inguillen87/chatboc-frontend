@@ -70,7 +70,7 @@ const Navbar: React.FC = () => {
 
         {/* Links centrales - solo landing - desktop */}
        {isLanding && (
-          <nav className="hidden lg:flex gap-6 items-center flex-1 justify-center">
+          <nav className="hidden md:flex gap-6 items-center flex-1 justify-center">
             <button onClick={() => scrollToSection("problemas")} className="hover:text-blue-600 text-sm dark:text-white">Problemas</button>
             <button onClick={() => scrollToSection("solucion")} className="hover:text-blue-600 text-sm dark:text-white">Solución</button>
             <button onClick={() => scrollToSection("como-funciona")} className="hover:text-blue-600 text-sm dark:text-white">Cómo Funciona</button>
@@ -82,7 +82,7 @@ const Navbar: React.FC = () => {
         )}
 
         {/* Botones lado derecho */}
-        <div className="hidden lg:flex gap-3 items-center">
+        <div className="hidden md:flex gap-3 items-center">
           {isLoggedIn ? (
             <>
               <RouterLink to="/perfil" className="text-sm text-gray-700 dark:text-white hover:underline">Mi perfil</RouterLink>
@@ -105,14 +105,14 @@ const Navbar: React.FC = () => {
         </div>
 
         {/* Botón menú mobile */}
-        <button className="lg:hidden p-2" onClick={() => setMenuOpen(!menuOpen)}>
+        <button className="md:hidden p-2" onClick={() => setMenuOpen(!menuOpen)}>
           {menuOpen ? <X /> : <Menu />}
         </button>
       </div>
 
       {/* Menú Mobile desplegable */}
       {menuOpen && (
-        <div className="lg:hidden bg-white dark:bg-gray-900 shadow-md mt-2 rounded-b-xl animate-fade-in-down">
+        <div className="md:hidden bg-white dark:bg-gray-900 shadow-md mt-2 rounded-b-xl animate-fade-in-down">
           <div className="flex flex-col items-center gap-3 py-4">
             {isLanding && (
             <>
