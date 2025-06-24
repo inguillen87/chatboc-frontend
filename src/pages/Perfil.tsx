@@ -16,6 +16,12 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+} from "@/components/ui/accordion";
 import { cn } from "@/lib/utils";
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import LocationMap from "@/components/LocationMap";
@@ -731,7 +737,93 @@ export default function Perfil() {
 
         {/* Columna Derecha (Plan y Catálogo) */}
         <div className="flex flex-col gap-6 md:gap-8">
-          <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm">
+          {/* Versión colapsable para mobile */}
+          <div className="md:hidden">
+            <Accordion type="single" collapsible defaultValue="plan">
+              <AccordionItem value="plan" className="border-b border-border">
+                <AccordionTrigger className="px-4 py-3 text-base font-semibold text-primary">
+                  Plan y Uso
+                </AccordionTrigger>
+                <AccordionContent>
+                  <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm">
+                    <CardContent className="space-y-3">
+              <div className="text-sm text-muted-foreground flex items-center gap-2">
+                <span>Plan actual:</span>
+                <Badge
+                  variant="secondary"
+                  className={cn(
+                    "bg-primary text-primary-foreground capitalize",
+                  )}
+                >
+                  {perfil?.plan || "N/A"}
+                </Badge>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">
+                  Consultas usadas este mes:
+                </p>
+                <div className="flex items-center gap-2">
+                  <Progress
+                    value={porcentaje}
+                    className="h-3 bg-muted [&>div]:bg-primary"
+                    aria-label={`${porcentaje.toFixed(0)}% de consultas usadas`}
+                  />
+                  <span className="text-xs text-muted-foreground min-w-[70px] text-right">
+                    {perfil?.preguntas_usadas} /
+                    {limitePlan === Infinity ? '∞' : limitePlan}
+                  </span>
+                </div>
+              </div>
+              {perfil.plan !== "full" && perfil.plan !== "pro" && (
+                <div className="space-y-2 mt-3">
+                  <Button
+                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
+                    onClick={() =>
+                      window.open(
+                        "https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=2c9380849764e81a01976585767f0040",
+                        "_blank",
+                      )
+                    }
+                  >
+                    Mejorar a PRO ($35.000/mes)
+                  </Button>
+                  <Button
+                    className="w-full bg-accent hover:bg-accent/90 text-accent-foreground font-semibold"
+                    onClick={() =>
+                      window.open(
+                        "https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=2c9380849763daeb0197658791ee00b1",
+                        "_blank",
+                      )
+                    }
+                  >
+                    Mejorar a FULL ($60.000/mes)
+                  </Button>
+                </div>
+              )}
+              {(perfil.plan === "pro" || perfil.plan === "full") && (
+                <div className="text-primary bg-primary/10 rounded p-3 font-medium text-sm mt-3">
+                  ¡Tu plan está activo! <br />
+                  <span className="text-muted-foreground">
+                    La renovación se realiza cada mes. Si vence el pago, vas a
+                    ver los links aquí para renovarlo.
+                  </span>
+                </div>
+              )}
+              <div className="text-xs text-muted-foreground mt-2">
+                Una vez realizado el pago, tu cuenta se actualiza
+                automáticamente.
+                <br />
+                Si no ves el cambio en unos minutos, comunicate con soporte..
+              </div>
+                    </CardContent>
+                  </Card>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          </div>
+
+          {/* Versión desktop */}
+          <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm hidden md:block">
             <CardHeader>
               <CardTitle className="text-lg font-semibold text-primary">
                 Plan y Uso
@@ -806,10 +898,10 @@ export default function Perfil() {
                 <br />
                 Si no ves el cambio en unos minutos, comunicate con soporte..
               </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm">
+          <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm">
             <CardHeader>
               <CardTitle className="text-lg font-semibold text-primary">
                 {esMunicipio

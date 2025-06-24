@@ -51,7 +51,7 @@ export default function QuickLinksCard() {
           <LayoutDashboard className="w-5 h-5" /> Accesos rápidos
         </CardTitle>
       </CardHeader>
-      <CardContent className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-4">
+      <CardContent className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-6 gap-4">
         {items.map(({ label, path, icon: Icon }) => (
           <Button
             key={path}
