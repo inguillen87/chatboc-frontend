@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useUser } from "@/hooks/useUser";
 import { normalizeRole } from "@/utils/roles";
+import useEndpointAvailable from "@/hooks/useEndpointAvailable";
 
 interface LinkItem {
   label: string;
@@ -30,15 +31,19 @@ const ITEMS: LinkItem[] = [
 export default function QuickLinksCard() {
   const navigate = useNavigate();
   const { user } = useUser();
+  const statsAvailable = useEndpointAvailable('/municipal/stats');
+  const empleadosAvailable = useEndpointAvailable('/municipal/usuarios');
 
   if (!user) return null;
 
   const role = normalizeRole(user.rol);
   const tipo = user.tipo_chat as "pyme" | "municipio";
 
-  const items = ITEMS.filter(
-    (it) => (!it.roles || it.roles.includes(role)) && (!it.tipo || it.tipo === tipo)
-  );
+  const items = ITEMS.filter((it) => {
+    if (it.path === '/municipal/stats' && statsAvailable === false) return false;
+    if (it.path === '/municipal/usuarios' && empleadosAvailable === false) return false;
+    return (!it.roles || it.roles.includes(role)) && (!it.tipo || it.tipo === tipo);
+  });
 
   if (!items.length) return null;
 
