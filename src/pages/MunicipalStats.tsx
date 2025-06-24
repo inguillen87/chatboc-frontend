@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { apiFetch } from '@/utils/api';
+import { apiFetch, ApiError } from '@/utils/api';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import useRequireRole from '@/hooks/useRequireRole';
 import type { Role } from '@/utils/roles';
@@ -40,7 +40,11 @@ export default function MunicipalStats() {
         setTipos(resp.tipos || []);
         setRangos(resp.rangos || []);
       })
-      .catch(() => {});
+      .catch((err: any) => {
+        if (err instanceof ApiError && err.status === 404) {
+          setError('Funcionalidad no disponible');
+        }
+      });
   }, []);
 
   useEffect(() => {
@@ -56,7 +60,11 @@ export default function MunicipalStats() {
         setLoading(false);
       })
       .catch((err: any) => {
-        setError(err.message || 'Error');
+        if (err instanceof ApiError && err.status === 404) {
+          setError('Funcionalidad no disponible');
+        } else {
+          setError(err.message || 'Error');
+        }
         setLoading(false);
       });
   }, [filtroRubro, filtroBarrio, filtroTipo, filtroRango]);

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { apiFetch } from '@/utils/api';
+import { apiFetch, ApiError } from '@/utils/api';
 import { Button } from '@/components/ui/button';
 import useRequireRole from '@/hooks/useRequireRole';
 import type { Role } from '@/utils/roles';
@@ -24,7 +24,11 @@ export default function MunicipalSystems() {
         setLoading(false);
       })
       .catch((err: any) => {
-        setError(err.message || 'Error');
+        if (err instanceof ApiError && err.status === 404) {
+          setError('Funcionalidad no disponible');
+        } else {
+          setError(err.message || 'Error');
+        }
         setLoading(false);
       });
   }, []);

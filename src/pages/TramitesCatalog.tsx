@@ -31,7 +31,11 @@ export default function TramitesCatalog() {
         setLoading(false);
       })
       .catch((err: any) => {
-        setError(err.message || 'Error');
+        if (err.status === 404) {
+          setError('Funcionalidad no disponible');
+        } else {
+          setError(err.message || 'Error');
+        }
         setLoading(false);
       });
   }, []);
