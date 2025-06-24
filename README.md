@@ -223,6 +223,17 @@ To see real‑time tracking, ensure the backend periodically sends the
 current coordinates for each ticket. Once those values are present, the
 map will refresh automatically without additional frontend changes.
 
+## Admin profile map
+
+The `/perfil` page also embeds a Google Map when the backend includes
+either a `direccion` or the coordinates `latitud` and `longitud`.
+Address selection uses the `AddressAutocomplete` component powered by
+Google Places. Once an address is chosen, an interactive map with a
+draggable marker appears so the user can fine‑tune the coordinates.
+Make sure to define `VITE_Maps_API_KEY` in your `.env` file so the map
+script loads correctly. If the backend does not provide any location
+data, the map remains hidden as specified in [`AGENTS.md`](AGENTS.md).
+
 ## Product catalog API
 
 Any endpoint that returns products (e.g. `/catalogo`, `/productos`, `/ask/municipio` or `/ask/pyme`)
