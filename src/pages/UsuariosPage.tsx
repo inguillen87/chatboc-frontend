@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import useRequireRole from "@/hooks/useRequireRole";
+import type { Role } from "@/utils/roles";
 
 interface Usuario {
   id: number;
@@ -15,7 +16,7 @@ interface Usuario {
 }
 
 export default function UsuariosPage() {
-  useRequireRole(['admin', 'empleado']);
+  useRequireRole(['admin', 'empleado'] as Role[]);
   const navigate = useNavigate();
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [loading, setLoading] = useState(true);
