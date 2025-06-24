@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { apiFetch } from '@/utils/api';
+import { apiFetch, ApiError } from '@/utils/api';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import useRequireRole from '@/hooks/useRequireRole';
 import type { Role } from '@/utils/roles';
@@ -56,7 +56,8 @@ export default function MunicipalStats() {
         setLoading(false);
       })
       .catch((err: any) => {
-        setError(err.message || 'Error');
+        const message = err instanceof ApiError ? err.message : 'Error';
+        setError(message);
         setLoading(false);
       });
   }, [filtroRubro, filtroBarrio, filtroTipo, filtroRango]);

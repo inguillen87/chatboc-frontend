@@ -47,9 +47,13 @@ export default function ProfileNav() {
 
   return (
     <Tabs value={location.pathname} onValueChange={(v) => navigate(v)}>
-      <TabsList>
+      <TabsList className="rounded-xl border border-border bg-muted/50 shadow-sm p-1">
         {items.map((it) => (
-          <TabsTrigger key={it.path} value={it.path} className="px-3 py-2">
+          <TabsTrigger
+            key={it.path}
+            value={it.path}
+            className="rounded-lg px-4 py-2 text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-colors"
+          >
             {it.label}
           </TabsTrigger>
         ))}

@@ -70,6 +70,10 @@ export default function TicketsPanel() {
       });
     } catch (err) {
       console.error('Error al actualizar el panel de tickets', err);
+      const message = err instanceof ApiError
+        ? err.message
+        : 'Ocurri\u00F3 un error al actualizar el panel de tickets.';
+      setError(message);
     }
   }, []);
 
