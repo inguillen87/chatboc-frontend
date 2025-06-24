@@ -626,15 +626,39 @@ const ChatPanel = ({
             <div className="flex flex-col items-center py-8 px-2 gap-4">
               <div className="text-primary text-base font-semibold mb-2">Indicá la dirección exacta (autocompleta con Google)</div>
               <AddressAutocomplete
-                onSelect={(addr) => { handleSendMessage(addr); safeLocalStorage.setItem('ultima_direccion', addr); setDireccionGuardada(addr); setEsperandoDireccion(false); }}
+                onSelect={(addr) => {
+                  handleSendMessage(addr);
+                  safeLocalStorage.setItem('ultima_direccion', addr);
+                  setDireccionGuardada(addr);
+                  setEsperandoDireccion(false);
+                }}
                 autoFocus
                 value={direccionGuardada ? { label: direccionGuardada, value: direccionGuardada } : undefined}
-                onChange={(opt) => setDireccionGuardada(opt ? (typeof opt.value === 'string' ? opt.value : opt.value?.description ?? null) : null)}
+                onChange={(opt) =>
+                  setDireccionGuardada(
+                    opt
+                      ? typeof opt.value === 'string'
+                        ? opt.value
+                        : opt.value?.description ?? null
+                      : null
+                  )
+                }
                 persistKey="ultima_direccion"
                 placeholder="Ej: Av. Principal 123"
               />
-              <button onClick={handleShareGps} className="text-primary underline text-sm" type="button">Compartir ubicación por GPS</button>
-              <div className="text-xs text-muted-foreground mt-2">Escribí y seleccioná tu dirección para continuar el trámite.</div>
+              {direccionGuardada && (
+                <TicketMap ticket={{ direccion: direccionGuardada }} />
+              )}
+              <button
+                onClick={handleShareGps}
+                className="text-primary underline text-sm"
+                type="button"
+              >
+                Compartir ubicación por GPS
+              </button>
+              <div className="text-xs text-muted-foreground mt-2">
+                Escribí y seleccioná tu dirección para continuar el trámite.
+              </div>
             </div>
           ) : (
             <>
