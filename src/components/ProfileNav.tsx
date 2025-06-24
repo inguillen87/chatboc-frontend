@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useUser } from '@/hooks/useUser';
 import { normalizeRole } from '@/utils/roles';
+import useEndpointAvailable from '@/hooks/useEndpointAvailable';
 
 interface NavItem {
   label: string;
@@ -26,6 +27,9 @@ export default function ProfileNav() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useUser();
+  const tramitesAvailable = useEndpointAvailable('/municipal/tramites');
+  const statsAvailable = useEndpointAvailable('/municipal/stats');
+  const empleadosAvailable = useEndpointAvailable('/municipal/usuarios');
 
   if (!user) return null;
   if (!user.rol || !user.tipo_chat) {
@@ -38,11 +42,12 @@ export default function ProfileNav() {
   const role = normalizeRole(user.rol);
   const tipo = user.tipo_chat as 'pyme' | 'municipio';
 
-  const items = NAV_ITEMS.filter(
-    (it) =>
-      (!it.roles || it.roles.includes(role)) &&
-      (!it.tipo || it.tipo === tipo)
-  );
+  const items = NAV_ITEMS.filter((it) => {
+    if (it.path === '/municipal/tramites' && tramitesAvailable === false) return false;
+    if (it.path === '/municipal/stats' && statsAvailable === false) return false;
+    if (it.path === '/municipal/usuarios' && empleadosAvailable === false) return false;
+    return (!it.roles || it.roles.includes(role)) && (!it.tipo || it.tipo === tipo);
+  });
 
   if (!items.length) return null;
 

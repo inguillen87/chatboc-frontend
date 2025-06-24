@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { apiFetch, ApiError } from '@/utils/api';
+import { apiFetch, ApiError, getErrorMessage } from '@/utils/api';
 import useRequireRole from '@/hooks/useRequireRole';
 import type { Role } from '@/utils/roles';
 import { Input } from '@/components/ui/input';
@@ -37,13 +37,21 @@ export default function InternalUsers() {
         setLoading(false);
       })
       .catch((err: any) => {
-        const message = err instanceof ApiError ? err.message : 'Error';
-        setError(message);
+        if (err instanceof ApiError && err.status === 404) {
+          setError('Funcionalidad no disponible');
+        } else {
+          setError(getErrorMessage(err, 'Error'));
+        }
         setLoading(false);
       });
     apiFetch<Category[]>('/municipal/categorias')
       .then((data) => setCategories(data))
-      .catch(() => setCategories([]));
+      .catch((err: any) => {
+        if (err instanceof ApiError && err.status === 404) {
+          setError('Funcionalidad no disponible');
+        }
+        setCategories([]);
+      });
   }, []);
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -62,7 +70,7 @@ export default function InternalUsers() {
       setRol('empleado');
       setCategoriaId('');
     } catch (err: any) {
-      setError(err.message || 'Error al crear el usuario');
+      setError(getErrorMessage(err, 'Error al crear el usuario'));
     }
   };
 
