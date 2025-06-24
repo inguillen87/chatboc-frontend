@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { motion, AnimatePresence } from "framer-motion";
 import { useUser } from "@/hooks/useUser";
+import { apiFetch } from "@/utils/api";
 
 import ChatUserRegisterPanel from "./ChatUserRegisterPanel";
 import ChatUserLoginPanel from "./ChatUserLoginPanel";
@@ -48,6 +49,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [view, setView] = useState<'chat' | 'register' | 'login' | 'user'>(initialView);
   const { user } = useUser();
+  const [resolvedTipoChat, setResolvedTipoChat] = useState<'pyme' | 'municipio'>(tipoChat);
 
   const openUserPanel = useCallback(() => {
     if (user) {
@@ -160,6 +162,27 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     }
   }, [mode, entityToken]);
 
+  useEffect(() => {
+    async function fetchEntityProfile(token: string) {
+      try {
+        const data = await apiFetch<any>("/perfil", {
+          sendEntityToken: true,
+          skipAuth: true,
+        });
+        if (data && typeof data.esPublico === "boolean") {
+          setResolvedTipoChat(data.esPublico ? "municipio" : "pyme");
+        } else if (data && data.tipo_chat) {
+          setResolvedTipoChat(data.tipo_chat === "municipio" ? "municipio" : "pyme");
+        }
+      } catch (e) {
+        // Silenciar errores de perfil para no interrumpir la carga
+      }
+    }
+    if (entityToken) {
+      fetchEntityProfile(entityToken);
+    }
+  }, [entityToken]);
+
   // Renderizado principal del ChatWidget
   if (mode === "standalone") {
   return (
@@ -237,7 +260,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                   openWidth={finalOpenWidth}
                   openHeight={finalOpenHeight}
                   onClose={toggleChat}
-                  tipoChat={tipoChat}
+                  tipoChat={resolvedTipoChat}
                   onRequireAuth={() => setView("register")}
                   onShowLogin={() => setView("login")}
                   onShowRegister={() => setView("register")}
@@ -360,7 +383,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                 openWidth={finalOpenWidth}
                 openHeight={finalOpenHeight}
                 onClose={toggleChat}
-                tipoChat={tipoChat}
+                tipoChat={resolvedTipoChat}
                 onRequireAuth={() => setView("register")}
                 onShowLogin={() => setView("login")}
                 onShowRegister={() => setView("register")}
