@@ -59,7 +59,7 @@ const Documentacion = () => (
         <li>
           <strong>POST /catalogo/cargar</strong> — Subir catálogo.<br />
           <span className="text-sm text-muted-foreground">
-            Cargá tu catálogo de productos por PDF o Excel para que el bot lo use en consultas.
+            Subí tu catálogo de productos o tus formularios y trámites, según tu tipo de usuario.
           </span>
         </li>
         <li>
