@@ -16,6 +16,7 @@ interface AddressAutocompleteProps {
    * when the component mounts.
    */
   persistKey?: string;
+  readOnly?: boolean;
 }
 
 const Maps_API_KEY =
@@ -29,6 +30,7 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   className = "",
   autoFocus = false,
   persistKey,
+  readOnly = false,
 }) => {
   const [internalValue, setInternalValue] = useState<any>(value || null);
   const [scriptLoaded, setScriptLoaded] = useState<boolean>(false);
@@ -80,6 +82,17 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
     typeof window !== "undefined" &&
     (window as any).google?.maps?.places !== undefined;
 
+  if (readOnly) {
+    return (
+      <Input
+        value={internalValue?.label || internalValue?.value || ""}
+        readOnly
+        placeholder={placeholder}
+        className={className}
+      />
+    );
+  }
+
   if (!Maps_API_KEY || !scriptLoaded || !googlePlacesAvailable) {
     return (
       <Input
@@ -107,6 +120,7 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
       }}
       selectProps={{
         value: internalValue,
+        isDisabled: readOnly,
         onChange: (option: any) => {
           setInternalValue(option);
           const selected =
