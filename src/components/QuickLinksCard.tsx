@@ -1,12 +1,13 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   Ticket,
   Users,
   BarChart2,
   UserCog,
+  LayoutDashboard,
   MapPin,
 } from "lucide-react";
 import { useUser } from "@/hooks/useUser";
@@ -45,7 +46,12 @@ export default function QuickLinksCard() {
 
   return (
     <Card className="bg-card shadow-xl rounded-xl border border-border hover:shadow-2xl transition-shadow">
-      <CardContent className="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+      <CardHeader>
+        <CardTitle className="text-lg font-semibold text-primary flex items-center gap-2">
+          <LayoutDashboard className="w-5 h-5" /> Accesos rápidos
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
         {items.map(({ label, path, icon: Icon }) => (
           <Button
             key={path}
