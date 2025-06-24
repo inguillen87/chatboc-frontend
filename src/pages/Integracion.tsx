@@ -104,6 +104,10 @@ const Integracion = () => {
     s.setAttribute('data-bottom', '${WIDGET_STD_BOTTOM}');
     s.setAttribute('data-right', '${WIDGET_STD_RIGHT}');
     s.setAttribute('data-endpoint', '${endpoint}');
+    // widget.js establecerá allow="clipboard-write; geolocation" en su iframe
+    // para poder solicitar la ubicación del visitante
+    // Si este código corre dentro de otro iframe, ese contenedor externo
+    // también debe incluir allow="clipboard-write; geolocation"
     document.body.appendChild(s);
   });
   </script>`;
@@ -120,6 +124,8 @@ const Integracion = () => {
 <script>
   document.addEventListener('DOMContentLoaded', function () {
     window.APP_TARGET = '${endpoint}';
+    // Si este <iframe> se inserta dentro de otro, agregá el mismo
+    // atributo allow en el contenedor externo para habilitar geolocalización
     var old = document.getElementById('chatboc-iframe');
     if (old) old.remove();
     var f = document.getElementById('chatboc-iframe');

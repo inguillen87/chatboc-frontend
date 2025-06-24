@@ -110,6 +110,8 @@ You can embed the floating chat widget on any site by loading `widget.js` and pa
     // s.setAttribute('data-rubro', 'comercio');
     // Optional: force light or dark theme
     // s.setAttribute('data-theme', 'dark');
+    // The widget will set `allow="clipboard-write; geolocation"` on
+    // the iframe it injects so it can ask for location permissions.
     document.body.appendChild(s); // append once the DOM is ready
   });
 </script>
@@ -118,6 +120,10 @@ You can embed the floating chat widget on any site by loading `widget.js` and pa
 This snippet loads the widget without needing an iframe and creates a floating bubble styled just like on chatboc.ar.
 You can also pass `data-theme="dark"` or `data-theme="light"` to force a specific theme inside the widget.
 If you host `widget.js` yourself, remember to add `data-domain="https://www.chatboc.ar"` so the iframe loads from our servers.
+The script automatically adds `allow="clipboard-write; geolocation"` to the underlying iframe so the widget can request GPS access.
+If your site embeds this script inside another `<iframe>`, be sure that outer frame also includes
+`allow="clipboard-write; geolocation"`. The permission must be granted at every level
+for the browser to allow geolocation requests inside the widget.
 
 ### Customization
 
@@ -167,9 +173,9 @@ If your site blocks external JavaScript, you can embed the chatbot using an
   });
 </script>
 ```
-The `allow="geolocation"` attribute is required so the widget can request GPS
-permissions from the browser. Without it, users will need to enter their address
-manually.
+When embedding via `<iframe>`, include `allow="clipboard-write; geolocation"`
+so the widget can request GPS permissions from the browser. Without it, users
+will need to enter their address manually.
 If the same page injects this iframe snippet more than once (for example in a single-page application), remove any existing element with id="chatboc-iframe" before creating a new one. Otherwise the widget may reload and flicker.
 
 ### Removing an existing widget
