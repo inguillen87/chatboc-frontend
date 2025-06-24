@@ -1,9 +1,9 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useUser } from './useUser';
-import { normalizeRole } from '@/utils/roles';
+import { normalizeRole, Role } from '@/utils/roles';
 
-export default function useRequireRole(allowedRoles: string[]) {
+export default function useRequireRole(allowedRoles: Role[]) {
   const { user, loading } = useUser();
   const navigate = useNavigate();
 
