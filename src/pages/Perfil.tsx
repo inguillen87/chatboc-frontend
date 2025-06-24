@@ -411,7 +411,7 @@ export default function Perfil() {
 
   return (
     <div className="flex flex-col min-h-screen bg-background dark:bg-gradient-to-tr dark:from-slate-950 dark:to-slate-900 text-foreground py-8 px-2 sm:px-4 md:px-6 lg:px-8">
-      <div className="w-full max-w-6xl mx-auto grid grid-cols-1 sm:grid-cols-[auto_1fr_auto] items-center gap-4 mb-6 px-2">
+      <div className="w-full max-w-6xl mx-auto grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] items-center gap-4 mb-6 px-2">
         <div className="flex items-center gap-4">
           <Avatar className="w-16 h-16 sm:w-20 sm:h-20 bg-secondary border-2 border-border shadow-lg">
             <AvatarFallback className="bg-transparent">
@@ -430,7 +430,7 @@ export default function Perfil() {
             </span>
           </div>
         </div>
-        <div className="flex justify-center">
+        <div className="flex justify-center justify-self-center">
           <ProfileNav />
         </div>
         <div className="justify-self-end">
@@ -808,8 +808,6 @@ export default function Perfil() {
               </div>
           </CardContent>
         </Card>
-
-        <QuickLinksCard />
 
         <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm">
             <CardHeader>
