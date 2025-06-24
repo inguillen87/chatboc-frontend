@@ -9,6 +9,8 @@ import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import ProductCard from "@/components/product/ProductCard";
 import { parseProductMessage, filterProducts } from "@/utils/productParser";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
+import AttachmentPreview from "./AttachmentPreview";
+import { getAttachmentInfo } from "@/utils/attachment";
 
 // --- Avatares reutilizados ---
 const AvatarBot: React.FC<{ isTyping: boolean }> = ({ isTyping }) => (
@@ -119,6 +121,7 @@ const ChatMessagePyme: React.FC<ChatMessageProps> = ({
     parsedProducts && query
       ? filterProducts(parsedProducts, query)
       : parsedProducts;
+  const attachment = getAttachmentInfo(message.text);
 
   const isBot = message.isBot;
   const bubbleClass = isBot
@@ -150,6 +153,8 @@ const ChatMessagePyme: React.FC<ChatMessageProps> = ({
                 <ProductCard key={idx} product={p} />
               ))}
             </div>
+          ) : attachment ? (
+            <AttachmentPreview attachment={attachment} />
           ) : (
             <div
               className="prose prose-sm dark:prose-invert max-w-none [&_p]:my-0"

@@ -5,6 +5,8 @@ import ChatButtons from "./ChatButtons";
 import { motion } from "framer-motion";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 import DOMPurify from "dompurify";
+import AttachmentPreview from "./AttachmentPreview";
+import { getAttachmentInfo } from "@/utils/attachment";
 
 const AvatarBot: React.FC<{ isTyping: boolean }> = ({ isTyping }) => (
   <motion.div
@@ -67,6 +69,7 @@ const ChatMessageMunicipio: React.FC<ChatMessageProps> = ({
 
   // Limpiamos HTML siempre
   const sanitizedHtml = DOMPurify.sanitize(message.text);
+  const attachment = getAttachmentInfo(message.text);
   const isBot = message.isBot;
 
   // Bubble: más pro y moderno (sombra más suave, colores modernos)
@@ -93,10 +96,14 @@ const ChatMessageMunicipio: React.FC<ChatMessageProps> = ({
           animate="visible"
           transition={{ duration: 0.29, ease: "easeOut" }}
         >
-          <div
-            className="prose prose-sm dark:prose-invert max-w-none [&_p]:my-0"
-            dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
-          />
+          {attachment ? (
+            <AttachmentPreview attachment={attachment} />
+          ) : (
+            <div
+              className="prose prose-sm dark:prose-invert max-w-none [&_p]:my-0"
+              dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
+            />
+          )}
         </motion.div>
 
         {isBot && message.botones && message.botones.length > 0 && (
