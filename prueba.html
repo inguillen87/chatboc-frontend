@@ -1,25 +1,26 @@
+<iframe
+  id="chatboc-iframe"
+  src="https://www.chatboc.ar/iframe?token=4d70d4e9-5923-4308-96fd-be06317ffa9d&tipo_chat=municipio"
+  style="position:fixed;bottom:24px;right:24px;border:none;border-radius:50%;z-index:9999;box-shadow:0 4px 32px rgba(0,0,0,0.2);background:transparent;overflow:hidden;width:96px!important;height:96px!important;display:block"
+  allow="clipboard-write; geolocation"
+  loading="lazy"
+></iframe>
 <script>
   document.addEventListener('DOMContentLoaded', function () {
     window.APP_TARGET = 'municipio';
-    if (window.chatbocDestroyWidget) {
-      window.chatbocDestroyWidget('4d70d4e9-5923-4308-96fd-be06317ffa9d');
-    }
-    var s = document.createElement('script');
-    s.src = 'https://www.chatboc.ar/widget.js';
-    s.async = true;
-    s.setAttribute('data-token', '4d70d4e9-5923-4308-96fd-be06317ffa9d');
-    s.setAttribute('data-default-open', 'false');
-    s.setAttribute('data-width', '460px');
-    s.setAttribute('data-height', '680px');
-    s.setAttribute('data-closed-width', '96px');
-    s.setAttribute('data-closed-height', '96px');
-    s.setAttribute('data-bottom', '20px');
-    s.setAttribute('data-right', '20px');
-    s.setAttribute('data-endpoint', 'municipio');
-    // widget.js establecerá allow="clipboard-write; geolocation" en su iframe
-    // para poder solicitar la ubicación del visitante
-    // Si este código corre dentro de otro iframe, ese contenedor externo
-    // también debe incluir allow="clipboard-write; geolocation"
-    document.body.appendChild(s);
+    // Si este <iframe> se inserta dentro de otro, agregá el mismo
+    // atributo allow en el contenedor externo para habilitar geolocalización
+    var old = document.getElementById('chatboc-iframe');
+    if (old) old.remove();
+    var f = document.getElementById('chatboc-iframe');
+    window.addEventListener('message', function (e) {
+      if (e.data && e.data.type === 'chatboc-state-change') {
+        if (e.data.dimensions) {
+          f.style.width = e.data.dimensions.width;
+          f.style.height = e.data.dimensions.height;
+        }
+        f.style.borderRadius = e.data.isOpen ? '16px' : '50%';
+      }
+    });
   });
-  </script>
+</script>
