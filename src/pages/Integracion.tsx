@@ -74,6 +74,14 @@ const Integracion = () => {
     );
   }
 
+  if (!user.tipo_chat) {
+    return (
+      <div className="flex items-center justify-center min-h-screen text-destructive bg-background">
+        Perfil sin tipo de chat definido
+      </div>
+    );
+  }
+
   // Definir las dimensiones estándar del widget para los códigos de copia
   const WIDGET_STD_WIDTH = "460px";
   const WIDGET_STD_HEIGHT = "680px";
@@ -83,7 +91,7 @@ const Integracion = () => {
   const WIDGET_STD_RIGHT = "20px";
 
   // Asegúrate de que user.tipo_chat existe y es 'municipio' o 'pyme'
-  const endpoint = (user.tipo_chat === "municipio" ? "municipio" : "pyme");
+  const endpoint = user.tipo_chat === "municipio" ? "municipio" : "pyme";
 
   // Código para incrustar el widget vía <script>
   const codeScript = `<script>

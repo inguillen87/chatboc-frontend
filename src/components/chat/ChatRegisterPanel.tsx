@@ -5,8 +5,7 @@ import GoogleLoginButton from "@/components/auth/GoogleLoginButton";
 import { apiFetch, ApiError } from "@/utils/api";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { useUser } from "@/hooks/useUser";
-import { APP_TARGET } from "@/config";
-import { enforceTipoChatForRubro } from "@/utils/tipoChat";
+
 
 interface RegisterResponse {
   id: number;
@@ -22,7 +21,7 @@ interface Props {
 }
 
 const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin }) => {
-  const { setUser } = useUser();
+  const { refreshUser } = useUser();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -55,29 +54,7 @@ const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin }) => {
         sendEntityToken: true,
       });
       safeLocalStorage.setItem("authToken", data.token);
-      let rubro = "";
-      let tipoChat = (data as any).tipo_chat as 'pyme' | 'municipio' | undefined;
-      try {
-        const me = await apiFetch<any>("/me");
-        rubro = me?.rubro?.toLowerCase() || "";
-        if (!tipoChat && me?.tipo_chat) tipoChat = me.tipo_chat;
-      } catch {
-        /* ignore */
-      }
-      const finalTipo = enforceTipoChatForRubro(
-        (tipoChat || APP_TARGET) as 'pyme' | 'municipio',
-        rubro || null,
-      );
-      const profile = {
-        id: data.id,
-        name: data.name,
-        email: data.email,
-        token: data.token,
-        rubro,
-        tipo_chat: finalTipo,
-      };
-      safeLocalStorage.setItem("user", JSON.stringify(profile));
-      setUser(profile);
+      await refreshUser();
       onSuccess();
     } catch (err) {
       if (err instanceof ApiError) {

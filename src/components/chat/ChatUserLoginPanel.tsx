@@ -5,8 +5,6 @@ import GoogleLoginButton from "@/components/auth/GoogleLoginButton";
 import { apiFetch, ApiError } from "@/utils/api";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { useUser } from "@/hooks/useUser";
-import { APP_TARGET } from "@/config";
-import { enforceTipoChatForRubro } from "@/utils/tipoChat";
 
 interface LoginResponse {
   id: number;
@@ -24,7 +22,7 @@ interface Props {
 }
 
 const ChatUserLoginPanel: React.FC<Props> = ({ onSuccess, onShowRegister }) => {
-  const { setUser } = useUser();
+  const { refreshUser } = useUser();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -52,33 +50,8 @@ const ChatUserLoginPanel: React.FC<Props> = ({ onSuccess, onShowRegister }) => {
         sendEntityToken: true,
       });
       safeLocalStorage.setItem("authToken", data.token);
-      let rubro = "";
-      let tipoChat = (data as any).tipo_chat as 'pyme' | 'municipio' | undefined;
-      let rol = (data as any).rol as string | undefined;
-      try {
-        const me = await apiFetch<any>("/me");
-        rubro = me?.rubro?.toLowerCase() || "";
-        if (!tipoChat && me?.tipo_chat) tipoChat = me.tipo_chat;
-        if (!rol && me?.rol) rol = me.rol;
-      } catch {
-        /* ignore */
-      }
-      const finalTipo = enforceTipoChatForRubro(
-        (tipoChat || APP_TARGET) as 'pyme' | 'municipio',
-        rubro || null,
-      );
-      const profile = {
-        id: data.id,
-        name: data.name,
-        email: data.email,
-        token: data.token,
-        rubro,
-        tipo_chat: finalTipo,
-        rol,
-      };
-      safeLocalStorage.setItem("user", JSON.stringify(profile));
-      setUser(profile);
-      onSuccess(rol);
+      await refreshUser();
+      onSuccess(data.rol);
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.body?.error || "Credenciales inválidas");

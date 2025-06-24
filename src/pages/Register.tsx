@@ -6,8 +6,7 @@ import { Input } from '@/components/ui/input';
 import { apiFetch, ApiError } from '@/utils/api';
 import { useNavigate } from 'react-router-dom';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
-import { APP_TARGET } from '@/config';
-import { enforceTipoChatForRubro } from '@/utils/tipoChat';
+import { useUser } from '@/hooks/useUser';
 import GoogleLoginButton from '@/components/auth/GoogleLoginButton';
 
 interface Rubro { id: number; nombre: string; }
@@ -21,6 +20,7 @@ interface RegisterResponse {
 
 const Register = () => {
   const navigate = useNavigate();
+  const { refreshUser } = useUser();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -61,32 +61,7 @@ const Register = () => {
 
       safeLocalStorage.setItem("authToken", data.token);
 
-      let rubroRegistrado = "";
-      let tipoChat = data.tipo_chat;
-      try {
-        const me = await apiFetch<any>("/me");
-        rubroRegistrado = me?.rubro?.toLowerCase() || "";
-        if (!tipoChat && me?.tipo_chat) {
-          tipoChat = me.tipo_chat;
-        }
-      } catch {
-        /* ignore */
-      }
-
-      const finalTipo = enforceTipoChatForRubro(
-        (tipoChat || APP_TARGET) as 'pyme' | 'municipio',
-        rubroRegistrado || null,
-      );
-      const userProfile = {
-        id: data.id,
-        name: data.name,
-        email: data.email,
-        token: data.token,
-        rubro: rubroRegistrado,
-        tipo_chat: finalTipo,
-      };
-      safeLocalStorage.setItem("user", JSON.stringify(userProfile));
-
+      await refreshUser();
       navigate('/perfil');
 
     } catch (err) {

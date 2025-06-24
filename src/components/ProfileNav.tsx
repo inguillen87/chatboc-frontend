@@ -26,8 +26,15 @@ export default function ProfileNav() {
   const { user } = useUser();
 
   if (!user) return null;
+  if (!user.rol || !user.tipo_chat) {
+    return (
+      <div className="text-destructive text-sm">
+        Perfil incompleto: falta rol o tipo de chat
+      </div>
+    );
+  }
   const role = normalizeRole(user.rol);
-  const tipo = (user.tipo_chat || 'pyme') as 'pyme' | 'municipio';
+  const tipo = user.tipo_chat as 'pyme' | 'municipio';
 
   const items = NAV_ITEMS.filter(
     (it) =>
