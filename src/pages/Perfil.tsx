@@ -8,6 +8,8 @@ import {
   UploadCloud,
   CheckCircle,
   XCircle,
+  Check,
+  X,
   Info,
   ChevronDown,
   ChevronUp,
@@ -96,6 +98,7 @@ export default function Perfil() {
     logo_url: "",
   });
   const [direccionSeleccionada, setDireccionSeleccionada] = useState(null);
+  const [direccionConfirmada, setDireccionConfirmada] = useState(false);
   const [modoHorario, setModoHorario] = useState("comercial");
   const [archivo, setArchivo] = useState(null);
   const [resultadoCatalogo, setResultadoCatalogo] = useState(null);
@@ -120,6 +123,7 @@ export default function Perfil() {
         ? { label: perfil.direccion, value: perfil.direccion }
         : null,
     );
+    setDireccionConfirmada(!!perfil.direccion);
   }, [perfil.direccion]);
 
   const fetchPerfil = useCallback(async (token) => {
@@ -181,6 +185,7 @@ export default function Perfil() {
         logo_url: data.logo_url || "",
         horarios_ui: horariosUi,
       }));
+      setDireccionConfirmada(!!data.direccion);
       // Storage
       const storedUserString = safeLocalStorage.getItem("user");
       let parsedUserFromLS = null;
@@ -225,6 +230,7 @@ export default function Perfil() {
         ...prev,
         direccion: place?.formatted_address || "",
       }));
+      setDireccionConfirmada(false);
       return;
     }
     const getAddressComponent = (type) =>
@@ -243,13 +249,34 @@ export default function Perfil() {
       longitud: place.geometry?.location?.lng() || null,
     }));
     setError(null);
+    setDireccionConfirmada(false);
   };
 
   const handleInputChange = (e) => {
     const { id, value } = e.target;
     setPerfil((prev) => ({ ...prev, [id]: value }));
     // Si toca el campo dirección manualmente, dejá el autocomplete limpio
-    if (id === "direccion") setDireccionSeleccionada(null);
+    if (id === "direccion") {
+      setDireccionSeleccionada(null);
+      setDireccionConfirmada(false);
+    }
+  };
+
+  const handleClearDireccion = () => {
+    setDireccionSeleccionada(null);
+    setPerfil((prev) => ({
+      ...prev,
+      direccion: "",
+      latitud: null,
+      longitud: null,
+    }));
+    setDireccionConfirmada(false);
+  };
+
+  const handleConfirmDireccion = () => {
+    if (perfil.direccion) {
+      setDireccionConfirmada(true);
+    }
   };
 
   const handleHorarioChange = (index, field, value) => {
@@ -403,18 +430,25 @@ export default function Perfil() {
 
   return (
     <div className="flex flex-col min-h-screen bg-background dark:bg-gradient-to-tr dark:from-slate-950 dark:to-slate-900 text-foreground py-8 px-2 sm:px-4 md:px-6 lg:px-8">
-      <div className="w-full max-w-6xl mx-auto mb-6 px-2">
-        <div className="flex w-full justify-end mb-4">
-          <Button
-            variant="outline"
-            className="h-10 px-5 text-sm rounded-lg border-destructive text-destructive hover:bg-destructive/10"
-            onClick={() => {
-              safeLocalStorage.clear();
-              window.location.href = "/login";
-            }}
-          >
-            <LogOut className="w-4 h-4 mr-2" /> Salir
-          </Button>
+      <div className="w-full max-w-6xl mx-auto mb-6 relative px-2">
+        <Button
+          variant="outline"
+          className="absolute right-0 top-0 h-10 px-5 text-sm rounded-lg border-destructive text-destructive hover:bg-destructive/10"
+          onClick={() => {
+            safeLocalStorage.clear();
+            window.location.href = "/login";
+          }}
+        >
+          <LogOut className="w-4 h-4 mr-2" /> Salir
+        </Button>
+        <div className="flex flex-col items-center text-center gap-2">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-primary leading-tight flex items-center gap-2">
+            <Building className="w-6 h-6" />
+            {perfil.nombre_empresa || "Panel de Empresa"}
+          </h1>
+          <span className="text-muted-foreground text-sm sm:text-base font-medium capitalize">
+            {perfil.rubro || "Rubro no especificado"}
+          </span>
         </div>
         <div className="flex flex-col items-center text-center gap-2">
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-primary leading-tight flex items-center gap-2">
@@ -499,34 +533,59 @@ export default function Perfil() {
                   >
                     Dirección Completa*
                   </Label>
-                  <AddressAutocomplete
-                    value={direccionSeleccionada}
-                    onChange={(option) => {
-                      setDireccionSeleccionada(option || null);
-                      if (!option)
-                        setPerfil((prev) => ({ ...prev, direccion: "" }));
-                    }}
-                    onSelect={(addr) => {
-                      window?.google?.maps?.Geocoder &&
-                        new window.google.maps.Geocoder().geocode(
-                          { address: addr },
-                          (results, status) => {
-                            if (status === "OK" && results[0]) {
-                              handlePlaceSelected(results[0]);
-                            } else {
-                              setPerfil((prev) => ({
-                                ...prev,
-                                direccion: addr,
-                              }));
-                              setError(
-                                "No se pudo verificar esa dirección. Intenta escribirla bien.",
-                              );
-                            }
-                          },
-                        );
-                    }}
-                    placeholder="Ej: Av. Principal 123"
-                  />
+                  <div className="relative">
+                    <AddressAutocomplete
+                      value={direccionSeleccionada}
+                      onChange={(option) => {
+                        setDireccionSeleccionada(option || null);
+                        if (!option)
+                          setPerfil((prev) => ({ ...prev, direccion: "" }));
+                        setDireccionConfirmada(false);
+                      }}
+                      onSelect={(addr) => {
+                        window?.google?.maps?.Geocoder &&
+                          new window.google.maps.Geocoder().geocode(
+                            { address: addr },
+                            (results, status) => {
+                              if (status === "OK" && results[0]) {
+                                handlePlaceSelected(results[0]);
+                              } else {
+                                setPerfil((prev) => ({
+                                  ...prev,
+                                  direccion: addr,
+                                }));
+                                setError(
+                                  "No se pudo verificar esa dirección. Intenta escribirla bien.",
+                                );
+                              }
+                            },
+                          );
+                      }}
+                      placeholder="Ej: Av. Principal 123"
+                      readOnly={direccionConfirmada}
+                    />
+                    <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex gap-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={handleConfirmDireccion}
+                        disabled={direccionConfirmada || !perfil.direccion}
+                        aria-label="Confirmar dirección"
+                      >
+                        <Check className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={handleClearDireccion}
+                        aria-label="Borrar dirección"
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
