@@ -806,7 +806,7 @@ export default function Perfil() {
             <CardHeader>
               <CardTitle className="text-lg font-semibold text-primary">
                 {esMunicipio
-                  ? "Cargar Formularios, Trámites y Eventos"
+                  ? "Cargar Catálogo de Trámites"
                   : "Cargar Catálogo de Productos"}
               </CardTitle>
             </CardHeader>
