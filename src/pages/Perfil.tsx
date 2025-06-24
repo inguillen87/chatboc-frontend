@@ -368,7 +368,7 @@ export default function Perfil() {
     try {
       const formData = new FormData();
       formData.append("file", archivo);
-      const res = await fetch(`${API_BASE_URL}/subir_catalogo`, {
+      const res = await fetch(`${API_BASE_URL}/catalogo/cargar`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
@@ -805,7 +805,9 @@ export default function Perfil() {
           <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm">
             <CardHeader>
               <CardTitle className="text-lg font-semibold text-primary">
-                Tu Catálogo de Productos
+                {esMunicipio
+                  ? "Cargar Catálogo de Trámites"
+                  : "Cargar Catálogo de Productos"}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">

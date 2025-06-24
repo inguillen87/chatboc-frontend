@@ -57,9 +57,9 @@ const Documentacion = () => (
           </span>
         </li>
         <li>
-          <strong>POST /catalogo/upload</strong> — Subir catálogo.<br />
+          <strong>POST /catalogo/cargar</strong> — Subir catálogo.<br />
           <span className="text-sm text-muted-foreground">
-            Cargá tu catálogo de productos por PDF o Excel para que el bot lo use en consultas.
+            Subí tu catálogo de productos o tus formularios y trámites, según tu tipo de usuario.
           </span>
         </li>
         <li>
@@ -97,7 +97,7 @@ print(response.json())  # Respuesta del bot
       <div className="bg-black rounded-lg text-yellow-200 text-sm p-4 font-mono mb-4 overflow-auto">
 {`import requests
 
-url = "https://api.chatboc.ar/catalogo/upload"
+url = "https://api.chatboc.ar/catalogo/cargar"
 headers = {"Authorization": "Bearer TU_TOKEN_AQUI"}
 files = {"archivo": open("catalogo.xlsx", "rb")}
 
