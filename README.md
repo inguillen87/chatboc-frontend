@@ -351,3 +351,6 @@ Some of these ideas already have prototype pages under `/municipal/stats`, `/mun
 ## Pyme feature ideas
 See [docs/pyme-features.md](docs/pyme-features.md) for potential improvements.
 A prototype catalog viewer is available under `/pyme/catalog`.
+
+## Roles y perfiles
+Más información en [docs/roles.md](docs/roles.md).

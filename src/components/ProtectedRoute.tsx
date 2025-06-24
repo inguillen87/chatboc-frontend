@@ -1,8 +1,9 @@
 import React from 'react';
 import useRequireRole from '@/hooks/useRequireRole';
+import type { Role } from '@/utils/roles';
 
 interface Props {
-  roles: string[];
+  roles: Role[];
   children: React.ReactElement;
 }
 
