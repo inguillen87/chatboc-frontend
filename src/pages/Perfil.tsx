@@ -12,6 +12,7 @@ import {
   Info,
   ChevronDown,
   ChevronUp,
+  Building,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -20,6 +21,7 @@ import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import TicketMap from "@/components/TicketMap";
 import { useNavigate } from "react-router-dom";
 import ProfileNav from "@/components/ProfileNav";
+import QuickLinksCard from "@/components/QuickLinksCard";
 import { useUser } from "@/hooks/useUser";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
@@ -409,7 +411,7 @@ export default function Perfil() {
 
   return (
     <div className="flex flex-col min-h-screen bg-background dark:bg-gradient-to-tr dark:from-slate-950 dark:to-slate-900 text-foreground py-8 px-2 sm:px-4 md:px-6 lg:px-8">
-      <div className="w-full max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between mb-8 gap-4 px-2">
+      <div className="w-full max-w-6xl mx-auto grid grid-cols-1 sm:grid-cols-[auto_1fr_auto] items-center gap-4 mb-6 px-2">
         <div className="flex items-center gap-4">
           <Avatar className="w-16 h-16 sm:w-20 sm:h-20 bg-secondary border-2 border-border shadow-lg">
             <AvatarFallback className="bg-transparent">
@@ -419,19 +421,22 @@ export default function Perfil() {
             </AvatarFallback>
           </Avatar>
           <div>
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-primary leading-tight mb-0.5 text-center sm:text-left">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-primary leading-tight mb-0.5 flex items-center gap-2">
+              <Building className="w-6 h-6" />
               {perfil.nombre_empresa || "Panel de Empresa"}
             </h1>
-            <span className="text-muted-foreground text-sm sm:text-base font-medium capitalize block text-center sm:text-left">
+            <span className="text-muted-foreground text-sm sm:text-base font-medium capitalize block">
               {perfil.rubro || "Rubro no especificado"}
             </span>
           </div>
         </div>
-        <div className="flex gap-3 items-center flex-wrap">
+        <div className="flex justify-center">
           <ProfileNav />
+        </div>
+        <div className="justify-self-end">
           <Button
             variant="outline"
-            className="h-10 px-5 text-sm border-destructive text-destructive hover:bg-destructive/10"
+            className="h-10 px-5 text-sm rounded-lg border-destructive text-destructive hover:bg-destructive/10"
             onClick={() => {
               safeLocalStorage.clear();
               window.location.href = "/login";
@@ -440,6 +445,10 @@ export default function Perfil() {
             <LogOut className="w-4 h-4 mr-2" /> Salir
           </Button>
         </div>
+      </div>
+
+      <div className="w-full max-w-6xl mx-auto mb-8 px-2">
+        <QuickLinksCard />
       </div>
 
       <div className="w-full max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 px-2">
@@ -567,7 +576,7 @@ export default function Perfil() {
                       value={perfil.provincia}
                       onChange={handleInputChange}
                       required
-                      className="w-full rounded-md border border-input bg-input px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary h-10"
+                      className="w-full h-10 rounded-lg border border-input bg-input px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary shadow-sm"
                     >
                       <option value="">Selecciona una provincia</option>
                       {PROVINCIAS.map((p) => (
@@ -655,7 +664,7 @@ export default function Perfil() {
                               <Input
                                 type="time"
                                 value={perfil.horarios_ui[idx].abre}
-                                className="w-full sm:w-28 bg-input border-input text-foreground h-9 text-xs"
+                                className="w-full sm:w-28 bg-input border-input text-foreground h-9 text-xs rounded-md shadow-sm"
                                 onChange={(e) =>
                                   handleHorarioChange(
                                     idx,
@@ -670,7 +679,7 @@ export default function Perfil() {
                               <Input
                                 type="time"
                                 value={perfil.horarios_ui[idx].cierra}
-                                className="w-full sm:w-28 bg-input border-input text-foreground h-9 text-xs"
+                                className="w-full sm:w-28 bg-input border-input text-foreground h-9 text-xs rounded-md shadow-sm"
                                 onChange={(e) =>
                                   handleHorarioChange(
                                     idx,
@@ -692,7 +701,7 @@ export default function Perfil() {
                 <Button
                   disabled={loadingGuardar}
                   type="submit"
-                  className="w-full mt-4 bg-primary hover:bg-primary/90 text-primary-foreground py-2.5 text-base"
+                  className="w-full mt-4 bg-primary hover:bg-primary/90 text-primary-foreground py-2.5 text-base rounded-lg shadow"
                 >
                   {loadingGuardar ? "Guardando Cambios..." : "Guardar Cambios"}
                 </Button>
@@ -799,10 +808,12 @@ export default function Perfil() {
                 <br />
                 Si no ves el cambio en unos minutos, comunicate con soporte..
               </div>
-            </CardContent>
-          </Card>
+          </CardContent>
+        </Card>
 
-          <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm">
+        <QuickLinksCard />
+
+        <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm">
             <CardHeader>
               <CardTitle className="text-lg font-semibold text-primary">
                 {esMunicipio
