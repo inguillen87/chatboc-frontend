@@ -36,6 +36,7 @@ import Reminders from '@/pages/Reminders';
 import BusinessMetrics from '@/pages/BusinessMetrics';
 import CrmIntegrations from '@/pages/CrmIntegrations';
 import PredefinedQueries from '@/pages/PredefinedQueries';
+import PermissionDenied from '@/pages/PermissionDenied';
 
 export interface RouteConfig {
   path: string;
@@ -72,6 +73,7 @@ const routes: RouteConfig[] = [
   { path: '/pyme/metrics', element: <BusinessMetrics /> },
   { path: '/crm/integrations', element: <CrmIntegrations /> },
   { path: '/consultas', element: <PredefinedQueries /> },
+  { path: '/403', element: <PermissionDenied /> },
   { path: '/pyme/catalog', element: <ProductCatalog />, roles: ['admin'] },
   { path: '/municipal/tramites', element: <TramitesCatalog />, roles: ['admin'] },
   { path: '/municipal/usuarios', element: <InternalUsers />, roles: ['admin'] },
