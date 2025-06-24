@@ -403,25 +403,7 @@ export default function Perfil() {
 
   return (
     <div className="flex flex-col min-h-screen bg-background dark:bg-gradient-to-tr dark:from-slate-950 dark:to-slate-900 text-foreground py-8 px-2 sm:px-4 md:px-6 lg:px-8">
-<<<<<<< HEAD
-      <div className="w-full max-w-6xl mx-auto mb-6 px-2">
-        <div className="flex w-full justify-end mb-4">
-=======
-      <div className="w-full max-w-6xl mx-auto grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] items-center gap-4 mb-6 px-2">
-        <div className="flex flex-col items-center text-center sm:flex-row sm:text-left sm:items-center gap-3 sm:gap-4 justify-center">
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-primary leading-tight mb-0.5 flex items-center gap-2">
-            <Building className="w-6 h-6" />
-            {perfil.nombre_empresa || "Panel de Empresa"}
-          </h1>
-          <span className="text-muted-foreground text-sm sm:text-base font-medium capitalize block">
-            {perfil.rubro || "Rubro no especificado"}
-          </span>
-        </div>
-        <div className="flex justify-center justify-self-center">
-          <ProfileNav />
-        </div>
-        <div className="justify-self-end">
->>>>>>> 782d24fb24f1007574a36979297340f677a6fca0
+
           <Button
             variant="outline"
             className="h-10 px-5 text-sm rounded-lg border-destructive text-destructive hover:bg-destructive/10"
