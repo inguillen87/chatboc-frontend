@@ -282,6 +282,11 @@ With this setting all frontend requests go through the proxy, so your
 local environment can talk to the production API without cross-origin
 errors.
 
+If municipal pages like `/municipal/usuarios` or `/municipal/stats` respond with
+`404 Not Found`, ensure your backend version exposes those endpoints and that
+you are logged in with an `admin` or `empleado` account. Older deployments may
+lack these routes.
+
 ### Google authentication
 
 Social login now uses [`@react-oauth/google`](https://www.npmjs.com/package/@react-oauth/google).
