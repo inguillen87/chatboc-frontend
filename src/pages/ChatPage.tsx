@@ -14,6 +14,7 @@ import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import TicketMap from "@/components/TicketMap";
 import getOrCreateAnonId from "@/utils/anonId";
 import { toast } from "@/components/ui/use-toast";
+import { requestLocation } from "@/utils/geolocation";
 
 // Utilidad para mobile
 function useIsMobile(breakpoint = 768) {
@@ -160,34 +161,32 @@ const ChatPage = () => {
 
   // --- GPS/ubicación ---
   const handleShareGps = useCallback(() => {
-    if (!activeTicketId || !navigator.geolocation) {
-      toast({ title: "Ubicación no disponible", description: "Tu navegador no soporta la geolocalización o el ticket no está activo.", variant: "destructive", duration: 3000 });
+    if (!activeTicketId) {
+      toast({ title: "Ubicación no disponible", description: "El ticket no está activo.", variant: "destructive", duration: 3000 });
       return;
     }
     if (tipoChat === "municipio") {
-      navigator.geolocation.getCurrentPosition(
-        async (pos) => {
-          const coords = { latitud: pos.coords.latitude, longitud: pos.coords.longitude };
-          try {
-            await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, { method: 'PUT', body: coords, sendAnonId: isAnonimo });
-            await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, { method: 'PUT', body: coords, sendAnonId: isAnonimo });
-            setForzarDireccion(false);
-            fetchTicketInfo();
-            toast({ title: "Ubicación enviada", description: "Tu ubicación ha sido compartida con el agente.", duration: 3000 });
-          } catch {
-            toast({ title: "Error al enviar ubicación", description: "Hubo un problema al enviar tu ubicación.", variant: "destructive", duration: 3000 });
-          }
-        },
-        () => {
+      requestLocation({ enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }).then(async (coords) => {
+        if (!coords) {
           setForzarDireccion(true);
           setEsperandoDireccion(true);
           setMessages((prev) => [...prev, {
             id: Date.now(),
-            text: 'No pudimos acceder a tu ubicación por GPS. Ingresá la dirección manualmente para continuar.',
+            text: 'No pudimos acceder a tu ubicación por GPS. Verificá los permisos y que estés usando una conexión segura (https). Ingresá la dirección manualmente para continuar.',
             isBot: true, timestamp: new Date(), query: undefined
           }]);
-        }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-      );
+          return;
+        }
+        try {
+          await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, { method: 'PUT', body: coords, sendAnonId: isAnonimo });
+          await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, { method: 'PUT', body: coords, sendAnonId: isAnonimo });
+          setForzarDireccion(false);
+          fetchTicketInfo();
+          toast({ title: "Ubicación enviada", description: "Tu ubicación ha sido compartida con el agente.", duration: 3000 });
+        } catch {
+          toast({ title: "Error al enviar ubicación", description: "Hubo un problema al enviar tu ubicación.", variant: "destructive", duration: 3000 });
+        }
+      });
     }
   }, [activeTicketId, fetchTicketInfo, tipoChat, isAnonimo]);
 

@@ -207,7 +207,9 @@ const Integracion = () => {
       <div className="bg-muted text-muted-foreground p-4 rounded mb-8 text-xs border border-border">
         <b>¿No ves el widget?</b> Verificá que el código esté bien pegado, y que tu tienda permita iframes/scripts.<br />
         Si usás Tiendanube: pegalo en “Editar Código Avanzado” o consultá a soporte.<br />
-        Ante cualquier problema <a href="mailto:soporte@chatboc.ar" className="underline text-primary">escribinos</a>.
+        Para utilizar la geolocalización asegurate de servir el sitio por <code>https</code> y agregar
+        el atributo <code>allow="geolocation"</code> si tu página está dentro de otro iframe.<br />
+        Ante cualquier problema <a href="mailto:info@chatboc.ar" className="underline text-primary">escribinos</a>.
       </div>
 
       <div className="mt-10">
