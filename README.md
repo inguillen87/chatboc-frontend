@@ -119,7 +119,13 @@ You can embed the floating chat widget on any site by loading `widget.js` and pa
 
 This snippet loads the widget without needing an iframe and creates a floating bubble styled just like on chatboc.ar.
 You can also pass `data-theme="dark"` or `data-theme="light"` to force a specific theme inside the widget.
-If you host `widget.js` yourself, remember to add `data-domain="https://www.chatboc.ar"` so the iframe loads from our servers.
+If you host `widget.js` yourself, remember to add `data-domain="https://www.chatboc.ar"` so the iframe loads from our servers. Example self-hosted snippet:
+
+```html
+<script async src="/widget.js"
+  data-domain="https://www.chatboc.ar"
+  data-token="TU_TOKEN_AQUI"></script>
+```
 The script automatically adds `allow="clipboard-write; geolocation"` to the underlying iframe so the widget can request GPS access.
 If your site embeds this script inside another `<iframe>`, be sure that outer frame also includes
 `allow="clipboard-write; geolocation"`. The permission must be granted at every level
@@ -299,6 +305,14 @@ If the console shows `[GSI_LOGGER]: Provided button width is invalid: 100%`,
 update the `width` prop in `src/components/auth/GoogleLoginButton.tsx` to a
 numeric value like `width={300}`. The Google OAuth library does not accept
 percentage values.
+
+If you host `widget.js` on your own domain and forget to include
+`data-domain="https://www.chatboc.ar"`, the iframe will attempt to load its
+assets from your site. This results in an HTML error page being parsed as
+JavaScript and the browser reports `Uncaught SyntaxError: Invalid or
+unexpected token (window-provider.js:...)`. Always set the `data-domain`
+attribute when self-hosting the script so the widget loads the correct files
+from chatboc.ar. See the snippet above for the correct configuration.
 
 When the server logs show messages such as `PERMISO DENEGADO` and the HTTP
 response is `403`, the user lacks the required role for that endpoint. Check
