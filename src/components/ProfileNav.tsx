@@ -18,6 +18,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Catálogo', path: '/pyme/catalog', roles: ['admin'], tipo: 'pyme' },
   { label: 'Trámites', path: '/municipal/tramites', roles: ['admin'], tipo: 'municipio' },
   { label: 'Estadísticas', path: '/municipal/stats', roles: ['admin'], tipo: 'municipio' },
+  { label: 'Empleados', path: '/municipal/usuarios', roles: ['admin'], tipo: 'municipio' },
   { label: 'Métricas', path: '/pyme/metrics', roles: ['admin'], tipo: 'pyme' },
 ];
 
