@@ -57,7 +57,7 @@ const SolutionSection = () => {
               key={index}
               className="bg-card text-card-foreground p-8 rounded-xl border border-border shadow-sm hover:shadow-md transition-shadow"
             >
-              <div className="mb-5">{benefit.icon}</div>
+              <div className="mb-5 flex justify-center">{benefit.icon}</div>
               <h3 className="text-xl font-semibold mb-3">{benefit.title}</h3>
               <p className="text-muted-foreground">{benefit.description}</p>
             </div>

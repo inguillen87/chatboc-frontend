@@ -59,7 +59,7 @@ const TargetSection = () => {
               key={index}
               className="bg-card text-card-foreground p-6 rounded-xl border border-border shadow-sm hover:shadow-md transition-shadow"
             >
-              <div className="mb-4">{target.icon}</div>
+              <div className="mb-4 flex justify-center">{target.icon}</div>
               <h3 className="text-xl font-semibold mb-2">{target.title}</h3>
               <p className="text-muted-foreground">{target.description}</p>
             </div>
