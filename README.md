@@ -155,12 +155,11 @@ If your site blocks external JavaScript, you can embed the chatbot using an
 <script>
   document.addEventListener('DOMContentLoaded', function () {
     window.APP_TARGET = 'pyme'; // or 'municipio'
-
-    // Remove any existing iframe to avoid reload flicker
-    var old = document.getElementById('chatboc-iframe');
-    if (old) old.remove();
-
     var f = document.getElementById('chatboc-iframe');
+
+    // If you load this snippet more than once (e.g. in a SPA)
+    // call `window.chatbocDestroyWidget('<TOKEN>')` before
+    // inserting a new iframe to avoid duplicates.
     window.addEventListener('message', function (e) {
       if (e.data && e.data.type === 'chatboc-state-change') {
         if (e.data.dimensions) {
@@ -174,9 +173,10 @@ If your site blocks external JavaScript, you can embed the chatbot using an
 </script>
 ```
 When embedding via `<iframe>`, include `allow="clipboard-write; geolocation"`
-so the widget can request GPS permissions from the browser. Without it, users
-will need to enter their address manually.
-If the same page injects this iframe snippet more than once (for example in a single-page application), remove any existing element with id="chatboc-iframe" before creating a new one. Otherwise the widget may reload and flicker.
+so the widget can request GPS permissions from the browser. If this snippet is
+loaded inside another `<iframe>`, that outer frame must have the same `allow`
+attribute. Without these permissions the browser will block GPS access and
+users will need to enter their address manually.
 
 ### Removing an existing widget
 If your site loads the script multiple times (for example when navigating a SPA), call `window.chatbocDestroyWidget('<TOKEN>')` before injecting a new one.
