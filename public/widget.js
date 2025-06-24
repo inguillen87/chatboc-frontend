@@ -137,7 +137,23 @@
       transition: "opacity 0.3s ease-in",
       zIndex: "1" // Por debajo del loader inicialmente
     });
-    iframe.allow = "clipboard-write";
+    iframe.allow = "clipboard-write; geolocation";
+    // If this script runs inside an iframe, try to grant the same
+    // permissions so geolocation works even in nested frames
+    try {
+      if (window.frameElement && window.frameElement.setAttribute) {
+        const allowAttr = window.frameElement.getAttribute("allow") || "";
+        if (!allowAttr.includes("geolocation")) {
+          const parts = allowAttr
+            .split(/\s*;\s*/)
+            .filter((p) => p && p !== "clipboard-write" && p !== "geolocation");
+          parts.push("clipboard-write", "geolocation");
+          window.frameElement.setAttribute("allow", parts.join("; "));
+        }
+      }
+    } catch (e) {
+      // Might be cross-origin; ignore if we cannot modify the parent iframe
+    }
     iframe.setAttribute("title", "Chatboc Chatbot");
     widgetContainer.appendChild(iframe);
 
