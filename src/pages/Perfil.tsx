@@ -411,7 +411,7 @@ export default function Perfil() {
 
   return (
     <div className="flex flex-col min-h-screen bg-background dark:bg-gradient-to-tr dark:from-slate-950 dark:to-slate-900 text-foreground py-8 px-2 sm:px-4 md:px-6 lg:px-8">
-      <div className="w-full max-w-6xl mx-auto grid grid-cols-1 sm:grid-cols-[auto_1fr_auto] items-center gap-4 mb-8 px-2">
+      <div className="w-full max-w-6xl mx-auto grid grid-cols-1 sm:grid-cols-[auto_1fr_auto] items-center gap-4 mb-6 px-2">
         <div className="flex items-center gap-4">
           <Avatar className="w-16 h-16 sm:w-20 sm:h-20 bg-secondary border-2 border-border shadow-lg">
             <AvatarFallback className="bg-transparent">
@@ -436,7 +436,7 @@ export default function Perfil() {
         <div className="justify-self-end">
           <Button
             variant="outline"
-            className="h-10 px-5 text-sm border-destructive text-destructive hover:bg-destructive/10"
+            className="h-10 px-5 text-sm rounded-lg border-destructive text-destructive hover:bg-destructive/10"
             onClick={() => {
               safeLocalStorage.clear();
               window.location.href = "/login";
@@ -445,6 +445,10 @@ export default function Perfil() {
             <LogOut className="w-4 h-4 mr-2" /> Salir
           </Button>
         </div>
+      </div>
+
+      <div className="w-full max-w-6xl mx-auto mb-8 px-2">
+        <QuickLinksCard />
       </div>
 
       <div className="w-full max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 px-2">
