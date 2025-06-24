@@ -59,7 +59,7 @@ const ProblemsSection = () => {
               key={index}
               className="bg-card text-card-foreground p-6 rounded-xl border border-border shadow-sm hover:shadow-lg transition-shadow relative"
             >
-              <div className="p-3 rounded-full bg-muted inline-flex mb-4">
+              <div className="p-3 rounded-full bg-muted flex items-center justify-center mb-4">
                 {problem.icon}
               </div>
               <h3 className="text-xl font-semibold mb-2">{problem.title}</h3>

@@ -6,6 +6,7 @@ import { useUser } from '@/hooks/useUser';
 import { useNavigate } from 'react-router-dom';
 import { enforceTipoChatForRubro } from '@/utils/tipoChat';
 import { APP_TARGET } from '@/config';
+import { cn } from '@/lib/utils';
 
 interface LoginResponse {
   id: number;
@@ -73,7 +74,7 @@ const GoogleLoginButton: React.FC<Props> = ({
   };
 
   return (
-    <div className={className} {...props}>
+    <div className={cn('flex justify-center', className)} {...props}>
       <GoogleLogin
         onSuccess={handleSuccess}
         onError={() => console.error('Google OAuth popup closed')}
