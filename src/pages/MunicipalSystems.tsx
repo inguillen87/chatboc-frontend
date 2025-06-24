@@ -24,11 +24,8 @@ export default function MunicipalSystems() {
         setLoading(false);
       })
       .catch((err: any) => {
-        if (err instanceof ApiError && err.status === 404) {
-          setError('Funcionalidad no disponible');
-        } else {
-          setError(err.message || 'Error');
-        }
+        const message = err instanceof ApiError ? err.message : 'Error';
+        setError(message);
         setLoading(false);
       });
   }, []);
