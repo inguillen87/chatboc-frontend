@@ -323,6 +323,16 @@ user is redirected. Admins and employees land on the full management panel
 (`/perfil`), while regular users see the limited account page available at
 `/cuenta`.
 
+## Internal employee management
+
+Regular chat users can only sign up as final customers. The frontend sends
+their basic information to `/chatuserregisterpanel` and the backend assigns the
+role. The registration form never exposes an option to mark an account as
+`empleado`. Any employee accounts must be created from the administrator panel.
+The page `/municipal/usuarios` relies on `useRequireRole(['admin'])` so only
+admins can view or manage internal users. If a non-admin attempts to open that
+section, the hook redirects back to the start page.
+
 
 ## Widget integration guidelines
 Detailed requirements for the embedded widget can be found in [docs/widget-requirements.md](docs/widget-requirements.md).
