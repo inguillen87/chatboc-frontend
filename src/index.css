@@ -116,6 +116,12 @@ body,
   overflow-x: hidden;
   overflow-y: auto;
 }
+
+@media (max-width: 639px) {
+  body {
+    padding-bottom: 6rem; /* espacio para el widget flotante */
+  }
+}
 @keyframes pulse-subtle {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.8; }

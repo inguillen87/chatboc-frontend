@@ -1,6 +1,14 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu';
+import { Button } from '@/components/ui/button';
+import { Menu } from 'lucide-react';
 import { useUser } from '@/hooks/useUser';
 import { normalizeRole } from '@/utils/roles';
 import useEndpointAvailable from '@/hooks/useEndpointAvailable';
@@ -52,18 +60,41 @@ export default function ProfileNav() {
   if (!items.length) return null;
 
   return (
-    <Tabs value={location.pathname} onValueChange={(v) => navigate(v)}>
-      <TabsList className="rounded-xl border border-border bg-muted/50 shadow-sm p-1">
-        {items.map((it) => (
-          <TabsTrigger
-            key={it.path}
-            value={it.path}
-            className="rounded-lg px-4 py-2 text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-colors"
-          >
-            {it.label}
-          </TabsTrigger>
-        ))}
-      </TabsList>
-    </Tabs>
+    <div className="w-full">
+      <div className="hidden sm:block">
+        <Tabs value={location.pathname} onValueChange={(v) => navigate(v)}>
+          <TabsList className="rounded-xl border border-border bg-muted/50 shadow-sm p-1">
+            {items.map((it) => (
+              <TabsTrigger
+                key={it.path}
+                value={it.path}
+                className="rounded-lg px-4 py-2 text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-colors"
+              >
+                {it.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+      </div>
+      <div className="sm:hidden">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="w-full flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Menu className="w-4 h-4" />
+                Menú
+              </span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            {items.map((it) => (
+              <DropdownMenuItem key={it.path} onSelect={() => navigate(it.path)}>
+                {it.label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </div>
   );
 }
