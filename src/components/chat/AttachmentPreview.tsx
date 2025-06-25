@@ -9,13 +9,16 @@ interface Props {
 const AttachmentPreview: React.FC<Props> = ({ attachment }) => {
   if (attachment.type === 'image') {
     return (
-      <a href={attachment.url} target="_blank" rel="noopener noreferrer">
-        <img
-          src={attachment.url}
-          alt="archivo"
-          className="max-w-[260px] rounded-lg border cursor-pointer"
-        />
-      </a>
+      <div className="flex flex-col items-start">
+        <a href={attachment.url} target="_blank" rel="noopener noreferrer">
+          <img
+            src={attachment.url}
+            alt={attachment.name}
+            className="max-w-[260px] rounded-lg border cursor-pointer"
+          />
+        </a>
+        <span className="text-xs mt-1 break-all">{attachment.name}</span>
+      </div>
     )
   }
 
@@ -34,7 +37,7 @@ const AttachmentPreview: React.FC<Props> = ({ attachment }) => {
       className="flex items-center gap-2 text-primary underline hover:opacity-80"
     >
       <Icon className="w-5 h-5 flex-shrink-0" />
-      <span>{attachment.extension.toUpperCase()}</span>
+      <span className="break-all">{attachment.name}</span>
     </a>
   )
 }
