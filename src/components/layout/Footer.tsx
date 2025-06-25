@@ -1,3 +1,5 @@
+// src/components/Footer.tsx
+
 import React from "react";
 import { Link } from "react-router-dom";
 import { Facebook, Twitter, Instagram, Linkedin, Mail, MessageCircle, Copy } from "lucide-react";
@@ -122,25 +124,43 @@ const Footer = () => {
           <div>
             <h3 className="text-lg font-semibold mb-4">Legal</h3>
             <ul className="space-y-2">
-              <li>
-                <Link to="/legal/privacy" className="text-gray-400 hover:text-white transition">
-                  Política de privacidad
-                </Link>
-              </li>
-              <li>
-                <Link to="/legal/terms" className="text-gray-400 hover:text-white transition">
-                  Términos y condiciones
-                </Link>
-              </li>
-              <li>
-                <Link to="/legal/cookies" className="text-gray-400 hover:text-white transition">
-                  Política de cookies
-                </Link>
-              </li>
-            </ul>
+  <li>
+    <Link to="/legal/privacy" className="text-gray-400 hover:text-white transition">
+      Política de privacidad
+    </Link>
+  </li>
+  <li>
+    <Link to="/legal/terms" className="text-gray-400 hover:text-white transition">
+      Términos y condiciones
+    </Link>
+  </li>
+  <li>
+    <Link to="/legal/cookies" className="text-gray-400 hover:text-white transition">
+      Política de cookies
+    </Link>
+  </li>
+  <li className="mt-4">
+    <a
+      href="http://qr.afip.gob.ar/?qr=hNBOkNhlJyhWrlnUph25jQ,,"
+      target="_blank"
+      rel="noopener noreferrer"
+      title="Datos fiscales - AFIP"
+      className="inline-block"
+    >
+      <img
+        src="http://www.afip.gob.ar/images/f960/DATAWEB.jpg"
+        alt="Formulario 960 AFIP"
+        className="w-24 sm:w-20 md:w-24 lg:w-28"
+      />
+    </a>
+  </li>
+</ul>
+
           </div>
         </div>
-        <div className="border-t border-gray-800 pt-6">
+
+        
+        <div className="border-t border-gray-800 pt-6 mt-4">
           <p className="text-center text-sm text-gray-500">
             © 2025 Chatboc · Todos los derechos reservados.
           </p>
