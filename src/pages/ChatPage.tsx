@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Message } from "@/types/chat";
+import { Message } from "@/types/chat"; // Asegúrate de que Message tenga los nuevos campos
 import ChatMessage from "@/components/chat/ChatMessage";
 import ChatInput from "@/components/chat/ChatInput";
 import TypingIndicator from "@/components/chat/TypingIndicator";
@@ -16,7 +16,18 @@ import getOrCreateAnonId from "@/utils/anonId";
 import { toast } from "@/components/ui/use-toast";
 import { requestLocation } from "@/utils/geolocation";
 
-// Utilidad para mobile
+// --- NUEVA INTERFAZ PARA EL PAYLOAD DE ENVÍO DE MENSAJES (COMO EN useChatLogic.ts) ---
+interface SendPayload {
+  text: string;
+  es_foto?: boolean;
+  archivo_url?: string;
+  es_ubicacion?: boolean;
+  ubicacion_usuario?: { lat: number; lon: number; }; // Asegúrate de que las claves sean 'lat' y 'lon'
+  action?: string;
+}
+// ---------------------------------------------------------------------------------
+
+// Utilidad para mobile (sin cambios)
 function useIsMobile(breakpoint = 768) {
   const [isMobile, setIsMobile] = useState(
     typeof window !== "undefined" ? window.innerWidth < breakpoint : false,
@@ -71,9 +82,9 @@ const ChatPage = () => {
   const rubroFromUser = user?.rubro ? parseRubro(user.rubro) : null;
   const rubroFromStorage = typeof window !== 'undefined'
     ? (() => {
-      const stored = safeLocalStorage.getItem('rubroSeleccionado');
-      return stored ? parseRubro(stored) : null;
-    })()
+        const stored = safeLocalStorage.getItem('rubroSeleccionado');
+        return stored ? parseRubro(stored) : null;
+      })()
     : null;
   const rubroNormalizado = (isAnonimo && demoRubroNameParam)
     ? parseRubro(demoRubroNameParam)
@@ -97,7 +108,7 @@ const ChatPage = () => {
     }
     const stored = safeLocalStorage.getItem("ultima_direccion");
     if (stored) setDireccionGuardada(stored);
-  }, []);
+  }, [messages.length]); // Añadir messages.length a las dependencias si messages puede ser modificado por otros efectos al inicio
 
   // Refresca usuario si es necesario
   useEffect(() => {
@@ -155,7 +166,9 @@ const ChatPage = () => {
         latitud: data.latitud != null ? Number(data.latitud) : null,
         longitud: data.longitud != null ? Number(data.longitud) : null,
       });
-    } catch { /* ignore */ }
+    } catch (error) { 
+        console.error("Error fetching ticket info:", error);
+    }
   }, [activeTicketId, isAnonimo]);
   useEffect(() => { fetchTicketInfo(); }, [activeTicketId, fetchTicketInfo]);
 
@@ -178,12 +191,14 @@ const ChatPage = () => {
           return;
         }
         try {
-          await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, { method: 'PUT', body: coords, sendAnonId: isAnonimo });
-          await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, { method: 'PUT', body: coords, sendAnonId: isAnonimo });
+          // Asegúrate de enviar lat y lon
+          await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, { method: 'PUT', body: { lat: coords.latitud, lon: coords.longitud }, sendAnonId: isAnonimo });
+          await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, { method: 'PUT', body: { lat: coords.latitud, lon: coords.longitud }, sendAnonId: isAnonimo });
           setForzarDireccion(false);
           fetchTicketInfo();
           toast({ title: "Ubicación enviada", description: "Tu ubicación ha sido compartida con el agente.", duration: 3000 });
-        } catch {
+        } catch (error) {
+          console.error("Error al enviar ubicación:", error);
           toast({ title: "Error al enviar ubicación", description: "Hubo un problema al enviar tu ubicación.", variant: "destructive", duration: 3000 });
         }
       });
@@ -228,46 +243,64 @@ const ChatPage = () => {
   }, [activeTicketId, fetchTicketInfo, isAnonimo]);
 
   // ---- ENVÍO de mensaje ----
+  // MODIFICADO: handleSend ahora acepta un SendPayload
   const handleSend = useCallback(
-    async (text: string) => {
-      if (!text.trim()) return;
+    async (payload: SendPayload) => { // <-- MODIFICADO
+      // Asegurarse de que el texto del payload no esté vacío, a menos que sea una acción o adjunto
+      if (!payload.text.trim() && !payload.archivo_url && !payload.ubicacion_usuario && !payload.action) return;
+      
+      const userMessageText = payload.text.trim(); // Acceder al texto desde el payload
+
       // Dirección
       if (esperandoDireccion) {
         setEsperandoDireccion(false);
         setForzarDireccion(false);
-        safeLocalStorage.setItem("ultima_direccion", text);
-        setDireccionGuardada(text);
+        safeLocalStorage.setItem("ultima_direccion", userMessageText); // Usar userMessageText
+        setDireccionGuardada(userMessageText); // Usar userMessageText
         if (activeTicketId) {
           try {
-            await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, { method: 'PUT', body: { direccion: text }, sendAnonId: isAnonimo });
-            await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, { method: 'PUT', body: { direccion: text }, sendAnonId: isAnonimo });
+            await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, { method: 'PUT', body: { direccion: userMessageText }, sendAnonId: isAnonimo }); // Usar userMessageText
+            await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, { method: 'PUT', body: { direccion: userMessageText }, sendAnonId: isAnonimo }); // Usar userMessageText
             fetchTicketInfo();
             toast({ title: "Dirección enviada", duration: 2000 });
-          } catch {
+          } catch (error) { // Capturar error
+            console.error("Error enviando dirección:", error);
             toast({ title: "Error enviando dirección", variant: "destructive" });
           }
         }
+        // No enviar el mensaje del usuario aquí, ya se manejará abajo con el payload completo
+        // y se evita duplicidad si se comparte ubicación/foto
       }
       setShowCierre(null);
 
-      // Mensaje usuario
+      // Mensaje usuario (ahora usa el payload.text)
       setMessages((prev) => [...prev, {
-        id: Date.now(), text, isBot: false, timestamp: new Date(),
+        id: Date.now(), text: userMessageText, isBot: false, timestamp: new Date(), // Usar userMessageText
       }]);
-      lastQueryRef.current = text;
+      lastQueryRef.current = userMessageText; // Usar userMessageText
       setIsTyping(true);
 
       try {
         if (activeTicketId) {
+          // Si hay un ticket activo (chat en vivo), enviar como comentario
           await apiFetch(`/tickets/chat/${activeTicketId}/responder_ciudadano`, {
             method: "POST",
-            body: { comentario: text },
+            body: { 
+                comentario: userMessageText, // Usar userMessageText
+                ...(payload.es_foto && { foto_url: payload.archivo_url }),
+                ...(payload.es_ubicacion && { ubicacion: payload.ubicacion_usuario }),
+            },
             sendAnonId: isAnonimo
           });
         } else {
-          const payload: Record<string, any> = {
-            pregunta: text,
+          const requestPayload: Record<string, any> = { // Renombrado para evitar conflicto con el 'payload' de la función
+            pregunta: userMessageText, // Usar userMessageText
             contexto_previo: contexto,
+            // Incluir datos de adjunto si están presentes
+            ...(payload.es_foto && { es_foto: true, archivo_url: payload.archivo_url }),
+            ...(payload.es_ubicacion && { es_ubicacion: true, ubicacion_usuario: payload.ubicacion_usuario }),
+            // Incluir acción de botón si está presente
+            ...(payload.action && { action: payload.action }),
           };
           let rubroClave: string | undefined = undefined;
           if (tipoChat === 'pyme') {
@@ -275,14 +308,14 @@ const ChatPage = () => {
           } else if (tipoChat === 'municipio') {
             rubroClave = "municipios";
           }
-          if (rubroClave) payload.rubro_clave = rubroClave;
-          payload.tipo_chat = tipoChat;
-          if (isAnonimo && anonId) payload.anon_id = anonId;
+          if (rubroClave) requestPayload.rubro_clave = rubroClave;
+          requestPayload.tipo_chat = tipoChat;
+          if (isAnonimo && anonId) requestPayload.anon_id = anonId;
           const endpoint = getAskEndpoint({ tipoChat, rubro: rubroClave });
 
           const data = await apiFetch<any>(endpoint, {
             method: "POST",
-            body: payload,
+            body: requestPayload, // Usar el nuevo requestPayload
             skipAuth: !authToken,
             sendEntityToken: true,
           });
@@ -298,6 +331,8 @@ const ChatPage = () => {
             timestamp: new Date(),
             botones,
             query: lastQueryRef.current || undefined,
+            mediaUrl: data.media_url, // Asegúrate de asignar esto desde la respuesta
+            locationData: data.location_data, // Asegúrate de asignar esto desde la respuesta
           }]);
           lastQueryRef.current = null;
 
@@ -332,12 +367,17 @@ const ChatPage = () => {
         setIsTyping(false);
       }
     },
+    // Añadir todas las dependencias necesarias de useCallback
     [esperandoDireccion, activeTicketId, isAnonimo, anonId, contexto, tipoChat, rubroNormalizado, authToken, fetchTicketInfo, refreshUser]
   );
 
-  const handleFileUploaded = useCallback((data: any) => {
-    if (data?.url) handleSend(data.url);
+  // handleFileUploaded ahora espera el objeto 'data' del AdjuntarArchivo
+  const handleFileUploaded = useCallback((data: { url: string; }) => {
+    if (data?.url) {
+        handleSend({ text: "Archivo adjunto", es_foto: true, archivo_url: data.url }); // Enviar como SendPayload
+    }
   }, [handleSend]);
+
 
   // Render
   const isTicketLocationValid =
@@ -396,7 +436,7 @@ const ChatPage = () => {
                   <ChatMessage
                     message={msg}
                     isTyping={isTyping}
-                    onButtonClick={handleSend}
+                    onButtonClick={handleSend} // Pasa handleSend, que ahora acepta SendPayload
                     tipoChat={tipoChat}
                     query={msg.query}
                   />
@@ -416,7 +456,7 @@ const ChatPage = () => {
             {esperandoDireccion ? (
               <div>
                 <AddressAutocomplete
-                  onSelect={handleSend}
+                  onSelect={(addressText: string) => handleSend({ text: addressText })} // MODIFICADO: Envía SendPayload
                   autoFocus
                   placeholder="Ej: Av. Principal 123"
                   value={direccionGuardada ? { label: direccionGuardada, value: direccionGuardada } : undefined}
@@ -447,9 +487,9 @@ const ChatPage = () => {
               </div>
             ) : !showCierre || !showCierre.show ? (
               <ChatInput
-                onSendMessage={handleSend}
+                onSendMessage={handleSend} // Pasa handleSend, que ahora acepta SendPayload
                 isTyping={isTyping}
-                onFileUploaded={handleFileUploaded}
+                onFileUploaded={handleFileUploaded} // Pasa el nuevo handleFileUploaded
               />
             ) : null}
           </div>

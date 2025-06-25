@@ -1,12 +1,11 @@
 // src/components/chat/ChatMessageMunicipio.tsx
 import React from "react";
-import { Message } from "@/types/chat";
+import { Message, SendPayload } from "@/types/chat"; // Importa SendPayload
 import ChatButtons from "./ChatButtons";
 import { motion } from "framer-motion";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 import DOMPurify from "dompurify";
 import AttachmentPreview from "./AttachmentPreview";
-import { getAttachmentInfo } from "@/utils/attachment";
 
 const AvatarBot: React.FC<{ isTyping: boolean }> = ({ isTyping }) => (
   <motion.div
@@ -45,7 +44,7 @@ const UserAvatar = () => (
 interface ChatMessageProps {
   message: Message;
   isTyping: boolean;
-  onButtonClick: (valueToSend: string) => void;
+  onButtonClick: (valueToSend: SendPayload) => void; // <-- MODIFICADO: Acepta SendPayload
   onInternalAction?: (action: string) => void;
   tipoChat?: "pyme" | "municipio";
   query?: string;
@@ -69,7 +68,7 @@ const ChatMessageMunicipio: React.FC<ChatMessageProps> = ({
 
   // Limpiamos HTML siempre
   const sanitizedHtml = DOMPurify.sanitize(message.text);
-  const attachment = getAttachmentInfo(message.text);
+
   const isBot = message.isBot;
 
   // Bubble: más pro y moderno (sombra más suave, colores modernos)
@@ -96,8 +95,13 @@ const ChatMessageMunicipio: React.FC<ChatMessageProps> = ({
           animate="visible"
           transition={{ duration: 0.29, ease: "easeOut" }}
         >
-          {attachment ? (
-            <AttachmentPreview attachment={attachment} />
+          {/* Renderiza AttachmentPreview solo si hay mediaUrl o locationData */}
+          {(message.mediaUrl || message.locationData) ? (
+            <AttachmentPreview 
+                mediaUrl={message.mediaUrl} 
+                locationData={message.locationData} 
+                fallbackText={message.text} // Usa el texto del mensaje como fallback si no se muestra el adjunto
+            />
           ) : (
             <div
               className="prose prose-sm dark:prose-invert max-w-none [&_p]:my-0"
@@ -109,7 +113,7 @@ const ChatMessageMunicipio: React.FC<ChatMessageProps> = ({
         {isBot && message.botones && message.botones.length > 0 && (
           <ChatButtons
             botones={message.botones}
-            onButtonClick={onButtonClick}
+            onButtonClick={onButtonClick} // Pasa el onButtonClick modificado
             onInternalAction={onInternalAction}
           />
         )}

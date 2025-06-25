@@ -1,12 +1,26 @@
 // src/hooks/useChatLogic.ts
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Message } from "@/types/chat";
+import { Message } from "@/types/chat"; // Asegúrate de que Message tenga los nuevos campos
 import { apiFetch } from "@/utils/api";
 import { APP_TARGET } from "@/config";
 import { getAskEndpoint, esRubroPublico } from "@/utils/chatEndpoints";
 import { enforceTipoChatForRubro } from "@/utils/tipoChat";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateAnonId from "@/utils/anonId";
+
+// --- NUEVA INTERFAZ PARA EL PAYLOAD DE ENVÍO DE MENSAJES (PARA handleSend) ---
+interface SendPayload {
+  text: string;
+  // Opcionales para adjuntos
+  es_foto?: boolean;
+  archivo_url?: string;
+  es_ubicacion?: boolean;
+  ubicacion_usuario?: { lat: number; lon: number; }; // Asegúrate de que las claves sean 'lat' y 'lon'
+  // Opcional para acciones de botones
+  action?: string;
+}
+// -------------------------------------------------------------------------
+
 
 export function useChatLogic(initialWelcomeMessage: string) {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -68,18 +82,36 @@ export function useChatLogic(initialWelcomeMessage: string) {
     };
   }, [activeTicketId]);
 
-  // Función para enviar mensajes
-  const handleSend = useCallback(async (text: string) => {
-    if (!text.trim()) return;
-    const userMessage: Message = { id: Date.now(), text, isBot: false, timestamp: new Date() };
+  // --- MODIFICACIÓN CLAVE: handleSend ahora acepta un SendPayload ---
+  const handleSend = useCallback(async (payload: string | SendPayload) => {
+    let actualPayload: SendPayload;
+
+    if (typeof payload === 'string') {
+      actualPayload = { text: payload.trim() };
+    } else {
+      actualPayload = { text: payload.text.trim(), ...payload };
+    }
+
+    // No enviar si está vacío, no hay adjuntos y no es una acción de botón
+    if (!actualPayload.text && !actualPayload.archivo_url && !actualPayload.ubicacion_usuario && !actualPayload.action) return; 
+    if (isTyping) return; // No enviar si el bot está escribiendo
+
+    const userMessage: Message = { id: Date.now(), text: actualPayload.text, isBot: false, timestamp: new Date() };
     setMessages(prev => [...prev, userMessage]);
     setIsTyping(true);
 
     try {
       if (activeTicketId) {
+        // Si hay un ticket activo (chat en vivo), enviamos como comentario
+        // Aquí podrías adaptar el backend si necesitas adjuntar archivos a los comentarios del ticket
         await apiFetch(`/tickets/chat/${activeTicketId}/responder_ciudadano`, {
           method: "POST",
-          body: { comentario: text },
+          body: {
+            comentario: actualPayload.text,
+            // Ejemplo: Si el backend de comentarios soporta adjuntos:
+            ...(actualPayload.es_foto && { foto_url: actualPayload.archivo_url }),
+            ...(actualPayload.es_ubicacion && { ubicacion: actualPayload.ubicacion_usuario }),
+          },
           sendAnonId: isAnonimo,
         });
       } else {
@@ -89,14 +121,24 @@ export function useChatLogic(initialWelcomeMessage: string) {
             : null;
         const rubro = stored?.rubro?.clave || stored?.rubro?.nombre || null;
         const adjustedTipo = enforceTipoChatForRubro(APP_TARGET, rubro);
-        const payload = {
-          pregunta: text,
+        
+        // --- CONSTRUCCIÓN DEL BODY CON ADJUNTOS Y ACTION ---
+        const requestBody = {
+          pregunta: actualPayload.text,
           contexto_previo: contexto,
           tipo_chat: adjustedTipo,
           ...(rubro ? { rubro_clave: rubro } : {}),
+          // Incluir datos de adjunto si están presentes
+          ...(actualPayload.es_foto && { es_foto: true, archivo_url: actualPayload.archivo_url }),
+          ...(actualPayload.es_ubicacion && { es_ubicacion: true, ubicacion_usuario: actualPayload.ubicacion_usuario }),
+          // Incluir acción de botón si está presente (para backend)
+          ...(actualPayload.action && { action: actualPayload.action }),
         };
+        // ----------------------------------------------------
+
         const endpoint = getAskEndpoint({ tipoChat: adjustedTipo, rubro });
         const esPublico = esRubroPublico(rubro);
+        
         console.log(
           'Voy a pedir a endpoint:',
           endpoint,
@@ -106,19 +148,29 @@ export function useChatLogic(initialWelcomeMessage: string) {
           adjustedTipo,
           'esPublico:',
           esPublico,
+          'payload enviado:', // Para debug, quita en producción
+          requestBody
         );
+
         const data = await apiFetch<any>(endpoint, {
           method: 'POST',
-          body: payload,
+          body: requestBody, // Usar el body construido
         });
+        
         setContexto(data.contexto_actualizado || {});
+        
+        // --- EXTRAER mediaUrl y locationData de la respuesta del backend ---
         const botMessage: Message = {
           id: Date.now(),
           text: data?.respuesta || "⚠️ No se pudo generar una respuesta.",
           isBot: true,
           timestamp: new Date(),
-          botones: data?.botones || []
+          botones: data?.botones || [],
+          mediaUrl: data?.media_url, // Asignar la URL del archivo desde el backend
+          locationData: data?.location_data, // Asignar los datos de ubicación desde el backend
         };
+        // -----------------------------------------------------------------
+
         setMessages(prev => [...prev, botMessage]);
         if (data.ticket_id) {
           setActiveTicketId(data.ticket_id);
@@ -139,7 +191,7 @@ export function useChatLogic(initialWelcomeMessage: string) {
     } finally {
       setIsTyping(false);
     }
-  }, [contexto, activeTicketId]);
+  }, [contexto, activeTicketId, isTyping, isAnonimo]); // Añadir isTyping e isAnonimo como dependencias
 
   return { messages, isTyping, handleSend };
 }

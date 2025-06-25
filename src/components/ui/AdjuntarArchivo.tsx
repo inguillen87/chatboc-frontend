@@ -18,7 +18,7 @@ const ALLOWED_EXTENSIONS = [
 ]
 
 export interface AdjuntarArchivoProps {
-  onUpload?: (data: any) => void
+  onUpload?: (data: any) => void // 'data' es el objeto que viene del backend, esperamos que contenga 'url'
 }
 
 const AdjuntarArchivo: React.FC<AdjuntarArchivoProps> = ({ onUpload }) => {
@@ -44,11 +44,13 @@ const AdjuntarArchivo: React.FC<AdjuntarArchivoProps> = ({ onUpload }) => {
     const formData = new FormData()
     formData.append('archivo', file)
     try {
+      // Llamada al backend para subir el archivo
       const data = await apiFetch<any>('/archivos/subir', {
         method: 'POST',
         body: formData,
       })
-      onUpload && onUpload(data)
+      // Si la subida es exitosa, llama a onUpload con la 'data' completa (que incluye la URL)
+      onUpload && onUpload(data) 
     } catch (err: any) {
       setError(err.body?.error || err.message || 'Error al subir archivo')
     }

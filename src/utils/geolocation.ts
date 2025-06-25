@@ -1,3 +1,4 @@
+// src/utils/geolocation.ts
 export interface PositionCoords {
   latitud: number;
   longitud: number;

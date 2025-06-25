@@ -31,9 +31,10 @@ import QuickLinksCard from "@/components/QuickLinksCard";
 import { useUser } from "@/hooks/useUser";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
+import { apiFetch, getErrorMessage, ApiError } from "@/utils/api"; // Importa apiFetch y getErrorMessage
 
-// During development we proxy requests under "/api" to avoid CORS problems.
-// Default to that path when no env variable is provided.
+// Durante el desarrollo usamos "/api" para evitar problemas de CORS.
+// Por defecto, usa esa ruta si no se proporciona ninguna variable de entorno.
 const API_BASE_URL = import.meta.env.VITE_API_URL || "/api";
 const Maps_API_KEY =
   import.meta.env.VITE_Maps_API_KEY || "AIzaSyDbEoPzFgN5zJsIeywiRE7jRI8xr5ioGNI";
@@ -75,7 +76,7 @@ const DIAS = [
 
 export default function Perfil() {
   const navigate = useNavigate();
-  const { user } = useUser();
+  const { user, refreshUser } = useUser(); // Usa refreshUser del hook
   const [perfil, setPerfil] = useState({
     nombre_empresa: "",
     telefono: "",
@@ -100,18 +101,18 @@ export default function Perfil() {
   const [direccionSeleccionada, setDireccionSeleccionada] = useState(null);
   const [direccionConfirmada, setDireccionConfirmada] = useState(false);
   const [modoHorario, setModoHorario] = useState("comercial");
-  const [archivo, setArchivo] = useState(null);
-  const [resultadoCatalogo, setResultadoCatalogo] = useState(null);
-  const [mensaje, setMensaje] = useState(null);
-  const [error, setError] = useState(null);
+  const [archivo, setArchivo] = useState<File | null>(null); // Tipado para archivo
+  const [resultadoCatalogo, setResultadoCatalogo] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [mensaje, setMensaje] = useState<string | null>(null); // Mensaje de éxito
+  const [error, setError] = useState<string | null>(null); // Mensaje de error
   const [loadingGuardar, setLoadingGuardar] = useState(false);
   const [loadingCatalogo, setLoadingCatalogo] = useState(false);
   const [horariosOpen, setHorariosOpen] = useState(false);
 
   useEffect(() => {
-    if (!Maps_API_KEY) {
+    if (!Maps_API_KEY || Maps_API_KEY.includes("AIzaSyDbEoPzFgN5zJsIeywiRE7jRI8xr5ioGNI")) {
       setError(
-        "Error de configuración: Falta la clave para Google Maps. Contacta a soporte.",
+        "Error de configuración: Falta la clave para Google Maps o es la predeterminada. Contacta a soporte.",
       );
     }
   }, []);
@@ -126,29 +127,14 @@ export default function Perfil() {
     setDireccionConfirmada(!!perfil.direccion);
   }, [perfil.direccion]);
 
-  const fetchPerfil = useCallback(async (token) => {
+  // fetchPerfil actualizado para usar apiFetch
+  const fetchPerfil = useCallback(async () => { // Ya no necesita 'token' como argumento
     setLoadingGuardar(true);
     setError(null);
     setMensaje(null);
     try {
-      const res = await fetch(`${API_BASE_URL}/me`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (!res.ok || data?.error) {
-        const errorMessage = data?.error || "Error al cargar el perfil.";
-        setError(errorMessage);
-        if (
-          ["Token inválido o sesión expirada", "Token faltante"].includes(
-            data?.error,
-          )
-        ) {
-          safeLocalStorage.removeItem("user");
-          safeLocalStorage.removeItem("authToken");
-          window.location.href = "/login";
-        }
-        return;
-      }
+      const data = await apiFetch<any>("/me"); // Usa apiFetch, que maneja el token
+      
       let horariosUi = DIAS.map((_, idx) => ({
         abre: "09:00",
         cierra: "20:00",
@@ -186,42 +172,34 @@ export default function Perfil() {
         horarios_ui: horariosUi,
       }));
       setDireccionConfirmada(!!data.direccion);
-      // Storage
-      const storedUserString = safeLocalStorage.getItem("user");
-      let parsedUserFromLS = null;
-      try {
-        parsedUserFromLS = storedUserString ? JSON.parse(storedUserString) : {};
-      } catch (e) {
-        parsedUserFromLS = {};
-      }
-      const updatedUserForLS = {
-        id: data.id,
-        name: data.name,
-        email: data.email,
-        token: parsedUserFromLS?.token || token,
-        plan: data.plan || "gratis",
-        rubro: data.rubro?.toLowerCase() || parsedUserFromLS?.rubro || "",
-        tipo_chat:
-          data.tipo_chat || parsedUserFromLS?.tipo_chat || getCurrentTipoChat(),
-      };
-      safeLocalStorage.setItem("user", JSON.stringify(updatedUserForLS));
+      
+      // Actualizar localStorage a través de useUser refreshUser si es necesario
+      refreshUser();
+
     } catch (err) {
-      setError("No se pudo conectar con el servidor para cargar el perfil.");
+      if (err instanceof ApiError && err.status === 401) {
+        // Si el token es inválido o expiró, forzar logout
+        safeLocalStorage.removeItem("user");
+        safeLocalStorage.removeItem("authToken");
+        navigate("/login"); // Usar navigate para la redirección
+      } else {
+        setError(getErrorMessage(err, "Error al cargar el perfil."));
+      }
     } finally {
       setLoadingGuardar(false);
     }
-  }, []);
+  }, [navigate, refreshUser]); // Añadir navigate y refreshUser a las dependencias
 
   useEffect(() => {
     const token = safeLocalStorage.getItem("authToken");
     if (!token) {
-      window.location.href = "/login";
+      navigate("/login"); // Usar navigate para la redirección
       return;
     }
-    fetchPerfil(token);
-  }, [fetchPerfil]);
+    fetchPerfil(); // Llamar sin token
+  }, [fetchPerfil, navigate]); // Añadir navigate a las dependencias
 
-  const handlePlaceSelected = (place) => {
+  const handlePlaceSelected = (place: google.maps.places.PlaceResult | null) => { // Tipado de 'place'
     if (!place || !place.address_components || !place.geometry) {
       setError(
         "No se pudo encontrar la dirección. Intenta de nuevo o escribila bien.",
@@ -233,7 +211,7 @@ export default function Perfil() {
       setDireccionConfirmada(false);
       return;
     }
-    const getAddressComponent = (type) =>
+    const getAddressComponent = (type: string) => // Tipado de 'type'
       place.address_components?.find((c) => c.types.includes(type))
         ?.long_name || "";
     setPerfil((prev) => ({
@@ -249,20 +227,21 @@ export default function Perfil() {
       longitud: place.geometry?.location?.lng() || null,
     }));
     setError(null);
-    setDireccionConfirmada(false);
+    setDireccionConfirmada(false); // Deja que el usuario guarde para confirmar
   };
 
-  const handleInputChange = (e) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => { // Tipado de 'e'
     const { id, value } = e.target;
     setPerfil((prev) => ({ ...prev, [id]: value }));
     // Si toca el campo dirección manualmente, dejá el autocomplete limpio
     if (id === "direccion") {
       setDireccionSeleccionada(null);
+      setDireccionConfirmada(false); // Si edita, la dirección ya no está "confirmada" por Google
     }
   };
 
 
-  const handleHorarioChange = (index, field, value) => {
+  const handleHorarioChange = (index: number, field: string, value: string | boolean) => { // Tipado
     const nuevosHorarios = perfil.horarios_ui.map((h, idx) =>
       idx === index ? { ...h, [field]: value } : h,
     );
@@ -285,20 +264,12 @@ export default function Perfil() {
     setHorariosOpen(true);
   };
 
-  const handleGuardar = async (e) => {
+  const handleGuardar = async (e: FormEvent) => { // Tipado de 'e'
     e.preventDefault();
     setMensaje(null);
     setError(null);
     setLoadingGuardar(true);
 
-    const token = safeLocalStorage.getItem("authToken");
-    if (!token) {
-      setError(
-        "No se encontró sesión activa. Por favor, vuelve a iniciar sesión.",
-      );
-      setLoadingGuardar(false);
-      return;
-    }
     const horariosParaBackend = perfil.horarios_ui.map((h, idx) => ({
       dia: DIAS[idx],
       abre: h.cerrado ? "" : h.abre,
@@ -317,34 +288,26 @@ export default function Perfil() {
       longitud: perfil.longitud,
       link_web: perfil.link_web,
       logo_url: perfil.logo_url,
-      horario_json: JSON.stringify(horariosParaBackend),
+      horario_json: JSON.stringify(horariosParaBackend), // Convertir a string JSON
     };
     try {
-      const res = await fetch(`${API_BASE_URL}/perfil`, {
+      // Usa apiFetch, que maneja Content-Type y Authorization
+      const data = await apiFetch<any>("/perfil", {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
+        body: payload,
       });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(
-          data.error || `Error ${res.status} al guardar cambios.`,
-        );
-      }
+      
       const successMsg = data.mensaje || "Cambios guardados correctamente ✔️";
-      await fetchPerfil(token);
+      await fetchPerfil(); // Refrescar el perfil después de guardar
       setMensaje(successMsg);
     } catch (err) {
-      setError(err.message || "Error al guardar el perfil. Intenta de nuevo.");
+      setError(getErrorMessage(err, "Error al guardar el perfil."));
     } finally {
       setLoadingGuardar(false);
     }
   };
 
-  const handleArchivoChange = (e) => {
+  const handleArchivoChange = (e: React.ChangeEvent<HTMLInputElement>) => { // Tipado de 'e'
     if (e.target.files && e.target.files[0]) {
       setArchivo(e.target.files[0]);
     } else {
@@ -352,6 +315,7 @@ export default function Perfil() {
     }
     setResultadoCatalogo(null);
   };
+
   const handleSubirArchivo = async () => {
     if (!archivo) {
       setResultadoCatalogo({
@@ -360,38 +324,31 @@ export default function Perfil() {
       });
       return;
     }
-    const token = safeLocalStorage.getItem("authToken");
-    if (!token) {
-      setResultadoCatalogo({
-        message: "❌ Sesión no válida para subir catálogo.",
-        type: "error",
-      });
-      return;
-    }
+    
     setLoadingCatalogo(true);
     setResultadoCatalogo(null);
     try {
       const formData = new FormData();
-      formData.append("file", archivo);
-      const res = await fetch(`${API_BASE_URL}/catalogo/cargar`, {
+      formData.append("file", archivo); // Asegúrate que el backend espera 'file' o 'archivo'
+      
+      // Usa apiFetch para la subida de archivos
+      const data = await apiFetch<any>("/catalogo/cargar", {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
+        body: formData, // apiFetch maneja FormData correctamente (no Content-Type)
       });
-      const data = await res.json();
+      
       setResultadoCatalogo({
-        message: res.ok
-          ? data.mensaje
-          : `❌ ${data.error || "Error desconocido al procesar el archivo."}`,
-        type: res.ok ? "success" : "error",
+        message: data.mensaje || "Catálogo subido y procesado correctamente ✔️", // Asume que backend devuelve 'mensaje'
+        type: "success",
       });
     } catch (err) {
       setResultadoCatalogo({
-        message: "❌ Error de conexión al subir el catálogo.",
+        message: getErrorMessage(err, "Error al subir y procesar el catálogo."),
         type: "error",
       });
     } finally {
       setLoadingCatalogo(false);
+      setArchivo(null); // Limpiar el archivo seleccionado después de subir
     }
   };
 
@@ -419,7 +376,7 @@ export default function Perfil() {
           className="absolute right-0 top-0 h-10 px-5 text-sm rounded-lg border-destructive text-destructive hover:bg-destructive/10"
           onClick={() => {
             safeLocalStorage.clear();
-            window.location.href = "/login";
+            navigate("/login"); // Usa navigate para la redirección
           }}
         >
           <LogOut className="w-4 h-4 mr-2" /> Salir
@@ -757,74 +714,74 @@ export default function Perfil() {
                 <AccordionContent>
                   <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm">
                     <CardContent className="space-y-3">
-              <div className="text-sm text-muted-foreground flex items-center gap-2">
-                <span>Plan actual:</span>
-                <Badge
-                  variant="secondary"
-                  className={cn(
-                    "bg-primary text-primary-foreground capitalize",
-                  )}
-                >
-                  {perfil?.plan || "N/A"}
-                </Badge>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">
-                  Consultas usadas este mes:
-                </p>
-                <div className="flex items-center gap-2">
-                  <Progress
-                    value={porcentaje}
-                    className="h-3 bg-muted [&>div]:bg-primary"
-                    aria-label={`${porcentaje.toFixed(0)}% de consultas usadas`}
-                  />
-                  <span className="text-xs text-muted-foreground min-w-[70px] text-right">
-                    {perfil?.preguntas_usadas} /
-                    {limitePlan === Infinity ? '∞' : limitePlan}
-                  </span>
-                </div>
-              </div>
-              {perfil.plan !== "full" && perfil.plan !== "pro" && (
-                <div className="space-y-2 mt-3">
-                  <Button
-                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
-                    onClick={() =>
-                      window.open(
-                        "https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=2c9380849764e81a01976585767f0040",
-                        "_blank",
-                      )
-                    }
-                  >
-                    Mejorar a PRO ($35.000/mes)
-                  </Button>
-                  <Button
-                    className="w-full bg-accent hover:bg-accent/90 text-accent-foreground font-semibold"
-                    onClick={() =>
-                      window.open(
-                        "https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=2c9380849763daeb0197658791ee00b1",
-                        "_blank",
-                      )
-                    }
-                  >
-                    Mejorar a FULL ($60.000/mes)
-                  </Button>
-                </div>
-              )}
-              {(perfil.plan === "pro" || perfil.plan === "full") && (
-                <div className="text-primary bg-primary/10 rounded p-3 font-medium text-sm mt-3">
-                  ¡Tu plan está activo! <br />
-                  <span className="text-muted-foreground">
-                    La renovación se realiza cada mes. Si vence el pago, vas a
-                    ver los links aquí para renovarlo.
-                  </span>
-                </div>
-              )}
-              <div className="text-xs text-muted-foreground mt-2">
-                Una vez realizado el pago, tu cuenta se actualiza
-                automáticamente.
-                <br />
-                Si no ves el cambio en unos minutos, comunicate con soporte..
-              </div>
+                      <div className="text-sm text-muted-foreground flex items-center gap-2">
+                        <span>Plan actual:</span>
+                        <Badge
+                          variant="secondary"
+                          className={cn(
+                            "bg-primary text-primary-foreground capitalize",
+                          )}
+                        >
+                          {perfil?.plan || "N/A"}
+                        </Badge>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground mb-1">
+                          Consultas usadas este mes:
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <Progress
+                            value={porcentaje}
+                            className="h-3 bg-muted [&>div]:bg-primary"
+                            aria-label={`${porcentaje.toFixed(0)}% de consultas usadas`}
+                          />
+                          <span className="text-xs text-muted-foreground min-w-[70px] text-right">
+                            {perfil?.preguntas_usadas} /
+                            {limitePlan === Infinity ? '∞' : limitePlan}
+                          </span>
+                        </div>
+                      </div>
+                      {perfil.plan !== "full" && perfil.plan !== "pro" && (
+                        <div className="space-y-2 mt-3">
+                          <Button
+                            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
+                            onClick={() =>
+                              window.open(
+                                "https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=2c9380849764e81a01976585767f0040",
+                                "_blank",
+                              )
+                            }
+                          >
+                            Mejorar a PRO ($35.000/mes)
+                          </Button>
+                          <Button
+                            className="w-full bg-accent hover:bg-accent/90 text-accent-foreground font-semibold"
+                            onClick={() =>
+                              window.open(
+                                "https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=2c9380849763daeb0197658791ee00b1",
+                                "_blank",
+                              )
+                            }
+                          >
+                            Mejorar a FULL ($60.000/mes)
+                          </Button>
+                        </div>
+                      )}
+                      {(perfil.plan === "pro" || perfil.plan === "full") && (
+                        <div className="text-primary bg-primary/10 rounded p-3 font-medium text-sm mt-3">
+                          ¡Tu plan está activo! <br />
+                          <span className="text-muted-foreground">
+                            La renovación se realiza cada mes. Si vence el pago, vas a
+                            ver los links aquí para renovarlo.
+                          </span>
+                        </div>
+                      )}
+                      <div className="text-xs text-muted-foreground mt-2">
+                        Una vez realizado el pago, tu cuenta se actualiza
+                        automáticamente.
+                        <br />
+                        Si no ves el cambio en unos minutos, comunicate con soporte..
+                      </div>
                     </CardContent>
                   </Card>
                 </AccordionContent>

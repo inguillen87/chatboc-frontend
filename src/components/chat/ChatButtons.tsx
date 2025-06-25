@@ -6,13 +6,14 @@ import { motion } from 'framer-motion';
 interface Boton {
     texto: string;
     url?: string;
-    accion_interna?: string;
-    action?: string;
+    accion_interna?: string; // Usado por el backend para acciones pre-existentes
+    action?: string; // Nuevo campo para acciones de botones más generales
 }
 
 interface ChatButtonsProps {
     botones: Boton[];
-    onButtonClick: (valueToSend: string) => void;
+    // onButtonClick ahora puede enviar un payload estructurado
+    onButtonClick: (payload: { text: string; action?: string; }) => void; // <-- MODIFICADO
     onInternalAction?: (action: string) => void;
 }
 
@@ -36,22 +37,20 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
     ].map(normalize);
 
     const handleButtonClick = (boton: Boton) => {
-        // Nuevos botones pueden traer `action` en lugar de `url` para acciones internas
+        // PRIORIDAD: 1. `action` nuevo, 2. `accion_interna` viejo, 3. `url`, 4. `texto`
         if (boton.action) {
-            const normalized = normalize(boton.action);
-            onInternalAction && onInternalAction(normalized);
+            onButtonClick({ text: boton.texto, action: boton.action }); // <-- MODIFICADO: Envía texto Y acción
+            onInternalAction && onInternalAction(normalize(boton.action)); // Para acciones internas del frontend
             return;
         }
 
         if (boton.accion_interna) {
-            const normalized = normalize(boton.accion_interna);
-            onInternalAction && onInternalAction(normalized);
-            if (
-                !loginActions.includes(normalized) &&
-                !registerActions.includes(normalized)
-            ) {
-                onButtonClick(normalized);
+            const normalizedAccion = normalize(boton.accion_interna);
+            // Si es una acción interna que NO es login/register, envíala como acción al backend
+            if (!loginActions.includes(normalizedAccion) && !registerActions.includes(normalizedAccion)) {
+                onButtonClick({ text: boton.texto, action: normalizedAccion }); // <-- MODIFICADO: Envía texto Y acción
             }
+            onInternalAction && onInternalAction(normalizedAccion); // Para manejo del frontend (cambio de panel, etc.)
             return;
         }
 
@@ -60,7 +59,8 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
             return;
         }
 
-        onButtonClick(boton.texto);
+        // Si es solo texto (como una categoría de reclamo), envíalo como texto normal
+        onButtonClick({ text: boton.texto }); // <-- MODIFICADO: Envía un objeto con solo texto
     };
 
     const baseClass =

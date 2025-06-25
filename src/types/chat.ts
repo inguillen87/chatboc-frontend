@@ -14,10 +14,19 @@ export interface Message {
   text: string;
   isBot: boolean;
   timestamp: Date;
-  botones?: Boton[]; // ¡Esta línea es crucial! Le dice a TypeScript que un mensaje PUEDE tener una lista de botones.
-  /**
-   * Texto de búsqueda original del usuario utilizado para filtrar
-   * productos en la respuesta del bot. Opcional.
-   */
+  botones?: Boton[];
   query?: string;
+  mediaUrl?: string;
+  locationData?: { lat: number; lon: number; };
 }
+
+// --- NUEVA INTERFAZ PARA EL PAYLOAD DE ENVÍO DE MENSAJES ---
+export interface SendPayload {
+  text: string;
+  es_foto?: boolean;
+  archivo_url?: string;
+  es_ubicacion?: boolean;
+  ubicacion_usuario?: { lat: number; lon: number; };
+  action?: string;
+}
+// -----------------------------------------------------------

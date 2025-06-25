@@ -2,12 +2,12 @@ import React, { forwardRef } from 'react';
 import { getCurrentTipoChat } from '@/utils/tipoChat';
 import ChatMessagePyme from './ChatMessagePyme';
 import ChatMessageMunicipio from './ChatMessageMunicipio';
-import { Message } from '@/types/chat';
+import { Message, SendPayload } from '@/types/chat'; // Importa SendPayload
 
 export interface ChatMessageProps {
   message: Message;
   isTyping: boolean;
-  onButtonClick: (valueToSend: string) => void;
+  onButtonClick: (valueToSend: SendPayload) => void; // <-- MODIFICADO: Acepta SendPayload
   onInternalAction?: (action: string) => void;
   tipoChat?: 'pyme' | 'municipio';
   query?: string;

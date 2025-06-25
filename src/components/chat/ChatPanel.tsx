@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback, Suspense } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import ChatHeader from "./ChatHeader"; 
@@ -8,7 +8,7 @@ import ChatInput from "./ChatInput";
 import ScrollToBottomButton from "@/components/ui/ScrollToBottomButton";
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import TicketMap from "@/components/TicketMap";
-import { Message } from "@/types/chat";
+import { Message, SendPayload } from "@/types/chat"; // Importa SendPayload
 import { apiFetch } from "@/utils/api";
 import { useUser } from "@/hooks/useUser";
 import { parseRubro, esRubroPublico, getAskEndpoint } from "@/utils/chatEndpoints";
@@ -18,6 +18,7 @@ import { parseChatResponse } from "@/utils/parseChatResponse";
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { getCurrentTipoChat } from "@/utils/tipoChat";
 import { requestLocation } from "@/utils/geolocation";
+import { toast } from "@/components/ui/use-toast"; // Asegúrate de importar toast
 
 const FRASES_DIRECCION = [
   "indicame la dirección",
@@ -180,7 +181,7 @@ const ChatPanel = ({
     } catch (e) {
       console.error("Error al refrescar ticket:", e);
     }
-  }, [activeTicketId, esAnonimo, anonId]);
+  }, [activeTicketId, esAnonimo]); // `anonId` no es una dependencia si `sendAnonId` es siempre `esAnonimo`
 
   const handleShareGps = useCallback(() => {
     if (esAnonimo) {
@@ -215,8 +216,8 @@ const ChatPanel = ({
         const entityTokenFromStorage = safeLocalStorage.getItem("entityToken");
         const entityHeaders = entityTokenFromStorage ? { 'X-Entity-Token': entityTokenFromStorage } : {};
 
-        await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, { method: "PUT", headers: { ...authHeaders, ...entityHeaders }, body: coords, skipAuth: !currentToken, sendAnonId: esAnonimo });
-        await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, { method: "PUT", headers: { ...authHeaders, ...entityHeaders }, body: coords, skipAuth: !currentToken, sendAnonId: esAnonimo });
+        await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, { method: "PUT", headers: { ...authHeaders, ...entityHeaders }, body: { lat: coords.latitud, lon: coords.longitud }, skipAuth: !currentToken, sendAnonId: esAnonimo });
+        await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, { method: "PUT", headers: { ...authHeaders, ...entityHeaders }, body: { lat: coords.latitud, lon: coords.longitud }, skipAuth: !currentToken, sendAnonId: esAnonimo });
         safeLocalStorage.removeItem(PENDING_GPS_KEY);
         setForzarDireccion(false);
         fetchTicket();
@@ -271,14 +272,14 @@ const ChatPanel = ({
         const entityTokenFromStorage = safeLocalStorage.getItem("entityToken");
         const entityHeaders = entityTokenFromStorage ? { 'X-Entity-Token': entityTokenFromStorage } : {};
 
-        await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, { method: "PUT", headers: { ...authHeaders, ...entityHeaders }, body: coords, skipAuth: !currentToken, sendAnonId: esAnonimo });
-        await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, { method: "PUT", headers: { ...authHeaders, ...entityHeaders }, body: coords, skipAuth: !currentToken, sendAnonId: esAnonimo });
+        await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, { method: "PUT", headers: { ...authHeaders, ...entityHeaders }, body: { lat: coords.latitud, lon: coords.longitud }, skipAuth: !currentToken, sendAnonId: esAnonimo });
+        await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, { method: "PUT", headers: { ...authHeaders, ...entityHeaders }, body: { lat: coords.latitud, lon: coords.longitud }, skipAuth: !currentToken, sendAnonId: esAnonimo });
         fetchTicket();
       } catch (e) {
         console.error("Error al enviar ubicación", e);
       }
     }).catch(() => setForzarDireccion(true));
-  }, [activeTicketId, fetchTicket, esAnonimo, anonId, onRequireAuth]);
+  }, [activeTicketId, fetchTicket, esAnonimo, onRequireAuth]);
 
   function shouldShowAutocomplete(messages: Message[], contexto: any) {
     const lastBotMsg = [...messages].reverse().find((m) => m.isBot && m.text);
@@ -343,13 +344,15 @@ const ChatPanel = ({
             text: msg.texto,
             isBot: msg.es_admin,
             timestamp: new Date(msg.fecha),
-            query: undefined,
+            query: undefined, // Mantener o ajustar si `query` se usa en mensajes de chat en vivo
+            mediaUrl: msg.media_url, // Asignar la URL del archivo
+            locationData: msg.ubicacion, // Asignar los datos de ubicación
           }));
           setMessages((prev) => [...prev, ...nuevosMensajes]);
           if (data.mensajes.length > 0) ultimoMensajeIdRef.current = data.mensajes[data.mensajes.length - 1].id;
         }
         await fetchTicket();
-        if (data.estado_chat === "resuelto" || data.estado_chat === "cerrado") {
+        if (["resuelto", "cerrado"].includes(data.estado_chat)) {
           if (intervalId) clearInterval(intervalId);
           setMessages((prev) => [
             ...prev,
@@ -382,12 +385,17 @@ const ChatPanel = ({
     fetchAllMessages();
     intervalId = setInterval(fetchAllMessages, 10000);
     return () => { if (intervalId) clearInterval(intervalId); };
-  }, [activeTicketId, esAnonimo, anonId, pollingErrorShown, fetchTicket]);
+  }, [activeTicketId, esAnonimo, pollingErrorShown, fetchTicket]);
 
+  // ---- ENVÍO de mensaje ----
+  // MODIFICADO: handleSendMessage ahora acepta un SendPayload
   const handleSendMessage = useCallback(
-    async (text: string) => {
-      if (!text.trim()) return;
-      if (esAnonimo && mode === "standalone" && !rubroSeleccionado) {
+    async (payload: SendPayload) => { // <-- MODIFICADO
+      const userMessageText = payload.text.trim(); // Acceder al texto desde el payload
+
+      if (!userMessageText && !payload.archivo_url && !payload.ubicacion_usuario && !payload.action) return; // No enviar si está vacío, no hay adjuntos y no es acción
+
+      if (esAnonimo && mode === "standalone" && !rubroSeleccionado && !payload.action) { // Solo si no es una acción de botón (ej. login/register)
         setMessages((prev) => [
           ...prev,
           {
@@ -414,7 +422,7 @@ const ChatPanel = ({
           ]);
           return;
         }
-        if (!rubroNormalizado) {
+        if (!rubroNormalizado && !payload.action) { // No requiere rubro si es una acción (ej. login/register)
           setMessages((prev) => [
             ...prev,
             {
@@ -428,52 +436,88 @@ const ChatPanel = ({
           return;
         }
       }
-      if (esperandoDireccion) {
+
+      // Lógica de dirección si está esperando dirección
+      if (esperandoDireccion && userMessageText) { // Solo si hay texto
         setEsperandoDireccion(false);
         setForzarDireccion(false);
-        safeLocalStorage.setItem("ultima_direccion", text);
-        setDireccionGuardada(text);
+        safeLocalStorage.setItem("ultima_direccion", userMessageText);
+        setDireccionGuardada(userMessageText);
         if (activeTicketId) {
           try {
-            const currentToken = getAuthTokenFromLocalStorage();
-            const authHeaders = currentToken ? { Authorization: `Bearer ${currentToken}` } : {};
-            const entityTokenFromStorage = safeLocalStorage.getItem("entityToken");
-            const entityHeaders = entityTokenFromStorage ? { 'X-Entity-Token': entityTokenFromStorage } : {};
-
-            await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, { method: "PUT", headers: { ...authHeaders, ...entityHeaders }, body: { direccion: text }, skipAuth: !currentToken, sendAnonId: esAnonimo });
-            await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, { method: "PUT", headers: { ...authHeaders, ...entityHeaders }, body: { direccion: text }, skipAuth: !currentToken, sendAnonId: esAnonimo });
+            // Asegúrate de enviar { direccion: text }
+            await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, { method: "PUT", body: { direccion: userMessageText }, skipAuth: !finalAuthToken, sendAnonId: esAnonimo });
+            await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, { method: "PUT", body: { direccion: userMessageText }, skipAuth: !finalAuthToken, sendAnonId: esAnonimo });
             fetchTicket();
+            toast({ title: "Dirección enviada", duration: 2000 });
           } catch (e) {
             console.error("Error al enviar dirección", e);
+            toast({ title: "Error enviando dirección", variant: "destructive" });
           }
         }
       }
       setShowCierre(null);
 
-      const userMessage = {
-        id: Date.now(),
-        text,
-        isBot: false,
+      // Mensaje del usuario en la interfaz
+      setMessages((prev) => [...prev, {
+        id: Date.now(), 
+        text: userMessageText, 
+        isBot: false, 
         timestamp: new Date(),
-        query: undefined,
-      };
-      setMessages((prev) => [...prev, userMessage]);
-      lastQueryRef.current = text;
+        // Incluir datos de adjuntos en el mensaje del usuario si existen
+        mediaUrl: payload.es_foto ? payload.archivo_url : undefined,
+        locationData: payload.es_ubicacion ? payload.ubicacion_usuario : undefined,
+      }]);
+      lastQueryRef.current = userMessageText;
       setIsTyping(true);
+
       try {
         const currentToken = getAuthTokenFromLocalStorage();
-        if (activeTicketId) {
-          const authHeaders = currentToken ? { Authorization: `Bearer ${currentToken}` } : {};
-          const entityTokenFromStorage = safeLocalStorage.getItem("entityToken");
-          const entityHeaders = entityTokenFromStorage ? { 'X-Entity-Token': entityTokenFromStorage } : {};
+        const authHeaders = currentToken ? { Authorization: `Bearer ${currentToken}` } : {};
+        const entityTokenFromStorage = safeLocalStorage.getItem("entityToken");
+        const entityHeaders = entityTokenFromStorage ? { 'X-Entity-Token': entityTokenFromStorage } : {};
 
-          await apiFetch(`/tickets/chat/${activeTicketId}/responder_ciudadano`, { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders, ...entityHeaders }, body: { comentario: text }, skipAuth: !currentToken, sendAnonId: esAnonimo });
+        if (activeTicketId) {
+          // Si hay un ticket activo (chat en vivo), enviar como comentario
+          await apiFetch(`/tickets/chat/${activeTicketId}/responder_ciudadano`, { 
+            method: "POST", 
+            headers: { "Content-Type": "application/json", ...authHeaders, ...entityHeaders }, 
+            body: { 
+                comentario: userMessageText, // Usar el texto del payload
+                ...(payload.es_foto && { foto_url: payload.archivo_url }),
+                ...(payload.es_ubicacion && { ubicacion: payload.ubicacion_usuario }),
+            }, 
+            skipAuth: !currentToken, 
+            sendAnonId: esAnonimo 
+          });
         } else {
+          // Si no hay ticket activo, enviar al endpoint de bot principal
           const endpoint = getAskEndpoint({ tipoChat: tipoChatActual, rubro: rubroNormalizado || undefined });
-          const payload: Record<string, any> = { pregunta: text, contexto_previo: contexto };
-          const data = await apiFetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json", ...(currentToken ? { Authorization: `Bearer ${currentToken}` } : {}) }, body: payload, skipAuth: !currentToken, sendEntityToken: true });
+          const requestBody: Record<string, any> = { 
+            pregunta: userMessageText, // Usar el texto del payload
+            contexto_previo: contexto,
+            tipo_chat: tipoChatActual, // Asegurar que tipo_chat siempre se envía
+            ...(rubroNormalizado ? { rubro_clave: rubroNormalizado } : {}), // rubro_clave solo si existe rubroNormalizado
+            ...(esAnonimo && anonId ? { anon_id: anonId } : {}), // anon_id solo si es anónimo y existe
+
+            // Incluir datos de adjunto si están presentes
+            ...(payload.es_foto && { es_foto: true, archivo_url: payload.archivo_url }),
+            ...(payload.es_ubicacion && { es_ubicacion: true, ubicacion_usuario: payload.ubicacion_usuario }),
+            // Incluir acción de botón si está presente
+            ...(payload.action && { action: payload.action }),
+          };
+
+          const data = await apiFetch<any>(endpoint, { 
+            method: "POST", 
+            headers: { "Content-Type": "application/json", ...authHeaders, ...entityHeaders }, 
+            body: requestBody, // Usar el requestBody construido
+            skipAuth: !currentToken, 
+            sendEntityToken: true 
+          });
+
           setContexto(data.contexto_actualizado || {});
           const { text: respuestaText, botones } = parseChatResponse(data);
+          
           setMessages((prev) => [
             ...prev,
             {
@@ -483,10 +527,12 @@ const ChatPanel = ({
               timestamp: new Date(),
               botones,
               query: lastQueryRef.current || undefined,
+              mediaUrl: data.media_url, // Asignar media_url desde la respuesta del backend
+              locationData: data.location_data, // Asignar location_data desde la respuesta del backend
             },
           ]);
           lastQueryRef.current = null;
-          if (esAnonimo && mode === "standalone") setPreguntasUsadas((prev) => prev + 1);
+
           if (data.ticket_id) {
             if (esAnonimo) {
               safeLocalStorage.setItem(PENDING_TICKET_KEY, String(data.ticket_id));
@@ -501,9 +547,10 @@ const ChatPanel = ({
           }
         }
       } catch (error: any) {
-        let errorMsg = "⚠️ No se pudo conectar con el servidor.";
-        if (error?.body?.error) errorMsg = error.body.error;
-        else if (error?.message) errorMsg = error.message;
+        let errorMsg = getErrorMessage(
+          error,
+          '⚠️ No se pudo conectar con el servidor.'
+        );
         setMessages((prev) => [
           ...prev,
           {
@@ -514,11 +561,18 @@ const ChatPanel = ({
             query: undefined,
           },
         ]);
+        toast({
+          title: 'Error de comunicación',
+          description: errorMsg,
+          variant: 'destructive',
+          duration: 5000,
+        });
       } finally {
         setIsTyping(false);
       }
     },
-      [contexto, rubroSeleccionado, preguntasUsadas, esAnonimo, mode, activeTicketId, esperandoDireccion, anonId, rubroNormalizado, tipoChatActual, fetchTicket, onRequireAuth, loading]);
+    [contexto, rubroSeleccionado, preguntasUsadas, esAnonimo, mode, activeTicketId, esperandoDireccion, anonId, rubroNormalizado, tipoChatActual, fetchTicket, onRequireAuth, loading, finalAuthToken, refreshUser] // Asegúrate de incluir todas las dependencias
+  );
 
   const handleInternalAction = useCallback(
     (action: string) => {
@@ -533,15 +587,15 @@ const ChatPanel = ({
         onShowRegister && onShowRegister();
         return;
       }
-      handleSendMessage(action);
+      handleSendMessage({ text: action, action: normalized }); // MODIFICADO: Enviar como SendPayload con 'action'
     },
     [onShowLogin, onShowRegister, handleSendMessage]
   );
 
   const handleFileUploaded = useCallback(
-    (data: any) => {
+    (data: { url: string; }) => { // Espera el objeto 'data'
       if (data?.url) {
-        handleSendMessage(data.url);
+        handleSendMessage({ text: "Archivo adjunto", es_foto: true, archivo_url: data.url }); // MODIFICADO: Enviar como SendPayload
       }
     },
     [handleSendMessage]
@@ -651,12 +705,13 @@ const ChatPanel = ({
               <div className="text-primary text-base font-semibold mb-2">Indicá la dirección exacta (autocompleta con Google)</div>
               <AddressAutocomplete
                 onSelect={(addr) => {
-                  handleSendMessage(addr);
+                  handleSendMessage({ text: addr }); // MODIFICADO: Envía SendPayload
                   safeLocalStorage.setItem('ultima_direccion', addr);
                   setDireccionGuardada(addr);
-                  setEsperandoDireccion(false);
+                  setEsperandoDireccion(false); // Cierra el autocomplete al seleccionar
                 }}
                 autoFocus
+                placeholder="Ej: Av. Principal 123"
                 value={direccionGuardada ? { label: direccionGuardada, value: direccionGuardada } : undefined}
                 onChange={(opt) =>
                   setDireccionGuardada(
@@ -668,7 +723,6 @@ const ChatPanel = ({
                   )
                 }
                 persistKey="ultima_direccion"
-                placeholder="Ej: Av. Principal 123"
               />
               {direccionGuardada && (
                 <TicketMap ticket={{ direccion: direccionGuardada }} />
@@ -687,17 +741,16 @@ const ChatPanel = ({
           ) : (
             <>
               {messages.map((msg) =>
-                typeof msg.text === "string" && (
-                  <ChatMessage
-                    key={msg.id}
-                    message={msg}
-                    isTyping={isTyping}
-                    onButtonClick={handleSendMessage}
-                    onInternalAction={handleInternalAction}
-                    tipoChat={tipoChatActual}
-                    query={msg.query}
-                  />
-                )
+                // No es necesario el typeof msg.text === "string" aquí, ya que el Message type garantiza que 'text' es string
+                <ChatMessage
+                  key={msg.id}
+                  message={msg}
+                  isTyping={isTyping}
+                  onButtonClick={handleSendMessage} // Pasa handleSendMessage, que ahora acepta SendPayload
+                  onInternalAction={handleInternalAction}
+                  tipoChat={tipoChatActual}
+                  query={msg.query}
+                />
               )}
               {isTyping && <TypingIndicator />}
               {ticketLocation && (<TicketMap ticket={{ ...ticketLocation, tipo: 'municipio' }} />)}
