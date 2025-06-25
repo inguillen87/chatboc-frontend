@@ -13,13 +13,14 @@ import ChatUserRegisterPanel from "./ChatUserRegisterPanel";
 import ChatUserLoginPanel from "./ChatUserLoginPanel";
 import ChatUserPanel from "./ChatUserPanel";
 import ChatHeader from "./ChatHeader";
+import EntityInfoPanel from "./EntityInfoPanel";
 const ChatPanel = React.lazy(() => import("./ChatPanel"));
 
 interface ChatWidgetProps {
   mode?: "standalone" | "iframe" | "script";
   initialPosition?: { bottom: number; right: number }; // Solo para modo standalone
   defaultOpen?: boolean;
-  initialView?: 'chat' | 'register' | 'login' | 'user';
+  initialView?: 'chat' | 'register' | 'login' | 'user' | 'info';
   widgetId?: string;
   entityToken?: string;
   initialRubro?: string;
@@ -47,9 +48,10 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   ctaMessage,
 }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
-  const [view, setView] = useState<'chat' | 'register' | 'login' | 'user'>(initialView);
+  const [view, setView] = useState<'chat' | 'register' | 'login' | 'user' | 'info'>(initialView);
   const { user } = useUser();
   const [resolvedTipoChat, setResolvedTipoChat] = useState<'pyme' | 'municipio'>(tipoChat);
+  const [entityInfo, setEntityInfo] = useState<any | null>(null);
 
   const openUserPanel = useCallback(() => {
     if (user) {
@@ -58,10 +60,12 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       } else {
         setView('user');
       }
+    } else if (entityInfo) {
+      setView('info');
     } else {
       setView('login');
     }
-  }, [user]);
+  }, [user, entityInfo]);
 
   const [isMobile, setIsMobile] = useState(
     typeof window !== "undefined" && window.innerWidth < 640
@@ -174,6 +178,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         } else if (data && data.tipo_chat) {
           setResolvedTipoChat(data.tipo_chat === "municipio" ? "municipio" : "pyme");
         }
+        setEntityInfo(data);
       } catch (e) {
         // Silenciar errores de perfil para no interrumpir la carga
       }
@@ -232,7 +237,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
               exit={{ opacity: 0, scale: 0.85 }}
               transition={{ type: "spring", stiffness: 250, damping: 18 }}
             >
-              {(view === "register" || view === "login" || view === "user") && (
+              {(view === "register" || view === "login" || view === "user" || view === "info") && (
                 <ChatHeader
                   onClose={toggleChat}
                   onBack={() => setView("chat")}
@@ -251,6 +256,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                 />
               ) : view === "user" ? (
                 <ChatUserPanel onClose={() => setView("chat")} />
+              ) : view === "info" ? (
+                <EntityInfoPanel info={entityInfo} onClose={() => setView("chat")} />
               ) : (
                 <ChatPanel
                   mode={mode}
@@ -355,7 +362,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             exit={{ opacity: 0, scale: 0.93 }}
             transition={{ type: "spring", stiffness: 250, damping: 22 }}
           >
-            {(view === "register" || view === "login" || view === "user") && (
+            {(view === "register" || view === "login" || view === "user" || view === "info") && (
               <ChatHeader
                 onClose={toggleChat}
                 onBack={() => setView("chat")}
@@ -374,6 +381,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
               />
             ) : view === "user" ? (
               <ChatUserPanel onClose={() => setView("chat")} />
+            ) : view === "info" ? (
+              <EntityInfoPanel info={entityInfo} onClose={() => setView("chat")} />
             ) : (
               <ChatPanel
                 mode={mode}
