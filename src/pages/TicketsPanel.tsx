@@ -10,6 +10,8 @@ import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import AttachmentPreview from "@/components/chat/AttachmentPreview";
+import { getAttachmentInfo } from "@/utils/attachment";
 import { formatDate } from "@/utils/fecha";
 import { useDateSettings } from "@/hooks/useDateSettings";
 import { LOCALE_OPTIONS } from "@/utils/localeOptions";
@@ -535,16 +537,38 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
         )}
         <main className="flex-1 p-4 space-y-4 overflow-y-auto custom-scroll">
           {comentarios && comentarios.length > 0 ? (
-            comentarios.map((comment) => (
-              <div key={comment.id} className={cn('flex items-end gap-2', comment.es_admin ? 'justify-end' : 'justify-start')}>
-                {!comment.es_admin && <AvatarIcon type="user" />}
-                <div className={cn("max-w-md rounded-lg px-4 py-2", comment.es_admin ? "bg-primary text-primary-foreground rounded-br-none" : "bg-muted text-foreground rounded-bl-none")}>
-                  <p className="text-sm">{comment.comentario}</p>
-                  <p className="text-xs opacity-70 text-right mt-1">{formatDate(comment.fecha, timezone, locale)}</p>
+            comentarios.map((comment) => {
+              const attachment = getAttachmentInfo(comment.comentario)
+              return (
+                <div
+                  key={comment.id}
+                  className={cn(
+                    'flex items-end gap-2',
+                    comment.es_admin ? 'justify-end' : 'justify-start'
+                  )}
+                >
+                  {!comment.es_admin && <AvatarIcon type="user" />}
+                  <div
+                    className={cn(
+                      'max-w-md rounded-lg px-4 py-2',
+                      comment.es_admin
+                        ? 'bg-primary text-primary-foreground rounded-br-none'
+                        : 'bg-muted text-foreground rounded-bl-none'
+                    )}
+                  >
+                    {attachment ? (
+                      <AttachmentPreview attachment={attachment} />
+                    ) : (
+                      <p className="text-sm break-words">{comment.comentario}</p>
+                    )}
+                    <p className="text-xs opacity-70 text-right mt-1">
+                      {formatDate(comment.fecha, timezone, locale)}
+                    </p>
+                  </div>
+                  {comment.es_admin && <AvatarIcon type="admin" />}
                 </div>
-                {comment.es_admin && <AvatarIcon type="admin" />}
-              </div>
-            ))
+              )
+            })
           ) : (
             <div className="text-center text-muted-foreground py-10">
               No hay comentarios para este ticket.
