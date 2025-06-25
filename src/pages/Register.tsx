@@ -1,5 +1,3 @@
-// Contenido COMPLETO para: Register.tsx
-
 import React, { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,7 +23,7 @@ const Register = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [nombreEmpresa, setNombreEmpresa] = useState('');
-  const [rubro, setRubro] = useState(''); // Cambiado a string para el nombre
+  const [rubro, setRubro] = useState('');
   const [rubrosDisponibles, setRubrosDisponibles] = useState<Rubro[]>([]);
   const [accepted, setAccepted] = useState(false);
   const [error, setError] = useState('');
@@ -34,7 +32,7 @@ const Register = () => {
   useEffect(() => {
     const fetchRubros = async () => {
       try {
-        const data = await apiFetch<Rubro[]>('/rubros/', { skipAuth: true }); // Asegurarse de usar la barra final
+        const data = await apiFetch<Rubro[]>('/rubros/', { skipAuth: true });
         if (Array.isArray(data)) setRubrosDisponibles(data);
       } catch (err) { setError("No se pudieron cargar los rubros."); }
     };
@@ -47,13 +45,32 @@ const Register = () => {
     setIsLoading(true);
     setError('');
 
+    // --------- LOGICA NUEVA ---------
+    const rubroMunicipio = [
+      "Municipio",
+      "Gobierno",
+      "Concejo Deliberante",
+      "Consejo Deliberante",
+      "Intendencia",
+      "Gobernación",
+      "Secretaría"
+    ];
+    const esMunicipio = rubroMunicipio.some(
+      (item) => item.toLowerCase() === rubro.trim().toLowerCase()
+    );
+    // --------- FIN LOGICA NUEVA ---------
+
     try {
       const payload = {
-        name, email, password, nombre_empresa: nombreEmpresa,
-        rubro: rubro, // Enviamos el nombre del rubro
+        name,
+        email,
+        password,
+        nombre_empresa: nombreEmpresa,
+        rubro,
+        tipo_chat: esMunicipio ? "municipio" : "pyme", // NUEVO: acá se resuelve solo
         acepto_terminos: accepted,
       };
-      
+
       const data = await apiFetch<RegisterResponse>("/register", {
         method: "POST",
         body: payload,
@@ -76,32 +93,28 @@ const Register = () => {
   };
 
   return (
-    // MODIFICADO: Fondo de la página y colores del formulario
     <div className="min-h-[calc(100vh-80px)] flex items-center justify-center px-4 bg-gradient-to-br from-background via-card to-muted text-foreground">
       <div className="w-full max-w-md bg-card p-8 rounded-xl shadow-xl border border-border">
         <h2 className="text-2xl font-bold mb-6 text-center text-foreground">
           Registrarse
         </h2>
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* MODIFICADO: Inputs con bg-input, border-input, text-foreground, placeholder:text-muted-foreground */}
           <Input type="text" placeholder="Tu nombre" value={name} onChange={(e) => setName(e.target.value)} required disabled={isLoading} className="bg-input border-input text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/50" />
           <Input type="email" placeholder="Correo electrónico" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={isLoading} className="bg-input border-input text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/50" />
           <Input type="password" placeholder="Contraseña" value={password} onChange={(e) => setPassword(e.target.value)} required disabled={isLoading} className="bg-input border-input text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/50" />
           <Input type="text" placeholder="Nombre de la empresa" value={nombreEmpresa} onChange={(e) => setNombreEmpresa(e.target.value)} required disabled={isLoading} className="bg-input border-input text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/50" />
-          {/* MODIFICADO: Select con bg-input, border-input, text-foreground (adapta automáticamente) */}
-          <select 
-            value={rubro} 
-            onChange={(e) => setRubro(e.target.value)} 
-            required 
-            disabled={isLoading} 
-            className="w-full p-2 border rounded text-sm bg-input border-input text-foreground" // Usa bg-input y text-foreground
+          <select
+            value={rubro}
+            onChange={(e) => setRubro(e.target.value)}
+            required
+            disabled={isLoading}
+            className="w-full p-2 border rounded text-sm bg-input border-input text-foreground"
           >
             <option value="">Seleccioná tu rubro</option>
             {rubrosDisponibles.map((r) => (<option key={r.id} value={r.nombre}>{r.nombre}</option>))}
           </select>
           <div className="flex items-center space-x-2">
-            {/* Checkbox y label para términos */}
-            <input type="checkbox" id="terms" checked={accepted} onChange={() => setAccepted(!accepted)} required disabled={isLoading} className="form-checkbox h-4 w-4 text-primary bg-input border-border rounded focus:ring-primary cursor-pointer"/>
+            <input type="checkbox" id="terms" checked={accepted} onChange={() => setAccepted(!accepted)} required disabled={isLoading} className="form-checkbox h-4 w-4 text-primary bg-input border-border rounded focus:ring-primary cursor-pointer" />
             <label htmlFor="terms" className="text-xs text-muted-foreground">Acepto los <a href="/legal/terms" target="_blank" className="underline text-primary hover:text-primary/80">Términos</a> y <a href="/legal/privacy" target="_blank" className="underline text-primary hover:text-primary/80">Política de Privacidad</a>.</label>
           </div>
           {error && <p className="text-destructive text-sm">{error}</p>}
