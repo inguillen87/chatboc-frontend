@@ -30,6 +30,7 @@ import InternalUsers from '@/pages/InternalUsers';
 import WhatsappIntegration from '@/pages/WhatsappIntegration';
 import MunicipalSystems from '@/pages/MunicipalSystems';
 import SatisfactionSurveys from '@/pages/SatisfactionSurveys';
+import TicketLookup from '@/pages/TicketLookup';
 import CustomerHistory from '@/pages/CustomerHistory';
 import BudgetRequest from '@/pages/BudgetRequest';
 import Reminders from '@/pages/Reminders';
@@ -67,6 +68,7 @@ const routes: RouteConfig[] = [
   { path: '/pedidos', element: <PedidosPage />, roles: ['admin', 'empleado'] },
   { path: '/usuarios', element: <UsuariosPage />, roles: ['admin', 'empleado'] },
   { path: '/notifications', element: <NotificationSettings /> },
+  { path: '/ticket', element: <TicketLookup /> },
   { path: '/historial', element: <CustomerHistory /> },
   { path: '/presupuestos', element: <BudgetRequest /> },
   { path: '/recordatorios', element: <Reminders /> },
