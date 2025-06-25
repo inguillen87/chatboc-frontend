@@ -43,6 +43,7 @@ const FRASES_EXITO = [
 ];
 
 const PENDING_TICKET_KEY = 'pending_ticket_id';
+const PENDING_GPS_KEY = 'pending_gps';
 
 interface ChatPanelProps {
   mode?: "standalone" | "iframe" | "script";
@@ -163,12 +164,13 @@ const ChatPanel = ({
 
   const fetchTicket = useCallback(async () => {
     if (!activeTicketId) return;
+    const currentToken = getAuthTokenFromLocalStorage();
     try {
-      const authHeaders = finalAuthToken ? { Authorization: `Bearer ${finalAuthToken}` } : {};
+      const authHeaders = currentToken ? { Authorization: `Bearer ${currentToken}` } : {};
       const entityTokenFromStorage = safeLocalStorage.getItem("entityToken");
       const entityHeaders = entityTokenFromStorage ? { 'X-Entity-Token': entityTokenFromStorage } : {};
 
-      const data = await apiFetch<{ direccion?: string | null; latitud?: number | string | null; longitud?: number | null; municipio_nombre?: string | null }>(`/tickets/municipio/${activeTicketId}`, { headers: { ...authHeaders, ...entityHeaders }, skipAuth: !finalAuthToken, sendAnonId: esAnonimo });
+      const data = await apiFetch<{ direccion?: string | null; latitud?: number | string | null; longitud?: number | null; municipio_nombre?: string | null }>(`/tickets/municipio/${activeTicketId}`, { headers: { ...authHeaders, ...entityHeaders }, skipAuth: !currentToken, sendAnonId: esAnonimo });
       const normalized = {
         ...data,
         latitud: data.latitud != null ? Number(data.latitud) : null,
@@ -178,17 +180,19 @@ const ChatPanel = ({
     } catch (e) {
       console.error("Error al refrescar ticket:", e);
     }
-  }, [activeTicketId, esAnonimo, anonId, finalAuthToken]);
+  }, [activeTicketId, esAnonimo, anonId]);
 
   const handleShareGps = useCallback(() => {
     if (esAnonimo) {
       if (activeTicketId) {
         safeLocalStorage.setItem(PENDING_TICKET_KEY, String(activeTicketId));
       }
+      safeLocalStorage.setItem(PENDING_GPS_KEY, '1');
       onRequireAuth && onRequireAuth();
       return;
     }
     if (!activeTicketId) return;
+    safeLocalStorage.removeItem(PENDING_GPS_KEY);
     requestLocation({ enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }).then(async (coords) => {
       if (!coords) {
         setForzarDireccion(true);
@@ -206,29 +210,45 @@ const ChatPanel = ({
         return;
       }
       try {
-        const authHeaders = finalAuthToken ? { Authorization: `Bearer ${finalAuthToken}` } : {};
+        const currentToken = getAuthTokenFromLocalStorage();
+        const authHeaders = currentToken ? { Authorization: `Bearer ${currentToken}` } : {};
         const entityTokenFromStorage = safeLocalStorage.getItem("entityToken");
         const entityHeaders = entityTokenFromStorage ? { 'X-Entity-Token': entityTokenFromStorage } : {};
 
-        await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, { method: "PUT", headers: { ...authHeaders, ...entityHeaders }, body: coords, skipAuth: !finalAuthToken, sendAnonId: esAnonimo });
-        await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, { method: "PUT", headers: { ...authHeaders, ...entityHeaders }, body: coords, skipAuth: !finalAuthToken, sendAnonId: esAnonimo });
+        await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, { method: "PUT", headers: { ...authHeaders, ...entityHeaders }, body: coords, skipAuth: !currentToken, sendAnonId: esAnonimo });
+        await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, { method: "PUT", headers: { ...authHeaders, ...entityHeaders }, body: coords, skipAuth: !currentToken, sendAnonId: esAnonimo });
+        safeLocalStorage.removeItem(PENDING_GPS_KEY);
         setForzarDireccion(false);
         fetchTicket();
       } catch (e) {
         console.error("Error al enviar ubicación", e);
       }
     });
-  }, [activeTicketId, fetchTicket, esAnonimo, onRequireAuth, finalAuthToken]);
+  }, [activeTicketId, fetchTicket, esAnonimo, onRequireAuth]);
 
   useEffect(() => { fetchTicket(); }, [activeTicketId, fetchTicket]);
 
   useEffect(() => {
     if (!activeTicketId) return;
+    if (esAnonimo) return;
+    const pending = safeLocalStorage.getItem(PENDING_GPS_KEY);
+    if (pending) {
+      safeLocalStorage.removeItem(PENDING_GPS_KEY);
+      handleShareGps();
+    }
+  }, [activeTicketId, esAnonimo, handleShareGps]);
+
+  useEffect(() => {
+    if (!activeTicketId) return;
+    const pending = safeLocalStorage.getItem(PENDING_GPS_KEY);
     if (esAnonimo) {
-      safeLocalStorage.setItem(PENDING_TICKET_KEY, String(activeTicketId));
-      onRequireAuth && onRequireAuth();
+      if (pending) {
+        safeLocalStorage.setItem(PENDING_TICKET_KEY, String(activeTicketId));
+        onRequireAuth && onRequireAuth();
+      }
       return;
     }
+    if (!pending) return;
     requestLocation({ enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }).then(async (coords) => {
       if (!coords) {
         setForzarDireccion(true);
@@ -246,18 +266,19 @@ const ChatPanel = ({
         return;
       }
       try {
-        const authHeaders = finalAuthToken ? { Authorization: `Bearer ${finalAuthToken}` } : {};
+        const currentToken = getAuthTokenFromLocalStorage();
+        const authHeaders = currentToken ? { Authorization: `Bearer ${currentToken}` } : {};
         const entityTokenFromStorage = safeLocalStorage.getItem("entityToken");
         const entityHeaders = entityTokenFromStorage ? { 'X-Entity-Token': entityTokenFromStorage } : {};
 
-        await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, { method: "PUT", headers: { ...authHeaders, ...entityHeaders }, body: coords, skipAuth: !finalAuthToken, sendAnonId: esAnonimo });
-        await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, { method: "PUT", headers: { ...authHeaders, ...entityHeaders }, body: coords, skipAuth: !finalAuthToken, sendAnonId: esAnonimo });
+        await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, { method: "PUT", headers: { ...authHeaders, ...entityHeaders }, body: coords, skipAuth: !currentToken, sendAnonId: esAnonimo });
+        await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, { method: "PUT", headers: { ...authHeaders, ...entityHeaders }, body: coords, skipAuth: !currentToken, sendAnonId: esAnonimo });
         fetchTicket();
       } catch (e) {
         console.error("Error al enviar ubicación", e);
       }
     }).catch(() => setForzarDireccion(true));
-  }, [activeTicketId, fetchTicket, finalAuthToken, esAnonimo, anonId, onRequireAuth]);
+  }, [activeTicketId, fetchTicket, esAnonimo, anonId, onRequireAuth]);
 
   function shouldShowAutocomplete(messages: Message[], contexto: any) {
     const lastBotMsg = [...messages].reverse().find((m) => m.isBot && m.text);
@@ -307,7 +328,8 @@ const ChatPanel = ({
     let intervalId: NodeJS.Timeout | undefined;
     const fetchAllMessages = async () => {
       try {
-        const authHeaders = finalAuthToken ? { Authorization: `Bearer ${finalAuthToken}` } : {};
+        const currentToken = getAuthTokenFromLocalStorage();
+        const authHeaders = currentToken ? { Authorization: `Bearer ${currentToken}` } : {};
         const entityTokenFromStorage = safeLocalStorage.getItem("entityToken");
         const entityHeaders = entityTokenFromStorage ? { 'X-Entity-Token': entityTokenFromStorage } : {};
 
@@ -360,7 +382,7 @@ const ChatPanel = ({
     fetchAllMessages();
     intervalId = setInterval(fetchAllMessages, 10000);
     return () => { if (intervalId) clearInterval(intervalId); };
-  }, [activeTicketId, esAnonimo, anonId, finalAuthToken, pollingErrorShown, fetchTicket]);
+  }, [activeTicketId, esAnonimo, anonId, pollingErrorShown, fetchTicket]);
 
   const handleSendMessage = useCallback(
     async (text: string) => {
@@ -413,12 +435,13 @@ const ChatPanel = ({
         setDireccionGuardada(text);
         if (activeTicketId) {
           try {
-            const authHeaders = finalAuthToken ? { Authorization: `Bearer ${finalAuthToken}` } : {};
+            const currentToken = getAuthTokenFromLocalStorage();
+            const authHeaders = currentToken ? { Authorization: `Bearer ${currentToken}` } : {};
             const entityTokenFromStorage = safeLocalStorage.getItem("entityToken");
             const entityHeaders = entityTokenFromStorage ? { 'X-Entity-Token': entityTokenFromStorage } : {};
 
-            await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, { method: "PUT", headers: { ...authHeaders, ...entityHeaders }, body: { direccion: text }, skipAuth: !finalAuthToken, sendAnonId: esAnonimo });
-            await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, { method: "PUT", headers: { ...authHeaders, ...entityHeaders }, body: { direccion: text }, skipAuth: !finalAuthToken, sendAnonId: esAnonimo });
+            await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, { method: "PUT", headers: { ...authHeaders, ...entityHeaders }, body: { direccion: text }, skipAuth: !currentToken, sendAnonId: esAnonimo });
+            await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, { method: "PUT", headers: { ...authHeaders, ...entityHeaders }, body: { direccion: text }, skipAuth: !currentToken, sendAnonId: esAnonimo });
             fetchTicket();
           } catch (e) {
             console.error("Error al enviar dirección", e);
@@ -438,16 +461,17 @@ const ChatPanel = ({
       lastQueryRef.current = text;
       setIsTyping(true);
       try {
+        const currentToken = getAuthTokenFromLocalStorage();
         if (activeTicketId) {
-          const authHeaders = finalAuthToken ? { Authorization: `Bearer ${finalAuthToken}` } : {};
+          const authHeaders = currentToken ? { Authorization: `Bearer ${currentToken}` } : {};
           const entityTokenFromStorage = safeLocalStorage.getItem("entityToken");
           const entityHeaders = entityTokenFromStorage ? { 'X-Entity-Token': entityTokenFromStorage } : {};
 
-          await apiFetch(`/tickets/chat/${activeTicketId}/responder_ciudadano`, { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders, ...entityHeaders }, body: { comentario: text }, skipAuth: !finalAuthToken, sendAnonId: esAnonimo });
+          await apiFetch(`/tickets/chat/${activeTicketId}/responder_ciudadano`, { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders, ...entityHeaders }, body: { comentario: text }, skipAuth: !currentToken, sendAnonId: esAnonimo });
         } else {
           const endpoint = getAskEndpoint({ tipoChat: tipoChatActual, rubro: rubroNormalizado || undefined });
           const payload: Record<string, any> = { pregunta: text, contexto_previo: contexto };
-          const data = await apiFetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json", ...(finalAuthToken ? { Authorization: `Bearer ${finalAuthToken}` } : {}) }, body: payload, skipAuth: !finalAuthToken, sendEntityToken: true });
+          const data = await apiFetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json", ...(currentToken ? { Authorization: `Bearer ${currentToken}` } : {}) }, body: payload, skipAuth: !currentToken, sendEntityToken: true });
           setContexto(data.contexto_actualizado || {});
           const { text: respuestaText, botones } = parseChatResponse(data);
           setMessages((prev) => [
@@ -494,7 +518,7 @@ const ChatPanel = ({
         setIsTyping(false);
       }
     },
-      [contexto, rubroSeleccionado, preguntasUsadas, esAnonimo, mode, finalAuthToken, activeTicketId, esperandoDireccion, anonId, rubroNormalizado, tipoChatActual, fetchTicket, onRequireAuth, loading]);
+      [contexto, rubroSeleccionado, preguntasUsadas, esAnonimo, mode, activeTicketId, esperandoDireccion, anonId, rubroNormalizado, tipoChatActual, fetchTicket, onRequireAuth, loading]);
 
   const handleInternalAction = useCallback(
     (action: string) => {
