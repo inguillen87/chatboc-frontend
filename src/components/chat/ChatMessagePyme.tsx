@@ -114,8 +114,8 @@ const ChatMessagePyme: React.FC<ChatMessageProps> = ({
 
   // Evitar mostrar 'NaN' o valores falsos
   const safeText = message.text === "NaN" || message.text == null ? "" : message.text;
-  // Limpiamos HTML y limitamos la longitud para evitar desbordes
-  const sanitizedHtml = DOMPurify.sanitize(truncateText(safeText, 120));
+  // Limpiamos HTML y limitamos la longitud solo si es muy largo
+  const sanitizedHtml = DOMPurify.sanitize(truncateText(safeText, 600));
   const shouldParseProducts = (tipoChat || getCurrentTipoChat()) === "pyme";
   const parsedProducts =
     shouldParseProducts && message.isBot
@@ -129,21 +129,19 @@ const ChatMessagePyme: React.FC<ChatMessageProps> = ({
 
   const isBot = message.isBot;
   const bubbleClass = isBot
-    ? "bg-[#131c2b] text-white border border-[#195fa4] rounded-2xl shadow-lg"
-    : "bg-gradient-to-br from-blue-600 to-blue-800 text-white rounded-2xl shadow-lg";
-  const bubbleWidth = filteredProducts ? "max-w-[480px]" : "max-w-[360px]";
+    ? "bg-[#172137] text-blue-100 border border-[#1d375a] rounded-[1.2em] shadow-md"
+    : "bg-gradient-to-tr from-blue-500 to-blue-700 text-white border border-blue-300 rounded-[1.2em] shadow-md";
+  const bubbleWidth = filteredProducts ? "max-w-[480px]" : "max-w-[77vw] md:max-w-[420px]";
 
   return (
-    <div
-      className={`flex items-end gap-2.5 ${
-        isBot ? "justify-start" : "justify-end"
-      }`}
-    >
-      {isBot && <AvatarBot isTyping={isTyping} />}
+    <div className={`flex w-full ${isBot ? "justify-start" : "justify-end"} mb-2`}>
+      <div className={`flex items-end gap-2 ${isBot ? "" : "flex-row-reverse"}`}>
+        {isBot && <AvatarBot isTyping={isTyping} />}
 
-      <div className="flex flex-col">
-        <motion.div
-          className={`px-4 py-3 ${bubbleWidth} relative break-words ${bubbleClass}`}
+        <div className="flex flex-col">
+          <motion.div
+            className={`px-4 py-2 ${bubbleWidth} relative break-words ${bubbleClass}`}
+            style={{ fontWeight: 500, lineHeight: 1.4, wordBreak: 'break-word', whiteSpace: 'pre-line' }}
           variants={{
             hidden: { opacity: 0, y: 14, scale: 0.97 },
             visible: { opacity: 1, y: 0, scale: [1, 1.03, 1] },
@@ -182,6 +180,7 @@ const ChatMessagePyme: React.FC<ChatMessageProps> = ({
 
       {!isBot && <UserAvatar />}
     </div>
+  </div>
   );
 };
 
