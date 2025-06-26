@@ -6,6 +6,23 @@ export interface ParsedProduct {
   imagen_url?: string;
 }
 
+function sanitizeParsedProducts(products: ParsedProduct[]): ParsedProduct[] {
+  const seen = new Set<string>();
+  return products.filter((p) => {
+    if (!p.nombre) return false;
+    const hasInfo =
+      (p.presentacion && p.presentacion.trim() !== '') ||
+      (p.precio_unitario && p.precio_unitario.trim() !== '') ||
+      (p.marca && p.marca.trim() !== '') ||
+      (p.imagen_url && p.imagen_url.trim() !== '');
+    if (!hasInfo) return false;
+    const key = `${p.nombre}|${p.presentacion || ''}|${p.precio_unitario || ''}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 export function filterProducts(
   products: ParsedProduct[],
   query: string,
@@ -64,7 +81,8 @@ export function parseProductMessage(text: string): ParsedProduct[] | null {
         marca: p.marca,
         imagen_url: p.imagen_url,
       }));
-    return products.length > 0 ? products : null;
+    const sanitized = sanitizeParsedProducts(products);
+    return sanitized.length > 0 ? sanitized : null;
   } catch {
     // not JSON, try line parsing
   }
@@ -97,5 +115,7 @@ export function parseProductMessage(text: string): ParsedProduct[] | null {
     }
   }
 
-  return products.length > 0 ? products : null;
+  const sanitized = sanitizeParsedProducts(products);
+
+  return sanitized.length > 0 ? sanitized : null;
 }
