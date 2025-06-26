@@ -4,7 +4,7 @@ import { Message, SendPayload } from "@/types/chat"; // Importa SendPayload
 import ChatButtons from "./ChatButtons";
 import { motion } from "framer-motion";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
-import DOMPurify from "dompurify";
+import sanitizeMessageHtml from "@/utils/sanitizeMessageHtml";
 import AttachmentPreview from "./AttachmentPreview";
 import TypewriterText from "./TypewriterText";
 
@@ -64,7 +64,7 @@ const ChatMessageMunicipio: React.FC<ChatMessageProps> = ({
   // Evitar mostrar "NaN" o valores falsos
   const safeText = message.text === "NaN" || message.text == null ? "" : message.text;
   // Limpiamos HTML sin cortar el texto
-  const sanitizedHtml = DOMPurify.sanitize(safeText);
+  const sanitizedHtml = sanitizeMessageHtml(safeText);
 
   const isBot = message.isBot;
 

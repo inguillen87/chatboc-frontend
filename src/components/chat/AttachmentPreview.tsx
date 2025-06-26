@@ -1,6 +1,7 @@
 import React from 'react'
 import { File, FileDown, FileSpreadsheet, FileText, MapPin } from 'lucide-react'
 import type { AttachmentInfo } from '@/utils/attachment'
+import sanitizeMessageHtml from '@/utils/sanitizeMessageHtml'
 
 interface Props {
   attachment?: AttachmentInfo
@@ -73,7 +74,7 @@ const AttachmentPreview: React.FC<Props> = ({ attachment, mediaUrl, locationData
   // Si no hay mediaUrl ni locationData, muestra el texto original del mensaje
   if (fallbackText) {
     // Asegurarse de sanear el fallbackText también
-    const sanitizedFallbackHtml = DOMPurify.sanitize(fallbackText);
+    const sanitizedFallbackHtml = sanitizeMessageHtml(fallbackText);
     return (
       <div
         className="prose prose-sm dark:prose-invert max-w-none [&_p]:my-0"

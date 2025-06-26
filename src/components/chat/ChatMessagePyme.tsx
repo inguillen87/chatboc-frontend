@@ -4,7 +4,7 @@ import { Message } from "@/types/chat";
 import ChatButtons from "./ChatButtons";
 import { motion } from "framer-motion";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
-import DOMPurify from "dompurify";
+import sanitizeMessageHtml from "@/utils/sanitizeMessageHtml";
 import ProductCard from "@/components/product/ProductCard";
 import { parseProductMessage, filterProducts } from "@/utils/productParser";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
@@ -71,7 +71,7 @@ const ChatMessagePyme: React.FC<ChatMessageProps> = ({
   // Evitar mostrar 'NaN' o valores falsos
   const safeText = message.text === "NaN" || message.text == null ? "" : message.text;
   // Limpiamos HTML sin cortar el texto
-  const sanitizedHtml = DOMPurify.sanitize(safeText);
+  const sanitizedHtml = sanitizeMessageHtml(safeText);
   const shouldParseProducts = (tipoChat || getCurrentTipoChat()) === "pyme";
   const parsedProducts =
     shouldParseProducts && message.isBot
