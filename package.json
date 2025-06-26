@@ -7,7 +7,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "setup-env": "node scripts/setupEnv.js",
-    "postinstall": "npm run setup-env"
+    "postinstall": "npm run setup-env",
+    "test": "node tests/widgetAttention.test.js",
+    "start": "node server/app.js"
   },
   "dependencies": {
     "@headlessui/react": "^1.7.18",
