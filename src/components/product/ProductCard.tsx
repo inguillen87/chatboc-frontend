@@ -1,6 +1,7 @@
 import React from 'react';
 import type { ParsedProduct } from '@/utils/productParser';
 import { Card, CardContent } from '@/components/ui/card';
+import { formatCurrency } from '@/utils/currency';
 
 interface Props {
   product: ParsedProduct;
@@ -25,7 +26,9 @@ const ProductCard: React.FC<Props> = ({ product }) => {
           <p className="text-xs text-muted-foreground text-center">{presentacion}</p>
         )}
         <p className="font-bold text-sm text-primary">
-          {precio_unitario ? `$${precio_unitario}` : 'Consultar precio'}
+          {precio_unitario
+            ? formatCurrency(Number(precio_unitario))
+            : 'Consultar precio'}
         </p>
         {marca && <p className="text-xs text-muted-foreground">{marca}</p>}
       </CardContent>

@@ -87,7 +87,7 @@ const ChatMessageMunicipio: React.FC<ChatMessageProps> = ({
 
       <div className="flex flex-col">
         <motion.div
-          className={`px-4 py-3 max-w-[320px] relative break-words ${bubbleClass}`}
+          className={`px-4 py-3 max-w-[360px] relative break-words ${bubbleClass}`}
           variants={{
             hidden: { opacity: 0, y: 14, scale: 0.97 },
             visible: { opacity: 1, y: 0, scale: [1, 1.03, 1] },
@@ -104,7 +104,7 @@ const ChatMessageMunicipio: React.FC<ChatMessageProps> = ({
                 fallbackText={message.text} // Usa el texto del mensaje como fallback si no se muestra el adjunto
             />
           ) : (
-            <div className="prose prose-sm dark:prose-invert max-w-none [&_p]:my-0">
+            <div className="prose dark:prose-invert max-w-none text-sm [&_p]:my-0">
               {isBot ? (
                 <TypewriterText html={sanitizedHtml} />
               ) : (
