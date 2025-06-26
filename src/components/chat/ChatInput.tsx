@@ -96,7 +96,7 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
 
 
   return (
-    <div className="w-full max-w-[460px] mx-auto flex items-center gap-2 px-3 py-2">
+    <div className="w-full flex items-center gap-2 px-3 py-2">
       {/* Botón para adjuntar archivos: Solo abre el selector de archivos, NO envía un mensaje al backend directamente */}
       <AdjuntarArchivo onUpload={handleFileUploaded} /> 
 

@@ -395,7 +395,7 @@ const ChatPage = () => {
         <motion.div
           layout
           className={`
-            w-full max-w-lg ${isMobile ? "h-[100svh]" : "h-[83vh]"}
+            w-full ${isMobile ? "h-[100svh]" : "h-[83vh]"}
             flex flex-col
             relative
             overflow-hidden
