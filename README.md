@@ -124,6 +124,8 @@ You can embed the floating chat widget on any site by loading `widget.js` and pa
     s.setAttribute('data-endpoint', 'pyme'); // or "municipio"
     // Optional: preselect the business category
     // s.setAttribute('data-rubro', 'comercio');
+    // Optional: show a call-to-action bubble once
+    // s.setAttribute('data-cta-message', '¿Necesitás ayuda?');
     // Optional: force light or dark theme
     // s.setAttribute('data-theme', 'dark');
     // The widget will set `allow="clipboard-write; geolocation"` on
@@ -160,6 +162,7 @@ The `<script>` tag accepts several extra `data-*` attributes to control the widg
 - `data-z` – base `z-index` if you need to adjust stacking order.
 - `data-domain` – custom domain hosting the widget, if different from `chatboc.ar`.
 - `data-rubro` – optional category so the chat knows the business type from the start.
+- `data-cta-message` – optional text that appears once as a bubble inviting the user to open the chat.
 
 ### Iframe fallback
 

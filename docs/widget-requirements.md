@@ -63,6 +63,7 @@ Este documento resume los lineamientos para que el widget de Chatboc funcione de
 ## Propiedad opcional `ctaMessage`
 - Se puede mostrar un globo de texto junto al botón de chat cuando está cerrado.
 - El mensaje se define desde el backend y se pasa al componente como `ctaMessage`.
+- Al usar `widget.js` se envía mediante el atributo `data-cta-message` del `<script>`.
 - Si se envía, el globo aparece unos segundos para invitar al usuario a abrir el chat.
 - La burbuja solo se muestra la primera vez gracias a `localStorage` (clave `cta_seen`).
 - Puede reproducir un sonido opcional al aparecer si se incluye un archivo `public/beep.wav`.
