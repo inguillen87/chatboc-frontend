@@ -5,7 +5,7 @@ import ChatButtons from "./ChatButtons";
 import { motion } from "framer-motion";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 import UserAvatarAnimated from "./UserAvatarAnimated";
-import DOMPurify from "dompurify";
+import sanitizeMessageHtml from "@/utils/sanitizeMessageHtml";
 import AttachmentPreview from "./AttachmentPreview";
 import TypewriterText from "./TypewriterText";
 
