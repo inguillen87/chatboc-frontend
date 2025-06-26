@@ -26,7 +26,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
             className="w-full h-32 object-contain rounded-md"
           />
         )}
-        <h4 className="font-semibold text-sm text-center text-foreground line-clamp-2">
+        <h4 className="font-semibold text-sm text-center text-foreground break-words">
           {nombre}
         </h4>
         {cleanPresentacion && (
