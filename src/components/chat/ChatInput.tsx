@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Send, MapPin } from "lucide-react"; // Importa MapPin para el botón de ubicación
-import AdjuntarArchivo from "@/components/ui/AdjuntarArchivo"; // Este componente DEBERÍA manejar la subida y devolver la URL
-import { requestLocation } from "@/utils/geolocation"; // Importa la función de geolocalización
+import { Send, MapPin } from "lucide-react";
+import AdjuntarArchivo from "@/components/ui/AdjuntarArchivo";
+import { requestLocation } from "@/utils/geolocation";
+import { toast } from "@/components/ui/use-toast"; // Importa toast
 
 interface Props {
-  // onSendMessage ahora acepta un payload estructurado
   onSendMessage: (payload: { text: string; es_foto?: boolean; archivo_url?: string; es_ubicacion?: boolean; ubicacion_usuario?: { lat: number; lon: number; }; action?: string; }) => void;
   isTyping: boolean;
 }
@@ -30,53 +30,60 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping }) => {
 
   const handleSend = () => {
     if (!input.trim() || isTyping) return;
-    onSendMessage({ text: input.trim() }); // Envía un objeto SendPayload
+    onSendMessage({ text: input.trim() });
     setInput("");
     inputRef.current?.focus();
   };
 
-  // --- LÓGICA PARA ARCHIVOS Y UBICACIÓN ---
-  // `data` es el objeto devuelto por `/archivos/subir`, esperamos que tenga `url`
-  const handleFileUploaded = (data: { url: string; }) => { 
-    if (isTyping || !data || !data.url) return; // No enviar si el bot está escribiendo o no hay URL
-    onSendMessage({ text: "Foto adjunta", es_foto: true, archivo_url: data.url }); // Envía un mensaje con el adjunto
-    setInput(""); // Limpia el input después de enviar el archivo
+  // --- LÓGICA PARA ARCHIVOS Y UBICACIÓN: AHORA ENVÍAN MENSAJE SOLO CUANDO EL DATO ESTÁ LISTO ---
+  // Este callback es llamado por AdjuntarArchivo CUANDO el archivo ya se SUBIÓ y tenemos su URL
+  const handleFileUploaded = async (data: { url: string; }) => { 
+    if (isTyping || !data || !data.url) {
+      toast({ title: "Error", description: "No se pudo obtener la URL del archivo subido.", variant: "destructive" });
+      return;
+    }
+    // AHORA SÍ, enviamos el mensaje al bot con la URL del archivo
+    onSendMessage({ text: "Foto adjunta", es_foto: true, archivo_url: data.url }); 
+    setInput("");
+    toast({ title: "Archivo enviado", description: "La foto ha sido adjuntada al reclamo.", duration: 3000 });
   };
 
+  // Este callback es llamado por el botón "Compartir ubicación" de ChatInput
   const handleShareLocation = async () => {
     if (isTyping) return;
-    // setIsTyping(true); // Puedes activar un typing indicator mientras se obtiene la ubicación
+    toast({ title: "Obteniendo ubicación...", description: "Por favor, acepta la solicitud de GPS.", duration: 2000 });
+    // setIsTyping(true); // Opcional: mostrar typing indicator mientras se obtiene la ubicación
     try {
-      const coords = await requestLocation({ enableHighAccuracy: true, timeout: 5000, maximumAge: 0 });
+      const coords = await requestLocation({ enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
       if (coords) {
+        // AHORA SÍ, enviamos el mensaje al bot con las coordenadas
         onSendMessage({
           text: "Ubicación compartida",
           es_ubicacion: true,
-          // MODIFICADO: Asegúrate de que las claves sean 'lat' y 'lon' para el backend
-          ubicacion_usuario: { lat: coords.latitud, lon: coords.longitud } 
+          ubicacion_usuario: { lat: coords.latitud, lon: coords.longitud }
         });
+        toast({ title: "Ubicación enviada", description: "Tu ubicación ha sido compartida.", duration: 3000 });
       } else {
-        alert("No se pudo obtener tu ubicación. Asegúrate de tener los permisos activados y un GPS activo.");
-        onSendMessage({ text: "Error al compartir ubicación" }); // Mensaje para el usuario si falla
+        toast({ title: "Ubicación no disponible", description: "No pudimos acceder a tu ubicación por GPS. Verificá los permisos y que estés usando una conexión segura (https).", variant: "destructive", duration: 5000 });
+        // No enviamos un mensaje al bot si falla la obtención de GPS, solo un toast al usuario
       }
     } catch (error) {
       console.error("Error al obtener ubicación:", error);
-      alert("Error al obtener tu ubicación.");
-      onSendMessage({ text: "Error al compartir ubicación" }); // Mensaje para el usuario si falla
+      toast({ title: "Error al obtener ubicación", description: "Hubo un problema al intentar obtener tu ubicación.", variant: "destructive", duration: 5000 });
     } finally {
       // setIsTyping(false); // Ocultar typing indicator
     }
     setInput("");
   };
-  // ---------------------------------------------
+  // -------------------------------------------------------------------------
 
 
   return (
     <div className="w-full max-w-[460px] mx-auto flex items-center gap-2 px-3 py-2">
-      {/* Botón para adjuntar archivos (delegamos la lógica de subida a AdjuntarArchivo) */}
+      {/* Botón para adjuntar archivos: Solo abre el selector de archivos, NO envía un mensaje al backend directamente */}
       <AdjuntarArchivo onUpload={handleFileUploaded} /> 
 
-      {/* Botón para compartir ubicación */}
+      {/* Botón para compartir ubicación: Solo inicia la solicitud de GPS, NO envía un mensaje al backend directamente */}
       <button
         onClick={handleShareLocation}
         disabled={isTyping}
