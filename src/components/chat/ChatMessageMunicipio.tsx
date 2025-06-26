@@ -4,6 +4,7 @@ import { Message, SendPayload } from "@/types/chat"; // Importa SendPayload
 import ChatButtons from "./ChatButtons";
 import { motion } from "framer-motion";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
+import UserAvatarAnimated from "./UserAvatarAnimated";
 import DOMPurify from "dompurify";
 import AttachmentPreview from "./AttachmentPreview";
 import TypewriterText from "./TypewriterText";
@@ -32,7 +33,7 @@ const UserAvatar = () => (
     animate={{ scale: 1, opacity: 1 }}
     transition={{ type: "spring", stiffness: 200, damping: 20 }}
   >
-    <span className="text-xl font-bold text-primary dark:text-blue-100">🧑‍💼</span>
+    <UserAvatarAnimated size={24} talking={false} />
   </motion.span>
 );
 
@@ -78,7 +79,7 @@ const ChatMessageMunicipio: React.FC<ChatMessageProps> = ({
         {isBot && <AvatarBot isTyping={isTyping} />}
 
         <motion.div
-          className={`max-w-[94vw] md:max-w-2xl rounded-2xl shadow-md px-5 py-3 font-medium text-base leading-relaxed whitespace-pre-line break-words ${bubbleClass}`}
+          className={`max-w-[90vw] md:max-w-2xl rounded-2xl shadow-md px-5 py-3 font-medium text-base leading-relaxed whitespace-pre-line break-words ${bubbleClass}`}
           variants={{
             hidden: { opacity: 0, y: 14, scale: 0.97 },
             visible: { opacity: 1, y: 0, scale: [1, 1.03, 1] },
