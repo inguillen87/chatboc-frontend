@@ -12,6 +12,7 @@ import { getCurrentTipoChat } from "@/utils/tipoChat";
 import AttachmentPreview from "./AttachmentPreview";
 import { getAttachmentInfo } from "@/utils/attachment";
 import TypewriterText from "./TypewriterText";
+import MessageBubble from "./MessageBubble";
 
 // --- Avatares reutilizados ---
 const AvatarBot: React.FC<{ isTyping: boolean }> = ({ isTyping }) => (
@@ -52,14 +53,17 @@ interface ChatMessageProps {
   query?: string;
 }
 
-const ChatMessagePyme: React.FC<ChatMessageProps> = ({
-  message,
-  isTyping,
-  onButtonClick,
-  onInternalAction,
-  tipoChat,
-  query,
-}) => {
+const ChatMessagePyme = React.forwardRef<HTMLDivElement, ChatMessageProps>( (
+  {
+    message,
+    isTyping,
+    onButtonClick,
+    onInternalAction,
+    tipoChat,
+    query,
+  },
+  ref
+) => {
   if (!message || typeof message.text !== "string") {
     return (
       <div className="text-xs text-destructive italic mt-2 px-3">
@@ -91,20 +95,14 @@ const ChatMessagePyme: React.FC<ChatMessageProps> = ({
   const bubbleWidth = filteredProducts ? "max-w-[480px]" : "max-w-[95vw] md:max-w-2xl";
 
   return (
-    <div className={`flex w-full ${isBot ? "justify-start" : "justify-end"} mb-2`}>
+    <div
+      ref={ref}
+      className={`flex w-full ${isBot ? "justify-start" : "justify-end"} mb-2`}
+    >
       <div className={`flex items-end gap-2 ${isBot ? "" : "flex-row-reverse"}`}>
         {isBot && <AvatarBot isTyping={isTyping} />}
 
-        <motion.div
-          className={`${bubbleWidth} rounded-2xl shadow-md px-5 py-3 font-medium text-base leading-relaxed whitespace-pre-line break-words ${bubbleClass}`}
-          variants={{
-            hidden: { opacity: 0, y: 14, scale: 0.97 },
-            visible: { opacity: 1, y: 0, scale: [1, 1.03, 1] },
-          }}
-          initial="hidden"
-          animate="visible"
-          transition={{ duration: 0.28, ease: "easeOut" }}
-        >
+        <MessageBubble className={`${bubbleWidth} ${bubbleClass}`}>        
           {filteredProducts ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {filteredProducts.map((p, idx) => (
@@ -133,12 +131,12 @@ const ChatMessagePyme: React.FC<ChatMessageProps> = ({
               onInternalAction={onInternalAction}
             />
           )}
-        </motion.div>
+        </MessageBubble>
 
         {!isBot && <UserAvatar />}
       </div>
     </div>
   );
-};
+});
 
 export default ChatMessagePyme;
