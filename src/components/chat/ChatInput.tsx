@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Send, MapPin } from "lucide-react";
+import { Send, MapPin, Mic, MicOff } from "lucide-react";
 import AdjuntarArchivo from "@/components/ui/AdjuntarArchivo";
 import { requestLocation } from "@/utils/geolocation";
 import { toast } from "@/components/ui/use-toast"; // Importa toast
+import useSpeechRecognition from "@/hooks/useSpeechRecognition";
 
 interface Props {
   onSendMessage: (payload: { text: string; es_foto?: boolean; archivo_url?: string; es_ubicacion?: boolean; ubicacion_usuario?: { lat: number; lon: number; }; action?: string; }) => void;
@@ -21,6 +22,7 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef }) => {
   const [input, setInput] = useState("");
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const internalRef = inputRef || useRef<HTMLInputElement>(null);
+  const { supported, listening, transcript, start, stop } = useSpeechRecognition();
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -76,6 +78,15 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef }) => {
     }
     setInput("");
   };
+
+  // Enviar el texto dictado automáticamente cuando finaliza el reconocimiento
+  useEffect(() => {
+    if (!listening && transcript) {
+      onSendMessage({ text: transcript.trim() });
+      setInput("");
+      internalRef.current?.focus();
+    }
+  }, [listening, transcript]);
   // -------------------------------------------------------------------------
 
 
@@ -104,6 +115,39 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef }) => {
         type="button"
       >
         <MapPin className="w-5 h-5" />
+      </button>
+
+      {/* Botón de dictado por voz */}
+      <button
+        onClick={() => {
+          if (listening) {
+            stop();
+          } else {
+            if (!supported) {
+              toast({ title: "Dictado no soportado", description: "Tu navegador no admite reconocimiento de voz", variant: "destructive" });
+              return;
+            }
+            start();
+          }
+        }}
+        disabled={isTyping}
+        className={`
+          flex items-center justify-center
+          rounded-full p-2.5
+          shadow-xl transition-all duration-150
+          focus:outline-none focus:ring-2 focus:ring-blue-500/60
+          active:scale-95
+
+          bg-gray-200 text-gray-700 hover:bg-gray-300
+          dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600
+
+          ${isTyping ? "opacity-50 cursor-not-allowed" : ""}
+          ${listening ? "text-red-600" : ""}
+        `}
+        aria-label={listening ? "Detener dictado" : "Dictar mensaje"}
+        type="button"
+      >
+        {listening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
       </button>
 
       <input
