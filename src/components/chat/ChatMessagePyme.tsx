@@ -128,7 +128,7 @@ const ChatMessagePyme: React.FC<ChatMessageProps> = ({
   const bubbleClass = isBot
     ? "bg-muted text-foreground rounded-b-2xl rounded-tr-2xl dark:bg-[#232e40] shadow-lg shadow-blue-900/5"
     : "bg-primary text-primary-foreground rounded-b-2xl rounded-tl-2xl dark:bg-blue-700/90 shadow-md shadow-blue-500/10";
-  const bubbleWidth = filteredProducts ? "max-w-[420px]" : "max-w-[320px]";
+  const bubbleWidth = filteredProducts ? "max-w-[480px]" : "max-w-[360px]";
 
   return (
     <div
@@ -158,7 +158,7 @@ const ChatMessagePyme: React.FC<ChatMessageProps> = ({
           ) : attachment ? (
             <AttachmentPreview attachment={attachment} />
           ) : (
-            <div className="prose prose-sm dark:prose-invert max-w-none [&_p]:my-0">
+            <div className="prose dark:prose-invert max-w-none text-sm [&_p]:my-0">
               {isBot ? (
                 <TypewriterText html={sanitizedHtml} />
               ) : (
