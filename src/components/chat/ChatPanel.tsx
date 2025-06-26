@@ -21,6 +21,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { getCurrentTipoChat } from "@/utils/tipoChat";
 import { requestLocation } from "@/utils/geolocation";
 import { toast } from "@/components/ui/use-toast"; // Asegúrate de importar toast
+import RubroSelector, { Rubro } from "./RubroSelector";
 
 const FRASES_DIRECCION = [
   "indicame la dirección",
@@ -95,7 +96,7 @@ const ChatPanel = ({
       ? safeLocalStorage.getItem("rubroSeleccionado")?.toLowerCase() || null
       : null;
   });
-  const [rubrosDisponibles, setRubrosDisponibles] = useState([]);
+  const [rubrosDisponibles, setRubrosDisponibles] = useState<Rubro[]>([]);
   const [esperandoRubro, setEsperandoRubro] = useState(false);
   const [cargandoRubros, setCargandoRubros] = useState(false);
   const [pendingAction, setPendingAction] = useState<"login" | "register" | null>(null);
@@ -689,36 +690,29 @@ const ChatPanel = ({
                   <button onClick={cargarRubros} className="mt-2 underline text-blue-600 dark:text-blue-400 hover:text-blue-800" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>Reintentar</button>
                 </div>
               ) : (
-                <div className="flex flex-wrap justify-center gap-2">
-                  {rubrosDisponibles.map((rubro: any) => (
-                    <button
-                      key={rubro.id}
-                      onClick={() => {
-                        safeLocalStorage.setItem('rubroSeleccionado', rubro.nombre);
-                        setRubroSeleccionado(rubro.nombre);
-                        setEsperandoRubro(false);
-                        setMessages([
-                          {
-                            id: Date.now(),
-                            text: `¡Hola! Soy Chatboc, tu asistente para ${rubro.nombre.toLowerCase()}. ¿En qué puedo ayudarte hoy?`,
-                            isBot: true,
-                            timestamp: new Date(),
-                            query: undefined,
-                          },
-                        ]);
-                        if (pendingAction === 'login') {
-                          onShowLogin && onShowLogin();
-                        } else if (pendingAction === 'register') {
-                          onShowRegister && onShowRegister();
-                        }
-                        setPendingAction(null);
-                      }}
-                      className="px-4 py-2 rounded-2xl font-semibold bg-blue-500 text-white hover:bg-blue-600 transition"
-                    >
-                      {rubro.nombre}
-                    </button>
-                  ))}
-                </div>
+                <RubroSelector
+                  rubros={rubrosDisponibles}
+                  onSelect={(rubro: any) => {
+                    safeLocalStorage.setItem('rubroSeleccionado', rubro.nombre);
+                    setRubroSeleccionado(rubro.nombre);
+                    setEsperandoRubro(false);
+                    setMessages([
+                      {
+                        id: Date.now(),
+                        text: `¡Hola! Soy Chatboc, tu asistente para ${rubro.nombre.toLowerCase()}. ¿En qué puedo ayudarte hoy?`,
+                        isBot: true,
+                        timestamp: new Date(),
+                        query: undefined,
+                      },
+                    ]);
+                    if (pendingAction === 'login') {
+                      onShowLogin && onShowLogin();
+                    } else if (pendingAction === 'register') {
+                      onShowRegister && onShowRegister();
+                    }
+                    setPendingAction(null);
+                  }}
+                />
               )}
             </div>
           ) : esperandoDireccion ? (
