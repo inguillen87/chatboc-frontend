@@ -9,9 +9,11 @@ import {
   BarChart2,
   UserCog,
   MapPin,
+  Package,
 } from "lucide-react";
 import { useUser } from "@/hooks/useUser";
 import { normalizeRole } from "@/utils/roles";
+import useEndpointAvailable from "@/hooks/useEndpointAvailable";
 
 interface LinkItem {
   label: string;
@@ -23,6 +25,7 @@ interface LinkItem {
 
 const ITEMS: LinkItem[] = [
   { label: "Tickets", path: "/tickets", icon: Ticket, roles: ["admin", "empleado"] },
+  { label: "Pedidos", path: "/pedidos", icon: Package, roles: ["admin", "empleado"], tipo: "pyme" },
   { label: "Usuarios", path: "/usuarios", icon: Users, roles: ["admin", "empleado"] },
   { label: "Estadísticas", path: "/municipal/stats", icon: BarChart2, roles: ["admin"], tipo: "municipio" },
   { label: "Empleados", path: "/municipal/usuarios", icon: UserCog, roles: ["admin"], tipo: "municipio" },
@@ -32,6 +35,7 @@ const ITEMS: LinkItem[] = [
 export default function QuickLinksCard() {
   const navigate = useNavigate();
   const { user, refreshUser } = useUser();
+  const pedidosAvailable = useEndpointAvailable('/pedidos');
 
   useEffect(() => {
     if (!user) {
@@ -54,9 +58,10 @@ export default function QuickLinksCard() {
   const role = normalizeRole(user.rol);
   const tipo = user.tipo_chat as "pyme" | "municipio";
 
-  const items = ITEMS.filter(
-    (it) => (!it.roles || it.roles.includes(role)) && (!it.tipo || it.tipo === tipo)
-  );
+  const items = ITEMS.filter((it) => {
+    if (it.path === '/pedidos' && pedidosAvailable === false) return false;
+    return (!it.roles || it.roles.includes(role)) && (!it.tipo || it.tipo === tipo);
+  });
 
   if (!items.length) return null;
 
