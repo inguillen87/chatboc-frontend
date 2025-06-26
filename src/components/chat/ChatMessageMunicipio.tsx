@@ -8,6 +8,7 @@ import UserAvatarAnimated from "./UserAvatarAnimated";
 import sanitizeMessageHtml from "@/utils/sanitizeMessageHtml";
 import AttachmentPreview from "./AttachmentPreview";
 import TypewriterText from "./TypewriterText";
+import MessageBubble from "./MessageBubble";
 
 const AvatarBot: React.FC<{ isTyping: boolean }> = ({ isTyping }) => (
   <motion.div
@@ -46,13 +47,16 @@ interface ChatMessageProps {
   query?: string;
 }
 
-const ChatMessageMunicipio: React.FC<ChatMessageProps> = ({
-  message,
-  isTyping,
-  onButtonClick,
-  onInternalAction,
-  query: _query, // not used but kept for prop consistency
-}) => {
+const ChatMessageMunicipio = React.forwardRef<HTMLDivElement, ChatMessageProps>( (
+  {
+    message,
+    isTyping,
+    onButtonClick,
+    onInternalAction,
+    query: _query, // not used but kept for prop consistency
+  },
+  ref
+) => {
   // Seguridad ante mensajes rotos
   if (!message || typeof message.text !== "string") {
     return (
@@ -74,25 +78,19 @@ const ChatMessageMunicipio: React.FC<ChatMessageProps> = ({
     : "bg-gradient-to-br from-blue-600 to-blue-800 text-white";
 
   return (
-    <div className={`flex w-full ${isBot ? "justify-start" : "justify-end"} mb-2`}>
+    <div
+      ref={ref}
+      className={`flex w-full ${isBot ? "justify-start" : "justify-end"} mb-2`}
+    >
       <div className={`flex items-end gap-2 ${isBot ? "" : "flex-row-reverse"}`}>
         {isBot && <AvatarBot isTyping={isTyping} />}
 
-        <motion.div
-          className={`max-w-[95vw] md:max-w-2xl rounded-2xl shadow-md px-5 py-3 font-medium text-base leading-relaxed whitespace-pre-line break-words ${bubbleClass}`}
-          variants={{
-            hidden: { opacity: 0, y: 14, scale: 0.97 },
-            visible: { opacity: 1, y: 0, scale: [1, 1.03, 1] },
-          }}
-          initial="hidden"
-          animate="visible"
-          transition={{ duration: 0.29, ease: "easeOut" }}
-        >
+        <MessageBubble className={`max-w-[95vw] md:max-w-2xl ${bubbleClass}`}>
           {/* Renderiza AttachmentPreview solo si hay mediaUrl o locationData */}
           {(message.mediaUrl || message.locationData) ? (
-            <AttachmentPreview 
-                mediaUrl={message.mediaUrl} 
-                locationData={message.locationData} 
+            <AttachmentPreview
+                mediaUrl={message.mediaUrl}
+                locationData={message.locationData}
                 fallbackText={message.text} // Usa el texto del mensaje como fallback si no se muestra el adjunto
             />
           ) : (
@@ -115,12 +113,12 @@ const ChatMessageMunicipio: React.FC<ChatMessageProps> = ({
               onInternalAction={onInternalAction}
             />
           )}
-        </motion.div>
+        </MessageBubble>
 
         {!isBot && <UserAvatar />}
       </div>
     </div>
   );
-};
+});
 
 export default ChatMessageMunicipio;
