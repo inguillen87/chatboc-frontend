@@ -1,0 +1,7 @@
+[
+  {"nombre": "Camisa Oxford", "marca": "MarcaX", "talle": "M", "color": "Azul", "precio_str": "10000"},
+  {"nombre": "Camisa Oxford", "marca": "MarcaX", "talle": "L", "color": "Rojo", "precio_str": "10000"},
+  {"nombre": "Martillo", "marca": "ToolCo", "presentacion": "Unidad", "precio_str": "1500"},
+  {"nombre": "Vino Malbec", "bodega": "Bodega A", "variedad": "Malbec", "presentacion": "750 ml", "precio_str": "3500"},
+  {"nombre": "Vino Malbec", "bodega": "Bodega A", "variedad": "Malbec", "presentacion": "1.5 L", "precio_str": "6500"}
+]
