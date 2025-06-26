@@ -5,7 +5,6 @@ import ChatButtons from "./ChatButtons";
 import { motion } from "framer-motion";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 import DOMPurify from "dompurify";
-import { truncateText } from "@/utils/truncateText";
 import AttachmentPreview from "./AttachmentPreview";
 import TypewriterText from "./TypewriterText";
 
@@ -14,14 +13,10 @@ const AvatarBot: React.FC<{ isTyping: boolean }> = ({ isTyping }) => (
     initial={{ scale: 0.8, opacity: 0 }}
     animate={{ scale: 1, opacity: 1 }}
     transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.1 }}
-    className={`flex-shrink-0 w-10 h-10 rounded-full bg-card flex items-center justify-center border-2 transition-all duration-200 ease-in-out ${
-      isTyping
-        ? "border-blue-500 shadow-lg shadow-blue-500/40 scale-105"
-        : "border-border shadow-sm"
-    }`}
+    className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-[#245ca6] rounded-full shadow"
   >
     <ChatbocLogoAnimated
-      size={36}
+      size={24}
       smiling={isTyping}
       movingEyes={isTyping}
       blinking
@@ -32,14 +27,12 @@ const AvatarBot: React.FC<{ isTyping: boolean }> = ({ isTyping }) => (
 
 const UserAvatar = () => (
   <motion.span
-    className="flex-shrink-0 w-9 h-9 rounded-full bg-secondary flex items-center justify-center border border-border shadow-md dark:border-blue-700"
+    className="flex-shrink-0 w-8 h-8 rounded-full bg-secondary flex items-center justify-center border border-border shadow-md dark:border-blue-700"
     initial={{ scale: 0.8, opacity: 0 }}
     animate={{ scale: 1, opacity: 1 }}
     transition={{ type: "spring", stiffness: 200, damping: 20 }}
   >
-    <span className="text-2xl font-bold text-primary dark:text-blue-100">
-      🧑‍💼
-    </span>
+    <span className="text-xl font-bold text-primary dark:text-blue-100">🧑‍💼</span>
   </motion.span>
 );
 
@@ -70,14 +63,14 @@ const ChatMessageMunicipio: React.FC<ChatMessageProps> = ({
 
   // Evitar mostrar "NaN" o valores falsos
   const safeText = message.text === "NaN" || message.text == null ? "" : message.text;
-  // Limpiamos HTML y limitamos solo si el texto es muy largo
-  const sanitizedHtml = DOMPurify.sanitize(truncateText(safeText, 600));
+  // Limpiamos HTML sin cortar el texto
+  const sanitizedHtml = DOMPurify.sanitize(safeText);
 
   const isBot = message.isBot;
 
   const bubbleClass = isBot
-    ? "bg-[#172137] text-blue-100 border border-[#1d375a] rounded-[1.2em] shadow-md"
-    : "bg-gradient-to-tr from-blue-500 to-blue-700 text-white border border-blue-300 rounded-[1.2em] shadow-md";
+    ? "bg-[#192745] text-blue-100"
+    : "bg-gradient-to-br from-blue-600 to-blue-800 text-white";
 
   return (
     <div className={`flex w-full ${isBot ? "justify-start" : "justify-end"} mb-2`}>
@@ -86,8 +79,7 @@ const ChatMessageMunicipio: React.FC<ChatMessageProps> = ({
 
         <div className="flex flex-col">
           <motion.div
-            className={`px-4 py-2 max-w-[77vw] md:max-w-[420px] relative break-words ${bubbleClass}`}
-            style={{ fontWeight: 500, lineHeight: 1.4, wordBreak: 'break-word', whiteSpace: 'pre-line' }}
+            className={`max-w-[94vw] md:max-w-2xl rounded-[1.3em] shadow-lg px-5 py-3 font-medium text-base leading-relaxed whitespace-pre-line break-words ${bubbleClass}`}
           variants={{
             hidden: { opacity: 0, y: 14, scale: 0.97 },
             visible: { opacity: 1, y: 0, scale: [1, 1.03, 1] },
