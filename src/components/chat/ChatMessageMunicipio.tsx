@@ -79,7 +79,7 @@ const ChatMessageMunicipio: React.FC<ChatMessageProps> = ({
         {isBot && <AvatarBot isTyping={isTyping} />}
 
         <motion.div
-          className={`max-w-[90vw] md:max-w-2xl rounded-2xl shadow-md px-5 py-3 font-medium text-base leading-relaxed whitespace-pre-line break-words ${bubbleClass}`}
+          className={`max-w-[95vw] md:max-w-2xl rounded-2xl shadow-md px-5 py-3 font-medium text-base leading-relaxed whitespace-pre-line break-words ${bubbleClass}`}
           variants={{
             hidden: { opacity: 0, y: 14, scale: 0.97 },
             visible: { opacity: 1, y: 0, scale: [1, 1.03, 1] },

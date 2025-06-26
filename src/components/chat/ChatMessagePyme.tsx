@@ -88,7 +88,7 @@ const ChatMessagePyme: React.FC<ChatMessageProps> = ({
   const bubbleClass = isBot
     ? "bg-[#192745] text-blue-100"
     : "bg-gradient-to-br from-blue-600 to-blue-800 text-white";
-  const bubbleWidth = filteredProducts ? "max-w-[480px]" : "max-w-[90vw] md:max-w-2xl";
+  const bubbleWidth = filteredProducts ? "max-w-[480px]" : "max-w-[95vw] md:max-w-2xl";
 
   return (
     <div className={`flex w-full ${isBot ? "justify-start" : "justify-end"} mb-2`}>
