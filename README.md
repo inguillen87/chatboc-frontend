@@ -164,6 +164,16 @@ The `<script>` tag accepts several extra `data-*` attributes to control the widg
 - `data-rubro` – optional category so the chat knows the business type from the start.
 - `data-cta-message` – optional text that appears once as a bubble inviting the user to open the chat.
 
+### Attention bubble rotation
+
+Set `ATTENTION_BUBBLE_CHOICES` on the server with multiple phrases separated by `|`:
+
+```bash
+ATTENTION_BUBBLE_CHOICES="¿Necesitás ayuda?|¡Chateá con nosotros!|Envianos tu consulta"
+```
+
+The `/widget/attention` endpoint returns one of these phrases at random. If the variable is missing, the default message `¿Necesitás ayuda?` is used.
+
 ### Iframe fallback
 
 If your site blocks external JavaScript, you can embed the chatbot using an
