@@ -1,10 +1,13 @@
 const express = require('express');
+const path = require('path');
 const { getAttentionMessage } = require('./widgetAttention');
 const { getMunicipalStats } = require('./municipalStats');
 const { getFormattedProducts } = require('./catalog');
 
 const app = express();
 app.use(express.json());
+
+const FILES_DIR = path.join(__dirname, 'files');
 
 
 app.get('/widget/attention', (req, res) => {
@@ -17,6 +20,11 @@ app.get('/municipal/stats', (req, res) => {
 
 app.get('/productos', (req, res) => {
   res.json(getFormattedProducts());
+});
+
+app.get('/files/:name', (req, res) => {
+  const filePath = path.join(FILES_DIR, req.params.name);
+  res.download(filePath);
 });
 
 app.post('/ask/pyme', (req, res) => {
