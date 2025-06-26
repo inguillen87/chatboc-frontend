@@ -1,7 +1,6 @@
 // src/components/chat/ChatButtons.tsx
 import React from 'react';
 import { motion } from 'framer-motion';
-import { truncateText } from '@/utils/truncateText';
 
 // Definimos los tipos para los botones y las props
 interface Boton {
@@ -65,7 +64,7 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
     };
 
     const baseClass =
-        "px-4 py-1 text-sm rounded-xl font-semibold shadow-sm transition hover:scale-105";
+        "rounded-2xl px-4 py-2 font-semibold bg-white text-blue-800 border border-blue-200 hover:bg-blue-50 hover:shadow transition-all";
 
     return (
         <motion.div
@@ -81,19 +80,21 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
                         href={boton.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className={baseClass + " no-underline inline-flex items-center justify-center bg-primary text-primary-foreground"}
-                        style={{maxWidth:180, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}
+                        className={baseClass + " no-underline inline-flex items-center justify-center"}
+                        style={{ maxWidth: 180 }}
+                        title={boton.texto}
                     >
-                        {truncateText(boton.texto, 36)}
+                        {boton.texto}
                     </a>
                 ) : (
                     <button
                         key={index}
                         onClick={() => handleButtonClick(boton)}
-                        className={baseClass + " bg-primary text-primary-foreground"}
-                        style={{maxWidth:180, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}
+                        className={baseClass}
+                        style={{ maxWidth: 180 }}
+                        title={boton.texto}
                     >
-                        {truncateText(boton.texto, 36)}
+                        {boton.texto}
                     </button>
                 )
             )}
