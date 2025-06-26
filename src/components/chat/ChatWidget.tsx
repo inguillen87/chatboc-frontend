@@ -256,7 +256,10 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             <motion.div
               key="chatboc-panel"
               className={cn(commonPanelStyles, "w-full h-full")}
-              style={{ borderRadius: isMobile ? "0" : "16px", background: "#fff" }}
+              style={{
+                borderRadius: isMobile ? "0" : "16px",
+                background: "hsl(var(--card))",
+              }}
               initial={{ opacity: 0, scale: 0.85 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.85 }}
@@ -383,7 +386,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                 ? "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))"
                 : finalOpenHeight,
               borderRadius: isMobile ? "0" : "16px",
-              background: "#fff",
+              background: "hsl(var(--card))",
               opacity: 1,
               zIndex: 10,
               boxShadow: "0 12px 40px 0 rgba(0,0,0,0.18)",
