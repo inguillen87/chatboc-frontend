@@ -94,9 +94,8 @@ const ChatMessagePyme: React.FC<ChatMessageProps> = ({
       <div className={`flex items-end gap-2 ${isBot ? "" : "flex-row-reverse"}`}>
         {isBot && <AvatarBot isTyping={isTyping} />}
 
-        <div className="flex flex-col">
-          <motion.div
-            className={`${bubbleWidth} rounded-[1.3em] shadow-lg px-5 py-3 font-medium text-base leading-relaxed whitespace-pre-line break-words ${bubbleClass}`}
+        <motion.div
+          className={`${bubbleWidth} rounded-2xl shadow-md px-5 py-3 font-medium text-base leading-relaxed whitespace-pre-line break-words ${bubbleClass}`}
           variants={{
             hidden: { opacity: 0, y: 14, scale: 0.97 },
             visible: { opacity: 1, y: 0, scale: [1, 1.03, 1] },
@@ -122,20 +121,18 @@ const ChatMessagePyme: React.FC<ChatMessageProps> = ({
               )}
             </div>
           )}
+          {isBot && message.botones && message.botones.length > 0 && (
+            <ChatButtons
+              botones={message.botones}
+              onButtonClick={onButtonClick}
+              onInternalAction={onInternalAction}
+            />
+          )}
         </motion.div>
 
-        {isBot && message.botones && message.botones.length > 0 && (
-          <ChatButtons
-            botones={message.botones}
-            onButtonClick={onButtonClick}
-            onInternalAction={onInternalAction}
-          />
-        )}
+        {!isBot && <UserAvatar />}
       </div>
-
-      {!isBot && <UserAvatar />}
     </div>
-  </div>
   );
 };
 

@@ -64,11 +64,11 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
     };
 
     const baseClass =
-        "rounded-2xl px-4 py-2 font-semibold bg-white text-blue-800 border border-blue-200 hover:bg-blue-50 hover:shadow transition-all";
+        "rounded-xl px-3 py-1 text-sm font-semibold bg-white text-blue-800 border border-blue-200 hover:bg-blue-50 hover:shadow transition-all";
 
     return (
         <motion.div
-            className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-border"
+            className="flex flex-wrap gap-2 mt-3"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.2, duration: 0.3 }}
