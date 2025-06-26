@@ -17,7 +17,7 @@ import { parseRubro, esRubroPublico, getAskEndpoint } from "@/utils/chatEndpoint
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateAnonId from "@/utils/anonId";
 import { parseChatResponse } from "@/utils/parseChatResponse";
-import { filterLoginPrompt } from "@/utils/adminChatFilter.js";
+import adminChatFilter from "@/utils/adminChatFilter.js";
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { getCurrentTipoChat } from "@/utils/tipoChat";
 import { requestLocation } from "@/utils/geolocation";
@@ -526,7 +526,9 @@ const ChatPanel = ({
 
           setContexto(data.contexto_actualizado || {});
           const parsed = parseChatResponse(data);
-          const filtered = filterLoginPrompt(
+          const filtered = (
+            adminChatFilter as { filterLoginPrompt: typeof import("@/utils/adminChatFilter.js")['filterLoginPrompt'] }
+          ).filterLoginPrompt(
             parsed.text,
             parsed.botones,
             user?.rol
