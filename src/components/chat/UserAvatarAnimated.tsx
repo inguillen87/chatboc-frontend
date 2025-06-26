@@ -24,27 +24,32 @@ const UserAvatarAnimated: React.FC<UserAvatarAnimatedProps> = ({ size = 24, talk
       transition={talking ? { repeat: Infinity, duration: 1 } : {}}
     >
       <svg width={size} height={size} viewBox="0 0 56 56">
-        <circle cx="28" cy="28" r="26" fill="#2563eb" />
+        {/* Hair */}
+        <path d="M8 20 Q28 4 48 20 V32 H8 Z" fill="#92400e" />
+        {/* Face */}
+        <circle cx="28" cy="30" r="22" fill="#f9d4b4" stroke="#e5e7eb" strokeWidth="2" />
+        {/* Eyes */}
         <motion.circle
-          cx="18"
-          cy="24"
-          r="4"
-          fill="#fff"
+          cx="20"
+          cy="28"
+          r="3"
+          fill="#000"
           animate={{ scaleY: [1, 0.1, 1] }}
           transition={{ repeat: Infinity, duration: 2, repeatDelay: 4 }}
         />
         <motion.circle
-          cx="38"
-          cy="24"
-          r="4"
-          fill="#fff"
+          cx="36"
+          cy="28"
+          r="3"
+          fill="#000"
           animate={{ scaleY: [1, 0.1, 1] }}
           transition={{ repeat: Infinity, duration: 2, repeatDelay: 4.1 }}
         />
+        {/* Mouth */}
         <motion.path
           d={mouthVariants.idle}
-          stroke="#fff"
-          strokeWidth={3}
+          stroke="#000"
+          strokeWidth={2.5}
           strokeLinecap="round"
           fill="none"
           animate={talking ? { d: mouthVariants.talking } : {}}
