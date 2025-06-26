@@ -147,15 +147,21 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   const [showCta, setShowCta] = useState(false);
 
-  // Muestra la burbuja cada vez que se recibe `ctaMessage` y el chat está cerrado
+  // Muestra la burbuja de ayuda solo la primera vez que el backend envía
+  // `ctaMessage`. Usa localStorage para recordar que ya se mostró.
   useEffect(() => {
     if (!ctaMessage || isOpen) {
       setShowCta(false);
       return;
     }
-    setShowCta(true);
-    const timer = setTimeout(() => setShowCta(false), 8000);
-    return () => clearTimeout(timer);
+    if (safeLocalStorage.getItem("cta_seen") === "1") return;
+    const delay = setTimeout(() => {
+      setShowCta(true);
+      const hide = setTimeout(() => setShowCta(false), 8000);
+      safeLocalStorage.setItem("cta_seen", "1");
+      return () => clearTimeout(hide);
+    }, 2500);
+    return () => clearTimeout(delay);
   }, [ctaMessage, isOpen]);
 
   useEffect(() => {
