@@ -33,6 +33,6 @@ function filterLoginPrompt(text, buttons = [], role) {
   return { text: finalText, buttons: finalButtons };
 }
 
-module.exports = { filterLoginPrompt };
-// Provide a default export for ESM compatibility
-module.exports.default = filterLoginPrompt;
+// >>>> REEMPLAZÁ TODO ESTO:
+export default filterLoginPrompt;
+export { filterLoginPrompt };
