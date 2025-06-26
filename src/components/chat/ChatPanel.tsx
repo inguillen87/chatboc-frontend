@@ -5,6 +5,7 @@ import ChatHeader from "./ChatHeader";
 import ChatMessage from "./ChatMessage";
 import { motion } from "framer-motion";
 import TypingIndicator from "./TypingIndicator";
+import UserTypingIndicator from "./UserTypingIndicator";
 import ChatInput from "./ChatInput";
 import ScrollToBottomButton from "@/components/ui/ScrollToBottomButton";
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
@@ -90,6 +91,7 @@ const ChatPanel = ({
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
+  const [userTyping, setUserTyping] = useState(false);
   const [preguntasUsadas, setPreguntasUsadas] = useState(0);
   const [rubroSeleccionado, setRubroSeleccionado] = useState<string | null>(() => {
     if (initialRubro) return initialRubro.toLowerCase();
@@ -652,7 +654,7 @@ const ChatPanel = ({
       }
     }
     chatInputRef.current?.focus();
-  }, [messages, isTyping, ticketLocation]);
+  }, [messages, isTyping, userTyping, ticketLocation]);
 
   useEffect(() => {
     if (messages.length === 0) return;
@@ -779,6 +781,7 @@ const ChatPanel = ({
                 />
               )}
               {isTyping && <TypingIndicator />}
+              {userTyping && <UserTypingIndicator />}
               {ticketLocation && (<TicketMap ticket={{ ...ticketLocation, tipo: 'municipio' }} />)}
               <div ref={messagesEndRef} />
               {showCierre && showCierre.show && (
@@ -802,6 +805,7 @@ const ChatPanel = ({
             onSendMessage={handleSendMessage}
             isTyping={isTyping}
             inputRef={chatInputRef}
+            onTypingChange={setUserTyping}
           />
         </div>
       )}

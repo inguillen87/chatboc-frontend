@@ -6,9 +6,10 @@ import { toast } from "@/components/ui/use-toast"; // Importa toast
 import useSpeechRecognition from "@/hooks/useSpeechRecognition";
 
 interface Props {
-  onSendMessage: (payload: { text: string; es_foto?: boolean; archivo_url?: string; es_ubicacion?: boolean; ubicacion_usuario?: { lat: number; lon: number; }; action?: string; }) => void;
+  onSendMessage: (payload: { text: string; es_foto?: boolean; archivo_url?: string; es_ubicacion?: boolean; ubicacion_usuario?: { lat: number; lon: number }; action?: string }) => void;
   isTyping: boolean;
   inputRef?: React.RefObject<HTMLInputElement>;
+  onTypingChange?: (typing: boolean) => void;
 }
 
 const PLACEHOLDERS = [
@@ -18,7 +19,7 @@ const PLACEHOLDERS = [
   "¿Cuánto cuesta el servicio?",
 ];
 
-const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef }) => {
+const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypingChange }) => {
   const [input, setInput] = useState("");
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const internalRef = inputRef || useRef<HTMLInputElement>(null);
@@ -35,19 +36,21 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef }) => {
     if (!input.trim() || isTyping) return;
     onSendMessage({ text: input.trim() });
     setInput("");
+    onTypingChange?.(false);
     internalRef.current?.focus();
   };
 
   // --- LÓGICA PARA ARCHIVOS Y UBICACIÓN: AHORA ENVÍAN MENSAJE SOLO CUANDO EL DATO ESTÁ LISTO ---
   // Este callback es llamado por AdjuntarArchivo CUANDO el archivo ya se SUBIÓ y tenemos su URL
-  const handleFileUploaded = async (data: { url: string; }) => { 
+  const handleFileUploaded = async (data: { url: string; }) => {
     if (isTyping || !data || !data.url) {
       toast({ title: "Error", description: "No se pudo obtener la URL del archivo subido.", variant: "destructive" });
       return;
     }
     // AHORA SÍ, enviamos el mensaje al bot con la URL del archivo
-    onSendMessage({ text: "Foto adjunta", es_foto: true, archivo_url: data.url }); 
+    onSendMessage({ text: "Foto adjunta", es_foto: true, archivo_url: data.url });
     setInput("");
+    onTypingChange?.(false);
     toast({ title: "Archivo enviado", description: "La foto ha sido adjuntada al reclamo.", duration: 3000 });
   };
 
@@ -77,6 +80,7 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef }) => {
       // setIsTyping(false); // Ocultar typing indicator
     }
     setInput("");
+    onTypingChange?.(false);
   };
 
   // Enviar el texto dictado automáticamente cuando finaliza el reconocimiento
@@ -84,6 +88,7 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef }) => {
     if (!listening && transcript) {
       onSendMessage({ text: transcript.trim() });
       setInput("");
+      onTypingChange?.(false);
       internalRef.current?.focus();
     }
   }, [listening, transcript]);
@@ -176,7 +181,11 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef }) => {
         type="text"
         placeholder={PLACEHOLDERS[placeholderIndex]}
         value={input}
-        onChange={(e) => setInput(e.target.value)}
+        onChange={(e) => {
+          const val = e.target.value;
+          setInput(val);
+          onTypingChange?.(val.trim().length > 0);
+        }}
         onKeyDown={(e) => {
           if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
