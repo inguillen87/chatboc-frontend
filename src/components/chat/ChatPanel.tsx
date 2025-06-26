@@ -104,6 +104,7 @@ const ChatPanel = ({
   const [pollingErrorShown, setPollingErrorShown] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const chatInputRef = useRef<HTMLInputElement>(null);
   const lastQueryRef = useRef<string | null>(null);
   const ultimoMensajeIdRef = useRef<number | null>(null);
 
@@ -632,6 +633,7 @@ const ChatPanel = ({
         setShowScrollDown(true);
       }
     }
+    chatInputRef.current?.focus();
   }, [messages, isTyping, ticketLocation]);
 
   useEffect(() => {
@@ -766,7 +768,7 @@ const ChatPanel = ({
           <ChatInput
             onSendMessage={handleSendMessage}
             isTyping={isTyping}
-            onFileUploaded={handleFileUploaded}
+            inputRef={chatInputRef}
           />
         </div>
       )}

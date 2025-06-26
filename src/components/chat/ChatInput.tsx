@@ -7,6 +7,7 @@ import { toast } from "@/components/ui/use-toast"; // Importa toast
 interface Props {
   onSendMessage: (payload: { text: string; es_foto?: boolean; archivo_url?: string; es_ubicacion?: boolean; ubicacion_usuario?: { lat: number; lon: number; }; action?: string; }) => void;
   isTyping: boolean;
+  inputRef?: React.RefObject<HTMLInputElement>;
 }
 
 const PLACEHOLDERS = [
@@ -16,10 +17,10 @@ const PLACEHOLDERS = [
   "¿Cuánto cuesta el servicio?",
 ];
 
-const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping }) => {
+const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef }) => {
   const [input, setInput] = useState("");
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const internalRef = inputRef || useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -32,7 +33,7 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping }) => {
     if (!input.trim() || isTyping) return;
     onSendMessage({ text: input.trim() });
     setInput("");
-    inputRef.current?.focus();
+    internalRef.current?.focus();
   };
 
   // --- LÓGICA PARA ARCHIVOS Y UBICACIÓN: AHORA ENVÍAN MENSAJE SOLO CUANDO EL DATO ESTÁ LISTO ---
@@ -106,7 +107,7 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping }) => {
       </button>
 
       <input
-        ref={inputRef}
+        ref={internalRef}
         className={`
           flex-1 max-w-full min-w-0
           rounded-full px-4 py-2
