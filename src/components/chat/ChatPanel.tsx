@@ -17,6 +17,7 @@ import { parseRubro, esRubroPublico, getAskEndpoint } from "@/utils/chatEndpoint
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateAnonId from "@/utils/anonId";
 import { parseChatResponse } from "@/utils/parseChatResponse";
+import { filterLoginPrompt } from "@/utils/adminChatFilter.js";
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { getCurrentTipoChat } from "@/utils/tipoChat";
 import { requestLocation } from "@/utils/geolocation";
@@ -524,21 +525,28 @@ const ChatPanel = ({
           });
 
           setContexto(data.contexto_actualizado || {});
-          const { text: respuestaText, botones } = parseChatResponse(data);
-          
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: Date.now(),
-              text: respuestaText || "No pude procesar tu solicitud.",
-              isBot: true,
-              timestamp: new Date(),
-              botones,
-              query: lastQueryRef.current || undefined,
-              mediaUrl: data.media_url, // Asignar media_url desde la respuesta del backend
-              locationData: data.location_data, // Asignar location_data desde la respuesta del backend
-            },
-          ]);
+          const parsed = parseChatResponse(data);
+          const filtered = filterLoginPrompt(
+            parsed.text,
+            parsed.botones,
+            user?.rol
+          );
+
+          if ((filtered.text && filtered.text.trim()) || filtered.buttons.length > 0) {
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: Date.now(),
+                text: filtered.text || "No pude procesar tu solicitud.",
+                isBot: true,
+                timestamp: new Date(),
+                botones: filtered.buttons,
+                query: lastQueryRef.current || undefined,
+                mediaUrl: data.media_url, // Asignar media_url desde la respuesta del backend
+                locationData: data.location_data, // Asignar location_data desde la respuesta del backend
+              },
+            ]);
+          }
           lastQueryRef.current = null;
 
           if (data.ticket_id) {
@@ -587,17 +595,20 @@ const ChatPanel = ({
       const normalized = action
         .toLowerCase()
         .replace(/[_\s-]+/g, "");
+
+      const isAdmin = user?.rol && user.rol !== "usuario";
+
       if (["login", "loginpanel", "chatuserloginpanel"].includes(normalized)) {
-        onShowLogin && onShowLogin();
+        if (!isAdmin) onShowLogin && onShowLogin();
         return;
       }
       if (["register", "registerpanel", "chatuserregisterpanel"].includes(normalized)) {
-        onShowRegister && onShowRegister();
+        if (!isAdmin) onShowRegister && onShowRegister();
         return;
       }
-      handleSendMessage({ text: action, action: normalized }); // MODIFICADO: Enviar como SendPayload con 'action'
+      handleSendMessage({ text: action, action: normalized });
     },
-    [onShowLogin, onShowRegister, handleSendMessage]
+    [onShowLogin, onShowRegister, handleSendMessage, user]
   );
 
   const handleFileUploaded = useCallback(
