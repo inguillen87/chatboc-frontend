@@ -247,6 +247,22 @@ Make sure to define `VITE_Maps_API_KEY` in your `.env` file so the map
 script loads correctly. If the backend does not provide any location
 data, the map remains hidden as specified in [`AGENTS.md`](AGENTS.md).
 
+## Municipal incidents
+
+Admins and municipal employees can list all open incidents for their
+municipality by querying `/municipal/incidents`. Each element in the
+response contains location information plus extra context:
+
+- `id` – ticket identifier
+- `latitud` and `longitud` – coordinates when available
+- `direccion` – textual address
+- `municipio_nombre` – municipality name
+- `tipo` – always `municipio`
+- `descripcion` – short summary
+- `pregunta` – original question sent by the citizen
+- `detalles` – any extra details provided
+- `archivo_url` – URL of the attached file or photo, if present
+
 ## Product catalog API
 
 Any endpoint that returns products (e.g. `/catalogo`, `/productos`, `/ask/municipio` or `/ask/pyme`)
@@ -402,6 +418,16 @@ The `/municipal/usuarios` page now includes a small form to register employees.
 Admins must provide name, email, password, role and a category fetched from the
 backend. After creating the employee the list refreshes automatically.
 
+
+
+## CRM clients endpoint
+
+Administrators can list final users through `/crm/clientes`, which is also available at `/municipal/usuarios`. These endpoints accept two optional query parameters:
+
+- `search` – text to match against the name or email
+- `marketing=true` – return only users that consented to marketing messages
+
+Without any parameters the full list of users is returned.
 
 ## Widget integration guidelines
 Detailed requirements for the embedded widget can be found in [docs/widget-requirements.md](docs/widget-requirements.md).
