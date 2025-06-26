@@ -43,91 +43,92 @@
     const scriptOrigin = (script.getAttribute("src") && new URL(script.getAttribute("src"), window.location.href).origin) || "https://www.chatboc.ar";
     const chatbocDomain = script.getAttribute("data-domain") || scriptOrigin;
 
-    const zIndexBase = parseInt(script.getAttribute("data-z") || "999990", 10);
-    const iframeId = "chatboc-dynamic-iframe-" + Math.random().toString(36).substring(2, 9);
+    function buildWidget(finalCta) {
+      const zIndexBase = parseInt(script.getAttribute("data-z") || "999990", 10);
+      const iframeId = "chatboc-dynamic-iframe-" + Math.random().toString(36).substring(2, 9);
 
-    const WIDGET_DIMENSIONS_JS = {
-      OPEN: {
-        width: script.getAttribute("data-width") || "460px",
-        height: script.getAttribute("data-height") || "680px",
-      },
-      CLOSED: {
-        width: script.getAttribute("data-closed-width") || "96px",
-        height: script.getAttribute("data-closed-height") || "96px",
-      },
-    };
+      const WIDGET_DIMENSIONS_JS = {
+        OPEN: {
+          width: script.getAttribute("data-width") || "460px",
+          height: script.getAttribute("data-height") || "680px",
+        },
+        CLOSED: {
+          width: script.getAttribute("data-closed-width") || "96px",
+          height: script.getAttribute("data-closed-height") || "96px",
+        },
+      };
 
-    function computeResponsiveDims(base) {
-      if (window.innerWidth < 640) {
-        return {
-          width: "100vw",
-          height:
-            "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))",
-        };
+      function computeResponsiveDims(base) {
+        if (window.innerWidth < 640) {
+          return {
+            width: "100vw",
+            height:
+              "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))",
+          };
+        }
+        const widthNum = parseInt(base.width, 10);
+        const heightNum = parseInt(base.height, 10);
+        const width = Math.min(widthNum, window.innerWidth - 20) + "px";
+        const height = Math.min(heightNum, window.innerHeight - 20) + "px";
+        return { width, height };
       }
-      const widthNum = parseInt(base.width, 10);
-      const heightNum = parseInt(base.height, 10);
-      const width = Math.min(widthNum, window.innerWidth - 20) + "px";
-      const height = Math.min(heightNum, window.innerHeight - 20) + "px";
-      return { width, height };
-    }
 
-    let currentDims = defaultOpen
-      ? computeResponsiveDims(WIDGET_DIMENSIONS_JS.OPEN)
-      : WIDGET_DIMENSIONS_JS.CLOSED;
-    let iframeIsCurrentlyOpen = defaultOpen;
+      let currentDims = defaultOpen
+        ? computeResponsiveDims(WIDGET_DIMENSIONS_JS.OPEN)
+        : WIDGET_DIMENSIONS_JS.CLOSED;
+      let iframeIsCurrentlyOpen = defaultOpen;
 
-    // --- Contenedor principal del widget (loader y iframe) ---
-    // Este div es el que realmente manejará el tamaño, forma y color de fondo inicial.
-    const widgetContainer = document.createElement("div");
-    widgetContainer.id = "chatboc-widget-container-" + iframeId;
-    widgetContainer.setAttribute("data-chatboc-token", token);
-    Object.assign(widgetContainer.style, {
-      position: "fixed", 
-      bottom: initialBottom,
-      right: initialRight,
-      width: currentDims.width,
-      height: currentDims.height,
-      zIndex: zIndexBase.toString(),
-      borderRadius: iframeIsCurrentlyOpen ? "16px" : "50%", 
-      boxShadow: iframeIsCurrentlyOpen ? "0 6px 20px rgba(0,0,0,0.2)" : "0 4px 12px rgba(0,0,0,0.15)",
-      transition: "width 0.25s cubic-bezier(0.4, 0, 0.2, 1), height 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-radius 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s ease-in-out",
-      overflow: "hidden", 
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      cursor: "pointer", 
-      // El background del contenedor principal DEBE tener un color sólido para el estado de botón cerrado.
-      background: "hsl(var(--primary, 218 92% 41%))", // Usar el color primario de tu tema para el botón
-    });
-    document.body.appendChild(widgetContainer);
+      // --- Contenedor principal del widget (loader y iframe) ---
+      // Este div es el que realmente manejará el tamaño, forma y color de fondo inicial.
+      const widgetContainer = document.createElement("div");
+      widgetContainer.id = "chatboc-widget-container-" + iframeId;
+      widgetContainer.setAttribute("data-chatboc-token", token);
+      Object.assign(widgetContainer.style, {
+        position: "fixed",
+        bottom: initialBottom,
+        right: initialRight,
+        width: currentDims.width,
+        height: currentDims.height,
+        zIndex: zIndexBase.toString(),
+        borderRadius: iframeIsCurrentlyOpen ? "16px" : "50%",
+        boxShadow: iframeIsCurrentlyOpen ? "0 6px 20px rgba(0,0,0,0.2)" : "0 4px 12px rgba(0,0,0,0.15)",
+        transition: "width 0.25s cubic-bezier(0.4, 0, 0.2, 1), height 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-radius 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s ease-in-out",
+        overflow: "hidden",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        cursor: "pointer",
+        // El background del contenedor principal DEBE tener un color sólido para el estado de botón cerrado.
+        background: "hsl(var(--primary, 218 92% 41%))", // Usar el color primario de tu tema para el botón
+      });
+      document.body.appendChild(widgetContainer);
 
-    // --- Loader (Aseguramos que el logo del loader siempre se vea sobre un fondo) ---
-    const loader = document.createElement("div");
-    loader.id = "chatboc-loader-" + iframeId;
-    Object.assign(loader.style, {
-      position: "absolute", 
-      top: "0",
-      left: "0",
-      width: "100%",
-      height: "100%",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      background: "hsl(var(--primary, 218 92% 41%))", // Fondo del loader, igual que el botón
-      borderRadius: "inherit", // Hereda el border-radius del contenedor padre
-      transition: "opacity 0.3s ease-out",
-      pointerEvents: "auto", // Puede recibir clics
-      zIndex: "2", // Por encima del iframe inicialmente
-    });
-    // El logo en el loader
-    loader.innerHTML = `<img src="${chatbocDomain}/favicon/favicon-48x48.png" alt="Chatboc" style="width:48px;height:48px; filter: invert(100%);"/>`; // Invertir color si el fondo es oscuro
-    widgetContainer.appendChild(loader); 
+      // --- Loader (Aseguramos que el logo del loader siempre se vea sobre un fondo) ---
+      const loader = document.createElement("div");
+      loader.id = "chatboc-loader-" + iframeId;
+      Object.assign(loader.style, {
+        position: "absolute",
+        top: "0",
+        left: "0",
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "hsl(var(--primary, 218 92% 41%))", // Fondo del loader, igual que el botón
+        borderRadius: "inherit", // Hereda el border-radius del contenedor padre
+        transition: "opacity 0.3s ease-out",
+        pointerEvents: "auto", // Puede recibir clics
+        zIndex: "2", // Por encima del iframe inicialmente
+      });
+      // El logo en el loader
+      loader.innerHTML = `<img src="${chatbocDomain}/favicon/favicon-48x48.png" alt="Chatboc" style="width:48px;height:48px; filter: invert(100%);"/>`; // Invertir color si el fondo es oscuro
+      widgetContainer.appendChild(loader);
 
-    // --- Iframe ---
-    const iframe = document.createElement("iframe");
-    iframe.id = iframeId;
-    iframe.src = `${chatbocDomain}/iframe?token=${encodeURIComponent(token)}&widgetId=${iframeId}&defaultOpen=${defaultOpen}&tipo_chat=${tipoChat}&openWidth=${encodeURIComponent(WIDGET_DIMENSIONS_JS.OPEN.width)}&openHeight=${encodeURIComponent(WIDGET_DIMENSIONS_JS.OPEN.height)}&closedWidth=${encodeURIComponent(WIDGET_DIMENSIONS_JS.CLOSED.width)}&closedHeight=${encodeURIComponent(WIDGET_DIMENSIONS_JS.CLOSED.height)}${theme ? `&theme=${encodeURIComponent(theme)}` : ""}${rubroAttr ? `&rubro=${encodeURIComponent(rubroAttr)}` : ""}${ctaMessageAttr ? `&ctaMessage=${encodeURIComponent(ctaMessageAttr)}` : ""}`;
+      // --- Iframe ---
+      const iframe = document.createElement("iframe");
+      iframe.id = iframeId;
+      iframe.src = `${chatbocDomain}/iframe?token=${encodeURIComponent(token)}&widgetId=${iframeId}&defaultOpen=${defaultOpen}&tipo_chat=${tipoChat}&openWidth=${encodeURIComponent(WIDGET_DIMENSIONS_JS.OPEN.width)}&openHeight=${encodeURIComponent(WIDGET_DIMENSIONS_JS.OPEN.height)}&closedWidth=${encodeURIComponent(WIDGET_DIMENSIONS_JS.CLOSED.width)}&closedHeight=${encodeURIComponent(WIDGET_DIMENSIONS_JS.CLOSED.height)}${theme ? `&theme=${encodeURIComponent(theme)}` : ""}${rubroAttr ? `&rubro=${encodeURIComponent(rubroAttr)}` : ""}${finalCta ? `&ctaMessage=${encodeURIComponent(finalCta)}` : ""}`;
     Object.assign(iframe.style, {
       border: "none",
       width: "100%", 
@@ -335,6 +336,15 @@
       };
     }
   }
+
+    if (ctaMessageAttr) {
+      buildWidget(ctaMessageAttr);
+    } else {
+      fetch(`${chatbocDomain}/widget/attention`)
+        .then((r) => (r.ok ? r.json() : {}))
+        .then((d) => buildWidget(d.message || ""))
+        .catch(() => buildWidget(""));
+    }
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init);
