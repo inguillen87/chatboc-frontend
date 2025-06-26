@@ -411,6 +411,8 @@ Detailed requirements for the embedded widget can be found in [docs/widget-requi
 A list of potential enhancements for municipal deployments is available in [docs/municipal-features.md](docs/municipal-features.md).
 Some of these ideas already have prototype pages under `/municipal/stats`, `/municipal/incidents`, `/municipal/tramites`, `/municipal/usuarios`, `/municipal/whatsapp`, `/municipal/integrations`, `/municipal/surveys` and `/notifications`.
 
+The backend also exposes a professional analytics endpoint at `/municipal/analytics`. It provides advanced metrics such as ticket totals, categories and average response time for each municipality. This route lives alongside `/municipal/stats` and the other municipal pages listed above.
+
 ## Pyme feature ideas
 See [docs/pyme-features.md](docs/pyme-features.md) for potential improvements.
 A prototype catalog viewer is available under `/pyme/catalog`.
