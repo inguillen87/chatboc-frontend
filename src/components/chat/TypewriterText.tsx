@@ -3,9 +3,10 @@ import React, { useState, useEffect } from 'react';
 interface Props {
   html: string;
   speed?: number;
+  className?: string;
 }
 
-const TypewriterText: React.FC<Props> = ({ html, speed = 20 }) => {
+const TypewriterText: React.FC<Props> = ({ html, speed = 20, className }) => {
   const [visible, setVisible] = useState('');
 
   useEffect(() => {
@@ -18,7 +19,7 @@ const TypewriterText: React.FC<Props> = ({ html, speed = 20 }) => {
     return () => clearInterval(id);
   }, [html, speed]);
 
-  return <span dangerouslySetInnerHTML={{ __html: visible }} />;
+  return <span className={className} dangerouslySetInnerHTML={{ __html: visible }} />;
 };
 
 export default TypewriterText;
