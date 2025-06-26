@@ -32,6 +32,18 @@ app.post('/ask/pyme', (req, res) => {
   if (pregunta.includes('ver catalogo') || pregunta.includes('ver catálogo')) {
     return res.json({ productos: getFormattedProducts() });
   }
+  if (
+    pregunta.includes('descargar catalogo') ||
+    pregunta.includes('descargar catálogo')
+  ) {
+    return res.json({
+      respuesta: 'Descarga directa',
+      media_url: '/files/catalog.pdf',
+      botones: [
+        { texto: 'Descargar catálogo', url: '/files/catalog.pdf' },
+      ],
+    });
+  }
   res.json({ reply: 'Pregunta no reconocida' });
 });
 

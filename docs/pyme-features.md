@@ -3,6 +3,7 @@
 Este documento compila ideas orientadas a los comercios y empresas que usan Chatboc.
 
 - **Carga de catálogos** de productos en formatos PDF, Excel o imágenes para que luego puedan consultarse desde el chat.
+- **Descarga directa del catálogo** a través de botones que el backend envía cuando el cliente lo solicita.
 - **Envío automático de presupuestos** en PDF a partir de los datos cargados por el cliente.
 - **Historial de interacciones** por cliente incluyendo consultas previas, tickets y archivos enviados.
 - **Recordatorio de vencimientos** de facturas, pedidos o turnos a través del chat.
