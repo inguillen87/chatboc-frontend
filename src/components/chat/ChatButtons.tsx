@@ -1,6 +1,7 @@
 // src/components/chat/ChatButtons.tsx
 import React from 'react';
 import { motion } from 'framer-motion';
+import { truncateText } from '@/utils/truncateText';
 
 // Definimos los tipos para los botones y las props
 interface Boton {
@@ -64,7 +65,7 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
     };
 
     const baseClass =
-        "px-3 py-1.5 text-sm rounded-full bg-primary text-primary-foreground hover:bg-primary/90 font-semibold transition-colors duration-200 shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-75 cursor-pointer";
+        "px-4 py-1 text-sm rounded-xl font-semibold shadow-sm transition hover:scale-105";
 
     return (
         <motion.div
@@ -80,17 +81,19 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
                         href={boton.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className={baseClass + " no-underline inline-flex items-center justify-center"}
+                        className={baseClass + " no-underline inline-flex items-center justify-center bg-primary text-primary-foreground"}
+                        style={{maxWidth:180, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}
                     >
-                        {boton.texto}
+                        {truncateText(boton.texto, 36)}
                     </a>
                 ) : (
                     <button
                         key={index}
                         onClick={() => handleButtonClick(boton)}
-                        className={baseClass}
+                        className={baseClass + " bg-primary text-primary-foreground"}
+                        style={{maxWidth:180, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}
                     >
-                        {boton.texto}
+                        {truncateText(boton.texto, 36)}
                     </button>
                 )
             )}

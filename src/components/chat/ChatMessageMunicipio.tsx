@@ -5,6 +5,7 @@ import ChatButtons from "./ChatButtons";
 import { motion } from "framer-motion";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 import DOMPurify from "dompurify";
+import { truncateText } from "@/utils/truncateText";
 import AttachmentPreview from "./AttachmentPreview";
 import TypewriterText from "./TypewriterText";
 
@@ -67,8 +68,10 @@ const ChatMessageMunicipio: React.FC<ChatMessageProps> = ({
     );
   }
 
-  // Limpiamos HTML siempre
-  const sanitizedHtml = DOMPurify.sanitize(message.text);
+  // Evitar mostrar "NaN" o valores falsos
+  const safeText = message.text === "NaN" || message.text == null ? "" : message.text;
+  // Limpiamos HTML y truncamos para prevenir desbordes
+  const sanitizedHtml = DOMPurify.sanitize(truncateText(safeText, 120));
 
   const isBot = message.isBot;
 
