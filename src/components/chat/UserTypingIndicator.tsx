@@ -1,6 +1,6 @@
 import React from "react";
 import { motion } from "framer-motion";
-import { User } from "lucide-react";
+import UserAvatarAnimated from "./UserAvatarAnimated";
 
 const UserTypingIndicator: React.FC = () => (
   <div className="flex items-end gap-2.5 justify-end">
@@ -10,7 +10,7 @@ const UserTypingIndicator: React.FC = () => (
       animate={{ scale: 1, opacity: 1 }}
       transition={{ type: "spring", stiffness: 200, damping: 20 }}
     >
-      <User className="w-5 h-5 text-primary" />
+      <UserAvatarAnimated size={20} talking />
     </motion.div>
     <motion.div
       className="px-4 py-3 max-w-[320px] shadow-md relative bg-gradient-to-tr from-blue-500 to-blue-700 text-white rounded-b-2xl rounded-tl-2xl after:content-[''] after:absolute after:bottom-0 after:right-[-8px] after:w-0 after:h-0 after:border-8 after:border-transparent after:border-t-blue-700 after:border-l-blue-700"
