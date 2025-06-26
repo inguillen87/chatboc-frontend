@@ -247,6 +247,22 @@ Make sure to define `VITE_Maps_API_KEY` in your `.env` file so the map
 script loads correctly. If the backend does not provide any location
 data, the map remains hidden as specified in [`AGENTS.md`](AGENTS.md).
 
+## Municipal incidents
+
+Admins and municipal employees can list all open incidents for their
+municipality by querying `/municipal/incidents`. Each element in the
+response contains location information plus extra context:
+
+- `id` – ticket identifier
+- `latitud` and `longitud` – coordinates when available
+- `direccion` – textual address
+- `municipio_nombre` – municipality name
+- `tipo` – always `municipio`
+- `descripcion` – short summary
+- `pregunta` – original question sent by the citizen
+- `detalles` – any extra details provided
+- `archivo_url` – URL of the attached file or photo, if present
+
 ## Product catalog API
 
 Any endpoint that returns products (e.g. `/catalogo`, `/productos`, `/ask/municipio` or `/ask/pyme`)
