@@ -1,5 +1,6 @@
 const express = require('express');
 const { getAttentionMessage } = require('./widgetAttention');
+const { getMunicipalStats } = require('./municipalStats');
 
 const app = express();
 
@@ -37,10 +38,7 @@ app.get('/widget/attention', (req, res) => {
   res.json({ message: getAttentionMessage() });
 });
 
-// Return all open municipal incidents with additional fields so the
-// frontend can show richer ticket information.
-app.get('/municipal/incidents', (req, res) => {
-  res.json(municipalIncidents);
+
 });
 
 module.exports = app;
