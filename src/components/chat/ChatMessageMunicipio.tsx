@@ -75,10 +75,9 @@ const ChatMessageMunicipio: React.FC<ChatMessageProps> = ({
 
   const isBot = message.isBot;
 
-  // Bubble: más pro y moderno (sombra más suave, colores modernos)
   const bubbleClass = isBot
-    ? "bg-muted text-foreground rounded-b-2xl rounded-tr-2xl dark:bg-[#262c36] shadow-lg shadow-blue-900/5"
-    : "bg-primary text-primary-foreground rounded-b-2xl rounded-tl-2xl dark:bg-blue-700/90 shadow-md shadow-blue-500/10";
+    ? "bg-[#131c2b] text-white border border-[#195fa4] rounded-2xl shadow-lg"
+    : "bg-gradient-to-br from-blue-600 to-blue-800 text-white rounded-2xl shadow-lg";
 
   return (
     <div

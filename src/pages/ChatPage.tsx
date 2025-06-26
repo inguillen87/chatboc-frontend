@@ -389,28 +389,18 @@ const ChatPage = () => {
     tipoChat === "municipio";
 
   return (
-    <div className="min-h-screen flex flex-col bg-background dark:bg-gradient-to-b dark:from-[#0d1014] dark:to-[#161b22] text-foreground">
+    <div className="min-h-screen flex flex-col w-full bg-gradient-to-br from-[#0d223a] to-[#151a26] text-foreground">
       <Navbar />
       <main className="flex-grow flex flex-col items-center justify-center pt-3 sm:pt-10 pb-2 sm:pb-6 transition-all">
         <motion.div
           layout
           className={`
-            w-full max-w-[99vw] ${isMobile ? "h-[100svh]" : "sm:w-[480px] h-[83vh]"}
+            w-full max-w-lg ${isMobile ? "h-[100svh]" : "h-[83vh]"}
             flex flex-col
-            rounded-none sm:rounded-3xl 
-            border-0 sm:border border-border
-            shadow-none sm:shadow-2xl
-            bg-card dark:bg-[#20232b]/95
-            backdrop-blur-0 sm:backdrop-blur-xl
             relative
             overflow-hidden
             transition-all
           `}
-          style={{
-            boxShadow: isMobile
-              ? undefined
-              : "0 8px 64px 0 rgba(30,40,90,0.10)",
-          }}
         >
           <div
             ref={chatMessagesContainerRef}
@@ -419,7 +409,6 @@ const ChatPage = () => {
               p-2 sm:p-4 space-y-3
               custom-scroll
               scrollbar-thin scrollbar-thumb-[#90caf9] scrollbar-track-transparent
-              bg-background dark:bg-[#22262b]
               transition-all
             `}
             style={{ minHeight: 0 }}
@@ -452,7 +441,7 @@ const ChatPage = () => {
             )}
           </div>
           {/* Input / Autocomplete según caso */}
-          <div className="bg-card px-3 py-2 border-t min-w-0">
+          <div className="bg-transparent px-3 py-2 border-t min-w-0">
             {esperandoDireccion ? (
               <div>
                 <AddressAutocomplete
