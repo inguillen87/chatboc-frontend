@@ -1,14 +1,15 @@
 import React from 'react'
-import { File, FileImage, FileSpreadsheet, FileText, MapPin } from 'lucide-react' // Importa MapPin
-// import { AttachmentInfo, getAttachmentInfo } from '@/utils/attachment' // No usaremos getAttachmentInfo aquí directamente
+import { File, FileDown, FileSpreadsheet, FileText, MapPin } from 'lucide-react'
+import type { AttachmentInfo } from '@/utils/attachment'
 
 interface Props {
-  mediaUrl?: string; // URL del archivo adjunto (imagen, pdf, etc.)
-  locationData?: { lat: number; lon: number; }; // Datos de ubicación
-  fallbackText?: string; // Texto a mostrar si no hay adjunto válido para renderizar
+  attachment?: AttachmentInfo
+  mediaUrl?: string // URL del archivo adjunto (imagen, pdf, etc.)
+  locationData?: { lat: number; lon: number } // Datos de ubicación
+  fallbackText?: string // Texto a mostrar si no hay adjunto válido para renderizar
 }
 
-const AttachmentPreview: React.FC<Props> = ({ mediaUrl, locationData, fallbackText }) => {
+const AttachmentPreview: React.FC<Props> = ({ attachment, mediaUrl, locationData, fallbackText }) => {
   // --- Lógica para ubicación ---
   if (locationData && typeof locationData.lat === 'number' && typeof locationData.lon === 'number') {
     // CORREGIDO: Formato de URL para Google Maps
@@ -27,9 +28,10 @@ const AttachmentPreview: React.FC<Props> = ({ mediaUrl, locationData, fallbackTe
   }
 
   // --- Lógica para archivos adjuntos (imágenes, PDFs, otros) ---
-  if (mediaUrl) {
-    const filename = mediaUrl.split('/').pop()?.split(/[?#]/)[0] || 'Archivo Adjunto';
-    const extension = filename.split('.').pop()?.toLowerCase();
+  const url = attachment?.url || mediaUrl
+  if (url) {
+    const filename = attachment?.name || url.split('/').pop()?.split(/[?#]/)[0] || 'Archivo Adjunto'
+    const extension = attachment?.extension || filename.split('.').pop()?.toLowerCase()
 
     let IconComponent: React.ElementType = File; // Icono por defecto
 
@@ -37,9 +39,9 @@ const AttachmentPreview: React.FC<Props> = ({ mediaUrl, locationData, fallbackTe
       // Si es una imagen, muestra la imagen directamente
       return (
         <div className="flex flex-col items-start gap-1">
-          <a href={mediaUrl} target="_blank" rel="noopener noreferrer">
+          <a href={url} target="_blank" rel="noopener noreferrer">
             <img
-              src={mediaUrl}
+              src={url}
               alt={filename}
               className="max-w-[260px] rounded-lg border border-gray-300 dark:border-gray-700 cursor-pointer shadow-md"
             />
@@ -57,13 +59,13 @@ const AttachmentPreview: React.FC<Props> = ({ mediaUrl, locationData, fallbackTe
 
     return (
       <a
-        href={mediaUrl}
-        target="_blank"
-        rel="noopener noreferrer"
+        href={url}
+        download
         className="flex items-center gap-2 text-blue-500 underline hover:opacity-80 font-medium"
       >
         <IconComponent className="w-5 h-5 flex-shrink-0 text-blue-600" />
         <span className="break-all">{filename}</span>
+        <FileDown className="w-4 h-4 ml-1" />
       </a>
     );
   }
