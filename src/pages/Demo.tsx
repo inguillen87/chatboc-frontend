@@ -195,9 +195,9 @@ const Demo = () => {
   }
 
   return (
-    <div className="w-full max-w-2xl mx-auto bg-card/95 dark:bg-[#1e1e1e]/90 rounded-3xl shadow-2xl border border-border dark:border-gray-700 flex flex-col h-[90vh] sm:h-[84vh] mt-6 overflow-hidden relative">
+    <div className="flex flex-col items-center w-full min-h-screen bg-gradient-to-br from-[#0d223a] to-[#151a26] text-foreground">
       {/* HEADER */}
-      <div className="bg-primary text-primary-foreground py-3 px-4 flex items-center justify-between shadow sticky top-0 z-10 rounded-t-3xl">
+      <div className="w-full max-w-lg mx-auto py-3 px-4 flex items-center justify-between shadow sticky top-0 z-10">
         <div className="flex items-center gap-3">
           <img
             src="/chatboc_logo_clean_transparent.png"
@@ -216,8 +216,7 @@ const Demo = () => {
           {rubroSeleccionado}
         </span>
       </div>
-      {/* MENSAJES */}
-      <div className="flex-1 overflow-y-auto px-2 sm:px-5 py-5 bg-background dark:bg-gradient-to-b dark:from-[#1b2532] dark:to-[#242b33] transition-colors space-y-3 custom-scroll">
+      <div className="w-full max-w-lg flex flex-col flex-1 px-2 sm:px-5 py-5 space-y-3 overflow-y-auto custom-scroll">
         <AnimatePresence>
           {messages.map((msg) => (
             <motion.div
@@ -241,7 +240,7 @@ const Demo = () => {
         <div ref={messagesEndRef} />
       </div>
       {/* INPUT */}
-      <div className="border-t border-border p-3 bg-card/95 sticky bottom-0 z-20">
+      <div className="border-t border-border p-3 bg-transparent sticky bottom-0 z-20">
         <ChatInput
           onSendMessage={handleSendMessage}
           isTyping={isTyping}
