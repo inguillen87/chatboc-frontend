@@ -113,13 +113,17 @@ const ChatMessagePyme: React.FC<ChatMessageProps> = ({
           ) : attachment ? (
             <AttachmentPreview attachment={attachment} />
           ) : (
-            <div className="prose dark:prose-invert max-w-none text-sm [&_p]:my-0">
-              {isBot ? (
-                <TypewriterText html={sanitizedHtml} />
-              ) : (
-                <span dangerouslySetInnerHTML={{ __html: sanitizedHtml }} />
-              )}
-            </div>
+            isBot ? (
+              <TypewriterText
+                html={sanitizedHtml}
+                className="prose dark:prose-invert max-w-none text-sm [&_p]:my-0"
+              />
+            ) : (
+              <span
+                className="prose dark:prose-invert max-w-none text-sm [&_p]:my-0"
+                dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
+              />
+            )
           )}
           {isBot && message.botones && message.botones.length > 0 && (
             <ChatButtons
