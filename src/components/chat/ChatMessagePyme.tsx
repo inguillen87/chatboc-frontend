@@ -5,7 +5,6 @@ import ChatButtons from "./ChatButtons";
 import { motion } from "framer-motion";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 import DOMPurify from "dompurify";
-import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import ProductCard from "@/components/product/ProductCard";
 import { parseProductMessage, filterProducts } from "@/utils/productParser";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
@@ -49,38 +48,6 @@ const UserAvatar = () => (
   </motion.span>
 );
 
-// --- CTA flotante (solo demo/usuarios sin loguear) ---
-const CallToActionMessage = () => {
-  const user =
-    typeof window !== "undefined"
-      ? JSON.parse(safeLocalStorage.getItem("user") || "null")
-      : null;
-  if (user?.token) return null;
-
-  return (
-    <div className="flex justify-center my-4">
-      <div className="text-center space-y-3 p-4 bg-muted/50 rounded-2xl">
-        <button
-          onClick={() => (window.location.href = "/demo")}
-          className="w-full px-4 py-2 text-base bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 shadow transition font-semibold"
-        >
-          Usar Chatboc en mi empresa
-        </button>
-        <button
-          onClick={() =>
-            window.open(
-              "https://wa.me/5492613168608?text=Hola! Estoy probando Chatboc y quiero implementarlo en mi empresa.",
-              "_blank"
-            )
-          }
-          className="w-full px-4 py-2 text-base border border-primary text-primary bg-background rounded-full hover:bg-primary/5 dark:hover:bg-primary/20 transition font-semibold"
-        >
-          Hablar por WhatsApp
-        </button>
-      </div>
-    </div>
-  );
-};
 
 interface ChatMessageProps {
   message: Message;
@@ -107,10 +74,6 @@ const ChatMessagePyme: React.FC<ChatMessageProps> = ({
     );
   }
 
-  // CTA flotante (cuando es demo)
-  if (message.text === "__cta__") {
-    return <CallToActionMessage />;
-  }
 
   // Evitar mostrar 'NaN' o valores falsos
   const safeText = message.text === "NaN" || message.text == null ? "" : message.text;
