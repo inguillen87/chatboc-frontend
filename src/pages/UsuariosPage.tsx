@@ -3,6 +3,8 @@ import { apiFetch, getErrorMessage } from "@/utils/api";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useNavigate } from "react-router-dom";
 import useRequireRole from "@/hooks/useRequireRole";
 import type { Role } from "@/utils/roles";
@@ -21,6 +23,8 @@ export default function UsuariosPage() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [marketingOnly, setMarketingOnly] = useState(false);
 
   useEffect(() => {
     const token = safeLocalStorage.getItem("authToken");
@@ -29,8 +33,13 @@ export default function UsuariosPage() {
       return;
     }
     const fetchData = async () => {
+      setLoading(true);
       try {
-        const data = await apiFetch<Usuario[]>("/crm/usuarios");
+        const params = new URLSearchParams();
+        if (search.trim()) params.set('search', search.trim());
+        if (marketingOnly) params.set('marketing', 'true');
+        const url = `/crm/clientes${params.toString() ? `?${params.toString()}` : ''}`;
+        const data = await apiFetch<Usuario[]>(url);
         if (Array.isArray(data)) setUsuarios(data);
       } catch (e) {
         setError(getErrorMessage(e, 'No se pudieron cargar los usuarios'));
@@ -39,7 +48,7 @@ export default function UsuariosPage() {
       }
     };
     fetchData();
-  }, [navigate]);
+  }, [navigate, search, marketingOnly]);
 
   if (loading) return <div className="p-8">Cargando...</div>;
   if (error) return <div className="p-8 text-destructive">{error}</div>;
@@ -50,6 +59,18 @@ export default function UsuariosPage() {
         <h1 className="text-2xl font-bold">Usuarios Registrados</h1>
         <Button variant="outline" onClick={() => navigate("/perfil")}>Volver</Button>
       </header>
+      <div className="flex items-center gap-4">
+        <Input
+          placeholder="Buscar nombre o email"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="max-w-xs"
+        />
+        <label className="flex items-center gap-2 text-sm">
+          <Checkbox checked={marketingOnly} onCheckedChange={(v) => setMarketingOnly(Boolean(v))} />
+          Solo con marketing
+        </label>
+      </div>
       {usuarios.length === 0 ? (
         <p>No hay usuarios registrados.</p>
       ) : (
