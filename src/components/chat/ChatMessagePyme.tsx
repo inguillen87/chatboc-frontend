@@ -12,6 +12,7 @@ import { getCurrentTipoChat } from "@/utils/tipoChat";
 import AttachmentPreview from "./AttachmentPreview";
 import { getAttachmentInfo } from "@/utils/attachment";
 import TypewriterText from "./TypewriterText";
+import { truncateText } from "@/utils/truncateText";
 
 // --- Avatares reutilizados ---
 const AvatarBot: React.FC<{ isTyping: boolean }> = ({ isTyping }) => (
@@ -111,8 +112,10 @@ const ChatMessagePyme: React.FC<ChatMessageProps> = ({
     return <CallToActionMessage />;
   }
 
-  // Limpiamos HTML
-  const sanitizedHtml = DOMPurify.sanitize(message.text);
+  // Evitar mostrar 'NaN' o valores falsos
+  const safeText = message.text === "NaN" || message.text == null ? "" : message.text;
+  // Limpiamos HTML y limitamos la longitud para evitar desbordes
+  const sanitizedHtml = DOMPurify.sanitize(truncateText(safeText, 120));
   const shouldParseProducts = (tipoChat || getCurrentTipoChat()) === "pyme";
   const parsedProducts =
     shouldParseProducts && message.isBot

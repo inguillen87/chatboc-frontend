@@ -9,6 +9,13 @@ interface Props {
 
 const ProductCard: React.FC<Props> = ({ product }) => {
   const { nombre, presentacion, precio_unitario, marca, imagen_url } = product;
+  const cleanPresentacion = presentacion === 'NaN' ? '' : presentacion;
+  const numericPrice =
+    typeof precio_unitario === 'number'
+      ? precio_unitario
+      : Number(precio_unitario);
+  const showPrice =
+    numericPrice !== undefined && numericPrice !== null && !isNaN(numericPrice);
   return (
     <Card className="border border-border bg-card rounded-xl shadow-sm hover:shadow-lg transition-all hover:-translate-y-1">
       <CardContent className="p-3 flex flex-col gap-2 items-center">
@@ -22,14 +29,14 @@ const ProductCard: React.FC<Props> = ({ product }) => {
         <h4 className="font-semibold text-sm text-center text-foreground line-clamp-2">
           {nombre}
         </h4>
-        {presentacion && (
-          <p className="text-xs text-muted-foreground text-center">{presentacion}</p>
+        {cleanPresentacion && (
+          <p className="text-xs text-muted-foreground text-center">{cleanPresentacion}</p>
         )}
-        <p className="font-bold text-sm text-primary">
-          {precio_unitario
-            ? formatCurrency(Number(precio_unitario))
-            : 'Consultar precio'}
-        </p>
+        {showPrice && (
+          <p className="font-bold text-sm text-primary">
+            {formatCurrency(numericPrice)}
+          </p>
+        )}
         {marca && <p className="text-xs text-muted-foreground">{marca}</p>}
       </CardContent>
     </Card>
