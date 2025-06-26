@@ -419,6 +419,16 @@ Admins must provide name, email, password, role and a category fetched from the
 backend. After creating the employee the list refreshes automatically.
 
 
+
+## CRM clients endpoint
+
+Administrators can list final users through `/crm/clientes`, which is also available at `/municipal/usuarios`. These endpoints accept two optional query parameters:
+
+- `search` – text to match against the name or email
+- `marketing=true` – return only users that consented to marketing messages
+
+Without any parameters the full list of users is returned.
+
 ## Widget integration guidelines
 Detailed requirements for the embedded widget can be found in [docs/widget-requirements.md](docs/widget-requirements.md).
 
