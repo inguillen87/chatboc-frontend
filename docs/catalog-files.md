@@ -19,3 +19,15 @@ Ejemplo de respuesta en el chat:
 ```
 
 Al hacer clic se descarga exactamente ese PDF sin pedir datos extra.
+
+El bot también puede ofrecer un botón con `url` para iniciar la descarga.
+
+```
+{
+  "respuesta": "Descarga directa",
+  "botones": [{
+    "texto": "Descargar catálogo",
+    "url": "https://miapp.com/files/catalogo.pdf"
+  }]
+}
+```
