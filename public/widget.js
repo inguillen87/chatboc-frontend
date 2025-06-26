@@ -122,7 +122,7 @@
         zIndex: "2", // Por encima del iframe inicialmente
       });
       // El logo en el loader
-      loader.innerHTML = `<img src="${chatbocDomain}/favicon/favicon-48x48.png" alt="Chatboc" style="width:48px;height:48px; filter: invert(100%);"/>`; // Invertir color si el fondo es oscuro
+      loader.innerHTML = `<img src="${chatbocDomain}/favicon/favicon-96x96.png" alt="Chatboc" style="width:96px;height:96px; filter: invert(100%);"/>`; // Invertir color si el fondo es oscuro
       widgetContainer.appendChild(loader);
 
       // --- Iframe ---
