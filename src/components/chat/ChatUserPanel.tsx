@@ -22,6 +22,8 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
   const [tickets, setTickets] = useState<TicketSummary[]>([]);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [statusFilter, setStatusFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -36,7 +38,12 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
     };
     const fetchTickets = async () => {
       try {
-        const data = await apiFetch<TicketSummary[]>("/tickets/mis");
+        let url = "/tickets/mis";
+        const params: string[] = [];
+        if (statusFilter) params.push(`estado=${encodeURIComponent(statusFilter)}`);
+        if (categoryFilter) params.push(`categoria=${encodeURIComponent(categoryFilter)}`);
+        if (params.length) url += `?${params.join("&")}`;
+        const data = await apiFetch<TicketSummary[]>(url);
         if (Array.isArray(data)) setTickets(data);
       } catch (e) {
         /* ignore */
@@ -44,7 +51,7 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
     };
     fetchProfile();
     fetchTickets();
-  }, []);
+  }, [statusFilter, categoryFilter]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -102,6 +109,18 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
         </Button>
       </form>
       <h3 className="text-lg font-semibold mt-4">Mis Tickets</h3>
+      <div className="flex gap-2 mt-2">
+        <Input
+          placeholder="Estado"
+          value={statusFilter}
+          onChange={e => setStatusFilter(e.target.value)}
+        />
+        <Input
+          placeholder="Categoría"
+          value={categoryFilter}
+          onChange={e => setCategoryFilter(e.target.value)}
+        />
+      </div>
       {tickets.length === 0 ? (
         <p className="text-sm text-muted-foreground">Aún no tienes tickets.</p>
       ) : (

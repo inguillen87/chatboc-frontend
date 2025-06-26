@@ -55,11 +55,18 @@ export default function TicketsPanel() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [openCategories, setOpenCategories] = useState<Set<string>>(new Set());
+  const [statusFilter, setStatusFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
 
   const fetchAndSetTickets = useCallback(async () => {
     if (!safeLocalStorage.getItem('authToken')) return;
     try {
-      const data = await apiFetch<CategorizedTickets>('/tickets/panel_por_categoria');
+      let url = '/tickets/panel_por_categoria';
+      const params: string[] = [];
+      if (statusFilter) params.push(`estado=${encodeURIComponent(statusFilter)}`);
+      if (categoryFilter) params.push(`categoria=${encodeURIComponent(categoryFilter)}`);
+      if (params.length) url += `?${params.join('&')}`;
+      const data = await apiFetch<CategorizedTickets>(url);
       setCategorizedTickets(data);
       setOpenCategories(prev => {
         const newSet = new Set(prev);
@@ -77,7 +84,7 @@ export default function TicketsPanel() {
         : 'Ocurri\u00F3 un error al actualizar el panel de tickets.';
       setError(message);
     }
-  }, []);
+  }, [statusFilter, categoryFilter]);
 
   useEffect(() => {
     const fetchInitialData = async () => {
@@ -96,7 +103,7 @@ export default function TicketsPanel() {
       }
     };
     fetchInitialData();
-  }, []);
+  }, [fetchAndSetTickets]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -177,6 +184,18 @@ export default function TicketsPanel() {
               ))}
             </SelectContent>
           </Select>
+          <div className="flex gap-2 mt-4">
+            <Input
+              placeholder="Estado"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            />
+            <Input
+              placeholder="Categoría"
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+            />
+          </div>
         </div>
       </header>
       <div className="w-full max-w-7xl mx-auto space-y-4">
