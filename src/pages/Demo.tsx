@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import ChatInput from "@/components/chat/ChatInput";
 import TypingIndicator from "@/components/chat/TypingIndicator";
 import ChatMessage from "@/components/chat/ChatMessage";
+import RubroSelector, { Rubro } from "@/components/chat/RubroSelector";
 import { Message } from "@/types/chat";
 import { apiFetch, getErrorMessage } from "@/utils/api";
 import { getCurrentTipoChat, enforceTipoChatForRubro, parseRubro } from "@/utils/tipoChat";
@@ -20,7 +21,7 @@ const Demo = () => {
   const [rubroSeleccionado, setRubroSeleccionado] = useState<string | null>(() => {
     return typeof window !== "undefined" ? safeLocalStorage.getItem("rubroSeleccionado") : null;
   });
-  const [rubrosDisponibles, setRubrosDisponibles] = useState<{ id: number; nombre: string }[]>([]);
+  const [rubrosDisponibles, setRubrosDisponibles] = useState<Rubro[]>([]);
   const [esperandoRubro, setEsperandoRubro] = useState(!rubroSeleccionado);
   const [anonId, setAnonId] = useState<string>("");
   const [contexto, setContexto] = useState({});
@@ -172,30 +173,22 @@ const Demo = () => {
           <p className="mb-4 text-sm text-muted-foreground">
             Seleccioná el rubro que más se parece a tu negocio:
           </p>
-          <div className="flex flex-wrap justify-center gap-3 mt-4">
-            {rubrosDisponibles.map((rubro) => (
-              <button
-                key={rubro.id}
-                onClick={() => {
-                  safeLocalStorage.setItem("rubroSeleccionado", rubro.nombre);
-                  setRubroSeleccionado(rubro.nombre);
-                  setEsperandoRubro(false);
-                  setMessages([
-                    {
-                      id: Date.now(),
-                      text: `¡Hola! Soy Chatboc, tu asistente para ${rubro.nombre.toLowerCase()}. ¿En qué puedo ayudarte hoy?`,
-                      isBot: true,
-                      timestamp: new Date(),
-                    },
-                  ]);
-                }}
-                className="px-5 py-3 rounded-2xl font-semibold text-base bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg focus:outline-none transition-all"
-                style={{ minWidth: 120 }}
-              >
-                {rubro.nombre}
-              </button>
-            ))}
-          </div>
+          <RubroSelector
+            rubros={rubrosDisponibles}
+            onSelect={(rubro) => {
+              safeLocalStorage.setItem("rubroSeleccionado", rubro.nombre);
+              setRubroSeleccionado(rubro.nombre);
+              setEsperandoRubro(false);
+              setMessages([
+                {
+                  id: Date.now(),
+                  text: `¡Hola! Soy Chatboc, tu asistente para ${rubro.nombre.toLowerCase()}. ¿En qué puedo ayudarte hoy?`,
+                  isBot: true,
+                  timestamp: new Date(),
+                },
+              ]);
+            }}
+          />
         </div>
       </div>
     );
