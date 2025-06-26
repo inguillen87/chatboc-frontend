@@ -4,7 +4,8 @@ import { Message } from "@/types/chat";
 import ChatButtons from "./ChatButtons";
 import { motion } from "framer-motion";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
-import sanitizeMessageHtml from "@/utils/sanitizeMessageHtml";
+import UserAvatarAnimated from "./UserAvatarAnimated";
+import DOMPurify from "dompurify";
 import ProductCard from "@/components/product/ProductCard";
 import { parseProductMessage, filterProducts } from "@/utils/productParser";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
@@ -37,7 +38,7 @@ const UserAvatar = () => (
     animate={{ scale: 1, opacity: 1 }}
     transition={{ type: "spring", stiffness: 200, damping: 20 }}
   >
-    <span className="text-xl font-bold text-primary dark:text-blue-100">🧑‍💼</span>
+    <UserAvatarAnimated size={24} talking={false} />
   </motion.span>
 );
 
@@ -87,7 +88,7 @@ const ChatMessagePyme: React.FC<ChatMessageProps> = ({
   const bubbleClass = isBot
     ? "bg-[#192745] text-blue-100"
     : "bg-gradient-to-br from-blue-600 to-blue-800 text-white";
-  const bubbleWidth = filteredProducts ? "max-w-[480px]" : "max-w-[94vw] md:max-w-2xl";
+  const bubbleWidth = filteredProducts ? "max-w-[480px]" : "max-w-[95vw] md:max-w-2xl";
 
   return (
     <div className={`flex w-full ${isBot ? "justify-start" : "justify-end"} mb-2`}>
