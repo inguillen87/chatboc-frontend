@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 import DOMPurify from "dompurify";
 import AttachmentPreview from "./AttachmentPreview";
+import TypewriterText from "./TypewriterText";
 
 const AvatarBot: React.FC<{ isTyping: boolean }> = ({ isTyping }) => (
   <motion.div
@@ -89,7 +90,7 @@ const ChatMessageMunicipio: React.FC<ChatMessageProps> = ({
           className={`px-4 py-3 max-w-[320px] relative break-words ${bubbleClass}`}
           variants={{
             hidden: { opacity: 0, y: 14, scale: 0.97 },
-            visible: { opacity: 1, y: 0, scale: 1 },
+            visible: { opacity: 1, y: 0, scale: [1, 1.03, 1] },
           }}
           initial="hidden"
           animate="visible"
@@ -103,10 +104,13 @@ const ChatMessageMunicipio: React.FC<ChatMessageProps> = ({
                 fallbackText={message.text} // Usa el texto del mensaje como fallback si no se muestra el adjunto
             />
           ) : (
-            <div
-              className="prose prose-sm dark:prose-invert max-w-none [&_p]:my-0"
-              dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
-            />
+            <div className="prose prose-sm dark:prose-invert max-w-none [&_p]:my-0">
+              {isBot ? (
+                <TypewriterText html={sanitizedHtml} />
+              ) : (
+                <span dangerouslySetInnerHTML={{ __html: sanitizedHtml }} />
+              )}
+            </div>
           )}
         </motion.div>
 

@@ -1,5 +1,5 @@
 import React from "react";
-import { X, User, ChevronLeft } from "lucide-react";
+import { X, User, ChevronLeft, Volume2, VolumeX } from "lucide-react";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 
 interface Props {
@@ -8,6 +8,8 @@ interface Props {
   onProfile?: () => void;
   onBack?: () => void;
   showProfile?: boolean;
+  muted?: boolean;
+  onToggleSound?: () => void;
 }
 
 const ChatHeader: React.FC<Props> = ({
@@ -16,6 +18,8 @@ const ChatHeader: React.FC<Props> = ({
   onProfile,
   onBack,
   showProfile = true,
+  muted = false,
+  onToggleSound,
 }) => {
   return (
     <div
@@ -76,6 +80,15 @@ const ChatHeader: React.FC<Props> = ({
             <User size={20} />
           </button>
         ) : null}
+        {onToggleSound && (
+          <button
+            onClick={onToggleSound}
+            className="text-muted-foreground hover:text-foreground transition"
+            aria-label={muted ? 'Activar sonido' : 'Silenciar sonido'}
+          >
+            {muted ? <VolumeX size={20} /> : <Volume2 size={20} />}
+          </button>
+        )}
         <button
           onClick={onClose}
           className="text-muted-foreground hover:text-foreground transition"
