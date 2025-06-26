@@ -247,6 +247,14 @@ Make sure to define `VITE_Maps_API_KEY` in your `.env` file so the map
 script loads correctly. If the backend does not provide any location
 data, the map remains hidden as specified in [`AGENTS.md`](AGENTS.md).
 
+## Ticket API filtering
+
+The `/tickets` endpoints now accept optional `estado` and `categoria`
+query parameters. Admins and employees can combine these filters when
+listing tickets through `/tickets/panel_por_categoria`. Final users may
+also filter their history via `/tickets/mis` using the same
+parameters. Both municipality and company accounts share this syntax.
+
 ## Product catalog API
 
 Any endpoint that returns products (e.g. `/catalogo`, `/productos`, `/ask/municipio` or `/ask/pyme`)
