@@ -128,6 +128,7 @@ const ChatMessagePyme: React.FC<ChatMessageProps> = ({
   const bubbleClass = isBot
     ? "bg-muted text-foreground rounded-b-2xl rounded-tr-2xl dark:bg-[#232e40] shadow-lg shadow-blue-900/5"
     : "bg-primary text-primary-foreground rounded-b-2xl rounded-tl-2xl dark:bg-blue-700/90 shadow-md shadow-blue-500/10";
+  const bubbleWidth = filteredProducts ? "max-w-[420px]" : "max-w-[320px]";
 
   return (
     <div
@@ -139,7 +140,7 @@ const ChatMessagePyme: React.FC<ChatMessageProps> = ({
 
       <div className="flex flex-col">
         <motion.div
-          className={`px-4 py-3 max-w-[320px] relative break-words ${bubbleClass}`}
+          className={`px-4 py-3 ${bubbleWidth} relative break-words ${bubbleClass}`}
           variants={{
             hidden: { opacity: 0, y: 14, scale: 0.97 },
             visible: { opacity: 1, y: 0, scale: [1, 1.03, 1] },
@@ -149,7 +150,7 @@ const ChatMessagePyme: React.FC<ChatMessageProps> = ({
           transition={{ duration: 0.28, ease: "easeOut" }}
         >
           {filteredProducts ? (
-            <div className="grid gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {filteredProducts.map((p, idx) => (
                 <ProductCard key={idx} product={p} />
               ))}
