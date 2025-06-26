@@ -11,6 +11,7 @@ import { parseProductMessage, filterProducts } from "@/utils/productParser";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
 import AttachmentPreview from "./AttachmentPreview";
 import { getAttachmentInfo } from "@/utils/attachment";
+import TypewriterText from "./TypewriterText";
 
 // --- Avatares reutilizados ---
 const AvatarBot: React.FC<{ isTyping: boolean }> = ({ isTyping }) => (
@@ -141,7 +142,7 @@ const ChatMessagePyme: React.FC<ChatMessageProps> = ({
           className={`px-4 py-3 max-w-[320px] relative break-words ${bubbleClass}`}
           variants={{
             hidden: { opacity: 0, y: 14, scale: 0.97 },
-            visible: { opacity: 1, y: 0, scale: 1 },
+            visible: { opacity: 1, y: 0, scale: [1, 1.03, 1] },
           }}
           initial="hidden"
           animate="visible"
@@ -156,10 +157,13 @@ const ChatMessagePyme: React.FC<ChatMessageProps> = ({
           ) : attachment ? (
             <AttachmentPreview attachment={attachment} />
           ) : (
-            <div
-              className="prose prose-sm dark:prose-invert max-w-none [&_p]:my-0"
-              dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
-            />
+            <div className="prose prose-sm dark:prose-invert max-w-none [&_p]:my-0">
+              {isBot ? (
+                <TypewriterText html={sanitizedHtml} />
+              ) : (
+                <span dangerouslySetInnerHTML={{ __html: sanitizedHtml }} />
+              )}
+            </div>
           )}
         </motion.div>
 

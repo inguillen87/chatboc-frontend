@@ -8,6 +8,7 @@ import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { motion, AnimatePresence } from "framer-motion";
 import { useUser } from "@/hooks/useUser";
 import { apiFetch } from "@/utils/api";
+import { playOpenSound } from "@/utils/sounds";
 
 import ChatUserRegisterPanel from "./ChatUserRegisterPanel";
 import ChatUserLoginPanel from "./ChatUserLoginPanel";
@@ -48,6 +49,10 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   ctaMessage,
 }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
+  const [muted, setMuted] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return safeLocalStorage.getItem('chatboc_muted') === '1';
+  });
   const [view, setView] = useState<'chat' | 'register' | 'login' | 'user' | 'info'>(initialView);
   const { user } = useUser();
   const [resolvedTipoChat, setResolvedTipoChat] = useState<'pyme' | 'municipio'>(tipoChat);
@@ -66,6 +71,14 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       setView('login');
     }
   }, [user, entityInfo]);
+
+  const toggleMuted = useCallback(() => {
+    setMuted((m) => {
+      const nv = !m;
+      safeLocalStorage.setItem('chatboc_muted', nv ? '1' : '0');
+      return nv;
+    });
+  }, []);
 
   const [isMobile, setIsMobile] = useState(
     typeof window !== "undefined" && window.innerWidth < 640
@@ -143,7 +156,13 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     return () => window.removeEventListener("message", handleMessage);
   }, [widgetId]);
 
-  const toggleChat = () => setIsOpen((open) => !open);
+  const toggleChat = () => {
+    setIsOpen((open) => {
+      const next = !open;
+      if (next && !muted) playOpenSound();
+      return next;
+    });
+  };
 
   const [showCta, setShowCta] = useState(false);
 
@@ -248,6 +267,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                   onClose={toggleChat}
                   onBack={() => setView("chat")}
                   showProfile={false}
+                  muted={muted}
+                  onToggleSound={toggleMuted}
                 />
               )}
               {view === "register" ? (
@@ -278,6 +299,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                   onShowLogin={() => setView("login")}
                   onShowRegister={() => setView("register")}
                   onOpenUserPanel={openUserPanel}
+                  muted={muted}
+                  onToggleSound={toggleMuted}
                 />
               )}
             </motion.div>
@@ -314,15 +337,17 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                 justifyContent: "center",
                 boxShadow: "0 6px 24px 0 rgba(0,0,0,0.15)",
               }}
-              initial={{ opacity: 0, scale: 0.85 }}
-              animate={{ opacity: 1, scale: 1 }}
+              initial={{ opacity: 0, scale: 0.85, rotate: -20 }}
+              animate={{ opacity: 1, scale: 1, rotate: 0 }}
               exit={{ opacity: 0, scale: 0.85 }}
               transition={{ type: "spring", stiffness: 320, damping: 18 }}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.9 }}
               onClick={toggleChat}
               aria-label="Abrir chat"
             >
               <motion.span
-                animate={{ y: [0, -8, 0] }}
+                animate={{ y: [0, -8, 0], rotate: [0, 10, -10, 0] }}
                 transition={{ repeat: Infinity, duration: 1, repeatDelay: 3 }}
               >
                 <ChatbocLogoAnimated size={isMobile ? 42 : 62} blinking floating pulsing />
@@ -373,6 +398,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                 onClose={toggleChat}
                 onBack={() => setView("chat")}
                 showProfile={false}
+                muted={muted}
+                onToggleSound={toggleMuted}
               />
             )}
             {view === "register" ? (
@@ -403,6 +430,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                 onShowLogin={() => setView("login")}
                 onShowRegister={() => setView("register")}
                 onOpenUserPanel={openUserPanel}
+                muted={muted}
+                onToggleSound={toggleMuted}
               />
             )}
           </motion.div>
@@ -441,15 +470,17 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                 justifyContent: "center",
                 zIndex: 20,
               }}
-              initial={{ opacity: 0, scale: 0.87 }}
-              animate={{ opacity: 1, scale: 1 }}
+              initial={{ opacity: 0, scale: 0.87, rotate: -20 }}
+              animate={{ opacity: 1, scale: 1, rotate: 0 }}
               exit={{ opacity: 0, scale: 0.87 }}
               transition={{ type: "spring", stiffness: 320, damping: 16 }}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.9 }}
               onClick={toggleChat}
               aria-label="Abrir chat"
             >
               <motion.span
-                animate={{ y: [0, -10, 0] }}
+                animate={{ y: [0, -10, 0], rotate: [0, 10, -10, 0] }}
                 transition={{ repeat: Infinity, duration: 0.9, repeatDelay: 4 }}
               >
                 <ChatbocLogoAnimated size={62} blinking floating pulsing />

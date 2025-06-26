@@ -3,6 +3,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import ChatHeader from "./ChatHeader"; 
 import ChatMessage from "./ChatMessage";
+import { motion } from "framer-motion";
 import TypingIndicator from "./TypingIndicator";
 import ChatInput from "./ChatInput";
 import ScrollToBottomButton from "@/components/ui/ScrollToBottomButton";
@@ -10,6 +11,7 @@ import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import TicketMap from "@/components/TicketMap";
 import { Message, SendPayload } from "@/types/chat"; // Importa SendPayload
 import { apiFetch } from "@/utils/api";
+import { playMessageSound } from "@/utils/sounds";
 import { useUser } from "@/hooks/useUser";
 import { parseRubro, esRubroPublico, getAskEndpoint } from "@/utils/chatEndpoints";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
@@ -61,6 +63,8 @@ interface ChatPanelProps {
   onShowLogin?: () => void;
   onShowRegister?: () => void;
   initialRubro?: string;
+  muted?: boolean;
+  onToggleSound?: () => void;
 }
 
 const ChatPanel = ({
@@ -78,6 +82,8 @@ const ChatPanel = ({
   onShowLogin,
   onShowRegister,
   initialRubro,
+  muted = false,
+  onToggleSound,
 }: ChatPanelProps) => {
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -637,6 +643,14 @@ const ChatPanel = ({
   }, [messages, isTyping, ticketLocation]);
 
   useEffect(() => {
+    if (messages.length === 0) return;
+    const last = messages[messages.length - 1];
+    if (last.isBot && !muted) {
+      playMessageSound();
+    }
+  }, [messages, muted]);
+
+  useEffect(() => {
     const container = chatContainerRef.current;
     if (!container) return;
     const onScroll = () => {
@@ -655,7 +669,12 @@ const ChatPanel = ({
         isMobile ? undefined : "rounded-2xl"
       )}
     >
-      <ChatHeader onClose={onClose} onProfile={onOpenUserPanel} />
+      <ChatHeader
+        onClose={onClose}
+        onProfile={onOpenUserPanel}
+        muted={muted}
+        onToggleSound={onToggleSound}
+      />
       <ScrollArea ref={chatContainerRef} className="flex-1 p-4 min-h-0">
         <div className="flex flex-col gap-3 min-h-full">
           {esperandoRubro ? (
@@ -757,7 +776,16 @@ const ChatPanel = ({
               {isTyping && <TypingIndicator />}
               {ticketLocation && (<TicketMap ticket={{ ...ticketLocation, tipo: 'municipio' }} />)}
               <div ref={messagesEndRef} />
-              {showCierre && showCierre.show && <div className="my-3 p-3 rounded-lg bg-green-100 text-green-800 text-center font-bold shadow">{showCierre.text}</div>}
+              {showCierre && showCierre.show && (
+                <motion.div
+                  className="my-3 p-3 rounded-lg bg-green-100 text-green-800 text-center font-bold shadow"
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                >
+                  {showCierre.text}
+                </motion.div>
+              )}
             </>
           )}
         </div>
