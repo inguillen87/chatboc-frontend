@@ -7,7 +7,6 @@ import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 import UserAvatarAnimated from "./UserAvatarAnimated";
 import sanitizeMessageHtml from "@/utils/sanitizeMessageHtml";
 import AttachmentPreview from "./AttachmentPreview";
-import TypewriterText from "./TypewriterText";
 import MessageBubble from "./MessageBubble";
 
 const AvatarBot: React.FC<{ isTyping: boolean }> = ({ isTyping }) => (
@@ -94,17 +93,10 @@ const ChatMessageMunicipio = React.forwardRef<HTMLDivElement, ChatMessageProps>(
                 fallbackText={message.text} // Usa el texto del mensaje como fallback si no se muestra el adjunto
             />
           ) : (
-            isBot ? (
-              <TypewriterText
-                html={sanitizedHtml}
-                className="prose dark:prose-invert max-w-none text-sm [&_p]:my-0"
-              />
-            ) : (
-              <span
-                className="prose dark:prose-invert max-w-none text-sm [&_p]:my-0"
-                dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
-              />
-            )
+            <span
+              className="prose dark:prose-invert max-w-none text-sm [&_p]:my-0"
+              dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
+            />
           )}
           {isBot && message.botones && message.botones.length > 0 && (
             <ChatButtons
