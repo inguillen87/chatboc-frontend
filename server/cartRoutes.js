@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const cart = require('./cart');
+const preferences = require('./preferences');
 
 router.get('/', (req, res) => {
   res.json(cart.getCart(req.session));
@@ -10,6 +11,7 @@ router.post('/', (req, res) => {
   const { nombre, cantidad } = req.body || {};
   if (nombre) {
     cart.addItem(req.session, nombre, Number(cantidad) || 1);
+    preferences.addPreference(req.session, nombre);
   }
   res.json(cart.getCart(req.session));
 });
