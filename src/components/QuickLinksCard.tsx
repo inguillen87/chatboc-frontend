@@ -32,6 +32,7 @@ const ITEMS: LinkItem[] = [
   { label: "Catálogo", path: "/pyme/catalog", icon: Boxes, roles: ["admin"], tipo: "pyme" },
   { label: "Usuarios", path: "/usuarios", icon: Users, roles: ["admin", "empleado"] },
   { label: "Estadísticas", path: "/municipal/stats", icon: BarChart2, roles: ["admin"], tipo: "municipio" },
+  { label: "Analíticas", path: "/municipal/analytics", icon: TrendingUp, roles: ["admin"], tipo: "municipio" },
   { label: "Empleados", path: "/municipal/usuarios", icon: UserCog, roles: ["admin"], tipo: "municipio" },
   { label: "Mapa", path: "/municipal/incidents", icon: MapPin, roles: ["admin"], tipo: "municipio" },
 ];

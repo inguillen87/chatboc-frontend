@@ -24,6 +24,7 @@ import UsuariosPage from '@/pages/UsuariosPage';
 import ProductCatalog from '@/pages/ProductCatalog';
 import MunicipalStats from '@/pages/MunicipalStats';
 import IncidentsMap from '@/pages/IncidentsMap';
+import MunicipalAnalytics from '@/pages/MunicipalAnalytics';
 import MunicipalMessageMetrics from '@/pages/MunicipalMessageMetrics';
 import NotificationSettings from '@/pages/NotificationSettings';
 import TramitesCatalog from '@/pages/TramitesCatalog';
@@ -86,6 +87,7 @@ const routes: RouteConfig[] = [
   { path: '/municipal/integrations', element: <MunicipalSystems />, roles: ['admin'] },
   { path: '/municipal/surveys', element: <SatisfactionSurveys /> },
   { path: '/municipal/message-metrics', element: <MunicipalMessageMetrics />, roles: ['admin'] },
+  { path: '/municipal/analytics', element: <MunicipalAnalytics />, roles: ['admin'] },
   { path: '/municipal/stats', element: <MunicipalStats />, roles: ['admin'] },
   { path: '/municipal/incidents', element: <IncidentsMap />, roles: ['admin'] },
 ];
