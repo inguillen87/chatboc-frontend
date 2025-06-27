@@ -37,21 +37,23 @@ async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise
 }
 
 export const ticketService = {
-  getTickets: (userId: number): Promise<TicketsApiResponse> => 
-    apiFetch(`/tickets/municipio?user_id=${userId}`),
+  getTickets: (userId: number): Promise<TicketsApiResponse> =>
+    apiFetch(`/tickets/municipio?user_id=${userId}`, { sendEntityToken: true }),
     
-  getComments: (ticketId: number, userId: number): Promise<CommentsApiResponse> => 
-    apiFetch(`/tickets/municipio/${ticketId}/comentarios?user_id=${userId}`),
+  getComments: (ticketId: number, userId: number): Promise<CommentsApiResponse> =>
+    apiFetch(`/tickets/municipio/${ticketId}/comentarios?user_id=${userId}`, { sendEntityToken: true }),
     
-  postComment: (ticketId: number, userId: number, comentario: string): Promise<{ ok: boolean }> => 
+  postComment: (ticketId: number, userId: number, comentario: string): Promise<{ ok: boolean }> =>
     apiFetch(`/tickets/municipio/${ticketId}/comentarios`, {
       method: 'POST',
       body: JSON.stringify({ comentario, user_id: userId }),
+      sendEntityToken: true,
     }),
     
-  updateStatus: (ticketId: number, userId: number, estado: TicketStatus): Promise<{ ok: boolean }> => 
+  updateStatus: (ticketId: number, userId: number, estado: TicketStatus): Promise<{ ok: boolean }> =>
     apiFetch(`/tickets/municipio/${ticketId}/estado`, {
       method: 'PUT',
       body: JSON.stringify({ estado, user_id: userId }),
+      sendEntityToken: true,
     }),
 };

@@ -31,7 +31,8 @@ export default function TicketLookup() {
     setTicket(null);
     try {
       const data = await apiFetch<Ticket>(
-        `/tickets/municipio/por_numero/${encodeURIComponent(ticketNumber.trim())}`
+        `/tickets/municipio/por_numero/${encodeURIComponent(ticketNumber.trim())}`,
+        { sendEntityToken: true }
       );
       setTicket(data);
     } catch (err: any) {

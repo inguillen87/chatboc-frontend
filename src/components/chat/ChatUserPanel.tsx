@@ -43,7 +43,7 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
         if (statusFilter) params.push(`estado=${encodeURIComponent(statusFilter)}`);
         if (categoryFilter) params.push(`categoria=${encodeURIComponent(categoryFilter)}`);
         if (params.length) url += `?${params.join("&")}`;
-        const data = await apiFetch<TicketSummary[]>(url);
+        const data = await apiFetch<TicketSummary[]>(url, { sendEntityToken: true });
         if (Array.isArray(data)) setTickets(data);
       } catch (e) {
         /* ignore */
