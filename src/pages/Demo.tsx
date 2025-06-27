@@ -199,7 +199,7 @@ const Demo = () => {
   return (
     <div className="flex flex-col items-center w-full min-h-screen bg-gradient-to-br from-[#0d223a] to-[#151a26] text-foreground">
       {/* HEADER */}
-      <div className="w-full max-w-lg mx-auto py-3 px-4 flex items-center justify-between shadow sticky top-0 z-10">
+  <div className="w-full max-w-lg mx-auto py-3 px-4 flex flex-wrap items-center justify-between shadow sticky top-0 z-10">
         <div className="flex items-center gap-3">
           <img
             src="/chatboc_logo_clean_transparent.png"
