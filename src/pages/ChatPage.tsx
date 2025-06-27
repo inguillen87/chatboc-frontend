@@ -4,7 +4,6 @@ import ChatMessage from "@/components/chat/ChatMessage";
 import ChatInput from "@/components/chat/ChatInput";
 import TypingIndicator from "@/components/chat/TypingIndicator";
 import Navbar from "@/components/layout/Navbar";
-import { motion } from "framer-motion";
 import { apiFetch, getErrorMessage } from "@/utils/api";
 import { getAskEndpoint, esRubroPublico, parseRubro } from "@/utils/chatEndpoints";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
@@ -390,8 +389,7 @@ const ChatPage = () => {
     <div className="min-h-screen flex flex-col w-full bg-gradient-to-br from-[#0d223a] to-[#151a26] text-foreground">
       <Navbar />
       <main className="flex-grow flex flex-col items-center justify-center pt-3 sm:pt-10 pb-2 sm:pb-6 transition-all">
-        <motion.div
-          layout
+        <div
           className={`
             w-full ${isMobile ? "h-[100svh]" : "h-[83vh]"}
             flex flex-col
@@ -471,7 +469,7 @@ const ChatPage = () => {
               />
             ) : null}
           </div>
-        </motion.div>
+        </div>
       </main>
     </div>
   );
