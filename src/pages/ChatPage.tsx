@@ -416,21 +416,14 @@ const ChatPage = () => {
           >
             <AnimatePresence>
               {messages.map((msg) => (
-                <motion.div
+                <ChatMessage
                   key={msg.id}
-                  initial={{ opacity: 0, y: 14 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 14 }}
-                  transition={{ duration: 0.18 }}
-                >
-                  <ChatMessage
-                    message={msg}
-                    isTyping={isTyping}
-                    onButtonClick={handleSend} // Pasa handleSend, que ahora acepta SendPayload
-                    tipoChat={tipoChat}
-                    query={msg.query}
-                  />
-                </motion.div>
+                  message={msg}
+                  isTyping={isTyping}
+                  onButtonClick={handleSend} // Pasa handleSend, que ahora acepta SendPayload
+                  tipoChat={tipoChat}
+                  query={msg.query}
+                />
               ))}
             </AnimatePresence>
             {isTyping && <TypingIndicator />}
