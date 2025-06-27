@@ -3,6 +3,7 @@ const path = require('path');
 const { getAttentionMessage } = require('./widgetAttention');
 const { getMunicipalStats } = require('./municipalStats');
 const { getFormattedProducts } = require('./catalog');
+const { getBusinessMetrics } = require('./businessMetrics');
 const sessionMiddleware = require('./session');
 const cartRoutes = require('./cartRoutes');
 const preferences = require('./preferences');
@@ -33,6 +34,10 @@ app.get('/productos', (req, res) => {
 app.get('/files/:name', (req, res) => {
   const filePath = path.join(FILES_DIR, req.params.name);
   res.download(filePath);
+});
+
+app.get('/pyme/metrics', (req, res) => {
+  res.json(getBusinessMetrics(req.session));
 });
 
 app.post('/ask/pyme', (req, res) => {
