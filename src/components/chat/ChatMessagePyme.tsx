@@ -6,8 +6,7 @@ import { motion } from "framer-motion";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 import UserAvatarAnimated from "./UserAvatarAnimated";
 import sanitizeMessageHtml from "@/utils/sanitizeMessageHtml";
-import ProductCard from "@/components/product/ProductCard";
-import { parseProductMessage, filterProducts } from "@/utils/productParser";
+
 import { getCurrentTipoChat } from "@/utils/tipoChat";
 import AttachmentPreview from "./AttachmentPreview";
 import { getAttachmentInfo } from "@/utils/attachment";
@@ -76,23 +75,14 @@ const ChatMessagePyme = React.forwardRef<HTMLDivElement, ChatMessageProps>( (
   const safeText = message.text === "NaN" || message.text == null ? "" : message.text;
   // Limpiamos HTML sin cortar el texto
   const sanitizedHtml = sanitizeMessageHtml(safeText);
-  const shouldParseProducts = (tipoChat || getCurrentTipoChat()) === "pyme";
-  const parsedProducts =
-    shouldParseProducts && message.isBot
-      ? parseProductMessage(message.text)
-      : null;
-  const filteredProducts =
-    parsedProducts && query
-      ? filterProducts(parsedProducts, query)
-      : parsedProducts;
   const attachment = getAttachmentInfo(message.text);
 
   const isBot = message.isBot;
   const bubbleClass = isBot
     ? "bg-[#192745] text-blue-100"
     : "bg-gradient-to-br from-blue-600 to-blue-800 text-white";
-  const bubbleWidth = filteredProducts ? "max-w-[480px]" : "max-w-[95vw] md:max-w-2xl";
-  const bubbleExtra = filteredProducts ? "p-0 shadow-none bg-transparent" : "";
+  const bubbleWidth = "max-w-[95vw] md:max-w-2xl";
+  const bubbleExtra = "";
 
   return (
     <div
@@ -103,13 +93,7 @@ const ChatMessagePyme = React.forwardRef<HTMLDivElement, ChatMessageProps>( (
         {isBot && <AvatarBot isTyping={isTyping} />}
 
         <MessageBubble className={`${bubbleWidth} ${bubbleClass} ${bubbleExtra}`}>
-          {filteredProducts ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {filteredProducts.map((p, idx) => (
-                <ProductCard key={idx} product={p} />
-              ))}
-            </div>
-          ) : attachment ? (
+          {attachment ? (
             <AttachmentPreview attachment={attachment} />
           ) : (
             <span
