@@ -13,25 +13,25 @@ function loadCatalog() {
 }
 
 function normalize(p) {
-  return {
-    nombre: p.nombre || '',
-    marca: p.marca || p.bodega || '',
-    presentacion: p.presentacion || '',
-    precio_str:
-      p.precio_str !== undefined && p.precio_str !== null
-        ? String(p.precio_str)
-        : p.precio_unitario !== undefined && p.precio_unitario !== null
-        ? String(p.precio_unitario)
-        : '',
-    imagen_url: p.imagen_url || '',
-    talle: p.talle || '',
-    color: p.color || '',
-    variedad: p.variedad || '',
-    modelo: p.modelo || '',
-    medida: p.medida || '',
-    descripcion: p.descripcion || '',
-    stock: p.stock !== undefined && p.stock !== null ? p.stock : '',
-  };
+  const out = {};
+  for (const [key, value] of Object.entries(p)) {
+    if (value === undefined || value === null || value === '-') continue;
+    out[key] = value;
+  }
+
+  if (!out.marca && out.bodega) {
+    out.marca = out.bodega;
+  }
+
+  if (
+    out.precio_str === undefined &&
+    out.precio_unitario !== undefined &&
+    out.precio_unitario !== null
+  ) {
+    out.precio_str = String(out.precio_unitario);
+  }
+
+  return out;
 }
 
 function getFormattedProducts() {
