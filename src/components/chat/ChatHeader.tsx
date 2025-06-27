@@ -21,6 +21,7 @@ const ChatHeader: React.FC<Props> = ({
   showProfile = true,
   muted = false,
   onToggleSound,
+  onCart,
 }) => {
   return (
     <div
