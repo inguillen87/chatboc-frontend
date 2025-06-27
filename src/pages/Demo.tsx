@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateAnonId from "@/utils/anonId";
-import { AnimatePresence, motion } from "framer-motion";
 import ChatInput from "@/components/chat/ChatInput";
 import TypingIndicator from "@/components/chat/TypingIndicator";
 import ChatMessage from "@/components/chat/ChatMessage";
@@ -35,13 +34,15 @@ const Demo = () => {
     setAnonId(getOrCreateAnonId());
   }, []);
 
+  const welcomeRef = useRef(false);
+
   useEffect(() => {
     if (!rubroSeleccionado) {
       setEsperandoRubro(true);
       apiFetch<any[]>("/rubros/", { skipAuth: true })
         .then((data) => setRubrosDisponibles(Array.isArray(data) ? data : []))
         .catch(() => setRubrosDisponibles([]));
-    } else if (messages.length === 0) {
+    } else if (!welcomeRef.current && messages.length === 0) {
       setMessages([
         {
           id: Date.now(),
@@ -52,8 +53,9 @@ const Demo = () => {
         },
       ]);
       setEsperandoRubro(false);
+      welcomeRef.current = true;
     }
-  }, [rubroSeleccionado, messages.length]);
+  }, [rubroSeleccionado]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -217,25 +219,16 @@ const Demo = () => {
         </span>
       </div>
       <div className="w-full max-w-lg flex flex-col flex-1 px-2 sm:px-5 py-5 space-y-3 overflow-y-auto custom-scroll">
-        <AnimatePresence>
-          {messages.map((msg) => (
-            <motion.div
-              key={msg.id}
-              initial={{ opacity: 0, y: 18 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 18 }}
-              transition={{ duration: 0.20 }}
-            >
-              <ChatMessage
-                message={msg}
-                isTyping={isTyping}
-                onButtonClick={handleSendMessage}
-                tipoChat={isMunicipioRubro ? "municipio" : "pyme"}
-                query={msg.query}
-              />
-            </motion.div>
-          ))}
-        </AnimatePresence>
+        {messages.map((msg) => (
+          <ChatMessage
+            key={msg.id}
+            message={msg}
+            isTyping={isTyping}
+            onButtonClick={handleSendMessage}
+            tipoChat={isMunicipioRubro ? "municipio" : "pyme"}
+            query={msg.query}
+          />
+        ))}
         {isTyping && <TypingIndicator />}
         <div ref={messagesEndRef} />
       </div>

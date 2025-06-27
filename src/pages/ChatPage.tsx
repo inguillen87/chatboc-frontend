@@ -4,7 +4,7 @@ import ChatMessage from "@/components/chat/ChatMessage";
 import ChatInput from "@/components/chat/ChatInput";
 import TypingIndicator from "@/components/chat/TypingIndicator";
 import Navbar from "@/components/layout/Navbar";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { apiFetch, getErrorMessage } from "@/utils/api";
 import { getAskEndpoint, esRubroPublico, parseRubro } from "@/utils/chatEndpoints";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
@@ -95,20 +95,17 @@ const ChatPage = () => {
 
   const isMobile = useIsMobile();
 
+  const welcomeRef = useRef(false);
+
   // Mensaje de bienvenida + dirección de storage
   useEffect(() => {
-    if (messages.length === 0) {
-      setMessages([{
-        id: Date.now(),
-        text: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?",
-        isBot: true,
-        timestamp: new Date(),
-        query: undefined,
-      }]);
+    if (!welcomeRef.current && messages.length === 0) {
+      setMessages([{ id: Date.now(), text: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?", isBot: true, timestamp: new Date(), query: undefined }]);
+      welcomeRef.current = true;
     }
     const stored = safeLocalStorage.getItem("ultima_direccion");
     if (stored) setDireccionGuardada(stored);
-  }, [messages.length]); // Añadir messages.length a las dependencias si messages puede ser modificado por otros efectos al inicio
+  }, []);
 
   // Refresca usuario si es necesario
   useEffect(() => {
@@ -414,25 +411,16 @@ const ChatPage = () => {
             `}
             style={{ minHeight: 0 }}
           >
-            <AnimatePresence>
-              {messages.map((msg) => (
-                <motion.div
-                  key={msg.id}
-                  initial={{ opacity: 0, y: 14 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 14 }}
-                  transition={{ duration: 0.18 }}
-                >
-                  <ChatMessage
-                    message={msg}
-                    isTyping={isTyping}
-                    onButtonClick={handleSend} // Pasa handleSend, que ahora acepta SendPayload
-                    tipoChat={tipoChat}
-                    query={msg.query}
-                  />
-                </motion.div>
-              ))}
-            </AnimatePresence>
+            {messages.map((msg) => (
+              <ChatMessage
+                key={msg.id}
+                message={msg}
+                isTyping={isTyping}
+                onButtonClick={handleSend} // Pasa handleSend, que ahora acepta SendPayload
+                tipoChat={tipoChat}
+                query={msg.query}
+              />
+            ))}
             {isTyping && <TypingIndicator />}
             {isTicketLocationValid && <TicketMap ticket={{ ...ticketInfo, tipo: 'municipio' }} />}
             {showCierre && showCierre.show && (

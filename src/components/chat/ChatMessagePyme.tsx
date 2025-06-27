@@ -11,7 +11,6 @@ import { parseProductMessage, filterProducts } from "@/utils/productParser";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
 import AttachmentPreview from "./AttachmentPreview";
 import { getAttachmentInfo } from "@/utils/attachment";
-import TypewriterText from "./TypewriterText";
 import MessageBubble from "./MessageBubble";
 
 // --- Avatares reutilizados ---
@@ -112,17 +111,10 @@ const ChatMessagePyme = React.forwardRef<HTMLDivElement, ChatMessageProps>( (
           ) : attachment ? (
             <AttachmentPreview attachment={attachment} />
           ) : (
-            isBot ? (
-              <TypewriterText
-                html={sanitizedHtml}
-                className="prose dark:prose-invert max-w-none text-sm [&_p]:my-0"
-              />
-            ) : (
-              <span
-                className="prose dark:prose-invert max-w-none text-sm [&_p]:my-0"
-                dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
-              />
-            )
+            <span
+              className="prose dark:prose-invert max-w-none text-sm [&_p]:my-0"
+              dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
+            />
           )}
           {isBot && message.botones && message.botones.length > 0 && (
             <ChatButtons
