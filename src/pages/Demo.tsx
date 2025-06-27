@@ -219,21 +219,14 @@ const Demo = () => {
       <div className="w-full max-w-lg flex flex-col flex-1 px-2 sm:px-5 py-5 space-y-3 overflow-y-auto custom-scroll">
         <AnimatePresence>
           {messages.map((msg) => (
-            <motion.div
+            <ChatMessage
               key={msg.id}
-              initial={{ opacity: 0, y: 18 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 18 }}
-              transition={{ duration: 0.20 }}
-            >
-              <ChatMessage
-                message={msg}
-                isTyping={isTyping}
-                onButtonClick={handleSendMessage}
-                tipoChat={isMunicipioRubro ? "municipio" : "pyme"}
-                query={msg.query}
-              />
-            </motion.div>
+              message={msg}
+              isTyping={isTyping}
+              onButtonClick={handleSendMessage}
+              tipoChat={isMunicipioRubro ? "municipio" : "pyme"}
+              query={msg.query}
+            />
           ))}
         </AnimatePresence>
         {isTyping && <TypingIndicator />}
