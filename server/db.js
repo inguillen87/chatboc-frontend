@@ -5,6 +5,12 @@ let tickets = [
   { municipality: 'Beta', category: 'arbolado', responseMs: 6 * 60 * 60 * 1000 },
 ];
 
+let messages = [
+  { municipality: 'Alpha', timestamp: Date.now() - 2 * 24 * 60 * 60 * 1000 },
+  { municipality: 'Alpha', timestamp: Date.now() - 10 * 24 * 60 * 60 * 1000 },
+  { municipality: 'Beta', timestamp: Date.now() - 40 * 24 * 60 * 60 * 1000 },
+];
+
 function getTickets() {
   return tickets;
 }
@@ -13,4 +19,17 @@ function __setTickets(newTickets) {
   tickets = newTickets;
 }
 
-module.exports = { getTickets, __setTickets };
+function getMessages() {
+  return messages;
+}
+
+function __setMessages(newMessages) {
+  messages = newMessages;
+}
+
+module.exports = {
+  getTickets,
+  __setTickets,
+  getMessages,
+  __setMessages,
+};
