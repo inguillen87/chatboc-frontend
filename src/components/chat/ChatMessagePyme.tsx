@@ -92,6 +92,7 @@ const ChatMessagePyme = React.forwardRef<HTMLDivElement, ChatMessageProps>( (
     ? "bg-[#192745] text-blue-100"
     : "bg-gradient-to-br from-blue-600 to-blue-800 text-white";
   const bubbleWidth = filteredProducts ? "max-w-[480px]" : "max-w-[95vw] md:max-w-2xl";
+  const bubbleExtra = filteredProducts ? "p-0 shadow-none bg-transparent" : "";
 
   return (
     <div
@@ -101,7 +102,7 @@ const ChatMessagePyme = React.forwardRef<HTMLDivElement, ChatMessageProps>( (
       <div className={`flex items-end gap-2 ${isBot ? "" : "flex-row-reverse"}`}>
         {isBot && <AvatarBot isTyping={isTyping} />}
 
-        <MessageBubble className={`${bubbleWidth} ${bubbleClass}`}>        
+        <MessageBubble className={`${bubbleWidth} ${bubbleClass} ${bubbleExtra}`}>
           {filteredProducts ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {filteredProducts.map((p, idx) => (
