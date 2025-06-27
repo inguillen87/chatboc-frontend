@@ -428,6 +428,7 @@ The backend also exposes a professional analytics endpoint at `/municipal/analyt
 ## Pyme feature ideas
 See [docs/pyme-features.md](docs/pyme-features.md) for potential improvements.
 A prototype catalog viewer is available under `/pyme/catalog`.
+Business metrics for the demo are available at `/pyme/metrics`.
 
 ## Roles y perfiles
 Más información en [docs/roles.md](docs/roles.md).

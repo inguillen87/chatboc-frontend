@@ -3,6 +3,15 @@ import { apiFetch, ApiError } from '@/utils/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'; // Importa componentes de Card
 import { ChartContainer } from '@/components/ui/chart';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from 'recharts';
 
 interface Metric {
   label: string;
@@ -64,14 +73,18 @@ export default function BusinessMetrics() {
           <CardTitle className="text-xl">Visualización de Métricas</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-64"> {/* Altura fija para el gráfico */}
-            {/* Asegúrate de que tu componente Chart pueda recibir este formato de datos */}
-            <Chart 
-              type="Bar" 
-              data={metrics.map(m => ({ name: m.label, value: m.value }))} // Adapta los datos a {name: "label", value: 123}
-              dataKey="value" // La clave numérica para el gráfico
-              nameKey="name" // La clave de la etiqueta para el gráfico
-            />
+          <div className="h-64">
+            <ChartContainer config={{}}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={metrics.map((m) => ({ name: m.label, value: m.value }))}>
+                  <XAxis dataKey="name" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="value" fill="#4682B4" />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartContainer>
           </div>
         </CardContent>
       </Card>
