@@ -4,6 +4,11 @@ const { getAttentionMessage } = require('./widgetAttention');
 const { getMunicipalStats } = require('./municipalStats');
 const { getFormattedProducts } = require('./catalog');
 const { getBusinessMetrics } = require('./businessMetrics');
+const {
+  getMunicipalMessageMetrics,
+  generateCsvReport,
+  generatePdfReport,
+} = require('./municipalMessageMetrics');
 const sessionMiddleware = require('./session');
 const cartRoutes = require('./cartRoutes');
 const preferences = require('./preferences');
@@ -21,6 +26,20 @@ app.get('/widget/attention', (req, res) => {
 
 app.get('/municipal/stats', (req, res) => {
   res.json(getMunicipalStats());
+});
+
+app.get('/municipal/message-metrics', (req, res) => {
+  res.json(getMunicipalMessageMetrics());
+});
+
+app.get('/municipal/message-metrics.csv', (req, res) => {
+  const csv = generateCsvReport();
+  res.type('text/csv').attachment('message-metrics.csv').send(csv);
+});
+
+app.get('/municipal/message-metrics.pdf', (req, res) => {
+  const pdf = generatePdfReport();
+  res.type('application/pdf').attachment('message-metrics.pdf').send(pdf);
 });
 
 app.get('/productos', (req, res) => {
