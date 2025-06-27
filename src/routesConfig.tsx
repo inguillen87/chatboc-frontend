@@ -38,6 +38,7 @@ import BusinessMetrics from '@/pages/BusinessMetrics';
 import CrmIntegrations from '@/pages/CrmIntegrations';
 import PredefinedQueries from '@/pages/PredefinedQueries';
 import PermissionDenied from '@/pages/PermissionDenied';
+import CartPage from '@/pages/Cart';
 
 export interface RouteConfig {
   path: string;
@@ -61,6 +62,7 @@ const routes: RouteConfig[] = [
   { path: '/integracion', element: <Integracion /> },
   { path: '/documentacion', element: <Documentacion /> },
   { path: '/faqs', element: <Faqs /> },
+  { path: '/cart', element: <CartPage /> },
   { path: '/legal/privacy', element: <Privacy /> },
   { path: '/legal/terms', element: <Terms /> },
   { path: '/legal/cookies', element: <Cookies /> },

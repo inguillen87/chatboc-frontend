@@ -72,6 +72,10 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     }
   }, [user, entityInfo]);
 
+  const openCart = useCallback(() => {
+    window.open('/cart', '_blank');
+  }, []);
+
   const toggleMuted = useCallback(() => {
     setMuted((m) => {
       const nv = !m;
@@ -272,6 +276,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                   showProfile={false}
                   muted={muted}
                   onToggleSound={toggleMuted}
+                  onCart={openCart}
                 />
               )}
               {view === "register" ? (
@@ -304,6 +309,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                   onOpenUserPanel={openUserPanel}
                   muted={muted}
                   onToggleSound={toggleMuted}
+                  onCart={openCart}
                 />
               )}
             </motion.div>
@@ -403,6 +409,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                 showProfile={false}
                 muted={muted}
                 onToggleSound={toggleMuted}
+                onCart={openCart}
               />
             )}
             {view === "register" ? (
@@ -435,6 +442,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                 onOpenUserPanel={openUserPanel}
                 muted={muted}
                 onToggleSound={toggleMuted}
+                onCart={openCart}
               />
             )}
           </motion.div>

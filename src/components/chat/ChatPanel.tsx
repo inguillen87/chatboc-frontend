@@ -68,6 +68,7 @@ interface ChatPanelProps {
   initialRubro?: string;
   muted?: boolean;
   onToggleSound?: () => void;
+  onCart?: () => void;
 }
 
 const ChatPanel = ({
@@ -87,6 +88,7 @@ const ChatPanel = ({
   initialRubro,
   muted = false,
   onToggleSound,
+  onCart,
 }: ChatPanelProps) => {
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -608,9 +610,13 @@ const ChatPanel = ({
         if (!isAdmin) onShowRegister && onShowRegister();
         return;
       }
+      if (["cart", "carrito", "opencart", "vercarrito"].includes(normalized)) {
+        onCart && onCart();
+        return;
+      }
       handleSendMessage({ text: action, action: normalized });
     },
-    [onShowLogin, onShowRegister, handleSendMessage, user]
+    [onShowLogin, onShowRegister, onCart, handleSendMessage, user]
   );
 
   const handleFileUploaded = useCallback(
@@ -688,6 +694,7 @@ const ChatPanel = ({
         onProfile={onOpenUserPanel}
         muted={muted}
         onToggleSound={onToggleSound}
+        onCart={onCart}
       />
       <ScrollArea ref={chatContainerRef} className="flex-1 p-4 min-h-0">
         <div className="flex flex-col gap-3 min-h-full">

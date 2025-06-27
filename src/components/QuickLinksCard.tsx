@@ -10,6 +10,8 @@ import {
   UserCog,
   MapPin,
   Package,
+  TrendingUp,
+  Boxes,
 } from "lucide-react";
 import { useUser } from "@/hooks/useUser";
 import { normalizeRole } from "@/utils/roles";
@@ -26,6 +28,8 @@ interface LinkItem {
 const ITEMS: LinkItem[] = [
   { label: "Tickets", path: "/tickets", icon: Ticket, roles: ["admin", "empleado"] },
   { label: "Pedidos", path: "/pedidos", icon: Package, roles: ["admin", "empleado"], tipo: "pyme" },
+  { label: "Métricas", path: "/pyme/metrics", icon: TrendingUp, roles: ["admin"], tipo: "pyme" },
+  { label: "Catálogo", path: "/pyme/catalog", icon: Boxes, roles: ["admin"], tipo: "pyme" },
   { label: "Usuarios", path: "/usuarios", icon: Users, roles: ["admin", "empleado"] },
   { label: "Estadísticas", path: "/municipal/stats", icon: BarChart2, roles: ["admin"], tipo: "municipio" },
   { label: "Empleados", path: "/municipal/usuarios", icon: UserCog, roles: ["admin"], tipo: "municipio" },
