@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { apiFetch, getErrorMessage } from '@/utils/api';
+import { Button } from '@/components/ui/button';
+import { Link } from 'react-router-dom';
 
 interface Product {
   id: number;
@@ -34,15 +36,21 @@ export default function ProductCatalog() {
   if (loading) return <p>Cargando...</p>;
   if (error) return <p>{error}</p>;
 
+  const handleAdd = async (name: string) => {
+    await apiFetch('/carrito', { method: 'POST', body: { nombre: name, cantidad: 1 } });
+  };
+
   return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">Catálogo</h1>
+    <div className="p-4 space-y-4">
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold">Catálogo</h1>
+        <Button asChild variant="outline">
+          <Link to="/cart">Ver carrito</Link>
+        </Button>
+      </div>
       <ul className="grid gap-4">
         {products.map((p) => (
-          <li
-            key={p.id}
-            className="flex gap-4 items-center border-b pb-2"
-          >
+          <li key={p.id} className="flex gap-4 items-center border-b pb-2">
             {p.imagen_url && (
               <img
                 src={p.imagen_url}
@@ -53,16 +61,15 @@ export default function ProductCatalog() {
             <div className="flex-1">
               <p className="font-medium">{p.nombre}</p>
               {p.presentacion && (
-                <p className="text-sm text-muted-foreground">
-                  {p.presentacion}
-                </p>
+                <p className="text-sm text-muted-foreground">{p.presentacion}</p>
               )}
             </div>
             {typeof p.precio_unitario === 'number' && (
-              <span className="font-semibold">
-                {formatPrice(p.precio_unitario)}
-              </span>
+              <span className="font-semibold mr-2">{formatPrice(p.precio_unitario)}</span>
             )}
+            <Button size="sm" onClick={() => handleAdd(p.nombre)}>
+              Agregar
+            </Button>
           </li>
         ))}
       </ul>
