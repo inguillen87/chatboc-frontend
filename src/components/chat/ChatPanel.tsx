@@ -696,8 +696,7 @@ const ChatPanel = ({
         onToggleSound={onToggleSound}
         onCart={onCart}
       />
-      <ScrollArea ref={chatContainerRef} className="flex-1 p-4 min-h-0">
-        <div className="flex flex-col gap-3 min-h-full">
+      <ScrollArea ref={chatContainerRef} className="flex-1 p-4 min-h-0 flex flex-col gap-3">
           {esperandoRubro ? (
             <div className="text-center w-full">
               <h2 className="text-green-500 mb-2">👋 ¡Bienvenido!</h2>
@@ -803,7 +802,6 @@ const ChatPanel = ({
               )}
             </>
           )}
-        </div>
       </ScrollArea>
       <ScrollToBottomButton target={chatContainerRef.current} />
       {!esperandoRubro && !esperandoDireccion && (!showCierre || !showCierre.show) && (
