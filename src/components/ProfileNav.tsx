@@ -27,6 +27,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Catálogo', path: '/pyme/catalog', roles: ['admin'], tipo: 'pyme' },
   { label: 'Trámites', path: '/municipal/tramites', roles: ['admin'], tipo: 'municipio' },
   { label: 'Estadísticas', path: '/municipal/stats', roles: ['admin'], tipo: 'municipio' },
+  { label: 'Analíticas', path: '/municipal/analytics', roles: ['admin'], tipo: 'municipio' },
   { label: 'Empleados', path: '/municipal/usuarios', roles: ['admin'], tipo: 'municipio' },
   { label: 'Métricas', path: '/pyme/metrics', roles: ['admin'], tipo: 'pyme' },
 ];
@@ -37,6 +38,7 @@ export default function ProfileNav() {
   const { user } = useUser();
   const tramitesAvailable = useEndpointAvailable('/municipal/tramites');
   const statsAvailable = useEndpointAvailable('/municipal/stats');
+  const analyticsAvailable = useEndpointAvailable('/municipal/analytics');
   const empleadosAvailable = useEndpointAvailable('/municipal/usuarios');
 
   if (!user) return null;
@@ -53,6 +55,7 @@ export default function ProfileNav() {
   const items = NAV_ITEMS.filter((it) => {
     if (it.path === '/municipal/tramites' && tramitesAvailable === false) return false;
     if (it.path === '/municipal/stats' && statsAvailable === false) return false;
+    if (it.path === '/municipal/analytics' && analyticsAvailable === false) return false;
     if (it.path === '/municipal/usuarios' && empleadosAvailable === false) return false;
     return (!it.roles || it.roles.includes(role)) && (!it.tipo || it.tipo === tipo);
   });

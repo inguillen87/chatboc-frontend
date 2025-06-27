@@ -4,6 +4,7 @@ const { getAttentionMessage } = require('./widgetAttention');
 const { getMunicipalStats } = require('./municipalStats');
 const { getFormattedProducts } = require('./catalog');
 const { getBusinessMetrics } = require('./businessMetrics');
+const { getMunicipalAnalytics } = require('./municipalAnalytics');
 const {
   getMunicipalMessageMetrics,
   generateCsvReport,
@@ -26,6 +27,10 @@ app.get('/widget/attention', (req, res) => {
 
 app.get('/municipal/stats', (req, res) => {
   res.json(getMunicipalStats());
+});
+
+app.get('/municipal/analytics', (req, res) => {
+  res.json(getMunicipalAnalytics());
 });
 
 app.get('/municipal/message-metrics', (req, res) => {
