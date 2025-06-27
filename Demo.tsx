@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
-import ChatInput from "@/components/ChatInput";
-import ChatMessage from "@/components/ChatMessage";
-import TypingIndicator from "@/components/TypingIndicator";
+import ChatInput from "@/components/chat/ChatInput";
+import ChatMessage from "@/components/chat/ChatMessage";
+import TypingIndicator from "@/components/chat/TypingIndicator";
 import { Message } from "@/types/chat";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
 import { getAskEndpoint, esRubroPublico } from "@/utils/chatEndpoints";

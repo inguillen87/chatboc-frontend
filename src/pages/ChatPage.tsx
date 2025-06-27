@@ -465,7 +465,6 @@ const ChatPage = () => {
               <ChatInput
                 onSendMessage={handleSend} // Pasa handleSend, que ahora acepta SendPayload
                 isTyping={isTyping}
-                onFileUploaded={handleFileUploaded} // Pasa el nuevo handleFileUploaded
               />
             ) : null}
           </div>

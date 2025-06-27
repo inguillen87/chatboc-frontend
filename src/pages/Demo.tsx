@@ -237,7 +237,6 @@ const Demo = () => {
         <ChatInput
           onSendMessage={handleSendMessage}
           isTyping={isTyping}
-          onFileUploaded={handleFileUploaded}
         />
       </div>
       {/* PIE/CTA */}
