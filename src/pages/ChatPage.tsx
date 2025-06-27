@@ -159,7 +159,7 @@ const ChatPage = () => {
     try {
       const data = await apiFetch<any>(
         `/tickets/municipio/${activeTicketId}`,
-        { sendAnonId: isAnonimo }
+        { sendAnonId: isAnonimo, sendEntityToken: true }
       );
       setTicketInfo({
         ...data,
@@ -192,8 +192,8 @@ const ChatPage = () => {
         }
         try {
           // Asegúrate de enviar lat y lon
-          await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, { method: 'PUT', body: { lat: coords.latitud, lon: coords.longitud }, sendAnonId: isAnonimo });
-          await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, { method: 'PUT', body: { lat: coords.latitud, lon: coords.longitud }, sendAnonId: isAnonimo });
+          await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, { method: 'PUT', body: { lat: coords.latitud, lon: coords.longitud }, sendAnonId: isAnonimo, sendEntityToken: true });
+          await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, { method: 'PUT', body: { lat: coords.latitud, lon: coords.longitud }, sendAnonId: isAnonimo, sendEntityToken: true });
           setForzarDireccion(false);
           fetchTicketInfo();
           toast({ title: "Ubicación enviada", description: "Tu ubicación ha sido compartida con el agente.", duration: 3000 });
@@ -213,7 +213,7 @@ const ChatPage = () => {
         const base = `/tickets/chat/${activeTicketId}/mensajes`;
         const query = `?ultimo_mensaje_id=${ultimoMensajeIdRef.current}`;
         const data = await apiFetch<{ estado_chat: string; mensajes: any[] }>(
-          `${base}${query}`, { sendAnonId: isAnonimo }
+          `${base}${query}`, { sendAnonId: isAnonimo, sendEntityToken: true }
         );
         if (data.mensajes && data.mensajes.length > 0) {
           const nuevosMensajes: Message[] = data.mensajes.map((msg) => ({
@@ -259,8 +259,8 @@ const ChatPage = () => {
         setDireccionGuardada(userMessageText); // Usar userMessageText
         if (activeTicketId) {
           try {
-            await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, { method: 'PUT', body: { direccion: userMessageText }, sendAnonId: isAnonimo }); // Usar userMessageText
-            await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, { method: 'PUT', body: { direccion: userMessageText }, sendAnonId: isAnonimo }); // Usar userMessageText
+            await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, { method: 'PUT', body: { direccion: userMessageText }, sendAnonId: isAnonimo, sendEntityToken: true }); // Usar userMessageText
+            await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, { method: 'PUT', body: { direccion: userMessageText }, sendAnonId: isAnonimo, sendEntityToken: true }); // Usar userMessageText
             fetchTicketInfo();
             toast({ title: "Dirección enviada", duration: 2000 });
           } catch (error) { // Capturar error
@@ -285,12 +285,13 @@ const ChatPage = () => {
           // Si hay un ticket activo (chat en vivo), enviar como comentario
           await apiFetch(`/tickets/chat/${activeTicketId}/responder_ciudadano`, {
             method: "POST",
-            body: { 
+            body: {
                 comentario: userMessageText, // Usar userMessageText
                 ...(payload.es_foto && { foto_url: payload.archivo_url }),
                 ...(payload.es_ubicacion && { ubicacion: payload.ubicacion_usuario }),
             },
-            sendAnonId: isAnonimo
+            sendAnonId: isAnonimo,
+            sendEntityToken: true,
           });
         } else {
           const requestPayload: Record<string, any> = { // Renombrado para evitar conflicto con el 'payload' de la función

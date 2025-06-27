@@ -66,7 +66,7 @@ export default function TicketsPanel() {
       if (statusFilter) params.push(`estado=${encodeURIComponent(statusFilter)}`);
       if (categoryFilter) params.push(`categoria=${encodeURIComponent(categoryFilter)}`);
       if (params.length) url += `?${params.join('&')}`;
-      const data = await apiFetch<CategorizedTickets>(url);
+      const data = await apiFetch<CategorizedTickets>(url, { sendEntityToken: true });
       setCategorizedTickets(data);
       setOpenCategories(prev => {
         const newSet = new Set(prev);
@@ -144,7 +144,9 @@ export default function TicketsPanel() {
     setError(null);
 
     try {
-      const data = await apiFetch<Ticket>(`/tickets/${ticketSummary.tipo}/${ticketSummary.id}`);
+      const data = await apiFetch<Ticket>(`/tickets/${ticketSummary.tipo}/${ticketSummary.id}`, {
+        sendEntityToken: true,
+      });
       setDetailedTicket(data);
     } catch (err) {
       const errorMessage = err instanceof ApiError ? err.message : `No se pudo cargar el detalle del ticket ${ticketSummary.nro_ticket}.`;
@@ -425,6 +427,7 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
     try {
       const data = await apiFetch(`/tickets/chat/${ticket.id}/mensajes?ultimo_mensaje_id=${ultimoMensajeIdRef.current}`, {
         sendAnonId: isAnonimo,
+        sendEntityToken: true,
       });
       if (data.mensajes && data.mensajes.length > 0) {
         setComentarios((prev) => {
@@ -452,6 +455,7 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
     try {
       const updated = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}`, {
         sendAnonId: isAnonimo,
+        sendEntityToken: true,
       });
       onTicketUpdate({ ...ticket, ...updated });
     } catch (e) {
@@ -500,6 +504,7 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
         method: "POST",
         body: { comentario: newMessage },
         sendAnonId: isAnonimo,
+        sendEntityToken: true,
       });
       setComentarios(updatedTicket.comentarios || []);
       setNewMessage("");
@@ -517,7 +522,7 @@ const TicketDetail: FC<{ ticket: Ticket; onTicketUpdate: (ticket: Ticket) => voi
     try {
       const updatedTicket = await apiFetch<Ticket>(
         `/tickets/${ticket.tipo}/${ticket.id}/estado`,
-        { method: "PUT", body: { estado: nuevoEstado }, sendAnonId: isAnonimo }
+        { method: "PUT", body: { estado: nuevoEstado }, sendAnonId: isAnonimo, sendEntityToken: true }
       );
       const mergedTicket = { ...ticket, ...updatedTicket };
       if (!updatedTicket.comentarios && ticket.comentarios) {
