@@ -1,8 +1,14 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { apiFetch, ApiError } from '@/utils/api';
-import { Button } from '@/components/ui/button';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'; // Importa componentes de Card
-import { ChartContainer } from '@/components/ui/chart';
+import React, { useEffect, useState, useCallback } from "react"
+import { apiFetch, ApiError } from '@/utils/api'
+import { Button } from '@/components/ui/button'
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+} from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
+import { ChartContainer } from '@/components/ui/chart'
 import {
   BarChart,
   Bar,
@@ -12,6 +18,12 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
+import {
+  MessageSquare,
+  ShoppingCart,
+  TrendingUp,
+  Star,
+} from 'lucide-react'
 
 interface Metric {
   label: string;
@@ -22,6 +34,12 @@ export default function BusinessMetrics() {
   const [metrics, setMetrics] = useState<Metric[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+    Consultas: MessageSquare,
+    'Productos en carrito': ShoppingCart,
+    'Producto más consultado': Star,
+  }
 
   const fetchMetrics = useCallback(() => {
     setLoading(true);
@@ -42,7 +60,19 @@ export default function BusinessMetrics() {
     fetchMetrics();
   }, [fetchMetrics]);
 
-  if (loading) return <p className="p-4 text-center">Cargando métricas...</p>;
+  if (loading)
+    return (
+      <div className="p-4 max-w-3xl mx-auto space-y-6">
+        <h1 className="text-3xl font-extrabold text-primary mb-4">
+          Métricas del Negocio
+        </h1>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-20 w-full rounded-xl" />
+          ))}
+        </div>
+      </div>
+    )
   if (error) return <p className="p-4 text-destructive text-center">Error: {error}</p>;
   if (metrics.length === 0) return <p className="p-4 text-center text-muted-foreground">No hay métricas disponibles.</p>;
 
@@ -50,22 +80,21 @@ export default function BusinessMetrics() {
   return (
     <div className="p-4 max-w-3xl mx-auto space-y-6">
       <h1 className="text-3xl font-extrabold text-primary mb-4">Métricas del Negocio</h1>
-      
-      <Card className="shadow-lg">
-        <CardHeader>
-          <CardTitle className="text-xl">Resumen General</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ul className="grid gap-3 text-base">
-            {metrics.map((m) => (
-              <li key={m.label} className="flex justify-between border-b border-border pb-2 last:border-b-0 last:pb-0">
-                <span className="text-muted-foreground">{m.label}:</span>
-                <span className="font-semibold text-foreground">{m.value}</span>
-              </li>
-            ))}
-          </ul>
-        </CardContent>
-      </Card>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+        {metrics.map((m) => {
+          const Icon = ICONS[m.label] || TrendingUp
+          return (
+            <Card key={m.label} className="shadow-md">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium">{m.label}</CardTitle>
+                <Icon className="w-5 h-5 text-muted-foreground" />
+              </CardHeader>
+              <CardContent className="text-2xl font-bold">{m.value}</CardContent>
+            </Card>
+          )
+        })}
+      </div>
 
       {/* Gráfico de Barras para las métricas */}
       <Card className="shadow-lg">
