@@ -19,7 +19,6 @@ import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateAnonId from "@/utils/anonId";
 import { parseChatResponse } from "@/utils/parseChatResponse";
 import filterLoginPrompt from "@/utils/adminChatFilter.js";
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { getCurrentTipoChat } from "@/utils/tipoChat";
 import { requestLocation } from "@/utils/geolocation";
 import { toast } from "@/components/ui/use-toast"; // Asegúrate de importar toast
@@ -124,6 +123,7 @@ const ChatPanel = ({
   const [forzarDireccion, setForzarDireccion] = useState(false);
   const [direccionGuardada, setDireccionGuardada] = useState<string | null>(null);
   const [showCierre, setShowCierre] = useState<{ show: boolean; text: string } | null>(null);
+  const initialMessageAddedRef = useRef(false);
 
   useEffect(() => {
     if (activeTicketId) {
@@ -630,9 +630,14 @@ const ChatPanel = ({
 
   useEffect(() => {
     if (esAnonimo && mode === "standalone" && !rubroSeleccionado) {
-      setEsperandoRubro(true); cargarRubros();
-    } else if (!esAnonimo || rubroSeleccionado) {
-      setEsperandoRubro(false);
+      setEsperandoRubro(true);
+      cargarRubros();
+      return;
+    }
+
+    setEsperandoRubro(false);
+
+    if (!initialMessageAddedRef.current && (!esAnonimo || rubroSeleccionado)) {
       if (messages.length === 0) {
         setMessages([
           {
@@ -643,9 +648,12 @@ const ChatPanel = ({
             query: undefined,
           },
         ]);
+        initialMessageAddedRef.current = true;
+      } else {
+        initialMessageAddedRef.current = true;
       }
     }
-  }, [esAnonimo, mode, rubroSeleccionado, messages.length]);
+  }, [esAnonimo, mode, rubroSeleccionado]);
 
   useEffect(() => {
     const container = chatContainerRef.current;
@@ -696,7 +704,7 @@ const ChatPanel = ({
         onToggleSound={onToggleSound}
         onCart={onCart}
       />
-      <ScrollArea ref={chatContainerRef} className="flex-1 p-4 min-h-0 flex flex-col gap-3">
+      <div ref={chatContainerRef} className="flex-1 p-4 min-h-0 flex flex-col gap-3 overflow-y-auto">
           {esperandoRubro ? (
             <div className="text-center w-full">
               <h2 className="text-green-500 mb-2">👋 ¡Bienvenido!</h2>
@@ -802,7 +810,7 @@ const ChatPanel = ({
               )}
             </>
           )}
-      </ScrollArea>
+      </div>
       <ScrollToBottomButton target={chatContainerRef.current} />
       {!esperandoRubro && !esperandoDireccion && (!showCierre || !showCierre.show) && (
         <div className="bg-card px-3 py-2 border-t min-w-0">
