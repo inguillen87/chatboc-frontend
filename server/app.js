@@ -5,6 +5,7 @@ const { getMunicipalStats } = require('./municipalStats');
 const { getFormattedProducts } = require('./catalog');
 const sessionMiddleware = require('./session');
 const cartRoutes = require('./cartRoutes');
+const preferences = require('./preferences');
 
 const app = express();
 app.use(express.json());
@@ -22,6 +23,10 @@ app.get('/municipal/stats', (req, res) => {
 });
 
 app.get('/productos', (req, res) => {
+  const q = (req.query.q || req.query.search || '').toString().trim();
+  if (q) {
+    preferences.addPreference(req.session, q);
+  }
   res.json(getFormattedProducts());
 });
 
