@@ -11,7 +11,7 @@ import ComingSoonSection from '@/components/sections/ComingSoonSection';
 
 const Index = () => {
   useEffect(() => {
-    document.title = 'Chatboc - Tu Experto Virtual para Pymes';
+    document.title = 'Chatboc - Tu Experto Virtual';
   }, []);
 
   return (

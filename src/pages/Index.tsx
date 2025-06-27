@@ -16,7 +16,7 @@ const Index = () => {
   const [showWidget, setShowWidget] = useState(true);
 
   useEffect(() => {
-    document.title = 'Chatboc - Tu Experto Virtual para Pymes';
+    document.title = 'Chatboc - Tu Experto Virtual';
 
     // AUTO SCROLL SI HAY UN PENDIENTE
     const sectionId = safeSessionStorage.getItem("pendingScrollSection");
