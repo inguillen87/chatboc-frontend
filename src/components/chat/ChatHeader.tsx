@@ -1,5 +1,5 @@
 import React from "react";
-import { X, User, ChevronLeft, Volume2, VolumeX } from "lucide-react";
+import { X, User, ChevronLeft, Volume2, VolumeX, ShoppingCart } from "lucide-react";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 
 interface Props {
@@ -10,6 +10,7 @@ interface Props {
   showProfile?: boolean;
   muted?: boolean;
   onToggleSound?: () => void;
+  onCart?: () => void;
 }
 
 const ChatHeader: React.FC<Props> = ({
@@ -80,6 +81,15 @@ const ChatHeader: React.FC<Props> = ({
             <User size={20} />
           </button>
         ) : null}
+        {onCart && (
+          <button
+            onClick={onCart}
+            className="text-muted-foreground hover:text-foreground transition"
+            aria-label="Ver carrito"
+          >
+            <ShoppingCart size={20} />
+          </button>
+        )}
         {onToggleSound && (
           <button
             onClick={onToggleSound}
