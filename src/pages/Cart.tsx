@@ -48,9 +48,14 @@ export default function CartPage() {
   };
 
   const cartItems = Object.entries(items);
+  const parsePrice = (val: string) => {
+    const num = parseFloat(val.replace(/[^0-9.,-]+/g, '').replace(',', '.'));
+    return isNaN(num) ? 0 : num;
+  };
+
   const total = cartItems.reduce((sum, [nombre, qty]) => {
     const prod = products[nombre];
-    const price = prod?.precio_str ? Number(prod.precio_str) : 0;
+    const price = prod?.precio_str ? parsePrice(prod.precio_str) : 0;
     return sum + price * qty;
   }, 0);
 
@@ -67,7 +72,7 @@ export default function CartPage() {
         <>
           {cartItems.map(([name, qty]) => {
             const prod = products[name];
-            const price = prod?.precio_str ? Number(prod.precio_str) : undefined;
+            const price = prod?.precio_str ? parsePrice(prod.precio_str) : undefined;
             return (
               <Card key={name} className="border border-border">
                 <CardContent className="p-4 flex items-center gap-4">
