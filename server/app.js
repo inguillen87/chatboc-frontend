@@ -3,9 +3,12 @@ const path = require('path');
 const { getAttentionMessage } = require('./widgetAttention');
 const { getMunicipalStats } = require('./municipalStats');
 const { getFormattedProducts } = require('./catalog');
+const sessionMiddleware = require('./session');
+const cartRoutes = require('./cartRoutes');
 
 const app = express();
 app.use(express.json());
+app.use(sessionMiddleware);
 
 const FILES_DIR = path.join(__dirname, 'files');
 
@@ -46,6 +49,8 @@ app.post('/ask/pyme', (req, res) => {
   }
   res.json({ reply: 'Pregunta no reconocida' });
 });
+
+app.use('/carrito', cartRoutes);
 
 module.exports = app;
 
