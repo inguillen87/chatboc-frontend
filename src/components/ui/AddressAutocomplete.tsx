@@ -36,6 +36,7 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
 }) => {
   const [internalValue, setInternalValue] = useState<any>(value || null);
   const [scriptLoaded, setScriptLoaded] = useState<boolean>(false);
+  const [tempInput, setTempInput] = useState<string>("");
 
   // Ensure Google Maps script loads with async attribute
   useEffect(() => {
@@ -53,7 +54,7 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
 
     const s = document.createElement("script");
     s.id = "chatboc-google-maps";
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${Maps_API_KEY}&libraries=places`;
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${Maps_API_KEY}&libraries=places&loading=async`;
     s.async = true;
     s.onload = () => setScriptLoaded(true);
     s.onerror = () => setScriptLoaded(false);
@@ -101,6 +102,8 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
         placeholder="Ingrese dirección"
         className={className}
         autoFocus={autoFocus}
+        value={tempInput}
+        onChange={(e) => setTempInput(e.currentTarget.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter" && e.currentTarget.value.trim()) {
             onSelect(e.currentTarget.value.trim());
@@ -108,6 +111,7 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
         }}
         onBlur={(e) => {
           const val = e.currentTarget.value.trim();
+          setTempInput(val);
           if (val) onSelect(val);
         }}
       />
