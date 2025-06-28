@@ -22,7 +22,7 @@ function ensureScriptLoaded(callback: () => void) {
   }
   const s = document.createElement("script");
   s.id = "chatboc-google-maps";
-  s.src = `https://maps.googleapis.com/maps/api/js?key=${Maps_API_KEY}&libraries=places`;
+  s.src = `https://maps.googleapis.com/maps/api/js?key=${Maps_API_KEY}&libraries=places&loading=async`;
   s.async = true;
   s.onload = callback;
   document.head.appendChild(s);
@@ -31,7 +31,7 @@ function ensureScriptLoaded(callback: () => void) {
 const LocationMap: React.FC<LocationMapProps> = ({ lat, lng, onMove }) => {
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
-  const markerRef = useRef<google.maps.Marker | null>(null);
+  const markerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
 
   useEffect(() => {
     ensureScriptLoaded(() => {
@@ -43,14 +43,14 @@ const LocationMap: React.FC<LocationMapProps> = ({ lat, lng, onMove }) => {
           center,
           zoom: lat != null && lng != null ? 15 : 5,
         });
-        markerRef.current = new window.google.maps.Marker({
+        markerRef.current = new window.google.maps.marker.AdvancedMarkerElement({
           position: lat != null && lng != null ? center : undefined,
-          map: mapRef.current,
+          map: mapRef.current!,
           draggable: Boolean(onMove),
         });
         if (onMove && markerRef.current) {
           markerRef.current.addListener("dragend", () => {
-            const pos = markerRef.current!.getPosition();
+            const pos = markerRef.current!.position;
             if (pos) onMove(pos.lat(), pos.lng());
           });
         }
@@ -58,8 +58,10 @@ const LocationMap: React.FC<LocationMapProps> = ({ lat, lng, onMove }) => {
         const pos = { lat, lng };
         mapRef.current!.setCenter(pos);
         mapRef.current!.setZoom(15);
-        markerRef.current?.setPosition(pos);
-        markerRef.current?.setMap(mapRef.current);
+        if (markerRef.current) {
+          markerRef.current.position = pos;
+          markerRef.current.map = mapRef.current!;
+        }
       }
     });
   }, [lat, lng, onMove]);
