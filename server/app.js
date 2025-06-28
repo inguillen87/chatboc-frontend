@@ -16,6 +16,19 @@ const preferences = require('./preferences');
 
 const app = express();
 app.use(express.json());
+// Allow cross-origin requests during local development
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'Authorization, Content-Type, Anon-Id'
+  );
+  res.setHeader(
+    'Access-Control-Allow-Methods',
+    'GET, POST, PUT, DELETE, PATCH, OPTIONS'
+  );
+  next();
+});
 app.use(sessionMiddleware);
 
 const FILES_DIR = path.join(__dirname, 'files');
