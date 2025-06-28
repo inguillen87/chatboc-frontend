@@ -5,7 +5,7 @@ import ChatInput from "@/components/chat/ChatInput";
 import TypingIndicator from "@/components/chat/TypingIndicator";
 import ChatMessage from "@/components/chat/ChatMessage";
 import RubroSelector, { Rubro } from "@/components/chat/RubroSelector";
-import { Message } from "@/types/chat";
+import { Message, SendPayload } from "@/types/chat";
 import { apiFetch, getErrorMessage } from "@/utils/api";
 import { getCurrentTipoChat, enforceTipoChatForRubro, parseRubro } from "@/utils/tipoChat";
 import { getAskEndpoint, esRubroPublico } from "@/utils/chatEndpoints";
@@ -62,8 +62,11 @@ const Demo = () => {
   }, [messages, isTyping]);
 
   const handleSendMessage = useCallback(
-    async (text: string) => {
-      if (!text.trim() || !rubroSeleccionado) return;
+    async (payload: SendPayload | string) => {
+      const text = typeof payload === "string" ? payload : payload.text;
+      const extras = typeof payload === "string" ? {} : payload;
+      if (!text.trim() && !extras.action && !extras.archivo_url && !extras.ubicacion_usuario) return;
+      if (!rubroSeleccionado) return;
       if (preguntasUsadas >= MAX_PREGUNTAS) {
         setMessages((prev) => [
           ...prev,
@@ -85,6 +88,8 @@ const Demo = () => {
         isBot: false,
         timestamp: new Date(),
         query: undefined,
+        mediaUrl: extras.es_foto ? extras.archivo_url : undefined,
+        locationData: extras.es_ubicacion ? extras.ubicacion_usuario : undefined,
       };
       setMessages((prev) => [...prev, userMessage]);
       lastQueryRef.current = text;
@@ -93,12 +98,15 @@ const Demo = () => {
       try {
         const currentTipo = getCurrentTipoChat();
         const adjustedTipo = enforceTipoChatForRubro(currentTipo, rubroSeleccionado);
-        const payload = {
+        const payloadBody: Record<string, any> = {
           pregunta: text,
           rubro_clave: rubroSeleccionado,
           contexto_previo: contexto,
           anon_id: anonId,
           tipo_chat: adjustedTipo,
+          ...(extras.es_foto && { es_foto: true, archivo_url: extras.archivo_url }),
+          ...(extras.es_ubicacion && { es_ubicacion: true, ubicacion_usuario: extras.ubicacion_usuario }),
+          ...(extras.action && { action: extras.action }),
         };
 
         const endpoint = getAskEndpoint({
@@ -107,7 +115,7 @@ const Demo = () => {
         });
         const response = await apiFetch<any>(endpoint, {
           method: "POST",
-          body: payload,
+          body: payloadBody,
           headers: { "Content-Type": "application/json" },
           skipAuth: true,
         });
@@ -145,16 +153,7 @@ const Demo = () => {
         setIsTyping(false);
       }
     },
-    [contexto, rubroSeleccionado, anonId, preguntasUsadas]
-  );
-
-  const handleFileUploaded = useCallback(
-    (data: any) => {
-      if (data?.url) {
-        handleSendMessage(data.url);
-      }
-    },
-    [handleSendMessage]
+    [contexto, rubroSeleccionado, anonId, preguntasUsadas, rubroNormalizado]
   );
 
   // Rubros selector UI
