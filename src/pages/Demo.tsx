@@ -10,6 +10,7 @@ import { apiFetch, getErrorMessage } from "@/utils/api";
 import { getCurrentTipoChat, enforceTipoChatForRubro, parseRubro } from "@/utils/tipoChat";
 import { getAskEndpoint, esRubroPublico } from "@/utils/chatEndpoints";
 import { parseChatResponse } from "@/utils/parseChatResponse";
+import { ShoppingCart } from "lucide-react";
 
 const MAX_PREGUNTAS = 15;
 
@@ -29,6 +30,10 @@ const Demo = () => {
 
   const rubroNormalizado = parseRubro(rubroSeleccionado);
   const isMunicipioRubro = esRubroPublico(rubroNormalizado || undefined);
+
+  const openCart = useCallback(() => {
+    window.open('/cart', '_blank');
+  }, []);
 
   useEffect(() => {
     setAnonId(getOrCreateAnonId());
@@ -213,9 +218,18 @@ const Demo = () => {
             Chatboc <span className="text-primary-foreground/70">· Demo Gratuita</span>
           </span>
         </div>
-        <span className="hidden sm:inline-block text-xs opacity-70 text-primary-foreground/70">
-          {rubroSeleccionado}
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="hidden sm:inline-block text-xs opacity-70 text-primary-foreground/70">
+            {rubroSeleccionado}
+          </span>
+          <button
+            onClick={openCart}
+            aria-label="Ver carrito"
+            className="text-primary-foreground/70 hover:text-primary-foreground transition"
+          >
+            <ShoppingCart size={20} />
+          </button>
+        </div>
       </div>
       <div className="w-full max-w-lg flex flex-col flex-1 px-2 sm:px-5 py-5 space-y-3 overflow-y-auto custom-scroll">
         {messages.map((msg) => (
