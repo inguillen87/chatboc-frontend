@@ -341,6 +341,10 @@ proxy only works with this exact relative path; pointing `VITE_API_URL`
 directly to `https://api.chatboc.ar` will bypass the proxy and trigger CORS
 errors.
 
+If requests such as `GET /productos` return `404 Not Found`, ensure the local
+API server from `server/app.js` is running on the same port referenced by
+`VITE_API_URL`.
+
 Some browser extensions (for example crypto wallets) inject scripts that modify
 `window.ethereum` or `window.tronLink`. These scripts can log warnings such as
 `Cannot assign to read only property 'ethereum' of object '#<Window>'` or
