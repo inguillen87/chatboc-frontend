@@ -20,19 +20,26 @@ export default function CartPage() {
   const [items, setItems] = useState<CartMap>({});
   const [products, setProducts] = useState<Record<string, Product>>({});
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const loadData = async () => {
+    setLoading(true);
     try {
       const [cart, prods] = await Promise.all([
         apiFetch<CartMap>('/carrito'),
         apiFetch<Product[]>('/productos'),
       ]);
       const map: Record<string, Product> = {};
-      prods.forEach((p) => { map[p.nombre] = p; });
+      prods.forEach((p) => {
+        map[p.nombre] = p;
+      });
       setProducts(map);
       setItems(cart);
+      setError(null);
     } catch (err) {
       setError(getErrorMessage(err, 'Error al cargar'));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -58,6 +65,10 @@ export default function CartPage() {
     const price = prod?.precio_str ? parsePrice(prod.precio_str) : 0;
     return sum + price * qty;
   }, 0);
+
+  if (loading) {
+    return <p className="p-4">Cargando...</p>;
+  }
 
   if (error) {
     return <p className="p-4 text-destructive">{error}</p>;

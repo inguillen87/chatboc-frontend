@@ -34,7 +34,12 @@ export default function ProductCatalog() {
   }, []);
 
   if (loading) return <p>Cargando...</p>;
-  if (error) return <p>{error}</p>;
+  if (error) {
+    if (error === 'No encontrado') {
+      return <p>No se encontraron productos.</p>;
+    }
+    return <p>{error}</p>;
+  }
 
   const handleAdd = async (name: string) => {
     await apiFetch('/carrito', { method: 'POST', body: { nombre: name, cantidad: 1 } });
