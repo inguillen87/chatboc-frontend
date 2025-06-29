@@ -212,7 +212,7 @@ export default function TicketsPanel() {
       return;
     }
     setSelectedTicketId(ticketSummary.id);
-    setDetailedTicket(null);
+    setDetailedTicket(null); 
     setError(null);
 
     try {
@@ -237,8 +237,8 @@ export default function TicketsPanel() {
       setDetailedTicket(data);
     } catch (err) {
       const errorMessage = err instanceof ApiError ? err.message : `No se pudo cargar el detalle del ticket ${ticketSummary.nro_ticket}.`;
-      setError(errorMessage);
-      setSelectedTicketId(null);
+      setError(errorMessage); 
+      setSelectedTicketId(null); 
     }
   }, []);
 
@@ -327,6 +327,7 @@ export default function TicketsPanel() {
                 className="w-[180px] h-9"
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
+
             />
             <Button variant="outline" onClick={fetchAndSetTickets} className="h-9" disabled={isLoading && allTickets.length === 0}>
                 {isLoading && allTickets.length === 0 ? <Loader2 className="h-4 w-4 animate-spin" /> : <Filter className="h-4 w-4"/>}
@@ -513,7 +514,7 @@ const TicketMap: FC<{ ticket: Ticket }> = ({ ticket }) => {
   );
 };
 
-const CATEGORIAS_CHAT_EN_VIVO = [
+const CATEGORIAS_CHAT_EN_VIVO = [ 
   "atención en vivo",
   "chat en vivo",
   "soporte urgente"
@@ -603,7 +604,7 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
              setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
         }
     }
-  }, [comentarios.length]);
+  }, [comentarios.length]); 
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || isSending || isAnonimo) return;
