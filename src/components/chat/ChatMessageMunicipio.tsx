@@ -10,6 +10,25 @@ import AttachmentPreview from "./AttachmentPreview";
 import MessageBubble from "./MessageBubble";
 import { deriveAttachmentInfo, AttachmentInfo } from "@/utils/attachment"; // Usar deriveAttachmentInfo
 
+const messageVariants = {
+  initial: (isBot: boolean) => ({
+    opacity: 0,
+    x: isBot ? -40 : 40,
+    scale: 0.95,
+  }),
+  animate: {
+    opacity: 1,
+    x: 0,
+    scale: 1,
+    transition: { type: "spring", stiffness: 260, damping: 22, duration: 0.25 },
+  },
+  exit: (isBot: boolean) => ({
+    opacity: 0,
+    x: isBot ? -20 : 20,
+    scale: 0.98,
+    transition: { duration: 0.15, ease: "easeIn" },
+  }),
+};
 
 const AvatarBot: React.FC<{ isTyping: boolean }> = ({ isTyping }) => (
   <motion.div
@@ -44,7 +63,7 @@ interface ChatMessageProps {
   isTyping: boolean;
   onButtonClick: (valueToSend: SendPayload) => void;
   onInternalAction?: (action: string) => void;
-  tipoChat?: "pyme" | "municipio"; // No se usa aquí pero se mantiene por consistencia de props
+  tipoChat?: "pyme" | "municipio"; 
   query?: string;
 }
 
@@ -54,22 +73,23 @@ const ChatMessageMunicipio = React.forwardRef<HTMLDivElement, ChatMessageProps>(
     isTyping,
     onButtonClick,
     onInternalAction,
-    // query: _query, // query no se usa directamente aquí
+    // query: _query, 
   },
   ref
 ) => {
   if (!message) {
     return (
-      <div className="text-xs text-destructive italic mt-2 px-3">
+      <motion.div className="text-xs text-destructive italic mt-2 px-3" ref={ref}>
         ❌ Mensaje inválido.
-      </div>
+      </motion.div>
     );
   }
+  
+  const isBot = message.isBot; // Define isBot here
 
   const safeText = typeof message.text === "string" && message.text !== "NaN" ? message.text : "";
   const sanitizedHtml = sanitizeMessageHtml(safeText);
 
-  const isBot = message.isBot;
   const bubbleClass = isBot
     ? "bg-muted text-muted-foreground"
     : "bg-primary text-primary-foreground";
@@ -84,11 +104,9 @@ const ChatMessageMunicipio = React.forwardRef<HTMLDivElement, ChatMessageProps>(
       message.attachmentInfo.mimeType,
       message.attachmentInfo.size
     );
-  } else if (message.mediaUrl && message.isBot) {
-    // Fallback MUY CAUTELOSO a mediaUrl SOLO SI ES BOT
+  } else if (message.mediaUrl && isBot) {
     processedAttachmentInfo = deriveAttachmentInfo(message.mediaUrl, message.mediaUrl.split('/').pop() || "archivo_adjunto");
   }
-  // No hay fallback a parsear `safeText` para URLs aquí, lo cual es bueno.
 
   const showAttachment = !!(
     (processedAttachmentInfo && (processedAttachmentInfo.type !== 'other' || !!processedAttachmentInfo.extension)) ||
@@ -96,9 +114,15 @@ const ChatMessageMunicipio = React.forwardRef<HTMLDivElement, ChatMessageProps>(
   );
 
   return (
-    <div
+    <motion.div
       ref={ref}
       className={`flex w-full ${isBot ? "justify-start" : "justify-end"} mb-2`}
+      custom={isBot}
+      variants={messageVariants}
+      initial="initial"
+      animate="animate"
+      exit="exit"
+      layout // Added layout prop
     >
       <div className={`flex items-end gap-2 ${isBot ? "" : "flex-row-reverse"}`}>
         {isBot && <AvatarBot isTyping={isTyping} />}
@@ -106,7 +130,7 @@ const ChatMessageMunicipio = React.forwardRef<HTMLDivElement, ChatMessageProps>(
         <MessageBubble className={`max-w-[95vw] md:max-w-2xl ${bubbleClass}`}>
           {showAttachment ? (
             <AttachmentPreview
-                attachment={processedAttachmentInfo || undefined}
+                attachment={processedAttachmentInfo || undefined} // Pass as attachment prop
                 locationData={message.locationData}
                 fallbackText={!processedAttachmentInfo && !message.locationData ? sanitizedHtml : undefined}
             />
@@ -127,7 +151,7 @@ const ChatMessageMunicipio = React.forwardRef<HTMLDivElement, ChatMessageProps>(
 
         {!isBot && <UserAvatar />}
       </div>
-    </div>
+    </motion.div>
   );
 });
 
