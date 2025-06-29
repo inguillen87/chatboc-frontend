@@ -8,7 +8,7 @@
     "preview": "vite preview",
     "setup-env": "node scripts/setupEnv.js",
     "postinstall": "npm run setup-env",
-    "test": "node tests/widgetAttention.test.js && node tests/municipalStats.test.js && node tests/catalog.test.js && node tests/adminChatFilter.test.js && node tests/cart.test.js && node tests/preferences.test.js && node tests/businessMetrics.test.js && node tests/municipalMessageMetrics.test.js && node tests/municipalAnalytics.test.js",
+    "test": "node tests/widgetAttention.test.js && node tests/municipalStatsFilters.test.js && node tests/municipalStats.test.js && node tests/catalog.test.js && node tests/adminChatFilter.test.js && node tests/cart.test.js && node tests/preferences.test.js && node tests/businessMetrics.test.js && node tests/municipalMessageMetrics.test.js && node tests/municipalAnalytics.test.js",
     "start": "node server/app.js"
   },
   "dependencies": {
