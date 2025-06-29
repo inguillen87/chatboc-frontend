@@ -15,9 +15,10 @@ export interface ChatApiResponse {
   [key: string]: any;
 }
 
-// Actualizar el tipo de retorno para incluir attachmentInfo
+export function parseChatResponse(data: ChatApiResponse): {
+  text?: string;
   botones: Boton[];
-  attachmentInfo?: Message['attachmentInfo']; // Añadir attachmentInfo al tipo de retorno
+  attachmentInfo?: Message['attachmentInfo'];
 } {
   if (!data) return { text: undefined, botones: [], attachmentInfo: undefined };
 

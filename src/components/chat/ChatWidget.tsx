@@ -361,8 +361,16 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                 )}
                 <motion.button
                   key="chatboc-btn-standalone"
-                  className={cn(commonButtonStyles, "w-[96px] h-[96px] absolute bottom-0 right-0 border-none shadow-xl")}
-                  style={{ borderRadius: "50%", background: "var(--primary, #2563eb)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 6px 24px 0 rgba(0,0,0,0.15)"}}
+                  className={cn(commonButtonStyles, commonPanelAndButtonAbsoluteClasses, "w-[96px] h-[96px] border-none shadow-xl")}
+                  style={{
+                    borderRadius: "50%",
+                    background: "var(--primary, #2563eb)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    boxShadow: "0 6px 24px 0 rgba(0,0,0,0.15)",
+                    zIndex: 20
+                  }}
                   {...buttonAnimation}
                   whileHover={{ scale: 1.1, transition: { type: "spring", stiffness: 400, damping: 15 } }}
                   whileTap={{ scale: 0.95 }}

@@ -188,6 +188,7 @@ export function getAttachmentInfo(textOrUrl: string): AttachmentInfo | null {
     // Si no hay extensión clara, y no es una URL absoluta, no podemos hacer mucho.
     if (!ext && !(textOrUrl.startsWith('http://') || textOrUrl.startsWith('https://'))) {
         return null;
+    }
 
     const name = textOrUrl.split('/').pop()?.split(/[?#]/)[0] || `archivo_desconocido${ext ? '.'+ext : ''}`;
 

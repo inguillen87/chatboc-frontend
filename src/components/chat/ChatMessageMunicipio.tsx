@@ -92,7 +92,7 @@ const ChatMessageMunicipio = React.forwardRef<HTMLDivElement, ChatMessageProps>(
 
   const showAttachment = !!(
     (processedAttachmentInfo && (processedAttachmentInfo.type !== 'other' || !!processedAttachmentInfo.extension)) ||
-
+    message.locationData
   );
 
   return (
