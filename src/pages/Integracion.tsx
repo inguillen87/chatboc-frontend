@@ -94,7 +94,7 @@ const Integracion = () => {
   const WIDGET_STD_CLOSED_HEIGHT = "96px";
   const WIDGET_STD_BOTTOM = "20px";
   const WIDGET_STD_RIGHT = "20px";
-
+  
   const codeScript = useMemo(() => `<script>
 document.addEventListener('DOMContentLoaded', function () {
   // Asegura que el widget se destruya y se vuelva a crear si ya existe
@@ -115,7 +115,7 @@ document.addEventListener('DOMContentLoaded', function () {
   s.setAttribute('data-bottom', '${WIDGET_STD_BOTTOM}'); // Posición desde abajo
   s.setAttribute('data-right', '${WIDGET_STD_RIGHT}'); // Posición desde la derecha
   s.setAttribute('data-endpoint', '${endpoint}'); // Tipo de chat (pyme o municipio)
-
+  
   // Importante para la geolocalización y el portapapeles:
   // widget.js establecerá allow="clipboard-write; geolocation" en su iframe interno.
   // Si este script se inserta dentro de un iframe en tu sitio, ese iframe contenedor
@@ -136,7 +136,7 @@ document.addEventListener('DOMContentLoaded', function () {
 </script>`, [userToken, endpoint]);
 
   const iframeSrcUrl = useMemo(() => `https://www.chatboc.ar/iframe?token=${userToken}&tipo_chat=${endpoint}`, [userToken, endpoint]);
-
+  
   const codeIframe = useMemo(() => `<iframe
   id="chatboc-iframe"
   src="${iframeSrcUrl}"
@@ -216,7 +216,7 @@ document.addEventListener('DOMContentLoaded', function () {
      // pero es una salvaguarda. La navegación a /login ya se gestiona en useEffect.
     return null;
   }
-
+  
   if (!user.tipo_chat) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen text-destructive bg-background p-6 text-center">
@@ -230,7 +230,7 @@ document.addEventListener('DOMContentLoaded', function () {
       </div>
     );
   }
-
+  
   const renderCodeBlock = (title: string, type: "script" | "iframe", code: string, recommended?: boolean) => (
     <Card className="overflow-hidden">
       <CardHeader className="pb-2">

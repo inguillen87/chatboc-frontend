@@ -74,6 +74,7 @@ const ChatMessageMunicipio = React.forwardRef<HTMLDivElement, ChatMessageProps>(
     ? "bg-muted text-muted-foreground"
     : "bg-primary text-primary-foreground";
 
+
   let processedAttachmentInfo: AttachmentInfo | null = null;
 
   if (message.attachmentInfo && message.attachmentInfo.url && message.attachmentInfo.name && message.attachmentInfo.mimeType) {
@@ -91,7 +92,7 @@ const ChatMessageMunicipio = React.forwardRef<HTMLDivElement, ChatMessageProps>(
 
   const showAttachment = !!(
     (processedAttachmentInfo && (processedAttachmentInfo.type !== 'other' || !!processedAttachmentInfo.extension)) ||
-    message.locationData
+
   );
 
   return (

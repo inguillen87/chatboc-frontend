@@ -12,14 +12,13 @@ const ChatbocLogoAnimated = ({
   pulsing = false,
   style = {},
 }) => {
-  // Ajusta los valores para que coincidan con tu logo si lo ves raro
-  const leftEye = movingEyes ? 20 : 18;
-  const rightEye = movingEyes ? 36 : 34;
-  const safeLeftEye = leftEye || 0;
-  const safeRightEye = rightEye || 0;
+  const eyeBaseY = 24;
+  const leftEyeX = movingEyes ? 19 : 18; // Slightly more movement inwards for movingEyes
+  const rightEyeX = movingEyes ? 37 : 38; // Slightly more movement inwards for movingEyes
+
   const mouthPath = smiling
-    ? "M18,34 Q28,44 38,34"
-    : "M20,34 Q28,38 36,34";
+    ? "M18,35 Q28,46 38,35" // Wider, happier smile
+    : "M20,36 Q28,40 36,36"; // Neutral mouth slightly adjusted
 
   return (
     <motion.div
@@ -31,22 +30,32 @@ const ChatbocLogoAnimated = ({
         ...style,
       }}
       animate={{
-        rotate: smiling ? [0, 8, -8, 0] : 0,
-        y: floating ? [0, -4, 0] : 0,
-        scale: pulsing ? [1, 1.05, 1] : 1,
+        rotate: smiling ? [0, 5, -5, 5, -5, 0] : 0, // More playful, quicker rotation
+        y: floating ? [0, -3, 0, 1, 0] : 0, // Softer, more natural float
+        scale: pulsing ? [1, 1.03, 1] : 1, // Subtler pulse
       }}
       transition={{
-        rotate: smiling ? { duration: 0.8 } : {},
+        rotate: smiling ? { duration: 0.7, ease: "easeInOut" } : {},
         y: floating
-          ? { repeat: Infinity, duration: 2, repeatType: "reverse" }
+          ? {
+              repeat: Infinity,
+              duration: 2.5, // Slightly longer duration for float
+              ease: "easeInOut",
+              repeatType: "reverse",
+            }
           : {},
         scale: pulsing
-          ? { repeat: Infinity, duration: 1.6, repeatType: "reverse" }
+          ? {
+              repeat: Infinity,
+              duration: 1.8, // Slightly longer duration for pulse
+              ease: "easeInOut",
+              repeatType: "reverse",
+            }
           : {},
       }}
     >
       <img
-        src="/favicon/favicon-512x512.png"
+        src="/favicon/favicon-512x512.png" // Assuming this is the base character image
         alt="Chatboc"
         style={{
           width: size,
@@ -55,11 +64,10 @@ const ChatbocLogoAnimated = ({
         }}
         draggable={false}
       />
-      {/* Capa de animación SVG encima */}
       <motion.svg
         width={size}
         height={size}
-        viewBox="0 0 56 56"
+        viewBox="0 0 56 56" // ViewBox should match the design coordinates
         style={{
           position: "absolute",
           left: 0,
@@ -69,55 +77,55 @@ const ChatbocLogoAnimated = ({
       >
         {/* Ojos */}
         <motion.circle
-          cx={safeLeftEye}
-          cy={24 || 0}
-          r={4}
-          fill="#fff"
+          cx={leftEyeX}
+          cy={eyeBaseY}
+          r={3.5} // Slightly smaller eyes
+          fill="#FFFFFF" // Ensure high contrast, pure white
           animate={
             blinking
-              ? { scaleY: [1, 0.1, 1] }
+              ? { scaleY: [1, 0.05, 1], transitionEnd: { scaleY: 1 } } // Quick blink
               : movingEyes
-              ? { cy: [24, 22, 24] }
-              : undefined
+              ? { cy: [eyeBaseY, eyeBaseY - 1, eyeBaseY, eyeBaseY + 1, eyeBaseY], cx: [leftEyeX, leftEyeX +1, leftEyeX -1, leftEyeX, leftEyeX] } // More dynamic eye movement
+              : { cy: eyeBaseY, cx: leftEyeX } // Static position
           }
           transition={
             blinking
-              ? { repeat: Infinity, duration: 0.15, repeatDelay: 4 }
+              ? { repeat: Infinity, duration: 0.1, repeatDelay: Math.random() * 5 + 3, ease: "easeOut" } // Randomized blink delay
               : movingEyes
-              ? { repeat: Infinity, duration: 1.5 }
-              : undefined
+              ? { repeat: Infinity, duration: 2.2, ease: "easeInOut", delay: Math.random() * 0.5 }
+              : { duration: 0.2 }
           }
           style={{ transformOrigin: "center" }}
         />
         <motion.circle
-          cx={safeRightEye}
-          cy={24 || 0}
-          r={4}
-          fill="#fff"
+          cx={rightEyeX}
+          cy={eyeBaseY}
+          r={3.5} // Slightly smaller eyes
+          fill="#FFFFFF"
           animate={
             blinking
-              ? { scaleY: [1, 0.1, 1] }
+              ? { scaleY: [1, 0.05, 1], transitionEnd: { scaleY: 1 } } // Quick blink
               : movingEyes
-              ? { cy: [24, 26, 24] }
-              : undefined
+              ? { cy: [eyeBaseY, eyeBaseY + 1, eyeBaseY, eyeBaseY - 1, eyeBaseY], cx: [rightEyeX, rightEyeX -1, rightEyeX + 1, rightEyeX, rightEyeX] } // More dynamic eye movement
+              : { cy: eyeBaseY, cx: rightEyeX } // Static position
           }
           transition={
             blinking
-              ? { repeat: Infinity, duration: 0.15, repeatDelay: 4.2 }
+              ? { repeat: Infinity, duration: 0.1, repeatDelay: Math.random() * 5 + 3.1, ease: "easeOut" } // Randomized blink delay, slightly offset
               : movingEyes
-              ? { repeat: Infinity, duration: 1.5, delay: 0.2 }
-              : undefined
+              ? { repeat: Infinity, duration: 2.2, ease: "easeInOut", delay: Math.random() * 0.5 + 0.1 }
+              : { duration: 0.2 }
           }
           style={{ transformOrigin: "center" }}
         />
         {/* Boca */}
         <motion.path
           d={mouthPath}
-          stroke="#fff"
-          strokeWidth={3}
+          stroke="#FFFFFF"
+          strokeWidth={2.5} // Slightly thinner mouth stroke
           strokeLinecap="round"
           fill="none"
-          style={{ transition: "d 0.25s" }}
+          transition={{ d: { duration: 0.25, ease: "easeInOut" } }} // Smoother transition for mouth shape
         />
       </motion.svg>
     </motion.div>
