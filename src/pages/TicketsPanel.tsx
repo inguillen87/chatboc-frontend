@@ -259,6 +259,7 @@ export default function TicketsPanel() {
       </div>
     );
   }
+
   if (error && allTickets.length === 0 && !isLoading) {
     return <div className="p-8 text-center text-destructive bg-destructive/10 rounded-md h-screen flex flex-col justify-center items-center">
         <TicketIcon className="mx-auto h-12 w-12 text-destructive mb-4" />
@@ -326,41 +327,7 @@ export default function TicketsPanel() {
                 className="w-[180px] h-9"
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
-            />
-            <Button variant="outline" onClick={fetchAndSetTickets} className="h-9" disabled={isLoading && allTickets.length === 0}>
-                {isLoading && allTickets.length === 0 ? <Loader2 className="h-4 w-4 animate-spin" /> : <Filter className="h-4 w-4"/>}
-                <span className="ml-2 hidden sm:inline">Actualizar</span>
-            </Button>
-        </div>
-        <div className="mt-4 flex items-center gap-3">
-            <div className="relative flex-grow">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input 
-                    placeholder="Buscar por ID, asunto, usuario, email..."
-                    className="pl-9 h-9"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                />
-            </div>
-            <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as TicketStatus | "")}>
-                <SelectTrigger className="w-auto min-w-[180px] h-9">
-                    <div className="flex items-center gap-2">
-                        <ListFilter className="h-4 w-4 text-muted-foreground"/>
-                        <SelectValue placeholder="Filtrar por estado" />
-                    </div>
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="">Todos los estados</SelectItem>
-                    {Object.entries(ESTADOS).map(([key, {label}]) => (
-                        <SelectItem key={key} value={key}>{label}</SelectItem>
-                    ))}
-                </SelectContent>
-            </Select>
-            <Input 
-                placeholder="Categoría..."
-                className="w-[180px] h-9"
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
+
             />
             <Button variant="outline" onClick={fetchAndSetTickets} className="h-9" disabled={isLoading && allTickets.length === 0}>
                 {isLoading && allTickets.length === 0 ? <Loader2 className="h-4 w-4 animate-spin" /> : <Filter className="h-4 w-4"/>}
@@ -516,11 +483,13 @@ const TicketMap: FC<{ ticket: Ticket }> = ({ ticket }) => {
   const direccionCompleta = buildFullAddress(ticket);
   const hasCoords =
     typeof ticket.latitud === 'number' && typeof ticket.longitud === 'number';
+
   if (!ticket.direccion && !hasCoords) return null;
 
   const mapSrc = hasCoords
     ? `https://www.google.com/maps?q=${ticket.latitud},${ticket.longitud}&output=embed&z=15`
     : `https://www.google.com/maps?q=${encodeURIComponent(direccionCompleta)}&output=embed&z=15`;
+
   return (
     <Card className="shadow-sm">
         <CardHeader  className="pb-3 pt-4 px-4">
@@ -812,6 +781,7 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
                     </CardContent>
                 </Card>
                 )}
+
                 <TicketTimeline ticket={ticket} comentarios={comentarios} />
                 <TicketMap ticket={ticket} />
 
