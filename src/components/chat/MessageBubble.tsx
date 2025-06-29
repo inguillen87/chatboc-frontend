@@ -16,12 +16,21 @@ const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
         className
       )}
       variants={{
-        hidden: { opacity: 0, y: 14, scale: 0.97 },
-        visible: { opacity: 1, y: 0, scale: [1, 1.03, 1] },
+        hidden: { opacity: 0, y: 20, scale: 0.95 }, // Slightly more y offset and smaller initial scale
+        visible: {
+          opacity: 1,
+          y: 0,
+          scale: 1,
+        },
       }}
       initial="hidden"
       animate="visible"
-      transition={{ duration: 0.28, ease: "easeOut" }}
+      transition={{
+        type: "spring",
+        stiffness: 260,
+        damping: 20,
+        opacity: { duration: 0.2, ease: "easeIn" } // Faster opacity fade-in
+      }}
     >
       {children}
     </motion.div>
