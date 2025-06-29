@@ -96,7 +96,7 @@ const ChatMessagePyme = React.forwardRef<HTMLDivElement, ChatMessageProps>( (
   const bubbleClass = isBot
     ? "bg-muted text-muted-foreground"
     : "bg-primary text-primary-foreground";
-  const bubbleWidth = "max-w-[95vw] md:max-w-2xl";
+  const bubbleWidth = "max-w-[95vw] md:max-w-3xl"; // Increased from 2xl to 3xl
   const bubbleExtra = "";
 
   // Determinar si se debe mostrar el AttachmentPreview o el texto.

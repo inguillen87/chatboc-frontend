@@ -21,10 +21,10 @@ const ProactiveBubble: React.FC<ProactiveBubbleProps> = ({
     <motion.div
       key="proactive-bubble"
       className="absolute bottom-full right-0 mb-3 flex items-start gap-2 cursor-pointer"
-      initial={{ opacity: 0, y: 20, scale: 0.9 }}
+      initial={{ opacity: 0, y: 25, scale: 0.85 }} // Increased y, decreased initial scale
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: 10, scale: 0.9 }}
-      transition={{ type: "spring", stiffness: 200, damping: 20 }}
+      exit={{ opacity: 0, y: 15, scale: 0.85 }} // Adjusted exit values
+      transition={{ type: "spring", stiffness: 230, damping: 22 }} // Slightly stiffer and more damped spring
       onClick={onClick}
       role="alert"
       aria-live="polite"
