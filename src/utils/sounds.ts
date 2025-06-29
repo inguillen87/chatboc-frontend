@@ -24,3 +24,4 @@ export const playBeep = (
 
 export const playOpenSound = () => playBeep(500, 0.18, 0.12);
 export const playMessageSound = () => playBeep(620, 0.15, 0.12);
+export const playProactiveSound = () => playBeep(700, 0.1, 0.08); // Un beep ligeramente más agudo y corto/suave
