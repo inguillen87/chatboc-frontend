@@ -122,11 +122,10 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
           flex items-center justify-center
           rounded-full p-2.5
           shadow-xl transition-all duration-150
-          focus:outline-none focus:ring-2 focus:ring-blue-500/60
+          focus:outline-none focus:ring-2 focus:ring-primary/60
           active:scale-95
 
-          bg-gray-200 text-gray-700 hover:bg-gray-300
-          dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600
+          bg-accent text-accent-foreground hover:bg-accent/80
 
           ${isTyping ? "opacity-50 cursor-not-allowed" : ""}
         `}
@@ -154,14 +153,13 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
           flex items-center justify-center
           rounded-full p-2.5
           shadow-xl transition-all duration-150
-          focus:outline-none focus:ring-2 focus:ring-blue-500/60
+          focus:outline-none focus:ring-2 focus:ring-primary/60
           active:scale-95
 
-          bg-gray-200 text-gray-700 hover:bg-gray-300
-          dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600
+          bg-accent text-accent-foreground hover:bg-accent/80
 
           ${isTyping ? "opacity-50 cursor-not-allowed" : ""}
-          ${listening ? "text-red-600" : ""}
+          ${listening ? "text-destructive" : ""}
         `}
         aria-label={listening ? "Detener dictado" : "Dictar mensaje"}
         type="button"
@@ -183,12 +181,9 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
           
           bg-input
           text-foreground
-          border border-input
+          border border-border /* Use theme border */
           
-          dark:bg-[#1a1a1a]
-          dark:text-gray-100
-          dark:placeholder-gray-400
-          dark:border-[#333a4d]
+          /* Remove specific dark mode overrides to inherit from theme */
 
           ${isTyping ? "opacity-60 bg-muted-foreground/10" : ""}
         `}
@@ -222,7 +217,7 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
 
           bg-primary hover:bg-primary/90
           text-primary-foreground
-          dark:bg-blue-600 dark:hover:bg-blue-700
+          /* Removed dark:bg-blue-600 dark:hover:bg-blue-700 as theme primary handles dark mode */
 
           ${!input.trim() || isTyping ? "opacity-50 cursor-not-allowed" : ""}
         `}

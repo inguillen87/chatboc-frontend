@@ -60,10 +60,11 @@ const ChatHeader: React.FC<Props> = ({
       </div>
       <div className="flex items-center gap-2">
         <span
-          className="text-green-500 text-xs font-semibold"
+          className="text-primary text-xs font-semibold flex items-center"
           aria-label="Estado del bot: Online"
         >
-          ● Online
+          <span className="w-2 h-2 bg-primary rounded-full mr-1.5"></span>
+          Online
         </span>
         {onBack ? (
           <button
