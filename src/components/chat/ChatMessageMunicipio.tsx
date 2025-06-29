@@ -1,14 +1,19 @@
 // src/components/chat/ChatMessageMunicipio.tsx
 import React from "react";
-import { Message, SendPayload } from "@/types/chat"; // Importa SendPayload
+import { Message, SendPayload } from "@/types/chat";
 import ChatButtons from "./ChatButtons";
 import { motion } from "framer-motion";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
-import UserAvatarAnimated from "./UserAvatarAnimated";
+// import UserAvatarAnimated from "./UserAvatarAnimated"; // No se usa directamente
 import sanitizeMessageHtml from "@/utils/sanitizeMessageHtml";
 import AttachmentPreview from "./AttachmentPreview";
 import MessageBubble from "./MessageBubble";
-import { deriveAttachmentInfo, AttachmentInfo } from "@/utils/attachment"; // Usar deriveAttachmentInfo
+import { deriveAttachmentInfo, AttachmentInfo } from "@/utils/attachment";
+
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { useUser } from "@/hooks/useUser";
+import { User as UserIcon } from "lucide-react";
+import { getInitials } from "@/lib/utils";
 
 const messageVariants = {
   initial: (isBot: boolean) => ({
@@ -47,16 +52,31 @@ const AvatarBot: React.FC<{ isTyping: boolean }> = ({ isTyping }) => (
   </motion.div>
 );
 
-const UserAvatar = () => (
-  <motion.span
-    className="flex-shrink-0 w-8 h-8 rounded-full bg-secondary flex items-center justify-center border border-border shadow-md"
-    initial={{ scale: 0.8, opacity: 0 }}
-    animate={{ scale: 1, opacity: 1 }}
-    transition={{ type: "spring", stiffness: 200, damping: 20 }}
-  >
-    <UserAvatarAnimated size={24} talking={false} />
-  </motion.span>
-);
+// --- UserAvatar modificado ---
+const UserChatAvatar: React.FC = () => {
+  const { user } = useUser();
+  const initials = getInitials(user?.name);
+
+  return (
+    <motion.div
+      className="flex-shrink-0 shadow-md"
+      initial={{ scale: 0.8, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      transition={{ type: "spring", stiffness: 200, damping: 20 }}
+    >
+      <Avatar className="w-8 h-8 border">
+        <AvatarImage src={user?.picture} alt={user?.name || "Avatar de usuario"} />
+        <AvatarFallback className="bg-secondary text-secondary-foreground text-xs">
+          {initials ? (
+            initials
+          ) : (
+            <UserIcon size={16} />
+          )}
+        </AvatarFallback>
+      </Avatar>
+    </motion.div>
+  );
+};
 
 interface ChatMessageProps {
   message: Message;
@@ -149,7 +169,7 @@ const ChatMessageMunicipio = React.forwardRef<HTMLDivElement, ChatMessageProps>(
           )}
         </MessageBubble>
 
-        {!isBot && <UserAvatar />}
+        {!isBot && <UserChatAvatar />} {/* Usar el UserChatAvatar modificado */}
       </div>
     </motion.div>
   );
