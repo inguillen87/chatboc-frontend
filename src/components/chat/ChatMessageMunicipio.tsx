@@ -8,7 +8,7 @@ import UserAvatarAnimated from "./UserAvatarAnimated";
 import sanitizeMessageHtml from "@/utils/sanitizeMessageHtml";
 import AttachmentPreview from "./AttachmentPreview";
 import MessageBubble from "./MessageBubble";
-import { getAttachmentInfo, AttachmentInfo } from "@/utils/attachment"; // Importar getAttachmentInfo y AttachmentInfo
+import { deriveAttachmentInfo, AttachmentInfo } from "@/utils/attachment"; // Usar deriveAttachmentInfo
 
 
 const AvatarBot: React.FC<{ isTyping: boolean }> = ({ isTyping }) => (
@@ -42,9 +42,9 @@ const UserAvatar = () => (
 interface ChatMessageProps {
   message: Message;
   isTyping: boolean;
-  onButtonClick: (valueToSend: SendPayload) => void; // <-- MODIFICADO: Acepta SendPayload
+  onButtonClick: (valueToSend: SendPayload) => void;
   onInternalAction?: (action: string) => void;
-  tipoChat?: "pyme" | "municipio";
+  tipoChat?: "pyme" | "municipio"; // No se usa aquí pero se mantiene por consistencia de props
   query?: string;
 }
 
@@ -54,68 +54,45 @@ const ChatMessageMunicipio = React.forwardRef<HTMLDivElement, ChatMessageProps>(
     isTyping,
     onButtonClick,
     onInternalAction,
-    query: _query, // not used but kept for prop consistency
+    // query: _query, // query no se usa directamente aquí
   },
   ref
 ) => {
-  // Seguridad ante mensajes rotos
-  if (!message || typeof message.text !== "string") {
+  if (!message) {
     return (
       <div className="text-xs text-destructive italic mt-2 px-3">
-        ❌ Mensaje inválido o malformado.
+        ❌ Mensaje inválido.
       </div>
     );
   }
 
-  // Evitar mostrar "NaN" o valores falsos
-  const safeText = message.text === "NaN" || message.text == null ? "" : message.text;
-  // Limpiamos HTML sin cortar el texto
+  const safeText = typeof message.text === "string" && message.text !== "NaN" ? message.text : "";
   const sanitizedHtml = sanitizeMessageHtml(safeText);
 
   const isBot = message.isBot;
-
   const bubbleClass = isBot
     ? "bg-muted text-muted-foreground"
     : "bg-primary text-primary-foreground";
 
-  let attachmentForPreviewObj: AttachmentInfo | undefined = undefined;
-  let showAttachmentComponent = false;
+  let processedAttachmentInfo: AttachmentInfo | null = null;
 
-  if (message.attachmentInfo && message.attachmentInfo.url && message.attachmentInfo.name) {
-    const ext = message.attachmentInfo.name.split('.').pop()?.toLowerCase() ||
-                (message.attachmentInfo.mimeType ? message.attachmentInfo.mimeType.split('/')[1] : '') ||
-                '';
-
-    let type: AttachmentInfo['type'] = 'other';
-    // TODO: Centralizar esta lógica de determinación de tipo en utils/attachment.ts
-    // y hacerla más robusta (usar mimeType primero).
-    if (message.attachmentInfo.mimeType?.startsWith('image/')) {
-        type = 'image';
-    } else if (message.attachmentInfo.mimeType === 'application/pdf' || ext === 'pdf') {
-        type = 'pdf';
-    } else if (message.attachmentInfo.mimeType?.includes('spreadsheet') ||
-               message.attachmentInfo.mimeType?.includes('csv') ||
-               ['xls', 'xlsx', 'csv'].includes(ext) ) {
-        type = 'spreadsheet';
-    }
-    // Aquí se podrían añadir más tipos (docx, etc.)
-
-    attachmentForPreviewObj = {
-      url: message.attachmentInfo.url,
-      name: message.attachmentInfo.name,
-      extension: ext,
-      type: type,
-    };
-    showAttachmentComponent = true;
-  } else if (message.mediaUrl) {
-    const parsedFromMediaUrl = getAttachmentInfo(message.mediaUrl);
-    if(parsedFromMediaUrl){
-        attachmentForPreviewObj = parsedFromMediaUrl;
-        showAttachmentComponent = true;
-    }
-  } else if (message.locationData) {
-    showAttachmentComponent = true; // AttachmentPreview maneja locationData internamente
+  if (message.attachmentInfo && message.attachmentInfo.url && message.attachmentInfo.name && message.attachmentInfo.mimeType) {
+    processedAttachmentInfo = deriveAttachmentInfo(
+      message.attachmentInfo.url,
+      message.attachmentInfo.name,
+      message.attachmentInfo.mimeType,
+      message.attachmentInfo.size
+    );
+  } else if (message.mediaUrl && message.isBot) {
+    // Fallback MUY CAUTELOSO a mediaUrl SOLO SI ES BOT
+    processedAttachmentInfo = deriveAttachmentInfo(message.mediaUrl, message.mediaUrl.split('/').pop() || "archivo_adjunto");
   }
+  // No hay fallback a parsear `safeText` para URLs aquí, lo cual es bueno.
+
+  const showAttachment = !!(
+    (processedAttachmentInfo && (processedAttachmentInfo.type !== 'other' || !!processedAttachmentInfo.extension)) ||
+    message.locationData
+  );
 
   return (
     <div
@@ -126,16 +103,14 @@ const ChatMessageMunicipio = React.forwardRef<HTMLDivElement, ChatMessageProps>(
         {isBot && <AvatarBot isTyping={isTyping} />}
 
         <MessageBubble className={`max-w-[95vw] md:max-w-2xl ${bubbleClass}`}>
-          {showAttachmentComponent ? (
+          {showAttachment ? (
             <AttachmentPreview
-                attachment={attachmentForPreviewObj}
+                attachment={processedAttachmentInfo || undefined}
                 locationData={message.locationData}
-                // No es necesario pasar mediaUrl si attachmentForPreviewObj ya lo contiene.
-                // fallbackText se usa si attachmentForPreviewObj es solo para location y no hay texto que mostrar.
-                fallbackText={(!attachmentForPreviewObj || (attachmentForPreviewObj && !attachmentForPreviewObj.url)) && message.locationData ? "" : safeText}
+                fallbackText={!processedAttachmentInfo && !message.locationData ? sanitizedHtml : undefined}
             />
           ) : (
-            <span
+            sanitizedHtml && <span
               className="prose dark:prose-invert max-w-none text-sm [&_p]:my-0"
               dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
             />
@@ -143,7 +118,7 @@ const ChatMessageMunicipio = React.forwardRef<HTMLDivElement, ChatMessageProps>(
           {isBot && message.botones && message.botones.length > 0 && (
             <ChatButtons
               botones={message.botones}
-              onButtonClick={onButtonClick} // Pasa el onButtonClick modificado
+              onButtonClick={onButtonClick}
               onInternalAction={onInternalAction}
             />
           )}
