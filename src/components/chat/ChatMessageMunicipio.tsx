@@ -8,6 +8,8 @@ import UserAvatarAnimated from "./UserAvatarAnimated";
 import sanitizeMessageHtml from "@/utils/sanitizeMessageHtml";
 import AttachmentPreview from "./AttachmentPreview";
 import MessageBubble from "./MessageBubble";
+import { getAttachmentInfo, AttachmentInfo } from "@/utils/attachment"; // Importar getAttachmentInfo y AttachmentInfo
+
 
 const AvatarBot: React.FC<{ isTyping: boolean }> = ({ isTyping }) => (
   <motion.div
@@ -76,6 +78,45 @@ const ChatMessageMunicipio = React.forwardRef<HTMLDivElement, ChatMessageProps>(
     ? "bg-[#192745] text-blue-100"
     : "bg-gradient-to-br from-blue-600 to-blue-800 text-white";
 
+  let attachmentForPreviewObj: AttachmentInfo | undefined = undefined;
+  let showAttachmentComponent = false;
+
+  if (message.attachmentInfo && message.attachmentInfo.url && message.attachmentInfo.name) {
+    const ext = message.attachmentInfo.name.split('.').pop()?.toLowerCase() ||
+                (message.attachmentInfo.mimeType ? message.attachmentInfo.mimeType.split('/')[1] : '') ||
+                '';
+
+    let type: AttachmentInfo['type'] = 'other';
+    // TODO: Centralizar esta lógica de determinación de tipo en utils/attachment.ts
+    // y hacerla más robusta (usar mimeType primero).
+    if (message.attachmentInfo.mimeType?.startsWith('image/')) {
+        type = 'image';
+    } else if (message.attachmentInfo.mimeType === 'application/pdf' || ext === 'pdf') {
+        type = 'pdf';
+    } else if (message.attachmentInfo.mimeType?.includes('spreadsheet') ||
+               message.attachmentInfo.mimeType?.includes('csv') ||
+               ['xls', 'xlsx', 'csv'].includes(ext) ) {
+        type = 'spreadsheet';
+    }
+    // Aquí se podrían añadir más tipos (docx, etc.)
+
+    attachmentForPreviewObj = {
+      url: message.attachmentInfo.url,
+      name: message.attachmentInfo.name,
+      extension: ext,
+      type: type,
+    };
+    showAttachmentComponent = true;
+  } else if (message.mediaUrl) {
+    const parsedFromMediaUrl = getAttachmentInfo(message.mediaUrl);
+    if(parsedFromMediaUrl){
+        attachmentForPreviewObj = parsedFromMediaUrl;
+        showAttachmentComponent = true;
+    }
+  } else if (message.locationData) {
+    showAttachmentComponent = true; // AttachmentPreview maneja locationData internamente
+  }
+
   return (
     <div
       ref={ref}
@@ -85,12 +126,13 @@ const ChatMessageMunicipio = React.forwardRef<HTMLDivElement, ChatMessageProps>(
         {isBot && <AvatarBot isTyping={isTyping} />}
 
         <MessageBubble className={`max-w-[95vw] md:max-w-2xl ${bubbleClass}`}>
-          {/* Renderiza AttachmentPreview solo si hay mediaUrl o locationData */}
-          {(message.mediaUrl || message.locationData) ? (
+          {showAttachmentComponent ? (
             <AttachmentPreview
-                mediaUrl={message.mediaUrl}
+                attachment={attachmentForPreviewObj}
                 locationData={message.locationData}
-                fallbackText={message.text} // Usa el texto del mensaje como fallback si no se muestra el adjunto
+                // No es necesario pasar mediaUrl si attachmentForPreviewObj ya lo contiene.
+                // fallbackText se usa si attachmentForPreviewObj es solo para location y no hay texto que mostrar.
+                fallbackText={(!attachmentForPreviewObj || (attachmentForPreviewObj && !attachmentForPreviewObj.url)) && message.locationData ? "" : safeText}
             />
           ) : (
             <span

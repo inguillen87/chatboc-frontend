@@ -1,5 +1,8 @@
 const express = require('express');
 const path = require('path');
+const multer = require('multer'); // Importar multer
+const fs = require('fs'); // Importar fs para crear directorio si no existe
+
 const { getAttentionMessage } = require('./widgetAttention');
 const { getMunicipalStats, getMunicipalStatsFiltersData } = require('./municipalStats'); // Added getMunicipalStatsFiltersData
 const { getFormattedProducts } = require('./catalog');
@@ -32,6 +35,43 @@ app.use((req, res, next) => {
 app.use(sessionMiddleware);
 
 const FILES_DIR = path.join(__dirname, 'files');
+const UPLOADS_DIR = path.join(__dirname, 'uploads');
+
+// Asegurarse de que el directorio de subidas exista
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+
+// Configuración de Multer
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, UPLOADS_DIR);
+  },
+  filename: function (req, file, cb) {
+    // Nombre único: timestamp + nombre original para evitar colisiones pero mantener referencia
+    const uniquePrefix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniquePrefix + '-' + file.originalname);
+  }
+});
+
+const ALLOWED_EXTENSIONS_BACKEND = [
+  'jpg', 'jpeg', 'png', 'pdf', 'xlsx', 'xls', 'csv', 'docx', 'txt'
+];
+
+const fileFilter = (req, file, cb) => {
+  const ext = file.originalname.split('.').pop()?.toLowerCase();
+  if (ext && ALLOWED_EXTENSIONS_BACKEND.includes(ext)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Tipo de archivo no permitido por el backend.'), false);
+  }
+};
+
+const upload = multer({
+  storage: storage,
+  fileFilter: fileFilter,
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB Límite de tamaño, igual que en frontend
+});
 
 
 app.get('/widget/attention', (req, res) => {
@@ -123,6 +163,67 @@ app.post('/ask/pyme', (req, res) => {
 });
 
 app.use('/carrito', cartRoutes);
+
+// Endpoint para subir archivos
+app.post('/archivos/subir', upload.single('archivo'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No se proporcionó ningún archivo o el tipo de archivo no es permitido.' });
+  }
+
+  // Construir la URL de descarga. Asumir que el servidor está en localhost:3000 para desarrollo.
+  // En producción, esto debería ser la URL pública del servidor.
+  const port = process.env.PORT || 3000;
+  // NOTA: En un entorno de producción real, req.protocol y req.get('host') podrían ser más robustos
+  // o una variable de entorno para el dominio base.
+  const fileUrl = `${req.protocol}://${req.hostname}:${port}/uploads/${req.file.filename}`;
+
+  res.json({
+    url: fileUrl,
+    name: req.file.originalname,
+    mimeType: req.file.mimetype,
+    size: req.file.size,
+    // serverFilename: req.file.filename // Opcional: para debugging o si se necesita internamente
+  });
+}, (error, req, res, next) => {
+  // Middleware de manejo de errores específico para multer (ej. error de fileFilter)
+  if (error instanceof multer.MulterError) {
+    return res.status(400).json({ error: error.message });
+  } else if (error) {
+    // Otro error (ej. del fileFilter personalizado)
+    return res.status(400).json({ error: error.message });
+  }
+  // Si no hay error de multer pero req.file no está (ej. filtro falló silenciosamente antes)
+  if (!req.file) {
+     return res.status(400).json({ error: 'No se pudo procesar el archivo. Verifique el tipo y tamaño.' });
+  }
+  next();
+});
+
+// Endpoint para servir/descargar archivos subidos
+app.get('/uploads/:filename', (req, res) => {
+  const { filename } = req.params;
+  const filePath = path.join(UPLOADS_DIR, filename);
+
+  // Verificar que el archivo exista y que no se intente acceder a rutas superiores (path traversal)
+  // path.normalize asegura que no haya '..' o '.' extraños.
+  // startsWith(UPLOADS_DIR) asegura que el path resuelto siga dentro del directorio de uploads.
+  if (!fs.existsSync(filePath) || !path.normalize(filePath).startsWith(UPLOADS_DIR)) {
+    return res.status(404).send('Archivo no encontrado.');
+  }
+
+  // res.download() establece Content-Disposition: attachment, lo que sugiere descarga.
+  res.download(filePath, (err) => {
+    if (err) {
+      // Manejar errores, por ejemplo, si el archivo se elimina después de la comprobación de existencia
+      // o si hay problemas de permisos.
+      console.error("Error al descargar el archivo:", err);
+      if (!res.headersSent) { // Solo enviar respuesta si no se ha enviado una ya
+        res.status(500).send('No se pudo descargar el archivo.');
+      }
+    }
+  });
+});
+
 
 module.exports = app;
 

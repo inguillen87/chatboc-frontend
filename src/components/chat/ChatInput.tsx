@@ -41,17 +41,31 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
   };
 
   // --- LÓGICA PARA ARCHIVOS Y UBICACIÓN: AHORA ENVÍAN MENSAJE SOLO CUANDO EL DATO ESTÁ LISTO ---
-  // Este callback es llamado por AdjuntarArchivo CUANDO el archivo ya se SUBIÓ y tenemos su URL
-  const handleFileUploaded = async (data: { url: string; }) => {
-    if (isTyping || !data || !data.url) {
-      toast({ title: "Error", description: "No se pudo obtener la URL del archivo subido.", variant: "destructive" });
+  // Este callback es llamado por AdjuntarArchivo CUANDO el archivo ya se SUBIÓ y tenemos su URL, nombre, tipo y tamaño
+  const handleFileUploaded = async (data: { url: string; name: string; mimeType: string; size: number; }) => {
+    if (isTyping || !data || !data.url || !data.name) {
+      toast({ title: "Error de subida", description: "No se pudo obtener la información completa del archivo subido.", variant: "destructive" });
       return;
     }
-    // AHORA SÍ, enviamos el mensaje al bot con la URL del archivo
-    onSendMessage({ text: "Foto adjunta", es_foto: true, archivo_url: data.url });
+
+    const fileExtension = data.name.split('.').pop()?.toLowerCase();
+    // Determinar si es una imagen basado en mimeType o extensión para el flag 'es_foto' (si aún se necesita)
+    const isImage = data.mimeType?.startsWith('image/') || (fileExtension && ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileExtension));
+
+    onSendMessage({
+      text: `Archivo adjunto: ${data.name}`, // Texto más descriptivo
+      // es_foto: isImage, // Hacerlo dinámico, o eliminar si el backend ya no lo necesita y usa mimeType
+      archivo_url: data.url, // Mantener por retrocompatibilidad o si el backend lo usa específicamente
+      attachmentInfo: { // Enviar la información completa del adjunto
+        name: data.name,
+        url: data.url,
+        mimeType: data.mimeType,
+        size: data.size
+      }
+    });
     setInput("");
     onTypingChange?.(false);
-    toast({ title: "Archivo enviado", description: "La foto ha sido adjuntada al reclamo.", duration: 3000 });
+    toast({ title: "Archivo enviado", description: `${data.name} ha sido adjuntado.`, duration: 3000 });
   };
 
   // Este callback es llamado por el botón "Compartir ubicación" de ChatInput
