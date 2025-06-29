@@ -22,6 +22,7 @@ function ensureScriptLoaded(callback: () => void) {
   }
   const s = document.createElement("script");
   s.id = "chatboc-google-maps";
+
   s.src = `https://maps.googleapis.com/maps/api/js?key=${Maps_API_KEY}&libraries=places,marker&loading=async`;
   s.async = true;
   s.onload = callback;
