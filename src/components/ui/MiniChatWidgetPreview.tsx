@@ -72,7 +72,7 @@ const MiniChatWidgetPreview: React.FC = () => {
           <input
             type="text"
             placeholder="Escribe tu mensaje..."
-            className="flex-grow bg-transparent text-sm focus:outline-none px-2 text-foreground placeholder-muted-foreground"
+            className="flex-grow bg-transparent text-sm focus:outline-none px-1 text-foreground placeholder-muted-foreground"
             disabled 
           />
           <button 
