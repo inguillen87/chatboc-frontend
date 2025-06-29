@@ -9,9 +9,9 @@ export default defineConfig({
     // Proxy API requests during development to avoid CORS issues
     proxy: {
       '/api': {
-        target: 'https://api.chatboc.ar',
+        target: 'http://localhost:3000', // Target local backend
         changeOrigin: true,
-        secure: true,
+        secure: false, // Local backend is likely HTTP
         rewrite: (path) => path.replace(/^\/api/, ''),
       },
     },
