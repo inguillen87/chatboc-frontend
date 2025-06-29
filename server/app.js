@@ -1,7 +1,7 @@
 const express = require('express');
 const path = require('path');
 const { getAttentionMessage } = require('./widgetAttention');
-const { getMunicipalStats } = require('./municipalStats');
+const { getMunicipalStats, getMunicipalStatsFiltersData } = require('./municipalStats'); // Added getMunicipalStatsFiltersData
 const { getFormattedProducts } = require('./catalog');
 const { getBusinessMetrics } = require('./businessMetrics');
 const { getMunicipalAnalytics } = require('./municipalAnalytics');
@@ -39,7 +39,32 @@ app.get('/widget/attention', (req, res) => {
 });
 
 app.get('/municipal/stats', (req, res) => {
-  res.json(getMunicipalStats());
+  try {
+    const filters = {
+      rubro: req.query.rubro,
+      barrio: req.query.barrio,
+      tipo: req.query.tipo,
+      rango: req.query.rango,
+    };
+    // Remove undefined filters to avoid passing them as "undefined" string
+    Object.keys(filters).forEach(key => filters[key] === undefined && delete filters[key]);
+
+    const stats = getMunicipalStats(filters);
+    res.json(stats);
+  } catch (error) {
+    console.error('Error fetching municipal stats:', error);
+    res.status(500).json({ error: 'Failed to load municipal stats' });
+  }
+});
+
+app.get('/municipal/stats/filters', (req, res) => {
+  try {
+    const filters = getMunicipalStatsFiltersData();
+    res.json(filters);
+  } catch (error) {
+    console.error('Error fetching municipal stats filters:', error);
+    res.status(500).json({ error: 'Failed to load filters' });
+  }
 });
 
 app.get('/municipal/analytics', (req, res) => {
