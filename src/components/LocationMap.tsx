@@ -7,26 +7,75 @@ interface LocationMapProps {
 }
 
 const Maps_API_KEY =
-  import.meta.env.VITE_Maps_API_KEY || "AIzaSyDbEoPzFgN5zJsIeywiRE7jRI8xr5ioGNI";
+  import.meta.env.VITE_Maps_API_KEY || "AIzaSyDbEoPzFgN5zJsIeywiRE7jRI8xr5ioGNI"; // Replace with your actual API key
 
 function ensureScriptLoaded(callback: () => void) {
   if (typeof window === "undefined") return;
-  if ((window as any).google?.maps) {
+
+  const checkReady = () => {
+    if (
+      window.google &&
+      window.google.maps &&
+      window.google.maps.Map &&
+      window.google.maps.marker &&
+      window.google.maps.marker.AdvancedMarkerElement
+    ) {
+      callback();
+    } else {
+      // If script is loaded but libraries not ready, poll
+      const intervalId = setInterval(() => {
+        if (
+          window.google &&
+          window.google.maps &&
+          window.google.maps.Map &&
+          window.google.maps.marker &&
+          window.google.maps.marker.AdvancedMarkerElement
+        ) {
+          clearInterval(intervalId);
+          callback();
+        }
+      }, 100);
+    }
+  };
+
+  if (
+    window.google &&
+    window.google.maps &&
+    window.google.maps.Map &&
+    window.google.maps.marker &&
+    window.google.maps.marker.AdvancedMarkerElement
+  ) {
+    // Already loaded and ready
     callback();
     return;
   }
-  const existing = document.getElementById("chatboc-google-maps");
-  if (existing) {
-    existing.addEventListener("load", callback);
+
+  const existingScript = document.getElementById("chatboc-google-maps");
+  if (existingScript && (existingScript as any)._isLoaded) {
+    // Script tag exists and has loaded, check if API objects are ready
+    checkReady();
+    return;
+  } if (existingScript) {
+    // Script tag exists but might still be loading, add listener and also poll
+    existingScript.addEventListener("load", checkReady);
+    checkReady(); // check immediately in case it loaded between getElementById and addEventListener
     return;
   }
-  const s = document.createElement("script");
-  s.id = "chatboc-google-maps";
 
-  s.src = `https://maps.googleapis.com/maps/api/js?key=${Maps_API_KEY}&libraries=places,marker&loading=async`;
-  s.async = true;
-  s.onload = callback;
-  document.head.appendChild(s);
+  const script = document.createElement("script");
+  script.id = "chatboc-google-maps";
+  script.src = `https://maps.googleapis.com/maps/api/js?key=${Maps_API_KEY}&v=weekly&libraries=places,marker`;
+  script.async = true;
+  script.defer = true; // Defer execution until HTML parsing is complete
+  script.onload = () => {
+    (script as any)._isLoaded = true; // Mark as loaded
+    checkReady();
+  };
+  script.onerror = () => {
+    console.error("Google Maps script failed to load.");
+    // Potentially call a user-facing error handler here
+  };
+  document.head.appendChild(script);
 }
 
 const LocationMap: React.FC<LocationMapProps> = ({ lat, lng, onMove }) => {
@@ -43,6 +92,7 @@ const LocationMap: React.FC<LocationMapProps> = ({ lat, lng, onMove }) => {
         mapRef.current = new window.google.maps.Map(ref.current, {
           center,
           zoom: lat != null && lng != null ? 15 : 5,
+          mapId: "CHATBOC_MAP_ID", // Add Map ID for Advanced Markers
         });
         markerRef.current = new window.google.maps.marker.AdvancedMarkerElement({
           position: lat != null && lng != null ? center : undefined,
@@ -67,7 +117,7 @@ const LocationMap: React.FC<LocationMapProps> = ({ lat, lng, onMove }) => {
     });
   }, [lat, lng, onMove]);
 
-  return <div ref={ref} className="w-full h-48 rounded-md border border-border" />;
+  return <div ref={ref} className="w-full h-96 rounded-md border border-border" />; // Increased height from h-48 to h-96
 };
 
 export default LocationMap;
