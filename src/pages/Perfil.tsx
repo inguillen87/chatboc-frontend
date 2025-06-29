@@ -399,7 +399,7 @@ export default function Perfil() {
       </div>
 
       <div className="w-full max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 px-2">
-        {/* Columna Izquierda (Formulario) */}
+        {/* Columna Izquierda (Formulario SIN MAPA) */}
         <div className="md:col-span-2 flex flex-col gap-6 md:gap-8">
           <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm">
             <CardHeader>
@@ -689,22 +689,15 @@ export default function Perfil() {
                   </div>
                 )}
               </form>
-              {(perfil.direccion || (perfil.latitud !== null && perfil.longitud !== null)) && (
-                <LocationMap
-                  lat={perfil.latitud ?? undefined}
-                  lng={perfil.longitud ?? undefined}
-                  onMove={(la, ln) =>
-                    setPerfil((prev) => ({ ...prev, latitud: la, longitud: ln }))
-                  }
-                />
-              )}
+              {/* LocationMap REMOVED from here */}
             </CardContent>
           </Card>
         </div>
 
-        {/* Columna Derecha (Plan y Catálogo) */}
-        <div className="flex flex-col gap-6 md:gap-8">
-          {/* Versión colapsable para mobile */}
+        {/* Columna Derecha (SOLO PLAN Y CATALOGO) */}
+        {/* This div now spans md:col-span-1 and contains Plan and Catalog cards */}
+        <div className="flex flex-col gap-6 md:gap-8 md:col-span-1">
+          {/* Versión colapsable para mobile (Plan y Uso) */}
           <div className="md:hidden">
             <Accordion type="single" collapsible defaultValue="plan">
               <AccordionItem value="plan" className="border-b border-border">
@@ -789,7 +782,7 @@ export default function Perfil() {
             </Accordion>
           </div>
 
-          {/* Versión desktop */}
+          {/* Versión desktop (Plan y Uso) */}
           <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm hidden md:block">
             <CardHeader>
               <CardTitle className="text-lg font-semibold text-primary">
@@ -868,6 +861,7 @@ export default function Perfil() {
             </CardContent>
           </Card>
 
+          {/* Cargar Catálogo Card */}
           <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm">
             <CardHeader>
               <CardTitle className="text-lg font-semibold text-primary">
@@ -920,6 +914,36 @@ export default function Perfil() {
               )}
             </CardContent>
           </Card>
+          {/* "Integrá Chatboc a tu web" card REMOVED from this container */}
+        </div>
+
+        {/* Nueva "fila" para Mapa y Tarjeta de Integración */}
+        {/* Mapa en las primeras dos columnas de esta nueva fila conceptual */}
+        {(perfil.direccion || (perfil.latitud !== null && perfil.longitud !== null)) ? (
+          <div className="md:col-span-2">
+            <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm">
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold text-primary">
+                  Ubicación en el Mapa
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <LocationMap
+                  lat={perfil.latitud ?? undefined}
+                  lng={perfil.longitud ?? undefined}
+                  onMove={(la, ln) =>
+                    setPerfil((prev) => ({ ...prev, latitud: la, longitud: ln }))
+                  }
+                />
+              </CardContent>
+            </Card>
+          </div>
+        ) : (
+          <div className="md:col-span-2"></div> // Placeholder if map is not shown
+        )}
+
+        {/* Tarjeta de Integración en la tercera columna de esta nueva fila conceptual */}
+        <div className="md:col-span-1 flex flex-col"> {/* Added flex flex-col for consistency if more items were added here */}
           <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm">
             <CardHeader>
               <CardTitle className="text-lg font-semibold text-primary">
