@@ -339,7 +339,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
               </motion.div>
             ) : (
               // Contenedor para el botón y la burbuja proactiva
-              <div className="relative w-full h-full">
+              <div key="chatboc-closed-widget-standalone" className="relative w-full h-full">
                 <ProactiveBubble
                   message={proactiveMessage || ""}
                   onClick={toggleChat}
@@ -411,7 +411,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             </motion.div>
           ) : (
             // Contenedor para el botón y la burbuja proactiva
-             <div className="relative w-full h-full">
+             <div key="chatboc-closed-widget-iframe" className="relative w-full h-full">
                 <ProactiveBubble
                   message={proactiveMessage || ""}
                   onClick={toggleChat}

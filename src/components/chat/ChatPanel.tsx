@@ -813,7 +813,7 @@ const ChatPanel = ({
       </div>
       <ScrollToBottomButton target={chatContainerRef.current} />
       {!esperandoRubro && !esperandoDireccion && (!showCierre || !showCierre.show) && (
-        <div className="bg-card px-3 py-2 border-t min-w-0">
+        <div className="w-full bg-card px-3 py-2 border-t min-w-0">
           <ChatInput
             onSendMessage={handleSendMessage}
             isTyping={isTyping}
