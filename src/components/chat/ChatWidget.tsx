@@ -168,7 +168,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     // Limpiar timeouts anteriores si existen
     if (proactiveMessageTimeout) clearTimeout(proactiveMessageTimeout);
     if (hideProactiveBubbleTimeout) clearTimeout(hideProactiveBubbleTimeout);
-
+    
     const alreadyShownProactive = safeLocalStorage.getItem("proactive_bubble_session_shown") === "1";
 
     if (alreadyShownProactive) return; // Mostrar solo una vez por sesión (o ajustar esta lógica)
@@ -178,7 +178,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       setProactiveMessage(nextMessage);
       setShowProactiveBubble(true);
       if (!muted) playProactiveSound();
-
+      
       safeLocalStorage.setItem("proactive_bubble_session_shown", "1"); // Marcar como mostrado en esta sesión
 
       hideProactiveBubbleTimeout = setTimeout(() => {
@@ -274,7 +274,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     exit: { opacity: 0, scale: 0.90, y: 20 },
     transition: { type: "spring", stiffness: 300, damping: 25, duration: 0.2 }
   };
-
+  
   const buttonAnimation = {
     initial: { opacity: 0, scale: 0.85, rotate: -15 },
     animate: { opacity: 1, scale: [1, 1.04, 1], rotate: 0 }, // Pulso añadido aquí
@@ -339,7 +339,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
               </motion.div>
             ) : (
               // Contenedor para el botón y la burbuja proactiva
-              <div className="relative w-full h-full">
+              <div key="chatboc-closed-widget-standalone" className="relative w-full h-full"> 
                 <ProactiveBubble
                   message={proactiveMessage || ""}
                   onClick={toggleChat}
@@ -411,7 +411,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             </motion.div>
           ) : (
             // Contenedor para el botón y la burbuja proactiva
-             <div className="relative w-full h-full">
+             <div key="chatboc-closed-widget-iframe" className="relative w-full h-full">
                 <ProactiveBubble
                   message={proactiveMessage || ""}
                   onClick={toggleChat}
