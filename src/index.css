@@ -1,4 +1,7 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+/* Import Inter font with variable weights for flexibility */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+/* Optional: Import Satoshi if chosen for headings */
+/* @import url('https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap'); */
 
 @tailwind base;
 @tailwind components;
@@ -6,79 +9,98 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Light Theme - Modern, Clean, Accessible */
+    --background: 0 0% 100%; /* White */
+    --foreground: 240 10% 3.9%; /* Almost Black */
+
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 240 10% 3.9%;
+
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 218 92% 41%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-    --radius: 0.5rem;
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --popover-foreground: 240 10% 3.9%;
+
+    /* Primary: Azul Cobalto Vibrante (Ej: #0052FF) */
+    --primary: 220 100% 50%;
+    --primary-foreground: 0 0% 100%; /* White */
+
+    /* Secondary: Turquesa o Verde Azulado Claro (Ej: #0ACBCB) */
+    --secondary: 180 80% 45%;
+    --secondary-foreground: 0 0% 100%; /* White, or a dark contrast if secondary is very light */
+
+    --muted: 240 4.8% 95.9%; /* Light Gray */
+    --muted-foreground: 240 3.8% 46.1%; /* Mid Gray */
+
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+
+    --destructive: 0 84.2% 60.2%; /* Red */
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 240 5.9% 90%; /* Light Gray Border */
+    --input: 240 5.9% 90%; /* Input background (can be same as border or slightly different) */
+    --ring: 220 100% 50%; /* Primary color for focus rings */
+
+    --radius: 0.5rem; /* Default radius for components like cards, inputs, buttons */
   }
+
   .dark {
-    --background: 220 15% 12%; /* Softer dark cool gray */
-    --foreground: 210 30% 90%; /* Softer white */
-    --card: 220 15% 15%; /* Slightly lighter than background */
-    --card-foreground: 210 30% 90%; /* Consistent with foreground */
-    --popover: 220 15% 10%; /* Darker for popovers to stand out */
-    --popover-foreground: 210 30% 90%;
-    --primary: 217 91% 60%; /* A distinct blue */
-    --primary-foreground: 210 40% 98%; /* White text on blue */
-    --secondary: 220 15% 22%; /* Lighter gray for secondary elements */
-    --secondary-foreground: 210 30% 90%;
-    --muted: 220 15% 22%;
-    --muted-foreground: 215 20% 65%; /* Adjusted for new background */
-    --accent: 220 15% 22%;
-    --accent-foreground: 210 30% 90%;
-    --destructive: 0 70% 50%; /* Slightly brighter red for destructive actions */
-    --destructive-foreground: 210 40% 98%;
-    --border: 220 15% 25%; /* Lighter border */
-    --input: 220 15% 20%; /* Input background slightly different from card */
-    --ring: 217 91% 65%; /* Ring color to match new primary */
-    --sidebar-background: 220 15% 10%; /* Darker sidebar */
-    --sidebar-foreground: 210 30% 85%;
-    --sidebar-primary: 217 91% 60%;
-    --sidebar-primary-foreground: 210 40% 98%;
-    --sidebar-accent: 220 15% 20%;
-    --sidebar-accent-foreground: 210 30% 90%;
-    --sidebar-border: 220 15% 22%;
-    --sidebar-ring: 217 91% 65%;
+    /* Dark Theme - Modern, Clean, Accessible, Softer Dark */
+    --background: 225 20% 9%; /* Gris oscuro azulado (Ej: #121826) */
+    --foreground: 210 20% 90%; /* Blanco suave */
+
+    --card: 225 20% 12%; /* Ligeramente más claro que el fondo */
+    --card-foreground: 210 20% 90%;
+
+    --popover: 225 20% 7%; /* Más oscuro para destacar */
+    --popover-foreground: 210 20% 90%;
+
+    /* Primary: Azul Cobalto Vibrante (igual que en light, pero el contraste se percibirá diferente) */
+    --primary: 220 100% 60%; /* Puede necesitar un ligero ajuste de luminosidad para dark mode */
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary: Turquesa o Verde Azulado (igual que en light) */
+    --secondary: 180 80% 50%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 225 20% 15%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 225 20% 15%;
+    --accent-foreground: 210 20% 90%;
+
+    --destructive: 0 62.8% 50.6%; /* Rojo, puede necesitar ajuste para dark */
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 225 20% 20%; /* Borde más claro que el fondo de la card */
+    --input: 225 20% 17%; /* Input background */
+    --ring: 220 100% 65%;
   }
+
   html {
     scroll-behavior: smooth;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11'; /* Mejora de legibilidad para Inter */
   }
+
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
-    font-family: 'Inter', 'Poppins', sans-serif;
-    line-height: 1.6; /* Slightly increased line height for better readability */
-    -webkit-font-smoothing: antialiased; /* Safari & Chrome */
-    -moz-osx-font-smoothing: grayscale; /* Firefox */
+    font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.65; /* Increased for better readability, especially on mobile */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
+
+  /* Opcional: Estilos para la fuente Satoshi si se usa para encabezados */
+  /* .font-heading {
+    font-family: "Satoshi", "Inter", sans-serif;
+  } */
 }
 
+/* Estilos específicos para Google Places Autocomplete para que coincidan con el tema */
 .pac-target-input {
   background-color: hsl(var(--input)) !important;
   color: hsl(var(--foreground)) !important;

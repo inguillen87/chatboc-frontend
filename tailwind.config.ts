@@ -25,12 +25,12 @@ const config = {
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
         primary: {
-          DEFAULT: "hsl(var(--primary))",
-          foreground: "hsl(var(--primary-foreground))",
+          DEFAULT: "hsl(var(--primary))", // Azul Cobalto Vibrante
+          foreground: "hsl(var(--primary-foreground))", // Blanco para texto sobre primario
         },
         secondary: {
-          DEFAULT: "hsl(var(--secondary))",
-          foreground: "hsl(var(--secondary-foreground))",
+          DEFAULT: "hsl(var(--secondary))", // Turquesa o Verde Azulado Claro
+          foreground: "hsl(var(--secondary-foreground))", // Texto oscuro para secundario
         },
         destructive: {
           DEFAULT: "hsl(var(--destructive))",
@@ -52,6 +52,8 @@ const config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        // Se mantienen los colores de sidebar por si se usan en algún panel de admin no móvil.
+        // Para la app móvil principal, usaremos los colores estándar primario/secundario/etc.
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",
@@ -64,7 +66,9 @@ const config = {
         },
       },
       fontFamily: {
-        sans: ["Inter", "Poppins", "sans-serif"],
+        sans: ["Inter", "system-ui", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", "sans-serif"],
+        // Opcional: Si queremos usar Satoshi para encabezados grandes
+        // heading: ["Satoshi", "Inter", "system-ui", "sans-serif"],
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -103,6 +107,9 @@ const config = {
       backgroundImage: {
         "hero-pattern": "url('/images/hero-bg.svg')",
       },
+      boxShadow: { // Añadido para MobileNavbar
+        'top': '0 -4px 6px -1px rgba(0, 0, 0, 0.07), 0 -2px 4px -2px rgba(0, 0, 0, 0.06)',
+      }
     },
   },
   plugins: [
