@@ -18,7 +18,7 @@ const AvatarBot: React.FC<{ isTyping: boolean }> = ({ isTyping }) => (
     initial={{ scale: 0.8, opacity: 0 }}
     animate={{ scale: 1, opacity: 1 }}
     transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.1 }}
-    className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-[#245ca6] rounded-full shadow"
+    className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-muted rounded-full shadow"
   >
     <ChatbocLogoAnimated
       size={24}
@@ -32,7 +32,7 @@ const AvatarBot: React.FC<{ isTyping: boolean }> = ({ isTyping }) => (
 
 const UserAvatar = () => (
   <motion.span
-    className="flex-shrink-0 w-8 h-8 rounded-full bg-secondary flex items-center justify-center border border-border shadow-md dark:border-blue-700"
+    className="flex-shrink-0 w-8 h-8 rounded-full bg-secondary flex items-center justify-center border border-border shadow-md"
     initial={{ scale: 0.8, opacity: 0 }}
     animate={{ scale: 1, opacity: 1 }}
     transition={{ type: "spring", stiffness: 200, damping: 20 }}
@@ -102,8 +102,8 @@ const ChatMessagePyme = React.forwardRef<HTMLDivElement, ChatMessageProps>( (
 
   const isBot = message.isBot;
   const bubbleClass = isBot
-    ? "bg-[#192745] text-blue-100"
-    : "bg-gradient-to-br from-blue-600 to-blue-800 text-white";
+    ? "bg-muted text-muted-foreground"
+    : "bg-primary text-primary-foreground";
   const bubbleWidth = "max-w-[95vw] md:max-w-2xl";
   const bubbleExtra = "";
 

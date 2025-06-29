@@ -707,14 +707,14 @@ const ChatPanel = ({
       <div ref={chatContainerRef} className="flex-1 p-4 min-h-0 flex flex-col gap-3 overflow-y-auto">
           {esperandoRubro ? (
             <div className="text-center w-full">
-              <h2 className="text-green-500 mb-2">👋 ¡Bienvenido!</h2>
-              <div className="text-gray-500 dark:text-gray-300 mb-2">¿De qué rubro es tu negocio?</div>
+              <h2 className="text-primary mb-2">👋 ¡Bienvenido!</h2>
+              <div className="text-muted-foreground mb-2">¿De qué rubro es tu negocio?</div>
               {cargandoRubros ? (
-                <div className="text-gray-400 my-5">Cargando rubros...</div>
+                <div className="text-muted-foreground my-5">Cargando rubros...</div>
               ) : rubrosDisponibles.length === 0 ? (
-                <div className="text-red-500 my-5">
+                <div className="text-destructive my-5">
                   No se pudieron cargar los rubros. <br />
-                  <button onClick={cargarRubros} className="mt-2 underline text-blue-600 dark:text-blue-400 hover:text-blue-800" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>Reintentar</button>
+                  <button onClick={cargarRubros} className="mt-2 underline text-primary hover:text-primary/80" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>Reintentar</button>
                 </div>
               ) : (
                 <RubroSelector
@@ -800,7 +800,7 @@ const ChatPanel = ({
               <div ref={messagesEndRef} />
               {showCierre && showCierre.show && (
                 <motion.div
-                  className="my-3 p-3 rounded-lg bg-green-100 text-green-800 text-center font-bold shadow"
+                  className="my-3 p-3 rounded-lg bg-primary/10 text-primary text-center font-semibold shadow"
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.9 }}
