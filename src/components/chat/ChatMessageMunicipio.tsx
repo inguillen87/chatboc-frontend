@@ -74,13 +74,11 @@ const ChatMessageMunicipio = React.forwardRef<HTMLDivElement, ChatMessageProps>(
     ? "bg-muted text-muted-foreground"
     : "bg-primary text-primary-foreground";
 
-<<<<<<< feat/widget-ux-animations-phase1
-=======
+
   // const bubbleWidth = "max-w-[95vw] md:max-w-2xl"; // Previous width
   const bubbleWidth = "max-w-[95vw] md:max-w-3xl"; // Increased from 2xl to 3xl
 
 
->>>>>>> main
   let processedAttachmentInfo: AttachmentInfo | null = null;
 
   if (message.attachmentInfo && message.attachmentInfo.url && message.attachmentInfo.name && message.attachmentInfo.mimeType) {
@@ -90,23 +88,19 @@ const ChatMessageMunicipio = React.forwardRef<HTMLDivElement, ChatMessageProps>(
       message.attachmentInfo.mimeType,
       message.attachmentInfo.size
     );
-<<<<<<< feat/widget-ux-animations-phase1
   } else if (message.mediaUrl && message.isBot) {
-=======
-  } else if (message.mediaUrl && message.isBot) { 
->>>>>>> main
     // Fallback MUY CAUTELOSO a mediaUrl SOLO SI ES BOT
     processedAttachmentInfo = deriveAttachmentInfo(message.mediaUrl, message.mediaUrl.split('/').pop() || "archivo_adjunto");
   }
   // No hay fallback a parsear `safeText` para URLs aquí, lo cual es bueno.
 
   const showAttachment = !!(
-<<<<<<< feat/widget-ux-animations-phase1
     (processedAttachmentInfo && (processedAttachmentInfo.type !== 'other' || !!processedAttachmentInfo.extension)) ||
-=======
+    (processedAttachmentInfo && (processedAttachmentInfo.type !== 'other' || !!processedAttachmentInfo.extension)) ||
+
     (processedAttachmentInfo && (processedAttachmentInfo.type !== 'other' || !!processedAttachmentInfo.extension)) || 
->>>>>>> main
-    message.locationData
+ 
+     message.locationData
   );
 
   return (
