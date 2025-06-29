@@ -16,6 +16,7 @@ import ChatUserLoginPanel from "./ChatUserLoginPanel";
 import ChatUserPanel from "./ChatUserPanel";
 import ChatHeader from "./ChatHeader";
 import EntityInfoPanel from "./EntityInfoPanel";
+import { Skeleton } from "@/components/ui/skeleton"; // Import Skeleton for fallback
 
 const ChatPanel = React.lazy(() => import("./ChatPanel"));
 
@@ -309,8 +310,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
           maxHeight: "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))",
           borderRadius: isOpen ? (isMobile ? "0" : "16px") : "50%",
           overflow: isOpen ? "hidden" : "visible", // Visible para ProactiveBubble
-          boxShadow: "0 8px 32px 0 rgba(0,0,0,0.20)",
-          background: isOpen ? "transparent" : "var(--primary, #2563eb)", // El botón tiene fondo primario
+          // boxShadow: "0 8px 32px 0 rgba(0,0,0,0.20)", // Eliminado, se maneja en los hijos
+          background: "transparent", // Siempre transparente, los hijos manejan su fondo
           transition: "all 0.25s cubic-bezier(.42,0,.58,1)", // Transición CSS de widget.js
           padding: 0,
           display: "flex",
@@ -318,12 +319,21 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
           justifyContent: "flex-end",
         }}
       >
-        <Suspense fallback={null}>
+        <Suspense fallback={
+          <div
+            className={cn(commonPanelStyles, "w-full h-full items-center justify-center")}
+            style={{ borderRadius: isOpen ? (isMobile ? "0" : "16px") : "50%", background: "hsl(var(--card))" }}
+          >
+            <ChatbocLogoAnimated size={isMobile ? 32 : 48} />
+            <Skeleton className="h-4 w-[60%] mt-3" />
+            <Skeleton className="h-4 w-[40%] mt-2" />
+          </div>
+        }>
           <AnimatePresence mode="popLayout">
             {isOpen ? (
               <motion.div
-                key="chatboc-panel-standalone"
-                className={cn(commonPanelStyles, "w-full h-full")}
+                key={`chatboc-panel-${mode}`} // Usar mode en la key para asegurar re-render si cambia
+                className={cn(commonPanelStyles, "w-full h-full shadow-xl")} // Añadido shadow-xl
                 style={{ borderRadius: isMobile ? "0" : "16px", background: "hsl(var(--card))" }}
                 {...panelAnimation}
               >
@@ -349,7 +359,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                 {showCta && ctaMessage && !showProactiveBubble && (
                   <motion.div
                     key="chatboc-cta-standalone"
-                    className="absolute right-0 text-sm bg-background border rounded-lg shadow-lg px-3 py-2"
+                    className="absolute right-0 text-sm bg-background border rounded-lg shadow-lg px-3 py-2 dark:bg-slate-800 dark:border-slate-700" // Estilos para modo oscuro
                     style={{ bottom: "calc(100% + 8px)" }} // Posicionado arriba del botón
                     initial={{ opacity: 0, y: 10, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -392,18 +402,30 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   // Modo IFRAME / SCRIPT
   return (
     <div className={cn("fixed bottom-0 right-0", "flex flex-col items-end justify-end")} style={{ overflow: "visible" }}>
-      <Suspense fallback={null}>
+      <Suspense fallback={ // Fallback para el modo iframe/script también
+          <div
+            className={cn(commonPanelStyles, commonPanelAndButtonAbsoluteClasses, "items-center justify-center")}
+            style={{
+              width: isOpen ? (isMobile ? "100vw" : finalOpenWidth) : finalClosedWidth,
+              height: isOpen ? (isMobile ? "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))" : finalOpenHeight) : finalClosedHeight,
+              borderRadius: isOpen ? (isMobile ? "0" : "16px") : "50%",
+              background: "hsl(var(--card))"
+            }}
+          >
+            <ChatbocLogoAnimated size={isMobile ? 32 : 48} />
+          </div>
+        }>
         <AnimatePresence mode="popLayout">
           {isOpen ? (
             <motion.div
-              key="chatboc-panel-iframe"
-              className={cn(commonPanelStyles, commonPanelAndButtonAbsoluteClasses)}
+              key={`chatboc-panel-${mode}`} // Usar mode en la key
+                className={cn(commonPanelStyles, commonPanelAndButtonAbsoluteClasses, "shadow-xl")} // Añadido shadow-xl
               style={{
                 width: isMobile ? "100vw" : finalOpenWidth,
                 height: isMobile ? "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))" : finalOpenHeight,
                 borderRadius: isMobile ? "0" : "16px",
                 background: "hsl(var(--card))",
-                opacity: 1, zIndex: 10, boxShadow: "0 12px 40px 0 rgba(0,0,0,0.18)",
+                opacity: 1, zIndex: 10, // boxShadow eliminado de style
               }}
               {...panelAnimation}
             >
@@ -429,7 +451,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                 {showCta && ctaMessage && !showProactiveBubble && (
                   <motion.div
                     key="chatboc-cta-iframe"
-                    className="absolute right-0 text-sm bg-background border rounded-lg shadow-lg px-3 py-2"
+                    className="absolute right-0 text-sm bg-background border rounded-lg shadow-lg px-3 py-2 dark:bg-slate-800 dark:border-slate-700" // Estilos para modo oscuro
                     style={{ bottom: "calc(100% + 8px)" }}
                     initial={{ opacity: 0, y: 10, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}

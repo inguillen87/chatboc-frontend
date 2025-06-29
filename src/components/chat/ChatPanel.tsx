@@ -115,7 +115,7 @@ const ChatPanel = ({
   const [pollingErrorShown, setPollingErrorShown] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
-  const chatInputRef = useRef<HTMLInputElement>(null);
+  const chatInputRef = useRef<HTMLInputElement>(null); // Esta ref se pasa a ChatInput
   const lastQueryRef = useRef<string | null>(null);
   const ultimoMensajeIdRef = useRef<number | null>(null);
 
@@ -689,6 +689,23 @@ const ChatPanel = ({
     onScroll();
     return () => container.removeEventListener('scroll', onScroll);
   }, []);
+
+  // Efecto para enfocar el input cuando el panel está listo para la entrada del usuario.
+  useEffect(() => {
+    // Solo intentar enfocar si el ChatInput debería estar visible y activo.
+    if (!esperandoRubro && !esperandoDireccion && (!showCierre || !showCierre.show)) {
+      const timer = setTimeout(() => {
+        if (chatInputRef.current) {
+          chatInputRef.current.focus();
+        }
+      }, 150); // Aumentar ligeramente el retraso para asegurar que las animaciones de Framer Motion no interfieran.
+
+      return () => clearTimeout(timer);
+    }
+    // Dependencias: estas condiciones determinan si el ChatInput debe estar visible y enfocable.
+    // messages.length se incluye para que se re-evalúe si el mensaje inicial se añade.
+  }, [esperandoRubro, esperandoDireccion, showCierre, messages.length]);
+
 
   return (
     <div

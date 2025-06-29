@@ -1,18 +1,17 @@
 import React from "react";
 import { motion } from "framer-motion";
-import { MessageSquarePlus } from "lucide-react"; // O algún otro icono adecuado
+// import { MessageSquareHeart, Sparkles } from "lucide-react"; // Iconos alternativos si se prefiere
+import ChatbocLogoAnimated from "./ChatbocLogoAnimated"; // Usar el logo del bot
 
 interface ProactiveBubbleProps {
   message: string;
   onClick: () => void;
-  onClose?: () => void; // Opcional, por si queremos cerrarlo manualmente
   visible: boolean;
 }
 
 const ProactiveBubble: React.FC<ProactiveBubbleProps> = ({
   message,
   onClick,
-  onClose,
   visible,
 }) => {
   if (!visible) return null;
@@ -20,25 +19,45 @@ const ProactiveBubble: React.FC<ProactiveBubbleProps> = ({
   return (
     <motion.div
       key="proactive-bubble"
-      className="absolute bottom-full right-0 mb-3 flex items-start gap-2 cursor-pointer"
-      initial={{ opacity: 0, y: 25, scale: 0.85 }} // Increased y, decreased initial scale
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: 15, scale: 0.85 }} // Adjusted exit values
-      transition={{ type: "spring", stiffness: 230, damping: 22 }} // Slightly stiffer and more damped spring
+      className="absolute bottom-full right-0 mb-3 flex items-end gap-2 cursor-pointer group" // Añadido group para hover effects
+      initial={{ opacity: 0, y: 30, scale: 0.8 }}
+      animate={{
+        opacity: 1,
+        y: 0,
+        scale: 1,
+        transition: { type: "spring", stiffness: 280, damping: 20, delay: 0.2 }
+      }}
+      exit={{ opacity: 0, y: 20, scale: 0.9, transition: { duration: 0.2, ease: "easeOut" } }}
+      whileHover={{ y: -3, transition: { type: "spring", stiffness: 300, damping: 15 } }} // Ligero lift al hacer hover
       onClick={onClick}
       role="alert"
       aria-live="polite"
     >
-      <div className="bg-background dark:bg-slate-700 text-foreground dark:text-slate-100 p-3 rounded-lg shadow-xl border border-border dark:border-slate-600 max-w-xs text-sm">
-        {message}
+      {/* Contenedor del mensaje y el rabito */}
+      <div className="relative">
+        <div
+          className="bg-background dark:bg-slate-800 text-foreground dark:text-slate-100 px-4 py-2.5 rounded-xl shadow-xl border border-border dark:border-slate-700 max-w-xs text-sm font-medium leading-normal"
+          style={{ borderRadius: "12px" }} // Mantener el estilo explícito si se prefiere, o quitar si px-4 py-2.5 es suficiente. rounded-xl ya está en clases.
+        >
+          {message}
+        </div>
+        {/* Rabito de la burbuja - más integrado y estilizado */}
+        <div
+          className="absolute right-[18px] -bottom-[7px] w-4 h-4 bg-background dark:bg-slate-800 border-r border-b border-border dark:border-r-slate-700 dark:border-b-slate-700 transform rotate-45 shadow-sm"
+          style={{
+            clipPath: "polygon(0 0, 100% 0, 100% 100%)" // Solo muestra la parte inferior derecha del cuadrado rotado
+          }}
+        />
       </div>
-      {/* Opcional: un pequeño "rabito" para la burbuja estilo comic */}
-      <div
-        className="w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[10px] border-t-background dark:border-t-slate-700 relative top-6 right-8 shadow-md"
-        style={{ filter: "drop-shadow(2px 2px 1px rgba(0,0,0,0.05))" }}
-      />
-       {/* Icono opcional al lado o dentro de la burbuja */}
-      {/* <MessageSquarePlus size={28} className="text-primary mt-1" /> */}
+
+      {/* Icono/Avatar del Bot al lado de la burbuja */}
+      <motion.div
+        className="flex-shrink-0 w-10 h-10 bg-primary rounded-full flex items-center justify-center shadow-lg border-2 border-background dark:border-slate-800"
+        initial={{ scale: 0, opacity: 0, x: 10 }}
+        animate={{ scale: 1, opacity: 1, x: 0, transition: { type: "spring", stiffness: 260, damping: 18, delay: 0.4 } }}
+      >
+        <ChatbocLogoAnimated size={26} blinking />
+      </motion.div>
     </motion.div>
   );
 };

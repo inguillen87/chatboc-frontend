@@ -1,39 +1,24 @@
 import React from "react";
-import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 interface MessageBubbleProps {
   className?: string;
   children: React.ReactNode;
+  isBot?: boolean; // Opcional, para diferenciar estilos si es necesario en el futuro
 }
 
 const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
-  ({ className, children }, ref) => (
-    <motion.div
+  ({ className, children /*, isBot */ }, ref) => ( // No se usa isBot por ahora
+    <div // Cambiado de motion.div a div simple
       ref={ref}
       className={cn(
-        "rounded-2xl shadow-md px-5 py-3 font-medium text-base leading-relaxed whitespace-pre-line break-words",
+        "rounded-xl shadow-md px-4 py-2.5 font-medium text-sm leading-normal whitespace-pre-line break-words", // Ajustado a rounded-xl, px-4, py-2.5, text-sm
+        // className se aplica después, por lo que puede sobreescribir estos defaults
         className
       )}
-      variants={{
-        hidden: { opacity: 0, y: 20, scale: 0.95 }, // Slightly more y offset and smaller initial scale
-        visible: {
-          opacity: 1,
-          y: 0,
-          scale: 1,
-        },
-      }}
-      initial="hidden"
-      animate="visible"
-      transition={{
-        type: "spring",
-        stiffness: 260,
-        damping: 20,
-        opacity: { duration: 0.2, ease: "easeIn" } // Faster opacity fade-in
-      }}
     >
       {children}
-    </motion.div>
+    </div>
   )
 );
 
