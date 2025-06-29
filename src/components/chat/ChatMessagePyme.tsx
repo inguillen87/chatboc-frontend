@@ -83,11 +83,7 @@ const ChatMessagePyme = React.forwardRef<HTMLDivElement, ChatMessageProps>( (
       message.attachmentInfo.mimeType,
       message.attachmentInfo.size
     );
-<<<<<<< feat/widget-ux-animations-phase1
-  } else if (message.mediaUrl && message.isBot) {
-=======
-  } else if (message.mediaUrl && message.isBot) { 
->>>>>>> main
+
     // Fallback MUY CAUTELOSO a mediaUrl SOLO SI ES BOT (para no interpretar URLs de usuario como archivos)
     // y asumiendo que mediaUrl siempre apunta a un archivo directo si lo envía el bot.
     // Aquí, el 'name' y 'mimeType' serían adivinados por deriveAttachmentInfo a partir de la URL.
@@ -108,11 +104,7 @@ const ChatMessagePyme = React.forwardRef<HTMLDivElement, ChatMessageProps>( (
   // (lo que podría ser una URL genérica que deriveAttachmentInfo no pudo clasificar pero tampoco es un archivo claro).
   // O si hay locationData (para mapas).
   const showAttachment = !!(
-<<<<<<< feat/widget-ux-animations-phase1
-    (processedAttachmentInfo && (processedAttachmentInfo.type !== 'other' || !!processedAttachmentInfo.extension)) ||
-=======
-    (processedAttachmentInfo && (processedAttachmentInfo.type !== 'other' || !!processedAttachmentInfo.extension)) || 
->>>>>>> main
+
     message.locationData
   );
 
@@ -126,15 +118,7 @@ const ChatMessagePyme = React.forwardRef<HTMLDivElement, ChatMessageProps>( (
 
         <MessageBubble className={`${bubbleWidth} ${bubbleClass} ${bubbleExtra}`}>
           {showAttachment ? (
-<<<<<<< feat/widget-ux-animations-phase1
-            <AttachmentPreview
-              attachment={processedAttachmentInfo || undefined} // Pasar undefined si es null
-              locationData={message.locationData}
-=======
-            <AttachmentPreview 
-              attachment={processedAttachmentInfo || undefined} // Pasar undefined si es null
-              locationData={message.locationData} 
->>>>>>> main
+
               // Si hay adjunto, el texto principal del mensaje podría ser un título o descripción.
               // Si no hay texto y sí adjunto, AttachmentPreview lo maneja.
               // Si hay texto Y adjunto, el texto se muestra si AttachmentPreview no lo hace.

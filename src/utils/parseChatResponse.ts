@@ -16,13 +16,6 @@ export interface ChatApiResponse {
 }
 
 // Actualizar el tipo de retorno para incluir attachmentInfo
-<<<<<<< feat/widget-ux-animations-phase1
-export function parseChatResponse(data: ChatApiResponse | any): {
-  text?: string;
-=======
-export function parseChatResponse(data: ChatApiResponse | any): { 
-  text?: string; 
->>>>>>> main
   botones: Boton[];
   attachmentInfo?: Message['attachmentInfo']; // Añadir attachmentInfo al tipo de retorno
 } {

@@ -123,11 +123,7 @@ export function deriveAttachmentInfo(
       type = ALLOWED_EXTENSIONS[extension];
     }
   }
-<<<<<<< feat/widget-ux-animations-phase1
 
-=======
-  
->>>>>>> main
   // 3. Chequeo final contra extensiones denegadas (si type sigue siendo 'other' o si queremos doble chequeo)
   if (DENIED_EXTENSIONS.includes(extension)) {
     type = 'other'; // Forzar a 'other' si la extensión está explícitamente denegada.
@@ -192,8 +188,6 @@ export function getAttachmentInfo(textOrUrl: string): AttachmentInfo | null {
     // Si no hay extensión clara, y no es una URL absoluta, no podemos hacer mucho.
     if (!ext && !(textOrUrl.startsWith('http://') || textOrUrl.startsWith('https://'))) {
         return null;
-<<<<<<< feat/widget-ux-animations-phase1
-    }
 
     const name = textOrUrl.split('/').pop()?.split(/[?#]/)[0] || `archivo_desconocido${ext ? '.'+ext : ''}`;
 
@@ -218,33 +212,7 @@ export function getAttachmentInfo(textOrUrl: string): AttachmentInfo | null {
       return derivedInfo;
     }
 
-=======
-    }
-    
-    const name = textOrUrl.split('/').pop()?.split(/[?#]/)[0] || `archivo_desconocido${ext ? '.'+ext : ''}`;
 
-    // Usar la nueva lógica de derivación si es posible, aunque aquí no tenemos mimeType
-    const derivedInfo = deriveAttachmentInfo(textOrUrl, name, undefined);
-    
-    // La función original `getAttachmentInfo` no tenía un `mimeType` de entrada,
-    // por lo que `deriveAttachmentInfo` dependerá de la extensión.
-    // Si `deriveAttachmentInfo` devuelve type 'other' y no hay extensión, significa que
-    // era una URL sin extensión, lo cual es aceptable para `getAttachmentInfo` si es una URL.
-    if (derivedInfo.type === 'other' && !derivedInfo.extension && (textOrUrl.startsWith('http://') || textOrUrl.startsWith('https://'))) {
-        // Es una URL sin extensión, `deriveAttachmentInfo` la marcó como 'other'.
-        // `getAttachmentInfo` puede devolver esto.
-        return derivedInfo;
-    } else if (derivedInfo.type !== 'other') {
-        // `deriveAttachmentInfo` pudo determinar un tipo específico basado en la extensión.
-        return derivedInfo;
-    }
-    
-    // Si `deriveAttachmentInfo` devolvió 'other' con una extensión, también es válido.
-    if (derivedInfo.type === 'other' && derivedInfo.extension) {
-      return derivedInfo;
-    }
-
->>>>>>> main
     return null; // No se pudo determinar de forma fiable.
 
   } catch (e) {

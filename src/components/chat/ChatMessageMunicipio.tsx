@@ -75,10 +75,6 @@ const ChatMessageMunicipio = React.forwardRef<HTMLDivElement, ChatMessageProps>(
     : "bg-primary text-primary-foreground";
 
 
-  // const bubbleWidth = "max-w-[95vw] md:max-w-2xl"; // Previous width
-  const bubbleWidth = "max-w-[95vw] md:max-w-3xl"; // Increased from 2xl to 3xl
-
-
   let processedAttachmentInfo: AttachmentInfo | null = null;
 
   if (message.attachmentInfo && message.attachmentInfo.url && message.attachmentInfo.name && message.attachmentInfo.mimeType) {
@@ -96,11 +92,7 @@ const ChatMessageMunicipio = React.forwardRef<HTMLDivElement, ChatMessageProps>(
 
   const showAttachment = !!(
     (processedAttachmentInfo && (processedAttachmentInfo.type !== 'other' || !!processedAttachmentInfo.extension)) ||
-    (processedAttachmentInfo && (processedAttachmentInfo.type !== 'other' || !!processedAttachmentInfo.extension)) ||
 
-    (processedAttachmentInfo && (processedAttachmentInfo.type !== 'other' || !!processedAttachmentInfo.extension)) || 
- 
-     message.locationData
   );
 
   return (
