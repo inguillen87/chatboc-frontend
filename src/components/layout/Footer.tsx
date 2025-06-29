@@ -141,14 +141,14 @@ const Footer = () => {
   </li>
   <li className="mt-4">
     <a
-      href="http://qr.afip.gob.ar/?qr=hNBOkNhlJyhWrlnUph25jQ,,"
+      href="https://qr.afip.gob.ar/?qr=hNBOkNhlJyhWrlnUph25jQ,,"
       target="_blank"
       rel="noopener noreferrer"
       title="Datos fiscales - AFIP"
       className="inline-block"
     >
       <img
-        src="http://www.afip.gob.ar/images/f960/DATAWEB.jpg"
+        src="https://www.afip.gob.ar/images/f960/DATAWEB.jpg"
         alt="Formulario 960 AFIP"
         className="w-24 sm:w-20 md:w-24 lg:w-28"
       />
