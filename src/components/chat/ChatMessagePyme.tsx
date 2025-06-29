@@ -127,9 +127,12 @@ const ChatMessagePyme = React.forwardRef<HTMLDivElement, ChatMessageProps>( (
               // Si se quiere mostrar el texto Y el adjunto, la estructura de AttachmentPreview o aquí cambiaría.
               // Por ahora: si hay adjunto, el texto principal se considera cubierto por el nombre del archivo en AttachmentPreview o es irrelevante.
               // Si no hay adjunto, y fallbackText se usa, es el `sanitizedHtml`.
-              fallbackText={!processedAttachmentInfo && !message.locationData ? sanitizedHtml : undefined}
-            />
-          ) : (
+              <AttachmentPreview
+                message={message}
+                attachmentInfo={processedAttachmentInfo}
+                fallbackText={(!processedAttachmentInfo && !message.locationData) ? sanitizedHtml : undefined}
+              />
+            ) : (
             // Solo mostrar texto si no hay un adjunto válido para AttachmentPreview
             sanitizedHtml && <span
               className="prose dark:prose-invert max-w-none text-sm [&_p]:my-0"
