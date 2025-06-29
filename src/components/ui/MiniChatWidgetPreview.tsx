@@ -81,12 +81,7 @@ const MiniChatWidgetPreview: React.FC = () => {
           >
             <Smile size={18} />
           </button>
-          <button 
-            aria-label="Enviar mensaje"
-            className="p-1.5 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 ml-1.5 focus:outline-none focus:ring-1 focus:ring-offset-1 focus:ring-offset-background focus:ring-primary"
-          >
-            <Send size={16} />
-          </button>
+          {/* Send button removed as per user request */}
         </div>
       </div>
     </div>
