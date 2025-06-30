@@ -6,64 +6,87 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --background: 0 0% 100%; /* Light mode background (white) */
+    --foreground: 224 71.4% 4.1%; /* Dark text for light mode */
+
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 224 71.4% 4.1%;
+
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 218 92% 41%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --popover-foreground: 224 71.4% 4.1%;
+
+    --primary: 217 91.2% 59.8%; /* Adjusted primary blue for better vibrancy */
+    --primary-foreground: 210 20% 98%; /* White/very light text on primary */
+
+    --secondary: 220 14.3% 95.9%; /* Light gray for secondary elements */
+    --secondary-foreground: 220.9 39.3% 11%; /* Darker text for secondary */
+
+    --muted: 220 14.3% 95.9%;
+    --muted-foreground: 220 8.9% 46.1%; /* Softer text for muted elements */
+
+    --accent: 220 14.3% 95.9%;
+    --accent-foreground: 220.9 39.3% 11%;
+
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --destructive-foreground: 210 20% 98%;
+
+    --border: 220 13% 91%; /* Lighter border for light mode */
+    --input: 0 0% 98%; /* Slightly off-white for input fields in light mode */
+    --ring: 217 91.2% 59.8%; /* Ring to match primary */
+
     --radius: 0.5rem;
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* Sidebar specific colors for light mode */
+    --sidebar-background: 0 0% 97%; /* Slightly off-white, distinct from main bg */
+    --sidebar-foreground: 224 71.4% 4.1%;
+    --sidebar-primary: 217 91.2% 59.8%;
+    --sidebar-primary-foreground: 210 20% 98%;
+    --sidebar-accent: 220 14.3% 93%; /* Slightly darker accent for sidebar */
+    --sidebar-accent-foreground: 220.9 39.3% 11%;
+    --sidebar-border: 220 13% 88%; /* Slightly darker border for sidebar */
+    --sidebar-ring: 217 91.2% 59.8%;
   }
+
   .dark {
-    --background: 220 15% 12%; /* Softer dark cool gray */
-    --foreground: 210 30% 90%; /* Softer white */
-    --card: 220 15% 15%; /* Slightly lighter than background */
-    --card-foreground: 210 30% 90%; /* Consistent with foreground */
-    --popover: 220 15% 10%; /* Darker for popovers to stand out */
-    --popover-foreground: 210 30% 90%;
-    --primary: 217 91% 60%; /* A distinct blue */
-    --primary-foreground: 210 40% 98%; /* White text on blue */
-    --secondary: 220 15% 22%; /* Lighter gray for secondary elements */
-    --secondary-foreground: 210 30% 90%;
-    --muted: 220 15% 22%;
-    --muted-foreground: 215 20% 65%; /* Adjusted for new background */
-    --accent: 220 15% 22%;
+    --background: 220 15% 10%; /* Dark cool gray */
+    --foreground: 210 30% 95%; /* Softer white for text */
+
+    --card: 220 15% 13%; /* Slightly lighter than background for cards */
+    --card-foreground: 210 30% 95%;
+
+    --popover: 220 15% 8%; /* Darker for popovers */
+    --popover-foreground: 210 30% 95%;
+
+    --primary: 217 91.2% 59.8%; /* Vibrant blue, same as light mode for consistency */
+    --primary-foreground: 210 20% 98%;
+
+    --secondary: 220 15% 20%; /* Darker gray for secondary elements */
+    --secondary-foreground: 210 30% 90%; /* Lighter text for secondary */
+
+    --muted: 220 15% 20%;
+    --muted-foreground: 215 20% 70%; /* Softer text for muted */
+
+    --accent: 220 15% 20%;
     --accent-foreground: 210 30% 90%;
-    --destructive: 0 70% 50%; /* Slightly brighter red for destructive actions */
-    --destructive-foreground: 210 40% 98%;
-    --border: 220 15% 25%; /* Lighter border */
-    --input: 220 15% 20%; /* Input background slightly different from card */
-    --ring: 217 91% 65%; /* Ring color to match new primary */
-    --sidebar-background: 220 15% 10%; /* Darker sidebar */
-    --sidebar-foreground: 210 30% 85%;
-    --sidebar-primary: 217 91% 60%;
-    --sidebar-primary-foreground: 210 40% 98%;
-    --sidebar-accent: 220 15% 20%;
+
+    --destructive: 0 72.2% 50.6%; /* Adjusted destructive red for dark mode */
+    --destructive-foreground: 210 20% 98%;
+
+    --border: 220 15% 25%; /* Border for dark mode */
+    --input: 220 15% 16%; /* Input background for dark mode, distinct from card */
+    --ring: 217 91.2% 59.8%;
+
+    /* Sidebar specific colors for dark mode */
+    --sidebar-background: 220 15% 8%; /* Even darker for sidebar */
+    --sidebar-foreground: 210 30% 90%;
+    --sidebar-primary: 217 91.2% 59.8%;
+    --sidebar-primary-foreground: 210 20% 98%;
+    --sidebar-accent: 220 15% 18%;
     --sidebar-accent-foreground: 210 30% 90%;
     --sidebar-border: 220 15% 22%;
-    --sidebar-ring: 217 91% 65%;
+    --sidebar-ring: 217 91.2% 59.8%;
   }
+
   html {
     scroll-behavior: smooth;
   }
