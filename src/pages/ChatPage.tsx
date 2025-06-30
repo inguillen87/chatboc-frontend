@@ -3,7 +3,7 @@ import { Message } from "@/types/chat"; // Asegúrate de que Message tenga los n
 import ChatMessage from "@/components/chat/ChatMessage";
 import ChatInput from "@/components/chat/ChatInput";
 import TypingIndicator from "@/components/chat/TypingIndicator";
-// import Navbar from "@/components/layout/Navbar"; // Eliminado: AppShell se encarga del Navbar
+import Navbar from "@/components/layout/Navbar";
 import { apiFetch, getErrorMessage } from "@/utils/api";
 import { getAskEndpoint, esRubroPublico, parseRubro } from "@/utils/chatEndpoints";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
@@ -387,7 +387,7 @@ const ChatPage = () => {
 
   return (
     <div className="min-h-screen flex flex-col w-full bg-gradient-to-br from-[#0d223a] to-[#151a26] text-foreground">
-      {/* <Navbar /> // Eliminado: AppShell se encarga del Navbar */}
+      <Navbar />
       <main className="flex-grow flex flex-col items-center justify-center pt-3 sm:pt-10 pb-2 sm:pb-6 transition-all">
         <div
           className={`

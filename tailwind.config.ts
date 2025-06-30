@@ -25,12 +25,12 @@ const config = {
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
         primary: {
-          DEFAULT: "hsl(var(--primary))", // Azul Cobalto Vibrante
-          foreground: "hsl(var(--primary-foreground))", // Blanco para texto sobre primario
+          DEFAULT: "hsl(var(--primary))",
+          foreground: "hsl(var(--primary-foreground))",
         },
         secondary: {
-          DEFAULT: "hsl(var(--secondary))", // Turquesa o Verde Azulado Claro
-          foreground: "hsl(var(--secondary-foreground))", // Texto oscuro para secundario
+          DEFAULT: "hsl(var(--secondary))",
+          foreground: "hsl(var(--secondary-foreground))",
         },
         destructive: {
           DEFAULT: "hsl(var(--destructive))",
@@ -52,8 +52,6 @@ const config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        // Se mantienen los colores de sidebar por si se usan en algún panel de admin no móvil.
-        // Para la app móvil principal, usaremos los colores estándar primario/secundario/etc.
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",
@@ -66,27 +64,12 @@ const config = {
         },
       },
       fontFamily: {
-        sans: ["Inter", "system-ui", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", "sans-serif"],
-        // Opcional: Si queremos usar Satoshi para encabezados grandes
-        // heading: ["Satoshi", "Inter", "system-ui", "sans-serif"],
+        sans: ["Inter", "Poppins", "sans-serif"],
       },
-      borderRadius: { // Estos ahora usarán el nuevo --radius de 0.75rem (12px)
-        lg: "var(--radius)", // 12px
-        md: "calc(var(--radius) - 4px)", // 8px (ajustado para que md sea más pequeño que lg)
-        sm: "calc(var(--radius) - 6px)", // 6px (ajustado para que sm sea más pequeño que md)
-      },
-      fontSize: { // Ampliamos la escala de fuentes para tener más control
-        'xs': ['0.75rem', { lineHeight: '1rem' }],       // 12px
-        'sm': ['0.875rem', { lineHeight: '1.25rem' }],   // 14px
-        'base': ['1rem', { lineHeight: '1.5rem' }],      // 16px (en desktop, 17px en móvil debido al html font-size)
-        'lg': ['1.125rem', { lineHeight: '1.75rem' }],   // 18px
-        'xl': ['1.25rem', { lineHeight: '1.75rem' }],   // 20px
-        '2xl': ['1.5rem', { lineHeight: '2rem' }],      // 24px
-        '3xl': ['1.875rem', { lineHeight: '2.25rem' }], // 30px
-        '4xl': ['2.25rem', { lineHeight: '2.5rem' }],   // 36px
-        // Nuevos tamaños para móvil, considerando que 1rem base en móvil será ~17px
-        'text-body-mobile': ['1.0625rem', { lineHeight: '1.75' }], // ~18px, para cuerpo de texto principal en móvil
-        'text-title-mobile': ['1.25rem', { lineHeight: '1.4' }], // ~20px, para títulos en móvil
+      borderRadius: {
+        lg: "var(--radius)",
+        md: "calc(var(--radius) - 2px)",
+        sm: "calc(var(--radius) - 4px)",
       },
       keyframes: {
         "accordion-down": {
@@ -120,9 +103,6 @@ const config = {
       backgroundImage: {
         "hero-pattern": "url('/images/hero-bg.svg')",
       },
-      boxShadow: { // Añadido para MobileNavbar
-        'top': '0 -4px 6px -1px rgba(0, 0, 0, 0.07), 0 -2px 4px -2px rgba(0, 0, 0, 0.06)',
-      }
     },
   },
   plugins: [
