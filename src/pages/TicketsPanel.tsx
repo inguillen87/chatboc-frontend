@@ -8,7 +8,7 @@ import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
-import { useDebounce } from '@/hooks/useDebounce';
+// import { useDebounce } from '@/hooks/useDebounce'; // TODO: Revisar la necesidad de useDebounce y restaurar/implementar si es necesario.
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import AttachmentPreview from "@/components/chat/AttachmentPreview";
@@ -64,24 +64,41 @@ const TicketListItem: FC<{
       layout
       onClick={onSelect}
       className={cn(
-        "p-3 rounded-lg border cursor-pointer mb-2 transition-all duration-200 ease-in-out",
-        "hover:shadow-md dark:hover:bg-slate-700/60",
+        "p-4 rounded-xl border cursor-pointer mb-3 transition-all duration-150 ease-in-out", // p-4, rounded-xl, mb-3
+        "hover:shadow-lg dark:hover:bg-slate-700/50", // hover:shadow-lg
         isSelected
-          ? "bg-primary/10 border-primary dark:bg-primary/20 dark:border-primary ring-1 ring-primary"
-          : "bg-card dark:bg-slate-800 border-border dark:border-slate-700/80 hover:border-slate-400 dark:hover:border-slate-500"
+          ? "bg-primary/10 border-primary dark:bg-primary/20 dark:border-primary ring-2 ring-primary/70" // ring-2 ring-primary/70
+          : "bg-card dark:bg-slate-800 border-border dark:border-slate-700/80 hover:border-slate-300 dark:hover:border-slate-600"
       )}
-      whileHover={{ y: -2 }}
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0 }}
+      whileHover={{ y: -2, transition: { type: "spring", stiffness: 300 } }}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0, transition: { type: "spring", stiffness: 260, damping: 20 } }}
+      exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.15 } }}
     >
-      <div className="flex justify-between items-center mb-1">
-        <span className="font-semibold text-primary text-sm truncate max-w-[100px]" title={`#${ticket.nro_ticket}`}>#{ticket.nro_ticket}</span>
-        <Badge className={cn("text-xs border", ESTADOS[ticket.estado]?.tailwind_class)}>{ESTADOS[ticket.estado]?.label}</Badge>
+      <div className="flex justify-between items-start mb-2"> {/* items-start */}
+        <span className="text-lg font-bold text-primary mr-3" title={`Ticket número ${ticket.nro_ticket}`}> {/* text-lg, font-bold, mr-3 */}
+          #{ticket.nro_ticket}
+        </span>
+        <Badge
+          className={cn(
+            "text-sm px-2.5 py-1 min-w-[90px] text-center justify-center", // text-sm, padding, min-width
+             ESTADOS[ticket.estado]?.tailwind_class
+           )}
+        >
+          {ESTADOS[ticket.estado]?.label}
+        </Badge>
       </div>
-      <p className="font-medium text-foreground truncate text-sm" title={ticket.asunto}>{ticket.asunto}</p>
-      {ticket.nombre_usuario && <p className="text-xs text-muted-foreground truncate" title={ticket.nombre_usuario}>{ticket.nombre_usuario}</p>}
-      <p className="text-xs text-muted-foreground text-right mt-1">{formatDate(ticket.fecha, timezone, locale)}</p>
+      <p className="text-base font-semibold text-foreground line-clamp-2 mb-1.5" title={ticket.asunto}> {/* text-base, font-semibold, line-clamp-2, mb-1.5 */}
+        {ticket.asunto}
+      </p>
+      {ticket.nombre_usuario && (
+        <p className="text-sm text-muted-foreground mb-2 truncate" title={ticket.nombre_usuario}> {/* text-sm, mb-2 */}
+          {ticket.nombre_usuario}
+        </p>
+      )}
+      <p className="text-sm text-muted-foreground text-right mt-1"> {/* text-sm */}
+        {formatDate(ticket.fecha, timezone, locale, { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
+      </p>
     </motion.div>
   );
 };
@@ -285,12 +302,12 @@ export default function TicketsPanel() {
                 if (opt) updateSettings(opt.timezone, opt.locale);
                 }}
             >
-                <SelectTrigger className="w-[150px] text-xs h-9">
-                <SelectValue placeholder="Idioma/Zona" />
+                <SelectTrigger className="w-auto md:w-[160px] text-sm h-10"> {/* text-sm, h-10 */}
+                  <SelectValue placeholder="Idioma/Zona" />
                 </SelectTrigger>
                 <SelectContent>
                 {LOCALE_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.locale} value={opt.locale} className="text-xs">
+                    <SelectItem key={opt.locale} value={opt.locale} className="text-sm"> {/* text-sm */}
                     {opt.label}
                     </SelectItem>
                 ))}
@@ -298,45 +315,48 @@ export default function TicketsPanel() {
             </Select>
           </div>
         </div>
-        <div className="mt-4 flex items-center gap-3">
-            <div className="relative flex-grow">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                    placeholder="Buscar por ID, asunto, usuario, email..."
-                    className="pl-9 h-9"
-                    value={searchTermInput}
-                    onChange={(e) => setSearchTermInput(e.target.value)}
+        {/* Contenedor de filtros y búsqueda con flex-wrap para móvil */}
+        <div className="mt-4 flex flex-col sm:flex-row items-center gap-3">
+            <div className="relative w-full sm:flex-grow">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" /> {/* Icono h-5 w-5, left-3 */}
+                <Input 
+                    placeholder="Buscar ticket..." // Placeholder más corto
+                    className="pl-10 h-10 text-base" // pl-10, h-10, text-base
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
                 />
             </div>
-            <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as TicketStatus | "")}>
-                <SelectTrigger className="w-auto min-w-[180px] h-9">
-                    <div className="flex items-center gap-2">
-                        <ListFilter className="h-4 w-4 text-muted-foreground"/>
-                        <SelectValue placeholder="Filtrar por estado" />
-                    </div>
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="">Todos los estados</SelectItem>
-                    {Object.entries(ESTADOS).map(([key, {label}]) => (
-                        <SelectItem key={key} value={key}>{label}</SelectItem>
-                    ))}
-                </SelectContent>
-            </Select>
-            <Input
-                placeholder="Categoría..."
-                className="w-[180px] h-9"
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-
-            />
-            <Button variant="outline" onClick={fetchAndSetTickets} className="h-9" disabled={isLoading && allTickets.length === 0}>
-                {isLoading && allTickets.length === 0 ? <Loader2 className="h-4 w-4 animate-spin" /> : <Filter className="h-4 w-4"/>}
-                <span className="ml-2 hidden sm:inline">Actualizar</span>
+            <div className="w-full sm:w-auto flex gap-3">
+              <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as TicketStatus | "")}>
+                  <SelectTrigger className="w-full sm:w-auto sm:min-w-[180px] h-10 text-base"> {/* h-10, text-base */}
+                      <div className="flex items-center gap-2">
+                          <ListFilter className="h-5 w-5 text-muted-foreground"/> {/* Icono h-5 w-5 */}
+                          <SelectValue placeholder="Estado" />
+                      </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                      <SelectItem value="" className="text-base">Todos los estados</SelectItem> {/* text-base */}
+                      {Object.entries(ESTADOS).map(([key, {label}]) => (
+                          <SelectItem key={key} value={key} className="text-base">{label}</SelectItem>
+                      ))}
+                  </SelectContent>
+              </Select>
+              <Input
+                  placeholder="Categoría..."
+                  className="w-full sm:w-[180px] h-10 text-base" // h-10, text-base
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+              />
+            </div>
+            <Button variant="outline" size="default" onClick={fetchAndSetTickets} className="w-full sm:w-auto h-10 text-base" disabled={isLoading && allTickets.length === 0}> {/* size="default" (h-10), text-base */}
+                {isLoading && allTickets.length === 0 ? <Loader2 className="h-5 w-5 animate-spin" /> : <Filter className="h-5 w-5"/>} {/* Icono h-5 w-5 */}
+                <span className="ml-2">Actualizar</span> {/* Siempre visible, sm:inline eliminado */}
             </Button>
         </div>
       </header>
 
-      <div className="flex flex-1 overflow-hidden">
+      {/* La lista de tickets y el detalle del ticket */}
+      <div className="flex flex-1 overflow-hidden pt-2 md:pt-4"> {/* Añadido padding top para separar del header */}
         <div className={cn(
             "w-full md:w-2/5 lg:w-1/3 xl:w-1/4 border-r dark:border-slate-700 bg-card dark:bg-slate-800/50 flex flex-col",
             selectedTicketId && "hidden md:flex"
@@ -666,118 +686,125 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
         <div className="p-4 border-b dark:border-slate-700 bg-card dark:bg-slate-800/50 shadow-sm">
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1 sm:gap-3">
-                    <Button variant="ghost" size="icon" className="md:hidden mr-1" onClick={onClose}>
-                        <ChevronDown className="h-5 w-5 transform rotate-90"/>
+                    <Button variant="ghost" size="icon" className="md:hidden mr-1 shrink-0" onClick={onClose}> {/* shrink-0 */}
+                        <ChevronDown className="h-6 w-6 transform rotate-90"/> {/* h-6 w-6 */}
                     </Button>
-                    <h2 className="text-lg font-semibold text-foreground truncate max-w-[calc(100vw-200px)] sm:max-w-md md:max-w-lg" title={ticket.asunto}>
+                    {/* Título aumentado y con mejor truncamiento si es necesario */}
+                    <h2 className="text-xl font-semibold text-foreground truncate flex-1" title={ticket.asunto}> {/* text-xl, flex-1 */}
                         #{ticket.nro_ticket} - {ticket.asunto}
                     </h2>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 shrink-0"> {/* shrink-0 */}
                     <Select onValueChange={(val) => handleEstadoChange(val as TicketStatus)} value={ticket.estado}>
-                        <SelectTrigger className="w-auto min-w-[140px] h-9 text-sm">
+                        <SelectTrigger className="w-auto min-w-[150px] h-10 text-base"> {/* h-10, text-base */}
                              <SelectValue placeholder="Cambiar estado..." />
                         </SelectTrigger>
                         <SelectContent>
                         {Object.entries(ESTADOS).map(([key, { label }]) => (
-                            <SelectItem key={key} value={key} className="text-sm">{label}</SelectItem>
+                            <SelectItem key={key} value={key} className="text-base">{label}</SelectItem> // text-base
                         ))}
                         </SelectContent>
                     </Select>
                      <Button variant="ghost" size="icon" className="hidden md:inline-flex" onClick={onClose} title="Cerrar panel de detalle">
-                        <X className="h-5 w-5" />
+                        <X className="h-6 w-6" /> {/* h-6 w-6 */}
                     </Button>
                 </div>
             </div>
         </div>
 
         <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-            <div className="flex-1 flex flex-col p-2 md:p-4 bg-background dark:bg-slate-700/30 md:border-r dark:border-slate-700">
-                {!chatEnVivo && (
-                    <div className="p-2 flex justify-end">
-                        <Button size="sm" variant="outline" onClick={() => fetchComentarios(true)} className="text-xs h-8">
+            {/* Sección de Chat/Comentarios */}
+            <div className="flex-1 flex flex-col p-3 md:p-4 bg-background dark:bg-slate-700/30 md:border-r dark:border-slate-700">
+                {!chatEnVivo && ( // Botón de actualizar mensajes
+                    <div className="p-1 mb-2 flex justify-end">
+                        <Button size="sm" variant="outline" onClick={() => fetchComentarios(true)} className="text-sm h-9"> {/* text-sm, h-9 (size="sm" de Button) */}
                         Actualizar mensajes
                         </Button>
                     </div>
                 )}
                 <ScrollArea className="flex-1 pr-2">
                     <main className="space-y-3 p-1">
+                    {/* Renderizado de comentarios: Aplicar estilos de ChatMessagePyme/Municipio */}
                     {comentarios && comentarios.length > 0 ? (
                         comentarios.map((comment) => {
                         const attachment = getAttachmentInfo(comment.comentario);
+                        // Usar AvatarIcon y MessageBubble que ya deberían tener tamaños actualizados indirectamente
+                        // El texto del comentario se renderiza con dangerouslySetInnerHTML, asegurar que herede text-base
                         return (
                             <div
                             key={comment.id}
                             className={cn(
-                                'flex items-end gap-2 text-sm',
+                                'flex items-end gap-2', // text-sm eliminado, será heredado o definido en MessageBubble/content
                                 comment.es_admin ? 'justify-end' : 'justify-start'
                             )}
                             >
-                            {!comment.es_admin && <AvatarIcon type="user" />}
-                            <div
+                            {!comment.es_admin && <AvatarIcon type="user" />} {/* AvatarIcon ya es w-10 h-10 */}
+                            <div // Esta es la burbuja
                                 className={cn(
-                                'max-w-lg md:max-w-md lg:max-w-lg rounded-xl px-3.5 py-2.5 shadow-sm',
+                                'max-w-[85%] md:max-w-[75%] rounded-xl px-3.5 py-2.5 shadow-sm text-base leading-relaxed', // text-base, leading-relaxed
                                 comment.es_admin
-                                    ? 'bg-primary text-primary-foreground rounded-br-sm'
-                                    : 'bg-card dark:bg-slate-800 text-foreground border dark:border-slate-700/80 rounded-bl-sm'
+                                    ? 'bg-primary text-primary-foreground rounded-br-lg' // rounded-br-lg para diferenciar
+                                    : 'bg-card dark:bg-slate-800 text-foreground border dark:border-slate-700/80 rounded-bl-lg' // rounded-bl-lg
                                 )}
                             >
                                 {attachment ? (
                                 <AttachmentPreview attachment={attachment} />
                                 ) : (
-                                <p className="break-words whitespace-pre-wrap">{comment.comentario}</p>
+                                <p className="break-words whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: comment.comentario }}></p>
                                 )}
                                 <p className={cn(
-                                    "text-xs opacity-70 mt-1.5",
+                                    "text-xs opacity-80 mt-1.5", // text-xs, opacity-80
                                     comment.es_admin ? "text-primary-foreground/80 text-right" : "text-muted-foreground text-right"
                                     )}>
                                 {formatDate(comment.fecha, timezone, locale)}
                                 </p>
                             </div>
-                            {comment.es_admin && <AvatarIcon type="admin" />}
+                            {comment.es_admin && <AvatarIcon type="admin" />} {/* AvatarIcon ya es w-10 h-10 */}
                             </div>
                         );
                         })
                     ) : (
-                        <div className="text-center text-muted-foreground py-10">
+                        <div className="text-center text-muted-foreground py-10 text-base"> {/* text-base */}
                         No hay comentarios para este ticket.
                         </div>
                     )}
                     <div ref={chatBottomRef} />
                     </main>
                 </ScrollArea>
-                <footer className="border-t dark:border-slate-700/80 p-2 md:p-3 mt-2 flex gap-2 items-center">
+                {/* Footer con Input de Respuesta */}
+                <footer className="border-t dark:border-slate-700/80 p-2.5 md:p-3 mt-2 flex gap-2 items-center">
                     <Input
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     onKeyDown={(e) => {
                         if (e.key === 'Enter' && !e.shiftKey && newMessage.trim()) {
-                            e.preventDefault(); // Evitar nueva línea en algunos browsers
+                            e.preventDefault();
                             handleSendMessage();
                         }
                     }}
                     placeholder="Escribe una respuesta..."
                     disabled={isSending}
-                    className="h-10 bg-card dark:bg-slate-800 focus-visible:ring-primary/50"
+                    className="h-11 text-base bg-card dark:bg-slate-800 focus-visible:ring-primary/50 flex-1" // h-11, text-base
                     />
-                    <Button onClick={handleSendMessage} disabled={isSending || !newMessage.trim()} aria-label="Enviar Mensaje" className="h-10">
-                    {isSending ? <Loader2 className="animate-spin h-5 w-5" /> : <Send className="h-5 w-5" />}
+                    <Button onClick={handleSendMessage} disabled={isSending || !newMessage.trim()} aria-label="Enviar Mensaje" size="default" className="h-11"> {/* size="default" (h-10 o h-11), icono interno */}
+                    {isSending ? <Loader2 className="animate-spin h-6 w-6" /> : <Send className="h-6 w-6" />} {/* Iconos h-6 w-6 */}
                     </Button>
                 </footer>
             </div>
 
-            <ScrollArea className="w-full md:w-[320px] lg:w-[360px] p-3 md:p-4 space-y-4 bg-card dark:bg-slate-800/50 md:border-l-0 border-t md:border-t-0 dark:border-slate-700">
+            {/* Barra Lateral de Información Adicional */}
+            <ScrollArea className="w-full md:w-[350px] lg:w-[380px] p-3 md:p-4 space-y-4 bg-card dark:bg-slate-800/60 md:border-l-0 border-t md:border-t-0 dark:border-slate-700">
                 {(ticket.nombre_usuario || ticket.email_usuario || ticket.telefono) && (
-                <Card className="shadow-sm">
+                <Card className="shadow-md"> {/* Usar nuestra Card estilizada */}
                     <CardHeader className="pb-3 pt-4 px-4">
-                        <CardTitle className="text-base font-semibold flex items-center gap-2">
-                            <User className="h-4 w-4 text-muted-foreground"/> Información del Usuario
+                        <CardTitle className="text-lg font-semibold flex items-center gap-2.5"> {/* text-lg, gap-2.5 */}
+                            <User className="h-5 w-5 text-muted-foreground"/> Información del Usuario
                         </CardTitle>
                     </CardHeader>
-                    <CardContent className="text-sm text-muted-foreground space-y-1.5 px-4 pb-4">
-                    {ticket.nombre_usuario && <p><strong>Nombre:</strong> {ticket.nombre_usuario}</p>}
-                    {ticket.email_usuario && <p><strong>Email:</strong> <a href={`mailto:${ticket.email_usuario}`} className="text-primary hover:underline">{ticket.email_usuario}</a></p>}
-                    {ticket.telefono && <p><strong>Teléfono:</strong> <a href={`tel:${ticket.telefono}`} className="text-primary hover:underline">{ticket.telefono}</a></p>}
+                    <CardContent className="text-base text-muted-foreground space-y-2 px-4 pb-4"> {/* text-base, space-y-2 */}
+                    {ticket.nombre_usuario && <p><strong className="text-foreground/90">Nombre:</strong> {ticket.nombre_usuario}</p>}
+                    {ticket.email_usuario && <p><strong className="text-foreground/90">Email:</strong> <a href={`mailto:${ticket.email_usuario}`} className="text-primary hover:underline">{ticket.email_usuario}</a></p>}
+                    {ticket.telefono && <p><strong className="text-foreground/90">Teléfono:</strong> <a href={`tel:${ticket.telefono}`} className="text-primary hover:underline">{ticket.telefono}</a></p>}
                     </CardContent>
                 </Card>
                 )}
