@@ -110,23 +110,22 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
 
 
   return (
-    <div className="w-full flex items-center gap-1 sm:gap-2 px-2 py-2 sm:px-3 sm:py-2"> {/* Reduced gap and padding for mobile */}
-      {/* Botón para adjuntar archivos: Solo abre el selector de archivos, NO envía un mensaje al backend directamente */}
-      <AdjuntarArchivo onUpload={handleFileUploaded} /> 
+    <div className="w-full flex items-center gap-1 sm:gap-2 px-2 py-2 sm:px-3 sm:py-3 bg-background"> {/* Adjusted padding for sm:py-3 and added bg-background */}
+      {/* Botón para adjuntar archivos */}
+      <AdjuntarArchivo onUpload={handleFileUploaded} />
 
-      {/* Botón para compartir ubicación: Solo inicia la solicitud de GPS, NO envía un mensaje al backend directamente */}
+      {/* Botón para compartir ubicación */}
       <button
         onClick={handleShareLocation}
         disabled={isTyping}
         className={`
           flex items-center justify-center
-          rounded-full p-2 sm:p-2.5 {/* Reduced padding for mobile */}
-          rounded-full p-2 sm:p-2.5 {/* Reduced padding for mobile */}
-          shadow-xl transition-all duration-150
-          focus:outline-none focus:ring-2 focus:ring-primary/60
+          rounded-full p-2 sm:p-2.5
+          shadow-md transition-all duration-150
+          focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-1 focus:ring-offset-background
           active:scale-95
 
-          bg-accent text-accent-foreground hover:bg-accent/80
+          bg-secondary text-secondary-foreground hover:bg-secondary/80
 
           ${isTyping ? "opacity-50 cursor-not-allowed" : ""}
         `}
@@ -152,15 +151,15 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
         disabled={isTyping}
         className={`
           flex items-center justify-center
-          rounded-full p-2.5
-          shadow-xl transition-all duration-150
-          focus:outline-none focus:ring-2 focus:ring-primary/60
+          rounded-full p-2 sm:p-2.5
+          shadow-md transition-all duration-150
+          focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-1 focus:ring-offset-background
           active:scale-95
 
-          bg-accent text-accent-foreground hover:bg-accent/80
+          bg-secondary text-secondary-foreground hover:bg-secondary/80
 
           ${isTyping ? "opacity-50 cursor-not-allowed" : ""}
-          ${listening ? "text-destructive" : ""}
+          ${listening ? "text-destructive bg-destructive/20 hover:bg-destructive/30" : ""}
         `}
         aria-label={listening ? "Detener dictado" : "Dictar mensaje"}
         type="button"
@@ -172,21 +171,20 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
         ref={internalRef}
         className={`
           flex-1 max-w-full min-w-0
-          rounded-full px-3 sm:px-4 py-1.5 sm:py-2 {/* Reduced padding for mobile */}
+          rounded-full px-4 py-2 sm:px-4 sm:py-2.5 {/* Adjusted padding */}
           text-base
           outline-none transition-all duration-200
-          focus:border-primary focus:ring-2 focus:ring-primary/50
+          focus:ring-2 focus:ring-primary/50 focus:border-transparent
           placeholder:text-muted-foreground
           font-medium
           disabled:cursor-not-allowed
           
-          bg-input
-          text-foreground
-          border border-border /* Use theme border */
+          bg-input text-foreground
+          border border-border
           
-          /* Remove specific dark mode overrides to inherit from theme */
+          dark:bg-input dark:text-foreground dark:border-border /* Explicit dark mode for input */
 
-          ${isTyping ? "opacity-60 bg-muted-foreground/10" : ""}
+          ${isTyping ? "opacity-60 bg-muted-foreground/10 dark:bg-muted-foreground/20" : ""}
         `}
         type="text"
         placeholder={PLACEHOLDERS[placeholderIndex]}
@@ -211,16 +209,14 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
       <button
         className={`
           flex items-center justify-center
-          rounded-full p-2 sm:p-2.5 ml-1 {/* Reduced padding for mobile */}
-          shadow-xl transition-all duration-150
-          focus:outline-none focus:ring-2 focus:ring-primary/60
+          rounded-full p-2.5 sm:p-3 ml-1 sm:ml-2 {/* Adjusted padding and margin */}
+          shadow-md transition-all duration-150
+          focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-1 focus:ring-offset-background
           active:scale-95
 
-          bg-primary hover:bg-primary/90
-          text-primary-foreground
-          /* Removed dark:bg-blue-600 dark:hover:bg-blue-700 as theme primary handles dark mode */
+          bg-primary text-primary-foreground hover:bg-primary/90
 
-          ${!input.trim() || isTyping ? "opacity-50 cursor-not-allowed" : ""}
+          disabled:opacity-50 disabled:cursor-not-allowed
         `}
         onClick={handleSend}
         disabled={!input.trim() || isTyping}
