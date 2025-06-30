@@ -13,6 +13,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useUser } from "@/hooks/useUser";
 import { User as UserIcon, ExternalLink } from "lucide-react";
 import { getInitials, cn } from "@/lib/utils";
+import UserAvatarAnimated from "./UserAvatarAnimated";
 import { Badge } from "@/components/ui/badge";
 
 // --- Avatares (reutilizados de ChatMessagePyme/Municipio) ---
@@ -44,15 +45,16 @@ const UserChatAvatar: React.FC = () => {
       animate={{ scale: 1, opacity: 1 }}
       transition={{ type: "spring", stiffness: 200, damping: 20 }}
     >
-      <Avatar className="w-8 h-8 border">
-        <AvatarImage
-          src={user?.picture || "/favicon/human-avatar.svg"}
-          alt={user?.name || "Avatar de usuario"}
-        />
-        <AvatarFallback className="bg-secondary text-secondary-foreground text-xs">
-          {initials ? initials : <UserIcon size={16} />}
-        </AvatarFallback>
-      </Avatar>
+      {user?.picture ? (
+        <Avatar className="w-8 h-8 border">
+          <AvatarImage src={user.picture} alt={user.name || "Avatar de usuario"} />
+          <AvatarFallback className="bg-secondary text-secondary-foreground text-xs">
+            {initials ? initials : <UserIcon size={16} />}
+          </AvatarFallback>
+        </Avatar>
+      ) : (
+        <UserAvatarAnimated size={32} blinking smiling />
+      )}
     </motion.div>
   );
 };
