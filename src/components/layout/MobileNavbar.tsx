@@ -1,5 +1,3 @@
-<<<<<<< SEARCH
-=======
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Home, Ticket, MessageSquare, ShoppingBag, Menu as MenuIcon, X, User, Settings, LogOut, Info, ShieldQuestion, FileText, ChevronRight } from 'lucide-react';
@@ -194,4 +192,3 @@ export default MobileNavbar;
 // Añadir `shadow-top` a tailwind.config.ts si no existe:
 // theme: { extend: { boxShadow: { top: '0 -4px 6px -1px rgba(0, 0, 0, 0.1), 0 -2px 4px -1px rgba(0, 0, 0, 0.06)' } } }
 // (Esto es un comentario para el desarrollador, no parte del código del archivo)
->>>>>>> REPLACE
