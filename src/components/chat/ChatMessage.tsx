@@ -1,24 +1,18 @@
 import React, { forwardRef } from 'react';
-import { getCurrentTipoChat } from '@/utils/tipoChat';
-import ChatMessagePyme from './ChatMessagePyme';
-import ChatMessageMunicipio from './ChatMessageMunicipio';
-import { Message, SendPayload } from '@/types/chat'; // Importa SendPayload
+// import { getCurrentTipoChat } from '@/utils/tipoChat'; // Ya no es necesario aquí
+import ChatMessageBase, { ChatMessageBaseProps } from './ChatMessageBase';
+// Ya no importamos ChatMessagePyme ni ChatMessageMunicipio aquí
 
-export interface ChatMessageProps {
-  message: Message;
-  isTyping: boolean;
-  onButtonClick: (valueToSend: SendPayload) => void; // <-- MODIFICADO: Acepta SendPayload
-  onInternalAction?: (action: string) => void;
-  tipoChat?: 'pyme' | 'municipio';
-  query?: string;
-}
+// La interfaz ChatMessageProps es la misma que ChatMessageBaseProps
+// Solo la re-exportamos para mantener la consistencia si otros componentes la importaban.
+export type ChatMessageProps = ChatMessageBaseProps;
 
-// Habilitás forwardRef para animaciones o scroll.
 const ChatMessage = forwardRef<HTMLDivElement, ChatMessageProps>(
-  ({ tipoChat = getCurrentTipoChat(), ...props }, ref) => {
-    const Component = tipoChat === 'municipio' ? ChatMessageMunicipio : ChatMessagePyme;
-    // Pasa el ref al mensaje (por si querés animar, hacer scroll, etc.)
-    return <Component {...props} ref={ref} />;
+  (props, ref) => {
+    // Simplemente pasamos todas las props a ChatMessageBase.
+    // El `tipoChat` (si se necesita para alguna variación mínima no manejada por structuredContent)
+    // ya está incluido en `props` y ChatMessageBase lo recibe.
+    return <ChatMessageBase {...props} ref={ref} />;
   }
 );
 

@@ -2,82 +2,138 @@ import React, { useEffect, useState } from 'react';
 import { apiFetch, getErrorMessage } from '@/utils/api';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
-
-interface Product {
-  id: number;
-  nombre: string;
-  categoria?: string | null;
-  presentacion?: string | null;
-  descripcion?: string | null;
-  precio_unitario?: number | null;
-  imagen_url?: string | null;
-}
-
-const formatPrice = (value: number) =>
-  value.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' });
+import ProductCard, { ProductDetails } from '@/components/product/ProductCard'; // Importar ProductCard y su interfaz
+import { toast } from '@/components/ui/use-toast';
+import { Input } from '@/components/ui/input';
+import { Loader2, ShoppingCart, AlertTriangle, Search } from 'lucide-react'; // Icons
 
 export default function ProductCatalog() {
-  const [products, setProducts] = useState<Product[]>([]);
+  const [allProducts, setAllProducts] = useState<ProductDetails[]>([]);
+  const [filteredProducts, setFilteredProducts] = useState<ProductDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
-    apiFetch<Product[]>('/productos')
+    setLoading(true);
+    apiFetch<ProductDetails[]>('/productos') // Asumimos que el API devuelve ProductDetails
       .then((data) => {
-        setProducts(data);
+        // Asegurarse que precio_unitario sea siempre un número
+        const sanitizedData = data.map(p => ({
+          ...p,
+          precio_unitario: Number(p.precio_unitario) || 0, // Default to 0 if NaN or not present
+        }));
+        setAllProducts(sanitizedData);
+        setFilteredProducts(sanitizedData);
         setLoading(false);
       })
       .catch((err: any) => {
-        setError(getErrorMessage(err, 'Error'));
+        setError(getErrorMessage(err, 'No se pudieron cargar los productos. Intenta de nuevo más tarde.'));
         setLoading(false);
       });
   }, []);
 
-  if (loading) return <p>Cargando...</p>;
-  if (error) {
-    if (error === 'No encontrado') {
-      return <p>No se encontraron productos.</p>;
-    }
-    return <p>{error}</p>;
-  }
+  useEffect(() => {
+    const lowercasedFilter = searchTerm.toLowerCase();
+    const filtered = allProducts.filter(product => {
+      return (
+        product.nombre.toLowerCase().includes(lowercasedFilter) ||
+        (product.descripcion && product.descripcion.toLowerCase().includes(lowercasedFilter)) ||
+        (product.categoria && product.categoria.toLowerCase().includes(lowercasedFilter)) ||
+        (product.marca && product.marca.toLowerCase().includes(lowercasedFilter))
+      );
+    });
+    setFilteredProducts(filtered);
+  }, [searchTerm, allProducts]);
 
-  const handleAdd = async (name: string) => {
-    await apiFetch('/carrito', { method: 'POST', body: { nombre: name, cantidad: 1 } });
+  const handleAddToCart = async (product: ProductDetails) => {
+    try {
+      // El backend actual espera 'nombre' y 'cantidad'.
+      // Si los nombres no son únicos, esto debería cambiar a product.id o product.sku
+      await apiFetch('/carrito', {
+        method: 'POST',
+        body: { nombre: product.nombre, cantidad: 1 }
+      });
+      toast({
+        title: "¡Agregado!",
+        description: `${product.nombre} se agregó a tu carrito.`,
+        className: "bg-green-500 text-white",
+      });
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: `No se pudo agregar ${product.nombre} al carrito.`,
+        variant: "destructive",
+      });
+      console.error("Error agregando al carrito:", err);
+    }
   };
 
-  return (
-    <div className="p-4 space-y-4">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Catálogo</h1>
-        <Button asChild variant="outline">
-          <Link to="/cart">Ver carrito</Link>
-        </Button>
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] p-4 text-muted-foreground">
+        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+        <p className="text-lg">Cargando productos...</p>
       </div>
-      <ul className="grid gap-4">
-        {products.map((p) => (
-          <li key={p.id} className="flex gap-4 items-center border-b pb-2">
-            {p.imagen_url && (
-              <img
-                src={p.imagen_url}
-                alt=""
-                className="w-16 h-16 object-cover rounded"
-              />
-            )}
-            <div className="flex-1">
-              <p className="font-medium">{p.nombre}</p>
-              {p.presentacion && (
-                <p className="text-sm text-muted-foreground">{p.presentacion}</p>
-              )}
-            </div>
-            {typeof p.precio_unitario === 'number' && (
-              <span className="font-semibold mr-2">{formatPrice(p.precio_unitario)}</span>
-            )}
-            <Button size="sm" onClick={() => handleAdd(p.nombre)}>
-              Agregar
-            </Button>
-          </li>
-        ))}
-      </ul>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] p-4 text-destructive">
+        <AlertTriangle className="h-12 w-12 mb-4" />
+        <p className="text-lg font-semibold">Ocurrió un error</p>
+        <p>{error}</p>
+        <Button onClick={() => window.location.reload()} className="mt-4">Reintentar</Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto p-4 md:p-8">
+      <header className="mb-8">
+        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
+          <h1 className="text-3xl md:text-4xl font-bold text-foreground">Nuestro Catálogo</h1>
+          <Button asChild variant="outline" className="w-full sm:w-auto">
+            <Link to="/cart">
+              <ShoppingCart className="mr-2 h-4 w-4" />
+              Ver Carrito
+            </Link>
+          </Button>
+        </div>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+          <Input
+            type="text"
+            placeholder="Buscar productos por nombre, descripción, categoría..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 text-base rounded-md border-border focus:ring-primary focus:border-primary"
+          />
+        </div>
+      </header>
+
+      {filteredProducts.length > 0 ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          {filteredProducts.map((product) => (
+            <ProductCard
+              key={product.id}
+              product={product}
+              onAddToCart={handleAddToCart}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-12">
+          <Search className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
+          <p className="text-xl text-muted-foreground">
+            {allProducts.length > 0 ? "No se encontraron productos para tu búsqueda." : "Aún no hay productos en el catálogo."}
+          </p>
+          {allProducts.length > 0 && searchTerm && (
+             <p className="text-sm text-muted-foreground mt-2">Intenta con otros términos de búsqueda.</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
