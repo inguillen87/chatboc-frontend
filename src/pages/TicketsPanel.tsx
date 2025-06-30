@@ -20,6 +20,7 @@ import { LOCALE_OPTIONS } from "@/utils/localeOptions";
 import useRequireRole from "@/hooks/useRequireRole";
 import type { Role } from "@/utils/roles";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 
 
 // ----------- TIPOS Y ESTADOS -----------
@@ -511,25 +512,27 @@ export default function TicketsPanel() {
 
   {/* Lista agrupada de tickets */}
   {!isLoading && filteredAndSortedGroups.length > 0 && (
-    <AnimatePresence>
+    <Accordion type="multiple" className="space-y-2">
       {filteredAndSortedGroups.map(group => (
-        <div key={group.categoryName} className="mb-4">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-1 py-2 sticky top-0 bg-card dark:bg-slate-800/80 backdrop-blur-sm z-10">
+        <AccordionItem key={group.categoryName} value={String(group.categoryName)}>
+          <AccordionTrigger className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-1 py-2">
             {group.categoryName} ({group.tickets.length})
-          </h2>
-          {group.tickets.map(ticket => (
-            <TicketListItem
-              key={ticket.id}
-              ticket={ticket}
-              isSelected={selectedTicketId === ticket.id}
-              onSelect={() => loadAndSetDetailedTicket(ticket)}
-              timezone={timezone}
-              locale={locale}
-            />
-          ))}
-        </div>
+          </AccordionTrigger>
+          <AccordionContent className="space-y-2">
+            {group.tickets.map(ticket => (
+              <TicketListItem
+                key={ticket.id}
+                ticket={ticket}
+                isSelected={selectedTicketId === ticket.id}
+                onSelect={() => loadAndSetDetailedTicket(ticket)}
+                timezone={timezone}
+                locale={locale}
+              />
+            ))}
+          </AccordionContent>
+        </AccordionItem>
       ))}
-    </AnimatePresence>
+    </Accordion>
   )}
 </ScrollArea>
 
