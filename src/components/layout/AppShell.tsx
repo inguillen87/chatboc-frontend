@@ -1,11 +1,9 @@
-<<<<<<< SEARCH
-=======
 import React from 'react';
 import { useLocation } from 'react-router-dom';
 import { useUser } from '@/hooks/useUser';
 import { useIsMobile } from '@/hooks/use-mobile';
 
-import DesktopNavbar from './Navbar'; // Renombrado para claridad
+import DesktopNavbar from './DesktopNavbar'; // Renombrado para claridad
 import MobileNavbar from './MobileNavbar';
 import Footer from './Footer';
 import ScrollToTopButton from '../ui/ScrollToTopButton';
@@ -73,4 +71,3 @@ const AppShell: React.FC<AppShellProps> = ({ children }) => {
 };
 
 export default AppShell;
->>>>>>> REPLACE
