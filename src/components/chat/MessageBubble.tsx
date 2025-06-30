@@ -12,8 +12,7 @@ const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
     <div // Cambiado de motion.div a div simple
       ref={ref}
       className={cn(
-        "rounded-xl shadow-md px-4 py-2.5 font-medium whitespace-pre-line break-words", // Eliminado text-sm y leading-normal
-        // El tamaño de fuente y el interlineado ahora se controlan completamente desde el contenido (ChatMessagePyme/Municipio)
+        "rounded-xl shadow-md px-4 py-2.5 font-medium text-sm leading-normal whitespace-pre-line break-words", // Ajustado a rounded-xl, px-4, py-2.5, text-sm
         // className se aplica después, por lo que puede sobreescribir estos defaults
         className
       )}
