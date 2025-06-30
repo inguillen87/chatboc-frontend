@@ -50,64 +50,44 @@ const ChatHeader: React.FC<Props> = ({
           />
         </div>
         <div className="ml-1 flex flex-col leading-tight">
-          <span className="font-extrabold text-base tracking-wide" style={{ letterSpacing: ".02em" }}>
+          <span className="font-extrabold text-base tracking-wide" style={{ letterSpacing: ".02em" }}> {/* text-base es ~17px en móvil */}
             Chatboc
           </span>
-          <span className="text-xs text-muted-foreground" style={{ fontWeight: 500 }}>
+          <span className="text-sm text-muted-foreground" style={{ fontWeight: 500 }}> {/* Aumentado a text-sm (~15px en móvil) */}
             Asistente Virtual
           </span>
         </div>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1"> {/* Reducido gap para más espacio para iconos */}
         <span
-          className="text-primary text-xs font-semibold flex items-center"
+          className="text-primary text-sm font-semibold flex items-center mr-1" // Aumentado a text-sm, añadido mr-1
           aria-label="Estado del bot: Online"
         >
-          <span className="w-2 h-2 bg-primary rounded-full mr-1.5"></span>
+          <span className="w-2.5 h-2.5 bg-primary rounded-full mr-1.5"></span> {/* Punto más grande */}
           Online
         </span>
         {onBack ? (
-          <button
-            onClick={onBack}
-            className="text-muted-foreground hover:text-foreground transition"
-            aria-label="Volver"
-          >
-            <ChevronLeft size={20} />
-          </button>
+          <Button variant="ghost" size="icon" onClick={onBack} aria-label="Volver">
+            <ChevronLeft className="h-5 w-5" /> {/* Iconos h-5 w-5 o h-6 w-6 */}
+          </Button>
         ) : onProfile && showProfile ? (
-          <button
-            onClick={onProfile}
-            className="text-muted-foreground hover:text-foreground transition"
-            aria-label="Mi perfil"
-          >
-            <User size={20} />
-          </button>
+          <Button variant="ghost" size="icon" onClick={onProfile} aria-label="Mi perfil">
+            <User className="h-5 w-5" />
+          </Button>
         ) : null}
         {onCart && (
-          <button
-            onClick={onCart}
-            className="text-muted-foreground hover:text-foreground transition"
-            aria-label="Ver carrito"
-          >
-            <ShoppingCart size={20} />
-          </button>
+          <Button variant="ghost" size="icon" onClick={onCart} aria-label="Ver carrito">
+            <ShoppingCart className="h-5 w-5" />
+          </Button>
         )}
         {onToggleSound && (
-          <button
-            onClick={onToggleSound}
-            className="text-muted-foreground hover:text-foreground transition"
-            aria-label={muted ? 'Activar sonido' : 'Silenciar sonido'}
-          >
-            {muted ? <VolumeX size={20} /> : <Volume2 size={20} />}
-          </button>
+          <Button variant="ghost" size="icon" onClick={onToggleSound} aria-label={muted ? 'Activar sonido' : 'Silenciar sonido'}>
+            {muted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+          </Button>
         )}
-        <button
-          onClick={onClose}
-          className="text-muted-foreground hover:text-foreground transition"
-          aria-label="Cerrar chat"
-        >
-          <X size={20} />
-        </button>
+        <Button variant="ghost" size="icon" onClick={onClose} aria-label="Cerrar chat">
+          <X className="h-5 w-5" />
+        </Button>
       </div>
     </div>
   );
