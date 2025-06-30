@@ -1,4 +1,5 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { loadGoogleMapsApi } from "@/utils/mapsLoader";
 
 interface LocationMapProps {
   lat?: number | null;
@@ -6,118 +7,99 @@ interface LocationMapProps {
   onMove?: (lat: number, lng: number) => void;
 }
 
-const Maps_API_KEY =
-  import.meta.env.VITE_Maps_API_KEY || "AIzaSyDbEoPzFgN5zJsIeywiRE7jRI8xr5ioGNI"; // Replace with your actual API key
-
-function ensureScriptLoaded(callback: () => void) {
-  if (typeof window === "undefined") return;
-
-  const checkReady = () => {
-    if (
-      window.google &&
-      window.google.maps &&
-      window.google.maps.Map &&
-      window.google.maps.marker &&
-      window.google.maps.marker.AdvancedMarkerElement
-    ) {
-      callback();
-    } else {
-      // If script is loaded but libraries not ready, poll
-      const intervalId = setInterval(() => {
-        if (
-          window.google &&
-          window.google.maps &&
-          window.google.maps.Map &&
-          window.google.maps.marker &&
-          window.google.maps.marker.AdvancedMarkerElement
-        ) {
-          clearInterval(intervalId);
-          callback();
-        }
-      }, 100);
-    }
-  };
-
-  if (
-    window.google &&
-    window.google.maps &&
-    window.google.maps.Map &&
-    window.google.maps.marker &&
-    window.google.maps.marker.AdvancedMarkerElement
-  ) {
-    // Already loaded and ready
-    callback();
-    return;
-  }
-
-  const existingScript = document.getElementById("chatboc-google-maps");
-  if (existingScript && (existingScript as any)._isLoaded) {
-    // Script tag exists and has loaded, check if API objects are ready
-    checkReady();
-    return;
-  } if (existingScript) {
-    // Script tag exists but might still be loading, add listener and also poll
-    existingScript.addEventListener("load", checkReady);
-    checkReady(); // check immediately in case it loaded between getElementById and addEventListener
-    return;
-  }
-
-  const script = document.createElement("script");
-  script.id = "chatboc-google-maps";
-  script.src = `https://maps.googleapis.com/maps/api/js?key=${Maps_API_KEY}&v=weekly&libraries=places,marker`;
-  script.async = true;
-  script.defer = true; // Defer execution until HTML parsing is complete
-  script.onload = () => {
-    (script as any)._isLoaded = true; // Mark as loaded
-    checkReady();
-  };
-  script.onerror = () => {
-    console.error("Google Maps script failed to load.");
-    // Potentially call a user-facing error handler here
-  };
-  document.head.appendChild(script);
-}
-
 const LocationMap: React.FC<LocationMapProps> = ({ lat, lng, onMove }) => {
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
-  const markerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
+  const markerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(
+    null
+  );
+  const [mapsApi, setMapsApi] = useState<typeof google.maps | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    ensureScriptLoaded(() => {
-      if (!ref.current) return;
-      if (!mapRef.current) {
-        const center =
-          lat != null && lng != null ? { lat, lng } : { lat: -34.6037, lng: -58.3816 };
-        mapRef.current = new window.google.maps.Map(ref.current, {
-          center,
-          zoom: lat != null && lng != null ? 15 : 5,
-          mapId: "CHATBOC_MAP_ID", // Add Map ID for Advanced Markers
-        });
-        markerRef.current = new window.google.maps.marker.AdvancedMarkerElement({
+    loadGoogleMapsApi(["marker", "places"])
+      .then((api) => {
+        setMapsApi(api.maps);
+      })
+      .catch((err) => {
+        console.error("Failed to load Google Maps API for LocationMap:", err);
+        setError(
+          "Error al cargar el mapa. Por favor, verifique su conexión y la configuración de la API de Google Maps."
+        );
+      });
+  }, []);
+
+  useEffect(() => {
+    if (!mapsApi || !ref.current) return;
+
+    if (!mapRef.current) {
+      const center =
+        lat != null && lng != null
+          ? { lat, lng }
+          : { lat: -34.6037, lng: -58.3816 }; // Default to Buenos Aires
+
+      mapRef.current = new mapsApi.Map(ref.current, {
+        center,
+        zoom: lat != null && lng != null ? 15 : 5,
+        mapId: "CHATBOC_MAP_ID", // Required for Advanced Markers
+      });
+
+      // Ensure AdvancedMarkerElement is available
+      if (mapsApi.marker && mapsApi.marker.AdvancedMarkerElement) {
+        markerRef.current = new mapsApi.marker.AdvancedMarkerElement({
           position: lat != null && lng != null ? center : undefined,
           map: mapRef.current!,
-          draggable: Boolean(onMove),
+          gmpDraggable: Boolean(onMove), // Note: property is gmpDraggable
         });
+
         if (onMove && markerRef.current) {
           markerRef.current.addListener("dragend", () => {
-            const pos = markerRef.current!.position;
-            if (pos) onMove(pos.lat(), pos.lng());
+            const advancedMarker = markerRef.current as google.maps.marker.AdvancedMarkerElement;
+            const pos = advancedMarker.position;
+             if (pos && typeof pos.lat === 'number' && typeof pos.lng === 'number') {
+              onMove(pos.lat, pos.lng);
+            } else if (pos && typeof (pos as google.maps.LatLng).lat === 'function') {
+              // Fallback for LatLng object if type is not inferred correctly
+              onMove((pos as google.maps.LatLng).lat(), (pos as google.maps.LatLng).lng());
+            }
           });
         }
-      } else if (lat != null && lng != null) {
-        const pos = { lat, lng };
-        mapRef.current!.setCenter(pos);
-        mapRef.current!.setZoom(15);
-        if (markerRef.current) {
-          markerRef.current.position = pos;
-          markerRef.current.map = mapRef.current!;
+      } else {
+        console.warn("AdvancedMarkerElement not available. Marker will not be shown.");
+        // Fallback or error handling if AdvancedMarkerElement is not part of the loaded 'marker' library.
+        // This might happen if the 'marker' library version doesn't include it by default.
+      }
+
+    } else if (lat != null && lng != null) {
+      const pos = { lat, lng };
+      mapRef.current!.setCenter(pos);
+      mapRef.current!.setZoom(15);
+      if (markerRef.current) {
+        // Type assertion for position
+        (markerRef.current as google.maps.marker.AdvancedMarkerElement).position = pos;
+        // Ensure map is still set if it was somehow unset
+        if (!markerRef.current.map) {
+            markerRef.current.map = mapRef.current;
         }
       }
-    });
-  }, [lat, lng, onMove]);
+    }
+  }, [mapsApi, lat, lng, onMove]);
 
-  return <div ref={ref} className="w-full h-96 rounded-md border border-border" />; // Increased height from h-48 to h-96
+  if (error) {
+    return (
+      <div className="w-full h-96 flex items-center justify-center text-red-500">
+        {error}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      ref={ref}
+      className="w-full h-96 rounded-md border border-border"
+      aria-label="Mapa de ubicación"
+    />
+  );
 };
 
 export default LocationMap;
