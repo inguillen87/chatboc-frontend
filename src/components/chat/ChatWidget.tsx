@@ -312,7 +312,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
           overflow: isOpen ? "hidden" : "visible", // Visible para ProactiveBubble
           // boxShadow: "0 8px 32px 0 rgba(0,0,0,0.20)", // Eliminado, se maneja en los hijos
           background: "transparent", // Siempre transparente, los hijos manejan su fondo
-          transition: "all 0.25s cubic-bezier(.42,0,.58,1)", // Transición CSS de widget.js
+          // transition: "all 0.25s cubic-bezier(.42,0,.58,1)", // Eliminada para priorizar Framer Motion
           padding: 0,
           display: "flex",
           alignItems: "flex-end",
