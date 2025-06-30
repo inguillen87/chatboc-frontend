@@ -44,8 +44,8 @@ export default function InternalUsers() {
         }
         setLoading(false);
       });
-    apiFetch<Category[]>('/municipal/categorias')
-      .then((data) => setCategories(data))
+    apiFetch<Category[]>('/municipal/categorias', { sendEntityToken: true })
+      .then((data) => setCategories(Array.isArray(data) ? data : []))
       .catch((err: any) => {
         if (err instanceof ApiError && err.status === 404) {
           setError('Funcionalidad no disponible');
