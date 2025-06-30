@@ -46,7 +46,7 @@ function AppRoutesContent() {
     "/demo"
   ];
 
-  const location = React.useContext(BrowserRouter).navigator.location; // Acceso a location
+  const location = useLocation(); // Acceso a location - CORREGIDO
 
   const ocultarWidgetGlobalEnApp = rutasSinWidgetGlobal.some(
     (ruta) =>
