@@ -137,12 +137,12 @@ const ChatMessageMunicipio = React.forwardRef<HTMLDivElement, ChatMessageProps>(
     <motion.div
       ref={ref}
       className={`flex w-full ${isBot ? "justify-start" : "justify-end"} mb-2`}
-      custom={isBot}
-      variants={messageVariants}
-      initial="initial"
-      animate="animate"
-      exit="exit"
-      layout // Added layout prop
+      // custom={isBot}
+      // variants={messageVariants}
+      // initial="initial"
+      // animate="animate"
+      // exit="exit"
+      // layout // Added layout prop
     >
       <div className={`flex items-end gap-2 ${isBot ? "" : "flex-row-reverse"}`}>
         {isBot && <AvatarBot isTyping={isTyping} />}
