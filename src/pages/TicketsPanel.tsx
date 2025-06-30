@@ -181,19 +181,33 @@ export default function TicketsPanel() {
       if (params.length) url += `?${params.join('&')}`;
 
       // El backend debe devolver TicketSummary[] que incluya sla_status y priority
-      const data = await apiFetch<{[category: string]: TicketSummary[]}>(url, { sendEntityToken: true });
+      const data = await apiFetch<any>(url, { sendEntityToken: true });
 
-      // Add a check for data being a non-null object and an actual object
-      if (typeof data !== 'object' || data === null || Array.isArray(data)) {
-        console.error('API response for tickets is not a valid object:', data);
-        // Consider setting an error state here as well
-        setError('La respuesta del servidor para los tickets no es válida.');
+      // Normalizar para admitir diferentes formatos (objeto o array de grupos)
+      let normalized: { [category: string]: TicketSummary[] } = {};
+
+      if (Array.isArray(data)) {
+        data.forEach((group: any) => {
+          const key =
+            group.category || group.categoryName || group.categoria || "";
+          if (key !== undefined && Array.isArray(group.tickets)) {
+            normalized[key] = group.tickets as TicketSummary[];
+          }
+        });
+      } else if (typeof data === "object" && data !== null) {
+        normalized = data as { [category: string]: TicketSummary[] };
+      } else {
+        console.error(
+          "API response for tickets has unexpected format:",
+          data
+        );
+        setError("La respuesta del servidor para los tickets no es válida.");
         setGroupedTickets([]);
         setIsLoading(false);
         return;
       }
 
-      const processedGroups: GroupedTickets[] = Object.entries(data).map(([categoryName, tickets]) => ({
+      const processedGroups: GroupedTickets[] = Object.entries(normalized).map(([categoryName, tickets]) => ({
         categoryName:
           categoryName === 'null' || categoryName === ''
             ? 'Sin Categoría'
@@ -215,7 +229,9 @@ export default function TicketsPanel() {
 
       setGroupedTickets(processedGroups);
 
-      const categoriesFromCurrentResponse = Object.keys(data).map(cat => cat === 'null' || cat === '' ? 'Sin Categoría' : cat);
+      const categoriesFromCurrentResponse = Object.keys(normalized).map(cat =>
+        cat === 'null' || cat === '' ? 'Sin Categoría' : cat
+      );
       setAvailableCategories(prev => {
         const newCategories = Array.from(new Set([...prev, ...categoriesFromCurrentResponse]));
         return newCategories.sort((a,b) => {
