@@ -339,7 +339,8 @@ server responded with a status of 403` or `Access to fetch has been blocked by
 CORS policy`, verify that your `.env` file uses `VITE_API_URL=/api`. The Vite
 proxy only works with this exact relative path; pointing `VITE_API_URL`
 directly to `https://api.chatboc.ar` will bypass the proxy and trigger CORS
-errors.
+errors. The `apiFetch` helper now logs a warning about possible CORS issues if
+`VITE_API_URL` is an absolute URL and a `TypeError: Failed to fetch` occurs.
 
 If requests such as `GET /productos` return `404 Not Found`, ensure the local
 API server from `server/app.js` is running on the same port referenced by

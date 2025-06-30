@@ -112,7 +112,13 @@ export async function apiFetch<T>(
     return data as T;
   } catch (error) {
     if (error instanceof ApiError) throw error;
-    console.error("❌ Error de conexión o parsing:", error);
+    if (error instanceof TypeError && API_BASE_URL.startsWith("http")) {
+      console.error(
+        "❌ Posible error de CORS. Verificá que VITE_API_URL esté configurado como ruta relativa (\"/api\")."
+      );
+    } else {
+      console.error("❌ Error de conexión o parsing:", error);
+    }
     throw new Error("Error de conexión con el servidor.");
   }
 }
