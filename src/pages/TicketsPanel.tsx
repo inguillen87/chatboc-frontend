@@ -379,14 +379,14 @@ export default function TicketsPanel() {
 
   if (isLoading && groupedTickets.length === 0) { // Cambiado de allTickets a groupedTickets
     return (
-      <div className="flex items-center justify-center h-screen bg-muted/30 dark:bg-slate-900">
+      <div className="flex items-center justify-center min-h-screen bg-muted/30 dark:bg-slate-900">
         <Loader2 className="animate-spin text-primary h-16 w-16" />
       </div>
     );
   }
 
   if (error && groupedTickets.length === 0 && !isLoading) { // Cambiado de allTickets a groupedTickets
-    return <div className="p-8 text-center text-destructive bg-destructive/10 rounded-md h-screen flex flex-col justify-center items-center">
+    return <div className="p-8 text-center text-destructive bg-destructive/10 rounded-md min-h-screen flex flex-col justify-center items-center">
         <TicketIcon className="mx-auto h-12 w-12 text-destructive mb-4" />
         <h2 className="text-xl font-semibold mb-2">Error al cargar tickets</h2>
         <p>{error}</p>
@@ -395,7 +395,7 @@ export default function TicketsPanel() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-muted/30 dark:bg-slate-900 text-foreground overflow-hidden">
+    <div className="flex flex-col min-h-screen bg-muted/30 dark:bg-slate-900 text-foreground pb-10">
       <header className="p-4 border-b dark:border-slate-700 bg-card dark:bg-slate-800/50 shadow-sm">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
