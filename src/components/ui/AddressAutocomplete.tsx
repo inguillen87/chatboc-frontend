@@ -195,6 +195,7 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
           placeholder: (base: any) => ({
             ...base,
             color: "hsl(var(--muted-foreground))",
+            fontWeight: 600,
           }),
         },
         onKeyDown: (e: any) => {
