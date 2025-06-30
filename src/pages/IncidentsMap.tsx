@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { apiFetch, ApiError } from '@/utils/api';
-// import TicketMap from '@/components/TicketMap'; // No longer used for individual map embeds
 import useRequireRole from '@/hooks/useRequireRole';
 import type { Role } from '@/utils/roles';
+import { loadGoogleMapsApi } from '@/utils/mapsLoader';
 
 // Define the expected structure for heatmap data points
 interface HeatmapDataPoint {
@@ -10,27 +10,16 @@ interface HeatmapDataPoint {
   weight: number;
 }
 
-// Define the structure for individual markers (simplified for now)
-interface MarkerData {
-  position: { lat: number; lng: number };
-  title?: string; // e.g., show weight or category
-}
-
-// Extend the Window interface to include initMap
-declare global {
-  interface Window {
-    initMap?: () => void;
-  }
-}
-
 export default function IncidentsMap() {
   useRequireRole(['admin'] as Role[]);
 
+  const [mapsApi, setMapsApi] = useState<typeof google.maps | null>(null);
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [heatmapLayer, setHeatmapLayer] = useState<google.maps.visualization.HeatmapLayer | null>(null);
   const [markers, setMarkers] = useState<google.maps.Marker[]>([]);
 
-  const [loading, setLoading] = useState(true); // For initial map load and data fetch
+  const [loadingData, setLoadingData] = useState(false); // For data fetching
+  const [loadingMap, setLoadingMap] = useState(true); // For initial map library load
   const [error, setError] = useState<string | null>(null);
 
   // Refs for UI elements
@@ -40,8 +29,6 @@ export default function IncidentsMap() {
   const categoryRef = useRef<HTMLInputElement>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
 
-  // Determine ticket type (municipio or pyme) - This might need to be dynamic based on context
-  // For now, defaulting to 'municipio' as per original endpoint /municipal/incidents
   const ticketType = 'municipio';
 
   const clearMarkers = useCallback(() => {
@@ -50,11 +37,15 @@ export default function IncidentsMap() {
   }, [markers]);
 
   const fetchDataAndRefreshMap = useCallback(async () => {
-    setLoading(true);
+    if (!mapsApi || !map) {
+      setError("API de Google Maps o instancia de mapa no disponible.");
+      return;
+    }
+    setLoadingData(true);
     setError(null);
     clearMarkers();
     if (heatmapLayer) {
-      heatmapLayer.setMap(null); // Clear previous heatmap
+      heatmapLayer.setMap(null);
     }
 
     const params = new URLSearchParams();
@@ -67,9 +58,8 @@ export default function IncidentsMap() {
     try {
       const data = await apiFetch<HeatmapDataPoint[]>(endpoint);
 
-      if (!map || !data) {
-        setLoading(false);
-        if (!data) setError("No se recibieron datos del servidor.");
+      if (!data) {
+        setError("No se recibieron datos del servidor.");
         return;
       }
 
@@ -77,34 +67,32 @@ export default function IncidentsMap() {
 
       if (isHeatmapActive) {
         const heatmapData = data.map(item => ({
-          location: new google.maps.LatLng(item.location.lat, item.location.lng),
+          location: new mapsApi.LatLng(item.location.lat, item.location.lng),
           weight: item.weight,
         }));
 
-        let newHeatmapLayer = heatmapLayer;
-        if (!newHeatmapLayer) {
-          newHeatmapLayer = new google.maps.visualization.HeatmapLayer({
+        if (heatmapLayer) {
+          heatmapLayer.setData(heatmapData);
+          heatmapLayer.setMap(map);
+        } else {
+          const newHeatmapLayer = new mapsApi.visualization.HeatmapLayer({
             data: heatmapData,
             map: map,
             radius: 20,
             dissipating: false,
           });
           setHeatmapLayer(newHeatmapLayer);
-        } else {
-          newHeatmapLayer.setData(heatmapData);
-          newHeatmapLayer.setMap(map); // Ensure it's visible
         }
       } else {
-        // Heatmap is off, show individual markers
-        if (heatmapLayer) heatmapLayer.setMap(null); // Hide heatmap if it exists
+        if (heatmapLayer) heatmapLayer.setMap(null);
 
         const newMarkersData = data.map(item => ({
           position: { lat: item.location.lat, lng: item.location.lng },
-          title: `Tickets: ${item.weight}`, // Simple title with weight
+          title: `Tickets: ${item.weight}`,
         }));
 
         const newGoogleMarkers = newMarkersData.map(markerData =>
-          new google.maps.Marker({
+          new mapsApi.Marker({
             position: markerData.position,
             map: map,
             title: markerData.title,
@@ -117,76 +105,64 @@ export default function IncidentsMap() {
       setError(message);
       console.error("Error fetching map data:", err);
     } finally {
-      setLoading(false);
+      setLoadingData(false);
     }
-  }, [map, heatmapLayer, ticketType, clearMarkers]);
+  }, [mapsApi, map, heatmapLayer, ticketType, clearMarkers]);
 
-
-  const initializeMap = useCallback(() => {
+  const initializeMap = useCallback((loadedMapsApi: typeof google.maps) => {
     if (mapContainerRef.current && !map) {
-      const googleMap = new google.maps.Map(mapContainerRef.current, {
-        center: { lat: -34.603722, lng: -58.381592 }, // Default center (e.g., Buenos Aires) - Adjust as needed
+      const googleMap = new loadedMapsApi.Map(mapContainerRef.current, {
+        center: { lat: -34.603722, lng: -58.381592 },
         zoom: 12,
       });
       setMap(googleMap);
+      setLoadingMap(false); // Map is initialized
     }
-  }, [map]); // Added map to dependency array
+  }, [map]); // map dependency to prevent re-init if already set
 
-  // Effect for initializing map and setting up initMap callback
   useEffect(() => {
-    // Define initMap globally so Google Maps API can call it
-    window.initMap = () => {
-      console.log("Google Maps API loaded, calling initializeMap");
-      initializeMap();
-    };
-
-    // If Google Maps is already loaded (e.g., due to fast navigation or script already present)
-    if (typeof google !== 'undefined' && typeof google.maps !== 'undefined') {
-       console.log("Google Maps API already loaded on mount, calling initializeMap directly");
-       initializeMap();
-    }
-
-    // Cleanup initMap from window object when component unmounts
-    return () => {
-      if (window.initMap) {
-        delete window.initMap;
-      }
-    };
+    loadGoogleMapsApi(['visualization']) // Requesting 'visualization' library
+      .then(api => {
+        setMapsApi(api.maps);
+        initializeMap(api.maps);
+      })
+      .catch(err => {
+        console.error("Failed to load Google Maps API for IncidentsMap:", err);
+        setError("Error al cargar la API de Google Maps. Verifique la consola y la API Key.");
+        setLoadingMap(false);
+      });
   }, [initializeMap]);
 
-
-  // Effect to fetch data when map is ready or filters change (via button click)
   useEffect(() => {
-    if (map) { // Only fetch if map is initialized
+    if (map && mapsApi) { // Only fetch if map and API are initialized
       fetchDataAndRefreshMap();
     }
-  }, [map]); // Removed fetchDataAndRefreshMap from here to avoid loop, will be called by button or toggle
+  }, [map, mapsApi, fetchDataAndRefreshMap]); // fetchDataAndRefreshMap is now a dependency
 
   const handleApplyFilters = () => {
-    if (map) {
+    if (map && mapsApi) {
       fetchDataAndRefreshMap();
     } else {
-      setError("El mapa no está inicializado. Intente recargar la página.");
+      setError("El mapa no está inicializado completamente. Intente recargar la página.");
     }
   };
 
   const handleHeatmapToggle = () => {
-     if (map) {
-      // When toggling, we need to refresh the data and display
-      // This ensures markers are hidden/shown correctly and heatmap is updated
+     if (map && mapsApi) {
       fetchDataAndRefreshMap();
     }
   };
 
-  // Initial loading message for the map itself
-  if (!map && loading) return <p>Cargando mapa...</p>;
-  if (error) return <p>Error: {error}</p>;
+  if (loadingMap) return <p className="p-4 text-center">Cargando API de mapa...</p>;
+  if (!map && !loadingMap && error) return <p className="p-4 text-center text-red-500">Error: {error}</p>;
+  if (!map && !loadingMap) return <p className="p-4 text-center">Mapa no pudo inicializarse.</p>;
+
 
   return (
     <div className="p-4">
       <h1 className="text-2xl font-bold mb-4">Mapa de Incidentes/Tickets</h1>
-      <div className="mb-4 p-4 border rounded shadow-sm bg-gray-50">
-        <h2 className="text-xl font-semibold mb-3 text-gray-700">Controles del Mapa</h2>
+      <div className="mb-4 p-4 border rounded shadow-sm bg-gray-50 dark:bg-gray-800">
+        <h2 className="text-xl font-semibold mb-3 text-gray-700 dark:text-gray-200">Controles del Mapa</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-3 items-end">
           <div className="flex items-center space-x-2 pt-5">
             <input
@@ -196,46 +172,49 @@ export default function IncidentsMap() {
               onChange={handleHeatmapToggle}
               className="h-5 w-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
             />
-            <label htmlFor="heatmapToggle" className="text-sm font-medium text-gray-700 cursor-pointer">
+            <label htmlFor="heatmapToggle" className="text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer">
               Mostrar Mapa de Calor
             </label>
           </div>
           <div>
-            <label htmlFor="startDate" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="startDate" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Fecha Inicio
             </label>
-            <input type="date" id="startDate" ref={startDateRef} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
+            <input type="date" id="startDate" ref={startDateRef} className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
           </div>
           <div>
-            <label htmlFor="endDate" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="endDate" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Fecha Fin
             </label>
-            <input type="date" id="endDate" ref={endDateRef} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
+            <input type="date" id="endDate" ref={endDateRef} className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
           </div>
           <div>
-            <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="category" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Categoría
             </label>
-            <input type="text" id="category" ref={categoryRef} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Ej: Bache, Alumbrado" />
+            <input type="text" id="category" ref={categoryRef} className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Ej: Bache, Alumbrado" />
           </div>
-          <div className="sm:col-span-2 md:col-span-3 lg:col-span-4 flex justify-end mt-2">
+          <div className="sm:col-span-1 md:col-span-2 lg:col-span-3 flex justify-end mt-2">
+             {/* Placeholder for alignment or future controls */}
+          </div>
+          <div className="flex justify-end mt-2">
             <button
               id="applyFilters"
               onClick={handleApplyFilters}
-              disabled={loading}
-              className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+              disabled={loadingData || loadingMap}
+              className="w-full inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
             >
-              {loading ? 'Actualizando...' : 'Aplicar Filtros y Actualizar'}
+              {loadingData ? 'Actualizando...' : 'Aplicar Filtros y Actualizar'}
             </button>
           </div>
         </div>
       </div>
 
-      {error && <p className="text-red-500 text-center mb-4">Error: {error}</p>}
+      {error && !loadingData && <p className="text-red-500 text-center mb-4">Error: {error}</p>}
 
-      <div id="mapContainer" ref={mapContainerRef} style={{ height: '600px', width: '100%' }} className="mb-6 border rounded shadow">
+      <div id="mapContainer" ref={mapContainerRef} style={{ height: '600px', width: '100%' }} className="mb-6 border rounded shadow dark:border-gray-700">
         {/* El mapa de Google se renderizará aquí */}
-        {!map && !loading && <p className="text-center p-10">El mapa no pudo cargarse. Verifique la consola y la API Key de Google Maps.</p>}
+        {map && loadingData && <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-50 dark:bg-gray-800 dark:bg-opacity-50"><p>Cargando datos del mapa...</p></div>}
       </div>
     </div>
   );
