@@ -83,7 +83,7 @@ const ChatbocLogoAnimated = ({
           fill="#FFFFFF" // Ensure high contrast, pure white
           animate={
             blinking
-              ? { scaleY: [1, 0.05, 1], transitionEnd: { scaleY: 1 } } // Quick blink
+              ? { scaleY: [1, 0.05, 1], cx: leftEyeX, cy: eyeBaseY, transitionEnd: { scaleY: 1 } } // Quick blink, ensure cx/cy are defined
               : movingEyes
               ? { cy: [eyeBaseY, eyeBaseY - 1, eyeBaseY, eyeBaseY + 1, eyeBaseY], cx: [leftEyeX, leftEyeX +1, leftEyeX -1, leftEyeX, leftEyeX] } // More dynamic eye movement
               : { cy: eyeBaseY, cx: leftEyeX } // Static position

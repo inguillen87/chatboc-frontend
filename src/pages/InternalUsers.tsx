@@ -102,8 +102,8 @@ export default function InternalUsers() {
           onChange={(e) => setRol(e.target.value)}
           className="w-full border rounded h-10 px-2 bg-input text-foreground"
         >
-          <option value="empleado">Empleado</option>
-          <option value="admin">Admin</option>
+          <option key="rol-empleado" value="empleado">Empleado</option>
+          <option key="rol-admin" value="admin">Admin</option>
         </select>
         <select
           value={categoriaId}
@@ -111,7 +111,7 @@ export default function InternalUsers() {
           required
           className="w-full border rounded h-10 px-2 bg-input text-foreground"
         >
-          <option value="">Selecciona categoría</option>
+          <option key="cat-empty" value="">Selecciona categoría</option>
           {categories.map((c) => (
             <option key={c.id} value={c.id}>
               {c.nombre}
