@@ -99,7 +99,7 @@ const Navbar: React.FC = () => {
               <button
                 key={id}
                 onClick={() => scrollToSection(id)}
-                className="text-base font-medium text-muted-foreground hover:text-primary transition-colors" // Aumentado a text-base
+                className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
               >
                 {id.charAt(0).toUpperCase() + id.slice(1).replace(/-/g, " ")}
               </button>
@@ -113,23 +113,23 @@ const Navbar: React.FC = () => {
           <div className="hidden md:flex items-center gap-2">
             {isLoggedIn ? (
               <>
-                <Button variant="ghost" size="default" asChild>
-                  <RouterLink to="/perfil" className="text-base">Mi Perfil</RouterLink> {/* Clase text-base añadida */}
+                <Button variant="ghost" size="sm" asChild>
+                  <RouterLink to="/perfil">Mi Perfil</RouterLink>
                 </Button>
-                <Button variant="ghost" size="default" asChild>
-                  <RouterLink to="/chat" className="text-base">Chat</RouterLink> {/* Clase text-base añadida */}
+                <Button variant="ghost" size="sm" asChild>
+                  <RouterLink to="/chat">Chat</RouterLink>
                 </Button>
-                <Button variant="destructive" size="default" onClick={handleLogout} className="text-base"> {/* Clase text-base añadida */}
-                  <LogOut className="mr-2 h-5 w-5" /> Cerrar Sesión
+                <Button variant="destructive" size="sm" onClick={handleLogout}>
+                  <LogOut className="mr-2 h-4 w-4" /> Cerrar Sesión
                 </Button>
               </>
             ) : (
               <>
-                <Button variant="outline" size="default" asChild> {/* Aumentado a size="default" */}
-                  <RouterLink to="/login" className="text-base">Iniciar Sesión</RouterLink> {/* Clase text-base añadida */}
+                <Button variant="outline" size="sm" asChild>
+                  <RouterLink to="/login">Iniciar Sesión</RouterLink>
                 </Button>
-                <Button variant="default" size="default" asChild> {/* Aumentado a size="default" */}
-                  <RouterLink to="/demo" className="text-base">Prueba Gratuita</RouterLink> {/* Clase text-base añadida */}
+                <Button variant="default" size="sm" asChild>
+                  <RouterLink to="/demo">Prueba Gratuita</RouterLink>
                 </Button>
               </>
             )}
@@ -142,9 +142,8 @@ const Navbar: React.FC = () => {
             onClick={toggleDarkMode}
             title="Modo claro / oscuro"
             className="text-muted-foreground hover:text-foreground"
-            aria-label="Cambiar tema claro u oscuro" // Mejor accesibilidad
           >
-            {isDark ? <Sun className="h-6 w-6" /> : <Moon className="h-6 w-6" />} {/* Iconos más grandes */}
+            {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
           </Button>
 
           {/* Botón menú hamburguesa para móvil en Landing Page (si no está logueado) */}
@@ -156,7 +155,7 @@ const Navbar: React.FC = () => {
               onClick={() => setMenuOpen(!menuOpen)}
               aria-label="Abrir menú de navegación"
             >
-              {menuOpen ? <X className="h-7 w-7" /> : <Menu className="h-7 w-7" />} {/* Iconos de menú más grandes */}
+              {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </Button>
           )}
         </div>
@@ -164,23 +163,23 @@ const Navbar: React.FC = () => {
 
       {/* Menú Mobile desplegable para Landing Page (si no está logueado) */}
       {isMobile && isLanding && !isLoggedIn && menuOpen && (
-        <div className="md:hidden bg-card shadow-lg mt-2 rounded-xl border animate-accordion-down overflow-hidden"> {/* rounded-xl */}
+        <div className="md:hidden bg-card shadow-lg mt-2 rounded-lg border animate-accordion-down overflow-hidden">
           <nav className="flex flex-col py-3">
             {(["problemas", "solucion", "como-funciona", "precios", "publico-objetivo", "proximamente", "cta"] as const).map((id) => (
                 <button
                   key={id}
                   onClick={() => scrollToSection(id)}
-                  className="px-4 py-3 text-base text-left text-foreground hover:bg-accent transition-colors w-full" // text-base, py-3
+                  className="px-4 py-2.5 text-sm text-left text-foreground hover:bg-accent transition-colors w-full"
                 >
                   {id.charAt(0).toUpperCase() + id.slice(1).replace(/-/g, " ")}
                 </button>
               ))}
             <div className="border-t my-2"></div>
-            <div className="px-4 py-3 flex flex-col gap-3"> {/* Aumentado py y gap */}
-              <Button variant="outline" size="lg" className="w-full text-base" asChild onClick={() => setMenuOpen(false)}> {/* size="lg", text-base */}
+            <div className="px-4 py-2 flex flex-col gap-2">
+              <Button variant="outline" className="w-full" asChild onClick={() => setMenuOpen(false)}>
                 <RouterLink to="/login">Iniciar Sesión</RouterLink>
               </Button>
-              <Button variant="default" size="lg" className="w-full text-base" asChild onClick={() => setMenuOpen(false)}> {/* size="lg", text-base */}
+              <Button variant="default" className="w-full" asChild onClick={() => setMenuOpen(false)}>
                 <RouterLink to="/demo">Prueba Gratuita</RouterLink>
               </Button>
             </div>

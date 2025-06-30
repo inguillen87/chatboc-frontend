@@ -55,49 +55,29 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-[calc(100vh-5rem)] flex items-center justify-center p-4 sm:p-6 bg-gradient-to-br from-background via-card to-muted text-foreground"> {/* Ajustado min-h y padding */}
-      <div className="w-full max-w-md bg-card p-6 sm:p-8 rounded-xl shadow-2xl border border-border"> {/* Reducido padding en móvil, aumentado shadow */}
-        <h2 className="text-3xl font-bold mb-8 text-center text-foreground"> {/* Aumentado tamaño y margen */}
+    <div className="min-h-[calc(100vh-80px)] flex items-center justify-center px-4 bg-gradient-to-br from-background via-card to-muted text-foreground">
+      <div className="w-full max-w-md bg-card p-8 rounded-xl shadow-xl border border-border">
+        <h2 className="text-2xl font-bold mb-6 text-center text-foreground">
           Iniciar Sesión
         </h2>
-        <form onSubmit={handleSubmit} className="space-y-6"> {/* Aumentado space-y */}
-          <Input
-            type="email"
-            placeholder="Correo electrónico"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            disabled={isLoading}
-            sizeVariant="lg" // Usar variante de tamaño grande
-            autoComplete="email"
-          />
-          <Input
-            type="password"
-            placeholder="Contraseña"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            disabled={isLoading}
-            sizeVariant="lg" // Usar variante de tamaño grande
-            autoComplete="current-password"
-          />
-          {error && <p className="text-destructive text-sm text-center py-1">{error}</p>} {/* text-sm es ahora ~15px */}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <Input type="email" placeholder="Correo electrónico" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={isLoading} className="bg-input border-input text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/50" />
+          <Input type="password" placeholder="Contraseña" value={password} onChange={(e) => setPassword(e.target.value)} required disabled={isLoading} className="bg-input border-input text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/50" />
+          {error && <p className="text-destructive text-sm text-center">{error}</p>}
           <Button
             type="submit"
-            size="lg" // Usar nuestro Button size="lg"
-            className="w-full text-base font-semibold" // Asegurar text-base y font-semibold
+            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-2.5 text-base"
             disabled={isLoading}
           >
             {isLoading ? "Ingresando..." : "Iniciar Sesión"}
           </Button>
-          {/* Asumimos que GoogleLoginButton internamente usará un Button grande o es estilizable */}
           <GoogleLoginButton className="mt-2" onLoggedIn={() => navigate('/perfil')} />
         </form>
-        <div className="text-center text-base text-muted-foreground mt-6"> {/* text-base, aumentado mt */}
+        <div className="text-center text-sm text-muted-foreground mt-4">
           ¿No tenés cuenta?{" "}
-          <Button variant="link" size="default" onClick={() => navigate("/register")} className="text-base text-primary font-semibold"> {/* Convertido a Button link */}
+          <button onClick={() => navigate("/register")} className="text-primary hover:underline">
             Registrate
-          </Button>
+          </button>
         </div>
       </div>
     </div>
