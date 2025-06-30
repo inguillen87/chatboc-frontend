@@ -41,6 +41,7 @@ import CrmIntegrations from '@/pages/CrmIntegrations';
 import PredefinedQueries from '@/pages/PredefinedQueries';
 import PermissionDenied from '@/pages/PermissionDenied';
 import CartPage from '@/pages/Cart';
+import ProductCheckoutPage from '@/pages/ProductCheckoutPage'; // Importar la nueva página
 
 export interface RouteConfig {
   path: string;
@@ -65,6 +66,7 @@ const routes: RouteConfig[] = [
   { path: '/documentacion', element: <Documentacion /> },
   { path: '/faqs', element: <Faqs /> },
   { path: '/cart', element: <CartPage /> },
+  { path: '/checkout-productos', element: <ProductCheckoutPage /> }, // Nueva ruta para checkout de productos
   { path: '/legal/privacy', element: <Privacy /> },
   { path: '/legal/terms', element: <Terms /> },
   { path: '/legal/cookies', element: <Cookies /> },

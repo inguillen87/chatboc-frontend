@@ -39,7 +39,8 @@ type CategorizedPedidos = { [estado: string]: Pedido[] };
 
 // ---------- Constantes de estado ----------
 const PEDIDO_ESTADOS_INFO: Record<string, { label: string; style: string }> = {
-  pendiente: { label: 'Pendiente', style: 'bg-yellow-500/20 text-yellow-600 border-yellow-400' },
+  pendiente_confirmacion: { label: 'Pend. Confirmación', style: 'bg-orange-500/20 text-orange-600 border-orange-400' }, // Nuevo estado
+  pendiente: { label: 'Pendiente Pago', style: 'bg-yellow-500/20 text-yellow-600 border-yellow-400' }, // Asumimos que 'pendiente' es pendiente de pago
   en_proceso: { label: 'En Proceso', style: 'bg-blue-500/20 text-blue-600 border-blue-400' },
   enviado: { label: 'Enviado', style: 'bg-purple-500/20 text-purple-600 border-purple-400' },
   entregado: { label: 'Entregado', style: 'bg-green-500/20 text-green-600 border-green-400' },
@@ -47,7 +48,7 @@ const PEDIDO_ESTADOS_INFO: Record<string, { label: string; style: string }> = {
   cancelado: { label: 'Cancelado', style: 'bg-red-500/20 text-red-600 border-red-400' },
 };
 
-const ESTADOS_ORDEN_PRIORIDAD = ['pendiente', 'en_proceso', 'enviado', 'entregado', 'satisfecho', 'cancelado'];
+const ESTADOS_ORDEN_PRIORIDAD = ['pendiente_confirmacion', 'pendiente', 'en_proceso', 'enviado', 'entregado', 'satisfecho', 'cancelado'];
 
 // ---------- Componentes utilitarios ----------
 const SkeletonCard = () => (
