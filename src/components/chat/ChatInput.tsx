@@ -132,7 +132,7 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
         aria-label="Compartir ubicación"
         type="button"
       >
-        <MapPin className="w-6 h-6" /> {/* Icono aumentado */}
+        <MapPin className="w-5 h-5" />
       </button>
 
       {/* Botón de dictado por voz */}
@@ -151,7 +151,7 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
         disabled={isTyping}
         className={`
           flex items-center justify-center
-          rounded-full p-3
+          rounded-full p-2.5
           shadow-xl transition-all duration-150
           focus:outline-none focus:ring-2 focus:ring-primary/60
           active:scale-95
@@ -164,14 +164,14 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
         aria-label={listening ? "Detener dictado" : "Dictar mensaje"}
         type="button"
       >
-        {listening ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />} {/* Icono aumentado */}
+        {listening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
       </button>
 
       <input
         ref={internalRef}
         className={`
           flex-1 max-w-full min-w-0
-          rounded-full px-4 py-3
+          rounded-full px-4 py-2
           text-base
           outline-none transition-all duration-200
           focus:border-primary focus:ring-2 focus:ring-primary/50
@@ -210,13 +210,14 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
       <button
         className={`
           flex items-center justify-center
-          rounded-full p-3 ml-1
+          rounded-full p-2.5 ml-1
           shadow-xl transition-all duration-150
           focus:outline-none focus:ring-2 focus:ring-primary/60
           active:scale-95
 
           bg-primary hover:bg-primary/90
           text-primary-foreground
+          /* Removed dark:bg-blue-600 dark:hover:bg-blue-700 as theme primary handles dark mode */
 
           ${!input.trim() || isTyping ? "opacity-50 cursor-not-allowed" : ""}
         `}
@@ -225,7 +226,7 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
         aria-label="Enviar mensaje"
         type="button"
       >
-        <Send className="w-6 h-6" /> {/* Icono aumentado */}
+        <Send className="w-5 h-5" />
       </button>
     </div>
   );

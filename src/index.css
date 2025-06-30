@@ -40,14 +40,7 @@
     --input: 240 5.9% 90%; /* Input background (can be same as border or slightly different) */
     --ring: 220 100% 50%; /* Primary color for focus rings */
 
-    --radius: 0.75rem; /* Aumentado para bordes más suaves y modernos (12px) */
-                         /* shadcn default es 0.5rem. Previamente lo habíamos dejado así. */
-                         /* sm: calc(var(--radius) - 4px) = 8px */
-                         /* md: calc(var(--radius) - 2px) = 10px (si no se sobreescribe rounded-md) */
-                         /* lg: var(--radius) = 12px (si no se sobreescribe rounded-lg) */
-                         /* rounded-md en Button usa --radius, rounded-lg en Card usa --radius. */
-                         /* Esto hará que rounded-md sea 12px, y rounded-lg también 12px por defecto si no se especifica en el componente. */
-                         /* Ajustaremos las clases de rounded en Button/Card para ser más explícitos si es necesario */
+    --radius: 0.5rem; /* Default radius for components like cards, inputs, buttons */
   }
 
   .dark {
@@ -81,13 +74,11 @@
     --border: 225 20% 20%; /* Borde más claro que el fondo de la card */
     --input: 225 20% 17%; /* Input background */
     --ring: 220 100% 65%;
-    /* --radius se hereda de :root */
   }
 
   html {
     scroll-behavior: smooth;
-    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11', 'ss01', 'ss03'; /* Mejoras de legibilidad y estilo para Inter */
-    font-size: 100%; /* Asegura que 1rem = 16px por defecto en desktop */
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11'; /* Mejora de legibilidad para Inter */
   }
 
   * {
@@ -97,24 +88,11 @@
   body {
     @apply bg-background text-foreground;
     font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    font-size: 1rem; /* 16px por defecto */
-    line-height: 1.7; /* Aumentado ligeramente para mayor legibilidad con fuentes más grandes */
+    line-height: 1.65; /* Increased for better readability, especially on mobile */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
   }
-
-  /* Tamaños de fuente base más grandes para móviles */
-  @media (max-width: 767px) { /* md breakpoint de Tailwind es 768px */
-    html {
-      font-size: 106.25%; /* Esto hace que 1rem = 17px en móviles */
-    }
-    body {
-       /* Si html tiene font-size: 17px, entonces 1rem en body también será 17px. */
-       /* Podríamos ajustar el line-height aquí si es necesario para el nuevo tamaño base. */
-    }
-  }
-
 
   /* Opcional: Estilos para la fuente Satoshi si se usa para encabezados */
   /* .font-heading {

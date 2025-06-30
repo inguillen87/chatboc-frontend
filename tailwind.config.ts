@@ -70,23 +70,10 @@ const config = {
         // Opcional: Si queremos usar Satoshi para encabezados grandes
         // heading: ["Satoshi", "Inter", "system-ui", "sans-serif"],
       },
-      borderRadius: { // Estos ahora usarán el nuevo --radius de 0.75rem (12px)
-        lg: "var(--radius)", // 12px
-        md: "calc(var(--radius) - 4px)", // 8px (ajustado para que md sea más pequeño que lg)
-        sm: "calc(var(--radius) - 6px)", // 6px (ajustado para que sm sea más pequeño que md)
-      },
-      fontSize: { // Ampliamos la escala de fuentes para tener más control
-        'xs': ['0.75rem', { lineHeight: '1rem' }],       // 12px
-        'sm': ['0.875rem', { lineHeight: '1.25rem' }],   // 14px
-        'base': ['1rem', { lineHeight: '1.5rem' }],      // 16px (en desktop, 17px en móvil debido al html font-size)
-        'lg': ['1.125rem', { lineHeight: '1.75rem' }],   // 18px
-        'xl': ['1.25rem', { lineHeight: '1.75rem' }],   // 20px
-        '2xl': ['1.5rem', { lineHeight: '2rem' }],      // 24px
-        '3xl': ['1.875rem', { lineHeight: '2.25rem' }], // 30px
-        '4xl': ['2.25rem', { lineHeight: '2.5rem' }],   // 36px
-        // Nuevos tamaños para móvil, considerando que 1rem base en móvil será ~17px
-        'text-body-mobile': ['1.0625rem', { lineHeight: '1.75' }], // ~18px, para cuerpo de texto principal en móvil
-        'text-title-mobile': ['1.25rem', { lineHeight: '1.4' }], // ~20px, para títulos en móvil
+      borderRadius: {
+        lg: "var(--radius)",
+        md: "calc(var(--radius) - 2px)",
+        sm: "calc(var(--radius) - 4px)",
       },
       keyframes: {
         "accordion-down": {
