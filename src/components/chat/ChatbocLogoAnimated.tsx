@@ -13,8 +13,8 @@ const ChatbocLogoAnimated = ({
   style = {},
 }) => {
   const eyeBaseY = 24;
-  const leftEyeX = movingEyes ? 19 : 18; // Slightly more movement inwards for movingEyes
-  const rightEyeX = movingEyes ? 37 : 38; // Slightly more movement inwards for movingEyes
+  const leftEyeX = Number(movingEyes ? 19 : 18); // Ensure numeric values
+  const rightEyeX = Number(movingEyes ? 37 : 38); // Ensure numeric values
 
   const mouthPath = smiling
     ? "M18,35 Q28,46 38,35" // Wider, happier smile
