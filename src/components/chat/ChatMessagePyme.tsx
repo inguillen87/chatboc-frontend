@@ -67,7 +67,10 @@ const UserChatAvatar: React.FC = () => {
       transition={{ type: "spring", stiffness: 200, damping: 20 }}
     >
       <Avatar className="w-8 h-8 border"> {/* Aplicar tamaño y borde aquí */}
-        <AvatarImage src={user?.picture} alt={user?.name || "Avatar de usuario"} />
+        <AvatarImage
+          src={user?.picture || "/favicon/human-avatar.svg"}
+          alt={user?.name || "Avatar de usuario"}
+        />
         <AvatarFallback className="bg-secondary text-secondary-foreground text-xs">
           {initials ? (
             initials
