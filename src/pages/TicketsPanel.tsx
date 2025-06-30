@@ -24,6 +24,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 
 // ----------- TIPOS Y ESTADOS -----------
 type TicketStatus = "nuevo" | "en_proceso" | "derivado" | "resuelto" | "cerrado" | "esperando_agente_en_vivo";
+type SlaStatus = "on_track" | "nearing_sla" | "breached" | null;
+type PriorityStatus = "low" | "medium" | "high" | null;
+
 interface Comment { id: number; comentario: string; fecha: string; es_admin: boolean; }
 interface Ticket {
   id: number; tipo: 'pyme' | 'municipio'; nro_ticket: number; asunto: string; estado: TicketStatus; fecha: string;
@@ -31,11 +34,16 @@ interface Ticket {
   municipio_nombre?: string;
   latitud?: number | null;
   longitud?: number | null;
+  sla_status?: SlaStatus; // Nuevo campo
+  priority?: PriorityStatus; // Nuevo campo
+  sla_deadline?: string; // Nuevo campo opcional
 }
 interface TicketSummary extends Omit<Ticket, 'detalles' | 'comentarios'> {
   direccion?: string;
   latitud?: number | null;
   longitud?: number | null;
+  sla_status?: SlaStatus; // Nuevo campo
+  priority?: PriorityStatus; // Nuevo campo
 }
 // type CategorizedTickets = { [category: string]: TicketSummary[]; }; // Ahora sí lo vamos a usar o algo similar
 interface GroupedTickets {
@@ -53,6 +61,18 @@ const ESTADOS: Record<TicketStatus, { label: string; tailwind_class: string, ico
   esperando_agente_en_vivo: { label: "Esperando agente", tailwind_class: "bg-red-500 hover:bg-red-600 text-white border-red-700 dark:bg-red-500 dark:hover:bg-red-600" }
 };
 
+const SLA_STATUS_INFO: Record<NonNullable<SlaStatus>, { label: string; color: string; icon?: React.ElementType }> = {
+  on_track: { label: "En tiempo", color: "text-green-600 dark:text-green-400" },
+  nearing_sla: { label: "Próximo a vencer", color: "text-yellow-600 dark:text-yellow-400" },
+  breached: { label: "Vencido", color: "text-red-600 dark:text-red-400" },
+};
+
+const PRIORITY_INFO: Record<NonNullable<PriorityStatus>, { label: string; color: string; badgeClass?: string }> = {
+  low: { label: "Baja", color: "text-gray-500 dark:text-gray-400", badgeClass: "bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-500" },
+  medium: { label: "Media", color: "text-blue-500 dark:text-blue-400", badgeClass: "bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-700 dark:text-blue-200 dark:border-blue-500" },
+  high: { label: "Alta", color: "text-red-500 dark:text-red-400", badgeClass: "bg-red-100 text-red-700 border-red-300 dark:bg-red-700 dark:text-red-200 dark:border-red-500" },
+};
+
 
 // ----------- NUEVOS COMPONENTES -----------
 
@@ -63,7 +83,18 @@ const TicketListItem: FC<{
   timezone: string;
   locale: string;
 }> = ({ ticket, isSelected, onSelect, timezone, locale }) => {
-  // const EstadoIcon = ESTADOS[ticket.estado]?.icon; // Podría usarse si se quiere un icono junto al estado
+  const slaInfo = ticket.sla_status ? SLA_STATUS_INFO[ticket.sla_status] : null;
+  const priorityInfo = ticket.priority ? PRIORITY_INFO[ticket.priority] : null;
+
+  let cardClasses = "bg-card dark:bg-slate-800 border-border dark:border-slate-700/80 hover:border-slate-400 dark:hover:border-slate-500";
+  if (isSelected) {
+    cardClasses = "bg-primary/10 border-primary dark:bg-primary/20 dark:border-primary ring-1 ring-primary";
+  } else if (ticket.sla_status === 'breached') {
+    cardClasses = "bg-red-500/10 border-red-500/30 dark:bg-red-700/20 dark:border-red-600/40 hover:border-red-500";
+  } else if (ticket.sla_status === 'nearing_sla') {
+    cardClasses = "bg-yellow-500/10 border-yellow-500/30 dark:bg-yellow-700/20 dark:border-yellow-600/40 hover:border-yellow-500";
+  }
+
   return (
     <motion.div
       layout
@@ -71,28 +102,42 @@ const TicketListItem: FC<{
       className={cn(
         "p-3 rounded-lg border cursor-pointer mb-2 transition-all duration-200 ease-in-out",
         "hover:shadow-md dark:hover:bg-slate-700/60",
-        isSelected
-          ? "bg-primary/10 border-primary dark:bg-primary/20 dark:border-primary ring-1 ring-primary"
-          : "bg-card dark:bg-slate-800 border-border dark:border-slate-700/80 hover:border-slate-400 dark:hover:border-slate-500"
+        cardClasses
       )}
       whileHover={{ y: -2 }}
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
     >
-      <div className="flex justify-between items-center mb-1">
-        <span className="font-semibold text-primary text-sm truncate max-w-[100px]" title={`#${ticket.nro_ticket}`}>#{ticket.nro_ticket}</span>
-        <Badge className={cn("text-xs border", ESTADOS[ticket.estado]?.tailwind_class)}>{ESTADOS[ticket.estado]?.label}</Badge>
+      <div className="flex justify-between items-start mb-1">
+        <span className="font-semibold text-primary text-sm truncate max-w-[100px] flex-shrink-0" title={`#${ticket.nro_ticket}`}>#{ticket.nro_ticket}</span>
+        <div className="flex flex-col items-end gap-1">
+          <Badge className={cn("text-xs border", ESTADOS[ticket.estado]?.tailwind_class)}>{ESTADOS[ticket.estado]?.label}</Badge>
+          {priorityInfo && (
+            <Badge variant="outline" className={cn("text-xs border", priorityInfo.badgeClass)}>
+              Prioridad: {priorityInfo.label}
+            </Badge>
+          )}
+        </div>
       </div>
       <p className="font-medium text-foreground truncate text-sm" title={ticket.asunto}>{ticket.asunto}</p>
-      {ticket.nombre_usuario && <p className="text-xs text-muted-foreground truncate" title={ticket.nombre_usuario}>{ticket.nombre_usuario}</p>}
-      <p className="text-xs text-muted-foreground text-right mt-1">{formatDate(ticket.fecha, timezone, locale)}</p>
+      {ticket.nombre_usuario && <p className="text-xs text-muted-foreground truncate mt-0.5" title={ticket.nombre_usuario}>{ticket.nombre_usuario}</p>}
+
+      <div className="flex justify-between items-center mt-1.5">
+        {slaInfo && (
+            <span className={cn("text-xs font-medium", slaInfo.color)}>
+                SLA: {slaInfo.label}
+            </span>
+        )}
+        {!slaInfo && <div />} {/* Placeholder to keep date to the right */}
+        <p className="text-xs text-muted-foreground">{formatDate(ticket.fecha, timezone, locale)}</p>
+      </div>
     </motion.div>
   );
 };
 
 interface TicketDetailViewProps {
-  ticket: Ticket;
+  ticket: Ticket; // Ahora Ticket puede incluir sla_status y priority
   onTicketUpdate: (updatedTicket: Ticket) => void;
   onClose: () => void;
 }
@@ -103,10 +148,9 @@ export default function TicketsPanel() {
   useRequireRole(['admin', 'empleado'] as Role[]);
   const navigate = useNavigate();
   const { timezone, locale, updateSettings } = useDateSettings();
-  // const [allTickets, setAllTickets] = useState<TicketSummary[]>([]); // Reemplazado por groupedTickets
   const [groupedTickets, setGroupedTickets] = useState<GroupedTickets[]>([]);
   const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null);
-  const [detailedTicket, setDetailedTicket] = useState<Ticket | null>(null);
+  const [detailedTicket, setDetailedTicket] = useState<Ticket | null>(null); // Ahora Ticket puede incluir sla_status y priority
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -124,36 +168,29 @@ export default function TicketsPanel() {
   const fetchAndSetTickets = useCallback(async (isManualRefresh = false) => {
     if (!safeLocalStorage.getItem('authToken')) return;
 
-    // Solo mostrar el spinner de carga grande si no hay tickets o es un refresh manual desde cero
     if (groupedTickets.length === 0 || isManualRefresh) {
       setIsLoading(true);
     }
-    // Para polling o actualizaciones en segundo plano, no queremos el spinner grande
-    // pero podríamos tener un indicador más sutil si isLoading es true y groupedTickets.length > 0
 
     try {
-      // Asumimos que el backend puede filtrar por estado y categoría si se proveen.
-      // El endpoint /tickets/panel_por_categoria devuelve un objeto CategorizedTickets.
-      // Necesitamos aplanar esto o usar un endpoint que devuelva TicketSummary[].
-      // Opción 1: Usar /tickets/panel_por_categoria y aplanar/filtrar en cliente.
-      // Opción 2: (Preferido si existe) Usar un endpoint como /tickets/panel?estado=...&categoria=...
-      // Por ahora, vamos con la Opción 1 si /tickets/panel no existe o no funciona como esperamos.
-
-      let url = '/tickets/panel_por_categoria'; // Usamos el endpoint existente
+      let url = '/tickets/panel_por_categoria';
       const params: string[] = [];
-      // Estos filtros en la URL son para /tickets/panel_por_categoria, pueden no ser necesarios si filtramos en cliente después
       if (statusFilter) params.push(`estado=${encodeURIComponent(statusFilter)}`);
       if (categoryFilter) params.push(`categoria=${encodeURIComponent(categoryFilter)}`);
       if (params.length) url += `?${params.join('&')}`;
 
+      // El backend debe devolver TicketSummary[] que incluya sla_status y priority
       const data = await apiFetch<{[category: string]: TicketSummary[]}>(url, { sendEntityToken: true });
 
       const processedGroups: GroupedTickets[] = Object.entries(data).map(([categoryName, tickets]) => ({
-        categoryName: categoryName === 'null' || categoryName === '' ? 'Sin Categoría' : categoryName, // Manejar categorías nulas o vacías
-        tickets: tickets || [], // Asegurar que tickets sea siempre un array
+        categoryName: categoryName === 'null' || categoryName === '' ? 'Sin Categoría' : categoryName,
+        tickets: (tickets || []).map(ticket => ({ // Asegurarse que los tickets tengan los nuevos campos
+          ...ticket,
+          sla_status: ticket.sla_status || null,
+          priority: ticket.priority || null,
+        })),
       }));
 
-      // Ordenar los grupos por nombre de categoría, excepto "Sin Categoría" que va al final.
       processedGroups.sort((a, b) => {
         if (a.categoryName === 'Sin Categoría') return 1;
         if (b.categoryName === 'Sin Categoría') return -1;
@@ -162,13 +199,6 @@ export default function TicketsPanel() {
 
       setGroupedTickets(processedGroups);
 
-      // Extraer categorías únicas para el selector de filtro, solo si no se está filtrando ya por categoría
-      // o si queremos que el selector siempre muestre todas las categorías presentes en la respuesta original.
-      // Por simplicidad, vamos a extraerlas siempre de la respuesta actual.
-      // Si se filtra por categoría en el backend, `data` ya vendrá filtrada.
-      // Para tener TODAS las categorías posibles, necesitaríamos un endpoint aparte o no filtrar aquí.
-      // De momento, las categorías disponibles se basarán en los tickets devueltos.
-      // Acumular todas las categorías vistas para que el Select no pierda opciones al filtrar.
       const categoriesFromCurrentResponse = Object.keys(data).map(cat => cat === 'null' || cat === '' ? 'Sin Categoría' : cat);
       setAvailableCategories(prev => {
         const newCategories = Array.from(new Set([...prev, ...categoriesFromCurrentResponse]));
@@ -188,7 +218,7 @@ export default function TicketsPanel() {
     } finally {
       setIsLoading(false);
     }
-  }, [statusFilter, categoryFilter]); // Mantener categoryFilter aquí por si el backend lo usa
+  }, [statusFilter, categoryFilter, groupedTickets.length]); // groupedTickets.length para el manejo de isLoading
 
   const fetchInitialData = useCallback(async () => {
     if (!safeLocalStorage.getItem('authToken')) {
@@ -196,7 +226,6 @@ export default function TicketsPanel() {
       setIsLoading(false);
       return;
     }
-    // La primera carga siempre debe considerarse un refresh manual para el spinner
     await fetchAndSetTickets(true);
   }, [fetchAndSetTickets]);
 
@@ -208,7 +237,6 @@ export default function TicketsPanel() {
   useEffect(() => {
     const interval = setInterval(() => {
       if (document.visibilityState === 'visible' && !selectedTicketId) {
-        // El polling no es un refresh manual, se actualiza en segundo plano
         fetchAndSetTickets(false);
       }
     }, 30000);
@@ -219,38 +247,47 @@ export default function TicketsPanel() {
     return groupedTickets.map(group => {
       let filteredTickets = group.tickets;
 
-      // Aplicar filtro de búsqueda (searchTerm)
       if (searchTerm) {
         filteredTickets = filteredTickets.filter(ticket =>
-          ticket.id.toString().includes(searchTerm) || // Buscar por ID interno
-          ticket.nro_ticket.toString().includes(searchTerm) || // Buscar por Nro. Ticket visible
+          ticket.id.toString().includes(searchTerm) ||
+          ticket.nro_ticket.toString().includes(searchTerm) ||
           ticket.asunto.toLowerCase().includes(searchTerm.toLowerCase()) ||
           (ticket.nombre_usuario && ticket.nombre_usuario.toLowerCase().includes(searchTerm.toLowerCase())) ||
           (ticket.email_usuario && ticket.email_usuario.toLowerCase().includes(searchTerm.toLowerCase())) ||
           (ticket.categoria && ticket.categoria.toLowerCase().includes(searchTerm.toLowerCase())) ||
-          (ticket.direccion && ticket.direccion.toLowerCase().includes(searchTerm.toLowerCase())) // Buscar por dirección
+          (ticket.direccion && ticket.direccion.toLowerCase().includes(searchTerm.toLowerCase()))
         );
       }
 
-      // Aplicar filtro de estado (statusFilter)
-      // Este filtro ya se aplica en la llamada API si statusFilter tiene valor.
-      // Si quisiéramos un filtrado adicional en cliente (ej. si el backend no lo hiciera):
-      // if (statusFilter) {
-      //   filteredTickets = filteredTickets.filter(ticket => ticket.estado === statusFilter);
-      // }
-
-      // Ordenar los tickets dentro del grupo
+      // Ordenar tickets: primero por prioridad (Alta > Media > Baja > null),
+      // luego por estado de SLA (Vencido > Próximo a Vencer > En Tiempo > null),
+      // luego por estado del ticket, y finalmente por fecha.
       const sortedTickets = filteredTickets.sort((a, b) => {
-        const priorityA = ESTADOS_ORDEN_PRIORIDAD.indexOf(a.estado);
-        const priorityB = ESTADOS_ORDEN_PRIORIDAD.indexOf(b.estado);
-        if (priorityA !== priorityB) return priorityA - priorityB;
+        const priorityOrder: Record<PriorityStatus | 'null_priority', number> = { high: 0, medium: 1, low: 2, null_priority: 3 };
+        const slaOrder: Record<SlaStatus | 'null_sla', number> = { breached: 0, nearing_sla: 1, on_track: 2, null_sla: 3 };
+
+        const priorityAVal = a.priority || 'null_priority';
+        const priorityBVal = b.priority || 'null_priority';
+        if (priorityOrder[priorityAVal] !== priorityOrder[priorityBVal]) {
+          return priorityOrder[priorityAVal] - priorityOrder[priorityBVal];
+        }
+
+        const slaAVal = a.sla_status || 'null_sla';
+        const slaBVal = b.sla_status || 'null_sla';
+        if (slaOrder[slaAVal] !== slaOrder[slaBVal]) {
+          return slaOrder[slaAVal] - slaOrder[slaBVal];
+        }
+
+        const estadoPriorityA = ESTADOS_ORDEN_PRIORIDAD.indexOf(a.estado);
+        const estadoPriorityB = ESTADOS_ORDEN_PRIORIDAD.indexOf(b.estado);
+        if (estadoPriorityA !== estadoPriorityB) return estadoPriorityA - estadoPriorityB;
+
         return new Date(b.fecha).getTime() - new Date(a.fecha).getTime();
       });
 
       return { ...group, tickets: sortedTickets };
-    }).filter(group => group.tickets.length > 0); // Opcional: ocultar grupos sin tickets que coincidan con filtros.
-                                                  // Si se quiere mostrar siempre la categoría aunque esté vacía por filtros, quitar este .filter()
-  }, [groupedTickets, searchTerm, statusFilter]); // statusFilter se incluye como dependencia por si se añade lógica de filtrado en cliente
+    }).filter(group => group.tickets.length > 0);
+  }, [groupedTickets, searchTerm, statusFilter]);
 
 
   const loadAndSetDetailedTicket = useCallback(async (ticketSummary: TicketSummary) => {
@@ -263,23 +300,8 @@ export default function TicketsPanel() {
     setError(null);
 
     try {
-      console.log("[TicketsPanel] Intentando cargar detalle del ticket:", ticketSummary.id, "Tipo:", ticketSummary.tipo);
-      const currentAuthToken = safeLocalStorage.getItem('authToken');
-      const currentEntityToken = safeLocalStorage.getItem('entityToken');
-      console.log("[TicketsPanel] AuthToken actual en localStorage:", currentAuthToken ? `Presente (longitud: ${currentAuthToken.length})` : "AUSENTE");
-      console.log("[TicketsPanel] EntityToken actual en localStorage:", currentEntityToken ? `Presente (longitud: ${currentEntityToken.length})` : "AUSENTE");
-
-      const apiOptions = {
-        sendEntityToken: true, // Esta es la configuración actual
-        // --- INICIO: POSIBLE AJUSTE BASADO EN LOGS ---
-        // Si los logs muestran que EntityToken está AUSENTE para roles admin/empleado,
-        // y se confirma que estos roles NO DEBERÍAN usar un entityToken para esta operación,
-        // entonces comenta la línea de arriba y descomenta la siguiente:
-        // sendEntityToken: false,
-        // --- FIN: POSIBLE AJUSTE BASADO EN LOGS ---
-      };
-      console.log("[TicketsPanel] Opciones para apiFetch al cargar detalle:", apiOptions);
-
+      const apiOptions = { sendEntityToken: true };
+      // El backend debe devolver el objeto Ticket completo incluyendo sla_status, priority, sla_deadline
       const data = await apiFetch<Ticket>(`/tickets/${ticketSummary.tipo}/${ticketSummary.id}`, apiOptions);
       setDetailedTicket(data);
     } catch (err) {
@@ -291,7 +313,17 @@ export default function TicketsPanel() {
 
   const handleTicketDetailUpdate = (updatedTicket: Ticket) => {
     setDetailedTicket(updatedTicket);
-    setAllTickets(prevTickets => prevTickets.map(t => t.id === updatedTicket.id ? { ...t, ...updatedTicket } : t));
+    // Actualizar el ticket en la lista principal (groupedTickets)
+    setGroupedTickets(prevGroups => {
+      return prevGroups.map(group => ({
+        ...group,
+        tickets: group.tickets.map(t =>
+          t.id === updatedTicket.id
+          ? { ...t, ...updatedTicket, sla_status: updatedTicket.sla_status || null, priority: updatedTicket.priority || null } // asegurar que los nuevos campos estén
+          : t
+        )
+      }));
+    });
   };
 
   const closeDetailPanel = () => {
@@ -299,7 +331,7 @@ export default function TicketsPanel() {
     setDetailedTicket(null);
   }
 
-  if (isLoading && allTickets.length === 0) {
+  if (isLoading && groupedTickets.length === 0) { // Cambiado de allTickets a groupedTickets
     return (
       <div className="flex items-center justify-center h-screen bg-muted/30 dark:bg-slate-900">
         <Loader2 className="animate-spin text-primary h-16 w-16" />
@@ -307,7 +339,7 @@ export default function TicketsPanel() {
     );
   }
 
-  if (error && allTickets.length === 0 && !isLoading) {
+  if (error && groupedTickets.length === 0 && !isLoading) { // Cambiado de allTickets a groupedTickets
     return <div className="p-8 text-center text-destructive bg-destructive/10 rounded-md h-screen flex flex-col justify-center items-center">
         <TicketIcon className="mx-auto h-12 w-12 text-destructive mb-4" />
         <h2 className="text-xl font-semibold mb-2">Error al cargar tickets</h2>
@@ -844,6 +876,26 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
             </div>
 
             <ScrollArea className="w-full md:w-[320px] lg:w-[360px] p-3 md:p-4 space-y-4 bg-card dark:bg-slate-800/50 md:border-l-0 border-t md:border-t-0 dark:border-slate-700">
+                {/* Sección de Prioridad y SLA en Detalles del Ticket */}
+                {(ticket.priority || ticket.sla_status) && (
+                  <Card className="shadow-sm">
+                    <CardHeader className="pb-3 pt-4 px-4">
+                      <CardTitle className="text-base font-semibold">Prioridad y SLA</CardTitle>
+                    </CardHeader>
+                    <CardContent className="text-sm text-muted-foreground space-y-1.5 px-4 pb-4">
+                      {ticket.priority && PRIORITY_INFO[ticket.priority] && (
+                        <p><strong>Prioridad:</strong> <span className={cn(PRIORITY_INFO[ticket.priority]?.color)}>{PRIORITY_INFO[ticket.priority]?.label}</span></p>
+                      )}
+                      {ticket.sla_status && SLA_STATUS_INFO[ticket.sla_status] && (
+                        <p><strong>SLA:</strong> <span className={cn(SLA_STATUS_INFO[ticket.sla_status]?.color)}>{SLA_STATUS_INFO[ticket.sla_status]?.label}</span></p>
+                      )}
+                      {ticket.sla_deadline && (
+                        <p><strong>Vencimiento SLA:</strong> {formatDate(ticket.sla_deadline, timezone, locale, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+
                 {(ticket.nombre_usuario || ticket.email_usuario || ticket.telefono) && (
                 <Card className="shadow-sm">
                     <CardHeader className="pb-3 pt-4 px-4">
@@ -894,12 +946,12 @@ const AvatarIcon: FC<{ type: 'user' | 'admin' }> = ({ type }) => (
   <div className={cn(
       'h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-semibold border-2 shadow-sm',
       type === 'admin'
-        ? 'bg-primary/10 text-primary border-primary/30'
-        : 'bg-muted text-muted-foreground border-border'
+        ? 'bg-primary/10 text-primary border-primary/30' // Ensure these classes match your theme for admin
+        : 'bg-muted text-muted-foreground border-border' // Ensure these classes match your theme for user
     )}>
     {type === 'admin' ? <ShieldCheck className="h-4 w-4" /> : <User className="h-4 w-4" />}
   </div>
 );
 
-// Added XCircle for error display
-import { XCircle } from "lucide-react";
+// Added XCircle for error display, BellRing for SLA, AlertTriangle for Priority (example icons)
+import { XCircle, BellRing, AlertTriangle } from "lucide-react";
