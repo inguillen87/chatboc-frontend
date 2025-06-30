@@ -160,6 +160,7 @@ export default function TicketsPanel() {
   const [statusFilter, setStatusFilter] = useState<TicketStatus | "">("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [availableCategories, setAvailableCategories] = useState<string[]>([]);
+  const [categoryNames, setCategoryNames] = useState<Record<string, string>>({});
 
   useEffect(() => {
     setSearchTerm(debouncedSearchTerm);
@@ -183,7 +184,10 @@ export default function TicketsPanel() {
       const data = await apiFetch<{[category: string]: TicketSummary[]}>(url, { sendEntityToken: true });
 
       const processedGroups: GroupedTickets[] = Object.entries(data).map(([categoryName, tickets]) => ({
-        categoryName: categoryName === 'null' || categoryName === '' ? 'Sin Categoría' : categoryName,
+        categoryName:
+          categoryName === 'null' || categoryName === ''
+            ? 'Sin Categoría'
+            : categoryNames[categoryName] || categoryName,
         tickets: Array.isArray(tickets)
           ? tickets.map(ticket => ({
               ...ticket,
@@ -230,6 +234,20 @@ export default function TicketsPanel() {
     }
     await fetchAndSetTickets(true);
   }, [fetchAndSetTickets]);
+
+  useEffect(() => {
+    apiFetch<{ id: number; nombre: string }[]>('/municipal/categorias', { sendEntityToken: true })
+      .then((data) => {
+        const mapping: Record<string, string> = {};
+        data.forEach((c) => {
+          mapping[String(c.id)] = c.nombre;
+        });
+        setCategoryNames(mapping);
+      })
+      .catch(() => {
+        setCategoryNames({});
+      });
+  }, []);
 
 
   useEffect(() => {
@@ -420,7 +438,7 @@ export default function TicketsPanel() {
                     <SelectItem value="ALL_CATEGORIES">Todas las categorías</SelectItem>
                     {availableCategories.map((category) => (
                         <SelectItem key={category} value={category}>
-                            {category}
+                            {category === 'Sin Categoría' ? 'Sin Categoría' : categoryNames[category] || category}
                         </SelectItem>
                     ))}
                 </SelectContent>
