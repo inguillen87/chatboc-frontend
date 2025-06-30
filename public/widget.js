@@ -240,6 +240,7 @@
           height: currentDims.height,
           borderRadius: window.innerWidth < 640 ? "0" : "16px",
           boxShadow: "0 6px 20px rgba(0,0,0,0.2)",
+          background: "transparent", // Asegurar que el fondo sea transparente al iniciar la apertura
         });
       }
     });
