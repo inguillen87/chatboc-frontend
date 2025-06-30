@@ -62,12 +62,13 @@ const AdjuntarArchivo: React.FC<AdjuntarArchivoProps> = ({ onUpload }) => {
     <div className="flex items-center gap-2">
       <Button
         onClick={() => inputRef.current?.click()}
-        variant="outline"
-        size="icon"
+        variant="ghost" // Cambiado a ghost para consistencia con otros botones de acción de ChatInput si no llevan fondo
+        size="icon" // Mantenemos size="icon" (h-10 w-10) por ahora. Para hacerlo más grande, necesitaríamos una nueva variante o clases directas.
+        className="text-muted-foreground hover:text-primary" // Estilo similar a otros botones de chat no primarios
         type="button"
         aria-label="Adjuntar archivo"
       >
-        <Paperclip className="w-4 h-4" />
+        <Paperclip className="h-6 w-6" /> {/* Icono aumentado a h-6 w-6 */}
       </Button>
       <input
         ref={inputRef}

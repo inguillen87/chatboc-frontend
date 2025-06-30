@@ -36,8 +36,8 @@ const ProactiveBubble: React.FC<ProactiveBubbleProps> = ({
       {/* Contenedor del mensaje y el rabito */}
       <div className="relative">
         <div
-          className="bg-background dark:bg-slate-800 text-foreground dark:text-slate-100 px-4 py-2.5 rounded-xl shadow-xl border border-border dark:border-slate-700 max-w-xs text-sm font-medium leading-normal"
-          style={{ borderRadius: "12px" }} // Mantener el estilo explícito si se prefiere, o quitar si px-4 py-2.5 es suficiente. rounded-xl ya está en clases.
+          className="bg-background dark:bg-slate-800 text-foreground dark:text-slate-100 px-4 py-3 rounded-xl shadow-xl border border-border dark:border-slate-700 max-w-xs text-base font-medium leading-relaxed" // text-base, leading-relaxed, py-3
+          // style={{ borderRadius: "12px" }} // Ya tenemos rounded-xl que es 12px con el nuevo --radius
         >
           {message}
         </div>
@@ -45,7 +45,7 @@ const ProactiveBubble: React.FC<ProactiveBubbleProps> = ({
         <div
           className="absolute right-[18px] -bottom-[7px] w-4 h-4 bg-background dark:bg-slate-800 border-r border-b border-border dark:border-r-slate-700 dark:border-b-slate-700 transform rotate-45 shadow-sm"
           style={{
-            clipPath: "polygon(0 0, 100% 0, 100% 100%)" // Solo muestra la parte inferior derecha del cuadrado rotado
+            clipPath: "polygon(0 0, 100% 0, 100% 100%)"
           }}
         />
       </div>
@@ -56,7 +56,7 @@ const ProactiveBubble: React.FC<ProactiveBubbleProps> = ({
         initial={{ scale: 0, opacity: 0, x: 10 }}
         animate={{ scale: 1, opacity: 1, x: 0, transition: { type: "spring", stiffness: 260, damping: 18, delay: 0.4 } }}
       >
-        <ChatbocLogoAnimated size={26} blinking />
+        <ChatbocLogoAnimated size={30} blinking /> {/* Aumentado a size={30} */}
       </motion.div>
     </motion.div>
   );

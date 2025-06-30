@@ -42,10 +42,10 @@ const AvatarBot: React.FC<{ isTyping: boolean }> = ({ isTyping }) => (
     initial={{ scale: 0.8, opacity: 0 }}
     animate={{ scale: 1, opacity: 1 }}
     transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.1 }}
-    className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-muted rounded-full shadow"
+    className="flex-shrink-0 w-10 h-10 flex items-center justify-center bg-muted rounded-full shadow" // Aumentado a w-10 h-10
   >
     <ChatbocLogoAnimated
-      size={24}
+      size={30} // Aumentado a 30
       smiling={isTyping}
       movingEyes={isTyping}
       blinking
@@ -66,13 +66,15 @@ const UserChatAvatar: React.FC = () => {
       animate={{ scale: 1, opacity: 1 }}
       transition={{ type: "spring", stiffness: 200, damping: 20 }}
     >
-      <Avatar className="w-8 h-8 border"> {/* Aplicar tamaño y borde aquí */}
+      <Avatar className="w-10 h-10 border-2 border-background"> {/* Aumentado a w-10 h-10, borde sutil para destacar sobre burbuja */}
         <AvatarImage src={user?.picture} alt={user?.name || "Avatar de usuario"} />
-        <AvatarFallback className="bg-secondary text-secondary-foreground text-xs">
+        <AvatarFallback
+          className="bg-muted-foreground/20 text-muted-foreground font-medium text-sm" // Estilo de fallback mejorado, text-sm
+        >
           {initials ? (
             initials
           ) : (
-            <UserIcon size={16} /> // Ícono genérico si no hay nombre/iniciales
+            <UserIcon size={22} /> // Icono de fallback más grande
           )}
         </AvatarFallback>
       </Avatar>
@@ -160,8 +162,9 @@ const ChatMessagePyme = React.forwardRef<HTMLDivElement, ChatMessageProps>( (
                 fallbackText={(!processedAttachmentInfo && !message.locationData) ? sanitizedHtml : undefined}
               />
             ) : (
+            // Aumentado a text-base para el contenido del mensaje
             sanitizedHtml && <span
-              className="prose dark:prose-invert max-w-none text-sm [&_p]:my-0"
+              className="prose dark:prose-invert max-w-none text-base leading-relaxed [&_p]:my-1" // text-base, leading-relaxed, p con my-1
               dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
             />
           )}
