@@ -30,10 +30,11 @@ const TicketMap: React.FC<{ ticket: TicketLocation }> = ({ ticket }) => {
   return ticket.direccion || hasCoords ? (
     <div className="mb-6">
       <h4 className="font-semibold mb-2">Ubicación aproximada</h4>
-      <div className="w-full rounded overflow-hidden" style={{ height: 180 }}>
+      {/* Responsive height for the map container */}
+      <div className="w-full rounded overflow-hidden h-[150px] sm:h-[180px]">
         <iframe
           width="100%"
-          height="180"
+          height="100%" // Make iframe fill the container
           style={{ border: 0 }}
           loading="lazy"
           allowFullScreen

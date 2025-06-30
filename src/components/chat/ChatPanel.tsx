@@ -721,7 +721,7 @@ const ChatPanel = ({
         onToggleSound={onToggleSound}
         onCart={onCart}
       />
-      <div ref={chatContainerRef} className="flex-1 p-4 min-h-0 flex flex-col gap-3 overflow-y-auto">
+      <div ref={chatContainerRef} className="flex-1 p-2 sm:p-4 min-h-0 flex flex-col gap-3 overflow-y-auto"> {/* Reduced padding for mobile */}
           {esperandoRubro ? (
             <div className="text-center w-full">
               <h2 className="text-primary mb-2">👋 ¡Bienvenido!</h2>
