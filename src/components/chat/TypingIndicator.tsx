@@ -1,7 +1,7 @@
 import React from "react";
 import { motion } from "framer-motion";
 
-const LOGO_BOT = "/favicon/favicon-512x512.png";
+const LOGO_BOT = "/favicon/human-avatar.svg";
 
 const TypingIndicator: React.FC = () => (
   <div className="flex items-end gap-2.5 justify-start">

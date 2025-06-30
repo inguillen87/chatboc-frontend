@@ -55,7 +55,7 @@ const ChatbocLogoAnimated = ({
       }}
     >
       <img
-        src="/favicon/favicon-512x512.png" // Assuming this is the base character image
+        src="/favicon/human-avatar.svg" // Human avatar base image
         alt="Chatboc"
         style={{
           width: size,
