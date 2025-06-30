@@ -144,6 +144,11 @@ If you host `widget.js` yourself, remember to add `data-domain="https://www.chat
   data-domain="https://www.chatboc.ar"
   data-token="TU_TOKEN_AQUI"></script>
 ```
+Using `widget.js` from another domain **without** this attribute causes the iframe
+to load its scripts from the wrong origin, leading to console errors and 403
+responses from `https://api.chatboc.ar`. If you see messages such as `attribute
+cx: Expected length` or `Access Forbidden`, verify that `data-domain` is set to
+`https://www.chatboc.ar`.
 The script automatically adds `allow="clipboard-write; geolocation"` to the underlying iframe so the widget can request GPS access.
 If your site embeds this script inside another `<iframe>`, be sure that outer frame also includes
 `allow="clipboard-write; geolocation"`. The permission must be granted at every level

@@ -41,7 +41,13 @@
     const rubroAttr = script.getAttribute("data-rubro") || "";
     const ctaMessageAttr = script.getAttribute("data-cta-message") || "";
     const scriptOrigin = (script.getAttribute("src") && new URL(script.getAttribute("src"), window.location.href).origin) || "https://www.chatboc.ar";
-    const chatbocDomain = script.getAttribute("data-domain") || scriptOrigin;
+    const isChatbocDomain = /chatboc\.ar$/.test(new URL(scriptOrigin).hostname);
+    const chatbocDomain = script.getAttribute("data-domain") || (isChatbocDomain ? scriptOrigin : "https://www.chatboc.ar");
+    if (!script.getAttribute("data-domain") && !isChatbocDomain) {
+      console.warn(
+        "Chatboc widget.js is self-hosted; add data-domain=\"https://www.chatboc.ar\" to load assets from chatboc.ar"
+      );
+    }
 
     function buildWidget(finalCta) {
       const zIndexBase = parseInt(script.getAttribute("data-z") || "999990", 10);
