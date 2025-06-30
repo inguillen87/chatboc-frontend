@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 // useLocation no se usa directamente aquí, se usa en AppRoutesContent a través de React.useContext
 import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 
 // Layouts y Páginas
 import AppShell from "@/components/layout/AppShell"; // Aseguramos el uso del alias @
