@@ -436,46 +436,57 @@ export default function TicketsPanel() {
             selectedTicketId && "hidden md:flex"
         )}>
           <ScrollArea className="flex-1 p-3">
-            {isLoading && groupedTickets.length === 0 && !error && ( // Carga inicial
-                 <div className="p-4 text-center text-sm text-muted-foreground flex items-center justify-center h-full">
-                    <Loader2 className="h-4 w-4 animate-spin mr-2"/> Cargando tickets...
-                 </div>
-            )}
-            {isLoading && groupedTickets.length > 0 && ( // Recargando en segundo plano
-              <div className="p-2 text-center text-xs text-muted-foreground flex items-center justify-center">
-                <Loader2 className="h-3 w-3 animate-spin mr-1.5"/> Actualizando lista...
-              </div>
-            )}
-            {!isLoading && filteredAndSortedGroups.length === 0 && !error && ( // No hay tickets después de cargar
-              <div className="text-center py-10 px-4 h-full flex flex-col justify-center items-center">
-                <TicketIcon className="mx-auto h-12 w-12 text-muted-foreground" />
-                <h3 className="mt-2 text-base font-medium text-foreground">No hay tickets</h3>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {searchTerm || statusFilter || categoryFilter ? "Ningún ticket coincide con tus filtros." : "Cuando se genere un nuevo reclamo, aparecerá aquí."}
-                </p>
-              </div>
-            ) : (
-              <AnimatePresence>
-                {filteredAndSortedGroups.map(group => (
-                  <div key={group.categoryName} className="mb-4">
-                    <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-1 py-2 sticky top-0 bg-card dark:bg-slate-800/80 backdrop-blur-sm z-10">
-                      {group.categoryName} ({group.tickets.length})
-                    </h2>
-                    {group.tickets.map(ticket => (
-                      <TicketListItem
-                        key={ticket.id}
-                        ticket={ticket}
-                        isSelected={selectedTicketId === ticket.id}
-                        onSelect={() => loadAndSetDetailedTicket(ticket)}
-                        timezone={timezone}
-                        locale={locale}
-                      />
-                    ))}
-                  </div>
-                ))}
-              </AnimatePresence>
-            )}
-          </ScrollArea>
+  {/* Carga inicial */}
+  {isLoading && groupedTickets.length === 0 && !error && (
+    <div className="p-4 text-center text-sm text-muted-foreground flex items-center justify-center h-full">
+      <Loader2 className="h-4 w-4 animate-spin mr-2"/> Cargando tickets...
+    </div>
+  )}
+
+  {/* Recargando en segundo plano */}
+  {isLoading && groupedTickets.length > 0 && (
+    <div className="p-2 text-center text-xs text-muted-foreground flex items-center justify-center">
+      <Loader2 className="h-3 w-3 animate-spin mr-1.5"/> Actualizando lista...
+    </div>
+  )}
+
+  {/* No hay tickets después de cargar */}
+  {!isLoading && filteredAndSortedGroups.length === 0 && !error && (
+    <div className="text-center py-10 px-4 h-full flex flex-col justify-center items-center">
+      <TicketIcon className="mx-auto h-12 w-12 text-muted-foreground" />
+      <h3 className="mt-2 text-base font-medium text-foreground">No hay tickets</h3>
+      <p className="mt-1 text-sm text-muted-foreground">
+        {searchTerm || statusFilter || categoryFilter
+          ? "Ningún ticket coincide con tus filtros."
+          : "Cuando se genere un nuevo reclamo, aparecerá aquí."}
+      </p>
+    </div>
+  )}
+
+  {/* Lista agrupada de tickets */}
+  {!isLoading && filteredAndSortedGroups.length > 0 && (
+    <AnimatePresence>
+      {filteredAndSortedGroups.map(group => (
+        <div key={group.categoryName} className="mb-4">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-1 py-2 sticky top-0 bg-card dark:bg-slate-800/80 backdrop-blur-sm z-10">
+            {group.categoryName} ({group.tickets.length})
+          </h2>
+          {group.tickets.map(ticket => (
+            <TicketListItem
+              key={ticket.id}
+              ticket={ticket}
+              isSelected={selectedTicketId === ticket.id}
+              onSelect={() => loadAndSetDetailedTicket(ticket)}
+              timezone={timezone}
+              locale={locale}
+            />
+          ))}
+        </div>
+      ))}
+    </AnimatePresence>
+  )}
+</ScrollArea>
+
         </div>
 
         <div className={cn(
