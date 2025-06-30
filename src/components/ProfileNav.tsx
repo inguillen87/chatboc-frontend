@@ -25,27 +25,32 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Pedidos', path: '/pedidos', roles: ['admin', 'empleado'], tipo: 'pyme' },
   { label: 'Usuarios', path: '/usuarios', roles: ['admin', 'empleado'] },
   { label: 'Catálogo', path: '/pyme/catalog', roles: ['admin'], tipo: 'pyme' },
+  { label: 'Métricas', path: '/pyme/metrics', roles: ['admin'], tipo: 'pyme' },
+  // Municipio specific items
   { label: 'Trámites', path: '/municipal/tramites', roles: ['admin'], tipo: 'municipio' },
   { label: 'Estadísticas', path: '/municipal/stats', roles: ['admin'], tipo: 'municipio' },
   { label: 'Analíticas', path: '/municipal/analytics', roles: ['admin'], tipo: 'municipio' },
   { label: 'Empleados', path: '/municipal/usuarios', roles: ['admin'], tipo: 'municipio' },
-  { label: 'Métricas', path: '/pyme/metrics', roles: ['admin'], tipo: 'pyme' },
+  { label: 'Mapa de Incidentes', path: '/municipal/incidents', roles: ['admin'], tipo: 'municipio' },
 ];
 
 export default function ProfileNav() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useUser();
+
+  // Hooks to check endpoint availability
   const tramitesAvailable = useEndpointAvailable('/municipal/tramites');
   const statsAvailable = useEndpointAvailable('/municipal/stats');
   const analyticsAvailable = useEndpointAvailable('/municipal/analytics');
   const empleadosAvailable = useEndpointAvailable('/municipal/usuarios');
+  const incidentsMapAvailable = useEndpointAvailable('/municipal/incidents'); // Check for Mapa de Incidentes
 
   if (!user) return null;
   if (!user.rol || !user.tipo_chat) {
     return (
       <div className="text-destructive text-sm">
-        Perfil incompleto: falta rol o tipo de chat
+        Perfil incompleto: falta rol o tipo de chat.
       </div>
     );
   }
@@ -53,12 +58,20 @@ export default function ProfileNav() {
   const tipo = user.tipo_chat as 'pyme' | 'municipio';
 
   const items = NAV_ITEMS.filter((it) => {
+    // Check endpoint availability for relevant items
     if (it.path === '/municipal/tramites' && tramitesAvailable === false) return false;
     if (it.path === '/municipal/stats' && statsAvailable === false) return false;
     if (it.path === '/municipal/analytics' && analyticsAvailable === false) return false;
     if (it.path === '/municipal/usuarios' && empleadosAvailable === false) return false;
+    if (it.path === '/municipal/incidents' && incidentsMapAvailable === false) return false; // Check for Mapa
+
+    // Standard role and tipo filtering
     return (!it.roles || it.roles.includes(role)) && (!it.tipo || it.tipo === tipo);
   });
+
+  // Sort items to ensure consistent order if needed, or adjust NAV_ITEMS order directly.
+  // Example: Pyme items first, then Municipio items.
+  // items.sort((a, b) => (a.tipo === 'pyme' ? -1 : 1)); // Simple sort, might need refinement
 
   if (!items.length) return null;
 
