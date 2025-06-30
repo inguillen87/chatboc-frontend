@@ -408,8 +408,8 @@ export default function Perfil() {
                 Datos de tu Empresa
               </CardTitle>
             </CardHeader>
-            <CardContent className="flex flex-col flex-grow space-y-6">
-              <form onSubmit={handleGuardar} className="space-y-6">
+            <CardContent className="flex flex-col flex-grow"> {/* Removed space-y-6 */}
+              <form onSubmit={handleGuardar} className="flex flex-col flex-grow space-y-6"> {/* Added flex flex-col flex-grow */}
                 <div>
                   <Label
                     htmlFor="nombre_empresa"
@@ -564,7 +564,7 @@ export default function Perfil() {
 
                 {/* Ubicación en el Mapa - Integrado en la tarjeta de Datos */}
                 {(perfil.direccion || (perfil.latitud !== null && perfil.longitud !== null)) && (
-                  <div className="mt-4"> {/* Add margin top for spacing */}
+                  <div className="mt-4 flex flex-col flex-grow"> {/* Add margin top, flex-grow and flex-col */}
                     <Label className="text-muted-foreground text-sm mb-1 block">
                       Ubicación en el Mapa
                     </Label>

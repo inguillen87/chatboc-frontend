@@ -117,7 +117,8 @@ const LocationMap: React.FC<LocationMapProps> = ({ lat, lng, onMove }) => {
     });
   }, [lat, lng, onMove]);
 
-  return <div ref={ref} className="w-full h-96 rounded-md border border-border" />; // Increased height from h-48 to h-96
+  // Added flex-grow and min-h-[200px] (or other suitable min-height)
+  return <div ref={ref} className="w-full rounded-md border border-border flex-grow min-h-[200px]" />; 
 };
 
 export default LocationMap;
