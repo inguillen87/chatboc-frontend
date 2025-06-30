@@ -1,0 +1,36 @@
+<iframe
+  id="chatboc-iframe"
+  src="https://www.chatboc.ar/iframe?token=1146cb3e-eaef-4230-b54e-1c340ac062d8&tipo_chat=municipio"
+  style="position:fixed; bottom:20px; right:20px; border:none; border-radius:50%; z-index:9999; box-shadow:0 4px 32px rgba(0,0,0,0.2); background:transparent; overflow:hidden; width:96px; height:96px; display:block; transition: width 0.3s ease, height 0.3s ease, border-radius 0.3s ease;"
+  allow="clipboard-write; geolocation"
+  loading="lazy"
+  title="Chatboc Widget"
+></iframe>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  window.APP_TARGET = 'municipio';
+  var chatIframe = document.getElementById('chatboc-iframe');
+
+  // Es crucial que si este código de iframe se inserta dentro de OTRO iframe en tu sitio,
+  // ese iframe contenedor también debe tener 'allow="clipboard-write; geolocation"'.
+  // Ejemplo: <iframe src="pagina_con_este_codigo.html" allow="clipboard-write; geolocation"></iframe>
+
+  // Comunicación con el iframe para ajustar tamaño y forma
+  window.addEventListener('message', function (event) {
+    if (event.origin !== 'https://www.chatboc.ar') return; // Seguridad: aceptar mensajes solo del origen del iframe
+
+    if (event.data && event.data.type === 'chatboc-state-change') {
+      if (event.data.dimensions) {
+        chatIframe.style.width = event.data.dimensions.width || '460px';
+        chatIframe.style.height = event.data.dimensions.height || '680px';
+      }
+      chatIframe.style.borderRadius = event.data.isOpen ? '16px' : '50%'; // Más suave la transición
+    }
+  });
+
+  // Opcional: Enviar un mensaje al iframe una vez cargado para configuraciones iniciales si es necesario
+  // chatIframe.onload = function() {
+  //   chatIframe.contentWindow.postMessage({ type: 'chatboc-init', settings: { exampleSetting: true } }, 'https://www.chatboc.ar');
+  // };
+});
+</script>
