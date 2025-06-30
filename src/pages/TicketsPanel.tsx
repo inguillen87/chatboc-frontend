@@ -184,11 +184,13 @@ export default function TicketsPanel() {
 
       const processedGroups: GroupedTickets[] = Object.entries(data).map(([categoryName, tickets]) => ({
         categoryName: categoryName === 'null' || categoryName === '' ? 'Sin Categoría' : categoryName,
-        tickets: (tickets || []).map(ticket => ({ // Asegurarse que los tickets tengan los nuevos campos
-          ...ticket,
-          sla_status: ticket.sla_status || null,
-          priority: ticket.priority || null,
-        })),
+        tickets: Array.isArray(tickets)
+          ? tickets.map(ticket => ({
+              ...ticket,
+              sla_status: ticket.sla_status || null,
+              priority: ticket.priority || null,
+            }))
+          : [],
       }));
 
       processedGroups.sort((a, b) => {
