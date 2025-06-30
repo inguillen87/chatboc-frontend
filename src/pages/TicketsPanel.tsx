@@ -183,6 +183,16 @@ export default function TicketsPanel() {
       // El backend debe devolver TicketSummary[] que incluya sla_status y priority
       const data = await apiFetch<{[category: string]: TicketSummary[]}>(url, { sendEntityToken: true });
 
+      // Add a check for data being a non-null object and an actual object
+      if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+        console.error('API response for tickets is not a valid object:', data);
+        // Consider setting an error state here as well
+        setError('La respuesta del servidor para los tickets no es válida.');
+        setGroupedTickets([]);
+        setIsLoading(false);
+        return;
+      }
+
       const processedGroups: GroupedTickets[] = Object.entries(data).map(([categoryName, tickets]) => ({
         categoryName:
           categoryName === 'null' || categoryName === ''

@@ -107,6 +107,7 @@ const ChatPanel = ({
   const chatInputRef = useRef<HTMLInputElement>(null);
   const lastQueryRef = useRef<string | null>(null);
   const ultimoMensajeIdRef = useRef<number | null>(null);
+  const clientMessageIdCounter = useRef(0);
 
   const [esperandoDireccion, setEsperandoDireccion] = useState(false);
   const [forzarDireccion, setForzarDireccion] = useState(false);
@@ -148,6 +149,11 @@ const ChatPanel = ({
 
   const esAnonimo = !finalAuthToken;
   const { user, refreshUser, loading: userLoading } = useUser(); // Renombrar loading para evitar conflicto
+
+  const generateClientMessageId = () => {
+    clientMessageIdCounter.current += 1;
+    return `client-${Date.now()}-${clientMessageIdCounter.current}`;
+  };
 
   useEffect(() => {
     if (!esAnonimo && (!user || !user.rubro) && !userLoading) {
@@ -203,7 +209,7 @@ const ChatPanel = ({
         setForzarDireccion(true);
         setEsperandoDireccion(true);
         setMessages((prev) => [...prev, {
-          id: Date.now(),
+          id: generateClientMessageId(),
           text: "No pudimos acceder a tu ubicación por GPS. Verificá los permisos y que estés usando una conexión segura (https). Ingresá la dirección manualmente para continuar.",
           isBot: true, timestamp: new Date()
         }]);
@@ -252,7 +258,7 @@ const ChatPanel = ({
         setForzarDireccion(true);
         setEsperandoDireccion(true);
         setMessages((prev) => [...prev, {
-          id: Date.now(),
+          id: generateClientMessageId(),
           text: "No pudimos acceder a tu ubicación por GPS. Verificá los permisos y que estés usando una conexión segura (https). Ingresá la dirección manualmente para continuar.",
           isBot: true, timestamp: new Date()
         }]);
@@ -347,7 +353,7 @@ const ChatPanel = ({
         if (["resuelto", "cerrado"].includes(data.estado_chat)) {
           if (intervalId) clearInterval(intervalId);
           setMessages((prev) => [...prev, {
-            id: Date.now(), text: "Un agente ha finalizado esta conversación.",
+            id: generateClientMessageId(), text: "Un agente ha finalizado esta conversación.",
             isBot: true, timestamp: new Date()
           }]);
         }
@@ -355,7 +361,7 @@ const ChatPanel = ({
         console.error("Error durante el polling:", error);
         if (!pollingErrorShown) {
           setMessages((prev) => [...prev, {
-            id: Date.now(), text: "⚠️ Servicio no disponible.",
+            id: generateClientMessageId(), text: "⚠️ Servicio no disponible.",
             isBot: true, timestamp: new Date()
           }]);
           setPollingErrorShown(true);
@@ -376,16 +382,16 @@ const ChatPanel = ({
       setIsSendingUserMessage(true); // Inicia envío
 
       if (esAnonimo && mode === "standalone" && !rubroSeleccionado && !payload.action) {
-        setMessages((prev) => [...prev, { id: Date.now(), text: "🛈 Por favor, seleccioná primero un rubro.", isBot: true, timestamp: new Date() }]);
+        setMessages((prev) => [...prev, { id: generateClientMessageId(), text: "🛈 Por favor, seleccioná primero un rubro.", isBot: true, timestamp: new Date() }]);
         setIsSendingUserMessage(false); return;
       }
       if (!esAnonimo) {
         if (userLoading) {
-          setMessages((prev) => [...prev, { id: Date.now(), text: "⏳ Cargando tu perfil, intentá nuevamente...", isBot: true, timestamp: new Date() }]);
+          setMessages((prev) => [...prev, { id: generateClientMessageId(), text: "⏳ Cargando tu perfil, intentá nuevamente...", isBot: true, timestamp: new Date() }]);
           setIsSendingUserMessage(false); return;
         }
         if (!rubroNormalizado && !payload.action) {
-          setMessages((prev) => [...prev, { id: Date.now(), text: "🛈 Definí tu rubro en el perfil antes de usar el chat.", isBot: true, timestamp: new Date() }]);
+          setMessages((prev) => [...prev, { id: generateClientMessageId(), text: "🛈 Definí tu rubro en el perfil antes de usar el chat.", isBot: true, timestamp: new Date() }]);
           setIsSendingUserMessage(false); return;
         }
       }
@@ -406,7 +412,7 @@ const ChatPanel = ({
       setShowCierre(null);
 
       setMessages((prev) => [...prev, {
-        id: Date.now(), text: userMessageText, isBot: false, timestamp: new Date(),
+        id: generateClientMessageId(), text: userMessageText, isBot: false, timestamp: new Date(),
         attachmentInfo: payload.attachmentInfo, // Mostrar el adjunto del usuario inmediatamente
         locationData: payload.ubicacion_usuario, // Mostrar la ubicación del usuario inmediatamente
       }]);
@@ -447,7 +453,7 @@ const ChatPanel = ({
           const filtered = filterLoginPrompt(data.respuesta || "", data.botones || [], user?.rol);
 
           const botMessage: Message = {
-            id: Date.now(), text: filtered.text || "", isBot: true, timestamp: new Date(),
+            id: generateClientMessageId(), text: filtered.text || "", isBot: true, timestamp: new Date(),
             botones: filtered.buttons, query: lastQueryRef.current || undefined,
             mediaUrl: data.media_url, locationData: data.location_data,
             attachmentInfo: data.attachment_info,
@@ -490,7 +496,7 @@ const ChatPanel = ({
         }
       } catch (error: any) {
         const errorMsg = getErrorMessage(error, '⚠️ No se pudo conectar con el servidor.');
-        setMessages((prev) => [...prev, { id: Date.now(), text: errorMsg, isBot: true, timestamp: new Date() }]);
+        setMessages((prev) => [...prev, { id: generateClientMessageId(), text: errorMsg, isBot: true, timestamp: new Date() }]);
         toast({ title: 'Error de comunicación', description: errorMsg, variant: 'destructive', duration: 5000 });
       } finally {
         setIsBotTyping(false);
@@ -548,7 +554,7 @@ const ChatPanel = ({
     setEsperandoRubro(false);
     if (!initialMessageAddedRef.current && (!esAnonimo || rubroSeleccionado)) {
       if (messages.length === 0) {
-        setMessages([{ id: Date.now(), text: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?", isBot: true, timestamp: new Date() }]);
+        setMessages([{ id: generateClientMessageId(), text: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?", isBot: true, timestamp: new Date() }]);
       }
       initialMessageAddedRef.current = true;
     }
