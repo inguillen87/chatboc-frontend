@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, FC, useRef, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Loader2, Send, Ticket as TicketIcon, ChevronDown, ChevronUp, User, ShieldCheck, X, Search, Filter, ListFilter, File } from "lucide-react"; // Added Search, Filter, File
+import { Loader2, Send, Ticket as TicketIcon, ChevronDown, ChevronUp, User, ShieldCheck, X, Search, Filter, ListFilter, File, ArrowLeft } from "lucide-react"; // Added Search, Filter, File, ArrowLeft
 import { motion, AnimatePresence } from "framer-motion";
 import { apiFetch, ApiError } from "@/utils/api";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
@@ -36,7 +37,11 @@ interface TicketSummary extends Omit<Ticket, 'detalles' | 'comentarios'> {
   latitud?: number | null;
   longitud?: number | null;
 }
-// type CategorizedTickets = { [category: string]: TicketSummary[]; }; // Ya no se usa directamente para el estado principal
+// type CategorizedTickets = { [category: string]: TicketSummary[]; }; // Ahora sí lo vamos a usar o algo similar
+interface GroupedTickets {
+  categoryName: string;
+  tickets: TicketSummary[];
+}
 
 const ESTADOS_ORDEN_PRIORIDAD: TicketStatus[] = ["nuevo", "en_proceso", "esperando_agente_en_vivo", "derivado", "resuelto", "cerrado"];
 const ESTADOS: Record<TicketStatus, { label: string; tailwind_class: string, icon?: React.ElementType }> = {
@@ -96,8 +101,10 @@ interface TicketDetailViewProps {
 // ----------- MAIN PANEL (Refactorizado) -----------
 export default function TicketsPanel() {
   useRequireRole(['admin', 'empleado'] as Role[]);
+  const navigate = useNavigate();
   const { timezone, locale, updateSettings } = useDateSettings();
-  const [allTickets, setAllTickets] = useState<TicketSummary[]>([]);
+  // const [allTickets, setAllTickets] = useState<TicketSummary[]>([]); // Reemplazado por groupedTickets
+  const [groupedTickets, setGroupedTickets] = useState<GroupedTickets[]>([]);
   const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null);
   const [detailedTicket, setDetailedTicket] = useState<Ticket | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -107,15 +114,23 @@ export default function TicketsPanel() {
   const debouncedSearchTerm = useDebounce(searchTermInput, 300);
   const [searchTerm, setSearchTerm] = useState(""); // Este será el término debounced
   const [statusFilter, setStatusFilter] = useState<TicketStatus | "">("");
-  const [categoryFilter, setCategoryFilter] = useState(""); // Se mantiene por si se usa, aunque el foco está en statusFilter
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [availableCategories, setAvailableCategories] = useState<string[]>([]);
 
   useEffect(() => {
     setSearchTerm(debouncedSearchTerm);
   }, [debouncedSearchTerm]);
 
-  const fetchAndSetTickets = useCallback(async () => {
+  const fetchAndSetTickets = useCallback(async (isManualRefresh = false) => {
     if (!safeLocalStorage.getItem('authToken')) return;
-    setIsLoading(true);
+
+    // Solo mostrar el spinner de carga grande si no hay tickets o es un refresh manual desde cero
+    if (groupedTickets.length === 0 || isManualRefresh) {
+      setIsLoading(true);
+    }
+    // Para polling o actualizaciones en segundo plano, no queremos el spinner grande
+    // pero podríamos tener un indicador más sutil si isLoading es true y groupedTickets.length > 0
+
     try {
       // Asumimos que el backend puede filtrar por estado y categoría si se proveen.
       // El endpoint /tickets/panel_por_categoria devuelve un objeto CategorizedTickets.
@@ -133,77 +148,109 @@ export default function TicketsPanel() {
 
       const data = await apiFetch<{[category: string]: TicketSummary[]}>(url, { sendEntityToken: true });
 
-      // Aplanar y aplicar filtros de cliente si es necesario
-      let fetchedTickets: TicketSummary[] = [];
-      for (const categoryKey in data) {
-        fetchedTickets = fetchedTickets.concat(data[categoryKey]);
-      }
+      const processedGroups: GroupedTickets[] = Object.entries(data).map(([categoryName, tickets]) => ({
+        categoryName: categoryName === 'null' || categoryName === '' ? 'Sin Categoría' : categoryName, // Manejar categorías nulas o vacías
+        tickets: tickets || [], // Asegurar que tickets sea siempre un array
+      }));
 
-      // Si statusFilter o categoryFilter se usaron en la URL, el backend ya filtró.
-      // Si no, y queremos filtrar en cliente adicionalmente (ej. el endpoint no soporta todos los filtros):
-      // if (statusFilter) {
-      //   fetchedTickets = fetchedTickets.filter(t => t.estado === statusFilter);
-      // }
-      // if (categoryFilter && !params.some(p => p.startsWith('categoria='))) { // si no se filtró por backend
-      //  fetchedTickets = fetchedTickets.filter(t => t.categoria?.toLowerCase().includes(categoryFilter.toLowerCase()));
-      // }
+      // Ordenar los grupos por nombre de categoría, excepto "Sin Categoría" que va al final.
+      processedGroups.sort((a, b) => {
+        if (a.categoryName === 'Sin Categoría') return 1;
+        if (b.categoryName === 'Sin Categoría') return -1;
+        return a.categoryName.localeCompare(b.categoryName);
+      });
 
-      setAllTickets(fetchedTickets);
+      setGroupedTickets(processedGroups);
+
+      // Extraer categorías únicas para el selector de filtro, solo si no se está filtrando ya por categoría
+      // o si queremos que el selector siempre muestre todas las categorías presentes en la respuesta original.
+      // Por simplicidad, vamos a extraerlas siempre de la respuesta actual.
+      // Si se filtra por categoría en el backend, `data` ya vendrá filtrada.
+      // Para tener TODAS las categorías posibles, necesitaríamos un endpoint aparte o no filtrar aquí.
+      // De momento, las categorías disponibles se basarán en los tickets devueltos.
+      // Acumular todas las categorías vistas para que el Select no pierda opciones al filtrar.
+      const categoriesFromCurrentResponse = Object.keys(data).map(cat => cat === 'null' || cat === '' ? 'Sin Categoría' : cat);
+      setAvailableCategories(prev => {
+        const newCategories = Array.from(new Set([...prev, ...categoriesFromCurrentResponse]));
+        return newCategories.sort((a,b) => {
+          if (a === 'Sin Categoría') return 1;
+          if (b === 'Sin Categoría') return -1;
+          return a.localeCompare(b);
+        });
+      });
+
       setError(null);
     } catch (err) {
       console.error('Error al actualizar el panel de tickets', err);
       const message = err instanceof ApiError ? err.message : 'Ocurrió un error al actualizar el panel de tickets.';
       setError(message);
-      setAllTickets([]);
+      setGroupedTickets([]);
     } finally {
       setIsLoading(false);
     }
-  }, [statusFilter, categoryFilter]);
+  }, [statusFilter, categoryFilter]); // Mantener categoryFilter aquí por si el backend lo usa
 
-  const fetchInitialData = useCallback(async () => { // useCallback para evitar que se re-cree en cada render
+  const fetchInitialData = useCallback(async () => {
     if (!safeLocalStorage.getItem('authToken')) {
       setError('Sesión no válida. Por favor, inicie sesión de nuevo.');
       setIsLoading(false);
       return;
     }
-    await fetchAndSetTickets();
+    // La primera carga siempre debe considerarse un refresh manual para el spinner
+    await fetchAndSetTickets(true);
   }, [fetchAndSetTickets]);
 
 
   useEffect(() => {
     fetchInitialData();
-  }, [fetchInitialData]); // Dependencia fetchInitialData (que tiene fetchAndSetTickets)
+  }, [fetchInitialData]);
 
   useEffect(() => {
     const interval = setInterval(() => {
       if (document.visibilityState === 'visible' && !selectedTicketId) {
-        fetchAndSetTickets();
+        // El polling no es un refresh manual, se actualiza en segundo plano
+        fetchAndSetTickets(false);
       }
     }, 30000);
     return () => clearInterval(interval);
   }, [fetchAndSetTickets, selectedTicketId]);
 
-  const filteredAndSortedTickets = useMemo(() => {
-    let ticketsToDisplay = [...allTickets];
-    if (searchTerm) {
-      ticketsToDisplay = ticketsToDisplay.filter(ticket =>
-        ticket.asunto.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        ticket.nro_ticket.toString().includes(searchTerm) ||
-        (ticket.nombre_usuario && ticket.nombre_usuario.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (ticket.email_usuario && ticket.email_usuario.toLowerCase().includes(searchTerm.toLowerCase()))
-      );
-    }
-    // Si statusFilter no fue manejado por el backend (porque usamos panel_por_categoria y luego aplanamos)
-    // lo aplicaríamos aquí. Pero si panel_por_categoria ya lo hizo, no es necesario.
-    // La implementación actual de fetchAndSetTickets ya usa statusFilter en la URL.
+  const filteredAndSortedGroups = useMemo(() => {
+    return groupedTickets.map(group => {
+      let filteredTickets = group.tickets;
 
-    return ticketsToDisplay.sort((a, b) => {
-      const priorityA = ESTADOS_ORDEN_PRIORIDAD.indexOf(a.estado);
-      const priorityB = ESTADOS_ORDEN_PRIORIDAD.indexOf(b.estado);
-      if (priorityA !== priorityB) return priorityA - priorityB;
-      return new Date(b.fecha).getTime() - new Date(a.fecha).getTime();
-    });
-  }, [allTickets, searchTerm]);
+      // Aplicar filtro de búsqueda (searchTerm)
+      if (searchTerm) {
+        filteredTickets = filteredTickets.filter(ticket =>
+          ticket.id.toString().includes(searchTerm) || // Buscar por ID interno
+          ticket.nro_ticket.toString().includes(searchTerm) || // Buscar por Nro. Ticket visible
+          ticket.asunto.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (ticket.nombre_usuario && ticket.nombre_usuario.toLowerCase().includes(searchTerm.toLowerCase())) ||
+          (ticket.email_usuario && ticket.email_usuario.toLowerCase().includes(searchTerm.toLowerCase())) ||
+          (ticket.categoria && ticket.categoria.toLowerCase().includes(searchTerm.toLowerCase())) ||
+          (ticket.direccion && ticket.direccion.toLowerCase().includes(searchTerm.toLowerCase())) // Buscar por dirección
+        );
+      }
+
+      // Aplicar filtro de estado (statusFilter)
+      // Este filtro ya se aplica en la llamada API si statusFilter tiene valor.
+      // Si quisiéramos un filtrado adicional en cliente (ej. si el backend no lo hiciera):
+      // if (statusFilter) {
+      //   filteredTickets = filteredTickets.filter(ticket => ticket.estado === statusFilter);
+      // }
+
+      // Ordenar los tickets dentro del grupo
+      const sortedTickets = filteredTickets.sort((a, b) => {
+        const priorityA = ESTADOS_ORDEN_PRIORIDAD.indexOf(a.estado);
+        const priorityB = ESTADOS_ORDEN_PRIORIDAD.indexOf(b.estado);
+        if (priorityA !== priorityB) return priorityA - priorityB;
+        return new Date(b.fecha).getTime() - new Date(a.fecha).getTime();
+      });
+
+      return { ...group, tickets: sortedTickets };
+    }).filter(group => group.tickets.length > 0); // Opcional: ocultar grupos sin tickets que coincidan con filtros.
+                                                  // Si se quiere mostrar siempre la categoría aunque esté vacía por filtros, quitar este .filter()
+  }, [groupedTickets, searchTerm, statusFilter]); // statusFilter se incluye como dependencia por si se añade lógica de filtrado en cliente
 
 
   const loadAndSetDetailedTicket = useCallback(async (ticketSummary: TicketSummary) => {
@@ -273,9 +320,14 @@ export default function TicketsPanel() {
     <div className="flex flex-col h-screen bg-muted/30 dark:bg-slate-900 text-foreground overflow-hidden">
       <header className="p-4 border-b dark:border-slate-700 bg-card dark:bg-slate-800/50 shadow-sm">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Panel de Tickets</h1>
-            <p className="text-sm text-muted-foreground">Gestiona todos los reclamos y solicitudes.</p>
+          <div className="flex items-center gap-3">
+            <Button variant="outline" size="icon" onClick={() => navigate(-1)} title="Volver a la página anterior">
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">Panel de Tickets</h1>
+              <p className="text-sm text-muted-foreground">Gestiona todos los reclamos y solicitudes.</p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <Select
@@ -302,7 +354,7 @@ export default function TicketsPanel() {
             <div className="relative flex-grow">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                    placeholder="Buscar por ID, asunto, usuario, email..."
+                    placeholder="Buscar por ID, Nro, asunto, usuario, email, categoría, dirección..."
                     className="pl-9 h-9"
                     value={searchTermInput}
                     onChange={(e) => setSearchTermInput(e.target.value)}
@@ -322,15 +374,25 @@ export default function TicketsPanel() {
                     ))}
                 </SelectContent>
             </Select>
-            <Input
-                placeholder="Categoría..."
-                className="w-[180px] h-9"
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-
-            />
-            <Button variant="outline" onClick={fetchAndSetTickets} className="h-9" disabled={isLoading && allTickets.length === 0}>
-                {isLoading && allTickets.length === 0 ? <Loader2 className="h-4 w-4 animate-spin" /> : <Filter className="h-4 w-4"/>}
+            {/* Reemplazar Input de Categoría por Select */}
+            <Select value={categoryFilter} onValueChange={(value) => setCategoryFilter(value === "ALL_CATEGORIES" ? "" : value)}>
+                <SelectTrigger className="w-auto min-w-[180px] h-9">
+                    <div className="flex items-center gap-2">
+                        <ListFilter className="h-4 w-4 text-muted-foreground"/> {/* Podríamos usar otro ícono si Filter ya está en uso */}
+                        <SelectValue placeholder="Filtrar por categoría" />
+                    </div>
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="ALL_CATEGORIES">Todas las categorías</SelectItem>
+                    {availableCategories.map((category) => (
+                        <SelectItem key={category} value={category}>
+                            {category}
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+            <Button variant="outline" onClick={() => fetchAndSetTickets(true)} className="h-9" disabled={isLoading && groupedTickets.length === 0}>
+                {(isLoading && groupedTickets.length === 0) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Filter className="h-4 w-4"/>}
                 <span className="ml-2 hidden sm:inline">Actualizar</span>
             </Button>
         </div>
@@ -342,12 +404,17 @@ export default function TicketsPanel() {
             selectedTicketId && "hidden md:flex"
         )}>
           <ScrollArea className="flex-1 p-3">
-            {isLoading && allTickets.length > 0 && (
-                 <div className="p-4 text-center text-sm text-muted-foreground flex items-center justify-center">
-                    <Loader2 className="h-4 w-4 animate-spin mr-2"/> Actualizando...
+            {isLoading && groupedTickets.length === 0 && !error && ( // Carga inicial
+                 <div className="p-4 text-center text-sm text-muted-foreground flex items-center justify-center h-full">
+                    <Loader2 className="h-4 w-4 animate-spin mr-2"/> Cargando tickets...
                  </div>
             )}
-            {!isLoading && filteredAndSortedTickets.length === 0 ? (
+            {isLoading && groupedTickets.length > 0 && ( // Recargando en segundo plano
+              <div className="p-2 text-center text-xs text-muted-foreground flex items-center justify-center">
+                <Loader2 className="h-3 w-3 animate-spin mr-1.5"/> Actualizando lista...
+              </div>
+            )}
+            {!isLoading && filteredAndSortedGroups.length === 0 && !error && ( // No hay tickets después de cargar
               <div className="text-center py-10 px-4 h-full flex flex-col justify-center items-center">
                 <TicketIcon className="mx-auto h-12 w-12 text-muted-foreground" />
                 <h3 className="mt-2 text-base font-medium text-foreground">No hay tickets</h3>
@@ -357,15 +424,22 @@ export default function TicketsPanel() {
               </div>
             ) : (
               <AnimatePresence>
-                {filteredAndSortedTickets.map(ticket => (
-                  <TicketListItem
-                    key={ticket.id}
-                    ticket={ticket}
-                    isSelected={selectedTicketId === ticket.id}
-                    onSelect={() => loadAndSetDetailedTicket(ticket)}
-                    timezone={timezone}
-                    locale={locale}
-                  />
+                {filteredAndSortedGroups.map(group => (
+                  <div key={group.categoryName} className="mb-4">
+                    <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-1 py-2 sticky top-0 bg-card dark:bg-slate-800/80 backdrop-blur-sm z-10">
+                      {group.categoryName} ({group.tickets.length})
+                    </h2>
+                    {group.tickets.map(ticket => (
+                      <TicketListItem
+                        key={ticket.id}
+                        ticket={ticket}
+                        isSelected={selectedTicketId === ticket.id}
+                        onSelect={() => loadAndSetDetailedTicket(ticket)}
+                        timezone={timezone}
+                        locale={locale}
+                      />
+                    ))}
+                  </div>
                 ))}
               </AnimatePresence>
             )}
@@ -391,7 +465,10 @@ export default function TicketsPanel() {
                 <XCircle className="h-12 w-12 text-destructive mb-3"/>
                 <h3 className="text-lg font-semibold text-destructive">Error al cargar detalle</h3>
                 <p className="text-sm text-muted-foreground mb-3">{error}</p>
-                <Button variant="outline" onClick={() => loadAndSetDetailedTicket(allTickets.find(t=>t.id === selectedTicketId)!)}>Reintentar</Button>
+                <Button variant="outline" onClick={() => {
+                  const ticketToReload = groupedTickets.flatMap(g => g.tickets).find(t => t.id === selectedTicketId);
+                  if (ticketToReload) loadAndSetDetailedTicket(ticketToReload);
+                }}>Reintentar</Button>
             </div>
           ) : (
             <div className="text-center p-8">
