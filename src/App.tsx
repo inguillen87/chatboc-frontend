@@ -5,16 +5,9 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { GoogleOAuthProvider } from "@react-oauth/google";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Outlet, useLocation } from "react-router-dom"; // Importado Outlet y useLocation
 
-// src/App.tsx
-
-import React from "react";
-import { Toaster } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { GoogleOAuthProvider } from "@react-oauth/google";
-import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom"; // Importado Outlet
+// Layouts y Páginas
 
 // Layouts y Páginas
 import AppShell from "./components/layout/AppShell"; // Importamos el nuevo AppShell
