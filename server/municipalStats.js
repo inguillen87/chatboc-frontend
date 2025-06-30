@@ -74,7 +74,7 @@ function getMunicipalStats(filters = {}) {
     const byMunicipality = tickets.reduce((acc, t) => {
       acc[t.municipality] = (acc[t.municipality] || 0) + 1;
       return acc;
-    }, {} as Record<string, number>);
+    }, {});
     for (const mun in byMunicipality) {
       stats.push({label: `Tickets in ${mun}`, value: byMunicipality[mun]});
     }
@@ -88,7 +88,7 @@ function getMunicipalStats(filters = {}) {
             acc[t.category] = (acc[t.category] || 0) + 1;
           }
           return acc;
-      }, {} as Record<string, number>);
+      }, {});
       for (const cat in byCategory) {
           stats.push({label: `Category: ${cat}`, value: byCategory[cat]});
       }
