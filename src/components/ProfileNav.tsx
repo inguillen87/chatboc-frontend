@@ -71,7 +71,7 @@ export default function ProfileNav() {
               <TabsTrigger
                 key={it.path}
                 value={it.path}
-                className="rounded-lg px-4 py-2 text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-colors"
+                className="rounded-lg px-5 py-3 text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg hover:bg-accent/70 hover:shadow-md transition-all duration-200"
               >
                 {it.label}
               </TabsTrigger>
