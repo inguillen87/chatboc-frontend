@@ -55,8 +55,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   initialRubro,
   openWidth = "460px",
   openHeight = "680px",
-  closedWidth = "96px",
-  closedHeight = "96px",
+  closedWidth = "96px", // Default for desktop
+  closedHeight = "96px", // Default for desktop
   tipoChat = getCurrentTipoChat(),
   initialPosition = { bottom: 32, right: 32 },
   ctaMessage,
@@ -121,8 +121,9 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   const finalOpenWidth = openWidth;
   const finalOpenHeight = openHeight;
-  const finalClosedWidth = closedWidth;
-  const finalClosedHeight = closedHeight;
+  // Adjust closed dimensions for mobile directly here for clarity
+  const finalClosedWidth = isMobile ? "64px" : closedWidth;
+  const finalClosedHeight = isMobile ? "64px" : closedHeight;
 
   const commonPanelAndButtonAbsoluteClasses = cn("absolute bottom-0 right-0");
   const commonPanelStyles = cn("bg-card border shadow-lg", "flex flex-col overflow-hidden");
@@ -302,10 +303,10 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
           right: isOpen && isMobile ? 0 : `calc(${initialPosition.right}px + env(safe-area-inset-right))`,
           left: isOpen && isMobile ? 0 : "auto",
           top: isOpen && isMobile ? "env(safe-area-inset-top)" : "auto",
-          width: isOpen ? (isMobile ? "100vw" : finalOpenWidth) : finalClosedWidth,
-          height: isOpen ? (isMobile ? "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))" : finalOpenHeight) : finalClosedHeight,
-          minWidth: isOpen ? "320px" : finalClosedWidth,
-          minHeight: isOpen ? "64px" : finalClosedHeight,
+          width: isOpen ? (isMobile ? "100vw" : finalOpenWidth) : (isMobile ? "64px" : closedWidth), // Use prop closedWidth for desktop
+          height: isOpen ? (isMobile ? "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))" : finalOpenHeight) : (isMobile ? "64px" : closedHeight), // Use prop closedHeight for desktop
+          minWidth: isOpen ? "320px" : (isMobile ? "64px" : closedWidth),
+          minHeight: isOpen ? "64px" : (isMobile ? "64px" : closedHeight), // Note: minHeight for closed widget was 64px, matching mobile.
           maxWidth: "100vw",
           maxHeight: "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))",
           borderRadius: isOpen ? (isMobile ? "0" : "16px") : "50%",
@@ -371,7 +372,12 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                 )}
                 <motion.button
                   key="chatboc-btn-standalone"
-                  className={cn(commonButtonStyles, commonPanelAndButtonAbsoluteClasses, "w-[96px] h-[96px] border-none shadow-xl")}
+                  className={cn(
+                    commonButtonStyles,
+                    commonPanelAndButtonAbsoluteClasses,
+                    "border-none shadow-xl",
+                    isMobile ? "w-16 h-16" : "w-24 h-24" // 64px mobile, 96px desktop (w-24)
+                  )}
                   style={{
                     borderRadius: "50%",
                     background: "var(--primary, #2563eb)",
@@ -388,7 +394,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                   aria-label="Abrir chat"
                 >
                   <motion.span /* Animación del logo interno */ animate={{ y: [0, -7, 0], rotate: [0, 8, -8, 0] }} transition={{ repeat: Infinity, duration: 1.2, repeatDelay: 3.5, ease: "easeInOut" } } >
-                    <ChatbocLogoAnimated size={isMobile ? 42 : 62} blinking floating pulsing />
+                    {/* Adjust logo size slightly for new mobile button size if needed, 42 on 64px button is fine */}
+                    <ChatbocLogoAnimated size={isMobile ? 38 : 62} blinking floating pulsing />
                   </motion.span>
                 </motion.button>
               </div>
@@ -463,7 +470,12 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                 )}
                 <motion.button
                   key="chatboc-btn-iframe"
-                  className={cn(commonButtonStyles, commonPanelAndButtonAbsoluteClasses, "w-[96px] h-[96px] border-none shadow-xl")}
+                  className={cn(
+                    commonButtonStyles,
+                    commonPanelAndButtonAbsoluteClasses,
+                    "border-none shadow-xl",
+                    isMobile ? "w-16 h-16" : "w-24 h-24" // 64px mobile, 96px desktop
+                  )}
                   style={{ borderRadius: "50%", background: "var(--primary, #2563eb)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 20 }}
                   {...buttonAnimation}
                   whileHover={{ scale: 1.1, transition: { type: "spring", stiffness: 400, damping: 15 } }}
@@ -472,7 +484,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                   aria-label="Abrir chat"
                 >
                    <motion.span animate={{ y: [0, -7, 0], rotate: [0, 8, -8, 0] }} transition={{ repeat: Infinity, duration: 1.2, repeatDelay: 3.5, ease: "easeInOut" } } >
-                    <ChatbocLogoAnimated size={62} blinking floating pulsing />
+                    <ChatbocLogoAnimated size={isMobile ? 38 : 62} blinking floating pulsing />
                   </motion.span>
                 </motion.button>
               </div>

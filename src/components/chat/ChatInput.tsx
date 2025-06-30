@@ -110,7 +110,7 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
 
 
   return (
-    <div className="w-full flex items-center gap-2 px-3 py-2">
+    <div className="w-full flex items-center gap-1 sm:gap-2 px-2 py-2 sm:px-3 sm:py-2"> {/* Reduced gap and padding for mobile */}
       {/* Botón para adjuntar archivos: Solo abre el selector de archivos, NO envía un mensaje al backend directamente */}
       <AdjuntarArchivo onUpload={handleFileUploaded} /> 
 
@@ -120,7 +120,8 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
         disabled={isTyping}
         className={`
           flex items-center justify-center
-          rounded-full p-2.5
+          rounded-full p-2 sm:p-2.5 {/* Reduced padding for mobile */}
+          rounded-full p-2 sm:p-2.5 {/* Reduced padding for mobile */}
           shadow-xl transition-all duration-150
           focus:outline-none focus:ring-2 focus:ring-primary/60
           active:scale-95
@@ -171,7 +172,7 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
         ref={internalRef}
         className={`
           flex-1 max-w-full min-w-0
-          rounded-full px-4 py-2
+          rounded-full px-3 sm:px-4 py-1.5 sm:py-2 {/* Reduced padding for mobile */}
           text-base
           outline-none transition-all duration-200
           focus:border-primary focus:ring-2 focus:ring-primary/50
@@ -210,7 +211,7 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
       <button
         className={`
           flex items-center justify-center
-          rounded-full p-2.5 ml-1
+          rounded-full p-2 sm:p-2.5 ml-1 {/* Reduced padding for mobile */}
           shadow-xl transition-all duration-150
           focus:outline-none focus:ring-2 focus:ring-primary/60
           active:scale-95
