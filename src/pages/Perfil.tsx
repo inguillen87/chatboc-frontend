@@ -399,18 +399,16 @@ export default function Perfil() {
         <QuickLinksCard/>
       </div>
 
-      <div className="w-full max-w-6xl mx-auto flex flex-col gap-6 md:gap-8 px-2">
-        {/* Fila 1: Datos de la Empresa y Carga de Catálogo */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
-          {/* Columna Izquierda (Formulario SIN MAPA) */}
-          <div className="md:col-span-2 flex flex-col gap-6 md:gap-8">
-            <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm h-full"> {/* Añadido h-full */}
-              <CardHeader>
-                <CardTitle className="text-xl font-semibold text-primary">
+      <div className="w-full max-w-6xl mx-auto flex flex-col md:flex-row gap-6 md:gap-8 px-2 items-stretch">
+        {/* Columna Izquierda: Datos de la Empresa y Mapa */}
+        <div className="md:w-2/3 flex flex-col gap-6 md:gap-8">
+          <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm flex flex-col flex-grow">
+            <CardHeader>
+              <CardTitle className="text-xl font-semibold text-primary">
                 Datos de tu Empresa
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex flex-col flex-grow space-y-6">
               <form onSubmit={handleGuardar} className="space-y-6">
                 <div>
                   <Label
@@ -563,6 +561,23 @@ export default function Perfil() {
                     </select>
                   </div>
                 </div>
+
+                {/* Ubicación en el Mapa - Integrado en la tarjeta de Datos */}
+                {(perfil.direccion || (perfil.latitud !== null && perfil.longitud !== null)) && (
+                  <div className="mt-4"> {/* Add margin top for spacing */}
+                    <Label className="text-muted-foreground text-sm mb-1 block">
+                      Ubicación en el Mapa
+                    </Label>
+                    <LocationMap
+                      lat={perfil.latitud ?? undefined}
+                      lng={perfil.longitud ?? undefined}
+                      onMove={(la, ln) =>
+                        setPerfil((prev) => ({ ...prev, latitud: la, longitud: ln }))
+                      }
+                    />
+                  </div>
+                )}
+
                 <div>
                   <Label className="text-muted-foreground text-sm block mb-2">
                     Horarios de Atención
@@ -600,8 +615,7 @@ export default function Perfil() {
                   </div>
                   {modoHorario === "comercial" && (
                     <div className="text-primary bg-primary/10 rounded-md border border-primary/50 p-3 flex items-center gap-2 text-xs">
-                      <Info className="w-3 h-3 inline mr-1" /> L-V: 09-20. Sáb y
-                      Dom: Cerrado.
+                      <Info className="w-3 h-3 inline mr-1" /> L-V: 09-20. Sáb y Dom: Cerrado.
                     </div>
                   )}
                   {modoHorario === "personalizado" && horariosOpen && (
@@ -649,9 +663,7 @@ export default function Perfil() {
                                   )
                                 }
                               />
-                              <span className="text-muted-foreground mx-1">
-                                -
-                              </span>
+                              <span className="text-muted-foreground mx-1">-</span>
                               <Input
                                 type="time"
                                 value={perfil.horarios_ui[idx].cierra}
@@ -677,7 +689,7 @@ export default function Perfil() {
                 <Button
                   disabled={loadingGuardar}
                   type="submit"
-                  className="w-full mt-4 bg-primary hover:bg-primary/90 text-primary-foreground py-2.5 text-base rounded-lg shadow"
+                  className="w-full mt-auto bg-primary hover:bg-primary/90 text-primary-foreground py-2.5 text-base rounded-lg shadow"
                 >
                   {loadingGuardar ? "Guardando Cambios..." : "Guardar Cambios"}
                 </Button>
@@ -692,14 +704,12 @@ export default function Perfil() {
                   </div>
                 )}
               </form>
-              {/* LocationMap REMOVED from here */}
             </CardContent>
           </Card>
         </div>
 
-        {/* Columna Derecha (SOLO PLAN Y CATALOGO) */}
-        {/* This div now spans md:col-span-1 and contains Plan and Catalog cards */}
-        <div className="flex flex-col gap-6 md:gap-8 md:col-span-1 h-full"> {/* Añadido h-full */}
+        {/* Columna Derecha: Plan, Catálogo, Integración */}
+        <div className="md:w-1/3 flex flex-col gap-6 md:gap-8">
           {/* Versión colapsable para mobile (Plan y Uso) */}
           <div className="md:hidden">
             <Accordion type="single" collapsible defaultValue="plan">
@@ -865,7 +875,7 @@ export default function Perfil() {
           </Card>
 
           {/* Cargar Catálogo Card */}
-          <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm flex-grow flex flex-col"> {/* Añadido flex-grow flex flex-col */}
+          <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm flex flex-col flex-grow">
             <CardHeader>
               <CardTitle className="text-lg font-semibold text-primary">
                 {esMunicipio
@@ -873,7 +883,7 @@ export default function Perfil() {
                   : "Cargar Catálogo de Productos"}
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4 flex-grow flex flex-col"> {/* Añadido flex-grow flex flex-col */}
+            <CardContent className="space-y-4 flex flex-col flex-grow">
               <div>
                 <Label
                   htmlFor="catalogoFile"
@@ -896,7 +906,7 @@ export default function Perfil() {
               <div className="flex-grow"></div> {/* Spacer element */}
               <Button
                 onClick={handleSubirArchivo}
-                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-2.5 mt-auto" /* mt-auto to push to bottom */
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-2.5 mt-auto"
                 disabled={loadingCatalogo || !archivo}
               >
                 <UploadCloud className="w-4 h-4 mr-2" />{" "}
@@ -918,83 +928,51 @@ export default function Perfil() {
               )}
             </CardContent>
           </Card>
-          {/* "Integrá Chatboc a tu web" card REMOVED from this container */}
-        </div>
 
-        </div> {/* Fin de la primera fila de la cuadrícula */}
-
-        {/* Fila 2: Mapa y Tarjeta de Integración */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 items-stretch"> {/* Añadido items-stretch */}
-          {/* Mapa en las primeras dos columnas de esta nueva fila conceptual */}
-          {(perfil.direccion || (perfil.latitud !== null && perfil.longitud !== null)) ? (
-            <div className="md:col-span-2">
-              <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm h-full">
-                <CardHeader>
-                  <CardTitle className="text-lg font-semibold text-primary">
-                    Ubicación en el Mapa
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <LocationMap
-                    lat={perfil.latitud ?? undefined}
-                    lng={perfil.longitud ?? undefined}
-                    onMove={(la, ln) =>
-                      setPerfil((prev) => ({ ...prev, latitud: la, longitud: ln }))
-                    }
-                  />
-                </CardContent>
-              </Card>
-            </div>
-          ) : (
-            <div className="md:col-span-2"></div> // Placeholder if map is not shown
-          )}
-
-          {/* Tarjeta de Integración en la tercera columna de esta nueva fila conceptual */}
-          <div className="md:col-span-1 flex flex-col">
-            <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm h-full flex flex-col"> {/* Añadido flex flex-col */}
-              <CardHeader>
-                <CardTitle className="text-lg font-semibold text-primary">
-                  Integrá Chatboc a tu web
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3 flex-grow flex flex-col"> {/* Añadido flex-grow flex flex-col */}
-                {perfil.plan === "pro" || perfil.plan === "full" ? (
-                  <Button
-                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
-                    onClick={() => navigate("/integracion")}
-                  >
-                    Ir a la guía de integración
-                  </Button>
-                ) : (
-                  <Button
-                    className="w-full bg-muted text-muted-foreground cursor-not-allowed"
-                    disabled
-                    title="Solo para clientes con Plan PRO o FULL"
-                    style={{ pointerEvents: "none" }}
-                  >
-                    Plan PRO requerido para activar integración
-                  </Button>
-                )}
-              <div className="flex-grow flex items-center justify-center p-4"> {/* Contenedor para el preview */}
+          {/* Tarjeta de Integración */}
+          <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm flex flex-col flex-grow">
+            <CardHeader>
+              <CardTitle className="text-lg font-semibold text-primary">
+                Integrá Chatboc a tu web
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 flex flex-col flex-grow">
+              {perfil.plan === "pro" || perfil.plan === "full" ? (
+                <Button
+                  className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
+                  onClick={() => navigate("/integracion")}
+                >
+                  Ir a la guía de integración
+                </Button>
+              ) : (
+                <Button
+                  className="w-full bg-muted text-muted-foreground cursor-not-allowed"
+                  disabled
+                  title="Solo para clientes con Plan PRO o FULL"
+                  style={{ pointerEvents: "none" }}
+                >
+                  Plan PRO requerido para activar integración
+                </Button>
+              )}
+              <div className="flex-grow flex items-center justify-center p-4">
                 <MiniChatWidgetPreview />
               </div>
-              <div className="text-xs text-muted-foreground mt-auto pt-2"> {/* mt-auto y pt-2 para espacio */}
-                  Accedé a los códigos e instrucciones para pegar el widget de
-                  Chatboc en tu web solo si tu plan es PRO o superior.
-                  <br />
-                  Cualquier duda, escribinos a{" "}
-                  <a
-                    href="mailto:info@chatboc.ar"
-                    className="underline text-primary"
-                  >
-                    Info@chatboc.ar
-                  </a>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div> {/* Fin de la segunda fila de la cuadrícula */}
-      </div> {/* Fin del contenedor principal flex-col */}
+              <div className="text-xs text-muted-foreground mt-auto pt-2">
+                Accedé a los códigos e instrucciones para pegar el widget de
+                Chatboc en tu web solo si tu plan es PRO o superior.
+                <br />
+                Cualquier duda, escribinos a{" "}
+                <a
+                  href="mailto:info@chatboc.ar"
+                  className="underline text-primary"
+                >
+                  Info@chatboc.ar
+                </a>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div> {/* Fin del contenedor principal flex-col md:flex-row */}
     </div>
   );
 }
