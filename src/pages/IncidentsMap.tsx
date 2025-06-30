@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { loadGoogleMapsApi } from '@/utils/mapsLoader';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { apiFetch, ApiError } from '@/utils/api';
@@ -14,10 +15,9 @@ interface IncidentMapPoint {
   asunto?: string; // Brief description or title of the incident/ticket
 }
 
-// Extend the Window interface to include initMap and google
+// Extend the Window interface to include the Google object
 declare global {
   interface Window {
-    initMap?: () => void;
     google?: typeof google; // Ensure google is typed on window
   }
 }
@@ -184,20 +184,13 @@ export default function IncidentsMap() {
   }, [map]);
 
   useEffect(() => {
-    if (typeof window.google === 'undefined' || typeof window.google.maps === 'undefined') {
-      console.warn("Google Maps API not available at component mount.");
-      if(!window.initMap) {
-        window.initMap = initializeMap;
-      }
-    } else {
-      initializeMap();
-    }
-
-    return () => {
-      if (window.initMap === initializeMap) {
-        // delete window.initMap; // Consider implications if other components use global initMap
-      }
-    };
+    loadGoogleMapsApi(["visualization"]) 
+      .then(initializeMap)
+      .catch((err) => {
+        console.error("Google Maps API failed to load", err);
+        setError("No se pudo cargar Google Maps");
+        setLoading(false);
+      });
   }, [initializeMap]);
 
   useEffect(() => {
