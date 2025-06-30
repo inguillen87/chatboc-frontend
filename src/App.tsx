@@ -1,23 +1,15 @@
 // src/App.tsx
 
-import React from "react";
+import React from "react"; // Un solo import de React
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { GoogleOAuthProvider } from "@react-oauth/google";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
-
-// src/App.tsx
-
-import React from "react";
-import { Toaster } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { GoogleOAuthProvider } from "@react-oauth/google";
-import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom"; // Importado Outlet
+// useLocation no se usa directamente aquí, se usa en AppRoutesContent a través de React.useContext
+import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
 
 // Layouts y Páginas
-import AppShell from "./components/layout/AppShell"; // Importamos el nuevo AppShell
+import AppShell from "@/components/layout/AppShell"; // Aseguramos el uso del alias @
 import NotFound from "./pages/NotFound";
 import ChatWidget from "@/components/chat/ChatWidget";
 import routes from "./routesConfig";
