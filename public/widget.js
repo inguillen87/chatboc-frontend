@@ -41,13 +41,7 @@
     const rubroAttr = script.getAttribute("data-rubro") || "";
     const ctaMessageAttr = script.getAttribute("data-cta-message") || "";
     const scriptOrigin = (script.getAttribute("src") && new URL(script.getAttribute("src"), window.location.href).origin) || "https://www.chatboc.ar";
-    const isChatbocDomain = /chatboc\.ar$/.test(new URL(scriptOrigin).hostname);
-    const chatbocDomain = script.getAttribute("data-domain") || (isChatbocDomain ? scriptOrigin : "https://www.chatboc.ar");
-    if (!script.getAttribute("data-domain") && !isChatbocDomain) {
-      console.warn(
-        "Chatboc widget.js is self-hosted; add data-domain=\"https://www.chatboc.ar\" to load assets from chatboc.ar"
-      );
-    }
+    const chatbocDomain = script.getAttribute("data-domain") || scriptOrigin;
 
     function buildWidget(finalCta) {
       const zIndexBase = parseInt(script.getAttribute("data-z") || "999990", 10);
@@ -191,7 +185,17 @@
 
     // Escuchar mensajes del iframe para redimensionar y cambiar estado
     function messageHandler(event) {
-      if (event.origin !== chatbocDomain && !(chatbocDomain.startsWith("http://localhost"))) {
+      const isLocalDev = chatbocDomain.startsWith("http://localhost") || chatbocDomain.startsWith("http://127.0.0.1");
+      if (event.origin !== chatbocDomain && !isLocalDev) {
+        // Solo loguear si el mensaje parece ser para chatboc para evitar ruido
+        if (event.data && typeof event.data.type === 'string' && event.data.type.startsWith('chatboc-')) {
+          console.warn(
+            "Chatboc widget: Received a message from an unexpected origin.",
+            "\nMessage origin:", event.origin,
+            "\nExpected origin (chatbocDomain):", chatbocDomain,
+            "\nIf you are self-hosting widget.js, ensure the 'data-domain' attribute on your <script> tag is correctly set to the domain serving the iframe content (e.g., https://www.chatboc.ar)."
+          );
+        }
         return;
       }
 
@@ -349,7 +353,7 @@
     } else {
       fetch(`${chatbocDomain}/widget/attention`)
         .then((r) => (r.ok ? r.json() : {}))
-        .then((d) => buildWidget(d.message || ""))
+        .then((d) => buildWidget(d.message || "")
         .catch(() => buildWidget(""));
     }
 
