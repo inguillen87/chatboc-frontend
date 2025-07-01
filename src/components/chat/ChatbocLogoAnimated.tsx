@@ -13,8 +13,8 @@ const ChatbocLogoAnimated = ({
   style = {},
 }) => {
   const eyeBaseY = 24;
-  const leftEyeX = Number(movingEyes ? 19 : 18); // Ensure numeric values
-  const rightEyeX = Number(movingEyes ? 37 : 38); // Ensure numeric values
+  const leftEyeX = movingEyes ? 19 : 18; // Slightly more movement inwards for movingEyes
+  const rightEyeX = movingEyes ? 37 : 38; // Slightly more movement inwards for movingEyes
 
   const mouthPath = smiling
     ? "M18,35 Q28,46 38,35" // Wider, happier smile
@@ -83,10 +83,13 @@ const ChatbocLogoAnimated = ({
           fill="#FFFFFF" // Ensure high contrast, pure white
           animate={
             blinking
-              ? { scaleY: [1, 0.05, 1], cx: leftEyeX, cy: eyeBaseY, transitionEnd: { scaleY: 1 } } // Quick blink, ensure cx/cy are defined
+              ? { scaleY: [1, 0.05, 1], cx: leftEyeX, cy: eyeBaseY, transitionEnd: { scaleY: 1 } } 
               : movingEyes
-              ? { cy: [eyeBaseY, eyeBaseY - 1, eyeBaseY, eyeBaseY + 1, eyeBaseY], cx: [leftEyeX, leftEyeX +1, leftEyeX -1, leftEyeX, leftEyeX] } // More dynamic eye movement
-              : { cy: eyeBaseY, cx: leftEyeX } // Static position
+              // Temporarily simplify to isolate the cx/cy undefined issue.
+              // If errors disappear, the array animation for cx/cy is the problem.
+              ? { cx: leftEyeX, cy: eyeBaseY } // No array animation for cx/cy
+              // ? { cy: [eyeBaseY, eyeBaseY - 1, eyeBaseY, eyeBaseY + 1, eyeBaseY], cx: [leftEyeX, leftEyeX +1, leftEyeX -1, leftEyeX, leftEyeX] } 
+              : { cy: eyeBaseY, cx: leftEyeX } 
           }
           transition={
             blinking
@@ -104,10 +107,12 @@ const ChatbocLogoAnimated = ({
           fill="#FFFFFF"
           animate={
             blinking
-              ? { scaleY: [1, 0.05, 1], transitionEnd: { scaleY: 1 } } // Quick blink
+              ? { scaleY: [1, 0.05, 1], cx: rightEyeX, cy: eyeBaseY, transitionEnd: { scaleY: 1 } } 
               : movingEyes
-              ? { cy: [eyeBaseY, eyeBaseY + 1, eyeBaseY, eyeBaseY - 1, eyeBaseY], cx: [rightEyeX, rightEyeX -1, rightEyeX + 1, rightEyeX, rightEyeX] } // More dynamic eye movement
-              : { cy: eyeBaseY, cx: rightEyeX } // Static position
+              // Temporarily simplify to isolate the cx/cy undefined issue.
+              ? { cx: rightEyeX, cy: eyeBaseY } // No array animation for cx/cy
+              // ? { cy: [eyeBaseY, eyeBaseY + 1, eyeBaseY, eyeBaseY - 1, eyeBaseY], cx: [rightEyeX, rightEyeX -1, rightEyeX + 1, rightEyeX, rightEyeX] } 
+              : { cy: eyeBaseY, cx: rightEyeX } 
           }
           transition={
             blinking
