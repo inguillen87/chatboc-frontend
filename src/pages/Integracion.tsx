@@ -90,8 +90,8 @@ const Integracion = () => {
 
   const WIDGET_STD_WIDTH = "460px";
   const WIDGET_STD_HEIGHT = "680px";
-  const WIDGET_STD_CLOSED_WIDTH = "96px";
-  const WIDGET_STD_CLOSED_HEIGHT = "96px";
+  const WIDGET_STD_CLOSED_WIDTH = "112px"; // Increased from 96px
+  const WIDGET_STD_CLOSED_HEIGHT = "112px"; // Increased from 96px
   const WIDGET_STD_BOTTOM = "20px";
   const WIDGET_STD_RIGHT = "20px";
   
