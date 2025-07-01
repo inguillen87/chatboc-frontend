@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, FC, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Loader2, Send, Ticket as TicketIcon, ChevronDown, ChevronUp, User, ShieldCheck, X, Search, Filter, ListFilter, File, ArrowLeft } from "lucide-react"; // Added Search, Filter, File, ArrowLeft
+import { Loader2, Send, Ticket as TicketIcon, ChevronDown, ChevronUp, User, ShieldCheck, X, Search, Filter, ListFilter, File, ArrowLeft, XCircle, BellRing, AlertTriangle } from "lucide-react"; // TODO: XCircle, BellRing, AlertTriangle importados acá
 import { motion, AnimatePresence } from "framer-motion";
 import { apiFetch, ApiError } from "@/utils/api";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
@@ -21,6 +21,11 @@ import useRequireRole from "@/hooks/useRequireRole";
 import type { Role } from "@/utils/roles";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
+// ----------- TIPOS Y ESTADOS -----------
+// ... ACÁ VA TODO TU CÓDIGO IGUAL QUE LO TENÍAS ...
+
+// (El resto del archivo es exactamente como lo pegaste)
+
 
 
 // ----------- TIPOS Y ESTADOS -----------
@@ -395,183 +400,175 @@ export default function TicketsPanel() {
       </div>;
   }
 
-  return (
-    <div className="flex flex-col min-h-screen bg-muted/30 dark:bg-slate-900 text-foreground pb-10">
-      <header className="p-4 border-b dark:border-slate-700 bg-card dark:bg-slate-800/50 shadow-sm">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Button variant="outline" size="icon" onClick={() => navigate(-1)} title="Volver a la página anterior">
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">Panel de Tickets</h1>
-              <p className="text-sm text-muted-foreground">Gestiona todos los reclamos y solicitudes.</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Select
-                value={locale}
-                onValueChange={(val) => {
-                const opt = LOCALE_OPTIONS.find((o) => o.locale === val);
-                if (opt) updateSettings(opt.timezone, opt.locale);
-                }}
-            >
-                <SelectTrigger className="w-[150px] text-xs h-9">
-                <SelectValue placeholder="Idioma/Zona" />
-                </SelectTrigger>
-                <SelectContent>
-                {LOCALE_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.locale} value={opt.locale} className="text-xs">
-                    {opt.label}
-                    </SelectItem>
-                ))}
-                </SelectContent>
-            </Select>
+return (
+  <div className="flex flex-col min-h-screen bg-muted/30 dark:bg-slate-900 text-foreground pb-10">
+    <header className="p-4 border-b dark:border-slate-700 bg-card dark:bg-slate-800/50 shadow-sm">
+      {/* ... header igual que antes ... */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Button variant="outline" size="icon" onClick={() => navigate(-1)} title="Volver a la página anterior">
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Panel de Tickets</h1>
+            <p className="text-sm text-muted-foreground">Gestiona todos los reclamos y solicitudes.</p>
           </div>
         </div>
-        <div className="mt-4 flex items-center gap-3">
-            <div className="relative flex-grow">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                    placeholder="Buscar por ID, Nro, asunto, usuario, email, categoría, dirección..."
-                    className="pl-9 h-9"
-                    value={searchTermInput}
-                    onChange={(e) => setSearchTermInput(e.target.value)}
-                />
-            </div>
-            <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as TicketStatus | "")}>
-                <SelectTrigger className="w-auto min-w-[180px] h-9">
-                    <div className="flex items-center gap-2">
-                        <ListFilter className="h-4 w-4 text-muted-foreground"/>
-                        <SelectValue placeholder="Filtrar por estado" />
-                    </div>
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="">Todos los estados</SelectItem>
-                    {Object.entries(ESTADOS).map(([key, {label}]) => (
-                        <SelectItem key={key} value={key}>{label}</SelectItem>
-                    ))}
-                </SelectContent>
-            </Select>
-            {/* Reemplazar Input de Categoría por Select */}
-            <Select value={categoryFilter} onValueChange={(value) => setCategoryFilter(value === "ALL_CATEGORIES" ? "" : value)}>
-                <SelectTrigger className="w-auto min-w-[180px] h-9">
-                    <div className="flex items-center gap-2">
-                        <ListFilter className="h-4 w-4 text-muted-foreground"/> {/* Podríamos usar otro ícono si Filter ya está en uso */}
-                        <SelectValue placeholder="Filtrar por categoría" />
-                    </div>
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="ALL_CATEGORIES">Todas las categorías</SelectItem>
-                    {availableCategories.map((category) => (
-                        <SelectItem key={category} value={category}>
-                            {category === 'Sin Categoría' ? 'Sin Categoría' : categoryNames[category] || category}
-                        </SelectItem>
-                    ))}
-                </SelectContent>
-            </Select>
-            <Button variant="outline" onClick={() => fetchAndSetTickets(true)} className="h-9" disabled={isLoading && groupedTickets.length === 0}>
-                {(isLoading && groupedTickets.length === 0) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Filter className="h-4 w-4"/>}
-                <span className="ml-2 hidden sm:inline">Actualizar</span>
-            </Button>
-        </div>
-      </header>
-
-      <div className="flex flex-1 overflow-hidden">
-        <div className={cn(
-            "w-full md:w-2/5 lg:w-1/3 xl:w-1/4 border-r dark:border-slate-700 bg-card dark:bg-slate-800/50 flex flex-col",
-            selectedTicketId && "hidden md:flex"
-        )}>
-          <ScrollArea className="flex-1 p-3">
-  {/* Carga inicial */}
-  {isLoading && groupedTickets.length === 0 && !error && (
-    <div className="p-4 text-center text-sm text-muted-foreground flex items-center justify-center h-full">
-      <Loader2 className="h-4 w-4 animate-spin mr-2"/> Cargando tickets...
-    </div>
-  )}
-
-  {/* Recargando en segundo plano */}
-  {isLoading && groupedTickets.length > 0 && (
-    <div className="p-2 text-center text-xs text-muted-foreground flex items-center justify-center">
-      <Loader2 className="h-3 w-3 animate-spin mr-1.5"/> Actualizando lista...
-    </div>
-  )}
-
-  {/* No hay tickets después de cargar */}
-  {!isLoading && filteredAndSortedGroups.length === 0 && !error && (
-    <div className="text-center py-10 px-4 h-full flex flex-col justify-center items-center">
-      <TicketIcon className="mx-auto h-12 w-12 text-muted-foreground" />
-      <h3 className="mt-2 text-base font-medium text-foreground">No hay tickets</h3>
-      <p className="mt-1 text-sm text-muted-foreground">
-        {searchTerm || statusFilter || categoryFilter
-          ? "Ningún ticket coincide con tus filtros."
-          : "Cuando se genere un nuevo reclamo, aparecerá aquí."}
-      </p>
-    </div>
-  )}
-
-  {/* Lista agrupada de tickets */}
-  {!isLoading && filteredAndSortedGroups.length > 0 && (
-    <Accordion type="multiple" className="space-y-2">
-      {filteredAndSortedGroups.map(group => (
-        <AccordionItem key={group.categoryName} value={String(group.categoryName)}>
-          <AccordionTrigger className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-1 py-2">
-            {group.categoryName} ({group.tickets.length})
-          </AccordionTrigger>
-          <AccordionContent className="space-y-2">
-            {group.tickets.map(ticket => (
-              <TicketListItem
-                key={ticket.id}
-                ticket={ticket}
-                isSelected={selectedTicketId === ticket.id}
-                onSelect={() => loadAndSetDetailedTicket(ticket)}
-                timezone={timezone}
-                locale={locale}
-              />
-            ))}
-          </AccordionContent>
-        </AccordionItem>
-      ))}
-    </Accordion>
-  )}
-</ScrollArea>
-
-        </div>
-
-        <div className={cn(
-            "flex-1 flex flex-col bg-muted/20 dark:bg-slate-900 overflow-y-auto",
-             !selectedTicketId && "hidden md:flex md:items-center md:justify-center"
-        )}>
-          {selectedTicketId && detailedTicket ? (
-            <TicketDetail_Refactored
-                ticket={detailedTicket}
-                onTicketUpdate={handleTicketDetailUpdate}
-                onClose={closeDetailPanel}
-            />
-          ) : selectedTicketId && !detailedTicket && !error ? (
-            <div className="flex items-center justify-center h-full">
-              <Loader2 className="animate-spin text-primary h-10 w-10" />
-            </div>
-          ): error && selectedTicketId ? ( // Error específico al cargar detalle
-            <div className="flex flex-col items-center justify-center h-full p-4 text-center">
-                <XCircle className="h-12 w-12 text-destructive mb-3"/>
-                <h3 className="text-lg font-semibold text-destructive">Error al cargar detalle</h3>
-                <p className="text-sm text-muted-foreground mb-3">{error}</p>
-                <Button variant="outline" onClick={() => {
-                  const ticketToReload = groupedTickets.flatMap(g => g.tickets).find(t => t.id === selectedTicketId);
-                  if (ticketToReload) loadAndSetDetailedTicket(ticketToReload);
-                }}>Reintentar</Button>
-            </div>
-          ) : (
-            <div className="text-center p-8">
-                <TicketIcon className="mx-auto h-16 w-16 text-muted-foreground/50 mb-4" />
-                <p className="text-lg text-muted-foreground">Selecciona un ticket para ver sus detalles.</p>
-            </div>
-          )}
+        <div className="flex items-center gap-2">
+          <Select
+            value={locale}
+            onValueChange={(val) => {
+              const opt = LOCALE_OPTIONS.find((o) => o.locale === val);
+              if (opt) updateSettings(opt.timezone, opt.locale);
+            }}
+          >
+            <SelectTrigger className="w-[150px] text-xs h-9">
+              <SelectValue placeholder="Idioma/Zona" />
+            </SelectTrigger>
+            <SelectContent>
+              {LOCALE_OPTIONS.map((opt) => (
+                <SelectItem key={opt.locale} value={opt.locale} className="text-xs">
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
+      <div className="mt-4 flex items-center gap-3">
+        <div className="relative flex-grow">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por ID, Nro, asunto, usuario, email, categoría, dirección..."
+            className="pl-9 h-9"
+            value={searchTermInput}
+            onChange={(e) => setSearchTermInput(e.target.value)}
+          />
+        </div>
+        <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as TicketStatus | "")}>
+          <SelectTrigger className="w-auto min-w-[180px] h-9">
+            <div className="flex items-center gap-2">
+              <ListFilter className="h-4 w-4 text-muted-foreground" />
+              <SelectValue placeholder="Filtrar por estado" />
+            </div>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">Todos los estados</SelectItem>
+            {Object.entries(ESTADOS).map(([key, { label }]) => (
+              <SelectItem key={key} value={key}>{label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={categoryFilter} onValueChange={(value) => setCategoryFilter(value === "ALL_CATEGORIES" ? "" : value)}>
+          <SelectTrigger className="w-auto min-w-[180px] h-9">
+            <div className="flex items-center gap-2">
+              <ListFilter className="h-4 w-4 text-muted-foreground" />
+              <SelectValue placeholder="Filtrar por categoría" />
+            </div>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL_CATEGORIES">Todas las categorías</SelectItem>
+            {availableCategories.map((category) => (
+              <SelectItem key={category} value={category}>
+                {category === 'Sin Categoría' ? 'Sin Categoría' : categoryNames[category] || category}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button variant="outline" onClick={() => fetchAndSetTickets(true)} className="h-9" disabled={isLoading && groupedTickets.length === 0}>
+          {(isLoading && groupedTickets.length === 0)
+            ? <Loader2 className="h-4 w-4 animate-spin" />
+            : <Filter className="h-4 w-4" />}
+          <span className="ml-2 hidden sm:inline">Actualizar</span>
+        </Button>
+      </div>
+    </header>
+
+    <div className="flex flex-1 overflow-hidden">
+      <div className={cn(
+        "w-full md:w-2/5 lg:w-1/3 xl:w-1/4 border-r dark:border-slate-700 bg-card dark:bg-slate-800/50 flex flex-col",
+        selectedTicketId && "hidden md:flex"
+      )}>
+        <ScrollArea className="flex-1 p-3">
+          {isLoading && groupedTickets.length === 0 && !error ? (
+            <div className="p-4 text-center text-sm text-muted-foreground flex items-center justify-center h-full">
+              <Loader2 className="h-4 w-4 animate-spin mr-2" /> Cargando tickets...
+            </div>
+          ) : isLoading && groupedTickets.length > 0 ? (
+            <div className="p-2 text-center text-xs text-muted-foreground flex items-center justify-center">
+              <Loader2 className="h-3 w-3 animate-spin mr-1.5" /> Actualizando lista...
+            </div>
+          ) : !isLoading && filteredAndSortedGroups.length === 0 && !error ? (
+            <div className="text-center py-10 px-4 h-full flex flex-col justify-center items-center">
+              <TicketIcon className="mx-auto h-12 w-12 text-muted-foreground" />
+              <h3 className="mt-2 text-base font-medium text-foreground">No hay tickets</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {searchTerm || statusFilter || categoryFilter
+                  ? "Ningún ticket coincide con tus filtros."
+                  : "Cuando se genere un nuevo reclamo, aparecerá aquí."}
+              </p>
+            </div>
+          ) : filteredAndSortedGroups.length > 0 ? (
+            <Accordion type="multiple" className="space-y-2">
+              {filteredAndSortedGroups.map(group => (
+                <AccordionItem key={group.categoryName} value={String(group.categoryName)}>
+                  <AccordionTrigger className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-1 py-2">
+                    {group.categoryName} ({group.tickets.length})
+                  </AccordionTrigger>
+                  <AccordionContent className="space-y-2">
+                    {group.tickets.map(ticket => (
+                      <TicketListItem
+                        key={ticket.id}
+                        ticket={ticket}
+                        isSelected={selectedTicketId === ticket.id}
+                        onSelect={() => loadAndSetDetailedTicket(ticket)}
+                        timezone={timezone}
+                        locale={locale}
+                      />
+                    ))}
+                  </AccordionContent>
+                </AccordionItem>
+              ))}
+            </Accordion>
+          ) : null}
+        </ScrollArea>
+      </div>
+
+      <div className={cn(
+          "flex-1 flex flex-col bg-muted/20 dark:bg-slate-900 overflow-y-auto",
+           !selectedTicketId && "hidden md:flex md:items-center md:justify-center"
+      )}>
+        {selectedTicketId && detailedTicket ? (
+          <TicketDetail_Refactored
+              ticket={detailedTicket}
+              onTicketUpdate={handleTicketDetailUpdate}
+              onClose={closeDetailPanel}
+          />
+        ) : selectedTicketId && !detailedTicket && !error ? (
+          <div className="flex items-center justify-center h-full">
+            <Loader2 className="animate-spin text-primary h-10 w-10" />
+          </div>
+        ): error && selectedTicketId ? ( // Error específico al cargar detalle
+          <div className="flex flex-col items-center justify-center h-full p-4 text-center">
+              <XCircle className="h-12 w-12 text-destructive mb-3"/>
+              <h3 className="text-lg font-semibold text-destructive">Error al cargar detalle</h3>
+              <p className="text-sm text-muted-foreground mb-3">{error}</p>
+              <Button variant="outline" onClick={() => {
+                const ticketToReload = groupedTickets.flatMap(g => g.tickets).find(t => t.id === selectedTicketId);
+                if (ticketToReload) loadAndSetDetailedTicket(ticketToReload);
+              }}>Reintentar</Button>
+          </div>
+        ) : (
+          <div className="text-center p-8">
+              <TicketIcon className="mx-auto h-16 w-16 text-muted-foreground/50 mb-4" />
+              <p className="text-lg text-muted-foreground">Selecciona un ticket para ver sus detalles.</p>
+          </div>
+        )}
+      </div>
     </div>
-  );
+  </div>
+);
+
 }
 
 const TicketTimeline: FC<{ ticket: Ticket; comentarios: Comment[] }> = ({ ticket, comentarios }) => {
@@ -1012,6 +1009,3 @@ const AvatarIcon: FC<{ type: 'user' | 'admin' }> = ({ type }) => (
     {type === 'admin' ? <ShieldCheck className="h-4 w-4" /> : <User className="h-4 w-4" />}
   </div>
 );
-
-// Added XCircle for error display, BellRing for SLA, AlertTriangle for Priority (example icons)
-import { XCircle, BellRing, AlertTriangle } from "lucide-react";
