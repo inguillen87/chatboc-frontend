@@ -386,88 +386,97 @@ const ChatPage = () => {
     tipoChat === "municipio";
 
   return (
-    <div className="min-h-screen flex flex-col w-full bg-gradient-to-br from-[#0d223a] to-[#151a26] text-foreground">
+    <div className="min-h-screen flex flex-col w-full bg-background text-foreground">
       <Navbar />
-      <main className="flex-grow flex flex-col items-center justify-center pt-3 sm:pt-10 pb-2 sm:pb-6 transition-all">
+      <main className="flex-grow flex flex-col items-center justify-center py-4 sm:py-6 md:py-8">
+        {/* Chat Panel Container */}
         <div
           className={`
-            w-full ${isMobile ? "h-[100svh]" : "h-[83vh]"}
+            w-full max-w-2xl lg:max-w-3xl
+            h-[calc(100vh-100px)] sm:h-[calc(100vh-120px)] md:h-[calc(100vh-140px)]
+            md:max-h-[700px] lg:max-h-[800px]
             flex flex-col
-            relative
+            bg-card shadow-xl rounded-lg border border-border
             overflow-hidden
-            transition-all
           `}
         >
+          {/* Chat Header */}
+          <header className="p-3 sm:p-4 border-b border-border bg-card/95 backdrop-blur-sm flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <img
+                src={tipoChat === "municipio" ? "/favicon/favicon-96x96.png" : "/chatboc_widget_64x64.webp"} // Example: different icon per tipoChat
+                alt="Chat Icon"
+                className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-primary/10 p-1"
+              />
+              <div>
+                <h1 className="text-base sm:text-lg font-semibold text-foreground">
+                  {rubroNormalizado ? `Asistente ${rubroNormalizado}` : "Chat de Soporte"}
+                </h1>
+                <p className="text-xs text-green-500">En línea</p>
+              </div>
+            </div>
+            {/* Posibles acciones en el header, como un menú de opciones */}
+          </header>
+
+          {/* Messages Area */}
           <div
             ref={chatMessagesContainerRef}
-            className={`
-              flex-1 overflow-y-auto
-              p-2 sm:p-4 space-y-3
-              custom-scroll
-              scrollbar-thin scrollbar-thumb-[#90caf9] scrollbar-track-transparent
-              transition-all
-            `}
-            style={{ minHeight: 0 }}
+            className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 custom-scroll scrollbar-thin scrollbar-thumb-muted-foreground/30 hover:scrollbar-thumb-muted-foreground/50 scrollbar-track-transparent"
+            style={{ minHeight: 0 }} // Necesario para que flex-1 funcione bien con overflow
           >
             {messages.map((msg) => (
               <ChatMessage
                 key={msg.id}
                 message={msg}
                 isTyping={isTyping}
-                onButtonClick={handleSend} // Pasa handleSend, que ahora acepta SendPayload
+                onButtonClick={handleSend}
                 tipoChat={tipoChat}
                 query={msg.query}
               />
             ))}
             {isTyping && <TypingIndicator />}
-            {isTicketLocationValid && <TicketMap ticket={{ ...ticketInfo, tipo: 'municipio' }} />}
+            {isTicketLocationValid && <TicketMap ticket={{ ...ticketInfo, tipo: "municipio" }} />}
             {showCierre && showCierre.show && (
-              <div className="my-3 p-3 rounded-lg bg-green-100 text-green-800 text-center font-bold shadow">
+              <div className="my-3 p-3 rounded-lg bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-center font-medium shadow-sm border border-green-200 dark:border-green-700">
                 {showCierre.text}
               </div>
             )}
+            <div style={{ height: '1px' }} /> {/* Spacer to ensure scroll to bottom works well */}
           </div>
-          {/* Input / Autocomplete según caso */}
-          <div className="bg-transparent px-3 py-2 border-t min-w-0">
+
+          {/* Input Area / Autocomplete */}
+          <footer className="bg-card/95 backdrop-blur-sm p-3 sm:p-4 border-t border-border min-w-0">
             {esperandoDireccion ? (
               <div>
                 <AddressAutocomplete
-                  onSelect={(addressText: string) => handleSend({ text: addressText })} // MODIFICADO: Envía SendPayload
+                  onSelect={(addressText: string) => handleSend({ text: addressText })}
                   autoFocus
-                  placeholder="Ej: Av. Principal 123"
+                  placeholder="Ej: Av. Principal 123, Ciudad"
                   value={direccionGuardada ? { label: direccionGuardada, value: direccionGuardada } : undefined}
-                  onChange={(opt) =>
-                    setDireccionGuardada(
-                      opt
-                        ? typeof opt.value === "string"
-                          ? opt.value
-                          : opt.value?.description ?? null
-                        : null
-                    )
-                  }
+                  onChange={(opt) => setDireccionGuardada(opt ? (typeof opt.value === "string" ? opt.value : opt.value?.description ?? null) : null)}
                   persistKey="ultima_direccion"
                 />
-                {direccionGuardada && (
-                  <TicketMap ticket={{ direccion: direccionGuardada }} />
-                )}
+                {direccionGuardada && <TicketMap ticket={{ direccion: direccionGuardada }} />}
                 <button
                   onClick={handleShareGps}
-                  className="mt-2 text-sm text-primary underline"
+                  className="mt-2 text-sm text-primary hover:underline"
                   type="button"
                 >
                   Compartir ubicación por GPS
                 </button>
-                <div className="text-xs mt-2 text-muted-foreground">
-                  Escribí o seleccioná tu dirección para el reclamo.
-                </div>
+                <p className="text-xs mt-1.5 text-muted-foreground">
+                  Ingresá tu dirección o compartí tu ubicación GPS para continuar.
+                </p>
               </div>
             ) : !showCierre || !showCierre.show ? (
               <ChatInput
-                onSendMessage={handleSend} // Pasa handleSend, que ahora acepta SendPayload
+                onSendMessage={handleSend}
                 isTyping={isTyping}
               />
-            ) : null}
-          </div>
+            ) : (
+              <p className="text-center text-sm text-muted-foreground py-2">Conversación finalizada.</p>
+            )}
+          </footer>
         </div>
       </main>
     </div>
