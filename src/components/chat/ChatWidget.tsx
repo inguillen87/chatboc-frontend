@@ -305,28 +305,51 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   }, [entityToken]);
 
 
+  // Define sophisticated animations
+  const openSpring = { type: "spring", stiffness: 280, damping: 28 };
+  const closeSpring = { type: "spring", stiffness: 300, damping: 30 };
+
   const panelAnimation = {
-    initial: { opacity: 0, scale: 0.90, y: 30 },
-    animate: { opacity: 1, scale: 1, y: 0 },
-    exit: { opacity: 0, scale: 0.90, y: 20 },
-    transition: { type: "spring", stiffness: 300, damping: 25, duration: 0.2 }
-  };
-  
-  const buttonAnimation = {
-    initial: { opacity: 0, scale: 0.85, rotate: -15 },
-    animate: { opacity: 1, scale: [1, 1.04, 1], rotate: 0 }, // Pulso añadido aquí
-    exit: { opacity: 0, scale: 0.85, rotate: 15 },
-    transition: {
-      default: { type: "spring", stiffness: 350, damping: 20 },
-      scale: { // Transición específica para la animación de pulso
-        duration: 2,
-        repeat: Infinity,
-        ease: "easeInOut",
-        delay: 2, // Retraso antes de que el pulso comience
-        repeatDelay: 4 // Tiempo entre cada pulso
-      }
+    initial: { opacity: 0, y: 50, scale: 0.9, borderRadius: "50%" },
+    animate: {
+      opacity: 1,
+      y: 0,
+      scale: 1,
+      borderRadius: isMobileView ? "0px" : "16px",
+      transition: { ...openSpring, delay: 0.05 } // Slight delay for panel to allow button to animate first
+    },
+    exit: {
+      opacity: 0,
+      y: 30,
+      scale: 0.95,
+      borderRadius: "30%", // Animate towards button's shape
+      transition: closeSpring
     }
   };
+
+  const buttonAnimation = {
+    initial: { opacity: 0, scale: 0.7, rotate: 0 },
+    animate: {
+      opacity: 1,
+      scale: 1,
+      rotate: 0, // Keep initial rotation for closed state
+      transition: { ...openSpring, delay: 0.1 } // Button appears slightly after panel starts exiting or before panel fully opens
+    },
+    exit: { // How the button disappears when the panel is opening
+      opacity: 0,
+      scale: 0.8,
+      rotate: 30, // Rotate out
+      transition: { ...closeSpring, duration: 0.15 } // Faster exit for button
+    },
+    // Hover and tap animations are handled by whileHover/whileTap on the button itself
+  };
+
+  // Animation for the logo/icon inside the button, to change from logo to close icon
+  const iconAnimation = {
+    closed: { rotate: 0, scale: 1, opacity: 1 },
+    open: { rotate: 180, scale: 0, opacity: 0 } // Logo rotates and fades out
+  };
+  // (A separate close icon <X /> would then fade in, not implemented here yet but planned)
 
 
   if (mode === "standalone") {
@@ -431,10 +454,17 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                   whileTap={{ scale: 0.95 }}
                   onClick={toggleChat}
                   aria-label="Abrir chat"
+                  // Apply buttonAnimation to the button itself when it's part of AnimatePresence's direct children
+                  // This is implicitly handled if this button is only rendered when isOpen is false
                 >
-                  <motion.span animate={{ y: [0, -7, 0], rotate: [0, 8, -8, 0] }} transition={{ repeat: Infinity, duration: 1.2, repeatDelay: 3.5, ease: "easeInOut" } } >
-                    <ChatbocLogoAnimated size={calculatedLogoSize} blinking floating pulsing />
-                  </motion.span>
+                  <motion.div // Wrap icon for its own animation (logo to X)
+                    variants={iconAnimation}
+                    animate={isOpen ? "open" : "closed"} // This might need adjustment based on structure
+                    transition={openSpring}
+                  >
+                    <ChatbocLogoAnimated size={calculatedLogoSize} blinking={!isOpen} floating={!isOpen} pulsing={!isOpen} />
+                  </motion.div>
+                  {/* TODO: Add a CloseIcon <X /> component here, animated opposite to ChatbocLogoAnimated */}
                 </motion.button>
               </motion.div>
             )}
@@ -534,9 +564,26 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                   onClick={toggleChat}
                   aria-label="Abrir chat"
                 >
-                  <motion.span animate={{ y: [0, -7, 0], rotate: [0, 8, -8, 0] }} transition={{ repeat: Infinity, duration: 1.2, repeatDelay: 3.5, ease: "easeInOut" } } >
-                    <ChatbocLogoAnimated size={calculatedLogoSize} blinking floating pulsing />
-                  </motion.span>
+                  <motion.div
+                    variants={iconAnimation}
+                    animate={isOpen ? "open" : "closed"}
+                    transition={isOpen ? closeSpring : openSpring} // Use closeSpring for "open" (logo disappearing), openSpring for "closed" (logo appearing)
+                  >
+                    {/* Conditionally disable internal animations of logo when widget is opening/closing to simplify */}
+                    <ChatbocLogoAnimated
+                      size={calculatedLogoSize}
+                      blinking={!isOpen && !showProactiveBubble && !showCta} // Only blink when fully closed and no bubbles
+                      floating={!isOpen && !showProactiveBubble && !showCta}
+                      pulsing={!isOpen && !showProactiveBubble && !showCta}
+                    />
+                  </motion.div>
+                  {/* Placeholder for Close Icon (X) - to be implemented and animated)
+                    {isOpen && (
+                      <motion.div style={{ position: 'absolute' }} initial={{ opacity: 0, rotate: -90, scale: 0.5 }} animate={{ opacity: 1, rotate: 0, scale: 1 }} exit={{ opacity: 0, rotate: 90, scale: 0.5 }}>
+                         <X size={calculatedLogoSize * 0.5} /> // Example
+                      </motion.div>
+                    )}
+                  */}
                 </motion.button>
               </motion.div>
           )}

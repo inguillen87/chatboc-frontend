@@ -8,18 +8,33 @@ interface MessageBubbleProps {
 }
 
 const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
-  ({ className, children /*, isBot */ }, ref) => ( // No se usa isBot por ahora
-    <div // Cambiado de motion.div a div simple
-      ref={ref}
-      className={cn(
-        "rounded-xl shadow-md px-4 py-2.5 font-medium text-sm leading-normal whitespace-pre-line break-words", // Ajustado a rounded-xl, px-4, py-2.5, text-sm
-        // className se aplica después, por lo que puede sobreescribir estos defaults
-        className
-      )}
-    >
-      {children}
-    </div>
-  )
+  ({ className, children, isBot }, ref) => { // isBot ahora se usa para lógica condicional de estilo
+    // Base classes aplicables a todas las burbujas
+    const baseClasses = "shadow-md px-3.5 py-2 text-sm font-medium leading-relaxed whitespace-pre-wrap break-words min-w-[40px]"; // whitespace-pre-wrap, min-w, px-3.5, py-2
+
+    // Clases condicionales basadas en si es bot o usuario
+    // Para el bot (isBot = true): esquinas redondeadas específicas para dar forma de "cola" a la izquierda.
+    // Para el usuario (isBot = false): esquinas redondeadas específicas para dar forma de "cola" a la derecha.
+    const conditionalClasses = isBot
+      ? "rounded-tr-xl rounded-br-xl rounded-bl-md rounded-tl-xl" // Esquina inferior izquierda menos redondeada
+      : "rounded-tl-xl rounded-bl-xl rounded-br-md rounded-tr-xl"; // Esquina inferior derecha menos redondeada
+
+    // Si no se especifica isBot (undefined), se usa un redondeo estándar.
+    const defaultRounding = "rounded-xl";
+
+    return (
+      <div
+        ref={ref}
+        className={cn(
+          baseClasses,
+          typeof isBot === 'boolean' ? conditionalClasses : defaultRounding,
+          className // Permite sobreescribir o añadir clases desde la prop
+        )}
+      >
+        {children}
+      </div>
+    );
+  }
 );
 
 MessageBubble.displayName = "MessageBubble";

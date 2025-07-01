@@ -111,9 +111,10 @@ const ChatMessageMunicipio = React.forwardRef<HTMLDivElement, ChatMessageProps>(
   const sanitizedHtml = sanitizeMessageHtml(safeText);
 
   const bubbleClass = isBot
-    ? "bg-muted text-muted-foreground"
-    : "bg-primary text-primary-foreground";
-
+    ? "bg-muted text-muted-foreground" // Bot's bubble color
+    : "bg-primary text-primary-foreground"; // User's bubble color
+  const bubbleWidth = "max-w-[85%] sm:max-w-[75%] md:max-w-[70%]"; // Responsive max-width for bubbles
+  const bubbleAlignment = isBot ? "mr-auto" : "ml-auto"; // Aligns the entire message group (avatar + bubble)
 
   let processedAttachmentInfo: AttachmentInfo | null = null;
 
@@ -136,40 +137,48 @@ const ChatMessageMunicipio = React.forwardRef<HTMLDivElement, ChatMessageProps>(
   return (
     <motion.div
       ref={ref}
-      className={`flex w-full ${isBot ? "justify-start" : "justify-end"} mb-2`}
-      // custom={isBot}
-      // variants={messageVariants}
-      // initial="initial"
-      // animate="animate"
-      // exit="exit"
-      // layout // Added layout prop
+      className={`flex w-full ${isBot ? "justify-start" : "justify-end"} mb-3`}
+      custom={isBot}
+      variants={messageVariants}
+      initial="initial"
+      animate="animate"
+      exit="exit"
+      layout
     >
-      <div className={`flex items-end gap-2 ${isBot ? "" : "flex-row-reverse"}`}>
+      <div className={`flex items-end gap-2 ${bubbleAlignment} ${bubbleWidth}`}>
         {isBot && <AvatarBot isTyping={isTyping} />}
 
-        <MessageBubble className={`max-w-[95vw] md:max-w-2xl ${bubbleClass}`}>
+        <MessageBubble className={`${bubbleClass}`} isBot={isBot}> {/* Pass isBot to MessageBubble */}
           {showAttachment ? (
             <AttachmentPreview
-                attachment={processedAttachmentInfo || undefined} // Pass as attachment prop
+                attachment={processedAttachmentInfo || undefined}
                 locationData={message.locationData}
                 fallbackText={!processedAttachmentInfo && !message.locationData ? sanitizedHtml : undefined}
             />
           ) : (
-            sanitizedHtml && <span
-              className="prose dark:prose-invert max-w-none text-sm [&_p]:my-0"
-              dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
-            />
+            sanitizedHtml && (
+              <span
+                className="prose dark:prose-invert max-w-none text-sm font-medium leading-relaxed [&_p]:my-1 [&_a]:text-primary [&_a:hover]:underline"
+                dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
+              />
+            )
+          )}
+          {message.timestamp && (
+            <div className={`text-xs mt-1.5 ${isBot ? 'text-muted-foreground/80' : 'text-primary-foreground/70'} ${isBot ? 'text-left' : 'text-right'}`}>
+              {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
+            </div>
           )}
           {isBot && message.botones && message.botones.length > 0 && (
             <ChatButtons
               botones={message.botones}
               onButtonClick={onButtonClick}
               onInternalAction={onInternalAction}
+              className="mt-2" // Add margin to buttons if text and timestamp are present
             />
           )}
         </MessageBubble>
 
-        {!isBot && <UserChatAvatar />} {/* Usar el UserChatAvatar modificado */}
+        {!isBot && <UserChatAvatar />}
       </div>
     </motion.div>
   );

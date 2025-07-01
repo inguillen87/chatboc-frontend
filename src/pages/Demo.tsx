@@ -18,11 +18,9 @@ const Demo = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [preguntasUsadas, setPreguntasUsadas] = useState(0);
-  const [rubroSeleccionado, setRubroSeleccionado] = useState<string | null>(() => {
-    return typeof window !== "undefined" ? safeLocalStorage.getItem("rubroSeleccionado") : null;
-  });
+  const [rubroSeleccionado, setRubroSeleccionado] = useState<string | null>(null);
   const [rubrosDisponibles, setRubrosDisponibles] = useState<Rubro[]>([]);
-  const [esperandoRubro, setEsperandoRubro] = useState(!rubroSeleccionado);
+  const [esperandoRubro, setEsperandoRubro] = useState(true); // Initialize to true
   const [anonId, setAnonId] = useState<string>("");
   const [contexto, setContexto] = useState({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -31,36 +29,63 @@ const Demo = () => {
   const rubroNormalizado = parseRubro(rubroSeleccionado);
   const isMunicipioRubro = esRubroPublico(rubroNormalizado || undefined);
 
+  // Actions like openCart, changeRubro
   const openCart = useCallback(() => {
     window.open('/cart', '_blank');
   }, []);
 
+  const handleChangeRubro = () => {
+    safeLocalStorage.removeItem("rubroSeleccionado");
+    setRubroSeleccionado(null);
+    setEsperandoRubro(true);
+    setMessages([]);
+    setPreguntasUsadas(0);
+    setContexto({});
+    // The useEffect for loading rubros will trigger again due to rubroSeleccionado being null
+    // or rather, we explicitly set esperandoRubro to true and then the rubro loading logic runs
+    apiFetch<any[]>("/rubros/", { skipAuth: true })
+        .then((data) => setRubrosDisponibles(Array.isArray(data) ? data : []))
+        .catch(() => {
+          setRubrosDisponibles([]);
+        });
+  };
+
+
+  // Set Anon ID on mount
   useEffect(() => {
     setAnonId(getOrCreateAnonId());
   }, []);
 
-  const welcomeRef = useRef(false);
-
+  // Load rubros and handle initial welcome message
   useEffect(() => {
-    if (!rubroSeleccionado) {
-      setEsperandoRubro(true);
-      apiFetch<any[]>("/rubros/", { skipAuth: true })
-        .then((data) => setRubrosDisponibles(Array.isArray(data) ? data : []))
-        .catch(() => setRubrosDisponibles([]));
-    } else if (!welcomeRef.current && messages.length === 0) {
+    const storedRubro = safeLocalStorage.getItem("rubroSeleccionado");
+    if (storedRubro && !rubroSeleccionado) { // Check !rubroSeleccionado to prevent re-running if already set
+      setRubroSeleccionado(storedRubro);
+      setEsperandoRubro(false);
       setMessages([
         {
           id: Date.now(),
-          text: `¡Hola! Soy Chatboc, tu asistente para ${rubroSeleccionado.toLowerCase()}. ¿En qué puedo ayudarte hoy?`,
+          text: `¡Hola! Soy Chatboc, tu asistente para ${storedRubro.toLowerCase()}. ¿En qué puedo ayudarte hoy?`,
           isBot: true,
           timestamp: new Date(),
           query: undefined,
+          botones: [
+            { texto: "¿Qué servicios ofrecen?", payload: "¿Qué servicios ofrecen?" },
+            { texto: "Necesito ayuda con un problema", payload: "Necesito ayuda con un problema" },
+            { texto: "Ver planes y precios", payload: "Ver planes y precios" },
+          ]
         },
       ]);
-      setEsperandoRubro(false);
-      welcomeRef.current = true;
+    } else if (!storedRubro) {
+      setEsperandoRubro(true);
+      setMessages([]);
+      apiFetch<any[]>("/rubros/", { skipAuth: true })
+        .then((data) => setRubrosDisponibles(Array.isArray(data) ? data : []))
+        .catch(() => {
+          setRubrosDisponibles([]);
+        });
     }
-  }, [rubroSeleccionado]);
+  }, [rubroSeleccionado]); // Add rubroSeleccionado to dependencies
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -201,37 +226,48 @@ const Demo = () => {
   }
 
   return (
-    <div className="flex flex-col items-center w-full min-h-screen bg-gradient-to-br from-[#0d223a] to-[#151a26] text-foreground">
+    // Use background from index.css for consistency with theme light/dark
+    <div className="flex flex-col items-center w-full min-h-screen bg-background text-foreground">
       {/* HEADER */}
-      <div className="w-full max-w-lg mx-auto py-3 px-4 flex items-center justify-between shadow sticky top-0 z-10">
-        <div className="flex items-center gap-3">
-          <img
-            src="/chatboc_logo_clean_transparent.png"
-            alt="Chatboc"
-            className="w-8 h-8 rounded-full"
-            style={{ background: "#2462a6" }}
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = "/favicon/favicon-48x48.png";
-            }}
-          />
-          <span className="font-semibold text-lg tracking-tight">
-            Chatboc <span className="text-primary-foreground/70">· Demo Gratuita</span>
-          </span>
+      {/* Applying a more modern header style */}
+      <header className="w-full bg-card/80 backdrop-blur-md shadow-sm sticky top-0 z-20 border-b border-border">
+        <div className="max-w-3xl mx-auto py-3 px-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <img
+              src="/chatboc_logo_clean_transparent.png" // Consider a theme-adaptive logo if possible
+              alt="Chatboc"
+              className="w-9 h-9 rounded-full p-0.5 bg-primary/20 dark:bg-primary/30 border border-primary/30"
+              onError={(e) => { (e.target as HTMLImageElement).src = "/favicon/favicon-48x48.png"; }}
+            />
+            <span className="font-semibold text-xl tracking-tight text-foreground">
+              Chatboc <span className="text-muted-foreground text-lg">· Demo</span>
+            </span>
+          </div>
+          <div className="flex items-center gap-4">
+            {rubroSeleccionado && (
+              <button
+                onClick={handleChangeRubro}
+                className="text-xs sm:text-sm text-muted-foreground hover:text-primary transition-colors underline underline-offset-2"
+                title="Cambiar Rubro"
+              >
+                Rubro: {rubroSeleccionado} (Cambiar)
+              </button>
+            )}
+            {/* Removing Cart icon as it might not be relevant for all demos or could be confusing */}
+            {/* <button
+              onClick={openCart}
+              aria-label="Ver carrito"
+              className="text-muted-foreground hover:text-primary transition-colors"
+            >
+              <ShoppingCart size={22} />
+            </button> */}
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="hidden sm:inline-block text-xs opacity-70 text-primary-foreground/70">
-            {rubroSeleccionado}
-          </span>
-          <button
-            onClick={openCart}
-            aria-label="Ver carrito"
-            className="text-primary-foreground/70 hover:text-primary-foreground transition"
-          >
-            <ShoppingCart size={20} />
-          </button>
-        </div>
-      </div>
-      <div className="w-full max-w-lg flex flex-col flex-1 px-2 sm:px-5 py-5 space-y-3 overflow-y-auto custom-scroll">
+      </header>
+
+      {/* CHAT AREA */}
+      {/* Increased max-w for chat content area for better desktop view, maintains padding */}
+      <main className="w-full max-w-3xl flex flex-col flex-1 px-4 sm:px-6 py-5 space-y-4 overflow-y-auto custom-scroll">
         {messages.map((msg) => (
           <ChatMessage
             key={msg.id}
@@ -244,18 +280,25 @@ const Demo = () => {
         ))}
         {isTyping && <TypingIndicator />}
         <div ref={messagesEndRef} />
-      </div>
-      {/* INPUT */}
-      <div className="border-t border-border p-3 bg-transparent sticky bottom-0 z-20">
-        <ChatInput
-          onSendMessage={handleSendMessage}
-          isTyping={isTyping}
-        />
-      </div>
-      {/* PIE/CTA */}
-      <div className="text-center text-xs text-muted-foreground py-2 bg-transparent font-medium">
-        Chatboc &copy; {new Date().getFullYear()} &mdash; Versión Demo
-      </div>
+      </main>
+
+      {/* INPUT AREA */}
+      {/* Consistent padding and background, sticky to bottom */}
+      <footer className="w-full bg-card/80 backdrop-blur-md border-t border-border p-3 sm:p-4 sticky bottom-0 z-10">
+        <div className="max-w-3xl mx-auto">
+          <ChatInput
+            onSendMessage={handleSendMessage}
+            isTyping={isTyping}
+          />
+           <p className="text-center text-xs text-muted-foreground pt-2">
+            Chatboc Demo &copy; {new Date().getFullYear()}.
+            {preguntasUsadas >= MAX_PREGUNTAS
+              ? <span className="text-destructive-foreground"> Límite de mensajes alcanzado.</span>
+              : ` ${MAX_PREGUNTAS - preguntasUsadas} mensajes restantes.`
+            }
+          </p>
+        </div>
+      </footer>
     </div>
   );
 };
