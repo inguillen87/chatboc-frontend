@@ -1,0 +1,160 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%; /* Light mode background (white) */
+    --foreground: 224 71.4% 4.1%; /* Dark text for light mode */
+
+    --card: 0 0% 100%;
+    --card-foreground: 224 71.4% 4.1%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 224 71.4% 4.1%;
+
+    --primary: 217 91.2% 59.8%; /* Adjusted primary blue for better vibrancy */
+    --primary-foreground: 210 20% 98%; /* White/very light text on primary */
+
+    --secondary: 220 14.3% 95.9%; /* Light gray for secondary elements */
+    --secondary-foreground: 220.9 39.3% 11%; /* Darker text for secondary */
+
+    --muted: 220 14.3% 95.9%;
+    --muted-foreground: 220 8.9% 46.1%; /* Softer text for muted elements */
+
+    --accent: 220 14.3% 95.9%;
+    --accent-foreground: 220.9 39.3% 11%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 20% 98%;
+
+    --border: 220 13% 91%; /* Lighter border for light mode */
+    --input: 0 0% 98%; /* Slightly off-white for input fields in light mode */
+    --ring: 217 91.2% 59.8%; /* Ring to match primary */
+
+    --radius: 0.5rem;
+
+    /* Sidebar specific colors for light mode */
+    --sidebar-background: 0 0% 97%; /* Slightly off-white, distinct from main bg */
+    --sidebar-foreground: 224 71.4% 4.1%;
+    --sidebar-primary: 217 91.2% 59.8%;
+    --sidebar-primary-foreground: 210 20% 98%;
+    --sidebar-accent: 220 14.3% 93%; /* Slightly darker accent for sidebar */
+    --sidebar-accent-foreground: 220.9 39.3% 11%;
+    --sidebar-border: 220 13% 88%; /* Slightly darker border for sidebar */
+    --sidebar-ring: 217 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 220 15% 10%; /* Dark cool gray */
+    --foreground: 210 30% 95%; /* Softer white for text */
+
+    --card: 220 15% 13%; /* Slightly lighter than background for cards */
+    --card-foreground: 210 30% 95%;
+
+    --popover: 220 15% 8%; /* Darker for popovers */
+    --popover-foreground: 210 30% 95%;
+
+    --primary: 217 91.2% 59.8%; /* Vibrant blue, same as light mode for consistency */
+    --primary-foreground: 210 20% 98%;
+
+    --secondary: 220 15% 20%; /* Darker gray for secondary elements */
+    --secondary-foreground: 210 30% 90%; /* Lighter text for secondary */
+
+    --muted: 220 15% 20%;
+    --muted-foreground: 215 20% 70%; /* Softer text for muted */
+
+    --accent: 220 15% 20%;
+    --accent-foreground: 210 30% 90%;
+
+    --destructive: 0 72.2% 50.6%; /* Adjusted destructive red for dark mode */
+    --destructive-foreground: 210 20% 98%;
+
+    --border: 220 15% 25%; /* Border for dark mode */
+    --input: 220 15% 16%; /* Input background for dark mode, distinct from card */
+    --ring: 217 91.2% 59.8%;
+
+    /* Sidebar specific colors for dark mode */
+    --sidebar-background: 220 15% 8%; /* Even darker for sidebar */
+    --sidebar-foreground: 210 30% 90%;
+    --sidebar-primary: 217 91.2% 59.8%;
+    --sidebar-primary-foreground: 210 20% 98%;
+    --sidebar-accent: 220 15% 18%;
+    --sidebar-accent-foreground: 210 30% 90%;
+    --sidebar-border: 220 15% 22%;
+    --sidebar-ring: 217 91.2% 59.8%;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', 'Poppins', sans-serif;
+    line-height: 1.6; /* Slightly increased line height for better readability */
+    -webkit-font-smoothing: antialiased; /* Safari & Chrome */
+    -moz-osx-font-smoothing: grayscale; /* Firefox */
+  }
+}
+
+.pac-target-input {
+  background-color: hsl(var(--input)) !important;
+  color: hsl(var(--foreground)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+  border-radius: 0.5rem !important;
+  padding: 0.5rem 0.75rem !important;
+  font-size: 1rem !important;
+  transition: background 0.2s;
+}
+.dark .pac-target-input {
+  background-color: hsl(var(--input)) !important;
+  color: hsl(var(--foreground)) !important;
+  border-color: hsl(var(--border)) !important;
+}
+.pac-container {
+  background: hsl(var(--card)) !important;
+  color: hsl(var(--foreground)) !important;
+  border-radius: 0.5rem !important;
+  z-index: 999999 !important;
+}
+.pac-item {
+  color: inherit !important;
+  background: transparent !important;
+  border-radius: 0.4rem !important;
+  padding: 0.4rem 1rem !important;
+}
+.pac-item:hover {
+  background: hsl(var(--accent)) !important;
+}
+html,
+body,
+#root,
+#__next,
+#app {
+  background: transparent !important;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-width: 100%;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+@media (max-width: 639px) {
+  body {
+    padding-bottom: 6rem; /* espacio para el widget flotante */
+  }
+}
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.8; }
+}
+.animate-pulse-subtle {
+  animation: pulse-subtle 1.5s infinite ease-in-out;
+}
