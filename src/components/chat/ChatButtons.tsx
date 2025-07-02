@@ -13,7 +13,7 @@ interface Boton {
 interface ChatButtonsProps {
     botones: Boton[];
     // onButtonClick ahora puede enviar un payload estructurado
-    onButtonClick: (payload: { text: string; action?: string; }) => void; // <-- MODIFICADO
+    onButtonClick: (payload: { text: string; action?: string; }) => void;
     onInternalAction?: (action: string) => void;
 }
 
@@ -23,7 +23,7 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
     onInternalAction,
 }) => {
     const normalize = (v: string) =>
-        v.toLowerCase().replace(/[_\s-]+/g, "");
+        v.toLowerCase().replace(/[\s_-]+/g, "");
 
     const loginActions = [
         "login",
@@ -37,30 +37,56 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
     ].map(normalize);
 
     const handleButtonClick = (boton: Boton) => {
-        // PRIORIDAD: 1. `action` nuevo, 2. `accion_interna` viejo, 3. `url`, 4. `texto`
-        if (boton.action) {
-            onButtonClick({ text: boton.texto, action: boton.action }); // <-- MODIFICADO: Envía texto Y acción
-            onInternalAction && onInternalAction(normalize(boton.action)); // Para acciones internas del frontend
-            return;
-        }
+        const normalizedAction = boton.action ? normalize(boton.action) : null;
+        const normalizedAccionInterna = boton.accion_interna ? normalize(boton.accion_interna) : null;
 
-        if (boton.accion_interna) {
-            const normalizedAccion = normalize(boton.accion_interna);
-            // Si es una acción interna que NO es login/register, envíala como acción al backend
-            if (!loginActions.includes(normalizedAccion) && !registerActions.includes(normalizedAccion)) {
-                onButtonClick({ text: boton.texto, action: normalizedAccion }); // <-- MODIFICADO: Envía texto Y acción
+        // Priority 1: Handle internal auth actions (login/register) first and exclusively.
+        if (normalizedAction && (loginActions.includes(normalizedAction) || registerActions.includes(normalizedAction))) {
+            if (onInternalAction) {
+                onInternalAction(normalizedAction);
             }
-            onInternalAction && onInternalAction(normalizedAccion); // Para manejo del frontend (cambio de panel, etc.)
+            return; // Stop further processing for these auth actions
+        }
+        if (normalizedAccionInterna && (loginActions.includes(normalizedAccionInterna) || registerActions.includes(normalizedAccionInterna))) {
+            if (onInternalAction) {
+                onInternalAction(normalizedAccionInterna);
+            }
+            return; // Stop further processing for these auth actions
+        }
+
+        // Priority 2: Handle other `boton.action` (non-auth internal actions or backend actions)
+        if (normalizedAction) { // Will be non-auth at this point
+            // Send to backend. The payload includes the action.
+            onButtonClick({ text: boton.texto, action: normalizedAction });
+            // If this non-auth action ALSO has a specific frontend internal behavior, trigger it.
+            // (e.g., action 'open_cart_details' might be a backend query + frontend UI update)
+            if (onInternalAction) {
+                // This ensures that if an action is primarily for the backend but also has a UI side-effect,
+                // the internal handler is still called.
+                onInternalAction(normalizedAction);
+            }
             return;
         }
 
+        // Priority 3: Handle other `boton.accion_interna` (non-auth internal actions or backend actions)
+        if (normalizedAccionInterna) { // Will be non-auth at this point
+            // Send to backend. The payload includes the action.
+            onButtonClick({ text: boton.texto, action: normalizedAccionInterna });
+            // Similar to above, handle potential UI side-effects for these actions too.
+            if (onInternalAction) {
+                onInternalAction(normalizedAccionInterna);
+            }
+            return;
+        }
+
+        // Priority 4: Handle URL navigation
         if (boton.url) {
             window.open(boton.url, "_blank", "noopener,noreferrer");
             return;
         }
 
-        // Si es solo texto (como una categoría de reclamo), envíalo como texto normal
-        onButtonClick({ text: boton.texto }); // <-- MODIFICADO: Envía un objeto con solo texto
+        // Priority 5: Default - send button text as a simple message to backend
+        onButtonClick({ text: boton.texto });
     };
 
     const baseClass =
