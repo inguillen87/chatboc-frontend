@@ -11,10 +11,10 @@ import {
   FileVideo,
   FileCode,
   FileImage,
-  Presentation, // Corrected icon name
-  FileJson2,
-  FileQuestion,
-  Download,
+  Presentation, // Replaced FilePresentation
+  FileJson2, // Added (Lucide has FileJson2)
+  FileQuestion, // Added for 'other'
+  Download, // Added for explicit download button if needed elsewhere
 } from 'lucide-react';
 import type { AttachmentInfo } from '@/utils/attachment'; 
 import sanitizeMessageHtml from '@/utils/sanitizeMessageHtml';
@@ -28,14 +28,12 @@ interface Props {
 }
 
 const AttachmentPreview: React.FC<Props> = ({ message, attachmentInfo, fallbackText }) => {
+  // Acceder a locationData de forma segura, message puede no estar siempre si solo se pasa attachmentInfo (aunque el plan es pasar message)
   const locationData = message?.locationData;
 
-  // Log para depuración de lo que recibe AttachmentPreview
+  // Log para depuración
   if (attachmentInfo) {
-    console.log("AttachmentPreview: Received props with attachmentInfo:", attachmentInfo);
-  } else if (fallbackText && !locationData) {
-    // Solo loguea si no hay adjunto ni ubicación, para ver si solo es texto
-    // console.log("AttachmentPreview: Received only fallbackText or message without relevant attachments.");
+    console.log("AttachmentPreview attachmentInfo:", attachmentInfo);
   }
 
   if (locationData && typeof locationData.lat === 'number' && typeof locationData.lon === 'number') {
@@ -128,17 +126,40 @@ const AttachmentPreview: React.FC<Props> = ({ message, attachmentInfo, fallbackT
 
     let IconComponent: React.ElementType = FileQuestion;
     switch (attachmentType) {
-      case 'pdf': IconComponent = FileText; break;
-      case 'spreadsheet': IconComponent = FileSpreadsheet; break;
-      case 'document': IconComponent = FileText; break;
-      case 'presentation': IconComponent = Presentation; break;
-      case 'archive': IconComponent = FileArchive; break;
-      case 'audio': IconComponent = FileAudio; break; 
-      case 'video': IconComponent = FileVideo; break; 
-      case 'text': IconComponent = FileText; break;
-      case 'code': IconComponent = FileCode; break;
-      case 'json': IconComponent = FileJson2; break;
-      default: IconComponent = FileQuestion;
+      case 'pdf':
+        IconComponent = FileText;
+        break;
+      case 'spreadsheet':
+        IconComponent = FileSpreadsheet;
+        break;
+      case 'document':
+        IconComponent = FileText;
+        break;
+      case 'presentation':
+        IconComponent = Presentation; // Replaced FilePresentation
+        break;
+      case 'archive':
+        IconComponent = FileArchive;
+        break;
+      // Los casos 'audio' y 'video' no deberían llegar aquí si tienen previews.
+      // Se dejan por si acaso el attachmentType es audio/video pero no se pudo generar preview.
+      case 'audio':
+        IconComponent = FileAudio;
+        break;
+      case 'video':
+        IconComponent = FileVideo;
+        break;
+      case 'text':
+        IconComponent = FileText;
+        break;
+      case 'code':
+        IconComponent = FileCode;
+        break;
+      case 'json':
+        IconComponent = FileJson2;
+        break;
+      default: // 'other' o tipos no manejados explícitamente arriba
+        IconComponent = FileQuestion;
     }
     
     const fileSizeDisplay = formatFileSize(size);

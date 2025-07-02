@@ -17,6 +17,21 @@ import { toast } from "@/components/ui/use-toast";
 import { requestLocation } from "@/utils/geolocation";
 import { AttachmentInfo, SendPayload } from "@/types/chat"; // Usar SendPayload de @/types/chat
 
+import { AttachmentInfo } from "@/utils/attachment"; // Importar AttachmentInfo
+
+// --- NUEVA INTERFAZ PARA EL PAYLOAD DE ENVÍO DE MENSAJES (COMO EN useChatLogic.ts) ---
+interface SendPayload {
+  text: string;
+  es_foto?: boolean; // Legacy, preferir attachmentInfo
+  archivo_url?: string; // Legacy, preferir attachmentInfo.url
+  es_ubicacion?: boolean;
+  ubicacion_usuario?: { lat: number; lon: number; }; // Asegúrate de que las claves sean 'lat' y 'lon'
+  action?: string;
+  attachmentInfo?: AttachmentInfo; // Nuevo campo para la información del adjunto
+}
+// ---------------------------------------------------------------------------------
+
+// Utilidad para mobile (sin cambios)
 function useIsMobile(breakpoint = 768) {
   const [isMobile, setIsMobile] = useState(
     typeof window !== "undefined" ? window.innerWidth < breakpoint : false,
@@ -261,41 +276,48 @@ const ChatPage = () => {
       }
       setShowCierre(null);
 
+      // Mensaje usuario (ahora usa el payload.text)
+      // Y también incluye attachmentInfo si está presente en el payload
       const userMessageObject: Message = {
         id: Date.now(),
         text: userMessageText,
         isBot: false,
         timestamp: new Date(),
-        attachmentInfo: payload.attachmentInfo, 
+        attachmentInfo: payload.attachmentInfo, // Añadir attachmentInfo al mensaje local
       };
-      console.log("ChatPage: Adding user message to state:", userMessageObject); // CONSOLE.LOG PARA DEBUG
+      console.log("ChatPage: Adding user message to state:", userMessageObject); // <-- NUEVO CONSOLE.LOG
       setMessages((prev) => [...prev, userMessageObject]);
-      lastQueryRef.current = userMessageText; 
+      lastQueryRef.current = userMessageText;
       setIsTyping(true);
 
       try {
         if (activeTicketId) {
-          const body: any = {
-            comentario: userMessageText,
-          };
-          if (payload.ubicacion_usuario) body.ubicacion = payload.ubicacion_usuario;
-          if (payload.attachmentInfo) {
-            body.attachment_info = payload.attachmentInfo; 
-          } else if (payload.es_foto && payload.archivo_url) {
-            body.foto_url = payload.archivo_url; 
-          }
-
+          // Si hay un ticket activo (chat en vivo), enviar como comentario
+          // TODO: Actualizar este backend para que acepte attachmentInfo si es necesario
           await apiFetch(`/tickets/chat/${activeTicketId}/responder_ciudadano`, {
             method: "POST",
-            body: body,
+            body: {
+                comentario: userMessageText,
+                // Mantener es_foto y archivo_url por ahora si el backend de tickets aún los usa
+                ...(payload.es_foto && { foto_url: payload.archivo_url }),
+                ...(payload.ubicacion_usuario && { ubicacion: payload.ubicacion_usuario }),
+                // Considerar enviar attachmentInfo aquí también si el backend de tickets lo soporta:
+                // ...(payload.attachmentInfo && { attachment: payload.attachmentInfo }),
+            },
             sendAnonId: isAnonimo,
             sendEntityToken: true,
           });
         } else {
-          const requestPayload: Record<string, any> = { 
-            pregunta: userMessageText, 
+          // Para el bot
+          const requestPayload: Record<string, any> = {
+            pregunta: userMessageText,
             contexto_previo: contexto,
-            ...(payload.attachmentInfo && { attachment_info: payload.attachmentInfo }), 
+            // Enviar el attachmentInfo completo al backend del bot
+            // También mantener los campos legados si el bot aún los usa o para una transición gradual
+            ...(payload.archivo_url && { archivo_url: payload.archivo_url }), // Podría ser parte de attachmentInfo.url
+            ...(payload.es_foto && { es_foto: payload.es_foto }), // El backend debería deducir esto de attachmentInfo.mimeType
+            ...(payload.attachmentInfo && { attachment_info: payload.attachmentInfo }), // Campo sugerido para el backend
+
             ...(payload.es_ubicacion && { es_ubicacion: true, ubicacion_usuario: payload.ubicacion_usuario }),
             ...(payload.action && { action: payload.action }),
             // Campos legados como fallback si no hay attachmentInfo

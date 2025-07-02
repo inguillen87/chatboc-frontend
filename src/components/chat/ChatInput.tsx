@@ -43,40 +43,37 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
     internalRef.current?.focus();
   };
 
-  // data es la respuesta del backend /archivos/subir
-  // Se espera: { url: string; filename: string; name?: string; mimeType?: string; size?: number; ... }
-  const handleFileUploaded = async (data: { 
-    url: string; 
-    filename: string; // Nombre del archivo en el servidor
-    name?: string;      // Nombre original del archivo (preferido)
-    mimeType?: string;
-    size?: number; 
-    [key: string]: any; 
-  }) => {
-    if (isTyping || !data || !data.url || (!data.filename && !data.name)) {
-      toast({ title: "Error de subida", description: "La información del archivo subido es incompleta.", variant: "destructive" });
+  // --- LÓGICA PARA ARCHIVOS Y UBICACIÓN: AHORA ENVÍAN MENSAJE SOLO CUANDO EL DATO ESTÁ LISTO ---
+  // Este callback es llamado por AdjuntarArchivo CUANDO el archivo ya se SUBIÓ.
+  // 'data' es la respuesta del backend /archivos/subir.
+  // Respuesta actual del backend: { filename: string, mensaje: string, url: string }
+  const handleFileUploaded = async (data: { url: string; filename: string; mimeType?: string; size?: number; [key: string]: any; }) => {
+    // Validar campos mínimos esperados de la respuesta del backend (url y filename)
+    if (isTyping || !data || !data.url || !data.filename) {
+      toast({ title: "Error de subida", description: "La información del archivo subido está incompleta.", variant: "destructive" });
       return;
     }
 
-    const displayName = data.name || data.filename; // Priorizar nombre original si existe
-    const mimeType = data.mimeType; 
-    const size = data.size;        
-
-    const currentAttachmentInfo: AttachmentInfo = {
-      name: displayName,
-      url: data.url,
-      mimeType: mimeType, 
-      size: size         
-    };
+    // El nombre original del archivo no está disponible desde el backend actual. Usamos data.filename.
+    const name = data.filename;
+    // mimeType y size no son provistos por el backend actual, serán undefined.
+    // deriveAttachmentInfo en el frontend intentará deducir el tipo por la extensión.
+    const mimeType = data.mimeType; // Será undefined si el backend no lo envía
+    const size = data.size;         // Será undefined si el backend no lo envía
 
     onSendMessage({
-      text: `Archivo adjunto: ${displayName}`,
-      archivo_url: data.url, // Legado, podría eliminarse si el backend ya no lo necesita
-      attachmentInfo: currentAttachmentInfo
+      text: `Archivo adjunto: ${name}`, // Usar el nombre disponible (filename del servidor)
+      archivo_url: data.url,
+      attachmentInfo: {
+        name: name,
+        url: data.url,
+        mimeType: mimeType, // Pasará undefined si no viene del backend
+        size: size          // Pasará undefined si no viene del backend
+      }
     });
     setInput(""); // Limpiar input de texto, ya que el archivo se envía como un mensaje separado
     onTypingChange?.(false);
-    toast({ title: "Archivo enviado", description: `${displayName} ha sido adjuntado.`, duration: 3000 });
+    toast({ title: "Archivo enviado", description: `${name} ha sido adjuntado.`, duration: 3000 });
   };
 
   const handleShareLocation = async () => {
