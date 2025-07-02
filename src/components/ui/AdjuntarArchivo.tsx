@@ -5,16 +5,22 @@ import { apiFetch } from '@/utils/api'
 import { useUser } from '@/hooks/useUser'
 
 const MAX_FILE_SIZE_MB = 10
+// Actualizado para incluir más tipos de archivo comunes y multimedia
 const ALLOWED_EXTENSIONS = [
-  'jpg',
-  'jpeg',
-  'png',
+  // Imágenes
+  'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'avif',
+  // Documentos
   'pdf',
-  'xlsx',
-  'xls',
-  'csv',
-  'docx',
-  'txt',
+  'doc', 'docx',
+  'xls', 'xlsx', 'csv',
+  'ppt', 'pptx',
+  'txt', 'md', 'rtf',
+  // Audio
+  'mp3', 'wav', 'ogg', 'aac', 'm4a',
+  // Video
+  'mp4', 'mov', 'webm', 'avi', 'mkv',
+  // Archivos (opcional, considerar si se quieren)
+  // 'zip', 'rar',
 ]
 
 export interface AdjuntarArchivoProps {
