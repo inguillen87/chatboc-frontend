@@ -149,6 +149,11 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
 
   let processedAttachmentInfo: AttachmentInfo | null = null;
 
+  // Log para depurar message.attachmentInfo ANTES de procesarlo
+  if (message.id && !message.isBot) { // Log solo para mensajes de usuario para reducir ruido
+    console.log(`ChatMessageBase: message [${message.id}] received attachmentInfo:`, message.attachmentInfo);
+  }
+
   if (message.attachmentInfo?.url && message.attachmentInfo?.name) {
     processedAttachmentInfo = deriveAttachmentInfo(
       message.attachmentInfo.url,
@@ -156,7 +161,12 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
       message.attachmentInfo.mimeType,
       message.attachmentInfo.size
     );
+    // Log para depurar processedAttachmentInfo DESPUÉS de procesarlo
+    if (message.id && !message.isBot) {
+        console.log(`ChatMessageBase: message [${message.id}] processedAttachmentInfo:`, processedAttachmentInfo);
+    }
   } else if (message.mediaUrl && isBot) {
+    // Esto es para mediaUrl en mensajes de bot, no relevante para adjuntos de usuario ahora mismo
     processedAttachmentInfo = deriveAttachmentInfo(message.mediaUrl, message.mediaUrl.split('/').pop() || "archivo_adjunto");
   }
 

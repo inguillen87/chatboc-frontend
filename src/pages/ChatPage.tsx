@@ -19,6 +19,8 @@ import { AttachmentInfo, SendPayload } from "@/types/chat"; // Usar SendPayload 
 
 import { AttachmentInfo } from "@/utils/attachment"; // Importar AttachmentInfo
 
+import { AttachmentInfo } from "@/utils/attachment"; // Importar AttachmentInfo
+
 // --- NUEVA INTERFAZ PARA EL PAYLOAD DE ENVÍO DE MENSAJES (COMO EN useChatLogic.ts) ---
 interface SendPayload {
   text: string;
