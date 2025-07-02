@@ -10,7 +10,7 @@ import {
   FileVideo,
   FileCode,
   FileImage,
-  FilePresentation, // Added
+  Presentation, // Replaced FilePresentation
   FileJson2, // Added (Lucide has FileJson2)
   FileQuestion, // Added for 'other'
   Download, // Added for explicit download button if needed elsewhere
@@ -150,7 +150,7 @@ const AttachmentPreview: React.FC<Props> = ({ message, attachmentInfo, fallbackT
         IconComponent = FileText;
         break;
       case 'presentation':
-        IconComponent = FilePresentation;
+        IconComponent = Presentation; // Replaced FilePresentation
         break;
       case 'archive':
         IconComponent = FileArchive;
