@@ -369,4 +369,4 @@
   } else {
     init();
   }
-})();
+  })(); // Cierre de la IIFE
