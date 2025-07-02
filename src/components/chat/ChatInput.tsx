@@ -1,12 +1,15 @@
+// src/components/chat/ChatInput.tsx
 import React, { useState, useEffect, useRef } from "react";
 import { Send, MapPin, Mic, MicOff } from "lucide-react";
 import AdjuntarArchivo from "@/components/ui/AdjuntarArchivo";
 import { requestLocation } from "@/utils/geolocation";
-import { toast } from "@/components/ui/use-toast"; // Importa toast
+import { toast } from "@/components/ui/use-toast";
 import useSpeechRecognition from "@/hooks/useSpeechRecognition";
+import { AttachmentInfo } from "@/utils/attachment";
+import { SendPayload } from "@/types/chat"; // Asegúrate que SendPayload en types/chat.ts tiene attachmentInfo
 
 interface Props {
-  onSendMessage: (payload: { text: string; es_foto?: boolean; archivo_url?: string; es_ubicacion?: boolean; ubicacion_usuario?: { lat: number; lon: number }; action?: string }) => void;
+  onSendMessage: (payload: SendPayload) => void;
   isTyping: boolean;
   inputRef?: React.RefObject<HTMLInputElement>;
   onTypingChange?: (typing: boolean) => void;
@@ -34,49 +37,54 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
 
   const handleSend = () => {
     if (!input.trim() || isTyping) return;
-    onSendMessage({ text: input.trim() });
+    onSendMessage({ text: input.trim(), attachmentInfo: undefined }); // Envía attachmentInfo como undefined para solo texto
     setInput("");
     onTypingChange?.(false);
     internalRef.current?.focus();
   };
 
-  // --- LÓGICA PARA ARCHIVOS Y UBICACIÓN: AHORA ENVÍAN MENSAJE SOLO CUANDO EL DATO ESTÁ LISTO ---
-  // Este callback es llamado por AdjuntarArchivo CUANDO el archivo ya se SUBIÓ y tenemos su URL, nombre, tipo y tamaño
-  const handleFileUploaded = async (data: { url: string; name: string; mimeType: string; size: number; }) => {
-    if (isTyping || !data || !data.url || !data.name) {
-      toast({ title: "Error de subida", description: "No se pudo obtener la información completa del archivo subido.", variant: "destructive" });
+  // data es la respuesta del backend /archivos/subir
+  // Se espera: { url: string; filename: string; name?: string; mimeType?: string; size?: number; ... }
+  const handleFileUploaded = async (data: { 
+    url: string; 
+    filename: string; // Nombre del archivo en el servidor
+    name?: string;      // Nombre original del archivo (preferido)
+    mimeType?: string;
+    size?: number; 
+    [key: string]: any; 
+  }) => {
+    if (isTyping || !data || !data.url || (!data.filename && !data.name)) {
+      toast({ title: "Error de subida", description: "La información del archivo subido es incompleta.", variant: "destructive" });
       return;
     }
 
-    const fileExtension = data.name.split('.').pop()?.toLowerCase();
-    // Determinar si es una imagen basado en mimeType o extensión para el flag 'es_foto' (si aún se necesita)
-    const isImage = data.mimeType?.startsWith('image/') || (fileExtension && ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileExtension));
+    const displayName = data.name || data.filename; // Priorizar nombre original si existe
+    const mimeType = data.mimeType; 
+    const size = data.size;        
+
+    const currentAttachmentInfo: AttachmentInfo = {
+      name: displayName,
+      url: data.url,
+      mimeType: mimeType, 
+      size: size         
+    };
 
     onSendMessage({
-      text: `Archivo adjunto: ${data.name}`, // Texto más descriptivo
-      // es_foto: isImage, // Hacerlo dinámico, o eliminar si el backend ya no lo necesita y usa mimeType
-      archivo_url: data.url, // Mantener por retrocompatibilidad o si el backend lo usa específicamente
-      attachmentInfo: { // Enviar la información completa del adjunto
-        name: data.name,
-        url: data.url,
-        mimeType: data.mimeType,
-        size: data.size
-      }
+      text: `Archivo adjunto: ${displayName}`,
+      archivo_url: data.url, // Legado, podría eliminarse si el backend ya no lo necesita
+      attachmentInfo: currentAttachmentInfo
     });
-    setInput("");
+    setInput(""); // Limpiar input de texto, ya que el archivo se envía como un mensaje separado
     onTypingChange?.(false);
-    toast({ title: "Archivo enviado", description: `${data.name} ha sido adjuntado.`, duration: 3000 });
+    toast({ title: "Archivo enviado", description: `${displayName} ha sido adjuntado.`, duration: 3000 });
   };
 
-  // Este callback es llamado por el botón "Compartir ubicación" de ChatInput
   const handleShareLocation = async () => {
     if (isTyping) return;
     toast({ title: "Obteniendo ubicación...", description: "Por favor, acepta la solicitud de GPS.", duration: 2000 });
-    // setIsTyping(true); // Opcional: mostrar typing indicator mientras se obtiene la ubicación
     try {
       const coords = await requestLocation({ enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
       if (coords) {
-        // AHORA SÍ, enviamos el mensaje al bot con las coordenadas
         onSendMessage({
           text: "Ubicación compartida",
           es_ubicacion: true,
@@ -85,19 +93,15 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
         toast({ title: "Ubicación enviada", description: "Tu ubicación ha sido compartida.", duration: 3000 });
       } else {
         toast({ title: "Ubicación no disponible", description: "No pudimos acceder a tu ubicación por GPS. Verificá los permisos y que estés usando una conexión segura (https).", variant: "destructive", duration: 5000 });
-        // No enviamos un mensaje al bot si falla la obtención de GPS, solo un toast al usuario
       }
     } catch (error) {
       console.error("Error al obtener ubicación:", error);
       toast({ title: "Error al obtener ubicación", description: "Hubo un problema al intentar obtener tu ubicación.", variant: "destructive", duration: 5000 });
-    } finally {
-      // setIsTyping(false); // Ocultar typing indicator
     }
     setInput("");
     onTypingChange?.(false);
   };
 
-  // Enviar el texto dictado automáticamente cuando finaliza el reconocimiento
   useEffect(() => {
     if (!listening && transcript) {
       onSendMessage({ text: transcript.trim() });
@@ -106,15 +110,10 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
       internalRef.current?.focus();
     }
   }, [listening, transcript]);
-  // -------------------------------------------------------------------------
-
 
   return (
-    <div className="w-full flex items-center gap-1 sm:gap-2 px-2 py-2 sm:px-3 sm:py-3 bg-background"> {/* Adjusted padding for sm:py-3 and added bg-background */}
-      {/* Botón para adjuntar archivos */}
+    <div className="w-full flex items-center gap-1 sm:gap-2 px-2 py-2 sm:px-3 sm:py-3 bg-background">
       <AdjuntarArchivo onUpload={handleFileUploaded} />
-
-      {/* Botón para compartir ubicación */}
       <button
         onClick={handleShareLocation}
         disabled={isTyping}
@@ -124,9 +123,7 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
           shadow-md transition-all duration-150
           focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-1 focus:ring-offset-background
           active:scale-95
-
           bg-secondary text-secondary-foreground hover:bg-secondary/80
-
           ${isTyping ? "opacity-50 cursor-not-allowed" : ""}
         `}
         aria-label="Compartir ubicación"
@@ -134,8 +131,6 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
       >
         <MapPin className="w-5 h-5" />
       </button>
-
-      {/* Botón de dictado por voz */}
       <button
         onClick={() => {
           if (listening) {
@@ -155,9 +150,7 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
           shadow-md transition-all duration-150
           focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-1 focus:ring-offset-background
           active:scale-95
-
           bg-secondary text-secondary-foreground hover:bg-secondary/80
-
           ${isTyping ? "opacity-50 cursor-not-allowed" : ""}
           ${listening ? "text-destructive bg-destructive/20 hover:bg-destructive/30" : ""}
         `}
@@ -166,24 +159,20 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
       >
         {listening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
       </button>
-
       <input
         ref={internalRef}
         className={`
           flex-1 max-w-full min-w-0
-          rounded-full px-4 py-2 sm:px-4 sm:py-2.5 {/* Adjusted padding */}
+          rounded-full px-4 py-2 sm:px-4 sm:py-2.5
           text-base
           outline-none transition-all duration-200
           focus:ring-2 focus:ring-primary/50 focus:border-transparent
           placeholder:text-muted-foreground
           font-medium
           disabled:cursor-not-allowed
-          
           bg-input text-foreground
           border border-border
-          
-          dark:bg-input dark:text-foreground dark:border-border /* Explicit dark mode for input */
-
+          dark:bg-input dark:text-foreground dark:border-border
           ${isTyping ? "opacity-60 bg-muted-foreground/10 dark:bg-muted-foreground/20" : ""}
         `}
         type="text"
@@ -209,13 +198,11 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
       <button
         className={`
           flex items-center justify-center
-          rounded-full p-2.5 sm:p-3 ml-1 sm:ml-2 {/* Adjusted padding and margin */}
+          rounded-full p-2.5 sm:p-3 ml-1 sm:ml-2
           shadow-md transition-all duration-150
           focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-1 focus:ring-offset-background
           active:scale-95
-
           bg-primary text-primary-foreground hover:bg-primary/90
-
           disabled:opacity-50 disabled:cursor-not-allowed
         `}
         onClick={handleSend}

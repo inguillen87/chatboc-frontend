@@ -1,12 +1,12 @@
 // src/components/chat/ChatMessageBase.tsx
 import React from "react";
-import { Message, SendPayload, StructuredContentItem } from "@/types/chat";
+import { Message, SendPayload, StructuredContentItem, AttachmentInfo as TypeAttachmentInfo } from "@/types/chat"; // Renombrar AttachmentInfo para evitar conflicto local
 import ChatButtons from "./ChatButtons";
 import { motion } from "framer-motion";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 import sanitizeMessageHtml from "@/utils/sanitizeMessageHtml";
 import AttachmentPreview from "./AttachmentPreview";
-import { deriveAttachmentInfo, AttachmentInfo } from "@/utils/attachment";
+import { deriveAttachmentInfo, AttachmentInfo } from "@/utils/attachment"; // AttachmentInfo de utils/attachment
 import MessageBubble from "./MessageBubble";
 
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -14,9 +14,8 @@ import { useUser } from "@/hooks/useUser";
 import { User as UserIcon, ExternalLink } from "lucide-react";
 import { getInitials, cn } from "@/lib/utils";
 import UserAvatarAnimated from "./UserAvatarAnimated";
-import { Badge } from "@/components/ui/badge";
+// import { Badge } from "@/components/ui/badge"; // Badge no se usa aquí directamente
 
-// --- Avatares (reutilizados de ChatMessagePyme/Municipio) ---
 const AvatarBot: React.FC<{ isTyping: boolean }> = ({ isTyping }) => (
   <motion.div
     initial={{ scale: 0.8, opacity: 0 }}
@@ -59,7 +58,6 @@ const UserChatAvatar: React.FC = () => {
   );
 };
 
-// --- Componente para renderizar StructuredContent ---
 const StructuredContentDisplay: React.FC<{ items: StructuredContentItem[] }> = ({ items }) => {
   if (!items || items.length === 0) return null;
 
@@ -73,16 +71,15 @@ const StructuredContentDisplay: React.FC<{ items: StructuredContentItem[] }> = (
         if (item.styleHint === 'italic') valueClasses.push("italic");
         if (item.styleHint === 'highlight') valueClasses.push("bg-yellow-200 text-yellow-800 px-1 rounded");
 
-
         if (item.type === 'price' && typeof item.value === 'number') {
           valueDisplay = item.value.toLocaleString('es-AR', {
             style: 'currency',
             currency: item.currency || 'ARS',
           });
-          valueClasses.push("font-semibold text-green-300"); // Ejemplo de estilo para precio
+          valueClasses.push("font-semibold text-green-300");
         } else if (item.type === 'quantity' && typeof item.value === 'number') {
           valueDisplay = `${item.value} ${item.unit || ''}`.trim();
-          valueClasses.push("font-medium text-blue-300"); // Ejemplo de estilo para cantidad
+          valueClasses.push("font-medium text-blue-300");
         } else if (item.type === 'date' && typeof item.value === 'string') {
             try {
                 valueDisplay = new Date(item.value).toLocaleDateString('es-AR', {
@@ -115,13 +112,12 @@ const StructuredContentDisplay: React.FC<{ items: StructuredContentItem[] }> = (
   );
 };
 
-
 export interface ChatMessageBaseProps {
   message: Message;
   isTyping: boolean;
   onButtonClick: (valueToSend: SendPayload) => void;
   onInternalAction?: (action: string) => void;
-  tipoChat?: "pyme" | "municipio"; // Puede usarse para alguna lógica residual muy específica
+  tipoChat?: "pyme" | "municipio";
 }
 
 const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( (
@@ -130,24 +126,28 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
     isTyping,
     onButtonClick,
     onInternalAction,
-    // tipoChat, // tipoChat podría usarse si hay alguna variación mínima que no dependa del contenido del mensaje
   },
   ref
 ) => {
-  if (!message) {
+  if (!message || !message.id) { // Chequeo más robusto para message
     return (
       <motion.div className="text-xs text-destructive italic mt-2 px-3" ref={ref}>
-        ❌ Mensaje inválido.
+        ❌ Mensaje inválido o sin ID.
       </motion.div>
     );
   }
 
   const isBot = message.isBot;
-
   const safeText = typeof message.text === "string" && message.text !== "NaN" ? message.text : "";
   const sanitizedHtml = sanitizeMessageHtml(safeText);
-
   let processedAttachmentInfo: AttachmentInfo | null = null;
+
+  // Log para depurar message.attachmentInfo ANTES de procesarlo
+  // Log solo para mensajes de usuario para reducir ruido, o para cualquier mensaje si es necesario
+  // if (message.id && !message.isBot) { 
+  if (message.attachmentInfo) { // Log si hay CUALQUIER attachmentInfo
+    console.log(`ChatMessageBase: message [${message.id}, isBot: ${isBot}] received attachmentInfo:`, message.attachmentInfo);
+  }
 
   if (message.attachmentInfo?.url && message.attachmentInfo?.name) {
     processedAttachmentInfo = deriveAttachmentInfo(
@@ -156,42 +156,39 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
       message.attachmentInfo.mimeType,
       message.attachmentInfo.size
     );
+    if (message.attachmentInfo) { // Log si hay CUALQUIER attachmentInfo y fue procesado
+        console.log(`ChatMessageBase: message [${message.id}, isBot: ${isBot}] processedAttachmentInfo:`, processedAttachmentInfo);
+    }
   } else if (message.mediaUrl && isBot) {
     processedAttachmentInfo = deriveAttachmentInfo(message.mediaUrl, message.mediaUrl.split('/').pop() || "archivo_adjunto");
+    // console.log(`ChatMessageBase: BOT message [${message.id}] processed mediaUrl to:`, processedAttachmentInfo);
   }
 
   const bubbleBaseClass = isBot ? "bg-muted text-muted-foreground" : "bg-primary text-primary-foreground";
   let bubbleStyleClass = "";
   if (message.chatBubbleStyle === 'compact') {
-    bubbleStyleClass = "py-1.5 px-2.5 text-sm"; // Estilo más compacto
+    bubbleStyleClass = "py-1.5 px-2.5 text-sm";
   } else if (message.chatBubbleStyle === 'emphasis') {
-    bubbleStyleClass = "border-2 border-yellow-500"; // Estilo con énfasis
+    bubbleStyleClass = "border-2 border-yellow-500";
   }
 
   const bubbleWidth = "max-w-[95vw] md:max-w-3xl";
 
-  // Determinar si se muestra la sección de adjuntos/mapa o el contenido estructurado
   const showAttachmentOrMap = !!(
     (processedAttachmentInfo && (processedAttachmentInfo.type !== 'other' || !!processedAttachmentInfo.extension)) ||
     message.locationData
   );
-
   const showStructuredContent = !!(message.structuredContent && message.structuredContent.length > 0);
-
-  // Display hint puede usarse para aplicar un contenedor especial alrededor del mensaje, o pasar a MessageBubble
-  // Por ahora, lo mantendremos simple.
 
   return (
     <motion.div
       ref={ref}
       className={`flex w-full ${isBot ? "justify-start" : "justify-end"} mb-2`}
-      // layout // Podría causar problemas con scroll, evaluar
     >
       <div className={`flex items-end gap-2 ${isBot ? "" : "flex-row-reverse"}`}>
         {isBot && <AvatarBot isTyping={isTyping} />}
 
         <MessageBubble className={cn(bubbleWidth, bubbleBaseClass, bubbleStyleClass)}>
-          {/* Prioridad al texto si no hay otros contenidos especiales */}
           {(!showAttachmentOrMap && !showStructuredContent && sanitizedHtml) && (
             <span
               className="prose dark:prose-invert max-w-none text-sm [&_p]:my-0"
@@ -199,20 +196,16 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
             />
           )}
 
-          {/* Mostrar adjunto o mapa */}
           {showAttachmentOrMap && (
               <AttachmentPreview
-                message={message} // Pasamos el mensaje completo para que AttachmentPreview decida
-                attachmentInfo={processedAttachmentInfo}
-                // Si hay adjunto pero también texto, el texto puede ser un caption o fallback
+                message={message} 
+                attachmentInfo={processedAttachmentInfo} // Este es el crucial
                 fallbackText={sanitizedHtml && !showStructuredContent ? sanitizedHtml : undefined}
               />
           )}
 
-          {/* Mostrar contenido estructurado */}
           {showStructuredContent && (
             <>
-              {/* Si hay texto Y contenido estructurado, el texto puede ser una introducción */}
               {sanitizedHtml && !showAttachmentOrMap && (
                  <span
                     className="prose dark:prose-invert max-w-none text-sm [&_p]:my-0 mb-2 block"
@@ -223,7 +216,6 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
             </>
           )}
 
-          {/* Botones siempre al final si existen */}
           {isBot && message.botones && message.botones.length > 0 && (
             <ChatButtons
               botones={message.botones}
@@ -233,7 +225,7 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
           )}
         </MessageBubble>
 
-        {!isBot && <UserChatAvatar />}
+        {!isBot && <UserChatAvatar />} 
       </div>
     </motion.div>
   );

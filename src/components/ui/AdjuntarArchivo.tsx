@@ -1,73 +1,83 @@
-import React, { useRef, useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { Paperclip } from 'lucide-react'
-import { apiFetch } from '@/utils/api'
-import { useUser } from '@/hooks/useUser'
+// src/components/ui/AdjuntarArchivo.tsx
+import React, { useRef, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Paperclip } from 'lucide-react';
+import { apiFetch } from '@/utils/api';
+import { useUser } from '@/hooks/useUser';
 
-const MAX_FILE_SIZE_MB = 10
-// Actualizado para incluir más tipos de archivo comunes y multimedia
+const MAX_FILE_SIZE_MB = 10;
 const ALLOWED_EXTENSIONS = [
-  // Imágenes
   'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'avif',
-  // Documentos
   'pdf',
   'doc', 'docx',
   'xls', 'xlsx', 'csv',
   'ppt', 'pptx',
   'txt', 'md', 'rtf',
-  // Audio
   'mp3', 'wav', 'ogg', 'aac', 'm4a',
-  // Video
   'mp4', 'mov', 'webm', 'avi', 'mkv',
-  // Archivos (opcional, considerar si se quieren)
-  // 'zip', 'rar',
-]
+];
 
 export interface AdjuntarArchivoProps {
-  onUpload?: (data: any) => void // 'data' es el objeto que viene del backend, esperamos que contenga 'url'
+  onUpload?: (data: any) => void;
 }
 
 const AdjuntarArchivo: React.FC<AdjuntarArchivoProps> = ({ onUpload }) => {
-  const inputRef = useRef<HTMLInputElement>(null)
-  const [error, setError] = useState('')
-  const { user } = useUser()
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [error, setError] = useState('');
+  const { user } = useUser();
 
-  const handleFileChange = async (
-    e: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const ext = file.name.split('.').pop()?.toLowerCase() || ''
+  console.log('AdjuntarArchivo: Component rendered. User object:', user);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('AdjuntarArchivo: handleFileChange triggered');
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const ext = file.name.split('.').pop()?.toLowerCase() || '';
     if (!ALLOWED_EXTENSIONS.includes(ext)) {
-      setError('Formato no permitido')
-      return
+      setError(`Formato .${ext} no permitido.`);
+      e.target.value = '';
+      return;
     }
+
     if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
-      setError('Archivo demasiado grande (máx 10MB)')
-      return
+      setError(`Archivo demasiado grande (máx ${MAX_FILE_SIZE_MB}MB).`);
+      e.target.value = '';
+      return;
     }
-    setError('')
-    const formData = new FormData()
-    formData.append('archivo', file)
+
+    setError('');
+
+    const formData = new FormData();
+    formData.append('archivo', file);
+
     try {
-      // Llamada al backend para subir el archivo
       const data = await apiFetch<any>('/archivos/subir', {
         method: 'POST',
         body: formData,
-      })
-      // Si la subida es exitosa, llama a onUpload con la 'data' completa (que incluye la URL)
-      onUpload && onUpload(data) 
+      });
+      onUpload && onUpload(data);
     } catch (err: any) {
-      setError(err.body?.error || err.message || 'Error al subir archivo')
+      setError(err.body?.error || err.message || 'Error al subir archivo');
+    } finally {
+      if (inputRef.current) {
+        inputRef.current.value = '';
+      }
     }
-  }
+  };
 
-  if (!user) return null
+  if (!user) {
+    console.log('AdjuntarArchivo: No user found, component will not render button.');
+    return null;
+  }
 
   return (
     <div className="flex items-center gap-2">
       <Button
-        onClick={() => inputRef.current?.click()}
+        onClick={() => {
+          console.log('AdjuntarArchivo: Paperclip button clicked');
+          inputRef.current?.click();
+        }}
         variant="outline"
         size="icon"
         type="button"
@@ -82,9 +92,9 @@ const AdjuntarArchivo: React.FC<AdjuntarArchivoProps> = ({ onUpload }) => {
         className="hidden"
         onChange={handleFileChange}
       />
-      {error && <span className="text-destructive text-sm">{error}</span>}
+      {error && <span className="text-destructive text-sm ml-2">{error}</span>}
     </div>
-  )
-}
+  );
+};
 
-export default AdjuntarArchivo
+export default AdjuntarArchivo;

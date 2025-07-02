@@ -1,5 +1,6 @@
+// src/pages/ChatPage.tsx
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Message } from "@/types/chat"; // Asegúrate de que Message tenga los nuevos campos
+import { Message } from "@/types/chat";
 import ChatMessage from "@/components/chat/ChatMessage";
 import ChatInput from "@/components/chat/ChatInput";
 import TypingIndicator from "@/components/chat/TypingIndicator";
@@ -14,19 +15,8 @@ import TicketMap from "@/components/TicketMap";
 import getOrCreateAnonId from "@/utils/anonId";
 import { toast } from "@/components/ui/use-toast";
 import { requestLocation } from "@/utils/geolocation";
+import { AttachmentInfo, SendPayload } from "@/types/chat"; // Usar SendPayload de @/types/chat
 
-// --- NUEVA INTERFAZ PARA EL PAYLOAD DE ENVÍO DE MENSAJES (COMO EN useChatLogic.ts) ---
-interface SendPayload {
-  text: string;
-  es_foto?: boolean;
-  archivo_url?: string;
-  es_ubicacion?: boolean;
-  ubicacion_usuario?: { lat: number; lon: number; }; // Asegúrate de que las claves sean 'lat' y 'lon'
-  action?: string;
-}
-// ---------------------------------------------------------------------------------
-
-// Utilidad para mobile (sin cambios)
 function useIsMobile(breakpoint = 768) {
   const [isMobile, setIsMobile] = useState(
     typeof window !== "undefined" ? window.innerWidth < breakpoint : false,
@@ -52,7 +42,6 @@ const FRASES_EXITO = [
 ];
 
 const ChatPage = () => {
-  // Estados básicos
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [contexto, setContexto] = useState({});
@@ -68,16 +57,13 @@ const ChatPage = () => {
   const ultimoMensajeIdRef = useRef<number>(0);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Usuario / rubro / anon
   const { user, refreshUser, loading } = useUser();
   const authToken = safeLocalStorage.getItem("authToken");
   const isAnonimo = !authToken;
   const anonId = getOrCreateAnonId();
 
-  // Rubro normalizado: logueado, storage, o demo
   const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
   const demoRubroNameParam = urlParams?.get('rubroName');
-  const demoRubroIdParam = urlParams?.get('rubroId');
   const rubroFromUser = user?.rubro ? parseRubro(user.rubro) : null;
   const rubroFromStorage = typeof window !== 'undefined'
     ? (() => {
@@ -89,14 +75,10 @@ const ChatPage = () => {
     ? parseRubro(demoRubroNameParam)
     : rubroFromUser || rubroFromStorage;
 
-  // Tipo chat actual
   const tipoChat: "pyme" | "municipio" = esRubroPublico(rubroNormalizado) ? "municipio" : "pyme";
-
   const isMobile = useIsMobile();
-
   const welcomeRef = useRef(false);
 
-  // Mensaje de bienvenida + dirección de storage
   useEffect(() => {
     if (!welcomeRef.current && messages.length === 0) {
       setMessages([{ id: Date.now(), text: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?", isBot: true, timestamp: new Date(), query: undefined }]);
@@ -106,14 +88,12 @@ const ChatPage = () => {
     if (stored) setDireccionGuardada(stored);
   }, []);
 
-  // Refresca usuario si es necesario
   useEffect(() => {
     if (!isAnonimo && (!user || !user.rubro) && !loading) {
       refreshUser();
     }
   }, [isAnonimo, user, refreshUser, loading]);
 
-  // Scroll automático
   const scrollToBottom = useCallback(() => {
     const container = chatMessagesContainerRef.current;
     if (container) {
@@ -122,19 +102,18 @@ const ChatPage = () => {
       if (atBottom) container.scrollTop = container.scrollHeight;
     }
   }, []);
+
   useEffect(() => {
     const timer = setTimeout(() => scrollToBottom(), 150);
     return () => clearTimeout(timer);
   }, [messages, isTyping, scrollToBottom]);
 
-  // Dirección/autocomplete/cierre
   useEffect(() => {
     const lastBotMsg = [...messages].reverse().find((m) => m.isBot && m.text);
     const needsAddress = lastBotMsg &&
       FRASES_DIRECCION.some((frase) => (lastBotMsg.text as string).toLowerCase().includes(frase)) || forzarDireccion;
     setEsperandoDireccion(Boolean(needsAddress));
     if (!needsAddress) {
-      // Éxito: mostrar mensaje de cierre si corresponde
       const contenido = lastBotMsg && typeof lastBotMsg.text === "string" ? lastBotMsg.text.toLowerCase() : "";
       const exito = FRASES_EXITO.some(f => contenido.includes(f));
       if (exito) {
@@ -149,7 +128,6 @@ const ChatPage = () => {
     } else setShowCierre(null);
   }, [messages, forzarDireccion]);
 
-  // --- Ticket info (mapa) ---
   const fetchTicketInfo = useCallback(async () => {
     if (!activeTicketId) return;
     try {
@@ -166,14 +144,26 @@ const ChatPage = () => {
         console.error("Error fetching ticket info:", error);
     }
   }, [activeTicketId, isAnonimo]);
+
   useEffect(() => { fetchTicketInfo(); }, [activeTicketId, fetchTicketInfo]);
 
-  // --- GPS/ubicación ---
   const handleShareGps = useCallback(() => {
     if (!activeTicketId) {
-      toast({ title: "Ubicación no disponible", description: "El ticket no está activo.", variant: "destructive", duration: 3000 });
+      // Si no hay ticket activo, se envía la ubicación como un mensaje normal al bot
+      requestLocation({ enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }).then(coords => {
+        if (coords) {
+          handleSend({
+            text: "Adjunto mi ubicación actual.", // O un texto más genérico
+            es_ubicacion: true,
+            ubicacion_usuario: { lat: coords.latitud, lon: coords.longitud },
+          });
+        } else {
+          toast({ title: "Ubicación no disponible", description: "No pudimos acceder a tu ubicación por GPS.", variant: "destructive" });
+        }
+      });
       return;
     }
+    // Si hay ticket activo (municipio), se actualiza la ubicación del ticket
     if (tipoChat === "municipio") {
       requestLocation({ enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }).then(async (coords) => {
         if (!coords) {
@@ -187,21 +177,19 @@ const ChatPage = () => {
           return;
         }
         try {
-          // Asegúrate de enviar lat y lon
           await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, { method: 'PUT', body: { lat: coords.latitud, lon: coords.longitud }, sendAnonId: isAnonimo, sendEntityToken: true });
           await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, { method: 'PUT', body: { lat: coords.latitud, lon: coords.longitud }, sendAnonId: isAnonimo, sendEntityToken: true });
           setForzarDireccion(false);
           fetchTicketInfo();
           toast({ title: "Ubicación enviada", description: "Tu ubicación ha sido compartida con el agente.", duration: 3000 });
         } catch (error) {
-          console.error("Error al enviar ubicación:", error);
+          console.error("Error al enviar ubicación al ticket:", error);
           toast({ title: "Error al enviar ubicación", description: "Hubo un problema al enviar tu ubicación.", variant: "destructive", duration: 3000 });
         }
       });
     }
-  }, [activeTicketId, fetchTicketInfo, tipoChat, isAnonimo]);
+  }, [activeTicketId, tipoChat, isAnonimo, fetchTicketInfo, handleSend]); // Añadido handleSend a dependencias
 
-  // Polling live chat (tickets)
   useEffect(() => {
     const fetchNewMessages = async () => {
       if (!activeTicketId) return;
@@ -213,7 +201,15 @@ const ChatPage = () => {
         );
         if (data.mensajes && data.mensajes.length > 0) {
           const nuevosMensajes: Message[] = data.mensajes.map((msg) => ({
-            id: msg.id, text: msg.texto, isBot: msg.es_admin, timestamp: new Date(msg.fecha), query: undefined,
+            id: msg.id, 
+            text: msg.texto, 
+            isBot: msg.es_admin, 
+            timestamp: new Date(msg.fecha), 
+            query: undefined,
+            attachmentInfo: msg.attachment_info || msg.attachmentInfo, // Backend podría devolver attachment_info o attachmentInfo
+            // También considerar si el backend de tickets devuelve mediaUrl o locationData para mensajes de agentes
+            mediaUrl: msg.media_url || msg.mediaUrl,
+            locationData: msg.location_data || msg.locationData,
           }));
           setMessages((prev) => [...prev, ...nuevosMensajes]);
           ultimoMensajeIdRef.current = data.mensajes[data.mensajes.length - 1].id;
@@ -238,67 +234,75 @@ const ChatPage = () => {
     return () => { if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current); };
   }, [activeTicketId, fetchTicketInfo, isAnonimo]);
 
-  // ---- ENVÍO de mensaje ----
-  // MODIFICADO: handleSend ahora acepta un SendPayload
   const handleSend = useCallback(
-    async (payload: SendPayload) => { // <-- MODIFICADO
-      // Asegurarse de que el texto del payload no esté vacío, a menos que sea una acción o adjunto
-      if (!payload.text.trim() && !payload.archivo_url && !payload.ubicacion_usuario && !payload.action) return;
-      
-      const userMessageText = payload.text.trim(); // Acceder al texto desde el payload
+    async (payload: SendPayload) => {
+      const userMessageText = payload.text?.trim() || ''; // Asegurar que text no sea undefined
 
-      // Dirección
-      if (esperandoDireccion) {
+      if (!userMessageText && !payload.attachmentInfo && !payload.action && !payload.ubicacion_usuario && !payload.archivo_url) {
+        return; // No enviar mensajes completamente vacíos
+      }
+      
+      if (esperandoDireccion && !payload.attachmentInfo && !payload.ubicacion_usuario) {
         setEsperandoDireccion(false);
         setForzarDireccion(false);
-        safeLocalStorage.setItem("ultima_direccion", userMessageText); // Usar userMessageText
-        setDireccionGuardada(userMessageText); // Usar userMessageText
+        safeLocalStorage.setItem("ultima_direccion", userMessageText);
+        setDireccionGuardada(userMessageText);
         if (activeTicketId) {
           try {
-            await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, { method: 'PUT', body: { direccion: userMessageText }, sendAnonId: isAnonimo, sendEntityToken: true }); // Usar userMessageText
-            await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, { method: 'PUT', body: { direccion: userMessageText }, sendAnonId: isAnonimo, sendEntityToken: true }); // Usar userMessageText
+            await apiFetch(`/tickets/chat/${activeTicketId}/ubicacion`, { method: 'PUT', body: { direccion: userMessageText }, sendAnonId: isAnonimo, sendEntityToken: true });
+            await apiFetch(`/tickets/municipio/${activeTicketId}/ubicacion`, { method: 'PUT', body: { direccion: userMessageText }, sendAnonId: isAnonimo, sendEntityToken: true });
             fetchTicketInfo();
             toast({ title: "Dirección enviada", duration: 2000 });
-          } catch (error) { // Capturar error
+          } catch (error) {
             console.error("Error enviando dirección:", error);
             toast({ title: "Error enviando dirección", variant: "destructive" });
           }
         }
-        // No enviar el mensaje del usuario aquí, ya se manejará abajo con el payload completo
-        // y se evita duplicidad si se comparte ubicación/foto
       }
       setShowCierre(null);
 
-      // Mensaje usuario (ahora usa el payload.text)
-      setMessages((prev) => [...prev, {
-        id: Date.now(), text: userMessageText, isBot: false, timestamp: new Date(), // Usar userMessageText
-      }]);
-      lastQueryRef.current = userMessageText; // Usar userMessageText
+      const userMessageObject: Message = {
+        id: Date.now(),
+        text: userMessageText,
+        isBot: false,
+        timestamp: new Date(),
+        attachmentInfo: payload.attachmentInfo, 
+      };
+      console.log("ChatPage: Adding user message to state:", userMessageObject); // CONSOLE.LOG PARA DEBUG
+      setMessages((prev) => [...prev, userMessageObject]);
+      lastQueryRef.current = userMessageText; 
       setIsTyping(true);
 
       try {
         if (activeTicketId) {
-          // Si hay un ticket activo (chat en vivo), enviar como comentario
+          const body: any = {
+            comentario: userMessageText,
+          };
+          if (payload.ubicacion_usuario) body.ubicacion = payload.ubicacion_usuario;
+          if (payload.attachmentInfo) {
+            body.attachment_info = payload.attachmentInfo; 
+          } else if (payload.es_foto && payload.archivo_url) {
+            body.foto_url = payload.archivo_url; 
+          }
+
           await apiFetch(`/tickets/chat/${activeTicketId}/responder_ciudadano`, {
             method: "POST",
-            body: {
-                comentario: userMessageText, // Usar userMessageText
-                ...(payload.es_foto && { foto_url: payload.archivo_url }),
-                ...(payload.es_ubicacion && { ubicacion: payload.ubicacion_usuario }),
-            },
+            body: body,
             sendAnonId: isAnonimo,
             sendEntityToken: true,
           });
         } else {
-          const requestPayload: Record<string, any> = { // Renombrado para evitar conflicto con el 'payload' de la función
-            pregunta: userMessageText, // Usar userMessageText
+          const requestPayload: Record<string, any> = { 
+            pregunta: userMessageText, 
             contexto_previo: contexto,
-            // Incluir datos de adjunto si están presentes
-            ...(payload.es_foto && { es_foto: true, archivo_url: payload.archivo_url }),
+            ...(payload.attachmentInfo && { attachment_info: payload.attachmentInfo }), 
             ...(payload.es_ubicacion && { es_ubicacion: true, ubicacion_usuario: payload.ubicacion_usuario }),
-            // Incluir acción de botón si está presente
             ...(payload.action && { action: payload.action }),
+            // Campos legados como fallback si no hay attachmentInfo
+            ...(payload.archivo_url && !payload.attachmentInfo && { archivo_url: payload.archivo_url }),
+            ...(payload.es_foto && !payload.attachmentInfo && { es_foto: payload.es_foto }),
           };
+          
           let rubroClave: string | undefined = undefined;
           if (tipoChat === 'pyme') {
             rubroClave = rubroNormalizado;
@@ -308,29 +312,30 @@ const ChatPage = () => {
           if (rubroClave) requestPayload.rubro_clave = rubroClave;
           requestPayload.tipo_chat = tipoChat;
           if (isAnonimo && anonId) requestPayload.anon_id = anonId;
+          
           const endpoint = getAskEndpoint({ tipoChat, rubro: rubroClave });
-
           const data = await apiFetch<any>(endpoint, {
             method: "POST",
-            body: requestPayload, // Usar el nuevo requestPayload
+            body: requestPayload,
             skipAuth: !authToken,
             sendEntityToken: true,
           });
 
           setContexto(data.contexto_actualizado || {});
-
           const { text: respuestaText, botones } = parseChatResponse(data);
 
-          setMessages((prev) => [...prev, {
+          const botMessage: Message = {
             id: Date.now(),
             text: respuestaText || "⚠️ No se pudo generar una respuesta.",
             isBot: true,
             timestamp: new Date(),
             botones,
             query: lastQueryRef.current || undefined,
-            mediaUrl: data.media_url, // Asegúrate de asignar esto desde la respuesta
-            locationData: data.location_data, // Asegúrate de asignar esto desde la respuesta
-          }]);
+            mediaUrl: data.media_url,
+            locationData: data.location_data,
+            attachmentInfo: data.attachment_info || data.attachmentInfo, // Asumir que el bot devuelve 'attachment_info' o 'attachmentInfo'
+          };
+          setMessages((prev) => [...prev, botMessage]);
           lastQueryRef.current = null;
 
           if (data.ticket_id) {
@@ -364,19 +369,34 @@ const ChatPage = () => {
         setIsTyping(false);
       }
     },
-    // Añadir todas las dependencias necesarias de useCallback
     [esperandoDireccion, activeTicketId, isAnonimo, anonId, contexto, tipoChat, rubroNormalizado, authToken, fetchTicketInfo, refreshUser]
   );
 
-  // handleFileUploaded ahora espera el objeto 'data' del AdjuntarArchivo
-  const handleFileUploaded = useCallback((data: { url: string; }) => {
-    if (data?.url) {
-        handleSend({ text: "Archivo adjunto", es_foto: true, archivo_url: data.url }); // Enviar como SendPayload
+  // Esta función es un callback para AdjuntarArchivo si se usara fuera de ChatInput
+  // No es el flujo principal si ChatInput maneja sus propias subidas.
+  const handleFileUploaded = useCallback((data: { 
+    url: string; 
+    filename: string; // Asumimos que el backend devuelve filename (nombre en servidor)
+    name?: string;     // Y opcionalmente name (nombre original)
+    mimeType?: string; 
+    size?: number; 
+  }) => {
+    if (data?.url && (data?.filename || data?.name)) {
+        const displayName = data.name || data.filename;
+        const fileAttachmentInfo: AttachmentInfo = {
+            name: displayName,
+            url: data.url,
+            mimeType: data.mimeType,
+            size: data.size     
+        };
+        handleSend({ 
+            text: `Archivo adjunto: ${displayName}`,
+            archivo_url: data.url, 
+            attachmentInfo: fileAttachmentInfo 
+        });
     }
   }, [handleSend]);
 
-
-  // Render
   const isTicketLocationValid =
     !!ticketInfo &&
     typeof ticketInfo.latitud === "number" &&
@@ -389,7 +409,6 @@ const ChatPage = () => {
     <div className="min-h-screen flex flex-col w-full bg-background text-foreground">
       <Navbar />
       <main className="flex-grow flex flex-col items-center justify-center py-4 sm:py-6 md:py-8">
-        {/* Chat Panel Container */}
         <div
           className={`
             w-full max-w-2xl lg:max-w-3xl
@@ -400,11 +419,10 @@ const ChatPage = () => {
             overflow-hidden
           `}
         >
-          {/* Chat Header */}
           <header className="p-3 sm:p-4 border-b border-border bg-card/95 backdrop-blur-sm flex items-center justify-between">
             <div className="flex items-center gap-3">
               <img
-                src={tipoChat === "municipio" ? "/favicon/favicon-96x96.png" : "/chatboc_widget_64x64.webp"} // Example: different icon per tipoChat
+                src={tipoChat === "municipio" ? "/favicon/favicon-96x96.png" : "/chatboc_widget_64x64.webp"}
                 alt="Chat Icon"
                 className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-primary/10 p-1"
               />
@@ -415,14 +433,12 @@ const ChatPage = () => {
                 <p className="text-xs text-green-500">En línea</p>
               </div>
             </div>
-            {/* Posibles acciones en el header, como un menú de opciones */}
           </header>
 
-          {/* Messages Area */}
           <div
             ref={chatMessagesContainerRef}
             className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 custom-scroll scrollbar-thin scrollbar-thumb-muted-foreground/30 hover:scrollbar-thumb-muted-foreground/50 scrollbar-track-transparent"
-            style={{ minHeight: 0 }} // Necesario para que flex-1 funcione bien con overflow
+            style={{ minHeight: 0 }}
           >
             {messages.map((msg) => (
               <ChatMessage
@@ -441,10 +457,9 @@ const ChatPage = () => {
                 {showCierre.text}
               </div>
             )}
-            <div style={{ height: '1px' }} /> {/* Spacer to ensure scroll to bottom works well */}
+            <div style={{ height: '1px' }} /> 
           </div>
 
-          {/* Input Area / Autocomplete */}
           <footer className="bg-card/95 backdrop-blur-sm p-3 sm:p-4 border-t border-border min-w-0">
             {esperandoDireccion ? (
               <div>
@@ -482,6 +497,5 @@ const ChatPage = () => {
     </div>
   );
 };
-
 
 export default ChatPage;
