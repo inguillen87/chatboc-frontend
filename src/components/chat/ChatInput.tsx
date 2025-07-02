@@ -41,31 +41,36 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
   };
 
   // --- LÓGICA PARA ARCHIVOS Y UBICACIÓN: AHORA ENVÍAN MENSAJE SOLO CUANDO EL DATO ESTÁ LISTO ---
-  // Este callback es llamado por AdjuntarArchivo CUANDO el archivo ya se SUBIÓ y tenemos su URL, nombre, tipo y tamaño
-  const handleFileUploaded = async (data: { url: string; name: string; mimeType: string; size: number; }) => {
-    if (isTyping || !data || !data.url || !data.name) {
-      toast({ title: "Error de subida", description: "No se pudo obtener la información completa del archivo subido.", variant: "destructive" });
+  // Este callback es llamado por AdjuntarArchivo CUANDO el archivo ya se SUBIÓ.
+  // 'data' es la respuesta del backend /archivos/subir.
+  // Respuesta actual del backend: { filename: string, mensaje: string, url: string }
+  const handleFileUploaded = async (data: { url: string; filename: string; mimeType?: string; size?: number; [key: string]: any; }) => {
+    // Validar campos mínimos esperados de la respuesta del backend (url y filename)
+    if (isTyping || !data || !data.url || !data.filename) {
+      toast({ title: "Error de subida", description: "La información del archivo subido está incompleta.", variant: "destructive" });
       return;
     }
 
-    const fileExtension = data.name.split('.').pop()?.toLowerCase();
-    // Determinar si es una imagen basado en mimeType o extensión para el flag 'es_foto' (si aún se necesita)
-    const isImage = data.mimeType?.startsWith('image/') || (fileExtension && ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileExtension));
+    // El nombre original del archivo no está disponible desde el backend actual. Usamos data.filename.
+    const name = data.filename;
+    // mimeType y size no son provistos por el backend actual, serán undefined.
+    // deriveAttachmentInfo en el frontend intentará deducir el tipo por la extensión.
+    const mimeType = data.mimeType; // Será undefined si el backend no lo envía
+    const size = data.size;         // Será undefined si el backend no lo envía
 
     onSendMessage({
-      text: `Archivo adjunto: ${data.name}`, // Texto más descriptivo
-      // es_foto: isImage, // Hacerlo dinámico, o eliminar si el backend ya no lo necesita y usa mimeType
-      archivo_url: data.url, // Mantener por retrocompatibilidad o si el backend lo usa específicamente
-      attachmentInfo: { // Enviar la información completa del adjunto
-        name: data.name,
+      text: `Archivo adjunto: ${name}`, // Usar el nombre disponible (filename del servidor)
+      archivo_url: data.url,
+      attachmentInfo: {
+        name: name,
         url: data.url,
-        mimeType: data.mimeType,
-        size: data.size
+        mimeType: mimeType, // Pasará undefined si no viene del backend
+        size: size          // Pasará undefined si no viene del backend
       }
     });
     setInput("");
     onTypingChange?.(false);
-    toast({ title: "Archivo enviado", description: `${data.name} ha sido adjuntado.`, duration: 3000 });
+    toast({ title: "Archivo enviado", description: `${name} ha sido adjuntado.`, duration: 3000 });
   };
 
   // Este callback es llamado por el botón "Compartir ubicación" de ChatInput

@@ -15,14 +15,17 @@ import getOrCreateAnonId from "@/utils/anonId";
 import { toast } from "@/components/ui/use-toast";
 import { requestLocation } from "@/utils/geolocation";
 
+import { AttachmentInfo } from "@/utils/attachment"; // Importar AttachmentInfo
+
 // --- NUEVA INTERFAZ PARA EL PAYLOAD DE ENVÍO DE MENSAJES (COMO EN useChatLogic.ts) ---
 interface SendPayload {
   text: string;
-  es_foto?: boolean;
-  archivo_url?: string;
+  es_foto?: boolean; // Legacy, preferir attachmentInfo
+  archivo_url?: string; // Legacy, preferir attachmentInfo.url
   es_ubicacion?: boolean;
   ubicacion_usuario?: { lat: number; lon: number; }; // Asegúrate de que las claves sean 'lat' y 'lon'
   action?: string;
+  attachmentInfo?: AttachmentInfo; // Nuevo campo para la información del adjunto
 }
 // ---------------------------------------------------------------------------------
 
@@ -270,33 +273,48 @@ const ChatPage = () => {
       setShowCierre(null);
 
       // Mensaje usuario (ahora usa el payload.text)
-      setMessages((prev) => [...prev, {
-        id: Date.now(), text: userMessageText, isBot: false, timestamp: new Date(), // Usar userMessageText
-      }]);
-      lastQueryRef.current = userMessageText; // Usar userMessageText
+      // Y también incluye attachmentInfo si está presente en el payload
+      const userMessageObject: Message = {
+        id: Date.now(),
+        text: userMessageText,
+        isBot: false,
+        timestamp: new Date(),
+        attachmentInfo: payload.attachmentInfo, // Añadir attachmentInfo al mensaje local
+      };
+      console.log("ChatPage: Adding user message to state:", userMessageObject); // <-- NUEVO CONSOLE.LOG
+      setMessages((prev) => [...prev, userMessageObject]);
+      lastQueryRef.current = userMessageText;
       setIsTyping(true);
 
       try {
         if (activeTicketId) {
           // Si hay un ticket activo (chat en vivo), enviar como comentario
+          // TODO: Actualizar este backend para que acepte attachmentInfo si es necesario
           await apiFetch(`/tickets/chat/${activeTicketId}/responder_ciudadano`, {
             method: "POST",
             body: {
-                comentario: userMessageText, // Usar userMessageText
+                comentario: userMessageText,
+                // Mantener es_foto y archivo_url por ahora si el backend de tickets aún los usa
                 ...(payload.es_foto && { foto_url: payload.archivo_url }),
-                ...(payload.es_ubicacion && { ubicacion: payload.ubicacion_usuario }),
+                ...(payload.ubicacion_usuario && { ubicacion: payload.ubicacion_usuario }),
+                // Considerar enviar attachmentInfo aquí también si el backend de tickets lo soporta:
+                // ...(payload.attachmentInfo && { attachment: payload.attachmentInfo }),
             },
             sendAnonId: isAnonimo,
             sendEntityToken: true,
           });
         } else {
-          const requestPayload: Record<string, any> = { // Renombrado para evitar conflicto con el 'payload' de la función
-            pregunta: userMessageText, // Usar userMessageText
+          // Para el bot
+          const requestPayload: Record<string, any> = {
+            pregunta: userMessageText,
             contexto_previo: contexto,
-            // Incluir datos de adjunto si están presentes
-            ...(payload.es_foto && { es_foto: true, archivo_url: payload.archivo_url }),
+            // Enviar el attachmentInfo completo al backend del bot
+            // También mantener los campos legados si el bot aún los usa o para una transición gradual
+            ...(payload.archivo_url && { archivo_url: payload.archivo_url }), // Podría ser parte de attachmentInfo.url
+            ...(payload.es_foto && { es_foto: payload.es_foto }), // El backend debería deducir esto de attachmentInfo.mimeType
+            ...(payload.attachmentInfo && { attachment_info: payload.attachmentInfo }), // Campo sugerido para el backend
+
             ...(payload.es_ubicacion && { es_ubicacion: true, ubicacion_usuario: payload.ubicacion_usuario }),
-            // Incluir acción de botón si está presente
             ...(payload.action && { action: payload.action }),
           };
           let rubroClave: string | undefined = undefined;

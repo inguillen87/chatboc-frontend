@@ -29,7 +29,13 @@ interface Props {
 }
 
 const AttachmentPreview: React.FC<Props> = ({ message, attachmentInfo, fallbackText }) => {
-  const { locationData } = message;
+  // Acceder a locationData de forma segura, message puede no estar siempre si solo se pasa attachmentInfo (aunque el plan es pasar message)
+  const locationData = message?.locationData;
+
+  // Log para depuración
+  if (attachmentInfo) {
+    console.log("AttachmentPreview attachmentInfo:", attachmentInfo);
+  }
 
   // --- Lógica para ubicación ---
   if (locationData && typeof locationData.lat === 'number' && typeof locationData.lon === 'number') {

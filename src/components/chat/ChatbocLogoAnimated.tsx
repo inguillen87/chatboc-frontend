@@ -12,19 +12,21 @@ const ChatbocLogoAnimated = ({
   pulsing = false,
   style = {},
 }) => {
+  const actualSize = Math.max(size, 1); // Asegurar que el tamaño no sea 0 o negativo
+
   const eyeBaseY = 24;
-  const leftEyeX = movingEyes ? 19 : 18; // Slightly more movement inwards for movingEyes
-  const rightEyeX = movingEyes ? 37 : 38; // Slightly more movement inwards for movingEyes
+  const leftEyeX = movingEyes ? 19 : 18;
+  const rightEyeX = movingEyes ? 37 : 38;
 
   const mouthPath = smiling
-    ? "M18,35 Q28,46 38,35" // Wider, happier smile
-    : "M20,36 Q28,40 36,36"; // Neutral mouth slightly adjusted
+    ? "M18,35 Q28,46 38,35"
+    : "M20,36 Q28,40 36,36";
 
   return (
     <motion.div
       style={{
-        width: size,
-        height: size,
+        width: actualSize, // Usar actualSize
+        height: actualSize, // Usar actualSize
         position: "relative",
         display: "inline-block",
         ...style,
@@ -58,15 +60,15 @@ const ChatbocLogoAnimated = ({
         src="/favicon/favicon-512x512.png" // Assuming this is the base character image
         alt="Chatboc"
         style={{
-          width: size,
-          height: size,
+          width: actualSize, // Usar actualSize
+          height: actualSize, // Usar actualSize
           display: "block",
         }}
         draggable={false}
       />
       <motion.svg
-        width={size}
-        height={size}
+        width={actualSize} // Usar actualSize
+        height={actualSize} // Usar actualSize
         viewBox="0 0 56 56" // ViewBox should match the design coordinates
         style={{
           position: "absolute",
