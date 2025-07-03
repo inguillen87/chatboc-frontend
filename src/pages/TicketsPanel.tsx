@@ -888,15 +888,15 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
   if (!newMessage.trim() || isSending || isAnonimo) return;
   setIsSending(true);
 
-  // Agregar texto del mensaje y adjunto si hay
-  const optimisticCommentText = newMessage + (fileToAttach ? `\n[Adjunto: ${fileToAttach.name}]` : "");
-  const tempId = Date.now();
-  const optimisticComment: Comment = {
-    id: tempId,
-    comentario: optimisticCommentText,
-    fecha: new Date().toISOString(),
-    es_admin: true,
-  };
+ const optimisticCommentText = newMessage + (fileToAttach ? `\n[Adjunto: ${fileToAttach.name}]` : "");
+const tempId = Date.now();
+const optimisticComment: Comment = {
+  id: tempId,
+  comentario: optimisticCommentText,
+  fecha: new Date().toISOString(),
+  es_admin: true,
+};
+
 
   setComentarios(prev => [...prev, optimisticComment].sort((a,b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()));
 
