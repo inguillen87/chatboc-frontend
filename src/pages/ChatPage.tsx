@@ -1,5 +1,6 @@
 // src/pages/ChatPage.tsx
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { Message } from "@/types/chat";
 import ChatMessage from "@/components/chat/ChatMessage";
 import ChatInput from "@/components/chat/ChatInput";
 import TypingIndicator from "@/components/chat/TypingIndicator";
@@ -14,9 +15,21 @@ import TicketMap from "@/components/TicketMap";
 import getOrCreateAnonId from "@/utils/anonId";
 import { toast } from "@/components/ui/use-toast";
 import { requestLocation } from "@/utils/geolocation";
-import { Message, SendPayload, AttachmentInfo } from "@/types/chat";
 
-// NO declares más interfaces ni tipos acá. Todo sale de "@/types/chat".
+// Importar AttachmentInfo y SendPayload desde @/types/chat o un lugar centralizado
+// Asegúrate de que SendPayload en @/types/chat.ts incluya attachmentInfo
+import { AttachmentInfo, SendPayload as TypeSendPayload } from "@/types/chat";
+
+// Si SendPayload no está en @/types/chat.ts o necesita ser específico aquí:
+// interface SendPayload {
+//   text: string;
+//   es_foto?: boolean;
+//   archivo_url?: string;
+//   es_ubicacion?: boolean;
+//   ubicacion_usuario?: { lat: number; lon: number; };
+//   action?: string;
+//   attachmentInfo?: AttachmentInfo;
+// }
 
 function useIsMobile(breakpoint = 768) {
   const [isMobile, setIsMobile] = useState(
@@ -150,17 +163,7 @@ const ChatPage = () => {
 
   const handleShareGps = useCallback(() => {
     if (!activeTicketId) {
-      requestLocation({ enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }).then(coords => {
-        if (coords) {
-          handleSend({
-            text: "Adjunto mi ubicación actual.",
-            es_ubicacion: true,
-            ubicacion_usuario: { lat: coords.latitud, lon: coords.longitud },
-          });
-        } else {
-          toast({ title: "Ubicación no disponible", description: "No pudimos acceder a tu ubicación por GPS.", variant: "destructive" });
-        }
-      });
+      toast({ title: "Ubicación no disponible", description: "El ticket no está activo.", variant: "destructive", duration: 3000 });
       return;
     }
     if (tipoChat === "municipio") {
@@ -182,12 +185,12 @@ const ChatPage = () => {
           fetchTicketInfo();
           toast({ title: "Ubicación enviada", description: "Tu ubicación ha sido compartida con el agente.", duration: 3000 });
         } catch (error) {
-          console.error("Error al enviar ubicación al ticket:", error);
+          console.error("Error al enviar ubicación:", error);
           toast({ title: "Error al enviar ubicación", description: "Hubo un problema al enviar tu ubicación.", variant: "destructive", duration: 3000 });
         }
       });
     }
-  }, [activeTicketId, tipoChat, isAnonimo, fetchTicketInfo, handleSend]);
+  }, [activeTicketId, fetchTicketInfo, tipoChat, isAnonimo]);
 
   useEffect(() => {
     const fetchNewMessages = async () => {
@@ -200,14 +203,9 @@ const ChatPage = () => {
         );
         if (data.mensajes && data.mensajes.length > 0) {
           const nuevosMensajes: Message[] = data.mensajes.map((msg) => ({
-            id: msg.id, 
-            text: msg.texto, 
-            isBot: msg.es_admin, 
-            timestamp: new Date(msg.fecha), 
-            query: undefined,
-            attachmentInfo: msg.attachment_info || msg.attachmentInfo,
-            mediaUrl: msg.media_url || msg.mediaUrl,
-            locationData: msg.location_data || msg.locationData,
+            id: msg.id, text: msg.texto, isBot: msg.es_admin, timestamp: new Date(msg.fecha), query: undefined,
+            // Asegurarse de que el backend de tickets también devuelva attachmentInfo si es necesario
+            attachmentInfo: msg.attachment_info, // Asumiendo que el backend lo devuelve como attachment_info
           }));
           setMessages((prev) => [...prev, ...nuevosMensajes]);
           ultimoMensajeIdRef.current = data.mensajes[data.mensajes.length - 1].id;
@@ -233,14 +231,16 @@ const ChatPage = () => {
   }, [activeTicketId, fetchTicketInfo, isAnonimo]);
 
   const handleSend = useCallback(
-    async (payload: SendPayload) => {
-      const userMessageText = payload.text?.trim() || '';
+    async (payload: TypeSendPayload) => {
+      const userMessageText = payload.text.trim();
 
-      if (!userMessageText && !payload.attachmentInfo && !payload.action && !payload.ubicacion_usuario && !payload.archivo_url) {
-        return;
+      // No enviar si es solo un texto vacío y no hay adjunto ni acción
+      if (!userMessageText && !payload.attachmentInfo && !payload.action && !payload.ubicacion_usuario) {
+        // Si hay archivo_url legado pero no attachmentInfo, aún podría ser un adjunto
+        if (!payload.archivo_url) return;
       }
       
-      if (esperandoDireccion && !payload.attachmentInfo && !payload.ubicacion_usuario) {
+      if (esperandoDireccion && !payload.attachmentInfo) { // No procesar como dirección si es un adjunto
         setEsperandoDireccion(false);
         setForzarDireccion(false);
         safeLocalStorage.setItem("ultima_direccion", userMessageText);
@@ -264,33 +264,39 @@ const ChatPage = () => {
         text: userMessageText,
         isBot: false,
         timestamp: new Date(),
-        attachmentInfo: payload.attachmentInfo,
+        attachmentInfo: payload.attachmentInfo, 
       };
       setMessages((prev) => [...prev, userMessageObject]);
-      lastQueryRef.current = userMessageText;
+      lastQueryRef.current = userMessageText; 
       setIsTyping(true);
 
       try {
         if (activeTicketId) {
+          const body: any = {
+            comentario: userMessageText,
+          };
+          if (payload.ubicacion_usuario) body.ubicacion = payload.ubicacion_usuario;
+          // Para el chat en vivo, decidir si se envía attachmentInfo o los campos legados
+          if (payload.attachmentInfo) {
+            body.attachment_info = payload.attachmentInfo; // Preferido
+          } else if (payload.es_foto && payload.archivo_url) {
+            body.foto_url = payload.archivo_url; // Legado
+          }
+
           await apiFetch(`/tickets/chat/${activeTicketId}/responder_ciudadano`, {
             method: "POST",
-            body: {
-                comentario: userMessageText,
-                ...(payload.es_foto && { foto_url: payload.archivo_url }),
-                ...(payload.ubicacion_usuario && { ubicacion: payload.ubicacion_usuario }),
-            },
+            body: body,
             sendAnonId: isAnonimo,
             sendEntityToken: true,
           });
         } else {
-          const requestPayload: Record<string, any> = {
-            pregunta: userMessageText,
+          const requestPayload: Record<string, any> = { 
+            pregunta: userMessageText, 
             contexto_previo: contexto,
-            ...(payload.archivo_url && { archivo_url: payload.archivo_url }),
-            ...(payload.es_foto && { es_foto: payload.es_foto }),
-            ...(payload.attachmentInfo && { attachment_info: payload.attachmentInfo }),
+            ...(payload.attachmentInfo && { attachment_info: payload.attachmentInfo }), 
             ...(payload.es_ubicacion && { es_ubicacion: true, ubicacion_usuario: payload.ubicacion_usuario }),
             ...(payload.action && { action: payload.action }),
+            // Mantener campos legados si el bot los necesita para transición
             ...(payload.archivo_url && !payload.attachmentInfo && { archivo_url: payload.archivo_url }),
             ...(payload.es_foto && !payload.attachmentInfo && { es_foto: payload.es_foto }),
           };
@@ -316,6 +322,7 @@ const ChatPage = () => {
           setContexto(data.contexto_actualizado || {});
           const { text: respuestaText, botones } = parseChatResponse(data);
 
+          // Mensaje de respuesta del Bot
           const botMessage: Message = {
             id: Date.now(),
             text: respuestaText || "⚠️ No se pudo generar una respuesta.",
@@ -325,7 +332,7 @@ const ChatPage = () => {
             query: lastQueryRef.current || undefined,
             mediaUrl: data.media_url,
             locationData: data.location_data,
-            attachmentInfo: data.attachment_info || data.attachmentInfo,
+            attachmentInfo: data.attachment_info, // Asumir que el bot devuelve 'attachment_info'
           };
           setMessages((prev) => [...prev, botMessage]);
           lastQueryRef.current = null;
@@ -364,24 +371,22 @@ const ChatPage = () => {
     [esperandoDireccion, activeTicketId, isAnonimo, anonId, contexto, tipoChat, rubroNormalizado, authToken, fetchTicketInfo, refreshUser]
   );
 
-  const handleFileUploaded = useCallback((data: { 
-    url: string; 
-    filename: string;
-    name?: string;
-    mimeType?: string; 
-    size?: number; 
-  }) => {
-    if (data?.url && (data?.filename || data?.name)) {
-        const displayName = data.name || data.filename;
+  // Esta función handleFileUploaded es para un flujo donde la subida NO viene de ChatInput,
+  // sino de otra parte de ChatPage. Si ChatInput es la única fuente de subidas, esta podría ser redundante.
+  // Por ahora, la dejamos pero aseguramos que use el SendPayload correcto.
+  const handleFileUploaded = useCallback((data: { url: string; filename: string; mimeType?: string; size?: number; }) => {
+    // Asumimos que 'data' aquí es la respuesta ya procesada similar a lo que /archivos/subir debería devolver.
+    if (data?.url && data?.filename) {
         const fileAttachmentInfo: AttachmentInfo = {
-            name: displayName,
+            name: data.filename, // Usar filename como name
             url: data.url,
-            mimeType: data.mimeType,
-            size: data.size     
+            mimeType: data.mimeType, // Será undefined si no se provee
+            size: data.size          // Será undefined si no se provee
         };
         handleSend({ 
-            text: `Archivo adjunto: ${displayName}`,
-            archivo_url: data.url, 
+            text: `Archivo adjunto: ${data.filename}`,
+            // es_foto: data.mimeType?.startsWith('image/'), // Podría deducirse si mimeType está
+            archivo_url: data.url, // Legado
             attachmentInfo: fileAttachmentInfo 
         });
     }
@@ -475,7 +480,7 @@ const ChatPage = () => {
               </div>
             ) : !showCierre || !showCierre.show ? (
               <ChatInput
-                onSendMessage={handleSend}
+                onSendMessage={handleSend} // handleSend se pasa a ChatInput
                 isTyping={isTyping}
               />
             ) : (
