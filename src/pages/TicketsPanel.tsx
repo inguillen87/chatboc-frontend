@@ -857,7 +857,7 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
     if (!chatEnVivo) return;
 
     fetchComentarios(true); // Carga inicial y refresco del ticket
-    pollingRef.current = setInterval(() => fetchComentarios(true), 10000);
+    pollingRef.current = setInterval(() => fetchComentarios(true), 15000); // Aumentado de 10s a 15s
     return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
   }, [ticket.id, ticket.comentarios, chatEnVivo, fetchComentarios]); // ticket.comentarios como dep para resetear si cambia externamente
 
