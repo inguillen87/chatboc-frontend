@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useCallback, FC, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Loader2, Send, Ticket as TicketIcon, ChevronDown, ChevronUp, User, ShieldCheck, X, Search, Filter, ListFilter, File, ArrowLeft, XCircle, BellRing, AlertTriangle } from "lucide-react"; // TODO: XCircle, BellRing, AlertTriangle importados acá
+import { Loader2, Send, Ticket as TicketIcon, ChevronDown, ChevronUp, User, ShieldCheck, X, Search, Filter, ListFilter, File, ArrowLeft, XCircle, BellRing, AlertTriangle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area"; // Import Radix ScrollArea
 import { apiFetch, ApiError } from "@/utils/api";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 // import getOrCreateAnonId from "@/utils/anonId"; // No se usa en admin panel
@@ -691,7 +692,8 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
   const [newMessage, setNewMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [comentarios, setComentarios] = useState<Comment[]>(ticket.comentarios || []);
-  const chatBottomRef = useRef<HTMLDivElement>(null);
+  const chatBottomRef = useRef<HTMLDivElement>(null); // Still useful for knowing when new content is added visually
+  const scrollAreaRef = useRef<React.ElementRef<typeof ScrollAreaPrimitive.Root>>(null);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
   const ultimoMensajeIdRef = useRef<number>(0);
 
@@ -763,14 +765,26 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
 
 
   useEffect(() => {
-    const container = chatBottomRef.current?.parentElement;
-    if (container && chatBottomRef.current) {
-        const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150;
-        if (atBottom) {
-             setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    const rootElement = scrollAreaRef.current;
+    if (!rootElement) return;
+
+    const viewportElement = rootElement.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement | null;
+
+    if (viewportElement && chatBottomRef.current) { // chatBottomRef helps confirm content is there
+        const { scrollTop, scrollHeight, clientHeight } = viewportElement;
+
+        // AUTO_SCROLL_THRESHOLD: Only scroll if user is within this many pixels from the bottom.
+        // This prevents snapping the view if the user has scrolled up significantly.
+        const AUTO_SCROLL_THRESHOLD = 250; // Increased threshold
+        const isNearBottom = scrollHeight - scrollTop - clientHeight < AUTO_SCROLL_THRESHOLD;
+
+        if (isNearBottom) {
+            setTimeout(() => {
+                viewportElement.scrollTo({ top: viewportElement.scrollHeight, behavior: 'smooth' });
+            }, 100); // Keep timeout to allow DOM update and rendering
         }
     }
-  }, [comentarios.length]); 
+  }, [comentarios.length]); // Only trigger on new comments
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || isSending || isAnonimo) return;
@@ -866,7 +880,7 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
                         </Button>
                     </div>
                 )}
-                <ScrollArea className="flex-1 pr-2">
+                <ScrollArea ref={scrollAreaRef} className="flex-1 pr-2">
                     <main className="space-y-3 p-1">
                     {comentarios && comentarios.length > 0 ? (
                         comentarios.map((comment) => {
