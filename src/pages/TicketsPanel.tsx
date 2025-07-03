@@ -25,6 +25,7 @@ import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/
 // Importar los tipos consolidados
 import type { Ticket, TicketSummary, Comment, TicketStatus, SlaStatus, PriorityStatus } from "@/types";
 import { toast } from "@/components/ui/use-toast";
+import { normalizePhoneNumberForWhatsApp } from "@/utils/phoneNumber";
 import {
   DropdownMenu,
   DropdownMenuContent,
