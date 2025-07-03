@@ -12,6 +12,7 @@ import {
   Package,
   TrendingUp,
   Boxes,
+  FileText, // Icono para Plantillas
 } from "lucide-react";
 import { useUser } from "@/hooks/useUser";
 import { normalizeRole } from "@/utils/roles";
