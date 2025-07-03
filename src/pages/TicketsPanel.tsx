@@ -898,6 +898,7 @@ const optimisticComment: Comment = {
 };
 
 
+
   setComentarios(prev => [...prev, optimisticComment].sort((a,b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()));
 
   const currentMessage = newMessage;
