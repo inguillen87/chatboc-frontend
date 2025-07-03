@@ -42,6 +42,7 @@ import PredefinedQueries from '@/pages/PredefinedQueries';
 import PermissionDenied from '@/pages/PermissionDenied';
 import CartPage from '@/pages/Cart';
 import ProductCheckoutPage from '@/pages/ProductCheckoutPage'; // Importar la nueva página
+import GestionPlantillasPage from '@/pages/GestionPlantillasPage'; // Importar la nueva página de gestión de plantillas
 
 export interface RouteConfig {
   path: string;
@@ -92,6 +93,7 @@ const routes: RouteConfig[] = [
   { path: '/municipal/analytics', element: <MunicipalAnalytics />, roles: ['admin'] },
   { path: '/municipal/stats', element: <MunicipalStats />, roles: ['admin'] },
   { path: '/municipal/incidents', element: <IncidentsMap />, roles: ['admin'] },
+  { path: '/perfil/plantillas-respuesta', element: <GestionPlantillasPage />, roles: ['admin', 'empleado'] },
 ];
 
 export default routes;

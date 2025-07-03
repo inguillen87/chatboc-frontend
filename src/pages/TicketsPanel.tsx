@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, FC, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Loader2, Send, Ticket as TicketIcon, ChevronDown, ChevronUp, User, ShieldCheck, X, Search, Filter, ListFilter, File, ArrowLeft, XCircle, BellRing, AlertTriangle } from "lucide-react";
+import { Loader2, Send, Ticket as TicketIcon, ChevronDown, ChevronUp, User, ShieldCheck, X, Search, Filter, ListFilter, File, ArrowLeft, XCircle } from "lucide-react"; // BellRing, AlertTriangle eliminados
 import { motion, AnimatePresence } from "framer-motion";
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area"; // Import Radix ScrollArea
 import { apiFetch, ApiError } from "@/utils/api";
@@ -22,44 +22,78 @@ import useRequireRole from "@/hooks/useRequireRole";
 import type { Role } from "@/utils/roles";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
-// ----------- TIPOS Y ESTADOS -----------
-// ... ACÁ VA TODO TU CÓDIGO IGUAL QUE LO TENÍAS ...
+// Importar los tipos consolidados
+import type { Ticket, TicketSummary, Comment, TicketStatus, SlaStatus, PriorityStatus } from "@/types";
+import { toast } from "@/components/ui/use-toast";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"; // Para ayuda de Markdown
+import { MessageSquareText, HelpCircle } from "lucide-react"; // Iconos
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
-// (El resto del archivo es exactamente como lo pegaste)
+// ----------- TIPOS Y ESTADOS (AHORA IMPORTADOS O LOCALES ESPECÍFICOS) -----------
 
-
-
-// ----------- TIPOS Y ESTADOS -----------
-type TicketStatus = "nuevo" | "en_proceso" | "derivado" | "resuelto" | "cerrado" | "esperando_agente_en_vivo";
-type SlaStatus = "on_track" | "nearing_sla" | "breached" | null;
-type PriorityStatus = "low" | "medium" | "high" | null;
-
-interface Comment { id: number; comentario: string; fecha: string; es_admin: boolean; }
-interface Ticket {
-  id: number; tipo: 'pyme' | 'municipio'; nro_ticket: number; asunto: string; estado: TicketStatus; fecha: string;
-  detalles?: string; comentarios?: Comment[]; nombre_usuario?: string; email_usuario?: string; telefono?: string; direccion?: string; archivo_url?: string; categoria?: string;
-  municipio_nombre?: string;
-  latitud?: number | null;
-  longitud?: number | null;
-  sla_status?: SlaStatus; // Nuevo campo
-  priority?: PriorityStatus; // Nuevo campo
-  sla_deadline?: string; // Nuevo campo opcional
-}
-interface TicketSummary extends Omit<Ticket, 'detalles' | 'comentarios'> {
-  direccion?: string;
-  latitud?: number | null;
-  longitud?: number | null;
-  sla_status?: SlaStatus; // Nuevo campo
-  priority?: PriorityStatus; // Nuevo campo
-}
-// type CategorizedTickets = { [category: string]: TicketSummary[]; }; // Ahora sí lo vamos a usar o algo similar
+// Interfaz para los tickets agrupados, específica de este panel
 interface GroupedTickets {
   categoryName: string;
   tickets: TicketSummary[];
 }
 
+// Constantes para la lógica de UI, permanecen locales
+
+// --- Plantillas de Respuesta ---
+interface ResponseTemplate {
+  name: string;
+  text: string;
+  keywords?: string[]; // Palabras clave para sugerir la plantilla
+}
+
+const RESPONSE_TEMPLATES: ResponseTemplate[] = [
+  {
+    name: "Saludo Inicial",
+    text: "Hola {nombre_usuario},\n\nGracias por contactarnos. Estamos revisando tu consulta sobre '{asunto_ticket}' (#{nro_ticket}) y te responderemos a la brevedad.\n\nSaludos,\nEquipo de Soporte",
+    keywords: ["hola", "buenas", "saludo", "gracias por contactar"],
+  },
+  {
+    name: "Solicitar Más Información",
+    text: "Hola {nombre_usuario},\n\nPara poder ayudarte mejor con tu consulta sobre '{asunto_ticket}' (#{nro_ticket}), ¿podrías proporcionarnos los siguientes detalles adicionales?\n\n1. [Detalle 1]\n2. [Detalle 2]\n\nQuedamos atentos a tu respuesta.\n\nSaludos,\nEquipo de Soporte",
+    keywords: ["informacion", "detalles", "ayuda", "necesito mas", "datos"],
+  },
+  {
+    name: "Resolución Contraseña",
+    text: "Hola {nombre_usuario},\n\nCon gusto te ayudamos con el reinicio de tu contraseña para '{asunto_ticket}' (#{nro_ticket}). Puedes hacerlo siguiendo este enlace: [Enlace para Resetear Contraseña]. Si el problema persiste, avísanos.\n\nSaludos,\nEquipo de Soporte",
+    keywords: ["contraseña", "clave", "acceso", "password", "login", "olvide"],
+  },
+  {
+    name: "Cierre de Ticket",
+    text: "Hola {nombre_usuario},\n\nNos complace informarte que tu consulta sobre '{asunto_ticket}' (#{nro_ticket}) ha sido resuelta. Si tienes alguna otra pregunta o necesitas más ayuda, no dudes en contactarnos nuevamente.\n\nGracias por tu paciencia.\n\nSaludos,\nEquipo de Soporte",
+    keywords: ["resuelto", "solucionado", "cerrar", "listo", "finalizado"],
+  },
+  {
+    name: "Escalar Problema",
+    text: "Hola {nombre_usuario},\n\nEntendemos la situación respecto a '{asunto_ticket}' (#{nro_ticket}). Hemos escalado tu caso a nuestro equipo especializado y te contactarán lo antes posible con una actualización.\n\nGracias por tu comprensión.\n\nSaludos,\nEquipo de Soporte",
+    keywords: ["escalar", "especialista", "supervisor", "ayuda adicional", "derivar"],
+  }
+];
+// --- Fin Plantillas de Respuesta ---
+
+// Función para obtener plantillas sugeridas basada en palabras clave
+const getSuggestedTemplatesForTicket = (asuntoTicket: string, allTemplates: ResponseTemplate[]): ResponseTemplate[] => {
+  if (!asuntoTicket) return [];
+  const asuntoLower = asuntoTicket.toLowerCase();
+  return allTemplates.filter(template =>
+    template.keywords?.some(keyword => asuntoLower.includes(keyword.toLowerCase()))
+  );
+};
+
 const ESTADOS_ORDEN_PRIORIDAD: TicketStatus[] = ["nuevo", "en_proceso", "esperando_agente_en_vivo", "derivado", "resuelto", "cerrado"];
-const ESTADOS: Record<TicketStatus, { label: string; tailwind_class: string, icon?: React.ElementType }> = {
   nuevo: { label: "Nuevo", tailwind_class: "bg-blue-500 hover:bg-blue-600 text-white border-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600", icon: TicketIcon },
   en_proceso: { label: "En Proceso", tailwind_class: "bg-yellow-500 hover:bg-yellow-600 text-black border-yellow-700 dark:bg-yellow-400 dark:hover:bg-yellow-500", icon: Loader2 },
   derivado: { label: "Derivado", tailwind_class: "bg-purple-500 hover:bg-purple-600 text-white border-purple-700 dark:bg-purple-500 dark:hover:bg-purple-600" },
@@ -359,10 +393,15 @@ export default function TicketsPanel() {
       setDetailedTicket(data);
     } catch (err) {
       const errorMessage = err instanceof ApiError ? err.message : `No se pudo cargar el detalle del ticket ${ticketSummary.nro_ticket}.`;
-      setError(errorMessage); 
-      setSelectedTicketId(null); 
+      setError(errorMessage); // Mantiene el error en el panel central
+      setSelectedTicketId(null);
+      toast({
+        title: "Error al cargar detalle",
+        description: errorMessage,
+        variant: "destructive",
+      });
     }
-  }, []);
+  }, []); // Dependencias: timezone, locale si se usan en errores o logs específicos aquí, pero no directamente en la lógica de fetch.
 
   const handleTicketDetailUpdate = (updatedTicket: Ticket) => {
     setDetailedTicket(updatedTicket);
@@ -407,7 +446,7 @@ return (
       {/* ... header igual que antes ... */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Button variant="outline" size="icon" onClick={() => navigate(-1)} title="Volver a la página anterior">
+          <Button variant="outline" size="icon" onClick={() => navigate('/perfil')} title="Volver a Perfil">
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
@@ -694,9 +733,64 @@ const CATEGORIAS_CHAT_EN_VIVO = [
 const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUpdate, onClose }) => {
   const { timezone, locale } = useDateSettings();
   const [newMessage, setNewMessage] = useState("");
+  const [fileToAttach, setFileToAttach] = useState<File | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [comentarios, setComentarios] = useState<Comment[]>(ticket.comentarios || []);
-  const chatBottomRef = useRef<HTMLDivElement>(null); // Still useful for knowing when new content is added visually
+  const [suggestedTemplates, setSuggestedTemplates] = useState<ResponseTemplate[]>([]);
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState<boolean>(false);
+  const chatBottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (ticket && ticket.asunto) {
+      setIsLoadingSuggestions(true);
+      setSuggestedTemplates([]); // Limpiar sugerencias previas mientras carga
+
+      const payload = {
+        asunto: ticket.asunto,
+        contexto_ticket: ticket.detalles || ticket.comentarios?.[0]?.comentario || '',
+        // top_n: 3 // Opcional: si el backend lo soporta y queremos limitar
+      };
+
+      apiFetch<{ sugerencias: ResponseTemplate[] }>('/api/ai/suggest-templates', {
+        method: 'POST',
+        body: payload,
+        sendEntityToken: true, // Asumiendo que el endpoint requiere autenticación de admin/empleado
+      })
+        .then(response => {
+          setSuggestedTemplates(response.sugerencias || []);
+        })
+        .catch(error => {
+          console.error("Error al cargar sugerencias de plantillas:", error);
+          toast({
+            title: "Error en Sugerencias",
+            description: "No se pudieron cargar las sugerencias de plantillas desde el servidor.",
+            variant: "destructive",
+          });
+          setSuggestedTemplates([]); // Asegurar que quede vacío en caso de error
+        })
+        .finally(() => {
+          setIsLoadingSuggestions(false);
+        });
+    } else {
+      setSuggestedTemplates([]);
+      setIsLoadingSuggestions(false);
+    }
+  }, [ticket]); // Se ejecuta cuando el ticket cambia
+
+  const handleSelectTemplate = (templateText: string) => {
+    let processedText = templateText;
+    // Reemplazar placeholders con información del ticket actual
+    // ticket es una prop de TicketDetail_Refactored
+    processedText = processedText.replace(/{nombre_usuario}/g, ticket.nombre_usuario || "Cliente");
+    processedText = processedText.replace(/{asunto_ticket}/g, ticket.asunto || "su consulta");
+    // Podríamos añadir más placeholders como {nro_ticket}
+    processedText = processedText.replace(/{nro_ticket}/g, ticket.nro_ticket?.toString() || "");
+
+    setNewMessage(processedText);
+    // Opcional: Mover el foco al input de mensaje después de insertar la plantilla
+    // const messageInput = document.getElementById('message-input'); // Asumiendo que el input tiene este ID
+    // if (messageInput) messageInput.focus();
+  };
   const scrollAreaRef = useRef<React.ElementRef<typeof ScrollAreaPrimitive.Root>>(null);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
   const ultimoMensajeIdRef = useRef<number>(0);
@@ -800,14 +894,31 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
         fecha: new Date().toISOString(),
         es_admin: true,
     };
+    const optimisticCommentText = newMessage + (fileToAttach ? `\n[Adjunto: ${fileToAttach.name}]` : "");
+    const tempId = Date.now();
+    const optimisticComment: Comment = {
+        id: tempId,
+        comentario: optimisticCommentText,
+        fecha: new Date().toISOString(),
+        es_admin: true,
+    };
     setComentarios(prev => [...prev, optimisticComment].sort((a,b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()));
+
     const currentMessage = newMessage;
+    const currentFile = fileToAttach;
     setNewMessage("");
+    setFileToAttach(null);
 
     try {
+      const formData = new FormData();
+      formData.append('comentario', currentMessage);
+      if (currentFile) {
+        formData.append('archivo', currentFile);
+      }
+
       const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}/responder`, {
         method: "POST",
-        body: { comentario: currentMessage },
+        body: formData,
         sendEntityToken: true,
       });
       const serverComentarios = updatedTicket.comentarios ? [...updatedTicket.comentarios].sort((a,b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()) : [];
@@ -816,11 +927,21 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
         ultimoMensajeIdRef.current = serverComentarios[serverComentarios.length -1].id;
       }
       onTicketUpdate({ ...ticket, ...updatedTicket, comentarios: serverComentarios });
+      toast({
+        title: "Respuesta enviada",
+        description: "Tu mensaje ha sido enviado correctamente.",
+        variant: "default", // O "success" si está configurada
+      });
     } catch (error) {
-      console.error("Error al enviar comentario", error);
+      console.error("Error al enviar comentario con adjunto", error);
       setComentarios(prev => prev.filter(c => c.id !== tempId));
       setNewMessage(currentMessage);
-      // TODO: Mostrar error al usuario con un toast
+      setFileToAttach(currentFile);
+      toast({
+        title: "Error al enviar mensaje",
+        description: error instanceof Error ? error.message : "No se pudo enviar el mensaje. Inténtalo de nuevo.",
+        variant: "destructive",
+      });
     } finally {
       setIsSending(false);
     }
@@ -836,12 +957,21 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
         { method: "PUT", body: { estado: nuevoEstado }, sendEntityToken: true }
       );
       const serverComentarios = updatedTicketData.comentarios ? [...updatedTicketData.comentarios].sort((a,b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()) : comentarios;
-      const mergedTicket = { ...ticket, ...updatedTicketData, comentarios: serverComentarios};
+      const mergedTicket = { ...ticket, ...updatedTicketData, comentarios: serverComentarios };
       onTicketUpdate(mergedTicket);
+      toast({
+        title: "Estado actualizado",
+        description: `El ticket #${ticket.nro_ticket} se actualizó a "${ESTADOS[nuevoEstado]?.label || nuevoEstado}".`,
+        variant: "default", // O "success" si tienes esa variante
+      });
     } catch (error) {
       console.error("Error al cambiar estado", error);
-      onTicketUpdate({ ...ticket, estado: originalState, comentarios: comentarios });
-      // TODO: Mostrar error al usuario
+      onTicketUpdate({ ...ticket, estado: originalState, comentarios: comentarios }); // Revertir estado en UI
+      toast({
+        title: "Error al cambiar estado",
+        description: error instanceof Error ? error.message : "No se pudo actualizar el estado. Inténtalo de nuevo.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -888,7 +1018,22 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
                     <main className="space-y-3 p-1">
                     {comentarios && comentarios.length > 0 ? (
                         comentarios.map((comment) => {
-                        const attachment = getAttachmentInfo(comment.comentario);
+                        // Preparar la información del adjunto para AttachmentPreview
+                        let attachmentForPreview: ReturnType<typeof getAttachmentInfo> | null = null;
+                        if (comment.archivo_url && comment.nombre_archivo) {
+                          attachmentForPreview = {
+                            name: comment.nombre_archivo,
+                            url: comment.archivo_url,
+                            type: comment.tipo_mime?.startsWith('image/') ? 'image' :
+                                  comment.tipo_mime?.startsWith('video/') ? 'video' :
+                                  comment.tipo_mime?.startsWith('audio/') ? 'audio' : 'file',
+                            size: undefined, // El tamaño no está disponible aquí, AttachmentPreview puede manejarlo
+                          };
+                        } else {
+                          // Fallback por si el adjunto está codificado en el comentario (legado o diferente sistema)
+                          attachmentForPreview = getAttachmentInfo(comment.comentario);
+                        }
+
                         return (
                             <div
                             key={comment.id}
@@ -906,10 +1051,26 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
                                     : 'bg-card dark:bg-slate-800 text-foreground border dark:border-slate-700/80 rounded-bl-sm'
                                 )}
                             >
-                                {attachment ? (
-                                <AttachmentPreview attachment={attachment} />
+                                {attachmentForPreview ? (
+                                  <>
+                                    {/* Mostrar el texto del comentario solo si existe Y es diferente al nombre del adjunto (o si el adjunto no es el único contenido) */}
+                                    {comment.comentario && (!comment.nombre_archivo || !comment.comentario.includes(comment.nombre_archivo)) && (
+                                      <div className="prose prose-sm dark:prose-invert max-w-none break-words">
+                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                          {comment.comentario.replace(/\[adjunto:.*?\]/gi, '').trim()}
+                                        </ReactMarkdown>
+                                      </div>
+                                    )}
+                                    {/* Separador visual si hay texto Y adjunto */}
+                                    {comment.comentario && (!comment.nombre_archivo || !comment.comentario.includes(comment.nombre_archivo)) && attachmentForPreview && <hr className="my-2 border-border/50" />}
+                                    <AttachmentPreview attachment={attachmentForPreview} />
+                                  </>
                                 ) : (
-                                <p className="break-words whitespace-pre-wrap">{comment.comentario}</p>
+                                  <div className="prose prose-sm dark:prose-invert max-w-none break-words">
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                      {comment.comentario}
+                                    </ReactMarkdown>
+                                  </div>
                                 )}
                                 <p className={cn(
                                     "text-xs opacity-70 mt-1.5",
@@ -944,10 +1105,93 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
                     disabled={isSending}
                     className="h-10 bg-card dark:bg-slate-800 focus-visible:ring-primary/50"
                     />
-                    <Button onClick={handleSendMessage} disabled={isSending || !newMessage.trim()} aria-label="Enviar Mensaje" className="h-10">
-                    {isSending ? <Loader2 className="animate-spin h-5 w-5" /> : <Send className="h-5 w-5" />}
+                    <input
+                      type="file"
+                      id={`file-input-${ticket.id}`}
+                      onChange={(e) => setFileToAttach(e.target.files ? e.target.files[0] : null)}
+                      className="hidden"
+                    />
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-10 w-10 flex-shrink-0"
+                      onClick={() => document.getElementById(`file-input-${ticket.id}`)?.click()}
+                      title="Adjuntar archivo"
+                      disabled={isSending}
+                    >
+                      <Paperclip className="h-5 w-5" />
                     </Button>
-                </footer>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="icon" className="h-10 w-10 flex-shrink-0" title="Insertar plantilla">
+                          <MessageSquareText className="h-5 w-5" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-64 sm:w-72 md:w-80 max-h-[70vh] overflow-y-auto"> {/* Permitir scroll si hay muchas plantillas */}
+                        {suggestedTemplates.length > 0 && (
+                          <>
+                            <DropdownMenuLabel className="text-primary">Sugerencias ✨</DropdownMenuLabel>
+                            {suggestedTemplates.map((template, index) => (
+                              <DropdownMenuItem key={`sugg-${index}`} onClick={() => handleSelectTemplate(template.text)} className="text-xs sm:text-sm whitespace-normal">
+                                {template.name}
+                              </DropdownMenuItem>
+                            ))}
+                            <DropdownMenuSeparator />
+                          </>
+                        )}
+                        <DropdownMenuLabel>Todas las Plantillas</DropdownMenuLabel>
+                        {RESPONSE_TEMPLATES.filter(
+                          // Filtrar las que ya se mostraron como sugeridas para no duplicar
+                          (rt) => !suggestedTemplates.some(st => st.name === rt.name)
+                        ).map((template, index) => (
+                          <DropdownMenuItem key={`all-${index}`} onClick={() => handleSelectTemplate(template.text)} className="text-xs sm:text-sm whitespace-normal">
+                            {template.name}
+                          </DropdownMenuItem>
+                        ))}
+                        {RESPONSE_TEMPLATES.length === 0 && !suggestedTemplates.length && (
+                          <DropdownMenuItem disabled className="text-xs sm:text-sm">No hay plantillas.</DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    <Button onClick={handleSendMessage} disabled={isSending || (!newMessage.trim() && !fileToAttach)} aria-label="Enviar Mensaje" className="h-10">
+                      {isSending ? <Loader2 className="animate-spin h-5 w-5" /> : <Send className="h-5 w-5" />}
+                    </Button>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-10 w-10 flex-shrink-0" title="Ayuda Markdown">
+                          <HelpCircle className="h-5 w-5 text-muted-foreground" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-80 text-sm">
+                        <div className="grid gap-2">
+                          <div className="font-semibold">Markdown Básico</div>
+                          <p><code className="font-mono bg-muted p-0.5 rounded">**Negrita**</code> &rarr; <strong>Negrita</strong></p>
+                          <p><code className="font-mono bg-muted p-0.5 rounded">*Cursiva*</code> o <code className="font-mono bg-muted p-0.5 rounded">_Cursiva_</code> &rarr; <em>Cursiva</em></p>
+                          <p><code className="font-mono bg-muted p-0.5 rounded">`Código en línea`</code> &rarr; <code className="font-mono bg-muted p-0.5 rounded">Código en línea</code></p>
+                          <p><code className="font-mono bg-muted p-0.5 rounded">~~Tachado~~</code> &rarr; <del>Tachado</del></p>
+                          <div>Listas:
+                            <ul className="list-disc list-inside pl-4">
+                              <li><code className="font-mono bg-muted p-0.5 rounded">- Item 1</code></li>
+                              <li><code className="font-mono bg-muted p-0.5 rounded">* Item 2</code></li>
+                            </ul>
+                          </div>
+                          <p><code className="font-mono bg-muted p-0.5 rounded">[Texto del enlace](https://url.com)</code></p>
+                          <p><code className="font-mono bg-muted p-0.5 rounded">&gt; Cita en bloque</code></p>
+                          <p><code className="font-mono bg-muted p-0.5 rounded">---</code> &rarr; Línea horizontal</p>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  </footer>
+                  {fileToAttach && (
+                    <div className="px-2 md:px-3 pb-2 text-xs text-muted-foreground border-t dark:border-slate-700/80">
+                      <div className="mt-2 p-2 border dark:border-slate-700 rounded-md flex justify-between items-center bg-card dark:bg-slate-800/50">
+                        <span className="truncate max-w-[calc(100%-50px)]">Adjunto: {fileToAttach.name} ({(fileToAttach.size / 1024).toFixed(1)} KB)</span>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setFileToAttach(null)} title="Quitar archivo">
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
             </div>
 
             <ScrollArea className="w-full md:w-[320px] lg:w-[360px] p-3 md:p-4 space-y-4 bg-card dark:bg-slate-800/50 md:border-l-0 border-t md:border-t-0 dark:border-slate-700">
@@ -981,7 +1225,23 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
                     <CardContent className="text-sm text-muted-foreground space-y-1.5 px-4 pb-4">
                     {ticket.nombre_usuario && <p><strong>Nombre:</strong> {ticket.nombre_usuario}</p>}
                     {ticket.email_usuario && <p><strong>Email:</strong> <a href={`mailto:${ticket.email_usuario}`} className="text-primary hover:underline">{ticket.email_usuario}</a></p>}
-                    {ticket.telefono && <p><strong>Teléfono:</strong> <a href={`tel:${ticket.telefono}`} className="text-primary hover:underline">{ticket.telefono}</a></p>}
+                    {ticket.telefono && (
+                      <p>
+                        <strong>Teléfono:</strong>{' '}
+                        <a href={`tel:${ticket.telefono}`} className="text-primary hover:underline">
+                          {ticket.telefono}
+                        </a>
+                        {' | '}
+                        <a
+                          href={`https://wa.me/${normalizePhoneNumberForWhatsApp(ticket.telefono)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-green-600 hover:underline dark:text-green-500"
+                        >
+                          WhatsApp
+                        </a>
+                      </p>
+                    )}
                     </CardContent>
                 </Card>
                 )}
