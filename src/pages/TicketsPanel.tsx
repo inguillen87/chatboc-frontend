@@ -8,7 +8,7 @@ import { apiFetch, ApiError } from "@/utils/api";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 // import getOrCreateAnonId from "@/utils/anonId"; // No se usa en admin panel
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { cn, normalizePhoneNumberForWhatsApp } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { useDebounce } from '@/hooks/useDebounce';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
