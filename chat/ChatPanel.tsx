@@ -102,7 +102,8 @@ const ChatPanel = ({
   });
   const [ticketLocation, setTicketLocation] = useState<{ direccion?: string | null; latitud?: number | null; longitud?: number | null; municipio_nombre?: string | null } | null>(null);
   const [pollingErrorShown, setPollingErrorShown] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null); // Para el div al final del todo
+  const lastMessageElementRef = useRef<HTMLDivElement>(null); // Para el último elemento de mensaje real
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<HTMLInputElement>(null);
   const lastQueryRef = useRef<string | null>(null);
@@ -565,14 +566,24 @@ const ChatPanel = ({
     if (container) {
       const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
       if (atBottom) {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        if (lastMessageElementRef.current) {
+          lastMessageElementRef.current.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+        } else {
+          // Fallback si lastMessageElementRef no está listo, aunque debería estarlo si hay mensajes.
+          messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        }
         setShowScrollDown(false);
       } else {
+        // Si el usuario no está al final, solo actualizamos si se debe mostrar el botón de scroll down.
+        // Esto evita que el scroll salte si el usuario está leyendo mensajes antiguos y llega uno nuevo.
         setShowScrollDown(true);
       }
     }
-    if (!isBotTyping && !isSendingUserMessage) chatInputRef.current?.focus(); // Enfocar solo si no hay actividad
-  }, [messages, isBotTyping, userTyping, ticketLocation, isSendingUserMessage]);
+    if (!isBotTyping && !isSendingUserMessage && !esperandoDireccion && !esperandoRubro && (!showCierre || !showCierre.show) ) {
+      // Solo enfocar si no hay un modal o estado de espera activo
+      chatInputRef.current?.focus(); 
+    }
+  }, [messages, isBotTyping, userTyping, ticketLocation, isSendingUserMessage, esperandoDireccion, esperandoRubro, showCierre]);
 
   useEffect(() => {
     if (messages.length === 0) return;
@@ -679,12 +690,13 @@ const ChatPanel = ({
             </div>
           ) : ( // Renderizado normal de mensajes
             <>
-              {messages.map((msg) =>
+              {messages.map((msg, index) =>
                 <ChatMessage key={msg.id} message={msg}
+                  ref={index === messages.length - 1 ? lastMessageElementRef : null}
                   isTyping={isBotTyping || isSendingUserMessage} // Deshabilitar botones si el bot o el usuario están "ocupados"
                   onButtonClick={handleSendMessage}
                   onInternalAction={handleInternalAction}
-                  tipoChat={tipoChatActual} query={msg.query}
+                  tipoChat={tipoChatActual} /* query={msg.query} // query no es una prop de ChatMessage */
                 />
               )}
               {isBotTyping && <TypingIndicator />}

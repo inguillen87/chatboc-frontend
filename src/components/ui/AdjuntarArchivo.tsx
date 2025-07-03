@@ -1,9 +1,10 @@
 // src/components/ui/AdjuntarArchivo.tsx
-import React, { useRef, useState } from 'react';
+import React, { useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Paperclip } from 'lucide-react';
 import { apiFetch } from '@/utils/api';
 import { useUser } from '@/hooks/useUser';
+import { toast } from '@/components/ui/use-toast'; // Importar toast
 
 const MAX_FILE_SIZE_MB = 10;
 const ALLOWED_EXTENSIONS = [
@@ -19,47 +20,73 @@ const ALLOWED_EXTENSIONS = [
 
 export interface AdjuntarArchivoProps {
   onUpload?: (data: any) => void;
+  // Podríamos añadir una prop para deshabilitar el botón mientras se sube, si es necesario
+  // O manejar un estado de 'isUploading' internamente si el componente se vuelve más complejo.
 }
 
 const AdjuntarArchivo: React.FC<AdjuntarArchivoProps> = ({ onUpload }) => {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [error, setError] = useState('');
+  // El estado 'error' local ya no es necesario, se usarán toasts.
   const { user } = useUser();
 
-  console.log('AdjuntarArchivo: Component rendered. User object:', user);
+  // console.log('AdjuntarArchivo: Component rendered. User object:', user); // Mantener para depuración si es útil
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    console.log('AdjuntarArchivo: handleFileChange triggered');
+    // console.log('AdjuntarArchivo: handleFileChange triggered'); // Mantener para depuración
     const file = e.target.files?.[0];
     if (!file) return;
 
     const ext = file.name.split('.').pop()?.toLowerCase() || '';
     if (!ALLOWED_EXTENSIONS.includes(ext)) {
-      setError(`Formato .${ext} no permitido.`);
-      e.target.value = '';
+      toast({
+        title: "Archivo no permitido",
+        description: `El formato de archivo ".${ext}" no está permitido.`,
+        variant: "destructive",
+        duration: 5000,
+      });
+      e.target.value = ''; // Resetear el input
       return;
     }
 
     if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
-      setError(`Archivo demasiado grande (máx ${MAX_FILE_SIZE_MB}MB).`);
-      e.target.value = '';
+      toast({
+        title: "Archivo demasiado grande",
+        description: `El archivo excede el tamaño máximo de ${MAX_FILE_SIZE_MB}MB.`,
+        variant: "destructive",
+        duration: 5000,
+      });
+      e.target.value = ''; // Resetear el input
       return;
     }
 
-    setError('');
-
     const formData = new FormData();
     formData.append('archivo', file);
+
+    // Podríamos añadir un toast de "Subiendo..." aquí si la subida puede tardar
+    // toast({ title: "Subiendo archivo...", description: file.name });
 
     try {
       const data = await apiFetch<any>('/archivos/subir', {
         method: 'POST',
         body: formData,
+        // No es necesario 'Content-Type': 'multipart/form-data', FormData lo maneja.
       });
+      
+      // El toast de éxito se podría manejar en el componente padre (ChatInput)
+      // o aquí si se considera genérico para cualquier uso de AdjuntarArchivo.
+      // Por ahora, lo dejamos al componente padre como estaba.
       onUpload && onUpload(data);
+
     } catch (err: any) {
-      setError(err.body?.error || err.message || 'Error al subir archivo');
+      const errorMessage = err.body?.error || err.message || 'Error desconocido al subir archivo.';
+      toast({
+        title: "Error al subir archivo",
+        description: errorMessage,
+        variant: "destructive",
+        duration: 7000,
+      });
     } finally {
+      // Siempre resetear el input después del intento (éxito o fallo manejado por toast)
       if (inputRef.current) {
         inputRef.current.value = '';
       }
@@ -67,32 +94,35 @@ const AdjuntarArchivo: React.FC<AdjuntarArchivoProps> = ({ onUpload }) => {
   };
 
   if (!user) {
-    console.log('AdjuntarArchivo: No user found, component will not render button.');
-    return null;
+    // console.log('AdjuntarArchivo: No user found, component will not render button.'); // Mantener para depuración
+    // No renderizar nada si no hay usuario, o un placeholder/mensaje si se prefiere.
+    return null; 
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center"> {/* Eliminado gap-2, el toast no necesita estar espaciado aquí */}
       <Button
         onClick={() => {
-          console.log('AdjuntarArchivo: Paperclip button clicked');
+          // console.log('AdjuntarArchivo: Paperclip button clicked'); // Mantener para depuración
           inputRef.current?.click();
         }}
         variant="outline"
         size="icon"
-        type="button"
+        type="button" // Importante para no enviar formularios accidentalmente
         aria-label="Adjuntar archivo"
+        // Podríamos añadir un estado 'disabled' mientras sube, si es necesario.
       >
         <Paperclip className="w-4 h-4" />
       </Button>
       <input
         ref={inputRef}
         type="file"
-        accept={ALLOWED_EXTENSIONS.map((e) => `.${e}`).join(',')}
-        className="hidden"
+        accept={ALLOWED_EXTENSIONS.map((ext) => `.${ext}`).join(',')} // Corregido para que el accept sea correcto
+        className="hidden" // sr-only o absolute + opacity-0 son otras opciones para accesibilidad
         onChange={handleFileChange}
+        // Multiple no está habilitado, se sube de a uno.
       />
-      {error && <span className="text-destructive text-sm ml-2">{error}</span>}
+      {/* El span de error local se ha eliminado. Los errores se muestran mediante toasts. */}
     </div>
   );
 };
