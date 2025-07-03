@@ -885,67 +885,66 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
   }, [comentarios.length]); // Only trigger on new comments
 
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || isSending || isAnonimo) return;
-    setIsSending(true);
-    const tempId = Date.now();
-    const optimisticComment: Comment = {
-        id: tempId,
-        comentario: newMessage,
-        fecha: new Date().toISOString(),
-        es_admin: true,
-    };
-    const optimisticCommentText = newMessage + (fileToAttach ? `\n[Adjunto: ${fileToAttach.name}]` : "");
-    const tempId = Date.now();
-    const optimisticComment: Comment = {
-        id: tempId,
-        comentario: optimisticCommentText,
-        fecha: new Date().toISOString(),
-        es_admin: true,
-    };
-    setComentarios(prev => [...prev, optimisticComment].sort((a,b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()));
+  if (!newMessage.trim() || isSending || isAnonimo) return;
+  setIsSending(true);
 
-    const currentMessage = newMessage;
-    const currentFile = fileToAttach;
-    setNewMessage("");
-    setFileToAttach(null);
-
-    try {
-      const formData = new FormData();
-      formData.append('comentario', currentMessage);
-      if (currentFile) {
-        formData.append('archivo', currentFile);
-      }
-
-      const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}/responder`, {
-        method: "POST",
-        body: formData,
-        sendEntityToken: true,
-      });
-      const serverComentarios = updatedTicket.comentarios ? [...updatedTicket.comentarios].sort((a,b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()) : [];
-      setComentarios(serverComentarios);
-      if (serverComentarios.length > 0) {
-        ultimoMensajeIdRef.current = serverComentarios[serverComentarios.length -1].id;
-      }
-      onTicketUpdate({ ...ticket, ...updatedTicket, comentarios: serverComentarios });
-      toast({
-        title: "Respuesta enviada",
-        description: "Tu mensaje ha sido enviado correctamente.",
-        variant: "default", // O "success" si está configurada
-      });
-    } catch (error) {
-      console.error("Error al enviar comentario con adjunto", error);
-      setComentarios(prev => prev.filter(c => c.id !== tempId));
-      setNewMessage(currentMessage);
-      setFileToAttach(currentFile);
-      toast({
-        title: "Error al enviar mensaje",
-        description: error instanceof Error ? error.message : "No se pudo enviar el mensaje. Inténtalo de nuevo.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSending(false);
-    }
+  // Agregar texto del mensaje y adjunto si hay
+  const optimisticCommentText = newMessage + (fileToAttach ? `\n[Adjunto: ${fileToAttach.name}]` : "");
+  const tempId = Date.now();
+  const optimisticComment: Comment = {
+    id: tempId,
+    comentario: optimisticCommentText,
+    fecha: new Date().toISOString(),
+    es_admin: true,
   };
+
+  setComentarios(prev => [...prev, optimisticComment].sort((a,b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()));
+
+  const currentMessage = newMessage;
+  const currentFile = fileToAttach;
+  setNewMessage("");
+  setFileToAttach(null);
+
+  try {
+    const formData = new FormData();
+    formData.append('comentario', currentMessage);
+    if (currentFile) {
+      formData.append('archivo', currentFile);
+    }
+
+    const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}/responder`, {
+      method: "POST",
+      body: formData,
+      sendEntityToken: true,
+    });
+    const serverComentarios = updatedTicket.comentarios
+      ? [...updatedTicket.comentarios].sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime())
+      : [];
+    setComentarios(serverComentarios);
+    if (serverComentarios.length > 0) {
+      ultimoMensajeIdRef.current = serverComentarios[serverComentarios.length - 1].id;
+    }
+    onTicketUpdate({ ...ticket, ...updatedTicket, comentarios: serverComentarios });
+    toast({
+      title: "Respuesta enviada",
+      description: "Tu mensaje ha sido enviado correctamente.",
+      variant: "default",
+    });
+  } catch (error) {
+    console.error("Error al enviar comentario con adjunto", error);
+    setComentarios(prev => prev.filter(c => c.id !== tempId));
+    setNewMessage(currentMessage);
+    setFileToAttach(currentFile);
+    toast({
+      title: "Error al enviar mensaje",
+      description: error instanceof Error ? error.message : "No se pudo enviar el mensaje. Inténtalo de nuevo.",
+      variant: "destructive",
+    });
+  } finally {
+    setIsSending(false);
+  }
+};
+
 
   const handleEstadoChange = async (nuevoEstado: TicketStatus) => {
     if (isAnonimo) return;
