@@ -1,6 +1,5 @@
 // src/pages/ChatPage.tsx
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Message } from "@/types/chat";
 import ChatMessage from "@/components/chat/ChatMessage";
 import ChatInput from "@/components/chat/ChatInput";
 import TypingIndicator from "@/components/chat/TypingIndicator";
@@ -15,25 +14,10 @@ import TicketMap from "@/components/TicketMap";
 import getOrCreateAnonId from "@/utils/anonId";
 import { toast } from "@/components/ui/use-toast";
 import { requestLocation } from "@/utils/geolocation";
-import { AttachmentInfo, SendPayload } from "@/types/chat"; // Usar SendPayload de @/types/chat
+import { Message, SendPayload, AttachmentInfo } from "@/types/chat";
 
-import { AttachmentInfo } from "@/utils/attachment"; // Importar AttachmentInfo
+// NO declares más interfaces ni tipos acá. Todo sale de "@/types/chat".
 
-import { AttachmentInfo } from "@/utils/attachment"; // Importar AttachmentInfo
-
-// --- NUEVA INTERFAZ PARA EL PAYLOAD DE ENVÍO DE MENSAJES (COMO EN useChatLogic.ts) ---
-interface SendPayload {
-  text: string;
-  es_foto?: boolean; // Legacy, preferir attachmentInfo
-  archivo_url?: string; // Legacy, preferir attachmentInfo.url
-  es_ubicacion?: boolean;
-  ubicacion_usuario?: { lat: number; lon: number; }; // Asegúrate de que las claves sean 'lat' y 'lon'
-  action?: string;
-  attachmentInfo?: AttachmentInfo; // Nuevo campo para la información del adjunto
-}
-// ---------------------------------------------------------------------------------
-
-// Utilidad para mobile (sin cambios)
 function useIsMobile(breakpoint = 768) {
   const [isMobile, setIsMobile] = useState(
     typeof window !== "undefined" ? window.innerWidth < breakpoint : false,
@@ -166,11 +150,10 @@ const ChatPage = () => {
 
   const handleShareGps = useCallback(() => {
     if (!activeTicketId) {
-      // Si no hay ticket activo, se envía la ubicación como un mensaje normal al bot
       requestLocation({ enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }).then(coords => {
         if (coords) {
           handleSend({
-            text: "Adjunto mi ubicación actual.", // O un texto más genérico
+            text: "Adjunto mi ubicación actual.",
             es_ubicacion: true,
             ubicacion_usuario: { lat: coords.latitud, lon: coords.longitud },
           });
@@ -180,7 +163,6 @@ const ChatPage = () => {
       });
       return;
     }
-    // Si hay ticket activo (municipio), se actualiza la ubicación del ticket
     if (tipoChat === "municipio") {
       requestLocation({ enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }).then(async (coords) => {
         if (!coords) {
@@ -205,7 +187,7 @@ const ChatPage = () => {
         }
       });
     }
-  }, [activeTicketId, tipoChat, isAnonimo, fetchTicketInfo, handleSend]); // Añadido handleSend a dependencias
+  }, [activeTicketId, tipoChat, isAnonimo, fetchTicketInfo, handleSend]);
 
   useEffect(() => {
     const fetchNewMessages = async () => {
@@ -223,8 +205,7 @@ const ChatPage = () => {
             isBot: msg.es_admin, 
             timestamp: new Date(msg.fecha), 
             query: undefined,
-            attachmentInfo: msg.attachment_info || msg.attachmentInfo, // Backend podría devolver attachment_info o attachmentInfo
-            // También considerar si el backend de tickets devuelve mediaUrl o locationData para mensajes de agentes
+            attachmentInfo: msg.attachment_info || msg.attachmentInfo,
             mediaUrl: msg.media_url || msg.mediaUrl,
             locationData: msg.location_data || msg.locationData,
           }));
@@ -253,10 +234,10 @@ const ChatPage = () => {
 
   const handleSend = useCallback(
     async (payload: SendPayload) => {
-      const userMessageText = payload.text?.trim() || ''; // Asegurar que text no sea undefined
+      const userMessageText = payload.text?.trim() || '';
 
       if (!userMessageText && !payload.attachmentInfo && !payload.action && !payload.ubicacion_usuario && !payload.archivo_url) {
-        return; // No enviar mensajes completamente vacíos
+        return;
       }
       
       if (esperandoDireccion && !payload.attachmentInfo && !payload.ubicacion_usuario) {
@@ -278,51 +259,38 @@ const ChatPage = () => {
       }
       setShowCierre(null);
 
-      // Mensaje usuario (ahora usa el payload.text)
-      // Y también incluye attachmentInfo si está presente en el payload
       const userMessageObject: Message = {
         id: Date.now(),
         text: userMessageText,
         isBot: false,
         timestamp: new Date(),
-        attachmentInfo: payload.attachmentInfo, // Añadir attachmentInfo al mensaje local
+        attachmentInfo: payload.attachmentInfo,
       };
-      console.log("ChatPage: Adding user message to state:", userMessageObject); // <-- NUEVO CONSOLE.LOG
       setMessages((prev) => [...prev, userMessageObject]);
       lastQueryRef.current = userMessageText;
       setIsTyping(true);
 
       try {
         if (activeTicketId) {
-          // Si hay un ticket activo (chat en vivo), enviar como comentario
-          // TODO: Actualizar este backend para que acepte attachmentInfo si es necesario
           await apiFetch(`/tickets/chat/${activeTicketId}/responder_ciudadano`, {
             method: "POST",
             body: {
                 comentario: userMessageText,
-                // Mantener es_foto y archivo_url por ahora si el backend de tickets aún los usa
                 ...(payload.es_foto && { foto_url: payload.archivo_url }),
                 ...(payload.ubicacion_usuario && { ubicacion: payload.ubicacion_usuario }),
-                // Considerar enviar attachmentInfo aquí también si el backend de tickets lo soporta:
-                // ...(payload.attachmentInfo && { attachment: payload.attachmentInfo }),
             },
             sendAnonId: isAnonimo,
             sendEntityToken: true,
           });
         } else {
-          // Para el bot
           const requestPayload: Record<string, any> = {
             pregunta: userMessageText,
             contexto_previo: contexto,
-            // Enviar el attachmentInfo completo al backend del bot
-            // También mantener los campos legados si el bot aún los usa o para una transición gradual
-            ...(payload.archivo_url && { archivo_url: payload.archivo_url }), // Podría ser parte de attachmentInfo.url
-            ...(payload.es_foto && { es_foto: payload.es_foto }), // El backend debería deducir esto de attachmentInfo.mimeType
-            ...(payload.attachmentInfo && { attachment_info: payload.attachmentInfo }), // Campo sugerido para el backend
-
+            ...(payload.archivo_url && { archivo_url: payload.archivo_url }),
+            ...(payload.es_foto && { es_foto: payload.es_foto }),
+            ...(payload.attachmentInfo && { attachment_info: payload.attachmentInfo }),
             ...(payload.es_ubicacion && { es_ubicacion: true, ubicacion_usuario: payload.ubicacion_usuario }),
             ...(payload.action && { action: payload.action }),
-            // Campos legados como fallback si no hay attachmentInfo
             ...(payload.archivo_url && !payload.attachmentInfo && { archivo_url: payload.archivo_url }),
             ...(payload.es_foto && !payload.attachmentInfo && { es_foto: payload.es_foto }),
           };
@@ -357,7 +325,7 @@ const ChatPage = () => {
             query: lastQueryRef.current || undefined,
             mediaUrl: data.media_url,
             locationData: data.location_data,
-            attachmentInfo: data.attachment_info || data.attachmentInfo, // Asumir que el bot devuelve 'attachment_info' o 'attachmentInfo'
+            attachmentInfo: data.attachment_info || data.attachmentInfo,
           };
           setMessages((prev) => [...prev, botMessage]);
           lastQueryRef.current = null;
@@ -396,12 +364,10 @@ const ChatPage = () => {
     [esperandoDireccion, activeTicketId, isAnonimo, anonId, contexto, tipoChat, rubroNormalizado, authToken, fetchTicketInfo, refreshUser]
   );
 
-  // Esta función es un callback para AdjuntarArchivo si se usara fuera de ChatInput
-  // No es el flujo principal si ChatInput maneja sus propias subidas.
   const handleFileUploaded = useCallback((data: { 
     url: string; 
-    filename: string; // Asumimos que el backend devuelve filename (nombre en servidor)
-    name?: string;     // Y opcionalmente name (nombre original)
+    filename: string;
+    name?: string;
     mimeType?: string; 
     size?: number; 
   }) => {

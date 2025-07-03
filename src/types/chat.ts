@@ -1,5 +1,10 @@
 // src/types/chat.ts
-
+export interface AttachmentInfo {
+  name: string;
+  url: string;
+  mimeType?: string;
+  size?: number;
+}
 // Define cómo es un objeto Botón
 export interface Boton {
   texto: string;
