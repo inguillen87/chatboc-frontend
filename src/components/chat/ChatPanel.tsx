@@ -369,7 +369,7 @@ const ChatPanel = ({
       }
     };
     fetchAllMessages();
-    intervalId = setInterval(fetchAllMessages, 10000);
+    intervalId = setInterval(fetchAllMessages, 15000); // Aumentado de 10s a 15s
     return () => { if (intervalId) clearInterval(intervalId); };
   }, [activeTicketId, esAnonimo, pollingErrorShown, fetchTicket]);
 
