@@ -30,7 +30,7 @@ export interface Ticket {
   // Información del usuario/reportante
   nombre_usuario?: string;     // Nombre del usuario que creó el ticket
   email_usuario?: string;
-  telefono?: string;
+  telefono?: string;           // Teléfono del usuario que creó el ticket
   direccion?: string;          // Dirección física relacionada con el ticket (si aplica)
 
   archivo_url?: string;        // URL a un archivo adjunto principal del ticket (diferente de los adjuntos en comentarios)

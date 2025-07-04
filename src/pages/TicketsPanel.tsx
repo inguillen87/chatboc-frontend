@@ -1226,27 +1226,24 @@ const optimisticComment: Comment = {
                     <CardContent className="text-sm text-muted-foreground space-y-1.5 px-4 pb-4">
                     <p><strong>Nombre:</strong> {ticket.nombre_usuario || "No especificado"}</p>
                     {ticket.email_usuario && <p><strong>Email:</strong> <a href={`mailto:${ticket.email_usuario}`} className="text-primary hover:underline">{ticket.email_usuario}</a></p>}
-                    <p>
-                      <strong>Teléfono:</strong>{' '}
-                      {ticket.telefono ? (
-                        <>
-                          <a href={`tel:${ticket.telefono}`} className="text-primary hover:underline">
-                            {ticket.telefono}
-                          </a>
-                          {' | '}
-                          <a
-                            href={`https://wa.me/${normalizePhoneNumberForWhatsApp(ticket.telefono)}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-green-600 hover:underline dark:text-green-500 inline-flex items-center"
-                          >
-                            <MessageSquareText className="h-4 w-4 mr-1" /> WhatsApp
-                          </a>
-                        </>
-                      ) : (
-                        "No especificado"
-                      )}
-                    </p>
+                    {ticket.telefono && (
+                      <p>
+                        <strong>Teléfono:</strong>{' '}
+                        <a href={`tel:${ticket.telefono}`} className="text-primary hover:underline">
+                          {ticket.telefono}
+                        </a>
+                        {' | '}
+                        <a
+                          href={`https://wa.me/${normalizePhoneNumberForWhatsApp(ticket.telefono)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-green-600 hover:underline dark:text-green-500 inline-flex items-center"
+                        >
+                          <MessageSquareText className="h-4 w-4 mr-1" /> WhatsApp
+                        </a>
+                      </p>
+                    )}
+                    {!ticket.telefono && <p><strong>Teléfono:</strong> No especificado</p>}
                     </CardContent>
                 </Card>
                 )}
