@@ -752,19 +752,25 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
         // top_n: 3 // Opcional: si el backend lo soporta y queremos limitar
       };
 
-      apiFetch<{ sugerencias: ResponseTemplate[] }>('/api/ai/suggest-templates', {
-        method: 'POST',
-        body: payload,
-        sendEntityToken: true, // Asumiendo que el endpoint requiere autenticación de admin/empleado
+      // La llamada original a /api/ai/suggest-templates (POST) se reemplaza por GET /api/ai/templates
+      // Este nuevo endpoint devuelve TODAS las plantillas, no sugerencias filtradas por IA por ahora.
+      apiFetch<{ plantillas: ResponseTemplate[] }>('/api/ai/templates', { // Endpoint y tipo de respuesta actualizados
+        method: 'GET',
+        // No se envía body ni query parameters.
+        // sendEntityToken: true, // apiFetch se encarga del token por defecto.
+                                 // Si el endpoint requiere un header custom como X-Send-Entity-Token,
+                                 // se debe añadir en la config de apiFetch o aquí en headers.
+                                 // Por ahora, asumimos que la autenticación estándar de apiFetch es suficiente.
       })
         .then(response => {
-          setSuggestedTemplates(response.sugerencias || []);
+          // El backend devuelve un objeto { plantillas: [...] }
+          setSuggestedTemplates(response.plantillas || []);
         })
         .catch(error => {
-          console.error("Error al cargar sugerencias de plantillas:", error);
+          console.error("Error al cargar las plantillas de respuesta:", error);
           toast({
-            title: "Error en Sugerencias",
-            description: "No se pudieron cargar las sugerencias de plantillas desde el servidor.",
+            title: "Error al Cargar Plantillas",
+            description: "No se pudieron cargar las plantillas de respuesta desde el servidor.",
             variant: "destructive",
           });
           setSuggestedTemplates([]); // Asegurar que quede vacío en caso de error
@@ -773,7 +779,7 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
           setIsLoadingSuggestions(false);
         });
     } else {
-      setSuggestedTemplates([]);
+      setSuggestedTemplates([]); // Limpiar si no hay ticket o asunto
       setIsLoadingSuggestions(false);
     }
   }, [ticket]); // Se ejecuta cuando el ticket cambia
@@ -889,40 +895,117 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
   if (!newMessage.trim() || isSending || isAnonimo) return;
   setIsSending(true);
 
- const optimisticCommentText = newMessage + (fileToAttach ? `\n[Adjunto: ${fileToAttach.name}]` : "");
-const tempId = Date.now();
-const optimisticComment: Comment = {
-  id: tempId,
-  comentario: optimisticCommentText,
-  fecha: new Date().toISOString(),
-  es_admin: true,
-};
+  if (!newMessage.trim() && !fileToAttach) { // No enviar si no hay texto ni archivo
+    toast({ title: "Mensaje vacío", description: "Escribe un mensaje o adjunta un archivo.", variant: "default" });
+    return;
+  }
+  // isAnonimo no debería ser relevante aquí para un agente respondiendo.
+  // Se podría añadir un chequeo de rol si fuera necesario, pero @admin_o_empleado_requerido en backend lo maneja.
+  if (isSending) return;
 
-
-
-  setComentarios(prev => [...prev, optimisticComment].sort((a,b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()));
+  setIsSending(true);
 
   const currentMessage = newMessage;
   const currentFile = fileToAttach;
+
+  // Limpiar input y estado de archivo inmediatamente para UI optimista
+  // El comentario optimista se puede añadir aquí si se desea, antes del try/catch.
   setNewMessage("");
   setFileToAttach(null);
 
+  // Comentario optimista
+  const optimisticCommentText = currentMessage + (currentFile ? `\n[Adjuntando: ${currentFile.name}]` : "");
+  const tempId = Date.now();
+  const optimisticComment: Comment = {
+    id: tempId,
+    comentario: optimisticCommentText,
+    fecha: new Date().toISOString(),
+    es_admin: true, // Asumimos que la respuesta es de un admin/empleado
+  };
+  setComentarios(prev => [...prev, optimisticComment].sort((a,b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()));
+
+
+  let attachmentInfoPayload: AttachmentInfo | undefined = undefined; // Usar AttachmentInfo de @/types
+
   try {
-    const formData = new FormData();
-    formData.append('comentario', currentMessage);
+    // 1. Si hay un archivo, subirlo primero
     if (currentFile) {
-      formData.append('archivo', currentFile);
+      const uploadFormData = new FormData();
+      uploadFormData.append('archivo', currentFile);
+
+      // Usar apiFetch para subir al endpoint de archivos (Node.js o el futuro Python)
+      // Endpoint '/archivos/subir' es el que existe en server/app.js (Node.js)
+      const fileUploadResponse = await apiFetch<any>('/archivos/subir', {
+        method: 'POST',
+        body: uploadFormData,
+        headers: {
+          // 'Content-Type' es manejado por el navegador para FormData
+          // apiFetch modificado no establecerá 'application/json' si el body es FormData
+        }
+        // sendEntityToken no es necesario para /archivos/subir a menos que ese endpoint lo requiera
+      });
+
+      if (!fileUploadResponse || !fileUploadResponse.url || !fileUploadResponse.name) {
+        // Revertir comentario optimista si la subida falla
+        setComentarios(prev => prev.filter(c => c.id !== tempId));
+        throw new Error("La respuesta de la subida del archivo no fue válida o la subida falló.");
+      }
+
+      attachmentInfoPayload = {
+        url: fileUploadResponse.url,
+        name: fileUploadResponse.name,
+        mimeType: fileUploadResponse.mimeType,
+        size: fileUploadResponse.size,
+        // 'type' y 'extension' son opcionales en AttachmentInfo y pueden ser derivados por el backend
+        // o por deriveAttachmentInfo en el frontend si fuera necesario mostrarlo antes de enviar.
+        // Para el backend, enviar lo que se tiene es suficiente.
+        type: 'other', // Placeholder, el backend puede inferir o no necesitarlo
+        extension: fileUploadResponse.name.split('.').pop() || '', // Placeholder
+      };
+
+      toast({ title: "Archivo adjuntado", description: `${attachmentInfoPayload.name} listo para enviar con el mensaje.`, duration: 3000 });
+
+      // Actualizar comentario optimista para reflejar que el archivo se subió
+      setComentarios(prev => prev.map(c =>
+        c.id === tempId
+        ? { ...c, comentario: currentMessage + (attachmentInfoPayload ? `\n[Adjunto: ${attachmentInfoPayload.name}]` : "") }
+        : c
+      ));
     }
 
+    // 2. Preparar el cuerpo para la respuesta del ticket (siempre JSON)
+    const body: { comentario: string; attachment_info?: AttachmentInfo } = {
+      comentario: currentMessage,
+    };
+
+    if (attachmentInfoPayload) {
+      body.attachment_info = attachmentInfoPayload;
+    }
+
+    // No enviar si no hay comentario y no se pudo adjuntar archivo
+    if (!body.comentario && !body.attachment_info) {
+        setComentarios(prev => prev.filter(c => c.id !== tempId)); // Quitar optimista
+        toast({ title: "Respuesta vacía", description: "No hay mensaje ni archivo para enviar.", variant: "destructive" });
+        setIsSending(false);
+        return;
+    }
+
+
+    // 3. Enviar la respuesta del ticket
     const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}/responder`, {
       method: "POST",
-      body: formData,
-      sendEntityToken: true,
+      body: JSON.stringify(body), // Enviar como JSON
+      headers: {
+        'Content-Type': 'application/json', // Asegurar Content-Type correcto
+        // 'X-Send-Entity-Token': 'true' // Si apiService no lo añade por defecto y es requerido
+      },
+      // sendEntityToken: true, // Esta es una opción custom de la versión anterior de apiFetch, ahora se maneja con headers
     });
+
     const serverComentarios = updatedTicket.comentarios
       ? [...updatedTicket.comentarios].sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime())
       : [];
-    setComentarios(serverComentarios);
+    setComentarios(serverComentarios); // Reemplazar con comentarios del servidor que incluyen el nuevo
     if (serverComentarios.length > 0) {
       ultimoMensajeIdRef.current = serverComentarios[serverComentarios.length - 1].id;
     }
@@ -932,8 +1015,12 @@ const optimisticComment: Comment = {
       description: "Tu mensaje ha sido enviado correctamente.",
       variant: "default",
     });
+
   } catch (error) {
-    console.error("Error al enviar comentario con adjunto", error);
+    console.error("Error al enviar comentario con adjunto:", error);
+    // Revertir UI si es necesario (ej. re-establecer newMessage, fileToAttach)
+    // El comentario optimista ya se quitó o se actualizará si la subida falló antes.
+    // Si el error es después de la subida pero antes de enviar el msg, quitar el optimista.
     setComentarios(prev => prev.filter(c => c.id !== tempId));
     setNewMessage(currentMessage);
     setFileToAttach(currentFile);

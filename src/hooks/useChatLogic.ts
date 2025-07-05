@@ -1,32 +1,35 @@
 // src/hooks/useChatLogic.ts
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Message } from "@/types/chat"; // Asegúrate de que Message tenga los nuevos campos
-import { apiFetch } from "@/utils/api";
+import { Message, SendPayload as TypeSendPayload } from "@/types/chat"; // Asegúrate que Message tenga los nuevos campos
+import { apiFetch, getErrorMessage } from "@/utils/api"; // getErrorMessage ya estaba en ChatPanel
 import { APP_TARGET } from "@/config";
 import { getAskEndpoint, esRubroPublico } from "@/utils/chatEndpoints";
 import { enforceTipoChatForRubro } from "@/utils/tipoChat";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateAnonId from "@/utils/anonId";
+import { v4 as uuidv4 } from 'uuid'; // <--- IMPORTAR uuid
 
-// --- NUEVA INTERFAZ PARA EL PAYLOAD DE ENVÍO DE MENSAJES (PARA handleSend) ---
-interface SendPayload {
-  text: string;
-  // Opcionales para adjuntos
-  es_foto?: boolean;
-  archivo_url?: string;
-  es_ubicacion?: boolean;
-  ubicacion_usuario?: { lat: number; lon: number; }; // Asegúrate de que las claves sean 'lat' y 'lon'
-  // Opcional para acciones de botones
-  action?: string;
-}
-// -------------------------------------------------------------------------
+// Interfaz SendPayload ya no es necesaria aquí si TypeSendPayload es importada y correcta.
+// Si TypeSendPayload no está en @/types/chat.ts o necesita ser específico aquí:
+// interface SendPayload {
+//   text: string;
+//   es_foto?: boolean;
+//   archivo_url?: string;
+//   es_ubicacion?: boolean;
+//   ubicacion_usuario?: { lat: number; lon: number; };
+//   action?: string;
+//   attachmentInfo?: AttachmentInfo; // Asumiendo que AttachmentInfo también está en types/chat
+// }
 
 
 export function useChatLogic(initialWelcomeMessage: string) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
-  const [contexto, setContexto] = useState({});
+  const [contexto, setContexto] = useState<any>({}); // Especificar un tipo más preciso si es posible
   const [activeTicketId, setActiveTicketId] = useState<number | null>(null);
+
+  // Nuevo estado para la idempotency key del reclamo actual
+  const [currentClaimIdempotencyKey, setCurrentClaimIdempotencyKey] = useState<string | null>(null);
 
   const token = safeLocalStorage.getItem('authToken');
   const anonId = getOrCreateAnonId();
@@ -34,15 +37,38 @@ export function useChatLogic(initialWelcomeMessage: string) {
 
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const ultimoMensajeIdRef = useRef<number>(0);
+  const clientMessageIdCounter = useRef(0); // Para IDs de mensajes optimistas
+
+  const generateClientMessageId = () => { // Función para generar IDs únicos para mensajes optimistas
+    clientMessageIdCounter.current += 1;
+    return `client-${Date.now()}-${clientMessageIdCounter.current}`;
+  };
 
   // Efecto para el mensaje de bienvenida inicial
   useEffect(() => {
-    if (messages.length === 0) {
+    if (messages.length === 0 && initialWelcomeMessage) { // Solo si hay mensaje inicial
       setMessages([
-        { id: Date.now(), text: initialWelcomeMessage, isBot: true, timestamp: new Date() },
+        { id: generateClientMessageId(), text: initialWelcomeMessage, isBot: true, timestamp: new Date() },
       ]);
     }
-  }, [initialWelcomeMessage]);
+  }, [initialWelcomeMessage]); // Dependencia messages.length eliminada para evitar re-trigger innecesario
+
+
+  // Efecto para generar idempotency key cuando el bot pide confirmación de reclamo
+  useEffect(() => {
+    const lastBotMessage = messages.length > 0 ? messages[messages.length - 1] : null;
+    if (lastBotMessage && lastBotMessage.isBot && lastBotMessage.botones) {
+      const requiereConfirmacionReclamo = lastBotMessage.botones.some(
+        (btn: any) => btn.action === "confirmar_reclamo" // Asumiendo que los botones tienen 'action'
+      );
+      if (requiereConfirmacionReclamo && !activeTicketId) { // Solo para nuevos reclamos
+        const newKey = uuidv4();
+        setCurrentClaimIdempotencyKey(newKey);
+        console.log("useChatLogic: Generated idempotency key for claim confirmation:", newKey);
+      }
+    }
+  }, [messages, activeTicketId]);
+
 
   // Efecto para el polling de mensajes en vivo
   useEffect(() => {
@@ -51,21 +77,24 @@ export function useChatLogic(initialWelcomeMessage: string) {
       try {
         const data = await apiFetch<{ estado_chat: string; mensajes: any[] }>(
           `/tickets/chat/${activeTicketId}/mensajes?ultimo_mensaje_id=${ultimoMensajeIdRef.current}`,
-          { sendAnonId: isAnonimo }
+          // apiFetch maneja token/anonId
         );
         if (data.mensajes && data.mensajes.length > 0) {
           const nuevosMensajes: Message[] = data.mensajes.map(msg => ({
-            id: msg.id,
+            id: msg.id, // Usar ID del servidor
             text: msg.texto,
             isBot: msg.es_admin,
             timestamp: new Date(msg.fecha),
+            attachmentInfo: msg.attachment_info, // Asumir que backend puede enviar esto
+            // ...otros campos que pueda tener el mensaje de chat en vivo
           }));
           setMessages(prev => [...prev, ...nuevosMensajes]);
           ultimoMensajeIdRef.current = data.mensajes[data.mensajes.length - 1].id;
         }
         if (data.estado_chat === 'resuelto' || data.estado_chat === 'cerrado') {
           if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
-          setMessages(prev => [...prev, { id: Date.now(), text: "Un agente ha finalizado esta conversación.", isBot: true, timestamp: new Date() }]);
+          setMessages(prev => [...prev, { id: generateClientMessageId(), text: "Un agente ha finalizado esta conversación.", isBot: true, timestamp: new Date() }]);
+          setCurrentClaimIdempotencyKey(null); // Limpiar por si acaso
         }
       } catch (error) {
         console.error("Error durante el polling:", error);
@@ -74,7 +103,7 @@ export function useChatLogic(initialWelcomeMessage: string) {
 
     if (activeTicketId) {
       fetchNewMessages();
-      pollingIntervalRef.current = setInterval(fetchNewMessages, 15000); // Aumentado de 10s a 15s
+      pollingIntervalRef.current = setInterval(fetchNewMessages, 15000);
     }
 
     return () => {
@@ -82,116 +111,125 @@ export function useChatLogic(initialWelcomeMessage: string) {
     };
   }, [activeTicketId]);
 
-  // --- MODIFICACIÓN CLAVE: handleSend ahora acepta un SendPayload ---
-  const handleSend = useCallback(async (payload: string | SendPayload) => {
-    let actualPayload: SendPayload;
+
+  const handleSend = useCallback(async (payload: string | TypeSendPayload) => {
+    let actualPayload: TypeSendPayload;
 
     if (typeof payload === 'string') {
       actualPayload = { text: payload.trim() };
     } else {
-      actualPayload = { text: payload.text.trim(), ...payload };
+      // Asegurarse de que el texto no sea undefined si payload.text es undefined
+      actualPayload = { ...payload, text: payload.text?.trim() || "" };
     }
 
-    // No enviar si está vacío, no hay adjuntos y no es una acción de botón
-    if (!actualPayload.text && !actualPayload.archivo_url && !actualPayload.ubicacion_usuario && !actualPayload.action) return; 
-    if (isTyping) return; // No enviar si el bot está escribiendo
+    const userMessageText = actualPayload.text;
 
-    const userMessage: Message = { id: Date.now(), text: actualPayload.text, isBot: false, timestamp: new Date() };
+    if (!userMessageText && !actualPayload.attachmentInfo && !actualPayload.ubicacion_usuario && !actualPayload.action) {
+         // Si hay archivo_url legado pero no attachmentInfo, aún podría ser un adjunto
+        if (!actualPayload.archivo_url) return;
+    }
+    if (isTyping) return;
+
+    const userMessage: Message = {
+      id: generateClientMessageId(),
+      text: userMessageText,
+      isBot: false,
+      timestamp: new Date(),
+      attachmentInfo: actualPayload.attachmentInfo,
+      locationData: actualPayload.ubicacion_usuario,
+    };
     setMessages(prev => [...prev, userMessage]);
     setIsTyping(true);
 
     try {
       if (activeTicketId) {
-        // Si hay un ticket activo (chat en vivo), enviamos como comentario
-        // Aquí podrías adaptar el backend si necesitas adjuntar archivos a los comentarios del ticket
+        const bodyRequest: any = {
+            comentario: userMessageText,
+            ...(actualPayload.attachmentInfo && { attachment_info: actualPayload.attachmentInfo }),
+            ...(actualPayload.ubicacion_usuario && { ubicacion: actualPayload.ubicacion_usuario }),
+        };
         await apiFetch(`/tickets/chat/${activeTicketId}/responder_ciudadano`, {
           method: "POST",
-          body: {
-            comentario: actualPayload.text,
-            // Ejemplo: Si el backend de comentarios soporta adjuntos:
-            ...(actualPayload.es_foto && { foto_url: actualPayload.archivo_url }),
-            ...(actualPayload.es_ubicacion && { ubicacion: actualPayload.ubicacion_usuario }),
-          },
-          sendAnonId: isAnonimo,
+          body: JSON.stringify(bodyRequest), // Asegurar que el body sea JSON
+          // apiFetch maneja token/anonId
         });
       } else {
-        const stored =
-          typeof window !== 'undefined'
-            ? JSON.parse(safeLocalStorage.getItem('user') || 'null')
-            : null;
-        const rubro = stored?.rubro?.clave || stored?.rubro?.nombre || null;
-        const adjustedTipo = enforceTipoChatForRubro(APP_TARGET, rubro);
+        const storedUser = typeof window !== 'undefined' ? JSON.parse(safeLocalStorage.getItem('user') || 'null') : null;
+        const rubro = storedUser?.rubro?.clave || storedUser?.rubro?.nombre || safeLocalStorage.getItem("rubroSeleccionado") || null; // Incluir rubroSeleccionado como fallback
+        const tipoChatInferido = enforceTipoChatForRubro(APP_TARGET, rubro);
         
-        // --- CONSTRUCCIÓN DEL BODY CON ADJUNTOS Y ACTION ---
-        const requestBody = {
-          pregunta: actualPayload.text,
+        const requestBody: Record<string, any> = {
+          pregunta: userMessageText,
           contexto_previo: contexto,
-          tipo_chat: adjustedTipo,
-          ...(rubro ? { rubro_clave: rubro } : {}),
-          // Incluir datos de adjunto si están presentes
-          ...(actualPayload.es_foto && { es_foto: true, archivo_url: actualPayload.archivo_url }),
-          ...(actualPayload.es_ubicacion && { es_ubicacion: true, ubicacion_usuario: actualPayload.ubicacion_usuario }),
-          // Incluir acción de botón si está presente (para backend)
+          tipo_chat: tipoChatInferido,
+          ...(rubro && { rubro_clave: rubro }),
+          ...(actualPayload.attachmentInfo && { attachment_info: actualPayload.attachmentInfo }),
+          ...(actualPayload.ubicacion_usuario && { ubicacion_usuario: actualPayload.ubicacion_usuario }),
           ...(actualPayload.action && { action: actualPayload.action }),
         };
-        // ----------------------------------------------------
-
-        const endpoint = getAskEndpoint({ tipoChat: adjustedTipo, rubro });
-        const esPublico = esRubroPublico(rubro);
         
-        console.log(
-          'Voy a pedir a endpoint:',
-          endpoint,
-          'rubro:',
-          rubro,
-          'tipoChat:',
-          adjustedTipo,
-          'esPublico:',
-          esPublico,
-          'payload enviado:', // Para debug, quita en producción
-          requestBody
-        );
+        // Añadir idempotency_key si es una acción de confirmar reclamo y la key existe
+        if (actualPayload.action === "confirmar_reclamo" && currentClaimIdempotencyKey) {
+          requestBody.idempotency_key = currentClaimIdempotencyKey;
+          console.log("useChatLogic: Sending idempotency_key with confirmation:", currentClaimIdempotencyKey);
+        }
+
+        if (isAnonimo && anonId) {
+            // requestBody.anon_id = anonId; // El backend lo toma del header
+        }
+
+        const endpoint = getAskEndpoint({ tipoChat: tipoChatInferido, rubro });
 
         const data = await apiFetch<any>(endpoint, {
           method: 'POST',
-          body: requestBody, // Usar el body construido
+          body: JSON.stringify(requestBody), // Asegurar que el body sea JSON
+          // apiFetch maneja token/anonId
         });
         
         setContexto(data.contexto_actualizado || {});
         
-        // --- EXTRAER mediaUrl y locationData de la respuesta del backend ---
+        // Asumiendo que parseChatResponse maneja la estructura de 'data' correctamente
+        const { text: respuestaText, botones, ...otrosDatosBot } = parseChatResponse(data);
+
         const botMessage: Message = {
-          id: Date.now(),
-          text: data?.respuesta || "⚠️ No se pudo generar una respuesta.",
+          id: generateClientMessageId(),
+          text: respuestaText || "⚠️ No se pudo generar una respuesta.",
           isBot: true,
           timestamp: new Date(),
-          botones: data?.botones || [],
-          mediaUrl: data?.media_url, // Asignar la URL del archivo desde el backend
-          locationData: data?.location_data, // Asignar los datos de ubicación desde el backend
+          botones: botones || [],
+          mediaUrl: data.media_url,
+          locationData: data.location_data,
+          attachmentInfo: data.attachment_info,
+          // ...otrosDatosBot que parseChatResponse pueda devolver
         };
-        // -----------------------------------------------------------------
 
         setMessages(prev => [...prev, botMessage]);
+
         if (data.ticket_id) {
           setActiveTicketId(data.ticket_id);
           ultimoMensajeIdRef.current = 0;
+          setCurrentClaimIdempotencyKey(null); // Limpiar la key una vez que el ticket se creó
+        }
+        // Limpiar la key si la respuesta del bot ya no es una confirmación de reclamo
+        const esConfirmacionSiguiente = botMessage.botones?.some((btn: any) => btn.action === "confirmar_reclamo");
+        if (!esConfirmacionSiguiente && !data.ticket_id) {
+            // Si no se creó ticket y la siguiente respuesta no es una confirmación,
+            // es posible que el flujo de reclamo se haya interrumpido o cambiado.
+            // Considerar si limpiar la key aquí es siempre correcto o si debe esperar
+            // a una señal más explícita de cancelación del flujo.
+            // Por ahora, la limpieza principal es al crear ticket o si el bot explícitamente finaliza.
         }
       }
     } catch (error: any) {
-      let errorMsg = "⚠️ No se pudo conectar con el servidor.";
-      if (error?.body?.error) {
-        errorMsg = error.body.error;
-      } else if (error?.message) {
-        errorMsg = error.message;
-      }
+      const errorMsg = getErrorMessage(error, '⚠️ No se pudo conectar con el servidor.');
       setMessages(prev => [
         ...prev,
-        { id: Date.now(), text: errorMsg, isBot: true, timestamp: new Date() }
+        { id: generateClientMessageId(), text: errorMsg, isBot: true, timestamp: new Date() }
       ]);
     } finally {
       setIsTyping(false);
     }
-  }, [contexto, activeTicketId, isTyping, isAnonimo]); // Añadir isTyping e isAnonimo como dependencias
+  }, [contexto, activeTicketId, isTyping, isAnonimo, anonId, currentClaimIdempotencyKey]); // Añadir currentClaimIdempotencyKey
 
-  return { messages, isTyping, handleSend };
+  return { messages, isTyping, handleSend, activeTicketId, setMessages, setContexto, setActiveTicketId }; // Exponer más estados si ChatPanel los necesita
 }
