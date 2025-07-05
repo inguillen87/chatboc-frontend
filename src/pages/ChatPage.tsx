@@ -19,6 +19,7 @@ import { requestLocation } from "@/utils/geolocation";
 // Importar AttachmentInfo y SendPayload desde @/types/chat o un lugar centralizado
 // Asegúrate de que SendPayload en @/types/chat.ts incluya attachmentInfo
 import { AttachmentInfo, SendPayload as TypeSendPayload } from "@/types/chat";
+import { v4 as uuidv4 } from 'uuid'; // <--- IMPORTAR uuid
 
 // Si SendPayload no está en @/types/chat.ts o necesita ser específico aquí:
 // interface SendPayload {
