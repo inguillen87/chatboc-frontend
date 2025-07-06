@@ -442,3 +442,7 @@ Business metrics for the demo are available at `/pyme/metrics`.
 
 ## Roles y perfiles
 Más información en [docs/roles.md](docs/roles.md).
+
+## Chatboc para gobiernos y opinar.ar
+Para detalles sobre la oferta enfocada en municipios y la nueva empresa de encuestas, consultá [docs/opinar-ar.md](docs/opinar-ar.md).
+
