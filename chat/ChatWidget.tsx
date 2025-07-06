@@ -270,31 +270,49 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   }, [ctaMessage, isOpen, showProactiveBubble]); // Added showProactiveBubble as dependency
 
   useEffect(() => {
-    if (mode === "iframe" && entityToken) {
+    // Si el widget está embebido (iframe directamente, o cargado por script)
+    // y se proporciona un entityToken, lo guardamos.
+    if ((mode === "iframe" || mode === "script") && entityToken) {
       safeLocalStorage.setItem("entityToken", entityToken);
-    } else if (mode === "iframe" && !entityToken) {
+    }
+    // Si está embebido y explícitamente no hay entityToken (o se elimina),
+    // lo removemos del storage para evitar usar uno viejo.
+    else if ((mode === "iframe" || mode === "script") && !entityToken) {
       safeLocalStorage.removeItem("entityToken");
     }
+    // No hacemos nada con localStorage para entityToken en modo standalone por defecto.
   }, [mode, entityToken]);
 
   useEffect(() => {
     async function fetchEntityProfile() {
-      if (!entityToken) return;
+      if (!entityToken) {
+        setEntityInfo(null);
+        setResolvedTipoChat(tipoChat); // Restablecer a la prop original
+        return;
+      }
       try {
         const data = await apiFetch<any>("/perfil", {
           sendEntityToken: true,
           skipAuth: true,
         });
+
         if (data && typeof data.esPublico === "boolean") {
           setResolvedTipoChat(data.esPublico ? "municipio" : "pyme");
         } else if (data && data.tipo_chat) {
           setResolvedTipoChat(data.tipo_chat === "municipio" ? "municipio" : "pyme");
+        } else {
+          // Si la data no tiene la estructura esperada, volver al tipoChat original como fallback
+          setResolvedTipoChat(tipoChat);
         }
         setEntityInfo(data);
-      } catch (e) { /* Silenciar */ }
+      } catch (e) {
+        console.error("ChatWidget: Error fetching entity profile:", e);
+        setEntityInfo(null);
+        setResolvedTipoChat(tipoChat); // Restablecer a la prop original en caso de error
+      }
     }
     fetchEntityProfile();
-  }, [entityToken]);
+  }, [entityToken, tipoChat]); // Añadir tipoChat a las dependencias
 
   const openSpring = { type: "spring", stiffness: 280, damping: 28 };
   const closeSpring = { type: "spring", stiffness: 300, damping: 30 };
