@@ -26,11 +26,17 @@ interface SavedMappingConfig {
   };
 }
 
+import { useLocation } from 'react-router-dom'; // Import useLocation
+
 const CatalogMappingPage: React.FC = () => {
   const { pymeId, mappingId } = useParams<{ pymeId: string; mappingId?: string }>();
   const navigate = useNavigate();
+  const location = useLocation(); // Get location object
 
-  const [file, setFile] = useState<File | null>(null);
+  // Attempt to get preloadedFile from navigation state
+  const preloadedFile = (location.state as { preloadedFile?: File })?.preloadedFile;
+
+  const [file, setFile] = useState<File | null>(preloadedFile || null);
   const [userColumns, setUserColumns] = useState<string[]>([]);
   const [currentMappings, setCurrentMappings] = useState<Record<string, string | null>>({});
   const [suggestedMappingsCache, setSuggestedMappingsCache] = useState<Record<string, string | null>>({});
@@ -69,8 +75,30 @@ const CatalogMappingPage: React.FC = () => {
           toast({ variant: "destructive", title: "Error", description: getErrorMessage(err) });
         })
         .finally(() => setIsLoading(false));
+    } else if (preloadedFile && !mappingId) { // If creating new and file is preloaded
+      // Automatically parse headers for the preloaded file
+      // Ensure this only runs once or is idempotent if component re-renders
+      // No need to call setFile again as it's initialized in useState
+      // The parseFileHeaders will be called by the useEffect below that watches `file`
     }
-  }, [mappingId, pymeId]);
+  }, [mappingId, pymeId, preloadedFile]); // Add preloadedFile to dependency array
+
+  // Effect to parse file when `file` state changes (either by upload or preload)
+  useEffect(() => {
+    if (file) {
+       // Reset relevant states when a new file is set (or preloaded)
+      setError(null);
+      setUserColumns([]);
+      setCurrentMappings({});
+      setSuggestedMappingsCache({});
+      setExcelSheetName('');
+      setAvailableSheetNames([]);
+      // Default parsing options, can be adjusted by user later
+      parseFileHeaders(file, true, 0, undefined, undefined);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [file]); // Only depends on `file` object itself. parseFileHeaders has its own deps.
+
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
@@ -80,10 +108,7 @@ const CatalogMappingPage: React.FC = () => {
       setUserColumns([]); // Reset columns until parsed
       setCurrentMappings({}); // Reset mappings
       setSuggestedMappingsCache({});
-      setExcelSheetName(''); // Reset sheet name
-      setAvailableSheetNames([]);
-      // Automatically parse headers if a file is selected
-      parseFileHeaders(selectedFile, true, 0, undefined, undefined);
+      // The main parsing logic will be triggered by the useEffect watching `file`
     }
   };
 
