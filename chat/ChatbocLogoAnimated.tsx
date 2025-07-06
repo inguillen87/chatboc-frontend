@@ -78,18 +78,16 @@ const ChatbocLogoAnimated = ({
       >
         {/* Ojos */}
         <motion.circle
-          cx={leftEyeX} // Initial static value, will be overridden by animate if specified
-          cy={eyeBaseY} // Initial static value
+          cx={Number(leftEyeX) || 18}
+          cy={Number(eyeBaseY) || 24}
           r={3.5}
           fill="#FFFFFF"
           animate={
             blinking
-              ? { scaleY: [1, 0.05, 1], cx: leftEyeX, cy: eyeBaseY, transitionEnd: { scaleY: 1 } }
+              ? { scaleY: [1, 0.05, 1], cx: Number(leftEyeX) || 18, cy: Number(eyeBaseY) || 24, transitionEnd: { scaleY: 1 } }
               : movingEyes
-              // Explicitly use static, defined numerical values for cx and cy
-              ? { cx: leftEyeX, cy: eyeBaseY }
-              // Default if not blinking and not movingEyes
-              : { cx: leftEyeX, cy: eyeBaseY }
+              ? { cx: Number(leftEyeX) || 18, cy: Number(eyeBaseY) || 24 }
+              : { cx: Number(leftEyeX) || 18, cy: Number(eyeBaseY) || 24 }
           }
           transition={
             blinking
@@ -101,18 +99,16 @@ const ChatbocLogoAnimated = ({
           style={{ transformOrigin: "center" }}
         />
         <motion.circle
-          cx={rightEyeX} // Initial static value
-          cy={eyeBaseY} // Initial static value
+          cx={Number(rightEyeX) || 38}
+          cy={Number(eyeBaseY) || 24}
           r={3.5}
           fill="#FFFFFF"
           animate={
             blinking
-              ? { scaleY: [1, 0.05, 1], cx: rightEyeX, cy: eyeBaseY, transitionEnd: { scaleY: 1 } }
+              ? { scaleY: [1, 0.05, 1], cx: Number(rightEyeX) || 38, cy: Number(eyeBaseY) || 24, transitionEnd: { scaleY: 1 } }
               : movingEyes
-              // Explicitly use static, defined numerical values for cx and cy
-              ? { cx: rightEyeX, cy: eyeBaseY }
-              // Default if not blinking and not movingEyes
-              : { cx: rightEyeX, cy: eyeBaseY }
+              ? { cx: Number(rightEyeX) || 38, cy: Number(eyeBaseY) || 24 }
+              : { cx: Number(rightEyeX) || 38, cy: Number(eyeBaseY) || 24 }
           }
           transition={
             blinking
