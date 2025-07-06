@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "rm -rf node_modules package-lock.json && npm install && vite build",
     "preview": "vite preview",
     "setup-env": "node scripts/setupEnv.cjs",
     "postinstall": "npm run setup-env",
@@ -64,6 +64,9 @@
     "uuid": "^11.1.0",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "^3.25.67"
+  },
+  "optionalDependencies": {
+    "@rollup/rollup-linux-x64-gnu": "^4.9.5"
   },
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.16",
