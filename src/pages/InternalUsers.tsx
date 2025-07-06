@@ -45,7 +45,15 @@ export default function InternalUsers() {
         setLoading(false);
       });
     apiFetch<Category[]>('/municipal/categorias')
-      .then((data) => setCategories(data))
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setCategories(data);
+        } else {
+          // Log an error or handle unexpected data format if necessary
+          console.warn("Categories data is not an array:", data);
+          setCategories([]); // Default to an empty array
+        }
+      })
       .catch((err: any) => {
         if (err instanceof ApiError && err.status === 404) {
           setError('Funcionalidad no disponible');
