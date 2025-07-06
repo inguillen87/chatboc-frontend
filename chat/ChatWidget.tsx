@@ -278,7 +278,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       y: 0,
       scale: 1,
       borderRadius: isMobileView ? "0px" : "16px",
-      transition: { ...openSpring, delay: 0.05 }
+      transition: openSpring // Removed delay
     },
     exit: {
       opacity: 0,
