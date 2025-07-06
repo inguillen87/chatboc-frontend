@@ -284,7 +284,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       opacity: 0,
       y: 30,
       scale: 0.95,
-      borderRadius: "30%",
+      borderRadius: "50%", // Match the closed button's border radius
       transition: closeSpring
     }
   };
