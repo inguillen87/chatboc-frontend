@@ -34,10 +34,7 @@ interface ChatWidgetProps {
 }
 
 const PROACTIVE_MESSAGES = [
-  "¿Necesitas ayuda para encontrar algo?",
-  "¡Hola! Estoy aquí para asistirte.",
-  "¿Tienes alguna consulta? ¡Pregúntame!",
-  "Explora nuestros servicios, ¡te ayudo!",
+  "¿Necesitas ayuda?",
 ];
 
 let proactiveMessageTimeout: NodeJS.Timeout | null = null;
@@ -156,44 +153,63 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   useEffect(() => {
     sendStateMessageToParent(isOpen);
     if (isOpen) {
-      setShowProactiveBubble(false);
+      setShowProactiveBubble(false); // Explicitly hide proactive bubble when chat opens
       if (proactiveMessageTimeout) clearTimeout(proactiveMessageTimeout);
       if (hideProactiveBubbleTimeout) clearTimeout(hideProactiveBubbleTimeout);
     }
   }, [isOpen, sendStateMessageToParent]);
 
+  // Main useEffect for scheduling proactive messages
   useEffect(() => {
     if (isOpen || mode === 'standalone') {
       if (proactiveMessageTimeout) clearTimeout(proactiveMessageTimeout);
       if (hideProactiveBubbleTimeout) clearTimeout(hideProactiveBubbleTimeout);
-      setShowProactiveBubble(false);
+      if (showProactiveBubble) setShowProactiveBubble(false); // Ensure it's hidden
       return;
     }
+
+    const alreadyShownProactive = safeLocalStorage.getItem("proactive_bubble_session_shown") === "1";
+    if (alreadyShownProactive) {
+      if (showProactiveBubble) setShowProactiveBubble(false); // If flag is set, ensure bubble stays hidden
+      return;
+    }
+
+    // Clear any existing timeouts before setting new ones to prevent multiple instances
     if (proactiveMessageTimeout) clearTimeout(proactiveMessageTimeout);
     if (hideProactiveBubbleTimeout) clearTimeout(hideProactiveBubbleTimeout);
 
-    const alreadyShownProactive = safeLocalStorage.getItem("proactive_bubble_session_shown") === "1";
-    if (alreadyShownProactive) return;
+    // If we are about to schedule it, ensure it's not already set to show from a previous render cycle.
+    if (showProactiveBubble) setShowProactiveBubble(false);
 
     proactiveMessageTimeout = setTimeout(() => {
       const nextMessage = PROACTIVE_MESSAGES[proactiveCycle % PROACTIVE_MESSAGES.length];
       setProactiveMessage(nextMessage);
-      setShowProactiveBubble(true);
+      setShowProactiveBubble(true); // Set intent to show
       if (!muted) playProactiveSound();
-      safeLocalStorage.setItem("proactive_bubble_session_shown", "1");
+      // "proactive_bubble_session_shown" is now set by the other useEffect
 
       hideProactiveBubbleTimeout = setTimeout(() => {
         setShowProactiveBubble(false);
         setProactiveCycle(prev => prev + 1);
-      }, 7000);
+      }, 7000); // Bubble visible for 7 seconds
 
-    }, 10000);
+    }, 10000); // Show bubble after 10 seconds
 
-    return () => {
+    return () => { // Cleanup
       if (proactiveMessageTimeout) clearTimeout(proactiveMessageTimeout);
       if (hideProactiveBubbleTimeout) clearTimeout(hideProactiveBubbleTimeout);
     };
-  }, [isOpen, muted, proactiveCycle, mode]);
+  }, [isOpen, muted, proactiveCycle, mode]); // Dependencies
+
+  // New useEffect to handle setting the session flag when the bubble is truly visible
+  useEffect(() => {
+    // Only act if the bubble is intended to be shown (showProactiveBubble === true),
+    // is not suppressed by CTA (!showCta),
+    // and if the session flag hasn't been set yet.
+    if (showProactiveBubble && !showCta && safeLocalStorage.getItem("proactive_bubble_session_shown") !== "1") {
+      safeLocalStorage.setItem("proactive_bubble_session_shown", "1");
+    }
+  }, [showProactiveBubble, showCta]); // Dependencies: the two states that determine visual rendering
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -217,8 +233,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       if (nextIsOpen && !muted) {
         playOpenSound();
       }
-      if (nextIsOpen) {
-        setShowProactiveBubble(false);
+      if (nextIsOpen) { // If opening chat
+        setShowProactiveBubble(false); // Hide proactive bubble
         if (proactiveMessageTimeout) clearTimeout(proactiveMessageTimeout);
         if (hideProactiveBubbleTimeout) clearTimeout(hideProactiveBubbleTimeout);
       }
@@ -227,7 +243,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   }, [muted]);
 
   useEffect(() => {
-    if (!ctaMessage || isOpen || showProactiveBubble) {
+    if (!ctaMessage || isOpen || showProactiveBubble) { // If proactiveBubble is showing, don't show CTA
       setShowCta(false);
       return;
     }
@@ -239,7 +255,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       return () => clearTimeout(hide);
     }, 2500);
     return () => clearTimeout(delay);
-  }, [ctaMessage, isOpen, showProactiveBubble]);
+  }, [ctaMessage, isOpen, showProactiveBubble]); // Added showProactiveBubble as dependency
 
   useEffect(() => {
     if (mode === "iframe" && entityToken) {
@@ -278,13 +294,13 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       y: 0,
       scale: 1,
       borderRadius: isMobileView ? "0px" : "16px",
-      transition: openSpring // Removed delay
+      transition: openSpring
     },
     exit: {
       opacity: 0,
       y: 30,
       scale: 0.95,
-      borderRadius: "50%", // Match the closed button's border radius
+      borderRadius: "50%",
       transition: closeSpring
     }
   };
