@@ -43,6 +43,7 @@ import PermissionDenied from '@/pages/PermissionDenied';
 import CartPage from '@/pages/Cart';
 import ProductCheckoutPage from '@/pages/ProductCheckoutPage'; // Importar la nueva página
 import GestionPlantillasPage from '@/pages/GestionPlantillasPage'; // Importar la nueva página de gestión de plantillas
+import CatalogMappingPage from '@/pages/admin/CatalogMappingPage'; // Importar la nueva página de mapeo
 
 export interface RouteConfig {
   path: string;
@@ -94,6 +95,9 @@ const routes: RouteConfig[] = [
   { path: '/municipal/stats', element: <MunicipalStats />, roles: ['admin'] },
   { path: '/municipal/incidents', element: <IncidentsMap />, roles: ['admin'] },
   { path: '/perfil/plantillas-respuesta', element: <GestionPlantillasPage />, roles: ['admin', 'empleado'] },
+  // Rutas para la gestión de mapeo de catálogos por PYME
+  { path: '/admin/pyme/:pymeId/catalog-mappings/new', element: <CatalogMappingPage />, roles: ['admin'] },
+  { path: '/admin/pyme/:pymeId/catalog-mappings/:mappingId', element: <CatalogMappingPage />, roles: ['admin'] },
 ];
 
 export default routes;
