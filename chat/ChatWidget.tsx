@@ -124,7 +124,13 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const finalClosedHeight = isMobileView ? mobileClosedSize : closedHeight;
   const logoSizeFactor = 0.62;
   const closedWidthPx = parseInt(finalClosedWidth.replace('px', ''), 10);
-  const calculatedLogoSize = Math.floor(closedWidthPx * logoSizeFactor);
+  let calculatedLogoSize = Math.floor(closedWidthPx * logoSizeFactor);
+
+  // Safeguard: Ensure calculatedLogoSize is a positive number, default to a minimum if not.
+  // This prevents NaN or zero size if closedWidthPx is NaN or 0.
+  if (isNaN(calculatedLogoSize) || calculatedLogoSize <= 0) {
+    calculatedLogoSize = 30; // A reasonable minimum default size for the logo animation
+  }
 
   const commonPanelAndButtonAbsoluteClasses = cn("absolute bottom-0 right-0");
   const commonPanelStyles = cn("bg-card border shadow-lg", "flex flex-col overflow-hidden");
