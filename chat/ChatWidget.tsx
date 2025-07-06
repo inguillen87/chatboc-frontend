@@ -6,7 +6,7 @@ import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { motion, AnimatePresence } from "framer-motion";
 import { useUser } from "@/hooks/useUser";
 import { apiFetch } from "@/utils/api";
-import { playOpenSound, playProactiveSound } from "@/utils/sounds";
+import { playOpenSound, playProactiveSound, resumeAudioContext } from "@/utils/sounds";
 import ProactiveBubble from "./ProactiveBubble";
 import ChatUserRegisterPanel from "./ChatUserRegisterPanel";
 import ChatUserLoginPanel from "./ChatUserLoginPanel";
@@ -234,6 +234,12 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   }, [widgetId]);
 
   const toggleChat = useCallback(() => {
+    // --- Add this line ---
+    if (!isOpen) { // If chat is currently closed and is about to be opened
+      resumeAudioContext(); // Attempt to resume/initialize AudioContext on first open
+    }
+    // --- End of addition ---
+
     setIsOpen((prevIsOpen) => {
       const nextIsOpen = !prevIsOpen;
       if (nextIsOpen && !muted) {
@@ -246,7 +252,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       }
       return nextIsOpen;
     });
-  }, [muted]);
+  }, [isOpen, muted]); // Added isOpen to dependency array
 
   useEffect(() => {
     if (!ctaMessage || isOpen || showProactiveBubble) { // If proactiveBubble is showing, don't show CTA
@@ -387,6 +393,9 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             <motion.div
               key="chatboc-panel-closed"
               className="relative w-full h-full"
+              initial={{ opacity: 1, scale: 1 }}
+              animate={{ opacity: 1, scale: 1, transition: { ...openSpring, delay: 0.1 } }}
+              exit={{ opacity: 0, scale: 0.8, transition: { ...closeSpring, duration: 0.15 } }}
             >
               <ProactiveBubble
                 message={proactiveMessage || ""}
@@ -492,6 +501,9 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                 width: finalClosedWidth,
                 height: finalClosedHeight,
               }}
+              initial={{ opacity: 1, scale: 1 }}
+              animate={{ opacity: 1, scale: 1, transition: { ...openSpring, delay: 0.1 } }}
+              exit={{ opacity: 0, scale: 0.8, transition: { ...closeSpring, duration: 0.15 } }}
             >
               <ProactiveBubble
                 message={proactiveMessage || ""}
