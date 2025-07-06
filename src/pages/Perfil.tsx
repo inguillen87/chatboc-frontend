@@ -13,6 +13,11 @@ import {
   Info,
   ChevronDown,
   ChevronUp,
+  Settings2, // Icono para configurar formatos
+  PlusCircle, // Icono para crear nuevo
+  Trash2, // Icono para eliminar
+  Edit3, // Icono para editar
+  FileCog, // Icono general para formatos/mapeos
 } from "lucide-react";
 import MunicipioIcon from "@/components/ui/MunicipioIcon";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +28,27 @@ import {
   AccordionTrigger,
   AccordionContent,
 } from "@/components/ui/accordion";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { toast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import LocationMap from "@/components/LocationMap";
@@ -109,6 +135,18 @@ export default function Perfil() {
   const [loadingGuardar, setLoadingGuardar] = useState(false);
   const [loadingCatalogo, setLoadingCatalogo] = useState(false);
   const [horariosOpen, setHorariosOpen] = useState(false);
+
+  // Estados para la gestión de mapeos
+  interface MappingConfig {
+    id: string; // o number, según tu backend
+    name: string;
+    // Podríamos añadir más detalles si fueran necesarios en la lista, como fileType o ultimaModificacion
+  }
+  const [mappingConfigs, setMappingConfigs] = useState<MappingConfig[]>([]);
+  const [loadingMappings, setLoadingMappings] = useState(false);
+  const [showManageMappingsDialog, setShowManageMappingsDialog] = useState(false);
+  const [mappingToDelete, setMappingToDelete] = useState<MappingConfig | null>(null);
+
 
   useEffect(() => {
     if (!Maps_API_KEY || Maps_API_KEY.includes("AIzaSyDbEoPzFgN5zJsIeywiRE7jRI8xr5ioGNI")) {
@@ -198,7 +236,34 @@ export default function Perfil() {
       return;
     }
     fetchPerfil(); // Llamar sin token
-  }, [fetchPerfil, navigate]); // Añadir navigate a las dependencias
+  }, [fetchPerfil, navigate]);
+
+  // Función para cargar las configuraciones de mapeo
+  const fetchMappingConfigs = useCallback(async () => {
+    if (!user?.id) return; // Asegurarse que tenemos el ID de la PYME (user.id)
+    setLoadingMappings(true);
+    try {
+      const data = await apiFetch<MappingConfig[]>(`/pymes/${user.id}/catalog-mappings`);
+      setMappingConfigs(data || []);
+    } catch (err) {
+      toast({
+        variant: "destructive",
+        title: "Error al cargar configuraciones de mapeo",
+        description: getErrorMessage(err),
+      });
+      setMappingConfigs([]); // Asegurar que sea un array vacío en caso de error
+    } finally {
+      setLoadingMappings(false);
+    }
+  }, [user?.id]);
+
+  // Cargar mapeos cuando el diálogo se va a mostrar
+  useEffect(() => {
+    if (showManageMappingsDialog && user?.id) {
+      fetchMappingConfigs();
+    }
+  }, [showManageMappingsDialog, user?.id, fetchMappingConfigs]);
+
 
   const handlePlaceSelected = (place: google.maps.places.PlaceResult | null) => { // Tipado de 'place'
     if (!place || !place.address_components || !place.geometry) {
@@ -328,30 +393,104 @@ export default function Perfil() {
     
     setLoadingCatalogo(true);
     setResultadoCatalogo(null);
-    try {
-      const formData = new FormData();
-      formData.append("file", archivo); // Asegúrate que el backend espera 'file' o 'archivo'
-      
-      // Usa apiFetch para la subida de archivos
-      const data = await apiFetch<any>("/catalogo/cargar", {
-        method: "POST",
-        body: formData, // apiFetch maneja FormData correctamente (no Content-Type)
-      });
-      
-      setResultadoCatalogo({
-        message: data.mensaje || "Catálogo subido y procesado correctamente ✔️", // Asume que backend devuelve 'mensaje'
-        type: "success",
-      });
-    } catch (err) {
-      setResultadoCatalogo({
-        message: getErrorMessage(err, "Error al subir y procesar el catálogo."),
-        type: "error",
-      });
-    } finally {
+
+    // 1. Intentar obtener mapeos existentes para decidir el flujo
+    let pymeId = user?.id;
+    if (!pymeId) {
+      toast({ variant: "destructive", title: "Error", description: "No se pudo identificar la PYME." });
       setLoadingCatalogo(false);
-      setArchivo(null); // Limpiar el archivo seleccionado después de subir
+      return;
+    }
+
+    let configs: MappingConfig[] = mappingConfigs;
+    // Si mappingConfigs no se ha cargado aún (ej. el usuario no abrió el diálogo de gestión)
+    // podríamos cargarlas aquí ad-hoc, o asumir que si no están cargadas, no hay ninguna.
+    // Por simplicidad inicial, si no están en estado, las cargamos.
+    if (configs.length === 0 && !loadingMappings) { // Evitar recargar si ya se están cargando
+        try {
+            configs = await apiFetch<MappingConfig[]>(`/pymes/${pymeId}/catalog-mappings`) || [];
+            setMappingConfigs(configs); // Actualizar estado si se cargan aquí
+        } catch (fetchErr) {
+            // No bloquear la subida si esto falla, se procederá como si no hubiera mapeos
+            console.warn("No se pudieron cargar mapeos existentes antes de subir archivo:", fetchErr);
+        }
+    }
+
+    // TODO: Implementar lógica para elegir mapeo predeterminado o único
+    // Por ahora, si no hay mapeos, o si hay más de uno y no hay predeterminado,
+    // redirigimos a la creación de mapeo con el archivo.
+    const shouldGoToMappingPage = configs.length === 0; // Simplificación: siempre ir si no hay mapeos.
+                                                        // Futuro: ir si hay >1 y ninguno es default, o si el usuario elige configurar.
+
+    if (shouldGoToMappingPage) {
+      // Redirigir a la página de mapeo, pasando el archivo
+      toast({
+        title: "Configuración Requerida",
+        description: "Vamos a configurar cómo leer tu archivo."
+      });
+      navigate(`/admin/pyme/${pymeId}/catalog-mappings/new`, {
+        state: { preloadedFile: archivo }
+      });
+      // No limpiar setLoadingCatalogo ni setArchivo aquí, CatalogMappingPage tomará el control
+      return;
+    } else {
+      // Lógica para procesar directamente con un mapeo existente (a desarrollar)
+      // Esto implicaría seleccionar el mapeo adecuado (ej. el primero, o uno marcado como default)
+      // y luego llamar a una API del backend que procese el archivo usando ese mapeo.
+      // POST /api/pymes/{pymeId}/process-catalog-file con file y mappingId
+      const mappingToUse = configs[0]; // Simplificación: usar el primer mapeo encontrado
+
+      try {
+        const formData = new FormData();
+        formData.append("file", archivo);
+        formData.append("mappingId", mappingToUse.id); // Enviar el ID del mapeo
+
+        // Asumimos un nuevo endpoint o que /catalogo/cargar puede tomar un mappingId
+        const data = await apiFetch<any>(`/pymes/${pymeId}/process-catalog-file`, { // Endpoint hipotético
+          method: "POST",
+          body: formData,
+        });
+
+        setResultadoCatalogo({
+          message: data.mensaje || "Catálogo subido y procesado con el formato guardado ✔️",
+          type: "success",
+        });
+        setArchivo(null);
+      } catch (err) {
+        setResultadoCatalogo({
+          message: getErrorMessage(err, "Error al subir y procesar el catálogo con el formato guardado."),
+          type: "error",
+        });
+      } finally {
+        setLoadingCatalogo(false);
+      }
     }
   };
+
+  const handleDeleteMapping = async () => {
+    if (!mappingToDelete || !user?.id) return;
+    setLoadingMappings(true); // Reutilizar loading para el diálogo
+    try {
+      await apiFetch<void>(`/pymes/${user.id}/catalog-mappings/${mappingToDelete.id}`, {
+        method: 'DELETE',
+      });
+      toast({
+        title: "Configuración eliminada",
+        description: `El formato "${mappingToDelete.name}" fue eliminado.`,
+      });
+      setMappingToDelete(null);
+      fetchMappingConfigs(); // Recargar la lista
+    } catch (err) {
+      toast({
+        variant: "destructive",
+        title: "Error al eliminar",
+        description: getErrorMessage(err),
+      });
+    } finally {
+      setLoadingMappings(false);
+    }
+  };
+
 
   const plan = (perfil.plan || '').toLowerCase();
   const limitePlan =
@@ -903,6 +1042,81 @@ export default function Perfil() {
                   (ej: Nombre, Precio, Descripción).
                 </p>
               </div>
+
+              {/* Gestión de Mapeos */}
+              <div className="mt-3 pt-3 border-t border-border/60">
+                <Dialog open={showManageMappingsDialog} onOpenChange={setShowManageMappingsDialog}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm" className="w-full text-sm">
+                      <Settings2 className="w-4 h-4 mr-2" />
+                      Configurar Formatos de Archivo...
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-[625px]">
+                    <DialogHeader>
+                      <DialogTitle className="text-xl flex items-center">
+                        <FileCog className="w-5 h-5 mr-2 text-primary"/>
+                        Mis Formatos de Archivo de Catálogo
+                      </DialogTitle>
+                      <DialogDescription>
+                        Gestiona cómo se leen las columnas de tus archivos de catálogo. Puedes tener múltiples formatos.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-2 max-h-[60vh] overflow-y-auto">
+                      {loadingMappings && <p className="text-muted-foreground text-sm p-4 text-center">Cargando formatos...</p>}
+                      {!loadingMappings && mappingConfigs.length === 0 && (
+                        <p className="text-muted-foreground text-sm p-4 text-center">
+                          Aún no has guardado ninguna configuración de formato.
+                          Se intentará detectar las columnas automáticamente al subir un archivo.
+                        </p>
+                      )}
+                      {!loadingMappings && mappingConfigs.length > 0 && (
+                        <ul className="space-y-2">
+                          {mappingConfigs.map((config) => (
+                            <li key={config.id} className="flex items-center justify-between p-3 bg-muted/30 hover:bg-muted/60 rounded-md border border-border">
+                              <span className="text-sm font-medium text-foreground">{config.name}</span>
+                              <div className="space-x-2">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => navigate(`/admin/pyme/${user?.id}/catalog-mappings/${config.id}`)}
+                                  title="Editar"
+                                >
+                                  <Edit3 className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  onClick={() => setMappingToDelete(config)}
+                                  title="Eliminar"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                    <DialogFooter className="mt-4 sm:justify-between gap-2">
+                       <DialogClose asChild>
+                         <Button variant="outline" className="w-full sm:w-auto">Cerrar</Button>
+                       </DialogClose>
+                       <Button
+                         className="w-full sm:w-auto"
+                         onClick={() => navigate(`/admin/pyme/${user?.id}/catalog-mappings/new`)}
+                       >
+                         <PlusCircle className="w-4 h-4 mr-2" />
+                         Crear Nuevo Formato
+                       </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
+              {/* Fin Gestión de Mapeos */}
+
               <div className="flex-grow"></div> {/* Spacer element */}
               <Button
                 onClick={handleSubirArchivo}
@@ -973,6 +1187,30 @@ export default function Perfil() {
           </Card>
         </div>
       </div> {/* Fin del contenedor principal flex-col md:flex-row */}
+
+      {/* AlertDialog para confirmar eliminación de mapeo */}
+      <AlertDialog open={!!mappingToDelete} onOpenChange={(open) => !open && setMappingToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Estás seguro de eliminar este formato?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Formato: <span className="font-semibold">{mappingToDelete?.name}</span>
+              <br />
+              Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setMappingToDelete(null)}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteMapping}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={loadingMappings}
+            >
+              {loadingMappings ? "Eliminando..." : "Sí, eliminar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
