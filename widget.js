@@ -58,28 +58,40 @@
         },
       };
 
-      function computeResponsiveDims(base) {
-        if (window.innerWidth < 640) {
-          return {
-            width: "100vw",
-            height:
-              "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))",
-          };
-        }
+      // Modified computeResponsiveDims to accept isOpen
+      function computeResponsiveDims(base, isOpen) {
         const widthNum = parseInt(base.width, 10);
         const heightNum = parseInt(base.height, 10);
-        const width = Math.min(widthNum, window.innerWidth - 20) + "px";
-        const height = Math.min(heightNum, window.innerHeight - 20) + "px";
-        return { width, height };
+
+        if (isOpen && window.innerWidth < 640) {
+          // Open and on mobile: force full screen
+          return {
+            width: "100vw",
+            height: "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))",
+          };
+        } else if (!isOpen && window.innerWidth < 640) {
+          // Closed and on mobile: use exact small dimensions (e.g., 72px from ChatWidget.tsx)
+          return {
+            width: widthNum + "px",
+            height: heightNum + "px",
+          };
+        } else {
+          // Desktop (open or closed): use base dimensions, constrained by viewport size.
+          // For "closed" state on desktop, Math.min won't typically have an effect.
+          const constrainedWidth = Math.min(widthNum, window.innerWidth - 20);
+          const constrainedHeight = Math.min(heightNum, window.innerHeight - 20);
+          return { width: constrainedWidth + "px", height: constrainedHeight + "px" };
+        }
       }
 
-      let currentDims = defaultOpen
-        ? computeResponsiveDims(WIDGET_DIMENSIONS_JS.OPEN)
-        : WIDGET_DIMENSIONS_JS.CLOSED;
       let iframeIsCurrentlyOpen = defaultOpen;
+      // Initial dimensions calculation using the modified computeResponsiveDims
+      let currentDims = defaultOpen
+        ? computeResponsiveDims(WIDGET_DIMENSIONS_JS.OPEN, true) // isOpen is true if defaultOpen
+        : WIDGET_DIMENSIONS_JS.CLOSED; // CLOSED dimensions are already small and non-responsive
+
 
       // --- Contenedor principal del widget (loader y iframe) ---
-      // Este div es el que realmente manejará el tamaño, forma y color de fondo inicial.
       const widgetContainer = document.createElement("div");
       widgetContainer.id = "chatboc-widget-container-" + iframeId;
       widgetContainer.setAttribute("data-chatboc-token", token);
@@ -90,20 +102,22 @@
         width: currentDims.width,
         height: currentDims.height,
         zIndex: zIndexBase.toString(),
-        borderRadius: iframeIsCurrentlyOpen ? "16px" : "50%",
+        borderRadius: iframeIsCurrentlyOpen && window.innerWidth < 640 ? "0px" : iframeIsCurrentlyOpen ? "16px" : "50%",
         boxShadow: iframeIsCurrentlyOpen ? "0 6px 20px rgba(0,0,0,0.2)" : "0 4px 12px rgba(0,0,0,0.15)",
-        transition: "width 0.25s cubic-bezier(0.4, 0, 0.2, 1), height 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-radius 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s ease-in-out",
-        overflow: "hidden",
+        // width, height, and border-radius will be controlled by the iframe's content animations.
+        // Only transition boxShadow and background.
+        transition: "box-shadow 0.25s ease-in-out, background-color 0.25s ease-in-out",
+        overflow: "hidden", // Keep hidden to clip content during framer-motion animation
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         cursor: "pointer",
-        // El background del contenedor principal DEBE tener un color sólido para el estado de botón cerrado.
-        background: "hsl(var(--primary, 218 92% 41%))", // Usar el color primario de tu tema para el botón
+        // Background is transparent if open, primary color if closed.
+        background: iframeIsCurrentlyOpen ? "transparent" : "hsl(var(--primary, 218 92% 41%))",
       });
       document.body.appendChild(widgetContainer);
 
-      // --- Loader (Aseguramos que el logo del loader siempre se vea sobre un fondo) ---
+      // --- Loader ---
       const loader = document.createElement("div");
       loader.id = "chatboc-loader-" + iframeId;
       Object.assign(loader.style, {
@@ -115,247 +129,237 @@
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "hsl(var(--primary, 218 92% 41%))", // Fondo del loader, igual que el botón
-        borderRadius: "inherit", // Hereda el border-radius del contenedor padre
+        background: "hsl(var(--primary, 218 92% 41%))", // Loader BG matches closed button
+        borderRadius: "inherit",
         transition: "opacity 0.3s ease-out",
-        pointerEvents: "auto", // Puede recibir clics
-        zIndex: "2", // Por encima del iframe inicialmente
+        pointerEvents: "auto", // Allow click if iframe fails to load to trigger open attempt
+        zIndex: "2",
       });
-      // El logo en el loader
-      loader.innerHTML = `<img src="${chatbocDomain}/favicon/favicon-96x96.png" alt="Chatboc" style="width:96px;height:96px; filter: invert(100%);"/>`; // Invertir color si el fondo es oscuro
+      loader.innerHTML = `<img src="${chatbocDomain}/favicon/favicon-96x96.png" alt="Chatboc" style="width:96px;height:96px; filter: invert(100%);"/>`;
       widgetContainer.appendChild(loader);
 
       // --- Iframe ---
       const iframe = document.createElement("iframe");
       iframe.id = iframeId;
       iframe.src = `${chatbocDomain}/iframe?token=${encodeURIComponent(token)}&widgetId=${iframeId}&defaultOpen=${defaultOpen}&tipo_chat=${tipoChat}&openWidth=${encodeURIComponent(WIDGET_DIMENSIONS_JS.OPEN.width)}&openHeight=${encodeURIComponent(WIDGET_DIMENSIONS_JS.OPEN.height)}&closedWidth=${encodeURIComponent(WIDGET_DIMENSIONS_JS.CLOSED.width)}&closedHeight=${encodeURIComponent(WIDGET_DIMENSIONS_JS.CLOSED.height)}${theme ? `&theme=${encodeURIComponent(theme)}` : ""}${rubroAttr ? `&rubro=${encodeURIComponent(rubroAttr)}` : ""}${finalCta ? `&ctaMessage=${encodeURIComponent(finalCta)}` : ""}`;
-    Object.assign(iframe.style, {
-      border: "none",
-      width: "100%", 
-      height: "100%", 
-      backgroundColor: "transparent", // Sigue transparente, el fondo lo dará el contenido de React
-      display: "block",
-      opacity: "0", // Oculto inicialmente, se muestra cuando carga
-      transition: "opacity 0.3s ease-in",
-      zIndex: "1" // Por debajo del loader inicialmente
-    });
-    iframe.allow = "clipboard-write; geolocation";
-    // If this script runs inside an iframe, try to grant the same
-    // permissions so geolocation works even in nested frames
-    try {
-      if (window.frameElement && window.frameElement.setAttribute) {
-        const allowAttr = window.frameElement.getAttribute("allow") || "";
-        if (!allowAttr.includes("geolocation")) {
-          const parts = allowAttr
-            .split(/\s*;\s*/)
-            .filter((p) => p && p !== "clipboard-write" && p !== "geolocation");
-          parts.push("clipboard-write", "geolocation");
-          window.frameElement.setAttribute("allow", parts.join("; "));
-        }
-      }
-    } catch (e) {
-      // Might be cross-origin; ignore if we cannot modify the parent iframe
-    }
-    iframe.setAttribute("title", "Chatboc Chatbot");
-    widgetContainer.appendChild(iframe);
-
-    let iframeHasLoaded = false;
-    const loadTimeout = setTimeout(() => {
-      if (!iframeHasLoaded) {
-        loader.innerHTML = '<div style="font-family: Arial, sans-serif; color: white; font-size:12px; text-align:center;">Servicio no disponible</div>'; // Texto de error en blanco
-        loader.style.backgroundColor = "hsl(var(--destructive, 0 84.2% 60.2%))"; // Fondo de error
-      }
-    }, 10000);
-
-    iframe.onload = function () {
-      iframeHasLoaded = true;
-      clearTimeout(loadTimeout);
-      loader.style.opacity = "0"; // Oculta el loader
-      setTimeout(() => loader.remove(), 250); // Remueve el loader después de la transición
-      iframe.style.opacity = "1"; // Muestra el iframe
-    };
-
-    iframe.onerror = function () {
-      iframeHasLoaded = true;
-      clearTimeout(loadTimeout);
-      loader.innerHTML = '<div style="font-family: Arial, sans-serif; color: white; font-size:12px; text-align:center;">Servicio no disponible</div>';
-      loader.style.backgroundColor = "hsl(var(--destructive, 0 84.2% 60.2%))";
-      iframe.style.display = "none";
-    };
-
-    // Escuchar mensajes del iframe para redimensionar y cambiar estado
-    function messageHandler(event) {
-      const isLocalDev = chatbocDomain.startsWith("http://localhost") || chatbocDomain.startsWith("http://127.0.0.1");
-      if (event.origin !== chatbocDomain && !isLocalDev) {
-        // Solo loguear si el mensaje parece ser para chatboc para evitar ruido
-        if (event.data && typeof event.data.type === 'string' && event.data.type.startsWith('chatboc-')) {
-          console.warn(
-            "Chatboc widget: Received a message from an unexpected origin.",
-            "\nMessage origin:", event.origin,
-            "\nExpected origin (chatbocDomain):", chatbocDomain,
-            "\nIf you are self-hosting widget.js, ensure the 'data-domain' attribute on your <script> tag is correctly set to the domain serving the iframe content (e.g., https://www.chatboc.ar)."
-          );
-        }
-        return;
-      }
-
-      if (event.data && event.data.type === "chatboc-state-change" && event.data.widgetId === iframeId) {
-        iframeIsCurrentlyOpen = event.data.isOpen;
-        if (event.data.dimensions) {
-          currentDims = computeResponsiveDims(event.data.dimensions);
-        } else if (iframeIsCurrentlyOpen) {
-          currentDims = computeResponsiveDims(WIDGET_DIMENSIONS_JS.OPEN);
-        } else {
-          currentDims = WIDGET_DIMENSIONS_JS.CLOSED;
-        }
-
-        Object.assign(widgetContainer.style, {
-          width: currentDims.width,
-          height: currentDims.height,
-          borderRadius: iframeIsCurrentlyOpen && window.innerWidth < 640 ? "0" : iframeIsCurrentlyOpen ? "16px" : "50%",
-          boxShadow: iframeIsCurrentlyOpen ? "0 6px 20px rgba(0,0,0,0.2)" : "0 4px 12px rgba(0,0,0,0.15)",
-          // El color de fondo del widgetContainer cambia si el panel está abierto
-          background: iframeIsCurrentlyOpen ? "transparent" : "hsl(var(--primary, 218 92% 41%))",
-        });
-      }
-    }
-    window.addEventListener("message", messageHandler);
-
-    function adjustOpenDimensions() {
-      if (!iframeIsCurrentlyOpen) return;
-      currentDims = computeResponsiveDims(WIDGET_DIMENSIONS_JS.OPEN);
-      Object.assign(widgetContainer.style, {
-        width: currentDims.width,
-        height: currentDims.height,
-        borderRadius: window.innerWidth < 640 ? "0" : "16px",
+      Object.assign(iframe.style, {
+        border: "none",
+        width: "100%",
+        height: "100%",
+        backgroundColor: "transparent",
+        display: "block",
+        opacity: "0", // Hidden initially
+        transition: "opacity 0.3s ease-in",
+        zIndex: "1" // Below loader initially
       });
-    }
-
-    window.addEventListener("resize", adjustOpenDimensions);
-
-    // Si el iframe no responde, forzar apertura al hacer click en el contenedor
-    widgetContainer.addEventListener("click", function () {
-      if (!iframeIsCurrentlyOpen) {
-        if (iframe && iframe.contentWindow) {
-          iframe.contentWindow.postMessage(
-            { type: "TOGGLE_CHAT", widgetId: iframeId, isOpen: true },
-            "*"
-          );
+      iframe.allow = "clipboard-write; geolocation";
+      try {
+        if (window.frameElement && window.frameElement.setAttribute) {
+          const allowAttr = window.frameElement.getAttribute("allow") || "";
+          if (!allowAttr.includes("geolocation")) {
+            const parts = allowAttr.split(/\s*;\s*/).filter(p => p && p !== "clipboard-write" && p !== "geolocation");
+            parts.push("clipboard-write", "geolocation");
+            window.frameElement.setAttribute("allow", parts.join("; "));
+          }
         }
-        // Aplicar estilos de apertura como respaldo inmediato
-        iframeIsCurrentlyOpen = true;
-        currentDims = computeResponsiveDims(WIDGET_DIMENSIONS_JS.OPEN);
+      } catch (e) { /* Might be cross-origin; ignore */ }
+      iframe.setAttribute("title", "Chatboc Chatbot");
+      widgetContainer.appendChild(iframe);
+
+      let iframeHasLoaded = false;
+      const loadTimeout = setTimeout(() => {
+        if (!iframeHasLoaded) {
+          loader.innerHTML = '<div style="font-family: Arial, sans-serif; color: white; font-size:12px; text-align:center;">Servicio no disponible</div>';
+          loader.style.backgroundColor = "hsl(var(--destructive, 0 84.2% 60.2%))";
+        }
+      }, 10000);
+
+      iframe.onload = function () {
+        iframeHasLoaded = true;
+        clearTimeout(loadTimeout);
+        loader.style.opacity = "0"; // Fade out loader
+        setTimeout(() => loader.remove(), 250); // Remove after transition
+        iframe.style.opacity = "1"; // Fade in iframe
+      };
+
+      iframe.onerror = function () {
+        iframeHasLoaded = true;
+        clearTimeout(loadTimeout);
+        loader.innerHTML = '<div style="font-family: Arial, sans-serif; color: white; font-size:12px; text-align:center;">Servicio no disponible</div>';
+        loader.style.backgroundColor = "hsl(var(--destructive, 0 84.2% 60.2%))";
+        iframe.style.display = "none"; // Hide broken iframe
+      };
+
+      function messageHandler(event) {
+        const isLocalDev = chatbocDomain.startsWith("http://localhost") || chatbocDomain.startsWith("http://127.0.0.1");
+        if (event.origin !== chatbocDomain && !isLocalDev) {
+            if (event.data && typeof event.data.type === 'string' && event.data.type.startsWith('chatboc-')) {
+              console.warn("Chatboc widget: Received a message from an unexpected origin.", "\nMessage origin:", event.origin, "\nExpected origin (chatbocDomain):", chatbocDomain);
+            }
+            return;
+        }
+
+        if (event.data && event.data.type === "chatboc-state-change" && event.data.widgetId === iframeId) {
+          iframeIsCurrentlyOpen = event.data.isOpen;
+          if (event.data.dimensions) {
+            currentDims = computeResponsiveDims(event.data.dimensions, iframeIsCurrentlyOpen);
+          } else if (iframeIsCurrentlyOpen) {
+            currentDims = computeResponsiveDims(WIDGET_DIMENSIONS_JS.OPEN, iframeIsCurrentlyOpen);
+          } else {
+            currentDims = WIDGET_DIMENSIONS_JS.CLOSED;
+          }
+
+          Object.assign(widgetContainer.style, {
+            width: currentDims.width,
+            height: currentDims.height,
+            borderRadius: iframeIsCurrentlyOpen && window.innerWidth < 640 ? "0" : iframeIsCurrentlyOpen ? "16px" : "50%",
+            boxShadow: iframeIsCurrentlyOpen ? "0 6px 20px rgba(0,0,0,0.2)" : "0 4px 12px rgba(0,0,0,0.15)",
+            background: iframeIsCurrentlyOpen ? "transparent" : "hsl(var(--primary, 218 92% 41%))",
+          });
+        }
+      }
+      window.addEventListener("message", messageHandler);
+
+      function adjustOpenDimensions() {
+        if (!iframeIsCurrentlyOpen) return;
+        currentDims = computeResponsiveDims(WIDGET_DIMENSIONS_JS.OPEN, iframeIsCurrentlyOpen); // isOpen is true here
         Object.assign(widgetContainer.style, {
           width: currentDims.width,
           height: currentDims.height,
-          borderRadius: window.innerWidth < 640 ? "0" : "16px",
-          boxShadow: "0 6px 20px rgba(0,0,0,0.2)",
-          background: "transparent", // Asegurar que el fondo sea transparente al iniciar la apertura
+          borderRadius: window.innerWidth < 640 ? "0" : "16px", // Specific for open state
         });
       }
-    });
+      window.addEventListener("resize", adjustOpenDimensions);
 
-    // --- Lógica de Arrastre (solo para el modo fixed) ---
-    let isDragging = false, dragStartX, dragStartY, containerStartLeft, containerStartTop;
-    widgetContainer.addEventListener("mousedown", dragStart);
-    widgetContainer.addEventListener("touchstart", dragStart, { passive: false });
-
-    function dragStart(e) {
-      if (iframeIsCurrentlyOpen) return; 
-      isDragging = true;
-      const rect = widgetContainer.getBoundingClientRect();
-      containerStartLeft = rect.left;
-      containerStartTop = rect.top;
-      dragStartX = e.touches ? e.touches[0].clientX : e.clientX;
-      dragStartY = e.touches ? e.touches[0].clientY : e.clientY;
-      widgetContainer.style.transition = "none";
-      widgetContainer.style.userSelect = "none";
-      document.body.style.cursor = "move";
-      document.addEventListener("mousemove", dragMove);
-      document.addEventListener("mouseup", dragEnd);
-      document.addEventListener("touchmove", dragMove, { passive: false });
-      document.addEventListener("touchend", dragEnd);
-      if (e.type === "touchstart" && e.cancelable) e.preventDefault();
-    }
-
-    function dragMove(e) {
-      if (!isDragging) return;
-      if (e.type === "touchmove" && e.cancelable) e.preventDefault();
-      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-      let newLeft = containerStartLeft + (clientX - dragStartX);
-      let newTop = containerStartTop + (clientY - dragStartY);
-      const currentContainerWidth = parseInt(currentDims.width);
-      const currentContainerHeight = parseInt(currentDims.height);
-      newLeft = Math.max(0, Math.min(window.innerWidth - currentContainerWidth, newLeft));
-      newTop = Math.max(0, Math.min(window.innerHeight - currentContainerHeight, newTop));
-      widgetContainer.style.left = newLeft + "px";
-      widgetContainer.style.top = newTop + "px";
-      widgetContainer.style.right = "auto";
-      widgetContainer.style.bottom = "auto";
-    }
-
-    function dragEnd() {
-      if (!isDragging) return;
-      isDragging = false;
-      widgetContainer.style.userSelect = "";
-      document.body.style.cursor = "default";
-      setTimeout(() => {
-        widgetContainer.style.transition = "width 0.25s cubic-bezier(0.4, 0, 0.2, 1), height 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-radius 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s ease-in-out";
-      }, 50);
-      document.removeEventListener("mousemove", dragMove);
-      document.removeEventListener("mouseup", dragEnd);
-      document.removeEventListener("touchmove", dragMove);
-      document.removeEventListener("touchend", dragEnd);
-    }
-
-    function postToIframe(msg) {
-      if (iframe && iframe.contentWindow) {
-        iframe.contentWindow.postMessage({ ...msg, widgetId: iframeId }, "*");
-      }
-    }
-
-    function destroy() {
-      window.removeEventListener("message", messageHandler);
-      window.removeEventListener("resize", adjustOpenDimensions);
-      widgetContainer.removeEventListener("mousedown", dragStart);
-      widgetContainer.removeEventListener("touchstart", dragStart);
-      widgetContainer.remove();
-    }
-
-    registry[token] = { destroy, container: widgetContainer, post: postToIframe };
-
-    if (!window.Chatboc) window.Chatboc = {};
-    window.Chatboc.setView = function (view) {
-      postToIframe({ type: "SET_VIEW", view });
-    };
-    window.Chatboc.open = function () {
-      postToIframe({ type: "TOGGLE_CHAT", isOpen: true });
-    };
-    window.Chatboc.close = function () {
-      postToIframe({ type: "TOGGLE_CHAT", isOpen: false });
-    };
-    window.Chatboc.toggle = function () {
-      postToIframe({ type: "TOGGLE_CHAT", isOpen: !iframeIsCurrentlyOpen });
-    };
-    if (!window.chatbocDestroyWidget) {
-      window.chatbocDestroyWidget = function (tok) {
-        if (registry[tok] && typeof registry[tok].destroy === "function") {
-          registry[tok].destroy();
-          delete registry[tok];
+      widgetContainer.addEventListener("click", function () {
+        // This click listener is primarily a fallback if the iframe fails to load or post messages,
+        // or if the loader itself is clicked.
+        if (!iframeIsCurrentlyOpen) {
+          if (iframe && iframe.contentWindow) {
+            iframe.contentWindow.postMessage({ type: "TOGGLE_CHAT", widgetId: iframeId, isOpen: true }, "*");
+          }
+          // Apply styles for open state immediately as a fallback
+          iframeIsCurrentlyOpen = true;
+          currentDims = computeResponsiveDims(WIDGET_DIMENSIONS_JS.OPEN, true); // isOpen is true
+          Object.assign(widgetContainer.style, {
+            width: currentDims.width,
+            height: currentDims.height,
+            borderRadius: window.innerWidth < 640 ? "0" : "16px",
+            boxShadow: "0 6px 20px rgba(0,0,0,0.2)",
+            background: "transparent",
+          });
+           // Hide loader if it's still visible and we are forcing open
+          if (loader && loader.parentElement) {
+            loader.style.opacity = "0";
+            setTimeout(() => loader.remove(), 250);
+          }
+          if(iframe) iframe.style.opacity = "1";
         }
-      };
-    }
-  }
+      });
+
+      let isDragging = false, dragStartX, dragStartY, containerStartLeft, containerStartTop;
+      widgetContainer.addEventListener("mousedown", dragStart);
+      widgetContainer.addEventListener("touchstart", dragStart, { passive: false });
+
+      function dragStart(e) {
+        if (iframeIsCurrentlyOpen) return; // Don't drag if open
+        isDragging = true;
+        const rect = widgetContainer.getBoundingClientRect();
+        containerStartLeft = rect.left;
+        containerStartTop = rect.top;
+        dragStartX = e.touches ? e.touches[0].clientX : e.clientX;
+        dragStartY = e.touches ? e.touches[0].clientY : e.clientY;
+        widgetContainer.style.transition = "none"; // Disable transitions during drag
+        widgetContainer.style.userSelect = "none";
+        document.body.style.cursor = "move";
+        document.addEventListener("mousemove", dragMove);
+        document.addEventListener("mouseup", dragEnd);
+        document.addEventListener("touchmove", dragMove, { passive: false });
+        document.addEventListener("touchend", dragEnd);
+        if (e.type === "touchstart" && e.cancelable) e.preventDefault();
+      }
+
+      function dragMove(e) {
+        if (!isDragging) return;
+        if (e.type === "touchmove" && e.cancelable) e.preventDefault();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        let newLeft = containerStartLeft + (clientX - dragStartX);
+        let newTop = containerStartTop + (clientY - dragStartY);
+        const currentContainerWidth = parseInt(currentDims.width); // Use currentDims for accuracy
+        const currentContainerHeight = parseInt(currentDims.height);
+        newLeft = Math.max(0, Math.min(window.innerWidth - currentContainerWidth, newLeft));
+        newTop = Math.max(0, Math.min(window.innerHeight - currentContainerHeight, newTop));
+        widgetContainer.style.left = newLeft + "px";
+        widgetContainer.style.top = newTop + "px";
+        widgetContainer.style.right = "auto"; // Important when dragging
+        widgetContainer.style.bottom = "auto"; // Important when dragging
+      }
+
+      function dragEnd() {
+        if (!isDragging) return;
+        isDragging = false;
+        widgetContainer.style.userSelect = "";
+        document.body.style.cursor = "default";
+        // Restore only relevant transitions
+        setTimeout(() => {
+            widgetContainer.style.transition = "box-shadow 0.25s ease-in-out, background-color 0.25s ease-in-out";
+        }, 50);
+        document.removeEventListener("mousemove", dragMove);
+        document.removeEventListener("mouseup", dragEnd);
+        document.removeEventListener("touchmove", dragMove);
+        document.removeEventListener("touchend", dragEnd);
+      }
+
+      function postToIframe(msg) {
+        if (iframe && iframe.contentWindow) {
+          iframe.contentWindow.postMessage({ ...msg, widgetId: iframeId }, "*");
+        }
+      }
+
+      function destroy() {
+        window.removeEventListener("message", messageHandler);
+        window.removeEventListener("resize", adjustOpenDimensions);
+        widgetContainer.removeEventListener("mousedown", dragStart);
+        widgetContainer.removeEventListener("touchstart", dragStart);
+        if (widgetContainer.parentElement) {
+            widgetContainer.remove();
+        }
+        if (loader && loader.parentElement) {
+            loader.remove();
+        }
+        if (iframe && iframe.parentElement) {
+            iframe.remove();
+        }
+        clearTimeout(loadTimeout);
+      }
+
+      registry[token] = { destroy, container: widgetContainer, post: postToIframe };
+
+      if (!window.Chatboc) window.Chatboc = {};
+      window.Chatboc.setView = function (view) { postToIframe({ type: "SET_VIEW", view }); };
+      window.Chatboc.open = function () { postToIframe({ type: "TOGGLE_CHAT", isOpen: true }); };
+      window.Chatboc.close = function () { postToIframe({ type: "TOGGLE_CHAT", isOpen: false }); };
+      window.Chatboc.toggle = function () { postToIframe({ type: "TOGGLE_CHAT", isOpen: !iframeIsCurrentlyOpen }); };
+      if (!window.chatbocDestroyWidget) {
+        window.chatbocDestroyWidget = function (tok) {
+          if (registry[tok] && typeof registry[tok].destroy === "function") {
+            registry[tok].destroy();
+            delete registry[tok];
+          }
+        };
+      }
+    } // End of buildWidget
 
     if (ctaMessageAttr) {
       buildWidget(ctaMessageAttr);
     } else {
       fetch(`${chatbocDomain}/widget/attention`)
         .then((r) => (r.ok ? r.json() : {}))
-        .then((d) => buildWidget(d.message || "")
-        .catch(() => buildWidget(""));
+        .then((d) => buildWidget(d.message || ""))
+        .catch(() => buildWidget("")); // Ensure buildWidget is always called
     }
+  } // End of init
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init);
