@@ -52,8 +52,8 @@ export default function MunicipalMessageMetrics() {
 
   const chartData = [
     { name: 'Semana', value: metrics.week },
-    { name: 'Mes', value: metrics.month },
-    { name: 'Año', value: metrics.year },
+    { name: 'Mes', value: typeof metrics.month === 'number' && !isNaN(metrics.month) ? metrics.month : 0 },
+    { name: 'Año', value: typeof metrics.year === 'number' && !isNaN(metrics.year) ? metrics.year : 0 },
   ];
 
   return (

@@ -178,7 +178,7 @@ export default function MunicipalStats() {
           <div className="h-80">
             <ChartContainer config={{}}>
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data.stats.map(s => ({ name: s.label, value: s.value }))}>
+                <BarChart data={data.stats.map(s => ({ name: s.label, value: typeof s.value === 'number' && !isNaN(s.value) ? s.value : 0 }))}>
                   <XAxis dataKey="name" />
                   <YAxis />
                   <Tooltip />
