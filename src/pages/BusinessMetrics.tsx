@@ -149,7 +149,7 @@ export default function BusinessMetrics() {
           <div className="h-80"> {/* Increased chart height */}
             <ChartContainer config={{}}>
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={metrics.map((m) => ({ name: m.label, value: m.value }))} margin={{ top: 5, right: 20, left: -20, bottom: 40 }}> {/* Adjusted margins */}
+                <BarChart data={metrics.map((m) => ({ name: m.label, value: typeof m.value === 'number' && !isNaN(m.value) ? m.value : 0 }))} margin={{ top: 5, right: 20, left: -20, bottom: 40 }}> {/* Adjusted margins */}
                   <XAxis
                     dataKey="name"
                     angle={-30} // Angle labels to prevent overlap

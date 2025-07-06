@@ -24,14 +24,17 @@ declare global {
 
 export default function IncidentsMap() {
   useRequireRole(['admin'] as Role[]);
-  const navigate = useNavigate(); // For linking to ticket details
+  const navigate = useNavigate();
 
-  const [map, setMap] = useState<google.maps.Map | null>(null);
+  const [mapState, setMapState] = useState<google.maps.Map | null>(null);
+  const mapRef = useRef<google.maps.Map | null>(null);
+
   const [heatmapLayer, setHeatmapLayer] = useState<google.maps.visualization.HeatmapLayer | null>(null);
   const [markers, setMarkers] = useState<google.maps.Marker[]>([]);
   const [activeInfoWindow, setActiveInfoWindow] = useState<google.maps.InfoWindow | null>(null);
 
-  const [loading, setLoading] = useState(true);
+  const [isMapInitializing, setIsMapInitializing] = useState(true);
+  const [isDataLoading, setIsDataLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const heatmapToggleRef = useRef<HTMLInputElement>(null);
@@ -40,7 +43,7 @@ export default function IncidentsMap() {
   const categoryRef = useRef<HTMLInputElement>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
 
-  const ticketType = 'municipio'; // This page is specific to municipal incidents
+  const ticketType = 'municipio';
 
   const clearMapElements = useCallback(() => {
     markers.forEach(marker => marker.setMap(null));
@@ -54,13 +57,52 @@ export default function IncidentsMap() {
     }
   }, [markers, heatmapLayer, activeInfoWindow]);
 
-  const fetchDataAndRefreshMap = useCallback(async () => {
-    if (!map) {
-        console.warn("fetchDataAndRefreshMap called before map was initialized.");
-        setLoading(false);
-        return;
+  const initializeMap = useCallback(() => {
+    if (mapRef.current) {
+      if (!mapState && mapRef.current) setMapState(mapRef.current);
+      return;
     }
-    setLoading(true);
+    if (mapContainerRef.current && window.google && window.google.maps) {
+      if (!window.google.maps.visualization) {
+        console.warn("Google Maps Visualization library not loaded. Heatmap functionality might be affected.");
+      }
+      const googleMap = new window.google.maps.Map(mapContainerRef.current, {
+        center: { lat: -34.603722, lng: -58.381592 },
+        zoom: 12,
+      });
+      mapRef.current = googleMap;
+      setMapState(googleMap);
+    } else {
+      console.warn("initializeMap: mapContainerRef or window.google.maps not available.");
+      setError("No se pudo inicializar el mapa (dependencias no listas después de API load).");
+    }
+  }, [setError, setMapState, mapState]); // mapState dependency to sync if ref set but state not.
+
+  useEffect(() => {
+    setIsMapInitializing(true);
+    setError(null);
+    loadGoogleMapsApi(["visualization"])
+      .then(() => {
+        console.log("Google Maps API loaded successfully.");
+        initializeMap();
+      })
+      .catch((err) => {
+        console.error("Google Maps API failed to load", err);
+        setError(`No se pudo cargar Google Maps: ${err.message}`);
+      })
+      .finally(() => {
+        setIsMapInitializing(false);
+      });
+  }, [initializeMap, setError]);
+
+
+  const fetchDataAndRefreshMap = useCallback(async () => {
+    const currentMap = mapRef.current;
+    if (!currentMap) {
+      console.warn("fetchDataAndRefreshMap called before map was initialized.");
+      return;
+    }
+    setIsDataLoading(true);
     setError(null);
     clearMapElements();
 
@@ -73,9 +115,7 @@ export default function IncidentsMap() {
 
     try {
       const data = await apiFetch<IncidentMapPoint[]>(endpoint);
-
       if (!data) {
-        setLoading(false);
         setError("No se recibieron datos del servidor.");
         return;
       }
@@ -84,6 +124,9 @@ export default function IncidentsMap() {
 
       if (isHeatmapActive) {
         if(activeInfoWindow) activeInfoWindow.close();
+        markers.forEach(marker => marker.setMap(null));
+        setMarkers([]);
+
         const heatmapData = data.map(item => ({
           location: new window.google.maps.LatLng(item.location.lat, item.location.lng),
           weight: item.weight,
@@ -93,14 +136,14 @@ export default function IncidentsMap() {
         if (!newHeatmapLayer) {
           newHeatmapLayer = new window.google.maps.visualization.HeatmapLayer({
             data: heatmapData,
-            map: map,
+            map: currentMap,
             radius: 20,
             dissipating: true,
           });
           setHeatmapLayer(newHeatmapLayer);
         } else {
           newHeatmapLayer.setData(heatmapData);
-          newHeatmapLayer.setMap(map);
+          newHeatmapLayer.setMap(currentMap);
         }
       } else {
         if (heatmapLayer) heatmapLayer.setMap(null);
@@ -108,7 +151,7 @@ export default function IncidentsMap() {
         const newGoogleMarkers = data.map(item => {
           const marker = new window.google.maps.Marker({
             position: item.location,
-            map: map,
+            map: currentMap,
             title: item.asunto || `Incidente (ID: ${item.ticket_id || 'N/A'})`,
           });
 
@@ -136,10 +179,8 @@ export default function IncidentsMap() {
             }
             contentString += `</div>`;
 
-            const infoWindow = new window.google.maps.InfoWindow({
-              content: contentString,
-            });
-            infoWindow.open(map, marker);
+            const infoWindow = new window.google.maps.InfoWindow({ content: contentString });
+            infoWindow.open(currentMap, marker);
             setActiveInfoWindow(infoWindow);
           });
           return marker;
@@ -151,57 +192,33 @@ export default function IncidentsMap() {
       setError(message);
       console.error("Error fetching map data:", err);
     } finally {
-      setLoading(false);
+      setIsDataLoading(false);
     }
-  }, [map, heatmapLayer, ticketType, clearMapElements, activeInfoWindow, navigate]);
+  }, [heatmapLayer, ticketType, clearMapElements, activeInfoWindow, navigate, setError, setMarkers, setHeatmapLayer, setActiveInfoWindow, markers]); // Added markers to deps of fetch data
 
   useEffect(() => {
     const handleNavigate = (event: Event) => {
-        const customEvent = event as CustomEvent<{ ticketId: number; ticketTipo: string }>;
-        if (customEvent.detail && customEvent.detail.ticketId) {
-            navigate(`/tickets#ticket-${customEvent.detail.ticketId}`);
-            console.log("Navigating to ticket:", customEvent.detail.ticketId);
-        }
+      const customEvent = event as CustomEvent<{ ticketId: number; ticketTipo: string }>;
+      if (customEvent.detail && customEvent.detail.ticketId) {
+        navigate(`/tickets#ticket-${customEvent.detail.ticketId}`);
+      }
     };
     document.addEventListener('navigateToTicket', handleNavigate);
     return () => {
-        document.removeEventListener('navigateToTicket', handleNavigate);
+      document.removeEventListener('navigateToTicket', handleNavigate);
     };
   }, [navigate]);
 
-  const initializeMap = useCallback(() => {
-    if (mapContainerRef.current && !map && window.google && window.google.maps) {
-        if (!window.google.maps.visualization) {
-            console.error("Google Maps Visualization library not loaded. Heatmap will not work.");
-            setError("La librería de visualización de mapas (heatmap) no cargó. El mapa de calor puede no funcionar.");
-        }
-        const googleMap = new window.google.maps.Map(mapContainerRef.current, {
-            center: { lat: -34.603722, lng: -58.381592 },
-            zoom: 12,
-        });
-        setMap(googleMap);
-    }
-  }, [map]);
-
   useEffect(() => {
-    loadGoogleMapsApi(["visualization"]) 
-      .then(initializeMap)
-      .catch((err) => {
-        console.error("Google Maps API failed to load", err);
-        setError("No se pudo cargar Google Maps");
-        setLoading(false);
-      });
-  }, [initializeMap]);
-
-  useEffect(() => {
-    if (map && !loading && (markers.length === 0 && !heatmapLayer?.getMap())) { // Check if map is set, not loading, and no data is displayed
+    if (mapState && !isMapInitializing && !isDataLoading) {
+      if (markers.length === 0 && (!heatmapLayer || !heatmapLayer.getMap())) {
         fetchDataAndRefreshMap();
+      }
     }
-  }, [map, loading, markers, heatmapLayer, fetchDataAndRefreshMap]);
-
+  }, [mapState, isMapInitializing, isDataLoading, markers, heatmapLayer, fetchDataAndRefreshMap]);
 
   const handleApplyFilters = () => {
-    if (map) {
+    if (mapRef.current) {
       fetchDataAndRefreshMap();
     } else {
       setError("El mapa no está inicializado. Intente recargar la página.");
@@ -209,14 +226,15 @@ export default function IncidentsMap() {
   };
 
   const handleHeatmapToggle = () => {
-     if (map) {
+    if (mapRef.current) {
       fetchDataAndRefreshMap();
     }
   };
 
-  if (loading && !map) return <p className="p-4 text-center">Cargando mapa y datos...</p>;
-  if (!map && !loading && !error) return <p className="p-4 text-center text-muted-foreground">Esperando carga del mapa...</p>;
-  if (!map && error) return <p className="p-4 text-destructive text-center">Error al cargar el mapa: {error}</p>;
+  if (isMapInitializing) return <p className="p-4 text-center">Cargando API de Mapas y componente...</p>;
+  if (error && !mapRef.current) return <p className="p-4 text-destructive text-center">Error al cargar el mapa: {error}</p>;
+  if (!mapRef.current && !isMapInitializing && !error) return <p className="p-4 text-center text-muted-foreground">Mapa no disponible. Contacte a soporte.</p>;
+
 
   return (
     <div className="p-4">
@@ -257,16 +275,16 @@ export default function IncidentsMap() {
           <div className="sm:col-span-full flex justify-end mt-2">
             <Button
               onClick={handleApplyFilters}
-              disabled={loading || !map}
+              disabled={isDataLoading || !mapRef.current || isMapInitializing}
               className="bg-primary hover:bg-primary/90 text-primary-foreground"
             >
-              {loading && map ? 'Actualizando...' : 'Aplicar Filtros y Actualizar Mapa'}
+              {(isDataLoading && mapRef.current) ? 'Actualizando...' : 'Aplicar Filtros y Actualizar Mapa'}
             </Button>
           </div>
         </div>
       </div>
 
-      {error && !loading && <p className="text-destructive text-center mb-4 p-3 bg-destructive/10 rounded-md">{error}</p>}
+      {error && <p className="text-destructive text-center mb-4 p-3 bg-destructive/10 rounded-md">{error}</p>}
 
       <div
         id="mapContainer"
@@ -274,7 +292,7 @@ export default function IncidentsMap() {
         style={{ height: '600px', width: '100%' }}
         className="mb-6 border border-border rounded-lg shadow bg-muted/20 dark:bg-slate-800/30"
       >
-        {map && loading && (
+        {(isDataLoading && mapRef.current) && (
             <div className="absolute inset-0 flex items-center justify-center bg-background/50 backdrop-blur-sm z-10">
                 <p className="text-lg font-semibold text-foreground">Cargando datos en el mapa...</p>
             </div>
