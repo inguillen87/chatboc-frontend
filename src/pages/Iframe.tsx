@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import ChatWidget from "../components/chat/ChatWidget";
 import { GoogleOAuthProvider } from "@react-oauth/google";
+import { safeLocalStorage } from "@/utils/safeLocalStorage";
 
 const DEFAULTS = {
   openWidth: "460px",
@@ -22,10 +23,21 @@ const Iframe = () => {
   useEffect(() => {
     if (typeof window !== "undefined") {
       const urlParams = new URLSearchParams(window.location.search);
+      const tokenFromUrl = urlParams.get("token");
+
+      if (tokenFromUrl) {
+        safeLocalStorage.setItem('entityToken', tokenFromUrl);
+        console.log('Chatboc Iframe: entityToken guardado en localStorage desde URL:', tokenFromUrl);
+      } else {
+        console.warn('Chatboc Iframe: No se encontró token en la URL del iframe. localStorage no actualizado.');
+        // Opcional: limpiar el token si no viene en la URL, para evitar usar uno antiguo.
+        // safeLocalStorage.removeItem('entityToken');
+      }
+
       setParams({
         defaultOpen: urlParams.get("defaultOpen") === "true",
         widgetId: urlParams.get("widgetId") || "chatboc-iframe-unknown",
-        token: urlParams.get("token"),
+        token: tokenFromUrl, // Usar la variable ya leída
         view: urlParams.get("view") || 'chat',
         openWidth: urlParams.get("openWidth") || DEFAULTS.openWidth,
         openHeight: urlParams.get("openHeight") || DEFAULTS.openHeight,
