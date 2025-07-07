@@ -33,6 +33,16 @@ const ChatUserLoginPanel: React.FC<Props> = ({ onSuccess, onShowRegister }) => {
     emailRef.current?.focus();
   }, []);
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const tokenFromUrl = params.get('token');
+      if (tokenFromUrl) {
+        safeLocalStorage.setItem('entityToken', tokenFromUrl);
+      }
+    }
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
