@@ -33,6 +33,16 @@ const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin }) => {
   const nameRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const tokenFromUrl = params.get('token');
+      if (tokenFromUrl) {
+        safeLocalStorage.setItem('entityToken', tokenFromUrl);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
     nameRef.current?.focus();
   }, []);
 
