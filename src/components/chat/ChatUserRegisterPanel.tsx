@@ -19,9 +19,10 @@ interface RegisterResponse {
 interface Props {
   onSuccess: (rol?: string) => void;
   onShowLogin: () => void;
+  entityToken?: string; // Added entityToken prop
 }
 
-const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin }) => {
+const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin, entityToken }) => {
   const { refreshUser } = useUser();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -31,16 +32,6 @@ const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin }) => {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      const tokenFromUrl = params.get('token');
-      if (tokenFromUrl) {
-        safeLocalStorage.setItem('entityToken', tokenFromUrl);
-      }
-    }
-  }, []);
 
   useEffect(() => {
     nameRef.current?.focus();
@@ -62,16 +53,35 @@ const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin }) => {
         acepto_terminos: accepted,
       };
       if (phone.trim()) payload.telefono = phone.trim();
-      const empresaToken = safeLocalStorage.getItem("entityToken");
-      payload.empresa_token = empresaToken;
+
+      // Prioritize entityToken from prop, then localStorage, then URL (handled by useEffect)
+      let currentEntityToken = entityToken || safeLocalStorage.getItem("entityToken");
+
+      if (!currentEntityToken) {
+        const params = new URLSearchParams(window.location.search);
+        const tokenFromUrl = params.get('token');
+        if (tokenFromUrl) {
+          currentEntityToken = tokenFromUrl;
+          safeLocalStorage.setItem('entityToken', tokenFromUrl); // Save it for potential future use in this session
+        }
+      }
+
+      if (!currentEntityToken) {
+        setError("El token de la entidad es requerido para el registro. Contacte a soporte si el problema persiste.");
+        setLoading(false);
+        return;
+      }
+      payload.empresa_token = currentEntityToken;
+
       const anon = safeLocalStorage.getItem("anon_id");
       if (anon) payload.anon_id = anon;
+
       const data = await apiFetch<RegisterResponse>("/chatuserregisterpanel", {
         method: "POST",
         body: payload,
         skipAuth: true,
         sendAnonId: true,
-        sendEntityToken: true,
+        // sendEntityToken: true, // Removed: token is in body
       });
       safeLocalStorage.setItem("authToken", data.token);
       await refreshUser();

@@ -355,7 +355,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
               {(view === "register" || view === "login" || view === "user" || view === "info") && (
                 <ChatHeader onClose={toggleChat} onBack={() => setView("chat")} showProfile={false} muted={muted} onToggleSound={toggleMuted} onCart={openCart} />
               )}
-              {view === "register" ? <ChatUserRegisterPanel onSuccess={() => setView("chat")} onShowLogin={() => setView("login")} />
+              {view === "register" ? <ChatUserRegisterPanel onSuccess={() => setView("chat")} onShowLogin={() => setView("login")} entityToken={entityToken} />
                 : view === "login" ? <ChatUserLoginPanel onSuccess={() => setView("chat")} onShowRegister={() => setView("register")} />
                 : view === "user" ? <ChatUserPanel onClose={() => setView("chat")} />
                 : view === "info" ? <EntityInfoPanel info={entityInfo} onClose={() => setView("chat")} />
@@ -456,7 +456,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
               {(view === "register" || view === "login" || view === "user" || view === "info") && (
                 <ChatHeader onClose={toggleChat} onBack={() => setView("chat")} showProfile={false} muted={muted} onToggleSound={toggleMuted} onCart={openCart} />
               )}
-              {view === "register" ? <ChatUserRegisterPanel onSuccess={() => setView("chat")} onShowLogin={() => setView("login")} />
+              {view === "register" ? <ChatUserRegisterPanel onSuccess={() => setView("chat")} onShowLogin={() => setView("login")} entityToken={entityToken} />
                 : view === "login" ? <ChatUserLoginPanel onSuccess={() => setView("chat")} onShowRegister={() => setView("register")} />
                 : view === "user" ? <ChatUserPanel onClose={() => setView("chat")} />
                 : view === "info" ? <EntityInfoPanel info={entityInfo} onClose={() => setView("chat")} />
