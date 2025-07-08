@@ -5,6 +5,7 @@
 // point to the real backend URL.
 const API_BASE_URL = import.meta.env.VITE_API_URL || "/api";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
+import getOrCreateChatSessionId from "@/utils/chatSessionId"; // Import the new function
 
 export class ApiError extends Error {
   public readonly status: number;
@@ -41,6 +42,7 @@ export async function apiFetch<T>(
   const token = safeLocalStorage.getItem("authToken");
   const anonId = safeLocalStorage.getItem("anon_id");
   const entityToken = safeLocalStorage.getItem("entityToken");
+  const chatSessionId = getOrCreateChatSessionId(); // Get or create the chat session ID
 
   const url = `${API_BASE_URL}${path}`;
   const headers: Record<string, string> = { ...(options.headers || {}) };
@@ -48,6 +50,8 @@ export async function apiFetch<T>(
   const isForm = body instanceof FormData;
   if (!isForm) headers["Content-Type"] = "application/json";
 
+  // Add the chat session ID header to all requests
+  headers["X-Chat-Session-Id"] = chatSessionId;
 
   if (!skipAuth && token) {
     headers["Authorization"] = `Bearer ${token}`;
