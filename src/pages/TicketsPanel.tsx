@@ -1,9 +1,8 @@
 import React, { useEffect, useState, useCallback, FC, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Loader2, Send, Ticket as TicketIcon, ChevronDown, ChevronUp, User, ShieldCheck, X, Search, Filter, ListFilter, File, ArrowLeft, XCircle, Paperclip  } from "lucide-react"; /// ellRing, AlertTriangle eliminados
+import { Loader2, Send, Ticket as TicketIcon, ChevronDown, ChevronUp, User, ShieldCheck, X, Search, Filter, ListFilter, File, ArrowLeft, XCircle, BellRing, AlertTriangle } from "lucide-react"; // TODO: XCircle, BellRing, AlertTriangle importados acá
 import { motion, AnimatePresence } from "framer-motion";
-import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area"; // Import Radix ScrollArea
 import { apiFetch, ApiError } from "@/utils/api";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 // import getOrCreateAnonId from "@/utils/anonId"; // No se usa en admin panel
@@ -22,87 +21,45 @@ import useRequireRole from "@/hooks/useRequireRole";
 import type { Role } from "@/utils/roles";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
-// Importar los tipos consolidados
-import type { Ticket, TicketSummary, Comment, TicketStatus, SlaStatus, PriorityStatus } from "@/types";
-import { toast } from "@/components/ui/use-toast";
-import { normalizePhoneNumberForWhatsApp } from "@/utils/phoneNumber";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"; // Para ayuda de Markdown
-import { MessageSquareText, HelpCircle } from "lucide-react"; // Iconos
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import { useUser } from '@/hooks/useUser'; // Ensured this is present
 
-// ----------- TIPOS Y ESTADOS (AHORA IMPORTADOS O LOCALES ESPECÍFICOS) -----------
+// ----------- TIPOS Y ESTADOS -----------
+type TicketStatus = "nuevo" | "en_proceso" | "derivado" | "resuelto" | "cerrado" | "esperando_agente_en_vivo";
+type SlaStatus = "on_track" | "nearing_sla" | "breached" | null;
+type PriorityStatus = "low" | "medium" | "high" | null;
 
-// Interfaz para los tickets agrupados, específica de este panel
+interface Comment { id: number; comentario: string; fecha: string; es_admin: boolean; }
+interface Ticket {
+  id: number; tipo: 'pyme' | 'municipio'; nro_ticket: number; asunto: string; estado: TicketStatus; fecha: string;
+  detalles?: string; comentarios?: Comment[]; nombre_usuario?: string; email_usuario?: string; telefono?: string; direccion?: string; archivo_url?: string; categoria?: string;
+  municipio_nombre?: string;
+  latitud?: number | null;
+  longitud?: number | null;
+  sla_status?: SlaStatus;
+  priority?: PriorityStatus;
+  sla_deadline?: string;
+}
+interface TicketSummary extends Omit<Ticket, 'detalles' | 'comentarios'> {
+  direccion?: string;
+  latitud?: number | null;
+  longitud?: number | null;
+  sla_status?: SlaStatus;
+  priority?: PriorityStatus;
+}
 interface GroupedTickets {
   categoryName: string;
   tickets: TicketSummary[];
 }
 
-// Constantes para la lógica de UI, permanecen locales
-
-// --- Plantillas de Respuesta ---
-interface ResponseTemplate {
-  name: string;
-  text: string;
-  keywords?: string[]; // Palabras clave para sugerir la plantilla
-}
-
-const RESPONSE_TEMPLATES: ResponseTemplate[] = [
-  {
-    name: "Saludo Inicial",
-    text: "Hola {nombre_usuario},\n\nGracias por contactarnos. Estamos revisando tu consulta sobre '{asunto_ticket}' (#{nro_ticket}) y te responderemos a la brevedad.\n\nSaludos,\nEquipo de Soporte",
-    keywords: ["hola", "buenas", "saludo", "gracias por contactar"],
-  },
-  {
-    name: "Solicitar Más Información",
-    text: "Hola {nombre_usuario},\n\nPara poder ayudarte mejor con tu consulta sobre '{asunto_ticket}' (#{nro_ticket}), ¿podrías proporcionarnos los siguientes detalles adicionales?\n\n1. [Detalle 1]\n2. [Detalle 2]\n\nQuedamos atentos a tu respuesta.\n\nSaludos,\nEquipo de Soporte",
-    keywords: ["informacion", "detalles", "ayuda", "necesito mas", "datos"],
-  },
-  {
-    name: "Resolución Contraseña",
-    text: "Hola {nombre_usuario},\n\nCon gusto te ayudamos con el reinicio de tu contraseña para '{asunto_ticket}' (#{nro_ticket}). Puedes hacerlo siguiendo este enlace: [Enlace para Resetear Contraseña]. Si el problema persiste, avísanos.\n\nSaludos,\nEquipo de Soporte",
-    keywords: ["contraseña", "clave", "acceso", "password", "login", "olvide"],
-  },
-  {
-    name: "Cierre de Ticket",
-    text: "Hola {nombre_usuario},\n\nNos complace informarte que tu consulta sobre '{asunto_ticket}' (#{nro_ticket}) ha sido resuelta. Si tienes alguna otra pregunta o necesitas más ayuda, no dudes en contactarnos nuevamente.\n\nGracias por tu paciencia.\n\nSaludos,\nEquipo de Soporte",
-    keywords: ["resuelto", "solucionado", "cerrar", "listo", "finalizado"],
-  },
-  {
-    name: "Escalar Problema",
-    text: "Hola {nombre_usuario},\n\nEntendemos la situación respecto a '{asunto_ticket}' (#{nro_ticket}). Hemos escalado tu caso a nuestro equipo especializado y te contactarán lo antes posible con una actualización.\n\nGracias por tu comprensión.\n\nSaludos,\nEquipo de Soporte",
-    keywords: ["escalar", "especialista", "supervisor", "ayuda adicional", "derivar"],
-  }
-];
-// --- Fin Plantillas de Respuesta ---
-
-// Función para obtener plantillas sugeridas basada en palabras clave
-const getSuggestedTemplatesForTicket = (asuntoTicket: string, allTemplates: ResponseTemplate[]): ResponseTemplate[] => {
-  if (!asuntoTicket) return [];
-  const asuntoLower = asuntoTicket.toLowerCase();
-  return allTemplates.filter(template =>
-    template.keywords?.some(keyword => asuntoLower.includes(keyword.toLowerCase()))
-  );
-};
-
-const ESTADOS = {
+const ESTADOS_ORDEN_PRIORIDAD: TicketStatus[] = ["nuevo", "en_proceso", "esperando_agente_en_vivo", "derivado", "resuelto", "cerrado"];
+const ESTADOS: Record<TicketStatus, { label: string; tailwind_class: string, icon?: React.ElementType }> = {
   nuevo: { label: "Nuevo", tailwind_class: "bg-blue-500 hover:bg-blue-600 text-white border-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600", icon: TicketIcon },
   en_proceso: { label: "En Proceso", tailwind_class: "bg-yellow-500 hover:bg-yellow-600 text-black border-yellow-700 dark:bg-yellow-400 dark:hover:bg-yellow-500", icon: Loader2 },
   derivado: { label: "Derivado", tailwind_class: "bg-purple-500 hover:bg-purple-600 text-white border-purple-700 dark:bg-purple-500 dark:hover:bg-purple-600" },
   resuelto: { label: "Resuelto", tailwind_class: "bg-green-500 hover:bg-green-600 text-white border-green-700 dark:bg-green-500 dark:hover:bg-green-600" },
-  cerrado: { label: "Cerrado", tailwind_class: "bg-gray-500 hover:bg-gray-600 text-white border-gray-700 dark:bg-gray-600 dark:border-gray-700" },
+  cerrado: { label: "Cerrado", tailwind_class: "bg-gray-500 hover:bg-gray-600 text-white border-gray-700 dark:bg-gray-600 dark:hover:bg-gray-700" },
   esperando_agente_en_vivo: { label: "Esperando agente", tailwind_class: "bg-red-500 hover:bg-red-600 text-white border-red-700 dark:bg-red-500 dark:hover:bg-red-600" }
 };
-const ESTADOS_ORDEN_PRIORIDAD: TicketStatus[] = ["nuevo", "en_proceso", "esperando_agente_en_vivo", "derivado", "resuelto", "cerrado"];
 
 const SLA_STATUS_INFO: Record<NonNullable<SlaStatus>, { label: string; color: string; icon?: React.ElementType }> = {
   on_track: { label: "En tiempo", color: "text-green-600 dark:text-green-400" },
@@ -115,8 +72,6 @@ const PRIORITY_INFO: Record<NonNullable<PriorityStatus>, { label: string; color:
   medium: { label: "Media", color: "text-blue-500 dark:text-blue-400", badgeClass: "bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-700 dark:text-blue-200 dark:border-blue-500" },
   high: { label: "Alta", color: "text-red-500 dark:text-red-400", badgeClass: "bg-red-100 text-red-700 border-red-300 dark:bg-red-700 dark:text-red-200 dark:border-red-500" },
 };
-
-// ----------- NUEVOS COMPONENTES -----------
 
 const TicketListItem: FC<{
   ticket: TicketSummary;
@@ -171,7 +126,7 @@ const TicketListItem: FC<{
                 SLA: {slaInfo.label}
             </span>
         )}
-        {!slaInfo && <div />} {/* Placeholder to keep date to the right */}
+        {!slaInfo && <div />}
         <p className="text-xs text-muted-foreground">{formatDate(ticket.fecha, timezone, locale)}</p>
       </div>
     </motion.div>
@@ -179,26 +134,24 @@ const TicketListItem: FC<{
 };
 
 interface TicketDetailViewProps {
-  ticket: Ticket; // Ahora Ticket puede incluir sla_status y priority
+  ticket: Ticket;
   onTicketUpdate: (updatedTicket: Ticket) => void;
   onClose: () => void;
 }
 
-
-// ----------- MAIN PANEL (Refactorizado) -----------
 export default function TicketsPanel() {
   useRequireRole(['admin', 'empleado'] as Role[]);
   const navigate = useNavigate();
   const { timezone, locale, updateSettings } = useDateSettings();
   const [groupedTickets, setGroupedTickets] = useState<GroupedTickets[]>([]);
   const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null);
-  const [detailedTicket, setDetailedTicket] = useState<Ticket | null>(null); // Ahora Ticket puede incluir sla_status y priority
+  const [detailedTicket, setDetailedTicket] = useState<Ticket | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [searchTermInput, setSearchTermInput] = useState("");
   const debouncedSearchTerm = useDebounce(searchTermInput, 300);
-  const [searchTerm, setSearchTerm] = useState(""); // Este será el término debounced
+  const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<TicketStatus | "">("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [availableCategories, setAvailableCategories] = useState<string[]>([]);
@@ -222,10 +175,8 @@ export default function TicketsPanel() {
       if (categoryFilter) params.push(`categoria=${encodeURIComponent(categoryFilter)}`);
       if (params.length) url += `?${params.join('&')}`;
 
-      // El backend debe devolver TicketSummary[] que incluya sla_status y priority
       const data = await apiFetch<any>(url, { sendEntityToken: true });
 
-      // Normalizar para admitir diferentes formatos (objeto o array de grupos)
       let normalized: { [category: string]: TicketSummary[] } = {};
 
       if (Array.isArray(data)) {
@@ -292,7 +243,7 @@ export default function TicketsPanel() {
     } finally {
       setIsLoading(false);
     }
-  }, [statusFilter, categoryFilter, groupedTickets.length]); // groupedTickets.length para el manejo de isLoading
+  }, [statusFilter, categoryFilter, groupedTickets.length, categoryNames]);
 
   const fetchInitialData = useCallback(async () => {
     if (!safeLocalStorage.getItem('authToken')) {
@@ -342,14 +293,11 @@ export default function TicketsPanel() {
           ticket.asunto.toLowerCase().includes(searchTerm.toLowerCase()) ||
           (ticket.nombre_usuario && ticket.nombre_usuario.toLowerCase().includes(searchTerm.toLowerCase())) ||
           (ticket.email_usuario && ticket.email_usuario.toLowerCase().includes(searchTerm.toLowerCase())) ||
-          (ticket.categoria && ticket.categoria.toLowerCase().includes(searchTerm.toLowerCase())) ||
+          (ticket.categoria && (categoryNames[ticket.categoria] || ticket.categoria).toLowerCase().includes(searchTerm.toLowerCase())) ||
           (ticket.direccion && ticket.direccion.toLowerCase().includes(searchTerm.toLowerCase()))
         );
       }
 
-      // Ordenar tickets: primero por prioridad (Alta > Media > Baja > null),
-      // luego por estado de SLA (Vencido > Próximo a Vencer > En Tiempo > null),
-      // luego por estado del ticket, y finalmente por fecha.
       const sortedTickets = filteredTickets.sort((a, b) => {
         const priorityOrder: Record<PriorityStatus | 'null_priority', number> = { high: 0, medium: 1, low: 2, null_priority: 3 };
         const slaOrder: Record<SlaStatus | 'null_sla', number> = { breached: 0, nearing_sla: 1, on_track: 2, null_sla: 3 };
@@ -375,7 +323,7 @@ export default function TicketsPanel() {
 
       return { ...group, tickets: sortedTickets };
     }).filter(group => group.tickets.length > 0);
-  }, [groupedTickets, searchTerm, statusFilter]);
+  }, [groupedTickets, searchTerm, categoryNames]);
 
 
   const loadAndSetDetailedTicket = useCallback(async (ticketSummary: TicketSummary) => {
@@ -389,30 +337,23 @@ export default function TicketsPanel() {
 
     try {
       const apiOptions = { sendEntityToken: true };
-      // El backend debe devolver el objeto Ticket completo incluyendo sla_status, priority, sla_deadline
       const data = await apiFetch<Ticket>(`/tickets/${ticketSummary.tipo}/${ticketSummary.id}`, apiOptions);
       setDetailedTicket(data);
     } catch (err) {
       const errorMessage = err instanceof ApiError ? err.message : `No se pudo cargar el detalle del ticket ${ticketSummary.nro_ticket}.`;
-      setError(errorMessage); // Mantiene el error en el panel central
+      setError(errorMessage);
       setSelectedTicketId(null);
-      toast({
-        title: "Error al cargar detalle",
-        description: errorMessage,
-        variant: "destructive",
-      });
     }
-  }, []); // Dependencias: timezone, locale si se usan en errores o logs específicos aquí, pero no directamente en la lógica de fetch.
+  }, []);
 
   const handleTicketDetailUpdate = (updatedTicket: Ticket) => {
     setDetailedTicket(updatedTicket);
-    // Actualizar el ticket en la lista principal (groupedTickets)
     setGroupedTickets(prevGroups => {
       return prevGroups.map(group => ({
         ...group,
         tickets: group.tickets.map(t =>
           t.id === updatedTicket.id
-          ? { ...t, ...updatedTicket, sla_status: updatedTicket.sla_status || null, priority: updatedTicket.priority || null } // asegurar que los nuevos campos estén
+          ? { ...t, ...updatedTicket, sla_status: updatedTicket.sla_status || null, priority: updatedTicket.priority || null }
           : t
         )
       }));
@@ -424,7 +365,7 @@ export default function TicketsPanel() {
     setDetailedTicket(null);
   }
 
-  if (isLoading && groupedTickets.length === 0) { // Cambiado de allTickets a groupedTickets
+  if (isLoading && groupedTickets.length === 0) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-muted/30 dark:bg-slate-900">
         <Loader2 className="animate-spin text-primary h-16 w-16" />
@@ -432,7 +373,7 @@ export default function TicketsPanel() {
     );
   }
 
-  if (error && groupedTickets.length === 0 && !isLoading) { // Cambiado de allTickets a groupedTickets
+  if (error && groupedTickets.length === 0 && !isLoading) {
     return <div className="p-8 text-center text-destructive bg-destructive/10 rounded-md min-h-screen flex flex-col justify-center items-center">
         <TicketIcon className="mx-auto h-12 w-12 text-destructive mb-4" />
         <h2 className="text-xl font-semibold mb-2">Error al cargar tickets</h2>
@@ -444,10 +385,9 @@ export default function TicketsPanel() {
 return (
   <div className="flex flex-col min-h-screen bg-muted/30 dark:bg-slate-900 text-foreground pb-10">
     <header className="p-4 border-b dark:border-slate-700 bg-card dark:bg-slate-800/50 shadow-sm">
-      {/* ... header igual que antes ... */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Button variant="outline" size="icon" onClick={() => navigate('/perfil')} title="Volver a Perfil">
+          <Button variant="outline" size="icon" onClick={() => navigate(-1)} title="Volver a la página anterior">
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
@@ -456,10 +396,6 @@ return (
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => navigate('/perfil')} title="Volver al Perfil">
-            <User className="h-4 w-4 sm:mr-2" />
-            <span className="hidden sm:inline">Perfil</span>
-          </Button>
           <Select
             value={locale}
             onValueChange={(val) => {
@@ -554,13 +490,13 @@ return (
               </p>
             </div>
           ) : filteredAndSortedGroups.length > 0 ? (
-            <Accordion type="multiple" className="space-y-2">
+            <Accordion type="multiple" className="space-y-2" defaultValue={filteredAndSortedGroups.map(g => g.categoryName)}>
               {filteredAndSortedGroups.map(group => (
                 <AccordionItem key={group.categoryName} value={String(group.categoryName)}>
-                  <AccordionTrigger className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-1 py-2">
+                  <AccordionTrigger className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-1 py-2 hover:no-underline">
                     {group.categoryName} ({group.tickets.length})
                   </AccordionTrigger>
-                  <AccordionContent className="space-y-2">
+                  <AccordionContent className="space-y-2 pt-1">
                     {group.tickets.map(ticket => (
                       <TicketListItem
                         key={ticket.id}
@@ -593,7 +529,7 @@ return (
           <div className="flex items-center justify-center h-full">
             <Loader2 className="animate-spin text-primary h-10 w-10" />
           </div>
-        ): error && selectedTicketId ? ( // Error específico al cargar detalle
+        ): error && selectedTicketId ? (
           <div className="flex flex-col items-center justify-center h-full p-4 text-center">
               <XCircle className="h-12 w-12 text-destructive mb-3"/>
               <h3 className="text-lg font-semibold text-destructive">Error al cargar detalle</h3>
@@ -613,7 +549,6 @@ return (
     </div>
   </div>
 );
-
 }
 
 const TicketTimeline: FC<{ ticket: Ticket; comentarios: Comment[] }> = ({ ticket, comentarios }) => {
@@ -633,7 +568,7 @@ const TicketTimeline: FC<{ ticket: Ticket; comentarios: Comment[] }> = ({ ticket
   const MAX_EVENTOS_RESUMIDOS = 3;
   const eventosVisibles = verTodo ? eventos : eventos.slice(-MAX_EVENTOS_RESUMIDOS);
 
-  if(eventos.length === 0 && ticket.fecha) { // Si solo está el evento de creación
+  if(eventos.length === 0 && ticket.fecha) {
     eventosVisibles.push({ fecha: ticket.fecha, descripcion: "Ticket creado", esAdmin: false });
   }
   if(eventosVisibles.length === 0) return null;
@@ -733,72 +668,11 @@ const CATEGORIAS_CHAT_EN_VIVO = [
 
 const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUpdate, onClose }) => {
   const { timezone, locale } = useDateSettings();
+  const { user } = useUser();
   const [newMessage, setNewMessage] = useState("");
-  const [fileToAttach, setFileToAttach] = useState<File | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [comentarios, setComentarios] = useState<Comment[]>(ticket.comentarios || []);
-  const [suggestedTemplates, setSuggestedTemplates] = useState<ResponseTemplate[]>([]);
-  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState<boolean>(false);
   const chatBottomRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (ticket && ticket.asunto) {
-      setIsLoadingSuggestions(true);
-      setSuggestedTemplates([]); // Limpiar sugerencias previas mientras carga
-
-      const payload = {
-        asunto: ticket.asunto,
-        contexto_ticket: ticket.detalles || ticket.comentarios?.[0]?.comentario || '',
-        // top_n: 3 // Opcional: si el backend lo soporta y queremos limitar
-      };
-
-      // La llamada original a /api/ai/suggest-templates (POST) se reemplaza por GET /api/ai/templates
-      // Este nuevo endpoint devuelve TODAS las plantillas, no sugerencias filtradas por IA por ahora.
-      apiFetch<{ plantillas: ResponseTemplate[] }>('/api/ai/templates', { // Endpoint y tipo de respuesta actualizados
-        method: 'GET',
-        // No se envía body ni query parameters.
-        // sendEntityToken: true, // apiFetch se encarga del token por defecto.
-                                 // Si el endpoint requiere un header custom como X-Send-Entity-Token,
-                                 // se debe añadir en la config de apiFetch o aquí en headers.
-                                 // Por ahora, asumimos que la autenticación estándar de apiFetch es suficiente.
-      })
-        .then(response => {
-          // El backend devuelve un objeto { plantillas: [...] }
-          setSuggestedTemplates(response.plantillas || []);
-        })
-        .catch(error => {
-          console.error("Error al cargar las plantillas de respuesta:", error);
-          toast({
-            title: "Error al Cargar Plantillas",
-            description: "No se pudieron cargar las plantillas de respuesta desde el servidor.",
-            variant: "destructive",
-          });
-          setSuggestedTemplates([]); // Asegurar que quede vacío en caso de error
-        })
-        .finally(() => {
-          setIsLoadingSuggestions(false);
-        });
-    } else {
-      setSuggestedTemplates([]); // Limpiar si no hay ticket o asunto
-      setIsLoadingSuggestions(false);
-    }
-  }, [ticket]); // Se ejecuta cuando el ticket cambia
-
-  const handleSelectTemplate = (templateText: string) => {
-    let processedText = templateText;
-    // Reemplazar placeholders con información del ticket actual
-    // ticket es una prop de TicketDetail_Refactored
-    processedText = processedText.replace(/{nombre_usuario}/g, ticket.nombre_usuario || "Cliente");
-    processedText = processedText.replace(/{asunto_ticket}/g, ticket.asunto || "su consulta");
-    // Podríamos añadir más placeholders como {nro_ticket}
-    processedText = processedText.replace(/{nro_ticket}/g, ticket.nro_ticket?.toString() || "");
-
-    setNewMessage(processedText);
-    // Opcional: Mover el foco al input de mensaje después de insertar la plantilla
-    // const messageInput = document.getElementById('message-input'); // Asumiendo que el input tiene este ID
-    // if (messageInput) messageInput.focus();
-  };
-  const scrollAreaRef = useRef<React.ElementRef<typeof ScrollAreaPrimitive.Root>>(null);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
   const ultimoMensajeIdRef = useRef<number>(0);
 
@@ -834,7 +708,7 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
                 fecha: msg.fecha,
                 es_admin: msg.es_admin,
               })),
-            ].sort((a,b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()); // Asegurar orden
+            ].sort((a,b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
           }
           return prev;
         });
@@ -845,7 +719,6 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
     if (forceTicketRefresh || chatEnVivo) {
         try {
             const updatedTicketData = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}`, { sendEntityToken: true });
-            // Mantener los comentarios actuales si el ticket refrescado no los trae o trae una lista parcial
             const currentComentarios = comentarios;
             onTicketUpdate({ ...ticket, ...updatedTicketData, comentarios: updatedTicketData.comentarios || currentComentarios });
         } catch (e) {
@@ -855,7 +728,6 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
   }, [ticket.id, ticket.tipo, onTicketUpdate, isAnonimo, chatEnVivo, comentarios]);
 
   useEffect(() => {
-    // Cuando el ticket cambia, reseteamos los comentarios y el último ID.
     const initialComments = ticket.comentarios ? [...ticket.comentarios].sort((a,b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()) : [];
     setComentarios(initialComments);
     ultimoMensajeIdRef.current = initialComments.length > 0 ? initialComments[initialComments.length - 1].id : 0;
@@ -863,177 +735,72 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
     if (pollingRef.current) clearInterval(pollingRef.current);
     if (!chatEnVivo) return;
 
-    fetchComentarios(true); // Carga inicial y refresco del ticket
-    pollingRef.current = setInterval(() => fetchComentarios(true), 15000); // Aumentado de 10s a 15s
+    fetchComentarios(true);
+    pollingRef.current = setInterval(() => fetchComentarios(true), 10000);
     return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
-  }, [ticket.id, ticket.comentarios, chatEnVivo, fetchComentarios]); // ticket.comentarios como dep para resetear si cambia externamente
+  }, [ticket.id, ticket.comentarios, chatEnVivo, fetchComentarios]);
 
 
   useEffect(() => {
-    const rootElement = scrollAreaRef.current;
-    if (!rootElement) return;
-
-    const viewportElement = rootElement.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement | null;
-
-    if (viewportElement && chatBottomRef.current) { // chatBottomRef helps confirm content is there
-        const { scrollTop, scrollHeight, clientHeight } = viewportElement;
-        
-        // AUTO_SCROLL_THRESHOLD: Only scroll if user is within this many pixels from the bottom.
-        // This prevents snapping the view if the user has scrolled up significantly.
-        const AUTO_SCROLL_THRESHOLD = 250; // Increased threshold
-        const isNearBottom = scrollHeight - scrollTop - clientHeight < AUTO_SCROLL_THRESHOLD;
-
-        if (isNearBottom) {
-            setTimeout(() => {
-                viewportElement.scrollTo({ top: viewportElement.scrollHeight, behavior: 'smooth' });
-            }, 100); // Keep timeout to allow DOM update and rendering
+    const container = chatBottomRef.current?.parentElement;
+    if (container && chatBottomRef.current) {
+        const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150;
+        if (atBottom) {
+             setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
         }
     }
-  }, [comentarios.length]); // Only trigger on new comments
+  }, [comentarios.length]);
 
   const handleSendMessage = async () => {
-  if (!newMessage.trim() || isSending || isAnonimo) return;
-  setIsSending(true);
+    const adminUserId = user?.id;
 
-  if (!newMessage.trim() && !fileToAttach) { // No enviar si no hay texto ni archivo
-    toast({ title: "Mensaje vacío", description: "Escribe un mensaje o adjunta un archivo.", variant: "default" });
-    return;
-  }
-  // isAnonimo no debería ser relevante aquí para un agente respondiendo.
-  // Se podría añadir un chequeo de rol si fuera necesario, pero @admin_o_empleado_requerido en backend lo maneja.
-  if (isSending) return;
+    if (!newMessage.trim() || isSending || isAnonimo || !adminUserId) {
+      if (!adminUserId && !isAnonimo) {
+        console.error("Error: adminUserId no disponible para enviar mensaje. El usuario podría no estar completamente cargado o no tener ID.");
+      }
+      return;
+    }
 
-  setIsSending(true);
+    setIsSending(true);
+    const tempId = Date.now();
+    const currentMessageText = newMessage;
 
-  const currentMessage = newMessage;
-  const currentFile = fileToAttach;
+    const optimisticComment: Comment = {
+        id: tempId,
+        comentario: currentMessageText,
+        fecha: new Date().toISOString(),
+        es_admin: true,
+    };
+    setComentarios(prev => [...prev, optimisticComment].sort((a,b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()));
 
-  // Limpiar input y estado de archivo inmediatamente para UI optimista
-  // El comentario optimista se puede añadir aquí si se desea, antes del try/catch.
-  setNewMessage("");
-  setFileToAttach(null);
+    setNewMessage("");
 
-  // Comentario optimista
-  const optimisticCommentText = currentMessage + (currentFile ? `\n[Adjuntando: ${currentFile.name}]` : "");
-  const tempId = Date.now();
-  const optimisticComment: Comment = {
-    id: tempId,
-    comentario: optimisticCommentText,
-    fecha: new Date().toISOString(),
-    es_admin: true, // Asumimos que la respuesta es de un admin/empleado
-  };
-  setComentarios(prev => [...prev, optimisticComment].sort((a,b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()));
-
-
-  let attachmentInfoPayload: AttachmentInfo | undefined = undefined; // Usar AttachmentInfo de @/types
-
-  try {
-    // 1. Si hay un archivo, subirlo primero
-    if (currentFile) {
-      const uploadFormData = new FormData();
-      uploadFormData.append('archivo', currentFile);
-
-      // Usar apiFetch para subir al endpoint de archivos (Node.js o el futuro Python)
-      // Endpoint '/archivos/subir' es el que existe en server/app.js (Node.js)
-      const fileUploadResponse = await apiFetch<any>('/archivos/subir', {
-        method: 'POST',
-        body: uploadFormData,
-        headers: {
-          // 'Content-Type' es manejado por el navegador para FormData
-          // apiFetch modificado no establecerá 'application/json' si el body es FormData
-        }
-        // sendEntityToken no es necesario para /archivos/subir a menos que ese endpoint lo requiera
+    try {
+      const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}/responder`, {
+        method: "POST",
+        body: {
+          mensaje: currentMessageText,
+          user_id: adminUserId
+        },
+        sendEntityToken: true,
       });
 
-      if (!fileUploadResponse || !fileUploadResponse.url || !fileUploadResponse.name) {
-        // Revertir comentario optimista si la subida falla
-        setComentarios(prev => prev.filter(c => c.id !== tempId));
-        throw new Error("La respuesta de la subida del archivo no fue válida o la subida falló.");
+      const serverComentarios = updatedTicket.comentarios ? [...updatedTicket.comentarios].sort((a,b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()) : [];
+      setComentarios(serverComentarios);
+      if (serverComentarios.length > 0) {
+        ultimoMensajeIdRef.current = serverComentarios[serverComentarios.length -1].id;
       }
+      onTicketUpdate({ ...ticket, ...updatedTicket, comentarios: serverComentarios });
 
-      attachmentInfoPayload = {
-        url: fileUploadResponse.url,
-        name: fileUploadResponse.name,
-        mimeType: fileUploadResponse.mimeType,
-        size: fileUploadResponse.size,
-        // 'type' y 'extension' son opcionales en AttachmentInfo y pueden ser derivados por el backend
-        // o por deriveAttachmentInfo en el frontend si fuera necesario mostrarlo antes de enviar.
-        // Para el backend, enviar lo que se tiene es suficiente.
-        type: 'other', // Placeholder, el backend puede inferir o no necesitarlo
-        extension: fileUploadResponse.name.split('.').pop() || '', // Placeholder
-      };
-
-      toast({ title: "Archivo adjuntado", description: `${attachmentInfoPayload.name} listo para enviar con el mensaje.`, duration: 3000 });
-
-      // Actualizar comentario optimista para reflejar que el archivo se subió
-      setComentarios(prev => prev.map(c =>
-        c.id === tempId
-        ? { ...c, comentario: currentMessage + (attachmentInfoPayload ? `\n[Adjunto: ${attachmentInfoPayload.name}]` : "") }
-        : c
-      ));
+    } catch (error) {
+      console.error("Error al enviar comentario:", error);
+      setComentarios(prev => prev.filter(c => c.id !== tempId));
+      setNewMessage(currentMessageText);
+      // TODO: Implement user-friendly error notification (e.g., using a toast library)
+    } finally {
+      setIsSending(false);
     }
-
-    // 2. Preparar el cuerpo para la respuesta del ticket (siempre JSON)
-    const body: { comentario: string; attachment_info?: AttachmentInfo } = {
-      comentario: currentMessage,
-    };
-
-    if (attachmentInfoPayload) {
-      body.attachment_info = attachmentInfoPayload;
-    }
-
-    // No enviar si no hay comentario y no se pudo adjuntar archivo
-    if (!body.comentario && !body.attachment_info) {
-        setComentarios(prev => prev.filter(c => c.id !== tempId)); // Quitar optimista
-        toast({ title: "Respuesta vacía", description: "No hay mensaje ni archivo para enviar.", variant: "destructive" });
-        setIsSending(false);
-        return;
-    }
-
-
-    // 3. Enviar la respuesta del ticket
-    const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}/responder`, {
-      method: "POST",
-      body: JSON.stringify(body), // Enviar como JSON
-      headers: {
-        'Content-Type': 'application/json', // Asegurar Content-Type correcto
-        // 'X-Send-Entity-Token': 'true' // Si apiService no lo añade por defecto y es requerido
-      },
-      // sendEntityToken: true, // Esta es una opción custom de la versión anterior de apiFetch, ahora se maneja con headers
-    });
-
-    const serverComentarios = updatedTicket.comentarios
-      ? [...updatedTicket.comentarios].sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime())
-      : [];
-    setComentarios(serverComentarios); // Reemplazar con comentarios del servidor que incluyen el nuevo
-    if (serverComentarios.length > 0) {
-      ultimoMensajeIdRef.current = serverComentarios[serverComentarios.length - 1].id;
-    }
-    onTicketUpdate({ ...ticket, ...updatedTicket, comentarios: serverComentarios });
-    toast({
-      title: "Respuesta enviada",
-      description: "Tu mensaje ha sido enviado correctamente.",
-      variant: "default",
-    });
-
-  } catch (error) {
-    console.error("Error al enviar comentario con adjunto:", error);
-    // Revertir UI si es necesario (ej. re-establecer newMessage, fileToAttach)
-    // El comentario optimista ya se quitó o se actualizará si la subida falló antes.
-    // Si el error es después de la subida pero antes de enviar el msg, quitar el optimista.
-    setComentarios(prev => prev.filter(c => c.id !== tempId));
-    setNewMessage(currentMessage);
-    setFileToAttach(currentFile);
-    toast({
-      title: "Error al enviar mensaje",
-      description: error instanceof Error ? error.message : "No se pudo enviar el mensaje. Inténtalo de nuevo.",
-      variant: "destructive",
-    });
-  } finally {
-    setIsSending(false);
-  }
-};
-
+  };
 
   const handleEstadoChange = async (nuevoEstado: TicketStatus) => {
     if (isAnonimo) return;
@@ -1042,24 +809,15 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
     try {
       const updatedTicketData = await apiFetch<Ticket>(
         `/tickets/${ticket.tipo}/${ticket.id}/estado`,
-        { method: "PUT", body: { estado: nuevoEstado }, sendEntityToken: true }
+        { method: "PUT", body: { estado: nuevoEstado, user_id: user?.id }, sendEntityToken: true }
       );
       const serverComentarios = updatedTicketData.comentarios ? [...updatedTicketData.comentarios].sort((a,b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()) : comentarios;
-      const mergedTicket = { ...ticket, ...updatedTicketData, comentarios: serverComentarios };
+      const mergedTicket = { ...ticket, ...updatedTicketData, comentarios: serverComentarios};
       onTicketUpdate(mergedTicket);
-      toast({
-        title: "Estado actualizado",
-        description: `El ticket #${ticket.nro_ticket} se actualizó a "${ESTADOS[nuevoEstado]?.label || nuevoEstado}".`,
-        variant: "default", // O "success" si tienes esa variante
-      });
     } catch (error) {
       console.error("Error al cambiar estado", error);
-      onTicketUpdate({ ...ticket, estado: originalState, comentarios: comentarios }); // Revertir estado en UI
-      toast({
-        title: "Error al cambiar estado",
-        description: error instanceof Error ? error.message : "No se pudo actualizar el estado. Inténtalo de nuevo.",
-        variant: "destructive",
-      });
+      onTicketUpdate({ ...ticket, estado: originalState, comentarios: comentarios });
+      // TODO: Mostrar error al usuario
     }
   };
 
@@ -1102,26 +860,11 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
                         </Button>
                     </div>
                 )}
-                <ScrollArea ref={scrollAreaRef} className="flex-1 pr-2">
+                <ScrollArea className="flex-1 pr-2">
                     <main className="space-y-3 p-1">
                     {comentarios && comentarios.length > 0 ? (
                         comentarios.map((comment) => {
-                        // Preparar la información del adjunto para AttachmentPreview
-                        let attachmentForPreview: ReturnType<typeof getAttachmentInfo> | null = null;
-                        if (comment.archivo_url && comment.nombre_archivo) {
-                          attachmentForPreview = {
-                            name: comment.nombre_archivo,
-                            url: comment.archivo_url,
-                            type: comment.tipo_mime?.startsWith('image/') ? 'image' :
-                                  comment.tipo_mime?.startsWith('video/') ? 'video' :
-                                  comment.tipo_mime?.startsWith('audio/') ? 'audio' : 'file',
-                            size: undefined, // El tamaño no está disponible aquí, AttachmentPreview puede manejarlo
-                          };
-                        } else {
-                          // Fallback por si el adjunto está codificado en el comentario (legado o diferente sistema)
-                          attachmentForPreview = getAttachmentInfo(comment.comentario);
-                        }
-
+                        const attachment = getAttachmentInfo(comment.comentario);
                         return (
                             <div
                             key={comment.id}
@@ -1139,26 +882,10 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
                                     : 'bg-card dark:bg-slate-800 text-foreground border dark:border-slate-700/80 rounded-bl-sm'
                                 )}
                             >
-                                {attachmentForPreview ? (
-                                  <>
-                                    {/* Mostrar el texto del comentario solo si existe Y es diferente al nombre del adjunto (o si el adjunto no es el único contenido) */}
-                                    {comment.comentario && (!comment.nombre_archivo || !comment.comentario.includes(comment.nombre_archivo)) && (
-                                      <div className="prose prose-sm dark:prose-invert max-w-none break-words">
-                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                          {comment.comentario.replace(/\[adjunto:.*?\]/gi, '').trim()}
-                                        </ReactMarkdown>
-                                      </div>
-                                    )}
-                                    {/* Separador visual si hay texto Y adjunto */}
-                                    {comment.comentario && (!comment.nombre_archivo || !comment.comentario.includes(comment.nombre_archivo)) && attachmentForPreview && <hr className="my-2 border-border/50" />}
-                                    <AttachmentPreview attachment={attachmentForPreview} />
-                                  </>
+                                {attachment ? (
+                                <AttachmentPreview attachment={attachment} />
                                 ) : (
-                                  <div className="prose prose-sm dark:prose-invert max-w-none break-words">
-                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                      {comment.comentario}
-                                    </ReactMarkdown>
-                                  </div>
+                                <p className="break-words whitespace-pre-wrap">{comment.comentario}</p>
                                 )}
                                 <p className={cn(
                                     "text-xs opacity-70 mt-1.5",
@@ -1185,7 +912,7 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
                     onChange={(e) => setNewMessage(e.target.value)}
                     onKeyDown={(e) => {
                         if (e.key === 'Enter' && !e.shiftKey && newMessage.trim()) {
-                            e.preventDefault(); // Evitar nueva línea en algunos browsers
+                            e.preventDefault();
                             handleSendMessage();
                         }
                     }}
@@ -1193,97 +920,13 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
                     disabled={isSending}
                     className="h-10 bg-card dark:bg-slate-800 focus-visible:ring-primary/50"
                     />
-                    <input
-                      type="file"
-                      id={`file-input-${ticket.id}`}
-                      onChange={(e) => setFileToAttach(e.target.files ? e.target.files[0] : null)}
-                      className="hidden"
-                    />
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-10 w-10 flex-shrink-0"
-                      onClick={() => document.getElementById(`file-input-${ticket.id}`)?.click()}
-                      title="Adjuntar archivo"
-                      disabled={isSending}
-                    >
-                      <Paperclip className="h-5 w-5" />
+                    <Button onClick={handleSendMessage} disabled={isSending || !newMessage.trim()} aria-label="Enviar Mensaje" className="h-10">
+                    {isSending ? <Loader2 className="animate-spin h-5 w-5" /> : <Send className="h-5 w-5" />}
                     </Button>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="outline" size="icon" className="h-10 w-10 flex-shrink-0" title="Insertar plantilla">
-                          <MessageSquareText className="h-5 w-5" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-64 sm:w-72 md:w-80 max-h-[70vh] overflow-y-auto"> {/* Permitir scroll si hay muchas plantillas */}
-                        {suggestedTemplates.length > 0 && (
-                          <>
-                            <DropdownMenuLabel className="text-primary">Sugerencias ✨</DropdownMenuLabel>
-                            {suggestedTemplates.map((template, index) => (
-                              <DropdownMenuItem key={`sugg-${index}`} onClick={() => handleSelectTemplate(template.text)} className="text-xs sm:text-sm whitespace-normal">
-                                {template.name}
-                              </DropdownMenuItem>
-                            ))}
-                            <DropdownMenuSeparator />
-                          </>
-                        )}
-                        <DropdownMenuLabel>Todas las Plantillas</DropdownMenuLabel>
-                        {RESPONSE_TEMPLATES.filter(
-                          // Filtrar las que ya se mostraron como sugeridas para no duplicar
-                          (rt) => !suggestedTemplates.some(st => st.name === rt.name)
-                        ).map((template, index) => (
-                          <DropdownMenuItem key={`all-${index}`} onClick={() => handleSelectTemplate(template.text)} className="text-xs sm:text-sm whitespace-normal">
-                            {template.name}
-                          </DropdownMenuItem>
-                        ))}
-                        {RESPONSE_TEMPLATES.length === 0 && !suggestedTemplates.length && (
-                          <DropdownMenuItem disabled className="text-xs sm:text-sm">No hay plantillas.</DropdownMenuItem>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                    <Button onClick={handleSendMessage} disabled={isSending || (!newMessage.trim() && !fileToAttach)} aria-label="Enviar Mensaje" className="h-10">
-                      {isSending ? <Loader2 className="animate-spin h-5 w-5" /> : <Send className="h-5 w-5" />}
-                    </Button>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-10 w-10 flex-shrink-0" title="Ayuda Markdown">
-                          <HelpCircle className="h-5 w-5 text-muted-foreground" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-80 text-sm">
-                        <div className="grid gap-2">
-                          <div className="font-semibold">Markdown Básico</div>
-                          <p><code className="font-mono bg-muted p-0.5 rounded">**Negrita**</code> &rarr; <strong>Negrita</strong></p>
-                          <p><code className="font-mono bg-muted p-0.5 rounded">*Cursiva*</code> o <code className="font-mono bg-muted p-0.5 rounded">_Cursiva_</code> &rarr; <em>Cursiva</em></p>
-                          <p><code className="font-mono bg-muted p-0.5 rounded">`Código en línea`</code> &rarr; <code className="font-mono bg-muted p-0.5 rounded">Código en línea</code></p>
-                          <p><code className="font-mono bg-muted p-0.5 rounded">~~Tachado~~</code> &rarr; <del>Tachado</del></p>
-                          <div>Listas:
-                            <ul className="list-disc list-inside pl-4">
-                              <li><code className="font-mono bg-muted p-0.5 rounded">- Item 1</code></li>
-                              <li><code className="font-mono bg-muted p-0.5 rounded">* Item 2</code></li>
-                            </ul>
-                          </div>
-                          <p><code className="font-mono bg-muted p-0.5 rounded">[Texto del enlace](https://url.com)</code></p>
-                          <p><code className="font-mono bg-muted p-0.5 rounded">&gt; Cita en bloque</code></p>
-                          <p><code className="font-mono bg-muted p-0.5 rounded">---</code> &rarr; Línea horizontal</p>
-                        </div>
-                      </PopoverContent>
-                    </Popover>
-                  </footer>
-                  {fileToAttach && (
-                    <div className="px-2 md:px-3 pb-2 text-xs text-muted-foreground border-t dark:border-slate-700/80">
-                      <div className="mt-2 p-2 border dark:border-slate-700 rounded-md flex justify-between items-center bg-card dark:bg-slate-800/50">
-                        <span className="truncate max-w-[calc(100%-50px)]">Adjunto: {fileToAttach.name} ({(fileToAttach.size / 1024).toFixed(1)} KB)</span>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setFileToAttach(null)} title="Quitar archivo">
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  )}
+                </footer>
             </div>
 
             <ScrollArea className="w-full md:w-[320px] lg:w-[360px] p-3 md:p-4 space-y-4 bg-card dark:bg-slate-800/50 md:border-l-0 border-t md:border-t-0 dark:border-slate-700">
-                {/* Sección de Prioridad y SLA en Detalles del Ticket */}
                 {(ticket.priority || ticket.sla_status) && (
                   <Card className="shadow-sm">
                     <CardHeader className="pb-3 pt-4 px-4">
@@ -1311,26 +954,9 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="text-sm text-muted-foreground space-y-1.5 px-4 pb-4">
-                    <p><strong>Nombre:</strong> {ticket.nombre_usuario || "No especificado"}</p>
+                    {ticket.nombre_usuario && <p><strong>Nombre:</strong> {ticket.nombre_usuario}</p>}
                     {ticket.email_usuario && <p><strong>Email:</strong> <a href={`mailto:${ticket.email_usuario}`} className="text-primary hover:underline">{ticket.email_usuario}</a></p>}
-                    {ticket.telefono && (
-                      <p>
-                        <strong>Teléfono:</strong>{' '}
-                        <a href={`tel:${ticket.telefono}`} className="text-primary hover:underline">
-                          {ticket.telefono}
-                        </a>
-                        {' | '}
-                        <a
-                          href={`https://wa.me/${normalizePhoneNumberForWhatsApp(ticket.telefono)}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-green-600 hover:underline dark:text-green-500 inline-flex items-center"
-                        >
-                          <MessageSquareText className="h-4 w-4 mr-1" /> WhatsApp
-                        </a>
-                      </p>
-                    )}
-                    {!ticket.telefono && <p><strong>Teléfono:</strong> No especificado</p>}
+                    {ticket.telefono && <p><strong>Teléfono:</strong> <a href={`tel:${ticket.telefono}`} className="text-primary hover:underline">{ticket.telefono}</a></p>}
                     </CardContent>
                 </Card>
                 )}
@@ -1354,7 +980,7 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
                 <Card className="shadow-sm">
                      <CardHeader className="pb-3 pt-4 px-4"><CardTitle className="text-base font-semibold">Detalles Adicionales</CardTitle></CardHeader>
                      <CardContent className="text-sm text-muted-foreground space-y-1.5 px-4 pb-4">
-                        <p><strong>Categoría:</strong> {ticket.categoria || "No especificada"}</p>
+                        <p><strong>Categoría:</strong> {categoryNames[ticket.categoria || ''] || ticket.categoria || "No especificada"}</p>
                         <p><strong>Tipo:</strong> {ticket.tipo}</p>
                         {ticket.municipio_nombre && <p><strong>Municipio:</strong> {ticket.municipio_nombre}</p>}
                         <p><strong>Creado:</strong> {formatDate(ticket.fecha, timezone, locale, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
@@ -1370,8 +996,8 @@ const AvatarIcon: FC<{ type: 'user' | 'admin' }> = ({ type }) => (
   <div className={cn(
       'h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-semibold border-2 shadow-sm',
       type === 'admin'
-        ? 'bg-primary/10 text-primary border-primary/30' // Ensure these classes match your theme for admin
-        : 'bg-muted text-muted-foreground border-border' // Ensure these classes match your theme for user
+        ? 'bg-primary/10 text-primary border-primary/30'
+        : 'bg-muted text-muted-foreground border-border'
     )}>
     {type === 'admin' ? <ShieldCheck className="h-4 w-4" /> : <User className="h-4 w-4" />}
   </div>

@@ -21,12 +21,7 @@ import useRequireRole from "@/hooks/useRequireRole";
 import type { Role } from "@/utils/roles";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
-// ----------- TIPOS Y ESTADOS -----------
-// ... ACÁ VA TODO TU CÓDIGO IGUAL QUE LO TENÍAS ...
-
-// (El resto del archivo es exactamente como lo pegaste)
-
-
+import { useUser } from '@/hooks/useUser'; // Ensured this is present
 
 // ----------- TIPOS Y ESTADOS -----------
 type TicketStatus = "nuevo" | "en_proceso" | "derivado" | "resuelto" | "cerrado" | "esperando_agente_en_vivo";
@@ -40,18 +35,17 @@ interface Ticket {
   municipio_nombre?: string;
   latitud?: number | null;
   longitud?: number | null;
-  sla_status?: SlaStatus; // Nuevo campo
-  priority?: PriorityStatus; // Nuevo campo
-  sla_deadline?: string; // Nuevo campo opcional
+  sla_status?: SlaStatus;
+  priority?: PriorityStatus;
+  sla_deadline?: string;
 }
 interface TicketSummary extends Omit<Ticket, 'detalles' | 'comentarios'> {
   direccion?: string;
   latitud?: number | null;
   longitud?: number | null;
-  sla_status?: SlaStatus; // Nuevo campo
-  priority?: PriorityStatus; // Nuevo campo
+  sla_status?: SlaStatus;
+  priority?: PriorityStatus;
 }
-// type CategorizedTickets = { [category: string]: TicketSummary[]; }; // Ahora sí lo vamos a usar o algo similar
 interface GroupedTickets {
   categoryName: string;
   tickets: TicketSummary[];
@@ -78,9 +72,6 @@ const PRIORITY_INFO: Record<NonNullable<PriorityStatus>, { label: string; color:
   medium: { label: "Media", color: "text-blue-500 dark:text-blue-400", badgeClass: "bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-700 dark:text-blue-200 dark:border-blue-500" },
   high: { label: "Alta", color: "text-red-500 dark:text-red-400", badgeClass: "bg-red-100 text-red-700 border-red-300 dark:bg-red-700 dark:text-red-200 dark:border-red-500" },
 };
-
-
-// ----------- NUEVOS COMPONENTES -----------
 
 const TicketListItem: FC<{
   ticket: TicketSummary;
@@ -135,7 +126,7 @@ const TicketListItem: FC<{
                 SLA: {slaInfo.label}
             </span>
         )}
-        {!slaInfo && <div />} {/* Placeholder to keep date to the right */}
+        {!slaInfo && <div />}
         <p className="text-xs text-muted-foreground">{formatDate(ticket.fecha, timezone, locale)}</p>
       </div>
     </motion.div>
@@ -143,26 +134,24 @@ const TicketListItem: FC<{
 };
 
 interface TicketDetailViewProps {
-  ticket: Ticket; // Ahora Ticket puede incluir sla_status y priority
+  ticket: Ticket;
   onTicketUpdate: (updatedTicket: Ticket) => void;
   onClose: () => void;
 }
 
-
-// ----------- MAIN PANEL (Refactorizado) -----------
 export default function TicketsPanel() {
   useRequireRole(['admin', 'empleado'] as Role[]);
   const navigate = useNavigate();
   const { timezone, locale, updateSettings } = useDateSettings();
   const [groupedTickets, setGroupedTickets] = useState<GroupedTickets[]>([]);
   const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null);
-  const [detailedTicket, setDetailedTicket] = useState<Ticket | null>(null); // Ahora Ticket puede incluir sla_status y priority
+  const [detailedTicket, setDetailedTicket] = useState<Ticket | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [searchTermInput, setSearchTermInput] = useState("");
   const debouncedSearchTerm = useDebounce(searchTermInput, 300);
-  const [searchTerm, setSearchTerm] = useState(""); // Este será el término debounced
+  const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<TicketStatus | "">("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [availableCategories, setAvailableCategories] = useState<string[]>([]);
@@ -186,10 +175,8 @@ export default function TicketsPanel() {
       if (categoryFilter) params.push(`categoria=${encodeURIComponent(categoryFilter)}`);
       if (params.length) url += `?${params.join('&')}`;
 
-      // El backend debe devolver TicketSummary[] que incluya sla_status y priority
       const data = await apiFetch<any>(url, { sendEntityToken: true });
 
-      // Normalizar para admitir diferentes formatos (objeto o array de grupos)
       let normalized: { [category: string]: TicketSummary[] } = {};
 
       if (Array.isArray(data)) {
@@ -256,7 +243,7 @@ export default function TicketsPanel() {
     } finally {
       setIsLoading(false);
     }
-  }, [statusFilter, categoryFilter, groupedTickets.length]); // groupedTickets.length para el manejo de isLoading
+  }, [statusFilter, categoryFilter, groupedTickets.length, categoryNames]);
 
   const fetchInitialData = useCallback(async () => {
     if (!safeLocalStorage.getItem('authToken')) {
@@ -306,14 +293,11 @@ export default function TicketsPanel() {
           ticket.asunto.toLowerCase().includes(searchTerm.toLowerCase()) ||
           (ticket.nombre_usuario && ticket.nombre_usuario.toLowerCase().includes(searchTerm.toLowerCase())) ||
           (ticket.email_usuario && ticket.email_usuario.toLowerCase().includes(searchTerm.toLowerCase())) ||
-          (ticket.categoria && ticket.categoria.toLowerCase().includes(searchTerm.toLowerCase())) ||
+          (ticket.categoria && (categoryNames[ticket.categoria] || ticket.categoria).toLowerCase().includes(searchTerm.toLowerCase())) ||
           (ticket.direccion && ticket.direccion.toLowerCase().includes(searchTerm.toLowerCase()))
         );
       }
 
-      // Ordenar tickets: primero por prioridad (Alta > Media > Baja > null),
-      // luego por estado de SLA (Vencido > Próximo a Vencer > En Tiempo > null),
-      // luego por estado del ticket, y finalmente por fecha.
       const sortedTickets = filteredTickets.sort((a, b) => {
         const priorityOrder: Record<PriorityStatus | 'null_priority', number> = { high: 0, medium: 1, low: 2, null_priority: 3 };
         const slaOrder: Record<SlaStatus | 'null_sla', number> = { breached: 0, nearing_sla: 1, on_track: 2, null_sla: 3 };
@@ -339,7 +323,7 @@ export default function TicketsPanel() {
 
       return { ...group, tickets: sortedTickets };
     }).filter(group => group.tickets.length > 0);
-  }, [groupedTickets, searchTerm, statusFilter]);
+  }, [groupedTickets, searchTerm, categoryNames]);
 
 
   const loadAndSetDetailedTicket = useCallback(async (ticketSummary: TicketSummary) => {
@@ -348,30 +332,28 @@ export default function TicketsPanel() {
       return;
     }
     setSelectedTicketId(ticketSummary.id);
-    setDetailedTicket(null); 
+    setDetailedTicket(null);
     setError(null);
 
     try {
       const apiOptions = { sendEntityToken: true };
-      // El backend debe devolver el objeto Ticket completo incluyendo sla_status, priority, sla_deadline
       const data = await apiFetch<Ticket>(`/tickets/${ticketSummary.tipo}/${ticketSummary.id}`, apiOptions);
       setDetailedTicket(data);
     } catch (err) {
       const errorMessage = err instanceof ApiError ? err.message : `No se pudo cargar el detalle del ticket ${ticketSummary.nro_ticket}.`;
-      setError(errorMessage); 
-      setSelectedTicketId(null); 
+      setError(errorMessage);
+      setSelectedTicketId(null);
     }
   }, []);
 
   const handleTicketDetailUpdate = (updatedTicket: Ticket) => {
     setDetailedTicket(updatedTicket);
-    // Actualizar el ticket en la lista principal (groupedTickets)
     setGroupedTickets(prevGroups => {
       return prevGroups.map(group => ({
         ...group,
         tickets: group.tickets.map(t =>
           t.id === updatedTicket.id
-          ? { ...t, ...updatedTicket, sla_status: updatedTicket.sla_status || null, priority: updatedTicket.priority || null } // asegurar que los nuevos campos estén
+          ? { ...t, ...updatedTicket, sla_status: updatedTicket.sla_status || null, priority: updatedTicket.priority || null }
           : t
         )
       }));
@@ -383,7 +365,7 @@ export default function TicketsPanel() {
     setDetailedTicket(null);
   }
 
-  if (isLoading && groupedTickets.length === 0) { // Cambiado de allTickets a groupedTickets
+  if (isLoading && groupedTickets.length === 0) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-muted/30 dark:bg-slate-900">
         <Loader2 className="animate-spin text-primary h-16 w-16" />
@@ -391,7 +373,7 @@ export default function TicketsPanel() {
     );
   }
 
-  if (error && groupedTickets.length === 0 && !isLoading) { // Cambiado de allTickets a groupedTickets
+  if (error && groupedTickets.length === 0 && !isLoading) {
     return <div className="p-8 text-center text-destructive bg-destructive/10 rounded-md min-h-screen flex flex-col justify-center items-center">
         <TicketIcon className="mx-auto h-12 w-12 text-destructive mb-4" />
         <h2 className="text-xl font-semibold mb-2">Error al cargar tickets</h2>
@@ -403,7 +385,6 @@ export default function TicketsPanel() {
 return (
   <div className="flex flex-col min-h-screen bg-muted/30 dark:bg-slate-900 text-foreground pb-10">
     <header className="p-4 border-b dark:border-slate-700 bg-card dark:bg-slate-800/50 shadow-sm">
-      {/* ... header igual que antes ... */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Button variant="outline" size="icon" onClick={() => navigate(-1)} title="Volver a la página anterior">
@@ -509,13 +490,13 @@ return (
               </p>
             </div>
           ) : filteredAndSortedGroups.length > 0 ? (
-            <Accordion type="multiple" className="space-y-2">
+            <Accordion type="multiple" className="space-y-2" defaultValue={filteredAndSortedGroups.map(g => g.categoryName)}>
               {filteredAndSortedGroups.map(group => (
                 <AccordionItem key={group.categoryName} value={String(group.categoryName)}>
-                  <AccordionTrigger className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-1 py-2">
+                  <AccordionTrigger className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-1 py-2 hover:no-underline">
                     {group.categoryName} ({group.tickets.length})
                   </AccordionTrigger>
-                  <AccordionContent className="space-y-2">
+                  <AccordionContent className="space-y-2 pt-1">
                     {group.tickets.map(ticket => (
                       <TicketListItem
                         key={ticket.id}
@@ -548,7 +529,7 @@ return (
           <div className="flex items-center justify-center h-full">
             <Loader2 className="animate-spin text-primary h-10 w-10" />
           </div>
-        ): error && selectedTicketId ? ( // Error específico al cargar detalle
+        ): error && selectedTicketId ? (
           <div className="flex flex-col items-center justify-center h-full p-4 text-center">
               <XCircle className="h-12 w-12 text-destructive mb-3"/>
               <h3 className="text-lg font-semibold text-destructive">Error al cargar detalle</h3>
@@ -568,7 +549,6 @@ return (
     </div>
   </div>
 );
-
 }
 
 const TicketTimeline: FC<{ ticket: Ticket; comentarios: Comment[] }> = ({ ticket, comentarios }) => {
@@ -588,7 +568,7 @@ const TicketTimeline: FC<{ ticket: Ticket; comentarios: Comment[] }> = ({ ticket
   const MAX_EVENTOS_RESUMIDOS = 3;
   const eventosVisibles = verTodo ? eventos : eventos.slice(-MAX_EVENTOS_RESUMIDOS);
 
-  if(eventos.length === 0 && ticket.fecha) { // Si solo está el evento de creación
+  if(eventos.length === 0 && ticket.fecha) {
     eventosVisibles.push({ fecha: ticket.fecha, descripcion: "Ticket creado", esAdmin: false });
   }
   if(eventosVisibles.length === 0) return null;
@@ -680,7 +660,7 @@ const TicketMap: FC<{ ticket: Ticket }> = ({ ticket }) => {
   );
 };
 
-const CATEGORIAS_CHAT_EN_VIVO = [ 
+const CATEGORIAS_CHAT_EN_VIVO = [
   "atención en vivo",
   "chat en vivo",
   "soporte urgente"
@@ -688,6 +668,7 @@ const CATEGORIAS_CHAT_EN_VIVO = [
 
 const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUpdate, onClose }) => {
   const { timezone, locale } = useDateSettings();
+  const { user } = useUser();
   const [newMessage, setNewMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [comentarios, setComentarios] = useState<Comment[]>(ticket.comentarios || []);
@@ -727,7 +708,7 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
                 fecha: msg.fecha,
                 es_admin: msg.es_admin,
               })),
-            ].sort((a,b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()); // Asegurar orden
+            ].sort((a,b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
           }
           return prev;
         });
@@ -738,7 +719,6 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
     if (forceTicketRefresh || chatEnVivo) {
         try {
             const updatedTicketData = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}`, { sendEntityToken: true });
-            // Mantener los comentarios actuales si el ticket refrescado no los trae o trae una lista parcial
             const currentComentarios = comentarios;
             onTicketUpdate({ ...ticket, ...updatedTicketData, comentarios: updatedTicketData.comentarios || currentComentarios });
         } catch (e) {
@@ -748,7 +728,6 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
   }, [ticket.id, ticket.tipo, onTicketUpdate, isAnonimo, chatEnVivo, comentarios]);
 
   useEffect(() => {
-    // Cuando el ticket cambia, reseteamos los comentarios y el último ID.
     const initialComments = ticket.comentarios ? [...ticket.comentarios].sort((a,b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()) : [];
     setComentarios(initialComments);
     ultimoMensajeIdRef.current = initialComments.length > 0 ? initialComments[initialComments.length - 1].id : 0;
@@ -756,10 +735,10 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
     if (pollingRef.current) clearInterval(pollingRef.current);
     if (!chatEnVivo) return;
 
-    fetchComentarios(true); // Carga inicial y refresco del ticket
+    fetchComentarios(true);
     pollingRef.current = setInterval(() => fetchComentarios(true), 10000);
     return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
-  }, [ticket.id, ticket.comentarios, chatEnVivo, fetchComentarios]); // ticket.comentarios como dep para resetear si cambia externamente
+  }, [ticket.id, ticket.comentarios, chatEnVivo, fetchComentarios]);
 
 
   useEffect(() => {
@@ -770,39 +749,54 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
              setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
         }
     }
-  }, [comentarios.length]); 
+  }, [comentarios.length]);
 
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || isSending || isAnonimo) return;
+    const adminUserId = user?.id;
+
+    if (!newMessage.trim() || isSending || isAnonimo || !adminUserId) {
+      if (!adminUserId && !isAnonimo) {
+        console.error("Error: adminUserId no disponible para enviar mensaje. El usuario podría no estar completamente cargado o no tener ID.");
+      }
+      return;
+    }
+
     setIsSending(true);
     const tempId = Date.now();
+    const currentMessageText = newMessage;
+
     const optimisticComment: Comment = {
         id: tempId,
-        comentario: newMessage,
+        comentario: currentMessageText,
         fecha: new Date().toISOString(),
         es_admin: true,
     };
     setComentarios(prev => [...prev, optimisticComment].sort((a,b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()));
-    const currentMessage = newMessage;
+
     setNewMessage("");
 
     try {
       const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}/responder`, {
         method: "POST",
-        body: { comentario: currentMessage },
+        body: {
+          mensaje: currentMessageText,
+          user_id: adminUserId
+        },
         sendEntityToken: true,
       });
+
       const serverComentarios = updatedTicket.comentarios ? [...updatedTicket.comentarios].sort((a,b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()) : [];
       setComentarios(serverComentarios);
       if (serverComentarios.length > 0) {
         ultimoMensajeIdRef.current = serverComentarios[serverComentarios.length -1].id;
       }
       onTicketUpdate({ ...ticket, ...updatedTicket, comentarios: serverComentarios });
+
     } catch (error) {
-      console.error("Error al enviar comentario", error);
+      console.error("Error al enviar comentario:", error);
       setComentarios(prev => prev.filter(c => c.id !== tempId));
-      setNewMessage(currentMessage);
-      // TODO: Mostrar error al usuario con un toast
+      setNewMessage(currentMessageText);
+      // TODO: Implement user-friendly error notification (e.g., using a toast library)
     } finally {
       setIsSending(false);
     }
@@ -815,7 +809,7 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
     try {
       const updatedTicketData = await apiFetch<Ticket>(
         `/tickets/${ticket.tipo}/${ticket.id}/estado`,
-        { method: "PUT", body: { estado: nuevoEstado }, sendEntityToken: true }
+        { method: "PUT", body: { estado: nuevoEstado, user_id: user?.id }, sendEntityToken: true } // Added user_id here too for consistency
       );
       const serverComentarios = updatedTicketData.comentarios ? [...updatedTicketData.comentarios].sort((a,b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()) : comentarios;
       const mergedTicket = { ...ticket, ...updatedTicketData, comentarios: serverComentarios};
@@ -918,7 +912,7 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
                     onChange={(e) => setNewMessage(e.target.value)}
                     onKeyDown={(e) => {
                         if (e.key === 'Enter' && !e.shiftKey && newMessage.trim()) {
-                            e.preventDefault(); // Evitar nueva línea en algunos browsers
+                            e.preventDefault();
                             handleSendMessage();
                         }
                     }}
@@ -933,7 +927,6 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
             </div>
 
             <ScrollArea className="w-full md:w-[320px] lg:w-[360px] p-3 md:p-4 space-y-4 bg-card dark:bg-slate-800/50 md:border-l-0 border-t md:border-t-0 dark:border-slate-700">
-                {/* Sección de Prioridad y SLA en Detalles del Ticket */}
                 {(ticket.priority || ticket.sla_status) && (
                   <Card className="shadow-sm">
                     <CardHeader className="pb-3 pt-4 px-4">
@@ -987,7 +980,7 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
                 <Card className="shadow-sm">
                      <CardHeader className="pb-3 pt-4 px-4"><CardTitle className="text-base font-semibold">Detalles Adicionales</CardTitle></CardHeader>
                      <CardContent className="text-sm text-muted-foreground space-y-1.5 px-4 pb-4">
-                        <p><strong>Categoría:</strong> {ticket.categoria || "No especificada"}</p>
+                        <p><strong>Categoría:</strong> {categoryNames[ticket.categoria || ''] || ticket.categoria || "No especificada"}</p>
                         <p><strong>Tipo:</strong> {ticket.tipo}</p>
                         {ticket.municipio_nombre && <p><strong>Municipio:</strong> {ticket.municipio_nombre}</p>}
                         <p><strong>Creado:</strong> {formatDate(ticket.fecha, timezone, locale, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
@@ -1003,8 +996,8 @@ const AvatarIcon: FC<{ type: 'user' | 'admin' }> = ({ type }) => (
   <div className={cn(
       'h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-semibold border-2 shadow-sm',
       type === 'admin'
-        ? 'bg-primary/10 text-primary border-primary/30' // Ensure these classes match your theme for admin
-        : 'bg-muted text-muted-foreground border-border' // Ensure these classes match your theme for user
+        ? 'bg-primary/10 text-primary border-primary/30'
+        : 'bg-muted text-muted-foreground border-border'
     )}>
     {type === 'admin' ? <ShieldCheck className="h-4 w-4" /> : <User className="h-4 w-4" />}
   </div>
