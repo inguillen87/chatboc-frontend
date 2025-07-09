@@ -126,8 +126,7 @@ const TicketListItem: FC<{
                 SLA: {slaInfo.label}
             </span>
         )}
-        {!slaInfo && <div />}
-        <p className="text-xs text-muted-foreground">{formatDate(ticket.fecha, timezone, locale)}</p>
+        <p className={cn("text-xs text-muted-foreground", !slaInfo && "ml-auto")}>{formatDate(ticket.fecha, timezone, locale)}</p>
       </div>
     </motion.div>
   );
@@ -491,7 +490,7 @@ return (
               </p>
             </div>
           ) : filteredAndSortedGroups.length > 0 ? (
-            <Accordion type="multiple" className="space-y-2" defaultValue={filteredAndSortedGroups.map(g => g.categoryName)}>
+            <Accordion type="single" collapsible className="space-y-2"> {/* Changed type to single and added collapsible */}
               {filteredAndSortedGroups.map(group => (
                 <AccordionItem key={group.categoryName} value={String(group.categoryName)}>
                   <AccordionTrigger className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-1 py-2 hover:no-underline">
@@ -908,7 +907,7 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
                     <div ref={chatBottomRef} />
                     </main>
                 </ScrollArea>
-                <footer className="border-t dark:border-slate-700/80 p-2 md:p-3 mt-2 flex gap-2 items-center">
+                <footer className="border-t dark:border-slate-700/80 p-2 md:p-3 mt-2 flex gap-2 items-center flex-shrink-0"> {/* Added flex-shrink-0 */}
                     <Input
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
