@@ -17,8 +17,9 @@ export interface AttachmentInfo {
   type: AttachmentType;
   extension: string;
   name: string;
-  mimeType?: string; // Añadido para que la función pueda usarlo
-  size?: number; // Añadido
+  mimeType?: string;
+  size?: number;
+  isUploading?: boolean; // New flag for optimistic UI
 }
 
 // --- Listas Blancas ---
@@ -185,13 +186,15 @@ export function getAttachmentInfo(textOrUrl: string): AttachmentInfo | null {
 
     if (match && match[1]) {
       const extractedFilename = match[1].trim(); // match[1] is the filename part
+      const isUploading = !!(match[2] && match[2].toLowerCase().includes('(subiendo...)'));
+
       // For this simulated/optimistic attachment, the URL is the original text (textOrUrl),
       // and name is the extractedFilename.
       // The 'url' field in AttachmentInfo will be textOrUrl. AttachmentPreview uses this 'url'
       // for download links, which won't work if it's not a real URL.
       // However, the 'name' and derived 'type'/'extension' will be correct for icon display.
       const derivedInfo = deriveAttachmentInfo(textOrUrl, extractedFilename, undefined, undefined);
-      return derivedInfo;
+      return { ...derivedInfo, isUploading };
     }
 
     // Original logic for URLs or direct filenames:

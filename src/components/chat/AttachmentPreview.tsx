@@ -15,6 +15,7 @@ import {
   FileJson2, // Added (Lucide has FileJson2)
   FileQuestion, // Added for 'other'
   Download, // Added for explicit download button if needed elsewhere
+  Loader2, // For uploading indicator
 } from 'lucide-react';
 import type { AttachmentInfo } from '@/utils/attachment'; 
 import sanitizeMessageHtml from '@/utils/sanitizeMessageHtml';
@@ -52,18 +53,23 @@ const AttachmentPreview: React.FC<Props> = ({ message, attachmentInfo, fallbackT
   }
 
   if (attachmentInfo && attachmentInfo.url) {
-    const { url, name: filename, type: attachmentType, size } = attachmentInfo;
+    const { url, name: filename, type: attachmentType, size, isUploading } = attachmentInfo;
     // Sanear el fallbackText solo una vez si existe
     const sanitizedFallbackHtml = fallbackText ? sanitizeMessageHtml(fallbackText) : null;
 
     const renderDownloadLink = (displayText = filename, showIcon = false) => (
       <a
-        href={url}
-        download={filename}
-        className="text-xs text-muted-foreground hover:underline break-all flex items-center gap-1 mt-0.5 px-1 py-0.5 rounded hover:bg-muted"
-        title={`Descargar ${filename} ${formatFileSize(size)}`}
+        href={isUploading ? '#' : url} // Don't allow download if uploading
+        download={isUploading ? undefined : filename}
+        onClick={isUploading ? (e) => e.preventDefault() : undefined}
+        className={cn(
+          "text-xs text-muted-foreground hover:underline break-all flex items-center gap-1 mt-0.5 px-1 py-0.5 rounded hover:bg-muted",
+          isUploading && "opacity-50 cursor-default"
+        )}
+        title={isUploading ? "Archivo subiendo..." : `Descargar ${filename} ${formatFileSize(size)}`}
       >
-        {showIcon && <Download className="w-3 h-3 flex-shrink-0" />}
+        {showIcon && !isUploading && <Download className="w-3 h-3 flex-shrink-0" />}
+        {isUploading && <Loader2 className="w-3 h-3 flex-shrink-0 animate-spin mr-1" />}
         <span>{displayText}</span>
         {formatFileSize(size) && <span className="text-xs opacity-70 ml-1">{formatFileSize(size)}</span>}
       </a>
@@ -78,14 +84,25 @@ const AttachmentPreview: React.FC<Props> = ({ message, attachmentInfo, fallbackT
                 dangerouslySetInnerHTML={{ __html: sanitizedFallbackHtml }}
             />
           )}
-          <a href={url} target="_blank" rel="noopener noreferrer" className="hover:opacity-80 transition-opacity block">
+          <a
+            href={isUploading ? '#' : url}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={isUploading ? (e) => e.preventDefault() : undefined}
+            className={cn("hover:opacity-80 transition-opacity block relative", isUploading && "cursor-default opacity-60")}
+          >
             <img
               src={url} // La URL debe ser completa y accesible
               alt={filename}
-              className="max-w-[260px] sm:max-w-xs md:max-w-sm max-h-[200px] sm:max-h-[250px] object-contain rounded-lg border border-border cursor-pointer shadow-md bg-muted"
+              className="max-w-[260px] sm:max-w-xs md:max-w-sm max-h-[200px] sm:max-h-[250px] object-contain rounded-lg border border-border shadow-md bg-muted"
             />
+            {isUploading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg">
+                <Loader2 className="w-6 h-6 text-white animate-spin" />
+              </div>
+            )}
           </a>
-          {renderDownloadLink(filename, true)}
+          {renderDownloadLink(filename, !isUploading)} {/* Show download icon only if not uploading */}
         </div>
       );
     }
@@ -99,9 +116,16 @@ const AttachmentPreview: React.FC<Props> = ({ message, attachmentInfo, fallbackT
                 dangerouslySetInnerHTML={{ __html: sanitizedFallbackHtml }}
             />
           )}
-          <audio controls src={url} className="w-full max-w-xs rounded">
-            Tu navegador no soporta el elemento de audio.
-          </audio>
+          <div className={cn("relative w-full max-w-xs", isUploading && "opacity-60")}>
+            <audio controls src={url} className="w-full rounded" disabled={isUploading}>
+              Tu navegador no soporta el elemento de audio.
+            </audio>
+            {isUploading && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/10 rounded">
+                    <Loader2 className="w-5 h-5 text-foreground animate-spin" />
+                </div>
+            )}
+          </div>
           {renderDownloadLink()}
         </div>
       );
@@ -116,14 +140,22 @@ const AttachmentPreview: React.FC<Props> = ({ message, attachmentInfo, fallbackT
                 dangerouslySetInnerHTML={{ __html: sanitizedFallbackHtml }}
             />
           )}
-          <video controls src={url} className="w-full max-w-xs sm:max-w-sm max-h-[250px] rounded border border-border bg-muted">
-            Tu navegador no soporta el elemento de video.
-          </video>
+          <div className={cn("relative w-full max-w-xs sm:max-w-sm max-h-[250px]", isUploading && "opacity-60")}>
+            <video controls src={url} className="w-full max-h-[250px] rounded border border-border bg-muted" muted={isUploading} playsInline={isUploading}>
+              Tu navegador no soporta el elemento de video.
+            </video>
+            {isUploading && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded">
+                    <Loader2 className="w-6 h-6 text-white animate-spin" />
+                </div>
+            )}
+          </div>
           {renderDownloadLink()}
         </div>
       );
     }
 
+    // Generic file types
     let IconComponent: React.ElementType = FileQuestion;
     switch (attachmentType) {
       case 'pdf':
@@ -172,19 +204,26 @@ const AttachmentPreview: React.FC<Props> = ({ message, attachmentInfo, fallbackT
             />
         )}
         <a
-          href={url} // La URL debe ser completa y accesible
-          download={filename}
-          className="flex items-center gap-2.5 p-2 rounded-md hover:bg-muted/80 transition-colors group border border-border min-w-[200px] max-w-full"
-          title={`Descargar ${filename} ${fileSizeDisplay}`}
+          href={isUploading ? '#' : url}
+          download={isUploading ? undefined : filename}
+          onClick={isUploading ? (e) => e.preventDefault() : undefined}
+          className={cn(
+            "flex items-center gap-2.5 p-2 rounded-md hover:bg-muted/80 transition-colors group border border-border min-w-[200px] max-w-full",
+            isUploading && "opacity-60 cursor-default"
+          )}
+          title={isUploading ? "Archivo subiendo..." : `Descargar ${filename} ${fileSizeDisplay}`}
         >
-          <IconComponent className={`w-7 h-7 flex-shrink-0 text-primary opacity-80 group-hover:opacity-100`} />
+          {isUploading
+            ? <Loader2 className={`w-7 h-7 flex-shrink-0 text-primary opacity-80 group-hover:opacity-100 animate-spin`} />
+            : <IconComponent className={`w-7 h-7 flex-shrink-0 text-primary opacity-80 group-hover:opacity-100`} />
+          }
           <div className="flex-grow overflow-hidden">
             <span className="block text-sm font-medium text-foreground truncate group-hover:text-primary">
               {filename}
             </span>
             {fileSizeDisplay && <span className="text-xs text-muted-foreground">{fileSizeDisplay}</span>}
           </div>
-          <Download className="w-5 h-5 ml-auto text-muted-foreground group-hover:text-primary flex-shrink-0" />
+          {!isUploading && <Download className="w-5 h-5 ml-auto text-muted-foreground group-hover:text-primary flex-shrink-0" />}
         </a>
       </div>
     );

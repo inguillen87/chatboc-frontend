@@ -871,10 +871,11 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
         newAttachments.forEach(newFileAttachment => {
           // Crear un comentario sintético para el archivo
           const fileComment: Comment = {
-            id: Date.now() + Math.random(), // ID único para el cliente, diferente de los IDs de comentarios reales
+            // Use a string ID to differentiate synthetic file comments for styling or filtering
+            id: `client-file-${newFileAttachment.id || Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
             comentario: newFileAttachment.url, // La URL del archivo será procesada por AttachmentPreview
             fecha: newFileAttachment.fecha || new Date().toISOString(), // Usar fecha del adjunto o actual
-            es_admin: true,
+            es_admin: true, // Admin sent this file
           };
           nuevosComentariosParaMostrar.push(fileComment);
         });
@@ -1007,7 +1008,13 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
                                 'max-w-lg md:max-w-md lg:max-w-lg rounded-xl px-3.5 py-2.5 shadow-sm',
                                 comment.es_admin
                                     ? 'bg-primary text-primary-foreground rounded-br-sm'
-                                    : 'bg-card dark:bg-slate-800 text-foreground border dark:border-slate-700/80 rounded-bl-sm'
+                                    : 'bg-card dark:bg-slate-800 text-foreground border dark:border-slate-700/80 rounded-bl-sm',
+                                // Conditional styling for synthetic file comments
+                                typeof comment.id === 'string' && comment.id.startsWith('client-file-') && comment.es_admin
+                                    ? 'bg-primary/80 border border-primary/50' // Slightly different style for admin file messages
+                                    : typeof comment.id === 'string' && comment.id.startsWith('client-file-')
+                                        ? 'bg-muted border border-border' // Style for non-admin (though currently files are admin-sent)
+                                        : ''
                                 )}
                             >
                                 {attachment ? (
