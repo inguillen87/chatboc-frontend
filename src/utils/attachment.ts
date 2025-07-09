@@ -179,18 +179,18 @@ export function getAttachmentInfo(textOrUrl: string): AttachmentInfo | null {
   // Esta función ahora debería considerarse con precaución.
   // Es mejor que el backend provea mimeType y nombre.
   try {
-    // Check for "Archivo adjunto: filename.ext" pattern
-    const attachmentPattern = /^Archivo adjunto:\s*(.*)$/i;
+    // Check for "Archivo adjunto: filename.ext (subiendo...)" or "Archivo adjunto: filename.ext" pattern
+    const attachmentPattern = /^Archivo adjunto:\s*(.*?)(\s*\(subiendo...\))?$/i;
     const match = textOrUrl.match(attachmentPattern);
 
     if (match && match[1]) {
-      const extractedFilename = match[1];
-      // For this simulated attachment, the URL is the original text, and name is extracted.
-      // No real download will work, but icon and name should.
+      const extractedFilename = match[1].trim(); // match[1] is the filename part
+      // For this simulated/optimistic attachment, the URL is the original text (textOrUrl),
+      // and name is the extractedFilename.
+      // The 'url' field in AttachmentInfo will be textOrUrl. AttachmentPreview uses this 'url'
+      // for download links, which won't work if it's not a real URL.
+      // However, the 'name' and derived 'type'/'extension' will be correct for icon display.
       const derivedInfo = deriveAttachmentInfo(textOrUrl, extractedFilename, undefined, undefined);
-      // Ensure type is not 'other' if we got a valid extension, otherwise it might be filtered out
-      // by AttachmentPreview if it expects only "real" attachments.
-      // However, deriveAttachmentInfo already handles this logic.
       return derivedInfo;
     }
 

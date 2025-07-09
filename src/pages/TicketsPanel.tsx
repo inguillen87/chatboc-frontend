@@ -789,12 +789,15 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
     const currentMessageText = newMessage.trim();
     const currentSelectedFile = selectedFile; // Capture before clearing state
 
-    // Optimistic update: Text part
+    // Optimistic update:
     let optimisticCommentText = currentMessageText;
-    if (currentSelectedFile && !currentMessageText) { // If only file, show placeholder in optimistic update
-        optimisticCommentText = `Enviando archivo: ${currentSelectedFile.name}`;
-    } else if (currentSelectedFile && currentMessageText) { // If text and file
-        optimisticCommentText = `${currentMessageText}\n(Adjuntando: ${currentSelectedFile.name})`;
+    if (currentSelectedFile) {
+        const filePlaceholder = `Archivo adjunto: ${currentSelectedFile.name} (subiendo...)`;
+        if (!currentMessageText) { // If only file
+            optimisticCommentText = filePlaceholder;
+        } else { // If text and file
+            optimisticCommentText = `${currentMessageText}\n${filePlaceholder}`;
+        }
     }
 
     const optimisticComment: Comment = {
@@ -853,29 +856,68 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
             sendEntityToken: true, // apiFetch handles token
         });
 
-      const serverComentarios = updatedTicket.comentarios ? [...updatedTicket.comentarios].sort((a,b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()) : [];
-      setComentarios(serverComentarios);
-      if (serverComentarios.length > 0) {
-        ultimoMensajeIdRef.current = serverComentarios[serverComentarios.length -1].id;
+      const serverComentariosActuales = updatedTicket.comentarios
+          ? [...updatedTicket.comentarios]
+          : [];
+
+      let nuevosComentariosParaMostrar = [...serverComentariosActuales];
+
+      if (currentSelectedFile) {
+        // Identificar el archivo recién subido para crear un comentario sintético para él.
+        // Esto asume que `updatedTicket.archivos_adjuntos` está actualizado.
+        const prevAttachmentIds = new Set(ticket.archivos_adjuntos?.map(att => att.id) || []);
+        const newAttachments = updatedTicket.archivos_adjuntos?.filter(att => !prevAttachmentIds.has(att.id)) || [];
+
+        newAttachments.forEach(newFileAttachment => {
+          // Crear un comentario sintético para el archivo
+          const fileComment: Comment = {
+            id: Date.now() + Math.random(), // ID único para el cliente, diferente de los IDs de comentarios reales
+            comentario: newFileAttachment.url, // La URL del archivo será procesada por AttachmentPreview
+            fecha: newFileAttachment.fecha || new Date().toISOString(), // Usar fecha del adjunto o actual
+            es_admin: true,
+          };
+          nuevosComentariosParaMostrar.push(fileComment);
+        });
       }
-      onTicketUpdate({ ...ticket, ...updatedTicket, comentarios: serverComentarios });
-      // Optional: Success toast for sent message (can be too noisy)
-      // toast.success("Mensaje enviado con éxito");
+
+      // Ordenar todos los comentarios (reales y sintéticos de archivos) por fecha
+      nuevosComentariosParaMostrar.sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
+
+      setComentarios(nuevosComentariosParaMostrar);
+
+      if (nuevosComentariosParaMostrar.length > 0) {
+          const lastComment = nuevosComentariosParaMostrar.find(c => typeof c.id === 'number' && c.id > ultimoMensajeIdRef.current);
+          if (lastComment) { // Asegurar que solo actualizamos con IDs numéricos de comentarios reales
+            ultimoMensajeIdRef.current = lastComment.id;
+          } else if (serverComentariosActuales.length > 0 && typeof serverComentariosActuales[serverComentariosActuales.length -1].id === 'number') {
+            // Fallback si no hay un "nuevo" comentario real pero sí hay comentarios del servidor
+            ultimoMensajeIdRef.current = serverComentariosActuales[serverComentariosActuales.length -1].id;
+          }
+      }
+
+      // Actualizar el ticket principal. Los comentarios aquí son los del servidor.
+      // La UI de comentarios ya se actualizó con los sintéticos si los hubo.
+      onTicketUpdate({ ...ticket, ...updatedTicket, comentarios: serverComentariosActuales });
 
     } catch (error) {
       const displayError = error instanceof ApiError ? error.message : "No se pudo enviar el mensaje. Intente de nuevo.";
       toast.error(displayError);
       console.error("Error al enviar comentario:", error); // Keep console log for debugging
 
-      setComentarios(prev => prev.filter(c => c.id !== tempId)); // Remove optimistic comment
-      // Restore message. File re-selection is more complex and not handled here.
-      setNewMessage(currentMessageText); // Restore the original text that failed to send
+      // Revertir la UI eliminando el comentario optimista
+      setComentarios(prev => prev.filter(c => c.id !== tempId));
+
+      // Restaurar el texto y el archivo seleccionado para que el usuario no los pierda
+      setNewMessage(currentMessageText);
       if (currentSelectedFile) {
-          // TODO: Consider how to handle restoring the selected file or notifying user it wasn't sent.
-          // For now, it's cleared from UI, user would need to re-attach.
-          toast.info(`El archivo "${currentSelectedFile.name}" no fue enviado. Por favor, adjúntelo de nuevo si es necesario.`);
+        setSelectedFile(currentSelectedFile); // Restaurar el archivo seleccionado
+        toast.info(`El archivo "${currentSelectedFile.name}" no fue enviado. Por favor, adjúntelo de nuevo si es necesario.`);
       }
     } finally {
+      // No limpiar newMessage y selectedFile aquí si falló, para que el usuario pueda reintentar.
+      // Se limpian al inicio del try si la preparación es exitosa.
+      // Ah, ya se limpian al inicio del try, entonces si hay error, se restauran.
+      // Si no hay error, ya están limpios.
       setIsSending(false);
     }
   };
