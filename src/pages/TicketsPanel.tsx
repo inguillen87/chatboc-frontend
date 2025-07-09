@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, FC, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Loader2, Send, Ticket as TicketIcon, ChevronDown, ChevronUp, User, ShieldCheck, X, Search, Filter, ListFilter, File, ArrowLeft, XCircle, BellRing, AlertTriangle, Paperclip, Sparkles } from "lucide-react"; // Added Paperclip, Sparkles
+import { Loader2, Send, Ticket as TicketIcon, ChevronDown, ChevronUp, User, ShieldCheck, X, Search, Filter, ListFilter, File, ArrowLeft, XCircle, BellRing, AlertTriangle, Paperclip, Sparkles, MessageSquare } from "lucide-react"; // Added Paperclip, Sparkles, MessageSquare
 import { motion, AnimatePresence } from "framer-motion";
 import { apiFetch, ApiError } from "@/utils/api";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
@@ -23,6 +23,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { useUser } from '@/hooks/useUser'; // Ensured this is present
 import TemplateSelector, { MessageTemplate } from "@/components/tickets/TemplateSelector"; // Import TemplateSelector
+import { formatPhoneNumberForWhatsApp } from "@/utils/phoneUtils"; // Import WhatsApp phone formatter
 // TODO: Setup a toast component (e.g., Sonner or Shadcn's Toaster) and import its 'toast' function
 // For example: import { toast } from "sonner";
 // As a placeholder, we'll define a dummy toast object if not available globally.
@@ -266,31 +267,20 @@ export default function TicketsPanel() {
   }, [fetchAndSetTickets]);
 
   useEffect(() => {
-    apiFetch<any>('/municipal/categorias', { sendEntityToken: true }) // Expect Array or Object
-      .then((data) => {
+    apiFetch<{ categorias: { id: number; nombre: string }[] }>('/municipal/categorias', { sendEntityToken: true })
+      .then((response) => {
         const mapping: Record<string, string> = {};
-        if (Array.isArray(data)) {
-          data.forEach((c: { id: number; nombre: string }) => {
+        if (response && Array.isArray(response.categorias)) {
+          response.categorias.forEach((c) => {
             mapping[String(c.id)] = c.nombre;
           });
-        } else if (typeof data === 'object' && data !== null) {
-          // Assuming object might be like { "1": "Category A", "2": "Category B" }
-          // Or if it's a single category object, this needs clarification.
-          // For now, if it's an object, we can't directly process it into categoryNames map without knowing its structure.
-          console.error('[TicketsPanel] Categories data from /municipal/categorias is an object, expected array or specific object structure:', data);
-          // If you expect an object like { categories: [...] }, then use data.categories.forEach(...)
-          // If data is an object mapping IDs to names, like { "1": "Name1", ...}:
-          // Object.entries(data).forEach(([id, nombre]) => {
-          //   if (typeof nombre === 'string') mapping[id] = nombre;
-          // });
-          // For now, will log error and set empty, as structure of object is unknown.
         } else {
-          console.error('[TicketsPanel] Unexpected data type for categories:', data);
+          console.error('[TicketsPanel] Categories data from /municipal/categorias is not in expected format (expected {categorias: Array}):', response);
         }
         setCategoryNames(mapping);
       })
       .catch((err) => {
-        console.error("Error fetching municipal categories:", err);
+        console.error("[TicketsPanel] Error fetching municipal categories:", err);
         setCategoryNames({});
       });
   }, []);
@@ -1153,7 +1143,34 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
                     <CardContent className="text-sm text-muted-foreground space-y-1.5 px-4 pb-4">
                     {ticket.nombre_usuario && <p><strong>Nombre:</strong> {ticket.nombre_usuario}</p>}
                     {ticket.email_usuario && <p><strong>Email:</strong> <a href={`mailto:${ticket.email_usuario}`} className="text-primary hover:underline">{ticket.email_usuario}</a></p>}
-                    {ticket.telefono && <p><strong>Teléfono:</strong> <a href={`tel:${ticket.telefono}`} className="text-primary hover:underline">{ticket.telefono}</a></p>}
+                    {ticket.telefono && (
+                        <div className="flex items-center gap-2">
+                            <p className="flex-shrink-0"><strong>Teléfono:</strong></p>
+                            <a href={`tel:${ticket.telefono}`} className="text-primary hover:underline truncate" title={ticket.telefono}>{ticket.telefono}</a>
+                            {(() => {
+                                const formattedPhone = formatPhoneNumberForWhatsApp(ticket.telefono);
+                                if (formattedPhone) {
+                                    const adminName = user?.name || 'el equipo del municipio';
+                                    const municipioName = ticket.municipio_nombre || 'el municipio';
+                                    // Using more generic placeholders if specific ticket details are not crucial for an initial WhatsApp message
+                                    const messageText = `Hola ${ticket.nombre_usuario || 'vecino/a'}, le contactamos desde ${municipioName} (agente: ${adminName}) en relación a su ticket N°${ticket.nro_ticket || '[Nro Ticket]'}.`;
+                                    const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(messageText)}`;
+                                    return (
+                                    <a
+                                        href={whatsappUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        title="Enviar mensaje de WhatsApp"
+                                        className="ml-1 flex-shrink-0"
+                                    >
+                                        <MessageSquare className="h-4 w-4 text-green-600 hover:text-green-700 cursor-pointer" />
+                                    </a>
+                                    );
+                                }
+                                return null;
+                            })()}
+                        </div>
+                    )}
                     </CardContent>
                 </Card>
                 )}
