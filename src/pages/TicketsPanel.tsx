@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, FC, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Loader2, Send, Ticket as TicketIcon, ChevronDown, ChevronUp, User, ShieldCheck, X, Search, Filter, ListFilter, File, ArrowLeft, XCircle, BellRing, AlertTriangle, Paperclip } from "lucide-react"; // Added Paperclip
+import { Loader2, Send, Ticket as TicketIcon, ChevronDown, ChevronUp, User, ShieldCheck, X, Search, Filter, ListFilter, File, ArrowLeft, XCircle, BellRing, AlertTriangle, Paperclip, Sparkles } from "lucide-react"; // Added Paperclip, Sparkles
 import { motion, AnimatePresence } from "framer-motion";
 import { apiFetch, ApiError } from "@/utils/api";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
@@ -22,6 +22,17 @@ import type { Role } from "@/utils/roles";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { useUser } from '@/hooks/useUser'; // Ensured this is present
+import TemplateSelector, { MessageTemplate } from "@/components/tickets/TemplateSelector"; // Import TemplateSelector
+// TODO: Setup a toast component (e.g., Sonner or Shadcn's Toaster) and import its 'toast' function
+// For example: import { toast } from "sonner";
+// As a placeholder, we'll define a dummy toast object if not available globally.
+// This should be replaced by actual toast integration.
+const toast = (globalThis as any).toast || {
+  success: (message: string) => console.log("TOAST SUCCESS:", message),
+  error: (message: string) => console.error("TOAST ERROR:", message),
+  info: (message: string) => console.info("TOAST INFO:", message)
+};
+
 
 // ----------- TIPOS Y ESTADOS -----------
 type TicketStatus = "nuevo" | "en_proceso" | "derivado" | "resuelto" | "cerrado" | "esperando_agente_en_vivo";
@@ -674,6 +685,7 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [comentarios, setComentarios] = useState<Comment[]>(ticket.comentarios || []);
+  const [isTemplateSelectorOpen, setIsTemplateSelectorOpen] = useState(false); // State for modal
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
@@ -774,66 +786,72 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
 
     setIsSending(true);
     const tempId = Date.now();
-    let messageContent = newMessage.trim();
-    let optimisticCommentText = messageContent;
+    const currentMessageText = newMessage.trim();
+    const currentSelectedFile = selectedFile; // Capture before clearing state
 
-    // Placeholder for actual file upload logic
-    if (selectedFile) {
-      // Simulate file upload and getting a URL
-      // In a real scenario, this would involve an API call
-      // For now, we'll just append the filename to the message,
-      // or a placeholder URL structure if getAttachmentInfo can handle it.
-      const fileNamePlaceholder = `[archivo_adjunto: ${selectedFile.name}]`;
-      // This could be a direct link if the backend provides it: `https://example.com/uploads/${selectedFile.name}`
-      // For AttachmentPreview to work best with getAttachmentInfo, it needs a URL-like string.
-      // Let's use a pseudo-URL structure that getAttachmentInfo might parse if we adjust it,
-      // or rely on AttachmentPreview's fallbackText.
-      // A simpler approach for now: just include the filename clearly.
-
-      // If there's a message and a file, append file info.
-      // If only a file, the file info becomes the message.
-      const fileTag = `Archivo adjunto: ${selectedFile.name}`;
-      messageContent = messageContent ? `${messageContent}\n${fileTag}` : fileTag;
-      optimisticCommentText = messageContent; // The text part of the comment will include this
-
-      // TODO: Actual file upload logic will go here
-      // 1. Create FormData
-      // 2. Append file and other data (like ticket_id, user_id)
-      // 3. Use apiFetch to POST to a new file upload endpoint
-      // 4. Get back the actual file URL and metadata from the backend
-      // 5. Use that URL in the 'mensaje' payload below, instead of `messageContent` or `fileTag`
-      console.log("Simulating upload for:", selectedFile.name);
-      // For optimistic update, we might use a local blob URL for image previews if it's an image
-      // but for generic files, just the name is fine for now.
+    // Optimistic update: Text part
+    let optimisticCommentText = currentMessageText;
+    if (currentSelectedFile && !currentMessageText) { // If only file, show placeholder in optimistic update
+        optimisticCommentText = `Enviando archivo: ${currentSelectedFile.name}`;
+    } else if (currentSelectedFile && currentMessageText) { // If text and file
+        optimisticCommentText = `${currentMessageText}\n(Adjuntando: ${currentSelectedFile.name})`;
     }
 
     const optimisticComment: Comment = {
         id: tempId,
-        comentario: optimisticCommentText, // This will be the text shown in the UI
+        comentario: optimisticCommentText,
         fecha: new Date().toISOString(),
         es_admin: true,
     };
-    setComentarios(prev => [...prev, optimisticComment].sort((a,b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()));
-
-    const messageToSendToBackend = messageContent; // This is what's sent to the backend
+    // Add optimistic comment only if there's text or a file being sent
+    if (optimisticCommentText || currentSelectedFile) {
+        setComentarios(prev => [...prev, optimisticComment].sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()));
+    }
 
     setNewMessage("");
     setSelectedFile(null);
 
     try {
-      // The backend /responder endpoint currently expects 'mensaje'.
-      // If files are uploaded separately, this call might only send text,
-      // or it might be adapted to also include a reference to the uploaded file.
-      // For now, sending the combined text (which includes file placeholder).
-      const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}/responder`, {
-        method: "POST",
-        body: {
-          mensaje: messageToSendToBackend, // This now includes file placeholder
-          user_id: adminUserId
-          // Potentially: adjunto_url: "url_from_backend_after_upload" if backend changes
-        },
-        sendEntityToken: true,
-      });
+        let requestBody: any;
+        let headers: Record<string, string> = {}; // apiFetch will add auth token
+
+        if (currentSelectedFile) {
+            const formData = new FormData();
+            formData.append('archivos', currentSelectedFile, currentSelectedFile.name);
+            if (currentMessageText) {
+                formData.append('comentario', currentMessageText);
+            }
+            // The backend uses current_user.id for the user_id of the comment and attachment.
+            // No need to explicitly send user_id in FormData for this endpoint.
+            requestBody = formData;
+            // When using FormData, do not set the 'Content-Type' header manually.
+            // The browser will automatically set it to 'multipart/form-data'
+            // with the correct 'boundary' parameter.
+        } else {
+            // Only text message
+            requestBody = {
+                mensaje: currentMessageText,
+                user_id: adminUserId // Backend expects user_id for JSON, but derives from token for comment user.
+                                     // The provided backend code for JSON payload for /responder does not use user_id from payload.
+                                     // It uses current_user.id for `servicio_tickets.crear_comentario`.
+                                     // Let's send `comentario` as per backend for JSON.
+            };
+            if (currentMessageText) { // Only send 'comentario' if there is text.
+                 requestBody = { comentario: currentMessageText };
+            } else {
+                // Should not happen due to initial check, but as a safeguard:
+                setIsSending(false);
+                return;
+            }
+            headers['Content-Type'] = 'application/json';
+        }
+
+        const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}/responder`, {
+            method: "POST",
+            body: requestBody,
+            headers: headers, // Pass headers for JSON case
+            sendEntityToken: true, // apiFetch handles token
+        });
 
       const serverComentarios = updatedTicket.comentarios ? [...updatedTicket.comentarios].sort((a,b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()) : [];
       setComentarios(serverComentarios);
@@ -841,15 +859,22 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
         ultimoMensajeIdRef.current = serverComentarios[serverComentarios.length -1].id;
       }
       onTicketUpdate({ ...ticket, ...updatedTicket, comentarios: serverComentarios });
+      // Optional: Success toast for sent message (can be too noisy)
+      // toast.success("Mensaje enviado con éxito");
 
     } catch (error) {
-      console.error("Error al enviar comentario:", error);
-      setComentarios(prev => prev.filter(c => c.id !== tempId));
-      // Restore message and file if sending failed
-      setNewMessage(newMessage); // Restore original text message
-      // setSelectedFile(selectedFile); // This won't work as `selectedFile` was already cleared. Need to store it before clearing.
-      // For simplicity now, just restoring text. A more robust solution would handle file re-selection or keeping it.
-      // TODO: Implement user-friendly error notification (e.g., using a toast library)
+      const displayError = error instanceof ApiError ? error.message : "No se pudo enviar el mensaje. Intente de nuevo.";
+      toast.error(displayError);
+      console.error("Error al enviar comentario:", error); // Keep console log for debugging
+
+      setComentarios(prev => prev.filter(c => c.id !== tempId)); // Remove optimistic comment
+      // Restore message. File re-selection is more complex and not handled here.
+      setNewMessage(currentMessageText); // Restore the original text that failed to send
+      if (currentSelectedFile) {
+          // TODO: Consider how to handle restoring the selected file or notifying user it wasn't sent.
+          // For now, it's cleared from UI, user would need to re-attach.
+          toast.info(`El archivo "${currentSelectedFile.name}" no fue enviado. Por favor, adjúntelo de nuevo si es necesario.`);
+      }
     } finally {
       setIsSending(false);
     }
@@ -873,10 +898,12 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
       const serverComentarios = updatedTicketData.comentarios ? [...updatedTicketData.comentarios].sort((a,b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()) : comentarios;
       const mergedTicket = { ...ticket, ...updatedTicketData, comentarios: serverComentarios};
       onTicketUpdate(mergedTicket);
+      toast.success(`Estado del ticket actualizado a "${mergedTicket.estado}".`);
     } catch (error) {
-      console.error("Error al cambiar estado", error);
-      onTicketUpdate({ ...ticket, estado: originalState, comentarios: comentarios });
-      // TODO: Mostrar error al usuario
+      const displayError = error instanceof ApiError ? error.message : "No se pudo cambiar el estado. Intente de nuevo.";
+      toast.error(displayError);
+      console.error("Error al cambiar estado", error); // Keep console log
+      onTicketUpdate({ ...ticket, estado: originalState, comentarios: comentarios }); // Revert optimistic update
     }
   };
 
@@ -983,6 +1010,9 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
                         <Button variant="outline" size="icon" onClick={() => fileInputRef.current?.click()} className="h-10 w-10 flex-shrink-0" title="Adjuntar archivo">
                             <Paperclip className="h-5 w-5" />
                         </Button>
+                        <Button variant="outline" size="icon" onClick={() => setIsTemplateSelectorOpen(true)} className="h-10 w-10 flex-shrink-0" title="Usar plantilla de mensaje">
+                            <Sparkles className="h-5 w-5" />
+                        </Button>
                         <Input
                         value={newMessage}
                         onChange={(e) => setNewMessage(e.target.value)}
@@ -1069,6 +1099,38 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
                 </Card>
             </ScrollArea>
         </div>
+        <TemplateSelector
+            isOpen={isTemplateSelectorOpen}
+            onClose={() => setIsTemplateSelectorOpen(false)}
+            onSelectTemplate={(templateText) => {
+                let finalText = templateText;
+
+                const placeholderMap: Record<string, () => string> = {
+                    '{nombre_usuario}': () => ticket?.nombre_usuario || 'Cliente',
+                    '{ticket_asunto}': () => ticket?.asunto || '',
+                    '{ticket_estado}': () => ticket?.estado || '',
+                    '{ticket_id}': () => String(ticket?.id || ''),
+                    '{ticket_nro_ticket}': () => String(ticket?.nro_ticket || ''),
+                    '{ticket_direccion}': () => ticket?.direccion || 'N/A',
+                    '{admin_nombre}': () => user?.name || 'nuestro equipo', // Added admin name
+                    // Add more placeholders here as needed
+                };
+
+                if (ticket || user) { // Ensure there's some data to replace with
+                    for (const placeholder in placeholderMap) {
+                        // Check if placeholder actually exists in template to avoid unnecessary replace calls
+                        if (finalText.includes(placeholder)) {
+                             finalText = finalText.replace(new RegExp(placeholder.replace(/\{/g, '\\{').replace(/\}/g, '\\}'), 'g'), placeholderMap[placeholder]());
+                        }
+                    }
+                }
+
+                setNewMessage(prev => prev ? `${prev} ${finalText}` : finalText); // Append or set
+                setIsTemplateSelectorOpen(false);
+            }}
+            // Pass current ticket data if TemplateSelector is to be context-aware
+            // currentTicket={ticket}
+        />
     </div>
   );
 };
