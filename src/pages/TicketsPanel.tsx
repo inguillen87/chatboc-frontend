@@ -266,15 +266,31 @@ export default function TicketsPanel() {
   }, [fetchAndSetTickets]);
 
   useEffect(() => {
-    apiFetch<{ id: number; nombre: string }[]>('/municipal/categorias', { sendEntityToken: true })
+    apiFetch<any>('/municipal/categorias', { sendEntityToken: true }) // Expect Array or Object
       .then((data) => {
         const mapping: Record<string, string> = {};
-        data.forEach((c) => {
-          mapping[String(c.id)] = c.nombre;
-        });
+        if (Array.isArray(data)) {
+          data.forEach((c: { id: number; nombre: string }) => {
+            mapping[String(c.id)] = c.nombre;
+          });
+        } else if (typeof data === 'object' && data !== null) {
+          // Assuming object might be like { "1": "Category A", "2": "Category B" }
+          // Or if it's a single category object, this needs clarification.
+          // For now, if it's an object, we can't directly process it into categoryNames map without knowing its structure.
+          console.error('[TicketsPanel] Categories data from /municipal/categorias is an object, expected array or specific object structure:', data);
+          // If you expect an object like { categories: [...] }, then use data.categories.forEach(...)
+          // If data is an object mapping IDs to names, like { "1": "Name1", ...}:
+          // Object.entries(data).forEach(([id, nombre]) => {
+          //   if (typeof nombre === 'string') mapping[id] = nombre;
+          // });
+          // For now, will log error and set empty, as structure of object is unknown.
+        } else {
+          console.error('[TicketsPanel] Unexpected data type for categories:', data);
+        }
         setCategoryNames(mapping);
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error("Error fetching municipal categories:", err);
         setCategoryNames({});
       });
   }, []);
@@ -868,22 +884,36 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
         // Esto asume que `updatedTicket.archivos_adjuntos` está actualizado.
         const prevAttachmentIds = new Set(ticket.archivos_adjuntos?.map(att => att.id) || []);
         const newAttachments = updatedTicket.archivos_adjuntos?.filter(att => !prevAttachmentIds.has(att.id)) || [];
+        console.log('[handleSendMessage] Newly identified attachments:', JSON.stringify(newAttachments, null, 2));
 
         newAttachments.forEach(newFileAttachment => {
-          // Crear un comentario sintético para el archivo
+          let fileUrlForComment = newFileAttachment.url;
+          if (newFileAttachment.url && newFileAttachment.url.startsWith('/')) {
+            // Ensure VITE_API_URL is defined and doesn't end with /api if the URL already has a leading /
+            const apiUrl = (import.meta.env.VITE_API_URL || '').replace(/\/api$/, '');
+            fileUrlForComment = `${apiUrl}${newFileAttachment.url}`;
+            console.log(`[handleSendMessage] Constructed absolute URL for synthetic comment: ${fileUrlForComment}`);
+          } else if (newFileAttachment.url) {
+            console.log(`[handleSendMessage] Using provided URL for synthetic comment (assumed absolute or will be handled by browser): ${fileUrlForComment}`);
+          } else {
+            console.error('[handleSendMessage] New attachment found but has no URL:', newFileAttachment);
+            return; // Skip this attachment if no URL
+          }
+
           const fileComment: Comment = {
-            // Use a string ID to differentiate synthetic file comments for styling or filtering
             id: `client-file-${newFileAttachment.id || Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-            comentario: newFileAttachment.url, // La URL del archivo será procesada por AttachmentPreview
-            fecha: newFileAttachment.fecha || new Date().toISOString(), // Usar fecha del adjunto o actual
-            es_admin: true, // Admin sent this file
+            comentario: fileUrlForComment,
+            fecha: newFileAttachment.fecha || new Date().toISOString(),
+            es_admin: true,
           };
+          console.log('[handleSendMessage] Synthetic fileComment created:', JSON.stringify(fileComment, null, 2));
           nuevosComentariosParaMostrar.push(fileComment);
         });
       }
 
-      // Ordenar todos los comentarios (reales y sintéticos de archivos) por fecha
+      console.log('[handleSendMessage] All comments to display (after adding synthetic, before sort):', JSON.stringify(nuevosComentariosParaMostrar, null, 2));
       nuevosComentariosParaMostrar.sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
+      console.log('[handleSendMessage] Final sorted comments for display:', JSON.stringify(nuevosComentariosParaMostrar, null, 2));
 
       setComentarios(nuevosComentariosParaMostrar);
 
