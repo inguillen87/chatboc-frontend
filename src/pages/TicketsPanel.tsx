@@ -788,6 +788,7 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
     const tempId = Date.now();
     const currentMessageText = newMessage.trim();
     const currentSelectedFile = selectedFile; // Capture before clearing state
+    const previousAttachments = ticket.archivos_adjuntos ? [...ticket.archivos_adjuntos] : []; // Capture previous attachments
 
     // Optimistic update:
     let optimisticCommentText = currentMessageText;
@@ -899,6 +900,12 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
       // Actualizar el ticket principal. Los comentarios aquí son los del servidor.
       // La UI de comentarios ya se actualizó con los sintéticos si los hubo.
       onTicketUpdate({ ...ticket, ...updatedTicket, comentarios: serverComentariosActuales });
+
+      // Log for diagnosing backend response
+      if (currentSelectedFile) {
+        console.log('Updated Ticket Data (after file upload):', JSON.stringify(updatedTicket, null, 2));
+        console.log('Previous attachments (before this send):', JSON.stringify(previousAttachments, null, 2));
+      }
 
     } catch (error) {
       const displayError = error instanceof ApiError ? error.message : "No se pudo enviar el mensaje. Intente de nuevo.";
