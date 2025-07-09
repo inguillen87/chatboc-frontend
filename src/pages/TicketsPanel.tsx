@@ -13,7 +13,7 @@ import { useDebounce } from '@/hooks/useDebounce';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import AttachmentPreview from "@/components/chat/AttachmentPreview";
-import { getAttachmentInfo } from "@/utils/attachment";
+import { getAttachmentInfo, deriveAttachmentInfo, AttachmentInfo } from "@/utils/attachment"; // Added deriveAttachmentInfo & AttachmentInfo
 import { formatDate } from "@/utils/fecha";
 import { useDateSettings } from "@/hooks/useDateSettings";
 import { LOCALE_OPTIONS } from "@/utils/localeOptions";
@@ -1159,23 +1159,54 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
                 )}
 
                 <TicketTimeline ticket={ticket} comentarios={comentarios} />
-                <TicketMap ticket={ticket} />
 
-                {ticket.archivo_url && (
                 <Card className="shadow-sm">
-                    <CardHeader className="pb-3 pt-4 px-4"><CardTitle className="text-base font-semibold">Archivo Adjunto</CardTitle></CardHeader>
-                    <CardContent className="px-4 pb-4">
-                    <Button asChild variant="outline" size="sm">
-                        <a href={ticket.archivo_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
-                            <File className="h-4 w-4"/> Descargar Archivo
-                        </a>
-                    </Button>
+                    <CardHeader className="pb-3 pt-4 px-4">
+                        <CardTitle className="text-base font-semibold">Descripción del Reclamo</CardTitle>
+                    </CardHeader>
+                    <CardContent className="px-4 pb-4 text-sm text-muted-foreground whitespace-pre-wrap break-words">
+                        {ticket.pregunta || ticket.detalles || "No hay descripción detallada disponible."}
                     </CardContent>
                 </Card>
-                )}
+
+                <TicketMap ticket={ticket} />
 
                 <Card className="shadow-sm">
-                     <CardHeader className="pb-3 pt-4 px-4"><CardTitle className="text-base font-semibold">Detalles Adicionales</CardTitle></CardHeader>
+                    <CardHeader className="pb-3 pt-4 px-4">
+                        <CardTitle className="text-base font-semibold">Archivos Adjuntos al Ticket</CardTitle>
+                    </CardHeader>
+                    <CardContent className="px-4 pb-4 space-y-2">
+                        {(ticket.archivos_adjuntos && ticket.archivos_adjuntos.length > 0) ? (
+                            ticket.archivos_adjuntos.map((adj, index) => {
+                                // Construct AttachmentInfo for AttachmentPreview
+                                // The backend provides 'name', 'url', 'mimeType', 'size' for each adjunto.
+                                // deriveAttachmentInfo can determine 'type' and 'extension'.
+                                const attachmentInfoForPreview: AttachmentInfo = deriveAttachmentInfo(
+                                    adj.url, // adj.url is typically relative like /tickets/archivos/filename.ext
+                                    adj.name,
+                                    adj.mimeType,
+                                    adj.size
+                                );
+                                // If VITE_API_URL is set and URL is relative, make it absolute for preview
+                                // This helps if no proxy is set up for /tickets/archivos
+                                if (attachmentInfoForPreview.url.startsWith('/')) {
+                                    const apiUrl = (import.meta.env.VITE_API_URL || '').replace(/\/api$/, '');
+                                    if (apiUrl) { // Only prepend if VITE_API_URL is defined
+                                        attachmentInfoForPreview.url = `${apiUrl}${attachmentInfoForPreview.url}`;
+                                    }
+                                }
+                                return (
+                                    <AttachmentPreview key={adj.id || index} attachment={attachmentInfoForPreview} />
+                                );
+                            })
+                        ) : (
+                            <p className="text-sm text-muted-foreground">No hay archivos adjuntos para este ticket.</p>
+                        )}
+                    </CardContent>
+                </Card>
+
+                <Card className="shadow-sm">
+                     <CardHeader className="pb-3 pt-4 px-4"><CardTitle className="text-base font-semibold">Detalles del Ticket</CardTitle></CardHeader>
                      <CardContent className="text-sm text-muted-foreground space-y-1.5 px-4 pb-4">
                         <p><strong>Categoría:</strong> {categoryNames[ticket.categoria || ''] || ticket.categoria || "No especificada"}</p>
                         <p><strong>Tipo:</strong> {ticket.tipo}</p>
