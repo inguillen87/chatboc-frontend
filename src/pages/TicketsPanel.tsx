@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, FC, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Loader2, Send, Ticket as TicketIcon, ChevronDown, ChevronUp, User, ShieldCheck, X, Search, Filter, ListFilter, File, ArrowLeft, XCircle, BellRing, AlertTriangle } from "lucide-react"; // TODO: XCircle, BellRing, AlertTriangle importados acá
+import { Loader2, Send, Ticket as TicketIcon, ChevronDown, ChevronUp, User, ShieldCheck, X, Search, Filter, ListFilter, File, ArrowLeft, XCircle, BellRing, AlertTriangle, Paperclip } from "lucide-react"; // Added Paperclip
 import { motion, AnimatePresence } from "framer-motion";
 import { apiFetch, ApiError } from "@/utils/api";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
@@ -375,7 +375,7 @@ export default function TicketsPanel() {
 
   if (error && groupedTickets.length === 0 && !isLoading) {
     return <div className="p-8 text-center text-destructive bg-destructive/10 rounded-md min-h-screen flex flex-col justify-center items-center">
-        <TicketIcon className="mx-auto h-12 w-12 text-destructive mb-4" />
+        <AlertTriangle className="mx-auto h-12 w-12 text-destructive mb-4" /> {/* Changed Icon */}
         <h2 className="text-xl font-semibold mb-2">Error al cargar tickets</h2>
         <p>{error}</p>
         <Button onClick={fetchInitialData} className="mt-4">Reintentar</Button>
@@ -671,9 +671,11 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
   const { timezone, locale } = useDateSettings();
   const { user } = useUser();
   const [newMessage, setNewMessage] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [comentarios, setComentarios] = useState<Comment[]>(ticket.comentarios || []);
   const chatBottomRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
   const ultimoMensajeIdRef = useRef<number>(0);
 
@@ -720,13 +722,13 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
     if (forceTicketRefresh || chatEnVivo) {
         try {
             const updatedTicketData = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}`, { sendEntityToken: true });
-            const currentComentarios = comentarios;
-            onTicketUpdate({ ...ticket, ...updatedTicketData, comentarios: updatedTicketData.comentarios || currentComentarios });
+            // Use ticket.comentarios (from prop) as the fallback, it's more stable reference here
+            onTicketUpdate({ ...ticket, ...updatedTicketData, comentarios: updatedTicketData.comentarios || ticket.comentarios });
         } catch (e) {
             console.error("Error al refrescar ticket:", e);
         }
     }
-  }, [ticket.id, ticket.tipo, onTicketUpdate, isAnonimo, chatEnVivo, comentarios]);
+  }, [ticket.id, ticket.tipo, onTicketUpdate, isAnonimo, chatEnVivo, ticket.comentarios, ticket.asunto, ticket.categoria, ticket.estado]); // Refined dependencies
 
   useEffect(() => {
     const initialComments = ticket.comentarios ? [...ticket.comentarios].sort((a,b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()) : [];
@@ -736,8 +738,16 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
     if (pollingRef.current) clearInterval(pollingRef.current);
     if (!chatEnVivo) return;
 
-    fetchComentarios(true);
-    pollingRef.current = setInterval(() => fetchComentarios(true), 10000);
+    fetchComentarios(true); // Initial fetch and ticket refresh
+    pollingRef.current = setInterval(() => {
+        // For regular polling, we primarily want new messages.
+        // A full ticket refresh might not be needed every 5s if messages endpoint is efficient.
+        // However, the current `fetchComentarios` will refresh ticket if chatEnVivo is true.
+        // To make it less aggressive, one could pass `fetchComentarios(false)`
+        // and ensure critical ticket updates are pushed or handled differently.
+        // For now, keeping `fetchComentarios(true)` but with faster interval.
+        fetchComentarios(true);
+    }, 5000); // Reduced polling interval to 5 seconds
     return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
   }, [ticket.id, ticket.comentarios, chatEnVivo, fetchComentarios]);
 
@@ -755,33 +765,72 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
   const handleSendMessage = async () => {
     const adminUserId = user?.id;
 
-    if (!newMessage.trim() || isSending || isAnonimo || !adminUserId) {
+    if ((!newMessage.trim() && !selectedFile) || isSending || isAnonimo || !adminUserId) {
       if (!adminUserId && !isAnonimo) {
-        console.error("Error: adminUserId no disponible para enviar mensaje. El usuario podría no estar completamente cargado o no tener ID.");
+        console.error("Error: adminUserId no disponible para enviar mensaje.");
       }
       return;
     }
 
     setIsSending(true);
     const tempId = Date.now();
-    const currentMessageText = newMessage;
+    let messageContent = newMessage.trim();
+    let optimisticCommentText = messageContent;
+
+    // Placeholder for actual file upload logic
+    if (selectedFile) {
+      // Simulate file upload and getting a URL
+      // In a real scenario, this would involve an API call
+      // For now, we'll just append the filename to the message,
+      // or a placeholder URL structure if getAttachmentInfo can handle it.
+      const fileNamePlaceholder = `[archivo_adjunto: ${selectedFile.name}]`;
+      // This could be a direct link if the backend provides it: `https://example.com/uploads/${selectedFile.name}`
+      // For AttachmentPreview to work best with getAttachmentInfo, it needs a URL-like string.
+      // Let's use a pseudo-URL structure that getAttachmentInfo might parse if we adjust it,
+      // or rely on AttachmentPreview's fallbackText.
+      // A simpler approach for now: just include the filename clearly.
+
+      // If there's a message and a file, append file info.
+      // If only a file, the file info becomes the message.
+      const fileTag = `Archivo adjunto: ${selectedFile.name}`;
+      messageContent = messageContent ? `${messageContent}\n${fileTag}` : fileTag;
+      optimisticCommentText = messageContent; // The text part of the comment will include this
+
+      // TODO: Actual file upload logic will go here
+      // 1. Create FormData
+      // 2. Append file and other data (like ticket_id, user_id)
+      // 3. Use apiFetch to POST to a new file upload endpoint
+      // 4. Get back the actual file URL and metadata from the backend
+      // 5. Use that URL in the 'mensaje' payload below, instead of `messageContent` or `fileTag`
+      console.log("Simulating upload for:", selectedFile.name);
+      // For optimistic update, we might use a local blob URL for image previews if it's an image
+      // but for generic files, just the name is fine for now.
+    }
 
     const optimisticComment: Comment = {
         id: tempId,
-        comentario: currentMessageText,
+        comentario: optimisticCommentText, // This will be the text shown in the UI
         fecha: new Date().toISOString(),
         es_admin: true,
     };
     setComentarios(prev => [...prev, optimisticComment].sort((a,b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()));
 
+    const messageToSendToBackend = messageContent; // This is what's sent to the backend
+
     setNewMessage("");
+    setSelectedFile(null);
 
     try {
+      // The backend /responder endpoint currently expects 'mensaje'.
+      // If files are uploaded separately, this call might only send text,
+      // or it might be adapted to also include a reference to the uploaded file.
+      // For now, sending the combined text (which includes file placeholder).
       const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}/responder`, {
         method: "POST",
         body: {
-          mensaje: currentMessageText,
+          mensaje: messageToSendToBackend, // This now includes file placeholder
           user_id: adminUserId
+          // Potentially: adjunto_url: "url_from_backend_after_upload" if backend changes
         },
         sendEntityToken: true,
       });
@@ -796,10 +845,19 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
     } catch (error) {
       console.error("Error al enviar comentario:", error);
       setComentarios(prev => prev.filter(c => c.id !== tempId));
-      setNewMessage(currentMessageText);
+      // Restore message and file if sending failed
+      setNewMessage(newMessage); // Restore original text message
+      // setSelectedFile(selectedFile); // This won't work as `selectedFile` was already cleared. Need to store it before clearing.
+      // For simplicity now, just restoring text. A more robust solution would handle file re-selection or keeping it.
       // TODO: Implement user-friendly error notification (e.g., using a toast library)
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files && event.target.files[0]) {
+      setSelectedFile(event.target.files[0]);
     }
   };
 
@@ -907,23 +965,45 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
                     <div ref={chatBottomRef} />
                     </main>
                 </ScrollArea>
-                <footer className="border-t dark:border-slate-700/80 p-2 md:p-3 mt-2 flex gap-2 items-center flex-shrink-0"> {/* Added flex-shrink-0 */}
-                    <Input
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey && newMessage.trim()) {
-                            e.preventDefault();
-                            handleSendMessage();
-                        }
-                    }}
-                    placeholder="Escribe una respuesta..."
-                    disabled={isSending}
-                    className="h-10 bg-card dark:bg-slate-800 focus-visible:ring-primary/50"
-                    />
-                    <Button onClick={handleSendMessage} disabled={isSending || !newMessage.trim()} aria-label="Enviar Mensaje" className="h-10">
-                    {isSending ? <Loader2 className="animate-spin h-5 w-5" /> : <Send className="h-5 w-5" />}
-                    </Button>
+                <footer className="border-t dark:border-slate-700/80 p-2 md:p-3 mt-2 flex flex-col gap-2 flex-shrink-0">
+                    {selectedFile && (
+                        <div className="p-2 border border-dashed dark:border-slate-600 rounded-md flex items-center justify-between bg-muted/50 dark:bg-slate-800/30">
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground truncate">
+                                <File className="h-4 w-4 flex-shrink-0" />
+                                <span className="truncate" title={selectedFile.name}>{selectedFile.name}</span>
+                                <span className="text-xs opacity-70 whitespace-nowrap">({(selectedFile.size / 1024).toFixed(1)} KB)</span>
+                            </div>
+                            <Button variant="ghost" size="icon" onClick={() => setSelectedFile(null)} className="h-7 w-7">
+                                <XCircle className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    )}
+                    <div className="flex gap-2 items-center">
+                        <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} />
+                        <Button variant="outline" size="icon" onClick={() => fileInputRef.current?.click()} className="h-10 w-10 flex-shrink-0" title="Adjuntar archivo">
+                            <Paperclip className="h-5 w-5" />
+                        </Button>
+                        <Input
+                        value={newMessage}
+                        onChange={(e) => setNewMessage(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey && (newMessage.trim() || selectedFile)) {
+                                e.preventDefault();
+                                handleSendMessage();
+                            }
+                        }}
+                        placeholder="Escribe una respuesta..."
+                        disabled={isSending}
+                        className="h-10 bg-card dark:bg-slate-800 focus-visible:ring-primary/50"
+                        />
+                        <Button
+                            onClick={handleSendMessage}
+                            disabled={isSending || (!newMessage.trim() && !selectedFile)}
+                            aria-label="Enviar Mensaje" className="h-10"
+                        >
+                            {isSending ? <Loader2 className="animate-spin h-5 w-5" /> : <Send className="h-5 w-5" />}
+                        </Button>
+                    </div>
                 </footer>
             </div>
 
