@@ -179,18 +179,38 @@ export function getAttachmentInfo(textOrUrl: string): AttachmentInfo | null {
   // Esta función ahora debería considerarse con precaución.
   // Es mejor que el backend provea mimeType y nombre.
   try {
+    // Check for "Archivo adjunto: filename.ext" pattern
+    const attachmentPattern = /^Archivo adjunto:\s*(.*)$/i;
+    const match = textOrUrl.match(attachmentPattern);
+
+    if (match && match[1]) {
+      const extractedFilename = match[1];
+      // For this simulated attachment, the URL is the original text, and name is extracted.
+      // No real download will work, but icon and name should.
+      const derivedInfo = deriveAttachmentInfo(textOrUrl, extractedFilename, undefined, undefined);
+      // Ensure type is not 'other' if we got a valid extension, otherwise it might be filtered out
+      // by AttachmentPreview if it expects only "real" attachments.
+      // However, deriveAttachmentInfo already handles this logic.
+      return derivedInfo;
+    }
+
+    // Original logic for URLs or direct filenames:
     let ext = '';
     const nameParts = textOrUrl.split('/').pop()?.split(/[?#]/)[0]?.split('.');
     if (nameParts && nameParts.length > 1) {
       ext = nameParts.pop()?.toLowerCase() || '';
     }
 
-    // Si no hay extensión clara, y no es una URL absoluta, no podemos hacer mucho.
+    // Si no hay extensión clara (e.g. it's not a filename directly)
+    // AND it's not an absolute URL, then it's likely not an attachment.
     if (!ext && !(textOrUrl.startsWith('http://') || textOrUrl.startsWith('https://'))) {
         return null;
     }
 
-    const name = textOrUrl.split('/').pop()?.split(/[?#]/)[0] || `archivo_desconocido${ext ? '.'+ext : ''}`;
+    // If it's a URL, name is derived from URL. Otherwise, textOrUrl is the name.
+    const name = (textOrUrl.startsWith('http://') || textOrUrl.startsWith('https://'))
+                 ? textOrUrl.split('/').pop()?.split(/[?#]/)[0] || `archivo_desconocido${ext ? '.'+ext : ''}`
+                 : textOrUrl;
 
     // Usar la nueva lógica de derivación si es posible, aunque aquí no tenemos mimeType
     const derivedInfo = deriveAttachmentInfo(textOrUrl, name, undefined);
