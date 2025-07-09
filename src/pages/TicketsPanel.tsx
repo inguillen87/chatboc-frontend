@@ -137,6 +137,7 @@ interface TicketDetailViewProps {
   ticket: Ticket;
   onTicketUpdate: (updatedTicket: Ticket) => void;
   onClose: () => void;
+  categoryNames: Record<string, string>; // Added categoryNames prop
 }
 
 export default function TicketsPanel() {
@@ -524,6 +525,7 @@ return (
               ticket={detailedTicket}
               onTicketUpdate={handleTicketDetailUpdate}
               onClose={closeDetailPanel}
+              categoryNames={categoryNames} // Pass categoryNames prop
           />
         ) : selectedTicketId && !detailedTicket && !error ? (
           <div className="flex items-center justify-center h-full">
@@ -666,7 +668,7 @@ const CATEGORIAS_CHAT_EN_VIVO = [
   "soporte urgente"
 ];
 
-const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUpdate, onClose }) => {
+const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUpdate, onClose, categoryNames }) => { // Added categoryNames to destructuring
   const { timezone, locale } = useDateSettings();
   const { user } = useUser();
   const [newMessage, setNewMessage] = useState("");
