@@ -267,15 +267,16 @@ export default function TicketsPanel() {
   }, [fetchAndSetTickets]);
 
   useEffect(() => {
-    apiFetch<{ categorias: { id: number; nombre: string }[] }>('/municipal/categorias', { sendEntityToken: true })
-      .then((response) => {
+    apiFetch<{ id: number; nombre: string }[]>('/municipal/categorias', { sendEntityToken: true })
+      .then((data) => { // Expecting data to be Array<{id, nombre}> directly
         const mapping: Record<string, string> = {};
-        if (response && Array.isArray(response.categorias)) {
-          response.categorias.forEach((c) => {
+        if (Array.isArray(data)) {
+          data.forEach((c) => {
             mapping[String(c.id)] = c.nombre;
           });
         } else {
-          console.error('[TicketsPanel] Categories data from /municipal/categorias is not in expected format (expected {categorias: Array}):', response);
+          // This case should ideally not happen if backend is consistent and returns array
+          console.error('[TicketsPanel] Categories data from /municipal/categorias is not an array:', data);
         }
         setCategoryNames(mapping);
       })
