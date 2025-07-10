@@ -283,16 +283,16 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       y: 0,
       scale: 1,
       borderRadius: isMobileView ? "0px" : "16px",
-      // transition: { ...openSpring, delay: 0.05 } // Original spring animation
-      transition: { type: "tween", duration: 0.3, ease: "easeOut", delay: 0.05 } // Simplified tween animation
+      transition: { ...openSpring, delay: 0.05 } // Original spring animation
+      // transition: { type: "tween", duration: 0.3, ease: "easeOut", delay: 0.05 } // Simplified tween animation
     },
     exit: {
       opacity: 0,
       y: 30,
       scale: 0.95,
       borderRadius: "30%",
-      // transition: closeSpring // Original spring animation for exit
-      transition: { type: "tween", duration: 0.2, ease: "easeIn" } // Simplified tween animation for exit
+      transition: closeSpring // Original spring animation for exit
+      // transition: { type: "tween", duration: 0.2, ease: "easeIn" } // Simplified tween animation for exit
     }
   };
 
@@ -351,7 +351,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
           <Skeleton className="h-4 w-[40%] mt-2" />
         </div>
       }>
-        <AnimatePresence mode="popLayout">
+        <AnimatePresence mode="sync">
           {isOpen ? (
             <motion.div
               key="chatboc-panel-open"
@@ -447,7 +447,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
           <ChatbocLogoAnimated size={calculatedLogoSize > 0 ? calculatedLogoSize : (isMobileView ? 32 : 48)} />
         </div>
       }>
-        <AnimatePresence mode="popLayout" initial={false}>
+        <AnimatePresence mode="sync" initial={false}>
           {isOpen ? (
             <motion.div
               key="chatboc-panel-open"
