@@ -212,19 +212,24 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   }, [widgetId]);
 
   const toggleChat = useCallback(() => {
+    // Ensure AudioContext is resumed on user gesture, especially for the first click
+    if (typeof window !== "undefined" && window.AudioContext && window.AudioContext.state === "suspended") {
+      window.AudioContext.resume();
+    }
+
     setIsOpen((prevIsOpen) => {
       const nextIsOpen = !prevIsOpen;
       if (nextIsOpen && !muted) {
         playOpenSound();
       }
-      if (nextIsOpen) {
-        setShowProactiveBubble(false);
+      if (nextIsOpen) { // If opening chat
+        setShowProactiveBubble(false); // Hide proactive bubble
         if (proactiveMessageTimeout) clearTimeout(proactiveMessageTimeout);
         if (hideProactiveBubbleTimeout) clearTimeout(hideProactiveBubbleTimeout);
       }
       return nextIsOpen;
     });
-  }, [muted]);
+  }, [isOpen, muted]); // Added isOpen to the dependency array
 
   useEffect(() => {
     if (!ctaMessage || isOpen || showProactiveBubble) {
@@ -278,14 +283,16 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       y: 0,
       scale: 1,
       borderRadius: isMobileView ? "0px" : "16px",
-      transition: { ...openSpring, delay: 0.05 }
+      // transition: { ...openSpring, delay: 0.05 } // Original spring animation
+      transition: { type: "tween", duration: 0.3, ease: "easeOut", delay: 0.05 } // Simplified tween animation
     },
     exit: {
       opacity: 0,
       y: 30,
       scale: 0.95,
       borderRadius: "30%",
-      transition: closeSpring
+      // transition: closeSpring // Original spring animation for exit
+      transition: { type: "tween", duration: 0.2, ease: "easeIn" } // Simplified tween animation for exit
     }
   };
 
