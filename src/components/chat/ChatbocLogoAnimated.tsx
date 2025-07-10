@@ -79,8 +79,8 @@ const ChatbocLogoAnimated = ({
       >
         {/* Ojos */}
         <motion.circle
-          cx={leftEyeX}
-          cy={eyeBaseY}
+          cx={leftEyeX || 0} // Fallback si leftEyeX es undefined
+          cy={eyeBaseY || 0}  // Fallback si eyeBaseY es undefined
           r={3.5} // Slightly smaller eyes
           fill="#FFFFFF" // Ensure high contrast, pure white
           animate={
@@ -103,8 +103,8 @@ const ChatbocLogoAnimated = ({
           style={{ transformOrigin: "center" }}
         />
         <motion.circle
-          cx={rightEyeX}
-          cy={eyeBaseY}
+          cx={rightEyeX || 0} // Fallback si rightEyeX es undefined
+          cy={eyeBaseY || 0}  // Fallback si eyeBaseY es undefined
           r={3.5} // Slightly smaller eyes
           fill="#FFFFFF"
           animate={
