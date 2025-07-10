@@ -283,16 +283,16 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       y: 0,
       scale: 1,
       borderRadius: isMobileView ? "0px" : "16px",
-      transition: { ...openSpring, delay: 0.05 } // Original spring animation
-      // transition: { type: "tween", duration: 0.3, ease: "easeOut", delay: 0.05 } // Simplified tween animation
+      // transition: { ...openSpring, delay: 0.05 } // Original spring animation
+      transition: { type: "tween", duration: 0.3, ease: "easeOut", delay: 0.05 } // Simplified tween animation
     },
     exit: {
       opacity: 0,
       y: 30,
       scale: 0.95,
       borderRadius: "30%",
-      transition: closeSpring // Original spring animation for exit
-      // transition: { type: "tween", duration: 0.2, ease: "easeIn" } // Simplified tween animation for exit
+      // transition: closeSpring // Original spring animation for exit
+      transition: { type: "tween", duration: 0.2, ease: "easeIn" } // Simplified tween animation for exit
     }
   };
 
