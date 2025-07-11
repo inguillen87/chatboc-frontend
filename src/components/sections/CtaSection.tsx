@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, MessageSquareHeart, UserCheck, Bot } from 'lucide-react'; // Iconos actualizados
+import { ArrowRight, MessageSquareHeart, UserPlus, Bot } from 'lucide-react'; // Cambiado UserCheck a UserPlus
 import { useNavigate } from 'react-router-dom';
 
 const CtaSection = () => {
@@ -21,27 +21,27 @@ const CtaSection = () => {
             <Button
               size="lg"
               className="font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 w-full sm:w-auto"
-              onClick={() => navigate('/demo')} // Demo interactiva sigue siendo buena opción
+              onClick={() => navigate('/demo')}
             >
               <Bot className="mr-2 h-5 w-5" /> Ver Demo Interactiva
             </Button>
 
             <Button
               size="lg"
-              variant="outline" // El outline se verá bien con los nuevos estilos
+              variant="outline"
               className="font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 w-full sm:w-auto"
-              onClick={() => navigate('/contacto')} // Lleva a una página de contacto general
+              onClick={() => navigate('/contacto')}
             >
               <MessageSquareHeart className="mr-2 h-5 w-5" /> Hablar con un Asesor
             </Button>
 
             <Button
               size="lg"
-              variant="secondary" // Usar 'secondary' o un 'ghost' si se quiere menos prominencia
+              variant="secondary"
               className="font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 w-full sm:w-auto"
               onClick={() => navigate('/register')}
             >
-              <UserCheck className="mr-2 h-5 w-5" /> Crear Cuenta
+              <UserPlus className="mr-2 h-5 w-5" /> Crear Cuenta {/* CORREGIDO UserCheck a UserPlus */}
             </Button>
           </div>
 
