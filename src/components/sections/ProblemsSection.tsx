@@ -1,6 +1,6 @@
 import React from 'react';
 // Actualizar iconos según los nuevos problemas
-import { Clock, Repeat, FileSearch, Brain, BarChartBig, UsersCheck } from 'lucide-react';
+import { Clock, Repeat, FileSearch, Brain, BarChartBig, UserCog } from 'lucide-react'; // Cambiado UsersCheck a UserCog
 
 // Lista de problemas actualizada y reenfocada
 const problemsData = [
@@ -29,7 +29,7 @@ const problemsData = [
     comment: "La IA de Chatboc entiende el contexto y el historial, permitiendo interacciones personalizadas que mejoran la satisfacción."
   },
   {
-    icon: <UsersCheck className="h-8 w-8 text-primary" />, // Icono más orientado a la gestión de usuarios/ciudadanos
+    icon: <UserCog className="h-8 w-8 text-primary" />, // Cambiado aquí
     title: "Dificultad para Conocer y Segmentar Usuarios",
     description: "Entender las necesidades específicas de diferentes grupos de ciudadanos o clientes es clave para ofrecer un servicio proactivo y relevante.",
     comment: "Nuestro CRM te permite registrar y segmentar perfiles detallados, facilitando campañas y comunicaciones dirigidas."
