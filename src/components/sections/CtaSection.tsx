@@ -1,63 +1,56 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, MessageCircle } from 'lucide-react';
+import { ArrowRight, MessageSquareHeart, UserCheck, Bot } from 'lucide-react'; // Iconos actualizados
 import { useNavigate } from 'react-router-dom';
 
 const CtaSection = () => {
   const navigate = useNavigate();
 
   return (
-    <section className="py-14 md:py-20 bg-background text-foreground transition-colors animate-fade-in">
+    <section className="py-16 md:py-24 bg-background text-foreground transition-colors"> {/* Fondo según alternancia */}
       <div className="container px-4 mx-auto">
-        <div className="text-center max-w-2xl mx-auto">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">
-            ¿Listo para que Chatboc trabaje para tu Pyme?
+        <div className="text-center max-w-2xl md:max-w-3xl mx-auto">
+          <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-6 text-dark">
+            ¿Listo para Transformar la Interacción con tus Usuarios?
           </h2>
-          <p className="text-lg text-muted-foreground mb-6">
-            Empezá hoy mismo. Podés probarlo sin registrarte, crear tu cuenta o escribirnos por WhatsApp.
+          <p className="text-lg md:text-xl text-muted-foreground mb-8 md:mb-10">
+            Descubre cómo nuestra plataforma IA puede potenciar a tu organización. Explora una demostración interactiva, contáctanos para una asesoría personalizada o crea una cuenta para comenzar.
           </p>
 
-          <div className="flex flex-col sm:flex-row justify-center items-center gap-4 flex-wrap">
-            {/* CTA Principal */}
+          <div className="flex flex-col sm:flex-row justify-center items-center gap-4 md:gap-5 flex-wrap">
             <Button
               size="lg"
-              className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold shadow-sm transition-transform duration-300 hover:scale-105"
+              className="font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 w-full sm:w-auto"
+              onClick={() => navigate('/demo')} // Demo interactiva sigue siendo buena opción
+            >
+              <Bot className="mr-2 h-5 w-5" /> Ver Demo Interactiva
+            </Button>
+
+            <Button
+              size="lg"
+              variant="outline" // El outline se verá bien con los nuevos estilos
+              className="font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 w-full sm:w-auto"
+              onClick={() => navigate('/contacto')} // Lleva a una página de contacto general
+            >
+              <MessageSquareHeart className="mr-2 h-5 w-5" /> Hablar con un Asesor
+            </Button>
+
+            <Button
+              size="lg"
+              variant="secondary" // Usar 'secondary' o un 'ghost' si se quiere menos prominencia
+              className="font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 w-full sm:w-auto"
               onClick={() => navigate('/register')}
             >
-              Crear cuenta gratis <ArrowRight className="ml-2 h-5 w-5" />
-            </Button>
-
-            {/* CTA Alternativa */}
-            <Button
-              size="lg"
-              variant="outline"
-              className="border-border text-foreground hover:bg-muted/50 font-semibold transition-transform duration-300 hover:scale-105"
-              onClick={() => navigate('/demo')}
-            >
-              Probar sin registrarme <ArrowRight className="ml-2 h-5 w-5" />
-            </Button>
-
-            {/* WhatsApp */}
-            <Button
-              size="lg"
-              className="bg-green-600 hover:bg-green-700 text-white font-semibold shadow-sm transition-transform duration-300 hover:scale-105"
-              onClick={() =>
-                window.open(
-                  'https://wa.me/5492613168608?text=Hola! Estoy probando Chatboc y quiero implementarlo en mi empresa.',
-                  '_blank'
-                )
-              }
-            >
-              Hablar por WhatsApp <MessageCircle className="ml-2 h-5 w-5" />
+              <UserCheck className="mr-2 h-5 w-5" /> Crear Cuenta
             </Button>
           </div>
 
-          <div className="mt-6">
+          <div className="mt-8">
             <button
               onClick={() => navigate('/login')}
-              className="text-sm underline underline-offset-4 hover:text-muted-foreground transition-colors"
+              className="text-sm text-muted-foreground hover:text-primary underline underline-offset-4 transition-colors"
             >
-              ¿Ya tenés cuenta? Iniciar sesión
+              ¿Ya tienes una cuenta? Iniciar sesión
             </button>
           </div>
         </div>

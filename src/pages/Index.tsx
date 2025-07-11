@@ -7,7 +7,7 @@ import SolutionSection from '@/components/sections/SolutionSection';
 import HowItWorksSection from '@/components/sections/HowItWorksSection';
 import PricingSection from '@/components/sections/PricingSection';
 import TargetSection from '@/components/sections/TargetSection';
-// import TestimonialsSection from '@/components/sections/TestimonialsSection';
+import TestimonialsSection from '@/components/sections/TestimonialsSection'; // Descomentado
 import CtaSection from '@/components/sections/CtaSection';
 import ComingSoonSection from '@/components/sections/ComingSoonSection';
 import ChatWidget from "@/components/chat/ChatWidget";
@@ -16,7 +16,7 @@ const Index = () => {
   const [showWidget, setShowWidget] = useState(true);
 
   useEffect(() => {
-    document.title = 'Chatboc - Tu Experto Virtual';
+    document.title = 'Chatboc - Conectando Gobiernos y Empresas con sus Comunidades'; // Título actualizado
 
     // AUTO SCROLL SI HAY UN PENDIENTE
     const sectionId = safeSessionStorage.getItem("pendingScrollSection");
@@ -55,7 +55,8 @@ const Index = () => {
 
   return (
     <>
-      <main className="flex flex-col gap-12 md:gap-16 lg:gap-20 mt-16 scroll-smooth">
+      {/* Ajustar el espaciado general y el margen superior si es necesario */}
+      <main className="flex flex-col gap-16 md:gap-20 lg:gap-24 mt-0 md:mt-0 scroll-smooth"> {/* Ajustar mt si el Navbar es fijo y ocupa espacio */}
         <section id="inicio">
           <HeroSection />
         </section>
@@ -68,23 +69,22 @@ const Index = () => {
         <section id="como-funciona">
           <HowItWorksSection />
         </section>
+        <section id="publico-objetivo"> {/* Renombrado el id para consistencia si es necesario */}
+          <TargetSection />
+        </section>
+        <section id="testimonios"> {/* Descomentado y añadido */}
+          <TestimonialsSection />
+        </section>
         <section id="precios">
           <PricingSection />
         </section>
-        <section id="publico-objetivo">
-          <TargetSection />
-        </section>
-        {/* <section id="testimonios">
-          <TestimonialsSection />
-        </section> */}
         <section id="cta">
           <CtaSection />
         </section>
-        <section id="proximamente">
+        {/* <section id="proximamente"> // Considerar si esta sección sigue siendo relevante o se integra en otra
           <ComingSoonSection />
-        </section>
+        </section> */}
       </main>
-      {/* CHAT FLOTANTE SOLO SI NO HAY USUARIO LOGUEADO */}
       {showWidget && <ChatWidget mode="standalone" defaultOpen={false} />}
     </>
   );

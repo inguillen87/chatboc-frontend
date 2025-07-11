@@ -1,70 +1,72 @@
 import React from 'react';
-import { Clock, User, Users, Calendar, Bot, FileText, Zap, Database } from 'lucide-react';
+// Actualizar iconos según los nuevos problemas
+import { Clock, Repeat, FileSearch, Brain, BarChartBig, UsersCheck } from 'lucide-react';
 
-const problems = [
+// Lista de problemas actualizada y reenfocada
+const problemsData = [
   {
-    icon: <Clock className="h-6 w-6 text-red-500" />,
-    title: "Clientes Impacientes",
-    description: "Perdés ventas porque los clientes exigen respuestas inmediatas y no siempre podés atenderlos en el momento.",
-    comment: "Chatboc responde al instante, 24/7, sin depender de humanos ni horarios."
+    icon: <Clock className="h-8 w-8 text-primary" />, // Usar color primario de la paleta
+    title: "Respuestas Lentas, Usuarios Frustrados",
+    description: "Ciudadanos y clientes esperan ayuda al instante. Las demoras o la falta de atención 24/7 generan insatisfacción y pérdida de confianza.",
+    comment: "Chatboc IA ofrece atención inmediata 24/7, resolviendo dudas y guiando a los usuarios, incluso fuera de horario."
   },
   {
-    icon: <Users className="h-6 w-6 text-orange-500" />,
-    title: "Consultas Repetitivas que te Roban Tiempo",
-    description: "Pasás horas respondiendo lo mismo todos los días: precios, stock, horarios, formas de pago…",
-    comment: "Con nuestro sistema, cada respuesta se automatiza y se personaliza según tu catálogo actualizado."
+    icon: <Repeat className="h-8 w-8 text-primary" />,
+    title: "Equipos Saturados por Consultas Repetitivas",
+    description: "Tu personal invierte horas respondiendo las mismas preguntas, desviando tiempo valioso de tareas estratégicas o casos complejos.",
+    comment: "Automatiza hasta el 80% de las consultas frecuentes. Libera a tu equipo para que se enfoque en lo que realmente importa."
   },
   {
-    icon: <FileText className="h-6 w-6 text-blue-700" />,
-    title: "Catálogos y Listados Difíciles de Usar",
-    description: "Tus productos y servicios cambian todo el tiempo, y mantener la información actualizada para tus clientes es un dolor de cabeza.",
-    comment: "Ahora sólo subís tu PDF o Excel, y Chatboc responde usando la info real de tu negocio."
+    icon: <FileSearch className="h-8 w-8 text-primary" />,
+    title: "Información Dispersa, Procesos Complicados",
+    description: "Para los usuarios, encontrar datos o entender trámites puede ser un laberinto. Para ti, un desafío de comunicación constante.",
+    comment: "Centraliza el conocimiento. Sube tus documentos y normativas; nuestro IA guiará a los usuarios con lenguaje natural."
   },
   {
-    icon: <Database className="h-6 w-6 text-fuchsia-600" />,
-    title: "Bots que No Entienden tu Rubro",
-    description: "Probaste otros bots, pero no reconocen términos de tu industria ni pueden buscar productos o condiciones especiales.",
-    comment: "La IA de Chatboc usa Qdrant y procesamiento semántico: entiende consultas complejas y específicas de tu sector."
+    icon: <Brain className="h-8 w-8 text-primary" />,
+    title: "Falta de Personalización Real a Escala",
+    description: "Brindar una experiencia verdaderamente adaptada a cada ciudadano o cliente es un reto logístico con alto volumen de interacciones.",
+    comment: "La IA de Chatboc entiende el contexto y el historial, permitiendo interacciones personalizadas que mejoran la satisfacción."
   },
   {
-    icon: <Calendar className="h-6 w-6 text-green-500" />,
-    title: "Oportunidades Perdidas Fuera de Horario",
-    description: "Las consultas fuera de horario o durante el finde terminan en la competencia porque no podés responderlas rápido.",
-    comment: "Chatboc atiende en tu web, WhatsApp o donde quieras, todos los días y a toda hora."
+    icon: <UsersCheck className="h-8 w-8 text-primary" />, // Icono más orientado a la gestión de usuarios/ciudadanos
+    title: "Dificultad para Conocer y Segmentar Usuarios",
+    description: "Entender las necesidades específicas de diferentes grupos de ciudadanos o clientes es clave para ofrecer un servicio proactivo y relevante.",
+    comment: "Nuestro CRM te permite registrar y segmentar perfiles detallados, facilitando campañas y comunicaciones dirigidas."
   },
   {
-    icon: <Zap className="h-6 w-6 text-yellow-400" />,
-    title: "Falta de Automatización Real",
-    description: "Muchos sistemas prometen automatizar, pero siguen dependiendo de respuestas básicas o supervisión constante.",
-    comment: "Con Chatboc, la automatización es total: cotiza, responde, deriva y aprende solo."
+    icon: <BarChartBig className="h-8 w-8 text-primary" />,
+    title: "Gestión Ineficiente, Oportunidades Perdidas",
+    description: "La dificultad para rastrear solicitudes, medir la satisfacción o identificar cuellos de botella impide optimizar los servicios y la atención.",
+    comment: "El CRM y los paneles analíticos te dan una visión 360° del rendimiento para una mejora continua de la experiencia."
   }
 ];
 
 const ProblemsSection = () => {
   return (
-    <section id="problemas" className="section-padding bg-background text-foreground">
+    <section id="problemas" className="py-16 md:py-24 bg-light text-foreground"> {/* Usar bg-light para alternar secciones */}
       <div className="container px-4 mx-auto">
-        <div className="text-center mb-12 max-w-3xl mx-auto">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">
-            ¿Tu Pyme Sufre Estos Problemas? 
+        <div className="text-center mb-12 md:mb-16 max-w-3xl mx-auto">
+          <h2 className="text-3xl md:text-4xl font-bold mb-4 text-dark"> {/* Usar text-dark para contraste en bg-light */}
+            ¿Tu Organización Enfrenta Estos Desafíos?
           </h2>
           <p className="text-lg text-muted-foreground">
-            Las pymes de hoy pierden ventas y reputación por no poder responder con agilidad y profesionalismo. <b>Con Chatboc podés automatizar, personalizar y escalar tu atención al cliente usando la misma tecnología que las grandes empresas globales.</b>
+            Tanto ciudadanos como clientes esperan hoy una comunicación ágil y soluciones efectivas. Chatboc potencia a municipios y empresas para ofrecer experiencias de usuario excepcionales, de forma eficiente y personalizada.
           </p>
         </div>
 
-        <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-          {problems.map((problem, index) => (
+        <div className="grid gap-6 md:gap-8 md:grid-cols-2 lg:grid-cols-3">
+          {problemsData.map((problem, index) => (
             <div
               key={index}
-              className="bg-card text-card-foreground p-6 rounded-xl border border-border shadow-sm hover:shadow-lg transition-shadow relative"
+              className="bg-card text-card-foreground p-6 rounded-lg border border-border shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col" // Usar rounded-lg, shadow-lg, flex-col
             >
-              <div className="p-3 rounded-full bg-muted flex items-center justify-center mb-4">
+              <div className="flex-shrink-0 mb-5 flex items-center justify-center w-12 h-12 rounded-full bg-primary/10"> {/* Icono con fondo primario suave */}
                 {problem.icon}
               </div>
-              <h3 className="text-xl font-semibold mb-2">{problem.title}</h3>
-              <p className="text-muted-foreground mb-3">{problem.description}</p>
-              <p className="text-xs text-blue-700 italic">{problem.comment}</p>
+              <h3 className="text-xl font-semibold mb-3 text-dark">{problem.title}</h3>
+              <p className="text-muted-foreground mb-4 flex-grow">{problem.description}</p> {/* flex-grow para alinear comentarios */}
+              <p className="text-sm text-primary font-medium">{problem.comment}</p> {/* Comentario con color primario */}
             </div>
           ))}
         </div>

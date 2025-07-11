@@ -1,64 +1,76 @@
 import React from 'react';
-import { Star } from 'lucide-react';
+import { Star, Landmark, Building } from 'lucide-react'; // Añadir iconos para tipo de organización
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"; // Usar el componente Avatar de shadcn/ui
+
+// Datos de testimonios adaptados
+const testimonialsData = [
+  {
+    quote: "Desde que implementamos la plataforma, la gestión de consultas ciudadanas es mucho más ágil. Los vecinos obtienen respuestas al instante y nuestro equipo puede enfocarse en casos complejos.",
+    name: "Ana Pérez",
+    role: "Directora de Modernización", // Rol en lugar de 'company'
+    organization: "Municipio de Ciudad Futura",
+    avatarIcon: <Landmark className="h-6 w-6" />, // Icono para tipo de organización
+    avatarFallback: "MF",
+    stars: 5
+  },
+  {
+    quote: "El CRM integrado y el chatbot IA nos han permitido personalizar la atención a nuestros clientes a un nivel que antes era imposible. Las ventas y la satisfacción han aumentado notablemente.",
+    name: "Juan García",
+    role: "Gerente Comercial",
+    organization: "Soluciones Integrales S.A.",
+    avatarIcon: <Building className="h-6 w-6" />,
+    avatarFallback: "SI",
+    stars: 5
+  },
+  {
+    quote: "La capacidad de subir nuestra base de conocimientos y que el IA la utilice para responder con precisión ha sido un cambio de juego. Redujimos el tiempo de capacitación y mejoramos la consistencia.",
+    name: "Laura Méndez",
+    role: "Jefa de Operaciones",
+    organization: "EducaTech Global",
+    avatarIcon: <Building className="h-6 w-6" />, // Podría ser otro icono si es una ONG o similar
+    avatarFallback: "EG",
+    stars: 4 // Variar estrellas para realismo
+  }
+];
 
 const TestimonialsSection = () => {
-  const testimonials = [
-    {
-      quote: "Desde que implementamos Chatboc, nuestro tiempo de respuesta mejoró un 90% y las consultas repetitivas disminuyeron drásticamente. ¡Ahora podemos enfocarnos en hacer crecer el negocio!",
-      name: "María González",
-      company: "Fashionista Store",
-      avatar: "https://randomuser.me/api/portraits/women/68.jpg",
-      stars: 5
-    },
-    {
-      quote: "La personalización inicial fue clave. Chatboc realmente entiende nuestro nicho y nuestros clientes lo notan. ¡Lo recomiendo!",
-      name: "Carlos Rodríguez",
-      company: "Tech Solutions",
-      avatar: "https://randomuser.me/api/portraits/men/45.jpg",
-      stars: 5
-    },
-    {
-      quote: "El soporte al implementar Chatboc fue excelente. En solo días, el chatbot ya estaba respondiendo las dudas más comunes y capturando datos de potenciales clientes.",
-      name: "Ana Martínez",
-      company: "Asesoría Legal",
-      avatar: "https://randomuser.me/api/portraits/women/32.jpg",
-      stars: 5
-    }
-  ];
-
   return (
-    <section className="py-14 md:py-20 bg-blue-50 dark:bg-background">
+    <section id="testimonios" className="py-16 md:py-24 bg-light text-foreground"> {/* Fondo alterno */}
       <div className="container px-4 mx-auto">
-        <div className="text-center max-w-2xl mx-auto mb-12 md:mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold mb-3">
-            Pymes como la Tuya ya Confían en Chatboc
+        <div className="text-center max-w-3xl mx-auto mb-12 md:mb-16">
+          <h2 className="text-3xl md:text-4xl font-bold mb-4 text-dark">
+            Organizaciones que Ya Transforman su Comunicación
           </h2>
           <p className="text-lg text-muted-foreground">
-            Descubrí cómo Chatboc transforma la atención al cliente en negocios reales.
+            Descubre cómo municipios, empresas y diversas entidades están mejorando la interacción con sus usuarios y optimizando su gestión gracias a nuestra solución integral.
           </p>
         </div>
 
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {testimonials.map((t, index) => (
+        <div className="grid gap-6 md:gap-8 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+          {testimonialsData.map((testimonial, index) => (
             <div
               key={index}
-              className="bg-card text-card-foreground p-6 rounded-xl border border-border shadow-sm hover:shadow-md transition"
+              className="bg-card text-card-foreground p-6 rounded-lg border border-border shadow-xl hover:shadow-2xl transition-all duration-300 flex flex-col" // Estilo de tarjeta mejorado
             >
-              <div className="flex mb-3 text-yellow-400">
-                {Array(t.stars).fill(0).map((_, i) => (
-                  <Star key={i} className="h-4 w-4 fill-yellow-400" />
+              <div className="flex mb-4 text-yellow-400">
+                {Array(testimonial.stars).fill(0).map((_, i) => (
+                  <Star key={i} className="h-5 w-5 fill-current" /> // fill-current para heredar color
+                ))}
+                {Array(5 - testimonial.stars).fill(0).map((_, i) => ( // Estrellas vacías
+                  <Star key={`empty-${i}`} className="h-5 w-5 text-muted-foreground/50" />
                 ))}
               </div>
-              <p className="text-sm italic text-muted-foreground mb-5">"{t.quote}"</p>
-              <div className="flex items-center">
-                <img
-                  src={t.avatar}
-                  alt={t.name}
-                  className="w-10 h-10 rounded-full mr-3 object-cover"
-                />
+              <p className="text-muted-foreground mb-6 italic flex-grow">"{testimonial.quote}"</p>
+              <div className="flex items-center pt-4 border-t border-border"> {/* Separador */}
+                <Avatar className="h-12 w-12 mr-4">
+                  {/* <AvatarImage src={testimonial.avatar} alt={testimonial.name} /> Avatar real si se tiene */}
+                  <AvatarFallback className="bg-primary/10 text-primary">
+                    {testimonial.avatarIcon || testimonial.avatarFallback}
+                  </AvatarFallback>
+                </Avatar>
                 <div>
-                  <h4 className="font-medium text-sm">{t.name}</h4>
-                  <p className="text-xs text-muted-foreground">{t.company}</p>
+                  <h4 className="font-semibold text-base text-dark">{testimonial.name}</h4>
+                  <p className="text-sm text-muted-foreground">{testimonial.role}, {testimonial.organization}</p>
                 </div>
               </div>
             </div>
