@@ -1,67 +1,63 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
-import { Check, Sparkles } from 'lucide-react';
+// Actualizar iconos según los nuevos planes y enfoque
+import { Check, Sparkles, Building, Users, MessageSquarePlus, BarChartHorizontalBig } from 'lucide-react';
 
-const plans = [
+// Definición de planes adaptada
+const pricingOptions = [
   {
-    name: 'Prueba Gratuita',
+    type: 'plan', // Para diferenciar de la tarjeta de contacto
+    name: 'Inicia con IA',
     price: 'GRATIS',
-    duration: '/ 15 días',
-    description: 'Probá nuestra tecnología de IA con subida de catálogos, consultas inteligentes y atención automatizada. Ideal para ver el potencial real de Chatboc.',
+    duration: 'por 14 días',
+    description: 'Experimenta el poder de nuestra IA. Ideal para individuos o equipos pequeños que quieren empezar a automatizar.',
     features: [
-      'Hasta 50 consultas',
-      'Carga de catálogo en PDF o Excel',
-      'Procesamiento automático con Google Document AI',
-      'Búsqueda inteligente con algoritmos de vectores (Qdrant)',
-      'Configuración inicial guiada',
-      'Widget web flotante',
-      'Sin integraciones externas',
-      'Sin tarjeta de crédito ni datos de facturación'
+      'Chatbot IA básico',
+      'Carga de hasta 2 documentos (PDF/Excel)',
+      'Hasta 100 interacciones/mes',
+      'Configuración inicial simple',
+      'Widget web personalizable',
     ],
-    cta: 'Comenzar GRATIS',
+    cta: 'Comienza Gratis',
     ctaLink: '/register',
-    highlight: false
+    highlight: false,
   },
   {
-    name: 'Chatboc Pro',
-    price: '$',
-    duration: '/ mes',
-    description: 'Automatización profesional para pymes. Incluye procesamiento avanzado de catálogos, respuestas personalizadas y tecnología de IA de última generación.',
+    type: 'plan',
+    name: 'Profesional Conectado',
+    price: '$XX', // Aquí iría el precio real o "Desde $XX"
+    duration: '/mes',
+    description: 'Solución completa con Chatbot IA y CRM para optimizar la comunicación y gestión de usuarios.',
     features: [
-      'Hasta 200 preguntas y respuestas personalizadas por mes',
-      'Entrenamiento optimizado para el rubro de tu empresa',
-      'Carga Controlada de catálogos en PDF/Excel',
-      'Búsqueda y respuestas en tiempo real usando Qdrant',
-      'Panel de métricas, historial de consultas y mejoras continuas',
-      'Asistente IA con aprendizaje sobre tus productos',
-      'Alertas inteligentes por palabra clave',
-      'Registro automático de conversaciones',
-      'Soporte prioritario y acceso a nuevas funciones'
+      'Todo en Inicia con IA, y además:',
+      'Chatbot IA Avanzado (más personalización)',
+      'CRM integrado para gestión de perfiles',
+      'Carga de hasta 10 documentos',
+      'Hasta 1000 interacciones/mes',
+      'Paneles analíticos básicos',
+      'Integraciones esenciales (ej. email)',
+      'Soporte estándar',
     ],
-    cta: 'Elegir Plan Pro',
-    ctaLink: '/register',
-    highlight: true
+    cta: 'Elige Profesional',
+    ctaLink: '/register?plan=profesional', // Ejemplo de link con plan
+    highlight: true,
   },
   {
-    name: 'Chatboc Full',
-    price: '$',
-    duration: '/ mes',
-    description: 'Todo el poder de nuestra IA: atención ilimitada, integraciones con otras redes, automatizaciones y paneles avanzados. Desarrollado con tecnología mundial de vanguardia.',
-    features: [
-      'Consultas ilimitadas y multicanal',
-      'Automatización completa: respuestas, seguimientos y derivaciones',
-      'Envío de catálogos, promociones y formularios personalizados',
-      'CRM y paneles visuales exclusivos en la nube',
-      'Acceso total a panel administrativo, prospectos y filtros avanzados',
-      'Dashboard mensual con indicadores clave',
-      'Tecnología de vectores y procesamiento de lenguaje natural a nivel global',
-      'Soporte para empresas con múltiples unidades, rubros o sucursales',
-      'Soporte técnico premium y configuración avanzada incluida'
+    type: 'contact', // Tarjeta especial
+    icon: <Building className="h-10 w-10 text-primary mb-4" />,
+    name: 'Soluciones para Gobiernos y Grandes Empresas',
+    description: 'Ofrecemos planes y desarrollos a medida para municipios, entidades públicas y corporaciones con necesidades complejas: implantación asistida, integraciones avanzadas, SLAs, IA especializada y soporte premium.',
+    features: [ // Características destacadas para este segmento
+        'Consultoría y desarrollo personalizado',
+        'Volumen de interacciones y datos escalable',
+        'Integración con sistemas existentes (ERP, GovTech)',
+        'Seguridad y cumplimiento normativo avanzado',
+        'Capacitación y soporte dedicado',
     ],
-    cta: 'Solicitar Activación WhatsApp',
-    ctaLink: 'https://wa.me/5492613168608?text=Hola! Estoy probando Chatboc y quiero implementarlo en mi empresa.',
-    highlight: false
+    cta: 'Contactar para Solución a Medida',
+    ctaLink: '/contacto', // O un mailto: o link a agendar reunión
+    highlight: false, // Podría tener un estilo visual diferente
   }
 ];
 
@@ -69,59 +65,74 @@ const PricingSection = () => {
   const navigate = useNavigate();
 
   return (
-    <section id="pricing" className="py-20 bg-background text-foreground">
+    <section id="precios" className="py-16 md:py-24 bg-light text-foreground"> {/* Alternar fondo */}
       <div className="container px-4 mx-auto">
-        <div className="text-center max-w-3xl mx-auto mb-12">
-          <div className="flex justify-center mb-4">
-            <Sparkles className="h-8 w-8 text-blue-500" />
+        <div className="text-center max-w-3xl mx-auto mb-12 md:mb-16">
+          <div className="inline-block p-3 mb-4 bg-primary/10 rounded-lg">
+            <Sparkles className="h-8 w-8 text-primary" />
           </div>
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">Planes y Precios</h2>
+          <h2 className="text-3xl md:text-4xl font-bold mb-4 text-dark">
+            Planes Flexibles para Impulsar tu Comunicación
+          </h2>
           <p className="text-lg text-muted-foreground">
-            Somos la primera plataforma en la región que integra procesamiento de catálogos en PDF y Excel usando <b>Google Document AI</b> y <b>Qdrant</b> (búsqueda por vectores), la misma tecnología que utilizan empresas líderes a nivel mundial.  
-            <br /><br />
-            Chatboc no es un bot tradicional: nuestros algoritmos de inteligencia artificial convierten tu catálogo en respuestas automáticas, cotizaciones instantáneas y asistencia personalizada para cada cliente.<br />
-            Elegí tu plan y llevá la atención de tu empresa a otro nivel.
+            Ofrecemos soluciones para cada necesidad: desde startups y empresas en crecimiento hasta municipios y grandes corporaciones. Descubre el poder de la IA y un CRM inteligente adaptado a ti.
           </p>
         </div>
 
-        <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-          {plans.map((plan, index) => (
+        <div className="grid gap-8 md:grid-cols-1 lg:grid-cols-3 items-stretch"> {/* items-stretch para igualar alturas si son diferentes */}
+          {pricingOptions.map((option, index) => (
             <div
               key={index}
-              className={`p-6 rounded-xl border border-border shadow-md bg-card text-card-foreground relative transition-transform duration-300 hover:shadow-xl hover:scale-105 animate-fade-in ${plan.highlight ? 'ring-2 ring-blue-500' : ''}`}
+              className={`p-6 md:p-8 rounded-lg border ${option.highlight ? 'border-primary ring-2 ring-primary' : 'border-border'} shadow-lg bg-card text-card-foreground flex flex-col transition-transform duration-300 hover:shadow-xl hover:scale-[1.03]`}
             >
-              {plan.highlight && (
-                <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-blue-600 text-white text-xs px-3 py-1 rounded-full">
+              {option.highlight && (
+                <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-primary text-primary-foreground text-xs font-semibold px-3 py-1 rounded-full shadow-md">
                   Más Popular
                 </div>
               )}
 
-              <h3 className="text-xl font-bold mb-1">{plan.name}</h3>
-              <p className="text-lg font-semibold mb-1">{plan.price} <span className="text-sm font-normal text-muted-foreground">{plan.duration}</span></p>
-              <p className="text-sm italic text-muted-foreground mb-4">{plan.description}</p>
+              {option.type === 'contact' && option.icon && <div className="flex justify-center mb-4">{option.icon}</div>}
 
-              <p className="text-sm font-semibold mb-2 text-foreground">Incluye:</p>
-              <ul className="space-y-2 text-sm text-muted-foreground mb-6">
-                {plan.features.map((feature, i) => (
-                  <li key={i} className="flex items-start gap-2">
-                    <Check className="h-4 w-4 text-blue-500 mt-1" />
-                    <span>{feature}</span>
-                  </li>
-                ))}
-              </ul>
+              <h3 className="text-2xl font-bold mb-3 text-dark text-center">{option.name}</h3>
+
+              {option.type === 'plan' && (
+                <div className="text-center mb-4">
+                  <span className="text-4xl font-extrabold text-primary">{option.price}</span>
+                  {option.duration && <span className="text-sm font-medium text-muted-foreground ml-1">{option.duration}</span>}
+                </div>
+              )}
+
+              <p className="text-sm text-muted-foreground mb-6 text-center flex-grow">{option.description}</p>
+
+              {option.features && (
+                <>
+                  <p className="text-sm font-semibold mb-3 text-dark">
+                    {option.type === 'plan' ? 'Incluye:' : 'Beneficios Destacados:'}
+                  </p>
+                  <ul className="space-y-2.5 text-sm text-muted-foreground mb-8 flex-grow">
+                    {option.features.map((feature, i) => (
+                      <li key={i} className="flex items-start gap-2.5">
+                        <Check className="h-5 w-5 text-success flex-shrink-0 mt-0.5" /> {/* Icono de check verde */}
+                        <span>{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
 
               <Button
                 size="lg"
-                className={`w-full font-semibold ${plan.name.includes('WhatsApp') ? 'bg-green-600 hover:bg-green-700 text-white' : ''}`}
+                variant={option.highlight ? 'default' : (option.type === 'contact' ? 'default' : 'outline')} // 'default' para la tarjeta de contacto también
+                className="w-full font-semibold mt-auto" // mt-auto para empujar al final
                 onClick={() => {
-                  if (plan.ctaLink.startsWith('http')) {
-                    window.open(plan.ctaLink, '_blank');
+                  if (option.ctaLink.startsWith('http')) {
+                    window.open(option.ctaLink, '_blank');
                   } else {
-                    navigate(plan.ctaLink);
+                    navigate(option.ctaLink);
                   }
                 }}
               >
-                {plan.cta}
+                {option.cta}
               </Button>
             </div>
           ))}

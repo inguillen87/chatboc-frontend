@@ -1,38 +1,39 @@
 import React from 'react';
-import { Bot, Brain, LayoutDashboard, Clock, Coins, Heart, FileText } from 'lucide-react';
+// Iconos actualizados para representar mejor las características de la solución
+import { MessageSquareText, Users, FileText, LayoutDashboard, Zap, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 
-const benefits = [
+const solutionFeatures = [
   {
-    icon: <FileText className="h-10 w-10 text-blue-600" />,
-    title: "Catálogo Digital Directo de tu PDF o Excel",
-    description: "Olvidate de cargar productos a mano: subís tu catálogo y Chatboc responde usando tus datos reales, siempre actualizados."
+    icon: <MessageSquareText className="h-10 w-10 text-primary" />,
+    title: "Asistentes Virtuales IA Multicanal",
+    description: "Implementa Chatbots inteligentes en tu web, WhatsApp y más. Ofrecen respuestas instantáneas 24/7, guiando a ciudadanos y clientes de forma eficaz."
   },
   {
-    icon: <Brain className="h-10 w-10 text-blue-600" />,
-    title: "Inteligencia Artificial de Verdad",
-    description: "No son botones, es IA. Chatboc entiende, busca y sugiere usando procesamiento de lenguaje natural y búsquedas vectoriales."
+    icon: <Users className="h-10 w-10 text-primary" />,
+    title: "CRM con Visión 360° de Usuarios",
+    description: "Centraliza historiales, preferencias y casos de empresas, municipios y sus contactos. Permite una atención personalizada y proactiva."
   },
   {
-    icon: <LayoutDashboard className="h-10 w-10 text-blue-600" />,
-    title: "Panel de Control Fácil y Completo",
-    description: "Gestioná preguntas, respuestas, métricas y catálogos sin depender de soporte. Todo claro y en un solo lugar."
+    icon: <FileText className="h-10 w-10 text-primary" />,
+    title: "Base de Conocimiento Inteligente",
+    description: "Sube catálogos, normativas o FAQs. Nuestra IA los procesa para que el Chatbot y tu equipo siempre brinden información precisa y actualizada."
   },
   {
-    icon: <Clock className="h-10 w-10 text-blue-600" />,
-    title: "Atendé 24/7, Incluso en Feriados",
-    description: "No perdés más oportunidades: el bot responde en segundos a cualquier hora, todos los días."
+    icon: <LayoutDashboard className="h-10 w-10 text-primary" />,
+    title: "Paneles Analíticos para Optimizar",
+    description: "Mide interacciones, satisfacción y temas frecuentes. Obtén insights para mejorar continuamente la eficiencia y experiencia de tus usuarios."
   },
   {
-    icon: <Coins className="h-10 w-10 text-blue-600" />,
-    title: "Ahorro Real de Tiempo y Plata",
-    description: "Reducí tareas repetitivas y bajá el costo de atención sin sacrificar calidad ni personalización."
+    icon: <Zap className="h-10 w-10 text-primary" />,
+    title: "Automatización de Tareas y Procesos",
+    description: "Desde la toma de solicitudes hasta el seguimiento de casos. Libera a tu equipo para interacciones de mayor valor y agiliza los servicios."
   },
   {
-    icon: <Heart className="h-10 w-10 text-blue-600" />,
-    title: "Mejor Experiencia para tus Clientes",
-    description: "Tus clientes reciben respuestas útiles y claras, como si chatearan con un experto de tu propio equipo."
+    icon: <CheckCircle className="h-10 w-10 text-primary" />, // Icono de beneficio general
+    title: "Experiencia de Usuario Superior",
+    description: "Ofrece a ciudadanos y clientes una comunicación fluida, respuestas relevantes y acceso fácil a la información, elevando su satisfacción."
   }
 ];
 
@@ -40,46 +41,47 @@ const SolutionSection = () => {
   const navigate = useNavigate();
 
   return (
-    <section id="solution" className="section-padding bg-background text-foreground">
+    <section id="solucion" className="py-16 md:py-24 bg-background text-foreground"> {/* Mantener bg-background si la anterior fue bg-light */}
       <div className="container px-4 mx-auto">
-        <div className="text-center max-w-3xl mx-auto mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">
-            Chatboc: La IA Conversacional que Hace el Trabajo Difícil por Vos
+        <div className="text-center max-w-3xl mx-auto mb-12 md:mb-16">
+          <h2 className="text-3xl md:text-4xl font-bold mb-4 text-dark">
+            La Solución Integral para Conectar y Servir Mejor
           </h2>
           <p className="text-lg text-muted-foreground">
-            Sumá tecnología real a tu pyme: subís tu catálogo, automatizás respuestas y medís resultados en serio. Chatboc no improvisa, trabaja con tus datos, aprende y mejora solo.
+            Nuestra plataforma une un CRM inteligente con la potencia de Chatbots IA para transformar cómo municipios y empresas interactúan con sus comunidades, gestionan información y optimizan servicios.
           </p>
         </div>
 
-        <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-          {benefits.map((benefit, index) => (
+        <div className="grid gap-6 md:gap-8 md:grid-cols-2 lg:grid-cols-3">
+          {solutionFeatures.map((feature, index) => (
             <div
               key={index}
-              className="bg-card text-card-foreground p-8 rounded-xl border border-border shadow-sm hover:shadow-md transition-shadow"
+              className="bg-card text-card-foreground p-6 md:p-8 rounded-lg border border-border shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col items-center text-center" // Centrar contenido
             >
-              <div className="mb-5 flex justify-center">{benefit.icon}</div>
-              <h3 className="text-xl font-semibold mb-3">{benefit.title}</h3>
-              <p className="text-muted-foreground">{benefit.description}</p>
+              <div className="mb-5 flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 text-primary"> {/* Icono más grande y centrado */}
+                {feature.icon}
+              </div>
+              <h3 className="text-xl font-semibold mb-3 text-dark">{feature.title}</h3>
+              <p className="text-muted-foreground text-sm">{feature.description}</p> {/* Texto de descripción más pequeño */}
             </div>
           ))}
         </div>
 
-        {/* Botones de acción */}
-        <div className="flex flex-col sm:flex-row gap-4 justify-center mt-16">
+        <div className="flex flex-col sm:flex-row gap-4 justify-center mt-12 md:mt-16">
           <Button
             size="lg"
-            className="px-8 py-4 text-base font-semibold"
-            onClick={() => navigate('/register')}
+            className="shadow-lg hover:shadow-xl transition-shadow" // Aplicar shadow aquí también
+            onClick={() => navigate('/register')} // O /features, /solutions
           >
-            Probar Chatboc ahora
+            <Zap className="mr-2 h-5 w-5" /> Explora la Plataforma
           </Button>
           <Button
             variant="outline"
             size="lg"
-            className="px-8 py-4 text-base font-semibold"
+            className="shadow-lg hover:shadow-xl transition-shadow"
             onClick={() => navigate('/demo')}
           >
-            Ver demo en vivo
+            <MessageSquareText className="mr-2 h-5 w-5" /> Ver Demo en Vivo
           </Button>
         </div>
       </div>
