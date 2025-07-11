@@ -1,5 +1,6 @@
 import React from 'react';
 
+// ... (importaciones existentes) ...
 import Index from '@/pages/Index';
 import Login from '@/pages/Login';
 import Register from '@/pages/Register';
@@ -41,14 +42,22 @@ import CrmIntegrations from '@/pages/CrmIntegrations';
 import PredefinedQueries from '@/pages/PredefinedQueries';
 import PermissionDenied from '@/pages/PermissionDenied';
 import CartPage from '@/pages/Cart';
-import ProductCheckoutPage from '@/pages/ProductCheckoutPage'; // Importar la nueva página
-import GestionPlantillasPage from '@/pages/GestionPlantillasPage'; // Importar la nueva página de gestión de plantillas
-import CatalogMappingPage from '@/pages/admin/CatalogMappingPage'; // Importar la nueva página de mapeo
+import ProductCheckoutPage from '@/pages/ProductCheckoutPage';
+import GestionPlantillasPage from '@/pages/GestionPlantillasPage';
+import CatalogMappingPage from '@/pages/admin/CatalogMappingPage';
+
+// NUEVAS IMPORTACIONES PARA EL PORTAL DE USUARIO
+import UserPortalLayout from '@/components/user-portal/layout/UserPortalLayout';
+import UserDashboardPage from '@/pages/user-portal/UserDashboardPage';
+import UserCatalogPage from '@/pages/user-portal/UserCatalogPage';
+import UserOrdersPage from '@/pages/user-portal/UserOrdersPage';
+// Añadir más imports a medida que se creen las páginas (Noticias, Encuestas, etc.)
 
 export interface RouteConfig {
   path: string;
   element: React.ReactElement;
-  roles?: string[];
+  roles?: string[]; // Roles para admin/empleado de Chatboc
+  userPortal?: boolean; // Flag para rutas del portal de usuario final (cliente/vecino)
 }
 
 const routes: RouteConfig[] = [
@@ -68,7 +77,7 @@ const routes: RouteConfig[] = [
   { path: '/documentacion', element: <Documentacion /> },
   { path: '/faqs', element: <Faqs /> },
   { path: '/cart', element: <CartPage /> },
-  { path: '/checkout-productos', element: <ProductCheckoutPage /> }, // Nueva ruta para checkout de productos
+  { path: '/checkout-productos', element: <ProductCheckoutPage /> },
   { path: '/legal/privacy', element: <Privacy /> },
   { path: '/legal/terms', element: <Terms /> },
   { path: '/legal/cookies', element: <Cookies /> },
@@ -98,6 +107,33 @@ const routes: RouteConfig[] = [
   // Rutas para la gestión de mapeo de catálogos por PYME
   { path: '/admin/pyme/:pymeId/catalog-mappings/new', element: <CatalogMappingPage />, roles: ['admin'] },
   { path: '/admin/pyme/:pymeId/catalog-mappings/:mappingId', element: <CatalogMappingPage />, roles: ['admin'] },
+
+  // --- NUEVAS RUTAS PARA EL PORTAL DE USUARIO FINAL ---
+  // Estas rutas estarán anidadas dentro de UserPortalLayout en App.tsx o donde se rendericen las rutas.
+  // Por ahora, las defino aquí para tener la configuración.
+  // El UserPortalLayout se aplicaría a un grupo de rutas con path="/portal".
+  // Considerar que estas rutas deben ser protegidas para usuarios logueados (clientes/vecinos).
+  {
+    path: '/portal/dashboard',
+    element: <UserPortalLayout><UserDashboardPage /></UserPortalLayout>,
+    userPortal: true // Indica que es una ruta del portal de usuario final
+  },
+  {
+    path: '/portal/catalogo',
+    element: <UserPortalLayout><UserCatalogPage /></UserPortalLayout>,
+    userPortal: true
+  },
+  {
+    path: '/portal/pedidos', // o /portal/reclamos, /portal/tramites según contexto
+    element: <UserPortalLayout><UserOrdersPage /></UserPortalLayout>,
+    userPortal: true
+  },
+  // Placeholder para otras rutas del portal que añadiremos:
+  // { path: '/portal/noticias', element: <UserPortalLayout><UserNoticiasPage /></UserPortalLayout>, userPortal: true },
+  // { path: '/portal/eventos', element: <UserPortalLayout><UserEventosPage /></UserPortalLayout>, userPortal: true },
+  // { path: '/portal/encuestas', element: <UserPortalLayout><UserEncuestasPage /></UserPortalLayout>, userPortal: true },
+  // { path: '/portal/beneficios', element: <UserPortalLayout><UserBeneficiosPage /></UserPortalLayout>, userPortal: true },
+  // { path: '/portal/cuenta', element: <UserPortalLayout><UserCuentaPage /></UserPortalLayout>, userPortal: true },
 ];
 
 export default routes;
