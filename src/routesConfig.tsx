@@ -47,7 +47,7 @@ import GestionPlantillasPage from '@/pages/GestionPlantillasPage';
 import CatalogMappingPage from '@/pages/admin/CatalogMappingPage';
 
 // NUEVAS IMPORTACIONES PARA EL PORTAL DE USUARIO
-import UserPortalLayout from '@/components/user-portal/layout/UserPortalLayout';
+// UserPortalLayout no se importa aquí si se usa como Layout Route en App.tsx
 import UserDashboardPage from '@/pages/user-portal/UserDashboardPage';
 import UserCatalogPage from '@/pages/user-portal/UserCatalogPage';
 import UserOrdersPage from '@/pages/user-portal/UserOrdersPage';
@@ -108,32 +108,28 @@ const routes: RouteConfig[] = [
   { path: '/admin/pyme/:pymeId/catalog-mappings/new', element: <CatalogMappingPage />, roles: ['admin'] },
   { path: '/admin/pyme/:pymeId/catalog-mappings/:mappingId', element: <CatalogMappingPage />, roles: ['admin'] },
 
-  // --- NUEVAS RUTAS PARA EL PORTAL DE USUARIO FINAL ---
-  // Estas rutas estarán anidadas dentro de UserPortalLayout en App.tsx o donde se rendericen las rutas.
-  // Por ahora, las defino aquí para tener la configuración.
-  // El UserPortalLayout se aplicaría a un grupo de rutas con path="/portal".
-  // Considerar que estas rutas deben ser protegidas para usuarios logueados (clientes/vecinos).
+  // --- NUEVAS RUTAS PARA EL PORTAL DE USUARIO FINAL (preparadas para Layout Route en App.tsx) ---
   {
     path: '/portal/dashboard',
-    element: <UserPortalLayout><UserDashboardPage /></UserPortalLayout>,
-    userPortal: true // Indica que es una ruta del portal de usuario final
+    element: <UserDashboardPage />,
+    userPortal: true
   },
   {
     path: '/portal/catalogo',
-    element: <UserPortalLayout><UserCatalogPage /></UserPortalLayout>,
+    element: <UserCatalogPage />,
     userPortal: true
   },
   {
-    path: '/portal/pedidos', // o /portal/reclamos, /portal/tramites según contexto
-    element: <UserPortalLayout><UserOrdersPage /></UserPortalLayout>,
+    path: '/portal/pedidos',
+    element: <UserOrdersPage />,
     userPortal: true
   },
   // Placeholder para otras rutas del portal que añadiremos:
-  // { path: '/portal/noticias', element: <UserPortalLayout><UserNoticiasPage /></UserPortalLayout>, userPortal: true },
-  // { path: '/portal/eventos', element: <UserPortalLayout><UserEventosPage /></UserPortalLayout>, userPortal: true },
-  // { path: '/portal/encuestas', element: <UserPortalLayout><UserEncuestasPage /></UserPortalLayout>, userPortal: true },
-  // { path: '/portal/beneficios', element: <UserPortalLayout><UserBeneficiosPage /></UserPortalLayout>, userPortal: true },
-  // { path: '/portal/cuenta', element: <UserPortalLayout><UserCuentaPage /></UserPortalLayout>, userPortal: true },
+  // { path: '/portal/noticias', element: <UserNoticiasPage />, userPortal: true },
+  // { path: '/portal/eventos', element: <UserEventosPage />, userPortal: true },
+  // { path: '/portal/encuestas', element: <UserEncuestasPage />, userPortal: true },
+  // { path: '/portal/beneficios', element: <UserBeneficiosPage />, userPortal: true },
+  // { path: '/portal/cuenta', element: <UserCuentaPage />, userPortal: true },
 ];
 
 export default routes;

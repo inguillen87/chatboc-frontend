@@ -1,42 +1,70 @@
 import React from 'react';
-import { Home, ShoppingBag, ListChecks, UserCircle } from 'lucide-react'; // Ejemplos de iconos
-import { NavLink } from 'react-router-dom'; // Asumiendo react-router-dom
+import { NavLink, useLocation } from 'react-router-dom';
+import { Home, ShoppingBag, ListChecks, UserCircle, Menu as MenuIcon } from 'lucide-react'; // Usar MenuIcon para "Más"
 
 interface NavItem {
   path: string;
   label: string;
   icon: React.ReactNode;
+  exact?: boolean;
 }
 
-// TODO: Las rutas exactas y los iconos se definirán según las secciones finales del portal
-const navItems: NavItem[] = [
-  { path: '/portal/dashboard', label: 'Inicio', icon: <Home className="h-6 w-6" /> },
-  { path: '/portal/catalogo', label: 'Catálogo', icon: <ShoppingBag className="h-6 w-6" /> },
-  { path: '/portal/pedidos', label: 'Mis Pedidos', icon: <ListChecks className="h-6 w-6" /> },
-  { path: '/portal/cuenta', label: 'Mi Cuenta', icon: <UserCircle className="h-6 w-6" /> }, // Ejemplo, podría ser un menú "Más"
+const bottomNavItems: NavItem[] = [
+  { path: '/portal/dashboard', label: 'Inicio', icon: <Home className="h-5 w-5" />, exact: true },
+  { path: '/portal/catalogo', label: 'Catálogo', icon: <ShoppingBag className="h-5 w-5" /> },
+  { path: '/portal/pedidos', label: 'Gestiones', icon: <ListChecks className="h-5 w-5" /> },
+  // El cuarto ítem ahora será "Más" para abrir el Sheet/SideNav
 ];
 
-const BottomNavigationBar = () => {
+interface BottomNavigationBarProps {
+  onOpenMobileMenu?: () => void; // Callback para abrir el menú lateral en mobile
+}
+
+const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({ onOpenMobileMenu }) => {
+  const location = useLocation();
+
+  // Función para determinar si una ruta está activa, considerando subrutas para "Más"
+  const isMoreSectionActive = () => {
+    const morePaths = ['/portal/noticias', '/portal/beneficios', '/portal/encuestas', '/portal/cuenta'];
+    return morePaths.some(path => location.pathname.startsWith(path));
+  };
+
   return (
-    <nav className="md:hidden bg-card border-t border-border shadow-t-lg fixed bottom-0 left-0 right-0 z-50 h-16">
-      <div className="container mx-auto h-full">
-        <ul className="flex justify-around items-center h-full">
-          {navItems.map((item) => (
-            <li key={item.path} className="flex-1">
-              <NavLink
-                to={item.path}
-                className={({ isActive }) =>
-                  `flex flex-col items-center justify-center p-2 rounded-md transition-colors duration-150
-                   ${isActive ? 'text-primary scale-105' : 'text-muted-foreground hover:text-primary/80'}`
-                }
-              >
-                {item.icon}
-                <span className="text-xs mt-0.5">{item.label}</span>
-              </NavLink>
-            </li>
-          ))}
-        </ul>
-      </div>
+    <nav className="md:hidden bg-card border-t border-border shadow-t-lg fixed bottom-0 left-0 right-0 z-30 h-16">
+      <ul className="flex justify-around items-center h-full max-w-full mx-auto">
+        {bottomNavItems.map((item) => (
+          <li key={item.path} className="flex-1">
+            <NavLink
+              to={item.path}
+              end={item.exact}
+              className={({ isActive }) =>
+                `flex flex-col items-center justify-center p-1 w-full h-full transition-colors duration-150
+                 ${isActive
+                    ? 'text-primary scale-105 opacity-100'
+                    : 'text-muted-foreground hover:text-primary/90 opacity-80 hover:opacity-100'
+                 }`
+              }
+            >
+              {item.icon}
+              <span className="text-[0.65rem] mt-0.5 leading-tight">{item.label}</span>
+            </NavLink>
+          </li>
+        ))}
+        {/* Botón "Más" para abrir el menú lateral (Sheet) */}
+        <li className="flex-1">
+          <button
+            onClick={onOpenMobileMenu}
+            className={`flex flex-col items-center justify-center p-1 w-full h-full transition-colors duration-150
+                       ${isMoreSectionActive()
+                          ? 'text-primary scale-105 opacity-100'
+                          : 'text-muted-foreground hover:text-primary/90 opacity-80 hover:opacity-100'
+                       }`}
+          >
+            <MenuIcon className="h-5 w-5" />
+            <span className="text-[0.65rem] mt-0.5 leading-tight">Más</span>
+          </button>
+        </li>
+      </ul>
     </nav>
   );
 };
