@@ -1,7 +1,7 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 // Iconos actualizados para los nuevos pasos
-import { Target, UploadCloud, BotMessageSquare, BarChart3, ArrowRight } from "lucide-react";
+import { Target, UploadCloud, Bot, BarChart3, ArrowRight } from "lucide-react"; // Cambiado BotMessageSquare a Bot
 import { useNavigate } from "react-router-dom";
 
 const newSteps = [
@@ -19,7 +19,7 @@ const newSteps = [
   },
   {
     number: "3",
-    icon: <BotMessageSquare className="h-7 w-7 text-primary" />,
+    icon: <Bot className="h-7 w-7 text-primary" />, // Cambiado aquí
     title: "Personaliza y Activa tu Asistente IA",
     description: "Ajusta la personalidad de tu Chatbot, define flujos de conversación e intégralo en tus canales (web, WhatsApp). Observa cómo interactúa y resuelve consultas en tiempo real."
   },
