@@ -283,16 +283,14 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       y: 0,
       scale: 1,
       borderRadius: isMobileView ? "0px" : "16px",
-      // transition: { ...openSpring, delay: 0.05 } // Original spring animation
-      transition: { type: "tween", duration: 0.3, ease: "easeOut", delay: 0.05 } // Simplified tween animation
+      transition: { type: "tween", duration: 0.4, ease: "easeOut" }
     },
     exit: {
       opacity: 0,
-      y: 30,
-      scale: 0.95,
-      borderRadius: "30%",
-      // transition: closeSpring // Original spring animation for exit
-      transition: { type: "tween", duration: 0.2, ease: "easeIn" } // Simplified tween animation for exit
+      y: 50,
+      scale: 0.9,
+      borderRadius: "50%",
+      transition: { type: "tween", duration: 0.3, ease: "easeIn" }
     }
   };
 
@@ -351,7 +349,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
           <Skeleton className="h-4 w-[40%] mt-2" />
         </div>
       }>
-        <AnimatePresence mode="sync">
+        <AnimatePresence mode="wait">
           {isOpen ? (
             <motion.div
               key="chatboc-panel-open"
@@ -447,7 +445,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
           <ChatbocLogoAnimated size={calculatedLogoSize > 0 ? calculatedLogoSize : (isMobileView ? 32 : 48)} />
         </div>
       }>
-        <AnimatePresence mode="sync" initial={false}>
+        <AnimatePresence mode="wait" initial={false}>
           {isOpen ? (
             <motion.div
               key="chatboc-panel-open"
@@ -511,7 +509,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  zIndex: 20
+zIndex: 20
                 }}
                 {...buttonAnimation}
                 whileHover={{ scale: 1.1, transition: { type: "spring", stiffness: 400, damping: 15 } }}
