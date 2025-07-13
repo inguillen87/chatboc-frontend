@@ -1,12 +1,13 @@
 import React from 'react';
-// UserPortalLayout ya no se importa aquí si se usa como Layout Route en App.tsx
 import SummaryCard from '@/components/user-portal/dashboard/SummaryCard';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  ShoppingBag, PlusCircle, History, Newspaper, TicketPercent, MessageSquareQuote, ClipboardList
-} from 'lucide-react'; // Removidos CalendarDays, Gift, ArrowRight si no se usan directamente aquí
+  ShoppingBag, PlusCircle, History, Newspaper, TicketPercent,
+  MessageSquareQuote, ClipboardList, ImageOff
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 // --- Datos Dummy (Mover a un archivo separado o contexto/estado global más adelante) ---
 const currentUser = {
@@ -14,7 +15,7 @@ const currentUser = {
 };
 
 const currentOrganization = {
-  nombre: "Municipio de Junín", // Este dato vendría del contexto del usuario logueado
+  nombre: "Municipio de Junín",
 };
 
 const recentActivities = [
@@ -24,8 +25,8 @@ const recentActivities = [
 ];
 
 const featuredNews = [
-  { id: 'N001', title: 'Nueva Campaña de Vacunación Antirrábica Gratuita', date: '05/08/2024', imageUrl: '/placeholders/news-vaccination.png', category: 'Salud Pública', link: '/portal/noticias/N001' },
-  { id: 'E002', title: 'Festival de Jazz en la Plaza Central este Sábado', date: '10/08/2024', imageUrl: '/placeholders/event-jazz.png', category: 'Cultura', link: '/portal/noticias/E002' }, // Asumiendo que noticias y eventos comparten una ruta o se diferencian por tipo
+  { id: 'N001', title: 'Nueva Campaña de Vacunación Antirrábica Gratuita', date: '05/08/2024', imageUrl: null, category: 'Salud Pública', link: '/portal/noticias/N001' },
+  { id: 'E002', title: 'Festival de Jazz en la Plaza Central este Sábado', date: '10/08/2024', imageUrl: '/placeholders/event-jazz.png', category: 'Cultura', link: '/portal/noticias/E002' },
 ];
 
 const activeBenefits = [
@@ -37,41 +38,33 @@ const pendingSurveys = [
 ];
 // --- Fin Datos Dummy ---
 
-type BadgeVariant = "default" | "secondary" | "destructive" | "outline" | "success" | "warning";
-
-
 const UserDashboardPage = () => {
   const navigate = useNavigate();
 
-  // Helper para mapear statusType a variantes de Badge
-  // Asegúrate de que estas variantes ('success', 'warning', 'info') existan en tu componente Badge
-  // o crea clases CSS personalizadas si es necesario.
-  // Por ahora, usaré las que creamos ('success', 'warning') y otras estándar.
-  const getBadgeVariant = (statusType?: string): BadgeVariant => {
+  const getBadgeClasses = (statusType?: string): string => {
     switch (statusType?.toLowerCase()) {
       case 'success':
       case 'confirmado':
       case 'entregado':
       case 'resuelto':
-        return 'success';
+        return 'bg-success text-success-foreground border-transparent hover:bg-success/80';
       case 'warning':
       case 'en revisión':
-        return 'warning';
+        return 'bg-warning text-warning-foreground border-transparent hover:bg-warning/80';
       case 'info':
       case 'recibido':
       case 'en proceso':
-        return 'default'; // 'default' es a menudo el color primario en shadcn badges
+        return 'bg-primary text-primary-foreground border-transparent hover:bg-primary/80';
       case 'error':
       case 'rechazado':
-        return 'destructive';
+        return 'bg-destructive text-destructive-foreground border-transparent hover:bg-destructive/80';
       default:
-        return 'secondary';
+        return 'bg-secondary text-secondary-foreground border-transparent hover:bg-secondary/80';
     }
   };
 
   return (
     <div className="flex flex-col gap-6 md:gap-8">
-      {/* Saludo y Nombre de Organización */}
       <div className="mb-2">
         <h1 className="text-2xl md:text-3xl font-bold text-dark">
           ¡Hola, {currentUser.nombre}!
@@ -81,11 +74,10 @@ const UserDashboardPage = () => {
         </p>
       </div>
 
-      {/* Acciones Rápidas Principales */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
         <Button
           size="lg"
-          className="w-full py-6 text-base shadow-md hover:shadow-lg font-medium" // Añadido font-medium
+          className="w-full py-6 text-base shadow-md hover:shadow-lg font-medium"
           onClick={() => navigate('/portal/catalogo')}
         >
           <ShoppingBag className="mr-2 h-5 w-5" /> Ver Catálogo / Trámites
@@ -93,33 +85,31 @@ const UserDashboardPage = () => {
         <Button
           size="lg"
           variant="secondary"
-          className="w-full py-6 text-base shadow-md hover:shadow-lg font-medium" // Añadido font-medium
+          className="w-full py-6 text-base shadow-md hover:shadow-lg font-medium"
           onClick={() => alert('TODO: Navegar a Nuevo Pedido/Reclamo/Trámite')}
         >
           <PlusCircle className="mr-2 h-5 w-5" /> Nueva Gestión
         </Button>
       </div>
 
-      {/* Rejilla de Tarjetas de Resumen */}
       <div className="grid gap-6 md:gap-8 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
-        {/* Tarjeta: Últimos Pedidos/Reclamos */}
         {recentActivities.length > 0 && (
           <SummaryCard
             title="Tus Gestiones Recientes"
-            icon={<History className="h-6 w-6" />} // Icono un poco más grande
+            icon={<History className="h-6 w-6" />}
             ctaText="Ver todas mis gestiones"
             onCtaClick={() => navigate('/portal/pedidos')}
-            className="lg:col-span-2 xl:col-span-2" // Ocupa 2 columnas en lg y xl
+            className="lg:col-span-2 xl:col-span-2"
           >
-            <ul className="space-y-3 -mx-2"> {/* Margen negativo para compensar padding de items */}
+            <ul className="space-y-0.5 -mx-2">
               {recentActivities.slice(0, 3).map(activity => (
-                <li key={activity.id} className="border-b border-border last:border-b-0 px-2 py-2.5 hover:bg-muted/50 rounded-md transition-colors">
+                <li key={activity.id} className="px-2 py-2 hover:bg-muted/50 rounded-md transition-colors">
                   <Link to={activity.link} className="flex justify-between items-center w-full">
                     <div>
-                      <p className="text-sm font-medium text-foreground truncate pr-2">{activity.description}</p>
+                      <p className="text-sm font-medium text-foreground truncate pr-2 leading-snug">{activity.description}</p>
                       <p className="text-xs text-muted-foreground">{activity.type} - {activity.date}</p>
                     </div>
-                    <Badge variant={getBadgeVariant(activity.status)} className="text-xs whitespace-nowrap ml-2">
+                    <Badge className={cn("text-xs whitespace-nowrap ml-2", getBadgeClasses(activity.statusType))}>
                       {activity.status}
                     </Badge>
                   </Link>
@@ -129,22 +119,26 @@ const UserDashboardPage = () => {
           </SummaryCard>
         )}
 
-        {/* Tarjeta: Noticias y Eventos */}
         {featuredNews.length > 0 && (
           <SummaryCard
             title="Novedades y Eventos"
             icon={<Newspaper className="h-6 w-6" />}
             ctaText="Ver todas las novedades"
             onCtaClick={() => navigate('/portal/noticias')}
-            className="xl:col-span-1" // Asegurar que ocupe 1 columna en xl si la anterior ocupa 2
+            className="xl:col-span-1"
           >
             <ul className="space-y-3 -mx-2">
               {featuredNews.slice(0, 2).map(news => (
-                <li key={news.id} className="border-b border-border last:border-b-0 px-2 py-2.5 hover:bg-muted/50 rounded-md transition-colors">
+                <li key={news.id} className="px-2 py-2 hover:bg-muted/50 rounded-md transition-colors">
                   <Link to={news.link} className="group block">
-                    {/* Placeholder para imagen si se decide incluir */}
-                    {/* <img src={news.imageUrl || '/placeholders/news-placeholder.png'} alt={news.title} className="w-full h-24 object-cover rounded-md mb-2 group-hover:opacity-90 transition-opacity"/> */}
-                    <h4 className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors mb-0.5">{news.title}</h4>
+                    {!news.imageUrl ? (
+                      <div className="w-full h-24 bg-muted rounded-md mb-2 flex items-center justify-center group-hover:opacity-90 transition-opacity">
+                        <ImageOff className="h-10 w-10 text-muted-foreground/70" />
+                      </div>
+                    ) : (
+                      <img src={news.imageUrl} alt={news.title} className="w-full h-24 object-cover rounded-md mb-2 group-hover:opacity-90 transition-opacity"/>
+                    )}
+                    <h4 className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors mb-0.5 leading-snug">{news.title}</h4>
                     <p className="text-xs text-muted-foreground">{news.date} - {news.category}</p>
                   </Link>
                 </li>
@@ -153,7 +147,6 @@ const UserDashboardPage = () => {
           </SummaryCard>
         )}
 
-        {/* Tarjeta: Beneficios Destacados */}
         {activeBenefits.length > 0 && (
            <SummaryCard
             title="Beneficios para Ti"
@@ -165,7 +158,7 @@ const UserDashboardPage = () => {
               {activeBenefits.slice(0,1).map(benefit =>(
                 <li key={benefit.id} className="p-3 bg-primary/10 border border-primary/20 rounded-md hover:shadow-md transition-shadow">
                    <Link to={benefit.link} className="group block">
-                    <h4 className="text-sm font-semibold text-primary group-hover:underline mb-0.5">{benefit.title}</h4>
+                    <h4 className="text-sm font-semibold text-primary group-hover:underline mb-0.5 leading-snug">{benefit.title}</h4>
                     <p className="text-xs text-muted-foreground">
                       {benefit.expiryDate && `Vence: ${benefit.expiryDate}. `}
                       {benefit.code && `Código: `}
@@ -178,14 +171,13 @@ const UserDashboardPage = () => {
           </SummaryCard>
         )}
 
-        {/* Tarjeta: Encuestas Pendientes */}
         {pendingSurveys.length > 0 && (
           <SummaryCard
             title="Tu Opinión Nos Importa"
             icon={<MessageSquareQuote className="h-6 w-6" />}
           >
             <div className="flex flex-col items-center text-center">
-              <p className="text-sm text-muted-foreground mb-4"> {/* Aumentado margen inferior */}
+              <p className="text-sm text-muted-foreground mb-4">
                 {pendingSurveys.length === 1
                   ? `Tienes una encuesta pendiente: "${pendingSurveys[0].title}"`
                   : `Tienes ${pendingSurveys.length} encuestas pendientes.`
