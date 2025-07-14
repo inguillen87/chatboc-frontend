@@ -26,8 +26,8 @@ const pricingOptions = [
   {
     type: 'plan',
     name: 'Profesional Conectado',
-    price: '$XX', // Aquí iría el precio real o "Desde $XX"
-    duration: '/mes',
+    price: 'Consultar precios', // Aquí iría el precio real o "Desde $XX"
+    duration: '',
     description: 'Solución completa con Chatbot IA y CRM para optimizar la comunicación y gestión de usuarios.',
     features: [
       'Todo en Inicia con IA, y además:',
@@ -71,7 +71,7 @@ const PricingSection = () => {
           <div className="inline-block p-3 mb-4 bg-primary/10 rounded-lg">
             <Sparkles className="h-8 w-8 text-primary" />
           </div>
-          <h2 className="text-3xl md:text-4xl font-bold mb-4 text-dark">
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">
             Planes Flexibles para Impulsar tu Comunicación
           </h2>
           <p className="text-lg text-muted-foreground">
@@ -93,7 +93,7 @@ const PricingSection = () => {
 
               {option.type === 'contact' && option.icon && <div className="flex justify-center mb-4">{option.icon}</div>}
 
-              <h3 className="text-2xl font-bold mb-3 text-dark text-center">{option.name}</h3>
+              <h3 className="text-2xl font-bold mb-3 text-center">{option.name}</h3>
 
               {option.type === 'plan' && (
                 <div className="text-center mb-4">
@@ -106,7 +106,7 @@ const PricingSection = () => {
 
               {option.features && (
                 <>
-                  <p className="text-sm font-semibold mb-3 text-dark">
+                  <p className="text-sm font-semibold mb-3">
                     {option.type === 'plan' ? 'Incluye:' : 'Beneficios Destacados:'}
                   </p>
                   <ul className="space-y-2.5 text-sm text-muted-foreground mb-8 flex-grow">
