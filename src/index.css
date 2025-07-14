@@ -6,6 +6,7 @@
 
 @layer base {
   :root {
+    --primary-dark: 217 100% 30%;
     --background: 0 0% 100%;
     --foreground: 224 71.4% 4.1%;
 
@@ -54,6 +55,7 @@
   }
 
   .dark {
+    --primary-dark: 217 91.2% 59.8%;
     --background: 220 15% 10%;
     --foreground: 210 30% 95%;
 
@@ -169,4 +171,10 @@ body,
 }
 .animate-pulse-subtle {
   animation: pulse-subtle 1.5s infinite ease-in-out;
+}
+
+@layer utilities {
+  .text-primary-dark {
+    color: hsl(var(--primary-dark));
+  }
 }

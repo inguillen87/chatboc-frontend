@@ -69,25 +69,25 @@ const HeroSection = () => {
 
               <div className="space-y-3.5 text-sm max-h-[300px] overflow-y-auto pr-2">
                 <div className="flex">
-                  <div className="bg-primary/10 text-primary-foreground p-3 rounded-lg rounded-bl-none max-w-[85%]">
+                  <div className="bg-primary/10 text-primary-dark p-3 rounded-lg rounded-bl-none max-w-[85%]">
                     <p className="font-medium text-primary">Vecino:</p>
                     Hola, necesito información sobre cómo renovar mi licencia de conducir.
                   </div>
                 </div>
                 <div className="flex justify-end">
-                  <div className="bg-muted text-muted-foreground p-3 rounded-lg rounded-br-none max-w-[85%]">
+                  <div className="bg-muted text-foreground p-3 rounded-lg rounded-br-none max-w-[85%]">
                     <p className="font-medium text-foreground">Asistente IA:</p>
                     ¡Hola! Para renovar tu licencia necesitas: DNI vigente, licencia anterior, y no tener multas pendientes. El trámite se inicia online aquí: [enlace]. ¿Te puedo ayudar con algo más?
                   </div>
                 </div>
                 <div className="flex">
-                  <div className="bg-primary/10 text-primary-foreground p-3 rounded-lg rounded-bl-none max-w-[85%]">
+                  <div className="bg-primary/10 text-primary-dark p-3 rounded-lg rounded-bl-none max-w-[85%]">
                     <p className="font-medium text-primary">Vecino:</p>
                     ¿Dónde puedo verificar si tengo multas?
                   </div>
                 </div>
                 <div className="flex justify-end">
-                  <div className="bg-muted text-muted-foreground p-3 rounded-lg rounded-br-none max-w-[85%]">
+                  <div className="bg-muted text-foreground p-3 rounded-lg rounded-br-none max-w-[85%]">
                     <p className="font-medium text-foreground">Asistente IA:</p>
                     Puedes consultar tus multas pendientes en el portal de infracciones de la ciudad: [enlace]. ¿Alguna otra consulta?
                   </div>
