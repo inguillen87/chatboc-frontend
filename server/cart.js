@@ -25,7 +25,7 @@ function clearCart(session) {
   session.cart = {};
 }
 
-module.exports = {
+export {
   getCart,
   addItem,
   updateItem,

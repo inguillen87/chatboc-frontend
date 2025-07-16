@@ -1,18 +1,33 @@
-const assert = require('assert');
-const cart = require('../server/cart');
+import { describe, it, expect, beforeEach } from 'vitest';
+import * as cart from '../server/cart.js';
 
-const session = {};
+describe('cart', () => {
+  let session;
 
-cart.addItem(session, 'ProductoA', 2);
-assert.strictEqual(cart.getCart(session)['ProductoA'], 2, 'add item');
+  beforeEach(() => {
+    session = {};
+  });
 
-cart.addItem(session, 'ProductoA', 1);
-assert.strictEqual(cart.getCart(session)['ProductoA'], 3, 'increment existing');
+  it('should add an item to the cart', () => {
+    cart.addItem(session, 'ProductoA', 2);
+    expect(cart.getCart(session)['ProductoA']).toBe(2);
+  });
 
-cart.updateItem(session, 'ProductoA', 5);
-assert.strictEqual(cart.getCart(session)['ProductoA'], 5, 'update quantity');
+  it('should increment an existing item in the cart', () => {
+    cart.addItem(session, 'ProductoA', 2);
+    cart.addItem(session, 'ProductoA', 1);
+    expect(cart.getCart(session)['ProductoA']).toBe(3);
+  });
 
-cart.removeItem(session, 'ProductoA');
-assert.strictEqual(cart.getCart(session)['ProductoA'], undefined, 'remove item');
+  it('should update the quantity of an item in the cart', () => {
+    cart.addItem(session, 'ProductoA', 2);
+    cart.updateItem(session, 'ProductoA', 5);
+    expect(cart.getCart(session)['ProductoA']).toBe(5);
+  });
 
-console.log('Cart tests passed');
+  it('should remove an item from the cart', () => {
+    cart.addItem(session, 'ProductoA', 2);
+    cart.removeItem(session, 'ProductoA');
+    expect(cart.getCart(session)['ProductoA']).toBeUndefined();
+  });
+});

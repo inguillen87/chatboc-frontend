@@ -1,24 +1,24 @@
-const assert = require('assert');
-const path = require('path');
+import { describe, it, expect } from 'vitest';
+import * as db from '../server/db.js';
+import { getMunicipalMessageMetrics } from '../server/municipalMessageMetrics.js';
 
-const db = require(path.join('..','server','db'));
-const { getMunicipalMessageMetrics } = require(path.join('..','server','municipalMessageMetrics'));
+describe('getMunicipalMessageMetrics', () => {
+  it('should return municipal message metrics', () => {
+    const now = Date.now();
 
-const now = Date.now();
+    // messages: 2 days ago, 8 days ago, 20 days ago, 370 days ago
+    const msgs = [
+      { municipality: 'Alpha', timestamp: now - 2 * 86400000 },
+      { municipality: 'Alpha', timestamp: now - 8 * 86400000 },
+      { municipality: 'Beta', timestamp: now - 20 * 86400000 },
+      { municipality: 'Beta', timestamp: now - 370 * 86400000 },
+    ];
 
-// messages: 2 days ago, 8 days ago, 20 days ago, 370 days ago
-const msgs = [
-  { municipality: 'Alpha', timestamp: now - 2 * 86400000 },
-  { municipality: 'Alpha', timestamp: now - 8 * 86400000 },
-  { municipality: 'Beta', timestamp: now - 20 * 86400000 },
-  { municipality: 'Beta', timestamp: now - 370 * 86400000 },
-];
+    db.__setMessages(msgs);
 
-db.__setMessages(msgs);
-
-const metrics = getMunicipalMessageMetrics();
-assert.strictEqual(metrics.week, 1, 'week count');
-assert.strictEqual(metrics.month, 3, 'month count');
-assert.strictEqual(metrics.year, 3, 'year count');
-
-console.log('Municipal message metrics tests passed');
+    const metrics = getMunicipalMessageMetrics();
+    expect(metrics.week).toBe(1);
+    expect(metrics.month).toBe(3);
+    expect(metrics.year).toBe(3);
+  });
+});

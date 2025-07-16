@@ -1,25 +1,25 @@
-const assert = require('assert');
-const path = require('path');
+import { describe, it, expect } from 'vitest';
+import * as db from '../server/db.js';
+import { getMunicipalAnalytics } from '../server/municipalAnalytics.js';
 
-const db = require(path.join('..','server','db'));
-const { getMunicipalAnalytics } = require(path.join('..','server','municipalAnalytics'));
+describe('getMunicipalAnalytics', () => {
+  it('should return municipal analytics', () => {
+    db.__setTickets([
+      { municipality: 'Alpha', category: 'baches', responseMs: 3600000 },
+      { municipality: 'Alpha', category: 'baches', responseMs: 7200000 },
+      { municipality: 'Beta', category: 'limpieza', responseMs: 3600000 },
+    ]);
 
-db.__setTickets([
-  { municipality: 'Alpha', category: 'baches', responseMs: 3600000 },
-  { municipality: 'Alpha', category: 'baches', responseMs: 7200000 },
-  { municipality: 'Beta', category: 'limpieza', responseMs: 3600000 },
-]);
+    const analytics = getMunicipalAnalytics();
 
-const analytics = getMunicipalAnalytics();
+    expect(analytics.municipalities.length).toBe(2);
+    const alpha = analytics.municipalities.find(m => m.name === 'Alpha');
+    expect(alpha.totalTickets).toBe(2);
+    expect(alpha.categories.baches).toBe(2);
+    expect(alpha.averageResponseHours).toBe(1.5);
 
-assert.strictEqual(analytics.municipalities.length, 2, 'two municipalities');
-const alpha = analytics.municipalities.find(m => m.name === 'Alpha');
-assert.strictEqual(alpha.totalTickets, 2, 'alpha total');
-assert.strictEqual(alpha.categories.baches, 2, 'alpha category count');
-assert.strictEqual(alpha.averageResponseHours, 1.5, 'alpha avg hours');
-
-const beta = analytics.municipalities.find(m => m.name === 'Beta');
-assert.strictEqual(beta.totalTickets, 1, 'beta total');
-assert.strictEqual(beta.categories.limpieza, 1, 'beta category');
-
-console.log('Municipal analytics tests passed');
+    const beta = analytics.municipalities.find(m => m.name === 'Beta');
+    expect(beta.totalTickets).toBe(1);
+    expect(beta.categories.limpieza).toBe(1);
+  });
+});

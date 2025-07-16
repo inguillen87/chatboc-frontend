@@ -14,7 +14,7 @@ function clearPreferences(session) {
   session.preferences = [];
 }
 
-module.exports = {
+export {
   getPreferences,
   addPreference,
   clearPreferences,
