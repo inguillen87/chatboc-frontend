@@ -22,7 +22,6 @@ import type { Role } from "@/utils/roles";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { useUser } from '@/hooks/useUser'; // Ensured this is present
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable"
 import TemplateSelector, { MessageTemplate } from "@/components/tickets/TemplateSelector"; // Import TemplateSelector
 import { formatPhoneNumberForWhatsApp } from "@/utils/phoneUtils"; // Import WhatsApp phone formatter
 // TODO: Setup a toast component (e.g., Sonner or Shadcn's Toaster) and import its 'toast' function
@@ -120,27 +119,11 @@ const TicketListItem: FC<{
       exit={{ opacity: 0 }}
     >
       <div className="flex justify-between items-start mb-1">
-        <span className="font-semibold text-primary text-sm truncate max-w-[100px] flex-shrink-0" title={`#${ticket.nro_ticket}`}>#{ticket.nro_ticket}</span>
-        <div className="flex flex-col items-end gap-1">
-          <Badge className={cn("text-xs border", ESTADOS[ticket.estado]?.tailwind_class)}>{ESTADOS[ticket.estado]?.label}</Badge>
-          {priorityInfo && (
-            <Badge variant="outline" className={cn("text-xs border", priorityInfo.badgeClass)}>
-              Prioridad: {priorityInfo.label}
-            </Badge>
-          )}
-        </div>
+        <span className="font-semibold text-primary text-xs truncate max-w-[80px] flex-shrink-0" title={`#${ticket.nro_ticket}`}>#{ticket.nro_ticket}</span>
+        <Badge className={cn("text-xs border", ESTADOS[ticket.estado]?.tailwind_class)}>{ESTADOS[ticket.estado]?.label}</Badge>
       </div>
-      <p className="font-medium text-foreground truncate text-sm" title={ticket.asunto}>{ticket.asunto}</p>
+      <p className="font-medium text-foreground truncate text-xs" title={ticket.asunto}>{ticket.asunto}</p>
       {ticket.nombre_usuario && <p className="text-xs text-muted-foreground truncate mt-0.5" title={ticket.nombre_usuario}>{ticket.nombre_usuario}</p>}
-
-      <div className="flex justify-between items-center mt-1.5">
-        {slaInfo && (
-            <span className={cn("text-xs font-medium", slaInfo.color)}>
-                SLA: {slaInfo.label}
-            </span>
-        )}
-        <p className={cn("text-xs text-muted-foreground", !slaInfo && "ml-auto")}>{formatDate(ticket.fecha, timezone, locale)}</p>
-      </div>
     </motion.div>
   );
 };
@@ -484,17 +467,11 @@ return (
       </div>
     </header>
 
-    <ResizablePanelGroup
-      direction="horizontal"
-      className="flex flex-1 overflow-hidden"
-    >
-      <ResizablePanel
-        defaultSize={30}
-        className={cn(
-          "w-full md:w-2/5 lg:w-1/3 xl:w-1/4 border-r dark:border-slate-700 bg-card dark:bg-slate-800/50 flex flex-col",
-          selectedTicketId && "hidden md:flex"
-        )}
-      >
+    <div className="flex flex-1 overflow-hidden">
+      <div className={cn(
+        "w-full md:w-2/5 lg:w-1/3 xl:w-1/4 border-r dark:border-slate-700 bg-card dark:bg-slate-800/50 flex flex-col",
+        selectedTicketId && "hidden md:flex"
+      )}>
         <ScrollArea className="flex-1 p-3">
           {isLoading && groupedTickets.length === 0 && !error ? (
             <div className="p-4 text-center text-sm text-muted-foreground flex items-center justify-center h-full">
@@ -515,67 +492,46 @@ return (
               </p>
             </div>
           ) : filteredAndSortedGroups.length > 0 ? (
-            <div className="space-y-2">
+            <Accordion type="single" collapsible className="space-y-2" onValueChange={(value) => setSelectedTicketId(Number(value))}>
               {filteredAndSortedGroups.map(group => (
-                <div key={group.categoryName}>
-                  <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-1 py-2">
+                <AccordionItem key={group.categoryName} value={String(group.categoryName)}>
+                  <AccordionTrigger className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-1 py-2 hover:no-underline">
                     {group.categoryName} ({group.tickets.length})
-                  </h3>
-                  <div className="space-y-2 pt-1">
+                  </AccordionTrigger>
+                  <AccordionContent className="space-y-2 pt-1">
                     {group.tickets.map(ticket => (
-                      <TicketListItem
-                        key={ticket.id}
-                        ticket={ticket}
-                        isSelected={selectedTicketId === ticket.id}
-                        onSelect={() => loadAndSetDetailedTicket(ticket)}
-                        timezone={timezone}
-                        locale={locale}
-                      />
+                      <AccordionItem key={ticket.id} value={String(ticket.id)}>
+                        <AccordionTrigger>
+                          <TicketListItem
+                            key={ticket.id}
+                            ticket={ticket}
+                            isSelected={selectedTicketId === ticket.id}
+                            onSelect={() => loadAndSetDetailedTicket(ticket)}
+                            timezone={timezone}
+                            locale={locale}
+                          />
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          {detailedTicket && detailedTicket.id === ticket.id && (
+                            <TicketDetail_Refactored
+                              ticket={detailedTicket}
+                              onTicketUpdate={handleTicketDetailUpdate}
+                              onClose={closeDetailPanel}
+                              categoryNames={categoryNames}
+                            />
+                          )}
+                        </AccordionContent>
+                      </AccordionItem>
                     ))}
-                  </div>
-                </div>
+                  </AccordionContent>
+                </AccordionItem>
               ))}
-            </div>
+            </Accordion>
           ) : null}
         </ScrollArea>
-      </ResizablePanel>
-      <ResizableHandle withHandle />
-      <ResizablePanel
-        defaultSize={70}
-        className={cn(
-          "flex-1 flex flex-col bg-muted/20 dark:bg-slate-900 overflow-y-auto",
-          !selectedTicketId && "hidden md:flex md:items-center md:justify-center"
-        )}
-      >
-        {selectedTicketId && detailedTicket ? (
-          <TicketDetail_Refactored
-            ticket={detailedTicket}
-            onTicketUpdate={handleTicketDetailUpdate}
-            onClose={closeDetailPanel}
-            categoryNames={categoryNames}
-          />
-        ) : selectedTicketId && !detailedTicket && !error ? (
-          <div className="flex items-center justify-center h-full">
-            <Loader2 className="animate-spin text-primary h-10 w-10" />
-          </div>
-        ) : error && selectedTicketId ? (
-          <div className="flex flex-col items-center justify-center h-full p-4 text-center">
-            <XCircle className="h-12 w-12 text-destructive mb-3" />
-            <h3 className="text-lg font-semibold text-destructive">Error al cargar detalle</h3>
-            <p className="text-sm text-muted-foreground mb-3">{error}</p>
-            <Button variant="outline" onClick={() => {
-              const ticketToReload = groupedTickets.flatMap(g => g.tickets).find(t => t.id === selectedTicketId);
-              if (ticketToReload) loadAndSetDetailedTicket(ticketToReload);
-            }}>Reintentar</Button>
-          </div>
-        ) : (
-          <div className="text-center p-8">
-            <TicketIcon className="mx-auto h-16 w-16 text-muted-foreground/50 mb-4" />
-            <p className="text-lg text-muted-foreground">Selecciona un ticket para ver sus detalles.</p>
-          </div>
-        )}
-      </ResizablePanel>
-    </ResizablePanelGroup>
+      </div>
+
+    </div>
   </div>
 );
 }
@@ -703,6 +659,7 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
   const [isSending, setIsSending] = useState(false);
   const [comentarios, setComentarios] = useState<Comment[]>(ticket.comentarios || []);
   const [isTemplateSelectorOpen, setIsTemplateSelectorOpen] = useState(false); // State for modal
+  const [isDetailOpen, setIsDetailOpen] = useState(true);
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
@@ -1011,6 +968,9 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
                         ))}
                         </SelectContent>
                     </Select>
+                     <Button variant="ghost" size="icon" className="hidden md:inline-flex" onClick={() => setIsDetailOpen(!isDetailOpen)} title="Minimizar panel de detalle">
+                        {isDetailOpen ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+                    </Button>
                      <Button variant="ghost" size="icon" className="hidden md:inline-flex" onClick={onClose} title="Cerrar panel de detalle">
                         <X className="h-5 w-5" />
                     </Button>
@@ -1018,7 +978,12 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
             </div>
         </div>
 
-        <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: isDetailOpen ? 1 : 0, height: isDetailOpen ? 'auto' : 0 }}
+          transition={{ duration: 0.3 }}
+          className="flex-1 flex flex-col md:flex-row overflow-hidden"
+        >
             <div className="flex-1 flex flex-col p-2 md:p-4 bg-background dark:bg-slate-700/30 md:border-r dark:border-slate-700">
                 {!chatEnVivo && (
                     <div className="p-2 flex justify-end">
@@ -1243,7 +1208,7 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
                      </CardContent>
                 </Card>
             </ScrollArea>
-        </div>
+        </motion.div>
         <TemplateSelector
             isOpen={isTemplateSelectorOpen}
             onClose={() => setIsTemplateSelectorOpen(false)}

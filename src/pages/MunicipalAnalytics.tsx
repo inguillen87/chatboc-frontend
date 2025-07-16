@@ -41,10 +41,56 @@ export default function MunicipalAnalytics() {
     return <p className="p-4 text-center text-muted-foreground">No hay datos disponibles.</p>;
 
   const chartData = data.municipalities.map((m) => ({ name: m.name, value: m.totalTickets }));
+  const totalTickets = data.municipalities.reduce((acc, m) => acc + m.totalTickets, 0);
+  const totalResponseHours = data.municipalities.reduce((acc, m) => acc + m.averageResponseHours, 0);
+  const averageResponseHours = totalResponseHours / data.municipalities.length;
 
   return (
     <div className="p-4 max-w-4xl mx-auto space-y-6">
       <h1 className="text-3xl font-extrabold text-primary mb-4">Analíticas Profesionales</h1>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Tickets</CardTitle>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              className="h-4 w-4 text-muted-foreground"
+            >
+              <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+            </svg>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalTickets}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Promedio de Respuesta (h)</CardTitle>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              className="h-4 w-4 text-muted-foreground"
+            >
+              <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+            </svg>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{averageResponseHours.toFixed(2)}</div>
+          </CardContent>
+        </Card>
+      </div>
 
       <Card className="shadow-lg">
         <CardHeader>
@@ -56,34 +102,48 @@ export default function MunicipalAnalytics() {
               <BarChart data={chartData}>
                 <XAxis dataKey="name" />
                 <YAxis />
-                <Tooltip />
+                <Tooltip
+                  cursor={false}
+                  content={<div className="bg-background p-2 shadow-lg rounded-lg">
+                    <p className="text-sm text-muted-foreground">{'{payload?.[0]?.payload?.name}'}</p>
+                    <p className="text-sm font-bold">{'{payload?.[0]?.value}'}</p>
+                  </div>}
+                />
                 <Legend />
-                <Bar dataKey="value" fill="#4682B4" />
+                <Bar dataKey="value" fill="var(--color-value)" radius={4} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </CardContent>
       </Card>
 
-      {data.municipalities.map((m) => (
-        <Card key={m.name} className="shadow-md">
-          <CardHeader>
-            <CardTitle className="text-lg">{m.name}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="mb-2">Total tickets: {m.totalTickets}</p>
-            <p className="mb-2">Promedio de respuesta: {m.averageResponseHours} h</p>
-            <ul className="grid gap-1 text-sm">
-              {Object.entries(m.categories).map(([cat, count]) => (
-                <li key={cat} className="flex justify-between">
-                  <span className="text-muted-foreground">{cat}:</span>
-                  <span className="font-semibold">{count}</span>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      ))}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {data.municipalities.map((m) => (
+          <Card key={m.name}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">{m.name}</CardTitle>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                className="h-4 w-4 text-muted-foreground"
+              >
+                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+              </svg>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{m.totalTickets}</div>
+              <p className="text-xs text-muted-foreground">
+                Promedio de respuesta: {m.averageResponseHours} h
+              </p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
     </div>
   );
 }
