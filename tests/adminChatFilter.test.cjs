@@ -1,21 +1,23 @@
-const assert = require('assert');
-const path = require('path');
+import { describe, it, expect } from 'vitest';
+import { filterLoginPrompt } from '../src/utils/adminChatFilter.js';
 
-const { filterLoginPrompt } = require(path.join('..','src','utils','adminChatFilter.js'));
+describe('filterLoginPrompt', () => {
+  const text = 'Por favor, iniciá sesión para ver el catálogo';
+  const buttons = [
+    { texto: 'Login', action: 'login' },
+    { texto: 'Otro', action: 'ver' }
+  ];
 
-const text = 'Por favor, iniciá sesión para ver el catálogo';
-const buttons = [
-  { texto: 'Login', action: 'login' },
-  { texto: 'Otro', action: 'ver' }
-];
+  it('should filter login prompt for admin', () => {
+    const admin = filterLoginPrompt(text, buttons, 'admin');
+    expect(admin.text).toBe('');
+    expect(admin.buttons.length).toBe(1);
+    expect(admin.buttons[0].action).toBe('ver');
+  });
 
-const admin = filterLoginPrompt(text, buttons, 'admin');
-assert.strictEqual(admin.text, '', 'admin text removed');
-assert.strictEqual(admin.buttons.length, 1, 'login button filtered');
-assert.strictEqual(admin.buttons[0].action, 'ver');
-
-const user = filterLoginPrompt(text, buttons, 'usuario');
-assert.strictEqual(user.text, text, 'user text kept');
-assert.strictEqual(user.buttons.length, 2, 'user buttons kept');
-
-console.log('Admin chat filter tests passed');
+  it('should not filter login prompt for user', () => {
+    const user = filterLoginPrompt(text, buttons, 'usuario');
+    expect(user.text).toBe(text);
+    expect(user.buttons.length).toBe(2);
+  });
+});

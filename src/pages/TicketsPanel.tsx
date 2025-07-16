@@ -22,6 +22,7 @@ import type { Role } from "@/utils/roles";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { useUser } from '@/hooks/useUser'; // Ensured this is present
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable"
 import TemplateSelector, { MessageTemplate } from "@/components/tickets/TemplateSelector"; // Import TemplateSelector
 import { formatPhoneNumberForWhatsApp } from "@/utils/phoneUtils"; // Import WhatsApp phone formatter
 // TODO: Setup a toast component (e.g., Sonner or Shadcn's Toaster) and import its 'toast' function
@@ -483,11 +484,17 @@ return (
       </div>
     </header>
 
-    <div className="flex flex-1 overflow-hidden">
-      <div className={cn(
-        "w-full md:w-2/5 lg:w-1/3 xl:w-1/4 border-r dark:border-slate-700 bg-card dark:bg-slate-800/50 flex flex-col",
-        selectedTicketId && "hidden md:flex"
-      )}>
+    <ResizablePanelGroup
+      direction="horizontal"
+      className="flex flex-1 overflow-hidden"
+    >
+      <ResizablePanel
+        defaultSize={30}
+        className={cn(
+          "w-full md:w-2/5 lg:w-1/3 xl:w-1/4 border-r dark:border-slate-700 bg-card dark:bg-slate-800/50 flex flex-col",
+          selectedTicketId && "hidden md:flex"
+        )}
+      >
         <ScrollArea className="flex-1 p-3">
           {isLoading && groupedTickets.length === 0 && !error ? (
             <div className="p-4 text-center text-sm text-muted-foreground flex items-center justify-center h-full">
@@ -508,13 +515,13 @@ return (
               </p>
             </div>
           ) : filteredAndSortedGroups.length > 0 ? (
-            <Accordion type="single" collapsible className="space-y-2"> {/* Changed type to single and added collapsible */}
+            <div className="space-y-2">
               {filteredAndSortedGroups.map(group => (
-                <AccordionItem key={group.categoryName} value={String(group.categoryName)}>
-                  <AccordionTrigger className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-1 py-2 hover:no-underline">
+                <div key={group.categoryName}>
+                  <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-1 py-2">
                     {group.categoryName} ({group.tickets.length})
-                  </AccordionTrigger>
-                  <AccordionContent className="space-y-2 pt-1">
+                  </h3>
+                  <div className="space-y-2 pt-1">
                     {group.tickets.map(ticket => (
                       <TicketListItem
                         key={ticket.id}
@@ -525,47 +532,50 @@ return (
                         locale={locale}
                       />
                     ))}
-                  </AccordionContent>
-                </AccordionItem>
+                  </div>
+                </div>
               ))}
-            </Accordion>
+            </div>
           ) : null}
         </ScrollArea>
-      </div>
-
-      <div className={cn(
+      </ResizablePanel>
+      <ResizableHandle withHandle />
+      <ResizablePanel
+        defaultSize={70}
+        className={cn(
           "flex-1 flex flex-col bg-muted/20 dark:bg-slate-900 overflow-y-auto",
-           !selectedTicketId && "hidden md:flex md:items-center md:justify-center"
-      )}>
+          !selectedTicketId && "hidden md:flex md:items-center md:justify-center"
+        )}
+      >
         {selectedTicketId && detailedTicket ? (
           <TicketDetail_Refactored
-              ticket={detailedTicket}
-              onTicketUpdate={handleTicketDetailUpdate}
-              onClose={closeDetailPanel}
-              categoryNames={categoryNames} // Pass categoryNames prop
+            ticket={detailedTicket}
+            onTicketUpdate={handleTicketDetailUpdate}
+            onClose={closeDetailPanel}
+            categoryNames={categoryNames}
           />
         ) : selectedTicketId && !detailedTicket && !error ? (
           <div className="flex items-center justify-center h-full">
             <Loader2 className="animate-spin text-primary h-10 w-10" />
           </div>
-        ): error && selectedTicketId ? (
+        ) : error && selectedTicketId ? (
           <div className="flex flex-col items-center justify-center h-full p-4 text-center">
-              <XCircle className="h-12 w-12 text-destructive mb-3"/>
-              <h3 className="text-lg font-semibold text-destructive">Error al cargar detalle</h3>
-              <p className="text-sm text-muted-foreground mb-3">{error}</p>
-              <Button variant="outline" onClick={() => {
-                const ticketToReload = groupedTickets.flatMap(g => g.tickets).find(t => t.id === selectedTicketId);
-                if (ticketToReload) loadAndSetDetailedTicket(ticketToReload);
-              }}>Reintentar</Button>
+            <XCircle className="h-12 w-12 text-destructive mb-3" />
+            <h3 className="text-lg font-semibold text-destructive">Error al cargar detalle</h3>
+            <p className="text-sm text-muted-foreground mb-3">{error}</p>
+            <Button variant="outline" onClick={() => {
+              const ticketToReload = groupedTickets.flatMap(g => g.tickets).find(t => t.id === selectedTicketId);
+              if (ticketToReload) loadAndSetDetailedTicket(ticketToReload);
+            }}>Reintentar</Button>
           </div>
         ) : (
           <div className="text-center p-8">
-              <TicketIcon className="mx-auto h-16 w-16 text-muted-foreground/50 mb-4" />
-              <p className="text-lg text-muted-foreground">Selecciona un ticket para ver sus detalles.</p>
+            <TicketIcon className="mx-auto h-16 w-16 text-muted-foreground/50 mb-4" />
+            <p className="text-lg text-muted-foreground">Selecciona un ticket para ver sus detalles.</p>
           </div>
         )}
-      </div>
-    </div>
+      </ResizablePanel>
+    </ResizablePanelGroup>
   </div>
 );
 }

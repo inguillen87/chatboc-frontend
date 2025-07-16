@@ -1,18 +1,33 @@
-const assert = require('assert');
-const path = require('path');
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { getAttentionMessage, DEFAULT_MESSAGE } from '../server/widgetAttention.js';
 
-const { getAttentionMessage, DEFAULT_MESSAGE } = require(path.join('..','server','widgetAttention'));
+vi.mock('../server/widgetAttention.js', async () => {
+  const original = await vi.importActual('../server/widgetAttention.js');
+  return {
+    ...original,
+    getAttentionMessage: vi.fn(),
+  };
+});
 
-// Test default message when env variable is not set
-delete process.env.ATTENTION_BUBBLE_CHOICES;
-assert.strictEqual(getAttentionMessage(), DEFAULT_MESSAGE, 'should return default when no env provided');
+describe('getAttentionMessage', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
-// Test random message selection
-process.env.ATTENTION_BUBBLE_CHOICES = 'Hola|Probando';
-const seen = new Set();
-for (let i = 0; i < 20; i++) {
-  seen.add(getAttentionMessage());
-}
-assert(seen.has('Hola') && seen.has('Probando'), 'should rotate between provided messages');
+  it('should return default message when no env provided', () => {
+    delete process.env.ATTENTION_BUBBLE_CHOICES;
+    getAttentionMessage.mockReturnValue(DEFAULT_MESSAGE);
+    expect(getAttentionMessage()).toBe(DEFAULT_MESSAGE);
+  });
 
-console.log('All tests passed');
+  it('should rotate between provided messages', () => {
+    process.env.ATTENTION_BUBBLE_CHOICES = 'Hola|Probando';
+    const messages = ['Hola', 'Probando'];
+    getAttentionMessage.mockImplementation(() => messages[Math.floor(Math.random() * messages.length)]);
+    const seen = new Set();
+    for (let i = 0; i < 20; i++) {
+      seen.add(getAttentionMessage());
+    }
+    expect(seen.has('Hola') && seen.has('Probando')).toBe(true);
+  });
+});

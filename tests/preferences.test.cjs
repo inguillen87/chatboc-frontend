@@ -1,14 +1,22 @@
-const assert = require('assert');
-const prefs = require('../server/preferences');
+import { describe, it, expect, beforeEach } from 'vitest';
+import * as prefs from '../server/preferences.js';
 
-const session = {};
+describe('preferences', () => {
+  let session;
 
-prefs.addPreference(session, 'busqueda:camisa');
-prefs.addPreference(session, 'Camisa Oxford');
+  beforeEach(() => {
+    session = {};
+  });
 
-assert.deepStrictEqual(prefs.getPreferences(session), ['busqueda:camisa', 'Camisa Oxford'], 'records preferences');
+  it('should record preferences', () => {
+    prefs.addPreference(session, 'busqueda:camisa');
+    prefs.addPreference(session, 'Camisa Oxford');
+    expect(prefs.getPreferences(session)).toEqual(['busqueda:camisa', 'Camisa Oxford']);
+  });
 
-prefs.clearPreferences(session);
-assert.deepStrictEqual(prefs.getPreferences(session), [], 'clears preferences');
-
-console.log('Preferences tests passed');
+  it('should clear preferences', () => {
+    prefs.addPreference(session, 'busqueda:camisa');
+    prefs.clearPreferences(session);
+    expect(prefs.getPreferences(session)).toEqual([]);
+  });
+});

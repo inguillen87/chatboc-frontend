@@ -1,13 +1,14 @@
-const assert = require('assert');
-const path = require('path');
-const { getFormattedProducts } = require(path.join('..', 'server', 'catalog'));
+import { describe, it, expect } from 'vitest';
+import { getFormattedProducts } from '../server/catalog.js';
 
-const products = getFormattedProducts();
-assert(Array.isArray(products), 'returns array');
-assert(products.length >= 3, 'at least three products');
+describe('getFormattedProducts', () => {
+  it('should return formatted products', () => {
+    const products = getFormattedProducts();
+    expect(Array.isArray(products)).toBe(true);
+    expect(products.length).toBeGreaterThanOrEqual(3);
 
-const camisa = products.find(p => p.nombre === 'Camisa Oxford');
-assert(camisa, 'Camisa Oxford present');
-assert(Array.isArray(camisa.variants) && camisa.variants.length === 1, 'groups variants');
-
-console.log('Catalog tests passed');
+    const camisa = products.find(p => p.nombre === 'Camisa Oxford');
+    expect(camisa).toBeDefined();
+    expect(Array.isArray(camisa.variants) && camisa.variants.length === 1).toBe(true);
+  });
+});

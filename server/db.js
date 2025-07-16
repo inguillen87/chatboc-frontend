@@ -27,7 +27,7 @@ function __setMessages(newMessages) {
   messages = newMessages;
 }
 
-module.exports = {
+export {
   getTickets,
   __setTickets,
   getMessages,

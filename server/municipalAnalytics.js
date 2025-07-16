@@ -1,6 +1,6 @@
-const { getTickets } = require('./db');
+import { getTickets } from './db.js';
 
-function getMunicipalAnalytics() {
+export function getMunicipalAnalytics() {
   const tickets = getTickets();
   const statsMap = new Map();
   for (const t of tickets) {
@@ -25,5 +25,3 @@ function getMunicipalAnalytics() {
   }
   return { municipalities: result };
 }
-
-module.exports = { getMunicipalAnalytics };
