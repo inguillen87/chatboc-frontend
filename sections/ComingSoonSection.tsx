@@ -25,9 +25,7 @@ const ComingSoonSection = () => {
                 Resultados en Tiempo Real, Decisiones al Instante.
               </p>
               <a
-                href="https://opinar.ar"
-                target="_blank"
-                rel="noopener noreferrer"
+                href="/opinar"
                 className="mt-6 inline-block bg-sky-600 text-white px-6 py-2 rounded-xl text-sm hover:bg-sky-700 transition"
               >
                 Conocer más
