@@ -139,14 +139,14 @@ export default function TicketsPanel() {
   useRequireRole(['admin', 'empleado'] as Role[]);
   const navigate = useNavigate();
   const { timezone, locale, updateSettings } = useDateSettings();
-  const [groupedTickets, setGroupedTickets] = useState<GroupedTickets[]>([]);
   const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null);
   const [detailedTicket, setDetailedTicket] = useState<Ticket | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [allTickets, setAllTickets] = useState<TicketSummary[]>([]);
 
   const [searchTermInput, setSearchTermInput] = useState("");
-  const debouncedSearchTerm = useDebounce(searchTermInput, 300);
+  const debouncedSearchTerm = useDebounce(searchTermInput, 500); // Increased debounce time
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<TicketStatus | "">("");
   const [categoryFilter, setCategoryFilter] = useState("");
@@ -159,87 +159,43 @@ export default function TicketsPanel() {
 
   const fetchAndSetTickets = useCallback(async (isManualRefresh = false) => {
     if (!safeLocalStorage.getItem('authToken')) return;
+    if (isLoading && !isManualRefresh) return; // Evitar cargas concurrentes
 
-    if (groupedTickets.length === 0 || isManualRefresh) {
-      setIsLoading(true);
-    }
+    setIsLoading(true);
 
     try {
-      let url = '/tickets/panel_por_categoria';
-      const params: string[] = [];
-      if (statusFilter) params.push(`estado=${encodeURIComponent(statusFilter)}`);
-      if (categoryFilter) params.push(`categoria=${encodeURIComponent(categoryFilter)}`);
-      if (params.length) url += `?${params.join('&')}`;
+        // Siempre obtener todos los tickets para el buscador
+        const allTicketsData = await apiFetch<TicketSummary[]>('/tickets', { sendEntityToken: true });
 
-      const data = await apiFetch<any>(url, { sendEntityToken: true });
+        // Normalizar los datos completos
+        const ticketsWithFullDetails = allTicketsData.map(ticket => ({
+            ...ticket,
+            sla_status: ticket.sla_status || null,
+            priority: ticket.priority || null,
+        }));
+        setAllTickets(ticketsWithFullDetails);
 
-      let normalized: { [category: string]: TicketSummary[] } = {};
-
-      if (Array.isArray(data)) {
-        data.forEach((group: any) => {
-          const key =
-            group.category || group.categoryName || group.categoria || "";
-          if (key !== undefined && Array.isArray(group.tickets)) {
-            normalized[key] = group.tickets as TicketSummary[];
-          }
+        // Derivar categorías disponibles de la lista completa
+        const allCategories = new Set(ticketsWithFullDetails.map(t => t.categoria).filter(Boolean));
+        const sortedCategories = Array.from(allCategories).sort((a, b) => {
+            const nameA = categoryNames[a!] || a!;
+            const nameB = categoryNames[b!] || b!;
+            if (nameA === 'Sin Categoría') return 1;
+            if (nameB === 'Sin Categoría') return -1;
+            return nameA.localeCompare(nameB);
         });
-      } else if (typeof data === "object" && data !== null) {
-        normalized = data as { [category: string]: TicketSummary[] };
-      } else {
-        console.error(
-          "API response for tickets has unexpected format:",
-          data
-        );
-        setError("La respuesta del servidor para los tickets no es válida.");
-        setGroupedTickets([]);
-        setIsLoading(false);
-        return;
-      }
+        setAvailableCategories(sortedCategories as string[]);
 
-      const processedGroups: GroupedTickets[] = Object.entries(normalized).map(([categoryName, tickets]) => ({
-        categoryName:
-          categoryName === 'null' || categoryName === ''
-            ? 'Sin Categoría'
-            : categoryNames[categoryName] || categoryName,
-        tickets: Array.isArray(tickets)
-          ? tickets.map(ticket => ({
-              ...ticket,
-              sla_status: ticket.sla_status || null,
-              priority: ticket.priority || null,
-            }))
-          : [],
-      }));
-
-      processedGroups.sort((a, b) => {
-        if (a.categoryName === 'Sin Categoría') return 1;
-        if (b.categoryName === 'Sin Categoría') return -1;
-        return a.categoryName.localeCompare(b.categoryName);
-      });
-
-      setGroupedTickets(processedGroups);
-
-      const categoriesFromCurrentResponse = Object.keys(normalized).map(cat =>
-        cat === 'null' || cat === '' ? 'Sin Categoría' : cat
-      );
-      setAvailableCategories(prev => {
-        const newCategories = Array.from(new Set([...prev, ...categoriesFromCurrentResponse]));
-        return newCategories.sort((a,b) => {
-          if (a === 'Sin Categoría') return 1;
-          if (b === 'Sin Categoría') return -1;
-          return a.localeCompare(b);
-        });
-      });
-
-      setError(null);
+        setError(null);
     } catch (err) {
-      console.error('Error al actualizar el panel de tickets', err);
-      const message = err instanceof ApiError ? err.message : 'Ocurrió un error al actualizar el panel de tickets.';
-      setError(message);
-      setGroupedTickets([]);
+        console.error('Error al cargar los tickets', err);
+        const message = err instanceof ApiError ? err.message : 'Ocurrió un error al cargar los tickets.';
+        setError(message);
+        setAllTickets([]);
     } finally {
-      setIsLoading(false);
+        setIsLoading(false);
     }
-  }, [statusFilter, categoryFilter, groupedTickets.length, categoryNames]);
+}, [isLoading, categoryNames]); // Dependencias simplificadas
 
   const fetchInitialData = useCallback(async () => {
     if (!safeLocalStorage.getItem('authToken')) {
@@ -285,35 +241,55 @@ export default function TicketsPanel() {
   }, [fetchAndSetTickets, selectedTicketId]);
 
   const filteredAndSortedGroups = useMemo(() => {
-    return groupedTickets.map(group => {
-      let filteredTickets = group.tickets;
+    const containsSearchTerm = (str: string | null | undefined) => {
+        return str && str.toLowerCase().includes(searchTerm.toLowerCase());
+    };
 
-      if (searchTerm) {
-        filteredTickets = filteredTickets.filter(ticket =>
-          ticket.id.toString().includes(searchTerm) ||
-          ticket.nro_ticket.toString().includes(searchTerm) ||
-          ticket.asunto.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (ticket.nombre_usuario && ticket.nombre_usuario.toLowerCase().includes(searchTerm.toLowerCase())) ||
-          (ticket.email_usuario && ticket.email_usuario.toLowerCase().includes(searchTerm.toLowerCase())) ||
-          (ticket.categoria && (categoryNames[ticket.categoria] || ticket.categoria).toLowerCase().includes(searchTerm.toLowerCase())) ||
-          (ticket.direccion && ticket.direccion.toLowerCase().includes(searchTerm.toLowerCase()))
-        );
-      }
+    let filteredTickets = allTickets;
 
-      const sortedTickets = filteredTickets.sort((a, b) => {
+    // 1. Filtrar por estado
+    if (statusFilter) {
+        filteredTickets = filteredTickets.filter(t => t.estado === statusFilter);
+    }
+
+    // 2. Filtrar por categoría
+    if (categoryFilter) {
+        filteredTickets = filteredTickets.filter(t => t.categoria === categoryFilter);
+    }
+
+    // 3. Filtrar por término de búsqueda
+    if (searchTerm) {
+        filteredTickets = filteredTickets.filter(ticket => {
+            const searchTermLower = searchTerm.toLowerCase();
+            return (
+                ticket.id.toString().includes(searchTermLower) ||
+                ticket.nro_ticket.toString().includes(searchTermLower) ||
+                containsSearchTerm(ticket.asunto) ||
+                containsSearchTerm(ticket.nombre_usuario) ||
+                containsSearchTerm(ticket.email_usuario) ||
+                containsSearchTerm(ticket.direccion) ||
+                containsSearchTerm(categoryNames[ticket.categoria || ''] || ticket.categoria) ||
+                containsSearchTerm(ticket.detalles) ||
+                (ticket.comentarios && ticket.comentarios.some(c => containsSearchTerm(c.comentario)))
+            );
+        });
+    }
+
+    // 4. Ordenar los tickets filtrados
+    const sortedTickets = filteredTickets.sort((a, b) => {
         const priorityOrder: Record<PriorityStatus | 'null_priority', number> = { high: 0, medium: 1, low: 2, null_priority: 3 };
         const slaOrder: Record<SlaStatus | 'null_sla', number> = { breached: 0, nearing_sla: 1, on_track: 2, null_sla: 3 };
 
         const priorityAVal = a.priority || 'null_priority';
         const priorityBVal = b.priority || 'null_priority';
         if (priorityOrder[priorityAVal] !== priorityOrder[priorityBVal]) {
-          return priorityOrder[priorityAVal] - priorityOrder[priorityBVal];
+            return priorityOrder[priorityAVal] - priorityOrder[priorityBVal];
         }
 
         const slaAVal = a.sla_status || 'null_sla';
         const slaBVal = b.sla_status || 'null_sla';
         if (slaOrder[slaAVal] !== slaOrder[slaBVal]) {
-          return slaOrder[slaAVal] - slaOrder[slaBVal];
+            return slaOrder[slaAVal] - slaOrder[slaBVal];
         }
 
         const estadoPriorityA = ESTADOS_ORDEN_PRIORIDAD.indexOf(a.estado);
@@ -321,11 +297,28 @@ export default function TicketsPanel() {
         if (estadoPriorityA !== estadoPriorityB) return estadoPriorityA - estadoPriorityB;
 
         return new Date(b.fecha).getTime() - new Date(a.fecha).getTime();
-      });
+    });
 
-      return { ...group, tickets: sortedTickets };
-    }).filter(group => group.tickets.length > 0);
-  }, [groupedTickets, searchTerm, categoryNames]);
+    // 5. Agrupar los tickets ordenados
+    const groups: { [key: string]: TicketSummary[] } = {};
+    for (const ticket of sortedTickets) {
+        const categoryKey = ticket.categoria || 'Sin Categoría';
+        if (!groups[categoryKey]) {
+            groups[categoryKey] = [];
+        }
+        groups[categoryKey].push(ticket);
+    }
+
+    return Object.entries(groups).map(([categoryName, tickets]) => ({
+      categoryName: categoryNames[categoryName] || categoryName,
+      tickets
+    })).sort((a, b) => {
+        if (a.categoryName === 'Sin Categoría') return 1;
+        if (b.categoryName === 'Sin Categoría') return -1;
+        return a.categoryName.localeCompare(b.categoryName);
+    });
+
+  }, [allTickets, searchTerm, statusFilter, categoryFilter, categoryNames]);
 
 
   const loadAndSetDetailedTicket = useCallback(async (ticketSummary: TicketSummary) => {
@@ -350,16 +343,13 @@ export default function TicketsPanel() {
 
   const handleTicketDetailUpdate = (updatedTicket: Ticket) => {
     setDetailedTicket(updatedTicket);
-    setGroupedTickets(prevGroups => {
-      return prevGroups.map(group => ({
-        ...group,
-        tickets: group.tickets.map(t =>
-          t.id === updatedTicket.id
-          ? { ...t, ...updatedTicket, sla_status: updatedTicket.sla_status || null, priority: updatedTicket.priority || null }
-          : t
-        )
-      }));
-    });
+    setAllTickets(prevTickets =>
+      prevTickets.map(t =>
+        t.id === updatedTicket.id
+        ? { ...t, ...updatedTicket, sla_status: updatedTicket.sla_status || null, priority: updatedTicket.priority || null }
+        : t
+      )
+    );
   };
 
   const closeDetailPanel = () => {
@@ -367,7 +357,7 @@ export default function TicketsPanel() {
     setDetailedTicket(null);
   }
 
-  if (isLoading && groupedTickets.length === 0) {
+  if (isLoading && allTickets.length === 0) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-muted/30 dark:bg-slate-900">
         <Loader2 className="animate-spin text-primary h-16 w-16" />
@@ -375,7 +365,7 @@ export default function TicketsPanel() {
     );
   }
 
-  if (error && groupedTickets.length === 0 && !isLoading) {
+  if (error && allTickets.length === 0 && !isLoading) {
     return <div className="p-8 text-center text-destructive bg-destructive/10 rounded-md min-h-screen flex flex-col justify-center items-center">
         <AlertTriangle className="mx-auto h-12 w-12 text-destructive mb-4" /> {/* Changed Icon */}
         <h2 className="text-xl font-semibold mb-2">Error al cargar tickets</h2>
@@ -458,8 +448,8 @@ return (
             ))}
           </SelectContent>
         </Select>
-        <Button variant="outline" onClick={() => fetchAndSetTickets(true)} className="h-9" disabled={isLoading && groupedTickets.length === 0}>
-          {(isLoading && groupedTickets.length === 0)
+        <Button variant="outline" onClick={() => fetchAndSetTickets(true)} className="h-9" disabled={isLoading}>
+          {isLoading
             ? <Loader2 className="h-4 w-4 animate-spin" />
             : <Filter className="h-4 w-4" />}
           <span className="ml-2 hidden sm:inline">Actualizar</span>
@@ -467,17 +457,20 @@ return (
       </div>
     </header>
 
-    <div className="flex flex-1 overflow-hidden">
-      <div className={cn(
-        "w-full md:w-2/5 lg:w-1/3 xl:w-1/4 border-r dark:border-slate-700 bg-card dark:bg-slate-800/50 flex flex-col",
-        selectedTicketId && "hidden md:flex"
-      )}>
+    <main className="flex flex-1 overflow-hidden">
+      {/* Panel de Lista de Tickets */}
+      <div
+        className={cn(
+          "w-full md:w-2/5 lg:w-1/3 xl:w-1/4 border-r dark:border-slate-700 bg-card dark:bg-slate-800/50 flex flex-col transition-all duration-300 ease-in-out",
+          selectedTicketId ? "hidden md:flex" : "flex"
+        )}
+      >
         <ScrollArea className="flex-1 p-3">
-          {isLoading && groupedTickets.length === 0 && !error ? (
+          {isLoading && allTickets.length === 0 && !error ? (
             <div className="p-4 text-center text-sm text-muted-foreground flex items-center justify-center h-full">
               <Loader2 className="h-4 w-4 animate-spin mr-2" /> Cargando tickets...
             </div>
-          ) : isLoading && groupedTickets.length > 0 ? (
+          ) : isLoading && allTickets.length > 0 ? (
             <div className="p-2 text-center text-xs text-muted-foreground flex items-center justify-center">
               <Loader2 className="h-3 w-3 animate-spin mr-1.5" /> Actualizando lista...
             </div>
@@ -492,36 +485,25 @@ return (
               </p>
             </div>
           ) : filteredAndSortedGroups.length > 0 ? (
-            <Accordion type="single" collapsible className="space-y-2" onValueChange={(value) => setSelectedTicketId(Number(value))}>
+            <Accordion type="multiple" collapsible className="w-full space-y-1" defaultValue={filteredAndSortedGroups.map(g => g.categoryName)}>
               {filteredAndSortedGroups.map(group => (
-                <AccordionItem key={group.categoryName} value={String(group.categoryName)}>
-                  <AccordionTrigger className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-1 py-2 hover:no-underline">
-                    {group.categoryName} ({group.tickets.length})
+                <AccordionItem key={group.categoryName} value={group.categoryName}>
+                  <AccordionTrigger className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-2 py-2 hover:no-underline rounded-md hover:bg-muted/50 dark:hover:bg-slate-700/50 transition-colors">
+                    <div className="flex items-center justify-between w-full">
+                      <span>{group.categoryName}</span>
+                      <Badge variant="secondary">{group.tickets.length}</Badge>
+                    </div>
                   </AccordionTrigger>
-                  <AccordionContent className="space-y-2 pt-1">
+                  <AccordionContent className="pt-1 space-y-1.5">
                     {group.tickets.map(ticket => (
-                      <AccordionItem key={ticket.id} value={String(ticket.id)}>
-                        <AccordionTrigger>
-                          <TicketListItem
-                            key={ticket.id}
-                            ticket={ticket}
-                            isSelected={selectedTicketId === ticket.id}
-                            onSelect={() => loadAndSetDetailedTicket(ticket)}
-                            timezone={timezone}
-                            locale={locale}
-                          />
-                        </AccordionTrigger>
-                        <AccordionContent>
-                          {detailedTicket && detailedTicket.id === ticket.id && (
-                            <TicketDetail_Refactored
-                              ticket={detailedTicket}
-                              onTicketUpdate={handleTicketDetailUpdate}
-                              onClose={closeDetailPanel}
-                              categoryNames={categoryNames}
-                            />
-                          )}
-                        </AccordionContent>
-                      </AccordionItem>
+                      <TicketListItem
+                        key={ticket.id}
+                        ticket={ticket}
+                        isSelected={selectedTicketId === ticket.id}
+                        onSelect={() => loadAndSetDetailedTicket(ticket)}
+                        timezone={timezone}
+                        locale={locale}
+                      />
                     ))}
                   </AccordionContent>
                 </AccordionItem>
@@ -531,7 +513,36 @@ return (
         </ScrollArea>
       </div>
 
-    </div>
+      {/* Panel de Detalle del Ticket */}
+      <AnimatePresence>
+        {selectedTicketId && detailedTicket && (
+          <motion.div
+            key={selectedTicketId}
+            className="w-full md:w-3/5 lg:w-2/3 xl:w-3/4 flex flex-col bg-background dark:bg-slate-900"
+            initial={{ x: "100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "100%" }}
+            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+          >
+            <TicketDetail_Refactored
+              ticket={detailedTicket}
+              onTicketUpdate={handleTicketDetailUpdate}
+              onClose={closeDetailPanel}
+              categoryNames={categoryNames}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Placeholder cuando no hay ticket seleccionado en vista de escritorio */}
+      {!selectedTicketId && (
+          <div className="hidden md:flex flex-col items-center justify-center w-3/5 lg:w-2/3 xl:w-3/4 p-8 text-center bg-muted/50 dark:bg-slate-800/20">
+              <TicketIcon className="h-16 w-16 text-muted-foreground/50" strokeWidth={1} />
+              <h2 className="mt-4 text-xl font-semibold text-foreground">Seleccione un Ticket</h2>
+              <p className="mt-1 text-muted-foreground">Elija un ticket de la lista para ver sus detalles, historial y responder.</p>
+          </div>
+      )}
+    </main>
   </div>
 );
 }

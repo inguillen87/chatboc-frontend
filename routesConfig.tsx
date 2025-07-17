@@ -42,6 +42,7 @@ import PredefinedQueries from '@/pages/PredefinedQueries';
 import PermissionDenied from '@/pages/PermissionDenied';
 import CartPage from '@/pages/Cart';
 import ProductCheckoutPage from '@/pages/ProductCheckoutPage'; // Importar la nueva página
+import CategoryManagementPage from '@/pages/admin/CategoryManagementPage';
 
 export interface RouteConfig {
   path: string;
@@ -92,6 +93,7 @@ const routes: RouteConfig[] = [
   { path: '/municipal/analytics', element: <MunicipalAnalytics />, roles: ['admin'] },
   { path: '/municipal/stats', element: <MunicipalStats />, roles: ['admin'] },
   { path: '/municipal/incidents', element: <IncidentsMap />, roles: ['admin'] },
+  { path: '/admin/categories', element: <CategoryManagementPage />, roles: ['admin'] },
 ];
 
 export default routes;
