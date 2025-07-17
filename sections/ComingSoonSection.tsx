@@ -22,12 +22,10 @@ const ComingSoonSection = () => {
               />
               <h3 className="text-2xl font-semibold text-sky-600 dark:text-sky-400 mb-2">opinar.ar</h3>
               <p className="text-muted-foreground mb-4 text-center">
-                Resultados en Tiempo Real, Decisiones al Instante. Olvídese de esperar semanas por informes obsoletos. Vea cada respuesta en su dashboard al segundo de ser enviada, desde cualquier dispositivo. Filtre, analice y actúe sobre la opinión pública en vivo. Esto es agilidad.
+                Resultados en Tiempo Real, Decisiones al Instante.
               </p>
               <a
-                href="https://opinar.ar"
-                target="_blank"
-                rel="noopener noreferrer"
+                href="/opinar"
                 className="mt-6 inline-block bg-sky-600 text-white px-6 py-2 rounded-xl text-sm hover:bg-sky-700 transition"
               >
                 Conocer más
