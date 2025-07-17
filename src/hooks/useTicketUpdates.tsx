@@ -20,7 +20,7 @@ export default function useTicketUpdates() {
       if (!user) return;
       try {
         const settings = await apiFetch<{ ticket: boolean }>('/notifications');
-        if (!active || !settings.ticket) return;
+        if (!active || !settings || !settings.ticket) return;
         const base = import.meta.env.VITE_API_URL || '/api';
         es = new EventSource(`${base}/tickets/updates`, { withCredentials: true });
         es.onmessage = (ev) => {

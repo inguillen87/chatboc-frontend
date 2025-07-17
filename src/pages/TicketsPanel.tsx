@@ -167,13 +167,17 @@ export default function TicketsPanel() {
         // Siempre obtener todos los tickets para el buscador
         const allTicketsData = await apiFetch<{tickets: TicketSummary[]}>('/tickets', { sendEntityToken: true });
 
-        // Normalizar los datos completos
-        const ticketsWithFullDetails = allTicketsData.tickets.map(ticket => ({
-            ...ticket,
-            sla_status: ticket.sla_status || null,
-            priority: ticket.priority || null,
-        }));
-        setAllTickets(ticketsWithFullDetails);
+        if (allTicketsData && allTicketsData.tickets) {
+          // Normalizar los datos completos
+          const ticketsWithFullDetails = allTicketsData.tickets.map(ticket => ({
+              ...ticket,
+              sla_status: ticket.sla_status || null,
+              priority: ticket.priority || null,
+          }));
+          setAllTickets(ticketsWithFullDetails);
+        } else {
+          setAllTickets([]);
+        }
 
         // Derivar categorías disponibles de la lista completa
         const allCategories = new Set(ticketsWithFullDetails.map(t => t.categoria).filter(Boolean));
@@ -210,13 +214,13 @@ export default function TicketsPanel() {
     apiFetch<{categorias: { id: number; nombre: string }[]}>('/municipal/categorias', { sendEntityToken: true })
       .then((data) => { // Expecting data to be Array<{id, nombre}> directly
         const mapping: Record<string, string> = {};
-        if (Array.isArray(data.categorias)) {
+        if (data && Array.isArray(data.categorias)) {
           data.categorias.forEach((c) => {
             mapping[String(c.id)] = c.nombre;
           });
         } else {
           // This case should ideally not happen if backend is consistent and returns array
-          console.error('[TicketsPanel] Categories data from /municipal/categorias is not an array:', data);
+          console.error('[TicketsPanel] Categories data from /municipal/categorias is not an array or data is null:', data);
         }
         setCategoryNames(mapping);
       })
