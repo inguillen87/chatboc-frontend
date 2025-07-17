@@ -2,7 +2,7 @@ import React from "react";
 
 const ComingSoonSection = () => {
   return (
-    <section id="coming-soon" className="bg-muted py-20 px-4 text-center">
+    <section id="proximamente" className="bg-muted py-20 px-4 text-center">
       <div className="max-w-6xl mx-auto">
         <h2 className="text-3xl md:text-4xl font-bold mb-6 text-foreground">
           Próximamente: nuevas soluciones para tu negocio
