@@ -1,50 +1,43 @@
 // src/components/ui/AdjuntarArchivo.tsx
 import React, { useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { Paperclip } from 'lucide-react';
+import { Paperclip, Image as ImageIcon } from 'lucide-react';
 import { apiFetch } from '@/utils/api';
 import { useUser } from '@/hooks/useUser';
-import { toast } from '@/components/ui/use-toast'; // Importar toast
+import { toast } from '@/components/ui/use-toast';
 
 const MAX_FILE_SIZE_MB = 10;
-const ALLOWED_EXTENSIONS = [
-  'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'avif',
-  'pdf',
-  'doc', 'docx',
-  'xls', 'xlsx', 'csv',
-  'ppt', 'pptx',
-  'txt', 'md', 'rtf',
-  'mp3', 'wav', 'ogg', 'aac', 'm4a',
-  'mp4', 'mov', 'webm', 'avi', 'mkv',
+const ALL_ALLOWED_EXTENSIONS = [
+  'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'avif', 'pdf', 'doc', 'docx',
+  'xls', 'xlsx', 'csv', 'ppt', 'pptx', 'txt', 'md', 'rtf', 'mp3', 'wav',
+  'ogg', 'aac', 'm4a', 'mp4', 'mov', 'webm', 'avi', 'mkv',
 ];
+const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'avif'];
 
 export interface AdjuntarArchivoProps {
   onUpload?: (data: any) => void;
-  // Podríamos añadir una prop para deshabilitar el botón mientras se sube, si es necesario
-  // O manejar un estado de 'isUploading' internamente si el componente se vuelve más complejo.
+  asImage?: boolean;
 }
 
-const AdjuntarArchivo: React.FC<AdjuntarArchivoProps> = ({ onUpload }) => {
+const AdjuntarArchivo: React.FC<AdjuntarArchivoProps> = ({ onUpload, asImage = false }) => {
   const inputRef = useRef<HTMLInputElement>(null);
-  // El estado 'error' local ya no es necesario, se usarán toasts.
   const { user } = useUser();
 
-  // console.log('AdjuntarArchivo: Component rendered. User object:', user); // Mantener para depuración si es útil
+  const allowedExtensions = asImage ? IMAGE_EXTENSIONS : ALL_ALLOWED_EXTENSIONS;
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    // console.log('AdjuntarArchivo: handleFileChange triggered'); // Mantener para depuración
     const file = e.target.files?.[0];
     if (!file) return;
 
     const ext = file.name.split('.').pop()?.toLowerCase() || '';
-    if (!ALLOWED_EXTENSIONS.includes(ext)) {
+    if (!allowedExtensions.includes(ext)) {
       toast({
         title: "Archivo no permitido",
         description: `El formato de archivo ".${ext}" no está permitido.`,
         variant: "destructive",
         duration: 5000,
       });
-      e.target.value = ''; // Resetear el input
+      e.target.value = '';
       return;
     }
 
@@ -55,7 +48,7 @@ const AdjuntarArchivo: React.FC<AdjuntarArchivoProps> = ({ onUpload }) => {
         variant: "destructive",
         duration: 5000,
       });
-      e.target.value = ''; // Resetear el input
+      e.target.value = '';
       return;
     }
 
@@ -117,10 +110,9 @@ const AdjuntarArchivo: React.FC<AdjuntarArchivoProps> = ({ onUpload }) => {
       <input
         ref={inputRef}
         type="file"
-        accept={ALLOWED_EXTENSIONS.map((ext) => `.${ext}`).join(',')} // Corregido para que el accept sea correcto
-        className="hidden" // sr-only o absolute + opacity-0 son otras opciones para accesibilidad
+        accept={allowedExtensions.map((ext) => `.${ext}`).join(',')}
+        className="hidden"
         onChange={handleFileChange}
-        // Multiple no está habilitado, se sube de a uno.
       />
       {/* El span de error local se ha eliminado. Los errores se muestran mediante toasts. */}
     </div>

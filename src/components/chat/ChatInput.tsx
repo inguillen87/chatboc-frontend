@@ -110,6 +110,7 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
 
   return (
     <div className="w-full flex items-center gap-1 sm:gap-2 px-2 py-2 sm:px-3 sm:py-3 bg-background">
+      <AdjuntarArchivo onUpload={handleFileUploaded} asImage />
       <AdjuntarArchivo onUpload={handleFileUploaded} />
       <button
         onClick={handleShareLocation}
