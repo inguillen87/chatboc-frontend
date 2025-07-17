@@ -164,22 +164,20 @@ export default function TicketsPanel() {
     setIsLoading(true);
 
     try {
-        // Siempre obtener todos los tickets para el buscador
         const allTicketsData = await apiFetch<{tickets: TicketSummary[]}>('/tickets', { sendEntityToken: true });
 
+        let ticketsWithFullDetails: TicketSummary[] = [];
         if (allTicketsData && allTicketsData.tickets) {
-          // Normalizar los datos completos
-          const ticketsWithFullDetails = allTicketsData.tickets.map(ticket => ({
-              ...ticket,
-              sla_status: ticket.sla_status || null,
-              priority: ticket.priority || null,
-          }));
-          setAllTickets(ticketsWithFullDetails);
+            ticketsWithFullDetails = allTicketsData.tickets.map(ticket => ({
+                ...ticket,
+                sla_status: ticket.sla_status || null,
+                priority: ticket.priority || null,
+            }));
+            setAllTickets(ticketsWithFullDetails);
         } else {
-          setAllTickets([]);
+            setAllTickets([]);
         }
 
-        // Derivar categorías disponibles de la lista completa
         const allCategories = new Set(ticketsWithFullDetails.map(t => t.categoria).filter(Boolean));
         const sortedCategories = Array.from(allCategories).sort((a, b) => {
             const nameA = categoryNames[a!] || a!;
@@ -462,7 +460,7 @@ return (
     </header>
 
     <main className="flex flex-1 overflow-hidden">
-      {/* Panel de Lista de Tickets */}
+      {/* Panel de Lista de Tickets (Izquierda) */}
       <div
         className={cn(
           "w-full md:w-2/5 lg:w-1/3 xl:w-1/4 border-r dark:border-slate-700 bg-card dark:bg-slate-800/50 flex flex-col transition-all duration-300 ease-in-out",
@@ -517,35 +515,33 @@ return (
         </ScrollArea>
       </div>
 
-      {/* Panel de Detalle del Ticket */}
-      <AnimatePresence>
-        {selectedTicketId && detailedTicket && (
-          <motion.div
-            key={selectedTicketId}
-            className="w-full md:w-3/5 lg:w-2/3 xl:w-3/4 flex flex-col bg-background dark:bg-slate-900"
-            initial={{ x: "100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "100%" }}
-            transition={{ type: "spring", stiffness: 300, damping: 30 }}
-          >
-            <TicketDetail_Refactored
-              ticket={detailedTicket}
-              onTicketUpdate={handleTicketDetailUpdate}
-              onClose={closeDetailPanel}
-              categoryNames={categoryNames}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Placeholder cuando no hay ticket seleccionado en vista de escritorio */}
-      {!selectedTicketId && (
-          <div className="hidden md:flex flex-col items-center justify-center w-3/5 lg:w-2/3 xl:w-3/4 p-8 text-center bg-muted/50 dark:bg-slate-800/20">
-              <TicketIcon className="h-16 w-16 text-muted-foreground/50" strokeWidth={1} />
-              <h2 className="mt-4 text-xl font-semibold text-foreground">Seleccione un Ticket</h2>
-              <p className="mt-1 text-muted-foreground">Elija un ticket de la lista para ver sus detalles, historial y responder.</p>
-          </div>
-      )}
+      {/* Panel Central (Chat) y Panel Derecho (Detalles) */}
+      <div className="flex-1 flex flex-col bg-background dark:bg-slate-900 overflow-hidden">
+        <AnimatePresence>
+          {selectedTicketId && detailedTicket ? (
+            <motion.div
+              key={selectedTicketId}
+              className="flex-1 flex overflow-hidden"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <TicketDetail_Refactored
+                ticket={detailedTicket}
+                onTicketUpdate={handleTicketDetailUpdate}
+                onClose={closeDetailPanel}
+                categoryNames={categoryNames}
+              />
+            </motion.div>
+          ) : (
+            <div className="hidden md:flex flex-col items-center justify-center h-full p-8 text-center bg-muted/50 dark:bg-slate-800/20">
+                <TicketIcon className="h-16 w-16 text-muted-foreground/50" strokeWidth={1} />
+                <h2 className="mt-4 text-xl font-semibold text-foreground">Seleccione un Ticket</h2>
+                <p className="mt-1 text-muted-foreground">Elija un ticket de la lista para ver sus detalles, historial y responder.</p>
+            </div>
+          )}
+        </AnimatePresence>
+      </div>
     </main>
   </div>
 );
@@ -993,70 +989,65 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
             </div>
         </div>
 
-        <motion.div
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: isDetailOpen ? 1 : 0, height: isDetailOpen ? 'auto' : 0 }}
-          transition={{ duration: 0.3 }}
-          className="flex-1 flex flex-col md:flex-row overflow-hidden"
-        >
+        <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+            {/* Panel de Chat (Centro) */}
             <div className="flex-1 flex flex-col p-2 md:p-4 bg-background dark:bg-slate-700/30 md:border-r dark:border-slate-700">
                 {!chatEnVivo && (
                     <div className="p-2 flex justify-end">
                         <Button size="sm" variant="outline" onClick={() => fetchComentarios(true)} className="text-xs h-8">
-                        Actualizar mensajes
+                            Actualizar mensajes
                         </Button>
                     </div>
                 )}
                 <ScrollArea className="flex-1 pr-2">
                     <main className="space-y-3 p-1">
-                    {comentarios && comentarios.length > 0 ? (
-                        [...comentarios].reverse().map((comment) => {
-                        const attachment = getAttachmentInfo(comment.comentario);
-                        return (
-                            <div
-                            key={comment.id}
-                            className={cn(
-                                'flex items-end gap-2 text-sm',
-                                comment.es_admin ? 'justify-end' : 'justify-start'
-                            )}
-                            >
-                            {!comment.es_admin && <AvatarIcon type="user" />}
-                            <div
-                                className={cn(
-                                'max-w-lg md:max-w-md lg:max-w-lg rounded-xl px-3.5 py-2.5 shadow-sm',
-                                comment.es_admin
-                                    ? 'bg-primary text-primary-foreground rounded-br-sm'
-                                    : 'bg-card dark:bg-slate-800 text-foreground border dark:border-slate-700/80 rounded-bl-sm',
-                                // Conditional styling for synthetic file comments
-                                typeof comment.id === 'string' && comment.id.startsWith('client-file-') && comment.es_admin
-                                    ? 'bg-primary/80 border border-primary/50' // Slightly different style for admin file messages
-                                    : typeof comment.id === 'string' && comment.id.startsWith('client-file-')
-                                        ? 'bg-muted border border-border' // Style for non-admin (though currently files are admin-sent)
-                                        : ''
-                                )}
-                            >
-                                {attachment ? (
-                                <AttachmentPreview attachment={attachment} />
-                                ) : (
-                                <p className="break-words whitespace-pre-wrap">{comment.comentario}</p>
-                                )}
-                                <p className={cn(
-                                    "text-xs opacity-70 mt-1.5",
-                                    comment.es_admin ? "text-primary-foreground/80 text-right" : "text-muted-foreground text-right"
-                                    )}>
-                                {formatDate(comment.fecha, timezone, locale)}
-                                </p>
+                        {comentarios && comentarios.length > 0 ? (
+                            [...comentarios].reverse().map((comment) => {
+                                const attachment = getAttachmentInfo(comment.comentario);
+                                return (
+                                    <div
+                                        key={comment.id}
+                                        className={cn(
+                                            'flex items-end gap-2 text-sm',
+                                            comment.es_admin ? 'justify-end' : 'justify-start'
+                                        )}
+                                    >
+                                        {!comment.es_admin && <AvatarIcon type="user" />}
+                                        <div
+                                            className={cn(
+                                                'max-w-lg md:max-w-md lg:max-w-lg rounded-xl px-3.5 py-2.5 shadow-sm',
+                                                comment.es_admin
+                                                    ? 'bg-primary text-primary-foreground rounded-br-sm'
+                                                    : 'bg-card dark:bg-slate-800 text-foreground border dark:border-slate-700/80 rounded-bl-sm',
+                                                typeof comment.id === 'string' && comment.id.startsWith('client-file-') && comment.es_admin
+                                                    ? 'bg-primary/80 border border-primary/50'
+                                                    : typeof comment.id === 'string' && comment.id.startsWith('client-file-')
+                                                        ? 'bg-muted border border-border'
+                                                        : ''
+                                            )}
+                                        >
+                                            {attachment ? (
+                                                <AttachmentPreview attachment={attachment} />
+                                            ) : (
+                                                <p className="break-words whitespace-pre-wrap">{comment.comentario}</p>
+                                            )}
+                                            <p className={cn(
+                                                "text-xs opacity-70 mt-1.5",
+                                                comment.es_admin ? "text-primary-foreground/80 text-right" : "text-muted-foreground text-right"
+                                            )}>
+                                                {formatDate(comment.fecha, timezone, locale)}
+                                            </p>
+                                        </div>
+                                        {comment.es_admin && <AvatarIcon type="admin" />}
+                                    </div>
+                                );
+                            })
+                        ) : (
+                            <div className="text-center text-muted-foreground py-10">
+                                No hay comentarios para este ticket.
                             </div>
-                            {comment.es_admin && <AvatarIcon type="admin" />}
-                            </div>
-                        );
-                        })
-                    ) : (
-                        <div className="text-center text-muted-foreground py-10">
-                        No hay comentarios para este ticket.
-                        </div>
-                    )}
-                    <div ref={chatBottomRef} />
+                        )}
+                        <div ref={chatBottomRef} />
                     </main>
                 </ScrollArea>
                 <footer className="border-t dark:border-slate-700/80 p-2 md:p-3 mt-2 flex flex-col gap-2 flex-shrink-0 sticky bottom-0 bg-background dark:bg-slate-900">
@@ -1081,17 +1072,17 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
                             <Sparkles className="h-5 w-5" />
                         </Button>
                         <Input
-                        value={newMessage}
-                        onChange={(e) => setNewMessage(e.target.value)}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter' && !e.shiftKey && (newMessage.trim() || selectedFile)) {
-                                e.preventDefault();
-                                handleSendMessage();
-                            }
-                        }}
-                        placeholder="Escribe una respuesta..."
-                        disabled={isSending}
-                        className="h-10 bg-card dark:bg-slate-800 focus-visible:ring-primary/50"
+                            value={newMessage}
+                            onChange={(e) => setNewMessage(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey && (newMessage.trim() || selectedFile)) {
+                                    e.preventDefault();
+                                    handleSendMessage();
+                                }
+                            }}
+                            placeholder="Escribe una respuesta..."
+                            disabled={isSending}
+                            className="h-10 bg-card dark:bg-slate-800 focus-visible:ring-primary/50"
                         />
                         <Button
                             onClick={handleSendMessage}
@@ -1104,126 +1095,133 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
                 </footer>
             </div>
 
-            <ScrollArea className="w-full md:w-[320px] lg:w-[360px] p-3 md:p-4 space-y-4 bg-card dark:bg-slate-800/50 md:border-l-0 border-t md:border-t-0 dark:border-slate-700">
-                {(ticket.priority || ticket.sla_status) && (
-                  <Card className="shadow-sm">
-                    <CardHeader className="pb-3 pt-4 px-4">
-                      <CardTitle className="text-base font-semibold">Prioridad y SLA</CardTitle>
-                    </CardHeader>
-                    <CardContent className="text-sm text-muted-foreground space-y-1.5 px-4 pb-4">
-                      {ticket.priority && PRIORITY_INFO[ticket.priority] && (
-                        <p><strong>Prioridad:</strong> <span className={cn(PRIORITY_INFO[ticket.priority]?.color)}>{PRIORITY_INFO[ticket.priority]?.label}</span></p>
-                      )}
-                      {ticket.sla_status && SLA_STATUS_INFO[ticket.sla_status] && (
-                        <p><strong>SLA:</strong> <span className={cn(SLA_STATUS_INFO[ticket.sla_status]?.color)}>{SLA_STATUS_INFO[ticket.sla_status]?.label}</span></p>
-                      )}
-                      {ticket.sla_deadline && (
-                        <p><strong>Vencimiento SLA:</strong> {formatDate(ticket.sla_deadline, timezone, locale, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
-                      )}
-                    </CardContent>
-                  </Card>
+            {/* Panel de Detalles (Derecha) */}
+            <AnimatePresence>
+                {isDetailOpen && (
+                    <motion.div
+                        initial={{ width: 0, opacity: 0 }}
+                        animate={{ width: isDetailOpen ? 360 : 0, opacity: isDetailOpen ? 1 : 0 }}
+                        exit={{ width: 0, opacity: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className="overflow-hidden"
+                    >
+                        <ScrollArea className="h-full w-[360px] p-3 md:p-4 space-y-4 bg-card dark:bg-slate-800/50 border-t md:border-t-0 md:border-l dark:border-slate-700">
+                            {(ticket.priority || ticket.sla_status) && (
+                              <Card className="shadow-sm">
+                                <CardHeader className="pb-3 pt-4 px-4">
+                                  <CardTitle className="text-base font-semibold">Prioridad y SLA</CardTitle>
+                                </CardHeader>
+                                <CardContent className="text-sm text-muted-foreground space-y-1.5 px-4 pb-4">
+                                  {ticket.priority && PRIORITY_INFO[ticket.priority] && (
+                                    <p><strong>Prioridad:</strong> <span className={cn(PRIORITY_INFO[ticket.priority]?.color)}>{PRIORITY_INFO[ticket.priority]?.label}</span></p>
+                                  )}
+                                  {ticket.sla_status && SLA_STATUS_INFO[ticket.sla_status] && (
+                                    <p><strong>SLA:</strong> <span className={cn(SLA_STATUS_INFO[ticket.sla_status]?.color)}>{SLA_STATUS_INFO[ticket.sla_status]?.label}</span></p>
+                                  )}
+                                  {ticket.sla_deadline && (
+                                    <p><strong>Vencimiento SLA:</strong> {formatDate(ticket.sla_deadline, timezone, locale, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                                  )}
+                                </CardContent>
+                              </Card>
+                            )}
+
+                            {(ticket.nombre_usuario || ticket.email_usuario || ticket.telefono) && (
+                                <Card className="shadow-sm">
+                                    <CardHeader className="pb-3 pt-4 px-4">
+                                        <CardTitle className="text-base font-semibold flex items-center gap-2">
+                                            <User className="h-4 w-4 text-muted-foreground"/> Información del Usuario
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="text-sm text-muted-foreground space-y-1.5 px-4 pb-4">
+                                        {ticket.nombre_usuario && <p><strong>Nombre:</strong> {ticket.nombre_usuario}</p>}
+                                        {ticket.email_usuario && <p><strong>Email:</strong> <a href={`mailto:${ticket.email_usuario}`} className="text-primary hover:underline">{ticket.email_usuario}</a></p>}
+                                        {ticket.telefono && (
+                                            <div className="flex items-center gap-2">
+                                                <p className="flex-shrink-0"><strong>Teléfono:</strong></p>
+                                                <a href={`tel:${ticket.telefono}`} className="text-primary hover:underline truncate" title={ticket.telefono}>{ticket.telefono}</a>
+                                                {(() => {
+                                                    const formattedPhone = formatPhoneNumberForWhatsApp(ticket.telefono);
+                                                    if (formattedPhone) {
+                                                        const adminName = user?.name || 'el equipo del municipio';
+                                                        const municipioName = ticket.municipio_nombre || 'el municipio';
+                                                        const messageText = `Hola ${ticket.nombre_usuario || 'vecino/a'}, le contactamos desde ${municipioName} (agente: ${adminName}) en relación a su ticket N°${ticket.nro_ticket || '[Nro Ticket]'}.`;
+                                                        const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(messageText)}`;
+                                                        return (
+                                                            <a
+                                                                href={whatsappUrl}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                title="Enviar mensaje de WhatsApp"
+                                                                className="ml-1 flex-shrink-0"
+                                                            >
+                                                                <MessageSquare className="h-4 w-4 text-green-600 hover:text-green-700 cursor-pointer" />
+                                                            </a>
+                                                        );
+                                                    }
+                                                    return null;
+                                                })()}
+                                            </div>
+                                        )}
+                                    </CardContent>
+                                </Card>
+                            )}
+
+                            <TicketTimeline ticket={ticket} comentarios={comentarios} />
+
+                            <Card className="shadow-sm">
+                                <CardHeader className="pb-3 pt-4 px-4">
+                                    <CardTitle className="text-base font-semibold">Descripción del Reclamo</CardTitle>
+                                </CardHeader>
+                                <CardContent className="px-4 pb-4 text-sm text-muted-foreground whitespace-pre-wrap break-words">
+                                    {ticket.pregunta || ticket.detalles || "No hay descripción detallada disponible."}
+                                </CardContent>
+                            </Card>
+
+                            <TicketMap ticket={ticket} />
+
+                            <Card className="shadow-sm">
+                                <CardHeader className="pb-3 pt-4 px-4">
+                                    <CardTitle className="text-base font-semibold">Archivos Adjuntos al Ticket</CardTitle>
+                                </CardHeader>
+                                <CardContent className="px-4 pb-4 space-y-2">
+                                    {(ticket.archivos_adjuntos && ticket.archivos_adjuntos.length > 0) ? (
+                                        ticket.archivos_adjuntos.map((adj, index) => {
+                                            const attachmentInfoForPreview: AttachmentInfo = deriveAttachmentInfo(
+                                                adj.url,
+                                                adj.name,
+                                                adj.mimeType,
+                                                adj.size
+                                            );
+                                            if (attachmentInfoForPreview.url.startsWith('/')) {
+                                                const apiUrl = (import.meta.env.VITE_API_URL || '').replace(/\/api$/, '');
+                                                if (apiUrl) {
+                                                    attachmentInfoForPreview.url = `${apiUrl}${attachmentInfoForPreview.url}`;
+                                                }
+                                            }
+                                            return (
+                                                <AttachmentPreview key={adj.id || index} attachment={attachmentInfoForPreview} />
+                                            );
+                                        })
+                                    ) : (
+                                        <p className="text-sm text-muted-foreground">No hay archivos adjuntos para este ticket.</p>
+                                    )}
+                                </CardContent>
+                            </Card>
+
+                            <Card className="shadow-sm">
+                                 <CardHeader className="pb-3 pt-4 px-4"><CardTitle className="text-base font-semibold">Detalles del Ticket</CardTitle></CardHeader>
+                                 <CardContent className="text-sm text-muted-foreground space-y-1.5 px-4 pb-4">
+                                    <p><strong>Categoría:</strong> {categoryNames[ticket.categoria || ''] || ticket.categoria || "No especificada"}</p>
+                                    <p><strong>Tipo:</strong> {ticket.tipo}</p>
+                                    {ticket.municipio_nombre && <p><strong>Municipio:</strong> {ticket.municipio_nombre}</p>}
+                                    <p><strong>Creado:</strong> {formatDate(ticket.fecha, timezone, locale, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                                 </CardContent>
+                            </Card>
+                        </ScrollArea>
+                    </motion.div>
                 )}
-
-                {(ticket.nombre_usuario || ticket.email_usuario || ticket.telefono) && (
-                <Card className="shadow-sm">
-                    <CardHeader className="pb-3 pt-4 px-4">
-                        <CardTitle className="text-base font-semibold flex items-center gap-2">
-                            <User className="h-4 w-4 text-muted-foreground"/> Información del Usuario
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="text-sm text-muted-foreground space-y-1.5 px-4 pb-4">
-                    {ticket.nombre_usuario && <p><strong>Nombre:</strong> {ticket.nombre_usuario}</p>}
-                    {ticket.email_usuario && <p><strong>Email:</strong> <a href={`mailto:${ticket.email_usuario}`} className="text-primary hover:underline">{ticket.email_usuario}</a></p>}
-                    {ticket.telefono && (
-                        <div className="flex items-center gap-2">
-                            <p className="flex-shrink-0"><strong>Teléfono:</strong></p>
-                            <a href={`tel:${ticket.telefono}`} className="text-primary hover:underline truncate" title={ticket.telefono}>{ticket.telefono}</a>
-                            {(() => {
-                                const formattedPhone = formatPhoneNumberForWhatsApp(ticket.telefono);
-                                if (formattedPhone) {
-                                    const adminName = user?.name || 'el equipo del municipio';
-                                    const municipioName = ticket.municipio_nombre || 'el municipio';
-                                    // Using more generic placeholders if specific ticket details are not crucial for an initial WhatsApp message
-                                    const messageText = `Hola ${ticket.nombre_usuario || 'vecino/a'}, le contactamos desde ${municipioName} (agente: ${adminName}) en relación a su ticket N°${ticket.nro_ticket || '[Nro Ticket]'}.`;
-                                    const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(messageText)}`;
-                                    return (
-                                    <a
-                                        href={whatsappUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        title="Enviar mensaje de WhatsApp"
-                                        className="ml-1 flex-shrink-0"
-                                    >
-                                        <MessageSquare className="h-4 w-4 text-green-600 hover:text-green-700 cursor-pointer" />
-                                    </a>
-                                    );
-                                }
-                                return null;
-                            })()}
-                        </div>
-                    )}
-                    </CardContent>
-                </Card>
-                )}
-
-                <TicketTimeline ticket={ticket} comentarios={comentarios} />
-
-                <Card className="shadow-sm">
-                    <CardHeader className="pb-3 pt-4 px-4">
-                        <CardTitle className="text-base font-semibold">Descripción del Reclamo</CardTitle>
-                    </CardHeader>
-                    <CardContent className="px-4 pb-4 text-sm text-muted-foreground whitespace-pre-wrap break-words">
-                        {ticket.pregunta || ticket.detalles || "No hay descripción detallada disponible."}
-                    </CardContent>
-                </Card>
-
-                <TicketMap ticket={ticket} />
-
-                <Card className="shadow-sm">
-                    <CardHeader className="pb-3 pt-4 px-4">
-                        <CardTitle className="text-base font-semibold">Archivos Adjuntos al Ticket</CardTitle>
-                    </CardHeader>
-                    <CardContent className="px-4 pb-4 space-y-2">
-                        {(ticket.archivos_adjuntos && ticket.archivos_adjuntos.length > 0) ? (
-                            ticket.archivos_adjuntos.map((adj, index) => {
-                                // Construct AttachmentInfo for AttachmentPreview
-                                // The backend provides 'name', 'url', 'mimeType', 'size' for each adjunto.
-                                // deriveAttachmentInfo can determine 'type' and 'extension'.
-                                const attachmentInfoForPreview: AttachmentInfo = deriveAttachmentInfo(
-                                    adj.url, // adj.url is typically relative like /tickets/archivos/filename.ext
-                                    adj.name,
-                                    adj.mimeType,
-                                    adj.size
-                                );
-                                // If VITE_API_URL is set and URL is relative, make it absolute for preview
-                                // This helps if no proxy is set up for /tickets/archivos
-                                if (attachmentInfoForPreview.url.startsWith('/')) {
-                                    const apiUrl = (import.meta.env.VITE_API_URL || '').replace(/\/api$/, '');
-                                    if (apiUrl) { // Only prepend if VITE_API_URL is defined
-                                        attachmentInfoForPreview.url = `${apiUrl}${attachmentInfoForPreview.url}`;
-                                    }
-                                }
-                                return (
-                                    <AttachmentPreview key={adj.id || index} attachment={attachmentInfoForPreview} />
-                                );
-                            })
-                        ) : (
-                            <p className="text-sm text-muted-foreground">No hay archivos adjuntos para este ticket.</p>
-                        )}
-                    </CardContent>
-                </Card>
-
-                <Card className="shadow-sm">
-                     <CardHeader className="pb-3 pt-4 px-4"><CardTitle className="text-base font-semibold">Detalles del Ticket</CardTitle></CardHeader>
-                     <CardContent className="text-sm text-muted-foreground space-y-1.5 px-4 pb-4">
-                        <p><strong>Categoría:</strong> {categoryNames[ticket.categoria || ''] || ticket.categoria || "No especificada"}</p>
-                        <p><strong>Tipo:</strong> {ticket.tipo}</p>
-                        {ticket.municipio_nombre && <p><strong>Municipio:</strong> {ticket.municipio_nombre}</p>}
-                        <p><strong>Creado:</strong> {formatDate(ticket.fecha, timezone, locale, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
-                     </CardContent>
-                </Card>
-            </ScrollArea>
-        </motion.div>
+            </AnimatePresence>
+        </div>
         <TemplateSelector
             isOpen={isTemplateSelectorOpen}
             onClose={() => setIsTemplateSelectorOpen(false)}
