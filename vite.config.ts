@@ -2,18 +2,17 @@ import { defineConfig } from "vite";
 /// <reference types="vitest" />
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
-// import { defineConfig } from 'vite'; // Ya está importado arriba
-import { VitePWA } from 'vite-plugin-pwa'; // AÑADIDO: Importar VitePWA
+import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
   plugins: [
     react(),
-    VitePWA({ // AÑADIDO: Configuración de VitePWA
-      registerType: 'autoUpdate', // Actualiza el SW automáticamente cuando hay una nueva versión
-      injectRegister: 'auto', // Inyecta el script de registro del SW automáticamente
+    VitePWA({
+      registerType: 'autoUpdate',
+      injectRegister: 'auto',
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff,woff2}'], // Archivos a precachear
-        runtimeCaching: [ // Estrategias de caching en runtime
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff,woff2}'],
+        runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
             handler: 'CacheFirst',
@@ -43,10 +42,11 @@ export default defineConfig({
             }
           },
           {
-            // Cache para las llamadas a tu API (ej. /api/ o el VITE_API_URL)
-            // Ajusta urlPattern según tu endpoint de API
-            urlPattern: ({ url }) => url.pathname.startsWith('/api') || url.origin === import.meta.env.VITE_API_URL,
-            handler: 'NetworkFirst', // Intenta la red primero, luego cache si offline
+            // Cache para las llamadas a tu API
+            urlPattern: ({ url }) =>
+              url.pathname.startsWith('/api') ||
+              url.origin === import.meta.env.VITE_API_URL,
+            handler: 'NetworkFirst',
             options: {
               cacheName: 'api-cache',
               expiration: {
@@ -54,14 +54,14 @@ export default defineConfig({
                 maxAgeSeconds: 60 * 60 * 24 * 1 // 1 día
               },
               cacheableResponse: {
-                statuses: [0, 200] // Cachea respuestas exitosas
+                statuses: [0, 200]
               },
-              networkTimeoutSeconds: 10 // Timeout para la red antes de recurrir al cache
+              networkTimeoutSeconds: 10
             }
           }
         ]
       },
-      manifest: { // Re-declarar el manifest aquí asegura que vite-plugin-pwa lo procese
+      manifest: {
         name: "Chatboc - IA para Gobiernos y Empresas",
         short_name: "Chatboc",
         description: "Plataforma IA con CRM y Chatbots para optimizar la comunicación y gestión en municipios y empresas.",
@@ -71,7 +71,7 @@ export default defineConfig({
         orientation: "portrait-primary",
         start_url: "/",
         lang: "es-AR",
-        icons: [ // Es bueno tenerlos aquí también, el plugin puede optimizarlos
+        icons: [
           {
             "src": "/favicon/favicon-192x192.png",
             "sizes": "192x192",
@@ -85,13 +85,13 @@ export default defineConfig({
             "purpose": "any"
           },
           {
-            "src": "/favicon/favicon-maskable-192x192.png", // Asegúrate que estos existan o usa los normales
+            "src": "/favicon/favicon-maskable-192x192.png",
             "sizes": "192x192",
             "type": "image/png",
             "purpose": "maskable"
           },
           {
-            "src": "/favicon/favicon-maskable-512x512.png", // Asegúrate que estos existan o usa los normales
+            "src": "/favicon/favicon-maskable-512x512.png",
             "sizes": "512x512",
             "type": "image/png",
             "purpose": "maskable"
@@ -102,20 +102,40 @@ export default defineConfig({
   ],
   server: {
     port: 8080,
-    // Proxy API requests during development to avoid CORS issues
-    // proxy: {
-    //   '/api': {
-    //     target: 'http://localhost:5000', // Target local backend
-    //     changeOrigin: true,
-    //     secure: false, // Local backend is likely HTTP
-    //   },
-    //   // Si tienes un servidor de socket.io separado o en el mismo backend pero diferente path/puerto para WS
-    //   // '/socket.io': {
-    //   //   target: 'ws://localhost:3000', // Asegúrate que coincida con tu backend de socket.io
-    //   //   ws: true,
-    //   //   changeOrigin: true,
-    //   // },
-    // },
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+        secure: false,
+      },
+      // Si tenés endpoints directos sin prefijo /api, agregalos abajo:
+      '/login': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/register': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/me': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/rubros': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/ask': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+        secure: false,
+      },
+      // Agregá otros endpoints backend si los usás directamente desde el frontend
+    },
   },
   resolve: {
     alias: {
@@ -130,8 +150,6 @@ export default defineConfig({
       },
     },
   },
-  // No es necesario marcar "path" como externo ya que solo se
-  // utiliza en la configuración y no en el bundle final.
   test: {
     globals: true,
     environment: 'jsdom',
