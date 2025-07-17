@@ -108,7 +108,6 @@ export default defineConfig({
         target: 'http://localhost:5000', // Target local backend
         changeOrigin: true,
         secure: false, // Local backend is likely HTTP
-        rewrite: (path) => path.replace(/^\/api/, ''),
       },
       // Si tienes un servidor de socket.io separado o en el mismo backend pero diferente path/puerto para WS
       // '/socket.io': {
