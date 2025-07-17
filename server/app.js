@@ -16,6 +16,7 @@ const {
 const sessionMiddleware = require('./session');
 const cartRoutes = require('./cartRoutes');
 const preferences = require('./preferences');
+const authRoutes = require('./auth');
 
 const app = express();
 app.use(express.json());
@@ -166,6 +167,8 @@ app.post('/ask/pyme', (req, res) => {
 });
 
 app.use('/carrito', cartRoutes);
+
+app.use('/api', authRoutes);
 
 // Endpoint para subir archivos
 app.post('/archivos/subir', upload.single('archivo'), (req, res) => {
