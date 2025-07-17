@@ -25,7 +25,7 @@ const ComingSoonSection = () => {
                 Plataforma de encuestas y análisis de datos para entender la opinión pública en tiempo real y tomar decisiones informadas.
               </p>
               <img
-                src="/images/opinar-mockup.png"
+                src="/images/placeholder.svg"
                 alt="Mockup de Opinar.ar"
                 className="mt-4 rounded-xl w-full max-w-[90%] h-auto shadow-lg"
               />
