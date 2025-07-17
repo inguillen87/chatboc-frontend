@@ -23,13 +23,16 @@ app.use(express.json());
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader(
-    'Access-Control-Allow-Headers',
-    'Authorization, Content-Type, Anon-Id'
-  );
+    'Access-control-Allow-Headers',
+    'Authorization, Content-Type, Anon-Id, X-Chat-Session-Id, X-Entity-Token'
+    );
   res.setHeader(
     'Access-Control-Allow-Methods',
     'GET, POST, PUT, DELETE, PATCH, OPTIONS'
   );
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
   next();
 });
 app.use(sessionMiddleware);
