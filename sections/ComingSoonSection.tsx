@@ -20,15 +20,20 @@ const ComingSoonSection = () => {
                 alt="Icono opinar.ar"
                 className="w-20 h-20 mb-4"
               />
-              <h3 className="text-2xl font-semibold text-sky-600 dark:text-sky-400 mb-2">opinar.ar</h3>
+              <h3 className="text-2xl font-semibold text-sky-600 dark:text-sky-400 mb-2">Opinar.ar: Inteligencia Ciudadana al Instante</h3>
               <p className="text-muted-foreground mb-4 text-center">
-                Resultados en Tiempo Real, Decisiones al Instante.
+                Plataforma de encuestas y análisis de datos para entender la opinión pública en tiempo real y tomar decisiones informadas.
               </p>
+              <img
+                src="/images/opinar-mockup.png"
+                alt="Mockup de Opinar.ar"
+                className="mt-4 rounded-xl w-full max-w-[90%] h-auto shadow-lg"
+              />
               <a
                 href="/opinar"
                 className="mt-6 inline-block bg-sky-600 text-white px-6 py-2 rounded-xl text-sm hover:bg-sky-700 transition"
               >
-                Conocer más
+                Descubrir Opinar.ar
               </a>
             </div>
           </div>
