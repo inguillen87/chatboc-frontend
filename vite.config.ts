@@ -105,7 +105,7 @@ export default defineConfig({
     // Proxy API requests during development to avoid CORS issues
     proxy: {
       '/api': {
-        target: 'http://localhost:3000', // Target local backend
+        target: 'http://localhost:5000', // Target local backend
         changeOrigin: true,
         secure: false, // Local backend is likely HTTP
         rewrite: (path) => path.replace(/^\/api/, ''),
