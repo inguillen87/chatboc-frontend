@@ -1010,7 +1010,7 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
                 <ScrollArea className="flex-1 pr-2">
                     <main className="space-y-3 p-1">
                     {comentarios && comentarios.length > 0 ? (
-                        comentarios.map((comment) => {
+                        [...comentarios].reverse().map((comment) => {
                         const attachment = getAttachmentInfo(comment.comentario);
                         return (
                             <div
@@ -1059,7 +1059,7 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
                     <div ref={chatBottomRef} />
                     </main>
                 </ScrollArea>
-                <footer className="border-t dark:border-slate-700/80 p-2 md:p-3 mt-2 flex flex-col gap-2 flex-shrink-0">
+                <footer className="border-t dark:border-slate-700/80 p-2 md:p-3 mt-2 flex flex-col gap-2 flex-shrink-0 sticky bottom-0 bg-background dark:bg-slate-900">
                     {selectedFile && (
                         <div className="p-2 border border-dashed dark:border-slate-600 rounded-md flex items-center justify-between bg-muted/50 dark:bg-slate-800/30">
                             <div className="flex items-center gap-2 text-sm text-muted-foreground truncate">
