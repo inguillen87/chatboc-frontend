@@ -165,10 +165,10 @@ export default function TicketsPanel() {
 
     try {
         // Siempre obtener todos los tickets para el buscador
-        const allTicketsData = await apiFetch<TicketSummary[]>('/tickets', { sendEntityToken: true });
+        const allTicketsData = await apiFetch<{tickets: TicketSummary[]}>('/tickets', { sendEntityToken: true });
 
         // Normalizar los datos completos
-        const ticketsWithFullDetails = allTicketsData.map(ticket => ({
+        const ticketsWithFullDetails = allTicketsData.tickets.map(ticket => ({
             ...ticket,
             sla_status: ticket.sla_status || null,
             priority: ticket.priority || null,
@@ -207,11 +207,11 @@ export default function TicketsPanel() {
   }, [fetchAndSetTickets]);
 
   useEffect(() => {
-    apiFetch<{ id: number; nombre: string }[]>('/municipal/categorias', { sendEntityToken: true })
+    apiFetch<{categorias: { id: number; nombre: string }[]}>('/municipal/categorias', { sendEntityToken: true })
       .then((data) => { // Expecting data to be Array<{id, nombre}> directly
         const mapping: Record<string, string> = {};
-        if (Array.isArray(data)) {
-          data.forEach((c) => {
+        if (Array.isArray(data.categorias)) {
+          data.categorias.forEach((c) => {
             mapping[String(c.id)] = c.nombre;
           });
         } else {
