@@ -12,6 +12,28 @@ const ComingSoonSection = () => {
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-10 mt-10">
+          {/* opinar.ar */}
+          <div className="bg-background rounded-2xl shadow-lg border border-border p-6 hover:shadow-xl transition duration-300">
+            <div className="flex flex-col items-center">
+              <img
+                src="/images/opinar-icon.svg"
+                alt="Icono opinar.ar"
+                className="w-20 h-20 mb-4"
+              />
+              <h3 className="text-2xl font-semibold text-sky-600 dark:text-sky-400 mb-2">opinar.ar</h3>
+              <p className="text-muted-foreground mb-4 text-center">
+                Resultados en Tiempo Real, Decisiones al Instante. Olvídese de esperar semanas por informes obsoletos. Vea cada respuesta en su dashboard al segundo de ser enviada, desde cualquier dispositivo. Filtre, analice y actúe sobre la opinión pública en vivo. Esto es agilidad.
+              </p>
+              <a
+                href="https://opinar.ar"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-6 inline-block bg-sky-600 text-white px-6 py-2 rounded-xl text-sm hover:bg-sky-700 transition"
+              >
+                Conocer más
+              </a>
+            </div>
+          </div>
           {/* ChatPos */}
           <div className="bg-background rounded-2xl shadow-lg border border-border p-6 hover:shadow-xl transition duration-300">
             <div className="flex flex-col items-center">
@@ -23,7 +45,7 @@ const ComingSoonSection = () => {
               <h3 className="text-2xl font-semibold text-green-600 dark:text-green-400 mb-2">ChatPos</h3>
               <p className="text-muted-foreground mb-4">
                 Sistema de punto de venta moderno para facturar, gestionar stock y ver reportes desde cualquier dispositivo.
-              </p>
+              p>
               <img
                 src="/images/chatpos.png"
                 alt="Mockup ChatPos"
@@ -60,29 +82,6 @@ const ComingSoonSection = () => {
                 className="mt-6 inline-block bg-purple-600 text-white px-6 py-2 rounded-xl text-sm hover:bg-purple-700 transition"
               >
                 Ver demo
-              </a>
-            </div>
-          </div>
-
-          {/* opinar.ar */}
-          <div className="bg-background rounded-2xl shadow-lg border border-border p-6 hover:shadow-xl transition duration-300">
-            <div className="flex flex-col items-center">
-              <img
-                src="/images/opinar-icon.svg"
-                alt="Icono opinar.ar"
-                className="w-20 h-20 mb-4"
-              />
-              <h3 className="text-2xl font-semibold text-sky-600 dark:text-sky-400 mb-2">opinar.ar</h3>
-              <p className="text-muted-foreground mb-4 text-center">
-                Resultados en Tiempo Real, Decisiones al Instante
-              </p>
-              <a
-                href="https://opinar.ar"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-6 inline-block bg-sky-600 text-white px-6 py-2 rounded-xl text-sm hover:bg-sky-700 transition"
-              >
-                Conocer más
               </a>
             </div>
           </div>
