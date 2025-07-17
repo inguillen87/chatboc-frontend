@@ -11,7 +11,7 @@ const ComingSoonSection = () => {
           Estamos desarrollando nuevas herramientas para que puedas vender más, automatizar tu comercio y fidelizar a tus clientes como nunca antes. Muy pronto estarán disponibles.
         </p>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-10 mt-10">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-10 mt-10">
           {/* opinar.ar */}
           <div className="bg-background rounded-2xl shadow-lg border border-border p-6 hover:shadow-xl transition duration-300">
             <div className="flex flex-col items-center">
