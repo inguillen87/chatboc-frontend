@@ -81,9 +81,9 @@ const Index = () => {
         <section id="cta">
           <CtaSection />
         </section>
-        {/* <section id="proximamente"> // Considerar si esta sección sigue siendo relevante o se integra en otra
+        <section id="proximamente">
           <ComingSoonSection />
-        </section> */}
+        </section>
       </main>
       {showWidget && <ChatWidget mode="standalone" defaultOpen={false} />}
     </>

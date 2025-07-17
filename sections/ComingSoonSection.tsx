@@ -45,7 +45,7 @@ const ComingSoonSection = () => {
               <h3 className="text-2xl font-semibold text-green-600 dark:text-green-400 mb-2">ChatPos</h3>
               <p className="text-muted-foreground mb-4">
                 Sistema de punto de venta moderno para facturar, gestionar stock y ver reportes desde cualquier dispositivo.
-              p>
+              </p>
               <img
                 src="/images/chatpos.png"
                 alt="Mockup ChatPos"
