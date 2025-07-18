@@ -45,7 +45,6 @@ import CartPage from '@/pages/Cart';
 import ProductCheckoutPage from '@/pages/ProductCheckoutPage';
 import GestionPlantillasPage from '@/pages/GestionPlantillasPage';
 import CatalogMappingPage from '@/pages/admin/CatalogMappingPage';
-import OpinarArPage from '@/pages/OpinarArPage';
 
 // NUEVAS IMPORTACIONES PARA EL PORTAL DE USUARIO
 // UserPortalLayout no se importa aquí si se usa como Layout Route en App.tsx
