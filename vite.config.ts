@@ -5,6 +5,9 @@ import path from "path";
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
+  define: {
+    'process.env.VITE_API_URL': JSON.stringify(process.env.VITE_API_URL)
+  },
   plugins: [
     react(),
     VitePWA({
@@ -45,7 +48,7 @@ export default defineConfig({
             // Cache para las llamadas a tu API
             urlPattern: ({ url }) =>
               url.pathname.startsWith('/api') ||
-              url.origin === import.meta.env.VITE_API_URL,
+              url.origin === process.env.VITE_API_URL,
             handler: 'NetworkFirst',
             options: {
               cacheName: 'api-cache',
