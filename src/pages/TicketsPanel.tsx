@@ -5,7 +5,6 @@ import { Loader2, Send, Ticket as TicketIcon, ChevronDown, ChevronUp, User, Shie
 import { motion, AnimatePresence } from "framer-motion";
 import { apiFetch, ApiError } from "@/utils/api";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
-// import getOrCreateAnonId from "@/utils/anonId"; // No se usa en admin panel
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -91,7 +90,7 @@ const TicketListItem: FC<{
   onSelect: () => void;
   timezone: string;
   locale: string;
-}> = ({ ticket, isSelected, onSelect, timezone, locale }) => {
+}> = React.memo(({ ticket, isSelected, onSelect, timezone, locale }) => {
   const slaInfo = ticket.sla_status ? SLA_STATUS_INFO[ticket.sla_status] : null;
   const priorityInfo = ticket.priority ? PRIORITY_INFO[ticket.priority] : null;
 
@@ -126,7 +125,7 @@ const TicketListItem: FC<{
       {ticket.nombre_usuario && <p className="text-xs text-muted-foreground truncate mt-0.5" title={ticket.nombre_usuario}>{ticket.nombre_usuario}</p>}
     </motion.div>
   );
-};
+});
 
 interface TicketDetailViewProps {
   ticket: Ticket;
@@ -145,59 +144,13 @@ export default function TicketsPanel() {
   const [error, setError] = useState<string | null>(null);
   const [allTickets, setAllTickets] = useState<TicketSummary[]>([]);
 
-  const [searchTermInput, setSearchTermInput] = useState("");
-  const debouncedSearchTerm = useDebounce(searchTermInput, 500); // Increased debounce time
   const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearchTerm = useDebounce(searchTerm, 500);
   const [statusFilter, setStatusFilter] = useState<TicketStatus | "">("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [availableCategories, setAvailableCategories] = useState<string[]>([]);
   const [categoryNames, setCategoryNames] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    setSearchTerm(debouncedSearchTerm);
-  }, [debouncedSearchTerm]);
-
-  const fetchAndSetTickets = useCallback(async (isManualRefresh = false) => {
-    if (!safeLocalStorage.getItem('authToken')) return;
-    if (isLoading && !isManualRefresh) return; // Evitar cargas concurrentes
-
-    setIsLoading(true);
-
-    try {
-        const allTicketsData = await apiFetch<{tickets: TicketSummary[]}>('/tickets', { sendEntityToken: true });
-
-        let ticketsWithFullDetails: TicketSummary[] = [];
-        if (allTicketsData && allTicketsData.tickets) {
-            ticketsWithFullDetails = allTicketsData.tickets.map(ticket => ({
-                ...ticket,
-                sla_status: ticket.sla_status || null,
-                priority: ticket.priority || null,
-            }));
-            setAllTickets(ticketsWithFullDetails);
-        } else {
-            setAllTickets([]);
-        }
-
-        const allCategories = new Set(ticketsWithFullDetails.map(t => t.categoria).filter(Boolean));
-        const sortedCategories = Array.from(allCategories).sort((a, b) => {
-            const nameA = categoryNames[a!] || a!;
-            const nameB = categoryNames[b!] || b!;
-            if (nameA === 'Sin Categoría') return 1;
-            if (nameB === 'Sin Categoría') return -1;
-            return nameA.localeCompare(nameB);
-        });
-        setAvailableCategories(sortedCategories as string[]);
-
-        setError(null);
-    } catch (err) {
-        console.error('Error al cargar los tickets', err);
-        const message = err instanceof ApiError ? err.message : 'Ocurrió un error al cargar los tickets.';
-        setError(message);
-        setAllTickets([]);
-    } finally {
-        setIsLoading(false);
-    }
-}, [isLoading, categoryNames]); // Dependencias simplificadas
+  const [isLoadingCategories, setIsLoadingCategories] = useState(true);
 
   const fetchInitialData = useCallback(async () => {
     if (!safeLocalStorage.getItem('authToken')) {
@@ -205,29 +158,59 @@ export default function TicketsPanel() {
       setIsLoading(false);
       return;
     }
-    await fetchAndSetTickets(true);
-  }, [fetchAndSetTickets]);
 
-  useEffect(() => {
-    apiFetch<{categorias: { id: number; nombre: string }[]}>('/municipal/categorias', { sendEntityToken: true })
-      .then((data) => { // Expecting data to be Array<{id, nombre}> directly
-        const mapping: Record<string, string> = {};
-        if (data && Array.isArray(data.categorias)) {
-          data.categorias.forEach((c) => {
-            mapping[String(c.id)] = c.nombre;
-          });
-        } else {
-          // This case should ideally not happen if backend is consistent and returns array
-          console.error('[TicketsPanel] Categories data from /municipal/categorias is not an array or data is null:', data);
-        }
-        setCategoryNames(mapping);
-      })
-      .catch((err) => {
-        console.error("[TicketsPanel] Error fetching municipal categories:", err);
-        setCategoryNames({});
+    setIsLoading(true);
+    setIsLoadingCategories(true);
+
+    try {
+      const [ticketsData, categoriesData] = await Promise.all([
+        apiFetch<{ tickets: TicketSummary[] }>('/tickets', { sendEntityToken: true }),
+        apiFetch<{ categorias: { id: number; nombre: string }[] }>('/municipal/categorias', { sendEntityToken: true })
+      ]);
+
+      // Process categories
+      const categoryMapping: Record<string, string> = {};
+      if (categoriesData && Array.isArray(categoriesData.categorias)) {
+        categoriesData.categorias.forEach((c) => {
+          categoryMapping[String(c.id)] = c.nombre;
+        });
+      }
+      setCategoryNames(categoryMapping);
+      setIsLoadingCategories(false);
+
+      // Process tickets
+      let ticketsWithFullDetails: TicketSummary[] = [];
+      if (ticketsData && ticketsData.tickets) {
+        ticketsWithFullDetails = ticketsData.tickets.map(ticket => ({
+          ...ticket,
+          sla_status: ticket.sla_status || null,
+          priority: ticket.priority || null,
+        }));
+        setAllTickets(ticketsWithFullDetails);
+      } else {
+        setAllTickets([]);
+      }
+
+      const allCategories = new Set(ticketsWithFullDetails.map(t => t.categoria).filter(Boolean));
+      const sortedCategories = Array.from(allCategories).sort((a, b) => {
+        const nameA = categoryMapping[a!] || a!;
+        const nameB = categoryMapping[b!] || b!;
+        if (nameA === 'Sin Categoría') return 1;
+        if (nameB === 'Sin Categoría') return -1;
+        return nameA.localeCompare(nameB);
       });
-  }, []);
+      setAvailableCategories(sortedCategories as string[]);
 
+      setError(null);
+    } catch (err) {
+      console.error('Error al cargar los datos iniciales', err);
+      const message = err instanceof ApiError ? err.message : 'Ocurrió un error al cargar los datos.';
+      setError(message);
+      setAllTickets([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     fetchInitialData();
@@ -236,15 +219,15 @@ export default function TicketsPanel() {
   useEffect(() => {
     const interval = setInterval(() => {
       if (document.visibilityState === 'visible' && !selectedTicketId) {
-        fetchAndSetTickets(false);
+        fetchInitialData();
       }
     }, 30000);
     return () => clearInterval(interval);
-  }, [fetchAndSetTickets, selectedTicketId]);
+  }, [fetchInitialData, selectedTicketId]);
 
   const filteredAndSortedGroups = useMemo(() => {
     const containsSearchTerm = (str: string | null | undefined) => {
-        return str && str.toLowerCase().includes(searchTerm.toLowerCase());
+        return str && str.toLowerCase().includes(debouncedSearchTerm.toLowerCase());
     };
 
     let filteredTickets = allTickets;
@@ -260,9 +243,9 @@ export default function TicketsPanel() {
     }
 
     // 3. Filtrar por término de búsqueda
-    if (searchTerm) {
+    if (debouncedSearchTerm) {
         filteredTickets = filteredTickets.filter(ticket => {
-            const searchTermLower = searchTerm.toLowerCase();
+            const searchTermLower = debouncedSearchTerm.toLowerCase();
             return (
                 ticket.id.toString().includes(searchTermLower) ||
                 ticket.nro_ticket.toString().includes(searchTermLower) ||
@@ -320,7 +303,7 @@ export default function TicketsPanel() {
         return a.categoryName.localeCompare(b.categoryName);
     });
 
-  }, [allTickets, searchTerm, statusFilter, categoryFilter, categoryNames]);
+  }, [allTickets, debouncedSearchTerm, statusFilter, categoryFilter, categoryNames]);
 
 
   const loadAndSetDetailedTicket = useCallback(async (ticketSummary: TicketSummary) => {
@@ -416,8 +399,8 @@ return (
           <Input
             placeholder="Buscar por ID, Nro, asunto, usuario, email, categoría, dirección..."
             className="pl-9 h-9"
-            value={searchTermInput}
-            onChange={(e) => setSearchTermInput(e.target.value)}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
         <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as TicketStatus | "")}>
@@ -442,15 +425,21 @@ return (
             </div>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="ALL_CATEGORIES">Todas las categorías</SelectItem>
-            {availableCategories.map((category) => (
-              <SelectItem key={category} value={category}>
-                {category === 'Sin Categoría' ? 'Sin Categoría' : categoryNames[category] || category}
-              </SelectItem>
-            ))}
+            {isLoadingCategories ? (
+              <SelectItem value="loading" disabled>Cargando categorías...</SelectItem>
+            ) : (
+              <>
+                <SelectItem value="ALL_CATEGORIES">Todas las categorías</SelectItem>
+                {availableCategories.map((category) => (
+                  <SelectItem key={category} value={category}>
+                    {category === 'Sin Categoría' ? 'Sin Categoría' : categoryNames[category] || category}
+                  </SelectItem>
+                ))}
+              </>
+            )}
           </SelectContent>
         </Select>
-        <Button variant="outline" onClick={() => fetchAndSetTickets(true)} className="h-9" disabled={isLoading}>
+        <Button variant="outline" onClick={() => fetchInitialData()} className="h-9" disabled={isLoading}>
           {isLoading
             ? <Loader2 className="h-4 w-4 animate-spin" />
             : <Filter className="h-4 w-4" />}
