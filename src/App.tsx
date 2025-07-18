@@ -40,8 +40,7 @@ function AppRoutes() {
     "/cuenta",
     '/chat',
     "/integracion",
-    "/demo",
-    "/opinar"
+    "/demo"
   ];
 
   // El .some() detecta si la ruta actual *empieza* igual que alguna de la lista
