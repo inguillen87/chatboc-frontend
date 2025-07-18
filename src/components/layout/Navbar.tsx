@@ -76,7 +76,7 @@ const Navbar: React.FC = () => {
             <button onClick={() => scrollToSection("como-funciona")} className="text-sm text-foreground/80 hover:text-primary dark:hover:text-primary transition-colors">Cómo Funciona</button>
             <button onClick={() => scrollToSection("precios")} className="text-sm text-foreground/80 hover:text-primary dark:hover:text-primary transition-colors">Precios</button>
             <button onClick={() => scrollToSection("publico-objetivo")} className="text-sm text-foreground/80 hover:text-primary dark:hover:text-primary transition-colors">Público Objetivo</button>
-            <RouterLink to="/opinar" className="text-sm text-foreground/80 hover:text-primary dark:hover:text-primary transition-colors">Próximamente</RouterLink>
+            <button onClick={() => scrollToSection("proximamente")} className="text-sm text-foreground/80 hover:text-primary dark:hover:text-primary transition-colors">Próximamente</button>
             <button onClick={() => scrollToSection("cta")} className="text-sm text-foreground/80 hover:text-primary dark:hover:text-primary transition-colors">Empezar</button>
           </nav>
         )}
@@ -121,7 +121,7 @@ const Navbar: React.FC = () => {
             <button onClick={() => scrollToSection("como-funciona")} className="hover:text-primary transition-colors">Cómo Funciona</button>
             <button onClick={() => scrollToSection("precios")} className="hover:text-primary transition-colors">Precios</button>
             <button onClick={() => scrollToSection("publico-objetivo")} className="hover:text-primary transition-colors">Público Objetivo</button>
-            <RouterLink to="/opinar" onClick={() => setMenuOpen(false)} className="hover:text-primary transition-colors">Próximamente</RouterLink>
+            <button onClick={() => scrollToSection("proximamente")} className="hover:text-primary transition-colors">Próximamente</button>
             <button onClick={() => scrollToSection("cta")} className="hover:text-primary transition-colors">Empezar</button>
             </>
           )}

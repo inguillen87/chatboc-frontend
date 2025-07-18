@@ -12,31 +12,6 @@ const ComingSoonSection = () => {
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-10 mt-10">
-          {/* opinar.ar */}
-          <div className="bg-background rounded-2xl shadow-lg border border-border p-6 hover:shadow-xl transition duration-300">
-            <div className="flex flex-col items-center">
-              <img
-                src="/images/opinar-icon.svg"
-                alt="Icono opinar.ar"
-                className="w-20 h-20 mb-4"
-              />
-              <h3 className="text-2xl font-semibold text-sky-600 dark:text-sky-400 mb-2">Opinar.ar: Inteligencia Ciudadana al Instante</h3>
-              <p className="text-muted-foreground mb-4 text-center">
-                Plataforma de encuestas y análisis de datos para entender la opinión pública en tiempo real y tomar decisiones informadas.
-              </p>
-              <img
-                src="/images/placeholder.svg"
-                alt="Mockup de Opinar.ar"
-                className="mt-4 rounded-xl w-full max-w-[90%] h-auto shadow-lg"
-              />
-              <a
-                href="/opinar"
-                className="mt-6 inline-block bg-sky-600 text-white px-6 py-2 rounded-xl text-sm hover:bg-sky-700 transition"
-              >
-                Descubrir Opinar.ar
-              </a>
-            </div>
-          </div>
           {/* ChatPos */}
           <div className="bg-background rounded-2xl shadow-lg border border-border p-6 hover:shadow-xl transition duration-300">
             <div className="flex flex-col items-center">
@@ -85,6 +60,31 @@ const ComingSoonSection = () => {
                 className="mt-6 inline-block bg-purple-600 text-white px-6 py-2 rounded-xl text-sm hover:bg-purple-700 transition"
               >
                 Ver demo
+              </a>
+            </div>
+          </div>
+          {/* opinar.ar */}
+          <div className="bg-background rounded-2xl shadow-lg border border-border p-6 hover:shadow-xl transition duration-300">
+            <div className="flex flex-col items-center">
+              <img
+                src="/images/opinar-icon.svg"
+                alt="Icono opinar.ar"
+                className="w-20 h-20 mb-4"
+              />
+              <h3 className="text-2xl font-semibold text-sky-600 dark:text-sky-400 mb-2">Opinar.ar: Inteligencia Ciudadana al Instante</h3>
+              <p className="text-muted-foreground mb-4 text-center">
+                Plataforma de encuestas y análisis de datos para entender la opinión pública en tiempo real y tomar decisiones informadas.
+              </p>
+              <img
+                src="/images/placeholder.svg"
+                alt="Mockup de Opinar.ar"
+                className="mt-4 rounded-xl w-full max-w-[90%] h-auto shadow-lg"
+              />
+              <a
+                href="/opinar"
+                className="mt-6 inline-block bg-sky-600 text-white px-6 py-2 rounded-xl text-sm hover:bg-sky-700 transition"
+              >
+                Descubrir Opinar.ar
               </a>
             </div>
           </div>
