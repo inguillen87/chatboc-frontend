@@ -17,7 +17,7 @@ async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise
   };
 
   // No establecer Content-Type si el body es FormData, el navegador lo hará.
-  if (!(options.body instanceof FormData) && options.body) {
+  if (!(options.body instanceof FormData)) {
     headers["Content-Type"] = "application/json";
   }
 
