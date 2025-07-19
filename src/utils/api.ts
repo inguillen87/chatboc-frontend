@@ -48,7 +48,7 @@ export async function apiFetch<T>(
   const headers: Record<string, string> = { ...(options.headers || {}) };
 
   const isForm = body instanceof FormData;
-  if (!isForm) headers["Content-Type"] = "application/json";
+  if (!isForm && body) headers["Content-Type"] = "application/json";
 
   // Add the chat session ID header to all requests
   headers["X-Chat-Session-Id"] = chatSessionId;
