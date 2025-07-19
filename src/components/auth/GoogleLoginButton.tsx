@@ -28,6 +28,7 @@ const GoogleLoginButton: React.FC<Props> = ({
   const navigate = useNavigate();
 
   const handleSuccess = async (cred: CredentialResponse) => {
+    console.log('Google login success:', cred);
     if (!cred || !cred.credential) return;
     try {
       const data = await apiFetch<LoginResponse>('/google-login', {
@@ -52,7 +53,7 @@ const GoogleLoginButton: React.FC<Props> = ({
     <div className={cn('flex justify-center', className)} {...props}>
       <GoogleLogin
         onSuccess={handleSuccess}
-        onError={() => console.error('Google OAuth popup closed')}
+        onError={(err) => console.error('Google OAuth error:', err)}
         useOneTap={false}
         locale="es"
         width={300}
