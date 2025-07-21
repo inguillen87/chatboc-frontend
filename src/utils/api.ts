@@ -60,7 +60,7 @@ export async function apiFetch<T>(
   if (((!token && anonId) || sendAnonId) && anonId) {
     headers["Anon-Id"] = anonId;
   }
-  if ((sendEntityToken || false) && entityToken) {
+  if (entityToken) {
     headers["X-Entity-Token"] = entityToken;
   }
 

@@ -17,6 +17,7 @@ interface LoginResponse {
   email: string;
   plan: string;
   tipo_chat?: 'pyme' | 'municipio';
+  entityToken?: string;
 }
 
 const Login = () => {
@@ -39,6 +40,9 @@ const Login = () => {
       });
 
       safeLocalStorage.setItem("authToken", data.token);
+      if (data.entityToken) {
+        safeLocalStorage.setItem("entityToken", data.entityToken);
+      }
 
       await refreshUser();
       navigate("/perfil");
