@@ -19,10 +19,10 @@ import { LOCALE_OPTIONS } from "@/utils/localeOptions";
 import useRequireRole from "@/hooks/useRequireRole";
 import type { Role } from "@/utils/roles";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { useUser } from '@/hooks/useUser'; // Ensured this is present
 import TemplateSelector, { MessageTemplate } from "@/components/tickets/TemplateSelector"; // Import TemplateSelector
 import { formatPhoneNumberForWhatsApp } from "@/utils/phoneUtils"; // Import WhatsApp phone formatter
-import TicketList from "@/components/tickets/TicketList";
 // TODO: Setup a toast component (e.g., Sonner or Shadcn's Toaster) and import its 'toast' function
 // For example: import { toast } from "sonner";
 // As a placeholder, we'll define a dummy toast object if not available globally.
@@ -35,12 +35,12 @@ const toast = (globalThis as any).toast || {
 
 
 // ----------- TIPOS Y ESTADOS -----------
-export type TicketStatus = "nuevo" | "en_proceso" | "derivado" | "resuelto" | "cerrado" | "esperando_agente_en_vivo";
-export type SlaStatus = "on_track" | "nearing_sla" | "breached" | null;
-export type PriorityStatus = "low" | "medium" | "high" | null;
+type TicketStatus = "nuevo" | "en_proceso" | "derivado" | "resuelto" | "cerrado" | "esperando_agente_en_vivo";
+type SlaStatus = "on_track" | "nearing_sla" | "breached" | null;
+type PriorityStatus = "low" | "medium" | "high" | null;
 
-export interface Comment { id: number; comentario: string; fecha: string; es_admin: boolean; }
-export interface Ticket {
+interface Comment { id: number; comentario: string; fecha: string; es_admin: boolean; }
+interface Ticket {
   id: number; tipo: 'pyme' | 'municipio'; nro_ticket: number; asunto: string; estado: TicketStatus; fecha: string;
   detalles?: string; comentarios?: Comment[]; nombre_usuario?: string; email_usuario?: string; telefono?: string; direccion?: string; archivo_url?: string; categoria?: string;
   municipio_nombre?: string;
@@ -50,20 +50,20 @@ export interface Ticket {
   priority?: PriorityStatus;
   sla_deadline?: string;
 }
-export interface TicketSummary extends Omit<Ticket, 'detalles' | 'comentarios'> {
+interface TicketSummary extends Omit<Ticket, 'detalles' | 'comentarios'> {
   direccion?: string;
   latitud?: number | null;
   longitud?: number | null;
   sla_status?: SlaStatus;
   priority?: PriorityStatus;
 }
-export interface GroupedTickets {
+interface GroupedTickets {
   categoryName: string;
   tickets: TicketSummary[];
 }
 
 const ESTADOS_ORDEN_PRIORIDAD: TicketStatus[] = ["nuevo", "en_proceso", "esperando_agente_en_vivo", "derivado", "resuelto", "cerrado"];
-export const ESTADOS: Record<TicketStatus, { label: string; tailwind_class: string, icon?: React.ElementType }> = {
+const ESTADOS: Record<TicketStatus, { label: string; tailwind_class: string, icon?: React.ElementType }> = {
   nuevo: { label: "Nuevo", tailwind_class: "bg-blue-500 hover:bg-blue-600 text-white border-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600", icon: TicketIcon },
   en_proceso: { label: "En Proceso", tailwind_class: "bg-yellow-500 hover:bg-yellow-600 text-black border-yellow-700 dark:bg-yellow-400 dark:hover:bg-yellow-500", icon: Loader2 },
   derivado: { label: "Derivado", tailwind_class: "bg-purple-500 hover:bg-purple-600 text-white border-purple-700 dark:bg-purple-500 dark:hover:bg-purple-600" },
@@ -83,6 +83,49 @@ const PRIORITY_INFO: Record<NonNullable<PriorityStatus>, { label: string; color:
   medium: { label: "Media", color: "text-blue-500 dark:text-blue-400", badgeClass: "bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-700 dark:text-blue-200 dark:border-blue-500" },
   high: { label: "Alta", color: "text-red-500 dark:text-red-400", badgeClass: "bg-red-100 text-red-700 border-red-300 dark:bg-red-700 dark:text-red-200 dark:border-red-500" },
 };
+
+const TicketListItem: FC<{
+  ticket: TicketSummary;
+  isSelected: boolean;
+  onSelect: () => void;
+  timezone: string;
+  locale: string;
+}> = React.memo(({ ticket, isSelected, onSelect, timezone, locale }) => {
+  const slaInfo = ticket.sla_status ? SLA_STATUS_INFO[ticket.sla_status] : null;
+  const priorityInfo = ticket.priority ? PRIORITY_INFO[ticket.priority] : null;
+
+  let cardClasses = "bg-card dark:bg-slate-800 border-border dark:border-slate-700/80 hover:border-slate-400 dark:hover:border-slate-500";
+  if (isSelected) {
+    cardClasses = "bg-primary/10 border-primary dark:bg-primary/20 dark:border-primary ring-1 ring-primary";
+  } else if (ticket.sla_status === 'breached') {
+    cardClasses = "bg-red-500/10 border-red-500/30 dark:bg-red-700/20 dark:border-red-600/40 hover:border-red-500";
+  } else if (ticket.sla_status === 'nearing_sla') {
+    cardClasses = "bg-yellow-500/10 border-yellow-500/30 dark:bg-yellow-700/20 dark:border-yellow-600/40 hover:border-yellow-500";
+  }
+
+  return (
+    <motion.div
+      layout
+      onClick={onSelect}
+      className={cn(
+        "p-3 rounded-lg border cursor-pointer mb-2 transition-all duration-200 ease-in-out",
+        "hover:shadow-md dark:hover:bg-slate-700/60",
+        cardClasses
+      )}
+      whileHover={{ y: -2 }}
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0 }}
+    >
+      <div className="flex justify-between items-start mb-1">
+        <span className="font-semibold text-primary text-xs truncate max-w-[80px] flex-shrink-0" title={`#${ticket.nro_ticket}`}>#{ticket.nro_ticket}</span>
+        <Badge className={cn("text-xs border", ESTADOS[ticket.estado]?.tailwind_class)}>{ESTADOS[ticket.estado]?.label}</Badge>
+      </div>
+      <p className="font-medium text-foreground truncate text-xs" title={ticket.asunto}>{ticket.asunto}</p>
+      {ticket.nombre_usuario && <p className="text-xs text-muted-foreground truncate mt-0.5" title={ticket.nombre_usuario}>{ticket.nombre_usuario}</p>}
+    </motion.div>
+  );
+});
 
 interface TicketDetailViewProps {
   ticket: Ticket;
@@ -433,11 +476,30 @@ return (
               </p>
             </div>
           ) : filteredAndSortedGroups.length > 0 ? (
-            <TicketList
-              groupedTickets={filteredAndSortedGroups}
-              selectedTicketId={selectedTicketId}
-              onTicketSelect={loadAndSetDetailedTicket}
-            />
+            <div className="w-full space-y-1">
+              {filteredAndSortedGroups.map(group => (
+                <div key={group.categoryName} className="mb-4">
+                  <div className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-2 py-2 rounded-md bg-muted/50 dark:bg-slate-700/50">
+                    <div className="flex items-center justify-between w-full">
+                      <span>{group.categoryName}</span>
+                      <Badge variant="secondary">{group.tickets.length}</Badge>
+                    </div>
+                  </div>
+                  <div className="pt-1 space-y-1.5">
+                    {group.tickets.map(ticket => (
+                      <TicketListItem
+                        key={ticket.id}
+                        ticket={ticket}
+                        isSelected={selectedTicketId === ticket.id}
+                        onSelect={() => loadAndSetDetailedTicket(ticket)}
+                        timezone={timezone}
+                        locale={locale}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : null}
         </ScrollArea>
       </div>
