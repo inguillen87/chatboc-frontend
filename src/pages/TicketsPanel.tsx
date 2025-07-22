@@ -262,6 +262,16 @@ export default function TicketsPanel() {
 
   }, [allTickets, debouncedSearchTerm, statusFilter, categoryFilter, categoryNames]);
 
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+  const ticketsInSelectedCategory = useMemo(() => {
+    if (!selectedCategory) {
+      return [];
+    }
+    const group = filteredAndSortedGroups.find(g => g.categoryName === selectedCategory);
+    return group ? group.tickets : [];
+  }, [filteredAndSortedGroups, selectedCategory]);
+
 
   const loadAndSetDetailedTicket = useCallback(async (ticketSummary: TicketSummary) => {
     if (!safeLocalStorage.getItem('authToken')) {
@@ -269,7 +279,7 @@ export default function TicketsPanel() {
       return;
     }
     setSelectedTicketId(ticketSummary.id);
-    setDetailedTicket(null); 
+    setDetailedTicket(null);
     setError(null);
 
     try {
@@ -405,14 +415,22 @@ return (
       </div>
     </header>
 
-    <main className="grid md:grid-cols-3 flex-1 overflow-hidden">
-      {/* Panel de Lista de Tickets (Izquierda) */}
-      <div
-        className={cn(
-          "md:col-span-1 border-r dark:border-slate-700 bg-card dark:bg-slate-800/50 flex flex-col transition-all duration-300 ease-in-out",
-          selectedTicketId ? "hidden md:flex" : "flex"
-        )}
-      >
+    <main className="grid md:grid-cols-12 flex-1 overflow-hidden">
+      {/* Panel de Categorías (Izquierda) */}
+      <div className={cn("md:col-span-3 border-r dark:border-slate-700 bg-card dark:bg-slate-800/50 flex-col transition-all duration-300 ease-in-out", selectedTicketId ? "hidden" : "flex", selectedCategory ? "hidden md:flex" : "flex md:flex")}>
+        <ScrollArea className="flex-1 p-3">
+          {filteredAndSortedGroups.map(group => (
+            <div key={group.categoryName}
+                 className={cn("p-2 rounded-md cursor-pointer", selectedCategory === group.categoryName ? "bg-primary/10" : "")}
+                 onClick={() => setSelectedCategory(group.categoryName)}>
+              {group.categoryName} ({group.tickets.length})
+            </div>
+          ))}
+        </ScrollArea>
+      </div>
+
+      {/* Panel de Lista de Tickets (Medio) */}
+      <div className={cn("md:col-span-3 border-r dark:border-slate-700 bg-card dark:bg-slate-800/50 flex-col transition-all duration-300 ease-in-out", selectedTicketId ? "hidden" : "flex", selectedCategory ? "flex" : "hidden")}>
         <ScrollArea className="flex-1 p-3">
           {isLoading && allTickets.length === 0 && !error ? (
             <div className="p-4 text-center text-sm text-muted-foreground flex items-center justify-center h-full">
@@ -422,7 +440,7 @@ return (
             <div className="p-2 text-center text-xs text-muted-foreground flex items-center justify-center">
               <Loader2 className="h-3 w-3 animate-spin mr-1.5" /> Actualizando lista...
             </div>
-          ) : !isLoading && filteredAndSortedGroups.length === 0 && !error ? (
+          ) : !isLoading && ticketsInSelectedCategory.length === 0 && !error ? (
             <div className="text-center py-10 px-4 h-full flex flex-col justify-center items-center">
               <TicketIcon className="mx-auto h-12 w-12 text-muted-foreground" />
               <h3 className="mt-2 text-base font-medium text-foreground">No hay tickets</h3>
@@ -432,9 +450,9 @@ return (
                   : "Cuando se genere un nuevo reclamo, aparecerá aquí."}
               </p>
             </div>
-          ) : filteredAndSortedGroups.length > 0 ? (
+          ) : ticketsInSelectedCategory.length > 0 ? (
             <TicketList
-              groupedTickets={filteredAndSortedGroups}
+              tickets={ticketsInSelectedCategory}
               selectedTicketId={selectedTicketId}
               onTicketSelect={loadAndSetDetailedTicket}
             />
@@ -443,7 +461,7 @@ return (
       </div>
 
       {/* Panel Central (Chat) y Panel Derecho (Detalles) */}
-      <div className="md:col-span-2 flex flex-col bg-background dark:bg-slate-900 overflow-hidden">
+      <div className={cn("flex-col bg-background dark:bg-slate-900 overflow-hidden", selectedTicketId ? "flex md:col-span-6" : "hidden md:col-span-6 md:flex")}>
         <AnimatePresence>
           {selectedTicketId && detailedTicket ? (
             <motion.div
@@ -583,7 +601,7 @@ const TicketMap: FC<{ ticket: Ticket }> = ({ ticket }) => {
   );
 };
 
-const CATEGORIAS_CHAT_EN_VIVO = [ 
+const CATEGORIAS_CHAT_EN_VIVO = [
   "atención en vivo",
   "chat en vivo",
   "soporte urgente"
