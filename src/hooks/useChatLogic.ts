@@ -7,19 +7,7 @@ import { getAskEndpoint, esRubroPublico } from "@/utils/chatEndpoints";
 import { enforceTipoChatForRubro } from "@/utils/tipoChat";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateAnonId from "@/utils/anonId";
-import { v4 as uuidv4 } from 'uuid'; // <--- IMPORTAR uuid
-
-// Interfaz SendPayload ya no es necesaria aquí si TypeSendPayload es importada y correcta.
-// Si TypeSendPayload no está en @/types/chat.ts o necesita ser específico aquí:
-// interface SendPayload {
-//   text: string;
-//   es_foto?: boolean;
-//   archivo_url?: string;
-//   es_ubicacion?: boolean;
-//   ubicacion_usuario?: { lat: number; lon: number; };
-//   action?: string;
-//   attachmentInfo?: AttachmentInfo; // Asumiendo que AttachmentInfo también está en types/chat
-// }
+import { v4 as uuidv4 } from 'uuid';
 
 
 export function useChatLogic(initialWelcomeMessage: string) {
@@ -188,19 +176,18 @@ export function useChatLogic(initialWelcomeMessage: string) {
         
         setContexto(data.contexto_actualizado || {});
         
-        // Asumiendo que parseChatResponse maneja la estructura de 'data' correctamente
-        const { text: respuestaText, botones, ...otrosDatosBot } = parseChatResponse(data);
+        const respuestaText = data.respuesta_usuario || "⚠️ No se pudo generar una respuesta.";
+        const botones = data.botones || [];
 
         const botMessage: Message = {
           id: generateClientMessageId(),
-          text: respuestaText || "⚠️ No se pudo generar una respuesta.",
+          text: respuestaText,
           isBot: true,
           timestamp: new Date(),
-          botones: botones || [],
+          botones: botones,
           mediaUrl: data.media_url,
           locationData: data.location_data,
           attachmentInfo: data.attachment_info,
-          // ...otrosDatosBot que parseChatResponse pueda devolver
         };
 
         setMessages(prev => [...prev, botMessage]);

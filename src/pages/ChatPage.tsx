@@ -9,7 +9,6 @@ import { apiFetch, getErrorMessage } from "@/utils/api";
 import { getAskEndpoint, esRubroPublico, parseRubro } from "@/utils/chatEndpoints";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { useUser } from "@/hooks/useUser";
-import { parseChatResponse } from "@/utils/parseChatResponse";
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import TicketMap from "@/components/TicketMap";
 import getOrCreateAnonId from "@/utils/anonId";
@@ -321,12 +320,14 @@ const ChatPage = () => {
           });
 
           setContexto(data.contexto_actualizado || {});
-          const { text: respuestaText, botones } = parseChatResponse(data);
+
+          const respuestaText = data.respuesta_usuario || "⚠️ No se pudo generar una respuesta.";
+          const botones = data.botones || [];
 
           // Mensaje de respuesta del Bot
           const botMessage: Message = {
             id: Date.now(),
-            text: respuestaText || "⚠️ No se pudo generar una respuesta.",
+            text: respuestaText,
             isBot: true,
             timestamp: new Date(),
             botones,
