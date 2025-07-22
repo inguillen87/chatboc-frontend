@@ -170,15 +170,13 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
     processedAttachmentInfo = deriveAttachmentInfo(message.mediaUrl, message.mediaUrl.split('/').pop() || "archivo_adjunto");
   }
 
-  const bubbleBaseClass = isBot ? "bg-muted text-muted-foreground" : "bg-primary text-primary-foreground";
+  const bubbleBaseClass = isBot ? "chat-bubble-bot" : "chat-bubble-user";
   let bubbleStyleClass = "";
   if (message.chatBubbleStyle === 'compact') {
     bubbleStyleClass = "py-1.5 px-2.5 text-sm"; // Estilo más compacto
   } else if (message.chatBubbleStyle === 'emphasis') {
     bubbleStyleClass = "border-2 border-yellow-500"; // Estilo con énfasis
   }
-
-  const bubbleWidth = "max-w-[95vw] md:max-w-3xl";
 
   // Determinar si se muestra la sección de adjuntos/mapa o el contenido estructurado
   const showAttachmentOrMap = !!(
@@ -200,7 +198,7 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
       <div className={`flex items-end gap-2 ${isBot ? "" : "flex-row-reverse"}`}>
         {isBot && <AvatarBot isTyping={isTyping} />}
 
-        <MessageBubble className={cn(bubbleWidth, bubbleBaseClass, bubbleStyleClass)}>
+        <MessageBubble className={cn(bubbleBaseClass, bubbleStyleClass)}>
           {/* Prioridad al texto si no hay otros contenidos especiales */}
           {(!showAttachmentOrMap && !showStructuredContent && sanitizedHtml) && (
             <span
