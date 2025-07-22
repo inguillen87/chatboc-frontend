@@ -476,16 +476,16 @@ return (
               </p>
             </div>
           ) : filteredAndSortedGroups.length > 0 ? (
-            <Accordion type="multiple" collapsible className="w-full space-y-1" defaultValue={filteredAndSortedGroups.map(g => g.categoryName)}>
+            <div className="w-full space-y-1">
               {filteredAndSortedGroups.map(group => (
-                <AccordionItem key={group.categoryName} value={group.categoryName}>
-                  <AccordionTrigger className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-2 py-2 hover:no-underline rounded-md hover:bg-muted/50 dark:hover:bg-slate-700/50 transition-colors">
+                <div key={group.categoryName} className="mb-4">
+                  <div className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-2 py-2 rounded-md bg-muted/50 dark:bg-slate-700/50">
                     <div className="flex items-center justify-between w-full">
                       <span>{group.categoryName}</span>
                       <Badge variant="secondary">{group.tickets.length}</Badge>
                     </div>
-                  </AccordionTrigger>
-                  <AccordionContent className="pt-1 space-y-1.5">
+                  </div>
+                  <div className="pt-1 space-y-1.5">
                     {group.tickets.map(ticket => (
                       <TicketListItem
                         key={ticket.id}
@@ -496,10 +496,10 @@ return (
                         locale={locale}
                       />
                     ))}
-                  </AccordionContent>
-                </AccordionItem>
+                  </div>
+                </div>
               ))}
-            </Accordion>
+            </div>
           ) : null}
         </ScrollArea>
       </div>
@@ -978,9 +978,9 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
             </div>
         </div>
 
-        <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+        <div className="flex-1 grid grid-cols-1 md:grid-cols-3 overflow-hidden">
             {/* Panel de Chat (Centro) */}
-            <div className="flex-1 flex flex-col p-2 md:p-4 bg-background dark:bg-slate-700/30 md:border-r dark:border-slate-700">
+            <div className="col-span-1 md:col-span-2 flex flex-col p-2 md:p-4 bg-background dark:bg-slate-700/30 md:border-r dark:border-slate-700">
                 {!chatEnVivo && (
                     <div className="p-2 flex justify-end">
                         <Button size="sm" variant="outline" onClick={() => fetchComentarios(true)} className="text-xs h-8">
@@ -1085,131 +1085,121 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
             </div>
 
             {/* Panel de Detalles (Derecha) */}
-            <AnimatePresence>
-                {isDetailOpen && (
-                    <motion.div
-                        initial={{ width: 0, opacity: 0 }}
-                        animate={{ width: isDetailOpen ? 360 : 0, opacity: isDetailOpen ? 1 : 0 }}
-                        exit={{ width: 0, opacity: 0 }}
-                        transition={{ duration: 0.3 }}
-                        className="overflow-hidden"
-                    >
-                        <ScrollArea className="h-full w-[360px] p-3 md:p-4 space-y-4 bg-card dark:bg-slate-800/50 border-t md:border-t-0 md:border-l dark:border-slate-700">
-                            {(ticket.priority || ticket.sla_status) && (
-                              <Card className="shadow-sm">
-                                <CardHeader className="pb-3 pt-4 px-4">
-                                  <CardTitle className="text-base font-semibold">Prioridad y SLA</CardTitle>
-                                </CardHeader>
-                                <CardContent className="text-sm text-muted-foreground space-y-1.5 px-4 pb-4">
-                                  {ticket.priority && PRIORITY_INFO[ticket.priority] && (
-                                    <p><strong>Prioridad:</strong> <span className={cn(PRIORITY_INFO[ticket.priority]?.color)}>{PRIORITY_INFO[ticket.priority]?.label}</span></p>
-                                  )}
-                                  {ticket.sla_status && SLA_STATUS_INFO[ticket.sla_status] && (
-                                    <p><strong>SLA:</strong> <span className={cn(SLA_STATUS_INFO[ticket.sla_status]?.color)}>{SLA_STATUS_INFO[ticket.sla_status]?.label}</span></p>
-                                  )}
-                                  {ticket.sla_deadline && (
-                                    <p><strong>Vencimiento SLA:</strong> {formatDate(ticket.sla_deadline, timezone, locale, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
-                                  )}
-                                </CardContent>
-                              </Card>
-                            )}
+            <div className="col-span-1 hidden md:block">
+                <ScrollArea className="h-full p-3 md:p-4 space-y-4 bg-card dark:bg-slate-800/50 border-t md:border-t-0 md:border-l dark:border-slate-700">
+                    {(ticket.priority || ticket.sla_status) && (
+                      <Card className="shadow-sm">
+                        <CardHeader className="pb-3 pt-4 px-4">
+                          <CardTitle className="text-base font-semibold">Prioridad y SLA</CardTitle>
+                        </CardHeader>
+                        <CardContent className="text-sm text-muted-foreground space-y-1.5 px-4 pb-4">
+                          {ticket.priority && PRIORITY_INFO[ticket.priority] && (
+                            <p><strong>Prioridad:</strong> <span className={cn(PRIORITY_INFO[ticket.priority]?.color)}>{PRIORITY_INFO[ticket.priority]?.label}</span></p>
+                          )}
+                          {ticket.sla_status && SLA_STATUS_INFO[ticket.sla_status] && (
+                            <p><strong>SLA:</strong> <span className={cn(SLA_STATUS_INFO[ticket.sla_status]?.color)}>{SLA_STATUS_INFO[ticket.sla_status]?.label}</span></p>
+                          )}
+                          {ticket.sla_deadline && (
+                            <p><strong>Vencimiento SLA:</strong> {formatDate(ticket.sla_deadline, timezone, locale, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                          )}
+                        </CardContent>
+                      </Card>
+                    )}
 
-                            {(ticket.nombre_usuario || ticket.email_usuario || ticket.telefono) && (
-                                <Card className="shadow-sm">
-                                    <CardHeader className="pb-3 pt-4 px-4">
-                                        <CardTitle className="text-base font-semibold flex items-center gap-2">
-                                            <User className="h-4 w-4 text-muted-foreground"/> Información del Usuario
-                                        </CardTitle>
-                                    </CardHeader>
-                                    <CardContent className="text-sm text-muted-foreground space-y-1.5 px-4 pb-4">
-                                        {ticket.nombre_usuario && <p><strong>Nombre:</strong> {ticket.nombre_usuario}</p>}
-                                        {ticket.email_usuario && <p><strong>Email:</strong> <a href={`mailto:${ticket.email_usuario}`} className="text-primary hover:underline">{ticket.email_usuario}</a></p>}
-                                        {ticket.telefono && (
-                                            <div className="flex items-center gap-2">
-                                                <p className="flex-shrink-0"><strong>Teléfono:</strong></p>
-                                                <a href={`tel:${ticket.telefono}`} className="text-primary hover:underline truncate" title={ticket.telefono}>{ticket.telefono}</a>
-                                                {(() => {
-                                                    const formattedPhone = formatPhoneNumberForWhatsApp(ticket.telefono);
-                                                    if (formattedPhone) {
-                                                        const adminName = user?.name || 'el equipo del municipio';
-                                                        const municipioName = ticket.municipio_nombre || 'el municipio';
-                                                        const messageText = `Hola ${ticket.nombre_usuario || 'vecino/a'}, le contactamos desde ${municipioName} (agente: ${adminName}) en relación a su ticket N°${ticket.nro_ticket || '[Nro Ticket]'}.`;
-                                                        const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(messageText)}`;
-                                                        return (
-                                                            <a
-                                                                href={whatsappUrl}
-                                                                target="_blank"
-                                                                rel="noopener noreferrer"
-                                                                title="Enviar mensaje de WhatsApp"
-                                                                className="ml-1 flex-shrink-0"
-                                                            >
-                                                                <MessageSquare className="h-4 w-4 text-green-600 hover:text-green-700 cursor-pointer" />
-                                                            </a>
-                                                        );
-                                                    }
-                                                    return null;
-                                                })()}
-                                            </div>
-                                        )}
-                                    </CardContent>
-                                </Card>
-                            )}
-
-                            <TicketTimeline ticket={ticket} comentarios={comentarios} />
-
-                            <Card className="shadow-sm">
-                                <CardHeader className="pb-3 pt-4 px-4">
-                                    <CardTitle className="text-base font-semibold">Descripción del Reclamo</CardTitle>
-                                </CardHeader>
-                                <CardContent className="px-4 pb-4 text-sm text-muted-foreground whitespace-pre-wrap break-words">
-                                    {ticket.pregunta || ticket.detalles || "No hay descripción detallada disponible."}
-                                </CardContent>
-                            </Card>
-
-                            <TicketMap ticket={ticket} />
-
-                            <Card className="shadow-sm">
-                                <CardHeader className="pb-3 pt-4 px-4">
-                                    <CardTitle className="text-base font-semibold">Archivos Adjuntos al Ticket</CardTitle>
-                                </CardHeader>
-                                <CardContent className="px-4 pb-4 space-y-2">
-                                    {(ticket.archivos_adjuntos && ticket.archivos_adjuntos.length > 0) ? (
-                                        ticket.archivos_adjuntos.map((adj, index) => {
-                                            const attachmentInfoForPreview: AttachmentInfo = deriveAttachmentInfo(
-                                                adj.url,
-                                                adj.name,
-                                                adj.mimeType,
-                                                adj.size
-                                            );
-                                            if (attachmentInfoForPreview.url.startsWith('/')) {
-                                                const apiUrl = (import.meta.env.VITE_API_URL || '').replace(/\/api$/, '');
-                                                if (apiUrl) {
-                                                    attachmentInfoForPreview.url = `${apiUrl}${attachmentInfoForPreview.url}`;
-                                                }
+                    {(ticket.nombre_usuario || ticket.email_usuario || ticket.telefono) && (
+                        <Card className="shadow-sm">
+                            <CardHeader className="pb-3 pt-4 px-4">
+                                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                                    <User className="h-4 w-4 text-muted-foreground"/> Información del Usuario
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="text-sm text-muted-foreground space-y-1.5 px-4 pb-4">
+                                {ticket.nombre_usuario && <p><strong>Nombre:</strong> {ticket.nombre_usuario}</p>}
+                                {ticket.email_usuario && <p><strong>Email:</strong> <a href={`mailto:${ticket.email_usuario}`} className="text-primary hover:underline">{ticket.email_usuario}</a></p>}
+                                {ticket.telefono && (
+                                    <div className="flex items-center gap-2">
+                                        <p className="flex-shrink-0"><strong>Teléfono:</strong></p>
+                                        <a href={`tel:${ticket.telefono}`} className="text-primary hover:underline truncate" title={ticket.telefono}>{ticket.telefono}</a>
+                                        {(() => {
+                                            const formattedPhone = formatPhoneNumberForWhatsApp(ticket.telefono);
+                                            if (formattedPhone) {
+                                                const adminName = user?.name || 'el equipo del municipio';
+                                                const municipioName = ticket.municipio_nombre || 'el municipio';
+                                                const messageText = `Hola ${ticket.nombre_usuario || 'vecino/a'}, le contactamos desde ${municipioName} (agente: ${adminName}) en relación a su ticket N°${ticket.nro_ticket || '[Nro Ticket]'}.`;
+                                                const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(messageText)}`;
+                                                return (
+                                                    <a
+                                                        href={whatsappUrl}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        title="Enviar mensaje de WhatsApp"
+                                                        className="ml-1 flex-shrink-0"
+                                                    >
+                                                        <MessageSquare className="h-4 w-4 text-green-600 hover:text-green-700 cursor-pointer" />
+                                                    </a>
+                                                );
                                             }
-                                            return (
-                                                <AttachmentPreview key={adj.id || index} attachment={attachmentInfoForPreview} />
-                                            );
-                                        })
-                                    ) : (
-                                        <p className="text-sm text-muted-foreground">No hay archivos adjuntos para este ticket.</p>
-                                    )}
-                                </CardContent>
-                            </Card>
+                                            return null;
+                                        })()}
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    )}
 
-                            <Card className="shadow-sm">
-                                 <CardHeader className="pb-3 pt-4 px-4"><CardTitle className="text-base font-semibold">Detalles del Ticket</CardTitle></CardHeader>
-                                 <CardContent className="text-sm text-muted-foreground space-y-1.5 px-4 pb-4">
-                                    <p><strong>Categoría:</strong> {categoryNames[ticket.categoria || ''] || ticket.categoria || "No especificada"}</p>
-                                    <p><strong>Tipo:</strong> {ticket.tipo}</p>
-                                    {ticket.municipio_nombre && <p><strong>Municipio:</strong> {ticket.municipio_nombre}</p>}
-                                    <p><strong>Creado:</strong> {formatDate(ticket.fecha, timezone, locale, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
-                                 </CardContent>
-                            </Card>
-                        </ScrollArea>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+                    <TicketTimeline ticket={ticket} comentarios={comentarios} />
+
+                    <Card className="shadow-sm">
+                        <CardHeader className="pb-3 pt-4 px-4">
+                            <CardTitle className="text-base font-semibold">Descripción del Reclamo</CardTitle>
+                        </CardHeader>
+                        <CardContent className="px-4 pb-4 text-sm text-muted-foreground whitespace-pre-wrap break-words">
+                            {ticket.pregunta || ticket.detalles || "No hay descripción detallada disponible."}
+                        </CardContent>
+                    </Card>
+
+                    <TicketMap ticket={ticket} />
+
+                    <Card className="shadow-sm">
+                        <CardHeader className="pb-3 pt-4 px-4">
+                            <CardTitle className="text-base font-semibold">Archivos Adjuntos al Ticket</CardTitle>
+                        </CardHeader>
+                        <CardContent className="px-4 pb-4 space-y-2">
+                            {(ticket.archivos_adjuntos && ticket.archivos_adjuntos.length > 0) ? (
+                                ticket.archivos_adjuntos.map((adj, index) => {
+                                    const attachmentInfoForPreview: AttachmentInfo = deriveAttachmentInfo(
+                                        adj.url,
+                                        adj.name,
+                                        adj.mimeType,
+                                        adj.size
+                                    );
+                                    if (attachmentInfoForPreview.url.startsWith('/')) {
+                                        const apiUrl = (import.meta.env.VITE_API_URL || '').replace(/\/api$/, '');
+                                        if (apiUrl) {
+                                            attachmentInfoForPreview.url = `${apiUrl}${attachmentInfoForPreview.url}`;
+                                        }
+                                    }
+                                    return (
+                                        <AttachmentPreview key={adj.id || index} attachment={attachmentInfoForPreview} />
+                                    );
+                                })
+                            ) : (
+                                <p className="text-sm text-muted-foreground">No hay archivos adjuntos para este ticket.</p>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    <Card className="shadow-sm">
+                         <CardHeader className="pb-3 pt-4 px-4"><CardTitle className="text-base font-semibold">Detalles del Ticket</CardTitle></CardHeader>
+                         <CardContent className="text-sm text-muted-foreground space-y-1.5 px-4 pb-4">
+                            <p><strong>Categoría:</strong> {categoryNames[ticket.categoria || ''] || ticket.categoria || "No especificada"}</p>
+                            <p><strong>Tipo:</strong> {ticket.tipo}</p>
+                            {ticket.municipio_nombre && <p><strong>Municipio:</strong> {ticket.municipio_nombre}</p>}
+                            <p><strong>Creado:</strong> {formatDate(ticket.fecha, timezone, locale, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                         </CardContent>
+                    </Card>
+                </ScrollArea>
+            </div>
         </div>
         <TemplateSelector
             isOpen={isTemplateSelectorOpen}
