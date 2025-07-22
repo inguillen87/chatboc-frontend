@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { useDebounce } from '@/hooks/useDebounce';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AttachmentPreview from "@/components/chat/AttachmentPreview";
 import { getAttachmentInfo, deriveAttachmentInfo, AttachmentInfo } from "@/utils/attachment"; // Added deriveAttachmentInfo & AttachmentInfo
 import { formatDate } from "@/utils/fecha";
@@ -111,6 +112,7 @@ export default function TicketsPanel() {
   const [availableCategories, setAvailableCategories] = useState<string[]>([]);
   const [categoryNames, setCategoryNames] = useState<Record<string, string>>({});
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
+  const [selectedTicketIds, setSelectedTicketIds] = useState<number[]>([]);
 
   const fetchInitialData = useCallback(async () => {
     if (!safeLocalStorage.getItem('authToken')) {
@@ -212,7 +214,7 @@ export default function TicketsPanel() {
         filteredTickets = filteredTickets.filter(t => t.categoria === categoryFilter);
     }
 
-    // 3. Filtrar por término de búsqueda
+    // 5. Filtrar por término de búsqueda
     if (debouncedSearchTerm) {
         filteredTickets = filteredTickets.filter(ticket => {
             const searchTermLower = debouncedSearchTerm.toLowerCase();
@@ -448,6 +450,34 @@ return (
             )}
           </SelectContent>
         </Select>
+        <Select value={priorityFilter} onValueChange={(value) => setPriorityFilter(value as PriorityStatus | "")}>
+          <SelectTrigger className="w-auto min-w-[180px] h-9">
+            <div className="flex items-center gap-2">
+              <ListFilter className="h-4 w-4 text-muted-foreground" />
+              <SelectValue placeholder="Filtrar por prioridad" />
+            </div>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">Todas las prioridades</SelectItem>
+            {Object.entries(PRIORITY_INFO).map(([key, { label }]) => (
+              <SelectItem key={key} value={key}>{label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={slaFilter} onValueChange={(value) => setSlaFilter(value as SlaStatus | "")}>
+          <SelectTrigger className="w-auto min-w-[180px] h-9">
+            <div className="flex items-center gap-2">
+              <ListFilter className="h-4 w-4 text-muted-foreground" />
+              <SelectValue placeholder="Filtrar por SLA" />
+            </div>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">Todos los SLAs</SelectItem>
+            {Object.entries(SLA_STATUS_INFO).map(([key, { label }]) => (
+              <SelectItem key={key} value={key}>{label}</SelectItem>
+            ))}
+          </Select_Content>
+        </Select>
         <Button variant="outline" onClick={() => fetchInitialData()} className="h-9" disabled={isLoading}>
           {isLoading
             ? <Loader2 className="h-4 w-4 animate-spin" />
@@ -457,90 +487,690 @@ return (
       </div>
     </header>
 
-    <main className="grid grid-cols-10 flex-1">
-        {/* Columna de Tickets (Izquierda) */}
-        <div className={cn(
-            "col-span-10 md:col-span-4 lg:col-span-3 xl:col-span-3",
-            "flex flex-col border-r dark:border-slate-700 bg-card dark:bg-slate-800/50",
-            selectedTicketId && "hidden md:flex" // Ocultar en móvil cuando un ticket está abierto
-        )}>
-            <ScrollArea className="flex-1 p-2">
-                {isLoading && allTickets.length === 0 ? (
-                    <div className="p-4 text-center text-sm text-muted-foreground flex items-center justify-center h-full">
-                        <Loader2 className="h-4 w-4 animate-spin mr-2" /> Cargando tickets...
-                    </div>
-                ) : filteredAndSortedGroups.flatMap(g => g.tickets).length === 0 ? (
-                    <div className="text-center py-10 px-4 h-full flex flex-col justify-center items-center">
-                        <TicketIcon className="mx-auto h-12 w-12 text-muted-foreground" />
-                        <h3 className="mt-2 text-base font-medium text-foreground">No hay tickets</h3>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                            {searchTerm || statusFilter || categoryFilter ? "Ningún ticket coincide con tus filtros." : "No hay tickets disponibles."}
-                        </p>
-                    </div>
-                ) : (
-                    <TicketList
-                        tickets={filteredAndSortedGroups.flatMap(g => g.tickets)}
-                        selectedTicketId={selectedTicketId}
-                        onTicketSelect={loadAndSetDetailedTicket}
-                        selectedTicketsForBulk={selectedTicketsForBulk}
-                        onToggleSelection={handleToggleBulkSelection}
-                    />
-                )}
-            </ScrollArea>
-            {selectedTicketsForBulk.size > 0 && (
-                <div className="p-2 border-t dark:border-slate-700 bg-card dark:bg-slate-800/50">
-                    <div className="flex items-center justify-between">
-                        <div className="text-sm text-muted-foreground">
-                            {selectedTicketsForBulk.size} seleccionados
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <Button variant="outline" size="sm" onClick={() => console.log("Changing status for tickets:", selectedTicketsForBulk)}>
-                                Cambiar Estado
-                            </Button>
-                            <Button variant="outline" size="sm" onClick={() => setSelectedTicketsForBulk(new Set())}>
-                                Deseleccionar
-                            </Button>
-                        </div>
-                    </div>
-                </div>
-            )}
-        </div>
+    <main className="flex-1 overflow-hidden">
+      <Tabs defaultValue="unified" className="h-full flex flex-col">
+        <TabsList className="p-2 m-2">
+          <TabsTrigger value="unified">Bandeja de Entrada</TabsTrigger>
+          {filteredAndSortedGroups.map(group => (
+            <TabsTrigger key={group.categoryName} value={group.categoryName}>
+              {group.categoryName}
+              {group.tickets.some(t => t.estado === 'nuevo') && <span className="ml-2 h-2 w-2 bg-red-500 rounded-full" />}
+            </TabsTrigger>
+          ))}
+        </TabsList>
 
-        {/* Panel de Detalles del Ticket (Derecha) */}
-        <div className={cn(
-            "col-span-10 md:col-span-6 lg:col-span-7 xl:col-span-7",
-            "flex flex-col bg-background dark:bg-slate-900",
-            !selectedTicketId && "hidden md:flex" // Ocultar en móvil si no hay ticket seleccionado
-        )}>
-            <AnimatePresence>
-                {detailedTicket ? (
+        <TabsContent value="unified" className="flex-1 overflow-hidden">
+          <div className="grid md:grid-cols-12 h-full">
+            <div className="md:col-span-3 border-r dark:border-slate-700 bg-card dark:bg-slate-800/50">
+              <ScrollArea className="h-full p-3">
+                <TicketList
+                  tickets={allTickets}
+                  selectedTicketId={selectedTicketId}
+                  onTicketSelect={loadAndSetDetailedTicket}
+                    onToggleSelection={(ticketId, selected) => {
+                      setSelectedTicketIds(prev =>
+                        selected ? [...prev, ticketId] : prev.filter(id => id !== ticketId)
+                      );
+                    }}
+                    isSelectionEnabled={selectedTicketIds.length > 0}
+                />
+              </ScrollArea>
+            </div>
+            <div className={cn("flex-col bg-background dark:bg-slate-900", selectedTicketId ? "flex md:col-span-9" : "hidden md:flex md:col-span-9")}>
+                {selectedTicketIds.length > 0 && (
+                  <div className="p-2 border-b dark:border-slate-700">
+                    <Button onClick={() => console.log('Bulk action on:', selectedTicketIds)}>
+                      Marcar como Resuelto ({selectedTicketIds.length})
+                    </Button>
+                  </div>
+                )}
+              <AnimatePresence>
+                {selectedTicketId && detailedTicket ? (
+                  <div className="grid md:grid-cols-12 h-full">
                     <motion.div
+                      key={selectedTicketId}
+                      className="flex-1 flex overflow-hidden md:col-span-7"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                    >
+                      <TicketChat
+                        ticket={detailedTicket}
+                        onTicketUpdate={handleTicketDetailUpdate}
+                        onClose={closeDetailPanel}
+                      />
+                    </motion.div>
+                    <motion.div
+                      key={selectedTicketId + "-details"}
+                      className="hidden md:flex md:col-span-5 flex-1 overflow-hidden"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                    >
+                      <TicketDetails
+                        ticket={detailedTicket}
+                        categoryNames={categoryNames}
+                        comentarios={detailedTicket.comentarios || []}
+                      />
+                    </motion.div>
+                  </div>
+                ) : (
+                  <div className="hidden md:flex flex-col items-center justify-center h-full p-8 text-center bg-muted/50 dark:bg-slate-800/20">
+                    <TicketIcon className="h-16 w-16 text-muted-foreground/50" strokeWidth={1} />
+                    <h2 className="mt-4 text-xl font-semibold text-foreground">Seleccione un Ticket</h2>
+                    <p className="mt-1 text-muted-foreground">Elija un ticket de la lista para ver sus detalles, historial y responder.</p>
+                  </div>
+                )}
+              </AnimatePresence>
+            </div>
+          </div>
+        </TabsContent>
+
+        {filteredAndSortedGroups.map(group => (
+          <TabsContent key={group.categoryName} value={group.categoryName} className="flex-1 overflow-hidden">
+            <div className="grid md:grid-cols-12 h-full">
+              <div className="md:col-span-3 border-r dark:border-slate-700 bg-card dark:bg-slate-800/50">
+                <ScrollArea className="h-full p-3">
+                  <TicketList
+                    tickets={group.tickets}
+                    selectedTicketId={selectedTicketId}
+                    onTicketSelect={loadAndSetDetailedTicket}
+                    onToggleSelection={(ticketId, selected) => {
+                      setSelectedTicketIds(prev =>
+                        selected ? [...prev, ticketId] : prev.filter(id => id !== ticketId)
+                      );
+                    }}
+                    isSelectionEnabled={selectedTicketIds.length > 0}
+                  />
+                </ScrollArea>
+              </div>
+              <div className={cn("flex-col bg-background dark:bg-slate-900", selectedTicketId ? "flex md:col-span-9" : "hidden md:flex md:col-span-9")}>
+                {selectedTicketIds.length > 0 && (
+                  <div className="p-2 border-b dark:border-slate-700">
+                    <Button onClick={() => console.log('Bulk action on:', selectedTicketIds)}>
+                      Marcar como Resuelto ({selectedTicketIds.length})
+                    </Button>
+                  </div>
+                )}
+                <AnimatePresence>
+                  {selectedTicketId && detailedTicket ? (
+                    <div className="grid md:grid-cols-12 h-full">
+                      <motion.div
                         key={selectedTicketId}
-                        className="flex-1 flex overflow-hidden"
+                        className="flex-1 flex overflow-hidden md:col-span-7"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                    >
-                        <TicketDetail_Refactored
-                            ticket={detailedTicket}
-                            onTicketUpdate={handleTicketDetailUpdate}
-                            onClose={closeDetailPanel}
-                            categoryNames={categoryNames}
+                      >
+                        <TicketChat
+                          ticket={detailedTicket}
+                          onTicketUpdate={handleTicketDetailUpdate}
+                          onClose={closeDetailPanel}
                         />
-                    </motion.div>
-                ) : (
-                    <div className="flex flex-col items-center justify-center h-full p-8 text-center bg-muted/50 dark:bg-slate-800/20">
-                        <TicketIcon className="h-16 w-16 text-muted-foreground/50" strokeWidth={1} />
-                        <h2 className="mt-4 text-xl font-semibold text-foreground">Seleccione un Ticket</h2>
-                        <p className="mt-1 text-muted-foreground">Elija un ticket de la lista para ver sus detalles y responder.</p>
+                      </motion.div>
+                      <motion.div
+                        key={selectedTicketId + "-details"}
+                        className="hidden md:flex md:col-span-5 flex-1 overflow-hidden"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                      >
+                        <TicketDetails
+                          ticket={detailedTicket}
+                          categoryNames={categoryNames}
+                          comentarios={detailedTicket.comentarios || []}
+                        />
+                      </motion.div>
                     </div>
-                )}
-            </AnimatePresence>
-        </div>
+                  ) : (
+                    <div className="hidden md:flex flex-col items-center justify-center h-full p-8 text-center bg-muted/50 dark:bg-slate-800/20">
+                      <TicketIcon className="h-16 w-16 text-muted-foreground/50" strokeWidth={1} />
+                      <h2 className="mt-4 text-xl font-semibold text-foreground">Seleccione un Ticket</h2>
+                      <p className="mt-1 text-muted-foreground">Elija un ticket de la lista para ver sus detalles, historial y responder.</p>
+                    </div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </div>
+          </TabsContent>
+        ))}
+      </Tabs>
     </main>
   </div>
 );
 }
+
+const TicketChat: FC<any> = ({ ticket, onTicketUpdate, onClose }) => {
+  const { timezone, locale } = useDateSettings();
+  const { user } = useUser();
+  const [newMessage, setNewMessage] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isSending, setIsSending] = useState(false);
+  const [comentarios, setComentarios] = useState<Comment[]>(ticket.comentarios || []);
+  const [isTemplateSelectorOpen, setIsTemplateSelectorOpen] = useState(false); // State for modal
+  const chatBottomRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const pollingRef = useRef<NodeJS.Timeout | null>(null);
+  const ultimoMensajeIdRef = useRef<number>(0);
+
+  const token = safeLocalStorage.getItem('authToken');
+  const isAnonimo = !token;
+
+  const chatEnVivo = useMemo(() => {
+    const categoriaNormalizada = (ticket.asunto || ticket.categoria || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+    return CATEGORIAS_CHAT_EN_VIVO.some(cat => categoriaNormalizada.includes(cat.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""))) &&
+           ["esperando_agente_en_vivo", "en_proceso"].includes(ticket.estado);
+  }, [ticket.asunto, ticket.categoria, ticket.estado]);
+
+  const fetchComentarios = useCallback(async (forceTicketRefresh = false) => {
+    if (isAnonimo) return;
+    try {
+      const data = await apiFetch<{mensajes: any[]}>(`/tickets/chat/${ticket.id}/mensajes?ultimo_mensaje_id=${ultimoMensajeIdRef.current}`, {
+        sendEntityToken: true,
+      });
+      if (data.mensajes && data.mensajes.length > 0) {
+        setComentarios((prev) => {
+          const idsPrev = new Set(prev.map((m) => m.id));
+          const nuevos = data.mensajes.filter((m: any) => !idsPrev.has(m.id));
+          if (nuevos.length > 0) {
+            ultimoMensajeIdRef.current = nuevos[nuevos.length - 1].id;
+            return [
+              ...prev,
+              ...nuevos.map((msg: any) => ({
+                id: msg.id,
+                comentario: msg.texto,
+                fecha: msg.fecha,
+                es_admin: msg.es_admin,
+              })),
+            ].sort((a,b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
+          }
+          return prev;
+        });
+      }
+    } catch (e) {
+      console.error("Error en polling de comentarios:", e);
+    }
+    if (forceTicketRefresh || chatEnVivo) {
+        try {
+            const updatedTicketData = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}`, { sendEntityToken: true });
+            // Use ticket.comentarios (from prop) as the fallback, it's more stable reference here
+            onTicketUpdate({ ...ticket, ...updatedTicketData, comentarios: updatedTicketData.comentarios || ticket.comentarios });
+        } catch (e) {
+            console.error("Error al refrescar ticket:", e);
+        }
+    }
+  }, [ticket.id, ticket.tipo, onTicketUpdate, isAnonimo, chatEnVivo, ticket.comentarios, ticket.asunto, ticket.categoria, ticket.estado]); // Refined dependencies
+
+  useEffect(() => {
+    const initialComments = ticket.comentarios ? [...ticket.comentarios].sort((a,b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()) : [];
+    setComentarios(initialComments);
+    ultimoMensajeIdRef.current = initialComments.length > 0 ? initialComments[initialComments.length - 1].id : 0;
+
+    if (pollingRef.current) clearInterval(pollingRef.current);
+    if (!chatEnVivo) return;
+
+    fetchComentarios(true); // Initial fetch and ticket refresh
+    pollingRef.current = setInterval(() => {
+        fetchComentarios(true);
+    }, 5000); // Reduced polling interval to 5 seconds
+    return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
+  }, [ticket.id, ticket.comentarios, chatEnVivo, fetchComentarios]);
+
+
+  useEffect(() => {
+    const container = chatBottomRef.current?.parentElement;
+    if (container && chatBottomRef.current) {
+        const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150;
+        if (atBottom) {
+             setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+        }
+    }
+  }, [comentarios.length]);
+
+  const handleSendMessage = async () => {
+    const adminUserId = user?.id;
+
+    if ((!newMessage.trim() && !selectedFile) || isSending || isAnonimo || !adminUserId) {
+      if (!adminUserId && !isAnonimo) {
+        console.error("Error: adminUserId no disponible para enviar mensaje.");
+      }
+      return;
+    }
+
+    setIsSending(true);
+    const tempId = Date.now();
+    const currentMessageText = newMessage.trim();
+    const currentSelectedFile = selectedFile;
+    const previousAttachments = ticket.archivos_adjuntos ? [...ticket.archivos_adjuntos] : [];
+
+    let optimisticCommentText = currentMessageText;
+    if (currentSelectedFile) {
+        const filePlaceholder = `Archivo adjunto: ${currentSelectedFile.name} (subiendo...)`;
+        if (!currentMessageText) {
+            optimisticCommentText = filePlaceholder;
+        } else {
+            optimisticCommentText = `${currentMessageText}\n${filePlaceholder}`;
+        }
+    }
+
+    const optimisticComment: Comment = {
+        id: tempId,
+        comentario: optimisticCommentText,
+        fecha: new Date().toISOString(),
+        es_admin: true,
+    };
+    if (optimisticCommentText || currentSelectedFile) {
+        setComentarios(prev => [...prev, optimisticComment].sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()));
+    }
+
+    setNewMessage("");
+    setSelectedFile(null);
+
+    try {
+        let requestBody: any;
+        let headers: Record<string, string> = {};
+
+        if (currentSelectedFile) {
+            const formData = new FormData();
+            formData.append('archivos', currentSelectedFile, currentSelectedFile.name);
+            if (currentMessageText) {
+                formData.append('comentario', currentMessageText);
+            }
+            requestBody = formData;
+        } else {
+            if (currentMessageText) {
+                 requestBody = { comentario: currentMessageText };
+            } else {
+                setIsSending(false);
+                return;
+            }
+            headers['Content-Type'] = 'application/json';
+        }
+
+        const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}/responder`, {
+            method: "POST",
+            body: requestBody,
+            headers: headers,
+            sendEntityToken: true,
+        });
+
+      const serverComentariosActuales = updatedTicket.comentarios
+          ? [...updatedTicket.comentarios]
+          : [];
+
+      let nuevosComentariosParaMostrar = [...serverComentariosActuales];
+
+      if (currentSelectedFile) {
+        const prevAttachmentIds = new Set(ticket.archivos_adjuntos?.map(att => att.id) || []);
+        const newAttachments = updatedTicket.archivos_adjuntos?.filter(att => !prevAttachmentIds.has(att.id)) || [];
+        console.log('[handleSendMessage] Newly identified attachments:', JSON.stringify(newAttachments, null, 2));
+
+        newAttachments.forEach(newFileAttachment => {
+          let fileUrlForComment = newFileAttachment.url;
+          if (newFileAttachment.url && newFileAttachment.url.startsWith('/')) {
+            const apiUrl = (import.meta.env.VITE_API_URL || '').replace(/\/api$/, '');
+            fileUrlForComment = `${apiUrl}${newFileAttachment.url}`;
+            console.log(`[handleSendMessage] Constructed absolute URL for synthetic comment: ${fileUrlForComment}`);
+          } else if (newFileAttachment.url) {
+            console.log(`[handleSendMessage] Using provided URL for synthetic comment (assumed absolute or will be handled by browser): ${fileUrlForComment}`);
+          } else {
+            console.error('[handleSendMessage] New attachment found but has no URL:', newFileAttachment);
+            return;
+          }
+
+          const fileComment: Comment = {
+            id: `client-file-${newFileAttachment.id || Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+            comentario: fileUrlForComment,
+            fecha: newFileAttachment.fecha || new Date().toISOString(),
+            es_admin: true,
+          };
+          console.log('[handleSendMessage] Synthetic fileComment created:', JSON.stringify(fileComment, null, 2));
+          nuevosComentariosParaMostrar.push(fileComment);
+        });
+      }
+
+      console.log('[handleSendMessage] All comments to display (after adding synthetic, before sort):', JSON.stringify(nuevosComentariosParaMostrar, null, 2));
+      nuevosComentariosParaMostrar.sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
+      console.log('[handleSendMessage] Final sorted comments for display:', JSON.stringify(nuevosComentariosParaMostrar, null, 2));
+
+      setComentarios(nuevosComentariosParaMostrar);
+
+      if (nuevosComentariosParaMostrar.length > 0) {
+          const lastComment = nuevosComentariosParaMostrar.find(c => typeof c.id === 'number' && c.id > ultimoMensajeIdRef.current);
+          if (lastComment) {
+            ultimoMensajeIdRef.current = lastComment.id;
+          } else if (serverComentariosActuales.length > 0 && typeof serverComentariosActuales[serverComentariosActuales.length -1].id === 'number') {
+            ultimoMensajeIdRef.current = serverComentariosActuales[serverComentariosActuales.length -1].id;
+          }
+      }
+
+      onTicketUpdate({ ...ticket, ...updatedTicket, comentarios: serverComentariosActuales });
+
+      if (currentSelectedFile) {
+        console.log('Updated Ticket Data (after file upload):', JSON.stringify(updatedTicket, null, 2));
+        console.log('Previous attachments (before this send):', JSON.stringify(previousAttachments, null, 2));
+      }
+
+    } catch (error) {
+      const displayError = error instanceof ApiError ? error.message : "No se pudo enviar el mensaje. Intente de nuevo.";
+      toast.error(displayError);
+      console.error("Error al enviar comentario:", error);
+
+      setComentarios(prev => prev.filter(c => c.id !== tempId));
+
+      setNewMessage(currentMessageText);
+      if (currentSelectedFile) {
+        setSelectedFile(currentSelectedFile);
+        toast.info(`El archivo "${currentSelectedFile.name}" no fue enviado. Por favor, adjúntelo de nuevo si es necesario.`);
+      }
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files && event.target.files[0]) {
+      setSelectedFile(event.target.files[0]);
+    }
+  };
+
+  const handleEstadoChange = async (nuevoEstado: TicketStatus) => {
+    if (isAnonimo) return;
+    const originalState = ticket.estado;
+    onTicketUpdate({ ...ticket, estado: nuevoEstado });
+    try {
+      const updatedTicketData = await apiFetch<Ticket>(
+        `/tickets/${ticket.tipo}/${ticket.id}/estado`,
+        { method: "PUT", body: { estado: nuevoEstado, user_id: user?.id }, sendEntityToken: true }
+      );
+      const serverComentarios = updatedTicketData.comentarios ? [...updatedTicketData.comentarios].sort((a,b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()) : comentarios;
+      const mergedTicket = { ...ticket, ...updatedTicketData, comentarios: serverComentarios};
+      onTicketUpdate(mergedTicket);
+      toast.success(`Estado del ticket actualizado a "${mergedTicket.estado}".`);
+    } catch (error) {
+      const displayError = error instanceof ApiError ? error.message : "No se pudo cambiar el estado. Intente de nuevo.";
+      toast.error(displayError);
+      console.error("Error al cambiar estado", error);
+      onTicketUpdate({ ...ticket, estado: originalState, comentarios: comentarios });
+    }
+  };
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="p-4 border-b dark:border-slate-700 bg-card dark:bg-slate-800/50 shadow-sm">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1 sm:gap-3">
+            <Button variant="ghost" size="icon" className="md:hidden mr-1" onClick={onClose}>
+              <ChevronDown className="h-5 w-5 transform rotate-90"/>
+            </Button>
+            <h2 className="text-lg font-semibold text-foreground truncate max-w-[calc(100vw-200px)] sm:max-w-md md:max-w-lg" title={ticket.asunto}>
+              #{ticket.nro_ticket} - {ticket.asunto}
+            </h2>
+          </div>
+          <div className="flex items-center gap-2">
+            <Select onValueChange={(val) => handleEstadoChange(val as TicketStatus)} value={ticket.estado}>
+              <SelectTrigger className="w-auto min-w-[140px] h-9 text-sm">
+                <SelectValue placeholder="Cambiar estado..." />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(ESTADOS).map(([key, { label }]) => (
+                  <SelectItem key={key} value={key} className="text-sm">{label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button variant="ghost" size="icon" className="hidden md:inline-flex" onClick={onClose} title="Cerrar panel de detalle">
+              <X className="h-5 w-5" />
+            </Button>
+          </div>
+        </div>
+      </div>
+      <div className="flex-1 overflow-hidden p-2 md:p-4 bg-background dark:bg-slate-700/30">
+        <ScrollArea className="flex-1 pr-2">
+          <main className="space-y-3 p-1">
+            {comentarios && comentarios.length > 0 ? (
+              [...comentarios].reverse().map((comment) => {
+                const attachment = getAttachmentInfo(comment.comentario);
+                return (
+                  <div
+                    key={comment.id}
+                    className={cn(
+                      'flex items-end gap-2 text-sm',
+                      comment.es_admin ? 'justify-end' : 'justify-start'
+                    )}
+                  >
+                    {!comment.es_admin && <AvatarIcon type="user" />}
+                    <div
+                      className={cn(
+                        'max-w-lg md:max-w-md lg:max-w-lg rounded-xl px-3.5 py-2.5 shadow-sm',
+                        comment.es_admin
+                          ? 'bg-primary text-primary-foreground rounded-br-sm'
+                          : 'bg-card dark:bg-slate-800 text-foreground border dark:border-slate-700/80 rounded-bl-sm',
+                        typeof comment.id === 'string' && comment.id.startsWith('client-file-') && comment.es_admin
+                          ? 'bg-primary/80 border border-primary/50'
+                          : typeof comment.id === 'string' && comment.id.startsWith('client-file-')
+                            ? 'bg-muted border border-border'
+                            : ''
+                      )}
+                    >
+                      {attachment ? (
+                        <AttachmentPreview attachment={attachment} />
+                      ) : (
+                        <p className="break-words whitespace-pre-wrap">{comment.comentario}</p>
+                      )}
+                      <p className={cn(
+                        "text-xs opacity-70 mt-1.5",
+                        comment.es_admin ? "text-primary-foreground/80 text-right" : "text-muted-foreground text-right"
+                      )}>
+                        {formatDate(comment.fecha, timezone, locale)}
+                      </p>
+                    </div>
+                    {comment.es_admin && <AvatarIcon type="admin" />}
+                  </div>
+                );
+              })
+            ) : (
+              <div className="text-center text-muted-foreground py-10">
+                No hay comentarios para este ticket.
+              </div>
+            )}
+            <div ref={chatBottomRef} />
+          </main>
+        </ScrollArea>
+        <footer className="border-t dark:border-slate-700/80 p-2 md:p-3 mt-2 flex flex-col gap-2 flex-shrink-0 sticky bottom-0 bg-background dark:bg-slate-900">
+          {selectedFile && (
+            <div className="p-2 border border-dashed dark:border-slate-600 rounded-md flex items-center justify-between bg-muted/50 dark:bg-slate-800/30">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground truncate">
+                <File className="h-4 w-4 flex-shrink-0" />
+                <span className="truncate" title={selectedFile.name}>{selectedFile.name}</span>
+                <span className="text-xs opacity-70 whitespace-nowrap">({(selectedFile.size / 1024).toFixed(1)} KB)</span>
+              </div>
+              <Button variant="ghost" size="icon" onClick={() => setSelectedFile(null)} className="h-7 w-7">
+                <XCircle className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+          <div className="flex gap-2 items-center">
+            <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} />
+            <Button variant="outline" size="icon" onClick={() => fileInputRef.current?.click()} className="h-10 w-10 flex-shrink-0" title="Adjuntar archivo">
+              <Paperclip className="h-5 w-5" />
+            </Button>
+            <Button variant="outline" size="icon" onClick={() => setIsTemplateSelectorOpen(true)} className="h-10 w-10 flex-shrink-0" title="Usar plantilla de mensaje">
+              <Sparkles className="h-5 w-5" />
+            </Button>
+            <Input
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey && (newMessage.trim() || selectedFile)) {
+                  e.preventDefault();
+                  handleSendMessage();
+                }
+              }}
+              placeholder="Escribe una respuesta..."
+              disabled={isSending}
+              className="h-10 bg-card dark:bg-slate-800 focus-visible:ring-primary/50"
+            />
+            <Button
+              onClick={handleSendMessage}
+              disabled={isSending || (!newMessage.trim() && !selectedFile)}
+              aria-label="Enviar Mensaje" className="h-10"
+            >
+              {isSending ? <Loader2 className="animate-spin h-5 w-5" /> : <Send className="h-5 w-5" />}
+            </Button>
+          </div>
+        </footer>
+      </div>
+      <TemplateSelector
+        isOpen={isTemplateSelectorOpen}
+        onClose={() => setIsTemplateSelectorOpen(false)}
+        onSelectTemplate={(templateText) => {
+          let finalText = templateText;
+          const placeholderMap: Record<string, () => string> = {
+            '{nombre_usuario}': () => ticket?.nombre_usuario || 'Cliente',
+            '{ticket_asunto}': () => ticket?.asunto || '',
+            '{ticket_estado}': () => ticket?.estado || '',
+            '{ticket_id}': () => String(ticket?.id || ''),
+            '{ticket_nro_ticket}': () => String(ticket?.nro_ticket || ''),
+            '{ticket_direccion}': () => ticket?.direccion || 'N/A',
+            '{admin_nombre}': () => user?.name || 'nuestro equipo',
+          };
+          if (ticket || user) {
+            for (const placeholder in placeholderMap) {
+              if (finalText.includes(placeholder)) {
+                finalText = finalText.replace(new RegExp(placeholder.replace(/\{/g, '\\{').replace(/\}/g, '\\}'), 'g'), placeholderMap[placeholder]());
+              }
+            }
+          }
+          setNewMessage(prev => prev ? `${prev} ${finalText}` : finalText);
+          setIsTemplateSelectorOpen(false);
+        }}
+      />
+    </div>
+  );
+};
+
+const TicketDetails: FC<{ ticket: Ticket, categoryNames: Record<string, string>, comentarios: Comment[] }> = ({ ticket, categoryNames, comentarios }) => {
+  const { timezone, locale } = useDateSettings();
+  const { user } = useUser();
+  return (
+    <ScrollArea className="h-full p-3 md:p-4 space-y-4 bg-card dark:bg-slate-800/50 border-t md:border-t-0 md:border-l dark:border-slate-700">
+      {(ticket.priority || ticket.sla_status) && (
+        <Card className="shadow-sm">
+          <CardHeader className="pb-3 pt-4 px-4">
+            <CardTitle className="text-base font-semibold">Prioridad y SLA</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground space-y-1.5 px-4 pb-4">
+            {ticket.priority && PRIORITY_INFO[ticket.priority] && (
+              <p><strong>Prioridad:</strong> <span className={cn(PRIORITY_INFO[ticket.priority]?.color)}>{PRIORITY_INFO[ticket.priority]?.label}</span></p>
+            )}
+            {ticket.sla_status && SLA_STATUS_INFO[ticket.sla_status] && (
+              <p><strong>SLA:</strong> <span className={cn(SLA_STATUS_INFO[ticket.sla_status]?.color)}>{SLA_STATUS_INFO[ticket.sla_status]?.label}</span></p>
+            )}
+            {ticket.sla_deadline && (
+              <p><strong>Vencimiento SLA:</strong> {formatDate(ticket.sla_deadline, timezone, locale, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {(ticket.nombre_usuario || ticket.email_usuario || ticket.telefono) && (
+        <Card className="shadow-sm">
+          <CardHeader className="pb-3 pt-4 px-4">
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <User className="h-4 w-4 text-muted-foreground"/> Información del Usuario
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground space-y-1.5 px-4 pb-4">
+            {ticket.nombre_usuario && <p><strong>Nombre:</strong> {ticket.nombre_usuario}</p>}
+            {ticket.email_usuario && <p><strong>Email:</strong> <a href={`mailto:${ticket.email_usuario}`} className="text-primary hover:underline">{ticket.email_usuario}</a></p>}
+            {ticket.telefono && (
+              <div className="flex items-center gap-2">
+                <p className="flex-shrink-0"><strong>Teléfono:</strong></p>
+                <a href={`tel:${ticket.telefono}`} className="text-primary hover:underline truncate" title={ticket.telefono}>{ticket.telefono}</a>
+                {(() => {
+                  const formattedPhone = formatPhoneNumberForWhatsApp(ticket.telefono);
+                  if (formattedPhone) {
+                    const adminName = user?.name || 'el equipo del municipio';
+                    const municipioName = ticket.municipio_nombre || 'el municipio';
+                    const messageText = `Hola ${ticket.nombre_usuario || 'vecino/a'}, le contactamos desde ${municipioName} (agente: ${adminName}) en relación a su ticket N°${ticket.nro_ticket || '[Nro Ticket]'}.`;
+                    const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(messageText)}`;
+                    return (
+                      <a
+                        href={whatsappUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="Enviar mensaje de WhatsApp"
+                        className="ml-1 flex-shrink-0"
+                      >
+                        <MessageSquare className="h-4 w-4 text-green-600 hover:text-green-700 cursor-pointer" />
+                      </a>
+                    );
+                  }
+                  return null;
+                })()}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      <TicketTimeline ticket={ticket} comentarios={comentarios} />
+
+      <Card className="shadow-sm">
+        <CardHeader className="pb-3 pt-4 px-4">
+          <CardTitle className="text-base font-semibold">Descripción del Reclamo</CardTitle>
+        </CardHeader>
+        <CardContent className="px-4 pb-4 text-sm text-muted-foreground whitespace-pre-wrap break-words">
+          {ticket.pregunta || ticket.detalles || "No hay descripción detallada disponible."}
+        </CardContent>
+      </Card>
+
+      <TicketMap ticket={ticket} />
+
+      <Card className="shadow-sm">
+        <CardHeader className="pb-3 pt-4 px-4">
+          <CardTitle className="text-base font-semibold">Archivos Adjuntos al Ticket</CardTitle>
+        </CardHeader>
+        <CardContent className="px-4 pb-4 space-y-2">
+          {(ticket.archivos_adjuntos && ticket.archivos_adjuntos.length > 0) ? (
+            ticket.archivos_adjuntos.map((adj, index) => {
+              const attachmentInfoForPreview: AttachmentInfo = deriveAttachmentInfo(
+                adj.url,
+                adj.name,
+                adj.mimeType,
+                adj.size
+              );
+              if (attachmentInfoForPreview.url.startsWith('/')) {
+                const apiUrl = (import.meta.env.VITE_API_URL || '').replace(/\/api$/, '');
+                if (apiUrl) {
+                  attachmentInfoForPreview.url = `${apiUrl}${attachmentInfoForPreview.url}`;
+                }
+              }
+              return (
+                <AttachmentPreview key={adj.id || index} attachment={attachmentInfoForPreview} />
+              );
+            })
+          ) : (
+            <p className="text-sm text-muted-foreground">No hay archivos adjuntos para este ticket.</p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-sm">
+        <CardHeader className="pb-3 pt-4 px-4"><CardTitle className="text-base font-semibold">Detalles del Ticket</CardTitle></CardHeader>
+        <CardContent className="text-sm text-muted-foreground space-y-1.5 px-4 pb-4">
+          <p><strong>Categoría:</strong> {categoryNames[ticket.categoria || ''] || ticket.categoria || "No especificada"}</p>
+          <p><strong>Tipo:</strong> {ticket.tipo}</p>
+          {ticket.municipio_nombre && <p><strong>Municipio:</strong> {ticket.municipio_nombre}</p>}
+          <p><strong>Creado:</strong> {formatDate(ticket.fecha, timezone, locale, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+        </CardContent>
+      </Card>
+    </ScrollArea>
+  );
+};
 
 const TicketTimeline: FC<{ ticket: Ticket; comentarios: Comment[] }> = ({ ticket, comentarios }) => {
   const { timezone, locale } = useDateSettings();
@@ -656,592 +1286,6 @@ const CATEGORIAS_CHAT_EN_VIVO = [
   "chat en vivo",
   "soporte urgente"
 ];
-
-const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUpdate, onClose, categoryNames }) => { // Added categoryNames to destructuring
-  const { timezone, locale } = useDateSettings();
-  const { user } = useUser();
-  const [newMessage, setNewMessage] = useState("");
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [isSending, setIsSending] = useState(false);
-  const [comentarios, setComentarios] = useState<Comment[]>(ticket.comentarios || []);
-  const [isTemplateSelectorOpen, setIsTemplateSelectorOpen] = useState(false); // State for modal
-  const [isDetailOpen, setIsDetailOpen] = useState(true);
-  const chatBottomRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const pollingRef = useRef<NodeJS.Timeout | null>(null);
-  const ultimoMensajeIdRef = useRef<number>(0);
-
-  const token = safeLocalStorage.getItem('authToken');
-  const isAnonimo = !token;
-
-  const chatEnVivo = useMemo(() => {
-    const categoriaNormalizada = (ticket.asunto || ticket.categoria || "")
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "");
-    return CATEGORIAS_CHAT_EN_VIVO.some(cat => categoriaNormalizada.includes(cat.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""))) &&
-           ["esperando_agente_en_vivo", "en_proceso"].includes(ticket.estado);
-  }, [ticket.asunto, ticket.categoria, ticket.estado]);
-
-  const fetchComentarios = useCallback(async (forceTicketRefresh = false) => {
-    if (isAnonimo) return;
-    try {
-      const data = await apiFetch<{mensajes: any[]}>(`/tickets/chat/${ticket.id}/mensajes?ultimo_mensaje_id=${ultimoMensajeIdRef.current}`, {
-        sendEntityToken: true,
-      });
-      if (data.mensajes && data.mensajes.length > 0) {
-        setComentarios((prev) => {
-          const idsPrev = new Set(prev.map((m) => m.id));
-          const nuevos = data.mensajes.filter((m: any) => !idsPrev.has(m.id));
-          if (nuevos.length > 0) {
-            ultimoMensajeIdRef.current = nuevos[nuevos.length - 1].id;
-            return [
-              ...prev,
-              ...nuevos.map((msg: any) => ({
-                id: msg.id,
-                comentario: msg.texto,
-                fecha: msg.fecha,
-                es_admin: msg.es_admin,
-              })),
-            ].sort((a,b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
-          }
-          return prev;
-        });
-      }
-    } catch (e) {
-      console.error("Error en polling de comentarios:", e);
-    }
-    if (forceTicketRefresh || chatEnVivo) {
-        try {
-            const updatedTicketData = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}`, { sendEntityToken: true });
-            // Use ticket.comentarios (from prop) as the fallback, it's more stable reference here
-            onTicketUpdate({ ...ticket, ...updatedTicketData, comentarios: updatedTicketData.comentarios || ticket.comentarios });
-        } catch (e) {
-            console.error("Error al refrescar ticket:", e);
-        }
-    }
-  }, [ticket.id, ticket.tipo, onTicketUpdate, isAnonimo, chatEnVivo, ticket.comentarios, ticket.asunto, ticket.categoria, ticket.estado]); // Refined dependencies
-
-  useEffect(() => {
-    const initialComments = ticket.comentarios ? [...ticket.comentarios].sort((a,b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()) : [];
-    setComentarios(initialComments);
-    ultimoMensajeIdRef.current = initialComments.length > 0 ? initialComments[initialComments.length - 1].id : 0;
-
-    if (pollingRef.current) clearInterval(pollingRef.current);
-    if (!chatEnVivo) return;
-
-    fetchComentarios(true); // Initial fetch and ticket refresh
-    pollingRef.current = setInterval(() => {
-        // For regular polling, we primarily want new messages.
-        // A full ticket refresh might not be needed every 5s if messages endpoint is efficient.
-        // However, the current `fetchComentarios` will refresh ticket if chatEnVivo is true.
-        // To make it less aggressive, one could pass `fetchComentarios(false)`
-        // and ensure critical ticket updates are pushed or handled differently.
-        // For now, keeping `fetchComentarios(true)` but with faster interval.
-        fetchComentarios(true);
-    }, 5000); // Reduced polling interval to 5 seconds
-    return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
-  }, [ticket.id, ticket.comentarios, chatEnVivo, fetchComentarios]);
-
-
-  useEffect(() => {
-    const container = chatBottomRef.current?.parentElement;
-    if (container && chatBottomRef.current) {
-        const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150;
-        if (atBottom) {
-             setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
-        }
-    }
-  }, [comentarios.length]);
-
-  const handleSendMessage = async () => {
-    const adminUserId = user?.id;
-
-    if ((!newMessage.trim() && !selectedFile) || isSending || isAnonimo || !adminUserId) {
-      if (!adminUserId && !isAnonimo) {
-        console.error("Error: adminUserId no disponible para enviar mensaje.");
-      }
-      return;
-    }
-
-    setIsSending(true);
-    const tempId = Date.now();
-    const currentMessageText = newMessage.trim();
-    const currentSelectedFile = selectedFile; // Capture before clearing state
-    const previousAttachments = ticket.archivos_adjuntos ? [...ticket.archivos_adjuntos] : []; // Capture previous attachments
-
-    // Optimistic update:
-    let optimisticCommentText = currentMessageText;
-    if (currentSelectedFile) {
-        const filePlaceholder = `Archivo adjunto: ${currentSelectedFile.name} (subiendo...)`;
-        if (!currentMessageText) { // If only file
-            optimisticCommentText = filePlaceholder;
-        } else { // If text and file
-            optimisticCommentText = `${currentMessageText}\n${filePlaceholder}`;
-        }
-    }
-
-    const optimisticComment: Comment = {
-        id: tempId,
-        comentario: optimisticCommentText,
-        fecha: new Date().toISOString(),
-        es_admin: true,
-    };
-    // Add optimistic comment only if there's text or a file being sent
-    if (optimisticCommentText || currentSelectedFile) {
-        setComentarios(prev => [...prev, optimisticComment].sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()));
-    }
-
-    setNewMessage("");
-    setSelectedFile(null);
-
-    try {
-        let requestBody: any;
-        let headers: Record<string, string> = {}; // apiFetch will add auth token
-
-        if (currentSelectedFile) {
-            const formData = new FormData();
-            formData.append('archivos', currentSelectedFile, currentSelectedFile.name);
-            if (currentMessageText) {
-                formData.append('comentario', currentMessageText);
-            }
-            // The backend uses current_user.id for the user_id of the comment and attachment.
-            // No need to explicitly send user_id in FormData for this endpoint.
-            requestBody = formData;
-            // When using FormData, do not set the 'Content-Type' header manually.
-            // The browser will automatically set it to 'multipart/form-data'
-            // with the correct 'boundary' parameter.
-        } else {
-            // Only text message
-            requestBody = {
-                mensaje: currentMessageText,
-                user_id: adminUserId // Backend expects user_id for JSON, but derives from token for comment user.
-                                     // The provided backend code for JSON payload for /responder does not use user_id from payload.
-                                     // It uses current_user.id for `servicio_tickets.crear_comentario`.
-                                     // Let's send `comentario` as per backend for JSON.
-            };
-            if (currentMessageText) { // Only send 'comentario' if there is text.
-                 requestBody = { comentario: currentMessageText };
-            } else {
-                // Should not happen due to initial check, but as a safeguard:
-                setIsSending(false);
-                return;
-            }
-            headers['Content-Type'] = 'application/json';
-        }
-
-        const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}/responder`, {
-            method: "POST",
-            body: requestBody,
-            headers: headers, // Pass headers for JSON case
-            sendEntityToken: true, // apiFetch handles token
-        });
-
-      const serverComentariosActuales = updatedTicket.comentarios
-          ? [...updatedTicket.comentarios]
-          : [];
-
-      let nuevosComentariosParaMostrar = [...serverComentariosActuales];
-
-      if (currentSelectedFile) {
-        // Identificar el archivo recién subido para crear un comentario sintético para él.
-        // Esto asume que `updatedTicket.archivos_adjuntos` está actualizado.
-        const prevAttachmentIds = new Set(ticket.archivos_adjuntos?.map(att => att.id) || []);
-        const newAttachments = updatedTicket.archivos_adjuntos?.filter(att => !prevAttachmentIds.has(att.id)) || [];
-        console.log('[handleSendMessage] Newly identified attachments:', JSON.stringify(newAttachments, null, 2));
-
-        newAttachments.forEach(newFileAttachment => {
-          let fileUrlForComment = newFileAttachment.url;
-          if (newFileAttachment.url && newFileAttachment.url.startsWith('/')) {
-            // Ensure VITE_API_URL is defined and doesn't end with /api if the URL already has a leading /
-            const apiUrl = (import.meta.env.VITE_API_URL || '').replace(/\/api$/, '');
-            fileUrlForComment = `${apiUrl}${newFileAttachment.url}`;
-            console.log(`[handleSendMessage] Constructed absolute URL for synthetic comment: ${fileUrlForComment}`);
-          } else if (newFileAttachment.url) {
-            console.log(`[handleSendMessage] Using provided URL for synthetic comment (assumed absolute or will be handled by browser): ${fileUrlForComment}`);
-          } else {
-            console.error('[handleSendMessage] New attachment found but has no URL:', newFileAttachment);
-            return; // Skip this attachment if no URL
-          }
-
-          const fileComment: Comment = {
-            id: `client-file-${newFileAttachment.id || Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-            comentario: fileUrlForComment,
-            fecha: newFileAttachment.fecha || new Date().toISOString(),
-            es_admin: true,
-          };
-          console.log('[handleSendMessage] Synthetic fileComment created:', JSON.stringify(fileComment, null, 2));
-          nuevosComentariosParaMostrar.push(fileComment);
-        });
-      }
-
-      console.log('[handleSendMessage] All comments to display (after adding synthetic, before sort):', JSON.stringify(nuevosComentariosParaMostrar, null, 2));
-      nuevosComentariosParaMostrar.sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
-      console.log('[handleSendMessage] Final sorted comments for display:', JSON.stringify(nuevosComentariosParaMostrar, null, 2));
-
-      setComentarios(nuevosComentariosParaMostrar);
-
-      if (nuevosComentariosParaMostrar.length > 0) {
-          const lastComment = nuevosComentariosParaMostrar.find(c => typeof c.id === 'number' && c.id > ultimoMensajeIdRef.current);
-          if (lastComment) { // Asegurar que solo actualizamos con IDs numéricos de comentarios reales
-            ultimoMensajeIdRef.current = lastComment.id;
-          } else if (serverComentariosActuales.length > 0 && typeof serverComentariosActuales[serverComentariosActuales.length -1].id === 'number') {
-            // Fallback si no hay un "nuevo" comentario real pero sí hay comentarios del servidor
-            ultimoMensajeIdRef.current = serverComentariosActuales[serverComentariosActuales.length -1].id;
-          }
-      }
-
-      // Actualizar el ticket principal. Los comentarios aquí son los del servidor.
-      // La UI de comentarios ya se actualizó con los sintéticos si los hubo.
-      onTicketUpdate({ ...ticket, ...updatedTicket, comentarios: serverComentariosActuales });
-
-      // Log for diagnosing backend response
-      if (currentSelectedFile) {
-        console.log('Updated Ticket Data (after file upload):', JSON.stringify(updatedTicket, null, 2));
-        console.log('Previous attachments (before this send):', JSON.stringify(previousAttachments, null, 2));
-      }
-
-    } catch (error) {
-      const displayError = error instanceof ApiError ? error.message : "No se pudo enviar el mensaje. Intente de nuevo.";
-      toast.error(displayError);
-      console.error("Error al enviar comentario:", error); // Keep console log for debugging
-
-      // Revertir la UI eliminando el comentario optimista
-      setComentarios(prev => prev.filter(c => c.id !== tempId));
-
-      // Restaurar el texto y el archivo seleccionado para que el usuario no los pierda
-      setNewMessage(currentMessageText);
-      if (currentSelectedFile) {
-        setSelectedFile(currentSelectedFile); // Restaurar el archivo seleccionado
-        toast.info(`El archivo "${currentSelectedFile.name}" no fue enviado. Por favor, adjúntelo de nuevo si es necesario.`);
-      }
-    } finally {
-      // No limpiar newMessage y selectedFile aquí si falló, para que el usuario pueda reintentar.
-      // Se limpian al inicio del try si la preparación es exitosa.
-      // Ah, ya se limpian al inicio del try, entonces si hay error, se restauran.
-      // Si no hay error, ya están limpios.
-      setIsSending(false);
-    }
-  };
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files && event.target.files[0]) {
-      setSelectedFile(event.target.files[0]);
-    }
-  };
-
-  const handleEstadoChange = async (nuevoEstado: TicketStatus) => {
-    if (isAnonimo) return;
-    const originalState = ticket.estado;
-    onTicketUpdate({ ...ticket, estado: nuevoEstado });
-    try {
-      const updatedTicketData = await apiFetch<Ticket>(
-        `/tickets/${ticket.tipo}/${ticket.id}/estado`,
-        { method: "PUT", body: { estado: nuevoEstado, user_id: user?.id }, sendEntityToken: true }
-      );
-      const serverComentarios = updatedTicketData.comentarios ? [...updatedTicketData.comentarios].sort((a,b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()) : comentarios;
-      const mergedTicket = { ...ticket, ...updatedTicketData, comentarios: serverComentarios};
-      onTicketUpdate(mergedTicket);
-      toast.success(`Estado del ticket actualizado a "${mergedTicket.estado}".`);
-    } catch (error) {
-      const displayError = error instanceof ApiError ? error.message : "No se pudo cambiar el estado. Intente de nuevo.";
-      toast.error(displayError);
-      console.error("Error al cambiar estado", error); // Keep console log
-      onTicketUpdate({ ...ticket, estado: originalState, comentarios: comentarios }); // Revert optimistic update
-    }
-  };
-
-  return (
-    <div className="flex flex-col h-full">
-        <div className="p-4 border-b dark:border-slate-700 bg-card dark:bg-slate-800/50 shadow-sm">
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1 sm:gap-3">
-                    <Button variant="ghost" size="icon" className="md:hidden mr-1" onClick={onClose}>
-                        <ChevronDown className="h-5 w-5 transform rotate-90"/>
-                    </Button>
-                    <h2 className="text-lg font-semibold text-foreground truncate max-w-[calc(100vw-200px)] sm:max-w-md md:max-w-lg" title={ticket.asunto}>
-                        #{ticket.nro_ticket} - {ticket.asunto}
-                    </h2>
-                </div>
-                <div className="flex items-center gap-2">
-                    <Select onValueChange={(val) => handleEstadoChange(val as TicketStatus)} value={ticket.estado}>
-                        <SelectTrigger className="w-auto min-w-[140px] h-9 text-sm">
-                             <SelectValue placeholder="Cambiar estado..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                        {Object.entries(ESTADOS).map(([key, { label }]) => (
-                            <SelectItem key={key} value={key} className="text-sm">{label}</SelectItem>
-                        ))}
-                        </SelectContent>
-                    </Select>
-                     <Button variant="ghost" size="icon" className="hidden md:inline-flex" onClick={() => setIsDetailOpen(!isDetailOpen)} title="Minimizar panel de detalle">
-                        {isDetailOpen ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
-                    </Button>
-                     <Button variant="ghost" size="icon" className="hidden md:inline-flex" onClick={onClose} title="Cerrar panel de detalle">
-                        <X className="h-5 w-5" />
-                    </Button>
-                </div>
-            </div>
-        </div>
-
-        <div className="grid md:grid-cols-3 flex-1 overflow-hidden">
-            {/* Panel de Chat (Centro) */}
-            <div className="md:col-span-2 flex flex-col p-2 md:p-4 bg-background dark:bg-slate-700/30 md:border-r dark:border-slate-700">
-                {!chatEnVivo && (
-                    <div className="p-2 flex justify-end">
-                        <Button size="sm" variant="outline" onClick={() => fetchComentarios(true)} className="text-xs h-8">
-                            Actualizar mensajes
-                        </Button>
-                    </div>
-                )}
-                <ScrollArea className="flex-1 pr-2">
-                    <main className="space-y-3 p-1">
-                        {comentarios && comentarios.length > 0 ? (
-                            [...comentarios].reverse().map((comment) => {
-                                const attachment = getAttachmentInfo(comment.comentario);
-                                return (
-                                    <div
-                                        key={comment.id}
-                                        className={cn(
-                                            'flex items-end gap-2 text-sm',
-                                            comment.es_admin ? 'justify-end' : 'justify-start'
-                                        )}
-                                    >
-                                        {!comment.es_admin && <AvatarIcon type="user" />}
-                                        <div
-                                            className={cn(
-                                                'max-w-lg md:max-w-md lg:max-w-lg rounded-xl px-3.5 py-2.5 shadow-sm',
-                                                comment.es_admin
-                                                    ? 'bg-primary text-primary-foreground rounded-br-sm'
-                                                    : 'bg-card dark:bg-slate-800 text-foreground border dark:border-slate-700/80 rounded-bl-sm',
-                                                typeof comment.id === 'string' && comment.id.startsWith('client-file-') && comment.es_admin
-                                                    ? 'bg-primary/80 border border-primary/50'
-                                                    : typeof comment.id === 'string' && comment.id.startsWith('client-file-')
-                                                        ? 'bg-muted border border-border'
-                                                        : ''
-                                            )}
-                                        >
-                                            {attachment ? (
-                                                <AttachmentPreview attachment={attachment} />
-                                            ) : (
-                                                <p className="break-words whitespace-pre-wrap">{comment.comentario}</p>
-                                            )}
-                                            <p className={cn(
-                                                "text-xs opacity-70 mt-1.5",
-                                                comment.es_admin ? "text-primary-foreground/80 text-right" : "text-muted-foreground text-right"
-                                            )}>
-                                                {formatDate(comment.fecha, timezone, locale)}
-                                            </p>
-                                        </div>
-                                        {comment.es_admin && <AvatarIcon type="admin" />}
-                                    </div>
-                                );
-                            })
-                        ) : (
-                            <div className="text-center text-muted-foreground py-10">
-                                No hay comentarios para este ticket.
-                            </div>
-                        )}
-                        <div ref={chatBottomRef} />
-                    </main>
-                </ScrollArea>
-                <footer className="border-t dark:border-slate-700/80 p-2 md:p-3 mt-2 flex flex-col gap-2 flex-shrink-0 sticky bottom-0 bg-background dark:bg-slate-900">
-                    {selectedFile && (
-                        <div className="p-2 border border-dashed dark:border-slate-600 rounded-md flex items-center justify-between bg-muted/50 dark:bg-slate-800/30">
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground truncate">
-                                <File className="h-4 w-4 flex-shrink-0" />
-                                <span className="truncate" title={selectedFile.name}>{selectedFile.name}</span>
-                                <span className="text-xs opacity-70 whitespace-nowrap">({(selectedFile.size / 1024).toFixed(1)} KB)</span>
-                            </div>
-                            <Button variant="ghost" size="icon" onClick={() => setSelectedFile(null)} className="h-7 w-7">
-                                <XCircle className="h-4 w-4" />
-                            </Button>
-                        </div>
-                    )}
-                    <div className="flex gap-2 items-center">
-                        <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} />
-                        <Button variant="outline" size="icon" onClick={() => fileInputRef.current?.click()} className="h-10 w-10 flex-shrink-0" title="Adjuntar archivo">
-                            <Paperclip className="h-5 w-5" />
-                        </Button>
-                        <Button variant="outline" size="icon" onClick={() => setIsTemplateSelectorOpen(true)} className="h-10 w-10 flex-shrink-0" title="Usar plantilla de mensaje">
-                            <Sparkles className="h-5 w-5" />
-                        </Button>
-                        <Input
-                            value={newMessage}
-                            onChange={(e) => setNewMessage(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter' && !e.shiftKey && (newMessage.trim() || selectedFile)) {
-                                    e.preventDefault();
-                                    handleSendMessage();
-                                }
-                            }}
-                            placeholder="Escribe una respuesta..."
-                            disabled={isSending}
-                            className="h-10 bg-card dark:bg-slate-800 focus-visible:ring-primary/50"
-                        />
-                        <Button
-                            onClick={handleSendMessage}
-                            disabled={isSending || (!newMessage.trim() && !selectedFile)}
-                            aria-label="Enviar Mensaje" className="h-10"
-                        >
-                            {isSending ? <Loader2 className="animate-spin h-5 w-5" /> : <Send className="h-5 w-5" />}
-                        </Button>
-                    </div>
-                </footer>
-            </div>
-
-            {/* Panel de Detalles (Derecha) */}
-            <div className="md:col-span-1 hidden md:block">
-                <ScrollArea className="h-full p-3 md:p-4 space-y-4 bg-card dark:bg-slate-800/50 border-t md:border-t-0 md:border-l dark:border-slate-700">
-                    {(ticket.priority || ticket.sla_status) && (
-                        <Card className="shadow-sm">
-                        <CardHeader className="pb-3 pt-4 px-4">
-                            <CardTitle className="text-base font-semibold">Prioridad y SLA</CardTitle>
-                        </CardHeader>
-                        <CardContent className="text-sm text-muted-foreground space-y-1.5 px-4 pb-4">
-                            {ticket.priority && PRIORITY_INFO[ticket.priority] && (
-                            <p><strong>Prioridad:</strong> <span className={cn(PRIORITY_INFO[ticket.priority]?.color)}>{PRIORITY_INFO[ticket.priority]?.label}</span></p>
-                            )}
-                            {ticket.sla_status && SLA_STATUS_INFO[ticket.sla_status] && (
-                            <p><strong>SLA:</strong> <span className={cn(SLA_STATUS_INFO[ticket.sla_status]?.color)}>{SLA_STATUS_INFO[ticket.sla_status]?.label}</span></p>
-                            )}
-                            {ticket.sla_deadline && (
-                            <p><strong>Vencimiento SLA:</strong> {formatDate(ticket.sla_deadline, timezone, locale, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
-                            )}
-                        </CardContent>
-                        </Card>
-                    )}
-
-                    {(ticket.nombre_usuario || ticket.email_usuario || ticket.telefono) && (
-                        <Card className="shadow-sm">
-                            <CardHeader className="pb-3 pt-4 px-4">
-                                <CardTitle className="text-base font-semibold flex items-center gap-2">
-                                    <User className="h-4 w-4 text-muted-foreground"/> Información del Usuario
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent className="text-sm text-muted-foreground space-y-1.5 px-4 pb-4">
-                                {ticket.nombre_usuario && <p><strong>Nombre:</strong> {ticket.nombre_usuario}</p>}
-                                {ticket.email_usuario && <p><strong>Email:</strong> <a href={`mailto:${ticket.email_usuario}`} className="text-primary hover:underline">{ticket.email_usuario}</a></p>}
-                                {ticket.telefono && (
-                                    <div className="flex items-center gap-2">
-                                        <p className="flex-shrink-0"><strong>Teléfono:</strong></p>
-                                        <a href={`tel:${ticket.telefono}`} className="text-primary hover:underline truncate" title={ticket.telefono}>{ticket.telefono}</a>
-                                        {(() => {
-                                            const formattedPhone = formatPhoneNumberForWhatsApp(ticket.telefono);
-                                            if (formattedPhone) {
-                                                const adminName = user?.name || 'el equipo del municipio';
-                                                const municipioName = ticket.municipio_nombre || 'el municipio';
-                                                const messageText = `Hola ${ticket.nombre_usuario || 'vecino/a'}, le contactamos desde ${municipioName} (agente: ${adminName}) en relación a su ticket N°${ticket.nro_ticket || '[Nro Ticket]'}.`;
-                                                const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(messageText)}`;
-                                                return (
-                                                    <a
-                                                        href={whatsappUrl}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        title="Enviar mensaje de WhatsApp"
-                                                        className="ml-1 flex-shrink-0"
-                                                    >
-                                                        <MessageSquare className="h-4 w-4 text-green-600 hover:text-green-700 cursor-pointer" />
-                                                    </a>
-                                                );
-                                            }
-                                            return null;
-                                        })()}
-                                    </div>
-                                )}
-                            </CardContent>
-                        </Card>
-                    )}
-
-                    <TicketTimeline ticket={ticket} comentarios={comentarios} />
-
-                    <Card className="shadow-sm">
-                        <CardHeader className="pb-3 pt-4 px-4">
-                            <CardTitle className="text-base font-semibold">Descripción del Reclamo</CardTitle>
-                        </CardHeader>
-                        <CardContent className="px-4 pb-4 text-sm text-muted-foreground whitespace-pre-wrap break-words">
-                            {ticket.pregunta || ticket.detalles || "No hay descripción detallada disponible."}
-                        </CardContent>
-                    </Card>
-
-                    <TicketMap ticket={ticket} />
-
-                    <Card className="shadow-sm">
-                        <CardHeader className="pb-3 pt-4 px-4">
-                            <CardTitle className="text-base font-semibold">Archivos Adjuntos al Ticket</CardTitle>
-                        </CardHeader>
-                        <CardContent className="px-4 pb-4 space-y-2">
-                            {(ticket.archivos_adjuntos && ticket.archivos_adjuntos.length > 0) ? (
-                                ticket.archivos_adjuntos.map((adj, index) => {
-                                    const attachmentInfoForPreview: AttachmentInfo = deriveAttachmentInfo(
-                                        adj.url,
-                                        adj.name,
-                                        adj.mimeType,
-                                        adj.size
-                                    );
-                                    if (attachmentInfoForPreview.url.startsWith('/')) {
-                                        const apiUrl = (import.meta.env.VITE_API_URL || '').replace(/\/api$/, '');
-                                        if (apiUrl) {
-                                            attachmentInfoForPreview.url = `${apiUrl}${attachmentInfoForPreview.url}`;
-                                        }
-                                    }
-                                    return (
-                                        <AttachmentPreview key={adj.id || index} attachment={attachmentInfoForPreview} />
-                                    );
-                                })
-                            ) : (
-                                <p className="text-sm text-muted-foreground">No hay archivos adjuntos para este ticket.</p>
-                            )}
-                        </CardContent>
-                    </Card>
-
-                    <Card className="shadow-sm">
-                            <CardHeader className="pb-3 pt-4 px-4"><CardTitle className="text-base font-semibold">Detalles del Ticket</CardTitle></CardHeader>
-                            <CardContent className="text-sm text-muted-foreground space-y-1.5 px-4 pb-4">
-                            <p><strong>Categoría:</strong> {categoryNames[ticket.categoria || ''] || ticket.categoria || "No especificada"}</p>
-                            <p><strong>Tipo:</strong> {ticket.tipo}</p>
-                            {ticket.municipio_nombre && <p><strong>Municipio:</strong> {ticket.municipio_nombre}</p>}
-                            <p><strong>Creado:</strong> {formatDate(ticket.fecha, timezone, locale, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
-                            </CardContent>
-                    </Card>
-                </ScrollArea>
-            </div>
-        </div>
-        <TemplateSelector
-            isOpen={isTemplateSelectorOpen}
-            onClose={() => setIsTemplateSelectorOpen(false)}
-            onSelectTemplate={(templateText) => {
-                let finalText = templateText;
-
-                const placeholderMap: Record<string, () => string> = {
-                    '{nombre_usuario}': () => ticket?.nombre_usuario || 'Cliente',
-                    '{ticket_asunto}': () => ticket?.asunto || '',
-                    '{ticket_estado}': () => ticket?.estado || '',
-                    '{ticket_id}': () => String(ticket?.id || ''),
-                    '{ticket_nro_ticket}': () => String(ticket?.nro_ticket || ''),
-                    '{ticket_direccion}': () => ticket?.direccion || 'N/A',
-                    '{admin_nombre}': () => user?.name || 'nuestro equipo', // Added admin name
-                    // Add more placeholders here as needed
-                };
-
-                if (ticket || user) { // Ensure there's some data to replace with
-                    for (const placeholder in placeholderMap) {
-                        // Check if placeholder actually exists in template to avoid unnecessary replace calls
-                        if (finalText.includes(placeholder)) {
-                             finalText = finalText.replace(new RegExp(placeholder.replace(/\{/g, '\\{').replace(/\}/g, '\\}'), 'g'), placeholderMap[placeholder]());
-                        }
-                    }
-                }
-
-                setNewMessage(prev => prev ? `${prev} ${finalText}` : finalText); // Append or set
-                setIsTemplateSelectorOpen(false);
-            }}
-            // Pass current ticket data if TemplateSelector is to be context-aware
-            // currentTicket={ticket}
-        />
-    </div>
-  );
-};
 
 const AvatarIcon: FC<{ type: 'user' | 'admin' }> = ({ type }) => (
   <div className={cn(

@@ -10,12 +10,12 @@ interface TicketListItemProps {
   ticket: TicketSummary;
   isSelected: boolean;
   onSelect: () => void;
-  onToggleSelection: (ticketId: number, isSelected: boolean) => void;
-  isTicketSelectedForBulk: boolean;
+  onToggleSelection: (ticketId: number, selected: boolean) => void;
+  isSelectionEnabled: boolean;
   style: React.CSSProperties;
 }
 
-const TicketListItem: React.FC<TicketListItemProps> = React.memo(({ ticket, isSelected, onSelect, onToggleSelection, isTicketSelectedForBulk, style }) => {
+const TicketListItem: React.FC<TicketListItemProps> = React.memo(({ ticket, isSelected, onSelect, onToggleSelection, isSelectionEnabled, style }) => {
   let cardClasses = "bg-card dark:bg-slate-800 border-border dark:border-slate-700/80 hover:border-slate-400 dark:hover:border-slate-500";
   if (isSelected) {
     cardClasses = "bg-primary/10 border-primary dark:bg-primary/20 dark:border-primary ring-1 ring-primary";
@@ -26,33 +26,30 @@ const TicketListItem: React.FC<TicketListItemProps> = React.memo(({ ticket, isSe
   }
 
   return (
-    <div style={style}>
-      <motion.div
-        layout
-        className={cn(
-          "p-4 rounded-lg border mb-2 transition-all duration-200 ease-in-out flex items-center gap-3",
-          "hover:shadow-md dark:hover:bg-slate-700/60",
-          cardClasses
-        )}
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0 }}
-      >
-        <Checkbox
-          checked={isTicketSelectedForBulk}
-          onCheckedChange={(checked) => onToggleSelection(ticket.id, !!checked)}
-          className="mr-2"
-        />
-        <div onClick={onSelect} className="cursor-pointer flex-grow">
-          <div className="flex justify-between items-start mb-1">
-            <span className="font-semibold text-primary text-xs truncate max-w-[80px] flex-shrink-0" title={`#${ticket.nro_ticket}`}>#{ticket.nro_ticket}</span>
-            <Badge className={cn("text-xs border", ESTADOS[ticket.estado]?.tailwind_class)}>{ESTADOS[ticket.estado]?.label}</Badge>
-          </div>
-          <p className="font-medium text-foreground truncate text-xs" title={ticket.asunto}>{ticket.asunto}</p>
-          {ticket.nombre_usuario && <p className="text-xs text-muted-foreground truncate mt-0.5" title={ticket.nombre_usuario}>{ticket.nombre_usuario}</p>}
+    <motion.div
+      layout
+      onClick={onSelect}
+      className={cn(
+        "p-3 rounded-lg border cursor-pointer mb-2 transition-all duration-200 ease-in-out flex items-center gap-3",
+        "hover:shadow-md dark:hover:bg-slate-700/60",
+        cardClasses
+      )}
+      whileHover={{ y: -2 }}
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0 }}
+      style={style}
+    >
+      {isSelectionEnabled && <Checkbox onCheckedChange={(checked) => onToggleSelection(ticket.id, !!checked)} />}
+      <div className="flex-grow">
+        <div className="flex justify-between items-start mb-1">
+          <span className="font-semibold text-primary text-xs truncate max-w-[80px] flex-shrink-0" title={`#${ticket.nro_ticket}`}>#{ticket.nro_ticket}</span>
+          <Badge className={cn("text-xs border", ESTADOS[ticket.estado]?.tailwind_class)}>{ESTADOS[ticket.estado]?.label}</Badge>
         </div>
-      </motion.div>
-    </div>
+        <p className="font-medium text-foreground truncate text-xs" title={ticket.asunto}>{ticket.asunto}</p>
+        {ticket.nombre_usuario && <p className="text-xs text-muted-foreground truncate mt-0.5" title={ticket.nombre_usuario}>{ticket.nombre_usuario}</p>}
+      </div>
+    </motion.div>
   );
 });
 
@@ -60,22 +57,21 @@ interface TicketListProps {
   tickets: TicketSummary[];
   selectedTicketId: number | null;
   onTicketSelect: (ticket: TicketSummary) => void;
-  selectedTicketsForBulk: Set<number>;
-  onToggleSelection: (ticketId: number, isSelected: boolean) => void;
+  onToggleSelection: (ticketId: number, selected: boolean) => void;
+  isSelectionEnabled: boolean;
 }
 
-const TicketList: React.FC<TicketListProps> = ({ tickets, selectedTicketId, onTicketSelect, selectedTicketsForBulk, onToggleSelection }) => {
+const TicketList: React.FC<TicketListProps> = ({ tickets, selectedTicketId, onTicketSelect, onToggleSelection, isSelectionEnabled }) => {
   const parentRef = React.useRef<HTMLDivElement>(null);
 
   const rowVirtualizer = useVirtualizer({
     count: tickets.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 90, // Estimate size of each item
-    overscan: 5,
+    estimateSize: () => 90,
   });
 
   return (
-    <div ref={parentRef} className="w-full h-full overflow-auto">
+    <div ref={parentRef} className="w-full h-full overflow-y-auto">
       <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
         {rowVirtualizer.getVirtualItems().map(virtualItem => {
           const ticket = tickets[virtualItem.index];
@@ -85,8 +81,8 @@ const TicketList: React.FC<TicketListProps> = ({ tickets, selectedTicketId, onTi
               ticket={ticket}
               isSelected={selectedTicketId === ticket.id}
               onSelect={() => onTicketSelect(ticket)}
-              isTicketSelectedForBulk={selectedTicketsForBulk.has(ticket.id)}
               onToggleSelection={onToggleSelection}
+              isSelectionEnabled={isSelectionEnabled}
               style={{
                 position: 'absolute',
                 top: 0,
