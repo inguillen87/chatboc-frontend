@@ -104,7 +104,18 @@ export default function TicketsPanel() {
   const statusSelectRef = useRef<HTMLButtonElement>(null);
 
   const fetchInitialData = useCallback(async () => {
-    // ... (fetch and error handling logic remains the same)
+    setIsLoading(true);
+    setError(null);
+    try {
+      const data = await apiFetch<TicketSummary[]>("/tickets", { sendEntityToken: true });
+      setAllTickets(data);
+    } catch (err) {
+      const errorMessage = err instanceof ApiError ? err.message : "Error al cargar los tickets. Por favor, intente de nuevo más tarde.";
+      setError(errorMessage);
+      toast.error(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
   const channel = usePusher('tickets');
