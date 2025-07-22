@@ -10,6 +10,11 @@ export const useWebSocket = () => {
   useEffect(() => {
     if (socketRef.current) return;
 
+    // --- CONEXIÓN DESACTIVADA TEMPORALMENTE ---
+    // El backend tiene un problema de CORS (envía el header 'Access-Control-Allow-Origin' dos veces).
+    // Para que el panel funcione con polling, se desactiva la conexión de WebSocket.
+    // Para reactivar, simplemente descomenta el siguiente bloque de código.
+    /*
     const socket = io(SOCKET_URL, {
       reconnection: true,
       reconnectionAttempts: 5,
@@ -38,6 +43,7 @@ export const useWebSocket = () => {
       socket.disconnect();
       socketRef.current = null;
     };
+    */
   }, []);
 
   const on = (eventName: string, handler: (...args: any[]) => void) => {
