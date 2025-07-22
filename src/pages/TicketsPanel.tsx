@@ -448,11 +448,11 @@ return (
       </div>
     </header>
 
-    <main className="flex flex-1 overflow-hidden">
+    <main className="grid md:grid-cols-3 flex-1 overflow-hidden">
       {/* Panel de Lista de Tickets (Izquierda) */}
       <div
         className={cn(
-          "w-full md:w-2/5 lg:w-1/3 xl:w-1/4 border-r dark:border-slate-700 bg-card dark:bg-slate-800/50 flex flex-col transition-all duration-300 ease-in-out",
+          "md:col-span-1 border-r dark:border-slate-700 bg-card dark:bg-slate-800/50 flex flex-col transition-all duration-300 ease-in-out",
           selectedTicketId ? "hidden md:flex" : "flex"
         )}
       >
@@ -505,7 +505,7 @@ return (
       </div>
 
       {/* Panel Central (Chat) y Panel Derecho (Detalles) */}
-      <div className="flex-1 flex flex-col bg-background dark:bg-slate-900 overflow-hidden">
+      <div className="md:col-span-2 flex flex-col bg-background dark:bg-slate-900 overflow-hidden">
         <AnimatePresence>
           {selectedTicketId && detailedTicket ? (
             <motion.div
@@ -978,9 +978,9 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
             </div>
         </div>
 
-        <div className="flex-1 grid grid-cols-1 md:grid-cols-3 overflow-hidden">
+        <div className="grid md:grid-cols-3 flex-1 overflow-hidden">
             {/* Panel de Chat (Centro) */}
-            <div className="col-span-1 md:col-span-2 flex flex-col p-2 md:p-4 bg-background dark:bg-slate-700/30 md:border-r dark:border-slate-700">
+            <div className="md:col-span-2 flex flex-col p-2 md:p-4 bg-background dark:bg-slate-700/30 md:border-r dark:border-slate-700">
                 {!chatEnVivo && (
                     <div className="p-2 flex justify-end">
                         <Button size="sm" variant="outline" onClick={() => fetchComentarios(true)} className="text-xs h-8">
@@ -1085,25 +1085,25 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
             </div>
 
             {/* Panel de Detalles (Derecha) */}
-            <div className="col-span-1 hidden md:block">
+            <div className="md:col-span-1 hidden md:block">
                 <ScrollArea className="h-full p-3 md:p-4 space-y-4 bg-card dark:bg-slate-800/50 border-t md:border-t-0 md:border-l dark:border-slate-700">
                     {(ticket.priority || ticket.sla_status) && (
-                      <Card className="shadow-sm">
+                        <Card className="shadow-sm">
                         <CardHeader className="pb-3 pt-4 px-4">
-                          <CardTitle className="text-base font-semibold">Prioridad y SLA</CardTitle>
+                            <CardTitle className="text-base font-semibold">Prioridad y SLA</CardTitle>
                         </CardHeader>
                         <CardContent className="text-sm text-muted-foreground space-y-1.5 px-4 pb-4">
-                          {ticket.priority && PRIORITY_INFO[ticket.priority] && (
+                            {ticket.priority && PRIORITY_INFO[ticket.priority] && (
                             <p><strong>Prioridad:</strong> <span className={cn(PRIORITY_INFO[ticket.priority]?.color)}>{PRIORITY_INFO[ticket.priority]?.label}</span></p>
-                          )}
-                          {ticket.sla_status && SLA_STATUS_INFO[ticket.sla_status] && (
+                            )}
+                            {ticket.sla_status && SLA_STATUS_INFO[ticket.sla_status] && (
                             <p><strong>SLA:</strong> <span className={cn(SLA_STATUS_INFO[ticket.sla_status]?.color)}>{SLA_STATUS_INFO[ticket.sla_status]?.label}</span></p>
-                          )}
-                          {ticket.sla_deadline && (
+                            )}
+                            {ticket.sla_deadline && (
                             <p><strong>Vencimiento SLA:</strong> {formatDate(ticket.sla_deadline, timezone, locale, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
-                          )}
+                            )}
                         </CardContent>
-                      </Card>
+                        </Card>
                     )}
 
                     {(ticket.nombre_usuario || ticket.email_usuario || ticket.telefono) && (
@@ -1190,13 +1190,13 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
                     </Card>
 
                     <Card className="shadow-sm">
-                         <CardHeader className="pb-3 pt-4 px-4"><CardTitle className="text-base font-semibold">Detalles del Ticket</CardTitle></CardHeader>
-                         <CardContent className="text-sm text-muted-foreground space-y-1.5 px-4 pb-4">
+                            <CardHeader className="pb-3 pt-4 px-4"><CardTitle className="text-base font-semibold">Detalles del Ticket</CardTitle></CardHeader>
+                            <CardContent className="text-sm text-muted-foreground space-y-1.5 px-4 pb-4">
                             <p><strong>Categoría:</strong> {categoryNames[ticket.categoria || ''] || ticket.categoria || "No especificada"}</p>
                             <p><strong>Tipo:</strong> {ticket.tipo}</p>
                             {ticket.municipio_nombre && <p><strong>Municipio:</strong> {ticket.municipio_nombre}</p>}
                             <p><strong>Creado:</strong> {formatDate(ticket.fecha, timezone, locale, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
-                         </CardContent>
+                            </CardContent>
                     </Card>
                 </ScrollArea>
             </div>
