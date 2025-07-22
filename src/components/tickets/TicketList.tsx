@@ -54,7 +54,7 @@ const TicketListItem: React.FC<TicketListItemProps> = React.memo(({ ticket, isSe
               {ticket.nombre_usuario || 'Usuario desconocido'}
             </span>
             <div className="flex items-center gap-2">
-                {ticket.priority && (
+                {ticket.priority && PRIORITY_STYLES[ticket.priority] && (
                     <span className={cn("h-2.5 w-2.5 rounded-full", PRIORITY_STYLES[ticket.priority])} title={`Prioridad: ${ticket.priority}`}></span>
                 )}
                 <span className="text-xs text-muted-foreground whitespace-nowrap">
