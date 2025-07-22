@@ -45,39 +45,22 @@ const TicketListItem: React.FC<TicketListItemProps> = React.memo(({ ticket, isSe
 });
 
 
-interface GroupedTickets {
-  categoryName: string;
-  tickets: TicketSummary[];
-}
-
 interface TicketListProps {
-  groupedTickets: GroupedTickets[];
+  tickets: TicketSummary[];
   selectedTicketId: number | null;
   onTicketSelect: (ticket: TicketSummary) => void;
 }
 
-const TicketList: React.FC<TicketListProps> = ({ groupedTickets, selectedTicketId, onTicketSelect }) => {
+const TicketList: React.FC<TicketListProps> = ({ tickets, selectedTicketId, onTicketSelect }) => {
   return (
     <div className="w-full space-y-1">
-      {groupedTickets.map(group => (
-        <div key={group.categoryName} className="mb-4">
-          <div className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-2 py-2 rounded-md bg-muted/50 dark:bg-slate-700/50">
-            <div className="flex items-center justify-between w-full">
-              <span>{group.categoryName}</span>
-              <Badge variant="secondary">{group.tickets.length}</Badge>
-            </div>
-          </div>
-          <div className="pt-1 space-y-1.5">
-            {group.tickets.map(ticket => (
-              <TicketListItem
-                key={ticket.id}
-                ticket={ticket}
-                isSelected={selectedTicketId === ticket.id}
-                onSelect={() => onTicketSelect(ticket)}
-              />
-            ))}
-          </div>
-        </div>
+      {tickets.map(ticket => (
+        <TicketListItem
+          key={ticket.id}
+          ticket={ticket}
+          isSelected={selectedTicketId === ticket.id}
+          onSelect={() => onTicketSelect(ticket)}
+        />
       ))}
     </div>
   );
