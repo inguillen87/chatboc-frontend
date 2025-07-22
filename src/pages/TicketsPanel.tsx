@@ -105,10 +105,13 @@ export default function TicketsPanel() {
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearchTerm = useDebounce(searchTerm, 500);
   const [statusFilter, setStatusFilter] = useState<TicketStatus | "">("");
+  const [priorityFilter, setPriorityFilter] = useState<PriorityStatus | "">("");
+  const [slaFilter, setSlaFilter] = useState<SlaStatus | "">("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [availableCategories, setAvailableCategories] = useState<string[]>([]);
   const [categoryNames, setCategoryNames] = useState<Record<string, string>>({});
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
+  const [selectedTicketIds, setSelectedTicketIds] = useState<number[]>([]);
 
   const fetchInitialData = useCallback(async () => {
     if (!safeLocalStorage.getItem('authToken')) {
@@ -195,12 +198,22 @@ export default function TicketsPanel() {
         filteredTickets = filteredTickets.filter(t => t.estado === statusFilter);
     }
 
-    // 2. Filtrar por categoría
+    // 2. Filtrar por prioridad
+    if (priorityFilter) {
+        filteredTickets = filteredTickets.filter(t => t.priority === priorityFilter);
+    }
+
+    // 3. Filtrar por SLA
+    if (slaFilter) {
+        filteredTickets = filteredTickets.filter(t => t.sla_status === slaFilter);
+    }
+
+    // 4. Filtrar por categoría
     if (categoryFilter) {
         filteredTickets = filteredTickets.filter(t => t.categoria === categoryFilter);
     }
 
-    // 3. Filtrar por término de búsqueda
+    // 5. Filtrar por término de búsqueda
     if (debouncedSearchTerm) {
         filteredTickets = filteredTickets.filter(ticket => {
             const searchTermLower = debouncedSearchTerm.toLowerCase();
@@ -407,6 +420,34 @@ return (
             )}
           </SelectContent>
         </Select>
+        <Select value={priorityFilter} onValueChange={(value) => setPriorityFilter(value as PriorityStatus | "")}>
+          <SelectTrigger className="w-auto min-w-[180px] h-9">
+            <div className="flex items-center gap-2">
+              <ListFilter className="h-4 w-4 text-muted-foreground" />
+              <SelectValue placeholder="Filtrar por prioridad" />
+            </div>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">Todas las prioridades</SelectItem>
+            {Object.entries(PRIORITY_INFO).map(([key, { label }]) => (
+              <SelectItem key={key} value={key}>{label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={slaFilter} onValueChange={(value) => setSlaFilter(value as SlaStatus | "")}>
+          <SelectTrigger className="w-auto min-w-[180px] h-9">
+            <div className="flex items-center gap-2">
+              <ListFilter className="h-4 w-4 text-muted-foreground" />
+              <SelectValue placeholder="Filtrar por SLA" />
+            </div>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">Todos los SLAs</SelectItem>
+            {Object.entries(SLA_STATUS_INFO).map(([key, { label }]) => (
+              <SelectItem key={key} value={key}>{label}</SelectItem>
+            ))}
+          </Select_Content>
+        </Select>
         <Button variant="outline" onClick={() => fetchInitialData()} className="h-9" disabled={isLoading}>
           {isLoading
             ? <Loader2 className="h-4 w-4 animate-spin" />
@@ -417,8 +458,9 @@ return (
     </header>
 
     <main className="flex-1 overflow-hidden">
-      <Tabs defaultValue={availableCategories[0] || "sin-categoria"} className="h-full flex flex-col">
+      <Tabs defaultValue="unified" className="h-full flex flex-col">
         <TabsList className="p-2 m-2">
+          <TabsTrigger value="unified">Bandeja de Entrada</TabsTrigger>
           {filteredAndSortedGroups.map(group => (
             <TabsTrigger key={group.categoryName} value={group.categoryName}>
               {group.categoryName}
@@ -426,6 +468,73 @@ return (
             </TabsTrigger>
           ))}
         </TabsList>
+
+        <TabsContent value="unified" className="flex-1 overflow-hidden">
+          <div className="grid md:grid-cols-12 h-full">
+            <div className="md:col-span-3 border-r dark:border-slate-700 bg-card dark:bg-slate-800/50">
+              <ScrollArea className="h-full p-3">
+                <TicketList
+                  tickets={allTickets}
+                  selectedTicketId={selectedTicketId}
+                  onTicketSelect={loadAndSetDetailedTicket}
+                    onToggleSelection={(ticketId, selected) => {
+                      setSelectedTicketIds(prev =>
+                        selected ? [...prev, ticketId] : prev.filter(id => id !== ticketId)
+                      );
+                    }}
+                    isSelectionEnabled={selectedTicketIds.length > 0}
+                />
+              </ScrollArea>
+            </div>
+            <div className={cn("flex-col bg-background dark:bg-slate-900", selectedTicketId ? "flex md:col-span-9" : "hidden md:flex md:col-span-9")}>
+                {selectedTicketIds.length > 0 && (
+                  <div className="p-2 border-b dark:border-slate-700">
+                    <Button onClick={() => console.log('Bulk action on:', selectedTicketIds)}>
+                      Marcar como Resuelto ({selectedTicketIds.length})
+                    </Button>
+                  </div>
+                )}
+              <AnimatePresence>
+                {selectedTicketId && detailedTicket ? (
+                  <div className="grid md:grid-cols-12 h-full">
+                    <motion.div
+                      key={selectedTicketId}
+                      className="flex-1 flex overflow-hidden md:col-span-7"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                    >
+                      <TicketChat
+                        ticket={detailedTicket}
+                        onTicketUpdate={handleTicketDetailUpdate}
+                        onClose={closeDetailPanel}
+                      />
+                    </motion.div>
+                    <motion.div
+                      key={selectedTicketId + "-details"}
+                      className="hidden md:flex md:col-span-5 flex-1 overflow-hidden"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                    >
+                      <TicketDetails
+                        ticket={detailedTicket}
+                        categoryNames={categoryNames}
+                        comentarios={detailedTicket.comentarios || []}
+                      />
+                    </motion.div>
+                  </div>
+                ) : (
+                  <div className="hidden md:flex flex-col items-center justify-center h-full p-8 text-center bg-muted/50 dark:bg-slate-800/20">
+                    <TicketIcon className="h-16 w-16 text-muted-foreground/50" strokeWidth={1} />
+                    <h2 className="mt-4 text-xl font-semibold text-foreground">Seleccione un Ticket</h2>
+                    <p className="mt-1 text-muted-foreground">Elija un ticket de la lista para ver sus detalles, historial y responder.</p>
+                  </div>
+                )}
+              </AnimatePresence>
+            </div>
+          </div>
+        </TabsContent>
 
         {filteredAndSortedGroups.map(group => (
           <TabsContent key={group.categoryName} value={group.categoryName} className="flex-1 overflow-hidden">
@@ -436,10 +545,23 @@ return (
                     tickets={group.tickets}
                     selectedTicketId={selectedTicketId}
                     onTicketSelect={loadAndSetDetailedTicket}
+                    onToggleSelection={(ticketId, selected) => {
+                      setSelectedTicketIds(prev =>
+                        selected ? [...prev, ticketId] : prev.filter(id => id !== ticketId)
+                      );
+                    }}
+                    isSelectionEnabled={selectedTicketIds.length > 0}
                   />
                 </ScrollArea>
               </div>
               <div className={cn("flex-col bg-background dark:bg-slate-900", selectedTicketId ? "flex md:col-span-9" : "hidden md:flex md:col-span-9")}>
+                {selectedTicketIds.length > 0 && (
+                  <div className="p-2 border-b dark:border-slate-700">
+                    <Button onClick={() => console.log('Bulk action on:', selectedTicketIds)}>
+                      Marcar como Resuelto ({selectedTicketIds.length})
+                    </Button>
+                  </div>
+                )}
                 <AnimatePresence>
                   {selectedTicketId && detailedTicket ? (
                     <div className="grid md:grid-cols-12 h-full">
