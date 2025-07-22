@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { useDebounce } from '@/hooks/useDebounce';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AttachmentPreview from "@/components/chat/AttachmentPreview";
 import { getAttachmentInfo, deriveAttachmentInfo, AttachmentInfo } from "@/utils/attachment"; // Added deriveAttachmentInfo & AttachmentInfo
 import { formatDate } from "@/utils/fecha";
@@ -415,92 +416,73 @@ return (
       </div>
     </header>
 
-    <main className="grid md:grid-cols-12 flex-1 overflow-hidden">
-      {/* Panel de Categorías (Izquierda) */}
-      <div className={cn("md:col-span-2 border-r dark:border-slate-700 bg-card dark:bg-slate-800/50 flex-col transition-all duration-300 ease-in-out", selectedTicketId ? "hidden" : "flex", selectedCategory ? "hidden md:flex" : "flex md:flex")}>
-        <ScrollArea className="flex-1 p-3">
+    <main className="flex-1 overflow-hidden">
+      <Tabs defaultValue={availableCategories[0] || "sin-categoria"} className="h-full flex flex-col">
+        <TabsList className="p-2 m-2">
           {filteredAndSortedGroups.map(group => (
-            <div key={group.categoryName}
-                 className={cn("p-2 rounded-md cursor-pointer", selectedCategory === group.categoryName ? "bg-primary/10" : "")}
-                 onClick={() => setSelectedCategory(group.categoryName)}>
-              {group.categoryName} ({group.tickets.length})
-            </div>
+            <TabsTrigger key={group.categoryName} value={group.categoryName}>
+              {group.categoryName}
+              {group.tickets.some(t => t.estado === 'nuevo') && <span className="ml-2 h-2 w-2 bg-red-500 rounded-full" />}
+            </TabsTrigger>
           ))}
-        </ScrollArea>
-      </div>
+        </TabsList>
 
-      {/* Panel de Lista de Tickets (Medio) */}
-      <div className={cn("md:col-span-3 border-r dark:border-slate-700 bg-card dark:bg-slate-800/50 flex-col transition-all duration-300 ease-in-out", selectedTicketId ? "hidden" : "flex", selectedCategory ? "flex" : "hidden")}>
-        <ScrollArea className="flex-1 p-3">
-          {isLoading && allTickets.length === 0 && !error ? (
-            <div className="p-4 text-center text-sm text-muted-foreground flex items-center justify-center h-full">
-              <Loader2 className="h-4 w-4 animate-spin mr-2" /> Cargando tickets...
+        {filteredAndSortedGroups.map(group => (
+          <TabsContent key={group.categoryName} value={group.categoryName} className="flex-1 overflow-hidden">
+            <div className="grid md:grid-cols-12 h-full">
+              <div className="md:col-span-3 border-r dark:border-slate-700 bg-card dark:bg-slate-800/50">
+                <ScrollArea className="h-full p-3">
+                  <TicketList
+                    tickets={group.tickets}
+                    selectedTicketId={selectedTicketId}
+                    onTicketSelect={loadAndSetDetailedTicket}
+                  />
+                </ScrollArea>
+              </div>
+              <div className={cn("flex-col bg-background dark:bg-slate-900", selectedTicketId ? "flex md:col-span-9" : "hidden md:flex md:col-span-9")}>
+                <AnimatePresence>
+                  {selectedTicketId && detailedTicket ? (
+                    <div className="grid md:grid-cols-12 h-full">
+                      <motion.div
+                        key={selectedTicketId}
+                        className="flex-1 flex overflow-hidden md:col-span-7"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                      >
+                        <TicketChat
+                          ticket={detailedTicket}
+                          onTicketUpdate={handleTicketDetailUpdate}
+                          onClose={closeDetailPanel}
+                        />
+                      </motion.div>
+                      <motion.div
+                        key={selectedTicketId + "-details"}
+                        className="hidden md:flex md:col-span-5 flex-1 overflow-hidden"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                      >
+                        <TicketDetails
+                          ticket={detailedTicket}
+                          categoryNames={categoryNames}
+                          comentarios={detailedTicket.comentarios || []}
+                        />
+                      </motion.div>
+                    </div>
+                  ) : (
+                    <div className="hidden md:flex flex-col items-center justify-center h-full p-8 text-center bg-muted/50 dark:bg-slate-800/20">
+                      <TicketIcon className="h-16 w-16 text-muted-foreground/50" strokeWidth={1} />
+                      <h2 className="mt-4 text-xl font-semibold text-foreground">Seleccione un Ticket</h2>
+                      <p className="mt-1 text-muted-foreground">Elija un ticket de la lista para ver sus detalles, historial y responder.</p>
+                    </div>
+                  )}
+                </AnimatePresence>
+              </div>
             </div>
-          ) : isLoading && allTickets.length > 0 ? (
-            <div className="p-2 text-center text-xs text-muted-foreground flex items-center justify-center">
-              <Loader2 className="h-3 w-3 animate-spin mr-1.5" /> Actualizando lista...
-            </div>
-          ) : !isLoading && ticketsInSelectedCategory.length === 0 && !error ? (
-            <div className="text-center py-10 px-4 h-full flex flex-col justify-center items-center">
-              <TicketIcon className="mx-auto h-12 w-12 text-muted-foreground" />
-              <h3 className="mt-2 text-base font-medium text-foreground">No hay tickets</h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {searchTerm || statusFilter || categoryFilter
-                  ? "Ningún ticket coincide con tus filtros."
-                  : "Cuando se genere un nuevo reclamo, aparecerá aquí."}
-              </p>
-            </div>
-          ) : ticketsInSelectedCategory.length > 0 ? (
-            <TicketList
-              tickets={ticketsInSelectedCategory}
-              selectedTicketId={selectedTicketId}
-              onTicketSelect={loadAndSetDetailedTicket}
-            />
-          ) : null}
-        </ScrollArea>
-      </div>
-
-      {/* Panel Central (Chat) y Panel Derecho (Detalles) */}
-      <div className={cn("flex-col bg-background dark:bg-slate-900 overflow-hidden", selectedTicketId ? "flex md:col-span-7" : "hidden md:col-span-7 md:flex")}>
-        <AnimatePresence>
-          {selectedTicketId && detailedTicket ? (
-            <>
-              <motion.div
-                key={selectedTicketId}
-                className="flex-1 flex overflow-hidden md:col-span-4"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-              >
-                <TicketChat
-                  ticket={detailedTicket}
-                  onTicketUpdate={handleTicketDetailUpdate}
-                  onClose={closeDetailPanel}
-                />
-              </motion.div>
-              <motion.div
-                key={selectedTicketId + "-details"}
-                className="hidden md:flex md:col-span-3 flex-1 overflow-hidden"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-              >
-                <TicketDetails
-                  ticket={detailedTicket}
-                  categoryNames={categoryNames}
-                  comentarios={detailedTicket.comentarios || []}
-                />
-              </motion.div>
-            </>
-          ) : (
-            <div className="hidden md:flex flex-col items-center justify-center h-full p-8 text-center bg-muted/50 dark:bg-slate-800/20 md:col-span-7">
-                <TicketIcon className="h-16 w-16 text-muted-foreground/50" strokeWidth={1} />
-                <h2 className="mt-4 text-xl font-semibold text-foreground">Seleccione un Ticket</h2>
-                <p className="mt-1 text-muted-foreground">Elija un ticket de la lista para ver sus detalles, historial y responder.</p>
-            </div>
-          )}
-        </AnimatePresence>
-      </div>
+          </TabsContent>
+        ))}
+      </Tabs>
     </main>
   </div>
 );
