@@ -104,7 +104,6 @@ export default function TicketsPanel() {
   const statusSelectRef = useRef<HTMLButtonElement>(null);
 
   const fetchInitialData = useCallback(async () => {
-    // ... (fetch a
     // ... (fetch and error handling logic remains the same)
   }, []);
 
@@ -114,7 +113,9 @@ export default function TicketsPanel() {
     fetchInitialData();
   }, [fetchInitialData]);
 
+  // WebSocket event listeners
   useEffect(() => {
+    if (!isConnected) return;
     const removeNewTicketListener = on('new_ticket', (newTicket: TicketSummary) => {
       setAllTickets(prev => [newTicket, ...prev]);
       toast.info(`Nuevo ticket recibido: #${newTicket.nro_ticket}`);
@@ -131,7 +132,19 @@ export default function TicketsPanel() {
       removeNewTicketListener();
       removeNewCommentListener();
     };
-  }, [on, detailedTicket]);
+  }, [on, detailedTicket, isConnected]);
+
+  // Fallback to polling if WebSocket is not connected
+  useEffect(() => {
+    if (isConnected) return;
+    console.log("WebSocket no conectado. Usando polling como fallback.");
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchInitialData();
+      }
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [isConnected, fetchInitialData]);
 
   useEffect(() => {
     if (selectedTicketId) emit('join_ticket_room', selectedTicketId);
