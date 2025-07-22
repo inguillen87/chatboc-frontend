@@ -19,10 +19,10 @@ import { LOCALE_OPTIONS } from "@/utils/localeOptions";
 import useRequireRole from "@/hooks/useRequireRole";
 import type { Role } from "@/utils/roles";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { useUser } from '@/hooks/useUser'; // Ensured this is present
 import TemplateSelector, { MessageTemplate } from "@/components/tickets/TemplateSelector"; // Import TemplateSelector
 import { formatPhoneNumberForWhatsApp } from "@/utils/phoneUtils"; // Import WhatsApp phone formatter
+import TicketList from "@/components/tickets/TicketList";
 // TODO: Setup a toast component (e.g., Sonner or Shadcn's Toaster) and import its 'toast' function
 // For example: import { toast } from "sonner";
 // As a placeholder, we'll define a dummy toast object if not available globally.
@@ -35,12 +35,12 @@ const toast = (globalThis as any).toast || {
 
 
 // ----------- TIPOS Y ESTADOS -----------
-type TicketStatus = "nuevo" | "en_proceso" | "derivado" | "resuelto" | "cerrado" | "esperando_agente_en_vivo";
-type SlaStatus = "on_track" | "nearing_sla" | "breached" | null;
-type PriorityStatus = "low" | "medium" | "high" | null;
+export type TicketStatus = "nuevo" | "en_proceso" | "derivado" | "resuelto" | "cerrado" | "esperando_agente_en_vivo";
+export type SlaStatus = "on_track" | "nearing_sla" | "breached" | null;
+export type PriorityStatus = "low" | "medium" | "high" | null;
 
-interface Comment { id: number; comentario: string; fecha: string; es_admin: boolean; }
-interface Ticket {
+export interface Comment { id: number; comentario: string; fecha: string; es_admin: boolean; }
+export interface Ticket {
   id: number; tipo: 'pyme' | 'municipio'; nro_ticket: number; asunto: string; estado: TicketStatus; fecha: string;
   detalles?: string; comentarios?: Comment[]; nombre_usuario?: string; email_usuario?: string; telefono?: string; direccion?: string; archivo_url?: string; categoria?: string;
   municipio_nombre?: string;
@@ -50,20 +50,20 @@ interface Ticket {
   priority?: PriorityStatus;
   sla_deadline?: string;
 }
-interface TicketSummary extends Omit<Ticket, 'detalles' | 'comentarios'> {
+export interface TicketSummary extends Omit<Ticket, 'detalles' | 'comentarios'> {
   direccion?: string;
   latitud?: number | null;
   longitud?: number | null;
   sla_status?: SlaStatus;
   priority?: PriorityStatus;
 }
-interface GroupedTickets {
+export interface GroupedTickets {
   categoryName: string;
   tickets: TicketSummary[];
 }
 
 const ESTADOS_ORDEN_PRIORIDAD: TicketStatus[] = ["nuevo", "en_proceso", "esperando_agente_en_vivo", "derivado", "resuelto", "cerrado"];
-const ESTADOS: Record<TicketStatus, { label: string; tailwind_class: string, icon?: React.ElementType }> = {
+export const ESTADOS: Record<TicketStatus, { label: string; tailwind_class: string, icon?: React.ElementType }> = {
   nuevo: { label: "Nuevo", tailwind_class: "bg-blue-500 hover:bg-blue-600 text-white border-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600", icon: TicketIcon },
   en_proceso: { label: "En Proceso", tailwind_class: "bg-yellow-500 hover:bg-yellow-600 text-black border-yellow-700 dark:bg-yellow-400 dark:hover:bg-yellow-500", icon: Loader2 },
   derivado: { label: "Derivado", tailwind_class: "bg-purple-500 hover:bg-purple-600 text-white border-purple-700 dark:bg-purple-500 dark:hover:bg-purple-600" },
@@ -83,49 +83,6 @@ const PRIORITY_INFO: Record<NonNullable<PriorityStatus>, { label: string; color:
   medium: { label: "Media", color: "text-blue-500 dark:text-blue-400", badgeClass: "bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-700 dark:text-blue-200 dark:border-blue-500" },
   high: { label: "Alta", color: "text-red-500 dark:text-red-400", badgeClass: "bg-red-100 text-red-700 border-red-300 dark:bg-red-700 dark:text-red-200 dark:border-red-500" },
 };
-
-const TicketListItem: FC<{
-  ticket: TicketSummary;
-  isSelected: boolean;
-  onSelect: () => void;
-  timezone: string;
-  locale: string;
-}> = React.memo(({ ticket, isSelected, onSelect, timezone, locale }) => {
-  const slaInfo = ticket.sla_status ? SLA_STATUS_INFO[ticket.sla_status] : null;
-  const priorityInfo = ticket.priority ? PRIORITY_INFO[ticket.priority] : null;
-
-  let cardClasses = "bg-card dark:bg-slate-800 border-border dark:border-slate-700/80 hover:border-slate-400 dark:hover:border-slate-500";
-  if (isSelected) {
-    cardClasses = "bg-primary/10 border-primary dark:bg-primary/20 dark:border-primary ring-1 ring-primary";
-  } else if (ticket.sla_status === 'breached') {
-    cardClasses = "bg-red-500/10 border-red-500/30 dark:bg-red-700/20 dark:border-red-600/40 hover:border-red-500";
-  } else if (ticket.sla_status === 'nearing_sla') {
-    cardClasses = "bg-yellow-500/10 border-yellow-500/30 dark:bg-yellow-700/20 dark:border-yellow-600/40 hover:border-yellow-500";
-  }
-
-  return (
-    <motion.div
-      layout
-      onClick={onSelect}
-      className={cn(
-        "p-3 rounded-lg border cursor-pointer mb-2 transition-all duration-200 ease-in-out",
-        "hover:shadow-md dark:hover:bg-slate-700/60",
-        cardClasses
-      )}
-      whileHover={{ y: -2 }}
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0 }}
-    >
-      <div className="flex justify-between items-start mb-1">
-        <span className="font-semibold text-primary text-xs truncate max-w-[80px] flex-shrink-0" title={`#${ticket.nro_ticket}`}>#{ticket.nro_ticket}</span>
-        <Badge className={cn("text-xs border", ESTADOS[ticket.estado]?.tailwind_class)}>{ESTADOS[ticket.estado]?.label}</Badge>
-      </div>
-      <p className="font-medium text-foreground truncate text-xs" title={ticket.asunto}>{ticket.asunto}</p>
-      {ticket.nombre_usuario && <p className="text-xs text-muted-foreground truncate mt-0.5" title={ticket.nombre_usuario}>{ticket.nombre_usuario}</p>}
-    </motion.div>
-  );
-});
 
 interface TicketDetailViewProps {
   ticket: Ticket;
@@ -448,11 +405,11 @@ return (
       </div>
     </header>
 
-    <main className="flex flex-1 overflow-hidden">
+    <main className="grid md:grid-cols-3 flex-1 overflow-hidden">
       {/* Panel de Lista de Tickets (Izquierda) */}
       <div
         className={cn(
-          "w-full md:w-2/5 lg:w-1/3 xl:w-1/4 border-r dark:border-slate-700 bg-card dark:bg-slate-800/50 flex flex-col transition-all duration-300 ease-in-out",
+          "md:col-span-1 border-r dark:border-slate-700 bg-card dark:bg-slate-800/50 flex flex-col transition-all duration-300 ease-in-out",
           selectedTicketId ? "hidden md:flex" : "flex"
         )}
       >
@@ -476,36 +433,17 @@ return (
               </p>
             </div>
           ) : filteredAndSortedGroups.length > 0 ? (
-            <div className="w-full space-y-1">
-              {filteredAndSortedGroups.map(group => (
-                <div key={group.categoryName} className="mb-4">
-                  <div className="text-sm font-semibold text-muted-foreground uppercase tracking-wider px-2 py-2 rounded-md bg-muted/50 dark:bg-slate-700/50">
-                    <div className="flex items-center justify-between w-full">
-                      <span>{group.categoryName}</span>
-                      <Badge variant="secondary">{group.tickets.length}</Badge>
-                    </div>
-                  </div>
-                  <div className="pt-1 space-y-1.5">
-                    {group.tickets.map(ticket => (
-                      <TicketListItem
-                        key={ticket.id}
-                        ticket={ticket}
-                        isSelected={selectedTicketId === ticket.id}
-                        onSelect={() => loadAndSetDetailedTicket(ticket)}
-                        timezone={timezone}
-                        locale={locale}
-                      />
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <TicketList
+              groupedTickets={filteredAndSortedGroups}
+              selectedTicketId={selectedTicketId}
+              onTicketSelect={loadAndSetDetailedTicket}
+            />
           ) : null}
         </ScrollArea>
       </div>
 
       {/* Panel Central (Chat) y Panel Derecho (Detalles) */}
-      <div className="flex-1 flex flex-col bg-background dark:bg-slate-900 overflow-hidden">
+      <div className="md:col-span-2 flex flex-col bg-background dark:bg-slate-900 overflow-hidden">
         <AnimatePresence>
           {selectedTicketId && detailedTicket ? (
             <motion.div
@@ -978,9 +916,9 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
             </div>
         </div>
 
-        <div className="flex-1 grid grid-cols-1 md:grid-cols-3 overflow-hidden">
+        <div className="grid md:grid-cols-3 flex-1 overflow-hidden">
             {/* Panel de Chat (Centro) */}
-            <div className="col-span-1 md:col-span-2 flex flex-col p-2 md:p-4 bg-background dark:bg-slate-700/30 md:border-r dark:border-slate-700">
+            <div className="md:col-span-2 flex flex-col p-2 md:p-4 bg-background dark:bg-slate-700/30 md:border-r dark:border-slate-700">
                 {!chatEnVivo && (
                     <div className="p-2 flex justify-end">
                         <Button size="sm" variant="outline" onClick={() => fetchComentarios(true)} className="text-xs h-8">
@@ -1085,123 +1023,119 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
             </div>
 
             {/* Panel de Detalles (Derecha) */}
-            <div className="col-span-1 hidden md:block">
-                <ScrollArea className="h-full p-3 md:p-4 bg-card dark:bg-slate-800/50 border-t md:border-t-0 md:border-l dark:border-slate-700">
-                    <Accordion type="multiple" className="space-y-2">
-                        {(ticket.priority || ticket.sla_status) && (
-                          <AccordionItem value="priority" className="rounded-lg border shadow-sm">
-                            <AccordionTrigger className="px-4 py-3 text-left text-base font-semibold">Prioridad y SLA</AccordionTrigger>
-                            <AccordionContent className="px-4 pb-4 text-sm text-muted-foreground space-y-1.5">
-                              {ticket.priority && PRIORITY_INFO[ticket.priority] && (
-                                <p><strong>Prioridad:</strong> <span className={cn(PRIORITY_INFO[ticket.priority]?.color)}>{PRIORITY_INFO[ticket.priority]?.label}</span></p>
-                              )}
-                              {ticket.sla_status && SLA_STATUS_INFO[ticket.sla_status] && (
-                                <p><strong>SLA:</strong> <span className={cn(SLA_STATUS_INFO[ticket.sla_status]?.color)}>{SLA_STATUS_INFO[ticket.sla_status]?.label}</span></p>
-                              )}
-                              {ticket.sla_deadline && (
-                                <p><strong>Vencimiento SLA:</strong> {formatDate(ticket.sla_deadline, timezone, locale, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
-                              )}
-                            </AccordionContent>
-                          </AccordionItem>
-                        )}
+            <div className="md:col-span-1 hidden md:block">
+                <ScrollArea className="h-full p-3 md:p-4 space-y-4 bg-card dark:bg-slate-800/50 border-t md:border-t-0 md:border-l dark:border-slate-700">
+                    {(ticket.priority || ticket.sla_status) && (
+                        <Card className="shadow-sm">
+                        <CardHeader className="pb-3 pt-4 px-4">
+                            <CardTitle className="text-base font-semibold">Prioridad y SLA</CardTitle>
+                        </CardHeader>
+                        <CardContent className="text-sm text-muted-foreground space-y-1.5 px-4 pb-4">
+                            {ticket.priority && PRIORITY_INFO[ticket.priority] && (
+                            <p><strong>Prioridad:</strong> <span className={cn(PRIORITY_INFO[ticket.priority]?.color)}>{PRIORITY_INFO[ticket.priority]?.label}</span></p>
+                            )}
+                            {ticket.sla_status && SLA_STATUS_INFO[ticket.sla_status] && (
+                            <p><strong>SLA:</strong> <span className={cn(SLA_STATUS_INFO[ticket.sla_status]?.color)}>{SLA_STATUS_INFO[ticket.sla_status]?.label}</span></p>
+                            )}
+                            {ticket.sla_deadline && (
+                            <p><strong>Vencimiento SLA:</strong> {formatDate(ticket.sla_deadline, timezone, locale, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                            )}
+                        </CardContent>
+                        </Card>
+                    )}
 
-                        {(ticket.nombre_usuario || ticket.email_usuario || ticket.telefono) && (
-                            <AccordionItem value="usuario" className="rounded-lg border shadow-sm">
-                                <AccordionTrigger className="px-4 py-3 text-left text-base font-semibold flex items-center gap-2">
+                    {(ticket.nombre_usuario || ticket.email_usuario || ticket.telefono) && (
+                        <Card className="shadow-sm">
+                            <CardHeader className="pb-3 pt-4 px-4">
+                                <CardTitle className="text-base font-semibold flex items-center gap-2">
                                     <User className="h-4 w-4 text-muted-foreground"/> Información del Usuario
-                                </AccordionTrigger>
-                                <AccordionContent className="px-4 pb-4 text-sm text-muted-foreground space-y-1.5">
-                                    {ticket.nombre_usuario && <p><strong>Nombre:</strong> {ticket.nombre_usuario}</p>}
-                                    {ticket.email_usuario && <p><strong>Email:</strong> <a href={`mailto:${ticket.email_usuario}`} className="text-primary hover:underline">{ticket.email_usuario}</a></p>}
-                                    {ticket.telefono && (
-                                        <div className="flex items-center gap-2">
-                                            <p className="flex-shrink-0"><strong>Teléfono:</strong></p>
-                                            <a href={`tel:${ticket.telefono}`} className="text-primary hover:underline truncate" title={ticket.telefono}>{ticket.telefono}</a>
-                                            {(() => {
-                                                const formattedPhone = formatPhoneNumberForWhatsApp(ticket.telefono);
-                                                if (formattedPhone) {
-                                                    const adminName = user?.name || 'el equipo del municipio';
-                                                    const municipioName = ticket.municipio_nombre || 'el municipio';
-                                                    const messageText = `Hola ${ticket.nombre_usuario || 'vecino/a'}, le contactamos desde ${municipioName} (agente: ${adminName}) en relación a su ticket N°${ticket.nro_ticket || '[Nro Ticket]'}.`;
-                                                    const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(messageText)}`;
-                                                    return (
-                                                        <a
-                                                            href={whatsappUrl}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            title="Enviar mensaje de WhatsApp"
-                                                            className="ml-1 flex-shrink-0"
-                                                        >
-                                                            <MessageSquare className="h-4 w-4 text-green-600 hover:text-green-700 cursor-pointer" />
-                                                        </a>
-                                                    );
-                                                }
-                                                return null;
-                                            })()}
-                                        </div>
-                                    )}
-                                </AccordionContent>
-                            </AccordionItem>
-                        )}
-
-                        <AccordionItem value="historial" className="rounded-lg border shadow-sm">
-                            <AccordionTrigger className="px-4 py-3 text-left text-base font-semibold">Historial de Actividad</AccordionTrigger>
-                            <AccordionContent className="px-0 pb-0">
-                                <TicketTimeline ticket={ticket} comentarios={comentarios} />
-                            </AccordionContent>
-                        </AccordionItem>
-
-                        <AccordionItem value="descripcion" className="rounded-lg border shadow-sm">
-                            <AccordionTrigger className="px-4 py-3 text-left text-base font-semibold">Descripción del Reclamo</AccordionTrigger>
-                            <AccordionContent className="px-4 pb-4 text-sm text-muted-foreground whitespace-pre-wrap break-words">
-                                {ticket.pregunta || ticket.detalles || "No hay descripción detallada disponible."}
-                            </AccordionContent>
-                        </AccordionItem>
-
-                        <AccordionItem value="ubicacion" className="rounded-lg border shadow-sm">
-                            <AccordionTrigger className="px-4 py-3 text-left text-base font-semibold">Ubicación</AccordionTrigger>
-                            <AccordionContent className="px-0 pb-0">
-                                <TicketMap ticket={ticket} />
-                            </AccordionContent>
-                        </AccordionItem>
-
-                        <AccordionItem value="archivos" className="rounded-lg border shadow-sm">
-                            <AccordionTrigger className="px-4 py-3 text-left text-base font-semibold">Archivos Adjuntos</AccordionTrigger>
-                            <AccordionContent className="px-4 pb-4 space-y-2">
-                                {(ticket.archivos_adjuntos && ticket.archivos_adjuntos.length > 0) ? (
-                                    ticket.archivos_adjuntos.map((adj, index) => {
-                                        const attachmentInfoForPreview: AttachmentInfo = deriveAttachmentInfo(
-                                            adj.url,
-                                            adj.name,
-                                            adj.mimeType,
-                                            adj.size
-                                        );
-                                        if (attachmentInfoForPreview.url.startsWith('/')) {
-                                            const apiUrl = (import.meta.env.VITE_API_URL || '').replace(/\/api$/, '');
-                                            if (apiUrl) {
-                                                attachmentInfoForPreview.url = `${apiUrl}${attachmentInfoForPreview.url}`;
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="text-sm text-muted-foreground space-y-1.5 px-4 pb-4">
+                                {ticket.nombre_usuario && <p><strong>Nombre:</strong> {ticket.nombre_usuario}</p>}
+                                {ticket.email_usuario && <p><strong>Email:</strong> <a href={`mailto:${ticket.email_usuario}`} className="text-primary hover:underline">{ticket.email_usuario}</a></p>}
+                                {ticket.telefono && (
+                                    <div className="flex items-center gap-2">
+                                        <p className="flex-shrink-0"><strong>Teléfono:</strong></p>
+                                        <a href={`tel:${ticket.telefono}`} className="text-primary hover:underline truncate" title={ticket.telefono}>{ticket.telefono}</a>
+                                        {(() => {
+                                            const formattedPhone = formatPhoneNumberForWhatsApp(ticket.telefono);
+                                            if (formattedPhone) {
+                                                const adminName = user?.name || 'el equipo del municipio';
+                                                const municipioName = ticket.municipio_nombre || 'el municipio';
+                                                const messageText = `Hola ${ticket.nombre_usuario || 'vecino/a'}, le contactamos desde ${municipioName} (agente: ${adminName}) en relación a su ticket N°${ticket.nro_ticket || '[Nro Ticket]'}.`;
+                                                const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(messageText)}`;
+                                                return (
+                                                    <a
+                                                        href={whatsappUrl}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        title="Enviar mensaje de WhatsApp"
+                                                        className="ml-1 flex-shrink-0"
+                                                    >
+                                                        <MessageSquare className="h-4 w-4 text-green-600 hover:text-green-700 cursor-pointer" />
+                                                    </a>
+                                                );
                                             }
-                                        }
-                                        return (
-                                            <AttachmentPreview key={adj.id || index} attachment={attachmentInfoForPreview} />
-                                        );
-                                    })
-                                ) : (
-                                    <p className="text-sm text-muted-foreground">No hay archivos adjuntos para este ticket.</p>
+                                            return null;
+                                        })()}
+                                    </div>
                                 )}
-                            </AccordionContent>
-                        </AccordionItem>
+                            </CardContent>
+                        </Card>
+                    )}
 
-                        <AccordionItem value="detalles" className="rounded-lg border shadow-sm">
-                            <AccordionTrigger className="px-4 py-3 text-left text-base font-semibold">Detalles del Ticket</AccordionTrigger>
-                            <AccordionContent className="px-4 pb-4 text-sm text-muted-foreground space-y-1.5">
-                                <p><strong>Categoría:</strong> {categoryNames[ticket.categoria || ''] || ticket.categoria || "No especificada"}</p>
-                                <p><strong>Tipo:</strong> {ticket.tipo}</p>
-                                {ticket.municipio_nombre && <p><strong>Municipio:</strong> {ticket.municipio_nombre}</p>}
-                                <p><strong>Creado:</strong> {formatDate(ticket.fecha, timezone, locale, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
-                            </AccordionContent>
-                        </AccordionItem>
-                    </Accordion>
+                    <TicketTimeline ticket={ticket} comentarios={comentarios} />
+
+                    <Card className="shadow-sm">
+                        <CardHeader className="pb-3 pt-4 px-4">
+                            <CardTitle className="text-base font-semibold">Descripción del Reclamo</CardTitle>
+                        </CardHeader>
+                        <CardContent className="px-4 pb-4 text-sm text-muted-foreground whitespace-pre-wrap break-words">
+                            {ticket.pregunta || ticket.detalles || "No hay descripción detallada disponible."}
+                        </CardContent>
+                    </Card>
+
+                    <TicketMap ticket={ticket} />
+
+                    <Card className="shadow-sm">
+                        <CardHeader className="pb-3 pt-4 px-4">
+                            <CardTitle className="text-base font-semibold">Archivos Adjuntos al Ticket</CardTitle>
+                        </CardHeader>
+                        <CardContent className="px-4 pb-4 space-y-2">
+                            {(ticket.archivos_adjuntos && ticket.archivos_adjuntos.length > 0) ? (
+                                ticket.archivos_adjuntos.map((adj, index) => {
+                                    const attachmentInfoForPreview: AttachmentInfo = deriveAttachmentInfo(
+                                        adj.url,
+                                        adj.name,
+                                        adj.mimeType,
+                                        adj.size
+                                    );
+                                    if (attachmentInfoForPreview.url.startsWith('/')) {
+                                        const apiUrl = (import.meta.env.VITE_API_URL || '').replace(/\/api$/, '');
+                                        if (apiUrl) {
+                                            attachmentInfoForPreview.url = `${apiUrl}${attachmentInfoForPreview.url}`;
+                                        }
+                                    }
+                                    return (
+                                        <AttachmentPreview key={adj.id || index} attachment={attachmentInfoForPreview} />
+                                    );
+                                })
+                            ) : (
+                                <p className="text-sm text-muted-foreground">No hay archivos adjuntos para este ticket.</p>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    <Card className="shadow-sm">
+                            <CardHeader className="pb-3 pt-4 px-4"><CardTitle className="text-base font-semibold">Detalles del Ticket</CardTitle></CardHeader>
+                            <CardContent className="text-sm text-muted-foreground space-y-1.5 px-4 pb-4">
+                            <p><strong>Categoría:</strong> {categoryNames[ticket.categoria || ''] || ticket.categoria || "No especificada"}</p>
+                            <p><strong>Tipo:</strong> {ticket.tipo}</p>
+                            {ticket.municipio_nombre && <p><strong>Municipio:</strong> {ticket.municipio_nombre}</p>}
+                            <p><strong>Creado:</strong> {formatDate(ticket.fecha, timezone, locale, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                            </CardContent>
+                    </Card>
                 </ScrollArea>
             </div>
         </div>
