@@ -17,7 +17,6 @@ import { useUser } from "@/hooks/useUser";
 import { parseRubro, esRubroPublico, getAskEndpoint } from "@/utils/chatEndpoints";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateAnonId from "@/utils/anonId";
-import { parseChatResponse } from "@/utils/parseChatResponse"; // Asegurarse que parseChatResponse es compatible o simplificar
 import filterLoginPrompt from "@/utils/adminChatFilter.js";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
 import { requestLocation } from "@/utils/geolocation";
@@ -448,13 +447,13 @@ const ChatPanel = ({
           });
 
           setContexto(data.contexto_actualizado || {});
-          // parseChatResponse ahora es menos crítico si mapeamos campos directamente.
-          // const parsed = parseChatResponse(data);
-          const filtered = filterLoginPrompt(data.respuesta || "", data.botones || [], user?.rol);
+
+          const respuesta = data.respuesta_usuario || data.respuesta || "";
+          const botones = data.botones || [];
 
           const botMessage: Message = {
-            id: generateClientMessageId(), text: filtered.text || "", isBot: true, timestamp: new Date(),
-            botones: filtered.buttons, query: lastQueryRef.current || undefined,
+            id: generateClientMessageId(), text: respuesta, isBot: true, timestamp: new Date(),
+            botones: botones, query: lastQueryRef.current || undefined,
             mediaUrl: data.media_url, locationData: data.location_data,
             attachmentInfo: data.attachment_info,
             structuredContent: data.structured_content,
