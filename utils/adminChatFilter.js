@@ -33,6 +33,5 @@ function filterLoginPrompt(text, buttons = [], role) {
   return { text: finalText, buttons: finalButtons };
 }
 
-// >>>> REEMPLAZÁ TODO ESTO:
 export default filterLoginPrompt;
 export { filterLoginPrompt };

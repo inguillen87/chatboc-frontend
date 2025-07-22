@@ -8,10 +8,11 @@ export interface Boton {
 }
 
 export interface ChatApiResponse {
-  respuesta?: string | { respuesta?: string; botones?: Boton[]; attachmentInfo?: Message['attachmentInfo'] }; // Añadir attachmentInfo aquí
+  respuesta?: string | { respuesta?: string; botones?: Boton[]; attachmentInfo?: Message['attachmentInfo'] };
+  respuesta_usuario?: string | { respuesta?: string; botones?: Boton[]; attachmentInfo?: Message['attachmentInfo'] };
   botones?: Boton[];
   contexto_actualizado?: any;
-  attachmentInfo?: Message['attachmentInfo']; // Y/o aquí, a nivel raíz de la respuesta
+  attachmentInfo?: Message['attachmentInfo'];
   [key: string]: any;
 }
 
@@ -31,19 +32,22 @@ export function parseChatResponse(data: ChatApiResponse): {
     attachmentInfo = data.attachmentInfo;
   }
 
-  if (typeof data.respuesta === 'object' && data.respuesta !== null) {
-    if (typeof data.respuesta.respuesta === 'string') {
-      text = data.respuesta.respuesta;
+  const rawRespuesta =
+    data.respuesta !== undefined ? data.respuesta : data.respuesta_usuario;
+
+  if (typeof rawRespuesta === 'object' && rawRespuesta !== null) {
+    if (typeof rawRespuesta.respuesta === 'string') {
+      text = rawRespuesta.respuesta;
     }
-    if (Array.isArray((data.respuesta as any).botones)) {
-      botones = (data.respuesta as any).botones;
+    if (Array.isArray((rawRespuesta as any).botones)) {
+      botones = (rawRespuesta as any).botones;
     }
     // Buscar attachmentInfo dentro del objeto respuesta si no se encontró a nivel raíz
-    if (!attachmentInfo && data.respuesta.attachmentInfo && typeof data.respuesta.attachmentInfo === 'object') {
-      attachmentInfo = data.respuesta.attachmentInfo;
+    if (!attachmentInfo && rawRespuesta.attachmentInfo && typeof rawRespuesta.attachmentInfo === 'object') {
+      attachmentInfo = rawRespuesta.attachmentInfo;
     }
-  } else if (typeof data.respuesta === 'string') {
-    text = data.respuesta;
+  } else if (typeof rawRespuesta === 'string') {
+    text = rawRespuesta;
   }
 
   if (Array.isArray(data.botones)) {
