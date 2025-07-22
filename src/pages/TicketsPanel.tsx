@@ -24,7 +24,7 @@ import { useUser } from '@/hooks/useUser';
 import TemplateSelector, { MessageTemplate } from "@/components/tickets/TemplateSelector";
 import { formatPhoneNumberForWhatsApp } from "@/utils/phoneUtils";
 import TicketList from "@/components/tickets/TicketList";
-import { useWebSocket } from "@/hooks/useWebSocket";
+import { usePusher } from "@/hooks/usePusher";
 import { useHotkeys } from "@/hooks/useHotkeys";
 import {
   ResizableHandle,
@@ -107,51 +107,36 @@ export default function TicketsPanel() {
     // ... (fetch and error handling logic remains the same)
   }, []);
 
-  const { isConnected, on, emit } = useWebSocket();
+  const channel = usePusher('tickets');
 
   useEffect(() => {
     fetchInitialData();
   }, [fetchInitialData]);
 
-  // WebSocket event listeners
+  // Pusher event listeners
   useEffect(() => {
-    if (!isConnected) return;
-    const removeNewTicketListener = on('new_ticket', (newTicket: TicketSummary) => {
+    if (!channel) return;
+
+    const newTicketListener = (newTicket: TicketSummary) => {
       setAllTickets(prev => [newTicket, ...prev]);
       toast.info(`Nuevo ticket recibido: #${newTicket.nro_ticket}`);
-    });
+    };
 
-    const removeNewCommentListener = on('new_comment', ({ ticketId, comment }) => {
+    const newCommentListener = ({ ticketId, comment }: { ticketId: number, comment: Comment }) => {
       if (detailedTicket && detailedTicket.id === ticketId) {
         // This state update is now local to TicketChat component
       }
       setAllTickets(prev => prev.map(t => t.id === ticketId ? { ...t, detalles: comment.comentario } : t));
-    });
+    };
+
+    channel.bind('new_ticket', newTicketListener);
+    channel.bind('new_comment', newCommentListener);
 
     return () => {
-      removeNewTicketListener();
-      removeNewCommentListener();
+      channel.unbind('new_ticket', newTicketListener);
+      channel.unbind('new_comment', newCommentListener);
     };
-  }, [on, detailedTicket, isConnected]);
-
-  // Fallback to polling if WebSocket is not connected
-  useEffect(() => {
-    if (isConnected) return;
-    console.log("WebSocket no conectado. Usando polling como fallback.");
-    const interval = setInterval(() => {
-      if (document.visibilityState === 'visible') {
-        fetchInitialData();
-      }
-    }, 30000);
-    return () => clearInterval(interval);
-  }, [isConnected, fetchInitialData]);
-
-  useEffect(() => {
-    if (selectedTicketId) emit('join_ticket_room', selectedTicketId);
-    return () => {
-      if (selectedTicketId) emit('leave_ticket_room', selectedTicketId);
-    };
-  }, [selectedTicketId, emit]);
+  }, [channel, detailedTicket]);
 
   const groupedTickets = useMemo(() => {
     let filtered = allTickets;
