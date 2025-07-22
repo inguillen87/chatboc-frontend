@@ -476,7 +476,7 @@ return (
             {Object.entries(SLA_STATUS_INFO).map(([key, { label }]) => (
               <SelectItem key={key} value={key}>{label}</SelectItem>
             ))}
-          </Select_Content>
+          </SelectContent>
         </Select>
         <Button variant="outline" onClick={() => fetchInitialData()} className="h-9" disabled={isLoading}>
           {isLoading
