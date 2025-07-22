@@ -3,20 +3,20 @@ const path = require('path');
 const multer = require('multer'); // Importar multer
 const fs = require('fs'); // Importar fs para crear directorio si no existe
 
-const { getAttentionMessage } = require('./widgetAttention');
-const { getMunicipalStats, getMunicipalStatsFiltersData } = require('./municipalStats'); // Added getMunicipalStatsFiltersData
-const { getFormattedProducts } = require('./catalog');
-const { getBusinessMetrics } = require('./businessMetrics');
-const { getMunicipalAnalytics } = require('./municipalAnalytics');
+const { getAttentionMessage } = require('./widgetAttention.cjs');
+const { getMunicipalStats, getMunicipalStatsFiltersData } = require('./municipalStats.cjs'); // Added getMunicipalStatsFiltersData
+const { getFormattedProducts } = require('./catalog.cjs');
+const { getBusinessMetrics } = require('./businessMetrics.cjs');
+const { getMunicipalAnalytics } = require('./municipalAnalytics.cjs');
 const {
   getMunicipalMessageMetrics,
   generateCsvReport,
   generatePdfReport,
-} = require('./municipalMessageMetrics');
-const sessionMiddleware = require('./session');
-const cartRoutes = require('./cartRoutes');
-const preferences = require('./preferences');
-const authRoutes = require('./auth');
+} = require('./municipalMessageMetrics.cjs');
+const sessionMiddleware = require('./session.cjs');
+const cartRoutes = require('./cartRoutes.cjs');
+const preferences = require('./preferences.cjs');
+const authRoutes = require('./auth.cjs');
 
 const app = express();
 app.use(express.json());

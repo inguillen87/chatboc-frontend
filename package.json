@@ -11,7 +11,7 @@
     "postinstall": "npm run setup-env",
     "test": "vitest run",
     "test:watch": "vitest",
-    "start": "node server/app.js"
+    "start": "node server/app.cjs"
   },
   "dependencies": {
     "@headlessui/react": "^1.7.18",
