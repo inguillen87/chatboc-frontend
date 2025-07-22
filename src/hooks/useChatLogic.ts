@@ -34,12 +34,17 @@ export function useChatLogic(initialWelcomeMessage: string) {
 
   // Efecto para el mensaje de bienvenida inicial
   useEffect(() => {
-    if (messages.length === 0 && initialWelcomeMessage) { // Solo si hay mensaje inicial
+    const user = JSON.parse(safeLocalStorage.getItem('user') || 'null');
+    const welcomeMessage = isAnonimo
+      ? initialWelcomeMessage
+      : `Hola ${user?.nombre || 'usuario'}, bienvenido de nuevo. ¿En qué puedo ayudarte hoy?`;
+
+    if (messages.length === 0 && welcomeMessage) {
       setMessages([
-        { id: generateClientMessageId(), text: initialWelcomeMessage, isBot: true, timestamp: new Date() },
+        { id: generateClientMessageId(), text: welcomeMessage, isBot: true, timestamp: new Date() },
       ]);
     }
-  }, [initialWelcomeMessage]); // Dependencia messages.length eliminada para evitar re-trigger innecesario
+  }, [initialWelcomeMessage, isAnonimo]);
 
 
   // Efecto para generar idempotency key cuando el bot pide confirmación de reclamo
