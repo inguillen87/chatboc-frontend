@@ -3,22 +3,23 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { Lightbulb } from "lucide-react";
 
 const WidgetEmbed = ({ token }: { token: string }) => {
-  const embedCode = `<script>(function(){var s=document.createElement('script');s.src='https://www.chatboc.ar/widget.js';s.async=true;s.setAttribute('data-token','${token}');document.head.appendChild(s);})();</script>`;
+  const embedCode = `<script src="https://www.chatboc.ar/widget.js" data-token="${token}" async defer></script>`;
 
-  const copiar = () => {
+  const copyToClipboard = () => {
     navigator.clipboard.writeText(embedCode)
-      .then(() => toast.success("✅ Código copiado al portapapeles"))
-      .catch(() => toast.error("❌ No se pudo copiar"));
+      .then(() => toast.success("✅ ¡Copiado! Ahora pegalo en tu web."))
+      .catch(() => toast.error("❌ Ocurrió un error al copiar el código."));
   };
 
   if (!token) {
     return (
       <Card className="mt-6">
         <CardHeader>
-          <CardTitle>Integración con tu sitio web</CardTitle>
-          <CardDescription>Necesitás iniciar sesión para ver tu código de integración personalizado.</CardDescription>
+          <CardTitle>Tu código de Widget personalizado</CardTitle>
+          <CardDescription>Inicia sesión para obtener el código y agregar Chatboc a tu sitio web.</CardDescription>
         </CardHeader>
       </Card>
     );
@@ -27,17 +28,28 @@ const WidgetEmbed = ({ token }: { token: string }) => {
   return (
     <Card className="mt-6">
       <CardHeader>
-        <CardTitle>Integrá Chatboc en tu web</CardTitle>
-        <CardDescription>Copiá este fragmento y pegalo donde quieras que aparezca el chat.</CardDescription>
+        <CardTitle>Integra Chatboc en tu sitio web</CardTitle>
+        <CardDescription>
+          Copia el siguiente código y pégalo en el HTML de tu página, justo antes de la etiqueta de cierre <code>&lt;/body&gt;</code>.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <Textarea
           readOnly
-          className="mb-2 font-mono"
-          rows={4}
+          className="mb-4 font-mono bg-slate-100 dark:bg-slate-800 border-dashed"
+          rows={3}
           value={embedCode}
+          onClick={(e) => (e.target as HTMLTextAreaElement).select()}
         />
-        <Button onClick={copiar}>📋 Copiar código</Button>
+        <div className="flex flex-col sm:flex-row gap-4">
+          <Button onClick={copyToClipboard} className="w-full sm:w-auto">
+            📋 Copiar código
+          </Button>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+            <Lightbulb className="w-5 h-5 text-yellow-500" />
+            <span>El widget aparecerá en la esquina inferior derecha.</span>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );

@@ -14,6 +14,7 @@ import ChatUserPanel from "./ChatUserPanel";
 import ChatHeader from "./ChatHeader";
 import EntityInfoPanel from "./EntityInfoPanel";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useWindowSize } from "@/hooks/useWindowSize";
 
 const ChatPanel = React.lazy(() => import("./ChatPanel"));
 
@@ -33,9 +34,7 @@ interface ChatWidgetProps {
   ctaMessage?: string;
 }
 
-const PROACTIVE_MESSAGES = [
-  "¿Necesitas ayuda?",
-];
+const PROACTIVE_MESSAGES = ["¿Necesitas ayuda?"];
 
 let proactiveMessageTimeout: NodeJS.Timeout | null = null;
 let hideProactiveBubbleTimeout: NodeJS.Timeout | null = null;
@@ -49,41 +48,20 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   initialRubro,
   openWidth = "460px",
   openHeight = "680px",
-  closedWidth = "100px",
-  closedHeight = "100px",
+  closedWidth = "96px",
+  closedHeight = "96px",
   tipoChat = getCurrentTipoChat(),
   initialPosition = { bottom: 32, right: 32 },
   ctaMessage,
 }) => {
-  const [isOpen, setIsOpen] = useState(() => {
-    if (mode !== 'standalone' && typeof defaultOpen === 'string') {
-      return defaultOpen === 'true';
-    }
-    return !!defaultOpen;
-  });
-  const [muted, setMuted] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return safeLocalStorage.getItem('chatboc_muted') === '1';
-  });
-  const [view, setView] = useState<'chat' | 'register' | 'login' | 'user' | 'info'>(initialView);
+  const [isOpen, setIsOpen] = useState(!!defaultOpen);
+  const [muted, setMuted] = useState(() => safeLocalStorage.getItem('chatboc_muted') === '1');
+  const [view, setView] = useState(initialView);
   const { user } = useUser();
-  const [resolvedTipoChat, setResolvedTipoChat] = useState<'pyme' | 'municipio'>(tipoChat);
+  const [resolvedTipoChat, setResolvedTipoChat] = useState(tipoChat);
   const [entityInfo, setEntityInfo] = useState<any | null>(null);
-
-  const [isMobileView, setIsMobileView] = useState(
-    typeof window !== "undefined" && window.innerWidth < 640
-  );
-
-  useEffect(() => {
-    const checkMobile = () => {
-      if (typeof window !== "undefined") {
-        setIsMobileView(window.innerWidth < 640);
-      }
-    };
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
-  }, []);
+  const { width: windowWidth } = useWindowSize();
+  const isMobileView = windowWidth < 640;
 
   const [showCta, setShowCta] = useState(false);
   const [proactiveMessage, setProactiveMessage] = useState<string | null>(null);
@@ -92,174 +70,95 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   const openUserPanel = useCallback(() => {
     if (user) {
-      if (user.rol && user.rol !== 'usuario') {
-        window.location.href = '/perfil';
-      } else {
-        setView('user');
-      }
-    } else if (entityInfo) {
-      setView('info');
+      setView(user.rol && user.rol !== 'usuario' ? 'info' : 'user');
     } else {
-      setView('login');
+      setView(entityInfo ? 'info' : 'login');
     }
   }, [user, entityInfo]);
 
-  const openCart = useCallback(() => {
-    window.open('/cart', '_blank');
-  }, []);
+  const openCart = useCallback(() => window.open('/cart', '_blank'), []);
+  const toggleMuted = useCallback(() => setMuted(m => {
+    const newMuted = !m;
+    safeLocalStorage.setItem('chatboc_muted', newMuted ? '1' : '0');
+    return newMuted;
+  }), []);
 
-  const toggleMuted = useCallback(() => {
-    setMuted((m) => {
-      const nv = !m;
-      safeLocalStorage.setItem('chatboc_muted', nv ? '1' : '0');
-      return nv;
-    });
-  }, []);
+  const finalClosedWidth = isMobileView ? "80px" : closedWidth;
+  const finalClosedHeight = isMobileView ? "80px" : closedHeight;
+  const logoSize = isMobileView ? 40 : Math.floor(parseInt(finalClosedWidth.replace('px', ''), 10) * 0.62);
 
-  const finalOpenWidth = openWidth;
-  const finalOpenHeight = openHeight;
-
-  const mobileClosedSize = "72px";
-  const finalClosedWidth = isMobileView ? mobileClosedSize : closedWidth;
-  const finalClosedHeight = isMobileView ? mobileClosedSize : closedHeight;
-  const logoSizeFactor = 0.62;
-  const closedWidthPx = parseInt(finalClosedWidth.replace('px', ''), 10);
-  let calculatedLogoSize = Math.floor(closedWidthPx * logoSizeFactor);
-
-  // Safeguard: Ensure calculatedLogoSize is a positive number, default to a minimum if not.
-  // This prevents NaN or zero size if closedWidthPx is NaN or 0.
-  if (isNaN(calculatedLogoSize) || calculatedLogoSize <= 0) {
-    calculatedLogoSize = 30; // A reasonable minimum default size for the logo animation
-  }
-
-  const commonPanelAndButtonAbsoluteClasses = cn("absolute bottom-0 right-0");
-  const commonPanelStyles = cn("bg-card border shadow-lg", "flex flex-col overflow-hidden");
-  const commonButtonStyles = cn(
-    "rounded-full flex items-center justify-center",
-    "bg-primary text-primary-foreground hover:bg-primary/90",
-    "shadow-lg"
-  );
-
-  const sendStateMessageToParent = useCallback(
-    (open: boolean) => {
-      if (mode === "iframe" && typeof window !== "undefined" && window.parent !== window && widgetId) {
-        const dims = open
-          ? { width: finalOpenWidth, height: finalOpenHeight }
-          : { width: finalClosedWidth, height: finalClosedHeight };
-
-        window.parent.postMessage(
-          { type: "chatboc-state-change", widgetId, dimensions: dims, isOpen: open },
-          "*"
-        );
-      }
-    },
-    [mode, widgetId, finalOpenWidth, finalOpenHeight, finalClosedWidth, finalClosedHeight]
-  );
+  const sendStateMessageToParent = useCallback((open: boolean) => {
+    if (mode === "iframe" && window.parent !== window && widgetId) {
+      const dims = open
+        ? { width: openWidth, height: openHeight }
+        : { width: finalClosedWidth, height: finalClosedHeight };
+      window.parent.postMessage({ type: "chatboc-state-change", widgetId, dimensions: dims, isOpen: open }, "*");
+    }
+  }, [mode, widgetId, openWidth, openHeight, finalClosedWidth, finalClosedHeight]);
 
   useEffect(() => {
     sendStateMessageToParent(isOpen);
     if (isOpen) {
-      setShowProactiveBubble(false); // Explicitly hide proactive bubble when chat opens
+      setShowProactiveBubble(false);
       if (proactiveMessageTimeout) clearTimeout(proactiveMessageTimeout);
       if (hideProactiveBubbleTimeout) clearTimeout(hideProactiveBubbleTimeout);
     }
   }, [isOpen, sendStateMessageToParent]);
 
-  // Main useEffect for scheduling proactive messages
   useEffect(() => {
-    if (isOpen || mode === 'standalone') {
-      if (proactiveMessageTimeout) clearTimeout(proactiveMessageTimeout);
-      if (hideProactiveBubbleTimeout) clearTimeout(hideProactiveBubbleTimeout);
-      if (showProactiveBubble) setShowProactiveBubble(false); // Ensure it's hidden
+    if (isOpen || mode === 'standalone' || safeLocalStorage.getItem("proactive_bubble_session_shown") === "1") {
       return;
     }
-
-    const alreadyShownProactive = safeLocalStorage.getItem("proactive_bubble_session_shown") === "1";
-    if (alreadyShownProactive) {
-      if (showProactiveBubble) setShowProactiveBubble(false); // If flag is set, ensure bubble stays hidden
-      return;
-    }
-
-    // Clear any existing timeouts before setting new ones to prevent multiple instances
     if (proactiveMessageTimeout) clearTimeout(proactiveMessageTimeout);
     if (hideProactiveBubbleTimeout) clearTimeout(hideProactiveBubbleTimeout);
 
-    // If we are about to schedule it, ensure it's not already set to show from a previous render cycle.
-    if (showProactiveBubble) setShowProactiveBubble(false);
-
     proactiveMessageTimeout = setTimeout(() => {
-      const nextMessage = PROACTIVE_MESSAGES[proactiveCycle % PROACTIVE_MESSAGES.length];
-      setProactiveMessage(nextMessage);
-      setShowProactiveBubble(true); // Set intent to show
+      setProactiveMessage(PROACTIVE_MESSAGES[proactiveCycle % PROACTIVE_MESSAGES.length]);
+      setShowProactiveBubble(true);
       if (!muted) playProactiveSound();
-      // "proactive_bubble_session_shown" is now set by the other useEffect
+      safeLocalStorage.setItem("proactive_bubble_session_shown", "1");
 
       hideProactiveBubbleTimeout = setTimeout(() => {
         setShowProactiveBubble(false);
         setProactiveCycle(prev => prev + 1);
-      }, 7000); // Bubble visible for 7 seconds
+      }, 7000);
+    }, 10000);
 
-    }, 10000); // Show bubble after 10 seconds
-
-    return () => { // Cleanup
+    return () => {
       if (proactiveMessageTimeout) clearTimeout(proactiveMessageTimeout);
       if (hideProactiveBubbleTimeout) clearTimeout(hideProactiveBubbleTimeout);
     };
-  }, [isOpen, muted, proactiveCycle, mode]); // Dependencies
-
-  // New useEffect to handle setting the session flag when the bubble is truly visible
-  useEffect(() => {
-    // Only act if the bubble is intended to be shown (showProactiveBubble === true),
-    // is not suppressed by CTA (!showCta),
-    // and if the session flag hasn't been set yet.
-    if (showProactiveBubble && !showCta && safeLocalStorage.getItem("proactive_bubble_session_shown") !== "1") {
-      safeLocalStorage.setItem("proactive_bubble_session_shown", "1");
-    }
-  }, [showProactiveBubble, showCta]); // Dependencies: the two states that determine visual rendering
+  }, [isOpen, muted, proactiveCycle, mode]);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       if (!event.data || event.data.widgetId !== widgetId) return;
-      if (event.data.type === "TOGGLE_CHAT") {
-        setIsOpen(event.data.isOpen);
-      } else if (event.data.type === "SET_VIEW") {
-        const v = event.data.view;
-        if (['chat', 'register', 'login', 'user', 'info'].includes(v)) {
-          setView(v as any);
-        }
-      }
+      if (event.data.type === "TOGGLE_CHAT") setIsOpen(event.data.isOpen);
+      else if (event.data.type === "SET_VIEW") setView(event.data.view);
     };
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
   }, [widgetId]);
 
   const toggleChat = useCallback(() => {
-    // --- Add this line ---
-    if (!isOpen) { // If chat is currently closed and is about to be opened
-      resumeAudioContext(); // Attempt to resume/initialize AudioContext on first open
-    }
-    // --- End of addition ---
-
-    setIsOpen((prevIsOpen) => {
-      const nextIsOpen = !prevIsOpen;
-      if (nextIsOpen && !muted) {
-        playOpenSound();
-      }
-      if (nextIsOpen) { // If opening chat
-        setShowProactiveBubble(false); // Hide proactive bubble
+    if (!isOpen) resumeAudioContext();
+    setIsOpen(prev => {
+      const nextIsOpen = !prev;
+      if (nextIsOpen && !muted) playOpenSound();
+      if (nextIsOpen) {
+        setShowProactiveBubble(false);
         if (proactiveMessageTimeout) clearTimeout(proactiveMessageTimeout);
         if (hideProactiveBubbleTimeout) clearTimeout(hideProactiveBubbleTimeout);
       }
       return nextIsOpen;
     });
-  }, [isOpen, muted]); // Added isOpen to dependency array
+  }, [isOpen, muted]);
 
   useEffect(() => {
-    if (!ctaMessage || isOpen || showProactiveBubble) { // If proactiveBubble is showing, don't show CTA
+    if (!ctaMessage || isOpen || showProactiveBubble || safeLocalStorage.getItem("cta_seen") === "1") {
       setShowCta(false);
       return;
     }
-    if (safeLocalStorage.getItem("cta_seen") === "1") return;
     const delay = setTimeout(() => {
       setShowCta(true);
       const hide = setTimeout(() => setShowCta(false), 8000);
@@ -267,167 +166,121 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       return () => clearTimeout(hide);
     }, 2500);
     return () => clearTimeout(delay);
-  }, [ctaMessage, isOpen, showProactiveBubble]); // Added showProactiveBubble as dependency
+  }, [ctaMessage, isOpen, showProactiveBubble]);
 
   useEffect(() => {
-    // Si el widget está embebido (iframe directamente, o cargado por script)
-    // y se proporciona un entityToken, lo guardamos.
-    if ((mode === "iframe" || mode === "script") && entityToken) {
-      safeLocalStorage.setItem("entityToken", entityToken);
+    if ((mode === "iframe" || mode === "script")) {
+      if (entityToken) safeLocalStorage.setItem("entityToken", entityToken);
+      else safeLocalStorage.removeItem("entityToken");
     }
-    // Si está embebido y explícitamente no hay entityToken (o se elimina),
-    // lo removemos del storage para evitar usar uno viejo.
-    else if ((mode === "iframe" || mode === "script") && !entityToken) {
-      safeLocalStorage.removeItem("entityToken");
-    }
-    // No hacemos nada con localStorage para entityToken en modo standalone por defecto.
   }, [mode, entityToken]);
 
   useEffect(() => {
-    async function fetchEntityProfile() {
-      if (!entityToken) {
-        setEntityInfo(null);
-        setResolvedTipoChat(tipoChat); // Restablecer a la prop original
-        return;
-      }
-      try {
-        const data = await apiFetch<any>("/perfil", {
-          sendEntityToken: true,
-          skipAuth: true,
-        });
-
-        if (data && typeof data.esPublico === "boolean") {
+    if (!entityToken) {
+      setEntityInfo(null);
+      setResolvedTipoChat(tipoChat);
+      return;
+    }
+    apiFetch<any>("/perfil", { sendEntityToken: true, skipAuth: true })
+      .then(data => {
+        if (data) {
           setResolvedTipoChat(data.esPublico ? "municipio" : "pyme");
-        } else if (data && data.tipo_chat) {
-          setResolvedTipoChat(data.tipo_chat === "municipio" ? "municipio" : "pyme");
+          setEntityInfo(data);
         } else {
-          // Si la data no tiene la estructura esperada, volver al tipoChat original como fallback
           setResolvedTipoChat(tipoChat);
         }
-        setEntityInfo(data);
-      } catch (e) {
+      })
+      .catch(e => {
         console.error("ChatWidget: Error fetching entity profile:", e);
         setEntityInfo(null);
-        setResolvedTipoChat(tipoChat); // Restablecer a la prop original en caso de error
-      }
-    }
-    fetchEntityProfile();
-  }, [entityToken, tipoChat]); // Añadir tipoChat a las dependencias
+        setResolvedTipoChat(tipoChat);
+      });
+  }, [entityToken, tipoChat]);
 
-  const openSpring = { type: "spring", stiffness: 280, damping: 28 };
-  const closeSpring = { type: "spring", stiffness: 300, damping: 30 };
-
+  const spring = { type: "spring", stiffness: 300, damping: 30 };
   const panelAnimation = {
     initial: { opacity: 0, y: 50, scale: 0.9, borderRadius: "50%" },
-    animate: {
-      opacity: 1,
-      y: 0,
-      scale: 1,
-      borderRadius: isMobileView ? "0px" : "16px",
-      transition: openSpring
-    },
-    exit: {
-      opacity: 0,
-      y: 30,
-      scale: 0.95,
-      borderRadius: "50%",
-      transition: closeSpring
+    animate: { opacity: 1, y: 0, scale: 1, borderRadius: isMobileView ? "0px" : "24px", transition: spring },
+    exit: { opacity: 0, y: 30, scale: 0.95, borderRadius: "50%", transition: { ...spring, duration: 0.2 } }
+  };
+  const buttonAnimation = {
+    initial: { opacity: 0, scale: 0.7 },
+    animate: { opacity: 1, scale: 1, transition: { ...spring, delay: 0.1 } },
+    exit: { opacity: 0, scale: 0.8, transition: { duration: 0.15 } },
+  };
+
+  const renderPanelContent = () => {
+    switch (view) {
+      case 'register': return <ChatUserRegisterPanel onSuccess={() => setView("chat")} onShowLogin={() => setView("login")} />;
+      case 'login': return <ChatUserLoginPanel onSuccess={() => setView("chat")} onShowRegister={() => setView("register")} />;
+      case 'user': return <ChatUserPanel onClose={() => setView("chat")} />;
+      case 'info': return <EntityInfoPanel info={entityInfo} onClose={() => setView("chat")} />;
+      default: return <ChatPanel {...{ mode, widgetId, entityToken, initialRubro, openWidth, openHeight, onClose: toggleChat, tipoChat: resolvedTipoChat, onRequireAuth: () => setView("register"), onShowLogin: () => setView("login"), onShowRegister: () => setView("register"), onOpenUserPanel, muted, onToggleSound: toggleMuted, onCart: openCart }} />;
     }
   };
 
-  const buttonAnimation = {
-    initial: { opacity: 0, scale: 0.7, rotate: 0 },
-    animate: {
-      opacity: 1,
-      scale: 1,
-      rotate: 0,
-      transition: { ...openSpring, delay: 0.1 }
-    },
-    exit: {
-      opacity: 0,
-      scale: 0.8,
-      rotate: 30,
-      transition: { ...closeSpring, duration: 0.15 }
-    },
+  const containerStyle: React.CSSProperties = mode === "standalone" ? {
+    position: 'fixed',
+    zIndex: 999999,
+    bottom: isOpen && isMobileView ? 0 : `calc(${initialPosition.bottom}px + env(safe-area-inset-bottom))`,
+    right: isOpen && isMobileView ? 0 : `calc(${initialPosition.right}px + env(safe-area-inset-right))`,
+    left: isOpen && isMobileView ? 0 : "auto",
+    top: isOpen && isMobileView ? "env(safe-area-inset-top)" : "auto",
+    width: isOpen ? (isMobileView ? "100vw" : openWidth) : finalClosedWidth,
+    height: isOpen ? (isMobileView ? "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))" : openHeight) : finalClosedHeight,
+    minWidth: isOpen ? "320px" : finalClosedWidth,
+    minHeight: isOpen ? "64px" : finalClosedHeight,
+    maxWidth: "100vw",
+    maxHeight: "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))",
+    borderRadius: isOpen ? (isMobileView ? "0" : "24px") : "50%",
+    overflow: "visible",
+    display: "flex",
+    alignItems: "flex-end",
+    justifyContent: "flex-end",
+  } : {
+    position: 'fixed',
+    bottom: 0,
+    right: 0,
+    overflow: "visible",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "end",
+    justifyContent: "end"
   };
 
-  const iconAnimation = {
-    closed: { rotate: 0, scale: 1, opacity: 1 },
-    open: { rotate: 180, scale: 0, opacity: 0 }
-  };
-
- if (mode === "standalone") {
   return (
-    <div
-      className={cn("chatboc-container-standalone fixed z-[999999]")}
-      style={{
-        bottom: isOpen && isMobileView ? 0 : `calc(${initialPosition.bottom}px + env(safe-area-inset-bottom))`,
-        right: isOpen && isMobileView ? 0 : `calc(${initialPosition.right}px + env(safe-area-inset-right))`,
-        left: isOpen && isMobileView ? 0 : "auto",
-        top: isOpen && isMobileView ? "env(safe-area-inset-top)" : "auto",
-        width: isOpen ? (isMobileView ? "100vw" : finalOpenWidth) : finalClosedWidth,
-        height: isOpen ? (isMobileView ? "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))" : finalOpenHeight) : finalClosedHeight,
-        minWidth: isOpen ? "320px" : finalClosedWidth,
-        minHeight: isOpen ? "64px" : finalClosedHeight,
-        maxWidth: "100vw",
-        maxHeight: "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))",
-        borderRadius: isOpen ? (isMobileView ? "0" : "16px") : "50%",
-        overflow: isOpen ? "hidden" : "visible",
-        background: "transparent",
-        padding: 0,
-        display: "flex",
-        alignItems: "flex-end",
-        justifyContent: "flex-end",
-      }}
-    >
-      <Suspense fallback={
-        <div
-          className={cn(commonPanelStyles, "w-full h-full items-center justify-center")}
-          style={{ borderRadius: isOpen ? (isMobileView ? "0" : "16px") : "50%", background: "hsl(var(--card))" }}
-        >
-          <ChatbocLogoAnimated size={calculatedLogoSize > 0 ? calculatedLogoSize : (isMobileView ? 32 : 48)} />
-          <Skeleton className="h-4 w-[60%] mt-3" />
-          <Skeleton className="h-4 w-[40%] mt-2" />
-        </div>
-      }>
+    <div className={cn("chatboc-container", { "standalone": mode === "standalone" })} style={containerStyle}>
+      <Suspense fallback={<Skeleton className={cn("w-full h-full", isOpen ? "rounded-2xl" : "rounded-full")} />}>
         <AnimatePresence mode="popLayout">
           {isOpen ? (
             <motion.div
               key="chatboc-panel-open"
-              className={cn(commonPanelStyles, "w-full h-full shadow-xl")}
-              style={{ borderRadius: isMobileView ? "0" : "16px", background: "hsl(var(--card))" }}
+              className="bg-card border shadow-xl flex flex-col overflow-hidden w-full h-full"
+              style={{ borderRadius: isMobileView ? "0" : "24px" }}
               {...panelAnimation}
             >
-              {(view === "register" || view === "login" || view === "user" || view === "info") && (
+              {view !== 'chat' && (
                 <ChatHeader onClose={toggleChat} onBack={() => setView("chat")} showProfile={false} muted={muted} onToggleSound={toggleMuted} onCart={openCart} />
               )}
-              {view === "register" ? <ChatUserRegisterPanel onSuccess={() => setView("chat")} onShowLogin={() => setView("login")} />
-                : view === "login" ? <ChatUserLoginPanel onSuccess={() => setView("chat")} onShowRegister={() => setView("register")} />
-                : view === "user" ? <ChatUserPanel onClose={() => setView("chat")} />
-                : view === "info" ? <EntityInfoPanel info={entityInfo} onClose={() => setView("chat")} />
-                : <ChatPanel mode={mode} widgetId={widgetId} entityToken={entityToken} initialRubro={initialRubro} openWidth={finalOpenWidth} openHeight={finalOpenHeight} onClose={toggleChat} tipoChat={resolvedTipoChat} onRequireAuth={() => setView("register")} onShowLogin={() => setView("login")} onShowRegister={() => setView("register")} onOpenUserPanel={openUserPanel} muted={muted} onToggleSound={toggleMuted} onCart={openCart} />}
+              {renderPanelContent()}
             </motion.div>
           ) : (
             <motion.div
               key="chatboc-panel-closed"
-              className="relative w-full h-full"
+              className="relative"
+              style={{ width: finalClosedWidth, height: finalClosedHeight }}
               initial={{ opacity: 1, scale: 1 }}
-              animate={{ opacity: 1, scale: 1, transition: { ...openSpring, delay: 0.1 } }}
-              exit={{ opacity: 0, scale: 0.8, transition: { ...closeSpring, duration: 0.15 } }}
+              exit={{ opacity: 0, scale: 0.8, transition: { duration: 0.15 } }}
             >
-              <ProactiveBubble
-                message={proactiveMessage || ""}
-                onClick={toggleChat}
-                visible={showProactiveBubble && !showCta}
-              />
+              <ProactiveBubble message={proactiveMessage || ""} onClick={toggleChat} visible={showProactiveBubble && !showCta} />
               {showCta && ctaMessage && !showProactiveBubble && (
                 <motion.div
                   key="chatboc-cta"
                   className="absolute right-0 text-sm bg-background border rounded-lg shadow-lg px-3 py-2 dark:bg-slate-800 dark:border-slate-700"
                   style={{ bottom: "calc(100% + 8px)" }}
-                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 10 }}
                   transition={{ duration: 0.3 }}
                 >
                   {ctaMessage}
@@ -435,35 +288,15 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
               )}
               <motion.button
                 key="chatboc-toggle-btn"
-                className={cn(
-                  commonButtonStyles,
-                  commonPanelAndButtonAbsoluteClasses,
-                  "border-none shadow-xl"
-                )}
-                style={{
-                  width: finalClosedWidth,
-                  height: finalClosedHeight,
-                  borderRadius: "50%",
-                  background: "var(--primary, #2563eb)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  boxShadow: "0 6px 24px 0 rgba(0,0,0,0.15)",
-                  zIndex: 20
-                }}
+                className="w-full h-full rounded-full flex items-center justify-center bg-primary text-primary-foreground hover:bg-primary/90 shadow-xl border-none"
+                style={{ zIndex: 20 }}
                 {...buttonAnimation}
                 whileHover={{ scale: 1.1, transition: { type: "spring", stiffness: 400, damping: 15 } }}
                 whileTap={{ scale: 0.95 }}
                 onClick={toggleChat}
                 aria-label="Abrir chat"
               >
-                <motion.div
-                  variants={iconAnimation}
-                  animate={isOpen ? "open" : "closed"}
-                  transition={openSpring}
-                >
-                  <ChatbocLogoAnimated size={calculatedLogoSize} blinking={!isOpen} floating={!isOpen} pulsing={!isOpen} />
-                </motion.div>
+                <ChatbocLogoAnimated size={logoSize} blinking={!isOpen && !showProactiveBubble && !showCta} floating={!isOpen} />
               </motion.button>
             </motion.div>
           )}
@@ -471,118 +304,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       </Suspense>
     </div>
   );
-}
-
-  // Modo IFRAME / SCRIPT
-  return (
-    <div className={cn("fixed bottom-0 right-0", "flex flex-col items-end justify-end")} style={{ overflow: "visible" }}>
-      <Suspense fallback={
-        <div
-          className={cn(commonPanelStyles, commonPanelAndButtonAbsoluteClasses, "items-center justify-center")}
-          style={{
-            width: isOpen ? (isMobileView ? "100vw" : finalOpenWidth) : finalClosedWidth,
-            height: isOpen ? (isMobileView ? "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))" : finalOpenHeight) : finalClosedHeight,
-            borderRadius: isOpen ? (isMobileView ? "0" : "16px") : "50%",
-            background: "hsl(var(--card))"
-          }}
-        >
-          <ChatbocLogoAnimated size={calculatedLogoSize > 0 ? calculatedLogoSize : (isMobileView ? 32 : 48)} />
-        </div>
-      }>
-        <AnimatePresence mode="popLayout" initial={false}>
-          {isOpen ? (
-            <motion.div
-              key="chatboc-panel-open"
-              className={cn(commonPanelStyles, commonPanelAndButtonAbsoluteClasses, "shadow-xl")}
-              style={{
-                width: isMobileView ? "100vw" : finalOpenWidth,
-                height: isMobileView ? "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))" : finalOpenHeight,
-                borderRadius: isMobileView ? "0" : "16px",
-                background: "hsl(var(--card))",
-              }}
-              {...panelAnimation}
-            >
-              {(view === "register" || view === "login" || view === "user" || view === "info") && (
-                <ChatHeader onClose={toggleChat} onBack={() => setView("chat")} showProfile={false} muted={muted} onToggleSound={toggleMuted} onCart={openCart} />
-              )}
-              {view === "register" ? <ChatUserRegisterPanel onSuccess={() => setView("chat")} onShowLogin={() => setView("login")} />
-                : view === "login" ? <ChatUserLoginPanel onSuccess={() => setView("chat")} onShowRegister={() => setView("register")} />
-                : view === "user" ? <ChatUserPanel onClose={() => setView("chat")} />
-                : view === "info" ? <EntityInfoPanel info={entityInfo} onClose={() => setView("chat")} />
-                : <ChatPanel mode={mode} widgetId={widgetId} entityToken={entityToken} initialRubro={initialRubro} openWidth={finalOpenWidth} openHeight={finalOpenHeight} onClose={toggleChat} tipoChat={resolvedTipoChat} onRequireAuth={() => setView("register")} onShowLogin={() => setView("login")} onShowRegister={() => setView("register")} onOpenUserPanel={openUserPanel} muted={muted} onToggleSound={toggleMuted} onCart={openCart} />}
-            </motion.div>
-          ) : (
-            <motion.div
-              key="chatboc-panel-closed"
-              className={cn("relative", commonPanelAndButtonAbsoluteClasses)}
-              style={{
-                width: finalClosedWidth,
-                height: finalClosedHeight,
-              }}
-              initial={{ opacity: 1, scale: 1 }}
-              animate={{ opacity: 1, scale: 1, transition: { ...openSpring, delay: 0.1 } }}
-              exit={{ opacity: 0, scale: 0.8, transition: { ...closeSpring, duration: 0.15 } }}
-            >
-              <ProactiveBubble
-                message={proactiveMessage || ""}
-                onClick={toggleChat}
-                visible={showProactiveBubble && !showCta}
-              />
-              {showCta && ctaMessage && !showProactiveBubble && (
-                <motion.div
-                  key="chatboc-cta"
-                  className="absolute right-0 text-sm bg-background border rounded-lg shadow-lg px-3 py-2 dark:bg-slate-800 dark:border-slate-700"
-                  style={{ bottom: "calc(100% + 8px)" }}
-                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  transition={{ duration: 0.3 }}
-                >
-                  {ctaMessage}
-                </motion.div>
-              )}
-              <motion.button
-                key="chatboc-toggle-btn"
-                className={cn(
-                  commonButtonStyles,
-                  commonPanelAndButtonAbsoluteClasses,
-                  "border-none shadow-xl"
-                )}
-                style={{
-                  width: finalClosedWidth,
-                  height: finalClosedHeight,
-                  borderRadius: "50%",
-                  background: "var(--primary, #2563eb)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  zIndex: 20
-                }}
-                {...buttonAnimation}
-                whileHover={{ scale: 1.1, transition: { type: "spring", stiffness: 400, damping: 15 } }}
-                whileTap={{ scale: 0.95 }}
-                onClick={toggleChat}
-                aria-label="Abrir chat"
-              >
-                <motion.div
-                  variants={iconAnimation}
-                  animate={isOpen ? "open" : "closed"}
-                  transition={isOpen ? closeSpring : openSpring}
-                >
-                  <ChatbocLogoAnimated
-                    size={calculatedLogoSize}
-                    blinking={!isOpen && !showProactiveBubble && !showCta}
-                    floating={!isOpen && !showProactiveBubble && !showCta}
-                    pulsing={!isOpen && !showProactiveBubble && !showCta}
-                  />
-                </motion.div>
-              </motion.button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </Suspense>
-    </div>
-  );
-}
+};
 
 export default ChatWidget;
