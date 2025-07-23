@@ -138,14 +138,16 @@
       iframe.id = iframeId;
       iframe.src = `${chatbocDomain}/iframe?token=${encodeURIComponent(token)}&widgetId=${iframeId}&defaultOpen=${defaultOpen}&tipo_chat=${tipoChat}&openWidth=${encodeURIComponent(WIDGET_DIMENSIONS_JS.OPEN.width)}&openHeight=${encodeURIComponent(WIDGET_DIMENSIONS_JS.OPEN.height)}&closedWidth=${encodeURIComponent(WIDGET_DIMENSIONS_JS.CLOSED.width)}&closedHeight=${encodeURIComponent(WIDGET_DIMENSIONS_JS.CLOSED.height)}${theme ? `&theme=${encodeURIComponent(theme)}` : ""}${rubroAttr ? `&rubro=${encodeURIComponent(rubroAttr)}` : ""}${finalCta ? `&ctaMessage=${encodeURIComponent(finalCta)}` : ""}`;
       Object.assign(iframe.style, {
-        border: "none",
-        width: "100%", 
-        height: "100%", 
-        backgroundColor: "transparent", 
+        border: "0",
+        width: "100%",
+        height: "100%",
+        scrolling: "no",
+        overflow: "hidden",
+        backgroundColor: "transparent",
         display: "block",
-        opacity: "0", 
+        opacity: "0",
         transition: "opacity 0.3s ease-in",
-        zIndex: "1" 
+        zIndex: "1"
       });
       iframe.allow = "clipboard-write; geolocation";
       try {
