@@ -201,8 +201,20 @@ const TicketsPanelLayout: React.FC = () => {
         </ResizablePanel>
         <ResizableHandle withHandle />
         <ResizablePanel defaultSize={25} minSize={20} maxSize={40}>
-          {/* {detailedTicket && <ClientInfoPanel ticket={detailedTicket} />} */}
-          <div>Panel de cliente desactivado para depuración.</div>
+          {/* El ClientInfoPanel se desactiva temporalmente debido a un error de renderizado
+              que causa una pantalla en blanco. El error parece ser una incompatibilidad
+              entre las librerías utilizadas dentro del componente. Se necesita una
+              investigación más a fondo para solucionarlo. */}
+          {detailedTicket && (
+            <div className="p-4">
+              <h3 className="font-semibold">Panel de Información del Cliente</h3>
+              <p className="text-sm text-muted-foreground mt-2">
+                Este panel está temporalmente desactivado debido a un error técnico.
+                La información del cliente (email, teléfono, etc.) se puede encontrar
+                en el cuerpo del ticket por ahora.
+              </p>
+            </div>
+          )}
         </ResizablePanel>
       </ResizablePanelGroup>
     </div>
