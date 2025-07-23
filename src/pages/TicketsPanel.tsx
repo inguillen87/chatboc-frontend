@@ -25,6 +25,7 @@ import TemplateSelector, { MessageTemplate } from "@/components/tickets/Template
 import { formatPhoneNumberForWhatsApp } from "@/utils/phoneUtils";
 import TicketList from "@/components/tickets/TicketList";
 import ClientInfoPanel from "@/components/tickets/ClientInfoPanel";
+import TicketChat from "@/components/tickets/TicketChat";
 import { usePusher } from "@/hooks/usePusher";
 import { useHotkeys } from "@/hooks/useHotkeys";
 import {
@@ -137,7 +138,7 @@ export default function TicketsPanel() {
 
     const newCommentListener = ({ ticketId, comment }: { ticketId: number, comment: Comment }) => {
       if (detailedTicket && detailedTicket.id === ticketId) {
-        // This state update is now local to TicketChat component
+        setDetailedTicket(prev => prev ? { ...prev, comentarios: [...(prev.comentarios || []), comment] } : null);
       }
       setAllTickets(prev => prev.map(t => t.id === ticketId ? { ...t, detalles: comment.comentario } : t));
     };
@@ -182,7 +183,7 @@ export default function TicketsPanel() {
     return ESTADOS_ORDEN_PRIORIDAD
         .map(status => ({ categoryName: ESTADOS[status].label, tickets: groups[status] || [] }))
         .filter(group => group.tickets.length > 0);
-  }, [allTickets, debouncedSearchTerm, statusFilter, priorityFilter]);
+  }, [allTickets, debouncedSearchTerm, statusFilter, priorityFilter, categoryFilter]);
 
   const loadAndSetDetailedTicket = useCallback(async (ticketSummary: TicketSummary) => {
     setSelectedTicketId(ticketSummary.id);
@@ -233,154 +234,78 @@ export default function TicketsPanel() {
 
   return (
     <div className="flex flex-col h-screen bg-background text-foreground">
-      <header className="flex items-center justify-between p-3 border-b dark:border-slate-700">
-        {/* Header content */}
-      </header>
-      <ResizablePanelGroup direction="horizontal" className="flex-1">
-        <ResizablePanel defaultSize={25} minSize={20}>
-          <div className="flex flex-col h-full bg-muted/30">
-            <div className="p-3 border-b dark:border-slate-700 space-y-3">
-              <Input placeholder="Buscar tickets..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-              <div className="flex space-x-2">
-                <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as TicketStatus | "")}>
-                  <SelectTrigger><SelectValue placeholder="Estado" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">Todos los estados</SelectItem>
-                    {Object.entries(ESTADOS).map(([key, { label }]) => <SelectItem key={key} value={key}>{label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <Select value={priorityFilter} onValueChange={(value) => setPriorityFilter(value as PriorityStatus | "")}>
-                  <SelectTrigger><SelectValue placeholder="Prioridad" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">Todas las prioridades</SelectItem>
-                    {Object.entries(PRIORITY_INFO).map(([key, { label }]) => <SelectItem key={key} value={key}>{label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <Select value={categoryFilter} onValueChange={(value) => setCategoryFilter(value as string | "")}>
-                  <SelectTrigger><SelectValue placeholder="Categoría" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">Todas las categorías</SelectItem>
-                    {categories.map((category) => <SelectItem key={category} value={category}>{category}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <ScrollArea className="flex-1">
-              <div className="p-2">
-                <TicketList groupedTickets={groupedTickets} selectedTicketId={selectedTicketId} onTicketSelect={loadAndSetDetailedTicket} onToggleSelection={() => {}} isSelectionEnabled={false} />
-              </div>
-            </ScrollArea>
-          </div>
-        </ResizablePanel>
-        <ResizableHandle withHandle />
-        <ResizablePanel defaultSize={50}>
-          <AnimatePresence>
-            {detailedTicket ? (
-              <motion.div key={detailedTicket.id} className="h-full" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                <TicketChat ticket={detailedTicket} onTicketUpdate={handleTicketDetailUpdate} onClose={() => setSelectedTicketId(null)} chatInputRef={chatInputRef} />
-              </motion.div>
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full"><TicketIcon className="h-20 w-20 text-muted-foreground/40" /><h2>Seleccione un Ticket</h2></div>
-            )}
-          </AnimatePresence>
-        </ResizablePanel>
-        <ResizableHandle withHandle />
-            <ResizablePanel defaultSize={25}>
-          <AnimatePresence>
-            {detailedTicket ? (
-              <motion.div key={detailedTicket.id + "-details"} className="h-full" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                    <ClientInfoPanel ticket={detailedTicket} />
-              </motion.div>
-            ) : (
-                  <div className="flex flex-col items-center justify-center h-full"><User className="h-20 w-20 text-muted-foreground/40" /><h2>Detalles del Cliente</h2></div>
-            )}
-          </AnimatePresence>
-        </ResizablePanel>
-      </ResizablePanelGroup>
-    </div>
-  );
-}
-
-interface TicketChatProps {
-  ticket: Ticket;
-  onTicketUpdate: (ticket: Ticket) => void;
-  onClose: () => void;
-  chatInputRef: React.RefObject<HTMLTextAreaElement>;
-}
-
-const TicketChat: FC<TicketChatProps> = ({ ticket, onTicketUpdate, onClose, chatInputRef }) => {
-  const { timezone, locale } = useDateSettings();
-  const { user } = useUser();
-  const [newMessage, setNewMessage] = useState("");
-  const [isSending, setIsSending] = useState(false);
-  const [comentarios, setComentarios] = useState<Comment[]>(ticket.comentarios || []);
-  const chatContainerRef = useRef<HTMLDivElement>(null);
-
-  const scrollToBottom = useCallback(() => {
-    chatContainerRef.current?.scrollTo({ top: chatContainerRef.current.scrollHeight, behavior: "smooth" });
-  }, []);
-
-  useEffect(() => {
-    setComentarios(ticket.comentarios ? [...ticket.comentarios].sort((a,b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()) : []);
-    setTimeout(() => scrollToBottom(), 100);
-  }, [ticket.id, ticket.comentarios, scrollToBottom]);
-
-  const handleSendMessage = async () => {
-    if (!newMessage.trim() || isSending) return;
-    setIsSending(true);
-    const tempId = Date.now();
-    const optimisticComment: Comment = { id: tempId, comentario: newMessage, fecha: new Date().toISOString(), es_admin: true };
-    setComentarios(prev => [...prev, optimisticComment]);
-    setNewMessage("");
-    try {
-      const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}/responder`, { method: "POST", body: { comentario: newMessage }, sendEntityToken: true });
-      onTicketUpdate(updatedTicket);
-    } catch (error) {
-      toast.error("No se pudo enviar el mensaje.");
-      setComentarios(prev => prev.filter(c => c.id !== tempId));
-    } finally {
-      setIsSending(false);
-    }
-  };
-
-  return (
-    <div className="flex flex-col h-full bg-background">
-      <div className="p-3 border-b flex items-center justify-between">
-        <h2 className="text-md font-semibold truncate">{ticket.asunto}</h2>
-      </div>
-      <div className="flex-1 overflow-y-auto p-4" ref={chatContainerRef}>
-        <div className="space-y-4">
-          {comentarios.map((comment) => (
-            <div key={comment.id} className={cn('flex items-end gap-2.5', comment.es_admin ? 'justify-end' : 'justify-start')}>
-              {!comment.es_admin && <AvatarIcon type="user" />}
-              <div className="flex flex-col space-y-1 max-w-lg">
-                <div className={cn('rounded-2xl px-4 py-2.5 shadow-md', comment.es_admin ? 'bg-primary text-primary-foreground rounded-br-lg' : 'bg-card text-foreground border rounded-bl-lg')}>
-                  <p className="break-words whitespace-pre-wrap">{comment.comentario}</p>
+        <header className="flex items-center justify-between p-3 border-b dark:border-slate-700">
+            <h1 className="text-xl font-bold">Panel de Tickets</h1>
+            <Button variant="outline" onClick={() => fetchInitialData()} className="h-9" disabled={isLoading}>
+                {isLoading
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : <Filter className="h-4 w-4" />}
+                <span className="ml-2 hidden sm:inline">Actualizar</span>
+            </Button>
+        </header>
+        <ResizablePanelGroup direction="horizontal" className="flex-1">
+            <ResizablePanel defaultSize={25} minSize={20} maxSize={40}>
+                <div className="flex flex-col h-full bg-muted/30">
+                    <div className="p-3 border-b dark:border-slate-700 space-y-3">
+                        <Input placeholder="Buscar tickets..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                        <div className="flex space-x-2">
+                            <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as TicketStatus | "")}>
+                                <SelectTrigger><SelectValue placeholder="Estado" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="">Todos</SelectItem>
+                                    {Object.entries(ESTADOS).map(([key, { label }]) => <SelectItem key={key} value={key}>{label}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                            <Select value={priorityFilter} onValueChange={(value) => setPriorityFilter(value as PriorityStatus | "")}>
+                                <SelectTrigger><SelectValue placeholder="Prioridad" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="">Todas</SelectItem>
+                                    {Object.entries(PRIORITY_INFO).map(([key, { label }]) => <SelectItem key={key} value={key}>{label}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                            <Select value={categoryFilter} onValueChange={(value) => setCategoryFilter(value as string | "")}>
+                                <SelectTrigger><SelectValue placeholder="Categoría" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="">Todas</SelectItem>
+                                    {categories.map((category) => <SelectItem key={category} value={category!}>{category}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                    <ScrollArea className="flex-1">
+                        <div className="p-2">
+                            <TicketList groupedTickets={groupedTickets} selectedTicketId={selectedTicketId} onTicketSelect={loadAndSetDetailedTicket} onToggleSelection={() => {}} isSelectionEnabled={false} />
+                        </div>
+                    </ScrollArea>
                 </div>
-                <p className={cn("text-xs text-muted-foreground", comment.es_admin ? "text-right" : "text-left")}>{formatDate(comment.fecha, timezone, locale, { hour: '2-digit', minute: '2-digit' })}</p>
-              </div>
-              {comment.es_admin && <AvatarIcon type="admin" />}
-            </div>
-          ))}
-        </div>
-      </div>
-      <div className="border-t p-3 bg-card">
-        <div className="relative">
-          <Textarea ref={chatInputRef} value={newMessage} onChange={(e) => setNewMessage(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); }}} placeholder="Escribe tu mensaje..." disabled={isSending} className="pr-24 min-h-[48px] rounded-full resize-none" rows={1} />
-          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center">
-            <Button size="icon" onClick={handleSendMessage} disabled={isSending || !newMessage.trim()} className="rounded-full"><Send className="h-5 w-5" /></Button>
-          </div>
-        </div>
-      </div>
+            </ResizablePanel>
+            <ResizableHandle withHandle />
+            <ResizablePanel defaultSize={50}>
+                <AnimatePresence>
+                    {detailedTicket ? (
+                        <motion.div key={detailedTicket.id} className="h-full" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                            <TicketChat ticket={detailedTicket} onTicketUpdate={handleTicketDetailUpdate} onClose={() => setSelectedTicketId(null)} chatInputRef={chatInputRef} />
+                        </motion.div>
+                    ) : (
+                        <div className="flex flex-col items-center justify-center h-full text-center p-4">
+                            <TicketIcon className="h-20 w-20 text-muted-foreground/40" />
+                            <h2 className="mt-4 text-lg font-semibold">Seleccione un Ticket</h2>
+                            <p className="text-sm text-muted-foreground">Elija un ticket de la lista para ver los detalles y chatear.</p>
+                        </div>
+                    )}
+                </AnimatePresence>
+            </ResizablePanel>
+            <ResizableHandle withHandle />
+            <ResizablePanel defaultSize={25} minSize={20} maxSize={40}>
+                <AnimatePresence>
+                    {detailedTicket && (
+                        <motion.div key={detailedTicket.id} className="h-full" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                            <ClientInfoPanel ticket={detailedTicket} />
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </ResizablePanel>
+        </ResizablePanelGroup>
     </div>
   );
-};
-
-const AvatarIcon: FC<{ type: 'user' | 'admin' }> = ({ type }) => (
-  <div className={cn('h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0', type === 'admin' ? 'bg-primary text-primary-foreground' : 'bg-muted')}>
-    {type === 'admin' ? <ShieldCheck className="h-4 w-4" /> : <User className="h-4 w-4" />}
-  </div>
-);
-
-// Dummy components to avoid breaking the code, should be replaced by actual components
-const TicketMap: FC<any> = () => null;
+}
