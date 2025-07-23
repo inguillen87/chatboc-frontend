@@ -1,181 +1,145 @@
-import React, { useState, useEffect, useRef, useCallback, FC } from 'react';
-import { Ticket, Comment } from '@/pages/TicketsPanel';
+import React from 'react';
+import { motion } from 'framer-motion';
+import { Paperclip, Send, Smile } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Loader2, Send, Paperclip, XCircle, Sparkles } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
-import { cn } from '@/lib/utils';
-import { useDateSettings } from '@/hooks/useDateSettings';
-import { useUser } from '@/hooks/useUser';
-import { apiFetch } from '@/utils/api';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import AttachmentPreview from '@/components/chat/AttachmentPreview';
-import { getAttachmentInfo, deriveAttachmentInfo, AttachmentInfo } from "@/utils/attachment";
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { cn } from '@/lib/utils';
 
-const toast = (globalThis as any).toast || {
-  success: (message: string) => console.log("TOAST SUCCESS:", message),
-  error: (message: string) => console.error("TOAST ERROR:", message),
-};
+import { Ticket, Comment } from '@/pages/TicketsPanel';
 
 interface TicketChatProps {
   ticket: Ticket;
-  onTicketUpdate: (ticket: Ticket) => void;
-  onClose: () => void;
-  chatInputRef: React.RefObject<HTMLTextAreaElement>;
 }
 
-const AvatarIcon: FC<{ type: 'user' | 'admin' }> = ({ type }) => (
-    <div className={cn('h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0', type === 'admin' ? 'bg-primary text-primary-foreground' : 'bg-muted')}>
-      {type === 'admin' ? <AvatarImage src="/logo/chatboc_logo_original.png" /> : <AvatarImage src="/favicon/human-avatar.svg" />}
-      <AvatarFallback>{type === 'admin' ? 'A' : 'U'}</AvatarFallback>
+const MessageBubble: React.FC<{ message: Comment }> = ({ message }) => {
+  const isAgent = message.es_admin;
+  return (
+    <div className={cn("flex items-end gap-2.5", isAgent ? "justify-end" : "justify-start")}>
+      {!isAgent && <Avatar className="h-8 w-8"><AvatarFallback>U</AvatarFallback></Avatar>}
+      <div className={cn(
+        "rounded-2xl px-4 py-2.5 shadow-md max-w-lg",
+        isAgent ? "bg-primary text-primary-foreground rounded-br-lg" : "bg-card text-foreground border rounded-bl-lg"
+      )}>
+        <p className="break-words whitespace-pre-wrap">{message.comentario}</p>
+        <p className={cn("text-xs opacity-70 mt-1.5", isAgent ? "text-right" : "text-left")}>{new Date(message.fecha).toLocaleTimeString()}</p>
+      </div>
+       {isAgent && <Avatar className="h-8 w-8"><AvatarImage src="/logo/chatboc_logo_original.png" /><AvatarFallback>A</AvatarFallback></Avatar>}
     </div>
-);
+  );
+};
 
-const TicketChat: FC<TicketChatProps> = ({ ticket, onTicketUpdate, onClose, chatInputRef }) => {
-  const { timezone, locale } = useDateSettings();
-  const { user } = useUser();
-  const [newMessage, setNewMessage] = useState("");
-  const [isSending, setIsSending] = useState(false);
-  const [comentarios, setComentarios] = useState<Comment[]>(ticket.comentarios || []);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const chatContainerRef = useRef<HTMLDivElement>(null);
+import { apiFetch } from '@/utils/api';
 
-  const scrollToBottom = useCallback(() => {
-    chatContainerRef.current?.scrollTo({ top: chatContainerRef.current.scrollHeight, behavior: "smooth" });
-  }, []);
+interface TicketChatProps {
+  ticket: Ticket;
+  onTicketUpdate: (updatedTicket: Ticket) => void;
+}
 
-  useEffect(() => {
-    setComentarios(ticket.comentarios ? [...ticket.comentarios].sort((a,b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()) : []);
-    setTimeout(() => scrollToBottom(), 100);
-  }, [ticket.id, ticket.comentarios, scrollToBottom]);
+export const TicketChat: React.FC<TicketChatProps> = ({ ticket, onTicketUpdate }) => {
+    const [newMessage, setNewMessage] = React.useState('');
+    const [isSending, setIsSending] = React.useState(false);
 
-  const handleSendMessage = async () => {
-    if ((!newMessage.trim() && !selectedFile) || isSending) return;
-    setIsSending(true);
+    const handleSendMessage = async () => {
+        if (!newMessage.trim() || isSending) return;
 
-    const tempId = Date.now();
-    const optimisticComment: Comment = {
-        id: tempId,
-        comentario: newMessage,
-        fecha: new Date().toISOString(),
-        es_admin: true,
+        setIsSending(true);
+
+        const optimisticComment: Comment = {
+            id: Date.now(),
+            comentario: newMessage,
+            fecha: new Date().toISOString(),
+            es_admin: true,
+        };
+
+        const updatedTicket = {
+            ...ticket,
+            comentarios: [...(ticket.comentarios || []), optimisticComment],
+        };
+        onTicketUpdate(updatedTicket);
+        setNewMessage('');
+
+        try {
+            const result = await apiFetch<Ticket>(`/api/tickets/${ticket.id}/responder`, {
+                method: 'POST',
+                body: { comentario: newMessage },
+                sendEntityToken: true,
+            });
+            onTicketUpdate(result);
+        } catch (error) {
+            console.error("Error al enviar mensaje:", error);
+            // Revertir el cambio optimista si falla la API
+            onTicketUpdate(ticket);
+        } finally {
+            setIsSending(false);
+        }
     };
 
-    if (selectedFile) {
-        // Handle file upload logic here
-    } else {
-        setComentarios(prev => [...prev, optimisticComment]);
-    }
-
-    setNewMessage("");
-    setSelectedFile(null);
-
-    try {
-      const updatedTicket = await apiFetch<Ticket>(`/tickets/${ticket.tipo}/${ticket.id}/responder`, {
-          method: "POST",
-          body: { comentario: newMessage },
-          sendEntityToken: true
-      });
-      onTicketUpdate(updatedTicket);
-    } catch (error) {
-      toast.error("No se pudo enviar el mensaje.");
-      setComentarios(prev => prev.filter(c => c.id !== tempId));
-    } finally {
-      setIsSending(false);
-    }
-  };
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files && event.target.files[0]) {
-      setSelectedFile(event.target.files[0]);
-    }
-  };
-
   return (
-    <div className="flex flex-col h-full bg-background">
-      <header className="p-3 border-b flex items-center justify-between">
-        <h2 className="text-md font-semibold truncate">{ticket.asunto}</h2>
-        <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
-          <XCircle className="h-5 w-5" />
-        </Button>
+    <div className="flex flex-col h-full">
+      <header className="p-4 border-b">
+        <h2 className="text-lg font-semibold">{ticket.asunto}</h2>
       </header>
-      <ScrollArea className="flex-1 p-4" ref={chatContainerRef}>
+      <ScrollArea className="flex-1 p-4">
         <div className="space-y-4">
-          {comentarios.map((comment) => {
-            const attachment = getAttachmentInfo(comment.comentario);
-            return (
-              <div key={comment.id} className={cn('flex items-end gap-2.5', comment.es_admin ? 'justify-end' : 'justify-start')}>
-                {!comment.es_admin && <AvatarIcon type="user" />}
-                <div className="flex flex-col space-y-1 max-w-lg">
-                  <div className={cn('rounded-2xl px-4 py-2.5 shadow-md', comment.es_admin ? 'bg-primary text-primary-foreground rounded-br-lg' : 'bg-card text-foreground border rounded-bl-lg')}>
-                    {attachment ? (
-                        <AttachmentPreview attachment={attachment} />
-                    ) : (
-                        <p className="break-words whitespace-pre-wrap">{comment.comentario}</p>
-                    )}
-                  </div>
-                  <p className={cn("text-xs text-muted-foreground", comment.es_admin ? "text-right" : "text-left")}>
-                    {new Date(comment.fecha).toLocaleTimeString(locale, { timeZone: timezone, hour: '2-digit', minute: '2-digit' })}
-                  </p>
-                </div>
-                {comment.es_admin && <AvatarIcon type="admin" />}
-              </div>
-            );
-          })}
+          {ticket.comentarios?.map(msg => <MessageBubble key={msg.id} message={msg} />)}
         </div>
       </ScrollArea>
-      <footer className="border-t p-3 flex flex-col gap-2">
-        {selectedFile && (
-            <div className="p-2 border border-dashed rounded-md flex items-center justify-between bg-muted/50">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground truncate">
-                    <Paperclip className="h-4 w-4 flex-shrink-0" />
-                    <span className="truncate" title={selectedFile.name}>{selectedFile.name}</span>
-                    <span className="text-xs opacity-70 whitespace-nowrap">({(selectedFile.size / 1024).toFixed(1)} KB)</span>
-                </div>
-                <Button variant="ghost" size="icon" onClick={() => setSelectedFile(null)} className="h-7 w-7">
-                    <XCircle className="h-4 w-4" />
-                </Button>
-            </div>
-        )}
-        <div className="flex gap-2 items-start">
-          <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} />
-          <Button variant="outline" size="icon" onClick={() => fileInputRef.current?.click()} className="h-10 w-10 flex-shrink-0" title="Adjuntar archivo">
-              <Paperclip className="h-5 w-5" />
-          </Button>
-          <Button variant="outline" size="icon" className="h-10 w-10 flex-shrink-0" title="Usar plantilla de mensaje">
-              <Sparkles className="h-5 w-5" />
-          </Button>
-          <div className="flex-1 relative">
-            <Textarea
-              ref={chatInputRef}
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSendMessage();
-                  }
-              }}
-              placeholder="Escribe una respuesta..."
-              disabled={isSending}
-              className="pr-20 min-h-[40px] h-10"
-              rows={1}
-            />
-            <Button
-                onClick={handleSendMessage}
-                disabled={isSending || (!newMessage.trim() && !selectedFile)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 h-8"
-                size="sm"
-            >
-                {isSending ? <Loader2 className="animate-spin h-4 w-4" /> : "Enviar"}
-                <Send className="h-4 w-4 ml-2" />
-            </Button>
+      <footer className="p-4 border-t space-y-2">
+        {/* Placeholder para Sugerencias de IA */}
+        <div className="flex items-center space-x-2">
+            <Button variant="outline" size="sm">Sugerencia 1</Button>
+            <Button variant="outline" size="sm">Sugerencia 2</Button>
+        </div>
+        <div className="relative">
+          <Textarea
+            placeholder="Escribe tu mensaje..."
+            className="pr-28"
+            rows={1}
+            value={newMessage}
+            onChange={(e) => setNewMessage(e.target.value)}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendMessage();
+                }
+            }}
+            disabled={isSending}
+          />
+          <div className="absolute top-1/2 right-2 transform -translate-y-1/2 flex items-center space-x-2">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon"><Smile className="h-5 w-5" /></Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Emojis</p>
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon"><Paperclip className="h-5 w-5" /></Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Adjuntar archivo</p>
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                    <Button onClick={handleSendMessage} disabled={isSending}>
+                        {isSending ? 'Enviando...' : <Send className="h-5 w-5" />}
+                    </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Enviar mensaje</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         </div>
       </footer>
     </div>
   );
 };
-
-export default TicketChat;
