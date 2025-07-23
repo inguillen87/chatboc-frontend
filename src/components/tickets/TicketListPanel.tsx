@@ -21,9 +21,6 @@ interface TicketListPanelProps {
   onStatusFilterChange: (status: TicketStatus | "") => void;
   priorityFilter: PriorityStatus | "";
   onPriorityFilterChange: (priority: PriorityStatus | "") => void;
-  categoryFilter: string | "";
-  onCategoryFilterChange: (category: string | "") => void;
-  categories: (string | undefined)[];
 }
 
 const TicketListPanel: React.FC<TicketListPanelProps> = ({
@@ -37,12 +34,9 @@ const TicketListPanel: React.FC<TicketListPanelProps> = ({
   onStatusFilterChange,
   priorityFilter,
   onPriorityFilterChange,
-  categoryFilter,
-  onCategoryFilterChange,
-  categories,
 }) => {
   return (
-    <div className="flex flex-col h-full bg-muted/30">
+    <div className="flex flex-col h-full bg-background">
       <TicketListHeader
         searchTerm={searchTerm}
         onSearchTermChange={onSearchTermChange}
@@ -50,9 +44,6 @@ const TicketListPanel: React.FC<TicketListPanelProps> = ({
         onStatusFilterChange={onStatusFilterChange}
         priorityFilter={priorityFilter}
         onPriorityFilterChange={onPriorityFilterChange}
-        categoryFilter={categoryFilter}
-        onCategoryFilterChange={onCategoryFilterChange}
-        categories={categories}
       />
       <ScrollArea className="flex-1">
         <div className="p-2">

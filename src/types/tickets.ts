@@ -7,6 +7,7 @@ export interface Comment {
   comentario: string;
   fecha: string;
   es_admin: boolean;
+  archivo_url?: string;
 }
 
 export interface Ticket {
