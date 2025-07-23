@@ -80,7 +80,6 @@ const TicketChat: FC<TicketChatProps> = ({ ticket, onTicketUpdate, onClose, chat
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     // ... (lógica de cambio de archivo)
   };
-  
   const handleTemplateSelect = (template: string) => {
       setNewMessage(prev => prev ? `${prev}\n${template}` : template);
       chatInputRef.current?.focus();
@@ -104,7 +103,7 @@ const TicketChat: FC<TicketChatProps> = ({ ticket, onTicketUpdate, onClose, chat
               <div key={comment.id} className={cn('flex items-end gap-2.5', isFromUser ? 'justify-start' : 'justify-end')}>
                 {isFromUser && <AvatarIcon type="user" />}
                 <div className="flex flex-col space-y-1 max-w-lg">
-                  <div className={cn('rounded-2xl px-4 py-2.5 shadow-sm', 
+                  <div className={cn('rounded-2xl px-4 py-2.5 shadow-sm',
                     source === 'admin' ? 'bg-primary text-primary-foreground rounded-br-lg' :
                     source === 'ia' ? 'bg-purple-100 text-purple-900 dark:bg-purple-900/50 dark:text-white rounded-br-lg' :
                     'bg-card text-foreground border rounded-bl-lg')}>

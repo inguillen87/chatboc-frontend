@@ -81,10 +81,10 @@ const ClientInfoPanel: React.FC<ClientInfoPanelProps> = ({ ticket }) => {
                     </CardHeader>
                     <CardContent className="divide-y">
                         <InfoRow icon={Mail} label="Email" value={ticket.email_usuario} />
-                        <InfoRow 
-                            icon={Phone} 
-                            label="Teléfono" 
-                            value={ticket.telefono} 
+                        <InfoRow
+                            icon={Phone}
+                            label="Teléfono"
+                            value={ticket.telefono}
                             action={ticket.telefono && formatPhoneNumberForWhatsApp(ticket.telefono) && (
                                 <a href={`https://wa.me/${formatPhoneNumberForWhatsApp(ticket.telefono)}`} target="_blank" rel="noopener noreferrer">
                                     <MessageSquare className="h-5 w-5 text-green-500 hover:text-green-600" />
