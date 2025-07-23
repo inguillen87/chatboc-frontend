@@ -74,11 +74,54 @@ const TicketChat: FC<TicketChatProps> = ({ ticket, onTicketUpdate, onClose, chat
 
   const handleSendMessage = async () => {
     if ((!newMessage.trim() && !selectedFile) || isSending) return;
-    // ... (lógica de envío de mensaje)
+
+    setIsSending(true);
+    const tempId = Date.now();
+    let optimisticComment: Comment;
+
+    if (selectedFile) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const imageUrl = e.target?.result as string;
+            optimisticComment = {
+                id: tempId,
+                comentario: `Archivo adjunto: ${selectedFile.name}`,
+                fecha: new Date().toISOString(),
+                es_admin: true,
+                // Simulación de URL de imagen para la preview
+                archivo_url: imageUrl,
+            };
+            setComentarios(prev => [...prev, optimisticComment]);
+        };
+        reader.readAsDataURL(selectedFile);
+    } else {
+        optimisticComment = {
+            id: tempId,
+            comentario: newMessage,
+            fecha: new Date().toISOString(),
+            es_admin: true,
+        };
+        setComentarios(prev => [...prev, optimisticComment]);
+    }
+
+    setNewMessage("");
+    setSelectedFile(null);
+
+    // Aquí iría la lógica real de subida a la API
+    // Por ahora, solo simulamos la respuesta exitosa
+    setTimeout(() => {
+        setIsSending(false);
+        // Lógica para actualizar el comentario con la URL real del backend
+    }, 1500);
   };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    // ... (lógica de cambio de archivo)
+    const file = event.target.files?.[0];
+    if (file && file.type.startsWith('image/')) {
+        setSelectedFile(file);
+    } else if (file) {
+        toast.error("Solo se pueden subir imágenes por ahora.");
+    }
   };
 
   const handleTemplateSelect = (template: string) => {
@@ -111,7 +154,9 @@ const TicketChat: FC<TicketChatProps> = ({ ticket, onTicketUpdate, onClose, chat
                     source === 'admin' ? 'bg-primary text-primary-foreground rounded-br-none' :
                     source === 'ia' ? 'bg-purple-100 text-purple-900 dark:bg-purple-900/50 dark:text-white rounded-br-none' :
                     'bg-background text-foreground border rounded-bl-none')}>
-                    {attachment ? (
+                    {comment.archivo_url ? (
+                        <img src={comment.archivo_url} alt="Adjunto" className="max-w-xs rounded-lg" />
+                    ) : attachment ? (
                         <AttachmentPreview attachment={attachment} />
                     ) : (
                         <p className="break-words whitespace-pre-wrap">{comment.comentario}</p>
@@ -128,7 +173,18 @@ const TicketChat: FC<TicketChatProps> = ({ ticket, onTicketUpdate, onClose, chat
         </div>
       </ScrollArea>
       <footer className="border-t bg-background dark:bg-muted/30 p-3 flex flex-col gap-2">
-        {/* ... (código de adjuntos) */}
+        {selectedFile && (
+            <div className="p-2 border border-dashed rounded-md flex items-center justify-between bg-muted/50">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground truncate">
+                    <img src={URL.createObjectURL(selectedFile)} alt="Preview" className="h-10 w-10 rounded-md object-cover" />
+                    <span className="truncate" title={selectedFile.name}>{selectedFile.name}</span>
+                    <span className="text-xs opacity-70 whitespace-nowrap">({(selectedFile.size / 1024).toFixed(1)} KB)</span>
+                </div>
+                <Button variant="ghost" size="icon" onClick={() => setSelectedFile(null)} className="h-7 w-7">
+                    <XCircle className="h-4 w-4" />
+                </Button>
+            </div>
+        )}
         <div className="flex gap-2 items-start">
           <TooltipProvider>
             <Tooltip>
