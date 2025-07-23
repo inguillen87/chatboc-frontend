@@ -14,22 +14,13 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Menu as MenuIconLucide, Bell, Settings, LogOut, Building, ChevronDown } from 'lucide-react';
 import SideNavigationBar from '../navigation/SideNavigationBar';
 import BottomNavigationBar from '../navigation/BottomNavigationBar';
+import { useUser } from '@/hooks/useUser';
 
-// Datos dummy iniciales
-const currentUser = {
-  nombre: "Ana Vocos",
-  email: "ana.vocos@email.com",
-  avatarUrl: undefined,
-};
-
-const currentOrganization = {
-  nombre: "Municipio de Junín",
-  logoUrl: "/logos/municipio-junin-placeholder.png", // Asegúrate que este placeholder exista o usa uno genérico
-};
 
 const UserPortalLayout: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
+  const { user } = useUser();
 
   const handleLogout = () => {
     console.log("Cerrar Sesión");
@@ -46,11 +37,16 @@ const UserPortalLayout: React.FC = () => {
             {/* Logo de la Organización */}
             <Link to="/portal/dashboard" className="flex items-center gap-2">
               <Avatar className="h-8 w-8 sm:h-9 sm:w-9">
-                <AvatarImage src={currentOrganization.logoUrl} alt={currentOrganization.nombre} />
-                <AvatarFallback><Building className="h-5 w-5 text-muted-foreground" /></AvatarFallback>
+                <AvatarImage src={user?.logo_url} alt={user?.nombre_empresa} />
+                <AvatarFallback>
+                  <Building className="h-5 w-5 text-muted-foreground" />
+                </AvatarFallback>
               </Avatar>
-              <span className="font-semibold text-foreground hidden sm:inline-block truncate max-w-[150px] md:max-w-xs" title={currentOrganization.nombre}>
-                {currentOrganization.nombre}
+              <span
+                className="font-semibold text-foreground hidden sm:inline-block truncate max-w-[150px] md:max-w-xs"
+                title={user?.nombre_empresa}
+              >
+                {user?.nombre_empresa}
               </span>
             </Link>
           </div>
@@ -66,14 +62,14 @@ const UserPortalLayout: React.FC = () => {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="flex items-center gap-2 px-1 sm:px-2 py-1 h-auto rounded-full">
                   <Avatar className="h-8 w-8 sm:h-9 sm:w-9">
-                    <AvatarImage src={currentUser.avatarUrl} alt={currentUser.nombre} />
+                    <AvatarImage src={user?.picture} alt={user?.name} />
                     <AvatarFallback className="text-sm">
-                      {currentUser.nombre?.charAt(0).toUpperCase()}
-                      {currentUser.nombre?.split(' ')[1]?.charAt(0).toUpperCase()}
+                      {user?.name?.charAt(0).toUpperCase()}
+                      {user?.name?.split(' ')[1]?.charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                   <span className="hidden md:inline-block text-sm font-medium text-foreground">
-                    {currentUser.nombre}
+                    {user?.name}
                   </span>
                   <ChevronDown className="h-4 w-4 text-muted-foreground hidden md:inline-block ml-1" />
                 </Button>
@@ -81,9 +77,9 @@ const UserPortalLayout: React.FC = () => {
               <DropdownMenuContent align="end" className="w-56 mt-1">
                 <DropdownMenuLabel className="font-normal">
                   <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium leading-none text-foreground">{currentUser.nombre}</p>
+                    <p className="text-sm font-medium leading-none text-foreground">{user?.name}</p>
                     <p className="text-xs leading-none text-muted-foreground">
-                      {currentUser.email}
+                      {user?.email}
                     </p>
                   </div>
                 </DropdownMenuLabel>
