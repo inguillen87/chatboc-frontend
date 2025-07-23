@@ -164,7 +164,8 @@ export default function TicketsPanel() {
                      contains(ticket.detalles);
           });
     }
-    const sorted = filtered.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+    const safeFiltered = Array.isArray(filtered) ? filtered : [];
+    const sorted = safeFiltered.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
     const groups: { [key in TicketStatus]?: TicketSummary[] } = {};
     for (const ticket of sorted) {
         if (!groups[ticket.estado]) groups[ticket.estado] = [];
