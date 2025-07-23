@@ -80,6 +80,7 @@ const TicketChat: FC<TicketChatProps> = ({ ticket, onTicketUpdate, onClose, chat
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     // ... (lógica de cambio de archivo)
   };
+
   const handleTemplateSelect = (template: string) => {
       setNewMessage(prev => prev ? `${prev}\n${template}` : template);
       chatInputRef.current?.focus();
