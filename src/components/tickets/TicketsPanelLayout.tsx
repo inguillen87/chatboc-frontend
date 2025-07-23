@@ -176,7 +176,7 @@ const TicketsPanelLayout: React.FC = () => {
       </header>
       <ResizablePanelGroup direction="horizontal" className="flex-1">
         <ResizablePanel defaultSize={25} minSize={20} maxSize={40}>
-          {/* <TicketListPanel
+          <TicketListPanel
             groupedTickets={groupedTickets}
             selectedTicketId={selectedTicketId}
             onTicketSelect={loadAndSetDetailedTicket}
@@ -190,19 +190,20 @@ const TicketsPanelLayout: React.FC = () => {
             categoryFilter={categoryFilter}
             onCategoryFilterChange={setCategoryFilter}
             categories={categories as (string | undefined)[]}
-          /> */}
-          <div>Panel de lista desactivado para depuración.</div>
-        </ResizablePanel>
-        <ResizableHandle withHandle />
-        <ResizablePanel defaultSize={50}>
-          <TicketDetailPanel
-            ticket={detailedTicket}
-            onTicketPropertyChange={handleTicketPropertyChange}
           />
         </ResizablePanel>
         <ResizableHandle withHandle />
+        <ResizablePanel defaultSize={50}>
+          {/* <TicketDetailPanel
+            ticket={detailedTicket}
+            onTicketPropertyChange={handleTicketPropertyChange}
+          /> */}
+          <div>Panel de detalle desactivado para depuración.</div>
+        </ResizablePanel>
+        <ResizableHandle withHandle />
         <ResizablePanel defaultSize={25} minSize={20} maxSize={40}>
-          {detailedTicket && <ClientInfoPanel ticket={detailedTicket} />}
+          {/* {detailedTicket && <ClientInfoPanel ticket={detailedTicket} />} */}
+          <div>Panel de cliente desactivado para depuración.</div>
         </ResizablePanel>
       </ResizablePanelGroup>
     </div>
