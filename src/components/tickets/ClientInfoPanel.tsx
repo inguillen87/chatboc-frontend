@@ -118,7 +118,8 @@ const ClientInfoPanel: React.FC<ClientInfoPanelProps> = ({ ticket }) => {
                     <AccordionItem value="location">
                         <AccordionTrigger className="text-base font-semibold">Ubicación</AccordionTrigger>
                         <AccordionContent className="pt-2">
-                           <MapComponent ticket={ticket} />
+                           {/* <MapComponent ticket={ticket} /> */}
+                           <div>Mapa desactivado para depuración.</div>
                         </AccordionContent>
                     </AccordionItem>
                 </Accordion>
