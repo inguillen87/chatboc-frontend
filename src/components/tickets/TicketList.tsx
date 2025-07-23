@@ -1,104 +1,72 @@
 import React from 'react';
-import { motion } from 'framer-motion';
-import { TicketSummary } from '@/pages/TicketsPanel';
-import TicketListItem from './TicketListItem';
-import { useVirtualizer } from '@tanstack/react-virtual';
-import { AnimatePresence } from 'framer-motion';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { TicketListItem } from './TicketListItem';
 
-interface GroupedTickets {
-  categoryName: string;
-  tickets: TicketSummary[];
-}
+// Placeholder
+type TicketSummary = { id: number; subject: string; customer: string; status: string; };
+
+import { Ticket, TicketStatus, PriorityStatus } from '@/pages/TicketsPanel';
 
 interface TicketListProps {
-  groupedTickets: GroupedTickets[];
-  selectedTicketId: number | null;
-  onTicketSelect: (ticket: TicketSummary) => void;
-  onToggleSelection: (ticketId: number) => void;
-  isSelectionEnabled: boolean;
-  selection?: Set<number>;
+  tickets: Ticket[];
+  onTicketSelect: (ticket: Ticket) => void;
+  searchTerm: string;
+  onSearchTermChange: (term: string) => void;
+  statusFilter: TicketStatus | 'all';
+  onStatusFilterChange: (status: TicketStatus | 'all') => void;
+  priorityFilter: PriorityStatus | 'all';
+  onPriorityFilterChange: (priority: PriorityStatus | 'all') => void;
 }
 
-const TicketList: React.FC<TicketListProps> = ({
-  groupedTickets,
-  selectedTicketId,
-  onTicketSelect,
+export const TicketList: React.FC<TicketListProps> = ({
+    tickets,
+    onTicketSelect,
+    searchTerm,
+    onSearchTermChange,
+    statusFilter,
+    onStatusFilterChange,
+    priorityFilter,
+    onPriorityFilterChange,
 }) => {
-  const parentRef = React.useRef<HTMLDivElement>(null);
-
-  const flatList = React.useMemo(() => {
-    const items: (TicketSummary | { type: 'header'; name: string, count: number })[] = [];
-    groupedTickets.forEach(group => {
-      if (group.tickets.length > 0) {
-        items.push({ type: 'header', name: group.categoryName, count: group.tickets.length });
-        items.push(...group.tickets);
-      }
-    });
-    return items;
-  }, [groupedTickets]);
-
-  const rowVirtualizer = useVirtualizer({
-    count: flatList.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: (index) => (flatList[index] as any).type === 'header' ? 35 : 110,
-    overscan: 5,
-  });
-
   return (
-    <div ref={parentRef} className="w-full h-full overflow-y-auto">
-      <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
-        <AnimatePresence>
-          {rowVirtualizer.getVirtualItems().map(virtualItem => {
-            const item = flatList[virtualItem.index];
-
-            if ('type' in item && item.type === 'header') {
-              return (
-                <motion.div
-                  key={item.name}
-                  className="p-2 sticky top-0 bg-muted dark:bg-slate-800 z-10"
-                  style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: '100%',
-                    height: `${virtualItem.size}px`,
-                    transform: `translateY(${virtualItem.start}px)`,
-                  }}
-                >
-                  <h3 className="text-sm font-semibold text-muted-foreground px-2 mb-2">{item.name} ({item.count})</h3>
-                </motion.div>
-              );
-            }
-
-            const ticket = item as TicketSummary;
-            return (
-              <motion.div
-                key={ticket.id}
-                layout
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: '100%',
-                    height: `${virtualItem.size}px`,
-                    transform: `translateY(${virtualItem.start}px)`,
-                }}
-              >
-                <TicketListItem
-                  ticket={ticket}
-                  isSelected={selectedTicketId === ticket.id}
-                  onSelect={() => onTicketSelect(ticket)}
-                />
-              </motion.div>
-            );
-          })}
-        </AnimatePresence>
+    <div className="flex flex-col h-full bg-muted/30">
+      <div className="p-3 border-b dark:border-slate-700 space-y-3">
+        <Input
+            placeholder="Buscar tickets..."
+            value={searchTerm}
+            onChange={(e) => onSearchTermChange(e.target.value)}
+        />
+        <div className="flex space-x-2">
+          <Select value={statusFilter} onValueChange={onStatusFilterChange}>
+            <SelectTrigger><SelectValue placeholder="Estado" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos los estados</SelectItem>
+              <SelectItem value="nuevo">Nuevo</SelectItem>
+              <SelectItem value="en_proceso">En Proceso</SelectItem>
+              <SelectItem value="resuelto">Resuelto</SelectItem>
+              <SelectItem value="cerrado">Cerrado</SelectItem>
+            </SelectContent>
+          </Select>
+           <Select value={priorityFilter} onValueChange={onPriorityFilterChange}>
+            <SelectTrigger><SelectValue placeholder="Prioridad" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas las prioridades</SelectItem>
+              <SelectItem value="low">Baja</SelectItem>
+              <SelectItem value="medium">Media</SelectItem>
+              <SelectItem value="high">Alta</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
+      <ScrollArea className="flex-1">
+        <div className="p-2 space-y-1.5">
+          {tickets.map(ticket => (
+            <TicketListItem key={ticket.id} ticket={ticket} onSelect={() => onTicketSelect(ticket)} />
+          ))}
+        </div>
+      </ScrollArea>
     </div>
   );
 };
-
-export default TicketList;
