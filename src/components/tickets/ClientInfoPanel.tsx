@@ -10,7 +10,8 @@ import { cn } from '@/lib/utils';
 import { useDateSettings } from '@/hooks/useDateSettings';
 import { formatDate } from '@/utils/fecha';
 import { formatPhoneNumberForWhatsApp } from '@/utils/phoneUtils';
-import AttachmentPreview, { deriveAttachmentInfo } from '@/components/chat/AttachmentPreview';
+import AttachmentPreview from '@/components/chat/AttachmentPreview';
+import { deriveAttachmentInfo } from '@/utils/attachment';
 import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
 import { Skeleton } from '@/components/ui/skeleton';
 
