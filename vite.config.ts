@@ -143,6 +143,7 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),
+        "server": path.resolve(__dirname, "./server"),
       },
     },
     build: {
@@ -158,6 +159,10 @@ export default defineConfig(({ mode }) => {
       environment: 'jsdom',
       setupFiles: './tests/setup.ts',
       css: true,
+      alias: {
+        "@": path.resolve(__dirname, "./src"),
+        "server": path.resolve(__dirname, "./server"),
+      }
     },
   }
 });
