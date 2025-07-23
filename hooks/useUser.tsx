@@ -10,6 +10,7 @@ interface UserData {
   token?: string;
   plan?: string;
   rubro?: string;
+  nombre_empresa?: string;
   tipo_chat?: 'pyme' | 'municipio';
   rol?: string;
 }
@@ -61,6 +62,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       email: data.email,
       plan: data.plan || 'free',
       rubro: rubroNorm,
+      nombre_empresa: data.nombre_empresa,
       tipo_chat: finalTipo,
       rol: data.rol,
       token,
