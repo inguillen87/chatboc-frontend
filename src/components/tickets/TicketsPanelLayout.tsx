@@ -7,6 +7,7 @@ import {
 import TicketListPanel from './TicketListPanel';
 import TicketDetailPanel from './TicketDetailPanel';
 import ClientInfoPanel from './ClientInfoPanel';
+import TicketsPanelHeader from './TicketsPanelHeader';
 import { Ticket, TicketSummary, TicketStatus, PriorityStatus, ESTADOS, ESTADOS_ORDEN_PRIORIDAD } from '@/types/tickets';
 import { apiFetch, ApiError } from '@/utils/api';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -32,7 +33,7 @@ const TicketsPanelLayout: React.FC = () => {
   const debouncedSearchTerm = useDebounce(searchTerm, 500);
   const [statusFilter, setStatusFilter] = useState<TicketStatus | "">("");
   const [priorityFilter, setPriorityFilter] = useState<PriorityStatus | "">("");
-  const [categoryFilter, setCategoryFilter] = useState<string | "">("");
+  const [categoryFilter, setCategoryFilter] = useState<string | "todos">("todos");
 
   const fetchInitialData = useCallback(async () => {
     setIsLoading(true);
@@ -63,7 +64,7 @@ const TicketsPanelLayout: React.FC = () => {
       toast.info(`Nuevo ticket recibido: #${newTicket.nro_ticket}`);
     };
 
-    const newCommentListener = ({ ticketId, comment }: { ticketId: number, comment: any /* Comment type */ }) => {
+    const newCommentListener = ({ ticketId, comment }: { ticketId: number, comment: any }) => {
       if (detailedTicket && detailedTicket.id === ticketId) {
         setDetailedTicket(prev => prev ? { ...prev, comentarios: [...(prev.comentarios || []), comment] } : null);
       }
@@ -90,14 +91,14 @@ const TicketsPanelLayout: React.FC = () => {
 
   const categories = useMemo(() => {
     const allCategories = allTickets.map(t => t.categoria).filter(Boolean);
-    return [...new Set(allCategories)];
+    return [...new Set(allCategories as string[])];
   }, [allTickets]);
 
   const groupedTickets = useMemo(() => {
     let filtered = allTickets;
+    if (categoryFilter !== 'todos') filtered = filtered.filter(t => t.categoria === categoryFilter);
     if (statusFilter) filtered = filtered.filter(t => t.estado === statusFilter);
     if (priorityFilter) filtered = filtered.filter(t => t.priority === priorityFilter);
-    if (categoryFilter) filtered = filtered.filter(t => t.categoria === categoryFilter);
     if (debouncedSearchTerm) {
          filtered = filtered.filter(ticket => {
               const term = debouncedSearchTerm.toLowerCase();
@@ -145,7 +146,6 @@ const TicketsPanelLayout: React.FC = () => {
     const originalTickets = [...allTickets];
     const originalDetailedTicket = detailedTicket;
 
-    // Actualización optimista
     const updatedDetailedTicket = { ...detailedTicket, [property]: value };
     setDetailedTicket(updatedDetailedTicket);
     setAllTickets(prev => prev.map(t => t.id === id ? { ...t, [property]: value } : t));
@@ -166,16 +166,20 @@ const TicketsPanelLayout: React.FC = () => {
     }
   };
 
-    if (isLoading && allTickets.length === 0) return <div className="flex items-center justify-center h-screen"><Loader2 className="animate-spin text-primary h-16 w-16" /></div>;
-    if (error) return <div className="p-8 text-center text-destructive">{error}</div>;
+  if (isLoading && allTickets.length === 0) return <div className="flex items-center justify-center h-screen"><Loader2 className="animate-spin text-primary h-16 w-16" /></div>;
+  if (error) return <div className="p-8 text-center text-destructive">{error}</div>;
 
   return (
-    <div className="flex flex-col h-screen bg-background text-foreground">
-      <header className="flex items-center justify-between p-3 border-b dark:border-slate-700">
-        <h1 className="text-xl font-bold">Panel de Tickets</h1>
-      </header>
+    <div className="flex flex-col h-screen bg-muted/30 text-foreground">
+      <TicketsPanelHeader
+        onNewTicket={() => console.log("Nuevo Ticket")}
+        onRefresh={fetchInitialData}
+        categories={categories}
+        activeCategory={categoryFilter}
+        onCategoryChange={setCategoryFilter}
+      />
       <ResizablePanelGroup direction="horizontal" className="flex-1">
-        <ResizablePanel defaultSize={25} minSize={20} maxSize={40}>
+        <ResizablePanel defaultSize={30} minSize={25} maxSize={45}>
           <TicketListPanel
             groupedTickets={groupedTickets}
             selectedTicketId={selectedTicketId}
@@ -189,18 +193,18 @@ const TicketsPanelLayout: React.FC = () => {
             onPriorityFilterChange={setPriorityFilter}
             categoryFilter={categoryFilter}
             onCategoryFilterChange={setCategoryFilter}
-            categories={categories as (string | undefined)[]}
+            categories={categories}
           />
         </ResizablePanel>
         <ResizableHandle withHandle />
-        <ResizablePanel defaultSize={50}>
+        <ResizablePanel defaultSize={45} minSize={30}>
           <TicketDetailPanel
             ticket={detailedTicket}
             onTicketPropertyChange={handleTicketPropertyChange}
           />
         </ResizablePanel>
         <ResizableHandle withHandle />
-        <ResizablePanel defaultSize={25} minSize={20} maxSize={40}>
+        <ResizablePanel defaultSize={25} minSize={20}>
           {detailedTicket && <ClientInfoPanel ticket={detailedTicket} />}
         </ResizablePanel>
       </ResizablePanelGroup>

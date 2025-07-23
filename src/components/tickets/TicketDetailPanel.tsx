@@ -2,6 +2,7 @@ import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Ticket } from '@/types/tickets';
 import TicketChat from '@/components/tickets/TicketChat';
+import TicketTimeline from './TicketTimeline';
 import { TicketIcon, MessageSquare, Shield, Clock } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from '@/components/ui/button';
@@ -93,13 +94,14 @@ const TicketDetailPanel: React.FC<TicketDetailPanelProps> = ({ ticket, onTicketP
                     chatInputRef={chatInputRef}
                   />
                 </TabsContent>
-                <TabsContent value="internal" className="p-4">
+                <TabsContent value="internal" className="p-4 bg-muted/20 dark:bg-background h-full">
                     <h3 className="font-semibold mb-2">Notas Internas</h3>
-                    <p className="text-sm text-muted-foreground">Aquí podrás ver y añadir comentarios solo visibles para el equipo.</p>
+                    <div className="border rounded-md p-4 h-48 flex items-center justify-center bg-background">
+                        <p className="text-sm text-muted-foreground">Funcionalidad de notas internas próximamente.</p>
+                    </div>
                 </TabsContent>
-                <TabsContent value="history" className="p-4">
-                    <h3 className="font-semibold mb-2">Historial de Cambios</h3>
-                    <p className="text-sm text-muted-foreground">Aquí se mostrará el timeline de actividades del ticket.</p>
+                <TabsContent value="history" className="m-0 p-0 bg-muted/20 dark:bg-background h-full">
+                    <TicketTimeline ticket={ticket} />
                 </TabsContent>
             </motion.div>
         </AnimatePresence>
