@@ -194,11 +194,10 @@ const TicketsPanelLayout: React.FC = () => {
         </ResizablePanel>
         <ResizableHandle withHandle />
         <ResizablePanel defaultSize={50}>
-          {/* <TicketDetailPanel
+          <TicketDetailPanel
             ticket={detailedTicket}
             onTicketPropertyChange={handleTicketPropertyChange}
-          /> */}
-          <div>Panel de detalle desactivado para depuración.</div>
+          />
         </ResizablePanel>
         <ResizableHandle withHandle />
         <ResizablePanel defaultSize={25} minSize={20} maxSize={40}>
