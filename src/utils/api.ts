@@ -69,6 +69,7 @@ export async function apiFetch<T>(
       method,
       headers,
       body: isForm ? body : body ? JSON.stringify(body) : undefined,
+      credentials: 'include', // ensure cookies like session are sent
     });
 
     // Puede devolver vacío (204 No Content)
