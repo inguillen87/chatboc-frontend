@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { getAttentionMessage, DEFAULT_MESSAGE } from '../server/widgetAttention.js';
+import { getAttentionMessage, DEFAULT_MESSAGE } from 'server/widgetAttention.js';
 
-vi.mock('../server/widgetAttention.js', async () => {
-  const original = await vi.importActual('../server/widgetAttention.js');
+vi.mock('server/widgetAttention.js', async () => {
+  const original = await vi.importActual('server/widgetAttention.js');
   return {
     ...original,
     getAttentionMessage: vi.fn(),
