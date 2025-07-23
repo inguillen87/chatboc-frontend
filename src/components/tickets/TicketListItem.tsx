@@ -33,16 +33,16 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onS
   const estadoInfo = ESTADOS[ticket.estado];
 
   return (
-    <Card
-      className={cn(
-        'cursor-pointer mb-2 transition-all duration-200 ease-in-out border-l-4',
-        isSelected
-          ? 'bg-primary/10 border-primary'
-          : 'hover:bg-muted/50 border-transparent'
-      )}
-      onClick={onSelect}
-    >
-      <Card>
+    <div>
+      <Card
+        className={cn(
+          'cursor-pointer mb-2 transition-all duration-200 ease-in-out border-l-4',
+          isSelected
+            ? 'bg-primary/10 border-primary'
+            : 'hover:bg-muted/50 border-transparent'
+        )}
+        onClick={onSelect}
+      >
         <CardContent className="p-3">
           <div className="flex items-start justify-between mb-2">
             <div className="flex items-center space-x-3">
@@ -76,7 +76,7 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onS
           </div>
         </CardContent>
       </Card>
-    </motion.div>
+    </div>
   );
 };
 
