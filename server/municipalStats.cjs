@@ -1,4 +1,4 @@
-import { getTickets } from './db.js';
+import { getTickets } from './db.cjs';
 
 const msToHours = (ms) => (ms / (1000 * 60 * 60));
 

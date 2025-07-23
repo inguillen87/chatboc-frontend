@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import * as db from 'server/db.js';
-import { getMunicipalMessageMetrics } from 'server/municipalMessageMetrics.js';
+import * as db from '../server/db.cjs';
+import { getMunicipalMessageMetrics } from '../server/municipalMessageMetrics.cjs';
 
 describe('getMunicipalMessageMetrics', () => {
   it('should return municipal message metrics', () => {

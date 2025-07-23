@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import * as cart from 'server/cart.js';
+import * as cart from '../server/cart.cjs';
 
 describe('cart', () => {
   let session;

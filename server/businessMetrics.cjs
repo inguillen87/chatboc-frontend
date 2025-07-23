@@ -1,5 +1,5 @@
-import * as cart from './cart.js';
-import * as preferences from './preferences.js';
+import * as cart from './cart.cjs';
+import * as preferences from './preferences.cjs';
 
 export function getBusinessMetrics(session) {
   const prefs = preferences.getPreferences(session);

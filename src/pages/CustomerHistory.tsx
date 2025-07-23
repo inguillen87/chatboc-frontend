@@ -12,7 +12,6 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import TicketMap from "@/components/TicketMap";
 import {
   Inbox,
   MessageSquare,
@@ -437,9 +436,6 @@ export default function CustomerHistory() {
                     </div>
                   ))}
                 </div>
-              )}
-              {(selected.latitud || selected.longitud || selected.direccion) && (
-                <TicketMap ticket={selected} />
               )}
               <pre className="bg-muted p-2 rounded text-xs overflow-x-auto">
                 {JSON.stringify(selected, null, 2)}

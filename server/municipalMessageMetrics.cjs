@@ -1,4 +1,4 @@
-import { getMessages } from './db.js';
+import { getMessages } from './db.cjs';
 
 export function getMunicipalMessageMetrics() {
   const now = Date.now();
