@@ -431,7 +431,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   // Modo IFRAME / SCRIPT
   return (
-    <div className={cn("fixed bottom-0 right-0", "flex flex-col items-end justify-end")} style={{ overflow: "visible" }}>
+    <div className={cn("fixed bottom-0 right-0", "flex flex-col items-end justify-end")} style={{ width: '100vw', height: '100vh', overflow: 'hidden' }}>
       <Suspense fallback={
         <div
           className={cn(commonPanelStyles, commonPanelAndButtonAbsoluteClasses, "items-center justify-center")}
