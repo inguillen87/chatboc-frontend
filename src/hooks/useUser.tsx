@@ -11,8 +11,10 @@ interface UserData {
   plan?: string;
   rubro?: string;
   nombre_empresa?: string;
+  logo_url?: string;
+  picture?: string;
   tipo_chat?: 'pyme' | 'municipio';
-  rol?: string;
+  rol?: string;s
 }
 
 interface UserContextValue {
@@ -63,6 +65,8 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       plan: data.plan || 'free',
       rubro: rubroNorm,
       nombre_empresa: data.nombre_empresa,
+      logo_url: data.logo_url,
+      picture: data.picture,
       tipo_chat: finalTipo,
       rol: data.rol,
       token,
