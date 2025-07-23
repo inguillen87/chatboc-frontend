@@ -8,15 +8,9 @@ import {
   MessageSquareQuote, ClipboardList, ImageOff
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useUser } from '@/hooks/useUser';
 
-// --- Datos Dummy (Mover a un archivo separado o contexto/estado global más adelante) ---
-const currentUser = {
-  nombre: "Ana Vocos",
-};
-
-const currentOrganization = {
-  nombre: "Municipio de Junín",
-};
+// Datos de usuario real obtenidos del contexto
 
 const recentActivities = [
   { id: 'R001', type: 'RECLAMO', description: 'Poste de luz caído en Av. San Martín y Belgrano', status: 'Recibido', statusType: 'info', date: '03/08/2024', link: '/portal/pedidos/R001' },
@@ -36,7 +30,6 @@ const activeBenefits = [
 const pendingSurveys = [
   { id: 'S001', title: 'Encuesta de Satisfacción sobre Servicios de Limpieza Urbana', link: '/portal/encuestas/S001' },
 ];
-// --- Fin Datos Dummy ---
 
 const UserDashboardPage = () => {
   const navigate = useNavigate();
@@ -63,14 +56,16 @@ const UserDashboardPage = () => {
     }
   };
 
+  const { user } = useUser();
+
   return (
     <div className="flex flex-col gap-6 md:gap-8">
       <div className="mb-2">
         <h1 className="text-2xl md:text-3xl font-bold text-dark">
-          ¡Hola, {currentUser.nombre}!
+          ¡Hola, {user?.name}!
         </h1>
         <p className="text-muted-foreground">
-          Bienvenido/a a tu portal con {currentOrganization.nombre}.
+          Bienvenido/a a tu portal con {user?.nombre_empresa}.
         </p>
       </div>
 
