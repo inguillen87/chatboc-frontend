@@ -1,78 +1,66 @@
 import React from 'react';
-import { motion } from "framer-motion";
-import { TicketSummary, ESTADOS, SLA_STATUS_INFO, PRIORITY_INFO } from '@/types/tickets';
-import { Card, CardContent } from '@/components/ui/card';
+import { Ticket } from '@/types/tickets';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { formatDate } from '@/utils/fecha';
-import { useDateSettings } from '@/hooks/useDateSettings';
-import { ShieldAlert, ShieldCheck, ShieldX, Clock } from 'lucide-react';
-
-// ¡Acordate de importar 'motion'!
 
 interface TicketListItemProps {
-  ticket: TicketSummary;
+  ticket: Ticket;
   isSelected: boolean;
-  onSelect: () => void;
+  onClick: () => void;
 }
 
-const SlaIcon: React.FC<{ status: TicketSummary['sla_status'] }> = ({ status }) => {
-  if (!status) return null;
-  const props = { className: cn("h-4 w-4", SLA_STATUS_INFO[status].color) };
-  switch (status) {
-    case 'on_track': return <ShieldCheck {...props} />;
-    case 'nearing_sla': return <ShieldAlert {...props} />;
-    case 'breached': return <ShieldX {...props} />;
-    default: return null;
-  }
+const statusColors: { [key in Ticket['status']]: string } = {
+  nuevo: 'bg-blue-500',
+  abierto: 'bg-green-500',
+  'en-espera': 'bg-yellow-500',
+  resuelto: 'bg-gray-500',
+  cerrado: 'bg-red-500',
 };
 
-const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onSelect }) => {
-  const { timezone, locale } = useDateSettings();
-  const estadoInfo = ESTADOS[ticket.estado];
+const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onClick }) => {
+  const getInitials = (name: string) => {
+    return name.split(' ').map(n => n[0]).join('').toUpperCase();
+  };
 
   return (
-    <div>
-      <Card
-        className={cn(
-          'cursor-pointer mb-1.5 transition-all duration-200 ease-in-out border-l-4 rounded-lg shadow-sm',
-          isSelected
-            ? 'bg-primary/10 border-primary shadow-md'
-            : 'border-transparent hover:bg-muted/60'
-        )}
-        onClick={onSelect}
-      >
-        <CardContent className="p-3 space-y-2">
-          <div className="flex items-start justify-between">
-            <div className="flex items-center space-x-3">
-              <Avatar className="h-9 w-9 border">
-                <AvatarImage src={ticket.municipio_nombre ? '/logo/chatboc_logo_original.png' : '/favicon/human-avatar.svg'} />
-                <AvatarFallback>{ticket.nombre_usuario?.charAt(0).toUpperCase()}</AvatarFallback>
-              </Avatar>
-              <div>
-                <p className="text-sm font-semibold truncate max-w-[200px] text-foreground">{ticket.asunto}</p>
-                <p className="text-xs text-muted-foreground">De: {ticket.nombre_usuario}</p>
-              </div>
-            </div>
-            <Badge className={cn('text-xs font-medium', estadoInfo.tailwind_class)}>{estadoInfo.label}</Badge>
+    <div
+      className={cn(
+        'p-3 rounded-lg border cursor-pointer transition-colors',
+        isSelected ? 'bg-primary/10 border-primary' : 'bg-background hover:bg-muted/50'
+      )}
+      onClick={onClick}
+    >
+      <div className="flex items-start justify-between mb-1">
+        <div className="flex items-center gap-3">
+          <Avatar className="h-10 w-10">
+            <AvatarImage src={ticket.user.avatarUrl} alt={ticket.user.name} />
+            <AvatarFallback>{getInitials(ticket.user.name)}</AvatarFallback>
+          </Avatar>
+          <div>
+            <p className="font-semibold text-sm">{ticket.user.name}</p>
+            <p className="text-xs text-muted-foreground">{ticket.id}</p>
           </div>
-
-          <div className="flex items-end justify-between text-xs text-muted-foreground pl-12">
-             <div className="flex items-center gap-2">
-                <Badge variant="outline" className="text-xs">{ticket.categoria || 'General'}</Badge>
-                <div className="flex items-center gap-1">
-                    <SlaIcon status={ticket.sla_status} />
-                    {ticket.sla_status && <span className={cn('font-medium', SLA_STATUS_INFO[ticket.sla_status].color)}>{SLA_STATUS_INFO[ticket.sla_status].label}</span>}
-                </div>
-             </div>
-            <div className="flex items-center gap-1.5">
-              <Clock className="h-3 w-3" />
-              <span>{formatDate(ticket.fecha, timezone, locale, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+        </div>
+        <span className="text-xs text-muted-foreground">
+          {new Date(ticket.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        </span>
+      </div>
+      <p className="font-semibold text-sm ml-13 mb-2">{ticket.title}</p>
+      <p className="text-sm text-muted-foreground truncate ml-13">{ticket.lastMessage}</p>
+      <div className="flex items-center justify-start mt-2 ml-13">
+         <Badge variant={ticket.status === 'nuevo' ? 'default' : 'outline'}
+               className={cn(
+                'capitalize',
+                ticket.status === 'nuevo' && 'bg-blue-500 text-white',
+                ticket.status === 'abierto' && 'text-green-500 border-green-500',
+                ticket.status === 'en-espera' && 'text-yellow-500 border-yellow-500',
+                ticket.status === 'resuelto' && 'text-gray-500 border-gray-500',
+                ticket.status === 'cerrado' && 'text-red-500 border-red-500',
+               )}>
+          {ticket.status}
+        </Badge>
+      </div>
     </div>
   );
 };
