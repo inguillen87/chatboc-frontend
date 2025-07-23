@@ -1,310 +1,186 @@
-import React, { useEffect, useState, useCallback, FC, useRef, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Loader2, Send, Ticket as TicketIcon, ChevronDown, ChevronUp, User, ShieldCheck, X, Search, Filter, ListFilter, File, ArrowLeft, XCircle, BellRing, AlertTriangle, Paperclip, Sparkles, MessageSquare } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
-import { apiFetch, ApiError } from "@/utils/api";
-import { safeLocalStorage } from "@/utils/safeLocalStorage";
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
-import { Input } from "@/components/ui/input";
-import { useDebounce } from '@/hooks/useDebounce';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
-import AttachmentPreview from "@/components/chat/AttachmentPreview";
-import { getAttachmentInfo, deriveAttachmentInfo, AttachmentInfo } from "@/utils/attachment";
-import { formatDate } from "@/utils/fecha";
-import { useDateSettings } from "@/hooks/useDateSettings";
-import { LOCALE_OPTIONS } from "@/utils/localeOptions";
-import useRequireRole from "@/hooks/useRequireRole";
-import type { Role } from "@/utils/roles";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { useUser } from '@/hooks/useUser';
-import TemplateSelector, { MessageTemplate } from "@/components/tickets/TemplateSelector";
-import { formatPhoneNumberForWhatsApp } from "@/utils/phoneUtils";
-import TicketList from "@/components/tickets/TicketList";
-import ClientInfoPanel from "@/components/tickets/ClientInfoPanel";
-import { usePusher } from "@/hooks/usePusher";
-import { useHotkeys } from "@/hooks/useHotkeys";
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Loader2, Ticket as TicketIcon } from 'lucide-react';
 import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
-} from "@/components/ui/resizable";
+} from '@/components/ui/resizable';
+import { TicketList } from '@/components/tickets/TicketList';
+import { TicketChat } from '@/components/tickets/TicketChat';
+import { TicketDetails } from '@/components/tickets/TicketDetails';
 
-const toast = (globalThis as any).toast || {
-  success: (message: string) => console.log("TOAST SUCCESS:", message),
-  error: (message: string) => console.error("TOAST ERROR:", message),
-  info: (message: string) => console.info("TOAST INFO:", message)
-};
+import { apiFetch, ApiError } from '@/utils/api';
 
-// ----------- TIPOS Y ESTADOS -----------
-export type TicketStatus = "nuevo" | "en_proceso" | "derivado" | "resuelto" | "cerrado" | "esperando_agente_en_vivo";
-export type SlaStatus = "on_track" | "nearing_sla" | "breached" | null;
-export type PriorityStatus = "low" | "medium" | "high" | null;
-
+// Tipos de datos
+export type TicketStatus = "nuevo" | "en_proceso" | "derivado" | "resuelto" | "cerrado";
+export type PriorityStatus = "low" | "medium" | "high";
 export interface Comment { id: number; comentario: string; fecha: string; es_admin: boolean; }
 export interface Ticket {
-  id: number; tipo: 'pyme' | 'municipio'; nro_ticket: number; asunto: string; estado: TicketStatus; fecha: string;
-  detalles?: string; comentarios?: Comment[]; nombre_usuario?: string; email_usuario?: string; telefono?: string; direccion?: string; archivo_url?: string; categoria?: string;
-  municipio_nombre?: string;
-  latitud?: number | null;
-  longitud?: number | null;
-  sla_status?: SlaStatus;
-  priority?: PriorityStatus;
-  sla_deadline?: string;
-}
-export interface TicketSummary extends Omit<Ticket, 'detalles' | 'comentarios'> {
+  id: number;
+  tipo: 'pyme' | 'municipio';
+  nro_ticket: number;
+  asunto: string;
+  estado: TicketStatus;
+  fecha: string;
+  detalles?: string;
+  comentarios?: Comment[];
+  nombre_usuario?: string;
+  email_usuario?: string;
+  telefono?: string;
   direccion?: string;
-  latitud?: number | null;
-  longitud?: number | null;
-  sla_status?: SlaStatus;
+  categoria?: string;
   priority?: PriorityStatus;
 }
 
-const ESTADOS_ORDEN_PRIORIDAD: TicketStatus[] = ["nuevo", "en_proceso", "esperando_agente_en_vivo", "derivado", "resuelto", "cerrado"];
-export const ESTADOS: Record<TicketStatus, { label: string; tailwind_class: string, icon?: React.ElementType }> = {
-  nuevo: { label: "Nuevo", tailwind_class: "bg-blue-500 hover:bg-blue-600 text-white border-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600", icon: TicketIcon },
-  en_proceso: { label: "En Proceso", tailwind_class: "bg-yellow-500 hover:bg-yellow-600 text-black border-yellow-700 dark:bg-yellow-400 dark:hover:bg-yellow-500", icon: Loader2 },
-  derivado: { label: "Derivado", tailwind_class: "bg-purple-500 hover:bg-purple-600 text-white border-purple-700 dark:bg-purple-500 dark:hover:bg-purple-600" },
-  resuelto: { label: "Resuelto", tailwind_class: "bg-green-500 hover:bg-green-600 text-white border-green-700 dark:bg-green-500 dark:hover:bg-green-600" },
-  cerrado: { label: "Cerrado", tailwind_class: "bg-gray-500 hover:bg-gray-600 text-white border-gray-700 dark:bg-gray-600 dark:hover:bg-gray-700" },
-  esperando_agente_en_vivo: { label: "Esperando agente", tailwind_class: "bg-red-500 hover:bg-red-600 text-white border-red-700 dark:bg-red-500 dark:hover:bg-red-600" }
-};
-
-const SLA_STATUS_INFO: Record<NonNullable<SlaStatus>, { label: string; color: string; icon?: React.ElementType }> = {
-  on_track: { label: "En tiempo", color: "text-green-600 dark:text-green-400" },
-  nearing_sla: { label: "Próximo a vencer", color: "text-yellow-600 dark:text-yellow-400" },
-  breached: { label: "Vencido", color: "text-red-600 dark:text-red-400" },
-};
-
-const PRIORITY_INFO: Record<NonNullable<PriorityStatus>, { label: string; color: string; badgeClass?: string }> = {
-  low: { label: "Baja", color: "text-gray-500 dark:text-gray-400" },
-  medium: { label: "Media", color: "text-blue-500 dark:text-blue-400" },
-  high: { label: "Alta", color: "text-red-500 dark:text-red-400" },
-};
-
-export default function TicketsPanel() {
-  useRequireRole(['admin', 'empleado'] as Role[]);
-  const navigate = useNavigate();
-  const { timezone, locale, updateSettings } = useDateSettings();
-  const { user } = useUser();
-  const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null);
-  const [detailedTicket, setDetailedTicket] = useState<Ticket | null>(null);
+const TicketsPanel = () => {
+  const [allTickets, setAllTickets] = useState<Ticket[]>([]);
+  const [filteredTickets, setFilteredTickets] = useState<Ticket[]>([]);
+  const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [allTickets, setAllTickets] = useState<TicketSummary[]>([]);
 
-  const [searchTerm, setSearchTerm] = useState("");
-  const debouncedSearchTerm = useDebounce(searchTerm, 500);
-  const [statusFilter, setStatusFilter] = useState<TicketStatus | "">("");
-  const [priorityFilter, setPriorityFilter] = useState<PriorityStatus | "">("");
-  const [categoryFilter, setCategoryFilter] = useState<string | "">("");
+  // Estados para los filtros
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<TicketStatus | 'all'>('all');
+  const [priorityFilter, setPriorityFilter] = useState<PriorityStatus | 'all'>('all');
 
-  const chatInputRef = useRef<HTMLTextAreaElement>(null);
-  const statusSelectRef = useRef<HTMLButtonElement>(null);
-
-  const fetchInitialData = useCallback(async () => {
+  const fetchTickets = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await apiFetch<{tickets: TicketSummary[]}>("/tickets", { sendEntityToken: true });
+      const data = await apiFetch<{ tickets: Ticket[] }>("/api/tickets", { sendEntityToken: true });
       setAllTickets(data.tickets);
+      setFilteredTickets(data.tickets);
     } catch (err) {
-      const errorMessage = err instanceof ApiError ? err.message : "Error al cargar los tickets. Por favor, intente de nuevo más tarde.";
+      const errorMessage = err instanceof ApiError ? err.message : "Error al cargar los tickets.";
       setError(errorMessage);
-      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  const channel = usePusher('tickets');
-
   useEffect(() => {
-    fetchInitialData();
-  }, [fetchInitialData]);
+    fetchTickets();
+  }, [fetchTickets]);
 
-  // Pusher event listeners
+  // Lógica de filtrado
   useEffect(() => {
-    if (!channel) return;
+    let result = allTickets;
 
-    const newTicketListener = (newTicket: TicketSummary) => {
-      setAllTickets(prev => [newTicket, ...prev]);
-      toast.info(`Nuevo ticket recibido: #${newTicket.nro_ticket}`);
-    };
-
-    const newCommentListener = ({ ticketId, comment }: { ticketId: number, comment: Comment }) => {
-      if (detailedTicket && detailedTicket.id === ticketId) {
-        setDetailedTicket(prev => prev ? { ...prev, comentarios: [...(prev.comentarios || []), comment] } : null);
-      }
-      setAllTickets(prev => prev.map(t => t.id === ticketId ? { ...t, detalles: comment.comentario } : t));
-    };
-
-    channel.bind('new_ticket', newTicketListener);
-    channel.bind('new_comment', newCommentListener);
-
-    return () => {
-      channel.unbind('new_ticket', newTicketListener);
-      channel.unbind('new_comment', newCommentListener);
-    };
-  }, [channel, detailedTicket]);
-
-  const categories = useMemo(() => {
-    const allCategories = allTickets.map(t => t.categoria).filter(Boolean);
-    return [...new Set(allCategories)];
-  }, [allTickets]);
-
-  const groupedTickets = useMemo(() => {
-    let filtered = allTickets;
-    if (statusFilter) filtered = filtered.filter(t => t.estado === statusFilter);
-    if (priorityFilter) filtered = filtered.filter(t => t.priority === priorityFilter);
-    if (categoryFilter) filtered = filtered.filter(t => t.categoria === categoryFilter);
-    if (debouncedSearchTerm) {
-         filtered = filtered.filter(ticket => {
-              const term = debouncedSearchTerm.toLowerCase();
-              const contains = (str: string | null | undefined) => str && str.toLowerCase().includes(term);
-              return ticket.id.toString().includes(term) ||
-                     ticket.nro_ticket.toString().includes(term) ||
-                     contains(ticket.asunto) ||
-                     contains(ticket.nombre_usuario) ||
-                     contains(ticket.detalles);
-          });
+    if (searchTerm) {
+        result = result.filter(ticket =>
+            ticket.asunto.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            ticket.nombre_usuario?.toLowerCase().includes(searchTerm.toLowerCase())
+        );
     }
-    const safeFiltered = Array.isArray(filtered) ? filtered : [];
-    const sorted = safeFiltered.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
-    const groups: { [key in TicketStatus]?: TicketSummary[] } = {};
-    for (const ticket of sorted) {
-        if (!groups[ticket.estado]) groups[ticket.estado] = [];
-        groups[ticket.estado]!.push(ticket);
-    }
-    return ESTADOS_ORDEN_PRIORIDAD
-        .map(status => ({ categoryName: ESTADOS[status].label, tickets: groups[status] || [] }))
-        .filter(group => group.tickets.length > 0);
-  }, [allTickets, debouncedSearchTerm, statusFilter, priorityFilter, categoryFilter]);
 
-  const loadAndSetDetailedTicket = useCallback(async (ticketSummary: TicketSummary) => {
-    setSelectedTicketId(ticketSummary.id);
-    setDetailedTicket(null);
-    try {
-      const data = await apiFetch<Ticket>(`/tickets/${ticketSummary.tipo}/${ticketSummary.id}`, { sendEntityToken: true });
-      setDetailedTicket(data);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Error al cargar detalle.');
-      setSelectedTicketId(null);
+    if (statusFilter !== 'all') {
+        result = result.filter(ticket => ticket.estado === statusFilter);
     }
+
+    if (priorityFilter !== 'all') {
+        result = result.filter(ticket => ticket.priority === priorityFilter);
+    }
+
+    setFilteredTickets(result);
+  }, [searchTerm, statusFilter, priorityFilter, allTickets]);
+
+
+  const handleSelectTicket = useCallback(async (ticket: Ticket) => {
+    // Aquí, en un futuro, podríamos cargar detalles adicionales si fuera necesario
+    setSelectedTicket(ticket);
   }, []);
 
-  const handleTicketDetailUpdate = (updatedTicket: Ticket) => {
-    setDetailedTicket(updatedTicket);
-    setAllTickets(prev => prev.map(t => t.id === updatedTicket.id ? { ...t, ...updatedTicket } : t));
+  const handleTicketUpdate = (updatedTicket: Ticket) => {
+    setSelectedTicket(updatedTicket);
+    setAllTickets(prevTickets =>
+      prevTickets.map(t => t.id === updatedTicket.id ? updatedTicket : t)
+    );
   };
 
-  const handleTicketPropertyChange = async (ticketId: number, ticketType: 'pyme' | 'municipio', property: 'estado' | 'priority', value: TicketStatus | PriorityStatus) => {
-    const originalTickets = [...allTickets];
-    setAllTickets(prev => prev.map(t => t.id === ticketId ? { ...t, [property]: value } : t));
-    if (detailedTicket && detailedTicket.id === ticketId) {
-      setDetailedTicket({ ...detailedTicket, [property]: value });
-    }
-    try {
-      const endpoint = property === 'estado' ? 'estado' : 'prioridad';
-      const updatedTicketData = await apiFetch<Ticket>(`/tickets/${ticketType}/${ticketId}/${endpoint}`, { method: "PUT", body: { [property]: value, user_id: user?.id }, sendEntityToken: true });
-      handleTicketDetailUpdate(updatedTicketData);
-      toast.success(`Ticket ${property} actualizado.`);
-    } catch (error) {
-      toast.error(`No se pudo actualizar la propiedad ${property}.`);
-      setAllTickets(originalTickets);
-    }
-  };
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="animate-spin text-primary h-16 w-16" />
+      </div>
+    );
+  }
 
-  useHotkeys({
-    'n': () => {
-      const firstNewTicket = allTickets.find(t => t.estado === 'nuevo');
-      if (firstNewTicket) loadAndSetDetailedTicket(firstNewTicket);
-      else toast.info("No hay tickets nuevos.");
-    },
-    'r': () => chatInputRef.current?.focus(),
-    's': () => statusSelectRef.current?.click(),
-  }, [allTickets, loadAndSetDetailedTicket]);
-
-  if (isLoading && allTickets.length === 0) return <div className="flex items-center justify-center h-screen"><Loader2 className="animate-spin text-primary h-16 w-16" /></div>;
-  if (error) return <div className="p-8 text-center text-destructive">{error}</div>;
+  if (error) {
+    return <div className="p-8 text-center text-destructive">{error}</div>;
+  }
 
   return (
     <div className="flex flex-col h-screen bg-background text-foreground">
-        <header className="flex items-center justify-between p-3 border-b dark:border-slate-700">
+      <header className="flex items-center justify-between p-3 border-b bg-card">
+        <div className="flex items-center space-x-4">
+            <img src="/logo/chatboc_logo_original.png" alt="Chatboc" className="h-8" />
             <h1 className="text-xl font-bold">Panel de Tickets</h1>
-            <Button variant="outline" onClick={() => fetchInitialData()} className="h-9" disabled={isLoading}>
-                {isLoading
-                    ? <Loader2 className="h-4 w-4 animate-spin" />
-                    : <Filter className="h-4 w-4" />}
-                <span className="ml-2 hidden sm:inline">Actualizar</span>
-            </Button>
-        </header>
-        <ResizablePanelGroup direction="horizontal" className="flex-1">
-            <ResizablePanel defaultSize={25} minSize={20} maxSize={40}>
-                <div className="flex flex-col h-full bg-muted/30">
-                    <div className="p-3 border-b dark:border-slate-700 space-y-3">
-                        <Input placeholder="Buscar tickets..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-                        <div className="flex space-x-2">
-                            <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as TicketStatus | "")}>
-                                <SelectTrigger><SelectValue placeholder="Estado" /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="">Todos</SelectItem>
-                                    {Object.entries(ESTADOS).map(([key, { label }]) => <SelectItem key={key} value={key}>{label}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
-                            <Select value={priorityFilter} onValueChange={(value) => setPriorityFilter(value as PriorityStatus | "")}>
-                                <SelectTrigger><SelectValue placeholder="Prioridad" /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="">Todas</SelectItem>
-                                    {Object.entries(PRIORITY_INFO).map(([key, { label }]) => <SelectItem key={key} value={key}>{label}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
-                            <Select value={categoryFilter} onValueChange={(value) => setCategoryFilter(value as string | "")}>
-                                <SelectTrigger><SelectValue placeholder="Categoría" /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="">Todas</SelectItem>
-                                    {categories.map((category) => <SelectItem key={category} value={category!}>{category}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    </div>
-                    <ScrollArea className="flex-1">
-                        <div className="p-2">
-                            <TicketList groupedTickets={groupedTickets} selectedTicketId={selectedTicketId} onTicketSelect={loadAndSetDetailedTicket} onToggleSelection={() => {}} isSelectionEnabled={false} />
-                        </div>
-                    </ScrollArea>
-                </div>
-            </ResizablePanel>
-            <ResizableHandle withHandle />
-            <ResizablePanel defaultSize={50}>
-                <AnimatePresence>
-                    {detailedTicket ? (
-                        <motion.div key={detailedTicket.id} className="h-full" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                            <TicketChat ticket={detailedTicket} onTicketUpdate={handleTicketDetailUpdate} onClose={() => setSelectedTicketId(null)} chatInputRef={chatInputRef} />
-                        </motion.div>
-                    ) : (
-                        <div className="flex flex-col items-center justify-center h-full text-center p-4">
-                            <TicketIcon className="h-20 w-20 text-muted-foreground/40" />
-                            <h2 className="mt-4 text-lg font-semibold">Seleccione un Ticket</h2>
-                            <p className="text-sm text-muted-foreground">Elija un ticket de la lista para ver los detalles y chatear.</p>
-                        </div>
-                    )}
-                </AnimatePresence>
-            </ResizablePanel>
-            <ResizableHandle withHandle />
-            <ResizablePanel defaultSize={25} minSize={20} maxSize={40}>
-                <AnimatePresence>
-                    {detailedTicket && (
-                        <motion.div key={detailedTicket.id} className="h-full" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                            <ClientInfoPanel ticket={detailedTicket} />
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-            </ResizablePanel>
-        </ResizablePanelGroup>
+        </div>
+        <div>
+            {/* TODO: Añadir botones de acción del header */}
+        </div>
+      </header>
+      <div className="flex-1 md:hidden">
+        {/* Vista móvil */}
+        {!selectedTicket ? (
+          <TicketList
+            tickets={filteredTickets}
+            onTicketSelect={handleSelectTicket}
+            searchTerm={searchTerm}
+            onSearchTermChange={setSearchTerm}
+            statusFilter={statusFilter}
+            onStatusFilterChange={setStatusFilter}
+            priorityFilter={priorityFilter}
+            onPriorityFilterChange={setPriorityFilter}
+          />
+        ) : (
+          <TicketChat ticket={selectedTicket} onTicketUpdate={handleTicketUpdate} />
+        )}
+      </div>
+      <ResizablePanelGroup direction="horizontal" className="hidden md:flex flex-1">
+        <ResizablePanel defaultSize={25} minSize={20} maxSize={40}>
+          <TicketList
+            tickets={filteredTickets}
+            onTicketSelect={handleSelectTicket}
+            searchTerm={searchTerm}
+            onSearchTermChange={setSearchTerm}
+            statusFilter={statusFilter}
+            onStatusFilterChange={setStatusFilter}
+            priorityFilter={priorityFilter}
+            onPriorityFilterChange={setPriorityFilter}
+          />
+        </ResizablePanel>
+        <ResizableHandle withHandle />
+        <ResizablePanel defaultSize={50}>
+          <AnimatePresence>
+            {selectedTicket ? (
+              <motion.div key={selectedTicket.id} className="h-full" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                <TicketChat ticket={selectedTicket} onTicketUpdate={handleTicketUpdate} />
+              </motion.div>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-center p-4">
+                <TicketIcon className="h-20 w-20 text-muted-foreground/40" />
+                <h2 className="mt-4 text-lg font-semibold">Seleccione un Ticket</h2>
+                <p className="text-sm text-muted-foreground">Elija un ticket de la lista para ver los detalles y chatear.</p>
+              </div>
+            )}
+          </AnimatePresence>
+        </ResizablePanel>
+        <ResizableHandle withHandle />
+        <ResizablePanel defaultSize={25} minSize={20} maxSize={40}>
+           <AnimatePresence>
+            {selectedTicket && (
+              <motion.div key={selectedTicket.id} className="h-full p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                <TicketDetails ticket={selectedTicket} onTicketUpdate={handleTicketUpdate} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </ResizablePanel>
+      </ResizablePanelGroup>
     </div>
   );
-}
+};
+
+export default TicketsPanel;
