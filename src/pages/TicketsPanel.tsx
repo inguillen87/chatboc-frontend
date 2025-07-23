@@ -24,6 +24,7 @@ import { useUser } from '@/hooks/useUser';
 import TemplateSelector, { MessageTemplate } from "@/components/tickets/TemplateSelector";
 import { formatPhoneNumberForWhatsApp } from "@/utils/phoneUtils";
 import TicketList from "@/components/tickets/TicketList";
+import ClientInfoPanel from "@/components/tickets/ClientInfoPanel";
 import { usePusher } from "@/hooks/usePusher";
 import { useHotkeys } from "@/hooks/useHotkeys";
 import {
@@ -371,57 +372,6 @@ const TicketChat: FC<TicketChatProps> = ({ ticket, onTicketUpdate, onClose, chat
           </div>
         </div>
       </div>
-    </div>
-  );
-};
-
-interface TicketDetailsProps {
-  ticket: Ticket;
-  categoryNames: Record<string, string>;
-  comentarios: Comment[];
-  onTicketPropertyChange: (ticketId: number, ticketType: 'pyme' | 'municipio', property: 'estado' | 'priority', value: TicketStatus | PriorityStatus) => void;
-  statusSelectRef: React.RefObject<HTMLButtonElement>;
-}
-
-const TicketDetails: FC<TicketDetailsProps> = ({ ticket, categoryNames, comentarios, onTicketPropertyChange, statusSelectRef }) => {
-  const { timezone, locale } = useDateSettings();
-  const copyToClipboard = (text: string, type: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success(`${type} copiado`);
-  };
-
-  return (
-    <div className="h-full bg-card/50 dark:bg-slate-800/50 border-l">
-      <ScrollArea className="h-full">
-        <div className="p-4 space-y-4">
-          <Card>
-            <CardHeader><CardTitle>Usuario</CardTitle></CardHeader>
-            <CardContent className="text-sm space-y-3">
-               {/* User details */}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader><CardTitle>Detalles del Ticket</CardTitle></CardHeader>
-            <CardContent className="text-sm space-y-3">
-              <div className="flex justify-between items-center">
-                <span>Prioridad</span>
-                <Select value={ticket.priority || 'low'} onValueChange={(p: PriorityStatus) => onTicketPropertyChange(ticket.id, ticket.tipo, 'priority', p)}>
-                  <SelectTrigger className="w-[120px] h-8 text-xs"><SelectValue /></SelectTrigger>
-                  <SelectContent>{Object.entries(PRIORITY_INFO).map(([key, { label }]) => <SelectItem key={key} value={key}>{label}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div className="flex justify-between items-center">
-                <span>Estado</span>
-                <Select value={ticket.estado} onValueChange={(s: TicketStatus) => onTicketPropertyChange(ticket.id, ticket.tipo, 'estado', s)}>
-                  <SelectTrigger ref={statusSelectRef} className="w-[120px] h-8 text-xs"><SelectValue /></SelectTrigger>
-                  <SelectContent>{Object.entries(ESTADOS).map(([key, { label }]) => <SelectItem key={key} value={key}>{label}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              {/* Other details */}
-            </CardContent>
-          </Card>
-        </div>
-      </ScrollArea>
     </div>
   );
 };
