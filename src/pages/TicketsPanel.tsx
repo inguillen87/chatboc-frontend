@@ -25,7 +25,6 @@ import TemplateSelector, { MessageTemplate } from "@/components/tickets/Template
 import { formatPhoneNumberForWhatsApp } from "@/utils/phoneUtils";
 import TicketList from "@/components/tickets/TicketList";
 import ClientInfoPanel from "@/components/tickets/ClientInfoPanel";
-import TicketChat from "@/components/tickets/TicketChat";
 import { usePusher } from "@/hooks/usePusher";
 import { useHotkeys } from "@/hooks/useHotkeys";
 import {
