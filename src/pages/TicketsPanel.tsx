@@ -99,6 +99,7 @@ export default function TicketsPanel() {
   const debouncedSearchTerm = useDebounce(searchTerm, 500);
   const [statusFilter, setStatusFilter] = useState<TicketStatus | "">("");
   const [priorityFilter, setPriorityFilter] = useState<PriorityStatus | "">("");
+  const [categoryFilter, setCategoryFilter] = useState<string | "">("");
 
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
   const statusSelectRef = useRef<HTMLButtonElement>(null);
@@ -149,10 +150,16 @@ export default function TicketsPanel() {
     };
   }, [channel, detailedTicket]);
 
+  const categories = useMemo(() => {
+    const allCategories = allTickets.map(t => t.categoria).filter(Boolean);
+    return [...new Set(allCategories)];
+  }, [allTickets]);
+
   const groupedTickets = useMemo(() => {
     let filtered = allTickets;
     if (statusFilter) filtered = filtered.filter(t => t.estado === statusFilter);
     if (priorityFilter) filtered = filtered.filter(t => t.priority === priorityFilter);
+    if (categoryFilter) filtered = filtered.filter(t => t.categoria === categoryFilter);
     if (debouncedSearchTerm) {
          filtered = filtered.filter(ticket => {
               const term = debouncedSearchTerm.toLowerCase();
@@ -232,7 +239,30 @@ export default function TicketsPanel() {
         <ResizablePanel defaultSize={25} minSize={20}>
           <div className="flex flex-col h-full bg-muted/30">
             <div className="p-3 border-b dark:border-slate-700 space-y-3">
-              {/* Filter controls */}
+              <Input placeholder="Buscar tickets..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+              <div className="flex space-x-2">
+                <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as TicketStatus | "")}>
+                  <SelectTrigger><SelectValue placeholder="Estado" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Todos los estados</SelectItem>
+                    {Object.entries(ESTADOS).map(([key, { label }]) => <SelectItem key={key} value={key}>{label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Select value={priorityFilter} onValueChange={(value) => setPriorityFilter(value as PriorityStatus | "")}>
+                  <SelectTrigger><SelectValue placeholder="Prioridad" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Todas las prioridades</SelectItem>
+                    {Object.entries(PRIORITY_INFO).map(([key, { label }]) => <SelectItem key={key} value={key}>{label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Select value={categoryFilter} onValueChange={(value) => setCategoryFilter(value as string | "")}>
+                  <SelectTrigger><SelectValue placeholder="Categoría" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Todas las categorías</SelectItem>
+                    {categories.map((category) => <SelectItem key={category} value={category}>{category}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <ScrollArea className="flex-1">
               <div className="p-2">
@@ -242,32 +272,28 @@ export default function TicketsPanel() {
           </div>
         </ResizablePanel>
         <ResizableHandle withHandle />
-        <ResizablePanel defaultSize={75}>
-          <ResizablePanelGroup direction="horizontal">
-            <ResizablePanel defaultSize={60}>
-              <AnimatePresence>
-                {detailedTicket ? (
-                  <motion.div key={detailedTicket.id} className="h-full" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                    <TicketChat ticket={detailedTicket} onTicketUpdate={handleTicketDetailUpdate} onClose={() => setSelectedTicketId(null)} chatInputRef={chatInputRef} />
-                  </motion.div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center h-full"><TicketIcon className="h-20 w-20 text-muted-foreground/40" /><h2>Seleccione un Ticket</h2></div>
-                )}
-              </AnimatePresence>
-            </ResizablePanel>
-            <ResizableHandle withHandle />
-            <ResizablePanel defaultSize={40}>
-              <AnimatePresence>
-                {detailedTicket ? (
-                  <motion.div key={detailedTicket.id + "-details"} className="h-full" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                    <TicketDetails ticket={detailedTicket} categoryNames={{}} comentarios={detailedTicket.comentarios || []} onTicketPropertyChange={handleTicketPropertyChange} statusSelectRef={statusSelectRef} />
-                  </motion.div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center h-full"><User className="h-20 w-20 text-muted-foreground/40" /><h2>Detalles del Ticket</h2></div>
-                )}
-              </AnimatePresence>
-            </ResizablePanel>
-          </ResizablePanelGroup>
+        <ResizablePanel defaultSize={50}>
+          <AnimatePresence>
+            {detailedTicket ? (
+              <motion.div key={detailedTicket.id} className="h-full" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                <TicketChat ticket={detailedTicket} onTicketUpdate={handleTicketDetailUpdate} onClose={() => setSelectedTicketId(null)} chatInputRef={chatInputRef} />
+              </motion.div>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full"><TicketIcon className="h-20 w-20 text-muted-foreground/40" /><h2>Seleccione un Ticket</h2></div>
+            )}
+          </AnimatePresence>
+        </ResizablePanel>
+        <ResizableHandle withHandle />
+            <ResizablePanel defaultSize={25}>
+          <AnimatePresence>
+            {detailedTicket ? (
+              <motion.div key={detailedTicket.id + "-details"} className="h-full" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                    <ClientInfoPanel ticket={detailedTicket} />
+              </motion.div>
+            ) : (
+                  <div className="flex flex-col items-center justify-center h-full"><User className="h-20 w-20 text-muted-foreground/40" /><h2>Detalles del Cliente</h2></div>
+            )}
+          </AnimatePresence>
         </ResizablePanel>
       </ResizablePanelGroup>
     </div>
