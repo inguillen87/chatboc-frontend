@@ -1,7 +1,7 @@
 import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Ticket } from '@/types/tickets';
-import TicketChat from '../TicketChat';
+import TicketChat from '@/components/tickets/TicketChat';
 import { TicketIcon, MessageSquare, Shield, Clock } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from '@/components/ui/button';

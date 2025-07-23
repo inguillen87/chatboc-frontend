@@ -9,8 +9,8 @@ import { useDateSettings } from '@/hooks/useDateSettings';
 import { ShieldAlert, ShieldCheck, ShieldX, Clock, AlertTriangle } from 'lucide-react';
 
 interface TicketListItemProps {
-  ticket: Ticket;
-  isSelected?: boolean;
+  ticket: TicketSummary;
+  isSelected: boolean;
   onSelect: () => void;
 }
 
@@ -30,16 +30,14 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onS
   const estadoInfo = ESTADOS[ticket.estado];
 
   return (
-    <motion.div
-      onClick={onSelect}
+    <Card
       className={cn(
         'cursor-pointer mb-2 transition-all duration-200 ease-in-out border-l-4',
         isSelected
           ? 'bg-primary/10 border-primary'
           : 'hover:bg-muted/50 border-transparent'
       )}
-      whileHover={{ scale: 1.02 }}
-      transition={{ duration: 0.2 }}
+      onClick={onSelect}
     >
       <CardContent className="p-3">
         <div className="flex items-start justify-between mb-2">
@@ -76,3 +74,5 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onS
     </Card>
   );
 };
+
+export default TicketListItem;
