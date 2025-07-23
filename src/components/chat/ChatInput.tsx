@@ -25,6 +25,7 @@ const PLACEHOLDERS = [
 const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypingChange }) => {
   const [input, setInput] = useState("");
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
+  const [isLocating, setIsLocating] = useState(false);
   const internalRef = inputRef || useRef<HTMLInputElement>(null);
   const { supported, listening, transcript, start, stop } = useSpeechRecognition();
 
@@ -77,7 +78,8 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
   };
 
   const handleShareLocation = async () => {
-    if (isTyping) return;
+    if (isTyping || isLocating) return;
+    setIsLocating(true);
     toast({ title: "Obteniendo ubicación...", description: "Por favor, acepta la solicitud de GPS.", duration: 2000 });
     try {
       const coords = await requestLocation({ enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
@@ -94,6 +96,8 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
     } catch (error) {
       console.error("Error al obtener ubicación:", error);
       toast({ title: "Error al obtener ubicación", description: "Hubo un problema al intentar obtener tu ubicación.", variant: "destructive", duration: 5000 });
+    } finally {
+      setIsLocating(false);
     }
     setInput("");
     onTypingChange?.(false);
@@ -114,7 +118,7 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
       <AdjuntarArchivo onUpload={handleFileUploaded} />
       <button
         onClick={handleShareLocation}
-        disabled={isTyping}
+        disabled={isTyping || isLocating}
         className={`
           flex items-center justify-center
           rounded-full p-2 sm:p-2.5
@@ -122,12 +126,12 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
           focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-1 focus:ring-offset-background
           active:scale-95
           bg-secondary text-secondary-foreground hover:bg-secondary/80
-          ${isTyping ? "opacity-50 cursor-not-allowed" : ""}
+          ${isTyping || isLocating ? "opacity-50 cursor-not-allowed" : ""}
         `}
         aria-label="Compartir ubicación"
         type="button"
       >
-        <MapPin className="w-5 h-5" />
+        {isLocating ? <div className="w-5 h-5 border-2 border-t-transparent border-white rounded-full animate-spin" /> : <MapPin className="w-5 h-5" />}
       </button>
       <button
         onClick={() => {

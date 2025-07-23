@@ -1,100 +1,101 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
-import { TicketSummary, ESTADOS } from '@/pages/TicketsPanel';
-import { Checkbox } from "@/components/ui/checkbox";
+import { TicketSummary } from '@/pages/TicketsPanel';
+import TicketListItem from './TicketListItem';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { AnimatePresence } from 'framer-motion';
 
-interface TicketListItemProps {
-  ticket: TicketSummary;
-  isSelected: boolean;
-  onSelect: () => void;
-  onToggleSelection: (ticketId: number, selected: boolean) => void;
-  isSelectionEnabled: boolean;
-  style: React.CSSProperties;
+interface GroupedTickets {
+  categoryName: string;
+  tickets: TicketSummary[];
 }
-
-const TicketListItem: React.FC<TicketListItemProps> = React.memo(({ ticket, isSelected, onSelect, onToggleSelection, isSelectionEnabled, style }) => {
-  let cardClasses = "bg-card dark:bg-slate-800 border-border dark:border-slate-700/80 hover:border-slate-400 dark:hover:border-slate-500";
-  if (isSelected) {
-    cardClasses = "bg-primary/10 border-primary dark:bg-primary/20 dark:border-primary ring-1 ring-primary";
-  } else if (ticket.sla_status === 'breached') {
-    cardClasses = "bg-red-500/10 border-red-500/30 dark:bg-red-700/20 dark:border-red-600/40 hover:border-red-500";
-  } else if (ticket.sla_status === 'nearing_sla') {
-    cardClasses = "bg-yellow-500/10 border-yellow-500/30 dark:bg-yellow-700/20 dark:border-yellow-600/40 hover:border-yellow-500";
-  }
-
-  return (
-    <motion.div
-      layout
-      onClick={onSelect}
-      className={cn(
-        "p-3 rounded-lg border cursor-pointer mb-2 transition-all duration-200 ease-in-out flex items-center gap-3",
-        "hover:shadow-md dark:hover:bg-slate-700/60",
-        cardClasses
-      )}
-      whileHover={{ y: -2 }}
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0 }}
-      style={style}
-    >
-      {isSelectionEnabled && <Checkbox onCheckedChange={(checked) => onToggleSelection(ticket.id, !!checked)} />}
-      <div className="flex-grow">
-        <div className="flex justify-between items-start mb-1">
-          <span className="font-semibold text-primary text-xs truncate max-w-[80px] flex-shrink-0" title={`#${ticket.nro_ticket}`}>#{ticket.nro_ticket}</span>
-          <Badge className={cn("text-xs border", ESTADOS[ticket.estado]?.tailwind_class)}>{ESTADOS[ticket.estado]?.label}</Badge>
-        </div>
-        <p className="font-medium text-foreground truncate text-xs" title={ticket.asunto}>{ticket.asunto}</p>
-        {ticket.nombre_usuario && <p className="text-xs text-muted-foreground truncate mt-0.5" title={ticket.nombre_usuario}>{ticket.nombre_usuario}</p>}
-      </div>
-    </motion.div>
-  );
-});
-
 
 interface TicketListProps {
-  tickets: TicketSummary[];
+  groupedTickets: GroupedTickets[];
   selectedTicketId: number | null;
   onTicketSelect: (ticket: TicketSummary) => void;
-  onToggleSelection: (ticketId: number, selected: boolean) => void;
+  onToggleSelection: (ticketId: number) => void;
   isSelectionEnabled: boolean;
+  selection?: Set<number>;
 }
 
-const TicketList: React.FC<TicketListProps> = ({ tickets, selectedTicketId, onTicketSelect, onToggleSelection, isSelectionEnabled }) => {
+const TicketList: React.FC<TicketListProps> = ({
+  groupedTickets,
+  selectedTicketId,
+  onTicketSelect,
+}) => {
   const parentRef = React.useRef<HTMLDivElement>(null);
 
+  const flatList = React.useMemo(() => {
+    const items: (TicketSummary | { type: 'header'; name: string, count: number })[] = [];
+    groupedTickets.forEach(group => {
+      if (group.tickets.length > 0) {
+        items.push({ type: 'header', name: group.categoryName, count: group.tickets.length });
+        items.push(...group.tickets);
+      }
+    });
+    return items;
+  }, [groupedTickets]);
+
   const rowVirtualizer = useVirtualizer({
-    count: tickets.length,
+    count: flatList.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 90,
+    estimateSize: (index) => (flatList[index] as any).type === 'header' ? 35 : 110,
+    overscan: 5,
   });
 
   return (
     <div ref={parentRef} className="w-full h-full overflow-y-auto">
       <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
-        {rowVirtualizer.getVirtualItems().map(virtualItem => {
-          const ticket = tickets[virtualItem.index];
-          return (
-            <TicketListItem
-              key={ticket.id}
-              ticket={ticket}
-              isSelected={selectedTicketId === ticket.id}
-              onSelect={() => onTicketSelect(ticket)}
-              onToggleSelection={onToggleSelection}
-              isSelectionEnabled={isSelectionEnabled}
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: `${virtualItem.size}px`,
-                transform: `translateY(${virtualItem.start}px)`,
-              }}
-            />
-          );
-        })}
+        <AnimatePresence>
+          {rowVirtualizer.getVirtualItems().map(virtualItem => {
+            const item = flatList[virtualItem.index];
+
+            if ('type' in item && item.type === 'header') {
+              return (
+                <motion.div
+                  key={item.name}
+                  className="p-2 sticky top-0 bg-muted dark:bg-slate-800 z-10"
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: `${virtualItem.size}px`,
+                    transform: `translateY(${virtualItem.start}px)`,
+                  }}
+                >
+                  <h3 className="text-sm font-semibold text-muted-foreground px-2 mb-2">{item.name} ({item.count})</h3>
+                </motion.div>
+              );
+            }
+
+            const ticket = item as TicketSummary;
+            return (
+              <motion.div
+                key={ticket.id}
+                layout
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: `${virtualItem.size}px`,
+                    transform: `translateY(${virtualItem.start}px)`,
+                }}
+              >
+                <TicketListItem
+                  ticket={ticket}
+                  isSelected={selectedTicketId === ticket.id}
+                  onSelect={() => onTicketSelect(ticket)}
+                />
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
       </div>
     </div>
   );

@@ -265,11 +265,16 @@ export default function PedidosPage() {
   const fetchPedidos = useCallback(async () => {
     try {
       const data = await apiFetch<Pedido[]>('/pedidos');
-      const categorized = data.reduce<CategorizedPedidos>((acc, p) => {
-        acc[p.estado] = acc[p.estado] ? [...acc[p.estado], p] : [p];
-        return acc;
-      }, {});
-      setCategorizedPedidos(categorized);
+      if (Array.isArray(data)) {
+        const categorized = data.reduce<CategorizedPedidos>((acc, p) => {
+          acc[p.estado] = acc[p.estado] ? [...acc[p.estado], p] : [p];
+          return acc;
+        }, {});
+        setCategorizedPedidos(categorized);
+      } else {
+        console.error('Error: La respuesta de la API de pedidos no es un array', data);
+        setCategorizedPedidos({});
+      }
       setOpenCategories(new Set(Object.keys(categorized).filter((e) => !['satisfecho', 'cancelado'].includes(e))));
     } catch (err) {
       console.error('Error fetching pedidos:', err);

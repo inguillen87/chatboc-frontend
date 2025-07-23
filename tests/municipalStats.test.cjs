@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
-import { getMunicipalStats } from '../server/municipalStats.js';
-import * as db from '../server/db.js';
+import { getMunicipalStats } from 'server/municipalStats.js';
+import * as db from 'server/db.js';
 
 describe('Municipal Stats - getMunicipalStats', () => {
   const originalTickets = db.getTickets();

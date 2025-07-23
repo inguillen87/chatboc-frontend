@@ -22,6 +22,7 @@ import { getCurrentTipoChat } from "@/utils/tipoChat";
 import { requestLocation } from "@/utils/geolocation";
 import { toast } from "@/components/ui/use-toast";
 import RubroSelector, { Rubro } from "./RubroSelector";
+import AnonRegisterForm from './AnonRegisterForm';
 
 const FRASES_DIRECCION = [
   "indicame la dirección", "necesito la dirección", "ingresa la dirección",
@@ -491,6 +492,11 @@ const ChatPanel = ({
               ultimoMensajeIdRef.current = 0;
             }
           }
+
+          if (data.requiere_registro) {
+            setShowAnonRegisterForm(true);
+          }
+
           if (!esAnonimo) await refreshUser();
         }
       } catch (error: any) {
@@ -524,6 +530,22 @@ const ChatPanel = ({
     [onShowLogin, onShowRegister, onCart, handleSendMessage, user]
   );
 
+  const handleRegisterAnonymous = async (data: { nombre: string; telefono: string }) => {
+    try {
+      const response = await apiFetch('/auth/register/anonymous', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+      // Manejar la respuesta, por ejemplo, guardando el nuevo usuario en el estado
+      console.log('Usuario anónimo registrado:', response);
+      // Opcional: mostrar un mensaje de éxito
+      toast({ title: 'Registro exitoso', description: 'Ahora puedes continuar con tu consulta.' });
+    } catch (error) {
+      console.error('Error al registrar usuario anónimo:', error);
+      toast({ title: 'Error en el registro', description: getErrorMessage(error), variant: 'destructive' });
+    }
+  };
+
   const handleFileUploaded = useCallback(
     (fileData: { url: string; name: string; mimeType?: string; size?: number; }) => { // Ahora recibe el objeto completo
       if (fileData?.url && fileData?.name) {
@@ -548,16 +570,18 @@ const ChatPanel = ({
 
   useEffect(() => {
     if (esAnonimo && mode === "standalone" && !rubroSeleccionado) {
-      setEsperandoRubro(true); cargarRubros(); return;
+      setEsperandoRubro(true);
+      cargarRubros();
+      return;
     }
     setEsperandoRubro(false);
     if (!initialMessageAddedRef.current && (!esAnonimo || rubroSeleccionado)) {
       if (messages.length === 0) {
-        setMessages([{ id: generateClientMessageId(), text: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?", isBot: true, timestamp: new Date() }]);
+        // Mensaje de bienvenida ahora manejado por useChatLogic
       }
       initialMessageAddedRef.current = true;
     }
-  }, [esAnonimo, mode, rubroSeleccionado, messages.length]); // messages.length para re-evaluar si se borran mensajes
+  }, [esAnonimo, mode, rubroSeleccionado, messages.length]);
 
   useEffect(() => {
     const container = chatContainerRef.current;
@@ -598,11 +622,22 @@ const ChatPanel = ({
     }
   }, [esperandoRubro, esperandoDireccion, showCierre, messages.length]);
 
+  const [showAnonRegisterForm, setShowAnonRegisterForm] = useState(false);
+
   return (
     <div className={cn("flex flex-col w-full h-full bg-card text-card-foreground overflow-hidden relative", isMobile ? undefined : "rounded-2xl")}>
       <ChatHeader onClose={onClose} onProfile={onOpenUserPanel} muted={muted} onToggleSound={onToggleSound} onCart={onCart} />
       <div ref={chatContainerRef} className="flex-1 p-2 sm:p-4 min-h-0 flex flex-col gap-3 overflow-y-auto">
-          {esperandoRubro ? (
+          {showAnonRegisterForm ? (
+            <div className="flex flex-col items-center justify-center text-center p-4 m-auto bg-card border rounded-lg shadow-lg max-w-md">
+              <p className="text-lg font-semibold text-foreground mb-2">Registro Rápido</p>
+              <p className="text-sm text-muted-foreground mb-4">Necesitamos algunos datos para continuar.</p>
+              <AnonRegisterForm onRegister={(data) => {
+                handleRegisterAnonymous(data);
+                setShowAnonRegisterForm(false);
+              }} />
+            </div>
+          ) : esperandoRubro ? (
             // ... (código de selección de rubro sin cambios) ...
             <div className="text-center w-full">
               <h2 className="text-primary mb-2">👋 ¡Bienvenido!</h2>

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import * as cart from '../server/cart.js';
-import * as prefs from '../server/preferences.js';
-import { getBusinessMetrics } from '../server/businessMetrics.js';
+import * as cart from 'server/cart.js';
+import * as prefs from 'server/preferences.js';
+import { getBusinessMetrics } from 'server/businessMetrics.js';
 
 describe('getBusinessMetrics', () => {
   it('should return business metrics', () => {
