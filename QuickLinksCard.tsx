@@ -40,7 +40,9 @@ const ITEMS: LinkItem[] = [
 export default function QuickLinksCard() {
   const navigate = useNavigate();
   const { user, refreshUser } = useUser();
-  const pedidosAvailable = useEndpointAvailable('/pedidos');
+  const pedidosAvailable = useEndpointAvailable(
+    user?.tipo_chat === 'pyme' ? '/pedidos' : null
+  );
 
   useEffect(() => {
     if (!user) {

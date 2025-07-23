@@ -7,11 +7,17 @@ import { apiFetch, ApiError } from '@/utils/api';
  *   false -> endpoint returned 404 or 403
  *   null  -> still checking
  */
-export default function useEndpointAvailable(path: string) {
+export default function useEndpointAvailable(path?: string | null) {
   const [available, setAvailable] = useState<boolean | null>(null);
 
   useEffect(() => {
     let canceled = false;
+    if (!path) {
+      setAvailable(null);
+      return () => {
+        canceled = true;
+      };
+    }
     (async () => {
       try {
         await apiFetch(path);
