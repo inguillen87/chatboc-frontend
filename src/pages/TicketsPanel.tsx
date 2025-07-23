@@ -107,8 +107,8 @@ export default function TicketsPanel() {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await apiFetch<TicketSummary[]>("/tickets", { sendEntityToken: true });
-      setAllTickets(data);
+      const data = await apiFetch<{tickets: TicketSummary[]}>("/tickets", { sendEntityToken: true });
+      setAllTickets(data.tickets);
     } catch (err) {
       const errorMessage = err instanceof ApiError ? err.message : "Error al cargar los tickets. Por favor, intente de nuevo más tarde.";
       setError(errorMessage);
