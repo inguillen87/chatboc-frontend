@@ -1,10 +1,11 @@
-import React from "react";
-import TicketsPanelLayout from "@/components/tickets/TicketsPanelLayout";
-import useRequireRole from "@/hooks/useRequireRole";
-import type { Role } from "@/utils/roles";
+import React from 'react';
+import useRequireRole from '@/hooks/useRequireRole';
+import type { Role } from '@/utils/roles';
+import NewTicketsPanel from '@/components/tickets/NewTicketsPanel';
 
-export default function TicketsPanel() {
+const TicketsPanelPage = () => {
   useRequireRole(['admin', 'empleado'] as Role[]);
+  return <NewTicketsPanel />;
+};
 
-  return <TicketsPanelLayout />;
-}
+export default TicketsPanelPage;
