@@ -978,7 +978,10 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
             </div>
         </div>
 
-        <div className="flex-1 grid grid-cols-1 md:grid-cols-3 overflow-hidden h-full min-h-0">
+        <div className={cn(
+            "flex-1 grid grid-cols-1 overflow-hidden h-full min-h-0",
+            isDetailOpen ? "md:grid-cols-3" : "md:grid-cols-2"
+        )}>
             {/* Panel de Chat (Centro) */}
             <div className="col-span-1 md:col-span-2 flex flex-col p-2 md:p-4 bg-background dark:bg-slate-700/30 md:border-r dark:border-slate-700">
                 {!chatEnVivo && (
@@ -1085,6 +1088,7 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
             </div>
 
             {/* Panel de Detalles (Derecha) */}
+            {isDetailOpen && (
             <div className="col-span-1 hidden md:flex flex-col h-full min-h-0">
                 <ScrollArea className="h-full p-3 md:p-4 bg-card dark:bg-slate-800/50 border-t md:border-t-0 md:border-l dark:border-slate-700">
                     <Accordion type="multiple" className="space-y-2">
@@ -1204,6 +1208,7 @@ const TicketDetail_Refactored: FC<TicketDetailViewProps> = ({ ticket, onTicketUp
                     </Accordion>
                 </ScrollArea>
             </div>
+            )}
         </div>
         <TemplateSelector
             isOpen={isTemplateSelectorOpen}
