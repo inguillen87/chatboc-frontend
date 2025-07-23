@@ -54,6 +54,7 @@ import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import LocationMap from "@/components/LocationMap";
 import { useNavigate } from "react-router-dom";
 import MiniChatWidgetPreview from "@/components/ui/MiniChatWidgetPreview"; // Importar el nuevo componente
+import QuickLinksCard from "@/components/QuickLinksCard";
 import { useUser } from "@/hooks/useUser";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
@@ -531,6 +532,14 @@ export default function Perfil() {
             {perfil.rubro || "Rubro no especificado"}
           </span>
         </div>
+      </div>
+
+      <div className="w-full max-w-6xl mx-auto mb-8 px-2">
+        <QuickLinksCard/>
+      </div>
+
+      <div className="w-full max-w-6xl mx-auto mb-8 px-2">
+        <QuickLinksCard/>
       </div>
 
       <div className="w-full max-w-6xl mx-auto flex flex-col md:flex-row gap-6 md:gap-8 px-2 items-stretch">
