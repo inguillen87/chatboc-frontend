@@ -87,47 +87,49 @@ const TicketChat: FC<TicketChatProps> = ({ ticket, onTicketUpdate, onClose, chat
   };
 
   return (
-    <div className="flex flex-col h-full bg-background">
-      <header className="p-3 border-b flex items-center justify-between">
-        <h2 className="text-md font-semibold truncate">{ticket.asunto}</h2>
-        <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
+    <div className="flex flex-col h-full bg-muted/20 dark:bg-background">
+      <header className="p-3 border-b flex items-center justify-between bg-background dark:bg-muted/30">
+        <div>
+            <h2 className="text-lg font-bold truncate">{ticket.asunto}</h2>
+            <p className="text-sm text-muted-foreground">Ticket #{ticket.nro_ticket}</p>
+        </div>
+        <Button variant="ghost" size="icon" onClick={onClose} className="h-9 w-9">
           <XCircle className="h-5 w-5" />
         </Button>
       </header>
       <ScrollArea className="flex-1 p-4" ref={chatContainerRef}>
-        <div className="space-y-4">
+        <div className="space-y-6">
           {comentarios.map((comment) => {
             const source = getMessageSource(comment);
             const attachment = getAttachmentInfo(comment.comentario);
             const isFromUser = source === 'user';
             return (
-              <div key={comment.id} className={cn('flex items-end gap-2.5', isFromUser ? 'justify-start' : 'justify-end')}>
-                {isFromUser && <AvatarIcon type="user" />}
-                <div className="flex flex-col space-y-1 max-w-lg">
-                  <div className={cn('rounded-2xl px-4 py-2.5 shadow-sm',
-                    source === 'admin' ? 'bg-primary text-primary-foreground rounded-br-lg' :
-                    source === 'ia' ? 'bg-purple-100 text-purple-900 dark:bg-purple-900/50 dark:text-white rounded-br-lg' :
-                    'bg-card text-foreground border rounded-bl-lg')}>
+              <div key={comment.id} className={cn('flex items-end gap-3', isFromUser ? 'justify-start' : 'justify-end')}>
+                {!isFromUser && <AvatarIcon type={source} />}
+                <div className={cn("flex flex-col space-y-1 max-w-xl", isFromUser ? 'items-start' : 'items-end')}>
+                  <div className={cn('rounded-2xl px-4 py-2.5 shadow-sm w-fit',
+                    source === 'admin' ? 'bg-primary text-primary-foreground rounded-br-none' :
+                    source === 'ia' ? 'bg-purple-100 text-purple-900 dark:bg-purple-900/50 dark:text-white rounded-br-none' :
+                    'bg-background text-foreground border rounded-bl-none')}>
                     {attachment ? (
                         <AttachmentPreview attachment={attachment} />
                     ) : (
                         <p className="break-words whitespace-pre-wrap">{comment.comentario}</p>
                     )}
                   </div>
-                  <p className={cn("text-xs text-muted-foreground", !isFromUser ? "text-right" : "text-left")}>
+                  <p className={cn("text-xs text-muted-foreground px-1")}>
                     {new Date(comment.fecha).toLocaleTimeString(locale, { timeZone: timezone, hour: '2-digit', minute: '2-digit' })}
                   </p>
                 </div>
-                {!isFromUser && <AvatarIcon type={source} />}
+                 {isFromUser && <AvatarIcon type="user" />}
               </div>
             );
           })}
         </div>
       </ScrollArea>
-      <footer className="border-t p-3 flex flex-col gap-2">
+      <footer className="border-t bg-background dark:bg-muted/30 p-3 flex flex-col gap-2">
         {/* ... (código de adjuntos) */}
         <div className="flex gap-2 items-start">
-          <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} />
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -139,8 +141,8 @@ const TicketChat: FC<TicketChatProps> = ({ ticket, onTicketUpdate, onClose, chat
                 <p>Adjuntar archivo</p>
               </TooltipContent>
             </Tooltip>
+             <TemplateSelector onTemplateSelect={handleTemplateSelect} />
           </TooltipProvider>
-          <TemplateSelector onTemplateSelect={handleTemplateSelect} />
           <div className="flex-1 relative">
             <Textarea
               ref={chatInputRef}
@@ -151,13 +153,13 @@ const TicketChat: FC<TicketChatProps> = ({ ticket, onTicketUpdate, onClose, chat
               }}
               placeholder="Escribe una respuesta..."
               disabled={isSending}
-              className="pr-20 min-h-[40px] h-10"
+              className="pr-24 min-h-[40px] h-10"
               rows={1}
             />
             <Button
                 onClick={handleSendMessage}
                 disabled={isSending || (!newMessage.trim() && !selectedFile)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 h-8"
+                className="absolute right-2 top-1/2 -translate-y-1/2 h-8 px-3"
                 size="sm"
             >
                 {isSending ? <Loader2 className="animate-spin h-4 w-4" /> : "Enviar"}
