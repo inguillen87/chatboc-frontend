@@ -1,4 +1,4 @@
-import { getTickets } from './db.js';
+import { getTickets } from './db.cjs';
 
 export function getMunicipalAnalytics() {
   const tickets = getTickets();
