@@ -43,4 +43,5 @@ export interface Ticket {
     timestamp: string;
     content: string;
   }[];
+  hasUnreadMessages?: boolean;
 }

@@ -7,6 +7,7 @@ import { Mail, Phone, MapPin, Ticket as TicketIcon, FolderOpen, Info, History } 
 import { Ticket } from '@/types/tickets';
 import { Badge } from '@/components/ui/badge';
 import { motion } from 'framer-motion';
+import TicketMap from './TicketMap';
 
 interface DetailsPanelProps {
   ticket: Ticket | null;
@@ -29,6 +30,8 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ ticket }) => {
        </aside>
     );
   }
+
+  const hasLocation = ticket.user.location || (ticket.user as any).latitud || (ticket.user as any).longitud;
 
   return (
     <motion.aside
@@ -71,6 +74,8 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ ticket }) => {
               )}
             </CardContent>
           </Card>
+
+          {hasLocation && <TicketMap ticket={{ direccion: ticket.user.location, latitud: (ticket.user as any).latitud, longitud: (ticket.user as any).longitud }} />}
 
           {/* Ticket Info */}
           <Card>

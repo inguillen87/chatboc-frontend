@@ -1,12 +1,14 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Paperclip, Send, PanelLeft, PanelRight, MessageSquare, PanelLeftClose, PanelRightClose } from 'lucide-react';
+import { Paperclip, Send, PanelLeft, PanelRight, MessageSquare, PanelLeftClose, MessageCircle, Mic, MicOff } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Ticket } from '@/types/tickets';
 import ChatMessage from './ChatMessage';
 import { AnimatePresence, motion } from 'framer-motion';
+import PredefinedMessagesModal from './PredefinedMessagesModal';
+import useSpeechRecognition from '@/hooks/useSpeechRecognition';
 
 interface ConversationPanelProps {
   ticket: Ticket | null;
@@ -17,6 +19,15 @@ interface ConversationPanelProps {
 }
 
 const ConversationPanel: React.FC<ConversationPanelProps> = ({ ticket, isMobile, isSidebarVisible, onToggleSidebar, onToggleDetails }) => {
+  const [message, setMessage] = useState('');
+  const { supported, listening, transcript, start, stop } = useSpeechRecognition();
+
+  useEffect(() => {
+    if (transcript) {
+      setMessage(prev => prev ? `${prev} ${transcript}` : transcript);
+    }
+  }, [transcript]);
+
   if (!ticket) {
     return (
       <div className="flex flex-col h-screen bg-background items-center justify-center text-center p-4">
@@ -26,6 +37,10 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ ticket, isMobile,
       </div>
     );
   }
+
+  const handleSelectPredefinedMessage = (predefinedMessage: string) => {
+    setMessage(prev => prev ? `${prev}\n${predefinedMessage}` : predefinedMessage);
+  };
 
   return (
     <motion.div
@@ -79,8 +94,24 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ ticket, isMobile,
 
       <footer className="p-4 border-t border-border shrink-0">
         <div className="relative">
-          <Textarea placeholder="Escribe tu respuesta..." className="pr-28" />
+          <Textarea
+            placeholder={listening ? "Escuchando..." : "Escribe tu respuesta..."}
+            className="pr-48"
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            disabled={listening}
+          />
           <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center">
+            <PredefinedMessagesModal onSelectMessage={handleSelectPredefinedMessage}>
+                <Button variant="ghost" size="icon">
+                    <MessageCircle className="h-5 w-5" />
+                </Button>
+            </PredefinedMessagesModal>
+            {supported && (
+                 <Button variant="ghost" size="icon" onClick={listening ? stop : start}>
+                    {listening ? <MicOff className="h-5 w-5 text-destructive" /> : <Mic className="h-5 w-5" />}
+                </Button>
+            )}
             <Button variant="ghost" size="icon">
               <Paperclip className="h-5 w-5" />
             </Button>
