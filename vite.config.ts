@@ -15,55 +15,6 @@ export default defineConfig(({ mode }) => {
         injectRegister: 'auto',
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff,woff2}', 'sw.js'],
-          maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // <-- AGREGADO FIX PARA ARCHIVOS GRANDES
-          runtimeCaching: [
-            {
-              urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-              handler: 'CacheFirst',
-              options: {
-                cacheName: 'google-fonts-cache',
-                expiration: {
-                  maxEntries: 10,
-                  maxAgeSeconds: 60 * 60 * 24 * 365 // 1 año
-                },
-                cacheableResponse: {
-                  statuses: [0, 200]
-                }
-              }
-            },
-            {
-              urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
-              handler: 'CacheFirst',
-              options: {
-                cacheName: 'gstatic-fonts-cache',
-                expiration: {
-                  maxEntries: 10,
-                  maxAgeSeconds: 60 * 60 * 24 * 365 // 1 año
-                },
-                cacheableResponse: {
-                  statuses: [0, 200]
-                }
-              }
-            },
-            {
-              // Cache para las llamadas a tu API
-              urlPattern: ({ url }) =>
-                url.pathname.startsWith('/api') ||
-                url.origin === env.VITE_API_URL,
-              handler: 'NetworkFirst',
-              options: {
-                cacheName: 'api-cache',
-                expiration: {
-                  maxEntries: 50,
-                  maxAgeSeconds: 60 * 60 * 24 * 1 // 1 día
-                },
-                cacheableResponse: {
-                  statuses: [0, 200]
-                },
-                networkTimeoutSeconds: 10
-              }
-            }
-          ]
         },
         manifest: {
           name: "Chatboc - IA para Gobiernos y Empresas",
@@ -111,34 +62,13 @@ export default defineConfig(({ mode }) => {
           target: 'http://localhost:5000',
           changeOrigin: true,
           secure: false,
+          rewrite: (path) => path.replace(/^\/api/, '')
         },
-        // Si tenés endpoints directos sin prefijo /api, agregalos abajo:
-        '/login': {
-          target: 'http://localhost:5000',
-          changeOrigin: true,
-          secure: false,
+        '/tickets': {
+            target: 'http://localhost:5000',
+            changeOrigin: true,
+            secure: false,
         },
-        '/register': {
-          target: 'http://localhost:5000',
-          changeOrigin: true,
-          secure: false,
-        },
-        '/me': {
-          target: 'http://localhost:5000',
-          changeOrigin: true,
-          secure: false,
-        },
-        '/rubros': {
-          target: 'http://localhost:5000',
-          changeOrigin: true,
-          secure: false,
-        },
-        '/ask': {
-          target: 'http://localhost:5000',
-          changeOrigin: true,
-          secure: false,
-        },
-        // Agregá otros endpoints backend si los usás directamente desde el frontend
       },
     },
     resolve: {
