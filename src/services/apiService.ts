@@ -29,6 +29,12 @@ async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise
   const response = await fetch(`${API_URL}${endpoint}`, config);
 
   if (!response.ok) {
+    if (response.status === 404) {
+      // Handle 404 errors gracefully
+      if (endpoint.includes('/comentarios')) {
+        return { ok: true, comentarios: [] } as T;
+      }
+    }
     if (response.status === 401) throw new Error("401: Tu sesión ha expirado. Por favor, inicia sesión de nuevo.");
     // Intenta parsear el cuerpo del error como JSON, si falla, usa el texto.
     let errorBody;
