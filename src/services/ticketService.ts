@@ -36,6 +36,16 @@ export const getTicketById = async (id: string): Promise<Ticket> => {
     }
 };
 
+export const getTicketMessages = async (ticketId: number, tipo: 'municipio' | 'pyme'): Promise<Message[]> => {
+    try {
+        const response = await apiFetch<{ mensajes: Message[] }>(`/tickets/chat/${tipo}/${ticketId}/mensajes`);
+        return response.mensajes || [];
+    } catch (error) {
+        console.error(`Error fetching messages for ticket ${ticketId}:`, error);
+        throw error;
+    }
+}
+
 export const sendMessage = async (ticketId: number, tipo: 'municipio' | 'pyme', comentario: string): Promise<any> => {
     try {
         const response = await apiFetch(`/tickets/${tipo}/${ticketId}/responder`, {
