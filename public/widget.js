@@ -1,6 +1,12 @@
 (function() {
     'use strict';
 
+    // Check if the widget has already been initialized
+    if (window.chatbocWidgetInitialized) {
+        return;
+    }
+    window.chatbocWidgetInitialized = true;
+
     // CSS styles for the widget
     const styles = `
         @keyframes fadeIn {
