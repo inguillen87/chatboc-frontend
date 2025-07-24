@@ -1,10 +1,9 @@
 import { apiFetch } from '@/utils/api';
 import { Ticket } from '@/types/tickets';
 
-export const getTickets = async (anonId?: string): Promise<Ticket[]> => {
+export const getTickets = async (): Promise<Ticket[]> => {
   try {
-    const endpoint = anonId ? `/tickets/anonymous?anonId=${anonId}` : '/tickets';
-    const response = await apiFetch<Ticket[]>(endpoint, { sendAnonId: !!anonId });
+    const response = await apiFetch<Ticket[]>('/tickets');
     return response;
   } catch (error) {
     console.error('Error fetching tickets:', error);

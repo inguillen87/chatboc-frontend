@@ -9,7 +9,6 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { getTickets } from '@/services/ticketService';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useUser } from '@/hooks/useUser';
-import getOrCreateAnonId from '@/utils/anonId';
 import { usePusher } from '@/hooks/usePusher';
 import { playMessageSound } from '@/utils/sounds';
 
@@ -41,7 +40,6 @@ const NewTicketsPanel: React.FC = () => {
                     : t
             )
         );
-        // Do not show toast if the user is already viewing the ticket
         if (selectedTicket?.id !== data.ticketId) {
             toast.info(`Nuevo mensaje en el ticket #${data.ticketId}`);
             playMessageSound();
@@ -56,16 +54,14 @@ const NewTicketsPanel: React.FC = () => {
     const fetchTickets = async () => {
       try {
         setLoading(true);
-        const anonId = !user ? getOrCreateAnonId() : undefined;
-        console.log(`Fetching tickets with user: ${JSON.stringify(user)}, anonId: ${anonId}`);
-        const fetchedTickets = await getTickets(anonId);
-        console.log('Fetched tickets:', fetchedTickets); // Log para ver la respuesta
-        setTickets(Array.isArray(fetchedTickets) ? fetchedTickets : []);
-        if (Array.isArray(fetchedTickets) && fetchedTickets.length > 0) {
-          setSelectedTicket(fetchedTickets[0]);
+        const fetchedTickets = await getTickets();
+        const ticketsData = (Array.isArray(fetchedTickets)) ? fetchedTickets : (fetchedTickets as any).tickets;
+        setTickets(Array.isArray(ticketsData) ? ticketsData : []);
+        if (Array.isArray(ticketsData) && ticketsData.length > 0) {
+          setSelectedTicket(ticketsData[0]);
         }
       } catch (err) {
-        console.error('Error fetching tickets:', err); // Log del error
+        console.error('Error fetching tickets:', err);
         setError('No se pudieron cargar los tickets. Inténtalo de nuevo más tarde.');
       } finally {
         setLoading(false);
@@ -88,7 +84,6 @@ const NewTicketsPanel: React.FC = () => {
   const handleSelectTicket = (ticketId: string) => {
     const ticket = tickets.find(t => t.id === ticketId) || null;
     setSelectedTicket(ticket);
-    // Mark as read
     setTickets(prevTickets =>
         prevTickets.map(t =>
             t.id === ticketId ? { ...t, hasUnreadMessages: false } : t
