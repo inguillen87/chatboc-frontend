@@ -102,15 +102,15 @@
         width: currentDims.width,
         height: currentDims.height,
         zIndex: zIndexBase.toString(),
-        borderRadius: iframeIsCurrentlyOpen ? "16px" : "50%",
-        boxShadow: iframeIsCurrentlyOpen ? "0 6px 20px rgba(0,0,0,0.2)" : "0 4px 12px rgba(0,0,0,0.15)",
+        borderRadius: "16px",
+        boxShadow: "0 5px 40px rgba(0,0,0,0.2)",
         transition: "width 0.25s cubic-bezier(0.4, 0, 0.2, 1), height 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-radius 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s ease-in-out",
         overflow: "hidden",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         cursor: "pointer",
-        background: "hsl(var(--primary, 218 92% 41%))", 
+        background: iframeIsCurrentlyOpen ? "transparent" : "hsl(var(--primary, 218 92% 41%))",
       });
       document.body.appendChild(widgetContainer);
 
@@ -218,8 +218,7 @@
           Object.assign(widgetContainer.style, {
             width: currentDims.width,
             height: currentDims.height,
-            borderRadius: iframeIsCurrentlyOpen && window.innerWidth < 640 ? "0" : iframeIsCurrentlyOpen ? "16px" : "50%",
-            boxShadow: iframeIsCurrentlyOpen ? "0 6px 20px rgba(0,0,0,0.2)" : "0 4px 12px rgba(0,0,0,0.15)",
+            borderRadius: "16px",
             background: iframeIsCurrentlyOpen ? "transparent" : "hsl(var(--primary, 218 92% 41%))",
           });
         }
