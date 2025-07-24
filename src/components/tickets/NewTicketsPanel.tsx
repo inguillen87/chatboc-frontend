@@ -12,6 +12,17 @@ import { useUser } from '@/hooks/useUser';
 import { usePusher } from '@/hooks/usePusher';
 import { playMessageSound } from '@/utils/sounds';
 
+const groupTicketsByCategory = (tickets: Ticket[]) => {
+  return tickets.reduce((acc, ticket) => {
+    const category = ticket.categoria || 'Sin Categoría';
+    if (!acc[category]) {
+      acc[category] = [];
+    }
+    acc[category].push(ticket);
+    return acc;
+  }, {} as { [key: string]: Ticket[] });
+};
+
 const NewTicketsPanel: React.FC = () => {
   const isMobile = useIsMobile();
   const { user, loading: userLoading } = useUser();
@@ -102,6 +113,8 @@ const NewTicketsPanel: React.FC = () => {
     }
   }
 
+  const ticketsByCategory = groupTicketsByCategory(tickets);
+
   if (loading || userLoading) {
     // ... skeleton loading state ...
   }
@@ -125,7 +138,7 @@ const NewTicketsPanel: React.FC = () => {
             transition={{ duration: 0.3, ease: 'easeInOut' }}
           >
             <Sidebar
-                tickets={tickets}
+                ticketsByCategory={ticketsByCategory}
                 selectedTicketId={selectedTicket?.id || null}
                 onSelectTicket={handleSelectTicket}
             />
