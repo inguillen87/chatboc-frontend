@@ -1,11 +1,39 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chatboc Widget</title>
-</head>
-<body>
-    <script src="/simple-widget.js" async defer></script>
-</body>
-</html>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  // Asegura que el widget se destruya y se vuelva a crear si ya existe
+  if (window.chatbocDestroyWidget) {
+    window.chatbocDestroyWidget('ef403b5b-e0df-4b35-be34-35b9dac0d6f1');
+  }
+  window.APP_TARGET = 'municipio'; // Define el endpoint antes de cargar el script
+
+  var s = document.createElement('script');
+  s.src = 'https://www.chatboc.ar/widget.js'; // URL del script del widget
+  s.async = true; // Carga asíncrona para no bloquear el renderizado de la página
+  s.setAttribute('data-token', 'ef403b5b-e0df-4b35-be34-35b9dac0d6f1'); // Token de autenticación del usuario
+  s.setAttribute('data-default-open', 'false'); // El widget comienza cerrado por defecto
+  s.setAttribute('data-width', '460px'); // Ancho del widget abierto
+  s.setAttribute('data-height', '680px'); // Alto del widget abierto
+  s.setAttribute('data-closed-width', '112px'); // Ancho del widget cerrado (burbuja)
+  s.setAttribute('data-closed-height', '112px'); // Alto del widget cerrado (burbuja)
+  s.setAttribute('data-bottom', '20px'); // Posición desde abajo
+  s.setAttribute('data-right', '20px'); // Posición desde la derecha
+  s.setAttribute('data-endpoint', 'municipio'); // Tipo de chat (pyme o municipio)
+  
+  // Importante para la geolocalización y el portapapeles:
+  // widget.js establecerá allow="clipboard-write; geolocation" en su iframe interno.
+  // Si este script se inserta dentro de un iframe en tu sitio, ese iframe contenedor
+  // también debe incluir allow="clipboard-write; geolocation" en sus atributos.
+  // Ejemplo: <iframe src="tu_pagina_con_widget.html" allow="clipboard-write; geolocation"></iframe>
+
+  document.body.appendChild(s); // Añade el script al final del body
+
+  // Opcional: Escuchar evento de widget cargado
+  s.onload = function() {
+    console.log('Chatboc Widget cargado y listo.');
+    // Puedes añadir lógica adicional aquí si es necesario
+  };
+  s.onerror = function() {
+    console.error('Error al cargar Chatboc Widget.');
+  };
+});
+</script>
