@@ -7,25 +7,25 @@ export interface PredefinedMessage {
 }
 
 export const getPredefinedMessages = async (): Promise<PredefinedMessage[]> => {
-  return apiFetch<PredefinedMessage[]>('/predefined-messages');
+  return apiFetch<PredefinedMessage[]>('/api/predefined-messages');
 };
 
 export const createPredefinedMessage = async (data: Omit<PredefinedMessage, 'id'>): Promise<PredefinedMessage> => {
-  return apiFetch<PredefinedMessage>('/predefined-messages', {
+  return apiFetch<PredefinedMessage>('/api/predefined-messages', {
     method: 'POST',
     body: data,
   });
 };
 
 export const updatePredefinedMessage = async (id: string, data: Partial<PredefinedMessage>): Promise<PredefinedMessage> => {
-  return apiFetch<PredefinedMessage>(`/predefined-messages/${id}`, {
+  return apiFetch<PredefinedMessage>(`/api/predefined-messages/${id}`, {
     method: 'PUT',
     body: data,
   });
 };
 
 export const deletePredefinedMessage = async (id: string): Promise<void> => {
-  return apiFetch<void>(`/predefined-messages/${id}`, {
+  return apiFetch<void>(`/api/predefined-messages/${id}`, {
     method: 'DELETE',
   });
 };
