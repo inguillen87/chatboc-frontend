@@ -318,7 +318,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const containerClass = mode === 'standalone' ? 'chatboc-container-standalone' : 'chatboc-container-iframe';
 
   return (
-    <div className={`${containerClass} ${isOpen ? 'open' : ''}`}>
+    <div className={`chatboc-widget-container ${isOpen ? 'open' : ''}`}>
       {!isOpen && (
         <div className="chatboc-bubble" onClick={toggleChat}>
             <ChatbocLogoAnimated size={32} />
