@@ -4,7 +4,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Paperclip, Send, PanelLeft, PanelRight, MessageSquare, PanelLeftClose, MessageCircle, Mic, MicOff } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Message } from '@/types/tickets';
+import { Ticket, Message } from '@/types/tickets';
 import ChatMessage from './ChatMessage';
 import { AnimatePresence, motion } from 'framer-motion';
 import PredefinedMessagesModal from './PredefinedMessagesModal';
@@ -77,9 +77,21 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
   const handleSendMessage = async () => {
     if (!message.trim() || !selectedTicket || !user) return;
     setIsSending(true);
+
+    // Temporal optimistic update
+    const tempId = `temp-${Date.now()}`;
+    const newMessage: Message = {
+        id: tempId,
+        content: message,
+        author: 'agent',
+        agentName: user.name,
+        timestamp: new Date().toISOString(),
+    };
+    setMessages(prev => [...prev, newMessage]);
+    setMessage('');
+
     try {
         await sendMessage(selectedTicket.id, selectedTicket.tipo, message);
-        setMessage('');
     } catch (error) {
         toast.error("No se pudo enviar el mensaje.");
     } finally {
