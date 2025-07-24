@@ -1,5 +1,5 @@
 import { apiFetch } from '@/utils/api';
-import { Ticket } from '@/types/tickets';
+import { Ticket, Message } from '@/types/tickets';
 
 const generateRandomAvatar = (seed: string) => {
     return `https://i.pravatar.cc/150?u=${seed}`;
@@ -25,7 +25,9 @@ export const getTickets = async (): Promise<{tickets: Ticket[]}> => {
 
 export const getTicketById = async (id: string): Promise<Ticket> => {
     try {
-        const response = await apiFetch<Ticket>(`/tickets/municipio/${id}`); // Asumo municipio por ahora
+        // Asumo que el tipo de ticket se puede obtener de alguna manera o se pasa como parámetro.
+        // Por ahora, lo dejo como municipio, pero esto debería ser dinámico.
+        const response = await apiFetch<Ticket>(`/tickets/municipio/${id}`);
         return {
             ...response,
             avatarUrl: response.avatarUrl || generateRandomAvatar(response.email || response.id.toString())
@@ -38,7 +40,8 @@ export const getTicketById = async (id: string): Promise<Ticket> => {
 
 export const getTicketMessages = async (ticketId: number, tipo: 'municipio' | 'pyme'): Promise<Message[]> => {
     try {
-        const response = await apiFetch<{ mensajes: Message[] }>(`/tickets/chat/${tipo}/${ticketId}/mensajes`);
+        const endpoint = tipo === 'municipio' ? `/tickets/chat/${ticketId}/mensajes` : `/tickets/chat/pyme/${ticketId}/mensajes`;
+        const response = await apiFetch<{ mensajes: Message[] }>(endpoint);
         return response.mensajes || [];
     } catch (error) {
         console.error(`Error fetching messages for ticket ${ticketId}:`, error);
