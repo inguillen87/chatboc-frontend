@@ -25,11 +25,13 @@ const Sidebar: React.FC<SidebarProps> = ({ ticketsByCategory, selectedTicketId, 
     }
     const filtered: { [key: string]: Ticket[] } = {};
     for (const category in ticketsByCategory) {
-      const tickets = ticketsByCategory[category].filter(ticket =>
-        ticket.asunto.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
-        (ticket.name || '').toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
-        ticket.nro_ticket.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
-      );
+      const tickets = ticketsByCategory[category].filter(ticket => {
+        const searchTerm = debouncedSearchTerm.toLowerCase();
+        const asuntoMatch = (ticket.asunto || '').toLowerCase().includes(searchTerm);
+        const nameMatch = (ticket.name || '').toLowerCase().includes(searchTerm);
+        const nroTicketMatch = (ticket.nro_ticket || '').toString().toLowerCase().includes(searchTerm);
+        return asuntoMatch || nameMatch || nroTicketMatch;
+      });
       if (tickets.length > 0) {
         filtered[category] = tickets;
       }
