@@ -1,5 +1,4 @@
-import React, { useEffect, useState } from 'react';
-import { safeLocalStorage } from '@/utils/safeLocalStorage';
+import React, { useEffect } from 'react';
 import { safeSessionStorage } from '@/utils/safeSessionStorage';
 import HeroSection from '@/components/sections/HeroSection';
 import ProblemsSection from '@/components/sections/ProblemsSection';
@@ -10,6 +9,8 @@ import TargetSection from '@/components/sections/TargetSection';
 // import TestimonialsSection from '@/components/sections/TestimonialsSection';
 import CtaSection from '@/components/sections/CtaSection';
 import ComingSoonSection from '@/components/sections/ComingSoonSection';
+import ChatWidget from "@/components/chat/ChatWidget";
+
 const Index = () => {
   useEffect(() => {
     document.title = 'Chatboc - Tu Experto Virtual';
@@ -58,6 +59,7 @@ const Index = () => {
           <ComingSoonSection />
         </section>
       </main>
+      <ChatWidget />
     </>
   );
 };
