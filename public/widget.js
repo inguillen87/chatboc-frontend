@@ -102,15 +102,15 @@
         width: currentDims.width,
         height: currentDims.height,
         zIndex: zIndexBase.toString(),
-        borderRadius: "16px",
-        boxShadow: "0 5px 40px rgba(0,0,0,0.2)",
+        borderRadius: iframeIsCurrentlyOpen ? "16px" : "50%",
+        boxShadow: iframeIsCurrentlyOpen ? "0 6px 20px rgba(0,0,0,0.2)" : "0 4px 12px rgba(0,0,0,0.15)",
         transition: "width 0.25s cubic-bezier(0.4, 0, 0.2, 1), height 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-radius 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s ease-in-out",
         overflow: "hidden",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         cursor: "pointer",
-        background: iframeIsCurrentlyOpen ? "transparent" : "hsl(var(--primary, 218 92% 41%))",
+        background: "hsl(var(--primary, 218 92% 41%))",
       });
       document.body.appendChild(widgetContainer);
 
@@ -138,15 +138,29 @@
       iframe.id = iframeId;
       iframe.src = `${chatbocDomain}/iframe?token=${encodeURIComponent(token)}&widgetId=${iframeId}&defaultOpen=${defaultOpen}&tipo_chat=${tipoChat}&openWidth=${encodeURIComponent(WIDGET_DIMENSIONS_JS.OPEN.width)}&openHeight=${encodeURIComponent(WIDGET_DIMENSIONS_JS.OPEN.height)}&closedWidth=${encodeURIComponent(WIDGET_DIMENSIONS_JS.CLOSED.width)}&closedHeight=${encodeURIComponent(WIDGET_DIMENSIONS_JS.CLOSED.height)}${theme ? `&theme=${encodeURIComponent(theme)}` : ""}${rubroAttr ? `&rubro=${encodeURIComponent(rubroAttr)}` : ""}${finalCta ? `&ctaMessage=${encodeURIComponent(finalCta)}` : ""}`;
       Object.assign(iframe.style, {
-        border: "none",
+        border: "0",
         width: "100%",
         height: "100%",
+        scrolling: "no",
+        overflow: "hidden",
         backgroundColor: "transparent",
         display: "block",
         opacity: "0",
         transition: "opacity 0.3s ease-in",
         zIndex: "1"
       });
+
+      iframe.onload = function () {
+        const link = document.createElement("link");
+        link.rel = "stylesheet";
+        link.href = `${chatbocDomain}/widget.css`;
+        iframe.contentDocument.head.appendChild(link);
+        iframeHasLoaded = true;
+        clearTimeout(loadTimeout);
+        loader.style.opacity = "0";
+        setTimeout(() => loader.remove(), 250);
+        iframe.style.opacity = "1";
+      };
       iframe.allow = "clipboard-write; geolocation";
       try {
         if (window.frameElement && window.frameElement.setAttribute) {
@@ -216,7 +230,8 @@
           Object.assign(widgetContainer.style, {
             width: currentDims.width,
             height: currentDims.height,
-            borderRadius: "16px",
+            borderRadius: iframeIsCurrentlyOpen && window.innerWidth < 640 ? "0" : iframeIsCurrentlyOpen ? "16px" : "50%",
+            boxShadow: iframeIsCurrentlyOpen ? "0 6px 20px rgba(0,0,0,0.2)" : "0 4px 12px rgba(0,0,0,0.15)",
             background: iframeIsCurrentlyOpen ? "transparent" : "hsl(var(--primary, 218 92% 41%))",
           });
         }

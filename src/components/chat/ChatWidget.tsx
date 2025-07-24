@@ -55,7 +55,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   closedWidth = "100px",
   closedHeight = "100px",
   tipoChat = getCurrentTipoChat(),
-  initialPosition = { bottom: 20, right: 20 },
+  initialPosition = { bottom: 32, right: 32 },
   ctaMessage,
 }) => {
   const [isOpen, setIsOpen] = useState(() => {
@@ -315,223 +315,19 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     open: { rotate: 180, scale: 0, opacity: 0 }
   };
 
- if (mode === "standalone") {
-  return (
-    <div
-      className={cn("chatboc-container-standalone fixed z-[999999]")}
-      style={{
-        bottom: isOpen && isMobileView ? 0 : `calc(${initialPosition.bottom}px + env(safe-area-inset-bottom))`,
-        right: isOpen && isMobileView ? 0 : `calc(${initialPosition.right}px + env(safe-area-inset-right))`,
-        left: isOpen && isMobileView ? 0 : "auto",
-        top: isOpen && isMobileView ? "env(safe-area-inset-top)" : "auto",
-        width: isOpen ? (isMobileView ? "100vw" : finalOpenWidth) : finalClosedWidth,
-        height: isOpen ? (isMobileView ? "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))" : finalOpenHeight) : finalClosedHeight,
-        minWidth: isOpen ? "320px" : finalClosedWidth,
-        minHeight: isOpen ? "64px" : finalClosedHeight,
-        maxWidth: "100vw",
-        maxHeight: "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))",
-        borderRadius: isOpen ? (isMobileView ? "0" : "16px") : "50%",
-        overflow: isOpen ? "hidden" : "visible",
-        background: "transparent",
-        padding: 0,
-        display: "flex",
-        alignItems: "flex-end",
-        justifyContent: "flex-end",
-      }}
-    >
-      <Suspense fallback={
-        <div
-          className={cn(commonPanelStyles, "w-full h-full items-center justify-center")}
-          style={{ borderRadius: isOpen ? (isMobileView ? "0" : "16px") : "50%", background: "hsl(var(--card))" }}
-        >
-          <ChatbocLogoAnimated size={calculatedLogoSize > 0 ? calculatedLogoSize : (isMobileView ? 32 : 48)} />
-          <Skeleton className="h-4 w-[60%] mt-3" />
-          <Skeleton className="h-4 w-[40%] mt-2" />
-        </div>
-      }>
-        <AnimatePresence mode="wait">
-          {isOpen ? (
-            <motion.div
-              key="chatboc-panel-open"
-              className={cn(commonPanelStyles, "w-full h-full shadow-xl")}
-              style={{ borderRadius: isMobileView ? "0" : "16px", background: "hsl(var(--card))" }}
-              {...panelAnimation}
-            >
-              <ChatHeader onClose={toggleChat} onBack={() => setView("chat")} showProfile={false} muted={muted} onToggleSound={toggleMuted} onCart={openCart} />
-              {view === "register" ? <ChatUserRegisterPanel onSuccess={() => setView("chat")} onShowLogin={() => setView("login")} entityToken={entityToken} />
-                : view === "login" ? <ChatUserLoginPanel onSuccess={() => setView("chat")} onShowRegister={() => setView("register")} />
-                : view === "user" ? <ChatUserPanel onClose={() => setView("chat")} />
-                : view === "info" ? <EntityInfoPanel info={entityInfo} onClose={() => setView("chat")} />
-                : <ChatPanel mode={mode} widgetId={widgetId} entityToken={entityToken} initialRubro={initialRubro} openWidth={finalOpenWidth} openHeight={finalOpenHeight} onClose={toggleChat} tipoChat={resolvedTipoChat} onRequireAuth={() => setView("register")} onShowLogin={() => setView("login")} onShowRegister={() => setView("register")} onOpenUserPanel={openUserPanel} muted={muted} onToggleSound={toggleMuted} onCart={openCart} />}
-            </motion.div>
-          ) : (
-            <motion.div
-              key="chatboc-panel-closed"
-              className="relative w-full h-full"
-            >
-              <ProactiveBubble
-                message={proactiveMessage || ""}
-                onClick={toggleChat}
-                visible={showProactiveBubble && !showCta}
-              />
-              {showCta && ctaMessage && !showProactiveBubble && (
-                <motion.div
-                  key="chatboc-cta"
-                  className="absolute right-0 text-sm bg-background border rounded-lg shadow-lg px-3 py-2 dark:bg-slate-800 dark:border-slate-700"
-                  style={{ bottom: "calc(100% + 8px)" }}
-                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  transition={{ duration: 0.3 }}
-                >
-                  {ctaMessage}
-                </motion.div>
-              )}
-              <motion.button
-                key="chatboc-toggle-btn"
-                className={cn(
-                  commonButtonStyles,
-                  commonPanelAndButtonAbsoluteClasses,
-                  "border-none shadow-xl"
-                )}
-                style={{
-                  width: finalClosedWidth,
-                  height: finalClosedHeight,
-                  borderRadius: "50%",
-                  background: "var(--primary, #2563eb)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  boxShadow: "0 6px 24px 0 rgba(0,0,0,0.15)",
-                  zIndex: 20
-                }}
-                {...buttonAnimation}
-                whileHover={{ scale: 1.1, transition: { type: "spring", stiffness: 400, damping: 15 } }}
-                whileTap={{ scale: 0.95 }}
-                onClick={toggleChat}
-                aria-label="Abrir chat"
-              >
-                <motion.div
-                  variants={iconAnimation}
-                  animate={isOpen ? "open" : "closed"}
-                  transition={openSpring}
-                >
-                  <ChatbocLogoAnimated size={calculatedLogoSize} blinking={!isOpen} floating={!isOpen} pulsing={!isOpen} />
-                </motion.div>
-              </motion.button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </Suspense>
-    </div>
-  );
-}
+  if (!isOpen) {
+    return null;
+  }
 
-  // Modo IFRAME / SCRIPT
   return (
-    <div className={cn("fixed bottom-0 right-0", "flex flex-col items-end justify-end")} style={{ overflow: "visible" }}>
-      <Suspense fallback={
-        <div
-          className={cn(commonPanelStyles, commonPanelAndButtonAbsoluteClasses, "items-center justify-center")}
-          style={{
-            width: isOpen ? (isMobileView ? "100vw" : finalOpenWidth) : finalClosedWidth,
-            height: isOpen ? (isMobileView ? "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))" : finalOpenHeight) : finalClosedHeight,
-            borderRadius: isOpen ? (isMobileView ? "0" : "16px") : "50%",
-            background: "hsl(var(--card))"
-          }}
-        >
-          <ChatbocLogoAnimated size={calculatedLogoSize > 0 ? calculatedLogoSize : (isMobileView ? 32 : 48)} />
+    <div className="chatboc-chat-widget">
+        <ChatHeader onClose={toggleChat} onBack={() => setView("chat")} showProfile={false} muted={muted} onToggleSound={toggleMuted} onCart={openCart} />
+        <div className="chatboc-chat-body">
+            {/* Chat messages will go here */}
         </div>
-      }>
-        <AnimatePresence mode="wait" initial={false}>
-          {isOpen ? (
-            <motion.div
-              key="chatboc-panel-open"
-              className={cn(commonPanelStyles, commonPanelAndButtonAbsoluteClasses, "shadow-xl")}
-              style={{
-                width: isMobileView ? "100vw" : finalOpenWidth,
-                height: isMobileView ? "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))" : finalOpenHeight,
-                borderRadius: isMobileView ? "0" : "16px",
-                background: "hsl(var(--card))",
-              }}
-              {...panelAnimation}
-            >
-              {(view === "register" || view === "login" || view === "user" || view === "info") && (
-                <ChatHeader onClose={toggleChat} onBack={() => setView("chat")} showProfile={false} muted={muted} onToggleSound={toggleMuted} onCart={openCart} />
-              )}
-              {view === "register" ? <ChatUserRegisterPanel onSuccess={() => setView("chat")} onShowLogin={() => setView("login")} entityToken={entityToken} />
-                : view === "login" ? <ChatUserLoginPanel onSuccess={() => setView("chat")} onShowRegister={() => setView("register")} />
-                : view === "user" ? <ChatUserPanel onClose={() => setView("chat")} />
-                : view === "info" ? <EntityInfoPanel info={entityInfo} onClose={() => setView("chat")} />
-                : <ChatPanel mode={mode} widgetId={widgetId} entityToken={entityToken} initialRubro={initialRubro} openWidth={finalOpenWidth} openHeight={finalOpenHeight} onClose={toggleChat} tipoChat={resolvedTipoChat} onRequireAuth={() => setView("register")} onShowLogin={() => setView("login")} onShowRegister={() => setView("register")} onOpenUserPanel={openUserPanel} muted={muted} onToggleSound={toggleMuted} onCart={openCart} />}
-            </motion.div>
-          ) : (
-            <motion.div
-              key="chatboc-panel-closed"
-              className={cn("relative", commonPanelAndButtonAbsoluteClasses)}
-              style={{
-                width: finalClosedWidth,
-                height: finalClosedHeight,
-              }}
-            >
-              <ProactiveBubble
-                message={proactiveMessage || ""}
-                onClick={toggleChat}
-                visible={showProactiveBubble && !showCta}
-              />
-              {showCta && ctaMessage && !showProactiveBubble && (
-                <motion.div
-                  key="chatboc-cta"
-                  className="absolute right-0 text-sm bg-background border rounded-lg shadow-lg px-3 py-2 dark:bg-slate-800 dark:border-slate-700"
-                  style={{ bottom: "calc(100% + 8px)" }}
-                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  transition={{ duration: 0.3 }}
-                >
-                  {ctaMessage}
-                </motion.div>
-              )}
-              <motion.button
-                key="chatboc-toggle-btn"
-                className={cn(
-                  commonButtonStyles,
-                  commonPanelAndButtonAbsoluteClasses,
-                  "border-none shadow-xl"
-                )}
-                style={{
-                  width: finalClosedWidth,
-                  height: finalClosedHeight,
-                  borderRadius: "50%",
-                  background: "var(--primary, #2563eb)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-zIndex: 20
-                }}
-                {...buttonAnimation}
-                whileHover={{ scale: 1.1, transition: { type: "spring", stiffness: 400, damping: 15 } }}
-                whileTap={{ scale: 0.95 }}
-                onClick={toggleChat}
-                aria-label="Abrir chat"
-              >
-                <motion.div
-                  variants={iconAnimation}
-                  animate={isOpen ? "open" : "closed"}
-                  transition={isOpen ? closeSpring : openSpring}
-                >
-                  <ChatbocLogoAnimated
-                    size={calculatedLogoSize}
-                    blinking={!isOpen && !showProactiveBubble && !showCta}
-                    floating={!isOpen && !showProactiveBubble && !showCta}
-                    pulsing={!isOpen && !showProactiveBubble && !showCta}
-                  />
-                </motion.div>
-              </motion.button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </Suspense>
+        <div className="chatboc-chat-input-container">
+            <input type="text" className="chatboc-chat-input" placeholder="Escribe un mensaje..." />
+        </div>
     </div>
   );
 }
