@@ -190,7 +190,50 @@
         }
     });
 
-    // Simulate backend error
-    const simulateError = Math.random() > 0.5;
-    renderPanelContent(simulateError);
+    const script = document.currentScript;
+    const token = script.getAttribute('data-token');
+    const endpoint = script.getAttribute('data-endpoint');
+
+    // Function to render the widget content
+    function renderPanelContent(error = false) {
+        if (error || !token) {
+            panel.innerHTML = `
+                <div class="widget-error">
+                    <img src="https://www.chatboc.ar/logo.png" alt="Chatboc" />
+                    <p>No se pudo cargar el chat.<br />Intentá recargar o contactá soporte.</p>
+                </div>
+            `;
+        } else {
+            panel.innerHTML = `
+                <div class="chatboc-widget-header">
+                    <h2>Chatboc</h2>
+                    <button class="chatboc-close-button">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    </button>
+                </div>
+                <div class="chatboc-widget-body">
+                    <p>Token: ${token}</p>
+                    <p>Endpoint: ${endpoint}</p>
+                </div>
+                <div class="chatboc-widget-footer">
+                    <input type="text" placeholder="Escribe un mensaje...">
+                </div>
+            `;
+        }
+    }
+
+    // Toggle the widget panel
+    function togglePanel() {
+        panel.classList.toggle('open');
+    }
+
+    // Event listeners
+    launcher.addEventListener('click', togglePanel);
+    panel.addEventListener('click', function(e) {
+        if (e.target.classList.contains('chatboc-close-button') || e.target.closest('.chatboc-close-button')) {
+            togglePanel();
+        }
+    });
+
+    renderPanelContent();
 })();

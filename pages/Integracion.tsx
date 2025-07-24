@@ -39,8 +39,8 @@ const Integracion = () => {
       return false;
     }
     const plan = (currentUser.plan || "").toLowerCase();
-    if (plan !== "pro" && plan !== "full") {
-      toast.error("Acceso restringido. Esta función requiere un plan PRO o FULL.", {
+    if (plan !== "full") {
+      toast.error("Acceso restringido. Esta función requiere un plan FULL.", {
         icon: <AlertTriangle className="text-destructive" />,
       });
       navigate("/perfil");
@@ -94,8 +94,21 @@ const Integracion = () => {
   const WIDGET_STD_CLOSED_HEIGHT = "112px"; // Increased from 96px
   const WIDGET_STD_BOTTOM = "20px";
   const WIDGET_STD_RIGHT = "20px";
-  
-  const codeScript = useMemo(() => `<script>
+
+  // State for customization
+  const [primaryColor, setPrimaryColor] = useState("#007bff");
+  const [logoUrl, setLogoUrl] = useState("");
+  const [widgetPosition, setWidgetPosition] = useState("right");
+
+  const isPremium = useMemo(() => user?.plan === 'full', [user?.plan]);
+
+  const codeScript = useMemo(() => {
+    const customizations = isPremium ? `
+  s.setAttribute('data-primary-color', '${primaryColor}');
+  s.setAttribute('data-logo-url', '${logoUrl}');
+  s.setAttribute('data-position', '${widgetPosition}');` : '';
+
+    return `<script>
 document.addEventListener('DOMContentLoaded', function () {
   // Asegura que el widget se destruya y se vuelva a crear si ya existe
   if (window.chatbocDestroyWidget) {
@@ -115,7 +128,8 @@ document.addEventListener('DOMContentLoaded', function () {
   s.setAttribute('data-bottom', '${WIDGET_STD_BOTTOM}'); // Posición desde abajo
   s.setAttribute('data-right', '${WIDGET_STD_RIGHT}'); // Posición desde la derecha
   s.setAttribute('data-endpoint', '${endpoint}'); // Tipo de chat (pyme o municipio)
-  
+  ${customizations}
+
   // Importante para la geolocalización y el portapapeles:
   // widget.js establecerá allow="clipboard-write; geolocation" en su iframe interno.
   // Si este script se inserta dentro de un iframe en tu sitio, ese iframe contenedor
@@ -133,14 +147,23 @@ document.addEventListener('DOMContentLoaded', function () {
     console.error('Error al cargar Chatboc Widget.');
   };
 });
-</script>`, [userToken, endpoint]);
+</script>`;
+  }, [userToken, endpoint, isPremium, primaryColor, logoUrl, widgetPosition]);
 
-  const iframeSrcUrl = useMemo(() => `https://www.chatboc.ar/iframe?token=${userToken}&tipo_chat=${endpoint}`, [userToken, endpoint]);
-  
+  const iframeSrcUrl = useMemo(() => {
+    let url = `https://www.chatboc.ar/iframe?token=${userToken}&tipo_chat=${endpoint}`;
+    if (isPremium) {
+      url += `&primaryColor=${encodeURIComponent(primaryColor)}`;
+      url += `&logoUrl=${encodeURIComponent(logoUrl)}`;
+      url += `&position=${widgetPosition}`;
+    }
+    return url;
+  }, [userToken, endpoint, isPremium, primaryColor, logoUrl, widgetPosition]);
+
   const codeIframe = useMemo(() => `<iframe
   id="chatboc-iframe"
   src="${iframeSrcUrl}"
-  style="position:fixed; bottom:${WIDGET_STD_BOTTOM}; right:${WIDGET_STD_RIGHT}; border:none; border-radius:50%; z-index:9999; box-shadow:0 4px 32px rgba(0,0,0,0.2); background:transparent; overflow:hidden; width:${WIDGET_STD_CLOSED_WIDTH}; height:${WIDGET_STD_CLOSED_HEIGHT}; display:block; transition: width 0.3s ease, height 0.3s ease, border-radius 0.3s ease;"
+  style="position:fixed; bottom:${WIDGET_STD_BOTTOM}; ${widgetPosition === 'right' ? 'right' : 'left'}:${WIDGET_STD_RIGHT}; border:none; border-radius:50%; z-index:9999; box-shadow:0 4px 32px rgba(0,0,0,0.2); background:transparent; overflow:hidden; width:${WIDGET_STD_CLOSED_WIDTH}; height:${WIDGET_STD_CLOSED_HEIGHT}; display:block; transition: all 0.3s ease;"
   allow="clipboard-write; geolocation"
   loading="lazy"
   title="Chatboc Widget"
@@ -172,7 +195,7 @@ document.addEventListener('DOMContentLoaded', function () {
   //   chatIframe.contentWindow.postMessage({ type: 'chatboc-init', settings: { exampleSetting: true } }, 'https://www.chatboc.ar');
   // };
 });
-</script>`, [iframeSrcUrl, endpoint]);
+</script>`, [iframeSrcUrl, endpoint, widgetPosition]);
 
 
   const copiarCodigo = async (tipo: "iframe" | "script") => {
@@ -216,7 +239,7 @@ document.addEventListener('DOMContentLoaded', function () {
      // pero es una salvaguarda. La navegación a /login ya se gestiona en useEffect.
     return null;
   }
-  
+
   if (!user.tipo_chat) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen text-destructive bg-background p-6 text-center">
@@ -230,7 +253,7 @@ document.addEventListener('DOMContentLoaded', function () {
       </div>
     );
   }
-  
+
   const renderCodeBlock = (title: string, type: "script" | "iframe", code: string, recommended?: boolean) => (
     <Card className="overflow-hidden">
       <CardHeader className="pb-2">
@@ -352,6 +375,52 @@ document.addEventListener('DOMContentLoaded', function () {
         </TabsContent>
       </Tabs>
 
+      {isPremium && (
+        <section className="mt-12">
+          <h2 className="text-2xl font-semibold mb-4 flex items-center">
+            <Settings size={28} className="mr-3 text-primary" />
+            Personalización (Plan FULL)
+          </h2>
+          <Card>
+            <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label htmlFor="primaryColor" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Color Primario</label>
+                <Input
+                  id="primaryColor"
+                  type="color"
+                  value={primaryColor}
+                  onChange={(e) => setPrimaryColor(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <label htmlFor="logoUrl" className="block text-sm font-medium text-gray-700 dark:text-gray-300">URL del Logo</label>
+                <Input
+                  id="logoUrl"
+                  type="text"
+                  value={logoUrl}
+                  onChange={(e) => setLogoUrl(e.target.value)}
+                  placeholder="https://tu-empresa.com/logo.png"
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <label htmlFor="widgetPosition" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Posición del Widget</label>
+                <select
+                  id="widgetPosition"
+                  value={widgetPosition}
+                  onChange={(e) => setWidgetPosition(e.target.value)}
+                  className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white"
+                >
+                  <option value="right">Derecha</option>
+                  <option value="left">Izquierda</option>
+                </select>
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+      )}
+
       <section className="mt-12">
         <h2 className="text-2xl font-semibold mb-4 flex items-center">
           <Eye size={28} className="mr-3 text-primary" />
@@ -375,6 +444,8 @@ document.addEventListener('DOMContentLoaded', function () {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
+                  position: 'relative',
+                  ['--widget-primary-color' as any]: primaryColor
                 }}
               >
                 {user && user.token && user.tipo_chat ? (
