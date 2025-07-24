@@ -57,6 +57,7 @@ const NewTicketsPanel: React.FC = () => {
       try {
         setLoading(true);
         const anonId = !user ? getOrCreateAnonId() : undefined;
+        console.log(`Fetching tickets with user: ${JSON.stringify(user)}, anonId: ${anonId}`);
         const fetchedTickets = await getTickets(anonId);
         console.log('Fetched tickets:', fetchedTickets); // Log para ver la respuesta
         setTickets(Array.isArray(fetchedTickets) ? fetchedTickets : []);
