@@ -62,7 +62,7 @@ const DetailsPanel: React.FC = () => {
               {ticket.telefono && (
                 <div className="flex items-center gap-3">
                     <Phone className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm">{ticket.telefono}</span>
+                    <a href={`https://wa.me/${ticket.telefono}`} target="_blank" rel="noopener noreferrer" className="text-sm hover:underline">{ticket.telefono}</a>
                 </div>
               )}
               {ticket.direccion && (
