@@ -40,6 +40,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ ticket, isMobile,
   useEffect(() => {
     const fetchMessages = async () => {
         if (ticket) {
+            console.log(`Fetching messages for ticket ${ticket.id}`);
             try {
                 const fullTicket = await getTicketById(ticket.id.toString());
                 setMessages(fullTicket.messages || []);
