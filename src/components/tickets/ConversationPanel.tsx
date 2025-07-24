@@ -78,7 +78,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ ticket, isMobile,
       <ScrollArea className="flex-1 p-4">
         <AnimatePresence>
             <motion.div className="space-y-6">
-            {ticket.messages.map((message, index) => (
+            {ticket && ticket.messages && ticket.messages.map((message, index) => (
               <motion.div
                 key={message.id}
                 initial={{ opacity: 0, y: 20 }}
