@@ -1,21 +1,14 @@
 import React from 'react';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Search } from 'lucide-react';
-import { Ticket } from '@/types/tickets';
 import { useDebounce } from '@/hooks/useDebounce';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import TicketListItem from './TicketListItem';
+import { useTickets } from '@/context/TicketContext';
 
-interface SidebarProps {
-    ticketsByCategory: { [key: string]: Ticket[] };
-    selectedTicketId: number | null;
-    onSelectTicket: (ticketId: number) => void;
-}
-
-const Sidebar: React.FC<SidebarProps> = ({ ticketsByCategory, selectedTicketId, onSelectTicket }) => {
+const Sidebar: React.FC = () => {
+  const { ticketsByCategory, selectedTicket, selectTicket } = useTickets();
   const [searchTerm, setSearchTerm] = React.useState('');
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
@@ -23,15 +16,13 @@ const Sidebar: React.FC<SidebarProps> = ({ ticketsByCategory, selectedTicketId, 
     if (!debouncedSearchTerm) {
       return ticketsByCategory;
     }
-    const filtered: { [key: string]: Ticket[] } = {};
+    const filtered: { [key: string]: any[] } = {};
     for (const category in ticketsByCategory) {
-      const tickets = ticketsByCategory[category].filter(ticket => {
-        const searchTerm = debouncedSearchTerm.toLowerCase();
-        const asuntoMatch = (ticket.asunto || '').toLowerCase().includes(searchTerm);
-        const nameMatch = (ticket.name || '').toLowerCase().includes(searchTerm);
-        const nroTicketMatch = (ticket.nro_ticket || '').toString().toLowerCase().includes(searchTerm);
-        return asuntoMatch || nameMatch || nroTicketMatch;
-      });
+      const tickets = ticketsByCategory[category].filter(ticket =>
+        (ticket.asunto || '').toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+        (ticket.name || '').toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+        (ticket.nro_ticket || '').toString().toLowerCase().includes(debouncedSearchTerm.toLowerCase())
+      );
       if (tickets.length > 0) {
         filtered[category] = tickets;
       }
@@ -62,12 +53,12 @@ const Sidebar: React.FC<SidebarProps> = ({ ticketsByCategory, selectedTicketId, 
               </AccordionTrigger>
               <AccordionContent>
                 <div className="p-1 space-y-2">
-                  {tickets.map(ticket => (
+                  {tickets.map((ticket) => (
                     <TicketListItem
                       key={ticket.id}
                       ticket={ticket}
-                      isSelected={selectedTicketId === ticket.id}
-                      onClick={() => onSelectTicket(ticket.id)}
+                      isSelected={selectedTicket?.id === ticket.id}
+                      onClick={() => selectTicket(ticket.id)}
                     />
                   ))}
                 </div>
