@@ -1,8 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Paperclip, Mic, Send, MapPin } from 'lucide-react';
-import io from 'socket.io-client';
-
-const socket = io('http://localhost:3001'); // Reemplaza con la URL de tu servidor de sockets
+import pusher from '@/pusher';
 
 const ChatWidget = ({ primaryColor = '#007bff', logoUrl = '', position = 'right', user }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -11,22 +9,14 @@ const ChatWidget = ({ primaryColor = '#007bff', logoUrl = '', position = 'right'
   const chatBodyRef = useRef(null);
 
   useEffect(() => {
-    socket.on('connect', () => {
-      console.log('Connected to socket server');
-    });
+    const channel = pusher.subscribe('chat'); // Reemplaza 'chat' con el nombre de tu canal de chat
 
-    socket.on('disconnect', () => {
-      console.log('Disconnected from socket server');
-    });
-
-    socket.on('new_comment', (data) => {
-      setMessages((prevMessages) => [...prevMessages, data.comment]);
+    channel.bind('new-message', (data) => {
+      setMessages((prevMessages) => [...prevMessages, data.message]);
     });
 
     return () => {
-      socket.off('connect');
-      socket.off('disconnect');
-      socket.off('new_comment');
+      pusher.unsubscribe('chat');
     };
   }, []);
 
@@ -44,7 +34,7 @@ const ChatWidget = ({ primaryColor = '#007bff', logoUrl = '', position = 'right'
     setInputValue(e.target.value);
   };
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (inputValue.trim() === '') return;
     const newMessage = {
       id: Date.now(),
@@ -52,7 +42,16 @@ const ChatWidget = ({ primaryColor = '#007bff', logoUrl = '', position = 'right'
       fecha: new Date().toISOString(),
       es_admin: false,
     };
-    socket.emit('new_comment', { ticketId: 1, comment: newMessage }); // Reemplaza con el ID del ticket actual
+
+    // Envía el mensaje a través de una API a tu backend, que luego lo enviará a Pusher
+    await fetch('/api/chat-message', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ message: newMessage }),
+    });
+
     setMessages([...messages, newMessage]);
     setInputValue('');
   };
