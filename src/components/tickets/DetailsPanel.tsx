@@ -7,7 +7,7 @@ import { Mail, Phone, MapPin, Ticket as TicketIcon, FolderOpen, Info, History } 
 import { Ticket } from '@/types/tickets';
 import { Badge } from '@/components/ui/badge';
 import { motion } from 'framer-motion';
-import TicketMap from './TicketMap';
+import TicketMap from '../TicketMap';
 
 interface DetailsPanelProps {
   ticket: Ticket | null;
