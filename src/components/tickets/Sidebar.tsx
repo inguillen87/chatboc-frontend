@@ -7,8 +7,11 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import TicketListItem from './TicketListItem';
 import { useTickets } from '@/context/TicketContext';
 
+import { FileDown } from 'lucide-react';
+import { exportToPdf, exportToExcel } from '@/services/exportService';
+
 const Sidebar: React.FC = () => {
-  const { ticketsByCategory, selectedTicket, selectTicket } = useTickets();
+  const { tickets, ticketsByCategory, selectedTicket, selectTicket } = useTickets();
   const [searchTerm, setSearchTerm] = React.useState('');
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
@@ -33,7 +36,19 @@ const Sidebar: React.FC = () => {
   return (
     <aside className="w-96 border-r border-border flex flex-col h-screen bg-muted/20 shrink-0">
       <div className="p-4 space-y-4">
-        <h1 className="text-2xl font-bold">Tickets</h1>
+        <div className="flex justify-between items-center">
+            <h1 className="text-2xl font-bold">Tickets</h1>
+            <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => exportToExcel(tickets, 'todos')}>
+                    <FileDown className="h-4 w-4 mr-2" />
+                    Excel
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => exportToPdf(tickets, 'todos')}>
+                    <FileDown className="h-4 w-4 mr-2" />
+                    PDF
+                </Button>
+            </div>
+        </div>
         <div className="relative">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
