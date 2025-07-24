@@ -1,7 +1,7 @@
 import './index.css';
 import { createRoot } from 'react-dom/client';
 import React, { useEffect, useState } from "react";
-import ChatWidget from "./components/chat/ChatWidget";
+import SimpleChatWidget from "./components/chat/SimpleChatWidget";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import ErrorBoundary from './components/ErrorBoundary';
@@ -57,20 +57,7 @@ const Iframe = () => {
   if (!params || !params.token) return null;
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-      <ChatWidget
-        mode="iframe"
-        defaultOpen={params.defaultOpen}
-        widgetId={params.widgetId}
-        entityToken={params.token}
-        tipoChat={params.tipoChat}
-        openWidth={params.openWidth}
-        openHeight={params.openHeight}
-        closedWidth={params.closedWidth}
-        closedHeight={params.closedHeight}
-        ctaMessage={params.ctaMessage}
-        initialView={params.view}
-        initialRubro={params.rubro}
-      />
+      <SimpleChatWidget />
     </GoogleOAuthProvider>
   );
 };
