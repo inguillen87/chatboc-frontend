@@ -57,7 +57,6 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ ticket, isMobile,
   useEffect(() => {
     if (channel) {
       channel.bind('nuevo-mensaje', (newMessage: Message) => {
-        // Evitar duplicados si la actualización optimista ya añadió el mensaje
         if (!messages.find(m => m.id === newMessage.id)) {
             setMessages(prevMessages => [...prevMessages, newMessage]);
         }
@@ -83,18 +82,14 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ ticket, isMobile,
         timestamp: new Date().toISOString(),
     };
 
-    // Optimistic update
     setMessages(prevMessages => [...prevMessages, newMessage]);
     setMessage('');
     setIsSending(true);
 
     try {
         await sendMessage(ticket.id, ticket.tipo, newMessage.content);
-        // El mensaje real llegará por Pusher, podríamos quitar el temp y reemplazarlo,
-        // pero por ahora, para simplicidad, lo dejamos así.
     } catch (error) {
         toast.error("No se pudo enviar el mensaje.");
-        // Marcar el mensaje como no enviado
         setMessages(prev => prev.map(m => m.id === tempId ? { ...m, isInternalNote: true } : m));
     } finally {
         setIsSending(false);
@@ -116,8 +111,92 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ ticket, isMobile,
   };
 
   return (
-    <motion.div>
-        {/* ... (código del header y scrollarea sin cambios) ... */}
+    <motion.div
+        key={ticket.id}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5 }}
+        className="flex flex-col h-screen bg-background"
+    >
+      <header className="p-4 border-b border-border flex items-center justify-between shrink-0">
+        <div className="flex items-center space-x-4">
+          {(isMobile || !isSidebarVisible) && (
+            <Button variant="ghost" size="icon" onClick={onToggleSidebar}>
+              {isSidebarVisible ? <PanelLeftClose className="h-5 w-5" /> : <PanelLeft className="h-5 w-5" />}
+            </Button>
+          )}
+          <div>
+            <h2 className="text-lg font-semibold">{ticket.asunto}</h2>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="capitalize">{ticket.estado}</Badge>
+              <Badge variant="secondary" className="capitalize">{ticket.categoria || 'General'}</Badge>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center space-x-2">
+          <Button variant="outline">Cerrar Ticket</Button>
+          {isMobile && (
+            <Button variant="ghost" size="icon" onClick={onToggleDetails}>
+              <PanelRight className="h-5 w-5" />
+            </Button>
+          )}
+        </div>
+      </header>
+
+      <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
+        <AnimatePresence>
+            <motion.div className="space-y-6">
+            {(messages || []).map((msg, index) => (
+              <motion.div
+                key={msg.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.05 }}
+              >
+                <ChatMessage message={msg} user={ticket} />
+              </motion.div>
+            ))}
+            </motion.div>
+        </AnimatePresence>
+      </ScrollArea>
+
+      <footer className="p-4 border-t border-border shrink-0">
+        <div className="relative">
+          <Textarea
+            placeholder={listening ? "Escuchando..." : "Escribe tu respuesta..."}
+            className="pr-48"
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            disabled={listening || isSending}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendMessage();
+                }
+            }}
+          />
+          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center">
+            {ticket && (
+              <PredefinedMessagesModal onSelectMessage={handleSelectPredefinedMessage}>
+                  <Button variant="ghost" size="icon" disabled={isSending}>
+                      <MessageCircle className="h-5 w-5" />
+                  </Button>
+              </PredefinedMessagesModal>
+            )}
+            {supported && (
+                 <Button variant="ghost" size="icon" onClick={listening ? stop : start} disabled={isSending}>
+                    {listening ? <MicOff className="h-5 w-5 text-destructive" /> : <Mic className="h-5 w-5" />}
+                </Button>
+            )}
+            <Button variant="ghost" size="icon" disabled={isSending}>
+              <Paperclip className="h-5 w-5" />
+            </Button>
+            <Button onClick={handleSendMessage} disabled={isSending}>
+              {isSending ? 'Enviando...' : <Send className="h-5 w-5" />}
+            </Button>
+          </div>
+        </div>
+      </footer>
     </motion.div>
   );
 };
