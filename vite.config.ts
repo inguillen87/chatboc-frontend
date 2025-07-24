@@ -15,6 +15,7 @@ export default defineConfig(({ mode }) => {
         injectRegister: 'auto',
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff,woff2}', 'sw.js'],
+          maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // <-- AGREGADO FIX PARA ARCHIVOS GRANDES
           runtimeCaching: [
             {
               urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
