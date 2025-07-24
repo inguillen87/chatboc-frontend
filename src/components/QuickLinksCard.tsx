@@ -1,55 +1,92 @@
-import React from 'react';
+import React, { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useNavigate } from "react-router-dom";
-import { BarChart2, MessageSquare, Map, Ticket, Settings, ShoppingCart, BookOpen } from 'lucide-react';
-import { useUser } from '@/hooks/useUser';
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Ticket,
+  Users,
+  BarChart2,
+  UserCog,
+  MapPin,
+  Package,
+  TrendingUp,
+  Boxes,
+  FileText, // Icono para Plantillas
+} from "lucide-react";
+import { useUser } from "@/hooks/useUser";
+import { normalizeRole } from "@/utils/roles";
+import useEndpointAvailable from "@/hooks/useEndpointAvailable";
 
-const QuickLinksCard: React.FC = () => {
+interface LinkItem {
+  label: string;
+  path: string;
+  icon: React.ComponentType<{ className?: string }>;
+  roles?: string[];
+  tipo?: "pyme" | "municipio";
+}
+
+const ITEMS: LinkItem[] = [
+  { label: "Tickets", path: "/tickets", icon: Ticket, roles: ["admin", "empleado"] },
+  { label: "Pedidos", path: "/pedidos", icon: Package, roles: ["admin", "empleado"], tipo: "pyme" },
+  { label: "Métricas", path: "/pyme/metrics", icon: TrendingUp, roles: ["admin"], tipo: "pyme" },
+  { label: "Catálogo", path: "/pyme/catalog", icon: Boxes, roles: ["admin"], tipo: "pyme" },
+  { label: "Usuarios", path: "/usuarios", icon: Users, roles: ["admin", "empleado"] },
+  { label: "Estadísticas", path: "/municipal/stats", icon: BarChart2, roles: ["admin"], tipo: "municipio" },
+  { label: "Analíticas", path: "/municipal/analytics", icon: TrendingUp, roles: ["admin"], tipo: "municipio" },
+  { label: "Empleados", path: "/municipal/usuarios", icon: UserCog, roles: ["admin"], tipo: "municipio" },
+  { label: "Mapa", path: "/municipal/incidents", icon: MapPin, roles: ["admin"], tipo: "municipio" },
+];
+
+export default function QuickLinksCard() {
   const navigate = useNavigate();
-  const { user } = useUser();
+  const { user, refreshUser } = useUser();
+  const pedidosAvailable = useEndpointAvailable('/pedidos');
 
-  const isMunicipio = user?.tipo_chat === 'municipio';
+  useEffect(() => {
+    if (!user) {
+      refreshUser();
+    }
+  }, [user, refreshUser]);
 
-  const links = [
-    { to: "/tickets", label: "Tickets", icon: Ticket },
-    { to: "/pedidos", label: "Pedidos", icon: ShoppingCart, roles: ['pyme'] },
-    { to: isMunicipio ? "/municipal/tramites" : "/pyme/catalog", label: "Catálogo", icon: BookOpen },
-    { to: "/municipal/incidents", label: "Mapa", icon: Map, roles: ['municipio', 'admin'] },
-    {
-      to: isMunicipio ? "/municipal/stats" : "/pyme/metrics",
-      label: "Estadísticas",
-      icon: BarChart2
-    },
-    { to: "/consultas", label: "Consultas", icon: MessageSquare },
-    { to: "/perfil", label: "Configuración", icon: Settings },
-  ];
+  if (!user) {
+    return (
+      <Card className="bg-card shadow-xl rounded-xl border border-border">
+        <CardContent className="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="aspect-square w-full rounded-xl" />
+          ))}
+        </CardContent>
+      </Card>
+    );
+  }
 
-  const filteredLinks = links.filter(link => {
-    if (!link.roles) return true;
-    if (user?.rol === 'admin') return true;
-    return link.roles.includes(user?.tipo_chat || '');
+  const role = normalizeRole(user.rol);
+  const tipo = user.tipo_chat as "pyme" | "municipio";
+
+  const items = ITEMS.filter((it) => {
+    if (it.path === '/pedidos' && pedidosAvailable === false) return false;
+    return (!it.roles || it.roles.includes(role)) && (!it.tipo || it.tipo === tipo);
   });
 
+  if (!items.length) return null;
+
   return (
-    <Card className="bg-card shadow-lg rounded-xl border border-border">
-      <CardContent className="p-4">
-        <div className="flex flex-wrap items-center justify-center gap-2">
-          {filteredLinks.map(({ to, label, icon: Icon }) => (
-            <Button
-              key={to}
-              variant="ghost"
-              className="flex-1 sm:flex-none text-muted-foreground hover:text-primary hover:bg-primary/10"
-              onClick={() => navigate(to)}
-            >
-              <Icon className="w-4 h-4 mr-2" />
-              {label}
-            </Button>
-          ))}
-        </div>
+    <Card className="bg-card shadow-xl rounded-xl border border-border hover:shadow-2xl transition-shadow">
+      <CardContent className="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+        {items.map(({ label, path, icon: Icon }) => (
+          <Button
+            key={path}
+            aria-label={label}
+            variant="outline"
+            className="flex flex-col items-center justify-center gap-2 aspect-square w-full text-xs sm:text-sm rounded-xl shadow-sm hover:shadow-md hover:bg-accent hover:text-accent-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            onClick={() => navigate(path)}
+          >
+            <Icon className="w-6 h-6" />
+            {label}
+          </Button>
+        ))}
       </CardContent>
     </Card>
   );
-};
-
-export default QuickLinksCard;
+}

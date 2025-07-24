@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { User as UserIcon, Upload } from "lucide-react";
+import GoogleLoginButton from "@/components/auth/GoogleLoginButton";
 import { apiFetch, ApiError } from "@/utils/api";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { useUser } from "@/hooks/useUser";
+
 
 interface RegisterResponse {
   id: number;
@@ -19,7 +19,7 @@ interface RegisterResponse {
 interface Props {
   onSuccess: (rol?: string) => void;
   onShowLogin: () => void;
-  entityToken?: string;
+  entityToken?: string; // Added entityToken prop
 }
 
 const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin, entityToken }) => {
@@ -28,29 +28,14 @@ const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin, entity
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [phone, setPhone] = useState("");
-  const [avatar, setAvatar] = useState<string | null>(null);
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [accepted, setAccepted] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     nameRef.current?.focus();
   }, []);
-
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setAvatarFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setAvatar(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,30 +46,28 @@ const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin, entity
     }
     setLoading(true);
     try {
-      let avatarUrl = null;
-      if (avatarFile) {
-        // En un caso real, aquí subiríamos el archivo al backend
-        // y obtendríamos la URL. Por ahora, simulamos.
-        console.log("Simulating avatar upload...");
-        avatarUrl = avatar; // Usamos la URL local como placeholder
-      }
-
       const payload: Record<string, any> = {
         name: name.trim(),
         email: email.trim(),
         password,
         acepto_terminos: accepted,
-        avatarUrl,
       };
       if (phone.trim()) payload.telefono = phone.trim();
 
+      // Prioritize entityToken from prop, then localStorage, then URL (handled by useEffect)
       let currentEntityToken = entityToken || safeLocalStorage.getItem("entityToken");
+
       if (!currentEntityToken) {
         const params = new URLSearchParams(window.location.search);
-        currentEntityToken = params.get('token');
+        const tokenFromUrl = params.get('token');
+        if (tokenFromUrl) {
+          currentEntityToken = tokenFromUrl;
+          safeLocalStorage.setItem('entityToken', tokenFromUrl); // Save it for potential future use in this session
+        }
       }
+
       if (!currentEntityToken) {
-        setError("El token de la entidad es requerido.");
+        setError("El token de la entidad es requerido para el registro. Contacte a soporte si el problema persiste.");
         setLoading(false);
         return;
       }
@@ -97,6 +80,8 @@ const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin, entity
         method: "POST",
         body: payload,
         skipAuth: true,
+        sendAnonId: true,
+        // sendEntityToken: true, // Removed: token is in body
       });
       safeLocalStorage.setItem("authToken", data.token);
       await refreshUser();
@@ -117,54 +102,47 @@ const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin, entity
       <h2 className="text-xl font-extrabold text-center tracking-tight text-primary">
         Registrarme
       </h2>
-      <form onSubmit={handleSubmit} className="space-y-3">
-        <div className="flex justify-center">
-            <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleAvatarChange}
-                accept="image/*"
-                className="hidden"
-            />
-            <button type="button" onClick={() => fileInputRef.current?.click()} className="relative group">
-                <Avatar className="h-24 w-24">
-                    <AvatarImage src={avatar || undefined} />
-                    <AvatarFallback className="bg-muted">
-                        <UserIcon className="h-12 w-12 text-muted-foreground" />
-                    </AvatarFallback>
-                </Avatar>
-                <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Upload className="h-8 w-8 text-white" />
-                </div>
-            </button>
-        </div>
+      <form
+        onSubmit={handleSubmit}
+        className="space-y-3"
+        autoComplete="off"
+        spellCheck={false}
+      >
         <Input
           ref={nameRef}
           type="text"
           placeholder="Nombre y apellido"
           value={name}
           onChange={e => setName(e.target.value)}
+          autoComplete="name"
           required
+          disabled={loading}
         />
         <Input
           type="email"
           placeholder="Correo electrónico"
           value={email}
           onChange={e => setEmail(e.target.value)}
+          autoComplete="email"
           required
+          disabled={loading}
         />
         <Input
           type="password"
           placeholder="Contraseña"
           value={password}
           onChange={e => setPassword(e.target.value)}
+          autoComplete="new-password"
           required
+          disabled={loading}
         />
         <Input
           type="tel"
           placeholder="Teléfono (opcional)"
           value={phone}
           onChange={e => setPhone(e.target.value)}
+          autoComplete="tel"
+          disabled={loading}
         />
         <div className="flex items-center space-x-2">
           <input
@@ -173,16 +151,35 @@ const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin, entity
             checked={accepted}
             onChange={() => setAccepted(!accepted)}
             required
-            className="form-checkbox h-4 w-4 text-primary"
+            disabled={loading}
+            className="form-checkbox h-4 w-4 text-primary bg-input border-border rounded focus:ring-primary cursor-pointer"
           />
           <label htmlFor="terms" className="text-xs text-muted-foreground">
-            Acepto los <a href="/legal/terms" target="_blank" className="underline text-primary">Términos</a> y <a href="/legal/privacy" target="_blank" className="underline text-primary">Política de Privacidad</a>.
+            Acepto los{' '}
+            <a href="/legal/terms" target="_blank" className="underline text-primary hover:text-primary/80">
+              Términos
+            </a>{' '}
+            y{' '}
+            <a href="/legal/privacy" target="_blank" className="underline text-primary hover:text-primary/80">
+              Política de Privacidad
+            </a>
+            .
           </label>
         </div>
-        {error && <div className="text-destructive text-sm">{error}</div>}
-        <Button type="submit" className="w-full" disabled={loading}>
-          {loading ? "Registrando..." : "Registrarme"}
+        {error && (
+          <div className="text-destructive text-sm animate-pulse px-2">{error}</div>
+        )}
+        <Button type="submit" className="w-full mt-2" disabled={loading}>
+          {loading ? (
+            <span>
+              <span className="animate-spin inline-block mr-2">&#9696;</span>
+              Registrando...
+            </span>
+          ) : (
+            "Registrarme y continuar"
+          )}
         </Button>
+
       </form>
       <div className="text-center text-sm">
         ¿Ya tenés cuenta?{' '}
