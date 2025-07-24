@@ -33,7 +33,7 @@ const OpinarArPage: React.FC = () => {
       <main className="max-w-6xl mx-auto px-4 py-16 sm:py-24">
         <div className="text-center">
           <img
-            src="/images/opinar-logo.svg"
+            src="/images/opinar-icon.svg"
             alt="Opinar.ar Logo"
             className="w-24 h-24 mx-auto mb-6"
           />
