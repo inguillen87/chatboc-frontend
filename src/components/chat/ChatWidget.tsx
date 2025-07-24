@@ -55,7 +55,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   closedWidth = "100px",
   closedHeight = "100px",
   tipoChat = getCurrentTipoChat(),
-  initialPosition = { bottom: 32, right: 32 },
+  initialPosition = { bottom: 20, right: 20 },
   ctaMessage,
 }) => {
   const [isOpen, setIsOpen] = useState(() => {
@@ -357,9 +357,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
               style={{ borderRadius: isMobileView ? "0" : "16px", background: "hsl(var(--card))" }}
               {...panelAnimation}
             >
-              {(view === "register" || view === "login" || view === "user" || view === "info") && (
-                <ChatHeader onClose={toggleChat} onBack={() => setView("chat")} showProfile={false} muted={muted} onToggleSound={toggleMuted} onCart={openCart} />
-              )}
+              <ChatHeader onClose={toggleChat} onBack={() => setView("chat")} showProfile={false} muted={muted} onToggleSound={toggleMuted} onCart={openCart} />
               {view === "register" ? <ChatUserRegisterPanel onSuccess={() => setView("chat")} onShowLogin={() => setView("login")} entityToken={entityToken} />
                 : view === "login" ? <ChatUserLoginPanel onSuccess={() => setView("chat")} onShowRegister={() => setView("register")} />
                 : view === "user" ? <ChatUserPanel onClose={() => setView("chat")} />
