@@ -10,8 +10,6 @@ import TargetSection from '@/components/sections/TargetSection';
 // import TestimonialsSection from '@/components/sections/TestimonialsSection';
 import CtaSection from '@/components/sections/CtaSection';
 import ComingSoonSection from '@/components/sections/ComingSoonSection';
-import ChatWidget from "@/components/chat/ChatWidget";
-
 const Index = () => {
   useEffect(() => {
     document.title = 'Chatboc - Tu Experto Virtual';
@@ -60,8 +58,6 @@ const Index = () => {
           <ComingSoonSection />
         </section>
       </main>
-      {/* CHAT FLOTANTE */}
-      <ChatWidget mode="standalone" defaultOpen={false} />
     </>
   );
 };
