@@ -5,15 +5,17 @@ const generateRandomAvatar = (seed: string) => {
     return `https://i.pravatar.cc/150?u=${seed}`;
 }
 
-export const getTickets = async (): Promise<Ticket[]> => {
+export const getTickets = async (): Promise<{tickets: Ticket[]}> => {
   try {
     const response = await apiFetch<{tickets: Ticket[]}>('/tickets');
     const tickets = response.tickets || [];
 
-    return tickets.map(ticket => ({
+    const ticketsWithAvatars = tickets.map(ticket => ({
       ...ticket,
       avatarUrl: ticket.avatarUrl || generateRandomAvatar(ticket.email || ticket.id.toString())
     }));
+
+    return { tickets: ticketsWithAvatars };
 
   } catch (error) {
     console.error('Error fetching tickets:', error);
