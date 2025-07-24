@@ -1,4 +1,4 @@
-export type TicketStatus = 'nuevo' | 'abierto' | 'en-espera' | 'resuelto' | 'cerrado';
+export type TicketStatus = 'nuevo' | 'abierto' | 'en-espera' | 'resuelto' | 'cerrado' | 'en_proceso';
 export type TicketPriority = 'baja' | 'media' | 'alta' | 'urgente';
 
 export interface User {
@@ -31,8 +31,6 @@ export interface Ticket {
   title: string;
   status: TicketStatus;
   priority: TicketPriority;
-  user: User;
-  agentId?: string;
   createdAt: string;
   updatedAt: string;
   lastMessage: string;
@@ -44,4 +42,15 @@ export interface Ticket {
     content: string;
   }[];
   hasUnreadMessages?: boolean;
+
+  // User fields at the top level
+  user_id: string;
+  name: string;
+  email: string;
+  avatarUrl?: string;
+  location?: string;
+  phone?: string;
+
+  // For compatibility, keep the user object optional
+  user?: User;
 }

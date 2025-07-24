@@ -38,11 +38,11 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
       <div className="flex items-start justify-between mb-1">
         <div className="flex items-center gap-3">
           <Avatar className="h-10 w-10">
-            <AvatarImage src={ticket.user.avatarUrl} alt={ticket.user.name} />
-            <AvatarFallback>{getInitials(ticket.user.name)}</AvatarFallback>
+            <AvatarImage src={ticket.avatarUrl || ticket.user?.avatarUrl} alt={ticket.name || ticket.user?.name} />
+            <AvatarFallback>{getInitials(ticket.name || ticket.user?.name || '??')}</AvatarFallback>
           </Avatar>
           <div>
-            <p className="font-semibold text-sm">{ticket.user.name}</p>
+            <p className="font-semibold text-sm">{ticket.name || ticket.user?.name}</p>
             <p className="text-xs text-muted-foreground">{ticket.id}</p>
           </div>
         </div>

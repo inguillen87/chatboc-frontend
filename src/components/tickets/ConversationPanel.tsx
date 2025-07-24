@@ -85,7 +85,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ ticket, isMobile,
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}
               >
-                <ChatMessage message={message} user={ticket.user} />
+                <ChatMessage message={message} user={ticket.user || ticket} />
               </motion.div>
             ))}
             </motion.div>

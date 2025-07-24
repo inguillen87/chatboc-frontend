@@ -16,7 +16,7 @@ interface DetailsPanelProps {
 const DetailsPanel: React.FC<DetailsPanelProps> = ({ ticket }) => {
 
   const getInitials = (name: string) => {
-    return name.split(' ').map(n => n[0]).join('').toUpperCase();
+    return name ? name.split(' ').map(n => n[0]).join('').toUpperCase() : '??';
   };
 
   if (!ticket) {
@@ -31,7 +31,8 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ ticket }) => {
     );
   }
 
-  const hasLocation = ticket.user.location || (ticket.user as any).latitud || (ticket.user as any).longitud;
+  const user = ticket.user || ticket;
+  const hasLocation = user.location || (user as any).latitud || (user as any).longitud;
 
   return (
     <motion.aside
@@ -47,35 +48,35 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ ticket }) => {
           <Card>
             <CardHeader className="flex flex-row items-center gap-4 p-4">
                <Avatar className="h-16 w-16">
-                <AvatarImage src={ticket.user.avatarUrl} alt={ticket.user.name} />
-                <AvatarFallback>{getInitials(ticket.user.name)}</AvatarFallback>
+                <AvatarImage src={user.avatarUrl} alt={user.name} />
+                <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
               </Avatar>
               <div>
-                <h2 className="text-xl font-bold">{ticket.user.name}</h2>
+                <h2 className="text-xl font-bold">{user.name}</h2>
                 <p className="text-sm text-muted-foreground">Cliente</p>
               </div>
             </CardHeader>
             <CardContent className="p-4 space-y-3">
               <div className="flex items-center gap-3">
                 <Mail className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">{ticket.user.email}</span>
+                <span className="text-sm">{user.email}</span>
               </div>
-              {ticket.user.phone && (
+              {user.phone && (
                 <div className="flex items-center gap-3">
                     <Phone className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm">{ticket.user.phone}</span>
+                    <span className="text-sm">{user.phone}</span>
                 </div>
               )}
-              {ticket.user.location && (
+              {user.location && (
                <div className="flex items-center gap-3">
                 <MapPin className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">{ticket.user.location}</span>
+                <span className="text-sm">{user.location}</span>
               </div>
               )}
             </CardContent>
           </Card>
 
-          {hasLocation && <TicketMap ticket={{ direccion: ticket.user.location, latitud: (ticket.user as any).latitud, longitud: (ticket.user as any).longitud }} />}
+          {hasLocation && <TicketMap ticket={{ direccion: user.location, latitud: (user as any).latitud, longitud: (user as any).longitud }} />}
 
           {/* Ticket Info */}
           <Card>
@@ -93,7 +94,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ ticket }) => {
                 </div>
                 <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Agente:</span>
-                    <span>{ticket.agentId || 'Sin asignar'}</span>
+                    <span>{(ticket as any).agentId || 'Sin asignar'}</span>
                 </div>
                  <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Creado:</span>
