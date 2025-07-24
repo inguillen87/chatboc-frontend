@@ -3,6 +3,11 @@
   "use strict";
 
   function init() {
+    if (document.querySelector('.chatboc-container-standalone')) {
+      console.log('Chatboc widget already on page. Skipping script load.');
+      return;
+    }
+
     const script =
       document.currentScript ||
       Array.from(document.getElementsByTagName("script")).find((s) =>
@@ -176,7 +181,7 @@
       iframe.onload = function () {
         const link = document.createElement("link");
         link.rel = "stylesheet";
-        link.href = `${chatbocDomain}/simple-chat-widget.css`;
+        link.href = `${chatbocDomain}/widget.css`;
         iframe.contentDocument.head.appendChild(link);
         iframeHasLoaded = true;
         clearTimeout(loadTimeout);

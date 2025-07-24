@@ -84,7 +84,8 @@ const Index = () => {
           <ComingSoonSection />
         </section>
       </main>
-      {/* The widget is now loaded via the widget.js script */}
+      {/* CHAT FLOTANTE SOLO SI NO HAY USUARIO LOGUEADO */}
+      {showWidget && <ChatWidget mode="standalone" defaultOpen={false} />}
     </>
   );
 };
