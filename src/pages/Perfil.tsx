@@ -53,8 +53,8 @@ import { cn } from "@/lib/utils";
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import LocationMap from "@/components/LocationMap";
 import { useNavigate } from "react-router-dom";
-import MiniChatWidgetPreview from "@/components/ui/MiniChatWidgetPreview"; // Importar el nuevo componente
 import QuickLinksCard from "@/components/QuickLinksCard";
+import MiniChatWidgetPreview from "@/components/ui/MiniChatWidgetPreview"; // Importar el nuevo componente
 import { useUser } from "@/hooks/useUser";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { getCurrentTipoChat } from "@/utils/tipoChat";

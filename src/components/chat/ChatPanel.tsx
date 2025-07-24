@@ -9,6 +9,7 @@ import UserTypingIndicator from "./UserTypingIndicator";
 import ChatInput from "./ChatInput";
 import ScrollToBottomButton from "@/components/ui/ScrollToBottomButton";
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
+import TicketMap from "@/components/TicketMap";
 import { Message, SendPayload } from "@/types/chat"; // Tipos actualizados
 import { apiFetch, getErrorMessage } from "@/utils/api"; // getErrorMessage añadido
 import { playMessageSound } from "@/utils/sounds";
@@ -425,15 +426,11 @@ const ChatPanel = ({
         const entityHeaders = entityTokenFromStorage ? { 'X-Entity-Token': entityTokenFromStorage } : {};
 
         if (activeTicketId) {
-          const endpoint = `/tickets/chat/${activeTicketId}/responder_ciudadano`;
-          const body = { comentario: userMessageText, attachment_info: payload.attachmentInfo, ubicacion: payload.ubicacion_usuario };
-          const newMessage = await apiFetch<Message>(endpoint, {
-            method: "POST",
-            body: body,
-            skipAuth: !currentToken,
-            sendAnonId: esAnonimo
+          await apiFetch(`/tickets/chat/${activeTicketId}/responder_ciudadano`, {
+            method: "POST", headers: { "Content-Type": "application/json", ...authHeaders, ...entityHeaders },
+            body: { comentario: userMessageText, attachment_info: payload.attachmentInfo, ubicacion: payload.ubicacion_usuario },
+            skipAuth: !currentToken, sendAnonId: esAnonimo
           });
-          setMessages((prev) => [...prev, newMessage]);
         } else {
           const endpoint = getAskEndpoint({ tipoChat: tipoChatActual, rubro: rubroNormalizado || undefined });
           const requestBody: Record<string, any> = { 
@@ -710,6 +707,7 @@ const ChatPanel = ({
                 onChange={(opt) => setDireccionGuardada(opt ? (typeof opt.value === 'string' ? opt.value : opt.value?.description ?? null) : null)}
                 persistKey="ultima_direccion"
               />
+              {direccionGuardada && (<TicketMap ticket={{ direccion: direccionGuardada }} />)}
               <button onClick={handleShareGps} className="text-primary underline text-sm" type="button">Compartir ubicación por GPS</button>
               <div className="text-xs text-muted-foreground mt-2">Escribí y seleccioná tu dirección para continuar el trámite.</div>
             </div>
@@ -725,6 +723,7 @@ const ChatPanel = ({
               )}
               {isBotTyping && <TypingIndicator />}
               {userTyping && <UserTypingIndicator />}
+              {ticketLocation && (<TicketMap ticket={{ ...ticketLocation, tipo: 'municipio' }} />)}
               <div ref={messagesEndRef} />
               {showCierre?.show && (
                 <motion.div className="my-3 p-3 rounded-lg bg-primary/10 text-primary text-center font-semibold shadow"

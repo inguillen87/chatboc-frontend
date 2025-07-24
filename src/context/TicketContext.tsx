@@ -1,9 +1,7 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
-import { Ticket, Message } from '@/types/tickets';
+import { Ticket } from '@/types/tickets';
 import { getTickets } from '@/services/ticketService';
 import { toast } from 'sonner';
-import { usePusher } from '@/hooks/usePusher';
-import { playMessageSound } from '@/utils/sounds';
 
 interface TicketContextType {
   tickets: Ticket[];
@@ -32,7 +30,6 @@ export const TicketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const channel = usePusher('tickets'); // Canal general para nuevos tickets
 
   useEffect(() => {
     const fetchTickets = async () => {
@@ -61,16 +58,6 @@ export const TicketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     fetchTickets();
   }, []);
-
-  useEffect(() => {
-    if (channel) {
-      channel.bind('new-ticket', (newTicket: Ticket) => {
-        setTickets(prevTickets => [{ ...newTicket, hasUnreadMessages: true }, ...prevTickets]);
-        toast.success(`Nuevo ticket #${newTicket.id}: ${newTicket.asunto}`);
-        playMessageSound();
-      });
-    }
-  }, [channel]);
 
   const selectTicket = (ticketId: number | null) => {
     if (ticketId === null) {

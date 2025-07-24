@@ -10,6 +10,7 @@ import { getAskEndpoint, esRubroPublico, parseRubro } from "@/utils/chatEndpoint
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { useUser } from "@/hooks/useUser";
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
+import TicketMap from "@/components/TicketMap";
 import getOrCreateAnonId from "@/utils/anonId";
 import { toast } from "@/components/ui/use-toast";
 import { requestLocation } from "@/utils/geolocation";
@@ -447,6 +448,7 @@ const ChatPage = () => {
               />
             ))}
             {isTyping && <TypingIndicator />}
+            {isTicketLocationValid && <TicketMap ticket={{ ...ticketInfo, tipo: "municipio" }} />}
             {showCierre && showCierre.show && (
               <div className="my-3 p-3 rounded-lg bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-center font-medium shadow-sm border border-green-200 dark:border-green-700">
                 {showCierre.text}
@@ -466,6 +468,7 @@ const ChatPage = () => {
                   onChange={(opt) => setDireccionGuardada(opt ? (typeof opt.value === "string" ? opt.value : opt.value?.description ?? null) : null)}
                   persistKey="ultima_direccion"
                 />
+                {direccionGuardada && <TicketMap ticket={{ direccion: direccionGuardada }} />}
                 <button
                   onClick={handleShareGps}
                   className="mt-2 text-sm text-primary hover:underline"
