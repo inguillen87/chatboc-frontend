@@ -1,6 +1,15 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { exportToPdf } from '@/services/exportService';
+import { Input } from '@/components/ui/input';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Search } from 'lucide-react';
+import { useDebounce } from '@/hooks/useDebounce';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import TicketListItem from './TicketListItem';
+import { useTickets } from '@/context/TicketContext';
+
+import { FileDown } from 'lucide-react';
+import { exportToPdf, exportToExcel } from '@/services/exportService';
 
 const Sidebar: React.FC = () => {
   const handleExport = () => {
