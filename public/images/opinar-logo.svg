@@ -1,0 +1,10 @@
+<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0052D4;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#65C7F7;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <path d="M50,5 C25.16,5 5,25.16 5,50 C5,74.84 25.16,95 50,95 C74.84,95 95,74.84 95,50 C95,25.16 74.84,5 50,5 Z M50,85 C30.69,85 15,69.31 15,50 C15,30.69 30.69,15 50,15 C69.31,15 85,30.69 85,50 C85,69.31 69.31,85 50,85 Z" fill="url(#logoGradient)"/>
+  <path d="M50,25 C36.22,25 25,36.22 25,50 C25,63.78 36.22,75 50,75 C63.78,75 75,63.78 75,50 C75,36.22 63.78,25 50,25 Z M50,65 C41.74,65 35,58.26 35,50 C35,41.74 41.74,35 50,35 C58.26,35 65,41.74 65,50 C65,58.26 58.26,65 50,65 Z" fill="url(#logoGradient)"/>
+</svg>
