@@ -33,21 +33,14 @@ const Integracion = () => {
   const [copiado, setCopiado] = useState<"iframe" | "script" | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // State for customization
-  const [primaryColor, setPrimaryColor] = useState("#007bff");
-  const [logoUrl, setLogoUrl] = useState("");
-  const [widgetPosition, setWidgetPosition] = useState("right");
-
-  const isPremium = useMemo(() => user?.plan === 'full', [user?.plan]);
-
   const validarAcceso = (currentUser: User | null) => {
     if (!currentUser) {
       navigate("/login");
       return false;
     }
     const plan = (currentUser.plan || "").toLowerCase();
-    if (plan !== "full") {
-      toast.error("Acceso restringido. Esta función requiere un plan FULL.", {
+    if (plan !== "pro" && plan !== "full") {
+      toast.error("Acceso restringido. Esta función requiere un plan PRO o FULL.", {
         icon: <AlertTriangle className="text-destructive" />,
       });
       navigate("/perfil");
@@ -65,7 +58,7 @@ const Integracion = () => {
       parsedUser = storedUser ? JSON.parse(storedUser) : null;
     } catch (err) {
       console.error("Error parsing user from localStorage:", err);
-      safeLocalStorage.removeItem("user");
+      safeLocalStorage.removeItem("user"); // Clear corrupted data
     }
 
     if (!authToken || !parsedUser || !parsedUser.id) {
@@ -89,45 +82,97 @@ const Integracion = () => {
 
 
   const endpoint = useMemo(() => {
-    if (!user?.tipo_chat) return "pyme";
+    if (!user?.tipo_chat) return "pyme"; // Default or handle error
     return user.tipo_chat === "municipio" ? "municipio" : "pyme";
   }, [user?.tipo_chat]);
 
   const userToken = useMemo(() => user?.token || "TU_TOKEN_DE_USUARIO", [user?.token]);
 
-  const WIDGET_STD_WIDTH = "400px";
-  const WIDGET_STD_HEIGHT = "600px";
+  const WIDGET_STD_WIDTH = "460px";
+  const WIDGET_STD_HEIGHT = "680px";
+  const WIDGET_STD_CLOSED_WIDTH = "112px"; // Increased from 96px
+  const WIDGET_STD_CLOSED_HEIGHT = "112px"; // Increased from 96px
+  const WIDGET_STD_BOTTOM = "20px";
+  const WIDGET_STD_RIGHT = "20px";
 
-  const codeScript = useMemo(() => `<div id="chatboc-widget-container"></div>
-<script>
-  window.chatbocToken = '${userToken}';
-  window.chatbocEndpoint = '${endpoint}';
-  ${isPremium ? `window.chatbocPrimaryColor = '${primaryColor}';` : ''}
-  ${isPremium ? `window.chatbocLogoUrl = '${logoUrl}';` : ''}
-  ${isPremium ? `window.chatbocPosition = '${widgetPosition}';` : ''}
+  const codeScript = useMemo(() => `<script>
+document.addEventListener('DOMContentLoaded', function () {
+  // Asegura que el widget se destruya y se vuelva a crear si ya existe
+  if (window.chatbocDestroyWidget) {
+    window.chatbocDestroyWidget('${userToken}');
+  }
+  window.APP_TARGET = '${endpoint}'; // Define el endpoint antes de cargar el script
+
   var s = document.createElement('script');
-  s.src = 'https://www.chatboc.ar/embed.js';
-  s.async = true;
-  document.body.appendChild(s);
-</script>`, [userToken, endpoint, isPremium, primaryColor, logoUrl, widgetPosition]);
+  s.src = 'https://www.chatboc.ar/widget.js'; // URL del script del widget
+  s.async = true; // Carga asíncrona para no bloquear el renderizado de la página
+  s.setAttribute('data-token', '${userToken}'); // Token de autenticación del usuario
+  s.setAttribute('data-default-open', 'false'); // El widget comienza cerrado por defecto
+  s.setAttribute('data-width', '${WIDGET_STD_WIDTH}'); // Ancho del widget abierto
+  s.setAttribute('data-height', '${WIDGET_STD_HEIGHT}'); // Alto del widget abierto
+  s.setAttribute('data-closed-width', '${WIDGET_STD_CLOSED_WIDTH}'); // Ancho del widget cerrado (burbuja)
+  s.setAttribute('data-closed-height', '${WIDGET_STD_CLOSED_HEIGHT}'); // Alto del widget cerrado (burbuja)
+  s.setAttribute('data-bottom', '${WIDGET_STD_BOTTOM}'); // Posición desde abajo
+  s.setAttribute('data-right', '${WIDGET_STD_RIGHT}'); // Posición desde la derecha
+  s.setAttribute('data-endpoint', '${endpoint}'); // Tipo de chat (pyme o municipio)
 
-  const iframeSrcUrl = useMemo(() => {
-    let url = `https://www.chatboc.ar/embed?token=${userToken}&tipo_chat=${endpoint}`;
-    if (isPremium) {
-      url += `&primaryColor=${encodeURIComponent(primaryColor)}`;
-      url += `&logoUrl=${encodeURIComponent(logoUrl)}`;
-      url += `&position=${widgetPosition}`;
-    }
-    return url;
-  }, [userToken, endpoint, isPremium, primaryColor, logoUrl, widgetPosition]);
+  // Importante para la geolocalización y el portapapeles:
+  // widget.js establecerá allow="clipboard-write; geolocation" en su iframe interno.
+  // Si este script se inserta dentro de un iframe en tu sitio, ese iframe contenedor
+  // también debe incluir allow="clipboard-write; geolocation" en sus atributos.
+  // Ejemplo: <iframe src="tu_pagina_con_widget.html" allow="clipboard-write; geolocation"></iframe>
+
+  document.body.appendChild(s); // Añade el script al final del body
+
+  // Opcional: Escuchar evento de widget cargado
+  s.onload = function() {
+    console.log('Chatboc Widget cargado y listo.');
+    // Puedes añadir lógica adicional aquí si es necesario
+  };
+  s.onerror = function() {
+    console.error('Error al cargar Chatboc Widget.');
+  };
+});
+</script>`, [userToken, endpoint]);
+
+  const iframeSrcUrl = useMemo(() => `https://www.chatboc.ar/iframe?token=${userToken}&tipo_chat=${endpoint}`, [userToken, endpoint]);
 
   const codeIframe = useMemo(() => `<iframe
+  id="chatboc-iframe"
   src="${iframeSrcUrl}"
-  style="border:none; width:${WIDGET_STD_WIDTH}; height:${WIDGET_STD_HEIGHT};"
+  style="position:fixed; bottom:${WIDGET_STD_BOTTOM}; right:${WIDGET_STD_RIGHT}; border:none; border-radius:50%; z-index:9999; box-shadow:0 4px 32px rgba(0,0,0,0.2); background:transparent; overflow:hidden; width:${WIDGET_STD_CLOSED_WIDTH}; height:${WIDGET_STD_CLOSED_HEIGHT}; display:block; transition: width 0.3s ease, height 0.3s ease, border-radius 0.3s ease;"
   allow="clipboard-write; geolocation"
   loading="lazy"
   title="Chatboc Widget"
-></iframe>`, [iframeSrcUrl]);
+></iframe>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  window.APP_TARGET = '${endpoint}';
+  var chatIframe = document.getElementById('chatboc-iframe');
+
+  // Es crucial que si este código de iframe se inserta dentro de OTRO iframe en tu sitio,
+  // ese iframe contenedor también debe tener 'allow="clipboard-write; geolocation"'.
+  // Ejemplo: <iframe src="pagina_con_este_codigo.html" allow="clipboard-write; geolocation"></iframe>
+
+  // Comunicación con el iframe para ajustar tamaño y forma
+  window.addEventListener('message', function (event) {
+    if (event.origin !== 'https://www.chatboc.ar') return; // Seguridad: aceptar mensajes solo del origen del iframe
+
+    if (event.data && event.data.type === 'chatboc-state-change') {
+      if (event.data.dimensions) {
+        chatIframe.style.width = event.data.dimensions.width || '${WIDGET_STD_WIDTH}';
+        chatIframe.style.height = event.data.dimensions.height || '${WIDGET_STD_HEIGHT}';
+      }
+      chatIframe.style.borderRadius = event.data.isOpen ? '16px' : '50%'; // Más suave la transición
+    }
+  });
+
+  // Opcional: Enviar un mensaje al iframe una vez cargado para configuraciones iniciales si es necesario
+  // chatIframe.onload = function() {
+  //   chatIframe.contentWindow.postMessage({ type: 'chatboc-init', settings: { exampleSetting: true } }, 'https://www.chatboc.ar');
+  // };
+});
+</script>`, [iframeSrcUrl, endpoint]);
 
 
   const copiarCodigo = async (tipo: "iframe" | "script") => {
@@ -146,6 +191,7 @@ const Integracion = () => {
         icon: <AlertTriangle className="text-destructive" />,
         description: "No se pudo copiar automáticamente. Intenta copiarlo manualmente.",
       });
+      // Fallback por si navigator.clipboard no está disponible o falla (e.g. HTTP)
       window.prompt(`Copia manualmente (Ctrl+C / Cmd+C):\n${tipo === "iframe" ? "Código Iframe" : "Código Script"}`, textoACopiar);
     }
   };
@@ -166,6 +212,8 @@ const Integracion = () => {
   }
 
   if (!user) {
+     // Esto no debería ocurrir si isLoading es false y el useEffect de auth funciona,
+     // pero es una salvaguarda. La navegación a /login ya se gestiona en useEffect.
     return null;
   }
 
@@ -254,6 +302,10 @@ const Integracion = () => {
         <CardContent className="text-sm text-blue-600 dark:text-blue-200 space-y-2">
           <p>
             Pega el código elegido justo antes de la etiqueta de cierre <code>&lt;/body&gt;</code> en tu página web.
+            Esto asegura que tu asistente virtual aparezca correctamente y pueda interactuar con los datos de tu empresa y catálogo.
+          </p>
+          <p>
+            Ambos métodos de integración (Script y Iframe) están diseñados para ser seguros y eficientes. El método de Script es generalmente más flexible y recomendado.
           </p>
           <p>
             <strong>Token de Usuario:</strong> Tu token de integración es <code>{userToken.substring(0,8)}...</code>. Ya está incluido en los códigos de abajo.
@@ -261,68 +313,42 @@ const Integracion = () => {
         </CardContent>
       </Card>
 
-      {isPremium && (
-        <section className="mb-8">
-          <h2 className="text-2xl font-semibold mb-4 flex items-center">
-            <Settings size={28} className="mr-3 text-primary" />
-            Personalización (Plan FULL)
-          </h2>
-          <Card>
-            <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label htmlFor="primaryColor" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Color Primario</label>
-                <Input
-                  id="primaryColor"
-                  type="color"
-                  value={primaryColor}
-                  onChange={(e) => setPrimaryColor(e.target.value)}
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <label htmlFor="logoUrl" className="block text-sm font-medium text-gray-700 dark:text-gray-300">URL del Logo</label>
-                <Input
-                  id="logoUrl"
-                  type="text"
-                  value={logoUrl}
-                  onChange={(e) => setLogoUrl(e.target.value)}
-                  placeholder="https://tu-empresa.com/logo.png"
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <label htmlFor="widgetPosition" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Posición del Widget</label>
-                <select
-                  id="widgetPosition"
-                  value={widgetPosition}
-                  onChange={(e) => setWidgetPosition(e.target.value)}
-                  className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white"
-                >
-                  <option value="right">Derecha</option>
-                  <option value="left">Izquierda</option>
-                </select>
-              </div>
-            </CardContent>
-          </Card>
-        </section>
-      )}
-
       <Tabs defaultValue="script" className="w-full">
         <TabsList className="grid w-full grid-cols-2 mb-6">
           <TabsTrigger value="script" className="text-base py-2.5">
             <Code size={18} className="mr-2" /> Método &lt;script&gt; (Recomendado)
           </TabsTrigger>
           <TabsTrigger value="iframe" className="text-base py-2.5">
-            <Code size={18} className="mr-2" /> Método &lt;iframe&gt;
+            <Code size={18} className="mr-2" /> Método &lt;iframe&gt; (Alternativo)
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="script">
           {renderCodeBlock("Widget con <script>", "script", codeScript, true)}
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center"><HelpCircle size={20} className="mr-2 text-primary"/>Notas para el método &lt;script&gt;</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm space-y-2">
+              <p><strong>Ventajas:</strong> Mayor flexibilidad, actualizaciones automáticas del widget, mejor integración con la página anfitriona.</p>
+              <p><strong>Geolocalización y Portapapeles:</strong> Si tu página (donde pegas este script) ya está dentro de un iframe, asegúrate de que ese iframe contenedor tenga el atributo <code>allow="clipboard-write; geolocation"</code> para que estas funciones del chatbot operen correctamente.</p>
+              <p><strong>Personalización:</strong> Puedes modificar los atributos <code>data-*</code> en el script para ajustar la apariencia y comportamiento iniciales del widget. Por ejemplo, <code>data-default-open="true"</code> para que el chat se abra al cargar la página.</p>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="iframe">
           {renderCodeBlock("Widget con <iframe>", "iframe", codeIframe)}
+           <Card className="mt-6">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center"><HelpCircle size={20} className="mr-2 text-primary"/>Notas para el método &lt;iframe&gt;</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm space-y-2">
+              <p><strong>Ventajas:</strong> Aislamiento completo del contenido del widget, puede ser más simple de implementar en algunas plataformas con restricciones de scripts.</p>
+              <p><strong>Geolocalización y Portapapeles:</strong> Similar al método script, si la página donde insertas este iframe está a su vez dentro de otro iframe, el iframe más externo debe incluir <code>allow="clipboard-write; geolocation"</code>.</p>
+              <p><strong>Limitaciones:</strong> Menos flexibilidad para la comunicación directa con la página anfitriona en comparación con el método script. Las actualizaciones del widget se manejan dentro del iframe.</p>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 
@@ -335,48 +361,91 @@ const Integracion = () => {
           <CardContent className="p-0">
             <div
               className="bg-slate-100 dark:bg-slate-800 flex items-center justify-center"
-              style={{ minHeight: '720px' }}
+              style={{ minHeight: '720px' }} // Aumentado para mejor visualización
             >
               <div
                 style={{
                   width: WIDGET_STD_WIDTH,
                   height: WIDGET_STD_HEIGHT,
-                  border: "1px solid #ccc",
-                  borderRadius: "16px",
+                  border: "1px solid #ccc", // Borde más sutil
+                  borderRadius: "16px", // Consistente con el widget
                   overflow: "hidden",
-                  background: "#ffffff",
-                  boxShadow: "0 10px 30px rgba(0,0,0,0.15)",
+                  background: "#ffffff", // Fondo blanco explícito
+                  boxShadow: "0 10px 30px rgba(0,0,0,0.15)", // Sombra más pronunciada
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  position: 'relative',
-                  ['--widget-primary-color' as any]: primaryColor
                 }}
               >
                 {user && user.token && user.tipo_chat ? (
                   <iframe
                     src={iframeSrcUrl}
-                    width="100%"
-                    height="100%"
+                    width={WIDGET_STD_WIDTH}
+                    height={WIDGET_STD_HEIGHT}
                     style={{
                       border: "none",
-                      borderRadius: "16px",
+                      width: "100%",
+                      height: "100%",
+                      borderRadius: "16px", // Asegurar que el iframe interno también tenga bordes redondeados
+                      background: "transparent", // Fondo transparente para el iframe
+                      display: "block"
                     }}
                     loading="lazy"
                     title="Vista previa del Chatbot Chatboc"
-                    allow="clipboard-write; geolocation"
+                    allow="clipboard-write; geolocation" // Importante para la funcionalidad completa en la vista previa
                   />
                 ) : (
                   <div className="p-4 text-center text-muted-foreground">
                     <AlertTriangle size={32} className="mx-auto mb-2" />
-                    La vista previa no está disponible.
+                    La vista previa no está disponible. Verifica la configuración del usuario.
                   </div>
                 )}
               </div>
             </div>
           </CardContent>
+           <CardFooter className="p-4 bg-muted/20 dark:bg-muted/10 flex items-center justify-center">
+            <p className="text-xs text-muted-foreground text-center">
+              Esta es una simulación de cómo se verá el widget en tu sitio. <br/>
+              Las dimensiones y la posición pueden variar según tu implementación.
+            </p>
+          </CardFooter>
         </Card>
       </section>
+
+      <section className="mt-12">
+        <h2 className="text-2xl font-semibold mb-4 flex items-center">
+          <HelpCircle size={28} className="mr-3 text-primary" />
+          Solución de Problemas y Soporte
+        </h2>
+        <Card>
+          <CardContent className="pt-6 text-sm space-y-3">
+            <p>
+              <strong>¿No ves el widget?</strong>
+              Verifica que el código esté correctamente pegado antes de la etiqueta <code>&lt;/body&gt;</code>.
+              Asegúrate de que tu plataforma (Tiendanube, Shopify, etc.) permita la inserción de scripts o iframes de terceros.
+              En Tiendanube, por ejemplo, puedes necesitar usar la opción de "Editar Código Avanzado".
+            </p>
+            <p>
+              <strong>Problemas de Geolocalización o Portapapeles:</strong>
+              Asegúrate de que tu sitio se sirva a través de <strong>HTTPS</strong>, ya que muchas funciones del navegador, incluida la geolocalización, lo requieren.
+              Si tu página está incrustada en otro iframe, el iframe contenedor DEBE tener el atributo <code>allow="clipboard-write; geolocation"</code>.
+            </p>
+             <p>
+              <strong>Conflictos de Estilos o Scripts:</strong>
+              El widget está diseñado para minimizar conflictos. Si experimentas problemas, intenta cargar el script del widget al final del <code>&lt;body&gt;</code>.
+              Si usas el método iframe, los estilos están completamente aislados.
+            </p>
+            <p>
+              <strong>¿Aún necesitas ayuda?</strong> No dudes en{" "}
+              <a href="mailto:info@chatboc.ar" className="underline text-primary hover:text-primary/80 font-medium">
+                contactar a nuestro equipo de soporte
+              </a>.
+              Estamos aquí para ayudarte a integrar Chatboc exitosamente.
+            </p>
+          </CardContent>
+        </Card>
+      </section>
+
     </div>
   );
 };

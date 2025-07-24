@@ -111,33 +111,6 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: false,
         },
-        // Si tenés endpoints directos sin prefijo /api, agregalos abajo:
-        '/login': {
-          target: 'http://localhost:5000',
-          changeOrigin: true,
-          secure: false,
-        },
-        '/register': {
-          target: 'http://localhost:5000',
-          changeOrigin: true,
-          secure: false,
-        },
-        '/me': {
-          target: 'http://localhost:5000',
-          changeOrigin: true,
-          secure: false,
-        },
-        '/rubros': {
-          target: 'http://localhost:5000',
-          changeOrigin: true,
-          secure: false,
-        },
-        '/ask': {
-          target: 'http://localhost:5000',
-          changeOrigin: true,
-          secure: false,
-        },
-        // Agregá otros endpoints backend si los usás directamente desde el frontend
       },
     },
     resolve: {
