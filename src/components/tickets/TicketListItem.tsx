@@ -26,11 +26,15 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
   return (
     <div
       className={cn(
-        'p-3 rounded-lg border cursor-pointer transition-colors',
-        isSelected ? 'bg-primary/10 border-primary' : 'bg-background hover:bg-muted/50'
+        'p-3 rounded-lg border cursor-pointer transition-colors relative',
+        isSelected ? 'bg-primary/10 border-primary' : 'bg-background hover:bg-muted/50',
+        ticket.hasUnreadMessages && !isSelected && 'border-primary/50'
       )}
       onClick={onClick}
     >
+      {ticket.hasUnreadMessages && !isSelected && (
+        <span className="absolute top-2 right-2 h-3 w-3 rounded-full bg-primary" />
+      )}
       <div className="flex items-start justify-between mb-1">
         <div className="flex items-center gap-3">
           <Avatar className="h-10 w-10">

@@ -538,10 +538,6 @@ export default function Perfil() {
         <QuickLinksCard/>
       </div>
 
-      <div className="w-full max-w-6xl mx-auto mb-8 px-2">
-        <QuickLinksCard/>
-      </div>
-
       <div className="w-full max-w-6xl mx-auto flex flex-col md:flex-row gap-6 md:gap-8 px-2 items-stretch">
         {/* Columna Izquierda: Datos de la Empresa y Mapa */}
         <div className="md:w-2/3 flex flex-col gap-6 md:gap-8">

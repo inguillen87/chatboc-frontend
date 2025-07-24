@@ -2,7 +2,7 @@ import React from 'react';
 import Sidebar from './Sidebar';
 import ConversationPanel from './ConversationPanel';
 import DetailsPanel from './DetailsPanel';
-import { Toaster } from '@/components/ui/sonner';
+import { Toaster, toast } from '@/components/ui/sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Ticket } from '@/types/tickets';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -10,6 +10,8 @@ import { getTickets } from '@/services/ticketService';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useUser } from '@/hooks/useUser';
 import getOrCreateAnonId from '@/utils/anonId';
+import { usePusher } from '@/hooks/usePusher';
+import { playMessageSound } from '@/utils/sounds';
 
 const NewTicketsPanel: React.FC = () => {
   const isMobile = useIsMobile();
@@ -21,6 +23,33 @@ const NewTicketsPanel: React.FC = () => {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
+  const channel = usePusher('tickets');
+
+  React.useEffect(() => {
+    if (channel) {
+      channel.bind('new-ticket', (newTicket: Ticket) => {
+        setTickets(prevTickets => [{ ...newTicket, hasUnreadMessages: true }, ...prevTickets]);
+        toast.success(`Nuevo ticket #${newTicket.id}: ${newTicket.title}`);
+        playMessageSound();
+      });
+
+      channel.bind('new-message', (data: { ticketId: string, message: any }) => {
+        setTickets(prevTickets =>
+            prevTickets.map(t =>
+                t.id === data.ticketId
+                    ? { ...t, messages: [...t.messages, data.message], updatedAt: new Date().toISOString(), hasUnreadMessages: true }
+                    : t
+            )
+        );
+        // Do not show toast if the user is already viewing the ticket
+        if (selectedTicket?.id !== data.ticketId) {
+            toast.info(`Nuevo mensaje en el ticket #${data.ticketId}`);
+            playMessageSound();
+        }
+      });
+    }
+  }, [channel, selectedTicket]);
+
   React.useEffect(() => {
     if (userLoading) return;
 
@@ -29,8 +58,8 @@ const NewTicketsPanel: React.FC = () => {
         setLoading(true);
         const anonId = !user ? getOrCreateAnonId() : undefined;
         const fetchedTickets = await getTickets(anonId);
-        setTickets(fetchedTickets);
-        if (fetchedTickets.length > 0) {
+        setTickets(Array.isArray(fetchedTickets) ? fetchedTickets : []);
+        if (Array.isArray(fetchedTickets) && fetchedTickets.length > 0) {
           setSelectedTicket(fetchedTickets[0]);
         }
       } catch (err) {
@@ -57,6 +86,12 @@ const NewTicketsPanel: React.FC = () => {
   const handleSelectTicket = (ticketId: string) => {
     const ticket = tickets.find(t => t.id === ticketId) || null;
     setSelectedTicket(ticket);
+    // Mark as read
+    setTickets(prevTickets =>
+        prevTickets.map(t =>
+            t.id === ticketId ? { ...t, hasUnreadMessages: false } : t
+        )
+    );
     if(isMobile) {
         setIsSidebarVisible(false);
     }
@@ -97,7 +132,7 @@ const NewTicketsPanel: React.FC = () => {
   }
 
   return (
-    <div className="flex h-screen w-full bg-background text-foreground overflow-hidden">
+    <div className="flex h-screen w-full bg-background text-foreground overflow-hidden lg:max-w-full lg:mx-auto">
       <AnimatePresence>
         {isSidebarVisible && (
           <motion.div
@@ -139,7 +174,7 @@ const NewTicketsPanel: React.FC = () => {
         )}
       </AnimatePresence>
 
-      <Toaster />
+      <Toaster richColors />
     </div>
   );
 };
