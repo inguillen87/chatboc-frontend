@@ -25,7 +25,7 @@ export const getTickets = async (): Promise<{tickets: Ticket[]}> => {
 
 export const getTicketById = async (id: string): Promise<Ticket> => {
     try {
-        const response = await apiFetch<Ticket>(`/tickets/${id}`);
+        const response = await apiFetch<Ticket>(`/tickets/municipio/${id}`); // Asumo municipio por ahora
         return {
             ...response,
             avatarUrl: response.avatarUrl || generateRandomAvatar(response.email || response.id.toString())
@@ -35,3 +35,16 @@ export const getTicketById = async (id: string): Promise<Ticket> => {
         throw error;
     }
 };
+
+export const sendMessage = async (ticketId: number, tipo: 'municipio' | 'pyme', comentario: string): Promise<any> => {
+    try {
+        const response = await apiFetch(`/tickets/${tipo}/${ticketId}/responder`, {
+            method: 'POST',
+            body: { comentario },
+        });
+        return response;
+    } catch (error) {
+        console.error(`Error sending message to ticket ${ticketId}:`, error);
+        throw error;
+    }
+}
