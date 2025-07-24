@@ -7,7 +7,7 @@ const generateRandomAvatar = (seed: string) => {
 
 export const getTickets = async (): Promise<{tickets: Ticket[]}> => {
   try {
-    const response = await apiFetch<{tickets: Ticket[]}>('/tickets');
+    const response = await apiFetch<{tickets: Ticket[]}>('/api/tickets');
     const tickets = response.tickets || [];
 
     const ticketsWithAvatars = tickets.map(ticket => ({
@@ -25,9 +25,7 @@ export const getTickets = async (): Promise<{tickets: Ticket[]}> => {
 
 export const getTicketById = async (id: string): Promise<Ticket> => {
     try {
-        // Asumo que el tipo de ticket se puede obtener de alguna manera o se pasa como parámetro.
-        // Por ahora, lo dejo como municipio, pero esto debería ser dinámico.
-        const response = await apiFetch<Ticket>(`/tickets/municipio/${id}`);
+        const response = await apiFetch<Ticket>(`/api/tickets/municipio/${id}`);
         return {
             ...response,
             avatarUrl: response.avatarUrl || generateRandomAvatar(response.email || response.id.toString())
@@ -40,7 +38,7 @@ export const getTicketById = async (id: string): Promise<Ticket> => {
 
 export const getTicketMessages = async (ticketId: number, tipo: 'municipio' | 'pyme'): Promise<Message[]> => {
     try {
-        const endpoint = tipo === 'municipio' ? `/tickets/chat/${ticketId}/mensajes` : `/tickets/chat/pyme/${ticketId}/mensajes`;
+        const endpoint = tipo === 'municipio' ? `/api/tickets/chat/${ticketId}/mensajes` : `/api/tickets/chat/pyme/${ticketId}/mensajes`;
         const response = await apiFetch<{ mensajes: Message[] }>(endpoint);
         return response.mensajes || [];
     } catch (error) {
@@ -51,7 +49,7 @@ export const getTicketMessages = async (ticketId: number, tipo: 'municipio' | 'p
 
 export const sendMessage = async (ticketId: number, tipo: 'municipio' | 'pyme', comentario: string): Promise<any> => {
     try {
-        const response = await apiFetch(`/tickets/${tipo}/${ticketId}/responder`, {
+        const response = await apiFetch(`/api/tickets/${tipo}/${ticketId}/responder`, {
             method: 'POST',
             body: { comentario },
         });

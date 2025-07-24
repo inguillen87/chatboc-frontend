@@ -16,7 +16,7 @@ export interface Pedido {
 
 export const getPedidos = async (): Promise<{pedidos: Pedido[]}> => {
   try {
-    const response = await apiFetch<{pedidos: Pedido[]}>('/pedidos');
+    const response = await apiFetch<{pedidos: Pedido[]}>('/api/pedidos');
     return response;
   } catch (error) {
     console.error('Error fetching pedidos:', error);
