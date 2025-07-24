@@ -59,19 +59,13 @@ const NewTicketsPanel: React.FC = () => {
         const anonId = !user ? getOrCreateAnonId() : undefined;
         const fetchedTickets = await getTickets(anonId);
         console.log('Fetched tickets:', fetchedTickets); // Log para ver la respuesta
-        const ticketsToShow = (Array.isArray(fetchedTickets) && fetchedTickets.length > 0) ? fetchedTickets : mockTickets;
-        setTickets(ticketsToShow);
-        if (ticketsToShow.length > 0) {
-          setSelectedTicket(ticketsToShow[0]);
+        setTickets(Array.isArray(fetchedTickets) ? fetchedTickets : []);
+        if (Array.isArray(fetchedTickets) && fetchedTickets.length > 0) {
+          setSelectedTicket(fetchedTickets[0]);
         }
       } catch (err) {
         console.error('Error fetching tickets:', err); // Log del error
-        // Fallback to mock data on error
-        setTickets(mockTickets);
-        if (mockTickets.length > 0) {
-            setSelectedTicket(mockTickets[0]);
-        }
-        setError(null); // Clear error to show mock data
+        setError('No se pudieron cargar los tickets. Inténtalo de nuevo más tarde.');
       } finally {
         setLoading(false);
       }
