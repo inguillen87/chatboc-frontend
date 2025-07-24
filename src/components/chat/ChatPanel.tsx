@@ -425,11 +425,15 @@ const ChatPanel = ({
         const entityHeaders = entityTokenFromStorage ? { 'X-Entity-Token': entityTokenFromStorage } : {};
 
         if (activeTicketId) {
-          await apiFetch(`/tickets/chat/${activeTicketId}/responder_ciudadano`, { 
-            method: "POST", headers: { "Content-Type": "application/json", ...authHeaders, ...entityHeaders },
-            body: { comentario: userMessageText, attachment_info: payload.attachmentInfo, ubicacion: payload.ubicacion_usuario },
-            skipAuth: !currentToken, sendAnonId: esAnonimo
+          const endpoint = `/tickets/chat/${activeTicketId}/responder_ciudadano`;
+          const body = { comentario: userMessageText, attachment_info: payload.attachmentInfo, ubicacion: payload.ubicacion_usuario };
+          const newMessage = await apiFetch<Message>(endpoint, {
+            method: "POST",
+            body: body,
+            skipAuth: !currentToken,
+            sendAnonId: esAnonimo
           });
+          setMessages((prev) => [...prev, newMessage]);
         } else {
           const endpoint = getAskEndpoint({ tipoChat: tipoChatActual, rubro: rubroNormalizado || undefined });
           const requestBody: Record<string, any> = { 
