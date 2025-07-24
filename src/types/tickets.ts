@@ -27,30 +27,33 @@ export interface Attachment {
 }
 
 export interface Ticket {
-  id: string;
-  title: string;
-  status: TicketStatus;
-  priority: TicketPriority;
-  createdAt: string;
-  updatedAt: string;
-  lastMessage: string;
-  messages: Message[];
-  attachments: Attachment[];
-  activityLog: {
-    type: 'status_change' | 'assignment' | 'note';
-    timestamp: string;
-    content: string;
-  }[];
+  id: number;
+  tipo: 'municipio' | 'pyme';
+  nro_ticket: string;
+  asunto: string;
+  estado: TicketStatus;
+  fecha: string; // ISO format
+  categoria?: string;
+  direccion?: string;
+  latitud?: number;
+  longitud?: number;
+  avatarUrl?: string;
+
+  // Pyme specific fields
+  telefono?: string;
+  email?: string;
+  dni?: string;
+  estado_cliente?: string;
+
+  // Fields that might come from a detailed view, but good to have
+  messages?: Message[];
+  attachments?: Attachment[];
+  activityLog?: any[];
   hasUnreadMessages?: boolean;
 
-  // User fields at the top level
-  user_id: string;
-  name: string;
-  email: string;
-  avatarUrl?: string;
-  location?: string;
-  phone?: string;
-
-  // For compatibility, keep the user object optional
+  // For backwards compatibility and flexibility
   user?: User;
+  name?: string;
+  title?: string; // Keep for components that might still use it
+  lastMessage?: string; // Keep for components that might still use it
 }

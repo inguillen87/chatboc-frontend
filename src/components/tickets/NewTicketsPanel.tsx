@@ -11,7 +11,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useUser } from '@/hooks/useUser';
 import { usePusher } from '@/hooks/usePusher';
 import { playMessageSound } from '@/utils/sounds';
-import { mockTickets } from '@/lib/mock-data'; // Import mock data
 
 const NewTicketsPanel: React.FC = () => {
   const isMobile = useIsMobile();
@@ -29,7 +28,7 @@ const NewTicketsPanel: React.FC = () => {
     if (channel) {
       channel.bind('new-ticket', (newTicket: Ticket) => {
         setTickets(prevTickets => [{ ...newTicket, hasUnreadMessages: true }, ...prevTickets]);
-        toast.success(`Nuevo ticket #${newTicket.id}: ${newTicket.title}`);
+        toast.success(`Nuevo ticket #${newTicket.id}: ${newTicket.asunto}`);
         playMessageSound();
       });
 
@@ -37,7 +36,7 @@ const NewTicketsPanel: React.FC = () => {
         setTickets(prevTickets =>
             prevTickets.map(t =>
                 t.id === data.ticketId
-                    ? { ...t, messages: [...t.messages, data.message], updatedAt: new Date().toISOString(), hasUnreadMessages: true }
+                    ? { ...t, messages: [...(t.messages || []), data.message], fecha: new Date().toISOString(), hasUnreadMessages: true }
                     : t
             )
         );
@@ -56,23 +55,22 @@ const NewTicketsPanel: React.FC = () => {
       try {
         setLoading(true);
         const apiResponse = await getTickets();
-        const fetchedTickets = (apiResponse as any)?.tickets || apiResponse;
+        const fetchedTickets = (apiResponse as any)?.tickets;
 
-        if (Array.isArray(fetchedTickets) && fetchedTickets.length > 0) {
+        if (Array.isArray(fetchedTickets)) {
             setTickets(fetchedTickets);
-            setSelectedTicket(fetchedTickets[0]);
+            if (fetchedTickets.length > 0) {
+                setSelectedTicket(fetchedTickets[0]);
+            }
         } else {
-            // Fallback to mock data if API returns no tickets
-            setTickets(mockTickets);
-            setSelectedTicket(mockTickets[0] || null);
+            console.warn("La respuesta de la API no contiene un array de tickets:", apiResponse);
+            setTickets([]);
         }
 
       } catch (err) {
-        console.error('Error fetching tickets, using fallback:', err);
-        setError('No se pudieron cargar los tickets. Mostrando datos de ejemplo.');
-        // Fallback to mock data on error
-        setTickets(mockTickets);
-        setSelectedTicket(mockTickets[0] || null);
+        console.error('Error fetching tickets:', err);
+        setError('No se pudieron cargar los tickets. Inténtalo de nuevo más tarde.');
+        setTickets([]);
       } finally {
         setLoading(false);
       }
@@ -91,7 +89,7 @@ const NewTicketsPanel: React.FC = () => {
     }
   }, [isMobile]);
 
-  const handleSelectTicket = (ticketId: string) => {
+  const handleSelectTicket = (ticketId: number) => {
     const ticket = tickets.find(t => t.id === ticketId) || null;
     setSelectedTicket(ticket);
     setTickets(prevTickets =>
@@ -105,12 +103,19 @@ const NewTicketsPanel: React.FC = () => {
   }
 
   if (loading || userLoading) {
-    // ... (skeleton loading state)
+    // ... skeleton loading state ...
+  }
+
+  if (error) {
+    return (
+        <div className="flex h-screen w-full bg-background text-foreground items-center justify-center">
+            <p className="text-destructive">{error}</p>
+        </div>
+    )
   }
 
   return (
     <div className="flex h-screen w-full bg-background text-foreground overflow-hidden lg:max-w-full lg:mx-auto">
-      {error && <div className="absolute top-0 left-1/2 -translate-x-1/2 bg-yellow-200 text-yellow-800 p-2 text-sm rounded-b-lg">{error}</div>}
       <AnimatePresence>
         {isSidebarVisible && (
           <motion.div

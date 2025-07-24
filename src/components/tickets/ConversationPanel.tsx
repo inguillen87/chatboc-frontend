@@ -58,10 +58,10 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ ticket, isMobile,
             </Button>
           )}
           <div>
-            <h2 className="text-lg font-semibold">{ticket.title}</h2>
+            <h2 className="text-lg font-semibold">{ticket.asunto}</h2>
             <div className="flex items-center gap-2">
-              <Badge variant="outline" className="capitalize">{ticket.status}</Badge>
-              <Badge variant="secondary" className="capitalize">{ticket.priority}</Badge>
+              <Badge variant="outline" className="capitalize">{ticket.estado}</Badge>
+              <Badge variant="secondary" className="capitalize">{ticket.categoria || 'General'}</Badge>
             </div>
           </div>
         </div>
@@ -78,14 +78,14 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ ticket, isMobile,
       <ScrollArea className="flex-1 p-4">
         <AnimatePresence>
             <motion.div className="space-y-6">
-            {ticket && ticket.messages && ticket.messages.map((message, index) => (
+            {ticket.messages && ticket.messages.map((message, index) => (
               <motion.div
                 key={message.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}
               >
-                <ChatMessage message={message} user={ticket.user || ticket} />
+                <ChatMessage message={message} user={ticket} />
               </motion.div>
             ))}
             </motion.div>
