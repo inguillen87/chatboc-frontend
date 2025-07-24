@@ -2,18 +2,22 @@ import React from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
-import { BarChart2, MessageSquare, Map, Ticket, Settings } from 'lucide-react';
+import { BarChart2, MessageSquare, Map, Ticket, Settings, ShoppingCart, BookOpen } from 'lucide-react';
 import { useUser } from '@/hooks/useUser';
 
 const QuickLinksCard: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useUser();
 
+  const isMunicipio = user?.tipo_chat === 'municipio';
+
   const links = [
     { to: "/tickets", label: "Tickets", icon: Ticket },
+    { to: "/pedidos", label: "Pedidos", icon: ShoppingCart, roles: ['pyme'] },
+    { to: isMunicipio ? "/municipal/tramites" : "/pyme/catalog", label: "Catálogo", icon: BookOpen },
     { to: "/municipal/incidents", label: "Mapa", icon: Map, roles: ['municipio', 'admin'] },
     {
-      to: user?.tipo_chat === 'municipio' ? "/municipal/stats" : "/pyme/metrics",
+      to: isMunicipio ? "/municipal/stats" : "/pyme/metrics",
       label: "Estadísticas",
       icon: BarChart2
     },
