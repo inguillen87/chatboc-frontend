@@ -43,7 +43,10 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ ticket, isMobile,
                 setMessages(fullTicket.messages || []);
             } catch (error) {
                 toast.error("No se pudo cargar el historial de mensajes.");
+                setMessages([]);
             }
+        } else {
+            setMessages([]);
         }
     };
     fetchMessages();
@@ -69,8 +72,6 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ ticket, isMobile,
     try {
         await sendMessage(ticket.id, ticket.tipo, message);
         setMessage('');
-        // El mensaje se añadirá a la conversación a través de Pusher,
-        // por lo que no es necesario añadirlo aquí manualmente.
     } catch (error) {
         toast.error("No se pudo enviar el mensaje.");
     } finally {
@@ -79,7 +80,13 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ ticket, isMobile,
   };
 
   if (!ticket) {
-    // ... (código del placeholder sin cambios) ...
+    return (
+      <div className="flex flex-col h-screen bg-background items-center justify-center text-center p-4">
+        <MessageSquare className="w-16 h-16 text-muted-foreground mb-4" />
+        <h2 className="text-xl font-semibold">Selecciona un ticket</h2>
+        <p className="text-muted-foreground">Elige un ticket de la lista para ver la conversación.</p>
+      </div>
+    );
   }
 
   const handleSelectPredefinedMessage = (predefinedMessage: string) => {
@@ -87,8 +94,55 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ ticket, isMobile,
   };
 
   return (
-    <motion.div>
-      {/* ... (código del header y scrollarea sin cambios) ... */}
+    <motion.div
+        key={ticket.id}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5 }}
+        className="flex flex-col h-screen bg-background"
+    >
+      <header className="p-4 border-b border-border flex items-center justify-between shrink-0">
+        <div className="flex items-center space-x-4">
+          {(isMobile || !isSidebarVisible) && (
+            <Button variant="ghost" size="icon" onClick={onToggleSidebar}>
+              {isSidebarVisible ? <PanelLeftClose className="h-5 w-5" /> : <PanelLeft className="h-5 w-5" />}
+            </Button>
+          )}
+          <div>
+            <h2 className="text-lg font-semibold">{ticket.asunto}</h2>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="capitalize">{ticket.estado}</Badge>
+              <Badge variant="secondary" className="capitalize">{ticket.categoria || 'General'}</Badge>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center space-x-2">
+          <Button variant="outline">Cerrar Ticket</Button>
+          {isMobile && (
+            <Button variant="ghost" size="icon" onClick={onToggleDetails}>
+              <PanelRight className="h-5 w-5" />
+            </Button>
+          )}
+        </div>
+      </header>
+
+      <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
+        <AnimatePresence>
+            <motion.div className="space-y-6">
+            {messages && messages.map((msg, index) => (
+              <motion.div
+                key={msg.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.05 }}
+              >
+                <ChatMessage message={msg} user={ticket} />
+              </motion.div>
+            ))}
+            </motion.div>
+        </AnimatePresence>
+      </ScrollArea>
+
       <footer className="p-4 border-t border-border shrink-0">
         <div className="relative">
           <Textarea
@@ -105,11 +159,13 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ ticket, isMobile,
             }}
           />
           <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center">
-            <PredefinedMessagesModal onSelectMessage={handleSelectPredefinedMessage}>
-                <Button variant="ghost" size="icon" disabled={isSending}>
-                    <MessageCircle className="h-5 w-5" />
-                </Button>
-            </PredefinedMessagesModal>
+            {ticket && (
+              <PredefinedMessagesModal onSelectMessage={handleSelectPredefinedMessage}>
+                  <Button variant="ghost" size="icon" disabled={isSending}>
+                      <MessageCircle className="h-5 w-5" />
+                  </Button>
+              </PredefinedMessagesModal>
+            )}
             {supported && (
                  <Button variant="ghost" size="icon" onClick={listening ? stop : start} disabled={isSending}>
                     {listening ? <MicOff className="h-5 w-5 text-destructive" /> : <Mic className="h-5 w-5" />}
