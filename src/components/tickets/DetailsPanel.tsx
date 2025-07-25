@@ -18,7 +18,7 @@ const DetailsPanel: React.FC = () => {
 
   if (!ticket) {
     return (
-       <aside className="w-96 border-l border-border flex-col h-screen bg-muted/20 shrink-0 hidden lg:flex items-center justify-center p-6">
+       <aside className="w-80 border-l border-border flex-col h-screen bg-muted/20 shrink-0 hidden lg:flex items-center justify-center p-6">
          <div className="text-center text-muted-foreground">
             <Info className="h-12 w-12 mx-auto mb-4" />
             <h3 className="font-semibold">Detalles del Ticket</h3>
@@ -36,7 +36,7 @@ const DetailsPanel: React.FC = () => {
         initial={{ opacity: 0.5 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
-        className="w-96 border-l border-border flex flex-col h-screen bg-muted/20 shrink-0"
+        className="w-80 border-l border-border flex flex-col h-screen bg-muted/20 shrink-0"
     >
       <ScrollArea className="flex-1">
         <div className="p-6 space-y-6">
