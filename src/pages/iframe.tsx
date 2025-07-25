@@ -1,10 +1,10 @@
 import './index.css';
 import { createRoot } from 'react-dom/client';
 import React, { useEffect, useState } from "react";
-import ChatWidget from "./components/chat/ChatWidget";
+import ChatWidget from "../components/chat/ChatWidget";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
-import ErrorBoundary from './components/ErrorBoundary';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 const DEFAULTS = {
   openWidth: "460px",
