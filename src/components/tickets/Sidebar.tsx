@@ -34,16 +34,16 @@ const Sidebar: React.FC = () => {
   }, [ticketsByCategory, debouncedSearchTerm]);
 
   return (
-    <aside className="w-96 border-r border-border flex flex-col h-screen bg-muted/20 shrink-0">
+    <aside className="w-80 border-r border-border flex flex-col h-screen bg-muted/20 shrink-0">
       <div className="p-4 space-y-4">
         <div className="flex justify-between items-center">
             <h1 className="text-2xl font-bold">Tickets</h1>
             <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => exportToExcel(tickets, 'todos')}>
+                <Button variant="outline" size="sm" onClick={() => exportToExcel(tickets)}>
                     <FileDown className="h-4 w-4 mr-2" />
                     Excel
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => exportToPdf(tickets, 'todos')}>
+                <Button variant="outline" size="sm" onClick={() => exportToPdf(tickets)}>
                     <FileDown className="h-4 w-4 mr-2" />
                     PDF
                 </Button>
