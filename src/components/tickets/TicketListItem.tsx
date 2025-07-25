@@ -44,7 +44,7 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
       </div>
       <p className="font-semibold text-sm ml-13 mb-2">{ticket.asunto}</p>
       <p className="text-sm text-muted-foreground truncate ml-13">{ticket.lastMessage || '...'}</p>
-      <div className="flex items-center justify-start mt-2 ml-13">
+      <div className="flex items-center justify-between mt-2 ml-13">
          <Badge variant={ticket.estado === 'nuevo' ? 'default' : 'outline'}
                className={cn(
                 'capitalize',
@@ -54,6 +54,7 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
                )}>
           {ticket.estado}
         </Badge>
+        {ticket.categoria && <p className="text-xs font-bold text-muted-foreground">{ticket.categoria}</p>}
       </div>
     </div>
   );
