@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Paperclip, Send, PanelLeft, PanelRight, MessageSquare, PanelLeftClose, MessageCircle, Mic, MicOff } from 'lucide-react';
+import { Paperclip, Send, PanelLeft, PanelRight, MessageSquare, PanelLeftClose, MessageCircle, Mic, MicOff, ArrowDown, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Ticket, Message } from '@/types/tickets';
 import ChatMessage from './ChatMessage';
@@ -14,6 +14,9 @@ import { getTicketMessages, sendMessage } from '@/services/ticketService';
 import { toast } from 'sonner';
 import { useUser } from '@/hooks/useUser';
 import { useTickets } from '@/context/TicketContext';
+import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
+import ScrollToBottomButton from '../ui/ScrollToBottomButton';
+import { AdjuntarArchivo } from '../ui/AdjuntarArchivo';
 
 interface ConversationPanelProps {
   isMobile: boolean;
@@ -23,10 +26,11 @@ interface ConversationPanelProps {
 }
 
 const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSidebarVisible, onToggleSidebar, onToggleDetails }) => {
-  const { selectedTicket } = useTickets();
+  const { selectedTicket, updateTicket } = useTickets();
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [isSending, setIsSending] = useState(false);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const { user } = useUser();
   const { supported, listening, transcript, start, stop } = useSpeechRecognition();
   const channelName = selectedTicket ? `ticket-${selectedTicket.tipo}-${selectedTicket.id}` : null;
@@ -69,11 +73,21 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
     }
   }, [channel]);
 
-  useEffect(() => {
+  const scrollToBottom = () => {
     if (scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
+        scrollAreaRef.current.scrollTo({ top: scrollAreaRef.current.scrollHeight, behavior: 'smooth' });
     }
+  };
+
+  useEffect(() => {
+    scrollToBottom();
   }, [messages]);
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+    const isAtBottom = scrollHeight - scrollTop <= clientHeight + 10;
+    setShowScrollToBottom(!isAtBottom);
+  };
 
   const handleSendMessage = async () => {
     if (!message.trim() || !selectedTicket || !user) return;
@@ -102,6 +116,12 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
     setMessage(prev => prev ? `${prev}\n${predefinedMessage}` : predefinedMessage);
   };
 
+  const handleCloseTicket = () => {
+    if(!selectedTicket) return;
+    updateTicket(selectedTicket.id, { ...selectedTicket, estado: 'resuelto' });
+    toast.success('Ticket cerrado con éxito');
+  }
+
   return (
     <motion.div
         key={selectedTicket.id}
@@ -113,12 +133,16 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
       <header className="p-4 border-b border-border flex items-center justify-between shrink-0">
         <div className="flex items-center space-x-4">
           {(isMobile || !isSidebarVisible) && (
-            <Button variant="ghost" size="icon" onClick={onToggleSidebar}>
+            <Button variant="ghost" size="icon" onClick={onToggleSidebar} aria-label="Toggle Sidebar">
               {isSidebarVisible ? <PanelLeftClose className="h-5 w-5" /> : <PanelLeft className="h-5 w-5" />}
             </Button>
           )}
+          <Avatar>
+            <AvatarImage src={selectedTicket.avatarUrl} />
+            <AvatarFallback>{selectedTicket.name?.[0]}</AvatarFallback>
+          </Avatar>
           <div>
-            <h2 className="text-lg font-semibold">{selectedTicket.asunto}</h2>
+            <h2 className="text-lg font-semibold">{selectedTicket.name}</h2>
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="capitalize">{selectedTicket.estado}</Badge>
               <Badge variant="secondary" className="capitalize">{selectedTicket.categoria || 'General'}</Badge>
@@ -126,37 +150,43 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
           </div>
         </div>
         <div className="flex items-center space-x-2">
-          <Button variant="outline">Cerrar Ticket</Button>
+          <Button variant="outline" size="sm" onClick={handleCloseTicket} aria-label="Cerrar Ticket">
+            <X className="h-4 w-4 mr-2" />
+            Cerrar Ticket
+          </Button>
           {isMobile && (
-            <Button variant="ghost" size="icon" onClick={onToggleDetails}>
+            <Button variant="ghost" size="icon" onClick={onToggleDetails} aria-label="Toggle Details">
               <PanelRight className="h-5 w-5" />
             </Button>
           )}
         </div>
       </header>
 
-      <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
-        <AnimatePresence>
-            <motion.div className="space-y-6">
-            {(messages || []).map((msg) => (
-              <motion.div
-                key={msg.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.05 }}
-              >
-                <ChatMessage message={msg} user={selectedTicket} />
+      <div className="flex-1 relative">
+        <ScrollArea className="h-full p-4" ref={scrollAreaRef} onScroll={handleScroll}>
+          <AnimatePresence>
+              <motion.div className="space-y-6">
+              {(messages || []).map((msg) => (
+                <motion.div
+                  key={msg.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.05 }}
+                >
+                  <ChatMessage message={msg} user={selectedTicket} />
+                </motion.div>
+              ))}
               </motion.div>
-            ))}
-            </motion.div>
-        </AnimatePresence>
-      </ScrollArea>
+          </AnimatePresence>
+        </ScrollArea>
+        {showScrollToBottom && <ScrollToBottomButton onClick={scrollToBottom} />}
+      </div>
 
       <footer className="p-4 border-t border-border shrink-0">
         <div className="relative">
           <Textarea
             placeholder={listening ? "Escuchando..." : "Escribe tu respuesta..."}
-            className="pr-48"
+            className="pr-48 min-h-[60px]"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             disabled={listening || isSending}
@@ -166,26 +196,29 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
                     handleSendMessage();
                 }
             }}
+            maxLength={1000}
+            aria-label="Message Input"
           />
-          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center">
+          <div className="absolute bottom-3 right-2 flex items-center">
             {selectedTicket && (
               <PredefinedMessagesModal onSelectMessage={handleSelectPredefinedMessage}>
-                  <Button variant="ghost" size="icon" disabled={isSending}>
+                  <Button variant="ghost" size="icon" disabled={isSending} aria-label="Predefined Messages">
                       <MessageCircle className="h-5 w-5" />
                   </Button>
               </PredefinedMessagesModal>
             )}
             {supported && (
-                 <Button variant="ghost" size="icon" onClick={listening ? stop : start} disabled={isSending}>
+                 <Button variant="ghost" size="icon" onClick={listening ? stop : start} disabled={isSending} aria-label={listening ? 'Stop Listening' : 'Start Listening'}>
                     {listening ? <MicOff className="h-5 w-5 text-destructive" /> : <Mic className="h-5 w-5" />}
                 </Button>
             )}
-            <Button variant="ghost" size="icon" disabled={isSending}>
-              <Paperclip className="h-5 w-5" />
-            </Button>
-            <Button onClick={handleSendMessage} disabled={isSending}>
+            <AdjuntarArchivo onFileSelect={() => {}} />
+            <Button onClick={handleSendMessage} disabled={isSending || !message.trim()} aria-label="Send Message">
               {isSending ? 'Enviando...' : <Send className="h-5 w-5" />}
             </Button>
+          </div>
+          <div className="text-xs text-muted-foreground text-right mt-1 pr-2">
+            {message.length} / 1000
           </div>
         </div>
       </footer>
