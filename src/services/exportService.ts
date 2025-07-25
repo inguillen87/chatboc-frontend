@@ -92,18 +92,43 @@ export const exportToXlsx = (ticket: Ticket, messages: Message[]) => {
 };
 
 export const exportToExcel = (tickets: Ticket[]) => {
+  const headerStyle = {
+    font: { bold: true, color: { rgb: "FFFFFF" } },
+    fill: { fgColor: { rgb: "4F81BD" } },
+    alignment: { horizontal: "center", vertical: "center" },
+  };
+
   const sheetData = tickets.map(ticket => ({
-    ID: ticket.nro_ticket,
-    Asunto: ticket.asunto,
-    Estado: ticket.estado,
-    Fecha: new Date(ticket.fecha).toLocaleString(),
-    Cliente: ticket.name || 'Desconocido',
-    Email: ticket.email || '',
-    Teléfono: ticket.telefono || '',
-    Dirección: ticket.direccion || '',
+    'ID': ticket.nro_ticket,
+    'Asunto': ticket.asunto,
+    'Estado': ticket.estado,
+    'Fecha': new Date(ticket.fecha).toLocaleString(),
+    'Cliente': ticket.name || 'Desconocido',
+    'Email': ticket.email || '',
+    'Teléfono': ticket.telefono || '',
+    'Dirección': ticket.direccion || '',
   }));
 
   const worksheet = XLSX.utils.json_to_sheet(sheetData);
+
+  // Apply styles to header
+  const header = Object.keys(sheetData[0]);
+  for (let i = 0; i < header.length; i++) {
+    const cellRef = XLSX.utils.encode_cell({ c: i, r: 0 });
+    if (worksheet[cellRef]) {
+      worksheet[cellRef].s = headerStyle;
+    }
+  }
+
+  // Adjust column widths
+  const colWidths = header.map(key => ({
+    wch: Math.max(
+      key.length,
+      ...sheetData.map(row => (row[key as keyof typeof row] ? row[key as keyof typeof row].toString().length : 0))
+    ) + 2
+  }));
+  worksheet['!cols'] = colWidths;
+
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Tickets');
 
