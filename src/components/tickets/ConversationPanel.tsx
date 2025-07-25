@@ -16,7 +16,7 @@ import { useUser } from '@/hooks/useUser';
 import { useTickets } from '@/context/TicketContext';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import ScrollToBottomButton from '../ui/ScrollToBottomButton';
-import { AdjuntarArchivo } from '../ui/AdjuntarArchivo';
+import AdjuntarArchivo from '../ui/AdjuntarArchivo';
 
 interface ConversationPanelProps {
   isMobile: boolean;
