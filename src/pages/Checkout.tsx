@@ -9,19 +9,6 @@ const Checkout = () => {
   const plan = searchParams.get("plan");
 
   const planInfo = {
-    pro: {
-      title: "Plan Pro",
-      price: "$ / mes",
-      benefits: [
-        "Hasta 200 preguntas y respuestas personalizadas por mes",
-        "Entrenamiento optimizado para el rubro de tu empresa",
-        "Panel de control con métricas e historial de uso",
-        "Asistente inteligente con aprendizaje y mejoras continuas",
-        "Alertas automáticas por palabra clave (ej: reclamos, urgencias)",
-        "Registro automático de conversaciones (planilla o sistema)",
-        "Soporte técnico prioritario y acceso anticipado a nuevas funcionalidades"
-      ],
-    },
     full: {
       title: "Plan Full",
       price: "$ / mes",
@@ -38,7 +25,7 @@ const Checkout = () => {
     },
   };
 
-  const selected = planInfo[plan as "pro" | "full"];
+  const selected = planInfo[plan as "full"];
 
   if (!selected) {
     return (
