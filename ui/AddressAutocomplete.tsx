@@ -20,8 +20,7 @@ interface AddressAutocompleteProps {
   disabled?: boolean;
 }
 
-const Maps_API_KEY =
-  import.meta.env.VITE_Maps_API_KEY || "AIzaSyDbEoPzFgN5zJsIeywiRE7jRI8xr5ioGNI";
+const Maps_API_KEY = import.meta.env.VITE_Maps_API_KEY || "";
 
 const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   onSelect,
