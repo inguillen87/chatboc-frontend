@@ -6,6 +6,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
+  const sanitizedApiOrigin = new URL(env.VITE_API_URL).origin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
   return {
     plugins: [
@@ -45,10 +46,24 @@ export default defineConfig(({ mode }) => {
               }
             },
             {
-              // Cache para las llamadas a tu API
-              urlPattern: ({ url }) =>
-                url.pathname.startsWith('/api') ||
-                url.origin === env.VITE_API_URL,
+              // Cache para las llamadas a la API local (/api)
+              urlPattern: /^\/api\/.*$/,
+              handler: 'NetworkFirst',
+              options: {
+                cacheName: 'api-cache',
+                expiration: {
+                  maxEntries: 50,
+                  maxAgeSeconds: 60 * 60 * 24 * 1 // 1 día
+                },
+                cacheableResponse: {
+                  statuses: [0, 200]
+                },
+                networkTimeoutSeconds: 10
+              }
+            },
+            {
+              // Cache para la API externa definida por VITE_API_URL
+              urlPattern: new RegExp('^' + sanitizedApiOrigin),
               handler: 'NetworkFirst',
               options: {
                 cacheName: 'api-cache',
