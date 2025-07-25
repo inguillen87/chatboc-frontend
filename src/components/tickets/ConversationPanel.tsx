@@ -102,30 +102,6 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
     setMessage(prev => prev ? `${prev}\n${predefinedMessage}` : predefinedMessage);
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      // Here you would typically upload the file to a server and get a URL.
-      // For this example, we'll just display a preview.
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const newMessage: Message = {
-          id: Date.now(),
-          mensaje: '',
-          fecha: new Date().toISOString(),
-          es_admin: true,
-          user_id: user?.id,
-          attachment: {
-            type: file.type,
-            url: event.target?.result as string,
-          },
-        };
-        setMessages([...messages, newMessage]);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
   return (
     <motion.div
         key={selectedTicket.id}
@@ -204,10 +180,9 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
                     {listening ? <MicOff className="h-5 w-5 text-destructive" /> : <Mic className="h-5 w-5" />}
                 </Button>
             )}
-            <label className="p-2 text-gray-600 hover:text-blue-600 cursor-pointer">
+            <Button variant="ghost" size="icon" disabled={isSending}>
               <Paperclip className="h-5 w-5" />
-              <input type="file" className="hidden" onChange={handleFileChange} />
-            </label>
+            </Button>
             <Button onClick={handleSendMessage} disabled={isSending}>
               {isSending ? 'Enviando...' : <Send className="h-5 w-5" />}
             </Button>

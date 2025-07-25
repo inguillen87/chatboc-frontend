@@ -8,7 +8,6 @@ import { Badge } from '@/components/ui/badge';
 import { motion } from 'framer-motion';
 import TicketMap from '../TicketMap';
 import { useTickets } from '@/context/TicketContext';
-import MiniChatWidgetPreview from '@/components/ui/MiniChatWidgetPreview';
 
 const DetailsPanel: React.FC = () => {
   const { selectedTicket: ticket } = useTickets();
@@ -43,65 +42,39 @@ const DetailsPanel: React.FC = () => {
         <div className="p-6 space-y-6">
           {/* User Details */}
           <Card>
-            <CardHeader>
-              <CardTitle>Detalles del Cliente</CardTitle>
+            <CardHeader className="flex flex-row items-center gap-4 p-4">
+               <Avatar className="h-16 w-16">
+                <AvatarImage src={ticket.avatarUrl} alt={ticket.name} />
+                <AvatarFallback>{getInitials(ticket.name || '')}</AvatarFallback>
+              </Avatar>
+              <div>
+                <h2 className="text-xl font-bold">{ticket.name || 'Usuario Desconocido'}</h2>
+                <p className="text-sm text-muted-foreground">Cliente</p>
+              </div>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center gap-4">
-                <Avatar className="h-16 w-16">
-                  <AvatarImage src={ticket.avatarUrl} alt={ticket.name} />
-                  <AvatarFallback>{getInitials(ticket.name || "")}</AvatarFallback>
-                </Avatar>
-                <div>
-                  <h3 className="text-lg font-semibold">{ticket.name || "Usuario Desconocido"}</h3>
-                  <p className="text-sm text-muted-foreground">Cliente</p>
-                </div>
-              </div>
-              <div className="space-y-2">
-                {ticket.email && (
-                  <div className="flex items-center gap-3">
+            <CardContent className="p-4 space-y-3">
+              {ticket.email && (
+                <div className="flex items-center gap-3">
                     <Mail className="h-4 w-4 text-muted-foreground" />
-                    <a href={`mailto:${ticket.email}`} className="text-sm hover:underline">
-                      {ticket.email}
-                    </a>
-                  </div>
-                )}
-                {ticket.telefono && (
-                  <div className="flex items-center gap-3">
+                    <span className="text-sm">{ticket.email}</span>
+                </div>
+              )}
+              {ticket.telefono && (
+                <div className="flex items-center gap-3">
                     <Phone className="h-4 w-4 text-muted-foreground" />
-                    <a href={`https://wa.me/${ticket.telefono}`} target="_blank" rel="noopener noreferrer" className="text-sm hover:underline">
-                      {ticket.telefono}
-                    </a>
-                  </div>
-                )}
-                {ticket.direccion && (
-                  <div className="flex items-center gap-3">
-                    <MapPin className="h-4 w-4 text-muted-foreground" />
-                    <a
-                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ticket.direccion)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm hover:underline"
-                    >
-                      {ticket.direccion}
-                    </a>
-                  </div>
-                )}
+                    <span className="text-sm">{ticket.telefono}</span>
+                </div>
+              )}
+              {ticket.direccion && (
+               <div className="flex items-center gap-3">
+                <MapPin className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm">{ticket.direccion}</span>
               </div>
+              )}
             </CardContent>
           </Card>
 
           {hasLocation && <TicketMap ticket={ticket} />}
-
-          {/* Mini Chat Widget Preview */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Vista Previa del Widget</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <MiniChatWidgetPreview />
-            </CardContent>
-          </Card>
 
           {/* Ticket Info */}
           <Card>
