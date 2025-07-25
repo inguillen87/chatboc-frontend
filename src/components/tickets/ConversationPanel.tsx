@@ -62,14 +62,20 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
 
   useEffect(() => {
     if (channel) {
-      channel.bind('nuevo-mensaje', (newMessage: Message) => {
+      const callback = (newMessage: Message) => {
+        console.log('New message received from Pusher:', newMessage);
         setMessages(prevMessages => {
             if (prevMessages.find(m => m.id === newMessage.id)) {
                 return prevMessages;
             }
             return [...prevMessages, newMessage];
         });
-      });
+      };
+      channel.bind('nuevo-mensaje', callback);
+
+      return () => {
+        channel.unbind('nuevo-mensaje', callback);
+      }
     }
   }, [channel]);
 
