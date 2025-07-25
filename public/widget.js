@@ -1,4 +1,3 @@
-// Contenido de widget.js con las modificaciones:
 (function () {
   "use strict";
 
@@ -49,11 +48,11 @@
     const expectedDomain = "https://www.chatboc.ar"; // O tu dominio principal de chatboc
     if (!script.getAttribute("data-domain") && scriptOrigin !== expectedDomain) {
       console.warn(
-        Chatboc Widget: El atributo 'data-domain' no fue especificado y el script widget.js parece estar alojado en '${scriptOrigin}'.  +
-        Esto es inusual si el script siempre se sirve desde '${expectedDomain}'.  +
-        Si está auto-alojando widget.js intencionalmente y el contenido del iframe se sirve desde '${scriptOrigin}', asegúrese de que sea correcto.  +
-        De lo contrario, si el contenido del iframe siempre debe cargarse desde '${expectedDomain}',  +
-        considere añadir 'data-domain="${expectedDomain}"' a la etiqueta <script> que carga widget.js, o asegúrese de que widget.js se cargue desde '${expectedDomain}'.
+        `Chatboc Widget: El atributo 'data-domain' no fue especificado y el script widget.js parece estar alojado en '${scriptOrigin}'. ` +
+        `Esto es inusual si el script siempre se sirve desde '${expectedDomain}'. ` +
+        `Si está auto-alojando widget.js intencionalmente y el contenido del iframe se sirve desde '${scriptOrigin}', asegúrese de que sea correcto. ` +
+        `De lo contrario, si el contenido del iframe siempre debe cargarse desde '${expectedDomain}', ` +
+        `considere añadir 'data-domain="${expectedDomain}"' a la etiqueta <script> que carga widget.js, o asegúrese de que widget.js se cargue desde '${expectedDomain}'.`
       );
     }
 
@@ -131,12 +130,12 @@
         pointerEvents: "auto", 
         zIndex: "2", 
       });
-      loader.innerHTML = <img src="${chatbocDomain}/favicon/favicon-96x96.png" alt="Chatboc" style="width:96px;height:96px; filter: invert(100%);"/>; 
+      loader.innerHTML = `<img src="${chatbocDomain}/favicon/favicon-96x96.png" alt="Chatboc" style="width:96px;height:96px; filter: invert(100%);"/>`; 
       widgetContainer.appendChild(loader);
 
       const iframe = document.createElement("iframe");
       iframe.id = iframeId;
-      iframe.src = ${chatbocDomain}/iframe?token=${encodeURIComponent(token)}&widgetId=${iframeId}&defaultOpen=${defaultOpen}&tipo_chat=${tipoChat}&openWidth=${encodeURIComponent(WIDGET_DIMENSIONS_JS.OPEN.width)}&openHeight=${encodeURIComponent(WIDGET_DIMENSIONS_JS.OPEN.height)}&closedWidth=${encodeURIComponent(WIDGET_DIMENSIONS_JS.CLOSED.width)}&closedHeight=${encodeURIComponent(WIDGET_DIMENSIONS_JS.CLOSED.height)}${theme ? &theme=${encodeURIComponent(theme)} : ""}${rubroAttr ? &rubro=${encodeURIComponent(rubroAttr)} : ""}${finalCta ? &ctaMessage=${encodeURIComponent(finalCta)} : ""};
+      iframe.src = `${chatbocDomain}/iframe?token=${encodeURIComponent(token)}&widgetId=${iframeId}&defaultOpen=${defaultOpen}&tipo_chat=${tipoChat}&openWidth=${encodeURIComponent(WIDGET_DIMENSIONS_JS.OPEN.width)}&openHeight=${encodeURIComponent(WIDGET_DIMENSIONS_JS.OPEN.height)}&closedWidth=${encodeURIComponent(WIDGET_DIMENSIONS_JS.CLOSED.width)}&closedHeight=${encodeURIComponent(WIDGET_DIMENSIONS_JS.CLOSED.height)}${theme ? `&theme=${encodeURIComponent(theme)}` : ""}${rubroAttr ? `&rubro=${encodeURIComponent(rubroAttr)}` : ""}${finalCta ? `&ctaMessage=${encodeURIComponent(finalCta)}` : ""}`;
       Object.assign(iframe.style, {
         border: "none",
         width: "100%", 
@@ -312,7 +311,6 @@
 
       function postToIframe(msg) {
         if (iframe && iframe.contentWindow) {
-          // MODIFICACIÓN AQUÍ: Usar chatbocDomain en lugar de "*"
           iframe.contentWindow.postMessage({ ...msg, widgetId: iframeId }, chatbocDomain); // Antes era "*"
         }
       }
@@ -354,7 +352,7 @@
       if (ctaMessageAttr) {
         buildWidget(ctaMessageAttr);
       } else {
-        fetch(${chatbocDomain}/widget/attention)
+        fetch(`${chatbocDomain}/widget/attention`)
           .then((r) => (r.ok ? r.json() : Promise.resolve({ message: "" })))
           .then((d) => buildWidget(d.message || ""))
           .catch(() => buildWidget("")); 
@@ -369,4 +367,4 @@
   } else {
     init();
   }
-  })(); 
+})();
