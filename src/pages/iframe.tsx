@@ -1,4 +1,4 @@
-import './index.css';
+import "../index.css";
 import { createRoot } from 'react-dom/client';
 import React, { useEffect, useState } from "react";
 import ChatWidget from "../components/chat/ChatWidget";
