@@ -52,13 +52,13 @@ const Sidebar: React.FC = () => {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => exportToExcel(tickets)}>
-                Exportar a Excel (Todos)
+                Exportar Todos (Excel)
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => exportAllToPdf(tickets)}>
-                Exportar a PDF (Todos)
+                Exportar Todos (PDF)
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => exportToPdf(selectedTicket, selectedTicket?.messages || [])} disabled={!selectedTicket}>
-                Exportar Ticket a PDF
+                Exportar Ticket Actual (PDF)
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

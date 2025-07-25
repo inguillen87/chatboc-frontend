@@ -7,7 +7,6 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTickets } from '@/context/TicketContext';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 
 const NewTicketsPanel: React.FC = () => {
   const isMobile = useIsMobile();
@@ -117,24 +116,16 @@ const NewTicketsPanel: React.FC = () => {
           </AnimatePresence>
         </div>
       ) : (
-        <ResizablePanelGroup direction="horizontal" className="h-full w-full">
-          <ResizablePanel defaultSize={30} minSize={25} maxSize={40}>
-            <Sidebar />
-          </ResizablePanel>
-          <ResizableHandle withHandle />
-          <ResizablePanel defaultSize={45} minSize={30}>
-            <ConversationPanel
-              isMobile={false}
-              isSidebarVisible={isSidebarVisible}
-              onToggleSidebar={toggleSidebar}
-              onToggleDetails={toggleDetails}
-            />
-          </ResizablePanel>
-          <ResizableHandle withHandle />
-          <ResizablePanel defaultSize={25} minSize={20} maxSize={35}>
-            <DetailsPanel />
-          </ResizablePanel>
-        </ResizablePanelGroup>
+        <div className="grid grid-cols-[320px_1fr_320px] h-full w-full">
+          <Sidebar />
+          <ConversationPanel
+            isMobile={false}
+            isSidebarVisible={isSidebarVisible}
+            onToggleSidebar={toggleSidebar}
+            onToggleDetails={toggleDetails}
+          />
+          <DetailsPanel />
+        </div>
       )}
       <Toaster richColors />
     </div>
