@@ -118,11 +118,11 @@ const NewTicketsPanel: React.FC = () => {
         </div>
       ) : (
         <ResizablePanelGroup direction="horizontal" className="h-full w-full">
-          <ResizablePanel defaultSize={25} minSize={20} maxSize={30}>
+          <ResizablePanel defaultSize={30} minSize={25} maxSize={40}>
             <Sidebar />
           </ResizablePanel>
           <ResizableHandle withHandle />
-          <ResizablePanel defaultSize={50} minSize={30}>
+          <ResizablePanel defaultSize={45} minSize={30}>
             <ConversationPanel
               isMobile={false}
               isSidebarVisible={isSidebarVisible}
