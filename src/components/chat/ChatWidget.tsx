@@ -21,7 +21,9 @@ const ChatWidget = ({ primaryColor = '#007bff', logoUrl = '', position = 'right'
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-
+  const [entityToken, setEntityToken] = useState(null); // asegurate de que esto venga del contexto correcto
+  const [resolvedTipoChat, setResolvedTipoChat] = useState(null);
+  const [entityInfo, setEntityInfo] = useState(null);
   const chatBodyRef = useRef(null);
 
   const PROACTIVE_MESSAGES = [
@@ -34,11 +36,6 @@ const ChatWidget = ({ primaryColor = '#007bff', logoUrl = '', position = 'right'
   useEffect(() => {
     const channel = pusher.subscribe('chat');
 
-
-    channel.bind('stop-typing', () => {
-      setIsTyping(false);
-    });
-
     channel.bind('typing', () => {
       setIsTyping(true);
     });
@@ -47,18 +44,25 @@ const ChatWidget = ({ primaryColor = '#007bff', logoUrl = '', position = 'right'
       setIsTyping(false);
     });
 
-    if (chatBodyRef.current) {
-      chatBodyRef.current.scrollTop = chatBodyRef.current.scrollHeight;
-    }
-
     return () => {
       pusher.unsubscribe('chat');
     };
+  }, []);
+
+  useEffect(() => {
+    if (chatBodyRef.current) {
+      chatBodyRef.current.scrollTop = chatBodyRef.current.scrollHeight;
+    }
   }, [messages]);
 
   const handleInputChange = (e) => {
     setInputValue(e.target.value);
     pusher.trigger('chat', 'typing', { user });
+  };
+
+  const handleInputBlur = () => {
+    pusher.trigger('chat', 'stop-typing', { user });
+  };
 
   const handleSendMessage = () => {
     if (inputValue.trim() === '') return;
@@ -85,7 +89,28 @@ const ChatWidget = ({ primaryColor = '#007bff', logoUrl = '', position = 'right'
     }
   };
 
+  useEffect(() => {
+    async function fetchEntityProfile() {
+      if (!entityToken) return;
+      try {
+        const data = await apiFetch("/perfil", {
+          sendEntityToken: true,
+          skipAuth: true,
+        });
+        if (data && typeof data.esPublico === "boolean") {
+          setResolvedTipoChat(data.esPublico ? "municipio" : "pyme");
+        } else if (data && data.tipo_chat) {
+          setResolvedTipoChat(data.tipo_chat === "municipio" ? "municipio" : "pyme");
+        }
+        setEntityInfo(data);
+      } catch (e) {
+        // manejar error
+      }
+    }
+    fetchEntityProfile();
+  }, [entityToken]);
 
+  const togglePanel = () => setIsOpen(!isOpen);
 
   return (
     <div className="fixed bottom-5 z-50" style={{ right: position === 'right' ? '20px' : 'auto', left: position === 'left' ? '20px' : 'auto' }}>
@@ -138,7 +163,11 @@ const ChatWidget = ({ primaryColor = '#007bff', logoUrl = '', position = 'right'
               onChange={handleInputChange}
               onBlur={handleInputBlur}
               onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-
+            />
+            <button className="p-2 text-gray-600 hover:text-blue-600"><Paperclip /></button>
+            <button className="p-2 text-gray-600 hover:text-blue-600"><Mic /></button>
+            <button onClick={handleSendLocation} className="p-2 text-gray-600 hover:text-blue-600"><MapPin /></button>
+            <button onClick={handleSendMessage} className="p-2 text-white rounded-full ml-2" style={{ backgroundColor: primaryColor }}><Send /></button>
           </div>
         </div>
       </div>
