@@ -1,3 +1,5 @@
+import { Boton, StructuredContentItem } from './chat';
+
 export type TicketStatus = 'nuevo' | 'abierto' | 'en-espera' | 'resuelto' | 'cerrado' | 'en_proceso';
 export type TicketPriority = 'baja' | 'media' | 'alta' | 'urgente';
 
@@ -10,21 +12,32 @@ export interface User {
   phone?: string;
 }
 
-export interface Message {
-  id: string;
-  author: 'user' | 'agent';
-  agentName?: string;
-  content: string;
-  timestamp: string;
-  isInternalNote?: boolean;
-}
-
 export interface Attachment {
-  id: string;
+  id: number;
   filename: string;
   url: string;
   size: number;
+  mime_type?: string;
 }
+
+export interface Message {
+  id: number;
+  author: 'user' | 'agent';
+  agentName?: string;
+  content: string; // Corresponds to 'text' in ChatMessageData
+  timestamp: string; // Corresponds to 'timestamp'
+  isInternalNote?: boolean;
+
+  // Fields to align with ChatMessageData
+  attachments?: Attachment[];
+  botones?: Boton[];
+  structuredContent?: StructuredContentItem[];
+
+  // Optional fields from original Message type in tickets
+  media_url?: string;
+  ubicacion?: { lat: number; lon: number; name?: string; address?: string; };
+}
+
 
 export interface Ticket {
   id: number;
