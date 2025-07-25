@@ -145,8 +145,8 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
         transition={{ duration: 0.5 }}
         className="flex flex-col h-screen bg-background"
     >
-      <header className="p-4 border-b border-border flex items-center justify-between shrink-0">
-        <div className="flex items-center space-x-4">
+      <header className="p-3 border-b border-border flex items-center justify-between shrink-0 h-16">
+        <div className="flex items-center space-x-3">
           {(isMobile || !isSidebarVisible) && (
             <Button variant="ghost" size="icon" onClick={onToggleSidebar} aria-label="Toggle Sidebar">
               {isSidebarVisible ? <PanelLeftClose className="h-5 w-5" /> : <PanelLeft className="h-5 w-5" />}
@@ -157,10 +157,10 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
             <AvatarFallback>{selectedTicket.name?.[0]}</AvatarFallback>
           </Avatar>
           <div>
-            <h2 className="text-lg font-semibold">{selectedTicket.name}</h2>
+            <h2 className="text-md font-semibold">{selectedTicket.name}</h2>
             <div className="flex items-center gap-2">
-              <Badge variant="outline" className="capitalize">{selectedTicket.estado}</Badge>
-              <Badge variant="secondary" className="capitalize">{selectedTicket.categoria || 'General'}</Badge>
+              <Badge variant="outline" className="capitalize text-xs">{selectedTicket.estado}</Badge>
+              <Badge variant="secondary" className="capitalize text-xs">{selectedTicket.categoria || 'General'}</Badge>
             </div>
           </div>
         </div>
@@ -177,7 +177,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
         </div>
       </header>
 
-      <div className="flex-1 relative">
+      <div className="flex-1 relative bg-gray-50/50 dark:bg-gray-900/50">
         <ScrollArea className="h-full p-4" ref={scrollAreaRef} onScroll={handleScroll}>
           <AnimatePresence>
               <motion.div className="space-y-6">
@@ -197,7 +197,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
         {showScrollToBottom && <ScrollToBottomButton onClick={scrollToBottom} />}
       </div>
 
-      <footer className="p-4 border-t border-border shrink-0">
+      <footer className="p-2 border-t border-border shrink-0">
         <div className="relative">
           <Textarea
             placeholder={listening ? "Escuchando..." : "Escribe tu respuesta..."}
