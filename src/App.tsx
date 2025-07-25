@@ -27,7 +27,6 @@ if (!GOOGLE_CLIENT_ID) {
 
 function AppRoutes() {
   const location = useLocation();
-  const { user } = useUser();
   useTicketUpdates();
 
   // Ahora el array soporta rutas exactas y subrutas tipo "/integracion/preview"
@@ -62,7 +61,7 @@ function AppRoutes() {
 
       {/* Monta el widget global SOLO si no estás en demo/integracion/login/register/iframe */}
       {!ocultarWidgetGlobalEnApp && (
-        <ChatWidget mode="standalone" defaultOpen={false} user={user} />
+        <ChatWidget mode="standalone" defaultOpen={false} />
       )}
     </>
   );
