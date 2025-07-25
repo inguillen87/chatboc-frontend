@@ -3,7 +3,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Mail, Phone, MapPin, Ticket as TicketIcon, Info, FileDown, User, ShieldCheck, ExternalLink } from 'lucide-react';
+import { Mail, Phone, MapPin, Ticket as TicketIcon, Info, FileDown, User, ExternalLink, MessageCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { motion } from 'framer-motion';
 import TicketMap from '../TicketMap';
@@ -15,6 +15,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { FaWhatsapp } from 'react-icons/fa';
 
 const DetailsPanel: React.FC = () => {
   const { selectedTicket: ticket } = useTickets();
@@ -53,6 +54,13 @@ const DetailsPanel: React.FC = () => {
     window.open(url, '_blank');
   };
 
+  const openWhatsApp = () => {
+    if (ticket?.telefono) {
+      const phoneNumber = ticket.telefono.replace(/\D/g, '');
+      window.open(`https://wa.me/${phoneNumber}`, '_blank');
+    }
+  };
+
   return (
     <motion.aside
         key={ticket.id}
@@ -62,7 +70,7 @@ const DetailsPanel: React.FC = () => {
         className="w-full border-l border-border flex flex-col h-screen bg-muted/20 shrink-0"
     >
       <header className="p-4 border-b border-border flex items-center justify-between">
-        <h3 className="font-semibold">Detalles</h3>
+        <h3 className="font-semibold">Detalles del Cliente</h3>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm">
@@ -85,13 +93,17 @@ const DetailsPanel: React.FC = () => {
                 <AvatarImage src={ticket.avatarUrl} alt={ticket.name} />
                 <AvatarFallback>{getInitials(ticket.name || '')}</AvatarFallback>
               </Avatar>
-              <div>
+              <div className="flex-grow">
                 <h2 className="text-xl font-bold">{ticket.name || 'Usuario Desconocido'}</h2>
                 <p className="text-sm text-muted-foreground">Cliente</p>
                 {ticket.estado_cliente && <Badge variant="secondary" className="mt-1">{ticket.estado_cliente}</Badge>}
               </div>
             </CardHeader>
-            <CardContent className="p-4 space-y-3 text-sm">
+            <CardContent className="p-4 space-y-4 text-sm">
+              <div className="flex items-start gap-3">
+                <User className="h-4 w-4 mt-0.5 text-muted-foreground" />
+                <span>{ticket.name}</span>
+              </div>
               {ticket.email && (
                 <div className="flex items-start gap-3">
                     <Mail className="h-4 w-4 mt-0.5 text-muted-foreground" />
@@ -101,7 +113,12 @@ const DetailsPanel: React.FC = () => {
               {ticket.telefono && (
                 <div className="flex items-start gap-3">
                     <Phone className="h-4 w-4 mt-0.5 text-muted-foreground" />
-                    <span>{ticket.telefono}</span>
+                    <div className="flex items-center justify-between w-full">
+                      <span>{ticket.telefono}</span>
+                      <Button variant="ghost" size="icon" onClick={openWhatsApp}>
+                        <FaWhatsapp className="h-5 w-5 text-green-500" />
+                      </Button>
+                    </div>
                 </div>
               )}
               {ticket.dni && (
