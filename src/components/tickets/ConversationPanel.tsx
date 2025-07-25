@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Paperclip, Send, PanelLeft, PanelRight, MessageSquare, PanelLeftClose, MessageCircle, Mic, MicOff, ArrowDown, X } from 'lucide-react';
+import { Send, PanelLeft, MessageSquare, PanelLeftClose, MessageCircle, Mic, MicOff, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Ticket, Message } from '@/types/tickets';
+import { Ticket, Message as TicketMessage } from '@/types/tickets';
+import { Message as ChatMessageData, SendPayload } from '@/types/chat';
 import ChatMessage from './ChatMessage';
 import { AnimatePresence, motion } from 'framer-motion';
 import PredefinedMessagesModal from './PredefinedMessagesModal';
@@ -18,6 +19,24 @@ import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import ScrollToBottomButton from '../ui/ScrollToBottomButton';
 import AdjuntarArchivo from '../ui/AdjuntarArchivo';
 
+// Helper to adapt ticket messages to the format ChatMessageBase expects
+const adaptTicketMessageToChatMessage = (msg: TicketMessage, ticket: Ticket): ChatMessageData => {
+  return {
+    id: msg.id,
+    text: msg.content,
+    isBot: msg.author === 'agent',
+    timestamp: new Date(msg.timestamp),
+    // Adapt other fields as needed
+    attachmentInfo: msg.attachments?.[0] ? {
+        name: msg.attachments[0].filename,
+        url: msg.attachments[0].url,
+        size: msg.attachments[0].size
+    } : undefined,
+    // Add other fields if they exist in your new TicketMessage type
+  };
+};
+
+
 interface ConversationPanelProps {
   isMobile: boolean;
   isSidebarVisible: boolean;
@@ -28,7 +47,7 @@ interface ConversationPanelProps {
 const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSidebarVisible, onToggleSidebar, onToggleDetails }) => {
   const { selectedTicket, updateTicket } = useTickets();
   const [message, setMessage] = useState('');
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<ChatMessageData[]>([]);
   const [isSending, setIsSending] = useState(false);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const { user } = useUser();
@@ -48,7 +67,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
         if (selectedTicket) {
             try {
                 const fetchedMessages = await getTicketMessages(selectedTicket.id, selectedTicket.tipo);
-                setMessages(fetchedMessages);
+                setMessages(fetchedMessages.map(msg => adaptTicketMessageToChatMessage(msg, selectedTicket)));
             } catch (error) {
                 toast.error("No se pudo cargar el historial de mensajes.");
                 setMessages([]);
@@ -62,13 +81,12 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
 
   useEffect(() => {
     if (channel) {
-      const callback = (newMessage: Message) => {
-        console.log('New message received from Pusher:', newMessage);
+      const callback = (newMessage: TicketMessage) => {
         setMessages(prevMessages => {
             if (prevMessages.find(m => m.id === newMessage.id)) {
                 return prevMessages;
             }
-            return [...prevMessages, newMessage];
+            return [...prevMessages, adaptTicketMessageToChatMessage(newMessage, selectedTicket!)];
         });
       };
       channel.bind('nuevo-mensaje', callback);
@@ -77,17 +95,17 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
         channel.unbind('nuevo-mensaje', callback);
       }
     }
-  }, [channel]);
+  }, [channel, selectedTicket]);
 
-  const scrollToBottom = () => {
+  const scrollToBottom = useCallback(() => {
     if (scrollAreaRef.current) {
         scrollAreaRef.current.scrollTo({ top: scrollAreaRef.current.scrollHeight, behavior: 'smooth' });
     }
-  };
+  }, []);
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, scrollToBottom]);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
@@ -95,23 +113,44 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
     setShowScrollToBottom(!isAtBottom);
   };
 
-  const handleSendMessage = async () => {
-    if (!message.trim() || !selectedTicket || !user) return;
+  const handleSendMessage = async (payload?: Partial<SendPayload>) => {
+    const text = payload?.text || message;
+    if (!text.trim() && !payload?.attachmentInfo) return;
+    if (!selectedTicket || !user) return;
+
     setIsSending(true);
 
-    const buttons = [
-      { type: 'reply' as const, reply: { id: 'acepto', title: 'Sí' } },
-      { type: 'reply' as const, reply: { id: 'noacepto', title: 'No' } },
-    ];
+    // Optimistic update
+    const optimisticMessage: ChatMessageData = {
+        id: Date.now(), // Temporary ID
+        text: text,
+        isBot: true, // Messages from agents are treated as "bot" messages in this context
+        timestamp: new Date(),
+        attachmentInfo: payload?.attachmentInfo,
+    };
+    setMessages(prev => [...prev, optimisticMessage]);
+    setMessage('');
+
 
     try {
-        await sendMessage(selectedTicket.id, selectedTicket.tipo, message, undefined, buttons);
-        setMessage('');
+        await sendMessage(
+            selectedTicket.id,
+            selectedTicket.tipo,
+            text,
+            payload?.attachmentInfo,
+            payload?.action ? [{ type: 'reply', reply: { id: payload.action, title: payload.action } }] : undefined
+        );
+        // Message will be updated via Pusher with the real ID
     } catch (error) {
         toast.error("No se pudo enviar el mensaje.");
+        setMessages(prev => prev.filter(m => m.id !== optimisticMessage.id)); // Rollback on error
     } finally {
         setIsSending(false);
     }
+  };
+
+  const handleButtonClick = (payload: SendPayload) => {
+    handleSendMessage(payload);
   };
 
   if (!selectedTicket) {
@@ -134,19 +173,18 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
     toast.success('Ticket cerrado con éxito');
   }
 
-  const handleFileUpload = async (file: File) => {
+  const handleFileUpload = async (fileData: { url: string; name: string; mimeType?: string; size?: number; }) => {
     if (!selectedTicket) return;
 
-    const formData = new FormData();
-    formData.append('archivo', file);
-
-    try {
-      const response = await sendMessage(selectedTicket.id, selectedTicket.tipo, '', formData);
-      // The message will be updated via Pusher, so no need to manually add it here.
-      toast.success('Archivo enviado con éxito');
-    } catch (error) {
-      toast.error('No se pudo enviar el archivo.');
-    }
+    handleSendMessage({
+        text: `Archivo adjunto: ${fileData.name}`,
+        attachmentInfo: {
+            name: fileData.name,
+            url: fileData.url,
+            mimeType: fileData.mimeType,
+            size: fileData.size,
+        },
+    });
   };
 
   return (
@@ -181,26 +219,26 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
             <X className="h-4 w-4 mr-2" />
             Cerrar Ticket
           </Button>
-          {isMobile && (
-            <Button variant="ghost" size="icon" onClick={onToggleDetails} aria-label="Toggle Details">
-              <PanelRight className="h-5 w-5" />
-            </Button>
-          )}
         </div>
       </header>
 
       <div className="flex-1 relative bg-gray-50/50 dark:bg-gray-900/50">
         <ScrollArea className="h-full p-4" ref={scrollAreaRef} onScroll={handleScroll}>
           <AnimatePresence>
-              <motion.div className="space-y-6">
-              {(messages || []).map((msg) => (
+              <motion.div className="space-y-4">
+              {messages.map((msg, index) => (
                 <motion.div
-                  key={msg.id}
+                  key={msg.id || index}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.05 }}
                 >
-                  <ChatMessage message={msg} user={selectedTicket} />
+                  <ChatMessage
+                    message={msg}
+                    isTyping={false}
+                    onButtonClick={handleButtonClick}
+                    tipoChat={selectedTicket.tipo}
+                  />
                 </motion.div>
               ))}
               </motion.div>
@@ -240,7 +278,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
                 </Button>
             )}
             <AdjuntarArchivo onUpload={handleFileUpload} />
-            <Button onClick={handleSendMessage} disabled={isSending || !message.trim()} aria-label="Send Message">
+            <Button onClick={() => handleSendMessage()} disabled={isSending || !message.trim()} aria-label="Send Message">
               {isSending ? 'Enviando...' : <Send className="h-5 w-5" />}
             </Button>
           </div>
