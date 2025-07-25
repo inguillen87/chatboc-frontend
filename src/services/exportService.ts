@@ -1,59 +1,88 @@
-// src/services/exportService.ts
-import { jsPDF } from "jspdf";
-import "jspdf-autotable";
-import * as XLSX from "xlsx";
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+import * as XLSX from 'xlsx';
+import { Ticket, Message } from '@/types/tickets';
 
-// Extend jsPDF with autoTable
-interface jsPDFWithAutoTable extends jsPDF {
+interface JsPDFWithAutoTable extends jsPDF {
   autoTable: (options: any) => jsPDF;
 }
 
-export const exportToPdf = (
-  tickets: any[],
-  columns?: string[] | "todos" | "all"
-) => {
-  const columnsToUse: string[] =
-    !columns || columns === "todos" || columns === "all"
-      ? Object.keys(tickets[0] || {})
-      : columns;
-
-  const doc = new jsPDF() as jsPDFWithAutoTable;
-  const tableData = tickets.map((ticket) =>
-    columnsToUse.map((column) => ticket[column])
-  );
-
-  doc.autoTable({
-    head: [columnsToUse],
-    body: tableData,
-    theme: "grid",
-    headStyles: { fillColor: [22, 163, 74] },
-    styles: { fontSize: 8 },
-  });
-
-  doc.save("tickets.pdf");
+const formatDate = (dateString: string) => {
+  return new Date(dateString).toLocaleString();
 };
 
-export const exportToExcel = (
-  tickets: any[],
-  columns?: string[] | "todos" | "all"
-) => {
-  const columnsToUse: string[] =
-    !columns || columns === "todos" || columns === "all"
-      ? Object.keys(tickets[0] || {})
-      : columns;
+const getTicketData = (ticket: Ticket) => {
+  return [
+    { title: 'Ticket ID', data: ticket.nro_ticket },
+    { title: 'Asunto', data: ticket.asunto },
+    { title: 'Estado', data: ticket.estado },
+    { title: 'Categoría', data: ticket.categoria || 'N/A' },
+    { title: 'Fecha de Creación', data: formatDate(ticket.fecha) },
+    { title: 'Cliente', data: ticket.name || 'Usuario Desconocido' },
+    { title: 'Email', data: ticket.email || 'N/A' },
+    { title: 'Teléfono', data: ticket.telefono || 'N/A' },
+    { title: 'Dirección', data: ticket.direccion || 'N/A' },
+  ];
+};
 
-  const worksheetData = tickets.map((ticket) => {
-    const row: Record<string, any> = {};
-    columnsToUse.forEach((col) => {
-      row[col] = ticket[col];
+export const exportToPdf = (ticket: Ticket, messages: Message[]) => {
+  const doc = new jsPDF() as JsPDFWithAutoTable;
+  const ticketData = getTicketData(ticket);
+
+  doc.setFontSize(18);
+  doc.text('Detalles del Ticket', 14, 22);
+
+  doc.autoTable({
+    startY: 30,
+    head: [['Campo', 'Valor']],
+    body: ticketData.map(item => [item.title, item.data]),
+    theme: 'striped',
+    styles: {
+      fontSize: 10,
+      cellPadding: 2,
+    },
+  });
+
+  if (messages.length > 0) {
+    doc.addPage();
+    doc.setFontSize(18);
+    doc.text('Historial de Mensajes', 14, 22);
+
+    doc.autoTable({
+      startY: 30,
+      head: [['Fecha', 'Autor', 'Mensaje']],
+      body: messages.map(msg => [
+        formatDate(msg.timestamp),
+        msg.author === 'agent' ? (msg.agentName || 'Agente') : 'Usuario',
+        msg.content,
+      ]),
+      theme: 'striped',
+      styles: {
+        fontSize: 10,
+        cellPadding: 2,
+      },
     });
-    return row;
-  });
+  }
 
-  const worksheet = XLSX.utils.json_to_sheet(worksheetData, {
-    header: columnsToUse,
-  });
+  doc.save(`ticket_${ticket.nro_ticket}.pdf`);
+};
+
+export const exportToXlsx = (ticket: Ticket, messages: Message[]) => {
+  const ticketData = getTicketData(ticket);
+  const ticketWorksheet = XLSX.utils.json_to_sheet(ticketData.map(item => ({ Campo: item.title, Valor: item.data })));
   const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, "Tickets");
-  XLSX.writeFile(workbook, "tickets.xlsx");
+  XLSX.utils.book_append_sheet(workbook, ticketWorksheet, 'Detalles del Ticket');
+
+  if (messages.length > 0) {
+    const messagesWorksheet = XLSX.utils.json_to_sheet(
+      messages.map(msg => ({
+        Fecha: formatDate(msg.timestamp),
+        Autor: msg.author === 'agent' ? (msg.agentName || 'Agente') : 'Usuario',
+        Mensaje: msg.content,
+      }))
+    );
+    XLSX.utils.book_append_sheet(workbook, messagesWorksheet, 'Historial de Mensajes');
+  }
+
+  XLSX.writeFile(workbook, `ticket_${ticket.nro_ticket}.xlsx`);
 };

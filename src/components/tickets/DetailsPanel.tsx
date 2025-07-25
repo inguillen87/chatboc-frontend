@@ -3,11 +3,18 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Mail, Phone, MapPin, Ticket as TicketIcon, FolderOpen, Info } from 'lucide-react';
+import { Mail, Phone, MapPin, Ticket as TicketIcon, Info, FileDown, User, ShieldCheck, ExternalLink } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { motion } from 'framer-motion';
 import TicketMap from '../TicketMap';
 import { useTickets } from '@/context/TicketContext';
+import { exportToPdf, exportToXlsx } from '@/services/exportService';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 const DetailsPanel: React.FC = () => {
   const { selectedTicket: ticket } = useTickets();
@@ -18,7 +25,7 @@ const DetailsPanel: React.FC = () => {
 
   if (!ticket) {
     return (
-       <aside className="w-80 border-l border-border flex-col h-screen bg-muted/20 shrink-0 hidden lg:flex items-center justify-center p-6">
+       <aside className="w-full border-l border-border flex-col h-screen bg-muted/20 shrink-0 hidden lg:flex items-center justify-center p-6">
          <div className="text-center text-muted-foreground">
             <Info className="h-12 w-12 mx-auto mb-4" />
             <h3 className="font-semibold">Detalles del Ticket</h3>
@@ -28,7 +35,23 @@ const DetailsPanel: React.FC = () => {
     );
   }
 
-  const hasLocation = ticket.direccion || ticket.latitud || ticket.longitud;
+  const hasLocation = ticket.direccion || (ticket.latitud && ticket.longitud);
+
+  const handleExportPdf = () => {
+    exportToPdf(ticket, ticket.messages || []);
+  };
+
+  const handleExportXlsx = () => {
+    exportToXlsx(ticket, ticket.messages || []);
+  };
+
+  const openGoogleMaps = () => {
+    if (!ticket) return;
+    const url = ticket.latitud && ticket.longitud
+      ? `https://www.google.com/maps/search/?api=1&query=${ticket.latitud},${ticket.longitud}`
+      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ticket.direccion || '')}`;
+    window.open(url, '_blank');
+  };
 
   return (
     <motion.aside
@@ -36,8 +59,23 @@ const DetailsPanel: React.FC = () => {
         initial={{ opacity: 0.5 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
-        className="w-80 border-l border-border flex flex-col h-screen bg-muted/20 shrink-0"
+        className="w-full border-l border-border flex flex-col h-screen bg-muted/20 shrink-0"
     >
+      <header className="p-4 border-b border-border flex items-center justify-between">
+        <h3 className="font-semibold">Detalles</h3>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm">
+              <FileDown className="h-4 w-4 mr-2" />
+              Exportar
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={handleExportPdf}>Exportar a PDF</DropdownMenuItem>
+            <DropdownMenuItem onClick={handleExportXlsx}>Exportar a Excel</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </header>
       <ScrollArea className="flex-1">
         <div className="p-6 space-y-6">
           {/* User Details */}
@@ -50,31 +88,52 @@ const DetailsPanel: React.FC = () => {
               <div>
                 <h2 className="text-xl font-bold">{ticket.name || 'Usuario Desconocido'}</h2>
                 <p className="text-sm text-muted-foreground">Cliente</p>
+                {ticket.estado_cliente && <Badge variant="secondary" className="mt-1">{ticket.estado_cliente}</Badge>}
               </div>
             </CardHeader>
-            <CardContent className="p-4 space-y-3">
+            <CardContent className="p-4 space-y-3 text-sm">
               {ticket.email && (
-                <div className="flex items-center gap-3">
-                    <Mail className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm">{ticket.email}</span>
+                <div className="flex items-start gap-3">
+                    <Mail className="h-4 w-4 mt-0.5 text-muted-foreground" />
+                    <span>{ticket.email}</span>
                 </div>
               )}
               {ticket.telefono && (
-                <div className="flex items-center gap-3">
-                    <Phone className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm">{ticket.telefono}</span>
+                <div className="flex items-start gap-3">
+                    <Phone className="h-4 w-4 mt-0.5 text-muted-foreground" />
+                    <span>{ticket.telefono}</span>
+                </div>
+              )}
+              {ticket.dni && (
+                <div className="flex items-start gap-3">
+                    <User className="h-4 w-4 mt-0.5 text-muted-foreground" />
+                    <span>DNI: {ticket.dni}</span>
                 </div>
               )}
               {ticket.direccion && (
-               <div className="flex items-center gap-3">
-                <MapPin className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">{ticket.direccion}</span>
+               <div className="flex items-start gap-3">
+                <MapPin className="h-4 w-4 mt-0.5 text-muted-foreground" />
+                <span>{ticket.direccion}</span>
               </div>
               )}
             </CardContent>
           </Card>
 
-          {hasLocation && <TicketMap ticket={ticket} />}
+          {hasLocation && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  Ubicación
+                  <Button variant="ghost" size="icon" onClick={openGoogleMaps}>
+                    <ExternalLink className="h-4 w-4" />
+                  </Button>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <TicketMap ticket={ticket} />
+              </CardContent>
+            </Card>
+          )}
 
           {/* Ticket Info */}
           <Card>
@@ -97,7 +156,6 @@ const DetailsPanel: React.FC = () => {
             </CardContent>
           </Card>
 
-          {/* ... (resto del componente sin cambios) ... */}
         </div>
       </ScrollArea>
     </motion.aside>
