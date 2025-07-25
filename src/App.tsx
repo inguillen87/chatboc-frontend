@@ -31,16 +31,7 @@ function AppRoutes() {
 
   // Ahora el array soporta rutas exactas y subrutas tipo "/integracion/preview"
   const rutasSinWidget = [
-    '/',
-    "/iframe",
-    "/login",
-    "/register",
-    "/user/login",
-    "/user/register",
-    "/cuenta",
-    '/chat',
-    "/integracion",
-    "/demo"
+    '/chat'
   ];
 
   // El .some() detecta si la ruta actual *empieza* igual que alguna de la lista

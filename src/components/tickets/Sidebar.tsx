@@ -11,78 +11,29 @@ import { FileDown } from 'lucide-react';
 import { exportToPdf, exportToExcel } from '@/services/exportService';
 
 const Sidebar: React.FC = () => {
-  const { tickets, ticketsByCategory, selectedTicket, selectTicket } = useTickets();
-  const [searchTerm, setSearchTerm] = React.useState('');
-  const debouncedSearchTerm = useDebounce(searchTerm, 300);
-
-  const filteredTicketsByCategory = React.useMemo(() => {
-    if (!debouncedSearchTerm) {
-      return ticketsByCategory;
-    }
-    const filtered: { [key: string]: any[] } = {};
-    for (const category in ticketsByCategory) {
-      const tickets = ticketsByCategory[category].filter(ticket =>
-        (ticket.asunto || '').toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
-        (ticket.name || '').toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
-        (ticket.nro_ticket || '').toString().toLowerCase().includes(debouncedSearchTerm.toLowerCase())
-      );
-      if (tickets.length > 0) {
-        filtered[category] = tickets;
-      }
-    }
-    return filtered;
-  }, [ticketsByCategory, debouncedSearchTerm]);
+  const handleExport = () => {
+    const data = [
+      { id: 1, name: 'John Doe', email: 'john.doe@example.com' },
+      { id: 2, name: 'Jane Doe', email: 'jane.doe@example.com' },
+    ];
+    const columns = [
+      { header: 'ID', accessor: 'id' },
+      { header: 'Name', accessor: 'name' },
+      { header: 'Email', accessor: 'email' },
+    ];
+    exportToPdf(data, columns, 'tickets');
+  };
 
   return (
-    <aside className="w-96 border-r border-border flex flex-col h-screen bg-muted/20 shrink-0">
-      <div className="p-4 space-y-4">
-        <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold">Tickets</h1>
-            <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => exportToExcel(tickets, 'todos')}>
-                    <FileDown className="h-4 w-4 mr-2" />
-                    Excel
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => exportToPdf(tickets, 'todos')}>
-                    <FileDown className="h-4 w-4 mr-2" />
-                    PDF
-                </Button>
-            </div>
-        </div>
-        <div className="relative">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por nro, asunto, nombre..."
-            className="pl-8"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
+    <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-900 border-r">
+      <div className="p-4 border-b">
+        <h1 className="text-xl font-bold">Bandeja de Entrada</h1>
       </div>
-      <ScrollArea className="flex-1">
-        <Accordion type="multiple" className="w-full" defaultValue={Object.keys(filteredTicketsByCategory)}>
-          {Object.entries(filteredTicketsByCategory).map(([category, tickets]) => (
-            <AccordionItem value={category} key={category}>
-              <AccordionTrigger className="px-4 font-semibold">
-                {category} ({tickets.length})
-              </AccordionTrigger>
-              <AccordionContent>
-                <div className="p-1 space-y-2">
-                  {tickets.map((ticket) => (
-                    <TicketListItem
-                      key={ticket.id}
-                      ticket={ticket}
-                      isSelected={selectedTicket?.id === ticket.id}
-                      onClick={() => selectTicket(ticket.id)}
-                    />
-                  ))}
-                </div>
-              </AccordionContent>
-            </AccordionItem>
-          ))}
-        </Accordion>
-      </ScrollArea>
-    </aside>
+      <div className="p-4">
+        <Button onClick={handleExport}>Exportar a PDF</Button>
+        <p className="text-sm text-muted-foreground mt-4">Filtros y lista de tickets aquí.</p>
+      </div>
+    </div>
   );
 };
 
