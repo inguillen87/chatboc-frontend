@@ -150,6 +150,7 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         input: {
           main: path.resolve(__dirname, "index.html"),
+          iframe: path.resolve(__dirname, "iframe.html"),
         },
       },
     },

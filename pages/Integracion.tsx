@@ -135,7 +135,10 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>`, [userToken, endpoint]);
 
-  const iframeSrcUrl = useMemo(() => `https://www.chatboc.ar/iframe?token=${userToken}&tipo_chat=${endpoint}`, [userToken, endpoint]);
+  const iframeSrcUrl = useMemo(
+    () => `https://www.chatboc.ar/iframe.html?token=${userToken}&tipo_chat=${endpoint}`,
+    [userToken, endpoint]
+  );
   
   const codeIframe = useMemo(() => `<iframe
   id="chatboc-iframe"
