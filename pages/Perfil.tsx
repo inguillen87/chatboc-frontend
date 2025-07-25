@@ -37,8 +37,7 @@ import { apiFetch, getErrorMessage, ApiError } from "@/utils/api"; // Importa ap
 // Durante el desarrollo usamos "/api" para evitar problemas de CORS.
 // Por defecto, usa esa ruta si no se proporciona ninguna variable de entorno.
 const API_BASE_URL = import.meta.env.VITE_API_URL || "/api";
-const Maps_API_KEY =
-  import.meta.env.VITE_Maps_API_KEY || "AIzaSyDbEoPzFgN5zJsIeywiRE7jRI8xr5ioGNI";
+const Maps_API_KEY = import.meta.env.VITE_Maps_API_KEY || "";
 const PROVINCIAS = [
   "Buenos Aires",
   "CABA",
@@ -111,9 +110,9 @@ export default function Perfil() {
   const [horariosOpen, setHorariosOpen] = useState(false);
 
   useEffect(() => {
-    if (!Maps_API_KEY || Maps_API_KEY.includes("AIzaSyDbEoPzFgN5zJsIeywiRE7jRI8xr5ioGNI")) {
+    if (!Maps_API_KEY) {
       setError(
-        "Error de configuración: Falta la clave para Google Maps o es la predeterminada. Contacta a soporte.",
+        "Error de configuración: Falta la clave para Google Maps. Contacta a soporte.",
       );
     }
   }, []);
