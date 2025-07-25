@@ -15,7 +15,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { FaWhatsapp } from 'react-icons/fa';
+import { FaWhatsapp } from 'react-icons/fa/index.js';
 
 const DetailsPanel: React.FC = () => {
   const { selectedTicket: ticket } = useTickets();
