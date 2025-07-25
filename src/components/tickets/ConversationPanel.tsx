@@ -122,6 +122,21 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
     toast.success('Ticket cerrado con éxito');
   }
 
+  const handleFileUpload = async (file: File) => {
+    if (!selectedTicket) return;
+
+    const formData = new FormData();
+    formData.append('archivo', file);
+
+    try {
+      const response = await sendMessage(selectedTicket.id, selectedTicket.tipo, '', formData);
+      // The message will be updated via Pusher, so no need to manually add it here.
+      toast.success('Archivo enviado con éxito');
+    } catch (error) {
+      toast.error('No se pudo enviar el archivo.');
+    }
+  };
+
   return (
     <motion.div
         key={selectedTicket.id}
@@ -212,7 +227,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
                     {listening ? <MicOff className="h-5 w-5 text-destructive" /> : <Mic className="h-5 w-5" />}
                 </Button>
             )}
-            <AdjuntarArchivo onFileSelect={() => {}} />
+            <AdjuntarArchivo onUpload={handleFileUpload} />
             <Button onClick={handleSendMessage} disabled={isSending || !message.trim()} aria-label="Send Message">
               {isSending ? 'Enviando...' : <Send className="h-5 w-5" />}
             </Button>

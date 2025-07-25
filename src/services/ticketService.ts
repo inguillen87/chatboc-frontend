@@ -47,11 +47,16 @@ export const getTicketMessages = async (ticketId: number, tipo: 'municipio' | 'p
     }
 }
 
-export const sendMessage = async (ticketId: number, tipo: 'municipio' | 'pyme', comentario: string): Promise<any> => {
+export const sendMessage = async (ticketId: number, tipo: 'municipio' | 'pyme', comentario: string, formData?: FormData): Promise<any> => {
     try {
+        const body = formData ? formData : new FormData();
+        if (comentario) {
+            body.append('comentario', comentario);
+        }
+
         const response = await apiFetch(`/tickets/${tipo}/${ticketId}/responder`, {
             method: 'POST',
-            body: { comentario },
+            body: body,
         });
         return response;
     } catch (error) {
