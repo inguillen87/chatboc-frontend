@@ -47,20 +47,68 @@ export const getTicketMessages = async (ticketId: number, tipo: 'municipio' | 'p
     }
 }
 
-export const sendMessage = async (ticketId: number, tipo: 'municipio' | 'pyme', comentario: string, formData?: FormData): Promise<any> => {
+export interface Button {
+    type: 'reply';
+    reply: {
+        id: string;
+        title: string;
+    };
+}
+
+export interface InteractiveMessage {
+    type: 'interactive';
+    interactive: {
+        type: 'button';
+        body: {
+            text: string;
+        };
+        action: {
+            buttons: Button[];
+        };
+    };
+}
+
+export const sendMessage = async (
+    ticketId: number,
+    tipo: 'municipio' | 'pyme',
+    comentario: string,
+    formData?: FormData,
+    buttons?: Button[]
+): Promise<any> => {
     try {
-        const body = formData ? formData : new FormData();
-        if (comentario) {
-            body.append('comentario', comentario);
+        let body: any;
+        let headers: any = {};
+
+        if (buttons && buttons.length > 0) {
+            const interactiveMessage: InteractiveMessage = {
+                type: 'interactive',
+                interactive: {
+                    type: 'button',
+                    body: {
+                        text: comentario,
+                    },
+                    action: {
+                        buttons: buttons,
+                    },
+                },
+            };
+            body = JSON.stringify(interactiveMessage);
+            headers['Content-Type'] = 'application/json';
+        } else {
+            body = formData ? formData : new FormData();
+            if (comentario) {
+                body.append('comentario', comentario);
+            }
         }
 
         const response = await apiFetch(`/tickets/${tipo}/${ticketId}/responder`, {
             method: 'POST',
             body: body,
+            headers: headers,
         });
         return response;
     } catch (error) {
         console.error(`Error sending message to ticket ${ticketId}:`, error);
         throw error;
     }
-}
+};

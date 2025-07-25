@@ -98,8 +98,14 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
   const handleSendMessage = async () => {
     if (!message.trim() || !selectedTicket || !user) return;
     setIsSending(true);
+
+    const buttons = [
+      { type: 'reply' as const, reply: { id: 'acepto', title: 'Sí' } },
+      { type: 'reply' as const, reply: { id: 'noacepto', title: 'No' } },
+    ];
+
     try {
-        await sendMessage(selectedTicket.id, selectedTicket.tipo, message);
+        await sendMessage(selectedTicket.id, selectedTicket.tipo, message, undefined, buttons);
         setMessage('');
     } catch (error) {
         toast.error("No se pudo enviar el mensaje.");
