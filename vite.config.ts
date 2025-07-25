@@ -1,8 +1,7 @@
-import { defineConfig, loadEnv } from "vite";
-/// <reference types="vitest" />
-import react from "@vitejs/plugin-react-swc";
-import path from "path";
+import { defineConfig, loadEnv } from 'vite';
+import react from '@vitejs/plugin-react-swc';
 import { VitePWA } from 'vite-plugin-pwa';
+import path from 'path';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
@@ -15,6 +14,7 @@ export default defineConfig(({ mode }) => {
         injectRegister: 'auto',
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff,woff2}', 'sw.js'],
+          maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB
           runtimeCaching: [
             {
               urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
@@ -23,7 +23,7 @@ export default defineConfig(({ mode }) => {
                 cacheName: 'google-fonts-cache',
                 expiration: {
                   maxEntries: 10,
-                  maxAgeSeconds: 60 * 60 * 24 * 365 // 1 año
+                  maxAgeSeconds: 60 * 60 * 24 * 365
                 },
                 cacheableResponse: {
                   statuses: [0, 200]
@@ -37,7 +37,7 @@ export default defineConfig(({ mode }) => {
                 cacheName: 'gstatic-fonts-cache',
                 expiration: {
                   maxEntries: 10,
-                  maxAgeSeconds: 60 * 60 * 24 * 365 // 1 año
+                  maxAgeSeconds: 60 * 60 * 24 * 365
                 },
                 cacheableResponse: {
                   statuses: [0, 200]
@@ -45,7 +45,6 @@ export default defineConfig(({ mode }) => {
               }
             },
             {
-              // Cache para las llamadas a tu API
               urlPattern: ({ url }) =>
                 url.pathname.startsWith('/api') ||
                 url.origin === env.VITE_API_URL,
@@ -54,7 +53,7 @@ export default defineConfig(({ mode }) => {
                 cacheName: 'api-cache',
                 expiration: {
                   maxEntries: 50,
-                  maxAgeSeconds: 60 * 60 * 24 * 1 // 1 día
+                  maxAgeSeconds: 60 * 60 * 24 * 1
                 },
                 cacheableResponse: {
                   statuses: [0, 200]
@@ -76,28 +75,28 @@ export default defineConfig(({ mode }) => {
           lang: "es-AR",
           icons: [
             {
-              "src": "/favicon/favicon-192x192.png",
-              "sizes": "192x192",
-              "type": "image/png",
-              "purpose": "any"
+              src: "/favicon/favicon-192x192.png",
+              sizes: "192x192",
+              type: "image/png",
+              purpose: "any"
             },
             {
-              "src": "/favicon/favicon-512x512.png",
-              "sizes": "512x512",
-              "type": "image/png",
-              "purpose": "any"
+              src: "/favicon/favicon-512x512.png",
+              sizes: "512x512",
+              type: "image/png",
+              purpose: "any"
             },
             {
-              "src": "/favicon/favicon-maskable-192x192.png",
-              "sizes": "192x192",
-              "type": "image/png",
-              "purpose": "maskable"
+              src: "/favicon/favicon-maskable-192x192.png",
+              sizes: "192x192",
+              type: "image/png",
+              purpose: "maskable"
             },
             {
-              "src": "/favicon/favicon-maskable-512x512.png",
-              "sizes": "512x512",
-              "type": "image/png",
-              "purpose": "maskable"
+              src: "/favicon/favicon-maskable-512x512.png",
+              sizes: "512x512",
+              type: "image/png",
+              purpose: "maskable"
             }
           ]
         }
@@ -111,7 +110,6 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: false,
         },
-        // Si tenés endpoints directos sin prefijo /api, agregalos abajo:
         '/login': {
           target: 'http://localhost:5000',
           changeOrigin: true,
@@ -137,19 +135,18 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: false,
         },
-        // Agregá otros endpoints backend si los usás directamente desde el frontend
       },
     },
     resolve: {
       alias: {
-        "@": path.resolve(__dirname, "./src"),
-        "server": path.resolve(__dirname, "./server"),
-      },
+        '@': path.resolve(__dirname, './src'),
+        'server': path.resolve(__dirname, './server'),
+      }
     },
     build: {
       rollupOptions: {
         input: {
-          main: path.resolve(__dirname, "index.html"),
+          main: path.resolve(__dirname, 'index.html'),
         },
       },
     },
@@ -159,9 +156,9 @@ export default defineConfig(({ mode }) => {
       setupFiles: './tests/setup.ts',
       css: true,
       alias: {
-        "@": path.resolve(__dirname, "./src"),
-        "server": path.resolve(__dirname, "./server"),
+        '@': path.resolve(__dirname, './src'),
+        'server': path.resolve(__dirname, './server'),
       }
-    },
-  }
+    }
+  };
 });
