@@ -1,54 +1,52 @@
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { Ticket, Message } from '@/types/tickets';
-
-interface JsPDFWithAutoTable extends jsPDF {
-  autoTable: (options: any) => jsPDF;
-}
 
 const formatDate = (dateString: string) => {
   return new Date(dateString).toLocaleString();
 };
 
 const getTicketData = (ticket: Ticket) => {
-  return [
-    { title: 'Ticket ID', data: ticket.nro_ticket },
-    { title: 'Asunto', data: ticket.asunto },
-    { title: 'Estado', data: ticket.estado },
-    { title: 'Categoría', data: ticket.categoria || 'N/A' },
-    { title: 'Fecha de Creación', data: formatDate(ticket.fecha) },
-    { title: 'Cliente', data: ticket.name || 'Usuario Desconocido' },
-    { title: 'Email', data: ticket.email || 'N/A' },
-    { title: 'Teléfono', data: ticket.telefono || 'N/A' },
-    { title: 'Dirección', data: ticket.direccion || 'N/A' },
-  ];
+  return {
+    'Ticket ID': ticket.nro_ticket,
+    'Asunto': ticket.asunto,
+    'Estado': ticket.estado,
+    'Categoría': ticket.categoria || 'N/A',
+    'Fecha de Creación': formatDate(ticket.fecha),
+    'Cliente': ticket.name || 'Usuario Desconocido',
+    'Email': ticket.email || 'N/A',
+    'Teléfono': ticket.telefono || 'N/A',
+    'Dirección': ticket.direccion || 'N/A',
+  };
 };
 
 export const exportToPdf = (ticket: Ticket, messages: Message[]) => {
-  const doc = new jsPDF() as JsPDFWithAutoTable;
+  const doc = new jsPDF();
   const ticketData = getTicketData(ticket);
 
-  doc.setFontSize(18);
+  // Header
+  doc.setFontSize(20);
+  doc.setTextColor(40);
   doc.text('Detalles del Ticket', 14, 22);
 
-  doc.autoTable({
+  // Ticket Details
+  autoTable(doc, {
     startY: 30,
     head: [['Campo', 'Valor']],
-    body: ticketData.map(item => [item.title, item.data]),
+    body: Object.entries(ticketData),
     theme: 'striped',
-    styles: {
-      fontSize: 10,
-      cellPadding: 2,
-    },
+    headStyles: { fillColor: [22, 160, 133] },
   });
 
+  // Messages History
   if (messages.length > 0) {
     doc.addPage();
-    doc.setFontSize(18);
+    doc.setFontSize(20);
+    doc.setTextColor(40);
     doc.text('Historial de Mensajes', 14, 22);
 
-    doc.autoTable({
+    autoTable(doc, {
       startY: 30,
       head: [['Fecha', 'Autor', 'Mensaje']],
       body: messages.map(msg => [
@@ -56,12 +54,18 @@ export const exportToPdf = (ticket: Ticket, messages: Message[]) => {
         msg.author === 'agent' ? (msg.agentName || 'Agente') : 'Usuario',
         msg.content,
       ]),
-      theme: 'striped',
-      styles: {
-        fontSize: 10,
-        cellPadding: 2,
-      },
+      theme: 'grid',
+      headStyles: { fillColor: [22, 160, 133] },
     });
+  }
+
+  // Footer
+  const pageCount = (doc as any).internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(10);
+    doc.setTextColor(150);
+    doc.text(`Página ${i} de ${pageCount}`, doc.internal.pageSize.width - 20, doc.internal.pageSize.height - 10);
   }
 
   doc.save(`ticket_${ticket.nro_ticket}.pdf`);

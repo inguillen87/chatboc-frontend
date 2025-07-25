@@ -7,6 +7,7 @@ interface TicketContextType {
   tickets: Ticket[];
   selectedTicket: Ticket | null;
   selectTicket: (ticketId: number | null) => void;
+  updateTicket: (ticketId: number, updates: Partial<Ticket>) => void;
   loading: boolean;
   error: string | null;
   ticketsByCategory: { [key: string]: Ticket[] };
@@ -68,12 +69,24 @@ export const TicketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setSelectedTicket(ticket || null);
   };
 
+  const updateTicket = (ticketId: number, updates: Partial<Ticket>) => {
+    setTickets(prevTickets =>
+      prevTickets.map(ticket =>
+        ticket.id === ticketId ? { ...ticket, ...updates } : ticket
+      )
+    );
+    if (selectedTicket && selectedTicket.id === ticketId) {
+      setSelectedTicket(prev => prev ? { ...prev, ...updates } : null);
+    }
+  };
+
   const ticketsByCategory = groupTicketsByCategory(tickets);
 
   const value = {
     tickets,
     selectedTicket,
     selectTicket,
+    updateTicket,
     loading,
     error,
     ticketsByCategory,

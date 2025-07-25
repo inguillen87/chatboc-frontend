@@ -2,13 +2,18 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Search } from 'lucide-react';
+import { Search, FileDown } from 'lucide-react';
 import { useDebounce } from '@/hooks/useDebounce';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import TicketListItem from './TicketListItem';
 import { useTickets } from '@/context/TicketContext';
-import { FileDown } from 'lucide-react';
 import { exportToPdf, exportToExcel } from '@/services/exportService';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 const Sidebar: React.FC = () => {
   const { tickets, ticketsByCategory, selectedTicket, selectTicket } = useTickets();
@@ -37,17 +42,23 @@ const Sidebar: React.FC = () => {
     <aside className="w-80 border-r border-border flex flex-col h-screen bg-muted/20 shrink-0">
       <div className="p-4 space-y-4">
         <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold">Tickets</h1>
-            <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => exportToExcel(tickets)}>
-                    <FileDown className="h-4 w-4 mr-2" />
-                    Excel
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => exportToPdf(tickets)}>
-                    <FileDown className="h-4 w-4 mr-2" />
-                    PDF
-                </Button>
-            </div>
+          <h1 className="text-2xl font-bold">Tickets</h1>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm">
+                <FileDown className="h-4 w-4 mr-2" />
+                Exportar
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => exportToExcel(tickets)}>
+                Exportar a Excel
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => exportToPdf(selectedTicket, selectedTicket?.messages || [])}>
+                Exportar a PDF (seleccionado)
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
         <div className="relative">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
