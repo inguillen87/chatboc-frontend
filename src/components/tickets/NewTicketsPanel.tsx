@@ -7,6 +7,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTickets } from '@/context/TicketContext';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Card } from '@/components/ui/card';
 
 const NewTicketsPanel: React.FC = () => {
   const isMobile = useIsMobile();
@@ -17,7 +18,6 @@ const NewTicketsPanel: React.FC = () => {
   React.useEffect(() => {
     if (isMobile) {
       setIsDetailsVisible(false);
-      // Show sidebar only if no ticket is selected on mobile
       setIsSidebarVisible(!selectedTicket);
     } else {
       setIsDetailsVisible(true);
@@ -30,8 +30,7 @@ const NewTicketsPanel: React.FC = () => {
 
   if (loading) {
     return (
-        <div className="flex h-screen w-full bg-background text-foreground overflow-hidden">
-            {/* Skeleton for Desktop */}
+        <div className="flex h-[calc(100vh-150px)] w-full bg-background text-foreground overflow-hidden">
             <div className="hidden md:flex w-full">
               <div className="w-80 border-r border-border p-4 space-y-4">
                   <Skeleton className="h-12 w-full" />
@@ -52,10 +51,9 @@ const NewTicketsPanel: React.FC = () => {
                   </div>
               </div>
             </div>
-             {/* Skeleton for Mobile */}
             <div className="md:hidden w-full p-4 space-y-4">
               <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-screen w-full" />
+              <Skeleton className="h-full w-full" />
             </div>
         </div>
     )
@@ -70,7 +68,7 @@ const NewTicketsPanel: React.FC = () => {
   }
 
   return (
-    <div className="h-screen w-full bg-background text-foreground overflow-hidden">
+    <Card className="h-[calc(100vh-150px)] w-full bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm overflow-hidden">
       {isMobile ? (
         <div className="relative h-full w-full overflow-hidden">
           <AnimatePresence>
@@ -128,7 +126,7 @@ const NewTicketsPanel: React.FC = () => {
         </div>
       )}
       <Toaster richColors />
-    </div>
+    </Card>
   );
 };
 
