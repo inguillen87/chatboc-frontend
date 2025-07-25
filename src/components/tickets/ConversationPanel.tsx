@@ -207,7 +207,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
         <div className="relative">
           <Textarea
             placeholder={listening ? "Escuchando..." : "Escribe tu respuesta..."}
-            className="pr-48 min-h-[60px]"
+            className="pr-48 min-h-[40px]"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             disabled={listening || isSending}
@@ -220,7 +220,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
             maxLength={1000}
             aria-label="Message Input"
           />
-          <div className="absolute bottom-3 right-2 flex items-center">
+          <div className="absolute bottom-2 right-2 flex items-center">
             {selectedTicket && (
               <PredefinedMessagesModal onSelectMessage={handleSelectPredefinedMessage}>
                   <Button variant="ghost" size="icon" disabled={isSending} aria-label="Predefined Messages">
@@ -237,9 +237,6 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
             <Button onClick={handleSendMessage} disabled={isSending || !message.trim()} aria-label="Send Message">
               {isSending ? 'Enviando...' : <Send className="h-5 w-5" />}
             </Button>
-          </div>
-          <div className="text-xs text-muted-foreground text-right mt-1 pr-2">
-            {message.length} / 1000
           </div>
         </div>
       </footer>
