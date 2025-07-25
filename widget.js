@@ -141,7 +141,8 @@
 
       const iframe = document.createElement("iframe");
       iframe.id = iframeId;
-      const iframeSrc = new URL(`${chatbocDomain}/iframe`);
+      // Use explicit .html path so integrations without rewrite rules work
+      const iframeSrc = new URL(`${chatbocDomain}/iframe.html`);
       iframeSrc.searchParams.set("token", token);
       iframeSrc.searchParams.set("widgetId", iframeId);
       iframeSrc.searchParams.set("defaultOpen", defaultOpen);
