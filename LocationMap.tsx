@@ -6,8 +6,7 @@ interface LocationMapProps {
   onMove?: (lat: number, lng: number) => void;
 }
 
-const Maps_API_KEY =
-  import.meta.env.VITE_Maps_API_KEY || "AIzaSyDbEoPzFgN5zJsIeywiRE7jRI8xr5ioGNI"; // Replace with your actual API key
+const Maps_API_KEY = import.meta.env.VITE_Maps_API_KEY || "";
 
 function ensureScriptLoaded(callback: () => void) {
   if (typeof window === "undefined") return;
