@@ -86,3 +86,22 @@ export const exportToXlsx = (ticket: Ticket, messages: Message[]) => {
 
   XLSX.writeFile(workbook, `ticket_${ticket.nro_ticket}.xlsx`);
 };
+
+export const exportToExcel = (tickets: Ticket[]) => {
+  const sheetData = tickets.map(ticket => ({
+    ID: ticket.nro_ticket,
+    Asunto: ticket.asunto,
+    Estado: ticket.estado,
+    Fecha: new Date(ticket.fecha).toLocaleString(),
+    Cliente: ticket.name || 'Desconocido',
+    Email: ticket.email || '',
+    Teléfono: ticket.telefono || '',
+    Dirección: ticket.direccion || '',
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(sheetData);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Tickets');
+
+  XLSX.writeFile(workbook, 'tickets.xlsx');
+};
