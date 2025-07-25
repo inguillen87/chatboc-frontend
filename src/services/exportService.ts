@@ -109,3 +109,33 @@ export const exportToExcel = (tickets: Ticket[]) => {
 
   XLSX.writeFile(workbook, 'tickets.xlsx');
 };
+
+export const exportAllToPdf = (tickets: Ticket[]) => {
+  const doc = new jsPDF();
+  doc.setFontSize(20);
+  doc.text('Resumen de Tickets', 14, 22);
+
+  autoTable(doc, {
+    startY: 30,
+    head: [['ID', 'Asunto', 'Estado', 'Cliente', 'Fecha']],
+    body: tickets.map(ticket => [
+      ticket.nro_ticket,
+      ticket.asunto,
+      ticket.estado,
+      ticket.name || 'N/A',
+      formatDate(ticket.fecha),
+    ]),
+    theme: 'grid',
+    headStyles: { fillColor: [22, 160, 133] },
+  });
+
+  const pageCount = (doc as any).internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(10);
+    doc.setTextColor(150);
+    doc.text(`Página ${i} de ${pageCount}`, doc.internal.pageSize.width - 20, doc.internal.pageSize.height - 10);
+  }
+
+  doc.save('resumen_tickets.pdf');
+};

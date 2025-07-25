@@ -7,7 +7,7 @@ import { useDebounce } from '@/hooks/useDebounce';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import TicketListItem from './TicketListItem';
 import { useTickets } from '@/context/TicketContext';
-import { exportToPdf, exportToExcel } from '@/services/exportService';
+import { exportToPdf, exportToExcel, exportAllToPdf } from '@/services/exportService';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -52,10 +52,13 @@ const Sidebar: React.FC = () => {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => exportToExcel(tickets)}>
-                Exportar a Excel
+                Exportar a Excel (Todos)
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => exportToPdf(selectedTicket, selectedTicket?.messages || [])}>
-                Exportar a PDF (seleccionado)
+              <DropdownMenuItem onClick={() => exportAllToPdf(tickets)}>
+                Exportar a PDF (Todos)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => exportToPdf(selectedTicket, selectedTicket?.messages || [])} disabled={!selectedTicket}>
+                Exportar Ticket a PDF
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
