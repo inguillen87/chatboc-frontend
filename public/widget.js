@@ -180,7 +180,15 @@
         iframe.style.opacity = "1"; 
       };
 
+      var attemptedFallback = false;
       iframe.onerror = function () {
+        if (!attemptedFallback) {
+          attemptedFallback = true;
+          iframe.style.display = "none";
+          iframe.src = chatbocDomain + "/iframe";
+          iframe.style.display = "block";
+          return;
+        }
         iframeHasLoaded = true;
         clearTimeout(loadTimeout);
         loader.innerHTML = '<div style="font-family: Arial, sans-serif; color: white; font-size:12px; text-align:center;">Servicio no disponible</div>';
