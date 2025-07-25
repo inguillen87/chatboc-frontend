@@ -185,7 +185,15 @@
         iframe.style.opacity = "1";
       };
 
+      let attemptedFallback = false;
       iframe.onerror = () => {
+        if (!attemptedFallback) {
+          attemptedFallback = true;
+          iframe.style.display = "none";
+          iframe.src = `${chatbocDomain}/iframe`;
+          iframe.style.display = "block";
+          return;
+        }
         iframeHasLoaded = true;
         clearTimeout(loadTimeout);
         loader.innerHTML = `<div style="font-family: system-ui, sans-serif; color: white; font-size: 14px; text-align: center; padding: 10px;">Error al cargar. Intente de nuevo.</div>`;
