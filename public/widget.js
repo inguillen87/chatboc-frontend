@@ -18,9 +18,34 @@
 
   const iframeSrc = `${chatbocDomain}/iframe.html?${params.toString()}`;
 
-  document.write(`
-    <div id="chatboc-widget-container" style="position: fixed; bottom: 0; right: 0; width: 400px; height: 600px; z-index: 2147483647; border: none; background: transparent; overflow: hidden;">
-      <iframe id="${iframeId}" title="Chatboc Widget" src="${iframeSrc}" style="width: 100%; height: 100%; border: none; background: transparent;" allow="clipboard-write; geolocation"></iframe>
-    </div>
-  `);
+  const container = document.createElement('div');
+  container.id = 'chatboc-widget-container';
+  document.body.appendChild(container);
+
+  const shadow = container.attachShadow({ mode: 'open' });
+
+  const iframe = document.createElement('iframe');
+  iframe.id = iframeId;
+  iframe.title = 'Chatboc Widget';
+  iframe.src = iframeSrc;
+  iframe.style.cssText = 'width: 100%; height: 100%; border: none; background: transparent;';
+  iframe.allow = 'clipboard-write; geolocation';
+
+  const style = document.createElement('style');
+  style.textContent = `
+    :host {
+      position: fixed;
+      bottom: 0;
+      right: 0;
+      width: 400px;
+      height: 600px;
+      z-index: 2147483647;
+      border: none;
+      background: transparent;
+      overflow: hidden;
+    }
+  `;
+
+  shadow.appendChild(style);
+  shadow.appendChild(iframe);
 })();
