@@ -160,7 +160,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       if (proactiveMessageTimeout) clearTimeout(proactiveMessageTimeout);
       if (hideProactiveBubbleTimeout) clearTimeout(hideProactiveBubbleTimeout);
     }
-  }, [isOpen, isMobileView, mode, widgetId, hostDomain, finalOpenWidth, finalOpenHeight, finalClosedWidth, finalClosedHeight, initialPosition]);
+  }, [isOpen, isMobileView, mode, widgetId, hostDomain, finalOpenWidth, finalOpenHeight, finalClosedWidth, finalClosedHeight, initialPosition, sendMessageToHost]);
 
   useEffect(() => {
     if (isOpen || mode === 'standalone') {
