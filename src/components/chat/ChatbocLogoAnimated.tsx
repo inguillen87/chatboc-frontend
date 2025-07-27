@@ -83,16 +83,7 @@ const ChatbocLogoAnimated = ({
           cy={eyeBaseY || 0}  // Fallback si eyeBaseY es undefined
           r={3.5} // Slightly smaller eyes
           fill="#FFFFFF" // Ensure high contrast, pure white
-          animate={
-            blinking
-              ? { scaleY: [1, 0.05, 1], cx: leftEyeX, cy: eyeBaseY, transitionEnd: { scaleY: 1 } } 
-              : movingEyes
-              // Temporarily simplify to isolate the cx/cy undefined issue.
-              // If errors disappear, the array animation for cx/cy is the problem.
-              ? { cx: leftEyeX, cy: eyeBaseY } // No array animation for cx/cy
-              // ? { cy: [eyeBaseY, eyeBaseY - 1, eyeBaseY, eyeBaseY + 1, eyeBaseY], cx: [leftEyeX, leftEyeX +1, leftEyeX -1, leftEyeX, leftEyeX] } 
-              : { cy: eyeBaseY, cx: leftEyeX } 
-          }
+          animate={{ cx: leftEyeX, cy: eyeBaseY }}
           transition={
             blinking
               ? { repeat: Infinity, duration: 0.1, repeatDelay: Math.random() * 5 + 3, ease: "easeOut" } // Randomized blink delay
@@ -107,15 +98,7 @@ const ChatbocLogoAnimated = ({
           cy={eyeBaseY || 0}  // Fallback si eyeBaseY es undefined
           r={3.5} // Slightly smaller eyes
           fill="#FFFFFF"
-          animate={
-            blinking
-              ? { scaleY: [1, 0.05, 1], cx: rightEyeX, cy: eyeBaseY, transitionEnd: { scaleY: 1 } } 
-              : movingEyes
-              // Temporarily simplify to isolate the cx/cy undefined issue.
-              ? { cx: rightEyeX, cy: eyeBaseY } // No array animation for cx/cy
-              // ? { cy: [eyeBaseY, eyeBaseY + 1, eyeBaseY, eyeBaseY - 1, eyeBaseY], cx: [rightEyeX, rightEyeX -1, rightEyeX + 1, rightEyeX, rightEyeX] } 
-              : { cy: eyeBaseY, cx: rightEyeX } 
-          }
+          animate={{ cx: rightEyeX, cy: eyeBaseY }}
           transition={
             blinking
               ? { repeat: Infinity, duration: 0.1, repeatDelay: Math.random() * 5 + 3.1, ease: "easeOut" } // Randomized blink delay, slightly offset

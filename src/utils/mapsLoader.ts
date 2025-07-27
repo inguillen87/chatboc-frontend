@@ -1,4 +1,5 @@
 const Maps_API_KEY = import.meta.env.VITE_Maps_API_KEY || ""; // Default to empty, error will be caught by Google
+console.log("Maps API Key:", Maps_API_KEY);
 const SCRIPT_ID = "chatboc-google-maps-script";
 
 interface GoogleMapsApi {
