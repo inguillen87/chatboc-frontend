@@ -87,6 +87,7 @@ const Navbar: React.FC = () => {
             <>
               <RouterLink to="/perfil" className="text-sm text-foreground/80 hover:text-primary dark:hover:text-primary transition-colors hover:underline">Mi perfil</RouterLink>
               <RouterLink to="/chat" className="text-sm text-foreground/80 hover:text-primary dark:hover:text-primary transition-colors hover:underline">Chat</RouterLink>
+              <RouterLink to="/estadisticas" className="text-sm text-foreground/80 hover:text-primary dark:hover:text-primary transition-colors hover:underline">Estadísticas</RouterLink>
               <RouterLink to="/" onClick={() => safeLocalStorage.removeItem("user")} className="text-sm text-red-500 hover:underline">Cerrar sesión</RouterLink>
             </>
           ) : (
