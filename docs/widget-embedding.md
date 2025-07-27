@@ -1,32 +1,57 @@
 # How to Embed the Chat Widget
 
-To embed the chat widget on your website, you need to add the following script tag to your HTML file, just before the closing `</body>` tag:
+To embed the chat widget on your website, you need to add the following script tag to your HTML file, preferably before the closing `</body>` tag.
+
+## Basic Implementation
 
 ```html
-<script src="http://localhost:3001/widget.js"></script>
+<script src="https://www.chatboc.ar/widget.js" data-token="YOUR_UNIQUE_TOKEN"></script>
 ```
 
-## Customization
+Replace `YOUR_UNIQUE_TOKEN` with the token provided for your account.
 
-You can customize the chat widget by adding the following attributes to the script tag:
+## How It Works
 
-*   `data-primary-color`: The primary color of the widget (in hex format).
-*   `data-logo-url`: The URL of the logo to display in the widget launcher.
-*   `data-position`: The position of the widget on the screen ('left' or 'right').
+The `widget.js` script creates an isolated `<iframe>` on your page to ensure there are no style or script conflicts with your website. The widget is displayed as a floating button. When a user clicks this button, the chat panel opens.
 
-Example:
+The new implementation is more efficient, with all animations and logic handled inside the iframe for a smoother experience.
+
+## Customization Attributes
+
+You can customize the widget's appearance and behavior by adding `data-*` attributes to the script tag:
+
+*   `data-token` (Required): Your unique widget identifier.
+*   `data-domain`: The domain where the widget assets are hosted. Defaults to `https://www.chatboc.ar`. Only change this for self-hosted installations.
+*   `data-bottom`: The distance from the bottom of the screen (e.g., "30px"). Defaults to "20px".
+*   `data-right`: The distance from the right of the screen (e.g., "30px"). Defaults to "20px".
+*   `data-default-open`: Set to `"true"` to have the widget open by default.
+*   `data-cta-message`: A short message that appears in a bubble next to the closed widget to encourage interaction (e.g., "Need help?").
+*   `data-rubro`: A specific category or department to associate the chat with from the beginning.
+
+### Example with Customizations
 
 ```html
 <script
-  src="http://localhost:3001/widget.js"
-  data-primary-color="#ff0000"
-  data-logo-url="https://example.com/logo.png"
-  data-position="left"
+  src="https://www.chatboc.ar/widget.js"
+  data-token="YOUR_UNIQUE_TOKEN"
+  data-bottom="40px"
+  data-right="40px"
+  data-cta-message="¡Hola! ¿Necesitas ayuda?"
 ></script>
 ```
 
-## How it works
+## JavaScript API
 
-The `widget.js` script will create an iframe on your page and load the chat widget into it. The widget will be displayed as a floating button on the bottom right corner of the screen (or bottom left, if you set the `data-position` attribute to 'left'). When the user clicks on the button, the chat panel will open.
+You can programmatically control the widget using the global `window.Chatboc` object.
 
-The script will also automatically pass the user's information to the widget, if the user is logged in to your website. This will allow the widget to display the user's name and contact information in the chat.
+*   `Chatboc.open()`: Opens the chat panel.
+*   `Chatboc.close()`: Closes the chat panel.
+*   `Chatboc.toggle()`: Toggles the chat panel's visibility.
+*   `Chatboc.setView(viewName)`: Opens the widget to a specific view. `viewName` can be `'chat'`, `'login'`, or `'register'`.
+
+### API Usage Example
+
+```html
+<button onclick="Chatboc.open()">Open Chat</button>
+<button onclick="Chatboc.setView('login')">Login</button>
+```
