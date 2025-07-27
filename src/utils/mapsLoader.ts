@@ -13,16 +13,30 @@ export function loadGoogleMapsApi(libraries: string[] = []): Promise<GoogleMapsA
     return Promise.reject(new Error("Cannot load Google Maps API outside of a browser environment."));
   }
 
+  // If a script is already in the document, assume it's either loading or loaded.
+  const existingScript = document.getElementById(SCRIPT_ID) as HTMLScriptElement | null;
+
+  const allLibraries = new Set([...loadedLibraries, ...libraries]);
   const newLibrariesToLoad = libraries.filter(lib => !loadedLibraries.has(lib));
 
+  // If there's no ongoing promise, or if new libraries are requested, create a new promise.
+  // This simplifies logic, avoiding complex checks on the existing script's URL.
   if (!loadingPromise || newLibrariesToLoad.length > 0) {
-    loadingPromise = new Promise((resolve, reject) => {
-      // Check if script already exists (e.g., from a previous call or manual inclusion)
-      let script = document.getElementById(SCRIPT_ID) as HTMLScriptElement | null;
 
+    // If a script tag exists, we will not create a new one, but we will re-use the promise logic.
+    // This handles cases where `loadGoogleMapsApi` is called multiple times in parallel.
+    if (existingScript && loadingPromise) {
+        // A load is already in progress. We just need to wait for it to complete.
+        // The new libraries will be loaded by the original call.
+        // We update the list of all libraries to ensure the promise resolves correctly.
+        allLibraries.forEach(lib => loadedLibraries.add(lib));
+        return loadingPromise;
+    }
+
+    loadingPromise = new Promise((resolve, reject) => {
       const onLoad = () => {
         if (window.google && window.google.maps) {
-          libraries.forEach(lib => loadedLibraries.add(lib));
+          allLibraries.forEach(lib => loadedLibraries.add(lib));
           resolve({ maps: window.google.maps });
         } else {
           reject(new Error("Google Maps API loaded but window.google.maps is not available."));
@@ -36,78 +50,48 @@ export function loadGoogleMapsApi(libraries: string[] = []): Promise<GoogleMapsA
         reject(new Error("Google Maps script failed to load."));
       };
 
-      if (script) {
-        // Script exists. If it's already loaded and we need more libraries, we might need to reload.
-        // For simplicity now, if the script tag exists, assume it's either loaded or loading.
-        // We'll update its src if new libraries are needed, which might cause a reload by the browser.
-        // A more sophisticated approach might involve checking script.src and loaded libraries.
-        const currentSrc = new URL(script.src);
-        const currentLibraries = new Set(currentSrc.searchParams.get("libraries")?.split(",") || []);
-        newLibrariesToLoad.forEach(lib => currentLibraries.add(lib));
-
-        const newSrc = `https://maps.googleapis.com/maps/api/js?key=${Maps_API_KEY}&v=weekly&libraries=${Array.from(currentLibraries).join(",")}&loading=async`;
-
-        if (script.src !== newSrc) {
-            // If src needs to change to add more libraries, we might need to remove and re-add.
-            // However, just adding libraries to the existing set for the check should be okay.
-            // The initial load will fetch all specified libraries.
-            // This part needs careful handling if we expect to dynamically add libraries *after* first load.
-            // For now, let's assume all libraries are requested upfront or on subsequent loads if the first one failed.
-            console.warn("Attempting to load new libraries. This might require a new script load if not handled by the initial load.");
-             // Fallback to re-creating the script if src needs to change significantly.
-            script.remove();
-            script = null; // Force re-creation
-        } else if ((script as any)._isLoaded) {
-             // Already loaded, and libraries are compatible (or current set includes new ones)
-            onLoad(); // Resolve immediately
-            return;
-        }
-        // If script exists but not marked loaded, or src changed, let it re-initialize or attach new handlers
-      }
-
-      if (!script) {
-        script = document.createElement("script");
+      // If there's no script tag, create one.
+      if (!existingScript) {
+        const script = document.createElement("script");
         script.id = SCRIPT_ID;
         script.type = "text/javascript";
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${Maps_API_KEY}&v=weekly&libraries=${Array.from(allLibraries).join(",")}&loading=async`;
         script.async = true;
         script.defer = true;
+        script.onload = onLoad;
+        script.onerror = onError;
         document.head.appendChild(script);
-      }
+      } else {
+        // If the script exists, it might be from a previous successful or failed load.
+        // We can't easily add new libraries to a script that has already loaded.
+        // The simplest, robust solution is to remove the old script and add a new one.
+        // This is not ideal but prevents a lot of edge cases.
+        // A more advanced solution would be to check the `src` and only reload if necessary.
+        const currentSrc = new URL(existingScript.src);
+        const currentLibraries = new Set(currentSrc.searchParams.get("libraries")?.split(",").filter(Boolean) || []);
+        const areAllLibsAlreadyIncluded = [...allLibraries].every(lib => currentLibraries.has(lib));
 
-      // Always update src and handlers if we are re-initiating the load process
-      const allLibs = Array.from(new Set([...Array.from(loadedLibraries), ...libraries])).join(",");
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${Maps_API_KEY}&v=weekly&libraries=${allLibs}&loading=async`;
-
-      // Remove old listeners to prevent multiple triggers if promise is re-initialized
-      script.removeEventListener("load", (script as any)._onloadHandler);
-      script.removeEventListener("error", (script as any)._onerrorHandler);
-
-      (script as any)._onloadHandler = () => {
-        (script as any)._isLoaded = true;
-        onLoad();
-      };
-      (script as any)._onerrorHandler = onError;
-
-      script.addEventListener("load", (script as any)._onloadHandler);
-      script.addEventListener("error", (script as any)._onerrorHandler);
-
-    });
-  } else {
-     // If loadingPromise exists and no new libraries, it means a load is in progress or completed.
-     // We need to ensure the promise resolves with the API if already loaded.
-     if (window.google && window.google.maps) {
-        const allRequestedLibrariesPresent = libraries.every(lib => loadedLibraries.has(lib));
-        if (allRequestedLibrariesPresent) {
-            return Promise.resolve({ maps: window.google.maps });
-        } else {
-            // This case indicates a previous load completed but not with all currently requested libraries.
-            // This logic path should ideally be covered by re-initiating the load if newLibrariesToLoad.length > 0
-            // For safety, re-initiate.
-            loadingPromise = null; // Reset to force re-evaluation.
-            loadedLibraries.clear(); // Reset known loaded libraries, as we need to fetch more.
-            return loadGoogleMapsApi(libraries);
+        if (!areAllLibsAlreadyIncluded) {
+          // Necessary libraries are not in the current script, so we must reload.
+          existingScript.remove();
+          loadingPromise = null; // Reset promise to force re-creation in next call
+          return loadGoogleMapsApi(Array.from(allLibraries)); // Re-call to create a new script
         }
-     }
+
+        // If all libraries are included, we can just wait for the existing script to load.
+        // We need to attach new event listeners if it hasn't loaded yet.
+        // However, if it has already loaded, the 'load' event won't fire again.
+        // Check for `window.google.maps` as a sign of it being loaded.
+        if (window.google && window.google.maps) {
+            onLoad();
+        } else {
+            // Script exists but hasn't loaded. Add event listeners.
+            existingScript.addEventListener('load', onLoad);
+            existingScript.addEventListener('error', onError);
+        }
+      }
+    });
   }
+
   return loadingPromise;
 }
