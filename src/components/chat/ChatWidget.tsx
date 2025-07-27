@@ -6,7 +6,6 @@ import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { motion, AnimatePresence } from "framer-motion";
 import { useUser } from "@/hooks/useUser";
 import { apiFetch } from "@/utils/api";
-import { useHostMessageHandler, sendMessageToHost } from "@/utils/postMessage";
 import { playOpenSound, playProactiveSound } from "@/utils/sounds";
 import ProactiveBubble from "./ProactiveBubble";
 import ChatUserRegisterPanel from "./ChatUserRegisterPanel";
@@ -15,16 +14,14 @@ import ChatUserPanel from "./ChatUserPanel";
 import ChatHeader from "./ChatHeader";
 import EntityInfoPanel from "./EntityInfoPanel";
 import { Skeleton } from "@/components/ui/skeleton";
-
-const ChatPanel = React.lazy(() => import("./ChatPanel"));
+import ChatPanel from "./ChatPanel";
 
 interface ChatWidgetProps {
   mode?: "standalone" | "iframe" | "script";
-  initialPosition?: { bottom: string; right: string };
+  initialPosition?: { bottom: number; right: number };
   defaultOpen?: boolean;
   initialView?: 'chat' | 'register' | 'login' | 'user' | 'info';
   widgetId?: string;
-  hostDomain?: string;
   entityToken?: string;
   initialRubro?: string;
   openWidth?: string;
@@ -50,7 +47,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   defaultOpen = false,
   initialView = 'chat',
   widgetId = "chatboc-widget-iframe",
-  hostDomain = "",
   entityToken,
   initialRubro,
   openWidth = "460px",
@@ -58,7 +54,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   closedWidth = "100px",
   closedHeight = "100px",
   tipoChat = getCurrentTipoChat(),
-  initialPosition = { bottom: "20px", right: "20px" },
+  initialPosition = { bottom: 32, right: 32 },
   ctaMessage,
 }) => {
   const [isOpen, setIsOpen] = useState(() => {
@@ -140,27 +136,30 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     "shadow-lg"
   );
 
+  const sendStateMessageToParent = useCallback(
+    (open: boolean) => {
+      if (mode === "iframe" && typeof window !== "undefined" && window.parent !== window && widgetId) {
+        const dims = open
+          ? { width: finalOpenWidth, height: finalOpenHeight }
+          : { width: finalClosedWidth, height: finalClosedHeight };
+
+        window.parent.postMessage(
+          { type: "chatboc-state-change", widgetId, dimensions: dims, isOpen: open },
+          "*"
+        );
+      }
+    },
+    [mode, widgetId, finalOpenWidth, finalOpenHeight, finalClosedWidth, finalClosedHeight]
+  );
+
   useEffect(() => {
-    if (mode !== "iframe" || !widgetId || !hostDomain) return;
-
-    const style = {
-      width: isOpen ? (isMobileView ? "100vw" : finalOpenWidth) : finalClosedWidth,
-      height: isOpen ? (isMobileView ? "100dvh" : finalOpenHeight) : finalClosedHeight,
-      bottom: isOpen && isMobileView ? "0px" : initialPosition.bottom,
-      right: isOpen && isMobileView ? "0px" : initialPosition.right,
-      borderRadius: isOpen ? (isMobileView ? "0" : "16px") : "50%",
-      boxShadow: isOpen ? "0 6px 20px rgba(0,0,0,0.2)" : "0 4px 12px rgba(0,0,0,0.15)",
-      transition: "width 0.25s cubic-bezier(0.4, 0, 0.2, 1), height 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-radius 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s ease-in-out",
-    };
-
-    sendMessageToHost({ type: "CHATBOC_RESIZE_CONTAINER", widgetId, style }, hostDomain);
-
+    sendStateMessageToParent(isOpen);
     if (isOpen) {
       setShowProactiveBubble(false);
       if (proactiveMessageTimeout) clearTimeout(proactiveMessageTimeout);
       if (hideProactiveBubbleTimeout) clearTimeout(hideProactiveBubbleTimeout);
     }
-  }, [isOpen, isMobileView, mode, widgetId, hostDomain, finalOpenWidth, finalOpenHeight, finalClosedWidth, finalClosedHeight, initialPosition, sendMessageToHost]);
+  }, [isOpen, sendStateMessageToParent]);
 
   useEffect(() => {
     if (isOpen || mode === 'standalone') {
@@ -195,28 +194,21 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     };
   }, [isOpen, muted, proactiveCycle, mode]);
 
-  const handleHostMessage = useCallback((data) => {
-    const { type, view } = data;
-    switch (type) {
-      case "CHATBOC_TOGGLE":
-        toggleChat();
-        break;
-      case "CHATBOC_OPEN":
-        setIsOpen(true);
-        break;
-      case "CHATBOC_CLOSE":
-        setIsOpen(false);
-        break;
-      case "CHATBOC_SET_VIEW":
-        if (view && ['chat', 'register', 'login', 'user', 'info'].includes(view)) {
-          setView(view);
-          if (!isOpen) setIsOpen(true);
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (!event.data || event.data.widgetId !== widgetId) return;
+      if (event.data.type === "TOGGLE_CHAT") {
+        setIsOpen(event.data.isOpen);
+      } else if (event.data.type === "SET_VIEW") {
+        const v = event.data.view;
+        if (['chat', 'register', 'login', 'user', 'info'].includes(v)) {
+          setView(v as any);
         }
-        break;
-    }
-  }, [toggleChat, isOpen]);
-
-  useHostMessageHandler(widgetId, hostDomain, handleHostMessage);
+      }
+    };
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [widgetId]);
 
   const toggleChat = useCallback(() => {
     // Ensure AudioContext is resumed on user gesture, especially for the first click
@@ -322,6 +314,30 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     open: { rotate: 180, scale: 0, opacity: 0 }
   };
 
+ if (mode === "standalone") {
+  return (
+    <div
+      className={cn("chatboc-container-standalone fixed z-[999999]")}
+      style={{
+        bottom: isOpen && isMobileView ? 0 : `calc(${initialPosition.bottom}px + env(safe-area-inset-bottom))`,
+        right: isOpen && isMobileView ? 0 : `calc(${initialPosition.right}px + env(safe-area-inset-right))`,
+        left: isOpen && isMobileView ? 0 : "auto",
+        top: isOpen && isMobileView ? "env(safe-area-inset-top)" : "auto",
+        width: isOpen ? (isMobileView ? "100vw" : finalOpenWidth) : finalClosedWidth,
+        height: isOpen ? (isMobileView ? "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))" : finalOpenHeight) : finalClosedHeight,
+        minWidth: isOpen ? "320px" : finalClosedWidth,
+        minHeight: isOpen ? "64px" : finalClosedHeight,
+        maxWidth: "100vw",
+        maxHeight: "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))",
+        borderRadius: isOpen ? (isMobileView ? "0" : "16px") : "50%",
+        overflow: isOpen ? "hidden" : "visible",
+        background: "transparent",
+        padding: 0,
+        display: "flex",
+        alignItems: "flex-end",
+        justifyContent: "flex-end",
+      }}
+    >
   const containerStyle = mode === 'standalone' ? {
     bottom: isOpen && isMobileView ? 0 : `calc(${initialPosition.bottom} + env(safe-area-inset-bottom))`,
     right: isOpen && isMobileView ? 0 : `calc(${initialPosition.right} + env(safe-area-inset-right))`,
@@ -348,16 +364,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         background: "transparent",
       }}
     >
-    <Suspense fallback={
-      <div
-        className={cn(commonPanelStyles, "w-full h-full items-center justify-center")}
-        style={{ borderRadius: isOpen ? (isMobileView ? "0" : "16px") : "50%", background: "hsl(var(--card))" }}
-      >
-        <ChatbocLogoAnimated size={calculatedLogoSize > 0 ? calculatedLogoSize : (isMobileView ? 32 : 48)} />
-        <Skeleton className="h-4 w-[60%] mt-3" />
-        <Skeleton className="h-4 w-[40%] mt-2" />
-      </div>
-    }>
       <AnimatePresence mode="wait" initial={false}>
         {isOpen ? (
           <motion.div
@@ -426,7 +432,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
           </motion.div>
         )}
       </AnimatePresence>
-    </Suspense>
     </div>
   );
 }

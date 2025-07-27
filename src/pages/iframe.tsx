@@ -40,32 +40,27 @@ const Iframe = () => {
       setParams({
         defaultOpen: urlParams.get("defaultOpen") === "true",
         widgetId: urlParams.get("widgetId") || "chatboc-iframe-unknown",
-        hostDomain: urlParams.get("hostDomain"),
-        token: tokenFromUrl,
+        token: tokenFromUrl, // Usar la variable ya leída
         view: urlParams.get("view") || 'chat',
         openWidth: urlParams.get("openWidth") || DEFAULTS.openWidth,
         openHeight: urlParams.get("openHeight") || DEFAULTS.openHeight,
         closedWidth: urlParams.get("closedWidth") || DEFAULTS.closedWidth,
         closedHeight: urlParams.get("closedHeight") || DEFAULTS.closedHeight,
-        tipoChat: urlParams.get("tipo_chat") === "municipio" ? "municipio" : "pyme",
+        tipoChat:
+          urlParams.get("tipo_chat") === "municipio" ? "municipio" : "pyme",
         ctaMessage: urlParams.get("ctaMessage") || undefined,
         rubro: urlParams.get("rubro") || undefined,
-        initialPosition: {
-          bottom: urlParams.get('bottom') || '20px',
-          right: urlParams.get('right') || '20px',
-        }
       });
     }
   }, []);
 
-  if (!params || !params.token || !params.hostDomain) return null;
+  if (!params || !params.token) return null;
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
       <ChatWidget
         mode="iframe"
         defaultOpen={params.defaultOpen}
         widgetId={params.widgetId}
-        hostDomain={params.hostDomain}
         entityToken={params.token}
         tipoChat={params.tipoChat}
         openWidth={params.openWidth}
@@ -75,7 +70,6 @@ const Iframe = () => {
         ctaMessage={params.ctaMessage}
         initialView={params.view}
         initialRubro={params.rubro}
-        initialPosition={params.initialPosition}
       />
     </GoogleOAuthProvider>
   );

@@ -662,7 +662,7 @@ const ChatPanel = ({
             </div>
           ) : locationRequest ? ( // NUEVO: Mostrar UI para solicitud de ubicación mandatoria
             <div className="flex flex-col items-center justify-center text-center p-4 m-auto bg-card border rounded-lg shadow-lg max-w-md">
-              <AlertTriangle className="h-12 w-12 text-primary mb-4" />
+
               <p className="text-lg font-semibold text-foreground mb-2">Solicitud de Ubicación</p>
               <p className="text-sm text-muted-foreground mb-4">{locationRequest.message}</p>
               {locationRequest.type === 'gps_mandatory' && (
