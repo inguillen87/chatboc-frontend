@@ -1,22 +1,20 @@
 // src/hooks/useChatLogic.ts
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Message, SendPayload as TypeSendPayload } from "@/types/chat"; // Asegúrate que Message tenga los nuevos campos
-import { apiFetch, getErrorMessage } from "@/utils/api"; // getErrorMessage ya estaba en ChatPanel
+import { Message, SendPayload as TypeSendPayload } from "@/types/chat";
+import { apiFetch, getErrorMessage } from "@/utils/api";
 import { APP_TARGET } from "@/config";
-import { getAskEndpoint, esRubroPublico } from "@/utils/chatEndpoints";
+import { getAskEndpoint } from "@/utils/chatEndpoints";
 import { enforceTipoChatForRubro } from "@/utils/tipoChat";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateAnonId from "@/utils/anonId";
 import { v4 as uuidv4 } from 'uuid';
-
+import { MunicipioContext, updateMunicipioContext, getInitialMunicipioContext } from "@/utils/contexto_municipio";
 
 export function useChatLogic(initialWelcomeMessage: string) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
-  const [contexto, setContexto] = useState<any>({}); // Especificar un tipo más preciso si es posible
+  const [contexto, setContexto] = useState<MunicipioContext>(() => getInitialMunicipioContext());
   const [activeTicketId, setActiveTicketId] = useState<number | null>(null);
-
-  // Nuevo estado para la idempotency key del reclamo actual
   const [currentClaimIdempotencyKey, setCurrentClaimIdempotencyKey] = useState<string | null>(null);
 
   const token = safeLocalStorage.getItem('authToken');
@@ -25,14 +23,13 @@ export function useChatLogic(initialWelcomeMessage: string) {
 
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const ultimoMensajeIdRef = useRef<number>(0);
-  const clientMessageIdCounter = useRef(0); // Para IDs de mensajes optimistas
+  const clientMessageIdCounter = useRef(0);
 
-  const generateClientMessageId = () => { // Función para generar IDs únicos para mensajes optimistas
+  const generateClientMessageId = () => {
     clientMessageIdCounter.current += 1;
     return `client-${Date.now()}-${clientMessageIdCounter.current}`;
   };
 
-  // Efecto para el mensaje de bienvenida inicial
   useEffect(() => {
     const user = JSON.parse(safeLocalStorage.getItem('user') || 'null');
     const welcomeMessage = isAnonimo
@@ -46,48 +43,37 @@ export function useChatLogic(initialWelcomeMessage: string) {
     }
   }, [initialWelcomeMessage, isAnonimo]);
 
-
-  // Efecto para generar idempotency key cuando el bot pide confirmación de reclamo
   useEffect(() => {
-    const lastBotMessage = messages.length > 0 ? messages[messages.length - 1] : null;
-    if (lastBotMessage && lastBotMessage.isBot && lastBotMessage.botones) {
-      const requiereConfirmacionReclamo = lastBotMessage.botones.some(
-        (btn: any) => btn.action === "confirmar_reclamo" // Asumiendo que los botones tienen 'action'
-      );
-      if (requiereConfirmacionReclamo && !activeTicketId) { // Solo para nuevos reclamos
-        const newKey = uuidv4();
-        setCurrentClaimIdempotencyKey(newKey);
-        console.log("useChatLogic: Generated idempotency key for claim confirmation:", newKey);
-      }
+    if (contexto.estado_conversacion === 'confirmando_reclamo' && !activeTicketId) {
+      const newKey = uuidv4();
+      setCurrentClaimIdempotencyKey(newKey);
+      console.log("useChatLogic: Generated idempotency key for claim confirmation:", newKey);
     }
-  }, [messages, activeTicketId]);
+  }, [contexto.estado_conversacion, activeTicketId]);
 
-
-  // Efecto para el polling de mensajes en vivo
   useEffect(() => {
     const fetchNewMessages = async () => {
       if (!activeTicketId) return;
       try {
         const data = await apiFetch<{ estado_chat: string; mensajes: any[] }>(
           `/tickets/chat/${activeTicketId}/mensajes?ultimo_mensaje_id=${ultimoMensajeIdRef.current}`,
-          // apiFetch maneja token/anonId
         );
-        if (data.mensajes && data.mensajes.length > 0) {
+        if (data.mensajes?.length > 0) {
           const nuevosMensajes: Message[] = data.mensajes.map(msg => ({
-            id: msg.id, // Usar ID del servidor
+            id: msg.id,
             text: msg.texto,
             isBot: msg.es_admin,
             timestamp: new Date(msg.fecha),
-            attachmentInfo: msg.attachment_info, // Asumir que backend puede enviar esto
-            // ...otros campos que pueda tener el mensaje de chat en vivo
+            attachmentInfo: msg.attachment_info,
           }));
           setMessages(prev => [...prev, ...nuevosMensajes]);
           ultimoMensajeIdRef.current = data.mensajes[data.mensajes.length - 1].id;
         }
-        if (data.estado_chat === 'resuelto' || data.estado_chat === 'cerrado') {
+        if (['resuelto', 'cerrado'].includes(data.estado_chat)) {
           if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
           setMessages(prev => [...prev, { id: generateClientMessageId(), text: "Un agente ha finalizado esta conversación.", isBot: true, timestamp: new Date() }]);
-          setCurrentClaimIdempotencyKey(null); // Limpiar por si acaso
+          setCurrentClaimIdempotencyKey(null);
+          setContexto(getInitialMunicipioContext());
         }
       } catch (error) {
         console.error("Error durante el polling:", error);
@@ -104,23 +90,11 @@ export function useChatLogic(initialWelcomeMessage: string) {
     };
   }, [activeTicketId]);
 
-
   const handleSend = useCallback(async (payload: string | TypeSendPayload) => {
-    let actualPayload: TypeSendPayload;
+    const actualPayload: TypeSendPayload = typeof payload === 'string' ? { text: payload.trim() } : { ...payload, text: payload.text?.trim() || "" };
+    const { text: userMessageText, attachmentInfo, ubicacion_usuario, action } = actualPayload;
 
-    if (typeof payload === 'string') {
-      actualPayload = { text: payload.trim() };
-    } else {
-      // Asegurarse de que el texto no sea undefined si payload.text es undefined
-      actualPayload = { ...payload, text: payload.text?.trim() || "" };
-    }
-
-    const userMessageText = actualPayload.text;
-
-    if (!userMessageText && !actualPayload.attachmentInfo && !actualPayload.ubicacion_usuario && !actualPayload.action) {
-         // Si hay archivo_url legado pero no attachmentInfo, aún podría ser un adjunto
-        if (!actualPayload.archivo_url) return;
-    }
+    if (!userMessageText && !attachmentInfo && !ubicacion_usuario && !action && !actualPayload.archivo_url) return;
     if (isTyping) return;
 
     const userMessage: Message = {
@@ -128,8 +102,8 @@ export function useChatLogic(initialWelcomeMessage: string) {
       text: userMessageText,
       isBot: false,
       timestamp: new Date(),
-      attachmentInfo: actualPayload.attachmentInfo,
-      locationData: actualPayload.ubicacion_usuario,
+      attachmentInfo,
+      locationData: ubicacion_usuario,
     };
     setMessages(prev => [...prev, userMessage]);
     setIsTyping(true);
@@ -138,90 +112,61 @@ export function useChatLogic(initialWelcomeMessage: string) {
       if (activeTicketId) {
         const bodyRequest: any = {
             comentario: userMessageText,
-            ...(actualPayload.attachmentInfo && { attachment_info: actualPayload.attachmentInfo }),
-            ...(actualPayload.ubicacion_usuario && { ubicacion: actualPayload.ubicacion_usuario }),
+            ...(attachmentInfo && { attachment_info: attachmentInfo }),
+            ...(ubicacion_usuario && { ubicacion: ubicacion_usuario }),
         };
-        await apiFetch(`/tickets/chat/${activeTicketId}/responder_ciudadano`, {
-          method: "POST",
-          body: JSON.stringify(bodyRequest), // Asegurar que el body sea JSON
-          // apiFetch maneja token/anonId
-        });
+        await apiFetch(`/tickets/chat/${activeTicketId}/responder_ciudadano`, { method: "POST", body: JSON.stringify(bodyRequest) });
       } else {
-        const storedUser = typeof window !== 'undefined' ? JSON.parse(safeLocalStorage.getItem('user') || 'null') : null;
-        const rubro = storedUser?.rubro?.clave || storedUser?.rubro?.nombre || safeLocalStorage.getItem("rubroSeleccionado") || null; // Incluir rubroSeleccionado como fallback
+        const storedUser = JSON.parse(safeLocalStorage.getItem('user') || 'null');
+        const rubro = storedUser?.rubro?.clave || storedUser?.rubro?.nombre || safeLocalStorage.getItem("rubroSeleccionado") || null;
         const tipoChatInferido = enforceTipoChatForRubro(APP_TARGET, rubro);
         
+        const updatedContext = updateMunicipioContext(contexto, { userInput: userMessageText, action });
+        setContexto(updatedContext);
+
         const requestBody: Record<string, any> = {
           pregunta: userMessageText,
-          contexto_previo: contexto,
+          contexto_previo: updatedContext,
           tipo_chat: tipoChatInferido,
           ...(rubro && { rubro_clave: rubro }),
-          ...(actualPayload.attachmentInfo && { attachment_info: actualPayload.attachmentInfo }),
-          ...(actualPayload.ubicacion_usuario && { ubicacion_usuario: actualPayload.ubicacion_usuario }),
-          ...(actualPayload.action && { action: actualPayload.action }),
+          ...(attachmentInfo && { attachment_info: attachmentInfo }),
+          ...(ubicacion_usuario && { ubicacion_usuario: ubicacion_usuario }),
+          ...(action && { action }),
+          ...(action === "confirmar_reclamo" && currentClaimIdempotencyKey && { idempotency_key: currentClaimIdempotencyKey }),
         };
-        
-        // Añadir idempotency_key si es una acción de confirmar reclamo y la key existe
-        if (actualPayload.action === "confirmar_reclamo" && currentClaimIdempotencyKey) {
-          requestBody.idempotency_key = currentClaimIdempotencyKey;
-          console.log("useChatLogic: Sending idempotency_key with confirmation:", currentClaimIdempotencyKey);
-        }
-
-        if (isAnonimo && anonId) {
-            // requestBody.anon_id = anonId; // El backend lo toma del header
-        }
 
         const endpoint = getAskEndpoint({ tipoChat: tipoChatInferido, rubro });
-
-        const data = await apiFetch<any>(endpoint, {
-          method: 'POST',
-          body: JSON.stringify(requestBody), // Asegurar que el body sea JSON
-          // apiFetch maneja token/anonId
-        });
+        const data = await apiFetch<any>(endpoint, { method: 'POST', body: JSON.stringify(requestBody) });
         
-        setContexto(data.contexto_actualizado || {});
+        const finalContext = updateMunicipioContext(updatedContext, { llmResponse: data });
+        setContexto(finalContext);
         
-        const respuestaText = data.respuesta_usuario || "⚠️ No se pudo generar una respuesta.";
-        const botones = data.botones || [];
-
         const botMessage: Message = {
           id: generateClientMessageId(),
-          text: respuestaText,
+          text: data.respuesta_usuario || "⚠️ No se pudo generar una respuesta.",
           isBot: true,
           timestamp: new Date(),
-          botones: botones,
+          botones: data.botones || [],
           mediaUrl: data.media_url,
           locationData: data.location_data,
           attachmentInfo: data.attachment_info,
         };
-
         setMessages(prev => [...prev, botMessage]);
 
-        if (data.ticket_id) {
-          setActiveTicketId(data.ticket_id);
+        if (finalContext.id_ticket_creado) {
+          setActiveTicketId(finalContext.id_ticket_creado);
           ultimoMensajeIdRef.current = 0;
-          setCurrentClaimIdempotencyKey(null); // Limpiar la key una vez que el ticket se creó
-        }
-        // Limpiar la key si la respuesta del bot ya no es una confirmación de reclamo
-        const esConfirmacionSiguiente = botMessage.botones?.some((btn: any) => btn.action === "confirmar_reclamo");
-        if (!esConfirmacionSiguiente && !data.ticket_id) {
-            // Si no se creó ticket y la siguiente respuesta no es una confirmación,
-            // es posible que el flujo de reclamo se haya interrumpido o cambiado.
-            // Considerar si limpiar la key aquí es siempre correcto o si debe esperar
-            // a una señal más explícita de cancelación del flujo.
-            // Por ahora, la limpieza principal es al crear ticket o si el bot explícitamente finaliza.
+          setCurrentClaimIdempotencyKey(null);
+          // No reseteamos el contexto aquí para poder mostrar un mensaje de "ticket creado"
         }
       }
     } catch (error: any) {
       const errorMsg = getErrorMessage(error, '⚠️ No se pudo conectar con el servidor.');
-      setMessages(prev => [
-        ...prev,
-        { id: generateClientMessageId(), text: errorMsg, isBot: true, timestamp: new Date() }
-      ]);
+      setMessages(prev => [...prev, { id: generateClientMessageId(), text: errorMsg, isBot: true, timestamp: new Date() }]);
     } finally {
       setIsTyping(false);
     }
-  }, [contexto, activeTicketId, isTyping, isAnonimo, anonId, currentClaimIdempotencyKey]); // Añadir currentClaimIdempotencyKey
+  }, [contexto, activeTicketId, isTyping, isAnonimo, anonId, currentClaimIdempotencyKey]);
 
-  return { messages, isTyping, handleSend, activeTicketId, setMessages, setContexto, setActiveTicketId }; // Exponer más estados si ChatPanel los necesita
+  return { messages, isTyping, handleSend, activeTicketId, setMessages, setContexto, setActiveTicketId };
 }
