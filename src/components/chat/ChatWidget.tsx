@@ -339,18 +339,20 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       }}
     >
   const containerStyle = mode === 'standalone' ? {
-    bottom: isOpen && isMobileView ? 0 : `calc(${initialPosition.bottom} + env(safe-area-inset-bottom))`,
-    right: isOpen && isMobileView ? 0 : `calc(${initialPosition.right} + env(safe-area-inset-right))`,
-    left: isOpen && isMobileView ? 0 : "auto",
-    top: isOpen && isMobileView ? "env(safe-area-inset-top)" : "auto",
-    width: isOpen ? (isMobileView ? "100vw" : finalOpenWidth) : finalClosedWidth,
-    height: isOpen ? (isMobileView ? "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))" : finalOpenHeight) : finalClosedHeight,
-    borderRadius: isOpen ? (isMobileView ? "0" : "16px") : "50%",
-  } : {
-    width: '100%',
-    height: '100%',
-  };
+  bottom: isOpen && isMobileView ? 0 : `calc(${initialPosition.bottom}px + env(safe-area-inset-bottom))`,
+  right: isOpen && isMobileView ? 0 : `calc(${initialPosition.right}px + env(safe-area-inset-right))`,
+  left: isOpen && isMobileView ? 0 : "auto",
+  top: isOpen && isMobileView ? "env(safe-area-inset-top)" : "auto",
+  width: isOpen ? (isMobileView ? "100vw" : finalOpenWidth) : finalClosedWidth,
+  height: isOpen ? (isMobileView ? "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))" : finalOpenHeight) : finalClosedHeight,
+  borderRadius: isOpen ? (isMobileView ? "0" : "16px") : "50%",
+} : {
+  width: '100%',
+  height: '100%',
+};
 
+
+if (mode === "standalone" || mode === "iframe") {
   return (
     <div
       className={cn(
@@ -368,7 +370,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         {isOpen ? (
           <motion.div
             key="chatboc-panel-open"
-            className={cn(commonPanelStyles, "w-full h-full shadow-xl")}
+            className={cn("bg-card border shadow-lg", "flex flex-col overflow-hidden", "w-full h-full shadow-xl")}
             style={{ borderRadius: isMobileView ? "0" : "16px", background: "hsl(var(--card))" }}
             {...panelAnimation}
           >
