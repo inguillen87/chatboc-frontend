@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { loadGoogleMapsApi } from '@/utils/mapsLoader';
 import { apiFetch } from '@/utils/api';
 
 const EstadisticasPage: React.FC = () => {
@@ -8,13 +9,20 @@ const EstadisticasPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (mapRef.current) {
-      const mapInstance = new window.google.maps.Map(mapRef.current, {
-        zoom: 13,
-        center: { lat: -34.6037, lng: -58.3816 }, // Buenos Aires
+    loadGoogleMapsApi(['visualization'])
+      .then(() => {
+        if (mapRef.current) {
+          const mapInstance = new window.google.maps.Map(mapRef.current, {
+            zoom: 13,
+            center: { lat: -34.6037, lng: -58.3816 }, // Buenos Aires
+          });
+          setMap(mapInstance);
+        }
+      })
+      .catch((err) => {
+        console.error('Error loading Google Maps API', err);
+        setError('No se pudo cargar el mapa.');
       });
-      setMap(mapInstance);
-    }
   }, []);
 
   useEffect(() => {
