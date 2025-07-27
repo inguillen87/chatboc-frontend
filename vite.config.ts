@@ -12,6 +12,9 @@ export default defineConfig(({ mode }) => {
       react(),
       VitePWA(pwaOptions(env))
     ],
+    define: {
+      'process.env': env
+    },
     server: {
       port: 8080,
       proxy: {

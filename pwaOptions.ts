@@ -54,7 +54,7 @@ export const pwaOptions = (env: Record<string, string>): Partial<VitePWAOptions>
       },
       {
         urlPattern: ({ url }) => url.pathname.endsWith('iframe.html'),
-        handler: 'StaleWhileRevalidate',
+        handler: 'NetworkFirst',
         options: {
           cacheName: 'iframe-cache',
           expiration: {
