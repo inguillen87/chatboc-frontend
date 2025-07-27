@@ -46,6 +46,7 @@ import ProductCheckoutPage from '@/pages/ProductCheckoutPage';
 import GestionPlantillasPage from '@/pages/GestionPlantillasPage';
 import CatalogMappingPage from '@/pages/admin/CatalogMappingPage';
 import OpinarArPage from '@/pages/OpinarArPage';
+import EstadisticasPage from '@/pages/EstadisticasPage';
 
 // NUEVAS IMPORTACIONES PARA EL PORTAL DE USUARIO
 // UserPortalLayout no se importa aquí si se usa como Layout Route en App.tsx
@@ -105,6 +106,7 @@ const routes: RouteConfig[] = [
   { path: '/municipal/analytics', element: <MunicipalAnalytics />, roles: ['admin'] },
   { path: '/municipal/stats', element: <MunicipalStats />, roles: ['admin'] },
   { path: '/municipal/incidents', element: <IncidentsMap />, roles: ['admin'] },
+  { path: '/estadisticas', element: <EstadisticasPage />, roles: ['admin'] },
   { path: '/perfil/plantillas-respuesta', element: <GestionPlantillasPage />, roles: ['admin', 'empleado'] },
   // Rutas para la gestión de mapeo de catálogos por PYME
   { path: '/admin/pyme/:pymeId/catalog-mappings/new', element: <CatalogMappingPage />, roles: ['admin'] },
