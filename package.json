@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "vite",
-    "build": "rm -rf node_modules package-lock.json && npm install && vite build",
+    "build": "vite build",
     "preview": "vite preview",
     "setup-env": "node scripts/setupEnv.cjs",
     "postinstall": "npm run setup-env",
