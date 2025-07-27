@@ -18,35 +18,13 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 8080,
       proxy: {
+        // Proxy all requests starting with /api to the backend server
         '/api': {
-          target: 'http://localhost:5000',
-          changeOrigin: true,
-          secure: false,
-        },
-        '/login': {
-          target: 'http://localhost:5000',
-          changeOrigin: true,
-          secure: false,
-        },
-        '/register': {
-          target: 'http://localhost:5000',
-          changeOrigin: true,
-          secure: false,
-        },
-        '/me': {
-          target: 'http://localhost:5000',
-          changeOrigin: true,
-          secure: false,
-        },
-        '/rubros': {
-          target: 'http://localhost:5000',
-          changeOrigin: true,
-          secure: false,
-        },
-        '/ask': {
-          target: 'http://localhost:5000',
-          changeOrigin: true,
-          secure: false,
+          target: 'http://localhost:5000', // The address of your backend server
+          changeOrigin: true, // Recommended for virtual hosts
+          secure: false, // Set to true if your backend is on HTTPS
+          // Optional: rewrite path before sending to target
+          rewrite: (path) => path.replace(/^\/api/, '')
         },
       },
     },
