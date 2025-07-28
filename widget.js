@@ -5,14 +5,14 @@
     const SCRIPT_CONFIG = {
       WIDGET_JS_FILENAME: "widget.js",
       DEFAULT_TOKEN: "demo-anon",
-      DEFAULT_Z_INDEX: "999990",
-      DEFAULT_INITIAL_BOTTOM: "20px",
+      DEFAULT_Z_INDEX: "9999",
+      DEFAULT_INITIAL_BOTTOM: "24px",
       DEFAULT_INITIAL_RIGHT: "20px",
       DEFAULT_OPEN_WIDTH: "460px",
       DEFAULT_OPEN_HEIGHT: "680px",
-      DEFAULT_CLOSED_WIDTH: "96px",
-      DEFAULT_CLOSED_HEIGHT: "96px",
-      MOBILE_BREAKPOINT_PX: 640,
+      DEFAULT_CLOSED_WIDTH: "56px",
+      DEFAULT_CLOSED_HEIGHT: "56px",
+      MOBILE_BREAKPOINT_PX: 768,
       LOADER_TIMEOUT_MS: 10000,
       DEFAULT_CHATBOC_DOMAIN: "https://www.chatboc.ar",
     };
@@ -59,8 +59,8 @@
       },
     };
 
-    const initialBottom = script.getAttribute("data-bottom") || SCRIPT_CONFIG.DEFAULT_INITIAL_BOTTOM;
-    const initialRight = script.getAttribute("data-right") || SCRIPT_CONFIG.DEFAULT_INITIAL_RIGHT;
+      const initialBottom = script.getAttribute("data-bottom") || "24px";
+      const initialRight = script.getAttribute("data-right") || "24px";
     const defaultOpen = script.getAttribute("data-default-open") === "true";
     const theme = script.getAttribute("data-theme") || "";
     const rubroAttr = script.getAttribute("data-rubro") || "";
@@ -74,26 +74,21 @@
       let iframeIsCurrentlyOpen = defaultOpen;
 
       function computeResponsiveDims(base, isOpen) {
-        const isMobile = window.innerWidth < SCRIPT_CONFIG.MOBILE_BREAKPOINT_PX;
+        const isMobile = window.innerWidth <= SCRIPT_CONFIG.MOBILE_BREAKPOINT_PX;
         if (isOpen && isMobile) {
           return {
             width: "100vw",
-            height: "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))",
+            height: "90vh",
           };
         }
         if (isMobile) { // Closed on mobile
-            const closedWidthNum = parseInt(WIDGET_DIMENSIONS.CLOSED.width, 10);
             return {
-                width: `${closedWidthNum}px`,
-                height: `${parseInt(WIDGET_DIMENSIONS.CLOSED.height, 10)}px`,
+                width: WIDGET_DIMENSIONS.CLOSED.width,
+                height: WIDGET_DIMENSIONS.CLOSED.height,
             };
         }
         // Desktop
-        const widthNum = parseInt(base.width, 10);
-        const heightNum = parseInt(base.height, 10);
-        const constrainedWidth = Math.min(widthNum, window.innerWidth - 40);
-        const constrainedHeight = Math.min(heightNum, window.innerHeight - 40);
-        return { width: `${constrainedWidth}px`, height: `${constrainedHeight}px` };
+        return base;
       }
 
       let currentDims = iframeIsCurrentlyOpen
@@ -110,14 +105,29 @@
         width: currentDims.width,
         height: currentDims.height,
         zIndex: zIndexBase.toString(),
-        borderRadius: iframeIsCurrentlyOpen && window.innerWidth < SCRIPT_CONFIG.MOBILE_BREAKPOINT_PX ? "0px" : iframeIsCurrentlyOpen ? "16px" : "50%",
-        boxShadow: iframeIsCurrentlyOpen ? "0 6px 20px rgba(0,0,0,0.2)" : "0 4px 12px rgba(0,0,0,0.15)",
-        transition: "box-shadow 0.3s ease, background-color 0.3s ease, width 0.3s ease, height 0.3s ease, border-radius 0.3s ease",
+        borderRadius: "50%",
+        boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+        transition: "transform 0.2s ease, box-shadow 0.2s ease, width 0.3s ease, height 0.3s ease, border-radius 0.3s ease",
         overflow: "hidden",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: iframeIsCurrentlyOpen ? "transparent" : "hsl(var(--primary, 218 92% 41%))",
+        background: "#007aff",
+        cursor: "pointer",
+      });
+
+      widgetContainer.addEventListener("mouseenter", () => {
+        if (!iframeIsCurrentlyOpen) {
+          widgetContainer.style.transform = "scale(1.05)";
+          widgetContainer.style.boxShadow = "0 6px 18px rgba(0,0,0,0.2)";
+        }
+      });
+
+      widgetContainer.addEventListener("mouseleave", () => {
+        if (!iframeIsCurrentlyOpen) {
+          widgetContainer.style.transform = "scale(1)";
+          widgetContainer.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
+        }
       });
       document.body.appendChild(widgetContainer);
 
@@ -216,13 +226,26 @@
             iframeIsCurrentlyOpen ? WIDGET_DIMENSIONS.OPEN : WIDGET_DIMENSIONS.CLOSED,
             iframeIsCurrentlyOpen
           );
-          Object.assign(widgetContainer.style, {
-            width: newDims.width,
-            height: newDims.height,
-            borderRadius: iframeIsCurrentlyOpen && window.innerWidth < SCRIPT_CONFIG.MOBILE_BREAKPOINT_PX ? "0" : iframeIsCurrentlyOpen ? "16px" : "50%",
-            boxShadow: iframeIsCurrentlyOpen ? "0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)" : "0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1)",
-            background: iframeIsCurrentlyOpen ? "transparent" : "hsl(var(--primary, 218 92% 41%))",
-          });
+          if (iframeIsCurrentlyOpen) {
+            Object.assign(widgetContainer.style, {
+              width: newDims.width,
+              height: newDims.height,
+              borderRadius: window.innerWidth <= SCRIPT_CONFIG.MOBILE_BREAKPOINT_PX ? "16px 16px 0 0" : "16px",
+              boxShadow: "0 8px 40px rgba(0, 0, 0, 0.2)",
+              background: "white",
+              transform: "scale(1)",
+              cursor: "default",
+            });
+          } else {
+            Object.assign(widgetContainer.style, {
+              width: newDims.width,
+              height: newDims.height,
+              borderRadius: "50%",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+              background: "#007aff",
+              cursor: "pointer",
+            });
+          }
         }
       }
       window.addEventListener("message", messageHandler);
@@ -244,68 +267,6 @@
         postToIframe({ type: "TOGGLE_CHAT", isOpen: true });
       });
 
-      // --- Drag and Drop Logic ---
-      let isDragging = false, dragStartX, dragStartY, containerStartLeft, containerStartTop;
-
-      function dragStart(e) {
-        if (iframeIsCurrentlyOpen) return;
-        isDragging = true;
-        const rect = widgetContainer.getBoundingClientRect();
-        containerStartLeft = rect.left;
-        containerStartTop = rect.top;
-        dragStartX = e.touches ? e.touches[0].clientX : e.clientX;
-        dragStartY = e.touches ? e.touches[0].clientY : e.clientY;
-
-        widgetContainer.style.transition = "none";
-        widgetContainer.style.cursor = "grabbing";
-        document.body.style.cursor = "grabbing";
-
-        document.addEventListener("mousemove", dragMove);
-        document.addEventListener("mouseup", dragEnd);
-        document.addEventListener("touchmove", dragMove, { passive: false });
-        document.addEventListener("touchend", dragEnd);
-
-        if (e.cancelable) e.preventDefault();
-      }
-
-      function dragMove(e) {
-        if (!isDragging) return;
-        if (e.cancelable) e.preventDefault();
-
-        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-
-        let newLeft = containerStartLeft + (clientX - dragStartX);
-        let newTop = containerStartTop + (clientY - dragStartY);
-
-        const containerWidth = widgetContainer.offsetWidth;
-        const containerHeight = widgetContainer.offsetHeight;
-
-        newLeft = Math.max(8, Math.min(window.innerWidth - containerWidth - 8, newLeft));
-        newTop = Math.max(8, Math.min(window.innerHeight - containerHeight - 8, newTop));
-
-        widgetContainer.style.left = `${newLeft}px`;
-        widgetContainer.style.top = `${newTop}px`;
-        widgetContainer.style.right = "auto";
-        widgetContainer.style.bottom = "auto";
-      }
-
-      function dragEnd() {
-        if (!isDragging) return;
-        isDragging = false;
-
-        widgetContainer.style.transition = "box-shadow 0.3s ease, background-color 0.3s ease, width 0.3s ease, height 0.3s ease, border-radius 0.3s ease";
-        widgetContainer.style.cursor = "pointer";
-        document.body.style.cursor = "default";
-
-        document.removeEventListener("mousemove", dragMove);
-        document.removeEventListener("mouseup", dragEnd);
-        document.removeEventListener("touchmove", dragMove);
-        document.removeEventListener("touchend", dragEnd);
-      }
-
-      widgetContainer.addEventListener("mousedown", dragStart);
-      widgetContainer.addEventListener("touchstart", dragStart, { passive: false });
 
       function postToIframe(msg) {
         iframe?.contentWindow?.postMessage({ ...msg, widgetId: iframeId }, chatbocDomain);
