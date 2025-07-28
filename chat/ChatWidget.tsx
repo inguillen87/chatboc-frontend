@@ -221,18 +221,18 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   const containerStyle: React.CSSProperties = mode === "standalone" ? {
     position: 'fixed',
-    zIndex: 9999,
+    zIndex: 999999,
     bottom: isOpen && isMobileView ? 0 : `calc(${initialPosition.bottom}px + env(safe-area-inset-bottom))`,
     right: isOpen && isMobileView ? 0 : `calc(${initialPosition.right}px + env(safe-area-inset-right))`,
     left: isOpen && isMobileView ? 0 : "auto",
     top: isOpen && isMobileView ? "env(safe-area-inset-top)" : "auto",
     width: isOpen ? (isMobileView ? "100vw" : openWidth) : finalClosedWidth,
-    height: isOpen ? (isMobileView ? "90vh" : openHeight) : finalClosedHeight,
+    height: isOpen ? (isMobileView ? "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))" : openHeight) : finalClosedHeight,
     minWidth: isOpen ? "320px" : finalClosedWidth,
     minHeight: isOpen ? "64px" : finalClosedHeight,
     maxWidth: "100vw",
-    maxHeight: "100vh",
-    borderRadius: isOpen ? (isMobileView ? "16px 16px 0 0" : "16px") : "50%",
+    maxHeight: "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))",
+    borderRadius: isOpen ? (isMobileView ? "0" : "24px") : "50%",
     overflow: "visible",
     display: "flex",
     alignItems: "flex-end",
@@ -256,7 +256,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             <motion.div
               key="chatboc-panel-open"
               className="bg-card border shadow-xl flex flex-col overflow-hidden w-full h-full"
-              style={{ borderRadius: isMobileView ? "16px 16px 0 0" : "16px" }}
+              style={{ borderRadius: isMobileView ? "0" : "24px" }}
               {...panelAnimation}
             >
               {view !== 'chat' && (
