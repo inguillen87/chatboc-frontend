@@ -82,18 +82,10 @@
           };
         }
         if (isMobile) { // Closed on mobile
-            const closedWidthNum = parseInt(WIDGET_DIMENSIONS.CLOSED.width, 10);
-            return {
-                width: `${closedWidthNum}px`,
-                height: `${parseInt(WIDGET_DIMENSIONS.CLOSED.height, 10)}px`,
-            };
+            return WIDGET_DIMENSIONS.CLOSED;
         }
         // Desktop
-        const widthNum = parseInt(base.width, 10);
-        const heightNum = parseInt(base.height, 10);
-        const constrainedWidth = Math.min(widthNum, window.innerWidth - 40);
-        const constrainedHeight = Math.min(heightNum, window.innerHeight - 40);
-        return { width: `${constrainedWidth}px`, height: `${constrainedHeight}px` };
+        return base;
       }
 
       let currentDims = iframeIsCurrentlyOpen

@@ -198,10 +198,10 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   }, [entityToken, tipoChat]);
 
   const panelAnimation = {
-    initial: { opacity: 0, transform: "scale(0.9) translateY(20px)" },
+    initial: { opacity: 0, transform: "scale(0.8) translateY(30px)" },
     animate: { opacity: 1, transform: "scale(1) translateY(0px)" },
-    exit: { opacity: 0, transform: "scale(0.9) translateY(20px)" },
-    transition: { type: "spring", stiffness: 500, damping: 30 }
+    exit: { opacity: 0, transform: "scale(0.8) translateY(30px)" },
+    transition: { type: "spring", stiffness: 400, damping: 25 }
   };
   const buttonAnimation = {
     initial: { opacity: 0, scale: 0.7 },
