@@ -7,12 +7,12 @@
       DEFAULT_TOKEN: "demo-anon",
       DEFAULT_Z_INDEX: "9999",
       DEFAULT_INITIAL_BOTTOM: "24px",
-      DEFAULT_INITIAL_RIGHT: "20px",
-      DEFAULT_OPEN_WIDTH: "460px",
-      DEFAULT_OPEN_HEIGHT: "680px",
+      DEFAULT_INITIAL_RIGHT: "24px",
+      DEFAULT_OPEN_WIDTH: "380px",
+      DEFAULT_OPEN_HEIGHT: "580px",
       DEFAULT_CLOSED_WIDTH: "56px",
       DEFAULT_CLOSED_HEIGHT: "56px",
-      MOBILE_BREAKPOINT_PX: 768,
+      MOBILE_BREAKPOINT_PX: 640,
       LOADER_TIMEOUT_MS: 10000,
       DEFAULT_CHATBOC_DOMAIN: "https://www.chatboc.ar",
     };
@@ -59,8 +59,8 @@
       },
     };
 
-      const initialBottom = script.getAttribute("data-bottom") || "24px";
-      const initialRight = script.getAttribute("data-right") || "24px";
+    const initialBottom = script.getAttribute("data-bottom") || SCRIPT_CONFIG.DEFAULT_INITIAL_BOTTOM;
+    const initialRight = script.getAttribute("data-right") || SCRIPT_CONFIG.DEFAULT_INITIAL_RIGHT;
     const defaultOpen = script.getAttribute("data-default-open") === "true";
     const theme = script.getAttribute("data-theme") || "";
     const rubroAttr = script.getAttribute("data-rubro") || "";
@@ -74,21 +74,26 @@
       let iframeIsCurrentlyOpen = defaultOpen;
 
       function computeResponsiveDims(base, isOpen) {
-        const isMobile = window.innerWidth <= SCRIPT_CONFIG.MOBILE_BREAKPOINT_PX;
+        const isMobile = window.innerWidth < SCRIPT_CONFIG.MOBILE_BREAKPOINT_PX;
         if (isOpen && isMobile) {
           return {
             width: "100vw",
-            height: "90vh",
+            height: "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))",
           };
         }
         if (isMobile) { // Closed on mobile
+            const closedWidthNum = parseInt(WIDGET_DIMENSIONS.CLOSED.width, 10);
             return {
-                width: WIDGET_DIMENSIONS.CLOSED.width,
-                height: WIDGET_DIMENSIONS.CLOSED.height,
+                width: `${closedWidthNum}px`,
+                height: `${parseInt(WIDGET_DIMENSIONS.CLOSED.height, 10)}px`,
             };
         }
         // Desktop
-        return base;
+        const widthNum = parseInt(base.width, 10);
+        const heightNum = parseInt(base.height, 10);
+        const constrainedWidth = Math.min(widthNum, window.innerWidth - 40);
+        const constrainedHeight = Math.min(heightNum, window.innerHeight - 40);
+        return { width: `${constrainedWidth}px`, height: `${constrainedHeight}px` };
       }
 
       let currentDims = iframeIsCurrentlyOpen
