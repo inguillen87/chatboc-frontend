@@ -46,10 +46,10 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   widgetId = "chatboc-widget-iframe",
   entityToken,
   initialRubro,
-  openWidth = "460px",
-  openHeight = "680px",
-  closedWidth = "96px",
-  closedHeight = "96px",
+  openWidth = "380px",
+  openHeight = "580px",
+  closedWidth = "56px",
+  closedHeight = "56px",
   tipoChat = getCurrentTipoChat(),
   initialPosition = { bottom: 32, right: 32 },
   ctaMessage,
@@ -197,11 +197,11 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       });
   }, [entityToken, tipoChat]);
 
-  const spring = { type: "spring", stiffness: 300, damping: 30 };
   const panelAnimation = {
-    initial: { opacity: 0, y: 50, scale: 0.9, borderRadius: "50%" },
-    animate: { opacity: 1, y: 0, scale: 1, borderRadius: isMobileView ? "0px" : "24px", transition: spring },
-    exit: { opacity: 0, y: 30, scale: 0.95, borderRadius: "50%", transition: { ...spring, duration: 0.2 } }
+    initial: { opacity: 0, transform: "scale(0.9) translateY(20px)" },
+    animate: { opacity: 1, transform: "scale(1) translateY(0px)" },
+    exit: { opacity: 0, transform: "scale(0.9) translateY(20px)" },
+    transition: { type: "spring", stiffness: 500, damping: 30 }
   };
   const buttonAnimation = {
     initial: { opacity: 0, scale: 0.7 },
@@ -221,18 +221,18 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   const containerStyle: React.CSSProperties = mode === "standalone" ? {
     position: 'fixed',
-    zIndex: 999999,
+    zIndex: 9999,
     bottom: isOpen && isMobileView ? 0 : `calc(${initialPosition.bottom}px + env(safe-area-inset-bottom))`,
     right: isOpen && isMobileView ? 0 : `calc(${initialPosition.right}px + env(safe-area-inset-right))`,
     left: isOpen && isMobileView ? 0 : "auto",
     top: isOpen && isMobileView ? "env(safe-area-inset-top)" : "auto",
     width: isOpen ? (isMobileView ? "100vw" : openWidth) : finalClosedWidth,
-    height: isOpen ? (isMobileView ? "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))" : openHeight) : finalClosedHeight,
+    height: isOpen ? (isMobileView ? "90vh" : openHeight) : finalClosedHeight,
     minWidth: isOpen ? "320px" : finalClosedWidth,
     minHeight: isOpen ? "64px" : finalClosedHeight,
     maxWidth: "100vw",
-    maxHeight: "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))",
-    borderRadius: isOpen ? (isMobileView ? "0" : "24px") : "50%",
+    maxHeight: "100vh",
+    borderRadius: isOpen ? (isMobileView ? "16px 16px 0 0" : "16px") : "50%",
     overflow: "visible",
     display: "flex",
     alignItems: "flex-end",
@@ -256,7 +256,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             <motion.div
               key="chatboc-panel-open"
               className="bg-card border shadow-xl flex flex-col overflow-hidden w-full h-full"
-              style={{ borderRadius: isMobileView ? "0" : "24px" }}
+              style={{ borderRadius: isMobileView ? "16px 16px 0 0" : "16px" }}
               {...panelAnimation}
             >
               {view !== 'chat' && (
