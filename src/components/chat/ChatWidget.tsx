@@ -383,7 +383,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                     muted={muted}
                     onToggleSound={toggleMuted}
                     onCart={openCart}
-                    selectedRubro={selectedRubro}
+                    selectedRubro={entityInfo?.rubro || selectedRubro}
                     onRubroSelect={setSelectedRubro}
                   />}
             </motion.div>

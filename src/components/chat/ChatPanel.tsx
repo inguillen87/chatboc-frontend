@@ -537,7 +537,7 @@ const ChatPanel = ({
   );
 
   useEffect(() => {
-    if (esAnonimo && mode === "standalone" && !selectedRubro) {
+    if (esAnonimo && mode === "standalone" && !selectedRubro && !propEntityToken) {
       setEsperandoRubro(true); cargarRubros(); return;
     }
     setEsperandoRubro(false);
@@ -547,7 +547,7 @@ const ChatPanel = ({
       }
       initialMessageAddedRef.current = true;
     }
-  }, [esAnonimo, mode, selectedRubro, messages.length]); // messages.length para re-evaluar si se borran mensajes
+  }, [esAnonimo, mode, selectedRubro, propEntityToken, messages.length]); // messages.length para re-evaluar si se borran mensajes
 
   useEffect(() => {
     const container = chatContainerRef.current;

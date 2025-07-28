@@ -56,16 +56,24 @@
     -->
     <script>
         document.addEventListener('DOMContentLoaded', function () {
+            const urlParams = new URLSearchParams(window.location.search);
+            const token = urlParams.get('token');
+
+            if (!token) {
+                console.error('No token provided in the URL. Please add a ?token=YOUR_TOKEN parameter.');
+                return;
+            }
+
           // Asegura que el widget se destruya y se vuelva a crear si ya existe
           if (window.chatbocDestroyWidget) {
-            window.chatbocDestroyWidget('845a43cf-1711-442a-8888-c924237924fa');
+            window.chatbocDestroyWidget(token);
           }
           window.APP_TARGET = 'municipio'; // Define el endpoint antes de cargar el script
 
           var s = document.createElement('script');
           s.src = '/widget.js'; // URL del script del widget
           s.async = true; // Carga asíncrona para no bloquear el renderizado de la página
-          s.setAttribute('data-token', '1146cb3e-eaef-4230-b54e-1c340ac062d8'); // Token de autenticación del usuario
+          s.setAttribute('data-token', token); // Token de autenticación del usuario
           s.setAttribute('data-default-open', 'true'); // El widget comienza cerrado por defecto
           s.setAttribute('data-width', '460px'); // Ancho del widget abierto
           s.setAttribute('data-height', '680px'); // Alto del widget abierto
