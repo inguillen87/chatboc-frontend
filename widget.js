@@ -145,7 +145,7 @@
       const iframeSrc = new URL(`${chatbocDomain}/iframe.html`);
       iframeSrc.searchParams.set("token", token);
       iframeSrc.searchParams.set("widgetId", iframeId);
-      iframeSrc.searchParams.set("defaultOpen", defaultOpen);
+      iframeSrc.searchParams.set("defaultOpen", String(defaultOpen));
       iframeSrc.searchParams.set("tipo_chat", tipoChat);
       iframeSrc.searchParams.set("openWidth", WIDGET_DIMENSIONS.OPEN.width);
       iframeSrc.searchParams.set("openHeight", WIDGET_DIMENSIONS.OPEN.height);

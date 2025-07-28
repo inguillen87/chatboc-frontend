@@ -72,7 +72,8 @@ const ChatPanel = ({
   onOpenUserPanel,
   onShowLogin,
   onShowRegister,
-  initialRubro,
+  selectedRubro,
+  onRubroSelect,
   muted = false,
   onToggleSound,
   onCart,
@@ -83,12 +84,6 @@ const ChatPanel = ({
   const [isSendingUserMessage, setIsSendingUserMessage] = useState(false); // Nuevo estado
   const [userTyping, setUserTyping] = useState(false);
   const [preguntasUsadas, setPreguntasUsadas] = useState(0); // No parece usarse activamente, considerar limpieza
-  const [rubroSeleccionado, setRubroSeleccionado] = useState<string | null>(() => {
-    if (initialRubro) return initialRubro.toLowerCase();
-    return typeof window !== "undefined"
-      ? safeLocalStorage.getItem("rubroSeleccionado")?.toLowerCase() || null
-      : null;
-  });
   const [rubrosDisponibles, setRubrosDisponibles] = useState<Rubro[]>([]);
   const [esperandoRubro, setEsperandoRubro] = useState(false);
   const [cargandoRubros, setCargandoRubros] = useState(false);
@@ -124,13 +119,6 @@ const ChatPanel = ({
   }, [activeTicketId]);
 
   useEffect(() => {
-    if (initialRubro && !rubroSeleccionado) {
-      safeLocalStorage.setItem('rubroSeleccionado', initialRubro);
-      setRubroSeleccionado(initialRubro.toLowerCase());
-    }
-  }, [initialRubro, rubroSeleccionado]);
-
-  useEffect(() => {
     const stored = safeLocalStorage.getItem("ultima_direccion");
     if (stored) setDireccionGuardada(stored);
   }, []);
@@ -163,7 +151,7 @@ const ChatPanel = ({
   }, [esAnonimo, user, refreshUser, userLoading]);
   const storedUser = typeof window !== "undefined" ? JSON.parse(safeLocalStorage.getItem("user") || "null") : null;
 
-  const rubroActual = parseRubro(rubroSeleccionado) || parseRubro(user?.rubro) || parseRubro(storedUser?.rubro) || null;
+  const rubroActual = parseRubro(selectedRubro) || parseRubro(user?.rubro) || parseRubro(storedUser?.rubro) || null;
   const rubroNormalizado = rubroActual;
   const isMunicipioRubro = esRubroPublico(rubroNormalizado || undefined);
   const tipoChatActual: "pyme" | "municipio" =
@@ -382,7 +370,7 @@ const ChatPanel = ({
 
       setIsSendingUserMessage(true); // Inicia envío
 
-      if (esAnonimo && mode === "standalone" && !rubroSeleccionado && !payload.action) {
+      if (esAnonimo && mode === "standalone" && !selectedRubro && !payload.action) {
         setMessages((prev) => [...prev, { id: generateClientMessageId(), text: "🛈 Por favor, seleccioná primero un rubro.", isBot: true, timestamp: new Date() }]);
         setIsSendingUserMessage(false); return;
       }
@@ -504,7 +492,7 @@ const ChatPanel = ({
         setIsSendingUserMessage(false); // Finaliza envío
       }
     },
-    [contexto, esAnonimo, mode, rubroSeleccionado, activeTicketId, esperandoDireccion, anonId, rubroNormalizado, tipoChatActual, fetchTicket, onRequireAuth, userLoading, finalAuthToken, refreshUser, isSendingUserMessage, isBotTyping, preguntasUsadas]
+    [contexto, esAnonimo, mode, selectedRubro, activeTicketId, esperandoDireccion, anonId, rubroNormalizado, tipoChatActual, fetchTicket, onRequireAuth, userLoading, finalAuthToken, refreshUser, isSendingUserMessage, isBotTyping, preguntasUsadas]
   );
 
   const handleInternalAction = useCallback(
@@ -549,17 +537,17 @@ const ChatPanel = ({
   );
 
   useEffect(() => {
-    if (esAnonimo && mode === "standalone" && !rubroSeleccionado) {
+    if (esAnonimo && mode === "standalone" && !selectedRubro) {
       setEsperandoRubro(true); cargarRubros(); return;
     }
     setEsperandoRubro(false);
-    if (!initialMessageAddedRef.current && (!esAnonimo || rubroSeleccionado)) {
+    if (!initialMessageAddedRef.current && (!esAnonimo || selectedRubro)) {
       if (messages.length === 0) {
         setMessages([{ id: generateClientMessageId(), text: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?", isBot: true, timestamp: new Date() }]);
       }
       initialMessageAddedRef.current = true;
     }
-  }, [esAnonimo, mode, rubroSeleccionado, messages.length]); // messages.length para re-evaluar si se borran mensajes
+  }, [esAnonimo, mode, selectedRubro, messages.length]); // messages.length para re-evaluar si se borran mensajes
 
   useEffect(() => {
     const container = chatContainerRef.current;
@@ -628,7 +616,7 @@ const ChatPanel = ({
                 <RubroSelector rubros={rubrosDisponibles}
                   onSelect={(rubro: any) => {
                     safeLocalStorage.setItem('rubroSeleccionado', rubro.nombre);
-                    setRubroSeleccionado(rubro.nombre); setEsperandoRubro(false);
+                    onRubroSelect(rubro.nombre); setEsperandoRubro(false);
                     setMessages([{ id: Date.now(), text: `¡Hola! Soy Chatboc, tu asistente para ${rubro.nombre.toLowerCase()}. ¿En qué puedo ayudarte hoy?`, isBot: true, timestamp: new Date() }]);
                     if (pendingAction === 'login') onShowLogin?.();
                     else if (pendingAction === 'register') onShowRegister?.();
