@@ -90,6 +90,15 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const [proactiveMessage, setProactiveMessage] = useState<string | null>(null);
   const [showProactiveBubble, setShowProactiveBubble] = useState(false);
   const [proactiveCycle, setProactiveCycle] = useState(0);
+  const [selectedRubro, setSelectedRubro] = useState<string | null>(initialRubro || null);
+  const [hasSetInitialRubro, setHasSetInitialRubro] = useState(false);
+
+  useEffect(() => {
+    if (initialRubro && !hasSetInitialRubro) {
+      setSelectedRubro(initialRubro);
+      setHasSetInitialRubro(true);
+    }
+  }, [initialRubro, hasSetInitialRubro]);
 
   const openUserPanel = useCallback(() => {
     if (user) {
@@ -355,7 +364,24 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                 : view === "login" ? <ChatUserLoginPanel onSuccess={() => setView("chat")} onShowRegister={() => setView("register")} />
                 : view === "user" ? <ChatUserPanel onClose={() => setView("chat")} />
                 : view === "info" ? <EntityInfoPanel info={entityInfo} onClose={() => setView("chat")} />
-                : <ChatPanel mode={mode} widgetId={widgetId} entityToken={entityToken} initialRubro={initialRubro} openWidth={finalOpenWidth} openHeight={finalOpenHeight} onClose={toggleChat} tipoChat={resolvedTipoChat} onRequireAuth={() => setView("register")} onShowLogin={() => setView("login")} onShowRegister={() => setView("register")} onOpenUserPanel={openUserPanel} muted={muted} onToggleSound={toggleMuted} onCart={openCart} />}
+                : <ChatPanel
+                    mode={mode}
+                    widgetId={widgetId}
+                    entityToken={entityToken}
+                    openWidth={finalOpenWidth}
+                    openHeight={finalOpenHeight}
+                    onClose={toggleChat}
+                    tipoChat={resolvedTipoChat}
+                    onRequireAuth={() => setView("register")}
+                    onShowLogin={() => setView("login")}
+                    onShowRegister={() => setView("register")}
+                    onOpenUserPanel={openUserPanel}
+                    muted={muted}
+                    onToggleSound={toggleMuted}
+                    onCart={openCart}
+                    selectedRubro={selectedRubro}
+                    onRubroSelect={setSelectedRubro}
+                  />}
             </motion.div>
           ) : (
             <motion.div
