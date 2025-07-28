@@ -82,7 +82,7 @@ export default defineConfig(({ mode }) => {
       globals: true,
       environment: 'jsdom',
       setupFiles: './tests/setup.ts',
-      css: true,
+      css: false,
       alias: {
         '@': path.resolve(__dirname, './src'),
         'server': path.resolve(__dirname, './server'),

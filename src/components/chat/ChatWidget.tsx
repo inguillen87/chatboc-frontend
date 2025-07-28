@@ -330,14 +330,18 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     width: isOpen ? (isMobileView ? "100vw" : finalOpenWidth) : finalClosedWidth,
     height: isOpen ? (isMobileView ? "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))" : finalOpenHeight) : finalClosedHeight,
     borderRadius: isOpen ? (isMobileView ? "0" : "16px") : "50%",
-  } : {
-    width: '100%',
-    height: '100%',
-  };
+  } : {};
 
   if (mode === "standalone" || mode === "iframe") {
     return (
       <div
+        data-testid="chat-widget"
+        data-mode={mode}
+        data-default-open={defaultOpen}
+        data-widget-id={widgetId}
+        data-entity-token={entityToken}
+        data-tipo-chat={tipoChat}
+        data-initial-rubro={initialRubro}
         className={cn(
           "chatboc-container",
           mode === 'standalone' && "fixed z-[999999]",

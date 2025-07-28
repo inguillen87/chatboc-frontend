@@ -54,13 +54,38 @@
           During local development, this will be the Vite dev server.
         - Other options like 'data-bottom' and 'data-right' are passed to the iframe.
     -->
-    <script src="/widget.js"
-            data-token="demo-anon"
-            data-domain="https://www.chatboc.ar"
-            data-bottom="30px"
-            data-right="30px"
-            data-cta-message="Have a question?">
-    </script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+          // Asegura que el widget se destruya y se vuelva a crear si ya existe
+          if (window.chatbocDestroyWidget) {
+            window.chatbocDestroyWidget('845a43cf-1711-442a-8888-c924237924fa');
+          }
+          window.APP_TARGET = 'municipio'; // Define el endpoint antes de cargar el script
 
+          var s = document.createElement('script');
+          s.src = '/widget.js'; // URL del script del widget
+          s.async = true; // Carga asíncrona para no bloquear el renderizado de la página
+          s.setAttribute('data-token', '1146cb3e-eaef-4230-b54e-1c340ac062d8'); // Token de autenticación del usuario
+          s.setAttribute('data-default-open', 'true'); // El widget comienza cerrado por defecto
+          s.setAttribute('data-width', '460px'); // Ancho del widget abierto
+          s.setAttribute('data-height', '680px'); // Alto del widget abierto
+          s.setAttribute('data-closed-width', '112px'); // Ancho del widget cerrado (burbuja)
+          s.setAttribute('data-closed-height', '112px'); // Alto del widget cerrado (burbuja)
+          s.setAttribute('data-bottom', '20px'); // Posición desde abajo
+          s.setAttribute('data-right', '20px'); // Posición desde la derecha
+          s.setAttribute('data-endpoint', 'municipio'); // Tipo de chat (pyme o municipio)
+
+          document.body.appendChild(s); // Añade el script al final del body
+
+          // Opcional: Escuchar evento de widget cargado
+          s.onload = function() {
+            console.log('Chatboc Widget cargado y listo.');
+            // Puedes añadir lógica adicional aquí si es necesario
+          };
+          s.onerror = function() {
+            console.error('Error al cargar Chatboc Widget.');
+          };
+        });
+        </script>
 </body>
 </html>
