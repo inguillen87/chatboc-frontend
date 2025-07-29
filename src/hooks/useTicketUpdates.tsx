@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
-import { apiFetch } from '@/utils/api';
+import { io, Socket } from 'socket.io-client';
 import { toast } from '@/components/ui/use-toast';
 import { useUser } from './useUser';
+import { apiFetch } from '@/utils/api';
 
 interface TicketUpdate {
   ticket_id: number;
@@ -9,45 +10,64 @@ interface TicketUpdate {
   mensaje?: string | null;
 }
 
+// Asegúrate de que esta URL coincida con tu servidor de Socket.io
+const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 export default function useTicketUpdates() {
   const { user } = useUser();
 
   useEffect(() => {
-    let es: EventSource | null = null;
+    if (!user) return;
+
+    let socket: Socket | null = null;
     let active = true;
 
-    const init = async () => {
-      if (!user) return;
+    const initSocket = async () => {
       try {
+        // Opcional: Verifica si el usuario tiene activadas las notificaciones
         const settings = await apiFetch<{ ticket: boolean }>('/notifications');
         if (!active || !settings || !settings.ticket) return;
-        const base = import.meta.env.VITE_API_URL || '/api';
-        es = new EventSource(`${base}/tickets/updates`, { withCredentials: true });
-        es.onmessage = (ev) => {
-          try {
-            const data: TicketUpdate = JSON.parse(ev.data);
-            toast({
-              title: `Ticket #${data.ticket_id}`,
-              description: data.mensaje || `Estado: ${data.estado}`,
-            });
-          } catch (err) {
-            console.error('Error parsing update', err);
-          }
-        };
-        es.onerror = () => {
-          if (es) es.close();
-          es = null;
-        };
+
+        // Inicializa la conexión de Socket.io
+        socket = io(SOCKET_URL, {
+          transports: ['websocket'], // Forzar websockets
+          withCredentials: true, // Para enviar cookies si es necesario
+        });
+
+        socket.on('connect', () => {
+          console.log('Socket.io connected successfully');
+        });
+
+        socket.on('disconnect', () => {
+          console.log('Socket.io disconnected');
+        });
+
+        // Escucha eventos de actualización de tickets
+        socket.on('ticket_update', (data: TicketUpdate) => {
+          toast({
+            title: `Ticket #${data.ticket_id}`,
+            description: data.mensaje || `Estado: ${data.estado}`,
+          });
+        });
+
+        socket.on('connect_error', (err) => {
+          console.error('Socket.io connection error:', err);
+          socket?.close();
+        });
+
       } catch (err) {
-        console.error('No se pudo inicializar notificaciones de tickets', err);
+        console.error('Failed to initialize ticket notifications', err);
       }
     };
 
-    init();
+    initSocket();
 
+    // Limpieza al desmontar el componente
     return () => {
       active = false;
-      if (es) es.close();
+      if (socket) {
+        socket.disconnect();
+      }
     };
   }, [user]);
 }
