@@ -79,11 +79,11 @@ const ChatbocLogoAnimated = ({
       >
         {/* Ojos */}
         <motion.circle
-          cx={leftEyeX || 18}
-          cy={eyeBaseY || 24}
+          cx={leftEyeX ?? 18}
+          cy={eyeBaseY ?? 24}
           r={3.5}
           fill="#FFFFFF"
-          animate={{ cx: leftEyeX || 18, cy: eyeBaseY || 24 }}
+          animate={{ cx: leftEyeX ?? 18, cy: eyeBaseY ?? 24 }}
           transition={
             blinking
               ? { repeat: Infinity, duration: 0.1, repeatDelay: Math.random() * 5 + 3, ease: "easeOut" }
@@ -94,11 +94,11 @@ const ChatbocLogoAnimated = ({
           style={{ transformOrigin: "center" }}
         />
         <motion.circle
-          cx={rightEyeX || 38}
-          cy={eyeBaseY || 24}
+          cx={rightEyeX ?? 38}
+          cy={eyeBaseY ?? 24}
           r={3.5}
           fill="#FFFFFF"
-          animate={{ cx: rightEyeX || 38, cy: eyeBaseY || 24 }}
+          animate={{ cx: rightEyeX ?? 38, cy: eyeBaseY ?? 24 }}
           transition={
             blinking
               ? { repeat: Infinity, duration: 0.1, repeatDelay: Math.random() * 5 + 3.1, ease: "easeOut" }
