@@ -55,13 +55,15 @@ function AppRoutes() {
         <Route element={<Layout />}>
           {routes.map(({ path, element, roles }) => (
             <Route
-              key={path}
+              key={path} // La key ya estaba correctamente aquí. No se requieren cambios.
               path={path}
-              element={roles ? (
-                <ProtectedRoute roles={roles}>{element}</ProtectedRoute>
-              ) : (
-                element
-              )}
+              element={
+                roles ? (
+                  <ProtectedRoute roles={roles}>{element}</ProtectedRoute>
+                ) : (
+                  element
+                )
+              }
             />
           ))}
         </Route>
