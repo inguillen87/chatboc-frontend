@@ -43,10 +43,17 @@ export default function useTicketUpdates() {
         });
 
         // Escucha eventos de actualización de tickets
-        socket.on('ticket_update', (data: TicketUpdate) => {
+        socket.on('new_ticket', (data: any) => {
           toast({
-            title: `Ticket #${data.ticket_id}`,
-            description: data.mensaje || `Estado: ${data.estado}`,
+            title: `Nuevo Ticket #${data.nro_ticket}`,
+            description: data.asunto,
+          });
+        });
+
+        socket.on('new_comment', (data: any) => {
+          toast({
+            title: `Nuevo Comentario en Ticket #${data.ticketId}`,
+            description: data.comment.comentario,
           });
         });
 
