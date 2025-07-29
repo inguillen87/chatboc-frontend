@@ -62,6 +62,10 @@ export default defineConfig(({ mode }) => {
           // Optional: rewrite path before sending to target
           rewrite: (path) => path.replace(/^\/api/, '')
         },
+        '/socket.io': {
+          target: 'ws://localhost:5000',
+          ws: true,
+        },
       },
     },
     resolve: {
