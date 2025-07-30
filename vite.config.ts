@@ -74,12 +74,8 @@ export default defineConfig(({ mode }) => {
         'server': path.resolve(__dirname, './server'),
       }
     },
-    optimizeDeps: {
-      exclude: ['react', 'react-dom'],
-    },
     build: {
       rollupOptions: {
-        external: ['react', 'react-dom'],
         input: {
           main: path.resolve(__dirname, "index.html"),
           iframe: path.resolve(__dirname, "iframe.html"),
