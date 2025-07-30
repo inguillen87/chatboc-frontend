@@ -322,16 +322,22 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     open: { rotate: 180, scale: 0, opacity: 0 }
   };
 
-  // 🔥🔥🔥 CORRECTO: fuera del return 🔥🔥🔥
-  const containerStyle = mode === 'standalone' ? {
-    bottom: isOpen && isMobileView ? 0 : `calc(${initialPosition.bottom}px + env(safe-area-inset-bottom))`,
-    right: isOpen && isMobileView ? 0 : `calc(${initialPosition.right}px + env(safe-area-inset-right))`,
-    left: isOpen && isMobileView ? 0 : "auto",
-    top: isOpen && isMobileView ? "env(safe-area-inset-top)" : "auto",
-    width: isOpen ? (isMobileView ? "100vw" : finalOpenWidth) : finalClosedWidth,
-    height: isOpen ? (isMobileView ? "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))" : finalOpenHeight) : finalClosedHeight,
-    borderRadius: isOpen ? (isMobileView ? "0" : "16px") : "50%",
-  } : {};
+  const containerStyle =
+    mode === "standalone"
+      ? {
+          bottom: isOpen && isMobileView ? 0 : `calc(${initialPosition.bottom}px + env(safe-area-inset-bottom))`,
+          right: isOpen && isMobileView ? 0 : `calc(${initialPosition.right}px + env(safe-area-inset-right))`,
+          left: isOpen && isMobileView ? 0 : "auto",
+          top: isOpen && isMobileView ? "env(safe-area-inset-top)" : "auto",
+          width: isOpen ? (isMobileView ? "100vw" : finalOpenWidth) : finalClosedWidth,
+          height: isOpen ? (isMobileView ? "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))" : finalOpenHeight) : finalClosedHeight,
+          borderRadius: isOpen ? (isMobileView ? "0" : "16px") : "50%",
+        }
+      : {
+          width: "100%",
+          height: "100%",
+          overflow: "hidden",
+        };
 
   if (mode === "standalone" || mode === "iframe") {
     return (
@@ -345,14 +351,10 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         data-initial-rubro={initialRubro}
         className={cn(
           "chatboc-container",
-          mode === 'standalone' && "fixed z-[999999]",
-          "flex flex-col items-end justify-end",
+          mode === "standalone" && "fixed z-[999999]",
+          "flex flex-col items-end justify-end"
         )}
-        style={{
-          ...containerStyle,
-          overflow: "visible",
-          background: "transparent",
-        }}
+        style={containerStyle}
       >
         <AnimatePresence mode="wait" initial={false}>
           {isOpen ? (
