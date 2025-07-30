@@ -252,29 +252,30 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     return () => clearTimeout(delay);
   }, [ctaMessage, isOpen, showProactiveBubble]);
 
-  useEffect(() => {
-    if (mode === "iframe" && entityToken) {
-      safeLocalStorage.setItem("entityToken", entityToken);
-    } else if (mode === "iframe" && !entityToken) {
-      safeLocalStorage.removeItem("entityToken");
-    }
-  }, [mode, entityToken]);
 
   useEffect(() => {
     async function fetchEntityProfile() {
-      if (!entityToken) return;
+      if (!entityToken) {
+        console.log("ChatWidget: No hay entityToken, no se puede obtener el perfil.");
+        return;
+      }
+      console.log("ChatWidget: Intentando obtener perfil con token:", entityToken);
       try {
         const data = await apiFetch<any>("/perfil", {
           sendEntityToken: true,
           skipAuth: true,
         });
+        console.log("ChatWidget: Perfil recibido:", data);
         if (data && typeof data.esPublico === "boolean") {
           setResolvedTipoChat(data.esPublico ? "municipio" : "pyme");
         } else if (data && data.tipo_chat) {
           setResolvedTipoChat(data.tipo_chat === "municipio" ? "municipio" : "pyme");
         }
         setEntityInfo(data);
-      } catch (e) { /* Silenciar */ }
+      } catch (e) {
+        console.error("ChatWidget: Error al obtener el perfil de la entidad:", e);
+        setEntityInfo(null); // Asegurarse de limpiar en caso de error
+      }
     }
     fetchEntityProfile();
   }, [entityToken]);

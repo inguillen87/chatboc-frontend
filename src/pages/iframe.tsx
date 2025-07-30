@@ -27,20 +27,23 @@ const Iframe = () => {
     if (typeof window !== "undefined") {
       const urlParams = new URLSearchParams(window.location.search);
       const tokenFromUrl = urlParams.get("token");
+      const storedToken = safeLocalStorage.getItem('entityToken');
+
+      let currentToken = tokenFromUrl || storedToken;
 
       if (tokenFromUrl) {
         safeLocalStorage.setItem('entityToken', tokenFromUrl);
         console.log('Chatboc Iframe: entityToken guardado en localStorage desde URL:', tokenFromUrl);
+      } else if (storedToken) {
+        console.log('Chatboc Iframe: entityToken recuperado de localStorage:', storedToken);
       } else {
-        console.warn('Chatboc Iframe: No se encontró token en la URL del iframe. localStorage no actualizado.');
-        // Opcional: limpiar el token si no viene en la URL, para evitar usar uno antiguo.
-        // safeLocalStorage.removeItem('entityToken');
+        console.warn('Chatboc Iframe: No se encontró token en la URL ni en localStorage.');
       }
 
       setParams({
         defaultOpen: urlParams.get("defaultOpen") === "true",
         widgetId: urlParams.get("widgetId") || "chatboc-iframe-unknown",
-        token: tokenFromUrl, // Usar la variable ya leída
+        token: currentToken,
         view: urlParams.get("view") || 'chat',
         openWidth: urlParams.get("openWidth") || DEFAULTS.openWidth,
         openHeight: urlParams.get("openHeight") || DEFAULTS.openHeight,
