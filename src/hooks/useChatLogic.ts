@@ -36,14 +36,30 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicOp
 
   useEffect(() => {
     const user = JSON.parse(safeLocalStorage.getItem('user') || 'null');
-    const welcomeMessage = isAnonimo
-      ? initialWelcomeMessage
-      : `Hola ${user?.nombre || 'usuario'}, bienvenido de nuevo. ¿En qué puedo ayudarte hoy?`;
 
-    if (messages.length === 0 && welcomeMessage) {
-      setMessages([
-        { id: generateClientMessageId(), text: welcomeMessage, isBot: true, timestamp: new Date() },
-      ]);
+    if (messages.length === 0) {
+      const welcomeMessageText = isAnonimo
+        ? "¡Hola! Soy JUNI🤖, tu Asistente Virtual del Municipio. Estoy aquí para ayudarte. 😊\n\nTambién puedes solicitar hablar con un agente municipal en cualquier momento.\n\n**¿Cómo puedo ayudarte hoy?**"
+        : `¡Hola, ${user?.nombre}! Soy JUNI🤖, tu Asistente Virtual. ¿Qué necesitas hoy?`;
+
+      const welcomeMessage: Message = {
+        id: generateClientMessageId(),
+        text: welcomeMessageText,
+        isBot: true,
+        timestamp: new Date(),
+        botones: [
+          { texto: "Consultar trámites", action: "consultar_tramites" },
+          { texto: "Solicitar turnos", action: "solicitar_turnos" },
+          { texto: "Consulta y pago de deudas", action: "consultar_deudas" },
+          { texto: "Multas de tránsito", action: "consultar_multas" },
+          { texto: "Reclamos", action: "hacer_reclamo" },
+          { texto: "Denuncias", action: "hacer_denuncia" },
+          { texto: "Botón de Pánico 🚨", action: "boton_panico" },
+          { texto: "Agenda cultural y turística", action: "agenda_cultural" },
+          { texto: "Novedades", action: "ver_novedades" },
+        ],
+      };
+      setMessages([welcomeMessage]);
     }
   }, [initialWelcomeMessage, isAnonimo]);
 
