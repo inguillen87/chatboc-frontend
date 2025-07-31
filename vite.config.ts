@@ -32,6 +32,7 @@ export default defineConfig(({ mode }) => {
         },
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+          maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // ⬅️ Aumenta el límite a 5 MB
           runtimeCaching: [
             {
               urlPattern: /^https:\/\/maps\.googleapis\.com\/.*/,
@@ -40,7 +41,7 @@ export default defineConfig(({ mode }) => {
                 cacheName: 'google-maps-cache',
                 expiration: {
                   maxEntries: 10,
-                  maxAgeSeconds: 60 * 60 * 24 * 30 // 30 Days
+                  maxAgeSeconds: 60 * 60 * 24 * 30 // 30 días
                 },
                 cacheableResponse: {
                   statuses: [0, 200]
@@ -54,12 +55,10 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 8080,
       proxy: {
-        // Proxy all requests starting with /api to the backend server
         '/api': {
-          target: 'http://localhost:5000', // The address of your backend server
-          changeOrigin: true, // Recommended for virtual hosts
-          secure: false, // Set to true if your backend is on HTTPS
-          // Optional: rewrite path before sending to target
+          target: 'http://localhost:5000',
+          changeOrigin: true,
+          secure: false,
           rewrite: (path) => path.replace(/^\/api/, '')
         },
         '/socket.io': {
