@@ -2,7 +2,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Message, SendPayload as TypeSendPayload } from "@/types/chat";
 import { apiFetch, getErrorMessage } from "@/utils/api";
-import { APP_TARGET } from "@/config";
 import { getAskEndpoint } from "@/utils/chatEndpoints";
 import { enforceTipoChatForRubro } from "@/utils/tipoChat";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
@@ -10,7 +9,12 @@ import getOrCreateAnonId from "@/utils/anonId";
 import { v4 as uuidv4 } from 'uuid';
 import { MunicipioContext, updateMunicipioContext, getInitialMunicipioContext } from "@/utils/contexto_municipio";
 
-export function useChatLogic(initialWelcomeMessage: string) {
+interface UseChatLogicOptions {
+  initialWelcomeMessage: string;
+  tipoChat: 'pyme' | 'municipio';
+}
+
+export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicOptions) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [contexto, setContexto] = useState<MunicipioContext>(() => getInitialMunicipioContext());
@@ -119,7 +123,7 @@ export function useChatLogic(initialWelcomeMessage: string) {
       } else {
         const storedUser = JSON.parse(safeLocalStorage.getItem('user') || 'null');
         const rubro = storedUser?.rubro?.clave || storedUser?.rubro?.nombre || safeLocalStorage.getItem("rubroSeleccionado") || null;
-        const tipoChatInferido = enforceTipoChatForRubro(APP_TARGET, rubro);
+        const tipoChatFinal = enforceTipoChatForRubro(tipoChat, rubro);
         
         const updatedContext = updateMunicipioContext(contexto, { userInput: userMessageText, action });
         setContexto(updatedContext);
@@ -127,7 +131,7 @@ export function useChatLogic(initialWelcomeMessage: string) {
         const requestBody: Record<string, any> = {
           pregunta: userMessageText,
           contexto_previo: updatedContext,
-          tipo_chat: tipoChatInferido,
+          tipo_chat: tipoChatFinal,
           ...(rubro && { rubro_clave: rubro }),
           ...(attachmentInfo && { attachment_info: attachmentInfo }),
           ...(ubicacion_usuario && { ubicacion_usuario: ubicacion_usuario }),
@@ -135,7 +139,7 @@ export function useChatLogic(initialWelcomeMessage: string) {
           ...(action === "confirmar_reclamo" && currentClaimIdempotencyKey && { idempotency_key: currentClaimIdempotencyKey }),
         };
 
-        const endpoint = getAskEndpoint({ tipoChat: tipoChatInferido, rubro });
+        const endpoint = getAskEndpoint({ tipoChat: tipoChatFinal, rubro });
         const data = await apiFetch<any>(endpoint, { method: 'POST', body: JSON.stringify(requestBody) });
         
         const finalContext = updateMunicipioContext(updatedContext, { llmResponse: data });
@@ -166,7 +170,7 @@ export function useChatLogic(initialWelcomeMessage: string) {
     } finally {
       setIsTyping(false);
     }
-  }, [contexto, activeTicketId, isTyping, isAnonimo, anonId, currentClaimIdempotencyKey]);
+  }, [contexto, activeTicketId, isTyping, isAnonimo, anonId, currentClaimIdempotencyKey, tipoChat]);
 
   return { messages, isTyping, handleSend, activeTicketId, setMessages, setContexto, setActiveTicketId };
 }
