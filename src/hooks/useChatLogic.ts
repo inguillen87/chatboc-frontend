@@ -119,7 +119,7 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicOp
             ...(attachmentInfo && { attachment_info: attachmentInfo }),
             ...(ubicacion_usuario && { ubicacion: ubicacion_usuario }),
         };
-        await apiFetch(`/tickets/chat/${activeTicketId}/responder_ciudadano`, { method: "POST", body: JSON.stringify(bodyRequest) });
+        await apiFetch(`/tickets/chat/${activeTicketId}/responder_ciudadano`, { method: "POST", body: bodyRequest });
       } else {
         const storedUser = JSON.parse(safeLocalStorage.getItem('user') || 'null');
         const rubro = storedUser?.rubro?.clave || storedUser?.rubro?.nombre || safeLocalStorage.getItem("rubroSeleccionado") || null;
@@ -140,7 +140,7 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicOp
         };
 
         const endpoint = getAskEndpoint({ tipoChat: tipoChatFinal, rubro });
-        const data = await apiFetch<any>(endpoint, { method: 'POST', body: JSON.stringify(requestBody) });
+        const data = await apiFetch<any>(endpoint, { method: 'POST', body: requestBody });
         
         const finalContext = updateMunicipioContext(updatedContext, { llmResponse: data });
         setContexto(finalContext);
