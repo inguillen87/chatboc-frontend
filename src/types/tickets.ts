@@ -5,7 +5,7 @@ export type TicketPriority = 'baja' | 'media' | 'alta' | 'urgente';
 
 export interface User {
   id: string;
-  name: string;
+  nombre_usuario: string;
   email: string;
   avatarUrl?: string;
   location?: string;
@@ -66,7 +66,7 @@ export interface Ticket {
 
   // For backwards compatibility and flexibility
   user?: User;
-  name?: string;
+  nombre_usuario?: string;
   title?: string; // Keep for components that might still use it
   lastMessage?: string; // Keep for components that might still use it
 }
