@@ -96,13 +96,14 @@ const ChatPanel = ({
   }, []);
 
   const handleInternalAction = useCallback(
-    (action: string) => {
+    async (action: string) => {
       const normalized = action.toLowerCase().replace(/[_\s-]+/g, "");
-      if (["login", "loginpanel"].includes(normalized)) {
+
+      if (["login", "loginpanel", "chatuserloginpanel"].includes(normalized)) {
         onShowLogin?.();
         return;
       }
-      if (["register", "registerpanel"].includes(normalized)) {
+      if (["register", "registerpanel", "chatuserregisterpanel"].includes(normalized)) {
         onShowRegister?.();
         return;
       }
@@ -110,9 +111,44 @@ const ChatPanel = ({
         onCart?.();
         return;
       }
+      if (normalized === "request_user_location") {
+        try {
+          const position = await requestLocation();
+          if (position) {
+            handleSend({
+              text: "Ubicación compartida.",
+              ubicacion_usuario: {
+                lat: position.latitud,
+                lon: position.longitud,
+              },
+              action: "user_provided_location",
+            });
+            toast({
+              title: "Éxito",
+              description: "Ubicación compartida correctamente.",
+              variant: "success",
+            });
+          } else {
+            toast({
+              title: "Error",
+              description: "No se pudo obtener la ubicación. Por favor, revisa los permisos de tu navegador.",
+              variant: "destructive",
+            });
+          }
+        } catch (error) {
+          console.error("Error getting location:", error);
+          toast({
+            title: "Error",
+            description: "Ocurrió un error al intentar obtener la ubicación.",
+            variant: "destructive",
+          });
+        }
+        return;
+      }
+      // Default action: send to backend
       handleSend({ text: action, action: normalized });
     },
-    [handleSend, onShowLogin, onShowRegister, onCart]
+    [handleSend, onShowLogin, onShowRegister, onCart, toast]
   );
 
   const handleFileUploaded = useCallback(
