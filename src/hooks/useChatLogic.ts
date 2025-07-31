@@ -117,15 +117,18 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicOp
     if (!userMessageText && !attachmentInfo && !ubicacion_usuario && !action && !actualPayload.archivo_url) return;
     if (isTyping) return;
 
-    const userMessage: Message = {
-      id: generateClientMessageId(),
-      text: userMessageText,
-      isBot: false,
-      timestamp: new Date(),
-      attachmentInfo,
-      locationData: ubicacion_usuario,
-    };
-    setMessages(prev => [...prev, userMessage]);
+    // Solo mostrar el mensaje del usuario si no es una acción de botón
+    if (!action) {
+      const userMessage: Message = {
+        id: generateClientMessageId(),
+        text: userMessageText,
+        isBot: false,
+        timestamp: new Date(),
+        attachmentInfo,
+        locationData: ubicacion_usuario,
+      };
+      setMessages(prev => [...prev, userMessage]);
+    }
     setIsTyping(true);
 
     try {
