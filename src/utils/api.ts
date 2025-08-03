@@ -25,7 +25,7 @@ interface ApiFetchOptions {
   body?: any;
   skipAuth?: boolean;
   sendAnonId?: boolean;
-  sendEntityToken?: boolean;
+  entityToken?: string | null;
 }
 
 /**
@@ -37,11 +37,10 @@ export async function apiFetch<T>(
   path: string,
   options: ApiFetchOptions = {}
 ): Promise<T> {
-  const { method = "GET", body, skipAuth, sendAnonId, sendEntityToken } = options;
+  const { method = "GET", body, skipAuth, sendAnonId, entityToken } = options;
 
   const token = safeLocalStorage.getItem("authToken");
   const anonId = safeLocalStorage.getItem("anon_id");
-  const entityToken = safeLocalStorage.getItem("entityToken");
   const chatSessionId = getOrCreateChatSessionId(); // Get or create the chat session ID
 
   const url = `${API_BASE_URL}${path}`;

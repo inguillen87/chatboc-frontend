@@ -262,7 +262,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       console.log("ChatWidget: Intentando obtener perfil con token:", entityToken);
       try {
         const data = await apiFetch<any>("/perfil", {
-          sendEntityToken: true,
+          entityToken: entityToken,
           skipAuth: true,
         });
         console.log("ChatWidget: Perfil recibido:", data);
