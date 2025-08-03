@@ -21,8 +21,13 @@ interface SendPayload {
 }
 // -------------------------------------------------------------------------
 
+// Nueva interfaz para las props del hook
+interface UseChatLogicProps {
+  initialWelcomeMessage: string;
+  tipoChat: "pyme" | "municipio";
+}
 
-export function useChatLogic(initialWelcomeMessage: string) {
+export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [contexto, setContexto] = useState({});
@@ -35,14 +40,55 @@ export function useChatLogic(initialWelcomeMessage: string) {
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const ultimoMensajeIdRef = useRef<number>(0);
 
-  // Efecto para el mensaje de bienvenida inicial
-  useEffect(() => {
-    if (messages.length === 0) {
+  // --- NUEVA FUNCIÓN PARA INICIALIZAR EL CHAT ---
+  const initializeChat = useCallback(async () => {
+    setIsTyping(true);
+    try {
+      const stored =
+        typeof window !== 'undefined'
+          ? JSON.parse(safeLocalStorage.getItem('user') || 'null')
+          : null;
+      const rubro = stored?.rubro?.clave || stored?.rubro?.nombre || null;
+
+      const response = await apiFetch<any>('/chat/init', {
+        method: 'POST',
+        body: {
+          tipo_chat: tipoChat,
+          ...(rubro && { rubro_clave: rubro }),
+        },
+      });
+
+      const initialBotMessage: Message = {
+        id: Date.now(),
+        text: response?.respuesta || initialWelcomeMessage,
+        isBot: true,
+        timestamp: new Date(),
+        botones: response?.botones || [],
+        mediaUrl: response?.media_url,
+        locationData: response?.location_data,
+      };
+      setMessages([initialBotMessage]);
+      setContexto(response.contexto_actualizado || {});
+
+    } catch (error) {
+      console.error("Error initializing chat:", error);
+      // Fallback al mensaje de bienvenida estático
       setMessages([
         { id: Date.now(), text: initialWelcomeMessage, isBot: true, timestamp: new Date() },
       ]);
+    } finally {
+      setIsTyping(false);
     }
-  }, [initialWelcomeMessage]);
+  }, [initialWelcomeMessage, tipoChat]);
+
+  // Efecto para el mensaje de bienvenida (ahora dinámico)
+  useEffect(() => {
+    if (messages.length === 0) {
+      initializeChat();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initializeChat]);
+
 
   // Efecto para el polling de mensajes en vivo
   useEffect(() => {
@@ -80,7 +126,7 @@ export function useChatLogic(initialWelcomeMessage: string) {
     return () => {
       if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
     };
-  }, [activeTicketId]);
+  }, [activeTicketId, isAnonimo]);
 
   // --- MODIFICACIÓN CLAVE: handleSend ahora acepta un SendPayload ---
   const handleSend = useCallback(async (payload: string | SendPayload) => {
@@ -93,7 +139,7 @@ export function useChatLogic(initialWelcomeMessage: string) {
     }
 
     // No enviar si está vacío, no hay adjuntos y no es una acción de botón
-    if (!actualPayload.text && !actualPayload.archivo_url && !actualPayload.ubicacion_usuario && !actualPayload.action) return; 
+    if (!actualPayload.text && !actualPayload.archivo_url && !actualPayload.ubicacion_usuario && !actualPayload.action) return;
     if (isTyping) return; // No enviar si el bot está escribiendo
 
     const userMessage: Message = { id: Date.now(), text: actualPayload.text, isBot: false, timestamp: new Date() };
@@ -121,7 +167,7 @@ export function useChatLogic(initialWelcomeMessage: string) {
             : null;
         const rubro = stored?.rubro?.clave || stored?.rubro?.nombre || null;
         const adjustedTipo = enforceTipoChatForRubro(APP_TARGET, rubro);
-        
+
         // --- CONSTRUCCIÓN DEL BODY CON ADJUNTOS Y ACTION ---
         const requestBody = {
           pregunta: actualPayload.text,
@@ -138,7 +184,7 @@ export function useChatLogic(initialWelcomeMessage: string) {
 
         const endpoint = getAskEndpoint({ tipoChat: adjustedTipo, rubro });
         const esPublico = esRubroPublico(rubro);
-        
+
         console.log(
           'Voy a pedir a endpoint:',
           endpoint,
@@ -156,9 +202,9 @@ export function useChatLogic(initialWelcomeMessage: string) {
           method: 'POST',
           body: requestBody, // Usar el body construido
         });
-        
+
         setContexto(data.contexto_actualizado || {});
-        
+
         // --- EXTRAER mediaUrl y locationData de la respuesta del backend ---
         const botMessage: Message = {
           id: Date.now(),
@@ -193,5 +239,5 @@ export function useChatLogic(initialWelcomeMessage: string) {
     }
   }, [contexto, activeTicketId, isTyping, isAnonimo]); // Añadir isTyping e isAnonimo como dependencias
 
-  return { messages, isTyping, handleSend };
+  return { messages, isTyping, handleSend, setMessages, activeTicketId };
 }
