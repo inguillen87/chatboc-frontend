@@ -438,9 +438,10 @@ export default function Perfil() {
                                                         // Futuro: ir si hay >1 y ninguno es default, o si el usuario elige configurar.
 
     if (shouldGoToMappingPage) {
-    // En lugar de redirigir, ahora abrimos el modal.
-    setIsMappingModalOpen(true);
-    // El resto de la lógica (parseo, etc.) se manejará dentro del modal y sus funciones.
+      // En lugar de redirigir, ahora abrimos el modal.
+      setIsMappingModalOpen(true);
+      // El resto de la lógica (parseo, etc.) se manejará dentro del modal y sus funciones.
+    }
   };
 
   // Lógica de parseo y guardado para el nuevo flujo del modal
