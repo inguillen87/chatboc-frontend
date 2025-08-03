@@ -18,6 +18,8 @@ import {
   Trash2, // Icono para eliminar
   Edit3, // Icono para editar
   FileCog, // Icono general para formatos/mapeos
+  Wand2, // Icono para sugerencias
+  Loader2, // Icono de carga
 } from "lucide-react";
 import MunicipioIcon from "@/components/ui/MunicipioIcon";
 import { Badge } from "@/components/ui/badge";
@@ -59,6 +61,10 @@ import { useUser } from "@/hooks/useUser";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
 import { apiFetch, getErrorMessage, ApiError } from "@/utils/api"; // Importa apiFetch y getErrorMessage
+import { suggestMappings, SystemField, DEFAULT_SYSTEM_FIELDS } from "@/utils/columnMatcher";
+import * as XLSX from 'xlsx';
+import Papa from 'papaparse';
+
 
 // Durante el desarrollo usamos "/api" para evitar problemas de CORS.
 // Por defecto, usa esa ruta si no se proporciona ninguna variable de entorno.
@@ -134,6 +140,16 @@ export default function Perfil() {
   const [loadingGuardar, setLoadingGuardar] = useState(false);
   const [loadingCatalogo, setLoadingCatalogo] = useState(false);
   const [horariosOpen, setHorariosOpen] = useState(false);
+
+  // --- Estados para el nuevo modal de carga de catálogo ---
+  const [isMappingModalOpen, setIsMappingModalOpen] = useState(false);
+  const [isParsing, setIsParsing] = useState(false);
+  const [parsedColumns, setParsedColumns] = useState<string[]>([]);
+  const [suggestedMappings, setSuggestedMappings] = useState<Record<string, string | null>>({});
+  const [fileProcessingError, setFileProcessingError] = useState<string | null>(null);
+  const [systemFields] = useState<SystemField[]>(DEFAULT_SYSTEM_FIELDS);
+  // --- Fin de estados para el modal ---
+
 
   // Estados para la gestión de mapeos
   interface MappingConfig {
@@ -422,47 +438,115 @@ export default function Perfil() {
                                                         // Futuro: ir si hay >1 y ninguno es default, o si el usuario elige configurar.
 
     if (shouldGoToMappingPage) {
-      // Redirigir a la página de mapeo, pasando el archivo
-      toast({
-        title: "Configuración Requerida",
-        description: "Vamos a configurar cómo leer tu archivo."
-      });
-      navigate(`/admin/pyme/${pymeId}/catalog-mappings/new`, {
-        state: { preloadedFile: archivo }
-      });
-      // No limpiar setLoadingCatalogo ni setArchivo aquí, CatalogMappingPage tomará el control
-      return;
-    } else {
-      // Lógica para procesar directamente con un mapeo existente (a desarrollar)
-      // Esto implicaría seleccionar el mapeo adecuado (ej. el primero, o uno marcado como default)
-      // y luego llamar a una API del backend que procese el archivo usando ese mapeo.
-      // POST /api/pymes/{pymeId}/process-catalog-file con file y mappingId
-      const mappingToUse = configs[0]; // Simplificación: usar el primer mapeo encontrado
+    // En lugar de redirigir, ahora abrimos el modal.
+    setIsMappingModalOpen(true);
+    // El resto de la lógica (parseo, etc.) se manejará dentro del modal y sus funciones.
+  };
 
-      try {
-        const formData = new FormData();
-        formData.append("file", archivo);
-        formData.append("mappingId", mappingToUse.id); // Enviar el ID del mapeo
+  // Lógica de parseo y guardado para el nuevo flujo del modal
+  const parseFileAndSuggest = useCallback(async (fileToParse: File) => {
+    if (!fileToParse) return;
+    setIsParsing(true);
+    setFileProcessingError(null);
+    setParsedColumns([]);
+    setSuggestedMappings({});
 
-        // Asumimos un nuevo endpoint o que /catalogo/cargar puede tomar un mappingId
-        const data = await apiFetch<any>(`/pymes/${pymeId}/process-catalog-file`, { // Endpoint hipotético
-          method: "POST",
-          body: formData,
-        });
+    try {
+      let headers: string[] = [];
+      const fileType = fileToParse.name.split('.').pop()?.toLowerCase();
 
-        setResultadoCatalogo({
-          message: data.mensaje || "Catálogo subido y procesado con el formato guardado ✔️",
-          type: "success",
-        });
-        setArchivo(null);
-      } catch (err) {
-        setResultadoCatalogo({
-          message: getErrorMessage(err, "Error al subir y procesar el catálogo con el formato guardado."),
-          type: "error",
-        });
-      } finally {
-        setLoadingCatalogo(false);
+      if (fileType === 'csv' || fileType === 'txt') {
+        const text = await fileToParse.text();
+        const result = Papa.parse(text, { preview: 1, skipEmptyLines: true });
+        if (result.errors.length > 0) throw new Error(`Error al parsear CSV: ${result.errors[0].message}`);
+        headers = result.data[0] as string[];
+      } else if (fileType === 'xlsx' || fileType === 'xls') {
+        const arrayBuffer = await fileToParse.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' }) as string[][];
+        if (jsonData.length > 0) headers = jsonData[0].map(String);
+      } else {
+        throw new Error("Tipo de archivo no soportado. Por favor, sube un CSV o Excel.");
       }
+
+      if (headers.length === 0) {
+        throw new Error("No se encontraron columnas/encabezados en el archivo.");
+      }
+
+      setParsedColumns(headers);
+      const suggestions = suggestMappings(headers, systemFields);
+      const newMappings: Record<string, string | null> = {};
+      suggestions.forEach(s => {
+        newMappings[s.systemFieldKey] = s.userColumn;
+      });
+      setSuggestedMappings(newMappings);
+
+    } catch (e) {
+      setFileProcessingError(getErrorMessage(e, "Error al procesar el archivo."));
+    } finally {
+      setIsParsing(false);
+    }
+  }, [systemFields]);
+
+  useEffect(() => {
+    if (isMappingModalOpen && archivo) {
+      parseFileAndSuggest(archivo);
+    }
+  }, [isMappingModalOpen, archivo, parseFileAndSuggest]);
+
+  const handleConfirmAndProcess = async () => {
+    if (!archivo || !user?.id) {
+      toast({ variant: "destructive", title: "Error", description: "Falta el archivo o el ID de usuario." });
+      return;
+    }
+
+    setLoadingCatalogo(true);
+    setResultadoCatalogo(null);
+
+    // 1. Guardar la configuración de mapeo generada automáticamente
+    const mappingName = `Mapeo para ${archivo.name} (${new Date().toLocaleString()})`;
+    const configToSave = {
+      pymeId: user.id,
+      name: mappingName,
+      mappings: suggestedMappings,
+      fileSettings: { hasHeaders: true, skipRows: 0 }, // Usamos defaults simples
+    };
+
+    try {
+      // Asumimos que el backend está listo para recibir esto.
+      const savedMapping = await apiFetch<any>(`/pymes/${user.id}/catalog-mappings`, {
+        method: 'POST',
+        body: configToSave,
+      });
+
+      toast({ title: "Paso 1/2: Formato guardado", description: `Se guardó la configuración "${mappingName}".` });
+
+      // 2. Ahora, procesar el archivo usando este nuevo mapeo
+      // (Esta parte sigue siendo hipotética hasta que el backend la implemente por completo)
+      const formData = new FormData();
+      formData.append("file", archivo);
+      formData.append("mappingId", savedMapping.id);
+
+      const processingResult = await apiFetch<any>(`/pymes/${user.id}/process-catalog-file`, {
+        method: "POST",
+        body: formData,
+      });
+
+      setResultadoCatalogo({
+        message: processingResult.mensaje || "¡Catálogo subido y procesado con éxito!",
+        type: "success",
+      });
+      setArchivo(null);
+      setIsMappingModalOpen(false);
+
+    } catch (err) {
+      const errorMessage = getErrorMessage(err, "Ocurrió un error en el proceso.");
+      setResultadoCatalogo({ message: errorMessage, type: "error" });
+      // Mantener el modal abierto en caso de error para que el usuario pueda reintentar o cancelar.
+    } finally {
+      setLoadingCatalogo(false);
     }
   };
 
@@ -1210,6 +1294,78 @@ export default function Perfil() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* --- Modal de Mapeo Simplificado --- */}
+      <Dialog open={isMappingModalOpen} onOpenChange={setIsMappingModalOpen}>
+        <DialogContent className="sm:max-w-[625px]">
+          <DialogHeader>
+            <DialogTitle className="text-xl flex items-center">
+              <Wand2 className="w-5 h-5 mr-2 text-primary"/>
+              Confirmar Columnas del Catálogo
+            </DialogTitle>
+            <DialogDescription>
+              Hemos detectado las siguientes columnas en tu archivo <strong>{archivo?.name}</strong>.
+              Confirma si el mapeo es correcto para procesarlo.
+            </DialogDescription>
+          </DialogHeader>
+
+          {isParsing && (
+            <div className="flex items-center justify-center p-8">
+              <Loader2 className="h-8 w-8 animate-spin text-primary mr-3" />
+              <p className="text-muted-foreground">Analizando archivo...</p>
+            </div>
+          )}
+
+          {fileProcessingError && (
+              <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
+                  <strong>Error:</strong> {fileProcessingError}
+              </div>
+          )}
+
+          {!isParsing && !fileProcessingError && parsedColumns.length > 0 && (
+            <div className="py-2 max-h-[50vh] overflow-y-auto">
+                <ul className="space-y-2 text-sm">
+                  {systemFields.map(field => {
+                    const mappedColumn = suggestedMappings[field.key];
+                    if (mappedColumn) {
+                      return (
+                        <li key={field.key} className="flex items-center justify-between p-2 bg-muted/30 rounded-md">
+                          <span className="font-semibold text-foreground">{field.label}</span>
+                          <span className="text-primary font-mono text-xs p-1 bg-primary/10 rounded">{mappedColumn}</span>
+                        </li>
+                      );
+                    }
+                    return null;
+                  })}
+                </ul>
+                <p className="text-xs text-muted-foreground mt-3">
+                  Campos no encontrados en el archivo serán ignorados.
+                </p>
+            </div>
+          )}
+
+          <DialogFooter className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <Button
+              variant="outline"
+              className="w-full sm:col-span-1"
+              onClick={() => navigate(`/admin/pyme/${user?.id}/catalog-mappings/new`, { state: { preloadedFile: archivo }})}
+            >
+              Configuración Avanzada...
+            </Button>
+            <DialogClose asChild className="sm:col-start-2">
+              <Button variant="ghost" className="w-full">Cancelar</Button>
+            </DialogClose>
+            <Button
+              className="w-full sm:col-span-1"
+              onClick={handleConfirmAndProcess}
+              disabled={isParsing || loadingCatalogo || !!fileProcessingError}
+            >
+              {(isParsing || loadingCatalogo) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Confirmar y Procesar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
