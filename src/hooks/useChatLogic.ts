@@ -39,8 +39,8 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicOp
 
     if (messages.length === 0) {
       const welcomeMessageText = isAnonimo
-        ? "¡Hola! Soy JUNI🤖, tu Asistente Virtual del Municipio. Estoy aquí para ayudarte. 😊\n\nTambién puedes solicitar hablar con un agente municipal en cualquier momento.\n\n**¿Cómo puedo ayudarte hoy?**"
-        : `¡Hola, ${user?.nombre}! Soy JUNI🤖, tu Asistente Virtual. ¿Qué necesitas hoy?`;
+        ? "¡Hola! Soy JuniA, tu Asistente Virtual del Municipio. Estoy aquí para ayudarte. 😊\n\n\n**¿Cómo puedo ayudarte hoy?**"
+        : `¡Hola, ${user?.nombre}! Soy JUniA, tu Asistente Virtual. ¿Qué necesitas hoy?`;
 
       const welcomeMessage: Message = {
         id: generateClientMessageId(),
@@ -54,7 +54,7 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicOp
           { texto: "Multas de tránsito", action: "consultar_multas" },
           { texto: "Reclamos", action: "hacer_reclamo" },
           { texto: "Denuncias", action: "hacer_denuncia" },
-          { texto: "Botón de Pánico 🚨", action: "boton_panico" },
+//        { texto: "Botón de Pánico 🚨", action: "boton_panico" },
           { texto: "Agenda cultural y turística", action: "agenda_cultural" },
           { texto: "Novedades", action: "ver_novedades" },
         ],
