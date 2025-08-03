@@ -21,58 +21,60 @@ if (!GOOGLE_CLIENT_ID) {
 }
 
 const Iframe = () => {
-  const [params, setParams] = useState<any>(null);
+  const [widgetParams, setWidgetParams] = useState<any | null>(null);
+  const [entityToken, setEntityToken] = useState<string | null>(null);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const urlParams = new URLSearchParams(window.location.search);
-      const tokenFromUrl = urlParams.get("token");
-      const storedToken = safeLocalStorage.getItem('entityToken');
+    const urlParams = new URLSearchParams(window.location.search);
+    const tokenFromUrl = urlParams.get("token");
+    const storedToken = safeLocalStorage.getItem('entityToken');
+    const currentToken = tokenFromUrl || storedToken;
 
-      let currentToken = tokenFromUrl || storedToken;
-
-      if (tokenFromUrl) {
-        safeLocalStorage.setItem('entityToken', tokenFromUrl);
-        console.log('Chatboc Iframe: entityToken guardado en localStorage desde URL:', tokenFromUrl);
-      } else if (storedToken) {
-        console.log('Chatboc Iframe: entityToken recuperado de localStorage:', storedToken);
-      } else {
-        console.warn('Chatboc Iframe: No se encontró token en la URL ni en localStorage.');
-      }
-
-      setParams({
-        defaultOpen: urlParams.get("defaultOpen") === "true",
-        widgetId: urlParams.get("widgetId") || "chatboc-iframe-unknown",
-        token: currentToken,
-        view: urlParams.get("view") || 'chat',
-        openWidth: urlParams.get("openWidth") || DEFAULTS.openWidth,
-        openHeight: urlParams.get("openHeight") || DEFAULTS.openHeight,
-        closedWidth: urlParams.get("closedWidth") || DEFAULTS.closedWidth,
-        closedHeight: urlParams.get("closedHeight") || DEFAULTS.closedHeight,
-        tipoChat:
-          urlParams.get("tipo_chat") === "municipio" ? "municipio" : "pyme",
-        ctaMessage: urlParams.get("ctaMessage") || undefined,
-        rubro: urlParams.get("rubro") || undefined,
-      });
+    if (tokenFromUrl && tokenFromUrl !== storedToken) {
+      safeLocalStorage.setItem('entityToken', tokenFromUrl);
+      console.log('Chatboc Iframe: entityToken guardado en localStorage desde URL:', tokenFromUrl);
     }
+
+    if (currentToken) {
+      setEntityToken(currentToken);
+    } else {
+      console.warn('Chatboc Iframe: No se encontró token en la URL ni en localStorage.');
+    }
+
+    setWidgetParams({
+      defaultOpen: urlParams.get("defaultOpen") === "true",
+      widgetId: urlParams.get("widgetId") || "chatboc-iframe-unknown",
+      view: urlParams.get("view") || 'chat',
+      openWidth: urlParams.get("openWidth") || DEFAULTS.openWidth,
+      openHeight: urlParams.get("openHeight") || DEFAULTS.openHeight,
+      closedWidth: urlParams.get("closedWidth") || DEFAULTS.closedWidth,
+      closedHeight: urlParams.get("closedHeight") || DEFAULTS.closedHeight,
+      tipoChat: urlParams.get("tipo_chat") === "municipio" ? "municipio" : "pyme",
+      ctaMessage: urlParams.get("ctaMessage") || undefined,
+      rubro: urlParams.get("rubro") || undefined,
+    });
   }, []);
 
-  if (!params || !params.token) return null;
+  // Renderiza el ChatWidget solo cuando el token y los parámetros están listos
+  if (!entityToken || !widgetParams) {
+    return null; // O un componente de carga
+  }
+
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
       <ChatWidget
         mode="iframe"
-        defaultOpen={params.defaultOpen}
-        widgetId={params.widgetId}
-        entityToken={params.token}
-        tipoChat={params.tipoChat}
-        openWidth={params.openWidth}
-        openHeight={params.openHeight}
-        closedWidth={params.closedWidth}
-        closedHeight={params.closedHeight}
-        ctaMessage={params.ctaMessage}
-        initialView={params.view}
-        initialRubro={params.rubro}
+        entityToken={entityToken}
+        defaultOpen={widgetParams.defaultOpen}
+        widgetId={widgetParams.widgetId}
+        tipoChat={widgetParams.tipoChat}
+        openWidth={widgetParams.openWidth}
+        openHeight={widgetParams.openHeight}
+        closedWidth={widgetParams.closedWidth}
+        closedHeight={widgetParams.closedHeight}
+        ctaMessage={widgetParams.ctaMessage}
+        initialView={widgetParams.view}
+        initialRubro={widgetParams.rubro}
       />
     </GoogleOAuthProvider>
   );
