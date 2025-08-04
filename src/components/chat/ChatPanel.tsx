@@ -21,6 +21,9 @@ import { apiFetch } from "@/utils/api";
 import { parseRubro, esRubroPublico } from "@/utils/chatEndpoints";
 import { useUser } from "@/hooks/useUser";
 import { motion } from "framer-motion";
+import { useBusinessHours } from "@/hooks/useBusinessHours";
+import { Button } from "@/components/ui/button";
+import io from 'socket.io-client';
 
 const PENDING_TICKET_KEY = 'pending_ticket_id';
 const PENDING_GPS_KEY = 'pending_gps';
@@ -76,6 +79,8 @@ const ChatPanel = ({
   const chatInputRef = useRef<HTMLInputElement>(null);
   const [showScrollDown, setShowScrollDown] = useState(false);
   const [userTyping, setUserTyping] = useState(false);
+  const { isLiveChatEnabled, horariosAtencion } = useBusinessHours();
+  const socketRef = useRef<SocketIOClient.Socket | null>(null);
 
   const { messages, isTyping, handleSend, activeTicketId, setMessages } = useChatLogic({
     initialWelcomeMessage: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?",
@@ -95,6 +100,37 @@ const ChatPanel = ({
     const stored = safeLocalStorage.getItem("ultima_direccion");
     if (stored) setDireccionGuardada(stored);
   }, []);
+
+  useEffect(() => {
+    if (activeTicketId) {
+      const socket = io(import.meta.env.VITE_API_URL || 'http://localhost:3001');
+      socketRef.current = socket;
+
+      const room = `ticket_${tipoChat}_${activeTicketId}`;
+      socket.emit('join', { room });
+
+      socket.on('new_chat_message', (data: any) => {
+        const newMessage: Message = {
+            id: data.id,
+            author: data.es_admin ? 'agent' : 'user',
+            content: data.comentario,
+            timestamp: data.fecha,
+        };
+        setMessages(prevMessages => [...prevMessages, newMessage]);
+      });
+
+      return () => {
+        socket.disconnect();
+      };
+    }
+  }, [activeTicketId, tipoChat, setMessages]);
+
+  const handleLiveChatRequest = () => {
+    handleSend({
+      text: "Quisiera hablar con un representante",
+      action: "request_agent",
+    });
+  };
 
   const handleInternalAction = useCallback(
     async (action: string) => {
@@ -212,12 +248,27 @@ const ChatPanel = ({
       </div>
       <ScrollToBottomButton target={chatContainerRef.current} />
       <div className="w-full bg-card px-3 py-2 border-t min-w-0">
+        {!activeTicketId && (
+            isLiveChatEnabled ? (
+              <Button onClick={handleLiveChatRequest} className="w-full mb-2">
+                Hablar con un representante
+              </Button>
+            ) : (
+              <div className="text-center text-sm text-muted-foreground p-2">
+                <p>Nuestros agentes no están disponibles en este momento.</p>
+                <p>
+                  <strong>Horario de atención:</strong> {horariosAtencion}
+                </p>
+              </div>
+            )
+        )}
         <ChatInput
           onSendMessage={handleSend}
           isTyping={isTyping}
           inputRef={chatInputRef}
           onTypingChange={setUserTyping}
           onFileUploaded={handleFileUploaded}
+          disabled={!activeTicketId && !isLiveChatEnabled}
         />
       </div>
     </div>

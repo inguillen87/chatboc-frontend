@@ -3,7 +3,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Mail, Phone, MapPin, Ticket as TicketIcon, Info, FileDown, User, ExternalLink, MessageCircle } from 'lucide-react';
+import { Mail, Phone, MapPin, Ticket as TicketIcon, Info, FileDown, User, ExternalLink, MessageCircle, Building, Hash } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { motion } from 'framer-motion';
 import TicketMap from '../TicketMap';
@@ -36,6 +36,8 @@ const DetailsPanel: React.FC = () => {
     );
   }
 
+  const userName = ticket.nombre_usuario || ticket.user?.nombre_usuario || 'Usuario Desconocido';
+
   const hasLocation = ticket.direccion || (ticket.latitud && ticket.longitud);
 
   const handleExportPdf = () => {
@@ -55,11 +57,15 @@ const DetailsPanel: React.FC = () => {
   };
 
   const openWhatsApp = () => {
-    if (ticket?.telefono) {
-      const phoneNumber = ticket.telefono.replace(/\D/g, '');
+    const phone = ticket.telefono || ticket.user?.phone;
+    if (phone) {
+      const phoneNumber = phone.replace(/\D/g, '');
       window.open(`https://wa.me/${phoneNumber}`, '_blank');
     }
   };
+
+  const userEmail = ticket.email_usuario || ticket.email || ticket.user?.email_usuario || ticket.user?.email;
+  const userPhone = ticket.telefono || ticket.user?.phone;
 
   return (
     <motion.aside
@@ -90,31 +96,31 @@ const DetailsPanel: React.FC = () => {
           <Card>
             <CardHeader className="flex flex-row items-center gap-4 p-4">
                <Avatar className="h-16 w-16">
-                <AvatarImage src={ticket.avatarUrl} alt={ticket.name} />
-                <AvatarFallback>{getInitials(ticket.name || '')}</AvatarFallback>
+                <AvatarImage src={ticket.avatarUrl || ticket.user?.avatarUrl} alt={userName} />
+                <AvatarFallback>{getInitials(userName)}</AvatarFallback>
               </Avatar>
               <div className="flex-grow">
-                <h2 className="text-xl font-bold">{ticket.name || 'Usuario Desconocido'}</h2>
-                <p className="text-sm text-muted-foreground">Cliente</p>
+                <h2 className="text-xl font-bold">{userName}</h2>
+                <p className="text-sm text-muted-foreground">{ticket.tipo === 'municipio' ? 'Vecino/a' : 'Cliente'}</p>
                 {ticket.estado_cliente && <Badge variant="secondary" className="mt-1">{ticket.estado_cliente}</Badge>}
               </div>
             </CardHeader>
             <CardContent className="p-4 space-y-4 text-sm">
               <div className="flex items-start gap-3">
                 <User className="h-4 w-4 mt-0.5 text-muted-foreground" />
-                <span>{ticket.name}</span>
+                <span>{userName}</span>
               </div>
-              {ticket.email && (
+              {userEmail && (
                 <div className="flex items-start gap-3">
                     <Mail className="h-4 w-4 mt-0.5 text-muted-foreground" />
-                    <span>{ticket.email}</span>
+                    <span>{userEmail}</span>
                 </div>
               )}
-              {ticket.telefono && (
+              {userPhone && (
                 <div className="flex items-start gap-3">
                     <Phone className="h-4 w-4 mt-0.5 text-muted-foreground" />
                     <div className="flex items-center justify-between w-full">
-                      <span>{ticket.telefono}</span>
+                      <span>{userPhone}</span>
                       <Button variant="ghost" size="icon" onClick={openWhatsApp}>
                         <FaWhatsapp className="h-5 w-5 text-green-500" />
                       </Button>
@@ -123,7 +129,7 @@ const DetailsPanel: React.FC = () => {
               )}
               {ticket.dni && (
                 <div className="flex items-start gap-3">
-                    <User className="h-4 w-4 mt-0.5 text-muted-foreground" />
+                    <Info className="h-4 w-4 mt-0.5 text-muted-foreground" />
                     <span>DNI: {ticket.dni}</span>
                 </div>
               )}
@@ -160,7 +166,11 @@ const DetailsPanel: React.FC = () => {
             <CardContent className="space-y-3 text-sm">
                 <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">ID:</span>
-                    <span>{ticket.nro_ticket}</span>
+                    <span className="font-mono">{ticket.nro_ticket}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Tipo:</span>
+                    <Badge variant={ticket.tipo === 'municipio' ? 'default' : 'secondary'} className="capitalize">{ticket.tipo}</Badge>
                 </div>
                 <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Categoría:</span>
@@ -169,6 +179,10 @@ const DetailsPanel: React.FC = () => {
                  <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Creado:</span>
                     <span>{new Date(ticket.fecha).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Estado:</span>
+                    <Badge variant="outline" className="capitalize">{ticket.estado}</Badge>
                 </div>
             </CardContent>
           </Card>
