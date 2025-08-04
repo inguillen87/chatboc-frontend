@@ -14,6 +14,8 @@ interface Props {
   isTyping: boolean;
   inputRef?: React.RefObject<HTMLInputElement>;
   onTypingChange?: (typing: boolean) => void;
+  onFileUploaded: (data: any) => void;
+  disabled?: boolean;
 }
 
 const PLACEHOLDERS = [
@@ -23,7 +25,7 @@ const PLACEHOLDERS = [
   "¿Cuánto cuesta el servicio?",
 ];
 
-const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypingChange }) => {
+const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypingChange, onFileUploaded, disabled = false }) => {
   const [input, setInput] = useState("");
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [isLocating, setIsLocating] = useState(false);
@@ -45,38 +47,7 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
     internalRef.current?.focus();
   };
 
-  // --- LÓGICA PARA ARCHIVOS Y UBICACIÓN: AHORA ENVÍAN MENSAJE SOLO CUANDO EL DATO ESTÁ LISTO ---
-  // Este callback es llamado por AdjuntarArchivo CUANDO el archivo ya se SUBIÓ.
-  // 'data' es la respuesta del backend /archivos/subir.
-  // Respuesta actual del backend: { filename: string, mensaje: string, url: string }
-  const handleFileUploaded = async (data: { url: string; filename: string; mimeType?: string; size?: number; [key: string]: any; }) => {
-    // Validar campos mínimos esperados de la respuesta del backend (url y filename)
-    if (isTyping || !data || !data.url || !data.filename) {
-      toast({ title: "Error de subida", description: "La información del archivo subido está incompleta.", variant: "destructive" });
-      return;
-    }
-
-    // El nombre original del archivo no está disponible desde el backend actual. Usamos data.filename.
-    const name = data.filename;
-    // mimeType y size no son provistos por el backend actual, serán undefined.
-    // deriveAttachmentInfo en el frontend intentará deducir el tipo por la extensión.
-    const mimeType = data.mimeType; // Será undefined si el backend no lo envía
-    const size = data.size;         // Será undefined si el backend no lo envía
-
-    onSendMessage({
-      text: `Archivo adjunto: ${name}`, // Usar el nombre disponible (filename del servidor)
-      archivo_url: data.url,
-      attachmentInfo: {
-        name: name,
-        url: data.url,
-        mimeType: mimeType, // Pasará undefined si no viene del backend
-        size: size          // Pasará undefined si no viene del backend
-      }
-    });
-    setInput(""); // Limpiar input de texto, ya que el archivo se envía como un mensaje separado
-    onTypingChange?.(false);
-    toast({ title: "Archivo enviado", description: `${name} ha sido adjuntado.`, duration: 3000 });
-  };
+  const handleFileUploaded = onFileUploaded;
 
   const handleShareLocation = async () => {
     if (isTyping || isLocating) return;
@@ -140,11 +111,11 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
 
   return (
     <div className="w-full flex items-center gap-1 sm:gap-2 px-2 py-2 sm:px-3 sm:py-3 bg-background">
-      <AdjuntarArchivo onUpload={handleFileUploaded} asImage disabled={isRecording} />
-      <AdjuntarArchivo onUpload={handleFileUploaded} disabled={isRecording} />
+      <AdjuntarArchivo onUpload={handleFileUploaded} asImage disabled={isRecording || disabled} />
+      <AdjuntarArchivo onUpload={handleFileUploaded} disabled={isRecording || disabled} />
       <button
         onClick={handleShareLocation}
-        disabled={isTyping || isLocating || isRecording}
+        disabled={isTyping || isLocating || isRecording || disabled}
         className={`
           flex items-center justify-center
           rounded-full p-2 sm:p-2.5
@@ -174,7 +145,7 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
             }
           }
         }}
-        disabled={isTyping || isLocating}
+        disabled={isTyping || isLocating || disabled}
         className={`
           flex items-center justify-center
           rounded-full p-2 sm:p-2.5
@@ -224,7 +195,7 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
         autoComplete="off"
         maxLength={200}
         aria-label="Escribir mensaje"
-        disabled={isTyping || isRecording}
+        disabled={isTyping || isRecording || disabled}
       />
       <button
         className={`
@@ -237,7 +208,7 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
           disabled:opacity-50 disabled:cursor-not-allowed
         `}
         onClick={handleSend}
-        disabled={!input.trim() || isTyping || isRecording}
+        disabled={!input.trim() || isTyping || isRecording || disabled}
         aria-label="Enviar mensaje"
         type="button"
       >

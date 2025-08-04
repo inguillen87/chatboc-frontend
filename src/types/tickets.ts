@@ -3,13 +3,20 @@ import { Boton, StructuredContentItem } from './chat';
 export type TicketStatus = 'nuevo' | 'abierto' | 'en-espera' | 'resuelto' | 'cerrado' | 'en_proceso';
 export type TicketPriority = 'baja' | 'media' | 'alta' | 'urgente';
 
+export interface Horario {
+    start_hour: number;
+    end_hour: number;
+}
+
 export interface User {
   id: string;
   nombre_usuario: string;
   email: string;
+  email_usuario?: string;
   avatarUrl?: string;
   location?: string;
   phone?: string;
+  horario?: Horario;
 }
 
 export interface Attachment {
@@ -55,6 +62,7 @@ export interface Ticket {
   // Pyme specific fields
   telefono?: string;
   email?: string;
+  email_usuario?: string;
   dni?: string;
   estado_cliente?: string;
 
