@@ -254,12 +254,14 @@ const ChatPanel = ({
                 Hablar con un representante
               </Button>
             ) : (
-              <div className="text-center text-sm text-muted-foreground p-2">
-                <p>Nuestros agentes no están disponibles en este momento.</p>
-                <p>
-                  <strong>Horario de atención:</strong> {horariosAtencion}
-                </p>
-              </div>
+              horariosAtencion && (
+                <div className="text-center text-sm text-muted-foreground p-2">
+                  <p>Para hablar con un representante, nuestro horario de atención es:</p>
+                  <p>
+                    <strong>{horariosAtencion}</strong>
+                  </p>
+                </div>
+              )
             )
         )}
         <ChatInput
@@ -268,7 +270,6 @@ const ChatPanel = ({
           inputRef={chatInputRef}
           onTypingChange={setUserTyping}
           onFileUploaded={handleFileUploaded}
-          disabled={!activeTicketId && !isLiveChatEnabled}
         />
       </div>
     </div>
