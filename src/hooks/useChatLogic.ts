@@ -34,33 +34,36 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicOp
     return `client-${Date.now()}-${clientMessageIdCounter.current}`;
   };
 
+  const generateWelcomeMessage = (user: any): Message => {
+    const welcomeMessageText = isAnonimo
+      ? "¡Hola! Soy JuniA, el asistente virtual de la Municipalidad de Junín.\nEstas son las cosas que puedo hacer por vos:"
+      : `¡Hola, ${user?.nombre}! Soy JuniA, tu Asistente Virtual. ¿Qué necesitas hoy?`;
+
+    return {
+      id: generateClientMessageId(),
+      text: welcomeMessageText,
+      isBot: true,
+      timestamp: new Date(),
+      botones: [
+        { texto: "RECLAMOS", action: "show_reclamos_menu" },
+        { texto: "LICENCIA DE CONDUCIR", action: "licencia_de_conducir" },
+        { texto: "PAGO DE TASAS VIGENTES", action: "consultar_deudas" },
+        { texto: "DEFENSA DEL CONSUMIDOR", action: "defensa_del_consumidor" },
+        { texto: "VETERINARIA Y BROMATOLOGÍA", action: "veterinaria_y_bromatologia" },
+        { texto: "CONSULTAR OTROS TRÁMITES", action: "consultar_tramites" },
+        { texto: "SOLICITAR TURNOS", action: "solicitar_turnos" },
+        { texto: "MULTAS DE TRÁNSITO", action: "consultar_multas" },
+        { texto: "DENUNCIAS", action: "hacer_denuncia" },
+        { texto: "AGENDA CULTURAL Y TURÍSTICA", action: "agenda_cultural" },
+        { texto: "NOVEDADES", action: "ver_novedades" },
+      ],
+    };
+  };
+
   useEffect(() => {
-    const user = JSON.parse(safeLocalStorage.getItem('user') || 'null');
-
     if (messages.length === 0) {
-      const welcomeMessageText = isAnonimo
-        ? "¡Hola! Soy JuniA, el asistente virtual de la Municipalidad de Junín.\nEstas son las cosas que puedo hacer por vos:"
-        : `¡Hola, ${user?.nombre}! Soy JuniA, tu Asistente Virtual. ¿Qué necesitas hoy?`;
-
-      const welcomeMessage: Message = {
-        id: generateClientMessageId(),
-        text: welcomeMessageText,
-        isBot: true,
-        timestamp: new Date(),
-        botones: [
-          { texto: "RECLAMOS", action: "hacer_reclamo" },
-          { texto: "LICENCIA DE CONDUCIR", action: "licencia_de_conducir" },
-          { texto: "PAGO DE TASAS", action: "consultar_deudas" },
-          { texto: "DEFENSA DEL CONSUMIDOR", action: "defensa_del_consumidor" },
-          { texto: "VETERINARIA Y BROMATOLOGÍA", action: "veterinaria_y_bromatologia" },
-          { texto: "CONSULTAR OTROS TRÁMITES", action: "consultar_tramites" },
-          { texto: "SOLICITAR TURNOS", action: "solicitar_turnos" },
-          { texto: "MULTAS DE TRÁNSITO", action: "consultar_multas" },
-          { texto: "DENUNCIAS", action: "hacer_denuncia" },
-          { texto: "AGENDA CULTURAL Y TURÍSTICA", action: "agenda_cultural" },
-          { texto: "NOVEDADES", action: "ver_novedades" },
-        ],
-      };
+      const user = JSON.parse(safeLocalStorage.getItem('user') || 'null');
+      const welcomeMessage = generateWelcomeMessage(user);
       setMessages([welcomeMessage]);
     }
   }, [initialWelcomeMessage, isAnonimo]);
@@ -115,12 +118,56 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicOp
   const handleSend = useCallback(async (payload: string | TypeSendPayload) => {
     const actualPayload: TypeSendPayload = typeof payload === 'string' ? { text: payload.trim() } : { ...payload, text: payload.text?.trim() || "" };
     const { text: userMessageText, attachmentInfo, ubicacion_usuario, action } = actualPayload;
+    const actionPayload = 'payload' in actualPayload ? actualPayload.payload : undefined;
+
 
     if (!userMessageText && !attachmentInfo && !ubicacion_usuario && !action && !actualPayload.archivo_url) return;
     if (isTyping) return;
 
-    // Solo mostrar el mensaje del usuario si no es una acción de botón
-    if (!action) {
+    // Handle menu navigation locally
+    if (action === 'show_reclamos_menu') {
+      const reclamosMessage: Message = {
+        id: generateClientMessageId(),
+        text: "Elegí una opción para tu reclamo:",
+        isBot: true,
+        timestamp: new Date(),
+        botones: [
+          { texto: "Luminaria", action: "hacer_reclamo", payload: { categoria: 'Luminaria' } },
+          { texto: "Arbolado", action: "hacer_reclamo", payload: { categoria: 'Arbolado' } },
+          { texto: "Limpieza y riego", action: "hacer_reclamo", payload: { categoria: 'Limpieza y riego' } },
+          { texto: "Arreglo de calle", action: "hacer_reclamo", payload: { categoria: 'Arreglo de calle' } },
+          { texto: "Pérdida de agua", action: "perdida_de_agua" },
+          { texto: "Otros", action: "hacer_reclamo", payload: { categoria: 'Otros' } },
+          { texto: "Volver al menú principal", action: "show_main_menu" },
+        ],
+      };
+      setMessages(prev => [...prev, reclamosMessage]);
+      return;
+    }
+
+    if (action === 'perdida_de_agua') {
+      const aguaMessage: Message = {
+        id: generateClientMessageId(),
+        text: "Para pérdida de agua, dirigite a la página de Aysam:\nhttps://www.aysam.com.ar/",
+        isBot: true,
+        timestamp: new Date(),
+        botones: [
+          { texto: "Volver al menú principal", action: "show_main_menu" },
+        ]
+      };
+      setMessages(prev => [...prev, aguaMessage]);
+      return;
+    }
+
+    if (action === 'show_main_menu') {
+      const user = JSON.parse(safeLocalStorage.getItem('user') || 'null');
+      const welcomeMessage = generateWelcomeMessage(user);
+      setMessages(prev => [...prev, welcomeMessage]);
+      return;
+    }
+
+    // Only show the user message if it's actual text input, not a button action without text
+    if (userMessageText && !action) {
       const userMessage: Message = {
         id: generateClientMessageId(),
         text: userMessageText,
@@ -157,6 +204,7 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicOp
           ...(attachmentInfo && { attachment_info: attachmentInfo }),
           ...(ubicacion_usuario && { ubicacion_usuario: ubicacion_usuario }),
           ...(action && { action }),
+          ...(actionPayload && { payload: actionPayload }),
           ...(action === "confirmar_reclamo" && currentClaimIdempotencyKey && { idempotency_key: currentClaimIdempotencyKey }),
         };
 
@@ -182,7 +230,6 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicOp
           setActiveTicketId(finalContext.id_ticket_creado);
           ultimoMensajeIdRef.current = 0;
           setCurrentClaimIdempotencyKey(null);
-          // No reseteamos el contexto aquí para poder mostrar un mensaje de "ticket creado"
         }
       }
     } catch (error: any) {
