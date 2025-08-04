@@ -5,12 +5,18 @@ export interface AttachmentInfo {
   mimeType?: string;
   size?: number;
 }
-// Define cómo es un objeto Botón
+// Define cómo es un objeto Boton
 export interface Boton {
   texto: string;
   url?: string;
   accion_interna?: string; // Para acciones que el frontend debe interpretar sin enviar al backend (ej. abrir panel)
   action?: string; // Valor que se envía al backend cuando se hace clic en el botón
+}
+
+// Nuevo: Define la estructura para una categoría de botones
+export interface Categoria {
+  titulo: string; // Título de la categoría que se mostrará en el acordeón
+  botones: Boton[]; // Array de botones dentro de esa categoría
 }
 
 // Nuevo: Define la estructura para contenido estructurado dentro de un mensaje
@@ -32,6 +38,7 @@ export interface Message {
   isBot: boolean; // True si el mensaje es del bot, false si es del usuario
   timestamp: Date; // Fecha y hora del mensaje
   botones?: Boton[]; // Array de botones interactivos asociados al mensaje (si los hay)
+  categorias?: Categoria[]; // Array de categorías con botones (formato anidado para acordeones)
   query?: string; // La consulta original del usuario que generó esta respuesta (opcional)
 
   // Campos para contenido multimedia y adjuntos
