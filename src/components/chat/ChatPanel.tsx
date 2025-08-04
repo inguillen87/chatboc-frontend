@@ -80,6 +80,7 @@ const ChatPanel = ({
   const { messages, isTyping, handleSend, activeTicketId, setMessages } = useChatLogic({
     initialWelcomeMessage: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?",
     tipoChat: tipoChat,
+    entityToken: propEntityToken,
   });
 
   const [esperandoDireccion, setEsperandoDireccion] = useState(false);

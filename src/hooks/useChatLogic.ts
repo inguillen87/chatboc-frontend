@@ -12,9 +12,10 @@ import { MunicipioContext, updateMunicipioContext, getInitialMunicipioContext } 
 interface UseChatLogicOptions {
   initialWelcomeMessage: string;
   tipoChat: 'pyme' | 'municipio';
+  entityToken?: string | null;
 }
 
-export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicOptions) {
+export function useChatLogic({ initialWelcomeMessage, tipoChat, entityToken }: UseChatLogicOptions) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [contexto, setContexto] = useState<MunicipioContext>(() => getInitialMunicipioContext());
@@ -159,7 +160,11 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicOp
         };
 
         const endpoint = getAskEndpoint({ tipoChat: tipoChatFinal, rubro });
-        const data = await apiFetch<any>(endpoint, { method: 'POST', body: requestBody });
+        const data = await apiFetch<any>(endpoint, {
+          method: 'POST',
+          body: requestBody,
+          entityToken,
+        });
         
         const finalContext = updateMunicipioContext(updatedContext, { llmResponse: data });
         setContexto(finalContext);
@@ -189,7 +194,7 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicOp
     } finally {
       setIsTyping(false);
     }
-  }, [contexto, activeTicketId, isTyping, isAnonimo, anonId, currentClaimIdempotencyKey, tipoChat]);
+  }, [contexto, activeTicketId, isTyping, isAnonimo, anonId, currentClaimIdempotencyKey, tipoChat, entityToken]);
 
   return { messages, isTyping, handleSend, activeTicketId, setMessages, setContexto, setActiveTicketId };
 }
