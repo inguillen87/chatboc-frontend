@@ -17,9 +17,10 @@ const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'avif'];
 export interface AdjuntarArchivoProps {
   onUpload?: (data: any) => void;
   asImage?: boolean;
+  disabled?: boolean;
 }
 
-const AdjuntarArchivo: React.FC<AdjuntarArchivoProps> = ({ onUpload, asImage = false }) => {
+const AdjuntarArchivo: React.FC<AdjuntarArchivoProps> = ({ onUpload, asImage = false, disabled = false }) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const { user } = useUser();
 
@@ -103,7 +104,7 @@ const AdjuntarArchivo: React.FC<AdjuntarArchivoProps> = ({ onUpload, asImage = f
         size="icon"
         type="button" // Importante para no enviar formularios accidentalmente
         aria-label="Adjuntar archivo"
-        // Podríamos añadir un estado 'disabled' mientras sube, si es necesario.
+        disabled={disabled}
       >
         <Paperclip className="w-4 h-4" />
       </Button>
@@ -113,6 +114,7 @@ const AdjuntarArchivo: React.FC<AdjuntarArchivoProps> = ({ onUpload, asImage = f
         accept={allowedExtensions.map((ext) => `.${ext}`).join(',')}
         className="hidden"
         onChange={handleFileChange}
+        disabled={disabled}
       />
       {/* El span de error local se ha eliminado. Los errores se muestran mediante toasts. */}
     </div>
