@@ -15,7 +15,6 @@ interface Props {
   inputRef?: React.RefObject<HTMLInputElement>;
   onTypingChange?: (typing: boolean) => void;
   onFileUploaded: (data: any) => void;
-  disabled?: boolean;
 }
 
 const PLACEHOLDERS = [
@@ -25,7 +24,7 @@ const PLACEHOLDERS = [
   "¿Cuánto cuesta el servicio?",
 ];
 
-const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypingChange, onFileUploaded, disabled = false }) => {
+const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypingChange, onFileUploaded }) => {
   const [input, setInput] = useState("");
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [isLocating, setIsLocating] = useState(false);
@@ -111,11 +110,11 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
 
   return (
     <div className="w-full flex items-center gap-1 sm:gap-2 px-2 py-2 sm:px-3 sm:py-3 bg-background">
-      <AdjuntarArchivo onUpload={handleFileUploaded} asImage disabled={isRecording || disabled} />
-      <AdjuntarArchivo onUpload={handleFileUploaded} disabled={isRecording || disabled} />
+      <AdjuntarArchivo onUpload={handleFileUploaded} asImage disabled={isRecording} />
+      <AdjuntarArchivo onUpload={handleFileUploaded} disabled={isRecording} />
       <button
         onClick={handleShareLocation}
-        disabled={isTyping || isLocating || isRecording || disabled}
+        disabled={isTyping || isLocating || isRecording}
         className={`
           flex items-center justify-center
           rounded-full p-2 sm:p-2.5
@@ -145,7 +144,7 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
             }
           }
         }}
-        disabled={isTyping || isLocating || disabled}
+        disabled={isTyping || isLocating}
         className={`
           flex items-center justify-center
           rounded-full p-2 sm:p-2.5
@@ -195,7 +194,7 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
         autoComplete="off"
         maxLength={200}
         aria-label="Escribir mensaje"
-        disabled={isTyping || isRecording || disabled}
+        disabled={isTyping || isRecording}
       />
       <button
         className={`
@@ -208,7 +207,7 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
           disabled:opacity-50 disabled:cursor-not-allowed
         `}
         onClick={handleSend}
-        disabled={!input.trim() || isTyping || isRecording || disabled}
+        disabled={!input.trim() || isTyping || isRecording}
         aria-label="Enviar mensaje"
         type="button"
       >
