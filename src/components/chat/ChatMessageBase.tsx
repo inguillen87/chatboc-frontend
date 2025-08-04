@@ -145,6 +145,35 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
 
   const isBot = message.isBot;
 
+  // START: Temporary hardcoded data for demonstration
+  if (isBot && !message.categorias && message.botones?.length === 0) {
+    message.categorias = [
+      {
+        titulo: "RECLAMOS",
+        botones: [
+          { texto: "Luminaria", action: "reclamo_luminaria" },
+          { texto: "Arbolado", action: "reclamo_arbolado" },
+          { texto: "Limpieza y riego", action: "reclamo_limpieza" },
+        ],
+      },
+      {
+        titulo: "TRÁMITES",
+        botones: [
+          { texto: "Licencia de Conducir", url: "https://www.juninmendoza.gov.ar/licencia-de-conducir-junin/" },
+          { texto: "Pago de Tasas", url: "https://epagos.juninmendoza.gov.ar/jrentas/" },
+        ],
+      },
+      {
+        titulo: "CONTACTO",
+        botones: [
+          { texto: "Defensa del Consumidor", accion_interna: "contacto_consumidor" },
+          { texto: "Veterinaria y Bromatología", accion_interna: "contacto_veterinaria" },
+        ],
+      },
+    ];
+  }
+  // END: Temporary hardcoded data
+
   const safeText = typeof message.text === "string" && message.text !== "NaN" ? message.text : "";
   const sanitizedHtml = sanitizeMessageHtml(safeText);
 
