@@ -39,14 +39,17 @@
   iframe.style.cssText = 'width: 100%; height: 100%; border: none; background: transparent;';
   iframe.allow = 'clipboard-write; geolocation';
 
+  const closedWidth = params.get('closed-width') || '100px';
+  const closedHeight = params.get('closed-height') || '100px';
+
   const style = document.createElement('style');
   style.textContent = `
     :host {
       position: fixed;
-      bottom: 20px;
-      right: 20px;
-      width: 100px;
-      height: 100px;
+      bottom: ${params.get('bottom') || '20px'};
+      right: ${params.get('right') || '20px'};
+      width: ${closedWidth};
+      height: ${closedHeight};
       z-index: 2147483647;
       border: none;
       background: transparent;
