@@ -78,10 +78,55 @@ const ChatPanel = ({
   const [userTyping, setUserTyping] = useState(false);
 
   const { messages, isTyping, handleSend, activeTicketId, setMessages } = useChatLogic({
-    initialWelcomeMessage: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?",
+    initialWelcomeMessage: "", // Welcome message is now handled here
     tipoChat: tipoChat,
-    entityToken: propEntityToken,
   });
+
+  useEffect(() => {
+    if (messages.length === 0) {
+      const welcomeMessage: Message = {
+        id: `client-${Date.now()}`,
+        isBot: true,
+        timestamp: new Date(),
+        text: "¡Hola! Soy JuniA, el asistente virtual de la Municipalidad de Junín.\nEstas son las cosas que puedo hacer por vos:",
+        categorias: [
+          {
+            titulo: "RECLAMOS",
+            botones: [
+              { texto: "Luminaria", action: "reclamo_luminaria" },
+              { texto: "Arbolado", action: "reclamo_arbolado" },
+              { texto: "Limpieza y riego", action: "reclamo_limpieza" },
+              { texto: "Arreglo de calle", action: "reclamo_calle" },
+              { texto: "Pérdida de agua", action: "reclamo_agua" },
+              { texto: "Otros reclamos", action: "reclamo_otros" },
+            ],
+          },
+          {
+            titulo: "TRÁMITES Y CONSULTAS",
+            botones: [
+              { texto: "Licencia de Conducir", action: "licencia_de_conducir" },
+              { texto: "Pago de Tasas", action: "pago_tasas" },
+              { texto: "Defensa del Consumidor", action: "defensa_consumidor" },
+              { texto: "Veterinaria y Bromatología", action: "veterinaria" },
+              { texto: "Consultar otros trámites", action: "consultar_tramites" },
+              { texto: "Solicitar Turnos", action: "solicitar_turnos" },
+              { texto: "Multas de Tránsito", action: "multas_transito" },
+              { texto: "Denuncias", action: "denuncias" },
+            ],
+          },
+          {
+            titulo: "INFORMACIÓN",
+            botones: [
+              { texto: "Agenda Cultural y Turística", action: "agenda_cultural" },
+              { texto: "Novedades", action: "novedades" },
+            ],
+          },
+        ],
+        botones: [], // Ensure flat buttons are not shown
+      };
+      setMessages([welcomeMessage]);
+    }
+  }, []); // Empty dependency array ensures this runs only once
 
   const [esperandoDireccion, setEsperandoDireccion] = useState(false);
   const [forzarDireccion, setForzarDireccion] = useState(false);
