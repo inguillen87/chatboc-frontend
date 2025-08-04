@@ -43,6 +43,7 @@ export interface Message {
 
   // Campos para contenido multimedia y adjuntos
   mediaUrl?: string; // URL directa a una imagen/video (para compatibilidad o casos simples)
+  audioUrl?: string; // URL a un archivo de audio para ser reproducido
   locationData?: { // Datos de ubicación (para mostrar un mapa o coordenadas)
     lat: number;
     lon: number;
