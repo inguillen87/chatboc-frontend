@@ -35,8 +35,35 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicOp
   };
 
   useEffect(() => {
-    // Welcome message is now handled by ChatPanel
-  }, []);
+    const user = JSON.parse(safeLocalStorage.getItem('user') || 'null');
+
+    if (messages.length === 0) {
+      const welcomeMessageText = isAnonimo
+        ? "¡Hola! Soy JuniA, el asistente virtual de la Municipalidad de Junín.\nEstas son las cosas que puedo hacer por vos:"
+        : `¡Hola, ${user?.nombre}! Soy JuniA, tu Asistente Virtual. ¿Qué necesitas hoy?`;
+
+      const welcomeMessage: Message = {
+        id: generateClientMessageId(),
+        text: welcomeMessageText,
+        isBot: true,
+        timestamp: new Date(),
+        botones: [
+          { texto: "RECLAMOS", action: "hacer_reclamo" },
+          { texto: "LICENCIA DE CONDUCIR", action: "licencia_de_conducir" },
+          { texto: "PAGO DE TASAS", action: "consultar_deudas" },
+          { texto: "DEFENSA DEL CONSUMIDOR", action: "defensa_del_consumidor" },
+          { texto: "VETERINARIA Y BROMATOLOGÍA", action: "veterinaria_y_bromatologia" },
+          { texto: "CONSULTAR OTROS TRÁMITES", action: "consultar_tramites" },
+          { texto: "SOLICITAR TURNOS", action: "solicitar_turnos" },
+          { texto: "MULTAS DE TRÁNSITO", action: "consultar_multas" },
+          { texto: "DENUNCIAS", action: "hacer_denuncia" },
+          { texto: "AGENDA CULTURAL Y TURÍSTICA", action: "agenda_cultural" },
+          { texto: "NOVEDADES", action: "ver_novedades" },
+        ],
+      };
+      setMessages([welcomeMessage]);
+    }
+  }, [initialWelcomeMessage, isAnonimo]);
 
   useEffect(() => {
     if (contexto.estado_conversacion === 'confirmando_reclamo' && !activeTicketId) {
