@@ -2,7 +2,6 @@
 import React from "react";
 import { Message, SendPayload, StructuredContentItem } from "@/types/chat";
 import ChatButtons from "./ChatButtons";
-import CategorizedButtons from "./CategorizedButtons";
 import { motion } from "framer-motion";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 import sanitizeMessageHtml from "@/utils/sanitizeMessageHtml";
@@ -145,35 +144,6 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
 
   const isBot = message.isBot;
 
-  // START: Temporary hardcoded data for demonstration
-  if (isBot && !message.categorias && message.botones?.length === 0) {
-    message.categorias = [
-      {
-        titulo: "RECLAMOS",
-        botones: [
-          { texto: "Luminaria", action: "reclamo_luminaria" },
-          { texto: "Arbolado", action: "reclamo_arbolado" },
-          { texto: "Limpieza y riego", action: "reclamo_limpieza" },
-        ],
-      },
-      {
-        titulo: "TRÁMITES",
-        botones: [
-          { texto: "Licencia de Conducir", url: "https://www.juninmendoza.gov.ar/licencia-de-conducir-junin/" },
-          { texto: "Pago de Tasas", url: "https://epagos.juninmendoza.gov.ar/jrentas/" },
-        ],
-      },
-      {
-        titulo: "CONTACTO",
-        botones: [
-          { texto: "Defensa del Consumidor", accion_interna: "contacto_consumidor" },
-          { texto: "Veterinaria y Bromatología", accion_interna: "contacto_veterinaria" },
-        ],
-      },
-    ];
-  }
-  // END: Temporary hardcoded data
-
   const safeText = typeof message.text === "string" && message.text !== "NaN" ? message.text : "";
   const sanitizedHtml = sanitizeMessageHtml(safeText);
 
@@ -261,20 +231,14 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
             </>
           )}
 
-          {/* Botones siempre al final si existen, con lógica condicional */}
-          {isBot && message.categorias && message.categorias.length > 0 ? (
-            <CategorizedButtons
-              categorias={message.categorias}
-              onButtonClick={onButtonClick}
-              onInternalAction={onInternalAction}
-            />
-          ) : isBot && message.botones && message.botones.length > 0 ? (
+          {/* Botones siempre al final si existen */}
+          {isBot && message.botones && message.botones.length > 0 && (
             <ChatButtons
               botones={message.botones}
               onButtonClick={onButtonClick}
               onInternalAction={onInternalAction}
             />
-          ) : null}
+          )}
         </MessageBubble>
 
         {!isBot && <UserChatAvatar />}
