@@ -2,6 +2,7 @@
 import React from "react";
 import { Message, SendPayload, StructuredContentItem } from "@/types/chat";
 import ChatButtons from "./ChatButtons";
+import CategorizedButtons from "./CategorizedButtons";
 import { motion } from "framer-motion";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 import sanitizeMessageHtml from "@/utils/sanitizeMessageHtml";
@@ -231,14 +232,20 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
             </>
           )}
 
-          {/* Botones siempre al final si existen */}
-          {isBot && message.botones && message.botones.length > 0 && (
+          {/* Botones siempre al final si existen, con lógica condicional */}
+          {isBot && message.categorias && message.categorias.length > 0 ? (
+            <CategorizedButtons
+              categorias={message.categorias}
+              onButtonClick={onButtonClick}
+              onInternalAction={onInternalAction}
+            />
+          ) : isBot && message.botones && message.botones.length > 0 ? (
             <ChatButtons
               botones={message.botones}
               onButtonClick={onButtonClick}
               onInternalAction={onInternalAction}
             />
-          )}
+          ) : null}
         </MessageBubble>
 
         {!isBot && <UserChatAvatar />}
