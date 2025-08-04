@@ -12,10 +12,9 @@ import { MunicipioContext, updateMunicipioContext, getInitialMunicipioContext } 
 interface UseChatLogicOptions {
   initialWelcomeMessage: string;
   tipoChat: 'pyme' | 'municipio';
-  entityToken?: string | null;
 }
 
-export function useChatLogic({ initialWelcomeMessage, tipoChat, entityToken }: UseChatLogicOptions) {
+export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicOptions) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [contexto, setContexto] = useState<MunicipioContext>(() => getInitialMunicipioContext());
@@ -40,8 +39,8 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat, entityToken }: U
 
     if (messages.length === 0) {
       const welcomeMessageText = isAnonimo
-        ? "¡Hola! Soy JUNI, el asistente virtual de la Municipalidad de Junín.\nEstas son las cosas que puedo hacer por vos:"
-        : `¡Hola, ${user?.nombre}! Soy JUNI, tu Asistente Virtual. ¿Qué necesitas hoy?`;
+        ? "¡Hola! Soy JuniA, el asistente virtual de la Municipalidad de Junín.\nEstas son las cosas que puedo hacer por vos:"
+        : `¡Hola, ${user?.nombre}! Soy JuniA, tu Asistente Virtual. ¿Qué necesitas hoy?`;
 
       const welcomeMessage: Message = {
         id: generateClientMessageId(),
@@ -49,11 +48,17 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat, entityToken }: U
         isBot: true,
         timestamp: new Date(),
         botones: [
-          { texto: "RECLAMOS", action: "reclamos" },
+          { texto: "RECLAMOS", action: "hacer_reclamo" },
           { texto: "LICENCIA DE CONDUCIR", action: "licencia_de_conducir" },
-          { texto: "PAGO DE TASAS VIGENTES", action: "pago_de_tasas_vigentes" },
+          { texto: "PAGO DE TASAS", action: "consultar_deudas" },
           { texto: "DEFENSA DEL CONSUMIDOR", action: "defensa_del_consumidor" },
           { texto: "VETERINARIA Y BROMATOLOGÍA", action: "veterinaria_y_bromatologia" },
+          { texto: "CONSULTAR OTROS TRÁMITES", action: "consultar_tramites" },
+          { texto: "SOLICITAR TURNOS", action: "solicitar_turnos" },
+          { texto: "MULTAS DE TRÁNSITO", action: "consultar_multas" },
+          { texto: "DENUNCIAS", action: "hacer_denuncia" },
+          { texto: "AGENDA CULTURAL Y TURÍSTICA", action: "agenda_cultural" },
+          { texto: "NOVEDADES", action: "ver_novedades" },
         ],
       };
       setMessages([welcomeMessage]);
@@ -156,11 +161,7 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat, entityToken }: U
         };
 
         const endpoint = getAskEndpoint({ tipoChat: tipoChatFinal, rubro });
-        const data = await apiFetch<any>(endpoint, {
-          method: 'POST',
-          body: requestBody,
-          entityToken,
-        });
+        const data = await apiFetch<any>(endpoint, { method: 'POST', body: requestBody });
         
         const finalContext = updateMunicipioContext(updatedContext, { llmResponse: data });
         setContexto(finalContext);
@@ -190,7 +191,7 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat, entityToken }: U
     } finally {
       setIsTyping(false);
     }
-  }, [contexto, activeTicketId, isTyping, isAnonimo, anonId, currentClaimIdempotencyKey, tipoChat, entityToken]);
+  }, [contexto, activeTicketId, isTyping, isAnonimo, anonId, currentClaimIdempotencyKey, tipoChat]);
 
   return { messages, isTyping, handleSend, activeTicketId, setMessages, setContexto, setActiveTicketId };
 }
