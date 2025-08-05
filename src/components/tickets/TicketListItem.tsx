@@ -3,6 +3,7 @@ import { Ticket } from '@/types/tickets';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { FaWhatsapp } from 'react-icons/fa';
 
 interface TicketListItemProps {
   ticket: Ticket;
@@ -38,11 +39,14 @@ const getInitials = (nombre_usuario: string) => {
             <p className="text-xs text-muted-foreground">{ticket.nro_ticket}</p>
           </div>
         </div>
-        <span className="text-xs text-muted-foreground">
-          {new Date(ticket.fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-        </span>
+        <div className="flex items-center gap-2">
+          {ticket.channel === 'whatsapp' && <FaWhatsapp className="h-4 w-4 text-green-500" />}
+          <span className="text-xs text-muted-foreground">
+            {new Date(ticket.fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </span>
+        </div>
       </div>
-      <p className="font-semibold text-sm ml-13 mb-2">{ticket.asunto}</p>
+      <p className="font-semibold text-sm ml-13 mb-2">{ticket.asunto || 'Sin asunto'}</p>
       <p className="text-sm text-muted-foreground truncate ml-13">{ticket.lastMessage || '...'}</p>
       <div className="flex items-center justify-between mt-2 ml-13">
          <Badge variant={ticket.estado === 'nuevo' ? 'default' : 'outline'}
