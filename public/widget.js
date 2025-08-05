@@ -3,7 +3,9 @@
 
   const script = document.currentScript;
   const chatbocDomain = script.getAttribute("data-domain") || new URL(script.src).origin;
-  const iframeId = `chatboc-iframe-${Math.random().toString(36).substring(2, 9)}`;
+  const randomId = Math.random().toString(36).substring(2, 9);
+  const iframeId = `chatboc-iframe-${randomId}`;
+  const containerId = `chatboc-widget-container-${randomId}`;
 
   const params = new URLSearchParams();
   for (const attr of script.attributes) {
@@ -27,7 +29,7 @@
   console.log("Widget.js: Iframe source:", iframeSrc);
 
   const container = document.createElement('div');
-  container.id = 'chatboc-widget-container';
+  container.id = containerId;
   document.body.appendChild(container);
 
   const shadow = container.attachShadow({ mode: 'open' });
