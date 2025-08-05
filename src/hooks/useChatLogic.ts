@@ -44,18 +44,38 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicOp
       text: welcomeMessageText,
       isBot: true,
       timestamp: new Date(),
-      botones: [
-        { texto: "RECLAMOS", action: "show_reclamos_menu" },
-        { texto: "LICENCIA DE CONDUCIR", action: "licencia_de_conducir" },
-        { texto: "PAGO DE TASAS VIGENTES", action: "consultar_deudas" },
-        { texto: "DEFENSA DEL CONSUMIDOR", action: "defensa_del_consumidor" },
-        { texto: "VETERINARIA Y BROMATOLOGÍA", action: "veterinaria_y_bromatologia" },
-        { texto: "CONSULTAR OTROS TRÁMITES", action: "consultar_tramites" },
-        { texto: "SOLICITAR TURNOS", action: "solicitar_turnos" },
-        { texto: "MULTAS DE TRÁNSITO", action: "consultar_multas" },
-        { texto: "DENUNCIAS", action: "hacer_denuncia" },
-        { texto: "AGENDA CULTURAL Y TURÍSTICA", action: "agenda_cultural" },
-        { texto: "NOVEDADES", action: "ver_novedades" },
+      categorias: [
+        {
+          titulo: "Reclamos y Denuncias",
+          botones: [
+            { texto: "Hacer un Reclamo", action: "show_reclamos_menu" },
+            { texto: "Realizar una Denuncia", action: "hacer_denuncia" },
+          ],
+        },
+        {
+          titulo: "Trámites Frecuentes",
+          botones: [
+            { texto: "Licencia de Conducir", action: "licencia_de_conducir" },
+            { texto: "Pago de Tasas", action: "consultar_deudas" },
+            { texto: "Defensa del Consumidor", action: "defensa_del_consumidor" },
+            { texto: "Veterinaria y Bromatología", action: "veterinaria_y_bromatologia" },
+            { texto: "Consultar Multas de Tránsito", action: "consultar_multas" },
+          ],
+        },
+        {
+          titulo: "Consultas y Turnos",
+          botones: [
+              { texto: "Consultar otros trámites", action: "consultar_tramites" },
+              { texto: "Solicitar Turnos", action: "solicitar_turnos" },
+          ]
+        },
+        {
+          titulo: "Información y Novedades",
+          botones: [
+            { texto: "Agenda Cultural y Turística", action: "agenda_cultural" },
+            { texto: "Últimas Novedades", action: "ver_novedades" },
+          ]
+        }
       ],
     };
   };
@@ -159,7 +179,7 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicOp
       return;
     }
 
-    if (action === 'show_main_menu') {
+    if (action === 'show_main_menu' || action === 'menu_principal') {
       const user = JSON.parse(safeLocalStorage.getItem('user') || 'null');
       const welcomeMessage = generateWelcomeMessage(user);
       setMessages(prev => [...prev, welcomeMessage]);
