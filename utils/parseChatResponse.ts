@@ -5,6 +5,7 @@ export interface Boton {
   url?: string;
   accion_interna?: string;
   action?: string;
+  action_id?: string;
 }
 
 export interface ChatApiResponse {
@@ -57,6 +58,7 @@ export function parseChatResponse(data: ChatApiResponse): {
   botones = botones.map((b) => ({
     ...b,
     action: b.action ?? b.accion_interna,
+    url: b.url ?? b.action_id,
   }));
 
   // Validar y limpiar attachmentInfo si es necesario
