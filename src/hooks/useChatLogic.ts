@@ -214,6 +214,7 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicOp
         const finalContext = updateMunicipioContext(updatedContext, { llmResponse: data });
         setContexto(finalContext);
         
+        const isErrorResponse = !data.respuesta_usuario;
         const botMessage: Message = {
           id: generateClientMessageId(),
           text: data.respuesta_usuario || "⚠️ No se pudo generar una respuesta.",
@@ -223,6 +224,7 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicOp
           mediaUrl: data.media_url,
           locationData: data.location_data,
           attachmentInfo: data.attachment_info,
+          isError: isErrorResponse,
         };
         setMessages(prev => [...prev, botMessage]);
 
@@ -234,7 +236,7 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicOp
       }
     } catch (error: any) {
       const errorMsg = getErrorMessage(error, '⚠️ No se pudo conectar con el servidor.');
-      setMessages(prev => [...prev, { id: generateClientMessageId(), text: errorMsg, isBot: true, timestamp: new Date() }]);
+      setMessages(prev => [...prev, { id: generateClientMessageId(), text: errorMsg, isBot: true, timestamp: new Date(), isError: true }]);
     } finally {
       setIsTyping(false);
     }

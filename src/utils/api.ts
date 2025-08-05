@@ -130,13 +130,26 @@ export async function apiFetch<T>(
 /**
  * Extrae un mensaje amigable de error para mostrar en la interfaz.
  */
-export function getErrorMessage(error: unknown, fallback = "Error") {
+export function getErrorMessage(error: unknown, fallback = "Ocurrió un error inesperado.") {
   if (error instanceof ApiError) {
-    if (error.status === 403) return "Acceso prohibido";
-    if (error.status === 404) return "No encontrado";
-    return error.message;
+    switch (error.status) {
+      case 400:
+        return "Hubo un problema con la solicitud. Por favor, verifica los datos enviados.";
+      case 401:
+        return "No estás autorizado para realizar esta acción. Por favor, inicia sesión de nuevo.";
+      case 403:
+        return "No tienes permiso para acceder a este recurso.";
+      case 404:
+        return "No se pudo encontrar el recurso solicitado (Error 404).";
+      case 500:
+        return "Ocurrió un error en el servidor. Por favor, intenta de nuevo más tarde.";
+      default:
+        // Usa el mensaje de la API si está disponible, si no, un genérico con el status.
+        return error.message || `Ocurrió un error (código: ${error.status})`;
+    }
   }
   if (error && typeof (error as any).message === "string") {
+    // Para errores que no son de la API pero tienen un mensaje (ej. errores de red)
     return (error as any).message;
   }
   return fallback;
