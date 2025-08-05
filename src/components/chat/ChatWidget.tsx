@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
 import { cn } from "@/lib/utils";
@@ -38,9 +38,6 @@ const PROACTIVE_MESSAGES = [
   "Explora nuestros servicios, ¡te ayudo!",
 ];
 
-let proactiveMessageTimeout: NodeJS.Timeout | null = null;
-let hideProactiveBubbleTimeout: NodeJS.Timeout | null = null;
-
 const ChatWidget: React.FC<ChatWidgetProps> = ({
   mode = "standalone",
   defaultOpen = false,
@@ -56,6 +53,9 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   initialPosition = { bottom: 32, right: 32 },
   ctaMessage,
 }) => {
+  const proactiveMessageTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const hideProactiveBubbleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   const [isOpen, setIsOpen] = useState(() => {
     if (mode !== 'standalone' && typeof defaultOpen === 'string') {
       return defaultOpen === 'true';
@@ -163,32 +163,32 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     sendStateMessageToParent(isOpen);
     if (isOpen) {
       setShowProactiveBubble(false);
-      if (proactiveMessageTimeout) clearTimeout(proactiveMessageTimeout);
-      if (hideProactiveBubbleTimeout) clearTimeout(hideProactiveBubbleTimeout);
+      if (proactiveMessageTimeoutRef.current) clearTimeout(proactiveMessageTimeoutRef.current);
+      if (hideProactiveBubbleTimeoutRef.current) clearTimeout(hideProactiveBubbleTimeoutRef.current);
     }
   }, [isOpen, sendStateMessageToParent]);
 
   useEffect(() => {
     if (isOpen || mode === 'standalone') {
-      if (proactiveMessageTimeout) clearTimeout(proactiveMessageTimeout);
-      if (hideProactiveBubbleTimeout) clearTimeout(hideProactiveBubbleTimeout);
+      if (proactiveMessageTimeoutRef.current) clearTimeout(proactiveMessageTimeoutRef.current);
+      if (hideProactiveBubbleTimeoutRef.current) clearTimeout(hideProactiveBubbleTimeoutRef.current);
       setShowProactiveBubble(false);
       return;
     }
-    if (proactiveMessageTimeout) clearTimeout(proactiveMessageTimeout);
-    if (hideProactiveBubbleTimeout) clearTimeout(hideProactiveBubbleTimeout);
+    if (proactiveMessageTimeoutRef.current) clearTimeout(proactiveMessageTimeoutRef.current);
+    if (hideProactiveBubbleTimeoutRef.current) clearTimeout(hideProactiveBubbleTimeoutRef.current);
 
     const alreadyShownProactive = safeLocalStorage.getItem("proactive_bubble_session_shown") === "1";
     if (alreadyShownProactive) return;
 
-    proactiveMessageTimeout = setTimeout(() => {
+    proactiveMessageTimeoutRef.current = setTimeout(() => {
       const nextMessage = PROACTIVE_MESSAGES[proactiveCycle % PROACTIVE_MESSAGES.length];
       setProactiveMessage(nextMessage);
       setShowProactiveBubble(true);
       if (!muted) playProactiveSound();
       safeLocalStorage.setItem("proactive_bubble_session_shown", "1");
 
-      hideProactiveBubbleTimeout = setTimeout(() => {
+      hideProactiveBubbleTimeoutRef.current = setTimeout(() => {
         setShowProactiveBubble(false);
         setProactiveCycle(prev => prev + 1);
       }, 7000);
@@ -196,8 +196,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     }, 10000);
 
     return () => {
-      if (proactiveMessageTimeout) clearTimeout(proactiveMessageTimeout);
-      if (hideProactiveBubbleTimeout) clearTimeout(hideProactiveBubbleTimeout);
+      if (proactiveMessageTimeoutRef.current) clearTimeout(proactiveMessageTimeoutRef.current);
+      if (hideProactiveBubbleTimeoutRef.current) clearTimeout(hideProactiveBubbleTimeoutRef.current);
     };
   }, [isOpen, muted, proactiveCycle, mode]);
 
@@ -230,8 +230,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       }
       if (nextIsOpen) { // If opening chat
         setShowProactiveBubble(false); // Hide proactive bubble
-        if (proactiveMessageTimeout) clearTimeout(proactiveMessageTimeout);
-        if (hideProactiveBubbleTimeout) clearTimeout(hideProactiveBubbleTimeout);
+        if (proactiveMessageTimeoutRef.current) clearTimeout(proactiveMessageTimeoutRef.current);
+        if (hideProactiveBubbleTimeoutRef.current) clearTimeout(hideProactiveBubbleTimeoutRef.current);
       }
       return nextIsOpen;
     });
