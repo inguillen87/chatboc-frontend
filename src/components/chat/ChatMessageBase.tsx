@@ -200,7 +200,15 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
       <div className={`flex items-end gap-2 ${isBot ? "" : "flex-row-reverse"}`}>
         {isBot && <AvatarBot isTyping={isTyping} />}
 
-        <MessageBubble className={cn(bubbleBaseClass, bubbleStyleClass)}>
+        <MessageBubble className={cn(bubbleBaseClass, bubbleStyleClass, message.isError && "bg-destructive/20 border border-destructive/50")}>
+          {/* Icono de error */}
+          {message.isError && (
+            <div className="flex items-center gap-2 mb-2 text-destructive">
+              <UserIcon size={16} className="text-destructive" />
+              <span className="font-semibold">Error</span>
+            </div>
+          )}
+
           {/* Prioridad al texto si no hay otros contenidos especiales */}
           {(!showAttachmentOrMap && !showStructuredContent && sanitizedHtml) && (
             <span
