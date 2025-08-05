@@ -101,13 +101,22 @@ const DetailsPanel: React.FC = () => {
   const userEmail = ticket.email_usuario || ticket.email || ticket.user?.email_usuario || ticket.user?.email;
   const userPhone = ticket.telefono || ticket.user?.phone;
 
-  const formatCategory = (ticket: any) => {
-    if (!ticket.categoria) return 'No informada';
-    let base = `Reclamo por ${ticket.categoria}`;
-    if (ticket.direccion) {
-      base += ` en ${ticket.direccion}`;
+  const formatCategory = (t: typeof ticket) => {
+    if (!t?.categoria) return 'No informada';
+    let base = `Reclamo por ${t.categoria}`;
+    if (t.direccion) {
+      base += ` en ${t.direccion}`;
     }
     return base;
+  };
+
+  const formatDate = (dateString: string | undefined) => {
+    if (!dateString) return 'No informado';
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) {
+      return 'Fecha inválida';
+    }
+    return date.toLocaleString();
   };
 
   const getCustomerInfoText = () => {
@@ -282,7 +291,7 @@ const DetailsPanel: React.FC = () => {
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">Creado:</span>
-                <span>{new Date(ticket.fecha).toLocaleString() || 'No informado'}</span>
+                <span>{formatDate(ticket.fecha)}</span>
               </div>
               <div className="space-y-1">
                  <span className="text-muted-foreground">Categoría:</span>
