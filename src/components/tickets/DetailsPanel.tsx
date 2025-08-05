@@ -36,7 +36,29 @@ const DetailsPanel: React.FC = () => {
     );
   }
 
-  const userName = ticket.nombre_usuario || ticket.user?.nombre_usuario || 'Usuario Desconocido';
+  const extractUserNameFromSubject = (subject: string) => {
+    if (!subject) return null;
+
+    const patterns = [
+      /Solicitud de Chat en Vivo por:\s*(.*)/i,
+      /Reclamo \(LLM\):\s*(.*)/i,
+    ];
+
+    for (const pattern of patterns) {
+      const match = subject.match(pattern);
+      if (match && match[1]) {
+        return match[1].trim();
+      }
+    }
+
+    return null;
+  };
+
+  const userName =
+    ticket.nombre_usuario ||
+    ticket.user?.nombre_usuario ||
+    extractUserNameFromSubject(ticket.asunto) ||
+    'Usuario Desconocido';
 
   const hasLocation = ticket.direccion || (ticket.latitud && ticket.longitud);
 
