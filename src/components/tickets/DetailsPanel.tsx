@@ -137,7 +137,7 @@ const DetailsPanel: React.FC = () => {
         className="w-full border-l border-border flex flex-col h-screen bg-muted/20 shrink-0"
     >
       <header className="p-4 border-b border-border flex items-center justify-between">
-        <h3 className="font-semibold">Detalles del Cliente</h3>
+        <h3 className="font-semibold">Detalles del Ticket</h3>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm">
@@ -152,189 +152,106 @@ const DetailsPanel: React.FC = () => {
         </DropdownMenu>
       </header>
       <ScrollArea className="flex-1">
-        <div className="p-6 space-y-6">
-          {/* User Details */}
+        <div className="p-4 space-y-4">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between p-4">
-              <div className="flex items-center gap-4">
-                <Avatar className="h-16 w-16">
-                  <AvatarImage src={ticket.avatarUrl || ticket.user?.avatarUrl} alt={userName} />
-                  <AvatarFallback>{getInitials(userName)}</AvatarFallback>
-                </Avatar>
-                <div>
-                  <h2 className="text-xl font-bold">{userName}</h2>
-                  <p className="text-sm text-muted-foreground">{ticket.tipo === 'municipio' ? 'Vecino/a' : 'Cliente'}</p>
-                  {ticket.estado_cliente && <Badge variant="secondary" className="mt-1">{ticket.estado_cliente}</Badge>}
-                </div>
+            <CardHeader className="flex flex-row items-center gap-4 p-4">
+              <Avatar className="h-14 w-14">
+                <AvatarImage src={ticket.avatarUrl || ticket.user?.avatarUrl} alt={userName} />
+                <AvatarFallback>{getInitials(userName)}</AvatarFallback>
+              </Avatar>
+              <div>
+                <h2 className="text-lg font-bold">{userName}</h2>
+                <p className="text-sm text-muted-foreground">{ticket.tipo === 'municipio' ? 'Vecino/a' : 'Cliente'}</p>
               </div>
-              <Button variant="ghost" size="icon" onClick={() => copyToClipboard(getCustomerInfoText(), 'Datos del cliente')}>
-                <Copy className="h-5 w-5" />
-              </Button>
             </CardHeader>
-            <CardContent className="p-4 space-y-4 text-sm">
-              {userEmail ? (
-                <div className="flex items-start gap-3">
-                  <Mail className="h-4 w-4 mt-0.5 text-muted-foreground" />
-                  <a href={`mailto:${userEmail}`} className="hover:underline">{userEmail}</a>
-                </div>
-              ) : (
-                <div className="flex items-start gap-3">
-                  <Mail className="h-4 w-4 mt-0.5 text-muted-foreground" />
-                  <span>No informado</span>
-                </div>
-              )}
-              {userPhone ? (
-                <div className="flex items-start gap-3">
-                  <Phone className="h-4 w-4 mt-0.5 text-muted-foreground" />
-                  <div className="flex items-center justify-between w-full">
-                    <span>{userPhone}</span>
-                    <Button variant="ghost" size="icon" onClick={openWhatsApp}>
-                      <FaWhatsapp className="h-5 w-5 text-green-500" />
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-start gap-3">
-                  <Phone className="h-4 w-4 mt-0.5 text-muted-foreground" />
-                  <span>No informado</span>
-                </div>
-              )}
-              {ticket.dni && (
-                <div className="flex items-start gap-3">
-                  <Info className="h-4 w-4 mt-0.5 text-muted-foreground" />
-                  <span>DNI: {ticket.dni}</span>
-                </div>
-              )}
+            <CardContent className="p-4 space-y-3 text-sm border-t">
+               <h4 className="font-semibold mb-2">Información de Contacto</h4>
+                {userEmail && (
+                    <div className="flex items-center gap-3">
+                        <Mail className="h-4 w-4 text-muted-foreground" />
+                        <a href={`mailto:${userEmail}`} className="hover:underline">{userEmail}</a>
+                    </div>
+                )}
+                {userPhone && (
+                    <div className="flex items-center gap-3">
+                        <Phone className="h-4 w-4 text-muted-foreground" />
+                        <span>{userPhone}</span>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={openWhatsApp}>
+                            <FaWhatsapp className="h-4 w-4 text-green-500" />
+                        </Button>
+                    </div>
+                )}
+                 {ticket.dni && (
+                    <div className="flex items-center gap-3">
+                        <Info className="h-4 w-4 text-muted-foreground" />
+                        <span>DNI: {ticket.dni}</span>
+                    </div>
+                )}
             </CardContent>
-          </Card>
 
-          {/* Address */}
-          {ticket.direccion && (
-            <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center justify-between text-base">
-                        <div className="flex items-center gap-2">
-                            <MapPin className="h-5 w-5" />
-                            Dirección
-                        </div>
-                        <Button variant="ghost" size="icon" onClick={openGoogleMaps}>
+            <CardContent className="p-4 space-y-3 text-sm border-t">
+                <h4 className="font-semibold mb-2">Detalles del Ticket</h4>
+                <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">ID:</span>
+                    <span className="font-mono text-xs">{ticket.nro_ticket || 'N/A'}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Estado:</span>
+                    <Badge variant="outline" className="capitalize">{ticket.estado || 'N/A'}</Badge>
+                </div>
+                <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Canal:</span>
+                    <span className="capitalize">{ticket.channel || 'N/A'}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Creado:</span>
+                    <span>{formatDate(ticket.fecha)}</span>
+                </div>
+                 <div className="space-y-1">
+                    <span className="text-muted-foreground">Categoría:</span>
+                    <p className="font-medium">{ticket.categoria || 'No informada'}</p>
+                </div>
+                {ticket.description && (
+                    <div className="space-y-1">
+                        <span className="text-muted-foreground">Descripción:</span>
+                        <p className={cn("text-sm", !isDescriptionExpanded && "line-clamp-3")}>
+                            {ticket.description}
+                        </p>
+                        {ticket.description.length > 150 && (
+                            <Button variant="link" className="p-0 h-auto text-xs" onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}>
+                                {isDescriptionExpanded ? 'Ver menos' : 'Ver más'}
+                            </Button>
+                        )}
+                    </div>
+                )}
+            </CardContent>
+
+            {hasLocation && (
+                <CardContent className="p-4 border-t">
+                    <h4 className="font-semibold mb-2 flex items-center justify-between">
+                        Ubicación
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={openGoogleMaps}>
                             <ExternalLink className="h-4 w-4" />
                         </Button>
-                    </CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <p className="text-lg font-semibold text-primary">{ticket.direccion}</p>
-                </CardContent>
-            </Card>
-          )}
-
-          {/* Ticket Description */}
-          {ticket.description && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span>Descripción del Reclamo</span>
-                  <Button variant="ghost" size="icon" onClick={() => copyToClipboard(ticket.description || '', 'Descripción')}>
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-sm text-muted-foreground space-y-2">
-                  <p className={cn(!isDescriptionExpanded && "line-clamp-4")}>
-                    {ticket.description}
-                  </p>
-                  {ticket.description.length > 200 && (
-                     <Button variant="link" className="p-0 h-auto" onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}>
-                      {isDescriptionExpanded ? 'Ver menos' : 'Ver más'}
-                    </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Location Map */}
-          {hasLocation && !ticket.direccion && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  Ubicación
-                  <Button variant="ghost" size="icon" onClick={openGoogleMaps}>
-                    <ExternalLink className="h-4 w-4" />
-                  </Button>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <TicketMap ticket={ticket} />
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Ticket Info */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><TicketIcon className="h-5 w-5" /> Info del Ticket</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">ID:</span>
-                <span className="font-mono">{ticket.nro_ticket || 'No informado'}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Canal:</span>
-                <span className="capitalize">{ticket.channel || 'No informado'}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Estado:</span>
-                <Badge variant="outline" className="capitalize">{ticket.estado || 'No informado'}</Badge>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Creado:</span>
-                <span>{formatDate(ticket.fecha)}</span>
-              </div>
-              <div className="space-y-1">
-                 <span className="text-muted-foreground">Categoría:</span>
-                 <p className="font-semibold">{formatCategory(ticket)}</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Assigned Agent */}
-          {ticket.assignedAgent && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <UserCheck className="h-5 w-5" />
-                  <span>Agente Asignado</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3 text-sm">
-                 <div className="flex items-start gap-3">
-                    <User className="h-4 w-4 mt-0.5 text-muted-foreground" />
-                    <span>{ticket.assignedAgent.nombre_usuario}</span>
-                 </div>
-                {ticket.assignedAgent.email && (
-                  <div className="flex items-start gap-3">
-                    <Mail className="h-4 w-4 mt-0.5 text-muted-foreground" />
-                    <a href={`mailto:${ticket.assignedAgent.email}`} className="hover:underline">{ticket.assignedAgent.email}</a>
-                  </div>
-                )}
-                {ticket.assignedAgent.phone && (
-                  <div className="flex items-start gap-3">
-                    <Phone className="h-4 w-4 mt-0.5 text-muted-foreground" />
-                    <div className="flex items-center justify-between w-full">
-                      <span>{ticket.assignedAgent.phone}</span>
-                       <Button variant="ghost" size="icon" onClick={() => window.open(`https://wa.me/${ticket.assignedAgent?.phone?.replace(/\D/g, '')}`, '_blank')}>
-                        <FaWhatsapp className="h-5 w-5 text-green-500" />
-                      </Button>
+                    </h4>
+                    {ticket.direccion && <p className="text-sm font-medium mb-2 text-primary">{ticket.direccion}</p>}
+                    <div className="aspect-video rounded-md overflow-hidden">
+                        <TicketMap ticket={ticket} />
                     </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
+                </CardContent>
+            )}
 
+            {ticket.assignedAgent && (
+                <CardContent className="p-4 border-t">
+                    <h4 className="font-semibold mb-2">Agente Asignado</h4>
+                     <div className="flex items-center gap-3">
+                        <User className="h-4 w-4 text-muted-foreground" />
+                        <span>{ticket.assignedAgent.nombre_usuario}</span>
+                     </div>
+                </CardContent>
+            )}
+
+          </Card>
         </div>
       </ScrollArea>
     </motion.aside>
