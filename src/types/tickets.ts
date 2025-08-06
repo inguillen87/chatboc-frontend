@@ -55,6 +55,8 @@ export interface Ticket {
   fecha: string; // ISO format
   categoria?: string;
   direccion?: string;
+  distrito?: string;
+  esquinas_cercanas?: string;
   latitud?: number;
   longitud?: number;
   avatarUrl?: string;

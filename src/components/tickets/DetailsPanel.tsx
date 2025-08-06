@@ -235,7 +235,19 @@ const DetailsPanel: React.FC = () => {
                         </Button>
                     </h4>
                     {ticket.direccion && <p className="text-sm font-medium mb-2 text-primary">{ticket.direccion}</p>}
-                    <div className="aspect-video rounded-md overflow-hidden">
+                    {ticket.distrito && (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Building className="h-4 w-4" />
+                            <span>Distrito: {ticket.distrito}</span>
+                        </div>
+                    )}
+                    {ticket.esquinas_cercanas && (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Hash className="h-4 w-4" />
+                            <span>Esquinas: {ticket.esquinas_cercanas}</span>
+                        </div>
+                    )}
+                    <div className="aspect-video rounded-md overflow-hidden mt-2">
                         <TicketMap ticket={ticket} />
                     </div>
                 </CardContent>
