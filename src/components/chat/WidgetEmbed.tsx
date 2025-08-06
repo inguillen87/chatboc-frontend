@@ -1,11 +1,26 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { safeLocalStorage } from "@/utils/safeLocalStorage";
 
 const WidgetEmbed = ({ token }: { token: string }) => {
-  const embedCode = `<script>(function(){var s=document.createElement('script');s.src='https://www.chatboc.ar/widget.js';s.async=true;s.setAttribute('data-token','${token}');document.head.appendChild(s);})();</script>`;
+  const [tipoChat, setTipoChat] = useState('pyme');
+
+  useEffect(() => {
+    try {
+      const storedUser = safeLocalStorage.getItem("user");
+      const user = storedUser ? JSON.parse(storedUser) : null;
+      if (user && user.tipo_chat === 'municipio') {
+        setTipoChat('municipio');
+      }
+    } catch (e) {
+      console.error("Could not determine user type for widget, defaulting to pyme.", e);
+    }
+  }, []);
+
+  const embedCode = `<script>(function(){var s=document.createElement('script');s.src='https://www.chatboc.ar/widget.js';s.async=true;s.setAttribute('data-token','${token}');s.setAttribute('data-endpoint','${tipoChat}');document.head.appendChild(s);})();</script>`;
 
   const copiar = () => {
     navigator.clipboard.writeText(embedCode)
