@@ -151,15 +151,25 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicOp
         text: "Elegí una opción para tu reclamo:",
         isBot: true,
         timestamp: new Date(),
-        botones: [
-          { texto: "Luminaria", action: "hacer_reclamo", payload: { categoria: 'Luminaria' } },
-          { texto: "Arbolado", action: "hacer_reclamo", payload: { categoria: 'Arbolado' } },
-          { texto: "Limpieza y riego", action: "hacer_reclamo", payload: { categoria: 'Limpieza y riego' } },
-          { texto: "Arreglo de calle", action: "hacer_reclamo", payload: { categoria: 'Arreglo de calle' } },
-          { texto: "Pérdida de agua", action: "perdida_de_agua" },
-          { texto: "Otros", action: "hacer_reclamo", payload: { categoria: 'Otros' } },
-          { texto: "Volver al menú principal", action: "show_main_menu" },
-        ],
+        categorias: [
+          {
+            titulo: "Tipos de Reclamo",
+            botones: [
+              { texto: "Luminaria", action: "hacer_reclamo", payload: { categoria: 'Luminaria' } },
+              { texto: "Arbolado", action: "hacer_reclamo", payload: { categoria: 'Arbolado' } },
+              { texto: "Limpieza y riego", action: "hacer_reclamo", payload: { categoria: 'Limpieza y riego' } },
+              { texto: "Arreglo de calle", action: "hacer_reclamo", payload: { categoria: 'Arreglo de calle' } },
+              { texto: "Pérdida de agua", action: "perdida_de_agua" },
+              { texto: "Otros", action: "hacer_reclamo", payload: { categoria: 'Otros' } },
+            ],
+          },
+          {
+            titulo: "Navegación",
+            botones: [
+              { texto: "Volver al menú principal", action: "menu_principal" },
+            ]
+          }
+        ]
       };
       setMessages(prev => [...prev, reclamosMessage]);
       return;

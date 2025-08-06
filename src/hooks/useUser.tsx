@@ -74,7 +74,12 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     safeLocalStorage.setItem('user', JSON.stringify(updated));
     setUser(updated);
     } catch (e) {
-      console.error('Error fetching user profile', e);
+      console.error('Error fetching user profile, logging out.', e);
+      // If fetching the user fails, the token is likely invalid or expired.
+      // Clear the user data and token to force a re-login.
+      safeLocalStorage.removeItem('user');
+      safeLocalStorage.removeItem('authToken');
+      setUser(null);
     } finally {
       setLoading(false);
     }
