@@ -271,11 +271,14 @@ export default function PedidosPage() {
           return acc;
         }, {});
         setCategorizedPedidos(categorized);
+        // Move this line inside the if-block to ensure 'categorized' is defined
+        setOpenCategories(new Set(Object.keys(categorized).filter((e) => !['satisfecho', 'cancelado'].includes(e))));
       } else {
         console.error('Error: La respuesta de la API de pedidos no es un array', data);
         setCategorizedPedidos({});
+        // Also handle the 'else' case by setting open categories to empty
+        setOpenCategories(new Set());
       }
-      setOpenCategories(new Set(Object.keys(categorized).filter((e) => !['satisfecho', 'cancelado'].includes(e))));
     } catch (err) {
       console.error('Error fetching pedidos:', err);
       setError(getErrorMessage(err, 'Error al cargar los pedidos.'));
