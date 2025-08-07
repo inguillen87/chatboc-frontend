@@ -37,7 +37,8 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
     ].map(normalize);
 
     const handleButtonClick = (boton: Boton) => {
-        const normalizedAction = boton.action ? normalize(boton.action) : null;
+        const actionToUse = boton.action || boton.action_id;
+        const normalizedAction = actionToUse ? normalize(actionToUse) : null;
         const normalizedAccionInterna = boton.accion_interna ? normalize(boton.accion_interna) : null;
 
         // Priority 1: Handle internal auth actions (login/register) first and exclusively.

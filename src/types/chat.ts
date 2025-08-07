@@ -11,6 +11,7 @@ export interface Boton {
   url?: string;
   accion_interna?: string; // Para acciones que el frontend debe interpretar sin enviar al backend (ej. abrir panel)
   action?: string; // Valor que se envía al backend cuando se hace clic en el botón
+  action_id?: string; // Compatibilidad con 'action_id' enviado desde algunos endpoints del backend
 }
 
 // Nuevo: Define la estructura para una categoría de botones
