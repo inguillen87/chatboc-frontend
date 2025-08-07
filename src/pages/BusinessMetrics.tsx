@@ -1,14 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react"
-import { apiFetch, ApiError } from '@/utils/api'
-import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardContent,
-} from '@/components/ui/card'
-import { Skeleton } from '@/components/ui/skeleton'
-import { ChartContainer } from '@/components/ui/chart'
+import React, { useEffect, useState, useCallback, FC } from "react";
 import {
   BarChart,
   Bar,
@@ -17,160 +7,274 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
-} from 'recharts';
+  LineChart,
+  Line,
+  CartesianGrid,
+  PieChart,
+  Pie,
+  Cell,
+} from "recharts";
 import {
-  MessageSquare,
-  ShoppingCart,
-  TrendingUp,
-  Star,
+  AlertCircle,
   ArrowUp,
   ArrowDown,
   Minus,
-} from 'lucide-react'
-import { cn } from "@/lib/utils"
+  DollarSign,
+  ShoppingCart,
+  Users,
+  Package,
+  MapPin,
+  BrainCircuit,
+} from "lucide-react";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { apiFetch, ApiError } from "@/utils/api";
 
-interface Trend {
-  change_absolute?: number;
-  change_percentage?: number;
-  direction: 'up' | 'down' | 'neutral';
-  period_comparison?: string;
-}
-interface Metric {
-  label: string;
+// --- MOCK DATA & TYPES (as per backend spec) ---
+
+interface Kpi {
   value: number;
-  trend?: Trend;
+  trend: number;
 }
+
+interface KpiData {
+  total_sales: Kpi;
+  total_orders: Kpi;
+  new_customers: Kpi;
+  avg_order_value: Kpi;
+}
+
+interface SalesDataPoint {
+  date: string;
+  sales: number;
+}
+
+interface TopProduct {
+  rank: number;
+  name: string;
+  units_sold: number;
+  revenue: number;
+}
+
+interface RegionSale {
+  region_code: string;
+  region_name: string;
+  sales: number;
+}
+
+// --- UI Components ---
+
+const TrendIndicator: FC<{ trend: number }> = ({ trend }) => {
+  const Icon = trend > 0 ? ArrowUp : trend < 0 ? ArrowDown : Minus;
+  const color = trend > 0 ? "text-green-500" : trend < 0 ? "text-red-500" : "text-gray-500";
+  return (
+    <span className={cn("flex items-center text-sm font-semibold", color)}>
+      <Icon className="h-4 w-4 mr-1" />
+      {Math.abs(trend * 100).toFixed(0)}%
+    </span>
+  );
+};
+
+const KpiCard: FC<{ title: string; data: Kpi; icon: React.ReactNode; formatAsCurrency?: boolean }> = ({ title, data, icon, formatAsCurrency = false }) => (
+  <Card>
+    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+      <CardTitle className="text-sm font-medium">{title}</CardTitle>
+      {icon}
+    </CardHeader>
+    <CardContent>
+      <div className="text-2xl font-bold">
+        {formatAsCurrency ? `$${data.value.toLocaleString('es-AR')}` : data.value.toLocaleString('es-AR')}
+      </div>
+      <div className="text-xs text-muted-foreground flex items-center">
+        <TrendIndicator trend={data.trend} />
+        <span className="ml-2">vs. mes anterior</span>
+      </div>
+    </CardContent>
+  </Card>
+);
+
+const SalesChart: FC<{ data: SalesDataPoint[] }> = ({ data }) => (
+    <Card className="col-span-1 md:col-span-2 lg:col-span-3">
+        <CardHeader>
+            <CardTitle>Ventas en el Tiempo (Últimos 30 días)</CardTitle>
+        </CardHeader>
+        <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={data}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                    <YAxis tickFormatter={(value) => `$${Number(value) / 1000}k`} />
+                    <Tooltip formatter={(value) => [`$${Number(value).toLocaleString('es-AR')}`, "Ventas"]} />
+                    <Legend />
+                    <Line type="monotone" dataKey="sales" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
+                </LineChart>
+            </ResponsiveContainer>
+        </CardContent>
+    </Card>
+);
+
+const TopProductsList: FC<{ products: TopProduct[] }> = ({ products }) => (
+  <Card className="col-span-1 md:col-span-2 lg:col-span-2">
+    <CardHeader>
+      <CardTitle>Top 5 Productos por Ingresos</CardTitle>
+    </CardHeader>
+    <CardContent>
+      <ul className="space-y-4">
+        {products.map((p) => (
+          <li key={p.rank} className="flex items-center">
+            <div className="text-lg font-bold text-primary w-6">{p.rank}</div>
+            <div className="flex-1 ml-4">
+              <p className="font-semibold">{p.name}</p>
+              <p className="text-sm text-muted-foreground">{p.units_sold} unidades vendidas</p>
+            </div>
+            <div className="text-right font-semibold">
+              ${p.revenue.toLocaleString('es-AR')}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </CardContent>
+  </Card>
+);
+
+const RegionChart: FC<{ data: RegionSale[] }> = ({ data }) => {
+    const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#AF19FF'];
+    return(
+        <Card className="col-span-1 md:col-span-2 lg:col-span-1">
+            <CardHeader>
+                <CardTitle>Ventas por Región</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <ResponsiveContainer width="100%" height={250}>
+                    <PieChart>
+                        <Pie data={data} dataKey="sales" nameKey="region_name" cx="50%" cy="50%" outerRadius={80} label>
+                            {data.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                        </Pie>
+                        <Tooltip formatter={(value) => `$${Number(value).toLocaleString('es-AR')}`} />
+                        <Legend />
+                    </PieChart>
+                </ResponsiveContainer>
+            </CardContent>
+        </Card>
+    )
+};
+
+const MetricsSummary: FC<{ summary: string }> = ({ summary }) => (
+    <Card className="col-span-1 md:col-span-2 lg:col-span-4 bg-primary/10 border-primary/30">
+        <CardHeader className="flex flex-row items-center space-x-4 pb-2">
+            <BrainCircuit className="w-8 h-8 text-primary"/>
+            <CardTitle className="text-xl text-primary">Resumen Inteligente</CardTitle>
+        </CardHeader>
+        <CardContent>
+            <p className="text-primary/90">{summary}</p>
+        </CardContent>
+    </Card>
+);
+
+// --- Main Page Component ---
 
 export default function BusinessMetrics() {
-  const [metrics, setMetrics] = useState<Metric[]>([]);
+  const [kpis, setKpis] = useState<KpiData | null>(null);
+  const [sales, setSales] = useState<SalesDataPoint[] | null>(null);
+  const [topProducts, setTopProducts] = useState<TopProduct[] | null>(null);
+  const [regions, setRegions] = useState<RegionSale[] | null>(null);
+  const [summary, setSummary] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
-    Consultas: MessageSquare,
-    'Productos en carrito': ShoppingCart,
-    'Producto más consultado': Star,
-    // Add more icons as needed for new metric labels
-  }
-
-  const TREND_ICONS: Record<Trend['direction'], React.ComponentType<{ className?: string }>> = {
-    up: ArrowUp,
-    down: ArrowDown,
-    neutral: Minus,
-  }
-
-  const TREND_COLORS: Record<Trend['direction'], string> = {
-    up: 'text-green-600 dark:text-green-400',
-    down: 'text-red-600 dark:text-red-400',
-    neutral: 'text-gray-600 dark:text-gray-400',
-  }
-
-
-  const fetchMetrics = useCallback(() => {
+  const fetchAllMetrics = useCallback(async () => {
     setLoading(true);
     setError(null);
-    apiFetch<Metric[]>('/pyme/metrics')
-      .then((data) => {
-        // Ensure trend data is at least an empty object if not provided
-        const processedData = data.map(m => ({ ...m, trend: m.trend || undefined }));
-        setMetrics(processedData);
+    try {
+      const [
+        summaryRes,
+        kpisRes,
+        salesRes,
+        topProductsRes,
+        regionSalesRes
+      ] = await Promise.all([
+        apiFetch<{ summary: string }>('/api/metrics/summary'),
+        apiFetch<KpiData>('/api/metrics/kpis'),
+        apiFetch<{ data: SalesDataPoint[] }>('/api/metrics/sales-over-time?period=30d'),
+        apiFetch<{ products: TopProduct[] }>('/api/metrics/top-products?limit=5'),
+        apiFetch<{ regions: RegionSale[] }>('/api/metrics/sales-by-region')
+      ]);
+
+      setSummary(summaryRes.summary);
+      setKpis(kpisRes);
+      setSales(salesRes.data);
+      setTopProducts(topProductsRes.products);
+      setRegions(regionSalesRes.regions);
+
+    } catch (err) {
+        setError(getErrorMessage(err, "No se pudieron cargar todas las métricas. El backend puede no estar completamente implementado."));
+    } finally {
         setLoading(false);
-      })
-      .catch((err: any) => {
-        const message = err instanceof ApiError ? err.message : 'Error al cargar métricas.';
-        setError(message);
-        setLoading(false);
-      });
+    }
   }, []);
 
   useEffect(() => {
-    fetchMetrics();
-  }, [fetchMetrics]);
+    fetchAllMetrics();
+  }, [fetchAllMetrics]);
 
-  if (loading)
+  if (loading) {
     return (
-      <div className="p-4 max-w-4xl mx-auto space-y-6"> {/* Increased max-width for better layout */}
-        <h1 className="text-3xl font-extrabold text-primary mb-4">
-          Métricas del Negocio
-        </h1>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"> {/* Adjusted grid for lg */}
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-32 w-full rounded-xl" /> /* Increased skeleton height */
-          ))}
+        <div className="p-4 md:p-8 max-w-7xl mx-auto">
+             <h1 className="text-3xl font-extrabold text-primary mb-6">Métricas del Negocio</h1>
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <Skeleton className="h-32 col-span-full" />
+                <Skeleton className="h-32" />
+                <Skeleton className="h-32" />
+                <Skeleton className="h-32" />
+                <Skeleton className="h-32" />
+                <Skeleton className="h-80 col-span-full" />
+             </div>
         </div>
-      </div>
     )
-  if (error) return <p className="p-4 text-destructive text-center">Error: {error}</p>;
-  if (metrics.length === 0) return <p className="p-4 text-center text-muted-foreground">No hay métricas disponibles.</p>;
+  }
 
+  if (error) {
+    return (
+        <div className="p-4 text-center text-destructive">
+            <AlertCircle className="mx-auto h-12 w-12" />
+            <h2 className="mt-4 text-lg font-semibold">Error al cargar las métricas</h2>
+            <p>{error}</p>
+            <Button onClick={fetchAllMetrics} className="mt-4">Reintentar</Button>
+        </div>
+    )
+  }
 
   return (
-    <div className="p-4 max-w-4xl mx-auto space-y-6"> {/* Increased max-width */}
-      <h1 className="text-3xl font-extrabold text-primary mb-4">Métricas del Negocio</h1>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"> {/* Adjusted grid for lg */}
-        {metrics.map((m) => {
-          const Icon = ICONS[m.label] || TrendingUp;
-          const TrendIcon = m.trend ? TREND_ICONS[m.trend.direction] : Minus;
-          const trendColor = m.trend ? TREND_COLORS[m.trend.direction] : TREND_COLORS.neutral;
-
-          return (
-            <Card key={m.label} className="shadow-md flex flex-col"> {/* Added flex flex-col for better spacing */}
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">{m.label}</CardTitle>
-                <Icon className="w-5 h-5 text-muted-foreground" />
-              </CardHeader>
-              <CardContent className="flex-grow"> {/* Added flex-grow to push trend to bottom if needed */}
-                <div className="text-2xl font-bold">{m.value}</div>
-                {m.trend && (
-                  <div className={cn("text-xs flex items-center mt-1", trendColor)}>
-                    <TrendIcon className="w-4 h-4 mr-1" />
-                    {m.trend.change_percentage !== undefined
-                      ? `${(m.trend.change_percentage * 100).toFixed(1)}%`
-                      : m.trend.change_absolute !== undefined
-                      ? `${m.trend.change_absolute > 0 ? '+' : ''}${m.trend.change_absolute}`
-                      : ''
-                    }
-                    {m.trend.period_comparison && <span className="ml-1 text-muted-foreground">{m.trend.period_comparison}</span>}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )
-        })}
+    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6 bg-background">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <h1 className="text-3xl font-extrabold text-primary">
+          Métricas del Negocio
+        </h1>
+        <Button onClick={fetchAllMetrics} disabled={loading}>
+          {loading ? 'Actualizando...' : 'Actualizar Métricas'}
+        </Button>
       </div>
 
-      {/* Gráfico de Barras para las métricas */}
-      <Card className="shadow-lg">
-        <CardHeader>
-          <CardTitle className="text-xl">Visualización de Métricas</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="h-80"> {/* Increased chart height */}
-            <ChartContainer config={{}}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={metrics.map((m) => ({ name: m.label, value: typeof m.value === 'number' && !isNaN(m.value) ? m.value : 0 }))} margin={{ top: 5, right: 20, left: -20, bottom: 40 }}> {/* Adjusted margins */}
-                  <XAxis
-                    dataKey="name"
-                    angle={-30} // Angle labels to prevent overlap
-                    textAnchor="end"
-                    height={60} // Increase height for angled labels
-                    interval={0} // Show all labels
-                    tick={{ fontSize: 10 }} // Smaller font for ticks
-                  />
-                  <YAxis tick={{ fontSize: 12 }} />
-                  <Tooltip contentStyle={{ fontSize: 12 }} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="value" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} /> {/* Use theme color and radius */}
-                </BarChart>
-              </ResponsiveContainer>
-            </ChartContainer>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {summary && <MetricsSummary summary={summary} />}
 
-      <div className="text-center">
-        <Button onClick={fetchMetrics} className="mt-4">Actualizar Métricas</Button>
+        {kpis && (
+            <>
+                <KpiCard title="Ventas Totales" data={kpis.total_sales} icon={<DollarSign className="h-4 w-4 text-muted-foreground" />} formatAsCurrency />
+                <KpiCard title="Pedidos Totales" data={kpis.total_orders} icon={<ShoppingCart className="h-4 w-4 text-muted-foreground" />} />
+                <KpiCard title="Nuevos Clientes" data={kpis.new_customers} icon={<Users className="h-4 w-4 text-muted-foreground" />} />
+                <KpiCard title="Ticket Promedio" data={kpis.avg_order_value} icon={<Package className="h-4 w-4 text-muted-foreground" />} formatAsCurrency />
+            </>
+        )}
+
+        {sales && <SalesChart data={sales} />}
+
+        {topProducts && <TopProductsList products={topProducts} />}
+
+        {regions && <RegionChart data={regions} />}
+
       </div>
     </div>
   );
