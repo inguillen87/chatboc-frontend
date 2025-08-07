@@ -9,12 +9,22 @@ const API_URL = import.meta.env.VITE_API_URL || "/api";
 interface TicketsApiResponse { ok: boolean; tickets: Ticket[]; error?: string; }
 interface CommentsApiResponse { ok: boolean; comentarios: Comment[]; error?: string; }
 
-async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const token = safeLocalStorage.getItem("authToken");
+async function apiFetch<T>(endpoint:string, options: RequestInit = {}): Promise<T> {
+  const userToken = safeLocalStorage.getItem("authToken");
+  const entityToken = safeLocalStorage.getItem("entityToken");
+
   const headers: HeadersInit = { // Default headers
-    ...(token && { Authorization: `Bearer ${token}` }),
     ...options.headers,
   };
+
+  // Prioridad al token de autorización de usuario si existe.
+  if (userToken) {
+    headers["Authorization"] = `Bearer ${userToken}`;
+  }
+  // Añadir el token de la entidad si existe. Puede coexistir con el de usuario.
+  if (entityToken) {
+    headers["X-Entity-Token"] = entityToken;
+  }
 
   // No establecer Content-Type si el body es FormData, el navegador lo hará.
   if (!(options.body instanceof FormData)) {
@@ -65,23 +75,21 @@ async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise
 
 export const ticketService = {
   getTickets: (userId: number): Promise<TicketsApiResponse> =>
-    apiFetch(`/tickets/municipio?user_id=${userId}`, { headers: { 'X-Send-Entity-Token': 'true' } }), // sendEntityToken es un header custom
+    apiFetch(`/tickets/municipio?user_id=${userId}`),
     
   getComments: (ticketId: number, userId: number): Promise<CommentsApiResponse> =>
-    apiFetch(`/tickets/municipio/${ticketId}/comentarios?user_id=${userId}`, { headers: { 'X-Send-Entity-Token': 'true' } }),
+    apiFetch(`/tickets/municipio/${ticketId}/comentarios?user_id=${userId}`),
     
   postComment: (ticketId: number, userId: number, comentario: string): Promise<{ ok: boolean }> =>
     apiFetch(`/tickets/municipio/${ticketId}/comentarios`, {
       method: 'POST',
       body: JSON.stringify({ comentario, user_id: userId }),
-      headers: { 'X-Send-Entity-Token': 'true' },
     }),
     
   updateStatus: (ticketId: number, userId: number, estado: TicketStatus): Promise<{ ok: boolean }> =>
     apiFetch(`/tickets/municipio/${ticketId}/estado`, {
       method: 'PUT',
       body: JSON.stringify({ estado, user_id: userId }),
-      headers: { 'X-Send-Entity-Token': 'true' },
     }),
 };
 
