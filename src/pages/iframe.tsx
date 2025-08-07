@@ -20,9 +20,13 @@ if (!GOOGLE_CLIENT_ID) {
   );
 }
 
+import { apiFetch } from "@/services/apiService";
+
 const Iframe = () => {
   const [widgetParams, setWidgetParams] = useState<any | null>(null);
   const [entityToken, setEntityToken] = useState<string | null>(null);
+  const [tipoChat, setTipoChat] = useState<'pyme' | 'municipio' | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -39,6 +43,7 @@ const Iframe = () => {
       setEntityToken(currentToken);
     } else {
       console.warn('Chatboc Iframe: No se encontró token en la URL ni en localStorage.');
+      setIsLoading(false);
     }
 
     setWidgetParams({
@@ -49,15 +54,33 @@ const Iframe = () => {
       openHeight: urlParams.get("openHeight") || DEFAULTS.openHeight,
       closedWidth: urlParams.get("closedWidth") || DEFAULTS.closedWidth,
       closedHeight: urlParams.get("closedHeight") || DEFAULTS.closedHeight,
-      tipoChat: urlParams.get("tipo_chat") === "municipio" ? "municipio" : "pyme",
       ctaMessage: urlParams.get("ctaMessage") || undefined,
       rubro: urlParams.get("rubro") || undefined,
     });
   }, []);
 
-  // Renderiza el ChatWidget solo cuando el token y los parámetros están listos
-  if (!entityToken || !widgetParams) {
-    return null; // O un componente de carga
+  useEffect(() => {
+    if (entityToken) {
+      const fetchTokenInfo = async () => {
+        try {
+          setIsLoading(true);
+          const info = await apiFetch<{ tipo_chat: 'pyme' | 'municipio' }>('/auth/token-info');
+          setTipoChat(info.tipo_chat);
+        } catch (error) {
+          console.error("Error fetching token info:", error);
+          // Fallback a pyme si falla la API, para no romper el widget
+          setTipoChat('pyme');
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      fetchTokenInfo();
+    }
+  }, [entityToken]);
+
+  // Muestra un loader mientras se determina el tipo de chat
+  if (isLoading || !widgetParams) {
+    return null; // O un componente de carga más explícito
   }
 
   return (
@@ -67,7 +90,7 @@ const Iframe = () => {
         entityToken={entityToken}
         defaultOpen={widgetParams.defaultOpen}
         widgetId={widgetParams.widgetId}
-        tipoChat={widgetParams.tipoChat}
+        tipoChat={tipoChat}
         openWidth={widgetParams.openWidth}
         openHeight={widgetParams.openHeight}
         closedWidth={widgetParams.closedWidth}
