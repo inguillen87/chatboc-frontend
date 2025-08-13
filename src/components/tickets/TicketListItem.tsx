@@ -12,8 +12,8 @@ interface TicketListItemProps {
 }
 
 const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onClick }) => {
-const getInitials = (nombre_usuario: string) => {
-    return nombre_usuario ? nombre_usuario.split(' ').map(n => n[0]).join('').toUpperCase() : '??';
+const getInitials = (name: string) => {
+    return name ? name.split(' ').map(n => n[0]).join('').toUpperCase() : '??';
   };
 
   return (
@@ -31,11 +31,13 @@ const getInitials = (nombre_usuario: string) => {
       <div className="flex items-start justify-between mb-1">
         <div className="flex items-center gap-3">
           <Avatar className="h-10 w-10">
-            <AvatarImage src={ticket.avatarUrl} alt={ticket.nombre_usuario} />
-            <AvatarFallback>{getInitials(ticket.nombre_usuario || '')}</AvatarFallback>
+            <AvatarImage src={ticket.avatarUrl} alt={ticket.display_name} />
+            <AvatarFallback>{getInitials(ticket.display_name || '')}</AvatarFallback>
           </Avatar>
           <div>
-            <p className="font-semibold text-sm">{ticket.nombre_usuario || 'Usuario desconocido'}</p>
+            <h4 className="text-sm font-semibold truncate" title={ticket.display_name}>
+              {ticket.display_name}
+            </h4>
             <p className="text-xs text-muted-foreground">{ticket.nro_ticket}</p>
           </div>
         </div>
