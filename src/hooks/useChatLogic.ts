@@ -144,57 +144,6 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicOp
     if (!userMessageText && !attachmentInfo && !ubicacion_usuario && !action && !actualPayload.archivo_url) return;
     if (isTyping) return;
 
-    // Handle menu navigation locally
-    if (action === 'show_reclamos_menu') {
-      const reclamosMessage: Message = {
-        id: generateClientMessageId(),
-        text: "Elegí una opción para tu reclamo:",
-        isBot: true,
-        timestamp: new Date(),
-        categorias: [
-          {
-            titulo: "Tipos de Reclamo",
-            botones: [
-              { texto: "Luminaria", action: "hacer_reclamo", payload: { categoria: 'Luminaria' } },
-              { texto: "Arbolado", action: "hacer_reclamo", payload: { categoria: 'Arbolado' } },
-              { texto: "Limpieza y riego", action: "hacer_reclamo", payload: { categoria: 'Limpieza y riego' } },
-              { texto: "Arreglo de calle", action: "hacer_reclamo", payload: { categoria: 'Arreglo de calle' } },
-              { texto: "Pérdida de agua", action: "perdida_de_agua" },
-              { texto: "Otros", action: "hacer_reclamo", payload: { categoria: 'Otros' } },
-            ],
-          },
-          {
-            titulo: "Navegación",
-            botones: [
-              { texto: "Volver al menú principal", action: "menu_principal" },
-            ]
-          }
-        ]
-      };
-      setMessages(prev => [...prev, reclamosMessage]);
-      return;
-    }
-
-    if (action === 'perdida_de_agua') {
-      const aguaMessage: Message = {
-        id: generateClientMessageId(),
-        text: "Para pérdida de agua, dirigite a la página de Aysam:\nhttps://www.aysam.com.ar/",
-        isBot: true,
-        timestamp: new Date(),
-        botones: [
-          { texto: "Volver al menú principal", action: "show_main_menu" },
-        ]
-      };
-      setMessages(prev => [...prev, aguaMessage]);
-      return;
-    }
-
-    if (action === 'show_main_menu' || action === 'menu_principal') {
-      const user = JSON.parse(safeLocalStorage.getItem('user') || 'null');
-      const welcomeMessage = generateWelcomeMessage(user);
-      setMessages(prev => [...prev, welcomeMessage]);
-      return;
-    }
 
     // Only show the user message if it's actual text input, not a button action without text
     if (userMessageText && !action) {
@@ -244,13 +193,14 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicOp
         const finalContext = updateMunicipioContext(updatedContext, { llmResponse: data });
         setContexto(finalContext);
         
-        const isErrorResponse = !data.respuesta_usuario;
+        const isErrorResponse = !data.message_body;
         const botMessage: Message = {
           id: generateClientMessageId(),
-          text: data.respuesta_usuario || "⚠️ No se pudo generar una respuesta.",
+          text: data.message_body || "⚠️ No se pudo generar una respuesta.",
           isBot: true,
           timestamp: new Date(),
           botones: data.botones || [],
+          categorias: data.categorias || [],
           mediaUrl: data.media_url,
           locationData: data.location_data,
           attachmentInfo: data.attachment_info,

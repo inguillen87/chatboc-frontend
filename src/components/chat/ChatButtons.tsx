@@ -1,19 +1,12 @@
 // src/components/chat/ChatButtons.tsx
 import React from 'react';
 import { motion } from 'framer-motion';
-
-// Definimos los tipos para los botones y las props
-interface Boton {
-    texto: string;
-    url?: string;
-    accion_interna?: string; // Usado por el backend para acciones pre-existentes
-    action?: string; // Nuevo campo para acciones de botones más generales
-}
+import { Boton } from '@/types/chat';
 
 interface ChatButtonsProps {
     botones: Boton[];
     // onButtonClick ahora puede enviar un payload estructurado
-    onButtonClick: (payload: { text: string; action?: string; }) => void;
+    onButtonClick: (payload: { text: string; action?: string; payload?: any; }) => void;
     onInternalAction?: (action: string) => void;
 }
 
@@ -58,7 +51,7 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
         // Priority 2: Handle other `boton.action` (non-auth internal actions or backend actions)
         if (normalizedAction) { // Will be non-auth at this point
             // Send to backend. The payload includes the action.
-            onButtonClick({ text: boton.texto, action: normalizedAction });
+            onButtonClick({ text: boton.texto, action: normalizedAction, payload: boton.payload });
             // If this non-auth action ALSO has a specific frontend internal behavior, trigger it.
             // (e.g., action 'open_cart_details' might be a backend query + frontend UI update)
             if (onInternalAction) {
