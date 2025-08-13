@@ -21,7 +21,6 @@ import { cn } from '@/lib/utils';
 
 const DetailsPanel: React.FC = () => {
   const { selectedTicket: ticket } = useTickets();
-  const [isDescriptionExpanded, setIsDescriptionExpanded] = React.useState(false);
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text).then(() => {
@@ -48,29 +47,6 @@ const DetailsPanel: React.FC = () => {
     );
   }
 
-  const extractUserNameFromSubject = (subject: string) => {
-    if (!subject) return null;
-
-    const patterns = [
-      /Solicitud de Chat en Vivo por:\s*(.*)/i,
-      /Reclamo \(LLM\):\s*(.*)/i,
-    ];
-
-    for (const pattern of patterns) {
-      const match = subject.match(pattern);
-      if (match && match[1]) {
-        return match[1].trim();
-      }
-    }
-
-    return null;
-  };
-
-  const userName =
-    ticket.nombre_usuario ||
-    ticket.user?.nombre_usuario ||
-    extractUserNameFromSubject(ticket.asunto) ||
-    'Usuario Desconocido';
 
   const hasLocation = ticket.direccion || (ticket.latitud && ticket.longitud);
 
@@ -90,16 +66,6 @@ const DetailsPanel: React.FC = () => {
     window.open(url, '_blank');
   };
 
-  const openWhatsApp = () => {
-    const phone = ticket.telefono || ticket.user?.phone;
-    if (phone) {
-      const phoneNumber = phone.replace(/\D/g, '');
-      window.open(`https://wa.me/${phoneNumber}`, '_blank');
-    }
-  };
-
-  const userEmail = ticket.email_usuario || ticket.email || ticket.user?.email_usuario || ticket.user?.email;
-  const userPhone = ticket.telefono || ticket.user?.phone;
 
   const formatCategory = (t: typeof ticket) => {
     if (!t?.categoria) return 'No informada';
@@ -119,14 +85,6 @@ const DetailsPanel: React.FC = () => {
     return date.toLocaleString();
   };
 
-  const getCustomerInfoText = () => {
-    let info = `Nombre: ${userName}\n`;
-    if (userEmail) info += `Email: ${userEmail}\n`;
-    if (userPhone) info += `Teléfono: ${userPhone}\n`;
-    if (ticket.dni) info += `DNI: ${ticket.dni}\n`;
-    if (ticket.direccion) info += `Dirección: ${ticket.direccion}\n`;
-    return info;
-  };
 
   return (
     <motion.aside
@@ -156,33 +114,36 @@ const DetailsPanel: React.FC = () => {
           <Card>
             <CardHeader className="flex flex-row items-center gap-4 p-4">
               <Avatar className="h-14 w-14">
-                <AvatarImage src={ticket.avatarUrl || ticket.user?.avatarUrl} alt={userName} />
-                <AvatarFallback>{getInitials(userName)}</AvatarFallback>
+                <AvatarImage src={ticket.avatarUrl || ticket.user?.avatarUrl} alt={ticket.display_name} />
+                <AvatarFallback>{getInitials(ticket.display_name || '')}</AvatarFallback>
               </Avatar>
               <div>
-                <h2 className="text-lg font-bold">{userName}</h2>
-                <p className="text-sm text-muted-foreground">{ticket.tipo === 'municipio' ? 'Vecino/a' : 'Cliente'}</p>
+                <h2 className="text-lg font-semibold whitespace-normal break-words">
+                  {ticket.display_name}
+                </h2>
+                <p className="text-xs text-muted-foreground">Vecino/a</p>
               </div>
             </CardHeader>
             <CardContent className="p-4 space-y-3 text-sm border-t">
                <h4 className="font-semibold mb-2">Información de Contacto</h4>
-                {userEmail && (
-                    <div className="flex items-center gap-3">
-                        <Mail className="h-4 w-4 text-muted-foreground" />
-                        <a href={`mailto:${userEmail}`} className="hover:underline">{userEmail}</a>
-                    </div>
-                )}
-                {userPhone && (
-                    <div className="flex items-center gap-3">
-                        <Phone className="h-4 w-4 text-muted-foreground" />
-                        <span>{userPhone}</span>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={openWhatsApp}>
-                            <FaWhatsapp className="h-4 w-4 text-green-500" />
-                        </Button>
-                    </div>
-                )}
+                <div className="space-y-1">
+                  {ticket.email_vecino && (
+                    <a href={`mailto:${ticket.email_vecino}`} className="flex items-center gap-3 text-sm hover:underline break-words">
+                      <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <span className="break-all">{ticket.email_vecino}</span>
+                    </a>
+                  )}
+                  {ticket.telefono_vecino && (
+                    <a href={`https://wa.me/${ticket.telefono_vecino.replace(/\D/g, '')}`}
+                       target="_blank" rel="noreferrer"
+                       className="flex items-center gap-3 text-sm hover:underline break-words">
+                      <FaWhatsapp className="h-4 w-4 text-green-500 flex-shrink-0" />
+                      <span>{ticket.telefono_vecino}</span>
+                    </a>
+                  )}
+                </div>
                  {ticket.dni && (
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 mt-2">
                         <Info className="h-4 w-4 text-muted-foreground" />
                         <span>DNI: {ticket.dni}</span>
                     </div>
@@ -211,17 +172,12 @@ const DetailsPanel: React.FC = () => {
                     <span className="text-muted-foreground">Categoría:</span>
                     <p className="font-medium">{ticket.categoria || 'No informada'}</p>
                 </div>
-                {ticket.description && (
+                {(ticket.description || ticket.detalles) && (
                     <div className="space-y-1">
                         <span className="text-muted-foreground">Descripción:</span>
-                        <p className={cn("text-sm", !isDescriptionExpanded && "line-clamp-3")}>
-                            {ticket.description}
+                        <p className="text-sm whitespace-pre-wrap break-words">
+                            {ticket.description || ticket.detalles || '—'}
                         </p>
-                        {ticket.description.length > 150 && (
-                            <Button variant="link" className="p-0 h-auto text-xs" onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}>
-                                {isDescriptionExpanded ? 'Ver menos' : 'Ver más'}
-                            </Button>
-                        )}
                     </div>
                 )}
             </CardContent>
