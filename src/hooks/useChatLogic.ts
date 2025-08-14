@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Message, SendPayload as TypeSendPayload } from "@/types/chat";
 import { io, Socket } from "socket.io-client";
-import { apiFetch, getErrorMessage } from "@/utils/api";
+import { apiFetch, getErrorMessage, getApiBaseUrl } from "@/utils/api";
 import { getAskEndpoint } from "@/utils/chatEndpoints";
 import { enforceTipoChatForRubro } from "@/utils/tipoChat";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
@@ -96,7 +96,7 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicOp
     }
 
     // Setup Socket.IO
-    const backendUrl = import.meta.env.VITE_BACKEND_URL;
+    const backendUrl = getApiBaseUrl();
     const authToken = safeLocalStorage.getItem('authToken');
 
     const socket = io(backendUrl, {
