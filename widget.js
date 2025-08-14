@@ -65,8 +65,14 @@
     const theme = script.getAttribute("data-theme") || "";
     const rubroAttr = script.getAttribute("data-rubro") || "";
     const ctaMessageAttr = script.getAttribute("data-cta-message") || "";
+    const langAttr = script.getAttribute("data-lang") || "";
     const endpointAttr = script.getAttribute("data-endpoint");
-    const tipoChat = endpointAttr === "municipio" || endpointAttr === "pyme" ? endpointAttr : (window.APP_TARGET === "municipio" ? "municipio" : "pyme");
+    const tipoChat =
+      endpointAttr === "municipio" || endpointAttr === "pyme"
+        ? endpointAttr
+        : window.APP_TARGET === "municipio"
+        ? "municipio"
+        : "pyme";
 
     function buildWidget(finalCta) {
       const zIndexBase = parseInt(script.getAttribute("data-z") || SCRIPT_CONFIG.DEFAULT_Z_INDEX, 10);
@@ -161,7 +167,10 @@
       if (theme) iframeSrc.searchParams.set("theme", theme);
       if (rubroAttr) iframeSrc.searchParams.set("rubro", rubroAttr);
       if (finalCta) iframeSrc.searchParams.set("ctaMessage", finalCta);
+      if (langAttr) iframeSrc.searchParams.set("lang", langAttr);
       iframe.src = iframeSrc.toString();
+
+      if (langAttr) iframe.setAttribute("lang", langAttr);
 
       Object.assign(iframe.style, {
         border: "none",
