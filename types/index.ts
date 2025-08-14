@@ -9,6 +9,14 @@ export interface Comment {
   es_admin: boolean;
 }
 
+export interface InformacionPersonalVecino {
+  nombre?: string;
+  telefono?: string;
+  email?: string;
+  direccion?: string;
+  dni?: string;
+}
+
 export interface Ticket {
   id: number;
   nro_ticket: string;
@@ -16,11 +24,8 @@ export interface Ticket {
   asunto?: string;
   fecha: string;
   estado: TicketStatus;
-  nombre_vecino?: string;
   display_name?: string;
-  email_vecino?: string;
-  telefono_vecino?: string;
-  dni_vecino?: string;
+  informacion_personal_vecino?: InformacionPersonalVecino;
   nombre_empresa?: string;
   email?: string;
   telefono?: string;
