@@ -79,7 +79,9 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
     toast({ title: "Enviando audio...", description: "Tu grabación se está procesando.", duration: 3000 });
 
     const formData = new FormData();
-    formData.append('archivo', audioBlob, `audio-grabado-${Date.now()}.webm`);
+    const filename = `audio-grabado-${Date.now()}.webm`;
+    formData.append('archivo', audioBlob, filename);
+    formData.append('file', audioBlob, filename); // Support backends expecting 'file'
 
     try {
       const data = await apiFetch<any>('/archivos/subir', {

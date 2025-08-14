@@ -43,6 +43,7 @@ const AdjuntarArchivo: React.FC<AdjuntarArchivoProps> = ({ onUpload }) => {
     setError('')
     const formData = new FormData()
     formData.append('archivo', file)
+    formData.append('file', file) // Some backends expect the field name 'file'
     try {
       // Llamada al backend para subir el archivo
       const data = await apiFetch<any>('/archivos/subir', {
