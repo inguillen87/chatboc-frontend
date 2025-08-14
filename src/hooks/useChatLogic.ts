@@ -107,16 +107,17 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicOp
     socket.on('bot_response', (data: any) => {
       console.log('Bot response received:', data);
       const botMessage: Message = {
-        id: generateClientMessageId(),
-        text: data.message_body || "⚠️ No se pudo generar una respuesta.",
-        isBot: true,
-        timestamp: new Date(),
+        id: data.id || generateClientMessageId(),
+        text: data.comentario || data.message_body || "⚠️ No se pudo generar una respuesta.",
+        isBot: data.es_admin,
+        timestamp: new Date(data.fecha || Date.now()),
+        origen: data.origen,
+        attachmentInfo: data.attachment_info,
         botones: data.botones || [],
         categorias: data.categorias || [],
         mediaUrl: data.media_url,
         locationData: data.location_data,
-        attachmentInfo: data.attachment_info,
-        isError: !data.message_body,
+        isError: !data.message_body && !data.comentario,
       };
       setMessages(prev => [...prev, botMessage]);
       setIsTyping(false);
@@ -215,18 +216,21 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicOp
     }
 
 
-    // Only show the user message if it's actual text input, not a button action without text
-    if (userMessageText && !action) {
-      const userMessage: Message = {
-        id: generateClientMessageId(),
-        text: userMessageText,
-        isBot: false,
-        timestamp: new Date(),
-        attachmentInfo,
-        locationData: ubicacion_usuario,
-      };
+    // Create the user message object first
+    const userMessage: Message = {
+      id: generateClientMessageId(),
+      text: userMessageText,
+      isBot: false,
+      timestamp: new Date(),
+      attachmentInfo,
+      locationData: ubicacion_usuario,
+    };
+
+    // Add user message to UI immediately if it has content
+    if (userMessageText || attachmentInfo) {
       setMessages(prev => [...prev, userMessage]);
     }
+
     setIsTyping(true);
 
     try {
