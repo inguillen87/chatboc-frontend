@@ -26,6 +26,13 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
   const [categoryFilter, setCategoryFilter] = useState("");
 
   useEffect(() => {
+    const authToken = safeLocalStorage.getItem('authToken');
+    if (!authToken) {
+      setError("Debes iniciar sesión para ver tu cuenta y tus tickets.");
+      setTickets([]); // Limpiar tickets por si había datos de una sesión anterior
+      return;
+    }
+
     const fetchProfile = async () => {
       try {
         const data = await apiFetch<any>("/me");
@@ -33,7 +40,8 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
         setEmail(data.email || "");
         setPhone(data.telefono || "");
       } catch (e) {
-        /* ignore */
+        console.error("Fallo al cargar perfil de usuario", e);
+        setError("No se pudo cargar tu perfil.");
       }
     };
     const fetchTickets = async () => {
@@ -46,7 +54,8 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
         const data = await apiFetch<TicketSummary[]>(url, { sendEntityToken: true });
         if (Array.isArray(data)) setTickets(data);
       } catch (e) {
-        /* ignore */
+        console.error("Fallo al cargar tickets de usuario", e);
+        setError("No se pudieron cargar tus tickets.");
       }
     };
     fetchProfile();
