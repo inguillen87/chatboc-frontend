@@ -1,8 +1,25 @@
 // utils/api.ts
 
 // The backend URL is injected via environment variables.
-// VITE_BACKEND_URL should be set in your .env file.
-const API_BASE_URL = import.meta.env.VITE_BACKEND_URL;
+// VITE_BACKEND_URL should be set in the deployment environment for production.
+export const getApiBaseUrl = () => {
+  const backendUrl = import.meta.env.VITE_BACKEND_URL;
+  if (backendUrl) {
+    return backendUrl;
+  }
+  // Fallback for local development if .env is not loaded, to prevent app crash
+  if (import.meta.env.DEV) {
+    console.warn(
+      'VITE_BACKEND_URL is not defined. Falling back to http://localhost:5000. Please check your .env file.'
+    );
+    return 'http://localhost:5000';
+  }
+  // In production, the variable MUST be set.
+  console.error('CRITICAL: VITE_BACKEND_URL is not set in production!');
+  return '/error-backend-url-not-set';
+};
+
+const API_BASE_URL = getApiBaseUrl();
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateChatSessionId from "@/utils/chatSessionId"; // Import the new function
 
