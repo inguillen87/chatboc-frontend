@@ -1,25 +1,6 @@
 // utils/api.ts
 
-// The backend URL is injected via environment variables.
-// VITE_BACKEND_URL should be set in the deployment environment for production.
-export const getApiBaseUrl = () => {
-  const backendUrl = import.meta.env.VITE_BACKEND_URL;
-  if (backendUrl) {
-    return backendUrl;
-  }
-  // Fallback for local development if .env is not loaded, to prevent app crash
-  if (import.meta.env.DEV) {
-    console.warn(
-      'VITE_BACKEND_URL is not defined. Falling back to http://localhost:5000. Please check your .env file.'
-    );
-    return 'http://localhost:5000';
-  }
-  // In production, the variable MUST be set.
-  console.error('CRITICAL: VITE_BACKEND_URL is not set in production!');
-  return '/error-backend-url-not-set';
-};
-
-const API_BASE_URL = getApiBaseUrl();
+import { BACKEND_URL } from '@/config';
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateChatSessionId from "@/utils/chatSessionId"; // Import the new function
 
@@ -59,7 +40,7 @@ export async function apiFetch<T>(
   const anonId = safeLocalStorage.getItem("anon_id");
   const chatSessionId = getOrCreateChatSessionId(); // Get or create the chat session ID
 
-  const url = `${API_BASE_URL}${path}`;
+  const url = `${BACKEND_URL}${path}`;
   const headers: Record<string, string> = { ...(options.headers || {}) };
 
   const isForm = body instanceof FormData;
@@ -134,7 +115,7 @@ export async function apiFetch<T>(
     if (error instanceof ApiError) throw error;
     if (error instanceof TypeError) { // Typically a network error or CORS issue
       console.error(
-        `❌ Network Error or CORS issue. Ensure the backend is running and reachable at ${API_BASE_URL}, and that its CORS policy allows this origin.`,
+        `❌ Network Error or CORS issue. Ensure the backend is running and reachable at ${BACKEND_URL}, and that its CORS policy is configured correctly.`,
         error
       );
     } else {
