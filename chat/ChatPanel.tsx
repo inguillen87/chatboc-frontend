@@ -513,17 +513,20 @@ const ChatPanel = ({
       const isAdmin = user?.rol && user.rol !== "usuario";
 
       if (["login", "loginpanel", "chatuserloginpanel"].includes(normalized)) {
-        if (!isAdmin) onShowLogin?.(); return;
+        if (!isAdmin) onShowLogin?.();
+        return;
       }
       if (["register", "registerpanel", "chatuserregisterpanel"].includes(normalized)) {
-        if (!isAdmin) onShowRegister?.(); return;
+        if (!isAdmin) onShowRegister?.();
+        return;
       }
       if (["cart", "carrito", "opencart", "vercarrito"].includes(normalized)) {
-        onCart?.(); return;
+        onCart?.();
+        return;
       }
-      handleSendMessage({ text: action, action: normalized });
+      // Other actions are already sent to the backend by the button handler.
     },
-    [onShowLogin, onShowRegister, onCart, handleSendMessage, user]
+    [onShowLogin, onShowRegister, onCart, user]
   );
 
   const handleFileUploaded = useCallback(

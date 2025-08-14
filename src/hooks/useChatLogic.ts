@@ -39,9 +39,10 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicOp
   };
 
   const generateWelcomeMessage = (user: any): Message => {
+    const nombreUsuario = user?.nombre || user?.name || "";
     const welcomeMessageText = isAnonimo
       ? "¡Hola! Soy JuniA, el asistente virtual de la Municipalidad de Junín.\nEstas son las cosas que puedo hacer por vos:"
-      : `¡Hola, ${user?.nombre}! Soy JuniA, tu Asistente Virtual. ¿Qué necesitas hoy?`;
+      : `¡Hola, ${nombreUsuario}! Soy JuniA, tu Asistente Virtual. ¿Qué necesitas hoy?`;
 
     return {
       id: generateClientMessageId(),
