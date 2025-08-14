@@ -2,7 +2,7 @@
 
 // Define la estructura del contexto específico para municipios.
 export interface MunicipioContext {
-  estado_conversacion: 'inicio' | 'recolectando_info' | 'confirmando_reclamo' | 'reclamo_creado' | 'conversacion_general';
+  estado_conversacion: 'inicio' | 'recolectando_info' | 'recolectando_datos_personales' | 'confirmando_reclamo' | 'reclamo_creado' | 'conversacion_general';
   datos_reclamo: {
     categoria: string | null;
     descripcion: string | null;
@@ -10,6 +10,7 @@ export interface MunicipioContext {
     nombre_ciudadano: string | null;
     telefono_ciudadano: string | null;
     email_ciudadano: string | null;
+    dni_ciudadano: string | null;
   };
   historial_conversacion: Array<{ role: 'user' | 'bot'; text: string }>;
   id_ticket_creado: number | null;
@@ -26,6 +27,7 @@ export function getInitialMunicipioContext(): MunicipioContext {
       nombre_ciudadano: null,
       telefono_ciudadano: null,
       email_ciudadano: null,
+      dni_ciudadano: null,
     },
     historial_conversacion: [],
     id_ticket_creado: null,

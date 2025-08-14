@@ -68,6 +68,13 @@ export interface Ticket {
   dni?: string;
   estado_cliente?: string;
 
+  // Vecino specific fields
+  display_name?: string;
+  nombre_vecino?: string;
+  email_vecino?: string;
+  telefono_vecino?: string;
+  dni_vecino?: string;
+
   // Fields that might come from a detailed view, but good to have
   messages?: Message[];
   attachments?: Attachment[];

@@ -9,13 +9,16 @@ import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateAnonId from "@/utils/anonId";
 import { v4 as uuidv4 } from 'uuid';
 import { MunicipioContext, updateMunicipioContext, getInitialMunicipioContext } from "@/utils/contexto_municipio";
+import { useUser } from './useUser';
 
 interface UseChatLogicOptions {
   initialWelcomeMessage: string;
   tipoChat: 'pyme' | 'municipio';
+  entityToken?: string;
 }
 
 export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicOptions) {
+  const { user } = useUser();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [contexto, setContexto] = useState<MunicipioContext>(() => getInitialMunicipioContext());
@@ -146,6 +149,71 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicOp
     if (!userMessageText && !attachmentInfo && !ubicacion_usuario && !action && !actualPayload.archivo_url) return;
     if (isTyping) return;
 
+    if (action === 'iniciar_creacion_reclamo') {
+      // Check for existing user data
+      const userData = user || JSON.parse(safeLocalStorage.getItem('user') || 'null');
+      if (userData?.name && userData?.email) { // Assume phone and DNI are not available in user object
+        setContexto(prev => ({
+          ...prev,
+          estado_conversacion: 'confirmando_reclamo',
+          datos_reclamo: {
+            ...prev.datos_reclamo,
+            nombre_ciudadano: userData.name,
+            email_ciudadano: userData.email,
+          }
+        }));
+        setMessages(prev => [...prev, {
+          id: generateClientMessageId(),
+          text: `Hola ${userData.name}. ¿Confirmas la creación del reclamo?`,
+          isBot: true,
+          timestamp: new Date(),
+          botones: [
+              { texto: "Confirmar Reclamo", action: "confirmar_reclamo" },
+              { texto: "Cancelar", action: "cancelar_reclamo" },
+          ]
+        }]);
+      } else {
+        setContexto(prev => ({
+          ...prev,
+          estado_conversacion: 'recolectando_datos_personales'
+        }));
+        setMessages(prev => [...prev, {
+          id: generateClientMessageId(),
+          text: "Para continuar, por favor completá tus datos.",
+          isBot: true,
+          timestamp: new Date(),
+        }]);
+      }
+      setIsTyping(false);
+      return;
+    }
+
+    if (action === 'submit_personal_data' && actionPayload) {
+      setContexto(prev => ({
+        ...prev,
+        estado_conversacion: 'confirmando_reclamo',
+        datos_reclamo: {
+          ...prev.datos_reclamo,
+          nombre_ciudadano: actionPayload.nombre,
+          email_ciudadano: actionPayload.email,
+          telefono_ciudadano: actionPayload.telefono,
+          dni_ciudadano: actionPayload.dni,
+        }
+      }));
+       setMessages(prev => [...prev, {
+        id: generateClientMessageId(),
+        text: "¡Gracias! Revisa que los datos sean correctos y confirma para generar el reclamo.",
+        isBot: true,
+        timestamp: new Date(),
+        botones: [
+            { texto: "Confirmar Reclamo", action: "confirmar_reclamo" },
+            { texto: "Cancelar", action: "cancelar_reclamo" },
+        ]
+      }]);
+      setIsTyping(false);
+      return;
+    }
+
 
     // Only show the user message if it's actual text input, not a button action without text
     if (userMessageText && !action) {
@@ -181,6 +249,15 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicOp
         ...(action === "confirmar_reclamo" && currentClaimIdempotencyKey && { idempotency_key: currentClaimIdempotencyKey }),
       };
 
+      if (action === 'confirmar_reclamo') {
+        requestBody.datos_personales = {
+          nombre: contexto.datos_reclamo.nombre_ciudadano,
+          email: contexto.datos_reclamo.email_ciudadano,
+          telefono: contexto.datos_reclamo.telefono_ciudadano,
+          dni: contexto.datos_reclamo.dni_ciudadano,
+        }
+      }
+
       const endpoint = getAskEndpoint({ tipoChat: tipoChatFinal, rubro });
 
       // Fire-and-forget the POST request. The response will be handled by the Socket.IO listener.
@@ -198,5 +275,5 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicOp
     }
   }, [contexto, activeTicketId, isTyping, isAnonimo, anonId, currentClaimIdempotencyKey, tipoChat]);
 
-  return { messages, isTyping, handleSend, activeTicketId, setMessages, setContexto, setActiveTicketId };
+  return { messages, isTyping, handleSend, activeTicketId, setMessages, setContexto, setActiveTicketId, contexto };
 }

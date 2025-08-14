@@ -9,6 +9,7 @@ import { motion } from 'framer-motion';
 import TicketMap from '../TicketMap';
 import { useTickets } from '@/context/TicketContext';
 import { exportToPdf, exportToXlsx } from '@/services/exportService';
+import { Ticket } from '@/types/tickets';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -125,29 +126,35 @@ const DetailsPanel: React.FC = () => {
               </div>
             </CardHeader>
             <CardContent className="p-4 space-y-3 text-sm border-t">
-               <h4 className="font-semibold mb-2">Información de Contacto</h4>
-                <div className="space-y-1">
-                  {ticket.email_vecino && (
-                    <a href={`mailto:${ticket.email_vecino}`} className="flex items-center gap-3 text-sm hover:underline break-words">
-                      <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                      <span className="break-all">{ticket.email_vecino}</span>
-                    </a>
-                  )}
-                  {ticket.telefono_vecino && (
-                    <a href={`https://wa.me/${ticket.telefono_vecino.replace(/\D/g, '')}`}
-                       target="_blank" rel="noreferrer"
-                       className="flex items-center gap-3 text-sm hover:underline break-words">
-                      <FaWhatsapp className="h-4 w-4 text-green-500 flex-shrink-0" />
-                      <span>{ticket.telefono_vecino}</span>
-                    </a>
-                  )}
-                </div>
-                 {ticket.dni && (
-                    <div className="flex items-center gap-3 mt-2">
-                        <Info className="h-4 w-4 text-muted-foreground" />
-                        <span>DNI: {ticket.dni}</span>
-                    </div>
+              <h4 className="font-semibold mb-2">Información Personal del Vecino</h4>
+              <div className="space-y-2">
+                {(ticket.nombre_vecino || ticket.display_name) && (
+                  <div className="flex items-center gap-3">
+                    <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <span>{ticket.nombre_vecino || ticket.display_name}</span>
+                  </div>
                 )}
+                {(ticket.dni_vecino || ticket.dni) && (
+                  <div className="flex items-center gap-3">
+                    <Info className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <span>DNI: {ticket.dni_vecino || ticket.dni}</span>
+                  </div>
+                )}
+                {ticket.email_vecino && (
+                  <a href={`mailto:${ticket.email_vecino}`} className="flex items-center gap-3 text-sm hover:underline break-words">
+                    <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <span className="break-all">{ticket.email_vecino}</span>
+                  </a>
+                )}
+                {ticket.telefono_vecino && (
+                  <a href={`https://wa.me/${ticket.telefono_vecino.replace(/\D/g, '')}`}
+                     target="_blank" rel="noreferrer"
+                     className="flex items-center gap-3 text-sm hover:underline break-words">
+                    <FaWhatsapp className="h-4 w-4 text-green-500 flex-shrink-0" />
+                    <span>{ticket.telefono_vecino}</span>
+                  </a>
+                )}
+              </div>
             </CardContent>
 
             <CardContent className="p-4 space-y-3 text-sm border-t">
