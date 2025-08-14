@@ -96,7 +96,16 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicOp
     }
 
     // Setup Socket.IO
-    const socket = io();
+    const backendUrl = import.meta.env.VITE_BACKEND_URL;
+    const authToken = safeLocalStorage.getItem('authToken');
+
+    const socket = io(backendUrl, {
+      transports: ['websocket', 'polling'],
+      withCredentials: true,
+      auth: {
+        token: authToken
+      }
+    });
     socketRef.current = socket;
     const sessionId = getOrCreateAnonId();
 
