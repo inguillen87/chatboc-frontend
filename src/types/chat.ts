@@ -12,6 +12,7 @@ export interface Boton {
   accion_interna?: string; // Para acciones que el frontend debe interpretar sin enviar al backend (ej. abrir panel)
   action?: string; // Valor que se envía al backend cuando se hace clic en el botón
   action_id?: string; // Compatibilidad con 'action_id' enviado desde algunos endpoints del backend
+  payload?: any;
 }
 
 // Nuevo: Define la estructura para una categoría de botones
@@ -76,6 +77,7 @@ export interface SendPayload {
   ubicacion_usuario?: { lat: number; lon: number; }; // Coordenadas si es_ubicacion es true
 
   action?: string; // Si el envío es resultado de un clic en un botón con una acción específica que el backend debe procesar
+  payload?: any; // Datos adicionales asociados a la acción del botón
 
   attachmentInfo?: { // Información del archivo que el usuario está adjuntando (antes de que el backend lo confirme)
     name: string;

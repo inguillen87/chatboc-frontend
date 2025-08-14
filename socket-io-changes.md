@@ -1,3 +1,14 @@
+# Frontend Changes for Socket.IO Integration
+
+Here is the complete content of the updated `src/hooks/useChatLogic.ts` file. Please replace the content of your local file with the content provided below.
+
+This change refactors the chat logic to use Socket.IO for real-time communication, as you instructed.
+
+---
+
+## `src/hooks/useChatLogic.ts`
+
+```typescript
 // src/hooks/useChatLogic.ts
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Message, SendPayload as TypeSendPayload } from "@/types/chat";
@@ -200,3 +211,4 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicOp
 
   return { messages, isTyping, handleSend, activeTicketId, setMessages, setContexto, setActiveTicketId };
 }
+```
