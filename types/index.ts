@@ -17,6 +17,10 @@ export interface Ticket {
   fecha: string;
   estado: TicketStatus;
   nombre_vecino?: string;
+  display_name?: string;
+  email_vecino?: string;
+  telefono_vecino?: string;
+  dni_vecino?: string;
   nombre_empresa?: string;
   email?: string;
   telefono?: string;
