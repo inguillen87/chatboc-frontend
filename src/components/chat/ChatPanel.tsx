@@ -156,7 +156,7 @@ const ChatPanel = ({
         onCart?.();
         return;
       }
-      if (normalized === "request_user_location") {
+      if (normalized === "requestuserlocation") {
         try {
           const position = await requestLocation();
           if (position) {
@@ -190,8 +190,7 @@ const ChatPanel = ({
         }
         return;
       }
-      // Default action: send to backend
-      handleSend({ text: action, action: normalized });
+      // For other actions, the backend request was already sent. No extra handling needed.
     },
     [handleSend, onShowLogin, onShowRegister, onCart, toast]
   );

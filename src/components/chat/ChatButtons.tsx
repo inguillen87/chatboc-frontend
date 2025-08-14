@@ -32,44 +32,34 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
     const handleButtonClick = (boton: Boton) => {
         const actionToUse = boton.action || boton.action_id;
         const normalizedAction = actionToUse ? normalize(actionToUse) : null;
-        const normalizedAccionInterna = boton.accion_interna ? normalize(boton.accion_interna) : null;
+        const accionInterna = boton.accion_interna;
+        const normalizedAccionInterna = accionInterna ? normalize(accionInterna) : null;
 
         // Priority 1: Handle internal auth actions (login/register) first and exclusively.
         if (normalizedAction && (loginActions.includes(normalizedAction) || registerActions.includes(normalizedAction))) {
-            if (onInternalAction) {
-                onInternalAction(normalizedAction);
-            }
+            onInternalAction?.(normalizedAction);
             return; // Stop further processing for these auth actions
         }
         if (normalizedAccionInterna && (loginActions.includes(normalizedAccionInterna) || registerActions.includes(normalizedAccionInterna))) {
-            if (onInternalAction) {
-                onInternalAction(normalizedAccionInterna);
-            }
+            onInternalAction?.(normalizedAccionInterna);
             return; // Stop further processing for these auth actions
         }
 
         // Priority 2: Handle other `boton.action` (non-auth internal actions or backend actions)
-        if (normalizedAction) { // Will be non-auth at this point
-            // Send to backend. The payload includes the action.
-            onButtonClick({ text: boton.texto, action: normalizedAction, payload: boton.payload });
-            // If this non-auth action ALSO has a specific frontend internal behavior, trigger it.
-            // (e.g., action 'open_cart_details' might be a backend query + frontend UI update)
-            if (onInternalAction) {
-                // This ensures that if an action is primarily for the backend but also has a UI side-effect,
-                // the internal handler is still called.
-                onInternalAction(normalizedAction);
-            }
+        if (actionToUse) { // Will be non-auth at this point
+            // Send raw action to backend so it can match exactly.
+            onButtonClick({ text: boton.texto, action: actionToUse, payload: boton.payload });
+            // Trigger potential frontend side-effects for this action.
+            onInternalAction?.(actionToUse);
             return;
         }
 
         // Priority 3: Handle other `boton.accion_interna` (non-auth internal actions or backend actions)
-        if (normalizedAccionInterna) { // Will be non-auth at this point
-            // Send to backend. The payload includes the action.
-            onButtonClick({ text: boton.texto, action: normalizedAccionInterna });
-            // Similar to above, handle potential UI side-effects for these actions too.
-            if (onInternalAction) {
-                onInternalAction(normalizedAccionInterna);
-            }
+        if (accionInterna) { // Will be non-auth at this point
+            // Send raw internal action to backend.
+            onButtonClick({ text: boton.texto, action: accionInterna });
+            // Handle potential UI side-effects for these actions too.
+            onInternalAction?.(accionInterna);
             return;
         }
 
