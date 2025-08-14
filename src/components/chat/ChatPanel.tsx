@@ -80,7 +80,7 @@ const ChatPanel = ({
   const chatInputRef = useRef<HTMLInputElement>(null);
   const [showScrollDown, setShowScrollDown] = useState(false);
   const [userTyping, setUserTyping] = useState(false);
-  const { isLiveChatEnabled, horariosAtencion } = useBusinessHours();
+  const { isLiveChatEnabled, horariosAtencion } = useBusinessHours(propEntityToken);
   const socketRef = useRef<SocketIOClient.Socket | null>(null);
 
   const { messages, isTyping, handleSend, activeTicketId, setMessages, contexto } = useChatLogic({

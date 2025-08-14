@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { apiFetch } from '@/utils/api';
+import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { Horario } from '@/types/tickets';
 
 interface BusinessHours {
@@ -7,7 +8,7 @@ interface BusinessHours {
   horariosAtencion: string;
 }
 
-export const useBusinessHours = (): BusinessHours => {
+export const useBusinessHours = (entityToken?: string): BusinessHours => {
   const [businessHours, setBusinessHours] = useState<BusinessHours>({
     isLiveChatEnabled: false,
     horariosAtencion: '',
@@ -16,7 +17,17 @@ export const useBusinessHours = (): BusinessHours => {
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const profile = await apiFetch<any>('/auth/profile');
+        const authToken = safeLocalStorage.getItem('authToken');
+        let profile: any = null;
+
+        if (authToken) {
+          profile = await apiFetch<any>('/auth/profile');
+        } else if (entityToken) {
+          profile = await apiFetch<any>('/perfil', { skipAuth: true, entityToken });
+        } else {
+          return; // No token available; do not fetch
+        }
+
         if (profile && profile.horario) {
           const { start_hour, end_hour } = profile.horario as Horario;
           if (typeof start_hour === 'number' && typeof end_hour === 'number') {
@@ -37,7 +48,7 @@ export const useBusinessHours = (): BusinessHours => {
     };
 
     fetchProfile();
-  }, []);
+  }, [entityToken]);
 
   return businessHours;
 };
