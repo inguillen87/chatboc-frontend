@@ -3,7 +3,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Mail, Phone, MapPin, Ticket as TicketIcon, Info, FileDown, User, ExternalLink, MessageCircle, Building, Hash, Clipboard, Copy, ChevronDown, ChevronUp, UserCheck, Bot } from 'lucide-react';
+import { Mail, MapPin, Ticket as TicketIcon, Info, FileDown, User, ExternalLink, MessageCircle, Building, Hash, Copy, ChevronDown, ChevronUp, UserCheck, Bot } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { motion } from 'framer-motion';
 import TicketMap from '../TicketMap';
@@ -35,6 +35,10 @@ const DetailsPanel: React.FC = () => {
   const getInitials = (name: string) => {
     return name ? name.split(' ').map(n => n[0]).join('').toUpperCase() : '??';
   };
+
+  const personal = ticket?.informacion_personal_vecino;
+  const isSpecified = (value?: string) => value && value.toLowerCase() !== 'no especificado';
+  const displayName = personal?.nombre || ticket?.display_name || '';
 
   if (!ticket) {
     return (
@@ -115,12 +119,12 @@ const DetailsPanel: React.FC = () => {
           <Card>
             <CardHeader className="flex flex-row items-center gap-4 p-4">
               <Avatar className="h-14 w-14">
-                <AvatarImage src={ticket.avatarUrl || ticket.user?.avatarUrl} alt={ticket.display_name} />
-                <AvatarFallback>{getInitials(ticket.display_name || '')}</AvatarFallback>
+                <AvatarImage src={ticket.avatarUrl || ticket.user?.avatarUrl} alt={displayName} />
+                <AvatarFallback>{getInitials(displayName)}</AvatarFallback>
               </Avatar>
               <div>
-                <h2 className="text-lg font-semibold whitespace-normal break-words">
-                  {ticket.display_name}
+                <h2 className={cn("text-lg font-semibold whitespace-normal break-words", !displayName && "text-muted-foreground")}> 
+                  {displayName || 'No especificado'}
                 </h2>
                 <p className="text-xs text-muted-foreground">Vecino/a</p>
               </div>
@@ -128,32 +132,91 @@ const DetailsPanel: React.FC = () => {
             <CardContent className="p-4 space-y-3 text-sm border-t">
               <h4 className="font-semibold mb-2">Información Personal del Vecino</h4>
               <div className="space-y-2">
-                {(ticket.nombre_vecino || ticket.display_name) && (
-                  <div className="flex items-center gap-3">
-                    <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                    <span>{ticket.nombre_vecino || ticket.display_name}</span>
-                  </div>
-                )}
-                {(ticket.dni_vecino || ticket.dni) && (
-                  <div className="flex items-center gap-3">
-                    <Info className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                    <span>DNI: {ticket.dni_vecino || ticket.dni}</span>
-                  </div>
-                )}
-                {ticket.email_vecino && (
-                  <a href={`mailto:${ticket.email_vecino}`} className="flex items-center gap-3 text-sm hover:underline break-words">
-                    <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                    <span className="break-all">{ticket.email_vecino}</span>
-                  </a>
-                )}
-                {ticket.telefono_vecino && (
-                  <a href={`https://wa.me/${ticket.telefono_vecino.replace(/\D/g, '')}`}
-                     target="_blank" rel="noreferrer"
-                     className="flex items-center gap-3 text-sm hover:underline break-words">
-                    <FaWhatsapp className="h-4 w-4 text-green-500 flex-shrink-0" />
-                    <span>{ticket.telefono_vecino}</span>
-                  </a>
-                )}
+                <div className="flex items-center gap-2">
+                  <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  <span className={cn("flex-1", !isSpecified(personal?.nombre) && "text-muted-foreground")}>{personal?.nombre || 'No especificado'}</span>
+                  {isSpecified(personal?.nombre) && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => copyToClipboard(personal?.nombre || '', 'Nombre')}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Info className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  <span className={cn("flex-1", !isSpecified(personal?.dni) && "text-muted-foreground")}>DNI: {personal?.dni || 'No especificado'}</span>
+                  {isSpecified(personal?.dni) && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => copyToClipboard(personal?.dni || '', 'DNI')}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  {isSpecified(personal?.email) ? (
+                    <a
+                      href={`mailto:${personal?.email}`}
+                      className="flex-1 text-sm hover:underline break-words"
+                    >
+                      <span className="break-all">{personal?.email}</span>
+                    </a>
+                  ) : (
+                    <span className="flex-1 text-muted-foreground">No especificado</span>
+                  )}
+                  {isSpecified(personal?.email) && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => copyToClipboard(personal?.email || '', 'Email')}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <FaWhatsapp className="h-4 w-4 text-green-500 flex-shrink-0" />
+                  {isSpecified(personal?.telefono) ? (
+                    <a
+                      href={`https://wa.me/${personal?.telefono?.replace(/\D/g, '')}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex-1 text-sm hover:underline break-words"
+                    >
+                      {personal?.telefono}
+                    </a>
+                  ) : (
+                    <span className="flex-1 text-muted-foreground">No especificado</span>
+                  )}
+                  {isSpecified(personal?.telefono) && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => copyToClipboard(personal?.telefono || '', 'Teléfono')}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  <span className={cn("flex-1", !isSpecified(personal?.direccion) && "text-muted-foreground")}>{personal?.direccion || 'No especificado'}</span>
+                  {isSpecified(personal?.direccion) && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => copyToClipboard(personal?.direccion || '', 'Dirección')}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
               </div>
             </CardContent>
 

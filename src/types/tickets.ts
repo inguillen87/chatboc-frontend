@@ -45,6 +45,13 @@ export interface Message {
   ubicacion?: { lat: number; lon: number; name?: string; address?: string; };
 }
 
+export interface InformacionPersonalVecino {
+  nombre?: string;
+  telefono?: string;
+  email?: string;
+  direccion?: string;
+  dni?: string;
+}
 
 export interface Ticket {
   id: number;
@@ -70,10 +77,7 @@ export interface Ticket {
 
   // Vecino specific fields
   display_name?: string;
-  nombre_vecino?: string;
-  email_vecino?: string;
-  telefono_vecino?: string;
-  dni_vecino?: string;
+  informacion_personal_vecino?: InformacionPersonalVecino;
 
   // Fields that might come from a detailed view, but good to have
   messages?: Message[];
