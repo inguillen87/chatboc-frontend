@@ -37,25 +37,6 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@chatboc" />
     <meta name="twitter:image" content="https://chatboc.ar/images/og-chatboc.png" />
-
-    <script>
-      (async () => {
-        try {
-          // La ruta es relativa, por lo que funcionará en cualquier entorno (local o prod)
-          const response = await fetch('/api/config');
-          if (!response.ok) {
-            throw new Error(`Config fetch failed with status: ${response.status}`);
-          }
-          const config = await response.json();
-          // Adjuntar la configuración al objeto window para que sea accesible globalmente
-          window.appConfig = config;
-        } catch (error) {
-          console.error("Failed to load critical app configuration:", error);
-          // Opcional: Mostrar un mensaje de error visible para el usuario en caso de fallo
-          document.body.innerHTML = '<div style="padding: 20px; text-align: center; font-family: sans-serif;"><h1>Error Crítico</h1><p>No se pudo cargar la configuración de la aplicación. Por favor, intente recargar la página.</p></div>';
-        }
-      })();
-    </script>
   </head>
   <body style="background:transparent;margin:0;padding:0;">
     <div id="root"></div>
