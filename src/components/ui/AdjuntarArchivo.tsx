@@ -55,6 +55,7 @@ const AdjuntarArchivo: React.FC<AdjuntarArchivoProps> = ({ onUpload, asImage = f
 
     const formData = new FormData();
     formData.append('archivo', file);
+    formData.append('file', file); // Some backends expect the field name 'file'
 
     // Podríamos añadir un toast de "Subiendo..." aquí si la subida puede tardar
     // toast({ title: "Subiendo archivo...", description: file.name });
