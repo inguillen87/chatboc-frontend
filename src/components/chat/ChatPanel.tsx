@@ -9,6 +9,7 @@ import ChatInput from "./ChatInput";
 import ScrollToBottomButton from "@/components/ui/ScrollToBottomButton";
 import { useChatLogic } from "@/hooks/useChatLogic";
 import { SendPayload } from "@/types/chat";
+import PersonalDataForm from './PersonalDataForm';
 import { Rubro } from "./RubroSelector";
 import { Message } from "@/types/chat";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
@@ -82,11 +83,18 @@ const ChatPanel = ({
   const { isLiveChatEnabled, horariosAtencion } = useBusinessHours();
   const socketRef = useRef<SocketIOClient.Socket | null>(null);
 
-  const { messages, isTyping, handleSend, activeTicketId, setMessages } = useChatLogic({
+  const { messages, isTyping, handleSend, activeTicketId, setMessages, contexto } = useChatLogic({
     initialWelcomeMessage: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?",
     tipoChat: tipoChat,
     entityToken: propEntityToken,
   });
+
+  const handlePersonalDataSubmit = (data: { nombre: string; email: string; telefono: string; dni: string; }) => {
+    handleSend({
+      action: 'submit_personal_data',
+      payload: data,
+    });
+  };
 
   const [esperandoDireccion, setEsperandoDireccion] = useState(false);
   const [forzarDireccion, setForzarDireccion] = useState(false);
@@ -264,13 +272,17 @@ const ChatPanel = ({
               )
             )
         )}
-        <ChatInput
-          onSendMessage={handleSend}
-          isTyping={isTyping}
-          inputRef={chatInputRef}
-          onTypingChange={setUserTyping}
-          onFileUploaded={handleFileUploaded}
-        />
+        {contexto.estado_conversacion === 'recolectando_datos_personales' ? (
+          <PersonalDataForm onSubmit={handlePersonalDataSubmit} isSubmitting={isTyping} />
+        ) : (
+          <ChatInput
+            onSendMessage={handleSend}
+            isTyping={isTyping}
+            inputRef={chatInputRef}
+            onTypingChange={setUserTyping}
+            onFileUploaded={handleFileUploaded}
+          />
+        )}
       </div>
     </div>
   );
