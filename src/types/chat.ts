@@ -39,6 +39,7 @@ export interface Message {
   text: string; // Texto principal o fallback del mensaje. Puede ser HTML sanitizado.
   isBot: boolean; // True si el mensaje es del bot, false si es del usuario
   timestamp: Date; // Fecha y hora del mensaje
+  origen?: 'chat' | 'email'; // Nuevo campo para diferenciar el origen del mensaje
   botones?: Boton[]; // Array de botones interactivos asociados al mensaje (si los hay)
   categorias?: Categoria[]; // Array de categorías con botones (formato anidado para acordeones)
   query?: string; // La consulta original del usuario que generó esta respuesta (opcional)
