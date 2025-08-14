@@ -3,7 +3,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Mail, Phone, MapPin, Ticket as TicketIcon, Info, FileDown, User, ExternalLink, MessageCircle, Building, Hash, Clipboard, Copy, ChevronDown, ChevronUp, UserCheck, Bot } from 'lucide-react';
+import { Mail, MapPin, Ticket as TicketIcon, Info, FileDown, User, ExternalLink, MessageCircle, Building, Hash, Copy, ChevronDown, ChevronUp, UserCheck, Bot } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { motion } from 'framer-motion';
 import TicketMap from '../TicketMap';
@@ -129,30 +129,68 @@ const DetailsPanel: React.FC = () => {
               <h4 className="font-semibold mb-2">Información Personal del Vecino</h4>
               <div className="space-y-2">
                 {(ticket.nombre_vecino || ticket.display_name) && (
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
                     <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                    <span>{ticket.nombre_vecino || ticket.display_name}</span>
+                    <span className="flex-1">{ticket.nombre_vecino || ticket.display_name}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => copyToClipboard(ticket.nombre_vecino || ticket.display_name || '', 'Nombre')}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
                   </div>
                 )}
                 {(ticket.dni_vecino || ticket.dni) && (
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
                     <Info className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                    <span>DNI: {ticket.dni_vecino || ticket.dni}</span>
+                    <span className="flex-1">DNI: {ticket.dni_vecino || ticket.dni}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => copyToClipboard(ticket.dni_vecino || ticket.dni || '', 'DNI')}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
                   </div>
                 )}
                 {ticket.email_vecino && (
-                  <a href={`mailto:${ticket.email_vecino}`} className="flex items-center gap-3 text-sm hover:underline break-words">
+                  <div className="flex items-center gap-2">
                     <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                    <span className="break-all">{ticket.email_vecino}</span>
-                  </a>
+                    <a
+                      href={`mailto:${ticket.email_vecino}`}
+                      className="flex-1 text-sm hover:underline break-words"
+                    >
+                      <span className="break-all">{ticket.email_vecino}</span>
+                    </a>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => copyToClipboard(ticket.email_vecino, 'Email')}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
                 )}
                 {ticket.telefono_vecino && (
-                  <a href={`https://wa.me/${ticket.telefono_vecino.replace(/\D/g, '')}`}
-                     target="_blank" rel="noreferrer"
-                     className="flex items-center gap-3 text-sm hover:underline break-words">
+                  <div className="flex items-center gap-2">
                     <FaWhatsapp className="h-4 w-4 text-green-500 flex-shrink-0" />
-                    <span>{ticket.telefono_vecino}</span>
-                  </a>
+                    <a
+                      href={`https://wa.me/${ticket.telefono_vecino.replace(/\D/g, '')}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex-1 text-sm hover:underline break-words"
+                    >
+                      {ticket.telefono_vecino}
+                    </a>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => copyToClipboard(ticket.telefono_vecino, 'Teléfono')}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
                 )}
               </div>
             </CardContent>
