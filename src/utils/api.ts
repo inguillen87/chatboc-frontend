@@ -1,9 +1,8 @@
 // utils/api.ts
 
-// If no VITE_API_URL is provided fall back to "/api" so the Vite dev
-// proxy handles CORS automatically. In production the env variable will
-// point to the real backend URL.
-const API_BASE_URL = import.meta.env.VITE_API_URL || "/api";
+// The backend URL is injected via environment variables.
+// VITE_BACKEND_URL should be set in your .env file.
+const API_BASE_URL = import.meta.env.VITE_BACKEND_URL;
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateChatSessionId from "@/utils/chatSessionId"; // Import the new function
 
@@ -116,12 +115,13 @@ export async function apiFetch<T>(
     return data as T;
   } catch (error) {
     if (error instanceof ApiError) throw error;
-    if (error instanceof TypeError && API_BASE_URL.startsWith("http")) {
+    if (error instanceof TypeError) { // Typically a network error or CORS issue
       console.error(
-        "❌ Posible error de CORS. Verificá que VITE_API_URL esté configurado como ruta relativa (\"/api\")."
+        `❌ Network Error or CORS issue. Ensure the backend is running and reachable at ${API_BASE_URL}, and that its CORS policy allows this origin.`,
+        error
       );
     } else {
-      console.error("❌ Error de conexión o parsing:", error);
+      console.error("❌ API Fetch Error:", error);
     }
     throw new Error("Error de conexión con el servidor.");
   }
