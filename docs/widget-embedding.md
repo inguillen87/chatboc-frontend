@@ -13,6 +13,7 @@ You can customize the chat widget by adding the following attributes to the scri
 *   `data-primary-color`: The primary color of the widget (in hex format).
 *   `data-logo-url`: The URL of the logo to display in the widget launcher.
 *   `data-position`: The position of the widget on the screen ('left' or 'right').
+*   `data-lang`: ISO language code (for example, `es` or `en`) used to request localized widget content.
 
 Example:
 
@@ -22,6 +23,7 @@ Example:
   data-primary-color="#ff0000"
   data-logo-url="https://example.com/logo.png"
   data-position="left"
+  data-lang="es"
 ></script>
 ```
 
