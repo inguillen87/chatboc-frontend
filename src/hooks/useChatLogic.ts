@@ -113,7 +113,7 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicOp
       socket.emit('join', { room: sessionId });
     });
 
-    socket.on('bot_response', (data: any) => {
+    const handleBotMessage = (data: any) => {
       console.log('Bot response received:', data);
       const botMessage: Message = {
         id: data.id || generateClientMessageId(),
@@ -130,7 +130,10 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicOp
       };
       setMessages(prev => [...prev, botMessage]);
       setIsTyping(false);
-    });
+    };
+
+    socket.on('bot_response', handleBotMessage);
+    socket.on('message', handleBotMessage);
 
     socket.on('disconnect', () => {
       console.log('Socket.IO disconnected.');
@@ -138,6 +141,8 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicOp
 
     // Cleanup on component unmount
     return () => {
+      socket.off('bot_response', handleBotMessage);
+      socket.off('message', handleBotMessage);
       socket.disconnect();
     };
   }, []); // Empty dependency array ensures this runs only once

@@ -25,6 +25,7 @@ import { motion } from "framer-motion";
 import { useBusinessHours } from "@/hooks/useBusinessHours";
 import { Button } from "@/components/ui/button";
 import io from 'socket.io-client';
+import { BACKEND_URL } from "@/config";
 
 const PENDING_TICKET_KEY = 'pending_ticket_id';
 const PENDING_GPS_KEY = 'pending_gps';
@@ -111,23 +112,28 @@ const ChatPanel = ({
 
   useEffect(() => {
     if (activeTicketId) {
-      const socket = io(import.meta.env.VITE_API_URL || 'http://localhost:3001');
+      const socket = io(BACKEND_URL);
       socketRef.current = socket;
 
       const room = `ticket_${tipoChat}_${activeTicketId}`;
       socket.emit('join', { room });
 
-      socket.on('new_chat_message', (data: any) => {
+      const handleIncoming = (data: any) => {
         const newMessage: Message = {
-            id: data.id,
-            author: data.es_admin ? 'agent' : 'user',
-            content: data.comentario,
-            timestamp: data.fecha,
+          id: data.id,
+          author: data.es_admin ? 'agent' : 'user',
+          content: data.comentario,
+          timestamp: data.fecha,
         };
         setMessages(prevMessages => [...prevMessages, newMessage]);
-      });
+      };
+
+      socket.on('new_chat_message', handleIncoming);
+      socket.on('message', handleIncoming);
 
       return () => {
+        socket.off('new_chat_message', handleIncoming);
+        socket.off('message', handleIncoming);
         socket.disconnect();
       };
     }
