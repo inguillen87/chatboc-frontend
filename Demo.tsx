@@ -6,7 +6,6 @@ import TypingIndicator from "@/components/chat/TypingIndicator";
 import { Message } from "@/types/chat";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
 import { getAskEndpoint, esRubroPublico } from "@/utils/chatEndpoints";
-import { BASE_API_URL } from "@/config";
 
 const Demo: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -51,7 +50,8 @@ const Demo: React.FC = () => {
         esPublico,
       );
 
-      const res = await fetch(`${BASE_API_URL}${endpoint}`, {
+      const base = import.meta.env.VITE_API_URL || "/api";
+      const res = await fetch(`${base}${endpoint}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

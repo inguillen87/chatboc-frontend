@@ -1,7 +1,10 @@
 // --- src/services/apiService.ts (CORREGIDO Y COMPLETO) ---
 import type { Ticket, Comment, TicketStatus } from '@/types'; // CAMBIO: Se agrega TicketStatus a la importación
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
-import { BASE_API_URL } from '@/config';
+
+// Use the same base URL resolution as api.ts. Default to the Vite dev
+// proxy path when no env variable is provided.
+const API_URL = import.meta.env.VITE_API_URL || "/api";
 
 interface TicketsApiResponse { ok: boolean; tickets: Ticket[]; error?: string; }
 interface CommentsApiResponse { ok: boolean; comentarios: Comment[]; error?: string; }
@@ -33,7 +36,7 @@ async function apiFetch<T>(endpoint:string, options: RequestInit = {}): Promise<
     headers,
   };
 
-  const response = await fetch(`${BASE_API_URL}${endpoint}`, config);
+  const response = await fetch(`${API_URL}${endpoint}`, config);
 
   if (!response.ok) {
     if (response.status === 401) throw new Error("401: Tu sesión ha expirado. Por favor, inicia sesión de nuevo.");
