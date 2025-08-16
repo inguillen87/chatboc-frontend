@@ -3,13 +3,15 @@ import { io, Socket } from 'socket.io-client';
 import { toast } from '@/components/ui/use-toast';
 import { useUser } from './useUser';
 import { apiFetch } from '@/utils/api';
-import { getSocketUrl } from '@/config';
 
 interface TicketUpdate {
   ticket_id: number;
   estado: string;
   mensaje?: string | null;
 }
+
+// Asegúrate de que esta URL coincida con tu servidor de Socket.io
+const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 export default function useTicketUpdates() {
   const { user } = useUser();
@@ -27,8 +29,7 @@ export default function useTicketUpdates() {
         if (!active || !settings || !settings.ticket) return;
 
         // Inicializa la conexión de Socket.io
-        const socketUrl = getSocketUrl();
-        socket = io(socketUrl, {
+        socket = io(SOCKET_URL, {
           transports: ['websocket'], // Forzar websockets
           withCredentials: true, // Para enviar cookies si es necesario
         });

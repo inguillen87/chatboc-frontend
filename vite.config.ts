@@ -53,15 +53,15 @@ export default defineConfig(({ mode }) => {
       })
     ],
     server: {
-      port: 5173, // Puerto estándar de Vite para evitar conflictos con el backend
+      port: 5173,
       proxy: {
         '/api': {
-          target: 'http://localhost:8080', // Apuntar al backend en 8080
+          target: 'http://localhost:8080',
           changeOrigin: true,
           secure: false,
         },
         '/socket.io': {
-          target: 'ws://localhost:8080', // Apuntar al websocket del backend en 8080
+          target: 'ws://localhost:8080',
           ws: true,
         },
       },
