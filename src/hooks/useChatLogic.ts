@@ -96,13 +96,17 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicOp
       setMessages([welcomeMessage]);
     }
 
+    if (!entityToken) {
+      console.log("useChatLogic: No entityToken, socket connection deferred.");
+      return;
+    };
+
     // Setup Socket.IO
-    const authToken = safeLocalStorage.getItem('authToken');
     const socket = io(BACKEND_URL, {
       transports: ['websocket', 'polling'],
       withCredentials: true,
       auth: {
-        token: authToken
+        token: entityToken
       }
     });
     socketRef.current = socket;
@@ -140,7 +144,7 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicOp
     return () => {
       socket.disconnect();
     };
-  }, []); // Empty dependency array ensures this runs only once
+  }, [entityToken]); // Effect now depends on entityToken
 
   useEffect(() => {
     if (contexto.estado_conversacion === 'confirmando_reclamo' && !activeTicketId) {
