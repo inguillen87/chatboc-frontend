@@ -1,6 +1,6 @@
 // utils/api.ts
 
-import { BACKEND_URL } from '@/config';
+import { getBackendUrl } from '@/services/configService';
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateChatSessionId from "@/utils/chatSessionId"; // Import the new function
 
@@ -40,7 +40,8 @@ export async function apiFetch<T>(
   const anonId = safeLocalStorage.getItem("anon_id");
   const chatSessionId = getOrCreateChatSessionId(); // Get or create the chat session ID
 
-  const url = `${BACKEND_URL}${path}`;
+  const backendUrl = getBackendUrl();
+  const url = `${backendUrl}${path}`;
   const headers: Record<string, string> = { ...(options.headers || {}) };
 
   const isForm = body instanceof FormData;
@@ -115,7 +116,7 @@ export async function apiFetch<T>(
     if (error instanceof ApiError) throw error;
     if (error instanceof TypeError) { // Typically a network error or CORS issue
       console.error(
-        `❌ Network Error or CORS issue. Ensure the backend is running and reachable at ${BACKEND_URL}, and that its CORS policy is configured correctly.`,
+        `❌ Network Error or CORS issue. Ensure the backend is running and reachable, and that its CORS policy is configured correctly.`,
         error
       );
     } else {

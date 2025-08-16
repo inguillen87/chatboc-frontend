@@ -25,7 +25,7 @@ import { motion } from "framer-motion";
 import { useBusinessHours } from "@/hooks/useBusinessHours";
 import { Button } from "@/components/ui/button";
 import io from 'socket.io-client';
-import { BACKEND_URL } from "@/config";
+import { getBackendUrl } from '@/services/configService';
 
 const PENDING_TICKET_KEY = 'pending_ticket_id';
 const PENDING_GPS_KEY = 'pending_gps';
@@ -112,7 +112,8 @@ const ChatPanel = ({
 
   useEffect(() => {
     if (activeTicketId) {
-      const socket = io(BACKEND_URL);
+      const backendUrl = getBackendUrl();
+      const socket = io(backendUrl);
       socketRef.current = socket;
 
       const room = `ticket_${tipoChat}_${activeTicketId}`;
