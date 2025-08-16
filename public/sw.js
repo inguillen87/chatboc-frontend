@@ -18,36 +18,36 @@ self.addEventListener('install', event => {
 });
 
 self.addEventListener('fetch', event => {
+  if (!event.request.url.startsWith('http')) {
+    return;
+  }
+
   event.respondWith(
-    caches.match(event.request)
-      .then(response => {
-        // Cache hit - return response
-        if (response) {
+    caches.match(event.request).then(response => {
+      // Cache hit - return response
+      if (response) {
+        return response;
+      }
+
+      // Clone the request because it's a stream and can only be consumed once
+      const fetchRequest = event.request.clone();
+
+      return fetch(fetchRequest).then(response => {
+        // Check if we received a valid response
+        if (!response || response.status !== 200 || response.type !== 'basic') {
           return response;
         }
 
-        // Clone the request because it's a stream and can only be consumed once
-        const fetchRequest = event.request.clone();
+        // Clone the response because it's a stream and can only be consumed once
+        const responseToCache = response.clone();
 
-        return fetch(fetchRequest).then(
-          response => {
-            // Check if we received a valid response
-            if (!response || response.status !== 200 || response.type !== 'basic') {
-              return response;
-            }
+        caches.open(CACHE_NAME).then(cache => {
+          cache.put(event.request, responseToCache);
+        });
 
-            // Clone the response because it's a stream and can only be consumed once
-            const responseToCache = response.clone();
-
-            caches.open(CACHE_NAME)
-              .then(cache => {
-                cache.put(event.request, responseToCache);
-              });
-
-            return response;
-          }
-        );
-      })
+        return response;
+      });
+    })
   );
 });
 
