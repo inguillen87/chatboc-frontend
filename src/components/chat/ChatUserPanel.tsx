@@ -58,7 +58,7 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
     setSaving(true);
     setError("");
     try {
-      await apiFetch("/me", { method: "PUT", body: { name, email, telefono: phone } });
+      await apiFetch("/api/api/me", { method: "PUT", body: { name, email, telefono: phone } });
       const stored = safeLocalStorage.getItem("user");
       if (stored) {
         try {

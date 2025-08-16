@@ -47,7 +47,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!token) return;
     setLoading(true);
     try {
-    const data = await apiFetch<any>('/me');
+    const data = await apiFetch<any>('/api/me');
     const rubroNorm = parseRubro(data.rubro) || '';
     if (!data.tipo_chat) {
       console.warn('tipo_chat faltante en respuesta de /me');

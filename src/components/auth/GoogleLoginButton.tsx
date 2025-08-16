@@ -31,7 +31,7 @@ const GoogleLoginButton: React.FC<Props> = ({
     console.log('Google login success:', cred);
     if (!cred || !cred.credential) return;
     try {
-      const data = await apiFetch<LoginResponse>('/google-login', {
+      const data = await apiFetch<LoginResponse>('/api/google-login', {
         method: 'POST',
         body: { id_token: cred.credential },
         sendAnonId: true,
