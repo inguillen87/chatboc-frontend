@@ -66,9 +66,6 @@ import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 
 
-// Durante el desarrollo usamos "/api" para evitar problemas de CORS.
-// Por defecto, usa esa ruta si no se proporciona ninguna variable de entorno.
-const API_BASE_URL = import.meta.env.VITE_API_URL || "/api";
 const Maps_API_KEY = import.meta.env.VITE_Maps_API_KEY || "";
 const PROVINCIAS = [
   "Buenos Aires",

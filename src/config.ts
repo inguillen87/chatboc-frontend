@@ -1,28 +1,53 @@
 // src/config.ts
 
-// --- Environment-based Configuration ---
-// The values are loaded from .env files by Vite.
-// See .env.example for documentation.
+// This file is the single source of truth for all backend URLs.
+
+const VITE_BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+const IS_DEV = import.meta.env.DEV;
+
+/**
+ * The base URL for all HTTP API requests.
+ * In development, with a proxy, this will be an empty string,
+ * resulting in relative paths (e.g., /api/login).
+ * In production, it will be the full backend URL.
+ */
+export const BASE_API_URL = VITE_BACKEND_URL ? VITE_BACKEND_URL : (IS_DEV ? '' : window.location.origin);
+
+/**
+ * Derives the WebSocket URL from the current environment.
+ * In development, it connects to the Vite dev server, which proxies the connection.
+ * In production, it derives the `ws://` or `wss://` URL from the backend URL.
+ * @returns The full WebSocket URL.
+ */
+export const getSocketUrl = (): string => {
+  if (VITE_BACKEND_URL) {
+    // If a full backend URL is provided, derive the WebSocket URL from it.
+    try {
+      const url = new URL(VITE_BACKEND_URL);
+      url.protocol = url.protocol.replace('http', 'ws');
+      return url.href;
+    } catch (e) {
+      console.error("Invalid VITE_BACKEND_URL for WebSocket:", VITE_BACKEND_URL);
+      // Fallback to current location in case of invalid URL.
+      const fallbackUrl = new URL(window.location.href);
+      fallbackUrl.protocol = fallbackUrl.protocol.replace('http', 'ws');
+      return fallbackUrl.origin;
+    }
+  }
+
+  // In dev mode with proxy, or in production when VITE_BACKEND_URL is not set,
+  // connect to the same host that is serving the frontend.
+  const url = new URL(window.location.href);
+  url.protocol = url.protocol.replace('http', 'ws');
+  return url.origin;
+};
+
+// --- Other Environment Variables ---
 
 export const ENV = import.meta.env.VITE_ENV || 'dev';
-
-export const BACKEND_URL =
-  import.meta.env.VITE_BACKEND_URL || (ENV === 'dev' ? '' : window.location.origin);
-
 export const PANEL_URL = import.meta.env.VITE_PANEL_URL;
-
 export const WIDGET_URL = import.meta.env.VITE_WIDGET_URL;
-
 export const COOKIE_DOMAIN = import.meta.env.VITE_COOKIE_DOMAIN;
-
-// --- Original Static Configuration ---
-// These were already here and are kept for now.
 export const TIMEZONE = import.meta.env.VITE_TIMEZONE || 'America/Argentina/Buenos_Aires';
-
 export const LOCALE = import.meta.env.VITE_LOCALE || 'es-AR';
-
-export const APP_TARGET = (import.meta.env.VITE_APP_TARGET || 'pyme') as
-  | 'pyme'
-  | 'municipio';
-
-// --- Validation for critical variables ---
+export const APP_TARGET = (import.meta.env.VITE_APP_TARGET || 'pyme') as 'pyme' | 'municipio';
