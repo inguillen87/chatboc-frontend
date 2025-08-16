@@ -11,6 +11,10 @@ export interface Boton {
 export interface ChatApiResponse {
   respuesta?: string | { respuesta?: string; botones?: Boton[]; attachmentInfo?: Message['attachmentInfo'] };
   respuesta_usuario?: string | { respuesta?: string; botones?: Boton[]; attachmentInfo?: Message['attachmentInfo'] };
+  /** Nuevo: campo usado por el backend para el texto principal */
+  message_body?: string | { respuesta?: string; botones?: Boton[]; attachmentInfo?: Message['attachmentInfo'] };
+  /** Algunas respuestas usan 'comentario' como cuerpo del mensaje */
+  comentario?: string | { respuesta?: string; botones?: Boton[]; attachmentInfo?: Message['attachmentInfo'] };
   botones?: Boton[];
   contexto_actualizado?: any;
   attachmentInfo?: Message['attachmentInfo'];
@@ -34,7 +38,13 @@ export function parseChatResponse(data: ChatApiResponse): {
   }
 
   const rawRespuesta =
-    data.respuesta !== undefined ? data.respuesta : data.respuesta_usuario;
+    data.message_body !== undefined
+      ? data.message_body
+      : data.respuesta !== undefined
+      ? data.respuesta
+      : data.respuesta_usuario !== undefined
+      ? data.respuesta_usuario
+      : data.comentario;
 
   if (typeof rawRespuesta === 'object' && rawRespuesta !== null) {
     if (typeof rawRespuesta.respuesta === 'string') {
@@ -55,11 +65,24 @@ export function parseChatResponse(data: ChatApiResponse): {
     botones = botones.length > 0 ? botones : data.botones;
   }
 
-  botones = botones.map((b) => ({
-    ...b,
-    action: b.action ?? b.accion_interna,
-    url: b.url ?? b.action_id,
-  }));
+  botones = botones.map((b) => {
+    let action = b.action ?? b.accion_interna;
+    let url = b.url;
+
+    if (!url && b.action_id) {
+      if (typeof b.action_id === 'string' && b.action_id.startsWith('url:')) {
+        url = b.action_id.slice(4);
+      } else {
+        action = action ?? b.action_id;
+      }
+    }
+
+    return {
+      ...b,
+      action,
+      url,
+    };
+  });
 
   // Validar y limpiar attachmentInfo si es necesario
   if (attachmentInfo) {
