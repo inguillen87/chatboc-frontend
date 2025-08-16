@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Message, SendPayload as TypeSendPayload } from "@/types/chat";
 import { io, Socket } from "socket.io-client";
-import { BACKEND_URL } from "@/config";
+import { getBackendUrl } from '@/services/configService';
 import { apiFetch, getErrorMessage } from "@/utils/api";
 import { getAskEndpoint } from "@/utils/chatEndpoints";
 import { enforceTipoChatForRubro } from "@/utils/tipoChat";
@@ -102,7 +102,8 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicOp
     };
 
     // Setup Socket.IO
-    const socket = io(BACKEND_URL, {
+    const backendUrl = getBackendUrl();
+    const socket = io(backendUrl, {
       transports: ['websocket', 'polling'],
       withCredentials: true,
       auth: {

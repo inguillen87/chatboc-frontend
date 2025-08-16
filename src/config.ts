@@ -6,10 +6,6 @@
 
 export const ENV = import.meta.env.VITE_ENV || 'dev';
 
-export const BACKEND_URL =
-  import.meta.env.VITE_BACKEND_URL ||
-  (ENV === 'dev' ? 'http://localhost:5000' : window.location.origin);
-
 export const PANEL_URL = import.meta.env.VITE_PANEL_URL;
 
 export const WIDGET_URL = import.meta.env.VITE_WIDGET_URL;
@@ -27,8 +23,3 @@ export const APP_TARGET = (import.meta.env.VITE_APP_TARGET || 'pyme') as
   | 'municipio';
 
 // --- Validation for critical variables ---
-if (!import.meta.env.VITE_BACKEND_URL) {
-  console.warn(
-    `VITE_BACKEND_URL is not defined. Defaulting to ${BACKEND_URL}.`
-  );
-}
