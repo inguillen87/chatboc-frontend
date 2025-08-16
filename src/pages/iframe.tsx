@@ -33,6 +33,11 @@ const Iframe = () => {
     const tokenFromUrl = urlParams.get("token");
     const storedToken = safeLocalStorage.getItem('entityToken');
     const currentToken = tokenFromUrl || storedToken;
+    const rawEndpoint = urlParams.get("endpoint") || urlParams.get("tipo_chat");
+    const endpointParam =
+      rawEndpoint === 'pyme' || rawEndpoint === 'municipio'
+        ? (rawEndpoint as 'pyme' | 'municipio')
+        : null;
 
     if (tokenFromUrl && tokenFromUrl !== storedToken) {
       safeLocalStorage.setItem('entityToken', tokenFromUrl);
@@ -56,11 +61,17 @@ const Iframe = () => {
       closedHeight: urlParams.get("closedHeight") || DEFAULTS.closedHeight,
       ctaMessage: urlParams.get("ctaMessage") || undefined,
       rubro: urlParams.get("rubro") || undefined,
+      endpoint: endpointParam || undefined,
     });
+
+    if (endpointParam) {
+      setTipoChat(endpointParam);
+      setIsLoading(false);
+    }
   }, []);
 
   useEffect(() => {
-    if (entityToken) {
+    if (entityToken && !tipoChat) {
       const fetchTokenInfo = async () => {
         try {
           setIsLoading(true);
@@ -76,7 +87,7 @@ const Iframe = () => {
       };
       fetchTokenInfo();
     }
-  }, [entityToken]);
+  }, [entityToken, tipoChat]);
 
   // Muestra un loader mientras se determina el tipo de chat
   if (isLoading || !widgetParams) {
@@ -90,7 +101,7 @@ const Iframe = () => {
         entityToken={entityToken}
         defaultOpen={widgetParams.defaultOpen}
         widgetId={widgetParams.widgetId}
-        tipoChat={tipoChat}
+        tipoChat={tipoChat || undefined}
         openWidth={widgetParams.openWidth}
         openHeight={widgetParams.openHeight}
         closedWidth={widgetParams.closedWidth}
