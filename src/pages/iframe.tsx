@@ -33,7 +33,11 @@ const Iframe = () => {
     const tokenFromUrl = urlParams.get("token");
     const storedToken = safeLocalStorage.getItem('entityToken');
     const currentToken = tokenFromUrl || storedToken;
-    const endpointParam = urlParams.get("endpoint") as 'pyme' | 'municipio' | null;
+    const rawEndpoint = urlParams.get("endpoint") || urlParams.get("tipo_chat");
+    const endpointParam =
+      rawEndpoint === 'pyme' || rawEndpoint === 'municipio'
+        ? (rawEndpoint as 'pyme' | 'municipio')
+        : null;
 
     if (tokenFromUrl && tokenFromUrl !== storedToken) {
       safeLocalStorage.setItem('entityToken', tokenFromUrl);
