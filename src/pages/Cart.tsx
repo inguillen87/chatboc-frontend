@@ -34,8 +34,8 @@ export default function CartPage() {
     setError(null);
     try {
       const [cartApiData, productsApiData] = await Promise.all([
-        apiFetch<CartApiItems>('/carrito'),
-        apiFetch<ProductDetails[]>('/productos'),
+        apiFetch<CartApiItems>('/api/carrito'),
+        apiFetch<ProductDetails[]>('/api/productos'),
       ]);
 
       const productMap: ProductMap = productsApiData.reduce((acc, p) => {
@@ -92,9 +92,9 @@ export default function CartPage() {
 
     try {
       if (newQuantity <= 0) {
-        await apiFetch('/carrito', { method: 'DELETE', body: { nombre: productName } });
+        await apiFetch('/api/carrito', { method: 'DELETE', body: { nombre: productName } });
       } else {
-        await apiFetch('/carrito', { method: 'PUT', body: { nombre: productName, cantidad: newQuantity } });
+        await apiFetch('/api/carrito', { method: 'PUT', body: { nombre: productName, cantidad: newQuantity } });
       }
       // No es necesario llamar a loadCartData() aquí si el backend confirma la acción,
       // la UI ya está actualizada optimisticamente. Si se quiere re-sincronizar:

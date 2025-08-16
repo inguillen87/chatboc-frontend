@@ -32,7 +32,7 @@ const Register = () => {
   useEffect(() => {
     const fetchRubros = async () => {
       try {
-        const data = await apiFetch<Rubro[]>('/rubros/', { skipAuth: true });
+        const data = await apiFetch<Rubro[]>('/api/rubros/', { skipAuth: true });
         if (Array.isArray(data)) setRubrosDisponibles(data);
       } catch (err) { setError("No se pudieron cargar los rubros."); }
     };
@@ -71,7 +71,7 @@ const Register = () => {
         acepto_terminos: accepted,
       };
 
-      const data = await apiFetch<RegisterResponse>("/register", {
+      const data = await apiFetch<RegisterResponse>("/api/register", {
         method: "POST",
         body: payload,
       });

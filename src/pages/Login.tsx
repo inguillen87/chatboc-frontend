@@ -34,7 +34,7 @@ const Login = () => {
     setIsLoading(true);
 
     try {
-      const data = await apiFetch<LoginResponse>("/login", {
+      const data = await apiFetch<LoginResponse>("/api/login", {
         method: "POST",
         body: { email, password },
       });
