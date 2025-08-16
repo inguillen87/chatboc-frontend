@@ -7,8 +7,7 @@
 export const ENV = import.meta.env.VITE_ENV || 'dev';
 
 export const BACKEND_URL =
-  import.meta.env.VITE_BACKEND_URL ||
-  (ENV === 'dev' ? 'http://localhost:8081' : window.location.origin);
+  import.meta.env.VITE_BACKEND_URL || (ENV === 'dev' ? '' : window.location.origin);
 
 export const PANEL_URL = import.meta.env.VITE_PANEL_URL;
 
