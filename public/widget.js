@@ -1,8 +1,12 @@
 (function () {
   "use strict";
 
-  const script = document.currentScript;
-  const chatbocDomain = script.getAttribute("data-domain") || new URL(script.src).origin;
+  // --- HACK FOR LOCAL TESTING ---
+  // This forces the widget to load the iframe from the local Vite dev server,
+  // instead of the production domain from where the script might be loaded.
+  const chatbocDomain = "http://localhost:5173";
+  // const script = document.currentScript;
+  // const chatbocDomain = script.getAttribute("data-domain") || new URL(script.src).origin;
   const randomId = Math.random().toString(36).substring(2, 9);
   const iframeId = `chatboc-iframe-${randomId}`;
   const containerId = `chatboc-widget-container-${randomId}`;
