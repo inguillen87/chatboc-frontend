@@ -1,21 +1,31 @@
 (function () {
   "use strict";
 
-  const script = document.currentScript;
-  // --- HACK FOR LOCAL TESTING ---
-  const chatbocDomain = "http://localhost:5173";
-  // const chatbocDomain = script.getAttribute("data-domain") || new URL(script.src).origin;
+  // Determine the domain that serves the widget. In production this allows the
+  // same script to run on different hosts without hardcoding localhost.
+  const script =
+    document.currentScript ||
+    Array.from(document.getElementsByTagName("script")).find((s) =>
+      s.src && s.src.includes("widget.js")
+    );
+  const DEFAULT_DOMAIN = "https://www.chatboc.ar";
+  const chatbocDomain =
+    (script &&
+      (script.getAttribute("data-domain") || new URL(script.src).origin)) ||
+    DEFAULT_DOMAIN;
   const randomId = Math.random().toString(36).substring(2, 9);
   const iframeId = `chatboc-iframe-${randomId}`;
   const containerId = `chatboc-widget-container-${randomId}`;
 
   const params = new URLSearchParams();
-  for (const attr of script.attributes) {
-    if (attr.name.startsWith('data-')) {
-      const key = attr.name.replace('data-', '');
-      const value = attr.value;
-      params.set(key, value);
-      console.log(`Widget.js: Param set: ${key} = ${value}`);
+  if (script) {
+    for (const attr of script.attributes) {
+      if (attr.name.startsWith('data-')) {
+        const key = attr.name.replace('data-', '');
+        const value = attr.value;
+        params.set(key, value);
+        console.log(`Widget.js: Param set: ${key} = ${value}`);
+      }
     }
   }
 
