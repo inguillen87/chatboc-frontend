@@ -59,6 +59,18 @@ export async function apiFetch<T>(
   if (entityToken) {
     headers["X-Entity-Token"] = entityToken;
   }
+  // Log request details without exposing full tokens
+  const mask = (t: string | null) => (t ? `${t.slice(0, 8)}...` : null);
+  console.log("[apiFetch] Request", {
+    method,
+    url,
+    hasBody: !!body,
+    authToken: mask(token),
+    anonId: mask(anonId),
+    entityToken: mask(entityToken || null),
+    sendAnonId,
+    headers,
+  });
 
   try {
     const response = await fetch(url, {
@@ -76,6 +88,13 @@ export async function apiFetch<T>(
     } catch {
       // body no es JSON válido
     }
+
+    console.log("[apiFetch] Response", {
+      method,
+      url,
+      status: response.status,
+      data,
+    });
 
     if (response.status === 401) {
       // Sólo limpia sesión si no es skipAuth

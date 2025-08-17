@@ -103,6 +103,7 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat, entityToken }: U
 
     // Setup Socket.IO
     const socketUrl = getSocketUrl();
+    console.log("useChatLogic: Initializing socket", { socketUrl, entityToken });
     const socket = io(socketUrl, {
       transports: ['websocket', 'polling'],
       withCredentials: true,
@@ -116,6 +117,10 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat, entityToken }: U
     socket.on('connect', () => {
       console.log('Socket.IO connected.');
       socket.emit('join', { room: sessionId });
+    });
+
+    socket.on('connect_error', (err) => {
+      console.error('Socket.IO connection error:', err.message);
     });
 
     const handleBotMessage = (data: any) => {
@@ -283,13 +288,18 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat, entityToken }: U
 
       const endpoint = getAskEndpoint({ tipoChat: tipoChatFinal, rubro });
 
+      console.log('useChatLogic: Sending message to backend', { endpoint, requestBody });
       // Fire-and-forget the POST request. The response will be handled by the Socket.IO listener.
-      apiFetch<any>(endpoint, { method: 'POST', body: requestBody }).catch(error => {
-        console.error("Error sending message:", error);
-        const errorMsg = getErrorMessage(error, '⚠️ No se pudo enviar tu mensaje.');
-        setMessages(prev => [...prev, { id: generateClientMessageId(), text: errorMsg, isBot: true, timestamp: new Date(), isError: true }]);
-        setIsTyping(false);
-      });
+      apiFetch<any>(endpoint, { method: 'POST', body: requestBody })
+        .then(res => {
+          console.log('useChatLogic: Backend response', res);
+        })
+        .catch(error => {
+          console.error("Error sending message:", error);
+          const errorMsg = getErrorMessage(error, '⚠️ No se pudo enviar tu mensaje.');
+          setMessages(prev => [...prev, { id: generateClientMessageId(), text: errorMsg, isBot: true, timestamp: new Date(), isError: true }]);
+          setIsTyping(false);
+        });
 
     } catch (error: any) {
       const errorMsg = getErrorMessage(error, '⚠️ Ocurrió un error inesperado.');

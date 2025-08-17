@@ -11,16 +11,31 @@ interface CommentsApiResponse { ok: boolean; comentarios: Comment[]; error?: str
 
 async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const token = safeLocalStorage.getItem("authToken");
+  const entityToken = safeLocalStorage.getItem("entityToken");
+  const headers: HeadersInit = {
+    "Content-Type": "application/json",
+    ...(token && { Authorization: `Bearer ${token}` }),
+    ...(entityToken && { "X-Entity-Token": entityToken }),
+    ...options.headers,
+  };
   const config: RequestInit = {
     ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token && { Authorization: `Bearer ${token}` }),
-      ...options.headers,
-    },
+    headers,
   };
 
+  const mask = (t: string | null) => (t ? `${t.slice(0, 8)}...` : null);
+  console.log('[apiService] Request', {
+    endpoint,
+    method: options.method || 'GET',
+    authToken: mask(token),
+    entityToken: mask(entityToken),
+    hasBody: !!options.body,
+    headers,
+  });
+
   const response = await fetch(`${API_URL}${endpoint}`, config);
+
+  console.log('[apiService] Response', { endpoint, status: response.status });
 
   if (!response.ok) {
     if (response.status === 401) throw new Error("401: Tu sesión ha expirado. Por favor, inicia sesión de nuevo.");
