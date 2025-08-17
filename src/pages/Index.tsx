@@ -85,7 +85,7 @@ const Index = () => {
           <ComingSoonSection />
         </section>
       </main>
-      {showWidget && <ChatWidget mode="standalone" defaultOpen={false} />}
+      {showWidget && <ChatWidget mode="standalone" defaultOpen={false} entityToken="junin-web-public" />}
     </>
   );
 };
