@@ -28,7 +28,10 @@
       return;
     }
 
-    const token = script.getAttribute("data-token") || SCRIPT_CONFIG.DEFAULT_TOKEN;
+    const token =
+      script.getAttribute("data-token") ||
+      script.getAttribute("data-entity-token") ||
+      SCRIPT_CONFIG.DEFAULT_TOKEN;
     const registry = (window.__chatbocWidgets = window.__chatbocWidgets || {});
 
     if (registry[token]) {
@@ -157,6 +160,7 @@
       // Use explicit .html path so integrations without rewrite rules work
       const iframeSrc = new URL(`${chatbocDomain}/iframe.html`);
       iframeSrc.searchParams.set("token", token);
+      iframeSrc.searchParams.set("entityToken", token);
       iframeSrc.searchParams.set("widgetId", iframeId);
       iframeSrc.searchParams.set("defaultOpen", String(defaultOpen));
       iframeSrc.searchParams.set("tipo_chat", tipoChat);

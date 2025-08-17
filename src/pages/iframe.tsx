@@ -30,8 +30,9 @@ const Iframe = () => {
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    const tokenFromUrl = urlParams.get("token");
-    const storedToken = safeLocalStorage.getItem('entityToken');
+    const tokenFromUrl =
+      urlParams.get("token") || urlParams.get("entityToken");
+    const storedToken = safeLocalStorage.getItem("entityToken");
     const currentToken = tokenFromUrl || storedToken;
     const rawEndpoint = urlParams.get("endpoint") || urlParams.get("tipo_chat");
     const endpointParam =
@@ -40,8 +41,11 @@ const Iframe = () => {
         : null;
 
     if (tokenFromUrl && tokenFromUrl !== storedToken) {
-      safeLocalStorage.setItem('entityToken', tokenFromUrl);
-      console.log('Chatboc Iframe: entityToken guardado en localStorage desde URL:', tokenFromUrl);
+      safeLocalStorage.setItem("entityToken", tokenFromUrl);
+      console.log(
+        "Chatboc Iframe: entityToken guardado en localStorage desde URL:",
+        tokenFromUrl
+      );
     }
 
     if (currentToken) {
