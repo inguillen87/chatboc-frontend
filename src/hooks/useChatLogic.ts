@@ -18,7 +18,10 @@ interface UseChatLogicOptions {
   entityToken?: string;
 }
 
-export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicOptions) {
+// Rename the destructured param to avoid any accidental scope issues
+export function useChatLogic({ initialWelcomeMessage, tipoChat, entityToken: entityTokenProp }: UseChatLogicOptions) {
+  // Local constant used throughout the hook
+  const entityToken = entityTokenProp;
   const { user } = useUser();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);

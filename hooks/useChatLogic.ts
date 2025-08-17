@@ -25,9 +25,11 @@ interface SendPayload {
 interface UseChatLogicProps {
   initialWelcomeMessage: string;
   tipoChat: "pyme" | "municipio";
+  entityToken?: string;
 }
 
-export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicProps) {
+export function useChatLogic({ initialWelcomeMessage, tipoChat, entityToken: entityTokenProp }: UseChatLogicProps) {
+  const entityToken = entityTokenProp;
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [contexto, setContexto] = useState({});
