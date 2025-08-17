@@ -18,7 +18,7 @@ interface UseChatLogicOptions {
   entityToken?: string;
 }
 
-export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicOptions) {
+export function useChatLogic({ initialWelcomeMessage, tipoChat, entityToken }: UseChatLogicOptions) {
   const { user } = useUser();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
