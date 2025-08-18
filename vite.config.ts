@@ -59,6 +59,7 @@ export default defineConfig(({ mode }) => {
           target: 'http://localhost:8080',
           changeOrigin: true,
           secure: false,
+          rewrite: (path) => path.replace(/^\/api/, ''),
         },
         '/socket.io': {
           target: 'ws://localhost:8080',
