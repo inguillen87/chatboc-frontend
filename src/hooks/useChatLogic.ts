@@ -136,7 +136,7 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat, entityToken }: U
       const botMessage: Message = {
         id: data.id || generateClientMessageId(),
         text: data.comentario || data.message_body || "⚠️ No se pudo generar una respuesta.",
-        isBot: data.es_admin,
+        isBot: true, // Fix: Asumir que todos los mensajes de socket son del bot. El campo 'es_admin' no siempre está presente.
         timestamp: new Date(data.fecha || Date.now()),
         origen: data.origen,
         attachmentInfo: data.attachment_info,
