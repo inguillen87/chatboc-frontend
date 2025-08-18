@@ -103,12 +103,20 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat, entityToken }: U
 
     // Setup Socket.IO
     const socketUrl = getSocketUrl();
-    console.log("useChatLogic: Initializing socket", { socketUrl, entityToken });
+    const userAuthToken = safeLocalStorage.getItem('authToken');
+
+    console.log("useChatLogic: Initializing socket", {
+      socketUrl,
+      entityToken,
+      hasUserToken: !!userAuthToken
+    });
+
     const socket = io(socketUrl, {
       transports: ['websocket', 'polling'],
       withCredentials: true,
       auth: {
-        token: entityToken
+        token: userAuthToken, // Prioritize user JWT for auth
+        entityToken: entityToken // Pass entity token for context
       }
     });
     socketRef.current = socket;
