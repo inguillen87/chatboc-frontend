@@ -40,7 +40,8 @@ export async function apiFetch<T>(
   const anonId = safeLocalStorage.getItem("anon_id");
   const chatSessionId = getOrCreateChatSessionId(); // Get or create the chat session ID
 
-  const url = `${BASE_API_URL}${path}`;
+  // Normalize URL to prevent double slashes
+  const url = `${BASE_API_URL.replace(/\/$/, "")}/${path.replace(/^\//, "")}`;
   const headers: Record<string, string> = { ...(options.headers || {}) };
 
   const isForm = body instanceof FormData;
