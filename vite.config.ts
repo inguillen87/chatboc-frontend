@@ -56,13 +56,13 @@ export default defineConfig(({ mode }) => {
       port: 5173,
       proxy: {
         '/api': {
-          target: 'http://localhost:8080',
+          target: 'https://chatbot-backend-2e14.onrender.com',
           changeOrigin: true,
           secure: false,
           rewrite: (path) => path.replace(/^\/api/, ''),
         },
         '/socket.io': {
-          target: 'ws://localhost:8080',
+          target: 'wss://chatbot-backend-2e14.onrender.com',
           ws: true,
         },
       },

@@ -122,19 +122,18 @@ const ChatPanel = ({
       const handleIncoming = (data: any) => {
         const newMessage: Message = {
           id: data.id,
-          author: data.es_admin ? 'agent' : 'user',
-          content: data.comentario,
-          timestamp: data.fecha,
+          text: data.comentario || '',
+          isBot: data.es_admin, // Agent messages are treated as "bot" for styling
+          timestamp: new Date(data.fecha || Date.now()),
+          origen: data.origen,
         };
         setMessages(prevMessages => [...prevMessages, newMessage]);
       };
 
       socket.on('new_chat_message', handleIncoming);
-      socket.on('message', handleIncoming);
 
       return () => {
         socket.off('new_chat_message', handleIncoming);
-        socket.off('message', handleIncoming);
         socket.disconnect();
       };
     }
