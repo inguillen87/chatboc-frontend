@@ -7,34 +7,73 @@ import { useUser } from '@/hooks/useUser';
 import { toast } from '@/components/ui/use-toast';
 
 const MAX_FILE_SIZE_MB = 10;
-const ALL_ALLOWED_EXTENSIONS = [
-  'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'avif', 'pdf', 'doc', 'docx',
-  'xls', 'xlsx', 'csv', 'ppt', 'pptx', 'txt', 'md', 'rtf', 'mp3', 'wav',
-  'ogg', 'aac', 'm4a', 'mp4', 'mov', 'webm', 'avi', 'mkv',
-];
-const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'avif'];
+const ALL_ALLOWED_MIMETYPES = {
+  'image/jpeg': ['jpg', 'jpeg'],
+  'image/png': ['png'],
+  'image/gif': ['gif'],
+  'image/webp': ['webp'],
+  'image/svg+xml': ['svg'],
+  'image/avif': ['avif'],
+  'application/pdf': ['pdf'],
+  'application/msword': ['doc'],
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['docx'],
+  'application/vnd.ms-excel': ['xls'],
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['xlsx'],
+  'text/csv': ['csv'],
+  'application/vnd.ms-powerpoint': ['ppt'],
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['pptx'],
+  'text/plain': ['txt', 'md'],
+  'application/rtf': ['rtf'],
+  'audio/mpeg': ['mp3'],
+  'audio/wav': ['wav'],
+  'audio/ogg': ['ogg'],
+  'audio/aac': ['aac'],
+  'audio/x-m4a': ['m4a'],
+  'video/mp4': ['mp4'],
+  'video/quicktime': ['mov'],
+  'video/webm': ['webm'],
+  'video/x-matroska': ['mkv'],
+  'video/x-msvideo': ['avi'],
+};
+
+const IMAGE_MIMETYPES = Object.keys(ALL_ALLOWED_MIMETYPES).filter(m => m.startsWith('image/'));
 
 export interface AdjuntarArchivoProps {
-  onUpload?: (data: any) => void;
-  asImage?: boolean;
+  onFileSelected: (file: File) => void;
   disabled?: boolean;
+  allowedFileTypes?: string[]; // e.g., ['image/*', 'application/pdf']
 }
 
-const AdjuntarArchivo: React.FC<AdjuntarArchivoProps> = ({ onUpload, asImage = false, disabled = false }) => {
+const AdjuntarArchivo: React.FC<AdjuntarArchivoProps> = ({ onFileSelected, disabled = false, allowedFileTypes }) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const { user } = useUser();
 
-  const allowedExtensions = asImage ? IMAGE_EXTENSIONS : ALL_ALLOWED_EXTENSIONS;
+  const getMimeTypes = () => {
+    if (!allowedFileTypes) return Object.keys(ALL_ALLOWED_MIMETYPES);
+    let mimes: string[] = [];
+    allowedFileTypes.forEach(type => {
+      if (type.endsWith('/*')) {
+        const prefix = type.slice(0, -1);
+        mimes.push(...Object.keys(ALL_ALLOWED_MIMETYPES).filter(m => m.startsWith(prefix)));
+      } else {
+        mimes.push(type);
+      }
+    });
+    return mimes;
+  };
+
+  const allowedMimeTypes = getMimeTypes();
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const ext = file.name.split('.').pop()?.toLowerCase() || '';
-    if (!allowedExtensions.includes(ext)) {
+    const fileMime = file.type;
+
+    if (!allowedMimeTypes.includes(fileMime)) {
       toast({
         title: "Archivo no permitido",
-        description: `El formato de archivo ".${ext}" no está permitido.`,
+        description: `El tipo de archivo "${fileMime}" no está permitido.`,
         variant: "destructive",
         duration: 5000,
       });
@@ -53,38 +92,10 @@ const AdjuntarArchivo: React.FC<AdjuntarArchivoProps> = ({ onUpload, asImage = f
       return;
     }
 
-    const formData = new FormData();
-    formData.append('archivo', file);
-    formData.append('file', file); // Some backends expect the field name 'file'
+    onFileSelected(file);
 
-    // Podríamos añadir un toast de "Subiendo..." aquí si la subida puede tardar
-    // toast({ title: "Subiendo archivo...", description: file.name });
-
-    try {
-      const data = await apiFetch<any>('/archivos/subir', {
-        method: 'POST',
-        body: formData,
-        // No es necesario 'Content-Type': 'multipart/form-data', FormData lo maneja.
-      });
-      
-      // El toast de éxito se podría manejar en el componente padre (ChatInput)
-      // o aquí si se considera genérico para cualquier uso de AdjuntarArchivo.
-      // Por ahora, lo dejamos al componente padre como estaba.
-      onUpload && onUpload(data);
-
-    } catch (err: any) {
-      const errorMessage = err.body?.error || err.message || 'Error desconocido al subir archivo.';
-      toast({
-        title: "Error al subir archivo",
-        description: errorMessage,
-        variant: "destructive",
-        duration: 7000,
-      });
-    } finally {
-      // Siempre resetear el input después del intento (éxito o fallo manejado por toast)
-      if (inputRef.current) {
-        inputRef.current.value = '';
-      }
+    if (inputRef.current) {
+      inputRef.current.value = '';
     }
   };
 
@@ -112,7 +123,7 @@ const AdjuntarArchivo: React.FC<AdjuntarArchivoProps> = ({ onUpload, asImage = f
       <input
         ref={inputRef}
         type="file"
-        accept={allowedExtensions.map((ext) => `.${ext}`).join(',')}
+        accept={allowedFileTypes ? allowedFileTypes.join(',') : '*/*'}
         className="hidden"
         onChange={handleFileChange}
         disabled={disabled}
