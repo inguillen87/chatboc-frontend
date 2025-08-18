@@ -263,7 +263,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       try {
         const data = await apiFetch<any>("/perfil", {
           entityToken: entityToken,
-          skipAuth: true,
         });
         console.log("ChatWidget: Perfil recibido:", data);
         if (data && typeof data.esPublico === "boolean") {
