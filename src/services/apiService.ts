@@ -45,7 +45,9 @@ async function apiFetch<T>(endpoint:string, options: RequestInit = {}): Promise<
     headers,
   });
 
-  const response = await fetch(`${API_URL}${endpoint}`, config);
+  // Normalize URL to prevent double slashes
+  const url = `${API_URL.replace(/\/$/, "")}/${endpoint.replace(/^\//, "")}`;
+  const response = await fetch(url, config);
 
   console.log('[apiService] Response', {
     endpoint,
