@@ -7,7 +7,7 @@ import { apiFetch, getErrorMessage } from "@/utils/api";
 import { getAskEndpoint } from "@/utils/chatEndpoints";
 import { enforceTipoChatForRubro } from "@/utils/tipoChat";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
-import getOrCreateAnonId from "@/utils/anonId";
+import getOrCreateChatSessionId from "@/utils/chatSessionId";
 import { v4 as uuidv4 } from 'uuid';
 import { MunicipioContext, updateMunicipioContext, getInitialMunicipioContext } from "@/utils/contexto_municipio";
 import { useUser } from './useUser';
@@ -27,7 +27,6 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat, entityToken }: U
   const [currentClaimIdempotencyKey, setCurrentClaimIdempotencyKey] = useState<string | null>(null);
 
   const token = safeLocalStorage.getItem('authToken');
-  const anonId = getOrCreateAnonId();
   const isAnonimo = !token;
 
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -120,7 +119,7 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat, entityToken }: U
       }
     });
     socketRef.current = socket;
-    const sessionId = getOrCreateAnonId();
+    const sessionId = getOrCreateChatSessionId();
 
     socket.on('connect', () => {
       console.log('Socket.IO connected.');
@@ -314,7 +313,7 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat, entityToken }: U
       setMessages(prev => [...prev, { id: generateClientMessageId(), text: errorMsg, isBot: true, timestamp: new Date(), isError: true }]);
       setIsTyping(false);
     }
-  }, [contexto, activeTicketId, isTyping, isAnonimo, anonId, currentClaimIdempotencyKey, tipoChat]);
+  }, [contexto, activeTicketId, isTyping, isAnonimo, currentClaimIdempotencyKey, tipoChat]);
 
   return { messages, isTyping, handleSend, activeTicketId, setMessages, setContexto, setActiveTicketId, contexto };
 }

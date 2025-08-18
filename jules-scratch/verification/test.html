@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Test Chat Widget</title>
+</head>
+<body>
+<h1>Test page for local chat widget</h1>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  // Use a test token
+  const testToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo0LCJleHAiOjE3NTYxMzAyMzR9.hUYDWrDOIhTmW9iCHCsxol3lXcHk4NCPg87eNFG0kbk";
+
+  if (window.chatbocDestroyWidget) {
+    window.chatbocDestroyWidget(testToken);
+  }
+  window.APP_TARGET = 'municipio';
+
+  var s = document.createElement('script');
+  s.src = 'http://localhost:5173/widget.js'; // Use local widget script
+  s.async = true;
+  s.setAttribute('data-token', testToken);
+  s.setAttribute('data-endpoint', 'municipio');
+
+  document.body.appendChild(s);
+
+  s.onload = function() {
+    console.log('Local Chatboc Widget cargado y listo.');
+  };
+  s.onerror = function() {
+    console.error('Error al cargar Local Chatboc Widget.');
+  };
+});
+</script>
+</body>
+</html>
