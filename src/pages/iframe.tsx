@@ -5,6 +5,7 @@ import ChatWidget from "../components/chat/ChatWidget";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import ErrorBoundary from '../components/ErrorBoundary';
+import { MemoryRouter } from "react-router-dom";
 
 const DEFAULTS = {
   openWidth: "460px",
@@ -100,20 +101,22 @@ const Iframe = () => {
 
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-      <ChatWidget
-        mode="iframe"
-        entityToken={entityToken}
-        defaultOpen={widgetParams.defaultOpen}
-        widgetId={widgetParams.widgetId}
-        tipoChat={tipoChat || undefined}
-        openWidth={widgetParams.openWidth}
-        openHeight={widgetParams.openHeight}
-        closedWidth={widgetParams.closedWidth}
-        closedHeight={widgetParams.closedHeight}
-        ctaMessage={widgetParams.ctaMessage}
-        initialView={widgetParams.view}
-        initialRubro={widgetParams.rubro}
-      />
+      <MemoryRouter>
+        <ChatWidget
+          mode="iframe"
+          entityToken={entityToken}
+          defaultOpen={widgetParams.defaultOpen}
+          widgetId={widgetParams.widgetId}
+          tipoChat={tipoChat || undefined}
+          openWidth={widgetParams.openWidth}
+          openHeight={widgetParams.openHeight}
+          closedWidth={widgetParams.closedWidth}
+          closedHeight={widgetParams.closedHeight}
+          ctaMessage={widgetParams.ctaMessage}
+          initialView={widgetParams.view}
+          initialRubro={widgetParams.rubro}
+        />
+      </MemoryRouter>
     </GoogleOAuthProvider>
   );
 };
