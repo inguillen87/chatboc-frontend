@@ -11,7 +11,7 @@ const IS_DEV = import.meta.env.DEV;
  * resulting in relative paths (e.g., /api/login).
  * In production, it will be the full backend URL.
  */
-export const BASE_API_URL = VITE_BACKEND_URL ? VITE_BACKEND_URL : (IS_DEV ? '' : window.location.origin);
+export const BASE_API_URL = VITE_BACKEND_URL ? VITE_BACKEND_URL : (IS_DEV ? '/api' : window.location.origin);
 
 /**
  * Derives the WebSocket URL from the current environment.
