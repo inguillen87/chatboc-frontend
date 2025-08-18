@@ -2,6 +2,7 @@
 export interface AttachmentInfo {
   name: string;
   url: string;
+  thumbUrl?: string;
   mimeType?: string;
   size?: number;
 }
@@ -56,6 +57,7 @@ export interface Message {
   attachmentInfo?: { // Información detallada de un archivo adjunto
     name: string; // Nombre del archivo (ej. "documento.pdf")
     url: string; // URL para descargar/visualizar el archivo
+    thumbUrl?: string; // URL a una miniatura de la imagen/PDF
     mimeType?: string; // Tipo MIME del archivo (ej. "application/pdf", "image/jpeg")
     size?: number; // Tamaño del archivo en bytes (opcional)
   };
@@ -83,6 +85,7 @@ export interface SendPayload {
   attachmentInfo?: { // Información del archivo que el usuario está adjuntando (antes de que el backend lo confirme)
     name: string;
     url: string; // URL temporal o final del archivo subido por el usuario
+    thumbUrl?: string;
     mimeType?: string;
     size?: number;
   };

@@ -17,10 +17,19 @@ import {
   Download, // Added for explicit download button if needed elsewhere
   Loader2, // For uploading indicator
 } from 'lucide-react';
-import type { AttachmentInfo } from '@/utils/attachment'; 
+import type { AttachmentInfo } from '@/utils/attachment';
 import sanitizeMessageHtml from '@/utils/sanitizeMessageHtml';
 import { Message } from '@/types/chat';
 import { formatFileSize } from '@/utils/files';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { cn } from '@/lib/utils';
 
 interface Props {
   message: Message; 
@@ -76,6 +85,7 @@ const AttachmentPreview: React.FC<Props> = ({ message, attachmentInfo, fallbackT
     );
 
     if (attachmentType === 'image') {
+      const imgSrc = attachmentInfo.thumbUrl || url;
       return (
         <div className="flex flex-col items-start gap-1 my-1">
           {sanitizedFallbackHtml && (
@@ -84,25 +94,65 @@ const AttachmentPreview: React.FC<Props> = ({ message, attachmentInfo, fallbackT
                 dangerouslySetInnerHTML={{ __html: sanitizedFallbackHtml }}
             />
           )}
+          <Dialog>
+            <DialogTrigger asChild>
+              <button
+                disabled={isUploading}
+                className={cn("hover:opacity-80 transition-opacity block relative", isUploading && "cursor-default opacity-60")}
+              >
+                <img
+                  src={imgSrc}
+                  alt={filename}
+                  className="max-w-[260px] sm:max-w-xs md:max-w-sm max-h-[200px] sm:max-h-[250px] object-cover rounded-lg border border-border shadow-md bg-muted"
+                />
+                {isUploading && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg">
+                    <Loader2 className="w-6 h-6 text-white animate-spin" />
+                  </div>
+                )}
+              </button>
+            </DialogTrigger>
+            <DialogContent className="max-w-4xl max-h-[90vh]">
+              <DialogHeader>
+                <DialogTitle>{filename}</DialogTitle>
+                <DialogDescription>
+                  <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
+                    Ver original
+                  </a>
+                </DialogDescription>
+              </DialogHeader>
+              <img src={url} alt={filename} className="w-full h-full object-contain" />
+            </DialogContent>
+          </Dialog>
+          {renderDownloadLink(filename, !isUploading)}
+        </div>
+      );
+    }
+
+    if (attachmentType === 'pdf') {
+      return (
+        <div className="py-1">
+          {sanitizedFallbackHtml && (
+            <div
+                className="prose prose-sm dark:prose-invert max-w-none [&_p]:my-0 mb-2"
+                dangerouslySetInnerHTML={{ __html: sanitizedFallbackHtml }}
+            />
+          )}
           <a
-            href={isUploading ? '#' : url}
+            href={url}
             target="_blank"
             rel="noopener noreferrer"
-            onClick={isUploading ? (e) => e.preventDefault() : undefined}
-            className={cn("hover:opacity-80 transition-opacity block relative", isUploading && "cursor-default opacity-60")}
+            className="flex items-start gap-3 p-2 rounded-lg hover:bg-muted border border-border"
           >
-            <img
-              src={url} // La URL debe ser completa y accesible
-              alt={filename}
-              className="max-w-[260px] sm:max-w-xs md:max-w-sm max-h-[200px] sm:max-h-[250px] object-contain rounded-lg border border-border shadow-md bg-muted"
-            />
-            {isUploading && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg">
-                <Loader2 className="w-6 h-6 text-white animate-spin" />
-              </div>
+            {attachmentInfo.thumbUrl && (
+              <img src={attachmentInfo.thumbUrl} alt={`Previsualización de ${filename}`} className="w-20 h-24 object-cover rounded-md bg-white" />
             )}
+            <div className="flex flex-col">
+              <span className="font-semibold">{filename}</span>
+              <span className="text-sm text-muted-foreground">PDF</span>
+              {formatFileSize(size) && <span className="text-xs text-muted-foreground mt-1">{formatFileSize(size)}</span>}
+            </div>
           </a>
-          {renderDownloadLink(filename, !isUploading)} {/* Show download icon only if not uploading */}
         </div>
       );
     }
@@ -158,9 +208,6 @@ const AttachmentPreview: React.FC<Props> = ({ message, attachmentInfo, fallbackT
     // Generic file types
     let IconComponent: React.ElementType = FileQuestion;
     switch (attachmentType) {
-      case 'pdf':
-        IconComponent = FileText;
-        break;
       case 'spreadsheet':
         IconComponent = FileSpreadsheet;
         break;
