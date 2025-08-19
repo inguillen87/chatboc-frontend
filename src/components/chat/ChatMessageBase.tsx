@@ -144,9 +144,15 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
     );
   }
 
+  const { user } = useUser(); // Get user status
   const isBot = message.isBot;
 
-  const safeText = typeof message.text === "string" && message.text !== "NaN" ? message.text : "";
+  // Patch to improve greeting for anonymous web users
+  let safeText = typeof message.text === "string" && message.text !== "NaN" ? message.text : "";
+  if (isBot && !user) { // If it's a bot message and the user is anonymous
+    safeText = safeText.replace(/¡Hola, Usuario de WhatsApp \d+!/, '¡Hola!');
+  }
+
   const sanitizedHtml = sanitizeMessageHtml(safeText);
 
   let processedAttachmentInfo: AttachmentInfo | null = null;

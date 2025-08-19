@@ -31,6 +31,7 @@ export function useChatLogic({ tipoChat, entityToken }: UseChatLogicOptions) {
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const ultimoMensajeIdRef = useRef<number>(0);
   const clientMessageIdCounter = useRef(0);
+  const welcomeSentRef = useRef(false);
 
   const generateClientMessageId = () => {
     clientMessageIdCounter.current += 1;
@@ -67,9 +68,15 @@ export function useChatLogic({ tipoChat, entityToken }: UseChatLogicOptions) {
     const sessionId = getOrCreateChatSessionId();
 
     socket.on('connect', () => {
-      console.log('Socket.IO connected, joining room with web channel...');
-      // The backend expects `channel: 'web'` to trigger the welcome message for widgets.
-      socket.emit('join', { room: sessionId, channel: 'web' });
+      console.log('Socket.IO connected, joining room...');
+      socket.emit('join', { room: sessionId });
+
+      // Based on logs, the menu is only triggered by a POST request.
+      // We will send a silent 'hola' to trigger the welcome menu.
+      if (!welcomeSentRef.current) {
+        handleSend({ text: 'hola', silent: true });
+        welcomeSentRef.current = true;
+      }
     });
 
     socket.on('connect_error', (err) => {
@@ -133,10 +140,17 @@ export function useChatLogic({ tipoChat, entityToken }: UseChatLogicOptions) {
     const actualPayload: TypeSendPayload = typeof payload === 'string' ? { text: payload.trim() } : { ...payload, text: payload.text?.trim() || "" };
     const { text: userMessageText, attachmentInfo, ubicacion_usuario, action, location } = actualPayload;
     const actionPayload = 'payload' in actualPayload ? actualPayload.payload : undefined;
+    const isSilent = 'silent' in actualPayload && actualPayload.silent;
 
 
     if (!userMessageText && !attachmentInfo && !ubicacion_usuario && !action && !actualPayload.archivo_url && !location) return;
-    if (isTyping) return;
+
+    // Don't show typing indicator for silent messages
+    if (isTyping && !isSilent) return;
+
+    if (!isSilent) {
+      setIsTyping(true);
+    }
 
     if (action === 'iniciar_creacion_reclamo') {
       // Check for existing user data
@@ -214,12 +228,16 @@ export function useChatLogic({ tipoChat, entityToken }: UseChatLogicOptions) {
       locationData: location || ubicacion_usuario,
     };
 
-    // Add user message to UI immediately if it has content
-    if (userMessageText || attachmentInfo || location) {
+    // Add user message to UI immediately if it's not a silent message
+    if ((userMessageText || attachmentInfo || location) && !isSilent) {
       setMessages(prev => [...prev, userMessage]);
     }
 
-    setIsTyping(true);
+    // For silent messages, we still want the typing indicator to flash briefly
+    // to show that something is happening in the background.
+    if (isSilent) {
+      setIsTyping(true);
+    }
 
     try {
       const storedUser = JSON.parse(safeLocalStorage.getItem('user') || 'null');
@@ -231,6 +249,7 @@ export function useChatLogic({ tipoChat, entityToken }: UseChatLogicOptions) {
 
       const requestBody: Record<string, any> = {
         pregunta: userMessageText,
+        channel: 'web', // Always send channel for backend context
         contexto_previo: updatedContext,
         tipo_chat: tipoChatFinal,
         ...(rubro && { rubro_clave: rubro }),
