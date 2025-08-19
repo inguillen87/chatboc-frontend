@@ -13,12 +13,11 @@ import { MunicipioContext, updateMunicipioContext, getInitialMunicipioContext } 
 import { useUser } from './useUser';
 
 interface UseChatLogicOptions {
-  initialWelcomeMessage: string;
   tipoChat: 'pyme' | 'municipio';
   entityToken?: string;
 }
 
-export function useChatLogic({ initialWelcomeMessage, tipoChat, entityToken }: UseChatLogicOptions) {
+export function useChatLogic({ tipoChat, entityToken }: UseChatLogicOptions) {
   const { user } = useUser();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
@@ -38,63 +37,9 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat, entityToken }: U
     return `client-${Date.now()}-${clientMessageIdCounter.current}`;
   };
 
-  const generateWelcomeMessage = (user: any): Message => {
-    const nombreUsuario = user?.nombre || user?.name || "";
-    const welcomeMessageText = isAnonimo
-      ? "¡Hola! Soy Juni, el asistente virtual de la Municipalidad de Junín.\nEstas son las cosas que puedo hacer por vos:"
-      : `¡Hola, ${nombreUsuario}! Soy Juni, tu Asistente Virtual. ¿Qué necesitas hoy?`;
-
-    return {
-      id: generateClientMessageId(),
-      text: welcomeMessageText,
-      isBot: true,
-      timestamp: new Date(),
-      categorias: [
-        {
-          titulo: "Reclamos y Denuncias",
-          botones: [
-            { texto: "Hacer un Reclamo", action: "show_reclamos_menu" },
-            { texto: "Realizar una Denuncia", action: "hacer_denuncia" },
-          ],
-        },
-        {
-          titulo: "Trámites Frecuentes",
-          botones: [
-            { texto: "Licencia de Conducir", action: "licencia_de_conducir" },
-            { texto: "Pago de Tasas", action: "consultar_deudas" },
-            { texto: "Defensa del Consumidor", action: "defensa_del_consumidor" },
-            { texto: "Veterinaria y Bromatología", action: "veterinaria_y_bromatologia" },
-            { texto: "Consultar Multas de Tránsito", action: "consultar_multas" },
-          ],
-        },
-        {
-          titulo: "Consultas y Turnos",
-          botones: [
-              { texto: "Consultar otros trámites", action: "consultar_tramites" },
-              { texto: "Solicitar Turnos", action: "solicitar_turnos" },
-          ]
-        },
-        {
-          titulo: "Información y Novedades",
-          botones: [
-            { texto: "Agenda Cultural y Turística", action: "agenda_cultural" },
-            { texto: "Últimas Novedades", action: "ver_novedades" },
-          ]
-        }
-      ],
-    };
-  };
-
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
-    // Initialize welcome message
-    if (messages.length === 0) {
-      const user = JSON.parse(safeLocalStorage.getItem('user') || 'null');
-      const welcomeMessage = generateWelcomeMessage(user);
-      setMessages([welcomeMessage]);
-    }
-
     if (!entityToken) {
       console.log("useChatLogic: No entityToken, socket connection deferred.");
       return;
@@ -132,10 +77,14 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat, entityToken }: U
 
     const handleBotMessage = (data: any) => {
       console.log('Bot response received:', data);
+
+      // Actualizar el contexto con la respuesta del bot
+      setContexto(prevContext => updateMunicipioContext(prevContext, { llmResponse: data }));
+
       const botMessage: Message = {
         id: data.id || generateClientMessageId(),
         text: data.comentario || data.message_body || "⚠️ No se pudo generar una respuesta.",
-        isBot: true, // Fix: Asumir que todos los mensajes de socket son del bot. El campo 'es_admin' no siempre está presente.
+        isBot: true,
         timestamp: new Date(data.fecha || Date.now()),
         origen: data.origen,
         attachmentInfo: data.attachment_info,
@@ -144,7 +93,14 @@ export function useChatLogic({ initialWelcomeMessage, tipoChat, entityToken }: U
         mediaUrl: data.media_url,
         locationData: data.location_data,
         isError: !data.message_body && !data.comentario,
+        // Si el backend envía un ticket_id, lo adjuntamos al mensaje para referencia futura
+        ticketId: data.ticket_id,
       };
+
+      if (data.ticket_id) {
+        setActiveTicketId(data.ticket_id);
+      }
+
       setMessages(prev => [...prev, botMessage]);
       setIsTyping(false);
     };

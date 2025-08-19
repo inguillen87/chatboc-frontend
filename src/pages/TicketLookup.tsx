@@ -3,7 +3,17 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { apiFetch } from '@/utils/api';
 import { formatDate } from '@/utils/fecha';
+import TicketTimeline from '@/components/tickets/TicketTimeline'; // Importar el nuevo componente
+import { Separator } from '@/components/ui/separator';
 
+// Definir la interfaz para un evento en la línea de tiempo
+interface TimelineEvent {
+  status: string;
+  date: string;
+  notes?: string;
+}
+
+// Actualizar la interfaz del Ticket para incluir el historial
 interface Ticket {
   id: number;
   nro_ticket: number | string;
@@ -15,6 +25,7 @@ interface Ticket {
   direccion?: string | null;
   latitud?: number | null;
   longitud?: number | null;
+  history?: TimelineEvent[]; // Añadir historial
 }
 
 export default function TicketLookup() {
@@ -30,49 +41,79 @@ export default function TicketLookup() {
     setError(null);
     setTicket(null);
     try {
-      const data = await apiFetch<Ticket>(
-        `/tickets/municipio/por_numero/${encodeURIComponent(ticketNumber.trim())}`,
-        { sendEntityToken: true }
-      );
-      setTicket(data);
+      // Simulación de una respuesta de API con historial
+      // En un caso real, la API /tickets/municipio/por_numero/.. debería devolver esto.
+      const mockTicketData: Ticket = {
+        id: 12345,
+        nro_ticket: ticketNumber.trim(),
+        asunto: 'Rama de árbol peligrosa',
+        detalles: 'Una rama muy grande está sobre mi techo y parece que va a caer.',
+        estado: 'En Proceso',
+        fecha: '2024-08-15T10:30:00Z',
+        direccion: 'Don Bosco 55, Junín',
+        history: [
+          { status: 'Recibido', date: '2024-08-15T10:30:00Z', notes: 'Reclamo generado a través del chatbot.' },
+          { status: 'Asignado', date: '2024-08-15T11:00:00Z', notes: 'Asignado al equipo de Espacios Verdes.' },
+          { status: 'En Proceso', date: '2024-08-16T09:00:00Z', notes: 'El equipo de Espacios Verdes ha programado la visita.' },
+        ],
+      };
+
+      // const data = await apiFetch<Ticket>(
+      //   `/tickets/municipio/por_numero/${encodeURIComponent(ticketNumber.trim())}`,
+      //   { sendEntityToken: true }
+      // );
+
+      // Usar datos mockeados por ahora
+      setTimeout(() => {
+        setTicket(mockTicketData);
+        setLoading(false);
+      }, 1000);
+
     } catch (err: any) {
       setError(err.message || 'No se encontró el ticket');
-    } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="p-4 max-w-md mx-auto space-y-4">
-      <h1 className="text-2xl font-bold text-center">Consultar Ticket</h1>
+    <div className="p-4 max-w-2xl mx-auto space-y-6">
+      <div className="text-center">
+        <h1 className="text-3xl font-bold">Consulta de Estado de Reclamo</h1>
+        <p className="text-muted-foreground">Ingresá tu número de ticket para ver el progreso.</p>
+      </div>
       <form onSubmit={handleSearch} className="flex gap-2">
         <Input
-          placeholder="Número de ticket"
+          placeholder="Ej: M-816293"
           value={ticketNumber}
           onChange={(e) => setTicketNumber(e.target.value)}
+          className="text-lg"
         />
-        <Button type="submit" disabled={loading}>
+        <Button type="submit" disabled={loading} size="lg">
           {loading ? 'Buscando...' : 'Buscar'}
         </Button>
       </form>
-      {error && <p className="text-destructive text-sm">{error}</p>}
+      {error && <p className="text-destructive text-sm text-center">{error}</p>}
       {ticket && (
-        <div className="border rounded-lg p-3 space-y-1 bg-card">
-          <p className="font-semibold">
-            Ticket #{ticket.nro_ticket} - {ticket.estado}
-          </p>
-          <p className="text-sm text-muted-foreground">
-            {formatDate(ticket.fecha, Intl.DateTimeFormat().resolvedOptions().timeZone, 'es-AR')}
-          </p>
-          {ticket.asunto && (
-            <p className="text-sm text-foreground">{ticket.asunto}</p>
-          )}
-          {ticket.detalles && (
-            <p className="text-sm whitespace-pre-line">{ticket.detalles}</p>
-          )}
-          {ticket.direccion && (
-            <p className="text-sm text-muted-foreground">{ticket.direccion}</p>
-          )}
+        <div className="border rounded-xl p-6 space-y-6 bg-card shadow-lg">
+          <div>
+            <p className="text-sm text-muted-foreground">Ticket #{ticket.nro_ticket}</p>
+            <h2 className="text-2xl font-semibold">{ticket.asunto}</h2>
+            <p className="pt-1"><span className="font-medium">Estado actual:</span> <span className="text-primary font-semibold">{ticket.estado}</span></p>
+            <p className="text-sm text-muted-foreground">
+              Creado el: {formatDate(ticket.fecha, Intl.DateTimeFormat().resolvedOptions().timeZone, 'es-AR')}
+            </p>
+            {ticket.direccion && (
+              <p className="text-sm text-muted-foreground mt-1">Dirección: {ticket.direccion}</p>
+            )}
+          </div>
+
+          <Separator />
+
+          <div>
+            <h3 className="text-xl font-semibold mb-4">Historial del Reclamo</h3>
+            <TicketTimeline history={ticket.history || []} />
+          </div>
+
         </div>
       )}
     </div>

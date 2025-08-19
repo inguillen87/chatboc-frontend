@@ -52,7 +52,7 @@ export function updateMunicipioContext(
   // 2. Extraer y actualizar datos del reclamo desde la respuesta del LLM
   if (interaction.llmResponse?.datos_estructura) {
     const { datos_estructura } = interaction.llmResponse;
-    const { reclamo } = newContext.datos_reclamo;
+    const reclamo = newContext.datos_reclamo;
 
     if (datos_estructura.categoria) reclamo.categoria = datos_estructura.categoria;
     if (datos_estructura.descripcion) reclamo.descripcion = datos_estructura.descripcion;
