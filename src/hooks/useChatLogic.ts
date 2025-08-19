@@ -130,11 +130,11 @@ export function useChatLogic({ tipoChat, entityToken }: UseChatLogicOptions) {
 
   const handleSend = useCallback(async (payload: string | TypeSendPayload) => {
     const actualPayload: TypeSendPayload = typeof payload === 'string' ? { text: payload.trim() } : { ...payload, text: payload.text?.trim() || "" };
-    const { text: userMessageText, attachmentInfo, ubicacion_usuario, action } = actualPayload;
+    const { text: userMessageText, attachmentInfo, ubicacion_usuario, action, location } = actualPayload;
     const actionPayload = 'payload' in actualPayload ? actualPayload.payload : undefined;
 
 
-    if (!userMessageText && !attachmentInfo && !ubicacion_usuario && !action && !actualPayload.archivo_url) return;
+    if (!userMessageText && !attachmentInfo && !ubicacion_usuario && !action && !actualPayload.archivo_url && !location) return;
     if (isTyping) return;
 
     if (action === 'iniciar_creacion_reclamo') {
@@ -210,11 +210,11 @@ export function useChatLogic({ tipoChat, entityToken }: UseChatLogicOptions) {
       isBot: false,
       timestamp: new Date(),
       attachmentInfo,
-      locationData: ubicacion_usuario,
+      locationData: location || ubicacion_usuario,
     };
 
     // Add user message to UI immediately if it has content
-    if (userMessageText || attachmentInfo) {
+    if (userMessageText || attachmentInfo || location) {
       setMessages(prev => [...prev, userMessage]);
     }
 
@@ -234,7 +234,7 @@ export function useChatLogic({ tipoChat, entityToken }: UseChatLogicOptions) {
         tipo_chat: tipoChatFinal,
         ...(rubro && { rubro_clave: rubro }),
         ...(attachmentInfo && { attachment_info: attachmentInfo }),
-        ...(ubicacion_usuario && { ubicacion_usuario: ubicacion_usuario }),
+        ...(location && { location: location }),
         ...(action && { action }),
         ...(actionPayload && { payload: actionPayload }),
         ...(action === "confirmar_reclamo" && currentClaimIdempotencyKey && { idempotency_key: currentClaimIdempotencyKey }),

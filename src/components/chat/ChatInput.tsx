@@ -95,9 +95,8 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
       const coords = await requestLocation({ enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
       if (coords) {
         onSendMessage({
-          text: "Ubicación compartida",
-          es_ubicacion: true,
-          ubicacion_usuario: { lat: coords.latitud, lon: coords.longitud }
+          text: "", // Texto vacío como pide el backend
+          location: { lat: coords.latitud, lon: coords.longitud } // Usar el nuevo formato
         });
         toast({ title: "Ubicación enviada", description: "Tu ubicación ha sido compartida.", duration: 3000 });
       } else {

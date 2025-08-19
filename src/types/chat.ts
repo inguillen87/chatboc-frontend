@@ -78,6 +78,7 @@ export interface SendPayload {
 
   es_ubicacion?: boolean; // True si el payload incluye datos de ubicación del usuario
   ubicacion_usuario?: { lat: number; lon: number; }; // Coordenadas si es_ubicacion es true
+  location?: { lat: number, lon: number }; // NUEVO: Para el envío de ubicación desde el widget
 
   action?: string; // Si el envío es resultado de un clic en un botón con una acción específica que el backend debe procesar
   payload?: any; // Datos adicionales asociados a la acción del botón
