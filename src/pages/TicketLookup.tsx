@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useParams } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { apiFetch } from '@/utils/api';
@@ -29,14 +30,14 @@ interface Ticket {
 }
 
 export default function TicketLookup() {
-  const [ticketNumber, setTicketNumber] = useState('');
+  const { ticketId } = useParams<{ ticketId: string }>();
+  const [ticketNumber, setTicketNumber] = useState(ticketId || '');
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!ticketNumber.trim()) return;
+  const performSearch = useCallback(async (searchId: string) => {
+    if (!searchId) return;
     setLoading(true);
     setError(null);
     setTicket(null);
@@ -45,7 +46,7 @@ export default function TicketLookup() {
       // En un caso real, la API /tickets/municipio/por_numero/.. debería devolver esto.
       const mockTicketData: Ticket = {
         id: 12345,
-        nro_ticket: ticketNumber.trim(),
+        nro_ticket: searchId,
         asunto: 'Rama de árbol peligrosa',
         detalles: 'Una rama muy grande está sobre mi techo y parece que va a caer.',
         estado: 'En Proceso',
@@ -59,7 +60,7 @@ export default function TicketLookup() {
       };
 
       // const data = await apiFetch<Ticket>(
-      //   `/tickets/municipio/por_numero/${encodeURIComponent(ticketNumber.trim())}`,
+      //   `/tickets/municipio/por_numero/${encodeURIComponent(searchId)}`,
       //   { sendEntityToken: true }
       // );
 
@@ -73,6 +74,17 @@ export default function TicketLookup() {
       setError(err.message || 'No se encontró el ticket');
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    if (ticketId) {
+      performSearch(ticketId);
+    }
+  }, [ticketId, performSearch]);
+
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    performSearch(ticketNumber.trim());
   };
 
   return (
@@ -81,14 +93,14 @@ export default function TicketLookup() {
         <h1 className="text-3xl font-bold">Consulta de Estado de Reclamo</h1>
         <p className="text-muted-foreground">Ingresá tu número de ticket para ver el progreso.</p>
       </div>
-      <form onSubmit={handleSearch} className="flex gap-2">
+      <form onSubmit={handleFormSubmit} className="flex gap-2">
         <Input
           placeholder="Ej: M-816293"
           value={ticketNumber}
           onChange={(e) => setTicketNumber(e.target.value)}
           className="text-lg"
         />
-        <Button type="submit" disabled={loading} size="lg">
+        <Button type="submit" disabled={loading || !ticketNumber.trim()} size="lg">
           {loading ? 'Buscando...' : 'Buscar'}
         </Button>
       </form>

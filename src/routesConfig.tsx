@@ -90,6 +90,7 @@ const routes: RouteConfig[] = [
   { path: '/usuarios', element: <UsuariosPage />, roles: ['admin', 'empleado'] },
   { path: '/notifications', element: <NotificationSettings /> },
   { path: '/ticket', element: <TicketLookup /> },
+  { path: '/ticket/:ticketId', element: <TicketLookup /> },
   { path: '/historial', element: <CustomerHistory /> },
   { path: '/presupuestos', element: <BudgetRequest /> },
   { path: '/recordatorios', element: <Reminders /> },
