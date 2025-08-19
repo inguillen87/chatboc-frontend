@@ -67,8 +67,9 @@ export function useChatLogic({ tipoChat, entityToken }: UseChatLogicOptions) {
     const sessionId = getOrCreateChatSessionId();
 
     socket.on('connect', () => {
-      console.log('Socket.IO connected.');
-      socket.emit('join', { room: sessionId });
+      console.log('Socket.IO connected, joining room with web channel...');
+      // The backend expects `channel: 'web'` to trigger the welcome message for widgets.
+      socket.emit('join', { room: sessionId, channel: 'web' });
     });
 
     socket.on('connect_error', (err) => {
