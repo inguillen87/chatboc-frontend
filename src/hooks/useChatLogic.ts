@@ -68,8 +68,31 @@ export function useChatLogic({ tipoChat, entityToken }: UseChatLogicOptions) {
 
     socket.on('connect', () => {
       console.log('Socket.IO connected, joining room with web channel...');
-      // The backend expects `channel: 'web'` to trigger the welcome message for widgets.
       socket.emit('join', { room: sessionId, channel: 'web' });
+
+      // Automatically send a silent greeting to fetch the main menu on connect.
+      // This ensures the user gets the menu without having to type "hola" first.
+      const endpoint = getAskEndpoint({ tipoChat, rubro: null });
+      const initialContext = getInitialMunicipioContext();
+
+      console.log("useChatLogic: Sending initial greeting to fetch menu.");
+      setIsTyping(true);
+
+      apiFetch<any>(endpoint, {
+        method: 'POST',
+        body: {
+          pregunta: '',
+          action: 'initial_greeting',
+          contexto_previo: initialContext,
+          tipo_chat: tipoChat,
+        },
+      })
+      .catch(error => {
+        console.error("Error sending initial greeting:", getErrorMessage(error));
+        const errorMsg = getErrorMessage(error, '⚠️ No se pudo cargar el menú inicial.');
+        setMessages(prev => [...prev, { id: generateClientMessageId(), text: errorMsg, isBot: true, timestamp: new Date(), isError: true }]);
+        setIsTyping(false);
+      });
     });
 
     socket.on('connect_error', (err) => {
@@ -131,6 +154,11 @@ export function useChatLogic({ tipoChat, entityToken }: UseChatLogicOptions) {
 
   const handleSend = useCallback(async (payload: string | TypeSendPayload) => {
     const actualPayload: TypeSendPayload = typeof payload === 'string' ? { text: payload.trim() } : { ...payload, text: payload.text?.trim() || "" };
+
+    // Sanitize text by removing emojis to prevent issues with backend services like Google Search.
+    const emojiRegex = /([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g;
+    const sanitizedText = (actualPayload.text || "").replace(emojiRegex, '').trim();
+
     const { text: userMessageText, attachmentInfo, ubicacion_usuario, action, location } = actualPayload;
     const actionPayload = 'payload' in actualPayload ? actualPayload.payload : undefined;
 
@@ -230,7 +258,7 @@ export function useChatLogic({ tipoChat, entityToken }: UseChatLogicOptions) {
       setContexto(updatedContext);
 
       const requestBody: Record<string, any> = {
-        pregunta: userMessageText,
+        pregunta: sanitizedText,
         contexto_previo: updatedContext,
         tipo_chat: tipoChatFinal,
         ...(rubro && { rubro_clave: rubro }),
