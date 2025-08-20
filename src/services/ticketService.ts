@@ -37,6 +37,17 @@ export const getTicketById = async (id: string): Promise<Ticket> => {
     }
 };
 
+export const sendTicketHistory = async (ticket: Ticket): Promise<void> => {
+    try {
+        await apiFetch(`/tickets/${ticket.tipo}/${ticket.id}/send-history`, {
+            method: 'POST',
+        });
+    } catch (error) {
+        console.error(`Error sending ticket history for ticket ${ticket.id}:`, error);
+        throw error;
+    }
+};
+
 export const getTicketMessages = async (ticketId: number, tipo: 'municipio' | 'pyme'): Promise<Message[]> => {
     try {
         const endpoint = tipo === 'municipio' ? `/tickets/chat/${ticketId}/mensajes` : `/tickets/chat/pyme/${ticketId}/mensajes`;
