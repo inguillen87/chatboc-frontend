@@ -2,10 +2,10 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, PanelLeft, MessageSquare, PanelLeftClose, MessageCircle, Mic, MicOff, X } from 'lucide-react';
+import { Send, PanelLeft, MessageSquare, PanelLeftClose, MessageCircle, Mic, MicOff, X, FileText } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Ticket, Message as TicketMessage } from '@/types/tickets';
-import { Message as ChatMessageData, SendPayload } from '@/types/chat';
+import { Message as ChatMessageData, SendPayload, AttachmentInfo } from '@/types/chat';
 import ChatMessage from './ChatMessage';
 import { AnimatePresence, motion } from 'framer-motion';
 import PredefinedMessagesModal from './PredefinedMessagesModal';
@@ -18,6 +18,7 @@ import { useTickets } from '@/context/TicketContext';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import ScrollToBottomButton from '../ui/ScrollToBottomButton';
 import AdjuntarArchivo from '../ui/AdjuntarArchivo';
+import { apiFetch } from '@/utils/api';
 
 // Helper to adapt ticket messages to the format ChatMessageBase expects
 const adaptTicketMessageToChatMessage = (msg: TicketMessage, ticket: Ticket): ChatMessageData => {
@@ -50,6 +51,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
   const [messages, setMessages] = useState<ChatMessageData[]>([]);
   const [isSending, setIsSending] = useState(false);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const [attachmentPreview, setAttachmentPreview] = useState<{ file: File; previewUrl: string } | null>(null);
   const { user } = useUser();
   const { supported, listening, transcript, start, stop } = useSpeechRecognition();
   const channelName = selectedTicket ? `ticket-${selectedTicket.tipo}-${selectedTicket.id}` : null;
@@ -113,12 +115,53 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
     setShowScrollToBottom(!isAtBottom);
   };
 
+  const handleFileSelected = (file: File) => {
+    const previewUrl = file.type.startsWith("image/") ? URL.createObjectURL(file) : "";
+    setAttachmentPreview({ file, previewUrl });
+    // Revoke the object URL when the component unmounts or the preview changes
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  };
+
   const handleSendMessage = async (payload?: Partial<SendPayload>) => {
     const text = payload?.text || message;
-    if (!text.trim() && !payload?.attachmentInfo) return;
+    if (!text.trim() && !payload?.attachmentInfo && !attachmentPreview) return;
     if (!selectedTicket || !user) return;
 
     setIsSending(true);
+
+    let attachmentData: AttachmentInfo | undefined = payload?.attachmentInfo;
+
+    if (attachmentPreview) {
+      toast.info("Subiendo archivo...");
+      const formData = new FormData();
+      formData.append('file', attachmentPreview.file);
+
+      try {
+        const response = await apiFetch<{ url: string; thumbUrl: string; name: string; mimeType: string; size: number }>('/archivos/upload/chat_attachment', {
+          method: 'POST',
+          body: formData,
+        });
+        attachmentData = {
+          url: response.url,
+          thumbUrl: response.thumbUrl,
+          name: response.name,
+          mimeType: response.mimeType,
+          size: response.size,
+        };
+        toast.success("Archivo subido con éxito.");
+      } catch (error) {
+        console.error("Error uploading file:", error);
+        toast.error("Error al subir el archivo.");
+        setAttachmentPreview(null); // Clear preview on error
+        setIsSending(false);
+        return;
+      }
+    }
+
 
     // Optimistic update
     const optimisticMessage: ChatMessageData = {
@@ -126,10 +169,11 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
         text: text,
         isBot: true, // Messages from agents are treated as "bot" messages in this context
         timestamp: new Date(),
-        attachmentInfo: payload?.attachmentInfo,
+        attachmentInfo: attachmentData,
     };
     setMessages(prev => [...prev, optimisticMessage]);
     setMessage('');
+    setAttachmentPreview(null);
 
 
     try {
@@ -137,7 +181,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
             selectedTicket.id,
             selectedTicket.tipo,
             text,
-            payload?.attachmentInfo,
+            attachmentData,
             payload?.action ? [{ type: 'reply', reply: { id: payload.action, title: payload.action } }] : undefined
         );
         // Message will be updated via Pusher with the real ID
@@ -172,20 +216,6 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
     updateTicket(selectedTicket.id, { ...selectedTicket, estado: 'resuelto' });
     toast.success('Ticket cerrado con éxito');
   }
-
-  const handleFileUpload = async (fileData: { url: string; name: string; mimeType?: string; size?: number; }) => {
-    if (!selectedTicket) return;
-
-    handleSendMessage({
-        text: `Archivo adjunto: ${fileData.name}`,
-        attachmentInfo: {
-            name: fileData.name,
-            url: fileData.url,
-            mimeType: fileData.mimeType,
-            size: fileData.size,
-        },
-    });
-  };
 
   return (
     <motion.div
@@ -248,9 +278,27 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
       </div>
 
       <footer className="p-2 border-t border-border shrink-0">
+        {attachmentPreview && (
+          <div className="relative w-full p-2 bg-muted rounded-lg flex items-center gap-3 mb-2">
+            {attachmentPreview.previewUrl ? (
+              <img src={attachmentPreview.previewUrl} alt="Preview" className="w-14 h-14 rounded-md object-cover" />
+            ) : (
+              <div className="w-14 h-14 flex-shrink-0 flex items-center justify-center bg-secondary rounded-md">
+                <FileText className="w-7 h-7 text-secondary-foreground" />
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-foreground truncate">{attachmentPreview.file.name}</p>
+              <p className="text-xs text-muted-foreground">{(attachmentPreview.file.size / 1024).toFixed(1)} KB</p>
+            </div>
+            <Button variant="ghost" size="icon" className="absolute top-1 right-1 w-6 h-6" onClick={() => setAttachmentPreview(null)}>
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+        )}
         <div className="relative">
           <Textarea
-            placeholder={listening ? "Escuchando..." : "Escribe tu respuesta..."}
+            placeholder={listening ? "Escuchando..." : attachmentPreview ? "Añade un comentario..." : "Escribe tu respuesta..."}
             className="pr-48 min-h-[40px]"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
@@ -277,8 +325,8 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
                     {listening ? <MicOff className="h-5 w-5 text-destructive" /> : <Mic className="h-5 w-5" />}
                 </Button>
             )}
-            <AdjuntarArchivo onUpload={handleFileUpload} />
-            <Button onClick={() => handleSendMessage()} disabled={isSending || !message.trim()} aria-label="Send Message">
+            <AdjuntarArchivo onFileSelected={handleFileSelected} disabled={!!attachmentPreview || isSending} />
+            <Button onClick={() => handleSendMessage()} disabled={isSending || (!message.trim() && !attachmentPreview)} aria-label="Send Message">
               {isSending ? 'Enviando...' : <Send className="h-5 w-5" />}
             </Button>
           </div>

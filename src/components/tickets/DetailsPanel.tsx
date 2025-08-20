@@ -9,11 +9,13 @@ import { motion } from 'framer-motion';
 import TicketMap from '../TicketMap';
 import { useTickets } from '@/context/TicketContext';
 import { exportToPdf, exportToXlsx } from '@/services/exportService';
+import { sendTicketHistory } from '@/services/ticketService';
 import { Ticket } from '@/types/tickets';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { FaWhatsapp } from 'react-icons/fa';
@@ -22,6 +24,7 @@ import { cn } from '@/lib/utils';
 
 const DetailsPanel: React.FC = () => {
   const { selectedTicket: ticket } = useTickets();
+  const [isSendingEmail, setIsSendingEmail] = React.useState(false);
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text).then(() => {
@@ -61,6 +64,21 @@ const DetailsPanel: React.FC = () => {
 
   const handleExportXlsx = () => {
     exportToXlsx(ticket, ticket.messages || []);
+  };
+
+  const handleSendHistory = async () => {
+    if (!ticket) return;
+    setIsSendingEmail(true);
+    toast.info('Enviando historial por correo...');
+    try {
+        await sendTicketHistory(ticket);
+        toast.success('Historial enviado por correo con éxito.');
+    } catch (error) {
+        toast.error('Error al enviar el historial por correo.');
+        console.error('Error sending ticket history:', error);
+    } finally {
+        setIsSendingEmail(false);
+    }
   };
 
   const openGoogleMaps = () => {
@@ -111,6 +129,10 @@ const DetailsPanel: React.FC = () => {
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={handleExportPdf}>Exportar a PDF</DropdownMenuItem>
             <DropdownMenuItem onClick={handleExportXlsx}>Exportar a Excel</DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleSendHistory} disabled={isSendingEmail}>
+              {isSendingEmail ? 'Enviando...' : 'Enviar historial por correo'}
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </header>
