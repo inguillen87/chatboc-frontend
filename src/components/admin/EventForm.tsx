@@ -46,9 +46,6 @@ const eventFormSchema = z.object({
         if (!files || files.length === 0) return true; // Optional field
         return ACCEPTED_IMAGE_TYPES.includes(files?.[0]?.type);
     }, "Solo se aceptan formatos .jpg, .png, y .webp."),
-}).refine(data => !data.imageUrl || !data.flyer || data.flyer.length === 0, {
-    message: "Puedes proveer una URL o subir un archivo, pero no ambos.",
-    path: ["flyer"],
 });
 
 type EventFormValues = z.infer<typeof eventFormSchema>;
