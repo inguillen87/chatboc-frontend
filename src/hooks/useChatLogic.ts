@@ -152,6 +152,18 @@ export function useChatLogic({ tipoChat, entityToken }: UseChatLogicOptions) {
     }
   }, [contexto.estado_conversacion, activeTicketId]);
 
+  const addSystemMessage = useCallback((text: string, type: 'error' | 'info' = 'info') => {
+    const systemMessage: Message = {
+      id: generateClientMessageId(),
+      text,
+      isBot: true,
+      timestamp: new Date(),
+      isError: type === 'error',
+    };
+    setMessages(prev => [...prev, systemMessage]);
+    setIsTyping(false); // Ensure typing indicator is turned off for system messages
+  }, []);
+
   const handleSend = useCallback(async (payload: string | TypeSendPayload) => {
     const actualPayload: TypeSendPayload = typeof payload === 'string' ? { text: payload.trim() } : { ...payload, text: payload.text?.trim() || "" };
 
@@ -300,5 +312,5 @@ export function useChatLogic({ tipoChat, entityToken }: UseChatLogicOptions) {
     }
   }, [contexto, activeTicketId, isTyping, isAnonimo, currentClaimIdempotencyKey, tipoChat]);
 
-  return { messages, isTyping, handleSend, activeTicketId, setMessages, setContexto, setActiveTicketId, contexto };
+  return { messages, isTyping, handleSend, activeTicketId, setMessages, setContexto, setActiveTicketId, contexto, addSystemMessage };
 }

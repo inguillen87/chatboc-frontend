@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { motion, AnimatePresence } from "framer-motion";
 import { useUser } from "@/hooks/useUser";
-import { apiFetch } from "@/utils/api";
+import { apiFetch, getErrorMessage } from "@/utils/api";
 import { playOpenSound, playProactiveSound } from "@/utils/sounds";
 import ProactiveBubble from "./ProactiveBubble";
 import ChatUserRegisterPanel from "./ChatUserRegisterPanel";
@@ -70,6 +70,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const { user } = useUser();
   const [resolvedTipoChat, setResolvedTipoChat] = useState<'pyme' | 'municipio'>(tipoChat);
   const [entityInfo, setEntityInfo] = useState<any | null>(null);
+  const [isProfileLoading, setProfileLoading] = useState(true);
+  const [profileError, setProfileError] = useState<string | null>(null);
 
   const [isMobileView, setIsMobileView] = useState(
     typeof window !== "undefined" && window.innerWidth < 640
@@ -256,10 +258,15 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   useEffect(() => {
     async function fetchEntityProfile() {
       if (!entityToken) {
-        console.log("ChatWidget: No hay entityToken, no se puede obtener el perfil.");
+        console.log("ChatWidget: No hay entityToken, se asume configuración por defecto.");
+        setProfileLoading(false);
         return;
       }
+
+      setProfileLoading(true);
+      setProfileError(null);
       console.log("ChatWidget: Intentando obtener perfil con token:", entityToken);
+
       try {
         const data = await apiFetch<any>("/perfil", {
           entityToken: entityToken,
@@ -273,7 +280,10 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         setEntityInfo(data);
       } catch (e) {
         console.error("ChatWidget: Error al obtener el perfil de la entidad:", e);
-        setEntityInfo(null); // Asegurarse de limpiar en caso de error
+        setEntityInfo(null);
+        setProfileError(getErrorMessage(e, "No se pudo cargar la configuración del widget."));
+      } finally {
+        setProfileLoading(false);
       }
     }
     fetchEntityProfile();
@@ -355,8 +365,18 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         )}
         style={containerStyle}
       >
-        <AnimatePresence mode="wait" initial={false}>
-          {isOpen ? (
+        {isProfileLoading ? (
+          <div className="w-full h-full flex items-center justify-center bg-card rounded-2xl">
+            <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+          </div>
+        ) : profileError ? (
+          <div className="w-full h-full flex flex-col items-center justify-center text-center p-4 bg-card rounded-2xl">
+            <p className="text-destructive font-semibold">Error</p>
+            <p className="text-sm text-muted-foreground">{profileError}</p>
+          </div>
+        ) : (
+          <AnimatePresence mode="wait" initial={false}>
+            {isOpen ? (
             <motion.div
               key="chatboc-panel-open"
               className={cn(commonPanelStyles, "w-full h-full shadow-xl")}
@@ -438,8 +458,9 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                 </motion.div>
               </motion.button>
             </motion.div>
-          )}
-        </AnimatePresence>
+            )}
+          </AnimatePresence>
+        )}
       </div>
     );
   }

@@ -84,8 +84,7 @@ const ChatPanel = ({
   const { isLiveChatEnabled, horariosAtencion } = useBusinessHours(propEntityToken);
   const socketRef = useRef<SocketIOClient.Socket | null>(null);
 
-  const { messages, isTyping, handleSend, activeTicketId, setMessages, contexto } = useChatLogic({
-    initialWelcomeMessage: "¡Hola! Soy Chatboc. ¿En qué puedo ayudarte hoy?",
+  const { messages, isTyping, handleSend, activeTicketId, setMessages, contexto, addSystemMessage } = useChatLogic({
     tipoChat: tipoChat,
     entityToken: propEntityToken,
   });
@@ -286,6 +285,7 @@ const ChatPanel = ({
             inputRef={chatInputRef}
             onTypingChange={setUserTyping}
             onFileUploaded={handleFileUploaded}
+            onSystemMessage={addSystemMessage}
           />
         )}
       </div>
