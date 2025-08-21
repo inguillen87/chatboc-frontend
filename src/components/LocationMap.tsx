@@ -4,6 +4,7 @@ interface LocationMapProps {
   lat?: number | null;
   lng?: number | null;
   onMove?: (lat: number, lng: number) => void;
+  heatmapData?: { lat: number; lng: number }[];
 }
 
 const Maps_API_KEY = import.meta.env.VITE_Maps_API_KEY || "";
@@ -63,7 +64,7 @@ function ensureScriptLoaded(callback: () => void) {
 
   const script = document.createElement("script");
   script.id = "chatboc-google-maps";
-  script.src = `https://maps.googleapis.com/maps/api/js?key=${Maps_API_KEY}&v=weekly&libraries=places,marker`;
+  script.src = `https://maps.googleapis.com/maps/api/js?key=${Maps_API_KEY}&v=weekly&libraries=places,marker,visualization`;
   script.async = true;
   script.defer = true; // Defer execution until HTML parsing is complete
   script.onload = () => {
@@ -77,10 +78,11 @@ function ensureScriptLoaded(callback: () => void) {
   document.head.appendChild(script);
 }
 
-const LocationMap: React.FC<LocationMapProps> = ({ lat, lng, onMove }) => {
+const LocationMap: React.FC<LocationMapProps> = ({ lat, lng, onMove, heatmapData }) => {
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
   const markerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
+  const heatmapRef = useRef<google.maps.visualization.HeatmapLayer | null>(null);
 
   useEffect(() => {
     ensureScriptLoaded(() => {
@@ -104,6 +106,26 @@ const LocationMap: React.FC<LocationMapProps> = ({ lat, lng, onMove }) => {
             if (pos) onMove(pos.lat(), pos.lng());
           });
         }
+
+        // Heatmap Layer Logic
+        if (heatmapData && heatmapData.length > 0) {
+          const points = heatmapData.map(p => new window.google.maps.LatLng(p.lat, p.lng));
+          if (!heatmapRef.current) {
+            heatmapRef.current = new window.google.maps.visualization.HeatmapLayer({
+              data: points,
+              map: mapRef.current!,
+            });
+            heatmapRef.current.set("radius", 30);
+            heatmapRef.current.set("opacity", 0.8);
+          } else {
+            heatmapRef.current.setData(points);
+            heatmapRef.current.setMap(mapRef.current!);
+          }
+        } else if (heatmapRef.current) {
+          // If no data, ensure heatmap is not shown
+          heatmapRef.current.setMap(null);
+        }
+
       } else if (lat != null && lng != null) {
         const pos = { lat, lng };
         mapRef.current!.setCenter(pos);

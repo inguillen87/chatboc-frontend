@@ -143,6 +143,7 @@ export default function Perfil() {
   const [horariosOpen, setHorariosOpen] = useState(false);
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [isSubmittingEvent, setIsSubmittingEvent] = useState(false);
+  const [heatmapData, setHeatmapData] = useState([]);
 
   // --- Estados para el nuevo modal de carga de catálogo ---
   const [isMappingModalOpen, setIsMappingModalOpen] = useState(false);
@@ -254,6 +255,19 @@ export default function Perfil() {
       return;
     }
     fetchPerfil(); // Llamar sin token
+
+    // Fetch heatmap data
+    const fetchHeatmapData = async () => {
+      try {
+        // In a real scenario, this would be an API call, e.g., apiFetch('/municipal/tickets/locations')
+        const response = await fetch('/mock-locations.json');
+        const data = await response.json();
+        setHeatmapData(data);
+      } catch (error) {
+        console.error("Error fetching heatmap data:", error);
+      }
+    };
+    fetchHeatmapData();
   }, [fetchPerfil, navigate]);
 
   // Función para cargar las configuraciones de mapeo
@@ -797,6 +811,7 @@ export default function Perfil() {
                     <LocationMap
                       lat={perfil.latitud ?? undefined}
                       lng={perfil.longitud ?? undefined}
+                      heatmapData={heatmapData}
                       onMove={(la, ln) =>
                         setPerfil((prev) => ({ ...prev, latitud: la, longitud: ln }))
                       }
