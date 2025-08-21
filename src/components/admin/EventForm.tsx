@@ -17,6 +17,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { Calendar as CalendarIcon, Loader2 } from 'lucide-react';
+import 'react-day-picker/dist/style.css';
+import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 
@@ -142,6 +144,7 @@ export const EventForm: React.FC<EventFormProps> = ({ onSubmit, onCancel, isSubm
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
                     <Calendar
+                      locale={es}
                       mode="single"
                       selected={field.value}
                       onSelect={field.onChange}
