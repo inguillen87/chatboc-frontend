@@ -1397,7 +1397,7 @@ export default function Perfil() {
 
        {/* --- Modal para Crear Evento/Noticia --- */}
       <Dialog open={isEventModalOpen} onOpenChange={setIsEventModalOpen}>
-        <DialogContent className="sm:max-w-[625px]">
+        <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle className="text-xl flex items-center">
               <PlusCircle className="w-5 h-5 mr-2 text-primary"/>
