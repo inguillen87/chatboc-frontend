@@ -18,7 +18,8 @@ function ensureScriptLoaded(callback: () => void) {
       window.google.maps &&
       window.google.maps.Map &&
       window.google.maps.marker &&
-      window.google.maps.marker.AdvancedMarkerElement
+      window.google.maps.marker.AdvancedMarkerElement &&
+      window.google.maps.visualization
     ) {
       callback();
     } else {
@@ -29,7 +30,8 @@ function ensureScriptLoaded(callback: () => void) {
           window.google.maps &&
           window.google.maps.Map &&
           window.google.maps.marker &&
-          window.google.maps.marker.AdvancedMarkerElement
+          window.google.maps.marker.AdvancedMarkerElement &&
+          window.google.maps.visualization
         ) {
           clearInterval(intervalId);
           callback();
@@ -43,7 +45,8 @@ function ensureScriptLoaded(callback: () => void) {
     window.google.maps &&
     window.google.maps.Map &&
     window.google.maps.marker &&
-    window.google.maps.marker.AdvancedMarkerElement
+    window.google.maps.marker.AdvancedMarkerElement &&
+    window.google.maps.visualization
   ) {
     // Already loaded and ready
     callback();

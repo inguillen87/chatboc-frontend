@@ -259,12 +259,14 @@ export default function Perfil() {
     // Fetch heatmap data
     const fetchHeatmapData = async () => {
       try {
-        // In a real scenario, this would be an API call, e.g., apiFetch('/municipal/tickets/locations')
-        const response = await fetch('/mock-locations.json');
-        const data = await response.json();
-        setHeatmapData(data);
+        const data = await apiFetch('/municipal/tickets/locations');
+        // The endpoint should return an array of {lat, lng} objects.
+        // No further transformation should be needed if the backend respects the contract.
+        setHeatmapData(data || []);
       } catch (error) {
         console.error("Error fetching heatmap data:", error);
+        // Do not show a toast here to avoid spamming the user if the endpoint is not ready yet.
+        // The feature will just not display the heatmap, which is a graceful failure.
       }
     };
     fetchHeatmapData();
