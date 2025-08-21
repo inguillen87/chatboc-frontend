@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Send, MapPin, Mic, MicOff, X, FileText } from "lucide-react";
 import AdjuntarArchivo from "@/components/ui/AdjuntarArchivo";
-import { apiFetch } from "@/utils/api";
+import { apiFetch, getErrorMessage } from "@/utils/api";
 import { requestLocation } from "@/utils/geolocation";
 import { toast } from "@/components/ui/use-toast";
 import useAudioRecorder from "@/hooks/useAudioRecorder";
@@ -15,6 +15,7 @@ interface Props {
   isTyping: boolean;
   inputRef?: React.RefObject<HTMLInputElement>;
   onTypingChange?: (typing: boolean) => void;
+  onSystemMessage?: (text: string, type: 'error' | 'info') => void;
 }
 
 const PLACEHOLDERS = [
@@ -24,7 +25,7 @@ const PLACEHOLDERS = [
   "¿Cuánto cuesta el servicio?",
 ];
 
-const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypingChange }) => {
+const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypingChange, onSystemMessage }) => {
   const [input, setInput] = useState("");
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [isLocating, setIsLocating] = useState(false);
@@ -114,7 +115,7 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
 
   const handleSendAudio = async (audioBlob: Blob) => {
     if (isTyping) return;
-    toast({ title: "Enviando audio...", description: "Tu grabación se está procesando.", duration: 3000 });
+    onSystemMessage?.('Enviando audio...', 'info');
 
     const formData = new FormData();
     const filename = `audio-grabado-${Date.now()}.webm`;
@@ -127,8 +128,7 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
       });
 
       if (!data || !data.url || !data.name) {
-        toast({ title: "Error de subida", description: "La respuesta del servidor fue inválida.", variant: "destructive" });
-        return;
+        throw new Error("La respuesta del servidor para la subida del audio fue inválida.");
       }
 
       onSendMessage({
@@ -139,10 +139,12 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
           mimeType: 'audio/webm',
         }
       });
-      toast({ title: "Audio enviado", description: "Tu mensaje de voz ha sido enviado.", duration: 3000 });
+      // Optional: a success system message could be sent here, but it might be noisy.
+      // onSystemMessage?.('Audio enviado con éxito.', 'info');
     } catch (error) {
       console.error("Error al enviar audio:", error);
-      toast({ title: "Error al enviar audio", description: "Hubo un problema al subir tu grabación.", variant: "destructive" });
+      const friendlyError = getErrorMessage(error, "Hubo un problema al subir tu grabación.");
+      onSystemMessage?.(friendlyError, 'error');
     }
   };
 

@@ -1,4 +1,5 @@
 const express = require('express');
+const cors = require('cors');
 const path = require('path');
 const multer = require('multer'); // Importar multer
 const fs = require('fs'); // Importar fs para crear directorio si no existe
@@ -19,19 +20,27 @@ const preferences = require('./preferences');
 
 const app = express();
 app.use(express.json());
-// Allow cross-origin requests during local development
-app.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'Authorization, Content-Type, Anon-Id'
-  );
-  res.setHeader(
-    'Access-Control-Allow-Methods',
-    'GET, POST, PUT, DELETE, PATCH, OPTIONS'
-  );
-  next();
-});
+
+// CORS Configuration
+const whitelist = [
+  'https://www.chatboc.ar',
+  'https://chatboc-demo-widget-oigs.vercel.app',
+  'http://localhost:5173', // Common dev port for Vite
+  'http://localhost:3000'  // Common dev port for backend
+];
+const corsOptions = {
+  origin: function (origin, callback) {
+    if (!origin || whitelist.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+};
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
+
 app.use(sessionMiddleware);
 
 const FILES_DIR = path.join(__dirname, 'files');
