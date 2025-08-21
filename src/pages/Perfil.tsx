@@ -21,6 +21,7 @@ import {
   Wand2, // Icono para sugerencias
   Loader2, // Icono de carga
 } from "lucide-react";
+import { EventForm } from "@/components/admin/EventForm";
 import MunicipioIcon from "@/components/ui/MunicipioIcon";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -140,6 +141,8 @@ export default function Perfil() {
   const [loadingGuardar, setLoadingGuardar] = useState(false);
   const [loadingCatalogo, setLoadingCatalogo] = useState(false);
   const [horariosOpen, setHorariosOpen] = useState(false);
+  const [isEventModalOpen, setIsEventModalOpen] = useState(false);
+  const [isSubmittingEvent, setIsSubmittingEvent] = useState(false);
 
   // --- Estados para el nuevo modal de carga de catálogo ---
   const [isMappingModalOpen, setIsMappingModalOpen] = useState(false);
@@ -1227,6 +1230,30 @@ export default function Perfil() {
             </CardContent>
           </Card>
 
+          {/* Gestión de Eventos y Noticias Card */}
+          {(user?.rol === 'admin' || user?.rol === 'empleado') && (
+            <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm flex flex-col flex-grow">
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold text-primary">
+                  Gestión de Eventos y Noticias
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4 flex flex-col flex-grow">
+                <p className="text-sm text-muted-foreground">
+                  Crea y gestiona los eventos, anuncios y noticias que se mostrarán a tus usuarios en el chat.
+                </p>
+                <div className="flex-grow"></div>
+                <Button
+                  onClick={() => setIsEventModalOpen(true)}
+                  className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-2.5 mt-auto"
+                >
+                  <PlusCircle className="w-4 h-4 mr-2" />
+                  Crear Nuevo Evento / Noticia
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Tarjeta de Integración */}
           <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm flex flex-col flex-grow">
             <CardHeader>
@@ -1365,6 +1392,75 @@ export default function Perfil() {
               Confirmar y Procesar
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+       {/* --- Modal para Crear Evento/Noticia --- */}
+      <Dialog open={isEventModalOpen} onOpenChange={setIsEventModalOpen}>
+        <DialogContent className="sm:max-w-[625px]">
+          <DialogHeader>
+            <DialogTitle className="text-xl flex items-center">
+              <PlusCircle className="w-5 h-5 mr-2 text-primary"/>
+              Crear Nuevo Evento o Noticia
+            </DialogTitle>
+            <DialogDescription>
+              Completa los detalles a continuación. Los campos marcados con * son obligatorios.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 max-h-[70vh] overflow-y-auto px-2">
+            <EventForm
+              onCancel={() => setIsEventModalOpen(false)}
+              isSubmitting={isSubmittingEvent}
+              onSubmit={async (values) => {
+                setIsSubmittingEvent(true);
+                try {
+                  const formData = new FormData();
+
+                  // Append all text fields
+                  Object.entries(values).forEach(([key, value]) => {
+                    if (key === 'flyer' || key === 'location') return; // Skip file and object
+                    if (value instanceof Date) {
+                      formData.append(key, value.toISOString());
+                    } else if (value !== undefined && value !== null) {
+                      formData.append(key, String(value));
+                    }
+                  });
+
+                  // Append location address if it exists
+                  if (values.location?.address) {
+                    formData.append('location[address]', values.location.address);
+                  }
+
+                  // Append file if it exists
+                  if (values.flyer && values.flyer.length > 0) {
+                    formData.append('flyer', values.flyer[0]);
+                  }
+
+                  // Use the endpoint provided by the backend team
+                  await apiFetch('/municipal/posts', {
+                    method: 'POST',
+                    body: formData,
+                  });
+
+                  toast({
+                    title: "Éxito",
+                    description: "El evento/noticia ha sido creado correctamente.",
+                  });
+
+                  setIsEventModalOpen(false);
+
+                } catch (error) {
+                  toast({
+                    variant: "destructive",
+                    title: "Error al crear el evento",
+                    description: getErrorMessage(error, "No se pudo guardar el evento. Intenta de nuevo."),
+                  });
+                } finally {
+                  setIsSubmittingEvent(false);
+                }
+              }}
+            />
+          </div>
         </DialogContent>
       </Dialog>
     </div>
