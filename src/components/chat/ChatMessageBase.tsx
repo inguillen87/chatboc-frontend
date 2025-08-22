@@ -10,6 +10,7 @@ import sanitizeMessageHtml from "@/utils/sanitizeMessageHtml";
 import AttachmentPreview from "./AttachmentPreview";
 import { deriveAttachmentInfo, AttachmentInfo } from "@/utils/attachment";
 import MessageBubble from "./MessageBubble";
+import EventCard from './EventCard';
 
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useUser } from "@/hooks/useUser";
@@ -187,6 +188,7 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
   );
 
   const showStructuredContent = !!(message.structuredContent && message.structuredContent.length > 0);
+  const showPosts = !!(message.posts && message.posts.length > 0);
 
   // Display hint puede usarse para aplicar un contenedor especial alrededor del mensaje, o pasar a MessageBubble
   // Por ahora, lo mantendremos simple.
@@ -244,6 +246,15 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
           {/* Audio Player */}
           {isBot && message.audioUrl && (
             <AudioPlayer src={message.audioUrl} />
+          )}
+
+          {/* Render Event/News Posts */}
+          {showPosts && (
+            <div className="flex flex-col gap-3 mt-2">
+              {message.posts?.map((post) => (
+                <EventCard key={post.id} post={post} />
+              ))}
+            </div>
           )}
 
           {/* Botones (categorized or flat) */}
