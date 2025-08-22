@@ -1431,32 +1431,22 @@ export default function Perfil() {
               onSubmit={async (values) => {
                 setIsSubmittingEvent(true);
                 try {
-                  const formData = new FormData();
+                  // Map frontend form values to backend field names
+                  const payload = {
+                    titulo: values.title,
+                    subtitulo: values.subtitle,
+                    contenido: values.description,
+                    tipo_post: values.tipo_post,
+                    imagen_url: values.imageUrl,
+                    // Convert dates to ISO strings, send null if not provided
+                    fecha_evento_inicio: values.startDate ? values.startDate.toISOString() : null,
+                    fecha_evento_fin: values.endDate ? values.endDate.toISOString() : null,
+                  };
 
-                  // Append all text fields
-                  Object.entries(values).forEach(([key, value]) => {
-                    if (key === 'flyer' || key === 'location') return; // Skip file and object
-                    if (value instanceof Date) {
-                      formData.append(key, value.toISOString());
-                    } else if (value !== undefined && value !== null) {
-                      formData.append(key, String(value));
-                    }
-                  });
-
-                  // Append location address if it exists
-                  if (values.location?.address) {
-                    formData.append('location[address]', values.location.address);
-                  }
-
-                  // Append file if it exists
-                  if (values.flyer && values.flyer.length > 0) {
-                    formData.append('flyer', values.flyer[0]);
-                  }
-
-                  // Use the endpoint provided by the backend team
+                  // The backend now expects a JSON body
                   await apiFetch('/municipal/posts', {
                     method: 'POST',
-                    body: formData,
+                    body: payload, // Send as JSON, not FormData
                   });
 
                   toast({

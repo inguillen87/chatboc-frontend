@@ -14,7 +14,10 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Controller } from 'react-hook-form';
+import AddressAutocomplete from '@/components/ui/AddressAutocomplete';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
 import { Calendar as CalendarIcon, Loader2 } from 'lucide-react';
 import 'react-day-picker/dist/style.css';
@@ -28,24 +31,16 @@ const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/web
 
 const eventFormSchema = z.object({
   title: z.string().min(5, { message: 'El título debe tener al menos 5 caracteres.' }).max(100),
+  subtitle: z.string().optional(),
   description: z.string().optional(),
-  startDate: z.date({ required_error: 'La fecha de inicio es obligatoria.' }),
+  tipo_post: z.enum(['noticia', 'evento'], { required_error: "Debe seleccionar un tipo."}),
+  startDate: z.date().optional(),
   endDate: z.date().optional(),
   location: z.object({
       address: z.string().optional(),
   }).optional(),
   category: z.string().optional(),
   imageUrl: z.string().url({ message: 'Por favor, introduce una URL válida.' }).optional().or(z.literal('')),
-  flyer: z.any()
-    .optional()
-    .refine((files) => {
-        if (!files || files.length === 0) return true; // Optional field
-        return files?.[0]?.size <= MAX_FILE_SIZE;
-    }, `El tamaño máximo de la imagen es 5MB.`)
-    .refine((files) => {
-        if (!files || files.length === 0) return true; // Optional field
-        return ACCEPTED_IMAGE_TYPES.includes(files?.[0]?.type);
-    }, "Solo se aceptan formatos .jpg, .png, y .webp."),
 });
 
 type EventFormValues = z.infer<typeof eventFormSchema>;
@@ -63,7 +58,9 @@ export const EventForm: React.FC<EventFormProps> = ({ onSubmit, onCancel, isSubm
     resolver: zodResolver(eventFormSchema),
     defaultValues: {
       title: '',
+      subtitle: '',
       description: '',
+      tipo_post: 'noticia',
       startDate: undefined,
       endDate: undefined,
       location: { address: '' },
@@ -83,12 +80,48 @@ export const EventForm: React.FC<EventFormProps> = ({ onSubmit, onCancel, isSubm
       <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-6">
         <FormField
           control={form.control}
+          name="tipo_post"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Tipo de Publicación</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecciona un tipo" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="noticia">Noticia</SelectItem>
+                  <SelectItem value="evento">Evento</SelectItem>
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
           name="title"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Título del Evento / Noticia</FormLabel>
+              <FormLabel>Título</FormLabel>
               <FormControl>
                 <Input placeholder="Ej: Festival de la Vendimia" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="subtitle"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Subtítulo (Opcional)</FormLabel>
+              <FormControl>
+                <Input placeholder="Un breve resumen o encabezado secundario" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -100,7 +133,7 @@ export const EventForm: React.FC<EventFormProps> = ({ onSubmit, onCancel, isSubm
           name="description"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Descripción</FormLabel>
+              <FormLabel>Contenido Principal</FormLabel>
               <FormControl>
                 <Textarea
                   placeholder="Describe los detalles del evento o la noticia..."
@@ -139,7 +172,7 @@ export const EventForm: React.FC<EventFormProps> = ({ onSubmit, onCancel, isSubm
                       </Button>
                     </FormControl>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
+                  <PopoverContent className="w-auto p-0" align="center">
                     <Calendar
                       locale={es}
                       mode="single"
@@ -180,7 +213,7 @@ export const EventForm: React.FC<EventFormProps> = ({ onSubmit, onCancel, isSubm
                       </Button>
                     </FormControl>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
+                  <PopoverContent className="w-auto p-0" align="center">
                     <Calendar
                       locale={es}
                       mode="single"
@@ -204,7 +237,23 @@ export const EventForm: React.FC<EventFormProps> = ({ onSubmit, onCancel, isSubm
             <FormItem>
               <FormLabel>Ubicación (Dirección)</FormLabel>
               <FormControl>
-                <Input placeholder="Ej: Parque San Martín, Mendoza" {...field} />
+                <Controller
+                  control={form.control}
+                  name="location.address"
+                  render={({ field: controllerField }) => (
+                    <AddressAutocomplete
+                      placeholder="Ej: Parque San Martín, Mendoza"
+                      onSelect={(address) => {
+                        controllerField.onChange(address);
+                      }}
+                      // We pass the value and onChange to make it a controlled component
+                      value={controllerField.value ? { label: controllerField.value, value: controllerField.value } : null}
+                      onChange={(option) => {
+                        controllerField.onChange(option ? option.label : '');
+                      }}
+                    />
+                  )}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -242,29 +291,6 @@ export const EventForm: React.FC<EventFormProps> = ({ onSubmit, onCancel, isSubm
           )}
         />
 
-        <div className="text-center text-sm text-muted-foreground my-2">ó</div>
-
-        <FormField
-          control={form.control}
-          name="flyer"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Subir Flyer del Evento (Opcional)</FormLabel>
-              <FormControl>
-                <Input
-                  type="file"
-                  accept="image/png, image/jpeg, image/webp"
-                  onChange={(e) => field.onChange(e.target.files)}
-                  className="text-muted-foreground file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 cursor-pointer"
-                />
-              </FormControl>
-              <FormDescription>
-                Sube una imagen (flyer) para el evento. Máximo 5MB.
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
 
         <div className="flex justify-end gap-4 pt-4">
           <Button type="button" variant="ghost" onClick={onCancel} disabled={isSubmitting}>
