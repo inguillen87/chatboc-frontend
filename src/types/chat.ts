@@ -34,6 +34,19 @@ export interface StructuredContentItem {
   badgeVariant?: 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning'; // Para type 'badge'
 }
 
+// Nuevo: Define la estructura de un Post (Evento o Noticia)
+export interface Post {
+  id: number | string;
+  titulo: string;
+  subtitulo?: string;
+  contenido: string;
+  tipo_post: 'noticia' | 'evento';
+  imagen_url?: string;
+  fecha_evento_inicio?: string; // ISO 8601 string
+  fecha_evento_fin?: string; // ISO 8601 string
+  url?: string; // Un enlace para "ver más"
+}
+
 // Define cómo es un objeto Mensaje
 export interface Message {
   id: number; // Identificador único del mensaje
@@ -66,6 +79,7 @@ export interface Message {
   structuredContent?: StructuredContentItem[]; // Array de items para mostrar datos clave-valor o tarjetas de información
   displayHint?: 'default' | 'pymeProductCard' | 'municipalInfoSummary' | 'genericTable' | 'compactList'; // Sugerencia para el frontend sobre cómo renderizar la totalidad del mensaje
   chatBubbleStyle?: 'standard' | 'compact' | 'emphasis' | 'alert'; // Para controlar el estilo visual de la burbuja del mensaje
+  posts?: Post[]; // Array de posts para mostrar como tarjetas de eventos/noticias
 }
 
 // --- INTERFAZ PARA EL PAYLOAD DE ENVÍO DE MENSAJES (lo que el usuario envía al bot) ---
