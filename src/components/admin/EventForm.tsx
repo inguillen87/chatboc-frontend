@@ -25,7 +25,6 @@ import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 
-// 1. Define the validation schema with Zod
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
 
@@ -41,6 +40,16 @@ const eventFormSchema = z.object({
   }).optional(),
   category: z.string().optional(),
   imageUrl: z.string().url({ message: 'Por favor, introduce una URL válida.' }).optional().or(z.literal('')),
+  flyer: z.any()
+    .optional()
+    .refine((files) => {
+        if (!files || files.length === 0) return true;
+        return files?.[0]?.size <= MAX_FILE_SIZE;
+    }, `El tamaño máximo de la imagen es 5MB.`)
+    .refine((files) => {
+        if (!files || files.length === 0) return true;
+        return ACCEPTED_IMAGE_TYPES.includes(files?.[0]?.type);
+    }, "Solo se aceptan formatos .jpg, .png, y .webp."),
 });
 
 type EventFormValues = z.infer<typeof eventFormSchema>;
@@ -53,7 +62,6 @@ interface EventFormProps {
 }
 
 export const EventForm: React.FC<EventFormProps> = ({ onSubmit, onCancel, isSubmitting, initialData }) => {
-  // 2. Define the form
   const form = useForm<EventFormValues>({
     resolver: zodResolver(eventFormSchema),
     defaultValues: {
@@ -66,11 +74,11 @@ export const EventForm: React.FC<EventFormProps> = ({ onSubmit, onCancel, isSubm
       location: { address: '' },
       category: '',
       imageUrl: '',
+      flyer: undefined,
       ...initialData,
     },
   });
 
-  // 3. Define the submit handler
   function handleFormSubmit(values: EventFormValues) {
     onSubmit(values);
   }
@@ -99,7 +107,6 @@ export const EventForm: React.FC<EventFormProps> = ({ onSubmit, onCancel, isSubm
             </FormItem>
           )}
         />
-
         <FormField
           control={form.control}
           name="title"
@@ -113,7 +120,6 @@ export const EventForm: React.FC<EventFormProps> = ({ onSubmit, onCancel, isSubm
             </FormItem>
           )}
         />
-
         <FormField
           control={form.control}
           name="subtitle"
@@ -127,7 +133,6 @@ export const EventForm: React.FC<EventFormProps> = ({ onSubmit, onCancel, isSubm
             </FormItem>
           )}
         />
-
         <FormField
           control={form.control}
           name="description"
@@ -145,7 +150,6 @@ export const EventForm: React.FC<EventFormProps> = ({ onSubmit, onCancel, isSubm
             </FormItem>
           )}
         />
-
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormField
             control={form.control}
@@ -158,16 +162,9 @@ export const EventForm: React.FC<EventFormProps> = ({ onSubmit, onCancel, isSubm
                     <FormControl>
                       <Button
                         variant={"outline"}
-                        className={cn(
-                          "w-full pl-3 text-left font-normal",
-                          !field.value && "text-muted-foreground"
-                        )}
+                        className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
                       >
-                        {field.value ? (
-                          format(field.value, "PPP")
-                        ) : (
-                          <span>Selecciona una fecha</span>
-                        )}
+                        {field.value ? format(field.value, "PPP", { locale: es }) : <span>Selecciona una fecha</span>}
                         <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                       </Button>
                     </FormControl>
@@ -187,7 +184,6 @@ export const EventForm: React.FC<EventFormProps> = ({ onSubmit, onCancel, isSubm
               </FormItem>
             )}
           />
-
           <FormField
             control={form.control}
             name="endDate"
@@ -199,16 +195,9 @@ export const EventForm: React.FC<EventFormProps> = ({ onSubmit, onCancel, isSubm
                     <FormControl>
                       <Button
                         variant={"outline"}
-                        className={cn(
-                          "w-full pl-3 text-left font-normal",
-                          !field.value && "text-muted-foreground"
-                        )}
+                        className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
                       >
-                        {field.value ? (
-                          format(field.value, "PPP")
-                        ) : (
-                          <span>Selecciona una fecha</span>
-                        )}
+                        {field.value ? format(field.value, "PPP", { locale: es }) : <span>Selecciona una fecha</span>}
                         <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                       </Button>
                     </FormControl>
@@ -229,7 +218,6 @@ export const EventForm: React.FC<EventFormProps> = ({ onSubmit, onCancel, isSubm
             )}
           />
         </div>
-
         <FormField
           control={form.control}
           name="location.address"
@@ -243,14 +231,9 @@ export const EventForm: React.FC<EventFormProps> = ({ onSubmit, onCancel, isSubm
                   render={({ field: controllerField }) => (
                     <AddressAutocomplete
                       placeholder="Ej: Parque San Martín, Mendoza"
-                      onSelect={(address) => {
-                        controllerField.onChange(address);
-                      }}
-                      // We pass the value and onChange to make it a controlled component
+                      onSelect={(address) => controllerField.onChange(address)}
                       value={controllerField.value ? { label: controllerField.value, value: controllerField.value } : null}
-                      onChange={(option) => {
-                        controllerField.onChange(option ? option.label : '');
-                      }}
+                      onChange={(option) => controllerField.onChange(option ? option.label : '')}
                     />
                   )}
                 />
@@ -259,7 +242,6 @@ export const EventForm: React.FC<EventFormProps> = ({ onSubmit, onCancel, isSubm
             </FormItem>
           )}
         />
-
         <FormField
           control={form.control}
           name="category"
@@ -276,7 +258,6 @@ export const EventForm: React.FC<EventFormProps> = ({ onSubmit, onCancel, isSubm
             </FormItem>
           )}
         />
-
         <FormField
           control={form.control}
           name="imageUrl"
@@ -290,8 +271,28 @@ export const EventForm: React.FC<EventFormProps> = ({ onSubmit, onCancel, isSubm
             </FormItem>
           )}
         />
-
-
+        <div className="text-center text-sm text-muted-foreground my-2">ó</div>
+        <FormField
+          control={form.control}
+          name="flyer"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Subir Flyer (Opcional)</FormLabel>
+              <FormControl>
+                <Input
+                  type="file"
+                  accept="image/png, image/jpeg, image/webp"
+                  onChange={(e) => field.onChange(e.target.files)}
+                  className="text-muted-foreground file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 cursor-pointer"
+                />
+              </FormControl>
+              <FormDescription>
+                Sube una imagen para el evento o noticia. Máximo 5MB.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
         <div className="flex justify-end gap-4 pt-4">
           <Button type="button" variant="ghost" onClick={onCancel} disabled={isSubmitting}>
             Cancelar

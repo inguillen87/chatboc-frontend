@@ -1431,22 +1431,27 @@ export default function Perfil() {
               onSubmit={async (values) => {
                 setIsSubmittingEvent(true);
                 try {
-                  // Map frontend form values to backend field names
-                  const payload = {
-                    titulo: values.title,
-                    subtitulo: values.subtitle,
-                    contenido: values.description,
-                    tipo_post: values.tipo_post,
-                    imagen_url: values.imageUrl,
-                    // Convert dates to ISO strings, send null if not provided
-                    fecha_evento_inicio: values.startDate ? values.startDate.toISOString() : null,
-                    fecha_evento_fin: values.endDate ? values.endDate.toISOString() : null,
-                  };
+                  const formData = new FormData();
 
-                  // The backend now expects a JSON body
+                  // Map frontend form values to backend field names and append them
+                  formData.append('titulo', values.title);
+                  if (values.subtitle) formData.append('subtitulo', values.subtitle);
+                  if (values.description) formData.append('contenido', values.description);
+                  formData.append('tipo_post', values.tipo_post);
+                  if (values.imageUrl) formData.append('imagen_url', values.imageUrl);
+                  if (values.startDate) formData.append('fecha_evento_inicio', values.startDate.toISOString());
+                  if (values.endDate) formData.append('fecha_evento_fin', values.endDate.toISOString());
+
+                  // Append the file if it exists
+                  if (values.flyer && values.flyer.length > 0) {
+                    // Assuming the backend will expect the file under the key 'flyer_image'
+                    formData.append('flyer_image', values.flyer[0]);
+                  }
+
+                  // Use the endpoint provided by the backend team
                   await apiFetch('/municipal/posts', {
                     method: 'POST',
-                    body: payload, // Send as JSON, not FormData
+                    body: formData, // apiFetch will handle the Content-Type
                   });
 
                   toast({
