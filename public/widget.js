@@ -266,7 +266,7 @@
         Object.assign(widgetContainer.style, {
           width: newDims.width,
           height: newDims.height,
-          borderRadius: window.innerWidth < SCRIPT_CONFIG.MOBILE_BREAKPOINT_ PX ? "0" : "16px",
+          borderRadius: window.innerWidth < SCRIPT_CONFIG.MOBILE_BREAKPOINT_PX ? "0" : "16px",
         });
       }
       window.addEventListener("resize", resizeHandler);
