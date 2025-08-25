@@ -49,7 +49,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   openHeight = "680px",
   closedWidth = "100px",
   closedHeight = "100px",
-  tipoChat,
+  tipoChat = getCurrentTipoChat(),
   initialPosition = { bottom: 32, right: 32 },
   ctaMessage,
 }) => {
@@ -68,13 +68,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   });
   const [view, setView] = useState<'chat' | 'register' | 'login' | 'user' | 'info'>(initialView);
   const { user } = useUser();
-  const [resolvedTipoChat, setResolvedTipoChat] = useState<'pyme' | 'municipio' | undefined>(tipoChat);
-
-  useEffect(() => {
-    if (tipoChat) {
-      setResolvedTipoChat(tipoChat);
-    }
-  }, [tipoChat]);
+  const [resolvedTipoChat, setResolvedTipoChat] = useState<'pyme' | 'municipio'>(tipoChat);
   const [entityInfo, setEntityInfo] = useState<any | null>(null);
   const [isProfileLoading, setProfileLoading] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
@@ -85,21 +79,10 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   useEffect(() => {
     const checkMobile = () => {
-      if (typeof window === "undefined") return;
-
-      const newIsMobile = window.innerWidth < 640;
-      // Only update state if the mobile status has actually changed.
-      // This prevents an infinite loop where resizing the widget container
-      // triggers a resize event in the iframe, which then sends another
-      // message to the parent to resize.
-      setIsMobileView(prevIsMobile => {
-        if (prevIsMobile !== newIsMobile) {
-          return newIsMobile;
-        }
-        return prevIsMobile;
-      });
+      if (typeof window !== "undefined") {
+        setIsMobileView(window.innerWidth < 640);
+      }
     };
-
     checkMobile();
     window.addEventListener("resize", checkMobile);
     return () => window.removeEventListener("resize", checkMobile);
@@ -166,25 +149,16 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     (open: boolean) => {
       if (mode === "iframe" && typeof window !== "undefined" && window.parent !== window && widgetId) {
         const dims = open
-          ? {
-              width: isMobileView ? '100vw' : finalOpenWidth,
-              height: isMobileView ? '100dvh' : finalOpenHeight,
-            }
+          ? { width: finalOpenWidth, height: finalOpenHeight }
           : { width: finalClosedWidth, height: finalClosedHeight };
 
         window.parent.postMessage(
-          {
-            type: "chatboc-state-change",
-            widgetId,
-            dimensions: dims,
-            isOpen: open,
-            isMobile: isMobileView,
-          },
+          { type: "chatboc-state-change", widgetId, dimensions: dims, isOpen: open },
           "*"
         );
       }
     },
-    [mode, widgetId, finalOpenWidth, finalOpenHeight, finalClosedWidth, finalClosedHeight, isMobileView]
+    [mode, widgetId, finalOpenWidth, finalOpenHeight, finalClosedWidth, finalClosedHeight]
   );
 
   useEffect(() => {

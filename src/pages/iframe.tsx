@@ -33,29 +33,26 @@ const Iframe = () => {
     const urlParams = new URLSearchParams(window.location.search);
     const tokenFromUrl =
       urlParams.get("token") || urlParams.get("entityToken");
-
-    // The token from the URL is the only source of truth. We remove the fallback to
-    // localStorage to prevent using stale, expired tokens.
-    const currentToken = tokenFromUrl;
-
+    const storedToken = safeLocalStorage.getItem("entityToken");
+    const currentToken = tokenFromUrl || storedToken;
     const rawEndpoint = urlParams.get("endpoint") || urlParams.get("tipo_chat");
     const endpointParam =
       rawEndpoint === 'pyme' || rawEndpoint === 'municipio'
         ? (rawEndpoint as 'pyme' | 'municipio')
         : null;
 
-    // If a token is provided in the URL, we save it. This allows other parts of the
-    // iframe application to access it if needed, but it won't be used for initial
-    // authentication anymore.
-    if (tokenFromUrl) {
+    if (tokenFromUrl && tokenFromUrl !== storedToken) {
       safeLocalStorage.setItem("entityToken", tokenFromUrl);
+      console.log(
+        "Chatboc Iframe: entityToken guardado en localStorage desde URL:",
+        tokenFromUrl
+      );
     }
 
     if (currentToken) {
       setEntityToken(currentToken);
     } else {
-      // This is a fatal error for the widget. It cannot function without a token.
-      console.error('Chatboc Iframe: No entity token was provided in the URL. Widget cannot be loaded.');
+      console.warn('Chatboc Iframe: No se encontró token en la URL ni en localStorage.');
       setIsLoading(false);
     }
 
