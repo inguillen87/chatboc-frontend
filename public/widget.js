@@ -81,14 +81,34 @@
     }
 
     if (event.data.type === 'chatboc-state-change') {
-      const { dimensions, isOpen } = event.data;
+      const { dimensions, isOpen, isMobile } = event.data;
       const host = shadow.host;
+
+      // Use a more specific transition property
+      const transitionStyle = 'width 0.3s ease, height 0.3s ease, border-radius 0.3s ease, bottom 0.3s ease, right 0.3s ease';
+      host.style.transition = transitionStyle;
+
       if (isOpen) {
-        host.style.width = dimensions.width;
-        host.style.height = dimensions.height;
+        if (isMobile) {
+          host.style.width = '100vw';
+          host.style.height = '100dvh'; // Use dvh for dynamic viewport height
+          host.style.bottom = '0px';
+          host.style.right = '0px';
+          host.style.borderRadius = '0px';
+        } else {
+          host.style.width = dimensions.width;
+          host.style.height = dimensions.height;
+          host.style.bottom = params.get('bottom') || '20px';
+          host.style.right = params.get('right') || '20px';
+          host.style.borderRadius = '16px';
+        }
       } else {
+        // Closing widget - restore original position and size
         host.style.width = dimensions.width;
         host.style.height = dimensions.height;
+        host.style.bottom = params.get('bottom') || '20px';
+        host.style.right = params.get('right') || '20px';
+        host.style.borderRadius = '50%';
       }
     }
   });
