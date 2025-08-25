@@ -40,10 +40,10 @@ export function useChatLogic({ tipoChat, entityToken }: UseChatLogicOptions) {
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
-    if (!entityToken) {
-      console.log("useChatLogic: No entityToken, socket connection deferred.");
+    if (!entityToken || !tipoChat) {
+      console.log("useChatLogic: Deferring socket connection until entityToken and tipoChat are available.", { hasToken: !!entityToken, hasTipoChat: !!tipoChat });
       return;
-    };
+    }
 
     // Setup Socket.IO
     const socketUrl = getSocketUrl();
@@ -142,7 +142,7 @@ export function useChatLogic({ tipoChat, entityToken }: UseChatLogicOptions) {
       socket.off('message', handleBotMessage);
       socket.disconnect();
     };
-  }, [entityToken]); // Effect now depends on entityToken
+}, [entityToken, tipoChat]);
 
   useEffect(() => {
     if (contexto.estado_conversacion === 'confirmando_reclamo' && !activeTicketId) {
