@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Chatboc Widget</title>
+  <link rel="icon" href="/favicon.ico" />
+  <style>
+    html, body, #root { height:100%; width:100%; margin:0; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script>
+    // Lee config del querystring
+    const qs = new URLSearchParams(location.search);
+    window.CHATBOC_CONFIG = {
+      endpoint: qs.get('endpoint') || 'municipio',
+      entityToken: qs.get('entityToken') || '',
+      userToken: qs.get('userToken') || null,
+      defaultOpen: qs.get('defaultOpen') === 'true',
+      width: qs.get('width') || '460px',
+      height: qs.get('height') || '680px'
+    };
+
+    // Boot de tu app (ej: Vite/React build)
+    // Si tu build exporta un UMD, llamalo acá. Si es SPA, solamente monta en #root.
+    // Ejemplo genérico (reemplazá por tu boot real):
+    (async () => {
+      // p.ej. cargar /assets/index.js de Vite
+      const script = document.createElement('script');
+      script.src = '/assets/iframe.js'; // Cargar el bundle correcto para el iframe
+      script.type = 'module';
+      document.body.appendChild(script);
+    })();
+
+    // Canal postMessage con el parent
+    window.addEventListener('message', (ev) => {
+      const { type, payload } = ev.data || {};
+      if (type === 'chatboc:setUserToken') {
+        window.CHATBOC_CONFIG.userToken = payload;
+      }
+      // agregá más handlers si hace falta
+    });
+  </script>
+</body>
+</html>
