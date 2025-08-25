@@ -3,7 +3,7 @@ import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
 import { cn } from "@/lib/utils";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
-import { motion, AnimatePresence } from "framer-motion";
+// import { motion, AnimatePresence } from "framer-motion"; // Temporarily disabled for debugging
 import { useUser } from "@/hooks/useUser";
 import { apiFetch, getErrorMessage } from "@/utils/api";
 import { playOpenSound, playProactiveSound } from "@/utils/sounds";
@@ -375,13 +375,12 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             <p className="text-sm text-muted-foreground">{profileError}</p>
           </div>
         ) : (
-          <AnimatePresence mode="wait" initial={false}>
+          <>
             {isOpen ? (
-            <motion.div
+            <div
               key="chatboc-panel-open"
               className={cn(commonPanelStyles, "w-full h-full shadow-xl")}
               style={{ borderRadius: isMobileView ? "0" : "16px", background: "hsl(var(--card))" }}
-              {...panelAnimation}
             >
               {(view === "register" || view === "login" || view === "user" || view === "info") && (
                 <ChatHeader onClose={toggleChat} onBack={() => setView("chat")} showProfile={false} muted={muted} onToggleSound={toggleMuted} onCart={openCart} />
@@ -408,9 +407,9 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                     selectedRubro={entityInfo?.rubro || selectedRubro}
                     onRubroSelect={setSelectedRubro}
                   />}
-            </motion.div>
+            </div>
           ) : (
-            <motion.div
+            <div
               key="chatboc-panel-closed"
               className="relative w-full h-full"
             >
@@ -420,19 +419,15 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                 visible={showProactiveBubble && !showCta}
               />
               {showCta && ctaMessage && !showProactiveBubble && (
-                <motion.div
+                <div
                   key="chatboc-cta"
                   className="absolute right-0 text-sm bg-background border rounded-lg shadow-lg px-3 py-2 dark:bg-slate-800 dark:border-slate-700"
                   style={{ bottom: "calc(100% + 8px)" }}
-                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  transition={{ duration: 0.3 }}
                 >
                   {ctaMessage}
-                </motion.div>
+                </div>
               )}
-              <motion.button
+              <button
                 key="chatboc-toggle-btn"
                 className={cn(
                   commonButtonStyles,
@@ -443,23 +438,16 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                   background: "var(--primary, #2563eb)",
                   boxShadow: "0 6px 24px 0 rgba(0,0,0,0.15)",
                 }}
-                {...buttonAnimation}
-                whileHover={{ scale: 1.1, transition: { type: "spring", stiffness: 400, damping: 15 } }}
-                whileTap={{ scale: 0.95 }}
                 onClick={toggleChat}
                 aria-label="Abrir chat"
               >
-                <motion.div
-                  variants={iconAnimation}
-                  animate={isOpen ? "open" : "closed"}
-                  transition={openSpring}
-                >
+                <div>
                   <ChatbocLogoAnimated size={calculatedLogoSize} blinking={!isOpen} floating={!isOpen} pulsing={!isOpen} />
-                </motion.div>
-              </motion.button>
-            </motion.div>
+                </div>
+              </button>
+            </div>
             )}
-          </AnimatePresence>
+          </>
         )}
       </div>
     );
