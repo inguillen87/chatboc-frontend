@@ -1,326 +1,203 @@
 (function () {
-  "use strict";
-
-  function init() {
-    const SCRIPT_CONFIG = {
-      WIDGET_JS_FILENAME: "widget.js",
-      DEFAULT_TOKEN: "demo-anon",
-      DEFAULT_Z_INDEX: "9999",
-      DEFAULT_INITIAL_BOTTOM: "24px",
-      DEFAULT_INITIAL_RIGHT: "24px",
-      DEFAULT_OPEN_WIDTH: "380px",
-      DEFAULT_OPEN_HEIGHT: "580px",
-      DEFAULT_CLOSED_WIDTH: "56px",
-      DEFAULT_CLOSED_HEIGHT: "56px",
-      MOBILE_BREAKPOINT_PX: 640,
-      LOADER_TIMEOUT_MS: 10000,
-      DEFAULT_CHATBOC_DOMAIN: "https://www.chatboc.ar",
-    };
-
-    const script =
-      document.currentScript ||
-      Array.from(document.getElementsByTagName("script")).find(
-        (s) => s.src && s.src.includes(SCRIPT_CONFIG.WIDGET_JS_FILENAME)
-      );
-
-    if (!script) {
-      console.error("Chatboc widget.js FATAL: script tag not found.");
-      return;
-    }
-
-    const token =
-      script.getAttribute("data-token") ||
-      script.getAttribute("data-entity-token") ||
-      SCRIPT_CONFIG.DEFAULT_TOKEN;
-    const registry = (window.__chatbocWidgets = window.__chatbocWidgets || {});
-
-    if (registry[token]) {
-      if (script.getAttribute("data-force") === "true") {
-        if (typeof registry[token].destroy === "function") {
-          registry[token].destroy();
-        }
-        delete registry[token];
-      } else {
-        console.warn(
-          `Chatboc widget already loaded for token ${token}. Skipping.`
-        );
-        return;
-      }
-    }
-
-    const scriptOrigin = (script.src && new URL(script.src, window.location.href).origin) || SCRIPT_CONFIG.DEFAULT_CHATBOC_DOMAIN;
-    const chatbocDomain = script.getAttribute("data-domain") || scriptOrigin;
-
-    const WIDGET_DIMENSIONS = {
-      OPEN: {
-        width: script.getAttribute("data-width") || SCRIPT_CONFIG.DEFAULT_OPEN_WIDTH,
-        height: script.getAttribute("data-height") || SCRIPT_CONFIG.DEFAULT_OPEN_HEIGHT,
-      },
-      CLOSED: {
-        width: script.getAttribute("data-closed-width") || SCRIPT_CONFIG.DEFAULT_CLOSED_WIDTH,
-        height: script.getAttribute("data-closed-height") || SCRIPT_CONFIG.DEFAULT_CLOSED_HEIGHT,
-      },
-    };
-
-    const initialBottom = script.getAttribute("data-bottom") || SCRIPT_CONFIG.DEFAULT_INITIAL_BOTTOM;
-    const initialRight = script.getAttribute("data-right") || SCRIPT_CONFIG.DEFAULT_INITIAL_RIGHT;
-    const defaultOpen = script.getAttribute("data-default-open") === "true";
-    const theme = script.getAttribute("data-theme") || "";
-    const rubroAttr = script.getAttribute("data-rubro") || "";
-    const ctaMessageAttr = script.getAttribute("data-cta-message") || "";
-    const langAttr = script.getAttribute("data-lang") || "";
-    const endpointAttr = script.getAttribute("data-endpoint");
-    const tipoChat =
-      endpointAttr === "municipio" || endpointAttr === "pyme"
-        ? endpointAttr
-        : window.APP_TARGET === "municipio"
-        ? "municipio"
-        : "pyme";
-
-    function buildWidget(finalCta) {
-      const zIndexBase = parseInt(script.getAttribute("data-z") || SCRIPT_CONFIG.DEFAULT_Z_INDEX, 10);
-      const iframeId = `chatboc-dynamic-iframe-${Math.random().toString(36).substring(2, 9)}`;
-      let iframeIsCurrentlyOpen = defaultOpen;
-
-      function computeResponsiveDims(base, isOpen) {
-        const isMobile = window.innerWidth < SCRIPT_CONFIG.MOBILE_BREAKPOINT_PX;
-        if (isOpen && isMobile) {
-          return {
-            width: "100vw",
-            height: "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))",
-          };
-        }
-        if (isMobile) { // Closed on mobile
-            return WIDGET_DIMENSIONS.CLOSED;
-        }
-        // Desktop
-        return base;
-      }
-
-      let currentDims = iframeIsCurrentlyOpen
-        ? computeResponsiveDims(WIDGET_DIMENSIONS.OPEN, true)
-        : WIDGET_DIMENSIONS.CLOSED;
-
-      const widgetContainer = document.createElement("div");
-      widgetContainer.id = `chatboc-widget-container-${iframeId}`;
-      widgetContainer.setAttribute("data-chatboc-token", token);
-      Object.assign(widgetContainer.style, {
-        position: "fixed",
-        bottom: initialBottom,
-        right: initialRight,
-        width: currentDims.width,
-        height: currentDims.height,
-        zIndex: zIndexBase.toString(),
-        borderRadius: "50%",
-        boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-        transition: "transform 0.2s ease, box-shadow 0.2s ease, width 0.3s ease, height 0.3s ease, border-radius 0.3s ease",
-        overflow: "hidden",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "#007aff",
-        cursor: "pointer",
-      });
-
-      widgetContainer.addEventListener("mouseenter", () => {
-        if (!iframeIsCurrentlyOpen) {
-          widgetContainer.style.transform = "scale(1.05)";
-          widgetContainer.style.boxShadow = "0 6px 18px rgba(0,0,0,0.2)";
-        }
-      });
-
-      widgetContainer.addEventListener("mouseleave", () => {
-        if (!iframeIsCurrentlyOpen) {
-          widgetContainer.style.transform = "scale(1)";
-          widgetContainer.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
-        }
-      });
-      document.body.appendChild(widgetContainer);
-
-      const loader = document.createElement("div");
-      loader.id = `chatboc-loader-${iframeId}`;
-      Object.assign(loader.style, {
-        position: "absolute",
-        inset: "0",
-        width: "100%",
-        height: "100%",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "hsl(var(--primary, 218 92% 41%))",
-        borderRadius: "inherit",
-        transition: "opacity 0.3s ease-out 0.1s",
-        zIndex: "2",
-      });
-      loader.innerHTML = `<img src="${chatbocDomain}/favicon/favicon-96x96.png" alt="Cargando Chatboc..." style="width: 60%; height: 60%; max-width: 96px; max-height: 96px; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.2));"/>`;
-      widgetContainer.appendChild(loader);
-
-      const iframe = document.createElement("iframe");
-      iframe.id = iframeId;
-      // Use explicit .html path so integrations without rewrite rules work
-      const iframeSrc = new URL(`${chatbocDomain}/iframe.html`);
-      iframeSrc.searchParams.set("token", token);
-      iframeSrc.searchParams.set("entityToken", token);
-      iframeSrc.searchParams.set("widgetId", iframeId);
-      iframeSrc.searchParams.set("defaultOpen", String(defaultOpen));
-      iframeSrc.searchParams.set("tipo_chat", tipoChat);
-      iframeSrc.searchParams.set("openWidth", WIDGET_DIMENSIONS.OPEN.width);
-      iframeSrc.searchParams.set("openHeight", WIDGET_DIMENSIONS.OPEN.height);
-      iframeSrc.searchParams.set("closedWidth", WIDGET_DIMENSIONS.CLOSED.width);
-      iframeSrc.searchParams.set("closedHeight", WIDGET_DIMENSIONS.CLOSED.height);
-      if (theme) iframeSrc.searchParams.set("theme", theme);
-      if (rubroAttr) iframeSrc.searchParams.set("rubro", rubroAttr);
-      if (finalCta) iframeSrc.searchParams.set("ctaMessage", finalCta);
-      if (langAttr) iframeSrc.searchParams.set("lang", langAttr);
-      iframe.src = iframeSrc.toString();
-
-      if (langAttr) iframe.setAttribute("lang", langAttr);
-
-      Object.assign(iframe.style, {
-        border: "none",
-        width: "100%",
-        height: "100%",
-        backgroundColor: "transparent",
-        display: "block",
-        opacity: "0",
-        transition: "opacity 0.4s ease-in",
-        zIndex: "1",
-      });
-      iframe.allow = "clipboard-write; geolocation";
-      iframe.setAttribute("title", "Chatboc Asistente Virtual");
-      widgetContainer.appendChild(iframe);
-
-      let iframeHasLoaded = false;
-      const loadTimeout = setTimeout(() => {
-        if (iframeHasLoaded) return;
-        loader.innerHTML = `<div style="font-family: system-ui, sans-serif; color: white; font-size: 14px; text-align: center; padding: 10px;">Servicio no disponible</div>`;
-        loader.style.backgroundColor = "hsl(var(--destructive, 0 84.2% 60.2%))";
-      }, SCRIPT_CONFIG.LOADER_TIMEOUT_MS);
-
-      iframe.onload = () => {
-        iframeHasLoaded = true;
-        clearTimeout(loadTimeout);
-        loader.style.opacity = "0";
-        setTimeout(() => loader.remove(), 300);
-        iframe.style.opacity = "1";
-      };
-
-      let attemptedFallback = false;
-      iframe.onerror = () => {
-        if (!attemptedFallback) {
-          attemptedFallback = true;
-          iframe.style.display = "none";
-          iframe.src = `${chatbocDomain}/iframe`;
-          iframe.style.display = "block";
-          return;
-        }
-        iframeHasLoaded = true;
-        clearTimeout(loadTimeout);
-        loader.innerHTML = `<div style="font-family: system-ui, sans-serif; color: white; font-size: 14px; text-align: center; padding: 10px;">Error al cargar. Intente de nuevo.</div>`;
-        loader.style.backgroundColor = "hsl(var(--destructive, 0 84.2% 60.2%))";
-        iframe.style.display = "none";
-      };
-
-      function messageHandler(event) {
-        const isSafeOrigin = event.origin === chatbocDomain || chatbocDomain.startsWith("http://localhost");
-        if (!isSafeOrigin) {
-          if (event.data?.type?.startsWith('chatboc-')) {
-            console.warn(`Chatboc widget: Ignored message from unsafe origin: ${event.origin}`);
-          }
-          return;
-        }
-
-        if (event.data?.type === "chatboc-state-change" && event.data.widgetId === iframeId) {
-          iframeIsCurrentlyOpen = event.data.isOpen;
-          const newDims = computeResponsiveDims(
-            iframeIsCurrentlyOpen ? WIDGET_DIMENSIONS.OPEN : WIDGET_DIMENSIONS.CLOSED,
-            iframeIsCurrentlyOpen
-          );
-          if (iframeIsCurrentlyOpen) {
-            Object.assign(widgetContainer.style, {
-              width: newDims.width,
-              height: newDims.height,
-              borderRadius: window.innerWidth <= SCRIPT_CONFIG.MOBILE_BREAKPOINT_PX ? "16px 16px 0 0" : "16px",
-              boxShadow: "0 8px 40px rgba(0, 0, 0, 0.2)",
-              background: "white",
-              transform: "scale(1)",
-              cursor: "default",
-            });
-          } else {
-            Object.assign(widgetContainer.style, {
-              width: newDims.width,
-              height: newDims.height,
-              borderRadius: "50%",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-              background: "#007aff",
-              cursor: "pointer",
-            });
-          }
-        }
-      }
-      window.addEventListener("message", messageHandler);
-
-      function resizeHandler() {
-        if (!iframeIsCurrentlyOpen) return;
-        const newDims = computeResponsiveDims(WIDGET_DIMENSIONS.OPEN, true);
-        Object.assign(widgetContainer.style, {
-          width: newDims.width,
-          height: newDims.height,
-          borderRadius: window.innerWidth < SCRIPT_CONFIG.MOBILE_BREAKPOINT_PX ? "0" : "16px",
-        });
-      }
-      window.addEventListener("resize", resizeHandler);
-
-      // Fallback click listener
-      widgetContainer.addEventListener("click", () => {
-        if (iframeIsCurrentlyOpen) return;
-        postToIframe({ type: "TOGGLE_CHAT", isOpen: true });
-      });
-
-
-      function postToIframe(msg) {
-        iframe?.contentWindow?.postMessage({ ...msg, widgetId: iframeId }, chatbocDomain);
-      }
-
-      function destroy() {
-        window.removeEventListener("message", messageHandler);
-        window.removeEventListener("resize", resizeHandler);
-        widgetContainer.removeEventListener("mousedown", dragStart);
-        widgetContainer.removeEventListener("touchstart", dragStart);
-        widgetContainer?.remove();
-        delete registry[token];
-      }
-
-      registry[token] = { destroy, container: widgetContainer, post: postToIframe };
-
-      // Global API
-      if (!window.Chatboc) window.Chatboc = {};
-      window.Chatboc.setView = (view) => postToIframe({ type: "SET_VIEW", view });
-      window.Chatboc.open = () => postToIframe({ type: "TOGGLE_CHAT", isOpen: true });
-      window.Chatboc.close = () => postToIframe({ type: "TOGGLE_CHAT", isOpen: false });
-      window.Chatboc.toggle = () => postToIframe({ type: "TOGGLE_CHAT", isOpen: !iframeIsCurrentlyOpen });
-
-      if (!window.chatbocDestroyWidget) {
-        window.chatbocDestroyWidget = (tok) => {
-          registry[tok]?.destroy();
-        };
-      }
-    }
-
-    // Fetch CTA message and then build the widget
-    if (ctaMessageAttr) {
-      buildWidget(ctaMessageAttr);
-    } else {
-      fetch(`${chatbocDomain}/widget/attention`)
-        .then((r) => (r.ok ? r.json() : {}))
-        .then((d) => buildWidget(d.message || ""))
-        .catch(() => buildWidget("")); // Always build widget, even if fetch fails
-    }
+  const GLOBAL = window;
+  const WIDGET_NS = '__chatbocWidget__';
+  if (GLOBAL[WIDGET_NS]?.destroy) {
+    // Si ya había uno, lo destruyo para evitar estados sucios
+    try { GLOBAL[WIDGET_NS].destroy({ reason: 'reload' }); } catch {}
   }
 
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
-  } else {
-    init();
+  // Lee opciones del <script> que te embeben
+  // Permite también pasar options por window.ChatbocConfig antes de cargar el script
+  const currentScript =
+    document.currentScript ||
+    document.querySelector('script[data-chatboc-widget], script[src*="chatboc.ar/widget.js"]');
+
+  const dataset = currentScript ? currentScript.dataset : {};
+  const cfg = Object.assign(
+    {
+      // defaults
+      endpoint: 'municipio',          // 'municipio' | 'pyme'
+      entityToken: dataset.token || '',     // token público de la entidad
+      userToken: null,                      // opcional
+      defaultOpen: dataset.defaultOpen === 'true',
+      width: dataset.width || '460px',
+      height: dataset.height || '680px',
+      closedWidth: dataset.closedWidth || '72px',
+      closedHeight: dataset.closedHeight || '72px',
+      bottom: dataset.bottom || '20px',
+      right: dataset.right || '20px',
+      host: (new URL(currentScript.src)).origin, // https://www.chatboc.ar
+      iframePath: '/iframe.html',               // ruta real (existe)
+      zIndex: 2147483000
+    },
+    GLOBAL.ChatbocConfig || {}
+  );
+
+  // Contenedor raíz + Shadow DOM para aislar estilos
+  const rootId = 'chatboc-widget-root';
+  let root = document.getElementById(rootId);
+  if (root) root.remove();
+  root = document.createElement('div');
+  root.id = rootId;
+  root.style.all = 'initial';
+  root.style.position = 'fixed';
+  root.style.inset = 'auto';
+  root.style.bottom = cfg.bottom;
+  root.style.right = cfg.right;
+  root.style.width = cfg.closedWidth;
+  root.style.height = cfg.closedHeight;
+  root.style.zIndex = String(cfg.zIndex);
+  root.setAttribute('aria-live', 'polite');
+  document.body.appendChild(root);
+
+  const shadow = root.attachShadow({ mode: 'open' });
+
+  // Estilos del widget dentro del Shadow
+  const style = document.createElement('style');
+  style.textContent = `
+    :host { all: initial; }
+    .wrap { position: relative; width: 100%; height: 100%; }
+    .bubble {
+      box-sizing: border-box;
+      width: 100%; height: 100%;
+      border-radius: 50%;
+      display: grid; place-items: center;
+      background: #1778ff; color: white;
+      box-shadow: 0 10px 30px rgba(0,0,0,.25);
+      cursor: pointer;
+      transition: transform .2s ease, opacity .2s ease;
+      font: 500 14px/1.2 system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      user-select: none;
+    }
+    .bubble:hover { transform: translateY(-1px); }
+    .iframeWrap {
+      position: absolute; right: 0; bottom: 0;
+      width: ${cfg.width}; height: ${cfg.height};
+      border-radius: 16px; overflow: hidden; opacity: 0; pointer-events: none;
+      box-shadow: 0 18px 60px rgba(0,0,0,.35);
+      transform: translateY(10px) scale(.98);
+      transition: transform .2s ease, opacity .2s ease;
+      background: #fff;
+    }
+    .iframeWrap.open { opacity: 1; pointer-events: auto; transform: translateY(0) scale(1); }
+    .closeBtn {
+      position: absolute; top: 8px; right: 8px;
+      background: rgba(0,0,0,.6); color: #fff; border: 0;
+      width: 28px; height: 28px; border-radius: 14px; cursor: pointer;
+    }
+    .hidden { display: none !important; }
+
+    /* Responsive (mobile) */
+    @media (max-width: 480px) {
+      :host, .wrap { width: 100% !important; height: 100% !important; }
+      :host { position: fixed; bottom: 0; right: 0; left: 0; }
+      .iframeWrap { width: 100vw !important; height: 100vh !important; border-radius: 0; }
+    }
+  `;
+  shadow.appendChild(style);
+
+  // Burbuja
+  const wrap = document.createElement('div');
+  wrap.className = 'wrap';
+  wrap.innerHTML = `
+    <div class="bubble" id="cb-bubble" aria-label="Abrir chat Chatboc" role="button" tabindex="0">
+      <!-- reemplazá por tu SVG de carita -->
+      <svg width="32" height="32" viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="12" fill="white" opacity=".1"></circle>
+        <circle cx="9" cy="10" r="1.6" fill="white"></circle>
+        <circle cx="15" cy="10" r="1.6" fill="white"></circle>
+        <path d="M7 14c1.3 1.6 3 2.4 5 2.4S15.7 15.6 17 14" stroke="white" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div class="iframeWrap" id="cb-frameWrap">
+      <button class="closeBtn" id="cb-close" aria-label="Cerrar chat">✕</button>
+    </div>
+  `;
+  shadow.appendChild(wrap);
+
+  // Iframe
+  const iframe = document.createElement('iframe');
+  iframe.title = 'Chatboc';
+  iframe.allow = 'microphone; geolocation; clipboard-write';
+  iframe.referrerPolicy = 'no-referrer-when-downgrade';
+  iframe.setAttribute('allowfullscreen', 'true');
+  // Sandbox: quitar permisos peligrosos pero permitir lo necesario
+  iframe.setAttribute('sandbox', [
+    'allow-forms', 'allow-popups', 'allow-modals',
+    'allow-scripts', 'allow-same-origin', 'allow-downloads'
+  ].join(' '));
+
+  const qs = new URLSearchParams({
+    endpoint: cfg.endpoint,
+    entityToken: cfg.entityToken,
+    defaultOpen: String(cfg.defaultOpen),
+    width: cfg.width,
+    height: cfg.height
+  });
+  if (cfg.userToken) qs.set('userToken', cfg.userToken);
+
+  iframe.src = `${cfg.host}${cfg.iframePath}?${qs.toString()}`;
+  iframe.style.border = '0';
+  iframe.style.width = '100%';
+  iframe.style.height = '100%';
+
+  shadow.getElementById('cb-frameWrap').appendChild(iframe);
+
+  // Estado y helpers
+  let isOpen = false;
+  function open() {
+    if (isOpen) return;
+    isOpen = true;
+    root.style.width = cfg.width;
+    root.style.height = cfg.height;
+    shadow.getElementById('cb-frameWrap').classList.add('open');
+    shadow.getElementById('cb-bubble').classList.add('hidden');
+    post({ type: 'chatboc:event', payload: 'open' });
   }
+  function close() {
+    if (!isOpen) return;
+    isOpen = false;
+    root.style.width = cfg.closedWidth;
+    root.style.height = cfg.closedHeight;
+    shadow.getElementById('cb-frameWrap').classList.remove('open');
+    shadow.getElementById('cb-bubble').classList.remove('hidden');
+    post({ type: 'chatboc:event', payload: 'close' });
+  }
+  function toggle() { isOpen ? close() : open(); }
+
+  // Eventos UI
+  shadow.getElementById('cb-bubble').addEventListener('click', open);
+  shadow.getElementById('cb-bubble').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') open();
+  });
+  shadow.getElementById('cb-close').addEventListener('click', close);
+
+  // Canal postMessage (parent <-> iframe)
+  function post(msg) {
+    try { iframe.contentWindow.postMessage(msg, '*'); } catch {}
+  }
+  window.addEventListener('message', (ev) => {
+    const { type, payload } = ev.data || {};
+    if (type === 'chatboc:open') open();
+    if (type === 'chatboc:close') close();
+    if (type === 'chatboc:unread') {
+      // podés pintar badge en la burbuja si querés
+    }
+  });
+
+  // Auto-open si defaultOpen
+  if (cfg.defaultOpen) open();
+
+  // Exponer API global idempotente
+  GLOBAL[WIDGET_NS] = {
+    open, close, toggle,
+    setUserToken: (t) => { cfg.userToken = t; post({ type: 'chatboc:setUserToken', payload: t }); },
+    destroy: ({ reason } = {}) => {
+      try { window.removeEventListener('message', post); } catch {}
+      if (root && root.parentNode) root.parentNode.removeChild(root);
+      delete GLOBAL[WIDGET_NS];
+      // Opcional: log
+      // console.info('Chatboc widget destroyed', reason || '');
+    }
+  };
 })();
