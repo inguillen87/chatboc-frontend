@@ -85,10 +85,21 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   useEffect(() => {
     const checkMobile = () => {
-      if (typeof window !== "undefined") {
-        setIsMobileView(window.innerWidth < 640);
-      }
+      if (typeof window === "undefined") return;
+
+      const newIsMobile = window.innerWidth < 640;
+      // Only update state if the mobile status has actually changed.
+      // This prevents an infinite loop where resizing the widget container
+      // triggers a resize event in the iframe, which then sends another
+      // message to the parent to resize.
+      setIsMobileView(prevIsMobile => {
+        if (prevIsMobile !== newIsMobile) {
+          return newIsMobile;
+        }
+        return prevIsMobile;
+      });
     };
+
     checkMobile();
     window.addEventListener("resize", checkMobile);
     return () => window.removeEventListener("resize", checkMobile);
