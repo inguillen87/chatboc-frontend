@@ -92,7 +92,13 @@
 
   function applyDims(dims) {
     const host = shadow.host;
-    host.style.width = dims.width;
+    const desiredWidth = parseInt(dims.width, 10);
+    const maxWidth = window.innerWidth - parseInt(cfg.right, 10);
+    host.style.width =
+      !isNaN(desiredWidth)
+        ? Math.min(desiredWidth, maxWidth) + "px"
+        : dims.width;
+
     const desiredHeight = parseInt(dims.height, 10);
     const maxHeight = window.innerHeight - parseInt(cfg.bottom, 10);
     host.style.height =
