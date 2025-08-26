@@ -27,12 +27,19 @@
     // Desregistrar cualquier SW y limpiar caches en el dominio del widget
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.getRegistrations()
-        .then(regs => regs.forEach(r => r.unregister()))
+        .then(regs => {
+          if (regs.length) {
+            return Promise.all(regs.map(r => r.unregister())).then(() => {
+              // Recargar una sola vez para forzar una carga limpia sin SW
+              location.reload();
+            });
+          }
+        })
         .catch(() => {});
     }
     if (window.caches?.keys) {
       caches.keys()
-        .then(keys => keys.forEach(k => caches.delete(k)))
+        .then(keys => Promise.all(keys.map(k => caches.delete(k))))
         .catch(() => {});
     }
   </script>
