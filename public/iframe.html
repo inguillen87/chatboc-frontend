@@ -27,9 +27,9 @@
     // Si tu build exporta un UMD, llamalo acá. Si es SPA, solamente monta en #root.
     // Ejemplo genérico (reemplazá por tu boot real):
     (async () => {
-      // p.ej. cargar /assets/index.js de Vite
+      // p.ej. cargar /assets/iframe.js de Vite
       const script = document.createElement('script');
-      script.src = '/assets/iframe.js'; // Cargar el bundle correcto para el iframe
+      script.src = '/assets/iframe.js'; // Asegurarse que este path es correcto
       script.type = 'module';
       document.body.appendChild(script);
     })();
