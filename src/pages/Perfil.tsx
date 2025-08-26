@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, FormEvent } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -107,6 +108,14 @@ const DIAS = [
   "Domingo",
 ];
 
+interface TicketLocation {
+  lat: number;
+  lng: number;
+  weight: number;
+  categoria?: string;
+  barrio?: string;
+}
+
 export default function Perfil() {
   const navigate = useNavigate();
   const { user, refreshUser } = useUser(); // Usa refreshUser del hook
@@ -143,7 +152,15 @@ export default function Perfil() {
   const [horariosOpen, setHorariosOpen] = useState(false);
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [isSubmittingEvent, setIsSubmittingEvent] = useState(false);
-  const [heatmapData, setHeatmapData] = useState([]);
+  const [ticketLocations, setTicketLocations] = useState<TicketLocation[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [selectedBarrios, setSelectedBarrios] = useState<string[]>([]);
+  const [availableCategories, setAvailableCategories] = useState<string[]>([]);
+  const [availableBarrios, setAvailableBarrios] = useState<string[]>([]);
+  const [heatmapData, setHeatmapData] = useState<
+    { lat: number; lng: number; weight?: number }[]
+  >([]);
+  const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number } | null>(null);
 
   // --- Estados para el nuevo modal de carga de catálogo ---
   const [isMappingModalOpen, setIsMappingModalOpen] = useState(false);
@@ -259,10 +276,27 @@ export default function Perfil() {
     // Fetch heatmap data
     const fetchHeatmapData = async () => {
       try {
-        const data = await apiFetch('/municipal/tickets/locations');
-        // The endpoint should return an array of {lat, lng} objects.
-        // No further transformation should be needed if the backend respects the contract.
-        setHeatmapData(data || []);
+        const tipo = getCurrentTipoChat();
+        const pluralTipo = tipo === "municipio" ? "municipios" : "pymes";
+        const data = await apiFetch<
+          { location: { lat: number; lng: number }; weight: number; categoria?: string; barrio?: string }[]
+        >(`/tickets/${pluralTipo}/mapa`);
+        const mapped: TicketLocation[] = (data || []).map((d) => ({
+          lat: d.location.lat,
+          lng: d.location.lng,
+          weight: d.weight,
+          categoria: d.categoria,
+          barrio: d.barrio,
+        }));
+        setTicketLocations(mapped);
+        const cats = Array.from(
+          new Set(mapped.map((d) => d.categoria).filter(Boolean))
+        ) as string[];
+        setAvailableCategories(cats);
+        const barrios = Array.from(
+          new Set(mapped.map((d) => d.barrio).filter(Boolean))
+        ) as string[];
+        setAvailableBarrios(barrios);
       } catch (error) {
         console.error("Error fetching heatmap data:", error);
         // Do not show a toast here to avoid spamming the user if the endpoint is not ready yet.
@@ -271,6 +305,34 @@ export default function Perfil() {
     };
     fetchHeatmapData();
   }, [fetchPerfil, navigate]);
+
+  useEffect(() => {
+    const filtered = ticketLocations.filter(
+      (t) =>
+        (selectedCategories.length === 0 ||
+          (t.categoria && selectedCategories.includes(t.categoria))) &&
+        (selectedBarrios.length === 0 ||
+          (t.barrio && selectedBarrios.includes(t.barrio)))
+    );
+    const points = filtered.map(({ lat, lng, weight }) => ({
+      lat,
+      lng,
+      weight,
+    }));
+    setHeatmapData(points);
+    if (filtered.length > 0) {
+      const totalWeight = filtered.reduce((sum, t) => sum + (t.weight || 0), 0);
+      if (totalWeight > 0) {
+        const avgLat =
+          filtered.reduce((sum, t) => sum + t.lat * (t.weight || 0), 0) /
+          totalWeight;
+        const avgLng =
+          filtered.reduce((sum, t) => sum + t.lng * (t.weight || 0), 0) /
+          totalWeight;
+        setMapCenter({ lat: avgLat, lng: avgLng });
+      }
+    }
+  }, [ticketLocations, selectedCategories, selectedBarrios]);
 
   // Función para cargar las configuraciones de mapeo
   const fetchMappingConfigs = useCallback(async () => {
@@ -813,7 +875,6 @@ export default function Perfil() {
                     <LocationMap
                       lat={perfil.latitud ?? undefined}
                       lng={perfil.longitud ?? undefined}
-                      heatmapData={heatmapData}
                       onMove={(la, ln) =>
                         setPerfil((prev) => ({ ...prev, latitud: la, longitud: ln }))
                       }
@@ -949,6 +1010,78 @@ export default function Perfil() {
               </form>
             </CardContent>
           </Card>
+          {ticketLocations.length > 0 && (
+            <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm">
+              <CardHeader>
+                <CardTitle className="text-xl font-semibold text-primary">
+                  Mapa de calor de reclamos
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {availableCategories.length > 0 && (
+                  <div>
+                    <Label className="text-muted-foreground text-sm mb-1 block">
+                      Categorías
+                    </Label>
+                    <div className="flex flex-wrap gap-2">
+                      {availableCategories.map((cat) => (
+                        <label
+                          key={cat}
+                          className="flex items-center gap-1 text-xs text-foreground"
+                        >
+                          <Checkbox
+                            checked={selectedCategories.includes(cat)}
+                            onCheckedChange={(checked) => {
+                              const isChecked = checked === true;
+                              setSelectedCategories((prev) =>
+                                isChecked
+                                  ? [...prev, cat]
+                                  : prev.filter((c) => c !== cat)
+                              );
+                            }}
+                          />
+                          {cat}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {availableBarrios.length > 0 && (
+                  <div>
+                    <Label className="text-muted-foreground text-sm mb-1 block">
+                      Barrios
+                    </Label>
+                    <div className="flex flex-wrap gap-2">
+                      {availableBarrios.map((barr) => (
+                        <label
+                          key={barr}
+                          className="flex items-center gap-1 text-xs text-foreground"
+                        >
+                          <Checkbox
+                            checked={selectedBarrios.includes(barr)}
+                            onCheckedChange={(checked) => {
+                              const isChecked = checked === true;
+                              setSelectedBarrios((prev) =>
+                                isChecked
+                                  ? [...prev, barr]
+                                  : prev.filter((b) => b !== barr)
+                              );
+                            }}
+                          />
+                          {barr}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <LocationMap
+                  lat={mapCenter?.lat}
+                  lng={mapCenter?.lng}
+                  heatmapData={heatmapData}
+                />
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Columna Derecha: Plan, Catálogo, Integración */}
