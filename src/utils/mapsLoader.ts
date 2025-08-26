@@ -1,4 +1,5 @@
-const MAPS_API_KEY = import.meta.env.VITE_MAPS_API_KEY || '';
+// Use the same env var name used across the app
+const MAPS_API_KEY = import.meta.env.VITE_Maps_API_KEY || '';
 const SCRIPT_ID = 'chatboc-google-maps-script';
 
 interface GoogleMapsApi {
