@@ -33,8 +33,9 @@ const ChatHeader: React.FC<Props> = ({
         transition-all
       `}
       style={{
-        // El header hereda el fondo sutilmente y no es “un recorte”.
-        borderRadius: "24px 24px 0 0", // This might need to be dynamic if widget is full screen on mobile (no border radius)
+        // El header debe acompañar el radio del contenedor para evitar recortes.
+        borderTopLeftRadius: "inherit",
+        borderTopRightRadius: "inherit",
       }}
     >
       {/* Logo y nombre sin cuadrado */}
