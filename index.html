@@ -24,13 +24,13 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover, shrink-to-fit=no"
     />
-    <title>Chatboc - IA para Gobiernos y Empresas</title> {/* MODIFICADO */}
-    <meta name="description" content="Plataforma IA con CRM y Chatbots para optimizar la comunicación y gestión en municipios y empresas. Mejora la atención ciudadana y la experiencia del cliente." /> {/* MODIFICADO */}
-    <meta name="theme-color" content="#007AFF"> {/* AÑADIDO */}
+    <title>Chatboc - IA para Gobiernos y Empresas</title>
+    <meta name="description" content="Plataforma IA con CRM y Chatbots para optimizar la comunicación y gestión en municipios y empresas. Mejora la atención ciudadana y la experiencia del cliente." />
+    <meta name="theme-color" content="#007AFF">
     <meta name="author" content="Chatboc" />
 
-    <meta property="og:title" content="Chatboc - IA para Gobiernos y Empresas" /> {/* MODIFICADO */}
-    <meta property="og:description" content="Plataforma IA con CRM y Chatbots para optimizar la comunicación y gestión en municipios y empresas." /> {/* MODIFICADO */}
+    <meta property="og:title" content="Chatboc - IA para Gobiernos y Empresas" />
+    <meta property="og:description" content="Plataforma IA con CRM y Chatbots para optimizar la comunicación y gestión en municipios y empresas." />
     <meta property="og:type" content="website" />
     <meta property="og:image" content="https://chatboc.ar/images/og-chatboc.png" />
 
@@ -42,13 +42,17 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
-      if ('serviceWorker' in navigator) {
+      // Only register the service worker when we are not inside the widget iframe
+      if ('serviceWorker' in navigator && !window.__CHATBOC_IFRAME__) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').then(registration => {
-            console.log('SW registered: ', registration);
-          }).catch(registrationError => {
-            console.log('SW registration failed: ', registrationError);
-          });
+          navigator.serviceWorker
+            .register('/sw.js')
+            .then((registration) => {
+              console.log('SW registered: ', registration);
+            })
+            .catch((registrationError) => {
+              console.log('SW registration failed: ', registrationError);
+            });
         });
       }
     </script>
