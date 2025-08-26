@@ -1,45 +1,54 @@
-<!DOCTYPE html>
-<html lang="es" style="background:transparent">
-  <head>
-    <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, viewport-fit=cover, shrink-to-fit=no"
-    />
-    <title>Chatboc Widget</title>
-  </head>
-  <body style="background:transparent;margin:0;padding:0;">
-    <div id="root"></div>
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Chatboc Widget</title>
+  <link rel="icon" href="/favicon.ico" />
+  <style>
+    /* Página limpia, cero chrome */
+    html, body, #root { height:100%; width:100%; margin:0; background:#0B1020; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
 
-    <script>
-      // Flag iframe environment so the app avoids registering service workers
-      window.__CHATBOC_IFRAME__ = true;
+  <script>
+    // Marcar que estamos en el iframe del widget (para no registrar SW)
+    window.__CHATBOC_IFRAME__ = true;
 
-      // Unregister any existing service workers and clear caches
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker
-          .getRegistrations()
-          .then((regs) => regs.forEach((r) => r.unregister()))
-          .catch(() => {});
-      }
-      if (window.caches?.keys) {
-        caches.keys().then((keys) => keys.forEach((k) => caches.delete(k))).catch(() => {});
-      }
-    </script>
+    // Desregistrar cualquier SW y limpiar caches en el dominio del widget
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations()
+        .then(regs => {
+          const hadRegs = regs.length > 0;
+          return Promise.all(regs.map(r => r.unregister())).then(() => {
+            if (hadRegs) location.reload();
+          });
+        })
+        .catch(() => {});
+    }
+    if (window.caches?.keys) {
+      caches.keys()
+        .then(keys => Promise.all(keys.map(k => caches.delete(k))))
+        .catch(() => {});
+    }
+  </script>
 
-    <script>
-      // Expose configuration from query parameters
-      const qs = new URLSearchParams(location.search);
-      window.CHATBOC_CONFIG = {
-        endpoint: qs.get('endpoint') || 'municipio',
-        entityToken: qs.get('entityToken') || '',
-        userToken: qs.get('userToken') || null,
-        defaultOpen: qs.get('defaultOpen') === 'true',
-        width: qs.get('width') || '460px',
-        height: qs.get('height') || '680px',
-      };
-    </script>
+  <script>
+    // Config que llega por query
+    const qs = new URLSearchParams(location.search);
+    window.CHATBOC_CONFIG = {
+      endpoint: qs.get('endpoint') || 'municipio',
+      entityToken: qs.get('entityToken') || '',
+      userToken: qs.get('userToken') || null,
+      defaultOpen: qs.get('defaultOpen') === 'true',
+      width: qs.get('width') || '460px',
+      height: qs.get('height') || '680px'
+    };
+  </script>
 
-    <script type="module" src="/src/pages/iframe.tsx"></script>
-  </body>
+  <!-- Cargá acá el bundle de la UI DEL CHAT (no el de toda la web) -->
+  <script type="module" src="/assets/iframe.js"></script>
+</body>
 </html>
