@@ -257,6 +257,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   useEffect(() => {
     async function fetchEntityProfile() {
+      // Wait until the token is resolved before deciding what to do.
+      if (entityToken == null) return;
       if (!entityToken) {
         console.log("ChatWidget: No hay entityToken, se asume configuración por defecto.");
         setProfileLoading(false);
@@ -359,9 +361,10 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         data-tipo-chat={tipoChat}
         data-initial-rubro={initialRubro}
         className={cn(
-          "chatboc-container",
-          mode === "standalone" && "fixed z-[999999]",
-          "flex flex-col items-end justify-end"
+          "chatboc-container flex flex-col",
+          mode === "standalone"
+            ? "fixed z-[999999] items-end justify-end"
+            : "w-full h-full"
         )}
         style={containerStyle}
       >
