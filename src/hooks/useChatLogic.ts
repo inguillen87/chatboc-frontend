@@ -8,7 +8,6 @@ import { getAskEndpoint } from "@/utils/chatEndpoints";
 import { enforceTipoChatForRubro } from "@/utils/tipoChat";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateChatSessionId from "@/utils/chatSessionId";
-import { getChatbocConfig } from "@/utils/config";
 import { v4 as uuidv4 } from 'uuid';
 import { MunicipioContext, updateMunicipioContext, getInitialMunicipioContext } from "@/utils/contexto_municipio";
 import { useUser } from './useUser';
@@ -18,9 +17,7 @@ interface UseChatLogicOptions {
   entityToken?: string;
 }
 
-export function useChatLogic({ tipoChat, entityToken: propToken }: UseChatLogicOptions) {
-  const { entityToken: iframeToken } = getChatbocConfig();
-  const entityToken = propToken || iframeToken;
+export function useChatLogic({ tipoChat, entityToken }: UseChatLogicOptions) {
   const { user } = useUser();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
@@ -145,7 +142,7 @@ export function useChatLogic({ tipoChat, entityToken: propToken }: UseChatLogicO
       socket.off('message', handleBotMessage);
       socket.disconnect();
     };
-}, [entityToken, tipoChat]);
+  }, [entityToken, tipoChat]);
 
   useEffect(() => {
     if (contexto.estado_conversacion === 'confirmando_reclamo' && !activeTicketId) {
