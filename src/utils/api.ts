@@ -24,6 +24,7 @@ interface ApiFetchOptions {
   skipAuth?: boolean;
   sendAnonId?: boolean;
   entityToken?: string | null;
+  cache?: RequestCache;
 }
 
 /**
@@ -35,7 +36,7 @@ export async function apiFetch<T>(
   path: string,
   options: ApiFetchOptions = {}
 ): Promise<T> {
-  const { method = "GET", body, skipAuth, sendAnonId, entityToken } = options;
+  const { method = "GET", body, skipAuth, sendAnonId, entityToken, cache } = options;
 
   const token = safeLocalStorage.getItem("authToken");
   const anonId = safeLocalStorage.getItem("anon_id");
@@ -81,6 +82,7 @@ export async function apiFetch<T>(
       headers,
       body: isForm ? body : body ? JSON.stringify(body) : undefined,
       credentials: 'include', // ensure cookies like session are sent
+      cache,
     });
 
     // Puede devolver vacío (204 No Content)
