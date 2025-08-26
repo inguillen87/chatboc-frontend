@@ -570,7 +570,7 @@ export default function Perfil() {
                     <LocationMap
                       lat={perfil.latitud ?? undefined}
                       lng={perfil.longitud ?? undefined}
-                      onMove={(la, ln) =>
+                      onSelect={(la, ln) =>
                         setPerfil((prev) => ({ ...prev, latitud: la, longitud: ln }))
                       }
                     />
