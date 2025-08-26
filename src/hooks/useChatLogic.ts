@@ -8,7 +8,7 @@ import { getAskEndpoint } from "@/utils/chatEndpoints";
 import { enforceTipoChatForRubro } from "@/utils/tipoChat";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateChatSessionId from "@/utils/chatSessionId";
-import { getChatbocConfig } from "@/utils/config";
+import { getIframeToken } from "@/utils/config";
 import { v4 as uuidv4 } from 'uuid';
 import { MunicipioContext, updateMunicipioContext, getInitialMunicipioContext } from "@/utils/contexto_municipio";
 import { useUser } from './useUser';
@@ -19,8 +19,7 @@ interface UseChatLogicOptions {
 }
 
 export function useChatLogic({ tipoChat, entityToken: propToken }: UseChatLogicOptions) {
-  const { entityToken: iframeToken } = getChatbocConfig();
-  const entityToken = propToken || iframeToken;
+  const entityToken = propToken || getIframeToken();
   const { user } = useUser();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
@@ -43,8 +42,12 @@ export function useChatLogic({ tipoChat, entityToken: propToken }: UseChatLogicO
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
-    if (!entityToken || !tipoChat) {
-      console.log("useChatLogic: Deferring socket connection until entityToken and tipoChat are available.", { hasToken: !!entityToken, hasTipoChat: !!tipoChat });
+    if (!entityToken) {
+      console.log("useChatLogic: No entityToken, socket connection deferred.");
+      return;
+    }
+    if (!tipoChat) {
+      console.log("useChatLogic: Deferring socket connection until tipoChat is available.");
       return;
     }
 

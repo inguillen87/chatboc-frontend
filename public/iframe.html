@@ -14,20 +14,28 @@
   <div id="root"></div>
 
   <script>
-    // Deshabilitar y limpiar cualquier SW previo del dominio del widget
+    // Marcar que estamos en el iframe del widget (para no registrar SW)
+    window.__CHATBOC_IFRAME__ = true;
+
+    // Desregistrar cualquier SW y limpiar caches en el dominio del widget
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.getRegistrations()
-        .then(regs => regs.forEach(r => r.unregister()))
-        .catch(()=>{});
-      if (window.caches?.keys) {
-        caches.keys().then(keys => keys.forEach(k => caches.delete(k))).catch(()=>{});
-      }
+        .then(regs => {
+          const hadRegs = regs.length > 0;
+          return Promise.all(regs.map(r => r.unregister())).then(() => {
+            if (hadRegs) location.reload();
+          });
+        })
+        .catch(() => {});
+    }
+    if (window.caches?.keys) {
+      caches.keys()
+        .then(keys => Promise.all(keys.map(k => caches.delete(k))))
+        .catch(() => {});
     }
   </script>
 
   <script>
-    window.__CHATBOC_IFRAME__ = true;
-
     // Config que llega por query
     const qs = new URLSearchParams(location.search);
     window.CHATBOC_CONFIG = {
