@@ -30,12 +30,8 @@ const ChatHeader: React.FC<Props> = ({
         px-2 sm:px-4 py-3 border-b border-border
         bg-card/90 backdrop-blur-md
         text-card-foreground
-        transition-all
+        transition-all rounded-t-[inherit] overflow-hidden
       `}
-      style={{
-        // El header hereda el fondo sutilmente y no es “un recorte”.
-        borderRadius: "24px 24px 0 0", // This might need to be dynamic if widget is full screen on mobile (no border radius)
-      }}
     >
       {/* Logo y nombre sin cuadrado */}
       <div className="flex items-center gap-2 sm:gap-3"> {/* Reduced gap for mobile */}
