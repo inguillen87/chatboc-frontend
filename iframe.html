@@ -11,6 +11,35 @@
   <body style="background:transparent;margin:0;padding:0;">
     <div id="root"></div>
 
+    <script>
+      // Flag iframe environment so the app avoids registering service workers
+      window.__CHATBOC_IFRAME__ = true;
+
+      // Unregister any existing service workers and clear caches
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker
+          .getRegistrations()
+          .then((regs) => regs.forEach((r) => r.unregister()))
+          .catch(() => {});
+      }
+      if (window.caches?.keys) {
+        caches.keys().then((keys) => keys.forEach((k) => caches.delete(k))).catch(() => {});
+      }
+    </script>
+
+    <script>
+      // Expose configuration from query parameters
+      const qs = new URLSearchParams(location.search);
+      window.CHATBOC_CONFIG = {
+        endpoint: qs.get('endpoint') || 'municipio',
+        entityToken: qs.get('entityToken') || '',
+        userToken: qs.get('userToken') || null,
+        defaultOpen: qs.get('defaultOpen') === 'true',
+        width: qs.get('width') || '460px',
+        height: qs.get('height') || '680px',
+      };
+    </script>
+
     <script type="module" src="/src/pages/iframe.tsx"></script>
   </body>
 </html>
