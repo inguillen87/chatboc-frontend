@@ -1,6 +1,7 @@
 // --- src/services/apiService.ts (CORREGIDO Y COMPLETO) ---
 import type { Ticket, Comment, TicketStatus } from '@/types'; // CAMBIO: Se agrega TicketStatus a la importación
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
+import { getIframeToken } from '@/utils/config';
 
 // Use the same base URL resolution as api.ts. Default to the Vite dev
 // proxy path when no env variable is provided.
@@ -11,7 +12,7 @@ interface CommentsApiResponse { ok: boolean; comentarios: Comment[]; error?: str
 
 async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const token = safeLocalStorage.getItem("authToken");
-  const entityToken = safeLocalStorage.getItem("entityToken");
+  const entityToken = getIframeToken();
   const headers: HeadersInit = {
     "Content-Type": "application/json",
     ...(token && { Authorization: `Bearer ${token}` }),

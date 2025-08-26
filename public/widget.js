@@ -1,69 +1,74 @@
 (function () {
   "use strict";
 
-  // Determine the domain that serves the widget. In production this allows the
-  // same script to run on different hosts without hardcoding localhost.
   const script =
     document.currentScript ||
     Array.from(document.getElementsByTagName("script")).find((s) =>
       s.src && s.src.includes("widget.js")
     );
+
   const DEFAULT_DOMAIN = "https://www.chatboc.ar";
   const chatbocDomain =
     (script &&
       (script.getAttribute("data-domain") || new URL(script.src).origin)) ||
     DEFAULT_DOMAIN;
+
   const randomId = Math.random().toString(36).substring(2, 9);
   const iframeId = `chatboc-iframe-${randomId}`;
   const containerId = `chatboc-widget-container-${randomId}`;
 
-  const params = new URLSearchParams();
-  if (script) {
-    for (const attr of script.attributes) {
-      if (attr.name.startsWith('data-')) {
-        const key = attr.name.replace('data-', '');
-        const value = attr.value;
-        params.set(key, value);
-        console.log(`Widget.js: Param set: ${key} = ${value}`);
-      }
-    }
-  }
+  const ds = script ? script.dataset : {};
 
-  if (!params.has('token')) {
-    params.set('token', 'demo-anon');
-    console.log("Widget.js: No data-token found, using 'demo-anon'");
-  }
+  const cfg = {
+    host: chatbocDomain,
+    iframePath: ds.iframePath || "/iframe",
+    endpoint: ds.endpoint || "municipio",
+    entityToken: ds.token || "demo-anon",
+    defaultOpen: ds.defaultOpen === "true",
+    width: ds.width || "460px",
+    height: ds.height || "680px",
+    closedWidth: ds.closedWidth || "72px",
+    closedHeight: ds.closedHeight || "72px",
+    bottom: ds.bottom || "20px",
+    right: ds.right || "20px",
+  };
 
-  params.set('widgetId', iframeId);
-  params.set('hostDomain', window.location.origin);
+  const qs = new URLSearchParams({
+    endpoint: cfg.endpoint,
+    entityToken: cfg.entityToken,
+    defaultOpen: String(cfg.defaultOpen),
+    width: cfg.width,
+    height: cfg.height,
+    widgetId: iframeId,
+    hostDomain: window.location.origin,
+  });
 
-  const iframeSrc = `${chatbocDomain}/iframe?${params.toString()}`;
-  console.log("Widget.js: Iframe source:", iframeSrc);
+  const iframeSrc = `${cfg.host}${cfg.iframePath}?${qs.toString()}`;
 
-  const container = document.createElement('div');
+  const container = document.createElement("div");
   container.id = containerId;
   document.body.appendChild(container);
 
-  const shadow = container.attachShadow({ mode: 'open' });
+  const shadow = container.attachShadow({ mode: "open" });
 
-  const iframe = document.createElement('iframe');
+  const iframe = document.createElement("iframe");
   iframe.id = iframeId;
-  iframe.title = 'Chatboc Widget';
+  iframe.title = "Chatboc Widget";
   iframe.src = iframeSrc;
-  iframe.style.cssText = 'width: 100%; height: 100%; border: none; background: transparent;';
-  iframe.allow = 'clipboard-write; geolocation';
+  iframe.style.cssText =
+    "width: 100%; height: 100%; border: none; background: transparent;";
+  iframe.allow = "microphone; geolocation; clipboard-write";
+  iframe.sandbox =
+    "allow-forms allow-popups allow-modals allow-scripts allow-same-origin allow-downloads";
 
-  const closedWidth = params.get('closed-width') || '100px';
-  const closedHeight = params.get('closed-height') || '100px';
-
-  const style = document.createElement('style');
+  const style = document.createElement("style");
   style.textContent = `
     :host {
       position: fixed;
-      bottom: ${params.get('bottom') || '20px'};
-      right: ${params.get('right') || '20px'};
-      width: ${closedWidth};
-      height: ${closedHeight};
+      bottom: ${cfg.bottom};
+      right: ${cfg.right};
+      width: ${cfg.closedWidth};
+      height: ${cfg.closedHeight};
       z-index: 2147483647;
       border: none;
       background: transparent;
@@ -75,22 +80,17 @@
   shadow.appendChild(style);
   shadow.appendChild(iframe);
 
-  window.addEventListener('message', (event) => {
-    if (event.source !== iframe.contentWindow || !event.data.widgetId || event.data.widgetId !== iframeId) {
+  window.addEventListener("message", (event) => {
+    if (event.source !== iframe.contentWindow || event.data.widgetId !== iframeId) {
       return;
     }
 
-    if (event.data.type === 'chatboc-state-change') {
-      const { dimensions, isOpen } = event.data;
+    if (event.data.type === "chatboc-state-change") {
+      const { dimensions } = event.data;
       const host = shadow.host;
-      if (isOpen) {
-        host.style.width = dimensions.width;
-        host.style.height = dimensions.height;
-      } else {
-        host.style.width = dimensions.width;
-        host.style.height = dimensions.height;
-      }
+      host.style.width = dimensions.width;
+      host.style.height = dimensions.height;
     }
   });
-
 })();
+
