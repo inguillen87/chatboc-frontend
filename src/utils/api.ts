@@ -3,6 +3,7 @@
 import { BASE_API_URL } from '@/config';
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateChatSessionId from "@/utils/chatSessionId"; // Import the new function
+import { getIframeToken } from "@/utils/config";
 
 export class ApiError extends Error {
   public readonly status: number;
@@ -57,8 +58,9 @@ export async function apiFetch<T>(
   if (((!token && anonId) || sendAnonId) && anonId) {
     headers["Anon-Id"] = anonId;
   }
-  if (entityToken) {
-    headers["X-Entity-Token"] = entityToken;
+  const effectiveEntityToken = entityToken ?? getIframeToken();
+  if (effectiveEntityToken) {
+    headers["X-Entity-Token"] = effectiveEntityToken;
   }
   // Log request details without exposing full tokens
   const mask = (t: string | null) => (t ? `${t.slice(0, 8)}...` : null);
@@ -68,7 +70,7 @@ export async function apiFetch<T>(
     hasBody: !!body,
     authToken: mask(token),
     anonId: mask(anonId),
-    entityToken: mask(entityToken || null),
+    entityToken: mask(effectiveEntityToken || null),
     sendAnonId,
     headers,
   });
