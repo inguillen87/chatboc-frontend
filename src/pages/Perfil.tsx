@@ -267,13 +267,12 @@ export default function Perfil() {
   const fetchHeatmapData = useCallback(async () => {
     try {
       const tipo = getCurrentTipoChat();
-      const pluralTipo = tipo === "municipio" ? "municipios" : "pymes";
       const data: {
         location: { lat: number; lng: number };
         weight: number;
         categoria?: string;
         barrio?: string;
-      }[] = await apiFetch(`/tickets/${pluralTipo}/mapa`, {
+      }[] = await apiFetch(`/tickets/${tipo}/mapa`, {
         headers: { 'Cache-Control': 'no-store' },
         cache: 'no-store',
       });
