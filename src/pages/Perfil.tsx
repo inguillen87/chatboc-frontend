@@ -335,34 +335,6 @@ export default function Perfil() {
     }
   }, [ticketLocations, selectedCategories, selectedBarrios]);
 
-  useEffect(() => {
-    const filtered = ticketLocations.filter(
-      (t) =>
-        (selectedCategories.length === 0 ||
-          (t.categoria && selectedCategories.includes(t.categoria))) &&
-        (selectedBarrios.length === 0 ||
-          (t.barrio && selectedBarrios.includes(t.barrio)))
-    );
-    const points = filtered.map(({ lat, lng, weight }) => ({
-      lat,
-      lng,
-      weight,
-    }));
-    setHeatmapData(points);
-    if (filtered.length > 0) {
-      const totalWeight = filtered.reduce((sum, t) => sum + (t.weight || 0), 0);
-      if (totalWeight > 0) {
-        const avgLat =
-          filtered.reduce((sum, t) => sum + t.lat * (t.weight || 0), 0) /
-          totalWeight;
-        const avgLng =
-          filtered.reduce((sum, t) => sum + t.lng * (t.weight || 0), 0) /
-          totalWeight;
-        setMapCenter({ lat: avgLat, lng: avgLng });
-      }
-    }
-  }, [ticketLocations, selectedCategories, selectedBarrios]);
-
   // Función para cargar las configuraciones de mapeo
   const fetchMappingConfigs = useCallback(async () => {
     if (!user?.id) return; // Asegurarse que tenemos el ID de la PYME (user.id)
