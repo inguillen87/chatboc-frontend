@@ -70,7 +70,6 @@ import Papa from 'papaparse';
 
 // Durante el desarrollo usamos "/api" para evitar problemas de CORS.
 // Por defecto, usa esa ruta si no se proporciona ninguna variable de entorno.
-const API_BASE_URL = import.meta.env.VITE_API_URL || "/api";
 const Maps_API_KEY = import.meta.env.VITE_Maps_API_KEY || "";
 const PROVINCIAS = [
   "Buenos Aires",
@@ -248,8 +247,8 @@ export default function Perfil() {
       }));
       setDireccionConfirmada(!!data.direccion);
       
-      // Actualizar localStorage a través de useUser refreshUser si es necesario
-      refreshUser();
+      // Actualizar localStorage y contexto del usuario antes de otras llamadas que dependan de él
+      await refreshUser();
 
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
@@ -265,56 +264,76 @@ export default function Perfil() {
     }
   }, [navigate, refreshUser]); // Añadir navigate y refreshUser a las dependencias
 
+  const fetchHeatmapData = useCallback(async () => {
+    try {
+      const tipo = getCurrentTipoChat();
+      const data: {
+        location: { lat: number; lng: number };
+        weight: number;
+        categoria?: string;
+        barrio?: string;
+      }[] = await apiFetch(`/tickets/${tipo}/mapa`, {
+        headers: { 'Cache-Control': 'no-store' },
+        cache: 'no-store',
+      });
+      const mapped: TicketLocation[] = (data || []).map((d) => ({
+        lat: d.location.lat,
+        lng: d.location.lng,
+        weight: d.weight,
+        categoria: d.categoria,
+        barrio: d.barrio,
+      }));
+      setTicketLocations(mapped);
+      const cats = Array.from(new Set(mapped.map((d) => d.categoria).filter(Boolean))) as string[];
+      setAvailableCategories(cats);
+      const barrios = Array.from(new Set(mapped.map((d) => d.barrio).filter(Boolean))) as string[];
+      setAvailableBarrios(barrios);
+    } catch (error) {
+      console.error("Error fetching heatmap data:", error);
+      // Do not show a toast here to avoid spamming the user if the endpoint is not ready yet.
+      // The feature will just not display the heatmap, which is a graceful failure.
+    }
+  }, []);
+
   useEffect(() => {
     const token = safeLocalStorage.getItem("authToken");
     if (!token) {
       navigate("/login"); // Usar navigate para la redirección
       return;
     }
-    fetchPerfil(); // Llamar sin token
+    (async () => {
+      await fetchPerfil();
+      await fetchHeatmapData();
+    })();
+  }, [fetchPerfil, fetchHeatmapData, navigate]);
 
-    // Fetch heatmap data
-    const fetchHeatmapData = async () => {
-      try {
-        const tipo = getCurrentTipoChat();
-        const pluralTipo = tipo === "municipio" ? "municipios" : "pymes";
-        const resp = await fetch(
-          `${API_BASE_URL.replace(/\/$/, '')}/tickets/${pluralTipo}/mapa`,
-          {
-            headers: { Authorization: `Bearer ${token}`, 'Cache-Control': 'no-store' },
-            cache: 'no-store',
-          }
-        );
-        if (!resp.ok) {
-          console.error('Error fetching heatmap data:', resp.status);
-          return;
-        }
-        const data: { location: { lat: number; lng: number }; weight: number; categoria?: string; barrio?: string }[] =
-          await resp.json();
-        const mapped: TicketLocation[] = (data || []).map((d) => ({
-          lat: d.location.lat,
-          lng: d.location.lng,
-          weight: d.weight,
-          categoria: d.categoria,
-          barrio: d.barrio,
-        }));
-        setTicketLocations(mapped);
-        const cats = Array.from(
-          new Set(mapped.map((d) => d.categoria).filter(Boolean))
-        ) as string[];
-        setAvailableCategories(cats);
-        const barrios = Array.from(
-          new Set(mapped.map((d) => d.barrio).filter(Boolean))
-        ) as string[];
-        setAvailableBarrios(barrios);
-      } catch (error) {
-        console.error("Error fetching heatmap data:", error);
-        // Do not show a toast here to avoid spamming the user if the endpoint is not ready yet.
-        // The feature will just not display the heatmap, which is a graceful failure.
+  useEffect(() => {
+    const filtered = ticketLocations.filter(
+      (t) =>
+        (selectedCategories.length === 0 ||
+          (t.categoria && selectedCategories.includes(t.categoria))) &&
+        (selectedBarrios.length === 0 ||
+          (t.barrio && selectedBarrios.includes(t.barrio)))
+    );
+    const points = filtered.map(({ lat, lng, weight }) => ({
+      lat,
+      lng,
+      weight,
+    }));
+    setHeatmapData(points);
+    if (filtered.length > 0) {
+      const totalWeight = filtered.reduce((sum, t) => sum + (t.weight || 0), 0);
+      if (totalWeight > 0) {
+        const avgLat =
+          filtered.reduce((sum, t) => sum + t.lat * (t.weight || 0), 0) /
+          totalWeight;
+        const avgLng =
+          filtered.reduce((sum, t) => sum + t.lng * (t.weight || 0), 0) /
+          totalWeight;
+        setMapCenter({ lat: avgLat, lng: avgLng });
       }
-    };
-    fetchHeatmapData();
-  }, [fetchPerfil, navigate]);
+    }
+  }, [ticketLocations, selectedCategories, selectedBarrios]);
 
   useEffect(() => {
     const filtered = ticketLocations.filter(
