@@ -54,7 +54,6 @@ import {
 } from "@/components/ui/alert-dialog"
 import { toast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
-import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import LocationMap from "@/components/LocationMap";
 import { useNavigate } from "react-router-dom";
 import QuickLinksCard from "@/components/QuickLinksCard";
@@ -70,7 +69,6 @@ import Papa from 'papaparse';
 
 // Durante el desarrollo usamos "/api" para evitar problemas de CORS.
 // Por defecto, usa esa ruta si no se proporciona ninguna variable de entorno.
-const Maps_API_KEY = import.meta.env.VITE_Maps_API_KEY || "";
 const PROVINCIAS = [
   "Buenos Aires",
   "CABA",
@@ -139,8 +137,6 @@ export default function Perfil() {
     })),
     logo_url: "",
   });
-  const [direccionSeleccionada, setDireccionSeleccionada] = useState(null);
-  const [direccionConfirmada, setDireccionConfirmada] = useState(false);
   const [modoHorario, setModoHorario] = useState("comercial");
   const [archivo, setArchivo] = useState<File | null>(null); // Tipado para archivo
   const [resultadoCatalogo, setResultadoCatalogo] = useState<{ message: string; type: "success" | "error" } | null>(null);
@@ -183,23 +179,6 @@ export default function Perfil() {
   const [mappingToDelete, setMappingToDelete] = useState<MappingConfig | null>(null);
 
 
-  useEffect(() => {
-    if (!Maps_API_KEY) {
-      setError(
-        "Error de configuración: Falta la clave para Google Maps. Contacta a soporte.",
-      );
-    }
-  }, []);
-
-  // Sincronizá la dirección seleccionada cuando cambie perfil.direccion
-  useEffect(() => {
-    setDireccionSeleccionada(
-      perfil.direccion
-        ? { label: perfil.direccion, value: perfil.direccion }
-        : null,
-    );
-    setDireccionConfirmada(!!perfil.direccion);
-  }, [perfil.direccion]);
 
   // fetchPerfil actualizado para usar apiFetch
   const fetchPerfil = useCallback(async () => { // Ya no necesita 'token' como argumento
@@ -245,7 +224,6 @@ export default function Perfil() {
         logo_url: data.logo_url || "",
         horarios_ui: horariosUi,
       }));
-      setDireccionConfirmada(!!data.direccion);
       
       // Actualizar localStorage y contexto del usuario antes de otras llamadas que dependan de él
       await refreshUser();
@@ -362,45 +340,18 @@ export default function Perfil() {
   }, [showManageMappingsDialog, user?.id, fetchMappingConfigs]);
 
 
-  const handlePlaceSelected = (place: google.maps.places.PlaceResult | null) => { // Tipado de 'place'
-    if (!place || !place.address_components || !place.geometry) {
-      setError(
-        "No se pudo encontrar la dirección. Intenta de nuevo o escribila bien.",
-      );
-      setPerfil((prev) => ({
-        ...prev,
-        direccion: place?.formatted_address || "",
-      }));
-      setDireccionConfirmada(false);
-      return;
-    }
-    const getAddressComponent = (type: string) => // Tipado de 'type'
-      place.address_components?.find((c) => c.types.includes(type))
-        ?.long_name || "";
-    setPerfil((prev) => ({
-      ...prev,
-      direccion: place.formatted_address || "",
-      ciudad:
-        getAddressComponent("locality") ||
-        getAddressComponent("administrative_area_level_2") ||
-        "",
-      provincia: getAddressComponent("administrative_area_level_1") || "",
-      pais: getAddressComponent("country") || "",
-      latitud: place.geometry?.location?.lat() || null,
-      longitud: place.geometry?.location?.lng() || null,
-    }));
-    setError(null);
-    setDireccionConfirmada(false); // Deja que el usuario guarde para confirmar
-  };
-
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => { // Tipado de 'e'
     const { id, value } = e.target;
     setPerfil((prev) => ({ ...prev, [id]: value }));
-    // Si toca el campo dirección manualmente, dejá el autocomplete limpio
-    if (id === "direccion") {
-      setDireccionSeleccionada(null);
-      setDireccionConfirmada(false); // Si edita, la dirección ya no está "confirmada" por Google
-    }
+  };
+
+  const handleMapSelect = (lat: number, lng: number, address?: string) => {
+    setPerfil((prev) => ({
+      ...prev,
+      latitud: lat,
+      longitud: lng,
+      direccion: address ?? prev.direccion,
+    }));
   };
 
 
@@ -765,67 +716,20 @@ export default function Perfil() {
                     />
                   </div>
                 </div>
-                <div className="relative">
+                <div>
                   <Label
-                    htmlFor="google-places-input"
+                    htmlFor="direccion"
                     className="text-muted-foreground text-sm mb-1 block"
                   >
                     Dirección Completa*
                   </Label>
-                  <AddressAutocomplete
-                    value={direccionSeleccionada}
-                    onChange={(option) => {
-                      setDireccionSeleccionada(option || null);
-                      if (!option)
-                        setPerfil((prev) => ({ ...prev, direccion: "" }));
-                    }}
-                    onSelect={(addr) => {
-                      window?.google?.maps?.Geocoder &&
-                        new window.google.maps.Geocoder().geocode(
-                          { address: addr },
-                          (results, status) => {
-                            if (status === "OK" && results[0]) {
-                              handlePlaceSelected(results[0]);
-                              setDireccionSeleccionada({ label: addr, value: addr });
-                            } else {
-                              setPerfil((prev) => ({
-                                ...prev,
-                                direccion: addr,
-                              }));
-                              setError(
-                                "No se pudo verificar esa dirección. Intenta escribirla bien.",
-                              );
-                            }
-                          },
-                        );
-                    }}
-                    disabled={!!perfil.direccion && !!direccionSeleccionada}
+                  <Input
+                    id="direccion"
+                    value={perfil.direccion}
+                    onChange={handleInputChange}
                     placeholder="Ej: Av. Principal 123"
+                    className="bg-input border-input text-foreground"
                   />
-                  {!!perfil.direccion && !!direccionSeleccionada && (
-                    <div className="absolute right-2 top-9 flex gap-2">
-                      <button
-                        type="button"
-                        className="p-1 rounded-full hover:bg-destructive/10 text-destructive"
-                        onClick={() => {
-                          setDireccionSeleccionada(null);
-                          setPerfil((prev) => ({ ...prev, direccion: "" }));
-                        }}
-                        title="Borrar dirección"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        className="p-1 rounded-full hover:bg-green-100 text-green-700"
-                        title="Dirección confirmada"
-                        disabled
-                        tabIndex={-1}
-                      >
-                        <Check className="w-4 h-4" />
-                      </button>
-                    </div>
-                  )}
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -876,9 +780,7 @@ export default function Perfil() {
                     <LocationMap
                       lat={perfil.latitud ?? undefined}
                       lng={perfil.longitud ?? undefined}
-                      onMove={(la, ln) =>
-                        setPerfil((prev) => ({ ...prev, latitud: la, longitud: ln }))
-                      }
+                      onSelect={handleMapSelect}
                     />
                   </div>
                 )}
