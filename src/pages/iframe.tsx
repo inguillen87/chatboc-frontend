@@ -3,15 +3,17 @@ import { createRoot } from 'react-dom/client';
 import React, { useEffect, useState } from "react";
 import ChatWidget from "../components/chat/ChatWidget";
 import { GoogleOAuthProvider } from "@react-oauth/google";
-import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import ErrorBoundary from '../components/ErrorBoundary';
 import { MemoryRouter } from "react-router-dom";
+import { getChatbocConfig } from "@/utils/config";
 
 const DEFAULTS = {
   openWidth: "460px",
   openHeight: "680px",
   closedWidth: "96px",
   closedHeight: "96px",
+  bottom: 20,
+  right: 20,
 };
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
@@ -30,49 +32,35 @@ const Iframe = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    const cfg = getChatbocConfig();
     const urlParams = new URLSearchParams(window.location.search);
-    const tokenFromUrl =
-      urlParams.get("token") || urlParams.get("entityToken");
-    const storedToken = safeLocalStorage.getItem("entityToken");
-    const currentToken = tokenFromUrl || storedToken;
-    const rawEndpoint = urlParams.get("endpoint") || urlParams.get("tipo_chat");
+
+    setEntityToken(cfg.entityToken || null);
+
     const endpointParam =
-      rawEndpoint === 'pyme' || rawEndpoint === 'municipio'
-        ? (rawEndpoint as 'pyme' | 'municipio')
+      cfg.endpoint === 'pyme' || cfg.endpoint === 'municipio'
+        ? (cfg.endpoint as 'pyme' | 'municipio')
         : null;
-
-    if (tokenFromUrl && tokenFromUrl !== storedToken) {
-      safeLocalStorage.setItem("entityToken", tokenFromUrl);
-      console.log(
-        "Chatboc Iframe: entityToken guardado en localStorage desde URL:",
-        tokenFromUrl
-      );
-    }
-
-    if (currentToken) {
-      setEntityToken(currentToken);
-    } else {
-      console.warn('Chatboc Iframe: No se encontró token en la URL ni en localStorage.');
-      setIsLoading(false);
+    if (endpointParam) {
+      setTipoChat(endpointParam);
     }
 
     setWidgetParams({
-      defaultOpen: urlParams.get("defaultOpen") === "true",
+      defaultOpen: cfg.defaultOpen,
       widgetId: urlParams.get("widgetId") || "chatboc-iframe-unknown",
       view: urlParams.get("view") || 'chat',
-      openWidth: urlParams.get("openWidth") || DEFAULTS.openWidth,
-      openHeight: urlParams.get("openHeight") || DEFAULTS.openHeight,
-      closedWidth: urlParams.get("closedWidth") || DEFAULTS.closedWidth,
-      closedHeight: urlParams.get("closedHeight") || DEFAULTS.closedHeight,
+      openWidth: urlParams.get("openWidth") || cfg.width || DEFAULTS.openWidth,
+      openHeight: urlParams.get("openHeight") || cfg.height || DEFAULTS.openHeight,
+      closedWidth: urlParams.get("closedWidth") || cfg.closedWidth || DEFAULTS.closedWidth,
+      closedHeight: urlParams.get("closedHeight") || cfg.closedHeight || DEFAULTS.closedHeight,
       ctaMessage: urlParams.get("ctaMessage") || undefined,
       rubro: urlParams.get("rubro") || undefined,
       endpoint: endpointParam || undefined,
+      bottom: parseInt(urlParams.get("bottom") || cfg.bottom || String(DEFAULTS.bottom), 10),
+      right: parseInt(urlParams.get("right") || cfg.right || String(DEFAULTS.right), 10),
     });
 
-    if (endpointParam) {
-      setTipoChat(endpointParam);
-      setIsLoading(false);
-    }
+    setIsLoading(false);
   }, []);
 
   useEffect(() => {
@@ -110,6 +98,7 @@ const Iframe = () => {
       openHeight={widgetParams.openHeight}
       closedWidth={widgetParams.closedWidth}
       closedHeight={widgetParams.closedHeight}
+      initialPosition={{ bottom: widgetParams.bottom, right: widgetParams.right }}
       ctaMessage={widgetParams.ctaMessage}
       initialView={widgetParams.view}
       initialRubro={widgetParams.rubro}
@@ -120,10 +109,10 @@ const Iframe = () => {
   if (!GOOGLE_CLIENT_ID) {
     return (
       <MemoryRouter>
-        <ChatWidgetComponent />
-      </MemoryRouter>
-    );
-  }
+      <ChatWidgetComponent />
+    </MemoryRouter>
+  );
+}
 
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
