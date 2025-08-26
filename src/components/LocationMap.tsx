@@ -90,6 +90,7 @@ const LocationMap: React.FC<LocationMapProps> = ({ lat, lng, onMove, heatmapData
   useEffect(() => {
     ensureScriptLoaded(() => {
       if (!ref.current) return;
+
       if (!mapRef.current) {
         const center =
           lat != null && lng != null ? { lat, lng } : { lat: -34.6037, lng: -58.3816 };
@@ -109,10 +110,22 @@ const LocationMap: React.FC<LocationMapProps> = ({ lat, lng, onMove, heatmapData
             if (pos) onMove(pos.lat(), pos.lng());
           });
         }
+      } else if (lat != null && lng != null) {
+        const pos = { lat, lng };
+        mapRef.current!.setCenter(pos);
+        mapRef.current!.setZoom(15);
+        if (markerRef.current) {
+          markerRef.current.position = pos;
+          markerRef.current.map = mapRef.current!;
+        }
+      }
 
-        // Heatmap Layer Logic
+      // Heatmap Layer Logic - runs on every update
+      if (mapRef.current) {
         if (heatmapData && heatmapData.length > 0) {
-          const points = heatmapData.map(p => new window.google.maps.LatLng(p.lat, p.lng));
+          const points = heatmapData.map(
+            (p) => new window.google.maps.LatLng(p.lat, p.lng)
+          );
           if (!heatmapRef.current) {
             heatmapRef.current = new window.google.maps.visualization.HeatmapLayer({
               data: points,
@@ -128,18 +141,9 @@ const LocationMap: React.FC<LocationMapProps> = ({ lat, lng, onMove, heatmapData
           // If no data, ensure heatmap is not shown
           heatmapRef.current.setMap(null);
         }
-
-      } else if (lat != null && lng != null) {
-        const pos = { lat, lng };
-        mapRef.current!.setCenter(pos);
-        mapRef.current!.setZoom(15);
-        if (markerRef.current) {
-          markerRef.current.position = pos;
-          markerRef.current.map = mapRef.current!;
-        }
       }
     });
-  }, [lat, lng, onMove]);
+  }, [lat, lng, onMove, heatmapData]);
 
   // Added flex-grow and min-h-[200px] (or other suitable min-height)
   return <div ref={ref} className="w-full rounded-md border border-border flex-grow min-h-[200px]" />; 
