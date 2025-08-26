@@ -174,7 +174,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     (open: boolean) => {
       if (mode === "iframe" && typeof window !== "undefined" && window.parent !== window && widgetId) {
         const dims = open
-          ? { width: finalOpenWidth, height: finalOpenHeight }
+          ? { width: openWidth, height: openHeight }
           : { width: finalClosedWidth, height: finalClosedHeight };
 
         window.parent.postMessage(
@@ -183,7 +183,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         );
       }
     },
-    [mode, widgetId, finalOpenWidth, finalOpenHeight, finalClosedWidth, finalClosedHeight]
+    [mode, widgetId, openWidth, openHeight, finalClosedWidth, finalClosedHeight]
   );
 
   useEffect(() => {
