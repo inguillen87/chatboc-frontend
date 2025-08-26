@@ -10,6 +10,9 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       VitePWA({
+        // We manually register the service worker in index.html to avoid
+        // unintentionally registering it inside the embeddable iframe.
+        injectRegister: null,
         registerType: 'autoUpdate',
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
         manifest: {
