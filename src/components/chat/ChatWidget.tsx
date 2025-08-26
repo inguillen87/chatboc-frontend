@@ -361,9 +361,10 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         data-tipo-chat={tipoChat}
         data-initial-rubro={initialRubro}
         className={cn(
-          "chatboc-container",
-          mode === "standalone" && "fixed z-[999999]",
-          "flex flex-col items-end justify-end"
+          "chatboc-container flex flex-col",
+          mode === "standalone"
+            ? "fixed z-[999999] items-end justify-end"
+            : "w-full h-full"
         )}
         style={containerStyle}
       >
