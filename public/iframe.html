@@ -30,14 +30,14 @@
 
   <script>
     // Config que llega por query
-    const qs = new URLSearchParams(location.search);
+    const searchParams = new URLSearchParams(location.search);
     window.CHATBOC_CONFIG = {
-      endpoint: qs.get('endpoint') || 'municipio',
-      entityToken: qs.get('entityToken') || '',
-      userToken: qs.get('userToken') || null,
-      defaultOpen: qs.get('defaultOpen') === 'true',
-      width: qs.get('width') || '460px',
-      height: qs.get('height') || '680px'
+      endpoint: searchParams.get('endpoint') || 'municipio',
+      entityToken: searchParams.get('entityToken') || '',
+      userToken: searchParams.get('userToken') || null,
+      defaultOpen: searchParams.get('defaultOpen') === 'true',
+      width: searchParams.get('width') || '460px',
+      height: searchParams.get('height') || '680px'
     };
   </script>
 
