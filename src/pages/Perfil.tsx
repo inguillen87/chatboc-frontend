@@ -277,9 +277,20 @@ export default function Perfil() {
     const fetchHeatmapData = async () => {
       try {
         const tipo = getCurrentTipoChat();
-        const data = await apiFetch<
-          { location: { lat: number; lng: number }; weight: number; categoria?: string; barrio?: string }[]
-        >(`/tickets/${tipo}/mapa`);
+        const pluralTipo = tipo === "municipio" ? "municipios" : "pymes";
+        const resp = await fetch(
+          `${API_BASE_URL.replace(/\/$/, '')}/tickets/${pluralTipo}/mapa`,
+          {
+            headers: { Authorization: `Bearer ${token}`, 'Cache-Control': 'no-store' },
+            cache: 'no-store',
+          }
+        );
+        if (!resp.ok) {
+          console.error('Error fetching heatmap data:', resp.status);
+          return;
+        }
+        const data: { location: { lat: number; lng: number }; weight: number; categoria?: string; barrio?: string }[] =
+          await resp.json();
         const mapped: TicketLocation[] = (data || []).map((d) => ({
           lat: d.location.lat,
           lng: d.location.lng,
