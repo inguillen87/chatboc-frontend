@@ -1,6 +1,6 @@
 // public/sw.js
 
-const CACHE_NAME = 'chatboc-cache-v1';
+const CACHE_NAME = 'chatboc-cache-v2';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -8,6 +8,7 @@ const urlsToCache = [
 ];
 
 self.addEventListener('install', event => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
@@ -25,10 +26,13 @@ self.addEventListener('fetch', event => {
 
   // Strategy: Network-first for navigation, Cache-first for others.
 
-  // For navigation requests, go to the network first.
-  // This ensures the user always gets the latest version of the page,
-  // fixing the bug where the widget breaks on F5 refresh.
   if (event.request.mode === 'navigate') {
+    const url = new URL(event.request.url);
+    // Let the browser handle iframe navigations so the widget always hits the network
+    if (url.pathname.startsWith('/iframe')) {
+      return;
+    }
+
     event.respondWith(
       fetch(event.request)
         .then(response => {
@@ -83,6 +87,7 @@ self.addEventListener('fetch', event => {
 });
 
 self.addEventListener('activate', event => {
+  self.clients.claim();
   const cacheWhitelist = [CACHE_NAME];
   event.waitUntil(
     caches.keys().then(cacheNames => {
