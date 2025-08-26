@@ -4,7 +4,7 @@ interface LocationMapProps {
   lat?: number | null;
   lng?: number | null;
   onMove?: (lat: number, lng: number) => void;
-  heatmapData?: { lat: number; lng: number }[];
+  heatmapData?: { lat: number; lng: number; weight?: number }[];
 }
 
 const Maps_API_KEY = import.meta.env.VITE_Maps_API_KEY || "";
@@ -123,9 +123,10 @@ const LocationMap: React.FC<LocationMapProps> = ({ lat, lng, onMove, heatmapData
       // Heatmap Layer Logic - runs on every update
       if (mapRef.current) {
         if (heatmapData && heatmapData.length > 0) {
-          const points = heatmapData.map(
-            (p) => new window.google.maps.LatLng(p.lat, p.lng)
-          );
+          const points = heatmapData.map((p) => ({
+            location: new window.google.maps.LatLng(p.lat, p.lng),
+            weight: p.weight ?? 1,
+          }));
           if (!heatmapRef.current) {
             heatmapRef.current = new window.google.maps.visualization.HeatmapLayer({
               data: points,

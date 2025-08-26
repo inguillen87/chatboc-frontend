@@ -111,6 +111,7 @@ const DIAS = [
 interface TicketLocation {
   lat: number;
   lng: number;
+  weight: number;
   categoria?: string;
   barrio?: string;
 }
@@ -156,7 +157,9 @@ export default function Perfil() {
   const [selectedBarrios, setSelectedBarrios] = useState<string[]>([]);
   const [availableCategories, setAvailableCategories] = useState<string[]>([]);
   const [availableBarrios, setAvailableBarrios] = useState<string[]>([]);
-  const [heatmapData, setHeatmapData] = useState<{ lat: number; lng: number }[]>([]);
+  const [heatmapData, setHeatmapData] = useState<
+    { lat: number; lng: number; weight?: number }[]
+  >([]);
   const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number } | null>(null);
 
   // --- Estados para el nuevo modal de carga de catálogo ---
@@ -273,16 +276,24 @@ export default function Perfil() {
     // Fetch heatmap data
     const fetchHeatmapData = async () => {
       try {
-        const data = await apiFetch<TicketLocation[]>(
-          '/municipal/tickets/locations'
-        );
-        setTicketLocations(data || []);
+        const tipo = getCurrentTipoChat();
+        const data = await apiFetch<
+          { location: { lat: number; lng: number }; weight: number; categoria?: string; barrio?: string }[]
+        >(`/tickets/${tipo}/mapa`);
+        const mapped: TicketLocation[] = (data || []).map((d) => ({
+          lat: d.location.lat,
+          lng: d.location.lng,
+          weight: d.weight,
+          categoria: d.categoria,
+          barrio: d.barrio,
+        }));
+        setTicketLocations(mapped);
         const cats = Array.from(
-          new Set((data || []).map((d) => d.categoria).filter(Boolean))
+          new Set(mapped.map((d) => d.categoria).filter(Boolean))
         ) as string[];
         setAvailableCategories(cats);
         const barrios = Array.from(
-          new Set((data || []).map((d) => d.barrio).filter(Boolean))
+          new Set(mapped.map((d) => d.barrio).filter(Boolean))
         ) as string[];
         setAvailableBarrios(barrios);
       } catch (error) {
@@ -302,14 +313,23 @@ export default function Perfil() {
         (selectedBarrios.length === 0 ||
           (t.barrio && selectedBarrios.includes(t.barrio)))
     );
-    const points = filtered.map(({ lat, lng }) => ({ lat, lng }));
+    const points = filtered.map(({ lat, lng, weight }) => ({
+      lat,
+      lng,
+      weight,
+    }));
     setHeatmapData(points);
     if (filtered.length > 0) {
-      const avgLat =
-        filtered.reduce((sum, t) => sum + t.lat, 0) / filtered.length;
-      const avgLng =
-        filtered.reduce((sum, t) => sum + t.lng, 0) / filtered.length;
-      setMapCenter({ lat: avgLat, lng: avgLng });
+      const totalWeight = filtered.reduce((sum, t) => sum + (t.weight || 0), 0);
+      if (totalWeight > 0) {
+        const avgLat =
+          filtered.reduce((sum, t) => sum + t.lat * (t.weight || 0), 0) /
+          totalWeight;
+        const avgLng =
+          filtered.reduce((sum, t) => sum + t.lng * (t.weight || 0), 0) /
+          totalWeight;
+        setMapCenter({ lat: avgLat, lng: avgLng });
+      }
     }
   }, [ticketLocations, selectedCategories, selectedBarrios]);
 
