@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
 import { cn } from "@/lib/utils";
@@ -128,8 +128,33 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     });
   }, []);
 
-  const finalOpenWidth = openWidth;
-  const finalOpenHeight = openHeight;
+  const [viewport, setViewport] = useState({
+    width: typeof window !== "undefined" ? window.innerWidth : 0,
+    height: typeof window !== "undefined" ? window.innerHeight : 0,
+  });
+
+  useEffect(() => {
+    const onResize = () =>
+      setViewport({ width: window.innerWidth, height: window.innerHeight });
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  const finalOpenWidth = useMemo(() => {
+    const desired = parseInt(openWidth, 10);
+    const max = viewport.width - (initialPosition.right || 0) - 16;
+    return !isNaN(desired) && viewport.width
+      ? `${Math.min(desired, max)}px`
+      : openWidth;
+  }, [openWidth, viewport.width, initialPosition.right]);
+
+  const finalOpenHeight = useMemo(() => {
+    const desired = parseInt(openHeight, 10);
+    const max = viewport.height - (initialPosition.bottom || 0) - 16;
+    return !isNaN(desired) && viewport.height
+      ? `${Math.min(desired, max)}px`
+      : openHeight;
+  }, [openHeight, viewport.height, initialPosition.bottom]);
 
   const mobileClosedSize = "72px";
   const finalClosedWidth = isMobileView ? mobileClosedSize : closedWidth;
@@ -169,6 +194,12 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       if (hideProactiveBubbleTimeoutRef.current) clearTimeout(hideProactiveBubbleTimeoutRef.current);
     }
   }, [isOpen, sendStateMessageToParent]);
+
+  useEffect(() => {
+    if (isOpen) {
+      sendStateMessageToParent(true);
+    }
+  }, [viewport, isOpen, sendStateMessageToParent]);
 
   useEffect(() => {
     if (isOpen || mode === 'standalone') {
