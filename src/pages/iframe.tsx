@@ -3,9 +3,9 @@ import { createRoot } from 'react-dom/client';
 import React, { useEffect, useState } from "react";
 import ChatWidget from "../components/chat/ChatWidget";
 import { GoogleOAuthProvider } from "@react-oauth/google";
-import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import ErrorBoundary from '../components/ErrorBoundary';
 import { MemoryRouter } from "react-router-dom";
+import { getChatbocConfig } from "@/utils/config";
 
 const DEFAULTS = {
   openWidth: "460px",
@@ -30,41 +30,25 @@ const Iframe = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    const cfg = getChatbocConfig();
     const urlParams = new URLSearchParams(window.location.search);
-    const tokenFromUrl =
-      urlParams.get("token") || urlParams.get("entityToken");
 
-    // The token from the URL is the only source of truth. We remove the fallback to
-    // localStorage to prevent using stale, expired tokens.
-    const currentToken = tokenFromUrl;
+    setEntityToken(cfg.entityToken || null);
 
-    const rawEndpoint = urlParams.get("endpoint") || urlParams.get("tipo_chat");
     const endpointParam =
-      rawEndpoint === 'pyme' || rawEndpoint === 'municipio'
-        ? (rawEndpoint as 'pyme' | 'municipio')
+      cfg.endpoint === 'pyme' || cfg.endpoint === 'municipio'
+        ? (cfg.endpoint as 'pyme' | 'municipio')
         : null;
-
-    // If a token is provided in the URL, we save it. This allows other parts of the
-    // iframe application to access it if needed, but it won't be used for initial
-    // authentication anymore.
-    if (tokenFromUrl) {
-      safeLocalStorage.setItem("entityToken", tokenFromUrl);
-    }
-
-    if (currentToken) {
-      setEntityToken(currentToken);
-    } else {
-      // This is a fatal error for the widget. It cannot function without a token.
-      console.error('Chatboc Iframe: No entity token was provided in the URL. Widget cannot be loaded.');
-      setIsLoading(false);
+    if (endpointParam) {
+      setTipoChat(endpointParam);
     }
 
     setWidgetParams({
-      defaultOpen: urlParams.get("defaultOpen") === "true",
+      defaultOpen: cfg.defaultOpen,
       widgetId: urlParams.get("widgetId") || "chatboc-iframe-unknown",
       view: urlParams.get("view") || 'chat',
-      openWidth: urlParams.get("openWidth") || DEFAULTS.openWidth,
-      openHeight: urlParams.get("openHeight") || DEFAULTS.openHeight,
+      openWidth: urlParams.get("openWidth") || cfg.width || DEFAULTS.openWidth,
+      openHeight: urlParams.get("openHeight") || cfg.height || DEFAULTS.openHeight,
       closedWidth: urlParams.get("closedWidth") || DEFAULTS.closedWidth,
       closedHeight: urlParams.get("closedHeight") || DEFAULTS.closedHeight,
       ctaMessage: urlParams.get("ctaMessage") || undefined,
@@ -72,10 +56,7 @@ const Iframe = () => {
       endpoint: endpointParam || undefined,
     });
 
-    if (endpointParam) {
-      setTipoChat(endpointParam);
-      setIsLoading(false);
-    }
+    setIsLoading(false);
   }, []);
 
   useEffect(() => {
