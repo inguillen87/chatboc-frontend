@@ -12,6 +12,8 @@ const DEFAULTS = {
   openHeight: "680px",
   closedWidth: "96px",
   closedHeight: "96px",
+  bottom: 20,
+  right: 20,
 };
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
@@ -49,11 +51,13 @@ const Iframe = () => {
       view: urlParams.get("view") || 'chat',
       openWidth: urlParams.get("openWidth") || cfg.width || DEFAULTS.openWidth,
       openHeight: urlParams.get("openHeight") || cfg.height || DEFAULTS.openHeight,
-      closedWidth: urlParams.get("closedWidth") || DEFAULTS.closedWidth,
-      closedHeight: urlParams.get("closedHeight") || DEFAULTS.closedHeight,
+      closedWidth: urlParams.get("closedWidth") || cfg.closedWidth || DEFAULTS.closedWidth,
+      closedHeight: urlParams.get("closedHeight") || cfg.closedHeight || DEFAULTS.closedHeight,
       ctaMessage: urlParams.get("ctaMessage") || undefined,
       rubro: urlParams.get("rubro") || undefined,
       endpoint: endpointParam || undefined,
+      bottom: parseInt(urlParams.get("bottom") || cfg.bottom || String(DEFAULTS.bottom), 10),
+      right: parseInt(urlParams.get("right") || cfg.right || String(DEFAULTS.right), 10),
     });
 
     setIsLoading(false);
@@ -94,6 +98,7 @@ const Iframe = () => {
       openHeight={widgetParams.openHeight}
       closedWidth={widgetParams.closedWidth}
       closedHeight={widgetParams.closedHeight}
+      initialPosition={{ bottom: widgetParams.bottom, right: widgetParams.right }}
       ctaMessage={widgetParams.ctaMessage}
       initialView={widgetParams.view}
       initialRubro={widgetParams.rubro}
@@ -104,10 +109,10 @@ const Iframe = () => {
   if (!GOOGLE_CLIENT_ID) {
     return (
       <MemoryRouter>
-        <ChatWidgetComponent />
-      </MemoryRouter>
-    );
-  }
+      <ChatWidgetComponent />
+    </MemoryRouter>
+  );
+}
 
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>

@@ -43,6 +43,10 @@
     defaultOpen: String(cfg.defaultOpen),
     width: cfg.width,
     height: cfg.height,
+    closedWidth: cfg.closedWidth,
+    closedHeight: cfg.closedHeight,
+    bottom: cfg.bottom,
+    right: cfg.right,
     widgetId: iframeId,
     hostDomain: window.location.origin,
   });
@@ -84,17 +88,30 @@
   shadow.appendChild(style);
   shadow.appendChild(iframe);
 
+  let lastDims = { width: cfg.closedWidth, height: cfg.closedHeight };
+
+  function applyDims(dims) {
+    const host = shadow.host;
+    host.style.width = dims.width;
+    const desiredHeight = parseInt(dims.height, 10);
+    const maxHeight = window.innerHeight - parseInt(cfg.bottom, 10);
+    host.style.height =
+      !isNaN(desiredHeight)
+        ? Math.min(desiredHeight, maxHeight) + "px"
+        : dims.height;
+  }
+
   window.addEventListener("message", (event) => {
     if (event.source !== iframe.contentWindow || event.data.widgetId !== iframeId) {
       return;
     }
 
     if (event.data.type === "chatboc-state-change") {
-      const { dimensions } = event.data;
-      const host = shadow.host;
-      host.style.width = dimensions.width;
-      host.style.height = dimensions.height;
+      lastDims = event.data.dimensions;
+      applyDims(lastDims);
     }
   });
+
+  window.addEventListener("resize", () => applyDims(lastDims));
 })();
 

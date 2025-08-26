@@ -47,7 +47,11 @@
         userToken: params.get('userToken') || null,
         defaultOpen: params.get('defaultOpen') === 'true',
         width: params.get('width') || '460px',
-        height: params.get('height') || '680px'
+        height: params.get('height') || '680px',
+        closedWidth: params.get('closedWidth') || '72px',
+        closedHeight: params.get('closedHeight') || '72px',
+        bottom: params.get('bottom') || '20px',
+        right: params.get('right') || '20px'
       };
     })();
   </script>
