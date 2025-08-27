@@ -86,7 +86,7 @@ const Integracion = () => {
     return user.tipo_chat === "municipio" ? "municipio" : "pyme";
   }, [user?.tipo_chat]);
 
-  const userToken = useMemo(() => user?.token || "TU_TOKEN_DE_USUARIO", [user?.token]);
+  const entityToken = useMemo(() => user?.token || "TU_TOKEN_DEL_WIDGET", [user?.token]);
 
   const WIDGET_STD_WIDTH = "460px";
   const WIDGET_STD_HEIGHT = "680px";
@@ -99,14 +99,14 @@ const Integracion = () => {
 document.addEventListener('DOMContentLoaded', function () {
   // Asegura que el widget se destruya y se vuelva a crear si ya existe
   if (window.chatbocDestroyWidget) {
-    window.chatbocDestroyWidget('${userToken}');
+    window.chatbocDestroyWidget('${entityToken}');
   }
   window.APP_TARGET = '${endpoint}'; // Define el endpoint antes de cargar el script
 
   var s = document.createElement('script');
   s.src = 'https://www.chatboc.ar/widget.js'; // URL del script del widget
   s.async = true; // Carga asíncrona para no bloquear el renderizado de la página
-  s.setAttribute('data-token', '${userToken}'); // Token de autenticación del usuario
+  s.setAttribute('data-entity-token', '${entityToken}'); // Token de la entidad para el widget
   s.setAttribute('data-default-open', 'false'); // El widget comienza cerrado por defecto
   s.setAttribute('data-width', '${WIDGET_STD_WIDTH}'); // Ancho del widget abierto
   s.setAttribute('data-height', '${WIDGET_STD_HEIGHT}'); // Alto del widget abierto
@@ -133,9 +133,9 @@ document.addEventListener('DOMContentLoaded', function () {
     console.error('Error al cargar Chatboc Widget.');
   };
 });
-</script>`, [userToken, endpoint]);
+</script>`, [entityToken, endpoint]);
 
-  const iframeSrcUrl = useMemo(() => `https://www.chatboc.ar/iframe?token=${userToken}&tipo_chat=${endpoint}`, [userToken, endpoint]);
+  const iframeSrcUrl = useMemo(() => `https://www.chatboc.ar/iframe?entityToken=${entityToken}&tipo_chat=${endpoint}`, [entityToken, endpoint]);
   
   const codeIframe = useMemo(() => `<iframe
   id="chatboc-iframe"
@@ -308,7 +308,7 @@ document.addEventListener('DOMContentLoaded', function () {
             Ambos métodos de integración (Script y Iframe) están diseñados para ser seguros y eficientes. El método de Script es generalmente más flexible y recomendado.
           </p>
           <p>
-            <strong>Token de Usuario:</strong> Tu token de integración es <code>{userToken.substring(0,8)}...</code>. Ya está incluido en los códigos de abajo.
+            <strong>Token del Widget:</strong> Tu token de integración es <code>{entityToken.substring(0,8)}...</code>. Ya está incluido en los códigos de abajo.
           </p>
         </CardContent>
       </Card>
