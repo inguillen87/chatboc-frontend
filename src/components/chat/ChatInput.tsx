@@ -1,7 +1,7 @@
 // src/components/chat/ChatInput.tsx
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from "react";
 import { Send, MapPin, Mic, MicOff, X, FileText } from "lucide-react";
-import AdjuntarArchivo from "@/components/ui/AdjuntarArchivo";
+import AdjuntarArchivo, { AdjuntarArchivoHandle } from "@/components/ui/AdjuntarArchivo";
 import { apiFetch, getErrorMessage } from "@/utils/api";
 import { requestLocation } from "@/utils/geolocation";
 import { toast } from "@/components/ui/use-toast";
@@ -9,6 +9,10 @@ import useAudioRecorder from "@/hooks/useAudioRecorder";
 import { AttachmentInfo } from "@/utils/attachment";
 import { SendPayload } from "@/types/chat";
 import { Button } from "@/components/ui/button";
+
+export interface ChatInputHandle {
+  openFilePicker: () => void;
+}
 
 interface Props {
   onSendMessage: (payload: SendPayload) => void;
@@ -25,13 +29,20 @@ const PLACEHOLDERS = [
   "¿Cuánto cuesta el servicio?",
 ];
 
-const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypingChange, onSystemMessage }) => {
+const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping, inputRef, onTypingChange, onSystemMessage }, ref) => {
   const [input, setInput] = useState("");
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [isLocating, setIsLocating] = useState(false);
   const [attachmentPreview, setAttachmentPreview] = useState<{ file: File; previewUrl: string } | null>(null);
   const internalRef = inputRef || useRef<HTMLInputElement>(null);
   const { isRecording, startRecording, stopRecording } = useAudioRecorder();
+  const adjRef = useRef<AdjuntarArchivoHandle>(null);
+
+  useImperativeHandle(ref, () => ({
+    openFilePicker: () => {
+      adjRef.current?.openFileDialog();
+    },
+  }));
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -170,6 +181,7 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
       )}
       <div className="w-full flex items-center gap-1 sm:gap-2">
         <AdjuntarArchivo
+          ref={adjRef}
           onFileSelected={handleFileSelected}
           disabled={isRecording || !!attachmentPreview}
           allowedFileTypes={['image/*', 'application/pdf']}
@@ -278,6 +290,8 @@ const ChatInput: React.FC<Props> = ({ onSendMessage, isTyping, inputRef, onTypin
       </div>
     </div>
   );
-};
+});
+
+ChatInput.displayName = 'ChatInput';
 
 export default ChatInput;

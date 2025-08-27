@@ -1,5 +1,5 @@
 // src/components/ui/AdjuntarArchivo.tsx
-import React, { useRef } from 'react';
+import React, { useRef, forwardRef, useImperativeHandle } from 'react';
 import { Button } from '@/components/ui/button';
 import { Paperclip, Image as ImageIcon } from 'lucide-react';
 import { apiFetch } from '@/utils/api';
@@ -44,9 +44,19 @@ export interface AdjuntarArchivoProps {
   allowedFileTypes?: string[]; // e.g., ['image/*', 'application/pdf']
 }
 
-const AdjuntarArchivo: React.FC<AdjuntarArchivoProps> = ({ onFileSelected, disabled = false, allowedFileTypes }) => {
+export interface AdjuntarArchivoHandle {
+  openFileDialog: () => void;
+}
+
+const AdjuntarArchivo = forwardRef<AdjuntarArchivoHandle, AdjuntarArchivoProps>(({ onFileSelected, disabled = false, allowedFileTypes }, ref) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const { user } = useUser();
+
+  useImperativeHandle(ref, () => ({
+    openFileDialog: () => {
+      inputRef.current?.click();
+    },
+  }));
 
   const getMimeTypes = () => {
     if (!allowedFileTypes) return Object.keys(ALL_ALLOWED_MIMETYPES);
@@ -131,6 +141,8 @@ const AdjuntarArchivo: React.FC<AdjuntarArchivoProps> = ({ onFileSelected, disab
       {/* El span de error local se ha eliminado. Los errores se muestran mediante toasts. */}
     </div>
   );
-};
+});
+
+AdjuntarArchivo.displayName = 'AdjuntarArchivo';
 
 export default AdjuntarArchivo;
