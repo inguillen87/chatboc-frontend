@@ -39,6 +39,12 @@ export default function MapLibreMap({
 
       mapRef.current = map;
 
+      // Algunos entornos pueden devolver un objeto sin el método `on`
+      if (typeof (map as any).on !== "function") {
+        console.error("MapLibreMap: map instance lacks .on method", map);
+        return;
+      }
+
       map.addControl(new maplibregl.NavigationControl(), "top-right");
 
       if (onSelect) {
