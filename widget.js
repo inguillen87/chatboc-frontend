@@ -274,13 +274,8 @@
                 window.innerHeight -
                 parsePx(newDims.height) -
                 parsePx(initialBottom);
-              if (topOffset < 0) {
-                style.top = "16px";
-                style.bottom = "auto";
-              } else {
-                style.bottom = initialBottom;
-                style.top = "auto";
-              }
+              style.top = `${Math.max(topOffset, 16)}px`;
+              style.bottom = "auto";
             }
             Object.assign(widgetContainer.style, style);
           } else {
@@ -323,13 +318,8 @@
             window.innerHeight -
             parsePx(newDims.height) -
             parsePx(initialBottom);
-          if (topOffset < 0) {
-            style.top = "16px";
-            style.bottom = "auto";
-          } else {
-            style.bottom = initialBottom;
-            style.top = "auto";
-          }
+          style.top = `${Math.max(topOffset, 16)}px`;
+          style.bottom = "auto";
         }
         Object.assign(widgetContainer.style, style);
       }
