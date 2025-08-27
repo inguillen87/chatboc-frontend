@@ -1,4 +1,4 @@
-import { apiFetch } from '@/utils/api';
+import { apiFetch, ApiError } from '@/utils/api';
 import { Ticket, Message } from '@/types/tickets';
 import { AttachmentInfo } from '@/types/chat';
 
@@ -60,6 +60,10 @@ export const getTicketByNumber = async (nroTicket: string): Promise<Ticket> => {
                     generateRandomAvatar(response.email || response.id.toString()),
             };
         } catch (err) {
+            const apiErr = err as ApiError;
+            if (apiErr?.status !== 404) {
+                throw err;
+            }
             lastError = err;
         }
     }
