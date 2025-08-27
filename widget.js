@@ -101,7 +101,8 @@
           const desiredWidth = parsePx(base.width);
           const desiredHeight = parsePx(base.height);
           const maxWidth = window.innerWidth - parsePx(initialRight) - 16;
-          const maxHeight = window.innerHeight - 16;
+          const maxHeight =
+            window.innerHeight - parsePx(initialBottom) - 16;
           const finalWidth = !isNaN(desiredWidth)
             ? Math.min(desiredWidth, maxWidth) + "px"
             : base.width;
@@ -268,9 +269,6 @@
             if (isMobile) {
               style.bottom = "env(safe-area-inset-bottom)";
               style.top = "env(safe-area-inset-top)";
-            } else if (parsePx(newDims.height) + parsePx(initialBottom) > window.innerHeight) {
-              style.top = "16px";
-              style.bottom = "auto";
             } else {
               style.bottom = initialBottom;
               style.top = "auto";
@@ -311,9 +309,6 @@
         if (isMobile) {
           style.bottom = "env(safe-area-inset-bottom)";
           style.top = "env(safe-area-inset-top)";
-        } else if (parsePx(newDims.height) + parsePx(initialBottom) > window.innerHeight) {
-          style.top = "16px";
-          style.bottom = "auto";
         } else {
           style.bottom = initialBottom;
           style.top = "auto";
