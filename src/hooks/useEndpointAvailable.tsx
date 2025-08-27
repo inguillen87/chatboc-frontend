@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { apiFetch, ApiError } from '@/utils/api';
+import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 /**
  * Checks if an API endpoint exists. Returns:
@@ -11,6 +12,12 @@ export default function useEndpointAvailable(path: string) {
   const [available, setAvailable] = useState<boolean | null>(null);
 
   useEffect(() => {
+    const token = safeLocalStorage.getItem('authToken');
+    if (!token) {
+      setAvailable(false);
+      return;
+    }
+
     let canceled = false;
     (async () => {
       try {
@@ -18,7 +25,7 @@ export default function useEndpointAvailable(path: string) {
         if (!canceled) setAvailable(true);
       } catch (err: any) {
         if (!canceled) {
-          if (err instanceof ApiError && (err.status === 404 || err.status === 403)) {
+          if (err instanceof ApiError && (err.status === 404 || err.status === 403 || err.status === 401)) {
             setAvailable(false);
           } else {
             setAvailable(true);

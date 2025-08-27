@@ -37,6 +37,12 @@ export default function MapLibreMap({
         zoom: initialZoom,
       });
 
+      // Algunos entornos pueden devolver un objeto sin el método `on`
+      if (typeof (map as any).on !== "function") {
+        console.error("MapLibreMap: map instance lacks .on method", map);
+        return;
+      }
+
       mapRef.current = map;
 
       // Algunos entornos pueden devolver un objeto sin el método `on`
@@ -105,7 +111,7 @@ export default function MapLibreMap({
   }, [apiKey, initialCenter, initialZoom, heatmapData, onSelect]);
 
   useEffect(() => {
-    if (!mapRef.current) return;
+    if (!(mapRef.current instanceof maplibregl.Map)) return;
     const source = mapRef.current.getSource("puntos") as maplibregl.GeoJSONSource | undefined;
     if (!source) return;
     const features = (heatmapData ?? []).map((p) => ({
