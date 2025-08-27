@@ -193,42 +193,6 @@ const ChatPanel = ({
     setAskName(false);
   };
 
-  const [askName, setAskName] = useState(false);
-  const [tempName, setTempName] = useState("");
-
-  useEffect(() => {
-    if (esAnonimo && !safeLocalStorage.getItem("chatUserName")) {
-      setAskName(true);
-    }
-  }, [esAnonimo]);
-
-  const handleNameSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!tempName.trim()) return;
-    const name = tempName.trim();
-    safeLocalStorage.setItem("chatUserName", name);
-    handleSendMessage({ text: `Mi nombre es ${name}`, action: "user_provided_name" });
-    setAskName(false);
-  };
-
-  const [askName, setAskName] = useState(false);
-  const [tempName, setTempName] = useState("");
-
-  useEffect(() => {
-    if (esAnonimo && !safeLocalStorage.getItem("chatUserName")) {
-      setAskName(true);
-    }
-  }, [esAnonimo]);
-
-  const handleNameSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!tempName.trim()) return;
-    const name = tempName.trim();
-    safeLocalStorage.setItem("chatUserName", name);
-    handleSendMessage({ text: `Mi nombre es ${name}`, action: "user_provided_name" });
-    setAskName(false);
-  };
-
   const fetchTicket = useCallback(async () => {
     if (!activeTicketId) return;
     const currentToken = getAuthTokenFromLocalStorage();
