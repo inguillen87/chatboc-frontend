@@ -93,7 +93,17 @@
         if (isMobile) { // Closed on mobile
             return WIDGET_DIMENSIONS.CLOSED;
         }
-        // Desktop
+        // Desktop: ensure widget fits within viewport when open
+        if (isOpen) {
+          const parsePx = (val) => parseInt(val, 10) || 0;
+          const desiredWidth = parsePx(base.width);
+          const desiredHeight = parsePx(base.height);
+          const maxWidth = window.innerWidth - parsePx(initialRight) - 16;
+          const maxHeight = window.innerHeight - parsePx(initialBottom) - 16;
+          const finalWidth = !isNaN(desiredWidth) ? Math.min(desiredWidth, maxWidth) + "px" : base.width;
+          const finalHeight = !isNaN(desiredHeight) ? Math.min(desiredHeight, maxHeight) + "px" : base.height;
+          return { width: finalWidth, height: finalHeight };
+        }
         return base;
       }
 
