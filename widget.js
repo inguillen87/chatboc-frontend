@@ -28,21 +28,25 @@
       return;
     }
 
-    const token =
-      script.getAttribute("data-token") ||
-      script.getAttribute("data-entity-token") ||
-      SCRIPT_CONFIG.DEFAULT_TOKEN;
+    const userTokenAttr = script.getAttribute("data-token");
+    const entityTokenAttr = script.getAttribute("data-entity-token");
+    const generateAnonToken = () =>
+      (globalThis.crypto && typeof globalThis.crypto.randomUUID === "function"
+        ? `anon-${globalThis.crypto.randomUUID()}`
+        : `anon-${Math.random().toString(36).slice(2)}`);
+    const userToken = userTokenAttr || generateAnonToken();
+    const entityToken = entityTokenAttr || userTokenAttr || SCRIPT_CONFIG.DEFAULT_TOKEN;
     const registry = (window.__chatbocWidgets = window.__chatbocWidgets || {});
 
-    if (registry[token]) {
+    if (registry[entityToken]) {
       if (script.getAttribute("data-force") === "true") {
-        if (typeof registry[token].destroy === "function") {
-          registry[token].destroy();
+        if (typeof registry[entityToken].destroy === "function") {
+          registry[entityToken].destroy();
         }
-        delete registry[token];
+        delete registry[entityToken];
       } else {
         console.warn(
-          `Chatboc widget already loaded for token ${token}. Skipping.`
+          `Chatboc widget already loaded for token ${entityToken}. Skipping.`
         );
         return;
       }
@@ -120,7 +124,7 @@
 
       const widgetContainer = document.createElement("div");
       widgetContainer.id = `chatboc-widget-container-${iframeId}`;
-      widgetContainer.setAttribute("data-chatboc-token", token);
+      widgetContainer.setAttribute("data-chatboc-token", entityToken);
       Object.assign(widgetContainer.style, {
         position: "fixed",
         bottom: initialBottom,
@@ -176,8 +180,8 @@
       iframe.id = iframeId;
       // Use explicit .html path so integrations without rewrite rules work
       const iframeSrc = new URL(`${chatbocDomain}/iframe.html`);
-      iframeSrc.searchParams.set("token", token);
-      iframeSrc.searchParams.set("entityToken", token);
+      iframeSrc.searchParams.set("token", userToken);
+      iframeSrc.searchParams.set("entityToken", entityToken);
       iframeSrc.searchParams.set("widgetId", iframeId);
       iframeSrc.searchParams.set("defaultOpen", String(defaultOpen));
       iframeSrc.searchParams.set("tipo_chat", tipoChat);
@@ -343,10 +347,10 @@
         widgetContainer.removeEventListener("mousedown", dragStart);
         widgetContainer.removeEventListener("touchstart", dragStart);
         widgetContainer?.remove();
-        delete registry[token];
+        delete registry[entityToken];
       }
 
-      registry[token] = { destroy, container: widgetContainer, post: postToIframe };
+      registry[entityToken] = { destroy, container: widgetContainer, post: postToIframe };
 
       // Global API
       if (!window.Chatboc) window.Chatboc = {};
