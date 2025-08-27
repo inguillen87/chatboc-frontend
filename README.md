@@ -102,7 +102,7 @@ Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-trick
 
 ## Embedding the Chatboc widget
 
-You can embed the floating chat widget on any site by loading `widget.js` and passing your token. Example:
+You can embed the floating chat widget on any site by loading `widget.js` and passing your entity token. Example:
 
 ```html
 <script>
@@ -118,7 +118,7 @@ You can embed the floating chat widget on any site by loading `widget.js` and pa
     var s = document.createElement('script');
     s.src = 'https://www.chatboc.ar/widget.js';
     s.async = true;
-    s.setAttribute('data-token', 'TU_TOKEN_AQUI');
+    s.setAttribute('data-entity-token', 'TU_TOKEN_AQUI');
     // Choose the API endpoint. If omitted, the widget falls back
     // to `window.APP_TARGET` and then "pyme" if none is set
     s.setAttribute('data-endpoint', 'pyme'); // or "municipio"
@@ -142,7 +142,7 @@ If you host `widget.js` yourself, remember to add `data-domain="https://www.chat
 ```html
 <script async src="/widget.js"
   data-domain="https://www.chatboc.ar"
-  data-token="TU_TOKEN_AQUI"></script>
+  data-entity-token="TU_TOKEN_AQUI"></script>
 ```
 Using `widget.js` from another domain **without** this attribute causes the iframe
 to load its scripts from the wrong origin, leading to console errors and 403
@@ -187,7 +187,7 @@ If your site blocks external JavaScript, you can embed the chatbot using an
 ```html
 <iframe
   id="chatboc-iframe"
-  src="https://www.chatboc.ar/iframe.html?token=TU_TOKEN_AQUI&endpoint=pyme&rubro=comercio" <!-- or "municipio"; `tipo_chat` also works -->
+  src="https://www.chatboc.ar/iframe.html?entityToken=TU_TOKEN_AQUI&endpoint=pyme&rubro=comercio" <!-- or "municipio"; `tipo_chat` also works -->
   style="position:fixed;bottom:24px;right:24px;border:none;border-radius:50%;z-index:9999;box-shadow:0 4px 32px rgba(0,0,0,0.2);background:transparent;overflow:hidden;width:96px!important;height:96px!important;display:block"
   allow="clipboard-write; geolocation"
   loading="lazy"

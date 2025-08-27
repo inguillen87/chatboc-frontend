@@ -38,7 +38,9 @@ export async function apiFetch<T>(
 ): Promise<T> {
   const { method = "GET", body, skipAuth, sendAnonId, entityToken, cache } = options;
 
-  const token = safeLocalStorage.getItem("authToken");
+  const effectiveEntityToken = entityToken ?? getIframeToken();
+  const tokenKey = effectiveEntityToken ? "chatAuthToken" : "authToken";
+  const token = safeLocalStorage.getItem(tokenKey);
   const anonId = safeLocalStorage.getItem("anon_id");
   const chatSessionId = getOrCreateChatSessionId(); // Get or create the chat session ID
 
@@ -59,7 +61,6 @@ export async function apiFetch<T>(
   if (((!token && anonId) || sendAnonId) && anonId) {
     headers["Anon-Id"] = anonId;
   }
-  const effectiveEntityToken = entityToken ?? getIframeToken();
   if (effectiveEntityToken) {
     headers["X-Entity-Token"] = effectiveEntityToken;
   }
