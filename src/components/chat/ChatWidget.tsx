@@ -3,6 +3,7 @@ import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
 import { cn } from "@/lib/utils";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
+import getOrCreateAnonId from "@/utils/anonId";
 import { motion, AnimatePresence } from "framer-motion";
 import { useUser } from "@/hooks/useUser";
 import { apiFetch, getErrorMessage } from "@/utils/api";
@@ -86,6 +87,10 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     checkMobile();
     window.addEventListener("resize", checkMobile);
     return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  useEffect(() => {
+    getOrCreateAnonId();
   }, []);
 
   const [showCta, setShowCta] = useState(false);
