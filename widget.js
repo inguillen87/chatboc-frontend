@@ -101,7 +101,7 @@
           const desiredWidth = parsePx(base.width);
           const desiredHeight = parsePx(base.height);
           const maxWidth = window.innerWidth - parsePx(initialRight) - 16;
-          const maxHeight = window.innerHeight - 16;
+
           const finalWidth = !isNaN(desiredWidth)
             ? Math.min(desiredWidth, maxWidth) + "px"
             : base.width;
@@ -268,12 +268,7 @@
             if (isMobile) {
               style.bottom = "env(safe-area-inset-bottom)";
               style.top = "env(safe-area-inset-top)";
-            } else if (parsePx(newDims.height) + parsePx(initialBottom) > window.innerHeight) {
-              style.top = "16px";
-              style.bottom = "auto";
-            } else {
-              style.bottom = initialBottom;
-              style.top = "auto";
+
             }
             Object.assign(widgetContainer.style, style);
           } else {
@@ -284,10 +279,7 @@
               boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
               background: "#007aff",
               cursor: "pointer",
-              bottom:
-                window.innerWidth <= SCRIPT_CONFIG.MOBILE_BREAKPOINT_PX
-                  ? "env(safe-area-inset-bottom)"
-                  : initialBottom,
+
               right: initialRight,
               top: "auto",
               left: "auto",
@@ -311,12 +303,7 @@
         if (isMobile) {
           style.bottom = "env(safe-area-inset-bottom)";
           style.top = "env(safe-area-inset-top)";
-        } else if (parsePx(newDims.height) + parsePx(initialBottom) > window.innerHeight) {
-          style.top = "16px";
-          style.bottom = "auto";
-        } else {
-          style.bottom = initialBottom;
-          style.top = "auto";
+
         }
         Object.assign(widgetContainer.style, style);
       }
