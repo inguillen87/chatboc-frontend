@@ -1,8 +1,6 @@
 import { useEffect, useRef } from "react";
 import maplibregl from "maplibre-gl";
-import { GeocodingControl } from "@maptiler/geocoding-control/maplibregl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import "@maptiler/geocoding-control/style.css";
 
 type HeatPoint = { lat: number; lng: number; weight?: number };
 
@@ -25,91 +23,74 @@ export default function MapLibreMap({
 
   useEffect(() => {
     if (!ref.current) return;
-    const apiKey = import.meta.env.VITE_MAPTILER_KEY!;
-    const map = new maplibregl.Map({
-      container: ref.current,
-      style: `https://api.maptiler.com/maps/streets-v2/style.json?key=${apiKey}`,
-      center: initialCenter,
-      zoom: initialZoom,
-    });
+    try {
+      const apiKey = import.meta.env.VITE_MAPTILER_KEY!;
+      const map = new maplibregl.Map({
+        container: ref.current,
+        style: `https://api.maptiler.com/maps/streets-v2/style.json?key=${apiKey}`,
+        center: initialCenter,
+        zoom: initialZoom,
+      });
 
-    mapRef.current = map;
+      mapRef.current = map;
 
-    map.addControl(new maplibregl.NavigationControl(), "top-right");
+      map.addControl(new maplibregl.NavigationControl(), "top-right");
 
-    const geocoding = new GeocodingControl({
-      apiKey,
-      language: "es",
-      country: "ar",
-      placeholder: "Buscar dirección o lugar…",
-      addMarker: false,
-      keepOpen: false,
-    });
+      if (onSelect) {
+        map.on("click", (e) => {
+          const { lng, lat } = e.lngLat;
+          markerRef.current?.remove();
+          markerRef.current = new maplibregl.Marker().setLngLat([lng, lat]).addTo(map);
+          onSelect(lat, lng);
+        });
+      }
 
-    // `GeocodingControl` debería exponer un método `on`, pero algunas versiones
-    // solo implementan `addEventListener`. Para evitar que la app se rompa cuando
-    // no existe `on`, verificamos ambas opciones antes de registrar el evento.
-    const handleSelect = (item: any) => {
-      const [lon, lat] = item.geometry.coordinates as [number, number];
-      const address = item.place_name ?? item.text;
-      markerRef.current?.remove();
-      markerRef.current = new maplibregl.Marker().setLngLat([lon, lat]).addTo(map);
-      onSelect?.(lat, lon, address);
-    };
+      map.on("styleimagemissing", (e) => {
+        // Evita errores cuando una imagen no existe en el sprite.
+        console.warn(`Imagen faltante en el estilo: "${e.id}"`);
+      });
 
-    if (typeof (geocoding as any).on === "function") {
-      (geocoding as any).on("select", handleSelect);
-    } else if (typeof (geocoding as any).addEventListener === "function") {
-      (geocoding as any).addEventListener("select", (e: any) =>
-        handleSelect(e.detail)
-      );
+      map.on("load", () => {
+        const sourceData = heatmapData
+          ? {
+              type: "FeatureCollection",
+              features: heatmapData.map((p) => ({
+                type: "Feature",
+                properties: { weight: p.weight ?? 1 },
+                geometry: {
+                  type: "Point",
+                  coordinates: [p.lng, p.lat],
+                },
+              })),
+            }
+          : "/api/puntos";
+
+        map.addSource("puntos", {
+          type: "geojson",
+          data: sourceData as any,
+        });
+
+        map.addLayer({
+          id: "heat",
+          type: "heatmap",
+          source: "puntos",
+          maxzoom: 16,
+          paint: {
+            "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 0, 1, 16, 3],
+            "heatmap-weight": ["interpolate", ["linear"], ["get", "weight"], 0, 0, 10, 1],
+            "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 0, 2, 16, 35],
+            "heatmap-opacity": 0.8,
+          },
+        });
+      });
+
+      return () => {
+        markerRef.current?.remove();
+        map.remove();
+      };
+    } catch (err) {
+      console.error("Error initializing map", err);
     }
-
-    map.addControl(geocoding, "top-left");
-
-    map.on("styleimagemissing", (e) => {
-      // Evita errores cuando una imagen no existe en el sprite.
-      console.warn(`Imagen faltante en el estilo: "${e.id}"`);
-    });
-
-    map.on("load", () => {
-      const sourceData = heatmapData
-        ? {
-            type: "FeatureCollection",
-            features: heatmapData.map((p) => ({
-              type: "Feature",
-              properties: { weight: p.weight ?? 1 },
-              geometry: {
-                type: "Point",
-                coordinates: [p.lng, p.lat],
-              },
-            })),
-          }
-        : "/api/puntos";
-
-      map.addSource("puntos", {
-        type: "geojson",
-        data: sourceData as any,
-      });
-
-      map.addLayer({
-        id: "heat",
-        type: "heatmap",
-        source: "puntos",
-        maxzoom: 16,
-        paint: {
-          "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 0, 1, 16, 3],
-          "heatmap-weight": ["interpolate", ["linear"], ["get", "weight"], 0, 0, 10, 1],
-          "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 0, 2, 16, 35],
-          "heatmap-opacity": 0.8,
-        },
-      });
-    });
-
-    return () => {
-      markerRef.current?.remove();
-      map.remove();
-    };
   }, [initialCenter, initialZoom, heatmapData, onSelect]);
 
   useEffect(() => {
