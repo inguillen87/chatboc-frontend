@@ -101,7 +101,7 @@
           const desiredWidth = parsePx(base.width);
           const desiredHeight = parsePx(base.height);
           const maxWidth = window.innerWidth - parsePx(initialRight) - 16;
-          const maxHeight = window.innerHeight - parsePx(initialBottom) - 16;
+
           const finalWidth = !isNaN(desiredWidth)
             ? Math.min(desiredWidth, maxWidth) + "px"
             : base.width;
@@ -268,13 +268,7 @@
             if (isMobile) {
               style.bottom = "env(safe-area-inset-bottom)";
               style.top = "env(safe-area-inset-top)";
-            } else {
-              style.bottom = initialBottom;
-              style.top = "auto";
-              if (parsePx(newDims.height) + parsePx(initialBottom) > window.innerHeight) {
-                style.top = "16px";
-                style.bottom = "auto";
-              }
+
             }
             Object.assign(widgetContainer.style, style);
           } else {
@@ -285,7 +279,7 @@
               boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
               background: "#007aff",
               cursor: "pointer",
-              bottom: initialBottom,
+
               right: initialRight,
               top: "auto",
               left: "auto",
@@ -309,17 +303,12 @@
         if (isMobile) {
           style.bottom = "env(safe-area-inset-bottom)";
           style.top = "env(safe-area-inset-top)";
-        } else {
-          style.bottom = initialBottom;
-          style.top = "auto";
-          if (parsePx(newDims.height) + parsePx(initialBottom) > window.innerHeight) {
-            style.top = "16px";
-            style.bottom = "auto";
-          }
+
         }
         Object.assign(widgetContainer.style, style);
       }
       window.addEventListener("resize", resizeHandler);
+      if (iframeIsCurrentlyOpen) resizeHandler();
 
       // Fallback click listener
       widgetContainer.addEventListener("click", () => {
