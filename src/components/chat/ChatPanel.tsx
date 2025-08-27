@@ -5,7 +5,7 @@ import ChatHeader from "./ChatHeader";
 import ChatMessage from "./ChatMessage";
 import TypingIndicator from "./TypingIndicator";
 import UserTypingIndicator from "./UserTypingIndicator";
-import ChatInput from "./ChatInput";
+import ChatInput, { ChatInputHandle } from "./ChatInput";
 import ScrollToBottomButton from "@/components/ui/ScrollToBottomButton";
 import { useChatLogic } from "@/hooks/useChatLogic";
 import { SendPayload } from "@/types/chat";
@@ -78,7 +78,8 @@ const ChatPanel = ({
   const isMobile = useIsMobile();
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const chatInputRef = useRef<HTMLInputElement>(null);
+  const chatInputTextRef = useRef<HTMLInputElement>(null);
+  const chatInputHandleRef = useRef<ChatInputHandle>(null);
   const [showScrollDown, setShowScrollDown] = useState(false);
   const [userTyping, setUserTyping] = useState(false);
   const { isLiveChatEnabled, horariosAtencion } = useBusinessHours(propEntityToken);
@@ -195,26 +196,24 @@ const ChatPanel = ({
         }
         return;
       }
+
+      const photoActions = [
+        "requestuserphoto",
+        "requestphoto",
+        "subirfoto",
+        "agregarfoto",
+        "addphoto",
+        "attachphoto",
+        "adjuntarfoto",
+      ];
+      if (photoActions.includes(normalized)) {
+        chatInputHandleRef.current?.openFilePicker();
+        return;
+      }
+
       // For other actions, the backend request was already sent. No extra handling needed.
     },
     [handleSend, onShowLogin, onShowRegister, onCart, toast]
-  );
-
-  const handleFileUploaded = useCallback(
-    (fileData: { url: string; name: string; mimeType?: string; size?: number }) => {
-      if (fileData?.url && fileData?.name) {
-        handleSend({
-          text: `Archivo adjunto: ${fileData.name}`,
-          attachmentInfo: {
-            name: fileData.name,
-            url: fileData.url,
-            mimeType: fileData.mimeType,
-            size: fileData.size,
-          },
-        });
-      }
-    },
-    [handleSend]
   );
 
   useEffect(() => {
@@ -280,11 +279,11 @@ const ChatPanel = ({
           <PersonalDataForm onSubmit={handlePersonalDataSubmit} isSubmitting={isTyping} />
         ) : (
           <ChatInput
+            ref={chatInputHandleRef}
             onSendMessage={handleSend}
             isTyping={isTyping}
-            inputRef={chatInputRef}
+            inputRef={chatInputTextRef}
             onTypingChange={setUserTyping}
-            onFileUploaded={handleFileUploaded}
             onSystemMessage={addSystemMessage}
           />
         )}
