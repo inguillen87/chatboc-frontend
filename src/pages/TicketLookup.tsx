@@ -117,6 +117,22 @@ export default function TicketLookup() {
             {ticket.direccion && (
               <p className="text-sm text-muted-foreground mt-1">Dirección: {ticket.direccion}</p>
             )}
+            {(ticket.telefono || ticket.email || ticket.dni || ticket.informacion_personal_vecino) && (
+              <div className="mt-4 text-sm space-y-1">
+                {(ticket.informacion_personal_vecino?.nombre || ticket.display_name) && (
+                  <p>Nombre: {ticket.informacion_personal_vecino?.nombre || ticket.display_name}</p>
+                )}
+                {(ticket.informacion_personal_vecino?.dni || ticket.dni) && (
+                  <p>DNI: {ticket.informacion_personal_vecino?.dni || ticket.dni}</p>
+                )}
+                {(ticket.informacion_personal_vecino?.email || ticket.email) && (
+                  <p>Email: {ticket.informacion_personal_vecino?.email || ticket.email}</p>
+                )}
+                {(ticket.informacion_personal_vecino?.telefono || ticket.telefono) && (
+                  <p>Teléfono: {ticket.informacion_personal_vecino?.telefono || ticket.telefono}</p>
+                )}
+              </div>
+            )}
           </div>
 
           <Separator />
