@@ -1,5 +1,5 @@
 import { apiFetch, ApiError } from '@/utils/api';
-import { Ticket, Message } from '@/types/tickets';
+import { Ticket, Message, TicketHistoryEvent } from '@/types/tickets';
 import { AttachmentInfo } from '@/types/chat';
 
 const generateRandomAvatar = (seed: string) => {
@@ -26,9 +26,11 @@ export const getTickets = async (): Promise<{tickets: Ticket[]}> => {
 
 export const getTicketById = async (id: string): Promise<Ticket> => {
     try {
-        const response = await apiFetch<Ticket>(`/tickets/municipio/${id}`);
+        const response = await apiFetch<Ticket & { historial?: TicketHistoryEvent[] }>(`/tickets/municipio/${id}`);
+        const history = (response as any).history || response.historial || [];
         return {
             ...response,
+            history,
             avatarUrl: response.avatarUrl || generateRandomAvatar(response.email || response.id.toString())
         };
     } catch (error) {
@@ -37,24 +39,30 @@ export const getTicketById = async (id: string): Promise<Ticket> => {
     }
 };
 
-export const getTicketByNumber = async (nroTicket: string): Promise<Ticket> => {
+export const getTicketByNumber = async (
+    nroTicket: string,
+    pin?: string
+): Promise<Ticket> => {
     const raw = nroTicket.trim();
     const clean = raw.replace(/[^\d]/g, '');
+    const pinParam = pin ? `?pin=${encodeURIComponent(pin)}` : '';
     const endpoints = [
-        `/tickets/municipio/por_numero/${encodeURIComponent(raw)}`,
-        `/tickets/municipio/por_numero/${encodeURIComponent(clean)}`,
-        `/tickets/municipio/${encodeURIComponent(clean)}`,
+        `/tickets/municipio/por_numero/${encodeURIComponent(raw)}${pinParam}`,
+        `/tickets/municipio/por_numero/${encodeURIComponent(clean)}${pinParam}`,
+        `/tickets/municipio/${encodeURIComponent(clean)}${pinParam}`,
     ];
     let lastError: unknown;
     for (const url of endpoints) {
         try {
-            const response = await apiFetch<Ticket>(url, {
+            const response = await apiFetch<Ticket & { historial?: TicketHistoryEvent[] }>(url, {
                 skipAuth: true,
                 sendAnonId: true,
                 sendEntityToken: true,
             });
+            const history = (response as any).history || response.historial || [];
             return {
                 ...response,
+                history,
                 avatarUrl:
                     response.avatarUrl ||
                     generateRandomAvatar(response.email || response.id.toString()),

@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { getTicketByNumber } from '@/services/ticketService';
-import { Ticket } from '@/types/tickets';
+import { getTicketByNumber, getTicketMessages } from '@/services/ticketService';
+import { Ticket, Message } from '@/types/tickets';
 import { formatDate } from '@/utils/fecha';
 import TicketTimeline from '@/components/tickets/TicketTimeline';
 import { Separator } from '@/components/ui/separator';
@@ -12,18 +12,28 @@ import { getErrorMessage, ApiError } from '@/utils/api';
 export default function TicketLookup() {
   const { ticketId } = useParams<{ ticketId: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [ticketNumber, setTicketNumber] = useState(ticketId || '');
+  const [pin, setPin] = useState(searchParams.get('pin') || '');
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [messages, setMessages] = useState<Message[]>([]);
 
-  const performSearch = useCallback(async (searchId: string) => {
+  const performSearch = useCallback(async (searchId: string, searchPin: string) => {
     if (!searchId) return;
     setLoading(true);
     setError(null);
+    setMessages([]);
     try {
-      const data = await getTicketByNumber(searchId);
+      const data = await getTicketByNumber(searchId, searchPin);
       setTicket(data);
+      try {
+        const msgs = await getTicketMessages(data.id, data.tipo);
+        setMessages(msgs);
+      } catch (msgErr) {
+        console.error('Error fetching messages for ticket', msgErr);
+      }
     } catch (err) {
       const apiErr = err as ApiError;
       const message = apiErr?.status === 404
@@ -36,28 +46,32 @@ export default function TicketLookup() {
   }, []);
 
   useEffect(() => {
+    const paramPin = searchParams.get('pin') || '';
     setTicketNumber(ticketId || '');
-    if (ticketId) {
-      performSearch(ticketId);
+    setPin(paramPin);
+    if (ticketId && paramPin) {
+      performSearch(ticketId, paramPin);
     }
-  }, [ticketId, performSearch]);
+  }, [ticketId, searchParams, performSearch]);
 
   useEffect(() => {
     if (!ticket) return;
     const interval = setInterval(() => {
-      performSearch(ticket.nro_ticket);
+      performSearch(ticket.nro_ticket, pin);
     }, 30000);
     return () => clearInterval(interval);
-  }, [ticket, performSearch]);
+  }, [ticket, pin, performSearch]);
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = ticketNumber.trim();
-    if (!trimmed) return;
-    if (trimmed === (ticketId || '')) {
-      performSearch(trimmed);
+    const trimmedPin = pin.trim();
+    if (!trimmed || !trimmedPin) return;
+    const currentPin = searchParams.get('pin') || '';
+    if (trimmed === (ticketId || '') && trimmedPin === currentPin) {
+      performSearch(trimmed, trimmedPin);
     } else {
-      navigate(`/ticket/${encodeURIComponent(trimmed)}`);
+      navigate(`/ticket/${encodeURIComponent(trimmed)}?pin=${encodeURIComponent(trimmedPin)}`);
     }
   };
 
@@ -65,22 +79,33 @@ export default function TicketLookup() {
     <div className="p-4 max-w-2xl mx-auto space-y-6">
       <div className="text-center">
         <h1 className="text-3xl font-bold">Consulta de Estado de Reclamo</h1>
-        <p className="text-muted-foreground">Ingresá tu número de ticket para ver el progreso.</p>
+        <p className="text-muted-foreground">Ingresá tu número de ticket y PIN para ver el progreso.</p>
       </div>
-      <form onSubmit={handleFormSubmit} className="flex gap-2">
+      <form onSubmit={handleFormSubmit} className="flex flex-col sm:flex-row gap-2">
         <Input
           placeholder="Ej: M-816293"
           value={ticketNumber}
           onChange={(e) => setTicketNumber(e.target.value)}
-          className="text-lg"
+          className="text-lg flex-1"
         />
-        <Button type="submit" disabled={loading || !ticketNumber.trim()} size="lg">
+        <Input
+          placeholder="PIN"
+          value={pin}
+          onChange={(e) => setPin(e.target.value)}
+          className="text-lg flex-1 sm:max-w-[8rem]"
+        />
+        <Button
+          type="submit"
+          disabled={loading || !ticketNumber.trim() || !pin.trim()}
+          size="lg"
+          className="w-full sm:w-auto"
+        >
           {loading ? 'Buscando...' : 'Buscar'}
         </Button>
       </form>
       {error && <p className="text-destructive text-sm text-center">{error}</p>}
       {ticket && (
-        <div className="border rounded-xl p-6 space-y-6 bg-card shadow-lg">
+        <div className="border rounded-xl p-4 sm:p-6 space-y-6 bg-card shadow-lg">
           <div>
             <p className="text-sm text-muted-foreground">Ticket #{ticket.nro_ticket}</p>
             <h2 className="text-2xl font-semibold">{ticket.asunto}</h2>
@@ -113,7 +138,7 @@ export default function TicketLookup() {
 
           <div>
             <h3 className="text-xl font-semibold mb-4">Historial del Reclamo</h3>
-            <TicketTimeline history={ticket.history || []} />
+            <TicketTimeline history={ticket.history || []} messages={messages} />
           </div>
 
         </div>
