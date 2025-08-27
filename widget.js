@@ -82,6 +82,8 @@
       const iframeId = `chatboc-dynamic-iframe-${Math.random().toString(36).substring(2, 9)}`;
       let iframeIsCurrentlyOpen = defaultOpen;
 
+      const parsePx = (val) => parseInt(val, 10) || 0;
+
       function computeResponsiveDims(base, isOpen) {
         const isMobile = window.innerWidth < SCRIPT_CONFIG.MOBILE_BREAKPOINT_PX;
         if (isOpen && isMobile) {
@@ -90,10 +92,25 @@
             height: "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))",
           };
         }
-        if (isMobile) { // Closed on mobile
-            return WIDGET_DIMENSIONS.CLOSED;
+        if (isMobile) {
+          // Closed on mobile
+          return WIDGET_DIMENSIONS.CLOSED;
         }
-        // Desktop
+        // Desktop: ensure widget fits within viewport when open
+        if (isOpen) {
+          const desiredWidth = parsePx(base.width);
+          const desiredHeight = parsePx(base.height);
+          const maxWidth = window.innerWidth - parsePx(initialRight) - 16;
+          const maxHeight =
+            window.innerHeight - parsePx(initialBottom) - 16;
+          const finalWidth = !isNaN(desiredWidth)
+            ? Math.min(desiredWidth, maxWidth) + "px"
+            : base.width;
+          const finalHeight = !isNaN(desiredHeight)
+            ? Math.min(desiredHeight, maxHeight) + "px"
+            : base.height;
+          return { width: finalWidth, height: finalHeight };
+        }
         return base;
       }
 
@@ -236,16 +253,36 @@
             iframeIsCurrentlyOpen ? WIDGET_DIMENSIONS.OPEN : WIDGET_DIMENSIONS.CLOSED,
             iframeIsCurrentlyOpen
           );
+          const isMobile = window.innerWidth <= SCRIPT_CONFIG.MOBILE_BREAKPOINT_PX;
           if (iframeIsCurrentlyOpen) {
-            Object.assign(widgetContainer.style, {
+            const style = {
               width: newDims.width,
               height: newDims.height,
-              borderRadius: window.innerWidth <= SCRIPT_CONFIG.MOBILE_BREAKPOINT_PX ? "16px 16px 0 0" : "16px",
+              borderRadius: isMobile ? "16px 16px 0 0" : "16px",
               boxShadow: "0 8px 40px rgba(0, 0, 0, 0.2)",
               background: "white",
               transform: "scale(1)",
               cursor: "default",
-            });
+              right: isMobile ? "0" : initialRight,
+              left: isMobile ? "0" : "auto",
+            };
+            if (isMobile) {
+              style.bottom = "env(safe-area-inset-bottom)";
+              style.top = "env(safe-area-inset-top)";
+            } else {
+              const topOffset =
+                window.innerHeight -
+                parsePx(newDims.height) -
+                parsePx(initialBottom);
+              if (topOffset < 0) {
+                style.top = "16px";
+                style.bottom = "auto";
+              } else {
+                style.bottom = initialBottom;
+                style.top = "auto";
+              }
+            }
+            Object.assign(widgetContainer.style, style);
           } else {
             Object.assign(widgetContainer.style, {
               width: newDims.width,
@@ -254,6 +291,13 @@
               boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
               background: "#007aff",
               cursor: "pointer",
+              bottom:
+                window.innerWidth <= SCRIPT_CONFIG.MOBILE_BREAKPOINT_PX
+                  ? "env(safe-area-inset-bottom)"
+                  : initialBottom,
+              right: initialRight,
+              top: "auto",
+              left: "auto",
             });
           }
         }
@@ -263,13 +307,34 @@
       function resizeHandler() {
         if (!iframeIsCurrentlyOpen) return;
         const newDims = computeResponsiveDims(WIDGET_DIMENSIONS.OPEN, true);
-        Object.assign(widgetContainer.style, {
+        const isMobile = window.innerWidth < SCRIPT_CONFIG.MOBILE_BREAKPOINT_PX;
+        const style = {
           width: newDims.width,
           height: newDims.height,
-          borderRadius: window.innerWidth < SCRIPT_CONFIG.MOBILE_BREAKPOINT_PX ? "0" : "16px",
-        });
+          borderRadius: isMobile ? "0" : "16px",
+          right: isMobile ? "0" : initialRight,
+          left: isMobile ? "0" : "auto",
+        };
+        if (isMobile) {
+          style.bottom = "env(safe-area-inset-bottom)";
+          style.top = "env(safe-area-inset-top)";
+        } else {
+          const topOffset =
+            window.innerHeight -
+            parsePx(newDims.height) -
+            parsePx(initialBottom);
+          if (topOffset < 0) {
+            style.top = "16px";
+            style.bottom = "auto";
+          } else {
+            style.bottom = initialBottom;
+            style.top = "auto";
+          }
+        }
+        Object.assign(widgetContainer.style, style);
       }
       window.addEventListener("resize", resizeHandler);
+      if (iframeIsCurrentlyOpen) resizeHandler();
 
       // Fallback click listener
       widgetContainer.addEventListener("click", () => {
