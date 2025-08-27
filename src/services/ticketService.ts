@@ -38,8 +38,10 @@ export const getTicketById = async (id: string): Promise<Ticket> => {
 };
 
 export const getTicketByNumber = async (nroTicket: string): Promise<Ticket> => {
-    const clean = nroTicket.replace(/[^\d]/g, '');
+    const raw = nroTicket.trim();
+    const clean = raw.replace(/[^\d]/g, '');
     const endpoints = [
+        `/tickets/municipio/por_numero/${encodeURIComponent(raw)}`,
         `/tickets/municipio/por_numero/${encodeURIComponent(clean)}`,
         `/tickets/municipio/${encodeURIComponent(clean)}`,
     ];
