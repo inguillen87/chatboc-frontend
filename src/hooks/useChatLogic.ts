@@ -183,7 +183,10 @@ export function useChatLogic({ tipoChat, entityToken: propToken, tokenKey = 'aut
 
     // Allow confirming/cancelling a claim with free text when awaiting confirmation
     let resolvedAction = action;
-    if (!resolvedAction && contexto.estado_conversacion === 'confirmando_reclamo') {
+    const awaitingConfirmation =
+      contexto.estado_conversacion === 'confirmando_reclamo' ||
+      contexto.reclamo_flow_v2?.state === 'ESPERANDO_CONFIRMACION';
+    if (!resolvedAction && awaitingConfirmation) {
       const normalized = sanitizedText.toLowerCase();
       const confirmWords = ['1', 'si', 'sí', 's', 'ok', 'okay', 'acepto', 'aceptar', 'confirmar', 'confirmo'];
       const cancelWords = ['2', 'no', 'n', 'cancelar', 'cancel', 'rechazo', 'rechazar'];
