@@ -44,11 +44,22 @@ export default function MapLibreMap({
       keepOpen: false,
     });
 
-    geocoding.on("select", (item) => {
+    // `GeocodingControl` debería exponer un método `on`, pero algunas versiones
+    // solo implementan `addEventListener`. Para evitar que la app se rompa cuando
+    // no existe `on`, verificamos ambas opciones antes de registrar el evento.
+    const handleSelect = (item: any) => {
       const [lon, lat] = item.geometry.coordinates as [number, number];
       const address = item.place_name ?? item.text;
       onSelect?.(lat, lon, address);
-    });
+    };
+
+    if (typeof (geocoding as any).on === "function") {
+      (geocoding as any).on("select", handleSelect);
+    } else if (typeof (geocoding as any).addEventListener === "function") {
+      (geocoding as any).addEventListener("select", (e: any) =>
+        handleSelect(e.detail)
+      );
+    }
 
     map.addControl(geocoding, "top-left");
 
