@@ -46,10 +46,15 @@ export const getTicketByNumber = async (nroTicket: string): Promise<Ticket> => {
     let lastError: unknown;
     for (const url of endpoints) {
         try {
-            const response = await apiFetch<Ticket>(url, { sendAnonId: true });
+            const response = await apiFetch<Ticket>(url, {
+                sendAnonId: true,
+                sendEntityToken: true,
+            });
             return {
                 ...response,
-                avatarUrl: response.avatarUrl || generateRandomAvatar(response.email || response.id.toString()),
+                avatarUrl:
+                    response.avatarUrl ||
+                    generateRandomAvatar(response.email || response.id.toString()),
             };
         } catch (err) {
             lastError = err;
