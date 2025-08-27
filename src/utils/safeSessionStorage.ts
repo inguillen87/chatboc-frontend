@@ -3,7 +3,7 @@ import {
   safeSessionStorageSetItem,
   safeSessionStorageRemoveItem,
   safeSessionStorageClear,
-} from '../../utils/safeStorage.js';
+} from './safeStorage';
 
 export const safeSessionStorage = {
   getItem(key: string): string | null {
