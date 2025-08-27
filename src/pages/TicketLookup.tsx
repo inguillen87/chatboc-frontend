@@ -7,7 +7,7 @@ import { Ticket } from '@/types/tickets';
 import { formatDate } from '@/utils/fecha';
 import TicketTimeline from '@/components/tickets/TicketTimeline';
 import { Separator } from '@/components/ui/separator';
-import { getErrorMessage } from '@/utils/api';
+import { getErrorMessage, ApiError } from '@/utils/api';
 
 export default function TicketLookup() {
   const { ticketId } = useParams<{ ticketId: string }>();
@@ -24,7 +24,11 @@ export default function TicketLookup() {
       const data = await getTicketByNumber(searchId);
       setTicket(data);
     } catch (err) {
-      setError(getErrorMessage(err, 'No se encontró el ticket'));
+      const apiErr = err as ApiError;
+      const message = apiErr?.status === 404
+        ? 'No se encontró el ticket'
+        : getErrorMessage(err, 'No se encontró el ticket');
+      setError(message);
     } finally {
       setLoading(false);
     }
