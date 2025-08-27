@@ -1,32 +1,11 @@
 import {
-  safeLocalStorageGetItem,
-  safeLocalStorageSetItem,
-  safeLocalStorageRemoveItem,
-  safeLocalStorageClear,
-} from '../../utils/safeStorage.js';
+  safeStorage as safeLocalStorage,
+  safeLocalStorageGetItem as getLS,
+  safeLocalStorageSetItem as setLS,
+  safeLocalStorageRemoveItem as delLS,
+  safeLocalStorageClear as clearLS,
+} from "./safeStorage";
 
-export const safeLocalStorage = {
-  getItem(key: string): string | null {
-    if (typeof window === 'undefined') return null;
-    return safeLocalStorageGetItem(key);
-  },
-  setItem(key: string, value: string) {
-    if (typeof window === 'undefined') return;
-    safeLocalStorageSetItem(key, value);
-  },
-  removeItem(key: string) {
-    if (typeof window === 'undefined') return;
-    safeLocalStorageRemoveItem(key);
-  },
-  clear() {
-    if (typeof window === 'undefined') return;
-    safeLocalStorageClear();
-  },
-};
+export { safeLocalStorage, getLS, setLS, delLS, clearLS };
 
-export {
-  safeLocalStorageGetItem,
-  safeLocalStorageSetItem,
-  safeLocalStorageRemoveItem,
-  safeLocalStorageClear,
-};
+export default safeLocalStorage;

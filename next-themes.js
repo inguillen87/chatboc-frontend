@@ -5,7 +5,7 @@ import {
 import {
   __toESM
 } from "./chunk-4MBMRILA.js";
-import { safeLocalStorageGetItem, safeLocalStorageSetItem } from "./utils/safeStorage.js";
+import { safeLocalStorageGetItem, safeLocalStorageSetItem } from "./utils/safeStorage";
 
 // node_modules/next-themes/dist/index.mjs
 var t = __toESM(require_react(), 1);
