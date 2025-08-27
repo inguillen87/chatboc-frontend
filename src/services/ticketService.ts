@@ -49,6 +49,7 @@ export const getTicketByNumber = async (nroTicket: string): Promise<Ticket> => {
     for (const url of endpoints) {
         try {
             const response = await apiFetch<Ticket>(url, {
+                skipAuth: true,
                 sendAnonId: true,
                 sendEntityToken: true,
             });

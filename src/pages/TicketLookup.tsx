@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { getTicketByNumber } from '@/services/ticketService';
@@ -11,6 +11,7 @@ import { getErrorMessage, ApiError } from '@/utils/api';
 
 export default function TicketLookup() {
   const { ticketId } = useParams<{ ticketId: string }>();
+  const navigate = useNavigate();
   const [ticketNumber, setTicketNumber] = useState(ticketId || '');
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -35,6 +36,7 @@ export default function TicketLookup() {
   }, []);
 
   useEffect(() => {
+    setTicketNumber(ticketId || '');
     if (ticketId) {
       performSearch(ticketId);
     }
@@ -50,7 +52,13 @@ export default function TicketLookup() {
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    performSearch(ticketNumber.trim());
+    const trimmed = ticketNumber.trim();
+    if (!trimmed) return;
+    if (trimmed === (ticketId || '')) {
+      performSearch(trimmed);
+    } else {
+      navigate(`/ticket/${encodeURIComponent(trimmed)}`);
+    }
   };
 
   return (
