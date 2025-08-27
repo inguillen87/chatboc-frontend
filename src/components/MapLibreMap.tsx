@@ -21,11 +21,13 @@ export default function MapLibreMap({
 }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
+  const markerRef = useRef<maplibregl.Marker | null>(null);
 
   useEffect(() => {
+    if (!ref.current) return;
     const apiKey = import.meta.env.VITE_MAPTILER_KEY!;
     const map = new maplibregl.Map({
-      container: ref.current!,
+      container: ref.current,
       style: `https://api.maptiler.com/maps/streets-v2/style.json?key=${apiKey}`,
       center: initialCenter,
       zoom: initialZoom,
@@ -40,7 +42,7 @@ export default function MapLibreMap({
       language: "es",
       country: "ar",
       placeholder: "Buscar dirección o lugar…",
-      addMarker: true,
+      addMarker: false,
       keepOpen: false,
     });
 
@@ -50,6 +52,8 @@ export default function MapLibreMap({
     const handleSelect = (item: any) => {
       const [lon, lat] = item.geometry.coordinates as [number, number];
       const address = item.place_name ?? item.text;
+      markerRef.current?.remove();
+      markerRef.current = new maplibregl.Marker().setLngLat([lon, lat]).addTo(map);
       onSelect?.(lat, lon, address);
     };
 
@@ -62,6 +66,11 @@ export default function MapLibreMap({
     }
 
     map.addControl(geocoding, "top-left");
+
+    map.on("styleimagemissing", (e) => {
+      // Evita errores cuando una imagen no existe en el sprite.
+      console.warn(`Imagen faltante en el estilo: "${e.id}"`);
+    });
 
     map.on("load", () => {
       const sourceData = heatmapData
@@ -97,21 +106,22 @@ export default function MapLibreMap({
       });
     });
 
-    return () => map.remove();
+    return () => {
+      markerRef.current?.remove();
+      map.remove();
+    };
   }, [initialCenter, initialZoom, heatmapData, onSelect]);
 
   useEffect(() => {
-    if (!mapRef.current || !heatmapData) return;
-    const source = mapRef.current.getSource("puntos") as maplibregl.GeoJSONSource;
+    if (!mapRef.current) return;
+    const source = mapRef.current.getSource("puntos") as maplibregl.GeoJSONSource | undefined;
     if (!source) return;
-    const geojson = {
-      type: "FeatureCollection",
-      features: heatmapData.map((p) => ({
-        type: "Feature",
-        properties: { weight: p.weight ?? 1 },
-        geometry: { type: "Point", coordinates: [p.lng, p.lat] },
-      })),
-    } as const;
+    const features = (heatmapData ?? []).map((p) => ({
+      type: "Feature",
+      properties: { weight: p.weight ?? 1 },
+      geometry: { type: "Point", coordinates: [p.lng, p.lat] },
+    }));
+    const geojson = { type: "FeatureCollection", features } as const;
     source.setData(geojson as any);
   }, [heatmapData]);
 
