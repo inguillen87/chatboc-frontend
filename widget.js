@@ -254,13 +254,7 @@
           );
           const isMobile = window.innerWidth <= SCRIPT_CONFIG.MOBILE_BREAKPOINT_PX;
           if (iframeIsCurrentlyOpen) {
-            const topValue = isMobile
-              ? "env(safe-area-inset-top)"
-              : Math.max(
-                  window.innerHeight - parsePx(newDims.height) - parsePx(initialBottom),
-                  16
-                ) + "px";
-            Object.assign(widgetContainer.style, {
+            const style = {
               width: newDims.width,
               height: newDims.height,
               borderRadius: isMobile ? "16px 16px 0 0" : "16px",
@@ -268,11 +262,21 @@
               background: "white",
               transform: "scale(1)",
               cursor: "default",
-              bottom: isMobile ? "env(safe-area-inset-bottom)" : "auto",
               right: isMobile ? "0" : initialRight,
-              top: topValue,
               left: isMobile ? "0" : "auto",
-            });
+            };
+            if (isMobile) {
+              style.bottom = "env(safe-area-inset-bottom)";
+              style.top = "env(safe-area-inset-top)";
+            } else {
+              style.bottom = initialBottom;
+              style.top = "auto";
+              if (parsePx(newDims.height) + parsePx(initialBottom) > window.innerHeight) {
+                style.top = "16px";
+                style.bottom = "auto";
+              }
+            }
+            Object.assign(widgetContainer.style, style);
           } else {
             Object.assign(widgetContainer.style, {
               width: newDims.width,
@@ -295,21 +299,25 @@
         if (!iframeIsCurrentlyOpen) return;
         const newDims = computeResponsiveDims(WIDGET_DIMENSIONS.OPEN, true);
         const isMobile = window.innerWidth < SCRIPT_CONFIG.MOBILE_BREAKPOINT_PX;
-        const topValue = isMobile
-          ? "env(safe-area-inset-top)"
-          : Math.max(
-              window.innerHeight - parsePx(newDims.height) - parsePx(initialBottom),
-              16
-            ) + "px";
-        Object.assign(widgetContainer.style, {
+        const style = {
           width: newDims.width,
           height: newDims.height,
           borderRadius: isMobile ? "0" : "16px",
-          bottom: isMobile ? "env(safe-area-inset-bottom)" : "auto",
           right: isMobile ? "0" : initialRight,
-          top: topValue,
           left: isMobile ? "0" : "auto",
-        });
+        };
+        if (isMobile) {
+          style.bottom = "env(safe-area-inset-bottom)";
+          style.top = "env(safe-area-inset-top)";
+        } else {
+          style.bottom = initialBottom;
+          style.top = "auto";
+          if (parsePx(newDims.height) + parsePx(initialBottom) > window.innerHeight) {
+            style.top = "16px";
+            style.bottom = "auto";
+          }
+        }
+        Object.assign(widgetContainer.style, style);
       }
       window.addEventListener("resize", resizeHandler);
 
