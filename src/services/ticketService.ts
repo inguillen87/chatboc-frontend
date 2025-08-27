@@ -37,6 +37,21 @@ export const getTicketById = async (id: string): Promise<Ticket> => {
     }
 };
 
+export const getTicketByNumber = async (nroTicket: string): Promise<Ticket> => {
+    try {
+        const response = await apiFetch<Ticket>(`/tickets/municipio/por_numero/${encodeURIComponent(nroTicket)}`, {
+            sendAnonId: true,
+        });
+        return {
+            ...response,
+            avatarUrl: response.avatarUrl || generateRandomAvatar(response.email || response.id.toString()),
+        };
+    } catch (error) {
+        console.error(`Error fetching ticket by number ${nroTicket}:`, error);
+        throw error;
+    }
+};
+
 export const sendTicketHistory = async (ticket: Ticket): Promise<void> => {
     try {
         await apiFetch(`/tickets/${ticket.tipo}/${ticket.id}/send-history`, {
