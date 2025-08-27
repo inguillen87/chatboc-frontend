@@ -1,10 +1,15 @@
 import React from 'react';
 import { formatDate } from '@/utils/fecha';
 import { CheckCircle, Clock } from 'lucide-react';
-import { TicketHistoryEvent } from '@/types/tickets';
+
+interface TimelineEvent {
+  status: string;
+  date: string;
+  notes?: string;
+}
 
 interface TicketTimelineProps {
-  history: TicketHistoryEvent[];
+  history: TimelineEvent[];
 }
 
 const TicketTimeline: React.FC<TicketTimelineProps> = ({ history }) => {

@@ -53,12 +53,6 @@ export interface InformacionPersonalVecino {
   dni?: string;
 }
 
-export interface TicketHistoryEvent {
-  status: string;
-  date: string;
-  notes?: string;
-}
-
 export interface Ticket {
   id: number;
   tipo: 'municipio' | 'pyme';
@@ -73,7 +67,6 @@ export interface Ticket {
   latitud?: number;
   longitud?: number;
   avatarUrl?: string;
-  history?: TicketHistoryEvent[];
 
   // Pyme specific fields
   telefono?: string;
