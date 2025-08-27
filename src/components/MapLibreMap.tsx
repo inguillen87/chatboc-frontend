@@ -20,11 +20,16 @@ export default function MapLibreMap({
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markerRef = useRef<maplibregl.Marker | null>(null);
+  const apiKey = import.meta.env.VITE_MAPTILER_KEY;
 
   useEffect(() => {
-    if (!ref.current) return;
+    if (!ref.current || !apiKey) {
+      if (!apiKey) {
+        console.warn("MapLibreMap: missing VITE_MAPTILER_KEY; skipping map initialization.");
+      }
+      return;
+    }
     try {
-      const apiKey = import.meta.env.VITE_MAPTILER_KEY!;
       const map = new maplibregl.Map({
         container: ref.current,
         style: `https://api.maptiler.com/maps/streets-v2/style.json?key=${apiKey}`,
@@ -91,7 +96,7 @@ export default function MapLibreMap({
     } catch (err) {
       console.error("Error initializing map", err);
     }
-  }, [initialCenter, initialZoom, heatmapData, onSelect]);
+  }, [apiKey, initialCenter, initialZoom, heatmapData, onSelect]);
 
   useEffect(() => {
     if (!mapRef.current) return;
