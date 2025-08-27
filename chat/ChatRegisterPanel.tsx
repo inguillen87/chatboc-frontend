@@ -53,7 +53,7 @@ const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin }) => {
         sendAnonId: true,
         sendEntityToken: true,
       });
-      safeLocalStorage.setItem("authToken", data.token);
+      safeLocalStorage.setItem("chatAuthToken", data.token);
       await refreshUser();
       onSuccess();
     } catch (err) {

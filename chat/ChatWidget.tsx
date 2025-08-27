@@ -250,13 +250,13 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   return (
     <div className={cn("chatboc-container", { "standalone": mode === "standalone" })} style={containerStyle}>
-      <Suspense fallback={<Skeleton className={cn("w-full h-full", isOpen ? "rounded-2xl" : "rounded-full")} />}>
+      <Suspense fallback={<Skeleton className={cn("w-full h-full", isOpen ? "rounded-3xl" : "rounded-full")} />}>
         <AnimatePresence mode="popLayout">
           {isOpen ? (
             <motion.div
               key="chatboc-panel-open"
-              className="bg-card border shadow-xl flex flex-col overflow-hidden w-full h-full"
-              style={{ borderRadius: isMobileView ? "0" : "24px" }}
+              className="bg-card border shadow-xl flex flex-col overflow-hidden w-full h-full rounded-3xl"
+              style={isMobileView ? { borderRadius: "0" } : undefined}
               {...panelAnimation}
             >
               {view !== 'chat' && (

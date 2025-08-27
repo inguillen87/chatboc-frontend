@@ -25,15 +25,16 @@ interface SendPayload {
 interface UseChatLogicProps {
   initialWelcomeMessage: string;
   tipoChat: "pyme" | "municipio";
+  tokenKey?: string;
 }
 
-export function useChatLogic({ initialWelcomeMessage, tipoChat }: UseChatLogicProps) {
+export function useChatLogic({ initialWelcomeMessage, tipoChat, tokenKey = 'authToken' }: UseChatLogicProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [contexto, setContexto] = useState({});
   const [activeTicketId, setActiveTicketId] = useState<number | null>(null);
 
-  const token = safeLocalStorage.getItem('authToken');
+  const token = safeLocalStorage.getItem(tokenKey);
   const anonId = getOrCreateAnonId();
   const isAnonimo = !token;
 

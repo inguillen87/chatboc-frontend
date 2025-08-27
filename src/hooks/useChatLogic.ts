@@ -16,9 +16,10 @@ import { useUser } from './useUser';
 interface UseChatLogicOptions {
   tipoChat: 'pyme' | 'municipio';
   entityToken?: string;
+  tokenKey?: string;
 }
 
-export function useChatLogic({ tipoChat, entityToken: propToken }: UseChatLogicOptions) {
+export function useChatLogic({ tipoChat, entityToken: propToken, tokenKey = 'authToken' }: UseChatLogicOptions) {
   const entityToken = propToken || getIframeToken();
   const { user } = useUser();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -27,7 +28,7 @@ export function useChatLogic({ tipoChat, entityToken: propToken }: UseChatLogicO
   const [activeTicketId, setActiveTicketId] = useState<number | null>(null);
   const [currentClaimIdempotencyKey, setCurrentClaimIdempotencyKey] = useState<string | null>(null);
 
-  const token = safeLocalStorage.getItem('authToken');
+  const token = safeLocalStorage.getItem(tokenKey);
   const isAnonimo = !token;
 
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -53,7 +54,7 @@ export function useChatLogic({ tipoChat, entityToken: propToken }: UseChatLogicO
 
     // Setup Socket.IO
     const socketUrl = getSocketUrl();
-    const userAuthToken = safeLocalStorage.getItem('authToken');
+    const userAuthToken = safeLocalStorage.getItem(tokenKey);
 
     console.log("useChatLogic: Initializing socket", {
       socketUrl,

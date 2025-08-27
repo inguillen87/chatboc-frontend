@@ -43,7 +43,8 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(false);
 
   const refreshUser = useCallback(async () => {
-    const token = safeLocalStorage.getItem('authToken');
+    const tokenKey = safeLocalStorage.getItem('entityToken') ? 'chatAuthToken' : 'authToken';
+    const token = safeLocalStorage.getItem(tokenKey);
     if (!token) return;
     setLoading(true);
     try {
@@ -81,7 +82,8 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   useEffect(() => {
-    const token = safeLocalStorage.getItem('authToken');
+    const tokenKey = safeLocalStorage.getItem('entityToken') ? 'chatAuthToken' : 'authToken';
+    const token = safeLocalStorage.getItem(tokenKey);
     if (token && (!user || !user.rubro)) {
       refreshUser();
     }
