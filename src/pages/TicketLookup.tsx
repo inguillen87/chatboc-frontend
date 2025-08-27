@@ -2,8 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { getTicketByNumber } from '@/services/ticketService';
-import { Ticket } from '@/types/tickets';
+import { getTicketByNumber, getTicketMessages } from '@/services/ticketService';
+import { Ticket, Message } from '@/types/tickets';
 import { formatDate } from '@/utils/fecha';
 import TicketTimeline from '@/components/tickets/TicketTimeline';
 import { Separator } from '@/components/ui/separator';
@@ -16,14 +16,22 @@ export default function TicketLookup() {
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [messages, setMessages] = useState<Message[]>([]);
 
   const performSearch = useCallback(async (searchId: string) => {
     if (!searchId) return;
     setLoading(true);
     setError(null);
+    setMessages([]);
     try {
       const data = await getTicketByNumber(searchId);
       setTicket(data);
+      try {
+        const msgs = await getTicketMessages(data.id, data.tipo);
+        setMessages(msgs);
+      } catch (msgErr) {
+        console.error('Error fetching messages for ticket', msgErr);
+      }
     } catch (err) {
       const apiErr = err as ApiError;
       const message = apiErr?.status === 404
@@ -113,7 +121,7 @@ export default function TicketLookup() {
 
           <div>
             <h3 className="text-xl font-semibold mb-4">Historial del Reclamo</h3>
-            <TicketTimeline history={ticket.history || []} />
+            <TicketTimeline history={ticket.history || []} messages={messages} />
           </div>
 
         </div>
