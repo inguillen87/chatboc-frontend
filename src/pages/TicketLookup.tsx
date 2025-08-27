@@ -2,32 +2,12 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { apiFetch } from '@/utils/api';
+import { getTicketByNumber } from '@/services/ticketService';
+import { Ticket } from '@/types/tickets';
 import { formatDate } from '@/utils/fecha';
-import TicketTimeline from '@/components/tickets/TicketTimeline'; // Importar el nuevo componente
+import TicketTimeline from '@/components/tickets/TicketTimeline';
 import { Separator } from '@/components/ui/separator';
-
-// Definir la interfaz para un evento en la línea de tiempo
-interface TimelineEvent {
-  status: string;
-  date: string;
-  notes?: string;
-}
-
-// Actualizar la interfaz del Ticket para incluir el historial
-interface Ticket {
-  id: number;
-  nro_ticket: number | string;
-  asunto?: string;
-  detalles?: string;
-  estado: string;
-  fecha: string;
-  nombre_usuario?: string;
-  direccion?: string | null;
-  latitud?: number | null;
-  longitud?: number | null;
-  history?: TimelineEvent[]; // Añadir historial
-}
+import { getErrorMessage } from '@/utils/api';
 
 export default function TicketLookup() {
   const { ticketId } = useParams<{ ticketId: string }>();
@@ -40,38 +20,12 @@ export default function TicketLookup() {
     if (!searchId) return;
     setLoading(true);
     setError(null);
-    setTicket(null);
     try {
-      // Simulación de una respuesta de API con historial
-      // En un caso real, la API /tickets/municipio/por_numero/.. debería devolver esto.
-      const mockTicketData: Ticket = {
-        id: 12345,
-        nro_ticket: searchId,
-        asunto: 'Rama de árbol peligrosa',
-        detalles: 'Una rama muy grande está sobre mi techo y parece que va a caer.',
-        estado: 'En Proceso',
-        fecha: '2024-08-15T10:30:00Z',
-        direccion: 'Don Bosco 55, Junín',
-        history: [
-          { status: 'Recibido', date: '2024-08-15T10:30:00Z', notes: 'Reclamo generado a través del chatbot.' },
-          { status: 'Asignado', date: '2024-08-15T11:00:00Z', notes: 'Asignado al equipo de Espacios Verdes.' },
-          { status: 'En Proceso', date: '2024-08-16T09:00:00Z', notes: 'El equipo de Espacios Verdes ha programado la visita.' },
-        ],
-      };
-
-      // const data = await apiFetch<Ticket>(
-      //   `/tickets/municipio/por_numero/${encodeURIComponent(searchId)}`,
-      //   { sendEntityToken: true }
-      // );
-
-      // Usar datos mockeados por ahora
-      setTimeout(() => {
-        setTicket(mockTicketData);
-        setLoading(false);
-      }, 1000);
-
-    } catch (err: any) {
-      setError(err.message || 'No se encontró el ticket');
+      const data = await getTicketByNumber(searchId);
+      setTicket(data);
+    } catch (err) {
+      setError(getErrorMessage(err, 'No se encontró el ticket'));
+    } finally {
       setLoading(false);
     }
   }, []);
@@ -81,6 +35,14 @@ export default function TicketLookup() {
       performSearch(ticketId);
     }
   }, [ticketId, performSearch]);
+
+  useEffect(() => {
+    if (!ticket) return;
+    const interval = setInterval(() => {
+      performSearch(ticket.nro_ticket);
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [ticket, performSearch]);
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
