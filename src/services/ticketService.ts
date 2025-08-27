@@ -1,4 +1,4 @@
-import { apiFetch } from '@/utils/api';
+import { apiFetch, ApiError } from '@/utils/api';
 import { Ticket, Message } from '@/types/tickets';
 import { AttachmentInfo } from '@/types/chat';
 
@@ -38,8 +38,10 @@ export const getTicketById = async (id: string): Promise<Ticket> => {
 };
 
 export const getTicketByNumber = async (nroTicket: string): Promise<Ticket> => {
-    const clean = nroTicket.replace(/[^\d]/g, '');
+    const raw = nroTicket.trim();
+    const clean = raw.replace(/[^\d]/g, '');
     const endpoints = [
+        `/tickets/municipio/por_numero/${encodeURIComponent(raw)}`,
         `/tickets/municipio/por_numero/${encodeURIComponent(clean)}`,
         `/tickets/municipio/${encodeURIComponent(clean)}`,
     ];
@@ -47,6 +49,7 @@ export const getTicketByNumber = async (nroTicket: string): Promise<Ticket> => {
     for (const url of endpoints) {
         try {
             const response = await apiFetch<Ticket>(url, {
+                skipAuth: true,
                 sendAnonId: true,
                 sendEntityToken: true,
             });
@@ -57,6 +60,10 @@ export const getTicketByNumber = async (nroTicket: string): Promise<Ticket> => {
                     generateRandomAvatar(response.email || response.id.toString()),
             };
         } catch (err) {
+            const apiErr = err as ApiError;
+            if (apiErr?.status !== 404) {
+                throw err;
+            }
             lastError = err;
         }
     }

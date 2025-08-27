@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { getTicketByNumber } from '@/services/ticketService';
@@ -7,10 +7,11 @@ import { Ticket } from '@/types/tickets';
 import { formatDate } from '@/utils/fecha';
 import TicketTimeline from '@/components/tickets/TicketTimeline';
 import { Separator } from '@/components/ui/separator';
-import { getErrorMessage } from '@/utils/api';
+import { getErrorMessage, ApiError } from '@/utils/api';
 
 export default function TicketLookup() {
   const { ticketId } = useParams<{ ticketId: string }>();
+  const navigate = useNavigate();
   const [ticketNumber, setTicketNumber] = useState(ticketId || '');
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -24,13 +25,18 @@ export default function TicketLookup() {
       const data = await getTicketByNumber(searchId);
       setTicket(data);
     } catch (err) {
-      setError(getErrorMessage(err, 'No se encontró el ticket'));
+      const apiErr = err as ApiError;
+      const message = apiErr?.status === 404
+        ? 'No se encontró el ticket'
+        : getErrorMessage(err, 'No se encontró el ticket');
+      setError(message);
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
+    setTicketNumber(ticketId || '');
     if (ticketId) {
       performSearch(ticketId);
     }
@@ -46,7 +52,13 @@ export default function TicketLookup() {
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    performSearch(ticketNumber.trim());
+    const trimmed = ticketNumber.trim();
+    if (!trimmed) return;
+    if (trimmed === (ticketId || '')) {
+      performSearch(trimmed);
+    } else {
+      navigate(`/ticket/${encodeURIComponent(trimmed)}`);
+    }
   };
 
   return (
