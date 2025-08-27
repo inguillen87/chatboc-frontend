@@ -181,11 +181,24 @@ export function useChatLogic({ tipoChat, entityToken: propToken, tokenKey = 'aut
     const { text: userMessageText, attachmentInfo, ubicacion_usuario, action, location } = actualPayload;
     const actionPayload = 'payload' in actualPayload ? actualPayload.payload : undefined;
 
+    // Allow confirming/cancelling a claim with free text when awaiting confirmation
+    let resolvedAction = action;
+    if (!resolvedAction && contexto.estado_conversacion === 'confirmando_reclamo') {
+      const normalized = sanitizedText.toLowerCase();
+      const confirmWords = ['1', 'si', 'sí', 's', 'ok', 'okay', 'acepto', 'aceptar', 'confirmar', 'confirmo'];
+      const cancelWords = ['2', 'no', 'n', 'cancelar', 'cancel', 'rechazo', 'rechazar'];
+      if (confirmWords.includes(normalized)) {
+        resolvedAction = 'confirmar_reclamo';
+      } else if (cancelWords.includes(normalized)) {
+        resolvedAction = 'cancelar_reclamo';
+      }
+    }
 
-    if (!userMessageText && !attachmentInfo && !ubicacion_usuario && !action && !actualPayload.archivo_url && !location) return;
+
+    if (!userMessageText && !attachmentInfo && !ubicacion_usuario && !resolvedAction && !actualPayload.archivo_url && !location) return;
     if (isTyping) return;
 
-    if (action === 'iniciar_creacion_reclamo') {
+    if (resolvedAction === 'iniciar_creacion_reclamo') {
       // Check for existing user data
       const userData = user || JSON.parse(safeLocalStorage.getItem('user') || 'null');
       if (userData?.name && userData?.email) { // Assume phone and DNI are not available in user object
@@ -224,7 +237,7 @@ export function useChatLogic({ tipoChat, entityToken: propToken, tokenKey = 'aut
       return;
     }
 
-    if (action === 'submit_personal_data' && actionPayload) {
+    if (resolvedAction === 'submit_personal_data' && actionPayload) {
       setContexto(prev => ({
         ...prev,
         estado_conversacion: 'confirmando_reclamo',
@@ -273,7 +286,7 @@ export function useChatLogic({ tipoChat, entityToken: propToken, tokenKey = 'aut
       const rubro = storedUser?.rubro?.clave || storedUser?.rubro?.nombre || safeLocalStorage.getItem("rubroSeleccionado") || null;
       const tipoChatFinal = enforceTipoChatForRubro(tipoChat, rubro);
 
-      const updatedContext = updateMunicipioContext(contexto, { userInput: userMessageText, action });
+      const updatedContext = updateMunicipioContext(contexto, { userInput: userMessageText, action: resolvedAction });
       setContexto(updatedContext);
 
       const requestBody: Record<string, any> = {
@@ -283,12 +296,12 @@ export function useChatLogic({ tipoChat, entityToken: propToken, tokenKey = 'aut
         ...(rubro && { rubro_clave: rubro }),
         ...(attachmentInfo && { attachment_info: attachmentInfo }),
         ...(location && { location: location }),
-        ...(action && { action }),
+        ...(resolvedAction && { action: resolvedAction }),
         ...(actionPayload && { payload: actionPayload }),
-        ...(action === "confirmar_reclamo" && currentClaimIdempotencyKey && { idempotency_key: currentClaimIdempotencyKey }),
+        ...(resolvedAction === "confirmar_reclamo" && currentClaimIdempotencyKey && { idempotency_key: currentClaimIdempotencyKey }),
       };
 
-      if (action === 'confirmar_reclamo') {
+      if (resolvedAction === 'confirmar_reclamo') {
         requestBody.datos_personales = {
           nombre: contexto.datos_reclamo.nombre_ciudadano,
           email: contexto.datos_reclamo.email_ciudadano,
