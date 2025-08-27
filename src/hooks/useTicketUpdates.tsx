@@ -34,6 +34,14 @@ export default function useTicketUpdates() {
           withCredentials: true, // Para enviar cookies si es necesario
         });
 
+        // Si por algún motivo la librería no devuelve una instancia válida,
+        // evitamos que la aplicación se rompa al llamar a `.on` sobre algo que
+        // no implementa el EventEmitter de Socket.io.
+        if (!socket || typeof (socket as any).on !== 'function') {
+          console.error('Socket.io returned an invalid client:', socket);
+          return;
+        }
+
         socket.on('connect', () => {
           console.log('Socket.io connected successfully');
         });

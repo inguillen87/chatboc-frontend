@@ -245,18 +245,17 @@ export default function Perfil() {
   const fetchHeatmapData = useCallback(async () => {
     try {
       const tipo = getCurrentTipoChat();
-      const data: {
-        location: { lat: number; lng: number };
-        weight: number;
-        categoria?: string;
-        barrio?: string;
-      }[] = await apiFetch(`/tickets/${tipo}/mapa`, {
-        headers: { 'Cache-Control': 'no-store' },
-        cache: 'no-store',
-      });
-      const mapped: TicketLocation[] = (data || []).map((d) => ({
-        lat: d.location.lat,
-        lng: d.location.lng,
+      const raw = await apiFetch<any>(`/tickets/${tipo}/mapa`);
+      const arrayData = Array.isArray(raw)
+        ? raw
+        : Array.isArray(raw?.data)
+          ? raw.data
+          : Array.isArray(raw?.tickets)
+            ? raw.tickets
+            : [];
+      const mapped: TicketLocation[] = arrayData.map((d: any) => ({
+        lat: d.location?.lat ?? 0,
+        lng: d.location?.lng ?? 0,
         weight: d.weight,
         categoria: d.categoria,
         barrio: d.barrio,
