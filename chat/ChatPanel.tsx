@@ -10,6 +10,8 @@ import ChatInput from "./ChatInput";
 import ScrollToBottomButton from "@/components/ui/ScrollToBottomButton";
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import TicketMap from "@/components/TicketMap";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Message, SendPayload } from "@/types/chat"; // Tipos actualizados
 import { apiFetch, getErrorMessage } from "@/utils/api"; // getErrorMessage añadido
 import { playMessageSound } from "@/utils/sounds";
@@ -136,7 +138,7 @@ const ChatPanel = ({
   }, []);
 
   const getAuthTokenFromLocalStorage = () =>
-    typeof window === "undefined" ? null : safeLocalStorage.getItem("authToken");
+    typeof window === "undefined" ? null : safeLocalStorage.getItem("chatAuthToken");
   const anonId = getOrCreateAnonId();
   const finalAuthToken = getAuthTokenFromLocalStorage();
 
@@ -172,6 +174,24 @@ const ChatPanel = ({
       : (rubroNormalizado && isMunicipioRubro ? "municipio" : "pyme");
 
   const isMobile = useIsMobile();
+
+  const [askName, setAskName] = useState(false);
+  const [tempName, setTempName] = useState("");
+
+  useEffect(() => {
+    if (esAnonimo && !safeLocalStorage.getItem("chatUserName")) {
+      setAskName(true);
+    }
+  }, [esAnonimo]);
+
+  const handleNameSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!tempName.trim()) return;
+    const name = tempName.trim();
+    safeLocalStorage.setItem("chatUserName", name);
+    handleSendMessage({ text: `Mi nombre es ${name}`, action: "user_provided_name" });
+    setAskName(false);
+  };
 
   const fetchTicket = useCallback(async () => {
     if (!activeTicketId) return;
@@ -612,6 +632,18 @@ const ChatPanel = ({
       return () => clearTimeout(timer);
     }
   }, [esperandoRubro, esperandoDireccion, showCierre, messages.length]);
+
+  if (askName) {
+    return (
+      <div className={cn("flex flex-col w-full h-full bg-card text-card-foreground overflow-hidden relative", isMobile ? undefined : "rounded-[inherit]")}> 
+        <ChatHeader onClose={onClose} muted={muted} onToggleSound={onToggleSound} onCart={onCart} />
+        <form onSubmit={handleNameSubmit} className="flex-1 flex flex-col items-center justify-center gap-4 p-4">
+          <Input value={tempName} onChange={e => setTempName(e.target.value)} placeholder="Tu nombre" className="w-full max-w-xs" />
+          <Button type="submit" className="w-full max-w-xs">Comenzar</Button>
+        </form>
+      </div>
+    );
+  }
 
   return (
     <div className={cn("flex flex-col w-full h-full bg-card text-card-foreground overflow-hidden relative", isMobile ? undefined : "rounded-[inherit]")}> 
