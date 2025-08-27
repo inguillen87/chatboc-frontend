@@ -73,6 +73,7 @@ const routes: RouteConfig[] = [
   { path: '/demo', element: <Demo /> },
   { path: '/perfil', element: <Perfil /> },
   { path: '/chat', element: <ChatPage /> },
+  { path: '/chat/:ticketId', element: <TicketLookup /> },
   { path: '/checkout', element: <Checkout /> },
   { path: '/chatpos', element: <ChatPosPage /> },
   { path: '/chatcrm', element: <ChatCRMPage /> },

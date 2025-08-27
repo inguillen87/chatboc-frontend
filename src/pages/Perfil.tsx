@@ -250,10 +250,7 @@ export default function Perfil() {
         weight: number;
         categoria?: string;
         barrio?: string;
-      }[] = await apiFetch(`/tickets/${tipo}/mapa`, {
-        headers: { 'Cache-Control': 'no-store' },
-        cache: 'no-store',
-      });
+      }[] = await apiFetch(`/tickets/${tipo}/mapa`);
       const mapped: TicketLocation[] = (data || []).map((d) => ({
         lat: d.location.lat,
         lng: d.location.lng,
