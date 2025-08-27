@@ -976,11 +976,17 @@ export default function Perfil() {
                     </div>
                   </div>
                 )}
-                <LocationMap
-                  lat={mapCenter?.lat}
-                  lng={mapCenter?.lng}
-                  heatmapData={heatmapData}
-                />
+                {heatmapData.length > 0 ? (
+                  <LocationMap
+                    lat={mapCenter?.lat}
+                    lng={mapCenter?.lng}
+                    heatmapData={heatmapData}
+                  />
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No hay datos de ubicación disponibles.
+                  </p>
+                )}
               </CardContent>
             </Card>
           )}
