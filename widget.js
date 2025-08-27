@@ -270,8 +270,17 @@
               style.bottom = "env(safe-area-inset-bottom)";
               style.top = "env(safe-area-inset-top)";
             } else {
-              style.bottom = initialBottom;
-              style.top = "auto";
+              const topOffset =
+                window.innerHeight -
+                parsePx(newDims.height) -
+                parsePx(initialBottom);
+              if (topOffset < 0) {
+                style.top = "16px";
+                style.bottom = "auto";
+              } else {
+                style.bottom = initialBottom;
+                style.top = "auto";
+              }
             }
             Object.assign(widgetContainer.style, style);
           } else {
@@ -310,8 +319,17 @@
           style.bottom = "env(safe-area-inset-bottom)";
           style.top = "env(safe-area-inset-top)";
         } else {
-          style.bottom = initialBottom;
-          style.top = "auto";
+          const topOffset =
+            window.innerHeight -
+            parsePx(newDims.height) -
+            parsePx(initialBottom);
+          if (topOffset < 0) {
+            style.top = "16px";
+            style.bottom = "auto";
+          } else {
+            style.bottom = initialBottom;
+            style.top = "auto";
+          }
         }
         Object.assign(widgetContainer.style, style);
       }
