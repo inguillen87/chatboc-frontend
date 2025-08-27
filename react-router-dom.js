@@ -7,7 +7,7 @@ import {
 import {
   __toESM
 } from "./chunk-4MBMRILA.js";
-import { safeSessionStorageGetItem, safeSessionStorageSetItem } from "./utils/safeStorage.js";
+import { safeSessionStorageGetItem, safeSessionStorageSetItem } from "./utils/safeStorage";
 
 // node_modules/react-router-dom/dist/index.js
 var React2 = __toESM(require_react());
