@@ -49,7 +49,7 @@ export default function TicketLookup() {
     const paramPin = searchParams.get('pin') || '';
     setTicketNumber(ticketId || '');
     setPin(paramPin);
-    if (ticketId) {
+    if (ticketId && paramPin) {
       performSearch(ticketId, paramPin);
     }
   }, [ticketId, searchParams, performSearch]);
