@@ -42,7 +42,13 @@ const DetailsPanel: React.FC = () => {
     return name ? name.split(' ').map(n => n[0]).join('').toUpperCase() : '??';
   };
 
-  const personal = ticket?.informacion_personal_vecino;
+  const personal = {
+    nombre: ticket?.informacion_personal_vecino?.nombre || ticket?.display_name,
+    telefono: ticket?.informacion_personal_vecino?.telefono || ticket?.telefono,
+    email: ticket?.informacion_personal_vecino?.email || ticket?.email,
+    direccion: ticket?.informacion_personal_vecino?.direccion || ticket?.direccion,
+    dni: ticket?.informacion_personal_vecino?.dni || ticket?.dni,
+  };
   const isSpecified = (value?: string) => value && value.toLowerCase() !== 'no especificado';
   const displayName = personal?.nombre || ticket?.display_name || '';
 
