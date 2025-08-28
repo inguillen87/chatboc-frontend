@@ -207,6 +207,9 @@
         transition: "opacity 0.4s ease-in",
         zIndex: "1",
       });
+      iframe.setAttribute("width", "100%");
+      iframe.setAttribute("height", "100%");
+      iframe.setAttribute("frameborder", "0");
       iframe.allow = "clipboard-write; geolocation";
       iframe.setAttribute("title", "Chatboc Asistente Virtual");
       widgetContainer.appendChild(iframe);
@@ -251,6 +254,13 @@
           return;
         }
 
+        if (event.data?.type === "chatboc-ready" && event.data.widgetId === iframeId) {
+          loader.style.opacity = "0";
+          setTimeout(() => loader.remove(), 300);
+          iframe.style.opacity = "1";
+          return;
+        }
+
         if (event.data?.type === "chatboc-state-change" && event.data.widgetId === iframeId) {
           iframeIsCurrentlyOpen = event.data.isOpen;
           const newDims = computeResponsiveDims(
@@ -274,12 +284,8 @@
               style.bottom = "env(safe-area-inset-bottom)";
               style.top = "env(safe-area-inset-top)";
             } else {
-              const topOffset =
-                window.innerHeight -
-                parsePx(newDims.height) -
-                parsePx(initialBottom);
-              style.top = `${Math.max(topOffset, 16)}px`;
-              style.bottom = "auto";
+              style.bottom = initialBottom;
+              style.top = "auto";
             }
             Object.assign(widgetContainer.style, style);
           } else {
@@ -318,12 +324,8 @@
           style.bottom = "env(safe-area-inset-bottom)";
           style.top = "env(safe-area-inset-top)";
         } else {
-          const topOffset =
-            window.innerHeight -
-            parsePx(newDims.height) -
-            parsePx(initialBottom);
-          style.top = `${Math.max(topOffset, 16)}px`;
-          style.bottom = "auto";
+          style.bottom = initialBottom;
+          style.top = "auto";
         }
         Object.assign(widgetContainer.style, style);
       }
