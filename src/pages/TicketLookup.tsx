@@ -36,9 +36,14 @@ export default function TicketLookup() {
       }
     } catch (err) {
       const apiErr = err as ApiError;
-      const message = apiErr?.status === 404
-        ? 'No se encontró el ticket'
-        : getErrorMessage(err, 'No se encontró el ticket');
+      let message: string;
+      if (apiErr?.status === 404) {
+        message = 'No se encontró el ticket';
+      } else if (apiErr?.status === 400) {
+        message = 'El PIN es obligatorio para consultar el ticket';
+      } else {
+        message = getErrorMessage(err, 'No se encontró el ticket');
+      }
       setError(message);
     } finally {
       setLoading(false);
@@ -49,7 +54,7 @@ export default function TicketLookup() {
     const paramPin = searchParams.get('pin') || '';
     setTicketNumber(ticketId || '');
     setPin(paramPin);
-    if (ticketId && paramPin) {
+    if (ticketId) {
       performSearch(ticketId, paramPin);
     }
   }, [ticketId, searchParams, performSearch]);

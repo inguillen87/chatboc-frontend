@@ -69,6 +69,9 @@ export const getTicketByNumber = async (
             };
         } catch (err) {
             const apiErr = err as ApiError;
+            if (apiErr?.status === 400 && !pin) {
+                throw new ApiError('El PIN es obligatorio', 400, apiErr.data);
+            }
             if (apiErr?.status !== 404) {
                 throw err;
             }
