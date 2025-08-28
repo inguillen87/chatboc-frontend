@@ -493,7 +493,24 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                   animate={isOpen ? "open" : "closed"}
                   transition={openSpring}
                 >
-                  <ChatbocLogoAnimated size={calculatedLogoSize} blinking={!isOpen} floating={!isOpen} pulsing={!isOpen} />
+                  {entityInfo?.logo_url ? (
+                    <img
+                      src={entityInfo.logo_url}
+                      alt="Logo"
+                      style={{
+                        width: calculatedLogoSize,
+                        height: calculatedLogoSize,
+                        borderRadius: "50%",
+                      }}
+                    />
+                  ) : (
+                    <ChatbocLogoAnimated
+                      size={calculatedLogoSize}
+                      blinking={!isOpen}
+                      floating={!isOpen}
+                      pulsing={!isOpen}
+                    />
+                  )}
                 </motion.div>
               </motion.button>
             </motion.div>
