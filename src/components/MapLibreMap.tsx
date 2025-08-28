@@ -60,9 +60,11 @@ export default function MapLibreMap({
       mapRef.current = map;
 
       try {
-        map.addControl(new maplibregl.NavigationControl(), "top-right");
+        if (typeof (map as any).addControl === "function") {
+          map.addControl(new maplibregl.NavigationControl(), "top-right");
+        }
 
-        if (onSelect) {
+        if (onSelect && typeof (map as any).on === "function") {
           map.on("click", (e) => {
             const { lng, lat } = e.lngLat;
             markerRef.current?.remove();
@@ -71,44 +73,50 @@ export default function MapLibreMap({
           });
         }
 
-        map.on("styleimagemissing", (e) => {
-          // Evita errores cuando una imagen no existe en el sprite.
-          console.warn(`Imagen faltante en el estilo: "${e.id}"`);
-        });
-
-        map.on("load", () => {
-          const sourceData = heatmapData
-            ? {
-                type: "FeatureCollection",
-                features: heatmapData.map((p) => ({
-                  type: "Feature",
-                  properties: { weight: p.weight ?? 1 },
-                  geometry: {
-                    type: "Point",
-                    coordinates: [p.lng, p.lat],
-                  },
-                })),
-              }
-            : "/api/puntos";
-
-          map.addSource("puntos", {
-            type: "geojson",
-            data: sourceData as any,
+        if (typeof (map as any).on === "function") {
+          map.on("styleimagemissing", (e) => {
+            // Evita errores cuando una imagen no existe en el sprite.
+            console.warn(`Imagen faltante en el estilo: "${e.id}"`);
           });
 
-          map.addLayer({
-            id: "heat",
-            type: "heatmap",
-            source: "puntos",
-            maxzoom: 16,
-            paint: {
-              "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 0, 1, 16, 3],
-              "heatmap-weight": ["interpolate", ["linear"], ["get", "weight"], 0, 0, 10, 1],
-              "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 0, 2, 16, 35],
-              "heatmap-opacity": 0.8,
-            },
+          map.on("load", () => {
+            const sourceData = heatmapData
+              ? {
+                  type: "FeatureCollection",
+                  features: heatmapData.map((p) => ({
+                    type: "Feature",
+                    properties: { weight: p.weight ?? 1 },
+                    geometry: {
+                      type: "Point",
+                      coordinates: [p.lng, p.lat],
+                    },
+                  })),
+                }
+              : "/api/puntos";
+
+            if (typeof (map as any).addSource === "function") {
+              map.addSource("puntos", {
+                type: "geojson",
+                data: sourceData as any,
+              });
+            }
+
+            if (typeof (map as any).addLayer === "function") {
+              map.addLayer({
+                id: "heat",
+                type: "heatmap",
+                source: "puntos",
+                maxzoom: 16,
+                paint: {
+                  "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 0, 1, 16, 3],
+                  "heatmap-weight": ["interpolate", ["linear"], ["get", "weight"], 0, 0, 10, 1],
+                  "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 0, 2, 16, 35],
+                  "heatmap-opacity": 0.8,
+                },
+              });
+            }
           });
-        });
+        }
       } catch (err) {
         console.error("MapLibreMap: failed to configure map", err);
       }
@@ -128,8 +136,9 @@ export default function MapLibreMap({
 
   useEffect(() => {
     if (!(mapRef.current instanceof maplibregl.Map)) return;
+    if (typeof (mapRef.current as any).getSource !== "function") return;
     const source = mapRef.current.getSource("puntos") as maplibregl.GeoJSONSource | undefined;
-    if (!source) return;
+    if (!source || typeof source.setData !== "function") return;
     const features = (heatmapData ?? []).map((p) => ({
       type: "Feature",
       properties: { weight: p.weight ?? 1 },
