@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 // MapLibre se importa de forma dinámica para evitar errores en entornos donde
 // la librería no esté disponible completamente o falten métodos como `on`.
 import "maplibre-gl/dist/maplibre-gl.css";
+import { safeOn, assertEventSource } from "@/utils/safeOn";
 
 type HeatPoint = { lat: number; lng: number; weight?: number };
 
@@ -64,42 +65,41 @@ export default function MapLibreMap({
         }
 
         mapRef.current = map;
+        assertEventSource(map, "map");
 
         try {
           map.addControl?.(new lib.NavigationControl(), "top-right");
 
-          if (onSelect) {
-            map.on?.("click", (e: any) => {
-              const { lng, lat } = e.lngLat || {};
-              if (typeof lng === "number" && typeof lat === "number") {
-                markerRef.current?.remove?.();
-                markerRef.current = new lib.Marker().setLngLat([lng, lat]).addTo(map);
-                onSelect(lat, lng);
-              }
-            });
-          }
+          const clickHandler = (e: any) => {
+            const { lng, lat } = e.lngLat || {};
+            if (typeof lng === "number" && typeof lat === "number") {
+              markerRef.current?.remove?.();
+              markerRef.current = new lib.Marker().setLngLat([lng, lat]).addTo(map);
+              onSelect?.(lat, lng);
+            }
+          };
 
-          map.on?.("styleimagemissing", (e: any) => {
+          const styleImageMissingHandler = (e: any) => {
             const name = e.id;
             if (!name) {
-              console.warn('Imagen faltante sin id válido');
+              console.warn("Imagen faltante sin id válido");
               return;
             }
             const url = `/icons/${name}.png`;
             if (map.hasImage?.(name)) return;
             map.loadImage?.(url, (err: any, image: any) => {
               if (err || !image) {
-                console.warn('No pude cargar icono', name, url, err);
+                console.warn("No pude cargar icono", name, url, err);
                 return;
               }
               map.addImage?.(name, image);
             });
-          });
+          };
 
-          map.on?.("load", () => {
-            map.loadImage?.('/icons/pin-blue.png', (err: any, image: any) => {
-              if (!err && image && !map.hasImage?.('pin-blue')) {
-                map.addImage?.('pin-blue', image);
+          const loadHandler = () => {
+            map.loadImage?.("/icons/pin-blue.png", (err: any, image: any) => {
+              if (!err && image && !map.hasImage?.("pin-blue")) {
+                map.addImage?.("pin-blue", image);
               }
             });
 
@@ -128,19 +128,28 @@ export default function MapLibreMap({
                 "circle-color": "#3b82f6",
               },
             });
-          });
+          };
+
+          if (onSelect) {
+            safeOn(map, "click", clickHandler);
+          }
+          safeOn(map, "styleimagemissing", styleImageMissingHandler);
+          safeOn(map, "load", loadHandler);
+
+          return () => {
+            markerRef.current?.remove?.();
+            map.off?.("click", clickHandler);
+            map.off?.("styleimagemissing", styleImageMissingHandler);
+            map.off?.("load", loadHandler);
+            try {
+              map.remove?.();
+            } catch (err) {
+              console.error("MapLibreMap: failed to remove map", err);
+            }
+          };
         } catch (err) {
           console.error("MapLibreMap: failed to configure map", err);
         }
-
-        return () => {
-          markerRef.current?.remove?.();
-          try {
-            map.remove?.();
-          } catch (err) {
-            console.error("MapLibreMap: failed to remove map", err);
-          }
-        };
       } catch (err) {
         console.error("Error initializing map", err);
       }
