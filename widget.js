@@ -207,6 +207,9 @@
         transition: "opacity 0.4s ease-in",
         zIndex: "1",
       });
+      iframe.setAttribute("width", "100%");
+      iframe.setAttribute("height", "100%");
+      iframe.setAttribute("frameborder", "0");
       iframe.allow = "clipboard-write; geolocation";
       iframe.setAttribute("title", "Chatboc Asistente Virtual");
       widgetContainer.appendChild(iframe);
@@ -248,6 +251,13 @@
           if (event.data?.type?.startsWith('chatboc-')) {
             console.warn(`Chatboc widget: Ignored message from unsafe origin: ${event.origin}`);
           }
+          return;
+        }
+
+        if (event.data?.type === "chatboc-ready" && event.data.widgetId === iframeId) {
+          loader.style.opacity = "0";
+          setTimeout(() => loader.remove(), 300);
+          iframe.style.opacity = "1";
           return;
         }
 

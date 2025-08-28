@@ -192,6 +192,12 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   );
 
   useEffect(() => {
+    if (mode === "iframe" && typeof window !== "undefined" && window.parent !== window && widgetId) {
+      window.parent.postMessage({ type: "chatboc-ready", widgetId }, "*");
+    }
+  }, [mode, widgetId]);
+
+  useEffect(() => {
     sendStateMessageToParent(isOpen);
     if (isOpen) {
       setShowProactiveBubble(false);
