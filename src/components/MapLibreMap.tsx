@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { cn } from "@/lib/utils";
 // MapLibre se importa de forma dinámica para evitar errores en entornos donde
 // la librería no esté disponible completamente o falten métodos como `on`.
 // Intentamos importar el bundle de MapLibre de manera dinámica. Si no está
@@ -14,6 +15,7 @@ type Props = {
   initialZoom?: number;
   onSelect?: (lat: number, lon: number, address?: string) => void;
   heatmapData?: HeatPoint[];
+  className?: string;
 };
 
 export default function MapLibreMap({
@@ -21,6 +23,7 @@ export default function MapLibreMap({
   initialZoom = 12,
   onSelect,
   heatmapData,
+  className,
 }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   // Referencias al mapa y al marcador; se tipan como `any` porque la librería
@@ -238,5 +241,10 @@ export default function MapLibreMap({
     source.setData(geojson as any);
   }, [heatmapData]);
 
-  return <div ref={ref} className="w-full h-[500px] rounded-2xl overflow-hidden" />;
+  return (
+    <div
+      ref={ref}
+      className={cn("w-full rounded-2xl overflow-hidden", className ?? "h-[500px]")}
+    />
+  );
 }

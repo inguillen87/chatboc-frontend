@@ -780,6 +780,7 @@ export default function Perfil() {
                       lat={perfil.latitud ?? undefined}
                       lng={perfil.longitud ?? undefined}
                       onSelect={handleMapSelect}
+                      className="h-[400px]"
                     />
                   </div>
                 )}
@@ -981,6 +982,7 @@ export default function Perfil() {
                     lat={mapCenter?.lat}
                     lng={mapCenter?.lng}
                     heatmapData={heatmapData}
+                    className="h-[600px]"
                   />
                 ) : (
                   <p className="text-sm text-muted-foreground">
