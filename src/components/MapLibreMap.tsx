@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
-import maplibregl from "maplibre-gl";
+// MapLibre se importa de forma dinámica para evitar errores en entornos donde
+// la librería no esté disponible completamente o falten métodos como `on`.
 import "maplibre-gl/dist/maplibre-gl.css";
 
 type HeatPoint = { lat: number; lng: number; weight?: number };
@@ -18,8 +19,10 @@ export default function MapLibreMap({
   heatmapData,
 }: Props) {
   const ref = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<maplibregl.Map | null>(null);
-  const markerRef = useRef<maplibregl.Marker | null>(null);
+  // Referencias al mapa y al marcador; se tipan como `any` porque la librería
+  // se carga dinámicamente y puede no estar presente en tiempo de ejecución.
+  const mapRef = useRef<any>(null);
+  const markerRef = useRef<any>(null);
   const apiKey = import.meta.env.VITE_MAPTILER_KEY;
 
   useEffect(() => {
@@ -29,113 +32,114 @@ export default function MapLibreMap({
       }
       return;
     }
-
-    try {
-      // Verifica que la librería exponga el constructor esperado
-      if (typeof (maplibregl as any)?.Map !== "function") {
-        console.error("MapLibreMap: Map constructor unavailable", maplibregl);
-        return;
-      }
-
-      const map = new maplibregl.Map({
-        container: ref.current,
-        style: `https://api.maptiler.com/maps/streets-v2/style.json?key=${apiKey}`,
-        center: initialCenter,
-        zoom: initialZoom,
-      });
-
-      const hasOn = typeof (map as any).on === "function";
-      const hasRemove = typeof (map as any).remove === "function";
-      const hasAddControl = typeof (map as any).addControl === "function";
-      if (!hasOn || !hasRemove || !hasAddControl) {
-        console.error("MapLibreMap: map instance missing methods", map);
-        try {
-          if (hasRemove) (map as any).remove();
-        } catch (rmErr) {
-          console.error("MapLibreMap: unable to cleanup incomplete map", rmErr);
-        }
-        return;
-      }
-
-      mapRef.current = map;
-
+    let isMounted = true;
+    (async () => {
       try {
-        if (typeof (map as any).addControl === "function") {
-          map.addControl(new maplibregl.NavigationControl(), "top-right");
+        const mod = await import("maplibre-gl").catch((err) => {
+          console.error("MapLibreMap: failed to load library", err);
+          return null;
+        });
+        if (!isMounted || !mod || typeof (mod as any).Map !== "function") {
+          console.error("MapLibreMap: Map constructor unavailable", mod);
+          return;
+        }
+        const lib: any = (mod as any).default || mod;
+        const map = new lib.Map({
+          container: ref.current!,
+          style: `https://api.maptiler.com/maps/streets-v2/style.json?key=${apiKey}`,
+          center: initialCenter,
+          zoom: initialZoom,
+        });
+
+        const hasOn = typeof (map as any).on === "function";
+        const hasRemove = typeof (map as any).remove === "function";
+        if (!hasOn || !hasRemove) {
+          console.error("MapLibreMap: map instance missing methods", map);
+          try {
+            map.remove?.();
+          } catch (rmErr) {
+            console.error("MapLibreMap: unable to cleanup incomplete map", rmErr);
+          }
+          return;
         }
 
-        if (onSelect && typeof (map as any).on === "function") {
-          map.on("click", (e) => {
-            const { lng, lat } = e.lngLat;
-            markerRef.current?.remove();
-            markerRef.current = new maplibregl.Marker().setLngLat([lng, lat]).addTo(map);
-            onSelect(lat, lng);
-          });
-        }
+        mapRef.current = map;
 
-        if (typeof (map as any).on === "function") {
-          map.on("styleimagemissing", (e) => {
-            // Evita errores cuando una imagen no existe en el sprite.
+        try {
+          map.addControl?.(new lib.NavigationControl(), "top-right");
+
+          if (onSelect) {
+            map.on?.("click", (e: any) => {
+              const { lng, lat } = e.lngLat || {};
+              if (typeof lng === "number" && typeof lat === "number") {
+                markerRef.current?.remove?.();
+                markerRef.current = new lib.Marker().setLngLat([lng, lat]).addTo(map);
+                onSelect(lat, lng);
+              }
+            });
+          }
+
+          map.on?.("styleimagemissing", (e: any) => {
             console.warn(`Imagen faltante en el estilo: "${e.id}"`);
           });
 
-          map.on("load", () => {
+          map.on?.("load", () => {
             const sourceData = heatmapData
               ? {
                   type: "FeatureCollection",
                   features: heatmapData.map((p) => ({
                     type: "Feature",
                     properties: { weight: p.weight ?? 1 },
-                    geometry: {
-                      type: "Point",
-                      coordinates: [p.lng, p.lat],
-                    },
+                    geometry: { type: "Point", coordinates: [p.lng, p.lat] },
                   })),
                 }
               : "/api/puntos";
 
-            if (typeof (map as any).addSource === "function") {
-              map.addSource("puntos", {
-                type: "geojson",
-                data: sourceData as any,
-              });
-            }
+            map.addSource?.("puntos", {
+              type: "geojson",
+              data: sourceData as any,
+            });
 
-            if (typeof (map as any).addLayer === "function") {
-              map.addLayer({
-                id: "tickets-circles",
-                type: "circle",
-                source: "puntos",
-                paint: {
-                  "circle-radius": 6,
-                  "circle-color": "#3b82f6",
-                },
-              });
-            }
+            map.addLayer?.({
+              id: "tickets-circles",
+              type: "circle",
+              source: "puntos",
+              paint: {
+                "circle-radius": 6,
+                "circle-color": "#3b82f6",
+              },
+            });
           });
-        }
-      } catch (err) {
-        console.error("MapLibreMap: failed to configure map", err);
-      }
-
-      return () => {
-        markerRef.current?.remove();
-        try {
-          map.remove();
         } catch (err) {
-          console.error("MapLibreMap: failed to remove map", err);
+          console.error("MapLibreMap: failed to configure map", err);
         }
-      };
-    } catch (err) {
-      console.error("Error initializing map", err);
-    }
+
+        return () => {
+          markerRef.current?.remove?.();
+          try {
+            map.remove?.();
+          } catch (err) {
+            console.error("MapLibreMap: failed to remove map", err);
+          }
+        };
+      } catch (err) {
+        console.error("Error initializing map", err);
+      }
+    })();
+    return () => {
+      isMounted = false;
+      try {
+        mapRef.current?.remove?.();
+      } catch (err) {
+        console.error("MapLibreMap: failed to remove map", err);
+      }
+    };
   }, [apiKey, initialCenter, initialZoom, heatmapData, onSelect]);
 
   useEffect(() => {
-    if (!(mapRef.current instanceof maplibregl.Map)) return;
-    if (typeof (mapRef.current as any).getSource !== "function") return;
-    const source = mapRef.current.getSource("puntos") as maplibregl.GeoJSONSource | undefined;
-    if (!source || typeof source.setData !== "function") return;
+    if (!mapRef.current || typeof mapRef.current.getSource !== "function") return;
+    const source = mapRef.current.getSource("puntos");
+    if (!source || typeof (source as any).setData !== "function") return;
     const features = (heatmapData ?? []).map((p) => ({
       type: "Feature",
       properties: { weight: p.weight ?? 1 },
