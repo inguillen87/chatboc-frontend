@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { apiFetch, ApiError } from '@/utils/api';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, TooltipProps } from 'recharts';
 import useRequireRole from '@/hooks/useRequireRole';
 import type { Role } from '@/utils/roles';
 
@@ -44,6 +44,17 @@ export default function MunicipalAnalytics() {
   const totalTickets = data.municipalities.reduce((acc, m) => acc + m.totalTickets, 0);
   const totalResponseHours = data.municipalities.reduce((acc, m) => acc + m.averageResponseHours, 0);
   const averageResponseHours = totalResponseHours / data.municipalities.length;
+
+  const CustomTooltip = ({ active, payload }: TooltipProps<number, string>) => {
+    if (!active || !payload || payload.length === 0) return null;
+    const item = payload[0];
+    return (
+      <div className="bg-background p-2 shadow-lg rounded-lg">
+        <p className="text-sm text-muted-foreground">{item.payload.name}</p>
+        <p className="text-sm font-bold">{item.value}</p>
+      </div>
+    );
+  };
 
   return (
     <div className="p-4 max-w-4xl mx-auto space-y-6">
@@ -102,13 +113,7 @@ export default function MunicipalAnalytics() {
               <BarChart data={chartData}>
                 <XAxis dataKey="name" />
                 <YAxis />
-                <Tooltip
-                  cursor={false}
-                  content={<div className="bg-background p-2 shadow-lg rounded-lg">
-                    <p className="text-sm text-muted-foreground">{'{payload?.[0]?.payload?.name}'}</p>
-                    <p className="text-sm font-bold">{'{payload?.[0]?.value}'}</p>
-                  </div>}
-                />
+                <Tooltip cursor={false} content={<CustomTooltip />} />
                 <Legend />
                 <Bar dataKey="value" fill="var(--color-value)" radius={4} />
               </BarChart>
