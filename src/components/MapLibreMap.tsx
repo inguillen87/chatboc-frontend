@@ -80,10 +80,29 @@ export default function MapLibreMap({
           }
 
           map.on?.("styleimagemissing", (e: any) => {
-            console.warn(`Imagen faltante en el estilo: "${e.id}"`);
+            const name = e.id;
+            if (!name) {
+              console.warn('Imagen faltante sin id válido');
+              return;
+            }
+            const url = `/icons/${name}.png`;
+            if (map.hasImage?.(name)) return;
+            map.loadImage?.(url, (err: any, image: any) => {
+              if (err || !image) {
+                console.warn('No pude cargar icono', name, url, err);
+                return;
+              }
+              map.addImage?.(name, image);
+            });
           });
 
           map.on?.("load", () => {
+            map.loadImage?.('/icons/pin-blue.png', (err: any, image: any) => {
+              if (!err && image && !map.hasImage?.('pin-blue')) {
+                map.addImage?.('pin-blue', image);
+              }
+            });
+
             const sourceData = heatmapData
               ? {
                   type: "FeatureCollection",
