@@ -29,7 +29,14 @@ export default function MapLibreMap({
       }
       return;
     }
+
     try {
+      // Verifica que la librería exponga el constructor esperado
+      if (typeof (maplibregl as any)?.Map !== "function") {
+        console.error("MapLibreMap: Map constructor unavailable", maplibregl);
+        return;
+      }
+
       const map = new maplibregl.Map({
         container: ref.current,
         style: `https://api.maptiler.com/maps/streets-v2/style.json?key=${apiKey}`,
@@ -37,9 +44,16 @@ export default function MapLibreMap({
         zoom: initialZoom,
       });
 
-      // Algunos entornos pueden devolver un objeto sin el método `on`
-      if (typeof (map as any).on !== "function") {
-        console.error("MapLibreMap: map instance lacks .on method", map);
+      const hasOn = typeof (map as any).on === "function";
+      const hasRemove = typeof (map as any).remove === "function";
+      const hasAddControl = typeof (map as any).addControl === "function";
+      if (!hasOn || !hasRemove || !hasAddControl) {
+        console.error("MapLibreMap: map instance missing methods", map);
+        try {
+          if (hasRemove) (map as any).remove();
+        } catch (rmErr) {
+          console.error("MapLibreMap: unable to cleanup incomplete map", rmErr);
+        }
         return;
       }
 
