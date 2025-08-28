@@ -70,6 +70,12 @@ export function useChatLogic({ tipoChat, entityToken: propToken, tokenKey = 'aut
         entityToken: entityToken // Pass entity token for context
       }
     });
+
+    if (!socket || typeof (socket as any).on !== "function") {
+      console.error("Socket.io returned an invalid client", socket);
+      return;
+    }
+
     socketRef.current = socket;
     const sessionId = getOrCreateChatSessionId();
 
@@ -145,8 +151,10 @@ export function useChatLogic({ tipoChat, entityToken: propToken, tokenKey = 'aut
 
     // Cleanup on component unmount
     return () => {
-      socket.off('bot_response', handleBotMessage);
-      socket.off('message', handleBotMessage);
+      if (typeof socket.off === 'function') {
+        socket.off('bot_response', handleBotMessage);
+        socket.off('message', handleBotMessage);
+      }
       socket.disconnect();
     };
 }, [entityToken, tipoChat]);
