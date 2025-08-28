@@ -1,6 +1,9 @@
 import { useEffect, useRef } from "react";
 // MapLibre se importa de forma dinámica para evitar errores en entornos donde
 // la librería no esté disponible completamente o falten métodos como `on`.
+// Intentamos importar el bundle de MapLibre de manera dinámica. Si no está
+// disponible (por ejemplo, cuando la dependencia no pudo instalarse), se
+// cargará desde un CDN junto con su hoja de estilos.
 import "maplibre-gl/dist/maplibre-gl.css";
 import { safeOn, assertEventSource } from "@/utils/safeOn";
 
@@ -36,15 +39,47 @@ export default function MapLibreMap({
     let isMounted = true;
     (async () => {
       try {
-        const mod = await import("maplibre-gl").catch((err) => {
+        let lib: any = null;
+
+        async function loadFromCDN() {
+          const existing = (window as any).maplibregl;
+          if (existing) return existing;
+
+          const scriptUrl = "https://unpkg.com/maplibre-gl@3.5.2/dist/maplibre-gl.js";
+          const cssUrl = "https://unpkg.com/maplibre-gl@3.5.2/dist/maplibre-gl.css";
+
+          await new Promise<void>((resolve, reject) => {
+            const script = document.createElement("script");
+            script.src = scriptUrl;
+            script.onload = () => resolve();
+            script.onerror = () => reject();
+            document.head.appendChild(script);
+          }).catch((cdnErr) => {
+            console.error("MapLibreMap: CDN script load failed", cdnErr);
+          });
+
+          if (!document.querySelector(`link[href="${cssUrl}"]`)) {
+            const link = document.createElement("link");
+            link.rel = "stylesheet";
+            link.href = cssUrl;
+            document.head.appendChild(link);
+          }
+
+          return (window as any).maplibregl || null;
+        }
+
+        try {
+          const mod = await import("maplibre-gl");
+          lib = (mod as any).default || mod;
+        } catch (err) {
           console.error("MapLibreMap: failed to load library", err);
-          return null;
-        });
-        if (!isMounted || !mod || typeof (mod as any).Map !== "function") {
-          console.error("MapLibreMap: Map constructor unavailable", mod);
+          lib = await loadFromCDN();
+        }
+
+        if (!isMounted || !lib || typeof lib.Map !== "function") {
+          console.error("MapLibreMap: Map constructor unavailable", lib);
           return;
         }
-        const lib: any = (mod as any).default || mod;
         const map = new lib.Map({
           container: ref.current!,
           style: `https://api.maptiler.com/maps/streets-v2/style.json?key=${apiKey}`,
@@ -80,13 +115,24 @@ export default function MapLibreMap({
           };
 
           const styleImageMissingHandler = (e: any) => {
-            const name = e.id;
-            if (!name) {
-              console.warn("Imagen faltante sin id válido");
+            const raw = e.id as string | undefined;
+            if (!raw || !raw.trim()) {
+              // El estilo solicitó una imagen sin nombre válido: añadimos un pixel transparente
+              // para evitar que MapLibre siga registrando errores en consola.
+              const key = raw ?? "";
+              if (!map.hasImage?.(key)) {
+                const empty = { width: 1, height: 1, data: new Uint8Array([0, 0, 0, 0]) };
+                try {
+                  map.addImage?.(key, empty as any);
+                } catch (imgErr) {
+                  console.warn("No se pudo agregar imagen vacía", imgErr);
+                }
+              }
               return;
             }
-            const url = `/icons/${name}.png`;
+            const name = raw.trim();
             if (map.hasImage?.(name)) return;
+            const url = `/icons/${name}.png`;
             map.loadImage?.(url, (err: any, image: any) => {
               if (err || !image) {
                 console.warn("No pude cargar icono", name, url, err);
@@ -120,12 +166,27 @@ export default function MapLibreMap({
             });
 
             map.addLayer?.({
+              id: "tickets-heat",
+              type: "heatmap",
+              source: "puntos",
+              maxzoom: 15,
+              paint: {
+                "heatmap-weight": ["get", "weight"],
+                "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 0, 1, 15, 3],
+                "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 0, 2, 9, 20],
+                "heatmap-opacity": 0.6,
+              },
+            });
+
+            map.addLayer?.({
               id: "tickets-circles",
               type: "circle",
               source: "puntos",
+              minzoom: 14,
               paint: {
                 "circle-radius": 6,
                 "circle-color": "#3b82f6",
+                "circle-opacity": 0.9,
               },
             });
           };

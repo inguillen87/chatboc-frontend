@@ -167,18 +167,12 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
 
   const normalized = normalizeAttachment(message);
   if (normalized) {
-    if (message.id && !message.isBot) {
-      console.log(`ChatMessageBase: message [${message.id}] normalized attachment:`, normalized);
-    }
     processedAttachmentInfo = deriveAttachmentInfo(
       normalized.url,
       normalized.name,
       normalized.mimeType,
       normalized.size
     );
-    if (message.id && !message.isBot) {
-      console.log(`ChatMessageBase: message [${message.id}] processedAttachmentInfo:`, processedAttachmentInfo);
-    }
   } else if (message.mediaUrl && isBot) {
     // Esto es para mediaUrl en mensajes de bot, no relevante para adjuntos de usuario ahora mismo
     processedAttachmentInfo = deriveAttachmentInfo(message.mediaUrl, message.mediaUrl.split('/').pop() || "archivo_adjunto");
