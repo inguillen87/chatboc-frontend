@@ -4,6 +4,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import useRequireRole from '@/hooks/useRequireRole';
 import type { Role } from '@/utils/roles';
+import ChartTooltip from '@/components/analytics/ChartTooltip';
 
 interface Municipality {
   name: string;
@@ -102,13 +103,7 @@ export default function MunicipalAnalytics() {
               <BarChart data={chartData}>
                 <XAxis dataKey="name" />
                 <YAxis />
-                <Tooltip
-                  cursor={false}
-                  content={<div className="bg-background p-2 shadow-lg rounded-lg">
-                    <p className="text-sm text-muted-foreground">{'{payload?.[0]?.payload?.name}'}</p>
-                    <p className="text-sm font-bold">{'{payload?.[0]?.value}'}</p>
-                  </div>}
-                />
+                <Tooltip cursor={false} content={<ChartTooltip />} />
                 <Legend />
                 <Bar dataKey="value" fill="var(--color-value)" radius={4} />
               </BarChart>
