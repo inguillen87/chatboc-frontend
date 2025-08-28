@@ -21,12 +21,19 @@ export default function TicketLookup() {
   const [messages, setMessages] = useState<Message[]>([]);
 
   const performSearch = useCallback(async (searchId: string, searchPin: string) => {
-    if (!searchId) return;
+    const id = searchId.trim();
+    const pinVal = searchPin.trim();
+    if (!id) return;
+    if (!pinVal) {
+      setError('El PIN es obligatorio para consultar el ticket');
+      setTicket(null);
+      return;
+    }
     setLoading(true);
     setError(null);
     setMessages([]);
     try {
-      const data = await getTicketByNumber(searchId, searchPin);
+      const data = await getTicketByNumber(id, pinVal);
       setTicket(data);
       try {
         const msgs = await getTicketMessages(data.id, data.tipo);
