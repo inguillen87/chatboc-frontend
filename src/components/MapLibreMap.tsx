@@ -37,61 +37,75 @@ export default function MapLibreMap({
         zoom: initialZoom,
       });
 
-      mapRef.current = map;
-
-      map.addControl(new maplibregl.NavigationControl(), "top-right");
-
-      if (onSelect) {
-        map.on("click", (e) => {
-          const { lng, lat } = e.lngLat;
-          markerRef.current?.remove();
-          markerRef.current = new maplibregl.Marker().setLngLat([lng, lat]).addTo(map);
-          onSelect(lat, lng);
-        });
+      // Algunos entornos pueden devolver un objeto sin el método `on`
+      if (typeof (map as any).on !== "function") {
+        console.error("MapLibreMap: map instance lacks .on method", map);
+        return;
       }
 
-      map.on("styleimagemissing", (e) => {
-        // Evita errores cuando una imagen no existe en el sprite.
-        console.warn(`Imagen faltante en el estilo: "${e.id}"`);
-      });
+      mapRef.current = map;
 
-      map.on("load", () => {
-        const sourceData = heatmapData
-          ? {
-              type: "FeatureCollection",
-              features: heatmapData.map((p) => ({
-                type: "Feature",
-                properties: { weight: p.weight ?? 1 },
-                geometry: {
-                  type: "Point",
-                  coordinates: [p.lng, p.lat],
-                },
-              })),
-            }
-          : "/api/puntos";
+      try {
+        map.addControl(new maplibregl.NavigationControl(), "top-right");
 
-        map.addSource("puntos", {
-          type: "geojson",
-          data: sourceData as any,
+        if (onSelect) {
+          map.on("click", (e) => {
+            const { lng, lat } = e.lngLat;
+            markerRef.current?.remove();
+            markerRef.current = new maplibregl.Marker().setLngLat([lng, lat]).addTo(map);
+            onSelect(lat, lng);
+          });
+        }
+
+        map.on("styleimagemissing", (e) => {
+          // Evita errores cuando una imagen no existe en el sprite.
+          console.warn(`Imagen faltante en el estilo: "${e.id}"`);
         });
 
-        map.addLayer({
-          id: "heat",
-          type: "heatmap",
-          source: "puntos",
-          maxzoom: 16,
-          paint: {
-            "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 0, 1, 16, 3],
-            "heatmap-weight": ["interpolate", ["linear"], ["get", "weight"], 0, 0, 10, 1],
-            "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 0, 2, 16, 35],
-            "heatmap-opacity": 0.8,
-          },
+        map.on("load", () => {
+          const sourceData = heatmapData
+            ? {
+                type: "FeatureCollection",
+                features: heatmapData.map((p) => ({
+                  type: "Feature",
+                  properties: { weight: p.weight ?? 1 },
+                  geometry: {
+                    type: "Point",
+                    coordinates: [p.lng, p.lat],
+                  },
+                })),
+              }
+            : "/api/puntos";
+
+          map.addSource("puntos", {
+            type: "geojson",
+            data: sourceData as any,
+          });
+
+          map.addLayer({
+            id: "heat",
+            type: "heatmap",
+            source: "puntos",
+            maxzoom: 16,
+            paint: {
+              "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 0, 1, 16, 3],
+              "heatmap-weight": ["interpolate", ["linear"], ["get", "weight"], 0, 0, 10, 1],
+              "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 0, 2, 16, 35],
+              "heatmap-opacity": 0.8,
+            },
+          });
         });
-      });
+      } catch (err) {
+        console.error("MapLibreMap: failed to configure map", err);
+      }
 
       return () => {
         markerRef.current?.remove();
-        map.remove();
+        try {
+          map.remove();
+        } catch (err) {
+          console.error("MapLibreMap: failed to remove map", err);
+        }
       };
     } catch (err) {
       console.error("Error initializing map", err);
@@ -99,7 +113,7 @@ export default function MapLibreMap({
   }, [apiKey, initialCenter, initialZoom, heatmapData, onSelect]);
 
   useEffect(() => {
-    if (!mapRef.current) return;
+    if (!(mapRef.current instanceof maplibregl.Map)) return;
     const source = mapRef.current.getSource("puntos") as maplibregl.GeoJSONSource | undefined;
     if (!source) return;
     const features = (heatmapData ?? []).map((p) => ({

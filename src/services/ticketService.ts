@@ -43,9 +43,12 @@ export const getTicketByNumber = async (
     nroTicket: string,
     pin?: string
 ): Promise<Ticket> => {
+    if (!pin) {
+        throw new ApiError('El PIN es obligatorio', 400, null);
+    }
     const raw = nroTicket.trim();
     const clean = raw.replace(/[^\d]/g, '');
-    const pinParam = pin ? `?pin=${encodeURIComponent(pin)}` : '';
+    const pinParam = `?pin=${encodeURIComponent(pin)}`;
     const endpoints = [
         `/tickets/municipio/por_numero/${encodeURIComponent(raw)}${pinParam}`,
         `/tickets/municipio/por_numero/${encodeURIComponent(clean)}${pinParam}`,
