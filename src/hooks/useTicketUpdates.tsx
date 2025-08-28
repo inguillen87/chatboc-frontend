@@ -3,6 +3,7 @@ import { io, Socket } from 'socket.io-client';
 import { toast } from '@/components/ui/use-toast';
 import { useUser } from './useUser';
 import { apiFetch } from '@/utils/api';
+import { safeOn, assertEventSource } from '@/utils/safeOn';
 
 interface TicketUpdate {
   ticket_id: number;
@@ -34,41 +35,36 @@ export default function useTicketUpdates() {
           withCredentials: true, // Para enviar cookies si es necesario
         });
 
-        // Si por algún motivo la librería no devuelve una instancia válida,
-        // evitamos que la aplicación se rompa al llamar a `.on` sobre algo que
-        // no implementa el EventEmitter de Socket.io.
-        if (!socket || typeof (socket as any).on !== 'function') {
-          console.error('Socket.io returned an invalid client:', socket);
-          return;
-        }
+        assertEventSource(socket, 'ticket-socket');
 
-        socket.on('connect', () => {
+        const handleConnect = () => {
           console.log('Socket.io connected successfully');
-        });
-
-        socket.on('disconnect', () => {
+        };
+        const handleDisconnect = () => {
           console.log('Socket.io disconnected');
-        });
-
-        // Escucha eventos de actualización de tickets
-        socket.on('new_ticket', (data: any) => {
+        };
+        const handleNewTicket = (data: any) => {
           toast({
             title: `Nuevo Ticket #${data.nro_ticket}`,
             description: data.asunto,
           });
-        });
-
-        socket.on('new_comment', (data: any) => {
+        };
+        const handleNewComment = (data: any) => {
           toast({
             title: `Nuevo Comentario en Ticket #${data.ticketId}`,
             description: data.comment.comentario,
           });
-        });
-
-        socket.on('connect_error', (err) => {
+        };
+        const handleConnectError = (err: any) => {
           console.error('Socket.io connection error:', err);
           socket?.close();
-        });
+        };
+
+        safeOn(socket, 'connect', handleConnect);
+        safeOn(socket, 'disconnect', handleDisconnect);
+        safeOn(socket, 'new_ticket', handleNewTicket);
+        safeOn(socket, 'new_comment', handleNewComment);
+        safeOn(socket, 'connect_error', handleConnectError);
 
       } catch (err) {
         console.error('Failed to initialize ticket notifications', err);
@@ -81,6 +77,11 @@ export default function useTicketUpdates() {
     return () => {
       active = false;
       if (socket) {
+        socket.off?.('connect', handleConnect);
+        socket.off?.('disconnect', handleDisconnect);
+        socket.off?.('new_ticket', handleNewTicket);
+        socket.off?.('new_comment', handleNewComment);
+        socket.off?.('connect_error', handleConnectError);
         socket.disconnect();
       }
     };

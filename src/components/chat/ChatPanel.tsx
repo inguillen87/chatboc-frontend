@@ -26,6 +26,7 @@ import { useBusinessHours } from "@/hooks/useBusinessHours";
 import { Button } from "@/components/ui/button";
 import io from 'socket.io-client';
 import { getSocketUrl } from "@/config";
+import { safeOn, assertEventSource } from "@/utils/safeOn";
 
 const PENDING_TICKET_KEY = 'pending_ticket_id';
 const PENDING_GPS_KEY = 'pending_gps';
@@ -129,12 +130,15 @@ const ChatPanel = ({
         };
         setMessages(prevMessages => [...prevMessages, newMessage]);
       };
-
-      socket.on('new_chat_message', handleIncoming);
+      assertEventSource(socket, 'socket');
+      const ok = safeOn(socket, 'new_chat_message', handleIncoming);
+      if (!ok) {
+        console.warn('No pude suscribirme a "new_chat_message"');
+      }
 
       return () => {
-        socket.off('new_chat_message', handleIncoming);
-        socket.disconnect();
+        socket?.off?.('new_chat_message', handleIncoming);
+        socket?.disconnect?.();
       };
     }
   }, [activeTicketId, tipoChat, setMessages]);

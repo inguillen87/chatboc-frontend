@@ -19,6 +19,19 @@ import { getInitials, cn } from "@/lib/utils";
 import UserAvatarAnimated from "./UserAvatarAnimated";
 import { Badge } from "@/components/ui/badge";
 
+type RawAttachment = { url: string; name: string; mimeType?: string; size?: number };
+
+function normalizeAttachment(msg: any): RawAttachment | null {
+  if (msg?.attachmentInfo && msg.attachmentInfo.url && msg.attachmentInfo.name) {
+    return msg.attachmentInfo;
+  }
+  if (Array.isArray(msg?.attachments) && msg.attachments.length > 0) {
+    const first = msg.attachments[0];
+    if (first?.url && first?.name) return first;
+  }
+  return null;
+}
+
 // --- Avatares (reutilizados de ChatMessagePyme/Municipio) ---
 const AvatarBot: React.FC<{ isTyping: boolean }> = ({ isTyping }) => (
   <motion.div
@@ -152,21 +165,19 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
 
   let processedAttachmentInfo: AttachmentInfo | null = null;
 
-  // Log para depurar message.attachmentInfo ANTES de procesarlo
-  if (message.id && !message.isBot) { // Log solo para mensajes de usuario para reducir ruido
-    console.log(`ChatMessageBase: message [${message.id}] received attachmentInfo:`, message.attachmentInfo);
-  }
-
-  if (message.attachmentInfo?.url && message.attachmentInfo?.name) {
-    processedAttachmentInfo = deriveAttachmentInfo(
-      message.attachmentInfo.url,
-      message.attachmentInfo.name,
-      message.attachmentInfo.mimeType,
-      message.attachmentInfo.size
-    );
-    // Log para depurar processedAttachmentInfo DESPUÉS de procesarlo
+  const normalized = normalizeAttachment(message);
+  if (normalized) {
     if (message.id && !message.isBot) {
-        console.log(`ChatMessageBase: message [${message.id}] processedAttachmentInfo:`, processedAttachmentInfo);
+      console.log(`ChatMessageBase: message [${message.id}] normalized attachment:`, normalized);
+    }
+    processedAttachmentInfo = deriveAttachmentInfo(
+      normalized.url,
+      normalized.name,
+      normalized.mimeType,
+      normalized.size
+    );
+    if (message.id && !message.isBot) {
+      console.log(`ChatMessageBase: message [${message.id}] processedAttachmentInfo:`, processedAttachmentInfo);
     }
   } else if (message.mediaUrl && isBot) {
     // Esto es para mediaUrl en mensajes de bot, no relevante para adjuntos de usuario ahora mismo
