@@ -41,10 +41,7 @@ const AttachmentPreview: React.FC<Props> = ({ message, attachmentInfo, fallbackT
   // Acceder a locationData de forma segura, message puede no estar siempre si solo se pasa attachmentInfo (aunque el plan es pasar message)
   const locationData = message?.locationData;
 
-  // Log para depuración
-  if (attachmentInfo) {
-    console.log("AttachmentPreview attachmentInfo:", attachmentInfo);
-  }
+  // No realizar logging en producción para evitar ruido en consola.
 
   if (locationData && typeof locationData.lat === 'number' && typeof locationData.lon === 'number') {
     const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${locationData.lat},${locationData.lon}`;
