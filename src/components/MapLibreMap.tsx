@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 // MapLibre se importa de forma dinámica para evitar errores en entornos donde
 // la librería no esté disponible completamente o falten métodos como `on`.
 import "maplibre-gl/dist/maplibre-gl.css";
+import { safeOn, assertEventSource } from "@/utils/safeOn";
 
 type HeatPoint = { lat: number; lng: number; weight?: number };
 
@@ -35,15 +36,18 @@ export default function MapLibreMap({
     let isMounted = true;
     (async () => {
       try {
-        const mod = await import("maplibre-gl").catch((err) => {
+        let lib: any = null;
+        try {
+          const mod = await import("maplibre-gl");
+          lib = (mod as any).default || mod;
+        } catch (err) {
           console.error("MapLibreMap: failed to load library", err);
-          return null;
-        });
-        if (!isMounted || !mod || typeof (mod as any).Map !== "function") {
-          console.error("MapLibreMap: Map constructor unavailable", mod);
+          lib = (window as any).maplibregl || null;
+        }
+        if (!isMounted || !lib || typeof lib.Map !== "function") {
+          console.error("MapLibreMap: Map constructor unavailable", lib);
           return;
         }
-        const lib: any = (mod as any).default || mod;
         const map = new lib.Map({
           container: ref.current!,
           style: `https://api.maptiler.com/maps/streets-v2/style.json?key=${apiKey}`,
@@ -64,26 +68,55 @@ export default function MapLibreMap({
         }
 
         mapRef.current = map;
+        assertEventSource(map, "map");
 
         try {
           map.addControl?.(new lib.NavigationControl(), "top-right");
 
-          if (onSelect) {
-            map.on?.("click", (e: any) => {
-              const { lng, lat } = e.lngLat || {};
-              if (typeof lng === "number" && typeof lat === "number") {
-                markerRef.current?.remove?.();
-                markerRef.current = new lib.Marker().setLngLat([lng, lat]).addTo(map);
-                onSelect(lat, lng);
+          const clickHandler = (e: any) => {
+            const { lng, lat } = e.lngLat || {};
+            if (typeof lng === "number" && typeof lat === "number") {
+              markerRef.current?.remove?.();
+              markerRef.current = new lib.Marker().setLngLat([lng, lat]).addTo(map);
+              onSelect?.(lat, lng);
+            }
+          };
+
+          const styleImageMissingHandler = (e: any) => {
+            const raw = e.id as string | undefined;
+            if (!raw || !raw.trim()) {
+              // El estilo solicitó una imagen sin nombre válido: añadimos un pixel transparente
+              // para evitar que MapLibre siga registrando errores en consola.
+              const key = raw ?? "";
+              if (!map.hasImage?.(key)) {
+                const empty = { width: 1, height: 1, data: new Uint8Array([0, 0, 0, 0]) };
+                try {
+                  map.addImage?.(key, empty as any);
+                } catch (imgErr) {
+                  console.warn("No se pudo agregar imagen vacía", imgErr);
+                }
+              }
+              return;
+            }
+            const name = raw.trim();
+            if (map.hasImage?.(name)) return;
+            const url = `/icons/${name}.png`;
+            map.loadImage?.(url, (err: any, image: any) => {
+              if (err || !image) {
+                console.warn("No pude cargar icono", name, url, err);
+                return;
+              }
+              map.addImage?.(name, image);
+            });
+          };
+
+          const loadHandler = () => {
+            map.loadImage?.("/icons/pin-blue.png", (err: any, image: any) => {
+              if (!err && image && !map.hasImage?.("pin-blue")) {
+                map.addImage?.("pin-blue", image);
               }
             });
-          }
 
-          map.on?.("styleimagemissing", (e: any) => {
-            console.warn(`Imagen faltante en el estilo: "${e.id}"`);
-          });
-
-          map.on?.("load", () => {
             const sourceData = heatmapData
               ? {
                   type: "FeatureCollection",
@@ -101,27 +134,51 @@ export default function MapLibreMap({
             });
 
             map.addLayer?.({
+              id: "tickets-heat",
+              type: "heatmap",
+              source: "puntos",
+              maxzoom: 15,
+              paint: {
+                "heatmap-weight": ["get", "weight"],
+                "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 0, 1, 15, 3],
+                "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 0, 2, 9, 20],
+                "heatmap-opacity": 0.6,
+              },
+            });
+
+            map.addLayer?.({
               id: "tickets-circles",
               type: "circle",
               source: "puntos",
+              minzoom: 14,
               paint: {
                 "circle-radius": 6,
                 "circle-color": "#3b82f6",
+                "circle-opacity": 0.9,
               },
             });
-          });
+          };
+
+          if (onSelect) {
+            safeOn(map, "click", clickHandler);
+          }
+          safeOn(map, "styleimagemissing", styleImageMissingHandler);
+          safeOn(map, "load", loadHandler);
+
+          return () => {
+            markerRef.current?.remove?.();
+            map.off?.("click", clickHandler);
+            map.off?.("styleimagemissing", styleImageMissingHandler);
+            map.off?.("load", loadHandler);
+            try {
+              map.remove?.();
+            } catch (err) {
+              console.error("MapLibreMap: failed to remove map", err);
+            }
+          };
         } catch (err) {
           console.error("MapLibreMap: failed to configure map", err);
         }
-
-        return () => {
-          markerRef.current?.remove?.();
-          try {
-            map.remove?.();
-          } catch (err) {
-            console.error("MapLibreMap: failed to remove map", err);
-          }
-        };
       } catch (err) {
         console.error("Error initializing map", err);
       }
