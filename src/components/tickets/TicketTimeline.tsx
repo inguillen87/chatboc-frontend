@@ -10,7 +10,13 @@ interface TicketTimelineProps {
 
 type TimelineEvent =
   | { type: 'status'; status: string; date: string; notes?: string }
-  | { type: 'message'; date: string; author: string; content: string };
+  | {
+      type: 'message';
+      date: string;
+      author: string;
+      origin: 'agent' | 'user';
+      content: string;
+    };
 
 const TicketTimeline: React.FC<TicketTimelineProps> = ({ history, messages = [] }) => {
   const events: TimelineEvent[] = [
@@ -19,6 +25,7 @@ const TicketTimeline: React.FC<TicketTimelineProps> = ({ history, messages = [] 
       type: 'message',
       date: m.timestamp,
       author: m.agentName || (m.author === 'agent' ? 'Agente' : 'Vecino'),
+      origin: m.author,
       content: m.content,
     })),
   ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -66,9 +73,16 @@ const TicketTimeline: React.FC<TicketTimelineProps> = ({ history, messages = [] 
                 )}
               </div>
             ) : (
-              <div className="flex flex-col gap-1">
-                <h4 className="font-semibold">{event.author}</h4>
-                <p className="mt-1">{event.content}</p>
+              <div className={`flex flex-col gap-1 ${event.origin === 'agent' ? 'items-end' : 'items-start'}`}>
+                <div
+                  className={`px-3 py-2 rounded-lg max-w-[80%] ${
+                    event.origin === 'agent'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted'
+                  }`}
+                >
+                  <p className="text-sm">{event.content}</p>
+                </div>
                 <time className="text-sm text-muted-foreground">
                   {formatDate(
                     event.date,

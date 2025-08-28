@@ -59,6 +59,20 @@ export interface TicketHistoryEvent {
   notes?: string;
 }
 
+export interface TicketTimelineEvent {
+  tipo: 'ticket_creado' | 'comentario' | 'estado';
+  fecha: string;
+  estado?: string;
+  texto?: string;
+  es_admin?: boolean;
+  user_id?: number;
+}
+
+export interface TicketTimelineResponse {
+  estado_chat: string;
+  timeline: TicketTimelineEvent[];
+}
+
 export interface Ticket {
   id: number;
   tipo: 'municipio' | 'pyme';
