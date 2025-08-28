@@ -44,7 +44,7 @@ export const getTicketByNumber = async (
     pin?: string
 ): Promise<Ticket> => {
     if (!pin) {
-        throw new ApiError('El PIN es obligatorio', 400, null);
+        throw new ApiError('El PIN es obligatorio', 400);
     }
     const raw = nroTicket.trim();
     const clean = raw.replace(/[^\d]/g, '');
