@@ -1,5 +1,10 @@
 import { apiFetch, ApiError } from '@/utils/api';
-import { Ticket, Message, TicketHistoryEvent } from '@/types/tickets';
+import {
+  Ticket,
+  Message,
+  TicketHistoryEvent,
+  TicketTimelineResponse,
+} from '@/types/tickets';
 import { AttachmentInfo } from '@/types/chat';
 
 const generateRandomAvatar = (seed: string) => {
@@ -106,6 +111,41 @@ export const getTicketMessages = async (ticketId: number, tipo: 'municipio' | 'p
         throw error;
     }
 }
+
+export const getTicketTimeline = async (
+  ticketId: number,
+  tipo: 'municipio' | 'pyme',
+  opts?: { public?: boolean }
+): Promise<{ estado_chat: string; history: TicketHistoryEvent[]; messages: Message[] }> => {
+  try {
+    const endpoint = `/tickets/${tipo}/${ticketId}/timeline`;
+    const fetchOpts = opts?.public
+      ? { skipAuth: true, sendAnonId: true, sendEntityToken: true }
+      : { sendAnonId: true };
+    const response = await apiFetch<TicketTimelineResponse>(endpoint, fetchOpts);
+    const history: TicketHistoryEvent[] = [];
+    const messages: Message[] = [];
+    response.timeline?.forEach((evt, idx) => {
+      if (evt.tipo === 'comentario') {
+        messages.push({
+          id: idx,
+          author: evt.es_admin ? 'agent' : 'user',
+          content: evt.texto || '',
+          timestamp: evt.fecha,
+        });
+      } else {
+        history.push({
+          status: evt.estado || '',
+          date: evt.fecha,
+        });
+      }
+    });
+    return { estado_chat: response.estado_chat, history, messages };
+  } catch (error) {
+    console.error(`Error fetching timeline for ticket ${ticketId}:`, error);
+    throw error;
+  }
+};
 
 export interface Button {
     type: 'reply';

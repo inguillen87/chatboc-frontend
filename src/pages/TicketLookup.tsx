@@ -2,8 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { getTicketByNumber, getTicketMessages } from '@/services/ticketService';
-import { Ticket, Message } from '@/types/tickets';
+import { getTicketByNumber, getTicketTimeline } from '@/services/ticketService';
+import { Ticket, Message, TicketHistoryEvent } from '@/types/tickets';
 import { formatDate } from '@/utils/fecha';
 import TicketTimeline from '@/components/tickets/TicketTimeline';
 import { Separator } from '@/components/ui/separator';
@@ -18,7 +18,9 @@ export default function TicketLookup() {
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [timelineHistory, setTimelineHistory] = useState<TicketHistoryEvent[]>([]);
+  const [timelineMessages, setTimelineMessages] = useState<Message[]>([]);
+  const [estadoChat, setEstadoChat] = useState('');
 
   const performSearch = useCallback(async (searchId: string, searchPin: string) => {
     const id = searchId.trim();
@@ -31,15 +33,19 @@ export default function TicketLookup() {
     }
     setLoading(true);
     setError(null);
-    setMessages([]);
+    setTimelineHistory([]);
+    setTimelineMessages([]);
+    setEstadoChat('');
     try {
       const data = await getTicketByNumber(id, pinVal);
       setTicket(data);
       try {
-        const msgs = await getTicketMessages(data.id, data.tipo);
-        setMessages(msgs);
+        const timeline = await getTicketTimeline(data.id, data.tipo, { public: true });
+        setTimelineHistory(timeline.history);
+        setTimelineMessages(timeline.messages);
+        setEstadoChat(timeline.estado_chat);
       } catch (msgErr) {
-        console.error('Error fetching messages for ticket', msgErr);
+        console.error('Error fetching timeline for ticket', msgErr);
       }
     } catch (err) {
       const apiErr = err as ApiError;
@@ -121,7 +127,7 @@ export default function TicketLookup() {
           <div>
             <p className="text-sm text-muted-foreground">Ticket #{ticket.nro_ticket}</p>
             <h2 className="text-2xl font-semibold">{ticket.asunto}</h2>
-            <p className="pt-1"><span className="font-medium">Estado actual:</span> <span className="text-primary font-semibold">{ticket.estado}</span></p>
+            <p className="pt-1"><span className="font-medium">Estado actual:</span> <span className="text-primary font-semibold">{estadoChat || ticket.estado}</span></p>
             <p className="text-sm text-muted-foreground">
               Creado el: {formatDate(ticket.fecha, Intl.DateTimeFormat().resolvedOptions().timeZone, 'es-AR')}
             </p>
@@ -150,7 +156,7 @@ export default function TicketLookup() {
 
           <div>
             <h3 className="text-xl font-semibold mb-4">Historial del Reclamo</h3>
-            <TicketTimeline history={ticket.history || []} messages={messages} />
+            <TicketTimeline history={timelineHistory} messages={timelineMessages} />
           </div>
 
         </div>
