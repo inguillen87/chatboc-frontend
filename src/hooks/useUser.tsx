@@ -15,7 +15,7 @@ interface UserData {
   logo_url?: string;
   picture?: string;
   tipo_chat?: 'pyme' | 'municipio';
-  rol?: string;s
+  rol?: string;
 }
 
 interface UserContextValue {
