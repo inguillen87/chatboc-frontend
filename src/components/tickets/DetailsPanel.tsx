@@ -7,10 +7,11 @@ import { Mail, MapPin, Ticket as TicketIcon, Info, FileDown, User, ExternalLink,
 import { Badge } from '@/components/ui/badge';
 import { motion } from 'framer-motion';
 import TicketMap from '../TicketMap';
+import TicketTimeline from './TicketTimeline';
 import { useTickets } from '@/context/TicketContext';
 import { exportToPdf, exportToXlsx } from '@/services/exportService';
-import { sendTicketHistory } from '@/services/ticketService';
-import { Ticket } from '@/types/tickets';
+import { sendTicketHistory, getTicketById, getTicketMessages } from '@/services/ticketService';
+import { Ticket, Message, TicketHistoryEvent } from '@/types/tickets';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,6 +26,8 @@ import { cn } from '@/lib/utils';
 const DetailsPanel: React.FC = () => {
   const { selectedTicket: ticket } = useTickets();
   const [isSendingEmail, setIsSendingEmail] = React.useState(false);
+  const [timelineHistory, setTimelineHistory] = React.useState<TicketHistoryEvent[]>([]);
+  const [timelineMessages, setTimelineMessages] = React.useState<Message[]>([]);
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text).then(() => {
@@ -88,6 +91,31 @@ const DetailsPanel: React.FC = () => {
       : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ticket.direccion || '')}`;
     window.open(url, '_blank');
   };
+
+  React.useEffect(() => {
+    const fetchTimeline = async () => {
+      if (!ticket) {
+        setTimelineHistory([]);
+        setTimelineMessages([]);
+        return;
+      }
+      try {
+        const detailed = await getTicketById(ticket.id.toString());
+        setTimelineHistory(detailed.history || []);
+      } catch (error) {
+        console.error('Error fetching ticket history:', error);
+        setTimelineHistory([]);
+      }
+      try {
+        const msgs = await getTicketMessages(ticket.id, ticket.tipo);
+        setTimelineMessages(msgs);
+      } catch (error) {
+        console.error('Error fetching ticket messages:', error);
+        setTimelineMessages([]);
+      }
+    };
+    fetchTimeline();
+  }, [ticket]);
 
 
   const formatCategory = (t: typeof ticket) => {
@@ -310,6 +338,11 @@ const DetailsPanel: React.FC = () => {
                      </div>
                 </CardContent>
             )}
+
+            <CardContent className="p-4 border-t">
+                <h4 className="font-semibold mb-2">Historial del Ticket</h4>
+                <TicketTimeline history={timelineHistory} messages={timelineMessages} />
+            </CardContent>
 
           </Card>
         </div>
