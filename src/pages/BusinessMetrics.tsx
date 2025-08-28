@@ -31,6 +31,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { apiFetch, ApiError } from "@/utils/api";
+import ChartTooltip from "@/components/analytics/ChartTooltip";
 
 // --- MOCK DATA & TYPES (as per backend spec) ---
 
@@ -152,7 +153,11 @@ const RegionChart: FC<{ data: RegionSale[] }> = ({ data }) => {
                         <Pie data={data} dataKey="sales" nameKey="region_name" cx="50%" cy="50%" outerRadius={80} label>
                             {data.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
                         </Pie>
-                        <Tooltip formatter={(value) => `$${Number(value).toLocaleString('es-AR')}`} />
+                        <Tooltip
+                            cursor={false}
+                            content={<ChartTooltip />}
+                            formatter={(value) => `$${Number(value).toLocaleString('es-AR')}`}
+                        />
                         <Legend />
                     </PieChart>
                 </ResponsiveContainer>
