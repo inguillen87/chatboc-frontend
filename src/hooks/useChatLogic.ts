@@ -12,6 +12,7 @@ import { getIframeToken } from "@/utils/config";
 import { v4 as uuidv4 } from 'uuid';
 import { MunicipioContext, updateMunicipioContext, getInitialMunicipioContext } from "@/utils/contexto_municipio";
 import { useUser } from './useUser';
+import { safeOn, assertEventSource } from "@/utils/safeOn";
 
 interface UseChatLogicOptions {
   tipoChat: 'pyme' | 'municipio';
@@ -79,12 +80,11 @@ export function useChatLogic({ tipoChat, entityToken: propToken, tokenKey = 'aut
     socketRef.current = socket;
     const sessionId = getOrCreateChatSessionId();
 
-    socket.on('connect', () => {
+    const handleConnect = () => {
       console.log('Socket.IO connected, joining room with web channel...');
       socket.emit('join', { room: sessionId, channel: 'web' });
 
       // Automatically send a silent greeting to fetch the main menu on connect.
-      // This ensures the user gets the menu without having to type "hola" first.
       const endpoint = getAskEndpoint({ tipoChat, rubro: null });
       const initialContext = getInitialMunicipioContext();
 
@@ -100,17 +100,21 @@ export function useChatLogic({ tipoChat, entityToken: propToken, tokenKey = 'aut
           tipo_chat: tipoChat,
         },
       })
-      .catch(error => {
-        console.error("Error sending initial greeting:", getErrorMessage(error));
-        const errorMsg = getErrorMessage(error, '⚠️ No se pudo cargar el menú inicial.');
-        setMessages(prev => [...prev, { id: generateClientMessageId(), text: errorMsg, isBot: true, timestamp: new Date(), isError: true }]);
-        setIsTyping(false);
-      });
-    });
+        .catch(error => {
+          console.error("Error sending initial greeting:", getErrorMessage(error));
+          const errorMsg = getErrorMessage(error, '⚠️ No se pudo cargar el menú inicial.');
+          setMessages(prev => [...prev, { id: generateClientMessageId(), text: errorMsg, isBot: true, timestamp: new Date(), isError: true }]);
+          setIsTyping(false);
+        });
+    };
 
-    socket.on('connect_error', (err) => {
+    const handleConnectError = (err: any) => {
       console.error('Socket.IO connection error:', err.message);
-    });
+    };
+
+    assertEventSource(socket, 'socket');
+    safeOn(socket, 'connect', handleConnect);
+    safeOn(socket, 'connect_error', handleConnectError);
 
     const handleBotMessage = (data: any) => {
       console.log('Bot response received:', data);
@@ -142,19 +146,21 @@ export function useChatLogic({ tipoChat, entityToken: propToken, tokenKey = 'aut
       setIsTyping(false);
     };
 
-    socket.on('bot_response', handleBotMessage);
-    socket.on('message', handleBotMessage);
-
-    socket.on('disconnect', () => {
+    const handleDisconnect = () => {
       console.log('Socket.IO disconnected.');
-    });
+    };
+
+    safeOn(socket, 'bot_response', handleBotMessage);
+    safeOn(socket, 'message', handleBotMessage);
+    safeOn(socket, 'disconnect', handleDisconnect);
 
     // Cleanup on component unmount
     return () => {
-      if (typeof socket.off === 'function') {
-        socket.off('bot_response', handleBotMessage);
-        socket.off('message', handleBotMessage);
-      }
+      socket.off?.('connect', handleConnect);
+      socket.off?.('connect_error', handleConnectError);
+      socket.off?.('bot_response', handleBotMessage);
+      socket.off?.('message', handleBotMessage);
+      socket.off?.('disconnect', handleDisconnect);
       socket.disconnect();
     };
 }, [entityToken, tipoChat]);
