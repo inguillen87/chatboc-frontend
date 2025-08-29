@@ -8,6 +8,7 @@ import { formatDate } from '@/utils/fecha';
 import TicketTimeline from '@/components/tickets/TicketTimeline';
 import { Separator } from '@/components/ui/separator';
 import { getErrorMessage, ApiError } from '@/utils/api';
+import { getContactPhone } from '@/utils/ticket';
 
 export default function TicketLookup() {
   const { ticketId } = useParams<{ ticketId: string }>();
@@ -141,7 +142,7 @@ export default function TicketLookup() {
             {ticket.direccion && (
               <p className="text-sm text-muted-foreground mt-1">Dirección: {ticket.direccion}</p>
             )}
-            {(ticket.telefono || ticket.email || ticket.dni || ticket.informacion_personal_vecino) && (
+            {(getContactPhone(ticket) || ticket.email || ticket.dni || ticket.informacion_personal_vecino) && (
               <div className="mt-4 text-sm space-y-1">
                 {(ticket.informacion_personal_vecino?.nombre || ticket.display_name) && (
                   <p>Nombre: {ticket.informacion_personal_vecino?.nombre || ticket.display_name}</p>
@@ -152,8 +153,8 @@ export default function TicketLookup() {
                 {(ticket.informacion_personal_vecino?.email || ticket.email) && (
                   <p>Email: {ticket.informacion_personal_vecino?.email || ticket.email}</p>
                 )}
-                {(ticket.informacion_personal_vecino?.telefono || ticket.telefono) && (
-                  <p>Teléfono: {ticket.informacion_personal_vecino?.telefono || ticket.telefono}</p>
+                {getContactPhone(ticket) && (
+                  <p>Teléfono: {getContactPhone(ticket)}</p>
                 )}
               </div>
             )}
