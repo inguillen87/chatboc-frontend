@@ -14,6 +14,7 @@ const {
   generateCsvReport,
   generatePdfReport,
 } = require('./municipalMessageMetrics');
+const { getTicketMessagesById } = require('./db');
 const sessionMiddleware = require('./session');
 const cartRoutes = require('./cartRoutes');
 const preferences = require('./preferences');
@@ -132,6 +133,13 @@ app.get('/municipal/message-metrics.csv', (req, res) => {
 app.get('/municipal/message-metrics.pdf', (req, res) => {
   const pdf = generatePdfReport();
   res.type('application/pdf').attachment('message-metrics.pdf').send(pdf);
+});
+
+// Historial de mensajes de un ticket específico
+app.get('/tickets/chat/:ticketId/mensajes', (req, res) => {
+  const { ticketId } = req.params;
+  const mensajes = getTicketMessagesById(ticketId);
+  res.json({ mensajes });
 });
 
 app.get('/productos', (req, res) => {
