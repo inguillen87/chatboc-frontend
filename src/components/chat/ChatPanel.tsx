@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import io from 'socket.io-client';
 import { getSocketUrl } from "@/config";
 import { safeOn, assertEventSource } from "@/utils/safeOn";
+import { getVisitorName, setVisitorName } from "@/utils/visitorName";
 
 const PENDING_TICKET_KEY = 'pending_ticket_id';
 const PENDING_GPS_KEY = 'pending_gps';
@@ -86,10 +87,25 @@ const ChatPanel = ({
   const { isLiveChatEnabled, horariosAtencion } = useBusinessHours(propEntityToken);
   const socketRef = useRef<SocketIOClient.Socket | null>(null);
 
+  const skipAuth = mode === 'script';
   const { messages, isTyping, handleSend, activeTicketId, setMessages, contexto, addSystemMessage } = useChatLogic({
     tipoChat: tipoChat,
     entityToken: propEntityToken,
+    skipAuth,
   });
+
+  const [visitorName, setVisitorNameState] = useState(() => getVisitorName());
+
+  useEffect(() => {
+    if (!visitorName && typeof window !== 'undefined') {
+      const nombre = window.prompt('¿Cuál es tu nombre?');
+      if (nombre) {
+        setVisitorName(nombre);
+        setVisitorNameState(nombre);
+        handleSend({ action: 'set_user_name', payload: { nombre } });
+      }
+    }
+  }, [visitorName, handleSend]);
 
   const handlePersonalDataSubmit = (data: { nombre: string; email: string; telefono: string; dni: string; }) => {
     handleSend({
@@ -103,7 +119,7 @@ const ChatPanel = ({
   const [direccionGuardada, setDireccionGuardada] = useState<string | null>(null);
   const [showCierre, setShowCierre] = useState<{ show: boolean; text: string } | null>(null);
   const [ticketLocation, setTicketLocation] = useState<{ direccion?: string | null; latitud?: number | null; longitud?: number | null; municipio_nombre?: string | null } | null>(null);
-  const esAnonimo = !safeLocalStorage.getItem("authToken");
+  const esAnonimo = skipAuth || !safeLocalStorage.getItem("authToken");
   const { user } = useUser();
 
   useEffect(() => {
