@@ -14,6 +14,8 @@ interface LoginResponse {
   plan?: string;
   tipo_chat?: 'pyme' | 'municipio';
   rol?: string;
+  widget_icon_url?: string;
+  widget_animation?: string;
 }
 
 interface Props {

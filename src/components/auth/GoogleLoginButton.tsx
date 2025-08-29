@@ -13,6 +13,8 @@ interface LoginResponse {
   email: string;
   plan?: string;
   tipo_chat?: 'pyme' | 'municipio';
+  widget_icon_url?: string;
+  widget_animation?: string;
 }
 
 interface Props extends React.HTMLAttributes<HTMLDivElement> {

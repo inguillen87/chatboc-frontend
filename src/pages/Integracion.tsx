@@ -16,6 +16,14 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Copy, Check, ExternalLink, Eye, Code, HelpCircle, AlertTriangle, Settings, Info } from "lucide-react";
 
 interface User {
@@ -25,6 +33,8 @@ interface User {
   token: string;
   plan?: string;
   tipo_chat?: "pyme" | "municipio";
+  widget_icon_url?: string;
+  widget_animation?: string;
 }
 
 const Integracion = () => {
@@ -32,6 +42,9 @@ const Integracion = () => {
   const [user, setUser] = useState<User | null>(null);
   const [copiado, setCopiado] = useState<"iframe" | "script" | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [primaryColor, setPrimaryColor] = useState("#007aff");
+  const [logoUrl, setLogoUrl] = useState("");
+  const [logoAnimation, setLogoAnimation] = useState("");
 
   const validarAcceso = (currentUser: User | null) => {
     if (!currentUser) {
@@ -71,6 +84,8 @@ const Integracion = () => {
       token: authToken,
       plan: parsedUser.plan || "free",
       tipo_chat: parsedUser.tipo_chat || undefined,
+      widget_icon_url: parsedUser.widget_icon_url,
+      widget_animation: parsedUser.widget_animation,
     };
     setUser(fullUser);
     setIsLoading(false);
@@ -78,6 +93,9 @@ const Integracion = () => {
     if (!validarAcceso(fullUser)) {
       return;
     }
+
+    setLogoUrl(fullUser.widget_icon_url || "");
+    setLogoAnimation(fullUser.widget_animation || "");
   }, [navigate]);
 
 
@@ -87,6 +105,7 @@ const Integracion = () => {
   }, [user?.tipo_chat]);
 
   const entityToken = useMemo(() => user?.token || "TU_TOKEN_DEL_WIDGET", [user?.token]);
+  const isFullPlan = (user?.plan || "").toLowerCase() === "full";
 
   const WIDGET_STD_WIDTH = "460px";
   const WIDGET_STD_HEIGHT = "680px";
@@ -95,7 +114,16 @@ const Integracion = () => {
   const WIDGET_STD_BOTTOM = "20px";
   const WIDGET_STD_RIGHT = "20px";
   
-  const codeScript = useMemo(() => `<script>
+  const codeScript = useMemo(() => {
+    const customLines = [
+      primaryColor && `  s.setAttribute('data-primary-color', '${primaryColor}'); // Color del launcher`,
+      logoUrl && `  s.setAttribute('data-logo-url', '${logoUrl}'); // URL del icono`,
+      logoAnimation && `  s.setAttribute('data-logo-animation', '${logoAnimation}'); // Animación del icono`,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    return `<script>
 document.addEventListener('DOMContentLoaded', function () {
   // Asegura que el widget se destruya y se vuelva a crear si ya existe
   if (window.chatbocDestroyWidget) {
@@ -115,8 +143,7 @@ document.addEventListener('DOMContentLoaded', function () {
   s.setAttribute('data-bottom', '${WIDGET_STD_BOTTOM}'); // Posición desde abajo
   s.setAttribute('data-right', '${WIDGET_STD_RIGHT}'); // Posición desde la derecha
   s.setAttribute('data-endpoint', '${endpoint}'); // Tipo de chat (pyme o municipio)
-  
-  // Importante para la geolocalización y el portapapeles:
+${customLines ? customLines + "\n" : ""}  // Importante para la geolocalización y el portapapeles:
   // widget.js establecerá allow="clipboard-write; geolocation" en su iframe interno.
   // Si este script se inserta dentro de un iframe en tu sitio, ese iframe contenedor
   // también debe incluir allow="clipboard-write; geolocation" en sus atributos.
@@ -133,9 +160,18 @@ document.addEventListener('DOMContentLoaded', function () {
     console.error('Error al cargar Chatboc Widget.');
   };
 });
-</script>`, [entityToken, endpoint]);
+</script>`;
+  }, [entityToken, endpoint, primaryColor, logoUrl, logoAnimation]);
 
-  const iframeSrcUrl = useMemo(() => `https://www.chatboc.ar/iframe?entityToken=${entityToken}&tipo_chat=${endpoint}`, [entityToken, endpoint]);
+  const iframeSrcUrl = useMemo(() => {
+    const url = new URL("https://www.chatboc.ar/iframe");
+    url.searchParams.set("entityToken", entityToken);
+    url.searchParams.set("tipo_chat", endpoint);
+    if (primaryColor) url.searchParams.set("primaryColor", primaryColor);
+    if (logoUrl) url.searchParams.set("logoUrl", logoUrl);
+    if (logoAnimation) url.searchParams.set("logoAnimation", logoAnimation);
+    return url.toString();
+  }, [entityToken, endpoint, primaryColor, logoUrl, logoAnimation]);
   
   const codeIframe = useMemo(() => `<iframe
   id="chatboc-iframe"
@@ -312,6 +348,50 @@ document.addEventListener('DOMContentLoaded', function () {
           </p>
         </CardContent>
       </Card>
+
+      {isFullPlan && (
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="text-lg">Personalización del Widget</CardTitle>
+            <CardDescription>
+              Ajusta el color y el icono del lanzador para adaptarlo a tu sitio.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-2">
+            <div className="flex flex-col space-y-2">
+              <Label htmlFor="primaryColor">Color primario</Label>
+              <Input
+                id="primaryColor"
+                type="color"
+                value={primaryColor}
+                onChange={(e) => setPrimaryColor(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col space-y-2">
+              <Label htmlFor="logoUrl">URL del logo</Label>
+              <Input
+                id="logoUrl"
+                placeholder="https://..."
+                value={logoUrl}
+                onChange={(e) => setLogoUrl(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col space-y-2 sm:col-span-2">
+              <Label htmlFor="logoAnimation">Animación del logo</Label>
+              <Select value={logoAnimation} onValueChange={setLogoAnimation}>
+                <SelectTrigger id="logoAnimation">
+                  <SelectValue placeholder="Sin animación" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Sin animación</SelectItem>
+                  <SelectItem value="bounce 2s infinite">Bounce</SelectItem>
+                  <SelectItem value="spin 2s linear infinite">Spin</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Tabs defaultValue="script" className="w-full">
         <TabsList className="grid w-full grid-cols-2 mb-6">
