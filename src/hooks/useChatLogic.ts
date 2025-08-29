@@ -127,9 +127,19 @@ export function useChatLogic({ tipoChat, entityToken: propToken, tokenKey = 'aut
       // Actualizar el contexto con la respuesta del bot
       setContexto(prevContext => updateMunicipioContext(prevContext, { llmResponse: data }));
 
+      // Sanitizar mensajes que mencionen al administrador del municipio
+      let text = data.comentario || data.message_body || "⚠️ No se pudo generar una respuesta.";
+      if (/es el Administrador de la Municipalidad/i.test(text)) {
+        text = text
+          .replace(/,?\s*[^.]*es el Administrador de la Municipalidad\.\s*/i, ' ')
+          .replace(/^Hola\s+/, 'Hola, ') // Asegurar coma después de "Hola"
+          .replace(/\s{2,}/g, ' ') // Colapsar espacios múltiples
+          .trim();
+      }
+
       const botMessage: Message = {
         id: data.id || generateClientMessageId(),
-        text: data.comentario || data.message_body || "⚠️ No se pudo generar una respuesta.",
+        text,
         isBot: true,
         timestamp: new Date(data.fecha || Date.now()),
         origen: data.origen,
