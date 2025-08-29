@@ -13,6 +13,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { MunicipioContext, updateMunicipioContext, getInitialMunicipioContext } from "@/utils/contexto_municipio";
 import { useUser } from './useUser';
 import { safeOn, assertEventSource } from "@/utils/safeOn";
+import { getVisitorName } from "@/utils/visitorName";
 
 interface UseChatLogicOptions {
   tipoChat: 'pyme' | 'municipio';
@@ -91,6 +92,7 @@ export function useChatLogic({ tipoChat, entityToken: propToken, tokenKey = 'aut
       console.log("useChatLogic: Sending initial greeting to fetch menu.");
       setIsTyping(true);
 
+      const initialName = getVisitorName();
       apiFetch<any>(endpoint, {
         method: 'POST',
         body: {
@@ -98,6 +100,7 @@ export function useChatLogic({ tipoChat, entityToken: propToken, tokenKey = 'aut
           action: 'initial_greeting',
           contexto_previo: initialContext,
           tipo_chat: tipoChat,
+          ...(initialName && { nombre_usuario: initialName }),
         },
       })
         .catch(error => {
@@ -306,6 +309,8 @@ export function useChatLogic({ tipoChat, entityToken: propToken, tokenKey = 'aut
       const updatedContext = updateMunicipioContext(contexto, { userInput: userMessageText, action: resolvedAction });
       setContexto(updatedContext);
 
+      const visitorName = getVisitorName();
+
       const requestBody: Record<string, any> = {
         pregunta: sanitizedText,
         contexto_previo: updatedContext,
@@ -316,6 +321,7 @@ export function useChatLogic({ tipoChat, entityToken: propToken, tokenKey = 'aut
         ...(resolvedAction && { action: resolvedAction }),
         ...(actionPayload && { payload: actionPayload }),
         ...(resolvedAction === "confirmar_reclamo" && currentClaimIdempotencyKey && { idempotency_key: currentClaimIdempotencyKey }),
+        ...(visitorName && { nombre_usuario: visitorName }),
       };
 
       if (resolvedAction === 'confirmar_reclamo') {
