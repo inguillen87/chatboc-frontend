@@ -19,9 +19,10 @@ interface UseChatLogicOptions {
   tipoChat: 'pyme' | 'municipio';
   entityToken?: string;
   tokenKey?: string;
+  skipAuth?: boolean;
 }
 
-export function useChatLogic({ tipoChat, entityToken: propToken, tokenKey = 'authToken' }: UseChatLogicOptions) {
+export function useChatLogic({ tipoChat, entityToken: propToken, tokenKey = 'authToken', skipAuth = false }: UseChatLogicOptions) {
   const entityToken = propToken || getIframeToken();
   const { user } = useUser();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -30,8 +31,8 @@ export function useChatLogic({ tipoChat, entityToken: propToken, tokenKey = 'aut
   const [activeTicketId, setActiveTicketId] = useState<number | null>(null);
   const [currentClaimIdempotencyKey, setCurrentClaimIdempotencyKey] = useState<string | null>(null);
 
-  const token = safeLocalStorage.getItem(tokenKey);
-  const isAnonimo = !token;
+  const token = skipAuth ? null : safeLocalStorage.getItem(tokenKey);
+  const isAnonimo = skipAuth || !token;
 
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const ultimoMensajeIdRef = useRef<number>(0);
@@ -56,7 +57,7 @@ export function useChatLogic({ tipoChat, entityToken: propToken, tokenKey = 'aut
 
     // Setup Socket.IO
     const socketUrl = getSocketUrl();
-    const userAuthToken = safeLocalStorage.getItem(tokenKey);
+    const userAuthToken = skipAuth ? null : safeLocalStorage.getItem(tokenKey);
 
     console.log("useChatLogic: Initializing socket", {
       socketUrl,
@@ -68,7 +69,7 @@ export function useChatLogic({ tipoChat, entityToken: propToken, tokenKey = 'aut
       transports: ['websocket', 'polling'],
       withCredentials: true,
       auth: {
-        token: userAuthToken, // Prioritize user JWT for auth
+        ...(userAuthToken && { token: userAuthToken }), // Prioritize user JWT for auth
         entityToken: entityToken // Pass entity token for context
       }
     });
@@ -95,6 +96,7 @@ export function useChatLogic({ tipoChat, entityToken: propToken, tokenKey = 'aut
       const initialName = getVisitorName();
       apiFetch<any>(endpoint, {
         method: 'POST',
+        skipAuth,
         body: {
           pregunta: '',
           action: 'initial_greeting',
@@ -337,7 +339,7 @@ export function useChatLogic({ tipoChat, entityToken: propToken, tokenKey = 'aut
 
       console.log('useChatLogic: Sending message to backend', { endpoint, requestBody });
       // Fire-and-forget the POST request. The response will be handled by the Socket.IO listener.
-      apiFetch<any>(endpoint, { method: 'POST', body: requestBody })
+      apiFetch<any>(endpoint, { method: 'POST', body: requestBody, skipAuth })
         .then(res => {
           console.log('useChatLogic: Backend response', res);
         })
