@@ -111,6 +111,7 @@ interface TicketLocation {
   weight: number;
   categoria?: string;
   barrio?: string;
+  tipo_ticket?: string;
 }
 
 export default function Perfil() {
@@ -150,8 +151,10 @@ export default function Perfil() {
   const [ticketLocations, setTicketLocations] = useState<TicketLocation[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedBarrios, setSelectedBarrios] = useState<string[]>([]);
+  const [selectedTipos, setSelectedTipos] = useState<string[]>([]);
   const [availableCategories, setAvailableCategories] = useState<string[]>([]);
   const [availableBarrios, setAvailableBarrios] = useState<string[]>([]);
+  const [availableTipos, setAvailableTipos] = useState<string[]>([]);
   const [heatmapData, setHeatmapData] = useState<
     { lat: number; lng: number; weight?: number }[]
   >([]);
@@ -259,12 +262,15 @@ export default function Perfil() {
         weight: d.weight,
         categoria: d.categoria,
         barrio: d.barrio,
+        tipo_ticket: d.tipo_ticket,
       }));
       setTicketLocations(mapped);
       const cats = Array.from(new Set(mapped.map((d) => d.categoria).filter(Boolean))) as string[];
       setAvailableCategories(cats);
       const barrios = Array.from(new Set(mapped.map((d) => d.barrio).filter(Boolean))) as string[];
       setAvailableBarrios(barrios);
+      const tipos = Array.from(new Set(mapped.map((d) => d.tipo_ticket).filter(Boolean))) as string[];
+      setAvailableTipos(tipos);
     } catch (error) {
       console.error("Error fetching heatmap data:", error);
       // Do not show a toast here to avoid spamming the user if the endpoint is not ready yet.
@@ -287,6 +293,8 @@ export default function Perfil() {
   useEffect(() => {
     const filtered = ticketLocations.filter(
       (t) =>
+        (selectedTipos.length === 0 ||
+          (t.tipo_ticket && selectedTipos.includes(t.tipo_ticket))) &&
         (selectedCategories.length === 0 ||
           (t.categoria && selectedCategories.includes(t.categoria))) &&
         (selectedBarrios.length === 0 ||
@@ -310,7 +318,7 @@ export default function Perfil() {
         setMapCenter({ lat: avgLat, lng: avgLng });
       }
     }
-  }, [ticketLocations, selectedCategories, selectedBarrios]);
+  }, [ticketLocations, selectedTipos, selectedCategories, selectedBarrios]);
 
   // Función para cargar las configuraciones de mapeo
   const fetchMappingConfigs = useCallback(async () => {
@@ -921,6 +929,34 @@ export default function Perfil() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                {availableTipos.length > 0 && (
+                  <div>
+                    <Label className="text-muted-foreground text-sm mb-1 block">
+                      Tipos de ticket
+                    </Label>
+                    <div className="flex flex-wrap gap-2">
+                      {availableTipos.map((tipo) => (
+                        <label
+                          key={tipo}
+                          className="flex items-center gap-1 text-xs text-foreground"
+                        >
+                          <Checkbox
+                            checked={selectedTipos.includes(tipo)}
+                            onCheckedChange={(checked) => {
+                              const isChecked = checked === true;
+                              setSelectedTipos((prev) =>
+                                isChecked
+                                  ? [...prev, tipo]
+                                  : prev.filter((t) => t !== tipo)
+                              );
+                            }}
+                          />
+                          {tipo}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 {availableCategories.length > 0 && (
                   <div>
                     <Label className="text-muted-foreground text-sm mb-1 block">
