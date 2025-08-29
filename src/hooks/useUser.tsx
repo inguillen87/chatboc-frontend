@@ -16,6 +16,8 @@ interface UserData {
   picture?: string;
   tipo_chat?: 'pyme' | 'municipio';
   rol?: string;
+  widget_icon_url?: string;
+  widget_animation?: string;
 }
 
 interface UserContextValue {
@@ -75,6 +77,8 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       tipo_chat: finalTipo,
       rol: data.rol,
       token,
+      widget_icon_url: data.widget_icon_url,
+      widget_animation: data.widget_animation,
     };
     safeLocalStorage.setItem('user', JSON.stringify(updated));
     setUser(updated);
