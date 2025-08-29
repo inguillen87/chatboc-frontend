@@ -2,6 +2,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { Ticket, Message } from '@/types/tickets';
+import { getContactPhone } from '@/utils/ticket';
 
 const formatDate = (dateString: string) => {
   return new Date(dateString).toLocaleString();
@@ -16,7 +17,7 @@ const getTicketData = (ticket: Ticket) => {
     'Fecha de Creación': formatDate(ticket.fecha),
     'Cliente': ticket.nombre_usuario || 'Usuario Desconocido',
     'Email': ticket.email_usuario || ticket.email || 'N/A',
-    'Teléfono': ticket.telefono || 'N/A',
+    'Teléfono': getContactPhone(ticket) || 'N/A',
     'Dirección': ticket.direccion || 'N/A',
     'Canal': ticket.channel || 'N/A',
     'Descripción': ticket.description || 'N/A',
@@ -133,7 +134,7 @@ export const exportToExcel = (tickets: Ticket[]) => {
     'Fecha': new Date(ticket.fecha).toLocaleString(),
     'Cliente': ticket.nombre_usuario || 'Desconocido',
     'Email': ticket.email_usuario || ticket.email || '',
-    'Teléfono': ticket.telefono || '',
+    'Teléfono': getContactPhone(ticket) || '',
     'Dirección': ticket.direccion || '',
     'Canal': ticket.channel || '',
     'Descripción': ticket.description || '',

@@ -22,6 +22,7 @@ import {
 import { FaWhatsapp } from 'react-icons/fa';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { getContactPhone } from '@/utils/ticket';
 
 const DetailsPanel: React.FC = () => {
   const { selectedTicket: ticket } = useTickets();
@@ -44,7 +45,7 @@ const DetailsPanel: React.FC = () => {
 
   const personal = {
     nombre: ticket?.informacion_personal_vecino?.nombre || ticket?.display_name,
-    telefono: ticket?.informacion_personal_vecino?.telefono || ticket?.telefono,
+    telefono: getContactPhone(ticket),
     email: ticket?.informacion_personal_vecino?.email || ticket?.email,
     direccion: ticket?.informacion_personal_vecino?.direccion || ticket?.direccion,
     dni: ticket?.informacion_personal_vecino?.dni || ticket?.dni,
