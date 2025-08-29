@@ -116,7 +116,7 @@ You can embed the floating chat widget on any site by loading `widget.js` and pa
     }
 
     var s = document.createElement('script');
-    s.src = 'https://www.chatboc.ar/widget.js';
+    s.src = 'https://chatboc.ar/widget.js';
     s.async = true;
     s.setAttribute('data-entity-token', 'TU_TOKEN_AQUI');
     // Choose the API endpoint. If omitted, the widget falls back
@@ -137,18 +137,18 @@ You can embed the floating chat widget on any site by loading `widget.js` and pa
 
 This snippet loads the widget without needing an iframe and creates a floating bubble styled just like on chatboc.ar.
 You can also pass `data-theme="dark"` or `data-theme="light"` to force a specific theme inside the widget.
-If you host `widget.js` yourself, remember to add `data-domain="https://www.chatboc.ar"` so the iframe loads from our servers. Example self-hosted snippet:
+If you host `widget.js` yourself, remember to add `data-domain="https://chatboc.ar"` so the iframe loads from our servers. Example self-hosted snippet:
 
 ```html
 <script async src="/widget.js"
-  data-domain="https://www.chatboc.ar"
+  data-domain="https://chatboc.ar"
   data-entity-token="TU_TOKEN_AQUI"></script>
 ```
 Using `widget.js` from another domain **without** this attribute causes the iframe
 to load its scripts from the wrong origin, leading to console errors and 403
 responses from `https://api.chatboc.ar`. If you see messages such as `attribute
 cx: Expected length` or `Access Forbidden`, verify that `data-domain` is set to
-`https://www.chatboc.ar`.
+`https://chatboc.ar`.
 The script automatically adds `allow="clipboard-write; geolocation"` to the underlying iframe so the widget can request GPS access.
 If your site embeds this script inside another `<iframe>`, be sure that outer frame also includes
 `allow="clipboard-write; geolocation"`. The permission must be granted at every level
@@ -187,7 +187,7 @@ If your site blocks external JavaScript, you can embed the chatbot using an
 ```html
 <iframe
   id="chatboc-iframe"
-  src="https://www.chatboc.ar/iframe.html?entityToken=TU_TOKEN_AQUI&endpoint=pyme&rubro=comercio" <!-- or "municipio"; `tipo_chat` also works -->
+  src="https://chatboc.ar/iframe.html?entityToken=TU_TOKEN_AQUI&endpoint=pyme&rubro=comercio" <!-- or "municipio"; `tipo_chat` also works -->
   style="position:fixed;bottom:24px;right:24px;border:none;border-radius:50%;z-index:9999;box-shadow:0 4px 32px rgba(0,0,0,0.2);background:transparent;overflow:hidden;width:96px!important;height:96px!important;display:block"
   allow="clipboard-write; geolocation"
   loading="lazy"
@@ -364,7 +364,7 @@ numeric value like `width={300}`. The Google OAuth library does not accept
 percentage values.
 
 If you host `widget.js` on your own domain and forget to include
-`data-domain="https://www.chatboc.ar"`, the iframe will attempt to load its
+`data-domain="https://chatboc.ar"`, the iframe will attempt to load its
 assets from your site. This results in an HTML error page being parsed as
 JavaScript and the browser reports `Uncaught SyntaxError: Invalid or
 unexpected token (window-provider.js:...)`. Always set the `data-domain`

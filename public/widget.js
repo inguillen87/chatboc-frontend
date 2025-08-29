@@ -7,7 +7,7 @@
       s.src && s.src.includes("widget.js")
     );
 
-  const DEFAULT_DOMAIN = "https://www.chatboc.ar";
+  const DEFAULT_DOMAIN = "https://chatboc.ar";
   const chatbocDomain =
     (script &&
       (script.getAttribute("data-domain") || new URL(script.src).origin)) ||

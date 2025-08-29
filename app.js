@@ -24,7 +24,7 @@ app.use(express.json());
 
 // CORS Configuration
 const whitelist = [
-  'https://www.chatboc.ar',
+  'https://chatboc.ar',
   'https://chatboc-demo-widget-oigs.vercel.app',
   'http://localhost:5173', // Common dev port for Vite
   'http://localhost:3000'  // Common dev port for backend
