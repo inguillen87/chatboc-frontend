@@ -161,9 +161,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       : openHeight;
   }, [openHeight, viewport.height, initialPosition.bottom]);
 
-  const mobileClosedSize = "72px";
-  const finalClosedWidth = isMobileView ? mobileClosedSize : closedWidth;
-  const finalClosedHeight = isMobileView ? mobileClosedSize : closedHeight;
+  const finalClosedWidth = closedWidth;
+  const finalClosedHeight = closedHeight;
   const logoSizeFactor = 0.62;
   const closedWidthPx = parseInt(finalClosedWidth.replace('px', ''), 10);
   const calculatedLogoSize = Math.floor(closedWidthPx * logoSizeFactor);
