@@ -132,7 +132,7 @@ document.addEventListener('DOMContentLoaded', function () {
   window.APP_TARGET = '${endpoint}'; // Define el endpoint antes de cargar el script
 
   var s = document.createElement('script');
-  s.src = 'https://www.chatboc.ar/widget.js'; // URL del script del widget
+  s.src = 'https://chatboc.ar/widget.js'; // URL del script del widget
   s.async = true; // Carga asíncrona para no bloquear el renderizado de la página
   s.setAttribute('data-entity-token', '${entityToken}'); // Token de la entidad para el widget
   s.setAttribute('data-default-open', 'false'); // El widget comienza cerrado por defecto
@@ -164,7 +164,7 @@ ${customLines ? customLines + "\n" : ""}  // Importante para la geolocalización
   }, [entityToken, endpoint, primaryColor, logoUrl, logoAnimation]);
 
   const iframeSrcUrl = useMemo(() => {
-    const url = new URL("https://www.chatboc.ar/iframe");
+    const url = new URL("https://chatboc.ar/iframe");
     url.searchParams.set("entityToken", entityToken);
     url.searchParams.set("tipo_chat", endpoint);
     if (primaryColor) url.searchParams.set("primaryColor", primaryColor);
@@ -192,7 +192,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // Comunicación con el iframe para ajustar tamaño y forma
   window.addEventListener('message', function (event) {
-    if (event.origin !== 'https://www.chatboc.ar') return; // Seguridad: aceptar mensajes solo del origen del iframe
+    if (event.origin !== 'https://chatboc.ar') return; // Seguridad: aceptar mensajes solo del origen del iframe
 
     if (event.data && event.data.type === 'chatboc-state-change') {
       if (event.data.dimensions) {
@@ -205,7 +205,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // Opcional: Enviar un mensaje al iframe una vez cargado para configuraciones iniciales si es necesario
   // chatIframe.onload = function() {
-  //   chatIframe.contentWindow.postMessage({ type: 'chatboc-init', settings: { exampleSetting: true } }, 'https://www.chatboc.ar');
+  //   chatIframe.contentWindow.postMessage({ type: 'chatboc-init', settings: { exampleSetting: true } }, 'https://chatboc.ar');
   // };
 });
 </script>`, [iframeSrcUrl, endpoint]);
