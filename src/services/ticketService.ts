@@ -31,11 +31,22 @@ export const getTickets = async (): Promise<{tickets: Ticket[]}> => {
 
 export const getTicketById = async (id: string): Promise<Ticket> => {
     try {
-        const response = await apiFetch<Ticket & { historial?: TicketHistoryEvent[] }>(`/tickets/municipio/${id}`);
+        const response = await apiFetch<
+            Ticket & { historial?: TicketHistoryEvent[]; mensajes?: Message[] }
+        >(`/tickets/municipio/${id}`);
         const history = (response as any).history || response.historial || [];
+        let messages = (response as any).mensajes || (response as any).messages || [];
+        if (!messages.length) {
+            try {
+                messages = await getTicketMessages(response.id, response.tipo);
+            } catch (err) {
+                console.error(`Error fetching messages for ticket ${id}:`, err);
+            }
+        }
         return {
             ...response,
             history,
+            messages,
             avatarUrl: response.avatarUrl || generateRandomAvatar(response.email || response.id.toString())
         };
     } catch (error) {
@@ -62,15 +73,26 @@ export const getTicketByNumber = async (
     let lastError: unknown;
     for (const url of endpoints) {
         try {
-            const response = await apiFetch<Ticket & { historial?: TicketHistoryEvent[] }>(url, {
+            const response = await apiFetch<
+                Ticket & { historial?: TicketHistoryEvent[]; mensajes?: Message[] }
+            >(url, {
                 skipAuth: true,
                 sendAnonId: true,
                 sendEntityToken: true,
             });
             const history = (response as any).history || response.historial || [];
+            let messages = (response as any).mensajes || (response as any).messages || [];
+            if (!messages.length) {
+                try {
+                    messages = await getTicketMessages(response.id, response.tipo);
+                } catch (err) {
+                    console.error(`Error fetching messages for ticket ${response.id}:`, err);
+                }
+            }
             return {
                 ...response,
                 history,
+                messages,
                 avatarUrl:
                     response.avatarUrl ||
                     generateRandomAvatar(response.email || response.id.toString()),

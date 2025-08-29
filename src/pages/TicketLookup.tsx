@@ -39,6 +39,13 @@ export default function TicketLookup() {
     try {
       const data = await getTicketByNumber(id, pinVal);
       setTicket(data);
+
+      // Usar el historial y mensajes incluidos en el ticket si están presentes
+      if (data.history || data.messages) {
+        setTimelineHistory(data.history || []);
+        setTimelineMessages(data.messages || []);
+      }
+
       try {
         const timeline = await getTicketTimeline(data.id, data.tipo, { public: true });
         setTimelineHistory(timeline.history);

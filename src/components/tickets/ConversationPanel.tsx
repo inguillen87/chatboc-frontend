@@ -66,15 +66,22 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
 
   useEffect(() => {
     const fetchMessages = async () => {
-        if (selectedTicket) {
-            try {
-                const fetchedMessages = await getTicketMessages(selectedTicket.id, selectedTicket.tipo);
-                setMessages(fetchedMessages.map(msg => adaptTicketMessageToChatMessage(msg, selectedTicket)));
-            } catch (error) {
-                toast.error("No se pudo cargar el historial de mensajes.");
-                setMessages([]);
-            }
-        } else {
+        if (!selectedTicket) {
+            setMessages([]);
+            return;
+        }
+
+        // Usar los mensajes existentes si vienen con el ticket
+        if (selectedTicket.messages) {
+            setMessages(selectedTicket.messages.map(msg => adaptTicketMessageToChatMessage(msg, selectedTicket)));
+            return;
+        }
+
+        try {
+            const fetchedMessages = await getTicketMessages(selectedTicket.id, selectedTicket.tipo);
+            setMessages(fetchedMessages.map(msg => adaptTicketMessageToChatMessage(msg, selectedTicket)));
+        } catch (error) {
+            toast.error("No se pudo cargar el historial de mensajes.");
             setMessages([]);
         }
     };

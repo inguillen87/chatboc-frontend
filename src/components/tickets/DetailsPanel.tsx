@@ -105,19 +105,28 @@ const DetailsPanel: React.FC = () => {
         setTimelineMessages([]);
         return;
       }
+
+      // Si el ticket ya incluye historial y mensajes, los usamos directamente
+      if (ticket.history || ticket.messages) {
+        setTimelineHistory(ticket.history || []);
+        setTimelineMessages(ticket.messages || []);
+        return;
+      }
+
       try {
         const detailed = await getTicketById(ticket.id.toString());
         setTimelineHistory(detailed.history || []);
+        setTimelineMessages(detailed.messages || []);
       } catch (error) {
-        console.error('Error fetching ticket history:', error);
+        console.error('Error fetching ticket timeline:', error);
         setTimelineHistory([]);
-      }
-      try {
-        const msgs = await getTicketMessages(ticket.id, ticket.tipo);
-        setTimelineMessages(msgs);
-      } catch (error) {
-        console.error('Error fetching ticket messages:', error);
-        setTimelineMessages([]);
+        try {
+          const msgs = await getTicketMessages(ticket.id, ticket.tipo);
+          setTimelineMessages(msgs);
+        } catch (msgErr) {
+          console.error('Error fetching ticket messages:', msgErr);
+          setTimelineMessages([]);
+        }
       }
     };
     fetchTimeline();
