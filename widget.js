@@ -73,6 +73,10 @@
     const rubroAttr = script.getAttribute("data-rubro") || "";
     const ctaMessageAttr = script.getAttribute("data-cta-message") || "";
     const langAttr = script.getAttribute("data-lang") || "";
+    const primaryColor = script.getAttribute("data-primary-color") || "#007aff";
+    const logoUrlAttr = script.getAttribute("data-logo-url");
+    const logoAnimationAttr = script.getAttribute("data-logo-animation") || "";
+    const logoUrl = logoUrlAttr || `${chatbocDomain}/chatboc_widget_64x64.webp`;
     const endpointAttr = script.getAttribute("data-endpoint");
     const tipoChat =
       endpointAttr === "municipio" || endpointAttr === "pyme"
@@ -139,8 +143,8 @@
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "#007aff",
-        cursor: "pointer",
+        background: defaultOpen ? "white" : primaryColor,
+        cursor: defaultOpen ? "default" : "pointer",
       });
 
       widgetContainer.addEventListener("mouseenter", () => {
@@ -158,6 +162,21 @@
       });
       document.body.appendChild(widgetContainer);
 
+      const logoImg = document.createElement("img");
+      logoImg.id = `chatboc-logo-${iframeId}`;
+      logoImg.src = logoUrl;
+      logoImg.alt = "Abrir chat";
+      Object.assign(logoImg.style, {
+        width: "70%",
+        height: "70%",
+        objectFit: "contain",
+        pointerEvents: "none",
+        transition: "opacity 0.3s ease",
+        opacity: iframeIsCurrentlyOpen ? "0" : "1",
+      });
+      if (logoAnimationAttr) logoImg.style.animation = logoAnimationAttr;
+      widgetContainer.appendChild(logoImg);
+
       const loader = document.createElement("div");
       loader.id = `chatboc-loader-${iframeId}`;
       Object.assign(loader.style, {
@@ -168,7 +187,7 @@
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "hsl(var(--primary, 218 92% 41%))",
+        background: primaryColor,
         borderRadius: "inherit",
         transition: "opacity 0.3s ease-out 0.1s",
         zIndex: "2",
@@ -288,13 +307,14 @@
               style.top = "auto";
             }
             Object.assign(widgetContainer.style, style);
+            logoImg.style.opacity = "0";
           } else {
             Object.assign(widgetContainer.style, {
               width: newDims.width,
               height: newDims.height,
               borderRadius: "50%",
               boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-              background: "#007aff",
+              background: primaryColor,
               cursor: "pointer",
               bottom:
                 window.innerWidth <= SCRIPT_CONFIG.MOBILE_BREAKPOINT_PX
@@ -304,6 +324,7 @@
               top: "auto",
               left: "auto",
             });
+            logoImg.style.opacity = "1";
           }
         }
       }
