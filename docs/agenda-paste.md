@@ -1,6 +1,6 @@
 # Agenda Paste Form
 
-Allows administrators to paste a full agenda message in WhatsApp format and submit it for bulk creation of events and news.
+Allows administrators to paste a full agenda message in WhatsApp format and submit it for bulk creation of events and news. The profile modal now includes a third tab labeled "Pegar Información" alongside the traditional "Evento" and "Noticia" forms.
 
 ```
 *AGENDA MUNICIPAL*
