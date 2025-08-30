@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { toast } from '@/components/ui/use-toast';
 import { useUser } from './useUser';
@@ -21,7 +21,17 @@ const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 export default function useTicketUpdates(options: UseTicketUpdatesOptions = {}) {
   const { onNewTicket, onNewComment } = options;
+  const newTicketRef = useRef<UseTicketUpdatesOptions['onNewTicket']>(onNewTicket);
+  const newCommentRef = useRef<UseTicketUpdatesOptions['onNewComment']>(onNewComment);
   const { user } = useUser();
+
+  useEffect(() => {
+    newTicketRef.current = onNewTicket;
+  }, [onNewTicket]);
+
+  useEffect(() => {
+    newCommentRef.current = onNewComment;
+  }, [onNewComment]);
 
   useEffect(() => {
     if (!user) return;
@@ -36,14 +46,14 @@ export default function useTicketUpdates(options: UseTicketUpdatesOptions = {}) 
       console.log('Socket.io disconnected');
     };
     const handleNewTicket = (data: any) => {
-      onNewTicket?.(data);
+      newTicketRef.current?.(data);
       toast({
         title: `Nuevo Ticket #${data.nro_ticket}`,
         description: data.asunto,
       });
     };
     const handleNewComment = (data: any) => {
-      onNewComment?.(data);
+      newCommentRef.current?.(data);
       toast({
         title: `Nuevo Comentario en Ticket #${data.ticketId}`,
         description: data.comment.comentario,
@@ -93,5 +103,5 @@ export default function useTicketUpdates(options: UseTicketUpdatesOptions = {}) 
         socket.disconnect();
       }
     };
-  }, [user, onNewTicket, onNewComment]);
+  }, [user]);
 }
