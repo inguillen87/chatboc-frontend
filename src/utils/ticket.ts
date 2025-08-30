@@ -23,3 +23,14 @@ export function getContactPhone(ticket?: Ticket | null): string | undefined {
 
   return undefined;
 }
+
+export function getCitizenDni(ticket?: Ticket | null): string | undefined {
+  if (!ticket) return undefined;
+
+  return (
+    ticket.informacion_personal_vecino?.dni ||
+    (ticket.informacion_personal_vecino as any)?.documento ||
+    ticket.dni ||
+    (ticket as any)?.documento
+  );
+}
