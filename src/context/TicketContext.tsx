@@ -1,7 +1,6 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode, useCallback } from 'react';
 import { Ticket } from '@/types/tickets';
 import { getTickets } from '@/services/ticketService';
-import { toast } from 'sonner';
 import useTicketUpdates from '@/hooks/useTicketUpdates';
 
 interface TicketContextType {
@@ -59,8 +58,6 @@ export const TicketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     fetchTickets();
   }, [fetchTickets]);
 
-  useTicketUpdates({ onNewTicket: fetchTickets });
-
   const selectTicket = (ticketId: number | null) => {
     if (ticketId === null) {
         setSelectedTicket(null);
@@ -80,6 +77,13 @@ export const TicketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       setSelectedTicket(prev => prev ? { ...prev, ...updates } : null);
     }
   };
+
+  useTicketUpdates({
+    onNewTicket: fetchTickets,
+    onNewComment: (data) => {
+      updateTicket(data.ticketId, { estado: data.estado });
+    },
+  });
 
   const ticketsByCategory = groupTicketsByCategory(tickets);
 

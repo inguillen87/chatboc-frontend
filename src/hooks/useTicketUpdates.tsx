@@ -29,6 +29,31 @@ export default function useTicketUpdates(options: UseTicketUpdatesOptions = {}) 
     let socket: Socket | null = null;
     let active = true;
 
+    const handleConnect = () => {
+      console.log('Socket.io connected successfully');
+    };
+    const handleDisconnect = () => {
+      console.log('Socket.io disconnected');
+    };
+    const handleNewTicket = (data: any) => {
+      onNewTicket?.(data);
+      toast({
+        title: `Nuevo Ticket #${data.nro_ticket}`,
+        description: data.asunto,
+      });
+    };
+    const handleNewComment = (data: any) => {
+      onNewComment?.(data);
+      toast({
+        title: `Nuevo Comentario en Ticket #${data.ticketId}`,
+        description: data.comment.comentario,
+      });
+    };
+    const handleConnectError = (err: any) => {
+      console.error('Socket.io connection error:', err);
+      socket?.close();
+    };
+
     const initSocket = async () => {
       try {
         // Opcional: Verifica si el usuario tiene activadas las notificaciones
@@ -42,31 +67,6 @@ export default function useTicketUpdates(options: UseTicketUpdatesOptions = {}) 
         });
 
         assertEventSource(socket, 'ticket-socket');
-
-        const handleConnect = () => {
-          console.log('Socket.io connected successfully');
-        };
-        const handleDisconnect = () => {
-          console.log('Socket.io disconnected');
-        };
-        const handleNewTicket = (data: any) => {
-          onNewTicket?.(data);
-          toast({
-            title: `Nuevo Ticket #${data.nro_ticket}`,
-            description: data.asunto,
-          });
-        };
-        const handleNewComment = (data: any) => {
-          onNewComment?.(data);
-          toast({
-            title: `Nuevo Comentario en Ticket #${data.ticketId}`,
-            description: data.comment.comentario,
-          });
-        };
-        const handleConnectError = (err: any) => {
-          console.error('Socket.io connection error:', err);
-          socket?.close();
-        };
 
         safeOn(socket, 'connect', handleConnect);
         safeOn(socket, 'disconnect', handleDisconnect);
@@ -93,5 +93,5 @@ export default function useTicketUpdates(options: UseTicketUpdatesOptions = {}) 
         socket.disconnect();
       }
     };
-  }, [user]);
+  }, [user, onNewTicket, onNewComment]);
 }
