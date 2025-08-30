@@ -11,10 +11,16 @@ interface TicketUpdate {
   mensaje?: string | null;
 }
 
+interface UseTicketUpdatesOptions {
+  onNewTicket?: (data: any) => void;
+  onNewComment?: (data: any) => void;
+}
+
 // Asegúrate de que esta URL coincida con tu servidor de Socket.io
 const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
-export default function useTicketUpdates() {
+export default function useTicketUpdates(options: UseTicketUpdatesOptions = {}) {
+  const { onNewTicket, onNewComment } = options;
   const { user } = useUser();
 
   useEffect(() => {
@@ -44,12 +50,14 @@ export default function useTicketUpdates() {
           console.log('Socket.io disconnected');
         };
         const handleNewTicket = (data: any) => {
+          onNewTicket?.(data);
           toast({
             title: `Nuevo Ticket #${data.nro_ticket}`,
             description: data.asunto,
           });
         };
         const handleNewComment = (data: any) => {
+          onNewComment?.(data);
           toast({
             title: `Nuevo Comentario en Ticket #${data.ticketId}`,
             description: data.comment.comentario,
