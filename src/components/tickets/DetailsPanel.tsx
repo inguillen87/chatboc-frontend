@@ -22,7 +22,7 @@ import {
 import { FaWhatsapp } from 'react-icons/fa';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { getContactPhone } from '@/utils/ticket';
+import { getContactPhone, getCitizenDni } from '@/utils/ticket';
 
 const DetailsPanel: React.FC = () => {
   const { selectedTicket: ticket } = useTickets();
@@ -48,7 +48,7 @@ const DetailsPanel: React.FC = () => {
     telefono: getContactPhone(ticket),
     email: ticket?.informacion_personal_vecino?.email || ticket?.email,
     direccion: ticket?.informacion_personal_vecino?.direccion || ticket?.direccion,
-    dni: ticket?.informacion_personal_vecino?.dni || ticket?.dni,
+    dni: getCitizenDni(ticket),
   };
   const isSpecified = (value?: string) => value && value.toLowerCase() !== 'no especificado';
   const displayName = personal?.nombre || ticket?.display_name || '';

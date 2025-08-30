@@ -6,9 +6,10 @@ import { getTicketByNumber, getTicketTimeline } from '@/services/ticketService';
 import { Ticket, Message, TicketHistoryEvent } from '@/types/tickets';
 import { formatDate } from '@/utils/fecha';
 import TicketTimeline from '@/components/tickets/TicketTimeline';
+import TicketMap from '@/components/TicketMap';
 import { Separator } from '@/components/ui/separator';
 import { getErrorMessage, ApiError } from '@/utils/api';
-import { getContactPhone } from '@/utils/ticket';
+import { getContactPhone, getCitizenDni } from '@/utils/ticket';
 
 export default function TicketLookup() {
   const { ticketId } = useParams<{ ticketId: string }>();
@@ -37,6 +38,7 @@ export default function TicketLookup() {
     setTimelineHistory([]);
     setTimelineMessages([]);
     setEstadoChat('');
+    
     try {
       const data = await getTicketByNumber(id, pinVal);
       setTicket(data);
@@ -147,8 +149,8 @@ export default function TicketLookup() {
                 {(ticket.informacion_personal_vecino?.nombre || ticket.display_name) && (
                   <p>Nombre: {ticket.informacion_personal_vecino?.nombre || ticket.display_name}</p>
                 )}
-                {(ticket.informacion_personal_vecino?.dni || ticket.dni) && (
-                  <p>DNI: {ticket.informacion_personal_vecino?.dni || ticket.dni}</p>
+                {getCitizenDni(ticket) && (
+                  <p>DNI: {getCitizenDni(ticket)}</p>
                 )}
                 {(ticket.informacion_personal_vecino?.email || ticket.email) && (
                   <p>Email: {ticket.informacion_personal_vecino?.email || ticket.email}</p>
@@ -158,6 +160,7 @@ export default function TicketLookup() {
                 )}
               </div>
             )}
+            <TicketMap ticket={ticket} />
           </div>
 
           <Separator />
