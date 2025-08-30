@@ -22,13 +22,14 @@ import {
 import { FaWhatsapp } from 'react-icons/fa';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { getContactPhone, getCitizenDni } from '@/utils/ticket';
+
 
 const DetailsPanel: React.FC = () => {
   const { selectedTicket: ticket } = useTickets();
   const [isSendingEmail, setIsSendingEmail] = React.useState(false);
   const [timelineHistory, setTimelineHistory] = React.useState<TicketHistoryEvent[]>([]);
   const [timelineMessages, setTimelineMessages] = React.useState<Message[]>([]);
+  const [specialContact, setSpecialContact] = React.useState<SpecializedContact | null>(null);
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text).then(() => {
@@ -38,6 +39,14 @@ const DetailsPanel: React.FC = () => {
       console.error('Error al copiar: ', err);
     });
   };
+
+  React.useEffect(() => {
+    if (ticket?.categoria) {
+      getSpecializedContact(ticket.categoria).then(setSpecialContact);
+    } else {
+      setSpecialContact(null);
+    }
+  }, [ticket?.categoria]);
 
   const getInitials = (name: string) => {
     return name ? name.split(' ').map(n => n[0]).join('').toUpperCase() : '??';
@@ -285,6 +294,19 @@ const DetailsPanel: React.FC = () => {
                 </div>
               </div>
             </CardContent>
+
+            {specialContact && (
+              <CardContent className="p-4 text-sm border-t">
+                <h4 className="font-semibold mb-2">Contacto para seguimiento</h4>
+                <div className="space-y-1">
+                  <p>{specialContact.nombre}</p>
+                  {specialContact.titulo && <p>{specialContact.titulo}</p>}
+                  {specialContact.telefono && <p>Teléfono: {specialContact.telefono}</p>}
+                  {specialContact.horario && <p>Horario: {specialContact.horario}</p>}
+                  {specialContact.email && <p>Email: {specialContact.email}</p>}
+                </div>
+              </CardContent>
+            )}
 
             <CardContent className="p-4 space-y-3 text-sm border-t">
                 <h4 className="font-semibold mb-2">Detalles del Ticket</h4>

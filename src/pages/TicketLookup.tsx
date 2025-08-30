@@ -9,8 +9,6 @@ import TicketTimeline from '@/components/tickets/TicketTimeline';
 import TicketMap from '@/components/TicketMap';
 import { Separator } from '@/components/ui/separator';
 import { getErrorMessage, ApiError } from '@/utils/api';
-import { getContactPhone, getCitizenDni } from '@/utils/ticket';
-
 export default function TicketLookup() {
   const { ticketId } = useParams<{ ticketId: string }>();
   const navigate = useNavigate();
@@ -23,6 +21,7 @@ export default function TicketLookup() {
   const [timelineHistory, setTimelineHistory] = useState<TicketHistoryEvent[]>([]);
   const [timelineMessages, setTimelineMessages] = useState<Message[]>([]);
   const [estadoChat, setEstadoChat] = useState('');
+  const [specialContact, setSpecialContact] = useState<SpecializedContact | null>(null);
 
   const performSearch = useCallback(async (searchId: string, searchPin: string) => {
     const id = searchId.trim();
@@ -38,10 +37,10 @@ export default function TicketLookup() {
     setTimelineHistory([]);
     setTimelineMessages([]);
     setEstadoChat('');
-    
     try {
       const data = await getTicketByNumber(id, pinVal);
       setTicket(data);
+      getSpecializedContact(data.categoria).then(setSpecialContact);
 
       // Usar el historial y mensajes incluidos en el ticket si están presentes
       if (data.history || data.messages) {
@@ -160,6 +159,7 @@ export default function TicketLookup() {
                 )}
               </div>
             )}
+
             <TicketMap ticket={ticket} />
           </div>
 

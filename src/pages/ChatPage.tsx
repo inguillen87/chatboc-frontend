@@ -18,8 +18,6 @@ import { requestLocation } from "@/utils/geolocation";
 import { formatDate } from "@/utils/fecha";
 import { getTicketTimeline } from "@/services/ticketService";
 import { TicketHistoryEvent, Message as TicketMessage } from "@/types/tickets";
-import { getContactPhone, getCitizenDni } from "@/utils/ticket";
-
 // Importar AttachmentInfo y SendPayload desde @/types/chat o un lugar centralizado
 // Asegúrate de que SendPayload en @/types/chat.ts incluya attachmentInfo
 import { AttachmentInfo, SendPayload as TypeSendPayload } from "@/types/chat";
@@ -73,7 +71,6 @@ const ChatPage = () => {
   const [timelineHistory, setTimelineHistory] = useState<TicketHistoryEvent[]>([]);
   const [timelineMessages, setTimelineMessages] = useState<TicketMessage[]>([]);
   const [estadoChat, setEstadoChat] = useState('');
-
   const chatMessagesContainerRef = useRef<HTMLDivElement>(null);
   const lastQueryRef = useRef<string | null>(null);
   const ultimoMensajeIdRef = useRef<number>(0);
@@ -477,8 +474,7 @@ const ChatPage = () => {
                       {(ticketInfo.informacion_personal_vecino?.nombre || ticketInfo.display_name) && (
                         <p>Nombre: {ticketInfo.informacion_personal_vecino?.nombre || ticketInfo.display_name}</p>
                       )}
-                      {getCitizenDni(ticketInfo) && (
-                        <p>DNI: {getCitizenDni(ticketInfo)}</p>
+
                       )}
                       {(ticketInfo.informacion_personal_vecino?.email || ticketInfo.email) && (
                         <p>Email: {ticketInfo.informacion_personal_vecino?.email || ticketInfo.email}</p>
@@ -488,6 +484,7 @@ const ChatPage = () => {
                       )}
                     </div>
                   )}
+
                   <TicketMap ticket={{ ...ticketInfo, tipo: 'municipio' }} />
                 </div>
                 <div>
