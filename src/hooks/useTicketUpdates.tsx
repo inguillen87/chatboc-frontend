@@ -27,11 +27,8 @@ export default function useTicketUpdates(options: UseTicketUpdatesOptions = {}) 
 
   useEffect(() => {
     newTicketRef.current = onNewTicket;
-  }, [onNewTicket]);
-
-  useEffect(() => {
     newCommentRef.current = onNewComment;
-  }, [onNewComment]);
+  }, [onNewTicket, onNewComment]);
 
   useEffect(() => {
     if (!user) return;
