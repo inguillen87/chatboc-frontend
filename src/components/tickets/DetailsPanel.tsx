@@ -22,7 +22,7 @@ import {
 import { FaWhatsapp } from 'react-icons/fa';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { getContactPhone, getCitizenDni } from '@/utils/ticket';
+
 import { getSpecializedContact, SpecializedContact } from '@/utils/contacts';
 
 const DetailsPanel: React.FC = () => {

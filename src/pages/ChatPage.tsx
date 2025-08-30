@@ -18,7 +18,7 @@ import { requestLocation } from "@/utils/geolocation";
 import { formatDate } from "@/utils/fecha";
 import { getTicketTimeline } from "@/services/ticketService";
 import { TicketHistoryEvent, Message as TicketMessage } from "@/types/tickets";
-import { getContactPhone, getCitizenDni } from "@/utils/ticket";
+
 import { getSpecializedContact, SpecializedContact } from "@/utils/contacts";
 
 // Importar AttachmentInfo y SendPayload desde @/types/chat o un lugar centralizado
@@ -480,8 +480,7 @@ const ChatPage = () => {
                       {(ticketInfo.informacion_personal_vecino?.nombre || ticketInfo.display_name) && (
                         <p>Nombre: {ticketInfo.informacion_personal_vecino?.nombre || ticketInfo.display_name}</p>
                       )}
-                      {getCitizenDni(ticketInfo) && (
-                        <p>DNI: {getCitizenDni(ticketInfo)}</p>
+
                       )}
                       {(ticketInfo.informacion_personal_vecino?.email || ticketInfo.email) && (
                         <p>Email: {ticketInfo.informacion_personal_vecino?.email || ticketInfo.email}</p>
