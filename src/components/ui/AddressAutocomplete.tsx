@@ -1,26 +1,20 @@
 import React, { useEffect, useState } from "react";
-import GooglePlacesAutocomplete from "react-google-places-autocomplete";
 import { Input } from "./input";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 
 interface AddressAutocompleteProps {
   onSelect: (address: string) => void;
-  value?: any;
-  onChange?: (option: any | null) => void;
+  value?: { label: string; value: string } | null;
+  onChange?: (option: { label: string; value: string } | null) => void;
   placeholder?: string;
   className?: string;
   autoFocus?: boolean;
-  /**
-   * If provided, the selected address will be persisted in localStorage
-   * using this key. The stored value will also be used as the initial value
-   * when the component mounts.
-   */
   persistKey?: string;
   readOnly?: boolean;
   disabled?: boolean;
 }
 
-const Maps_API_KEY = import.meta.env.VITE_Maps_API_KEY || "";
+const MAPTILER_KEY = import.meta.env.VITE_MAPTILER_KEY || "";
 
 const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   onSelect,
@@ -33,33 +27,9 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   readOnly = false,
   disabled = false,
 }) => {
-  const [internalValue, setInternalValue] = useState<any>(value || null);
-  const [scriptLoaded, setScriptLoaded] = useState<boolean>(false);
-  const [tempInput, setTempInput] = useState<string>("");
-
-  // Ensure Google Maps script loads with async attribute
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if ((window as any).google) {
-      setScriptLoaded(true);
-      return;
-    }
-
-    const existing = document.getElementById("chatboc-google-maps");
-    if (existing) {
-      existing.addEventListener("load", () => setScriptLoaded(true));
-      return;
-    }
-
-    const s = document.createElement("script");
-    s.id = "chatboc-google-maps";
-
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${Maps_API_KEY}&libraries=places,marker&loading=async`;
-    s.async = true;
-    s.onload = () => setScriptLoaded(true);
-    s.onerror = () => setScriptLoaded(false);
-    document.head.appendChild(s);
-  }, []);
+  const [query, setQuery] = useState(value?.label || "");
+  const [options, setOptions] = useState<string[]>([]);
+  const [open, setOpen] = useState(false);
 
   // Load from storage on mount if persistKey provided
   useEffect(() => {
@@ -67,8 +37,8 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
       const stored = safeLocalStorage.getItem(persistKey);
       if (stored) {
         const opt = { label: stored, value: stored };
-        setInternalValue(opt);
-        if (onChange) onChange(opt);
+        setQuery(stored);
+        onChange?.(opt);
         onSelect(stored);
       }
     }
@@ -77,135 +47,91 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
 
   // Sync when parent value changes
   useEffect(() => {
-    if (value !== undefined) {
-      setInternalValue(value);
+    if (value) {
+      setQuery(value.label || value.value);
+    } else {
+      setQuery("");
     }
   }, [value]);
-  const googlePlacesAvailable =
-    typeof window !== "undefined" &&
-    (window as any).google?.maps?.places !== undefined;
+
+  // Fetch suggestions from MapTiler
+  useEffect(() => {
+    if (!MAPTILER_KEY || query.trim().length < 3) {
+      setOptions([]);
+      return;
+    }
+    const controller = new AbortController();
+    fetch(
+      `https://api.maptiler.com/geocoding/${encodeURIComponent(query)}.json?key=${MAPTILER_KEY}&language=es&limit=5`,
+      { signal: controller.signal }
+    )
+      .then((r) => r.json())
+      .then((data) => {
+        const feats = Array.isArray(data?.features) ? data.features : [];
+        const opts = feats
+          .map(
+            (f: any) =>
+              f.place_name ||
+              f.text ||
+              f.properties?.name ||
+              f.properties?.address ||
+              f.properties?.formatted
+          )
+          .filter(Boolean);
+        setOptions(opts);
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [query]);
 
   if (readOnly || disabled) {
     return (
       <Input
-        value={internalValue?.label || internalValue?.value || ""}
+        value={query}
         readOnly
+        disabled={disabled}
         placeholder={placeholder}
         className={className}
       />
     );
   }
 
-  if (!Maps_API_KEY || !scriptLoaded || !googlePlacesAvailable) {
-    return (
+  return (
+    <div className="relative">
       <Input
-        placeholder="Ingrese dirección"
+        value={query}
+        onChange={(e) => {
+          const val = e.target.value;
+          setQuery(val);
+          onChange?.(val ? { label: val, value: val } : null);
+        }}
+        placeholder={placeholder}
         className={className}
         autoFocus={autoFocus}
-        value={tempInput}
-        onChange={(e) => setTempInput(e.currentTarget.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && e.currentTarget.value.trim()) {
-            onSelect(e.currentTarget.value.trim());
-          }
-        }}
-        onBlur={(e) => {
-          const val = e.currentTarget.value.trim();
-          setTempInput(val);
-          if (val) onSelect(val);
-        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 100)}
       />
-    );
-  }
-
-  return (
-    <GooglePlacesAutocomplete
-      autocompletionRequest={{
-        componentRestrictions: { country: "ar" },
-        types: ["address"],
-      }}
-      selectProps={{
-        value: internalValue,
-        isDisabled: readOnly || disabled,
-        onChange: (option: any) => {
-          setInternalValue(option);
-          const selected =
-            typeof option?.value === "string"
-              ? option.value
-              : option?.value?.description;
-          if (persistKey) {
-            if (selected) {
-              safeLocalStorage.setItem(persistKey, selected);
-            } else {
-              safeLocalStorage.removeItem(persistKey);
-            }
-          }
-          if (onChange) onChange(option);
-          if (selected) {
-            onSelect(selected);
-          }
-        },
-        onBlur: (e: any) => {
-          const val = (e.target as HTMLInputElement).value;
-          if (val) {
-            const opt = { label: val, value: val };
-            if (persistKey) safeLocalStorage.setItem(persistKey, val);
-            setInternalValue(opt);
-            if (onChange) onChange(opt);
-            onSelect(val);
-          }
-        },
-        placeholder,
-        isClearable: true,
-        autoFocus,
-        className,
-        styles: {
-          control: (base: any) => ({
-            ...base,
-            backgroundColor: "hsl(var(--input))",
-            color: "hsl(var(--foreground))",
-            minHeight: "2.5rem",
-            borderRadius: "0.75rem",
-            borderColor: "hsl(var(--border))",
-            fontSize: "0.95rem",
-          }),
-          menu: (base: any) => ({
-            ...base,
-            backgroundColor: "hsl(var(--card))",
-            color: "hsl(var(--foreground))",
-            zIndex: 999999,
-          }),
-          option: (base: any, state: any) => ({
-            ...base,
-            backgroundColor: state.isFocused
-              ? "hsl(var(--accent))"
-              : "hsl(var(--card))",
-            color: "hsl(var(--foreground))",
-            cursor: "pointer",
-          }),
-          singleValue: (base: any) => ({
-            ...base,
-            color: "hsl(var(--foreground))",
-          }),
-          input: (base: any) => ({
-            ...base,
-            color: "hsl(var(--foreground))",
-          }),
-          placeholder: (base: any) => ({
-            ...base,
-            color: "hsl(var(--muted-foreground))",
-            fontWeight: 600,
-          }),
-        },
-        onKeyDown: (e: any) => {
-          if (e.key === "Enter" && e.target.value) {
-            const val = e.target.value;
-            if (persistKey) safeLocalStorage.setItem(persistKey, val);
-            onSelect(val);
-          }
-        },
-      }}
-    />
+      {open && options.length > 0 && (
+        <ul className="absolute z-10 w-full bg-card border border-border rounded-md mt-1 max-h-60 overflow-auto">
+          {options.map((opt) => (
+            <li
+              key={opt}
+              className="px-3 py-2 cursor-pointer hover:bg-accent"
+              onMouseDown={() => {
+                setQuery(opt);
+                const obj = { label: opt, value: opt };
+                if (persistKey) safeLocalStorage.setItem(persistKey, opt);
+                onChange?.(obj);
+                onSelect(opt);
+                setOpen(false);
+              }}
+            >
+              {opt}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 };
 
