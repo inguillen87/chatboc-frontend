@@ -118,39 +118,21 @@ export default function MapLibreMap({
           };
 
           const styleImageMissingHandler = (e: any) => {
-            const raw = e.id as string | undefined;
-            if (!raw || !raw.trim()) {
-              // El estilo solicitó una imagen sin nombre válido: añadimos un pixel transparente
-              // para evitar que MapLibre siga registrando errores en consola.
-              const key = raw ?? "";
-              if (!map.hasImage?.(key)) {
-                const empty = { width: 1, height: 1, data: new Uint8Array([0, 0, 0, 0]) };
-                try {
-                  map.addImage?.(key, empty as any);
-                } catch (imgErr) {
-                  console.warn("No se pudo agregar imagen vacía", imgErr);
-                }
-              }
-              return;
-            }
-            const name = raw.trim();
+            const name = (e.id as string | undefined)?.trim() ?? "";
             if (map.hasImage?.(name)) return;
-            const url = `/icons/${name}.png`;
-            map.loadImage?.(url, (err: any, image: any) => {
-              if (err || !image) {
-                console.warn("No pude cargar icono", name, url, err);
-                return;
-              }
-              map.addImage?.(name, image);
-            });
+            // Si el estilo solicita un icono que no tenemos disponible,
+            // agregamos un pixel transparente para evitar errores fatales.
+            const empty = { width: 1, height: 1, data: new Uint8Array([0, 0, 0, 0]) };
+            try {
+              map.addImage?.(name, empty as any);
+            } catch (imgErr) {
+              console.warn("No se pudo agregar imagen vacía", imgErr);
+            }
           };
 
           const loadHandler = () => {
-            map.loadImage?.("/icons/pin-blue.png", (err: any, image: any) => {
-              if (!err && image && !map.hasImage?.("pin-blue")) {
-                map.addImage?.("pin-blue", image);
-              }
-            });
+            // Para la capa de calor no necesitamos iconos personalizados;
+            // por lo tanto omitimos la carga de recursos adicionales aquí.
 
             const sourceData = heatmapData
               ? {
