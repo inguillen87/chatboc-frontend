@@ -23,7 +23,6 @@ import { FaWhatsapp } from 'react-icons/fa';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
-import { getSpecializedContact, SpecializedContact } from '@/utils/contacts';
 
 const DetailsPanel: React.FC = () => {
   const { selectedTicket: ticket } = useTickets();

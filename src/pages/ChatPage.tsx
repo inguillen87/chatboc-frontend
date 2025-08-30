@@ -18,9 +18,6 @@ import { requestLocation } from "@/utils/geolocation";
 import { formatDate } from "@/utils/fecha";
 import { getTicketTimeline } from "@/services/ticketService";
 import { TicketHistoryEvent, Message as TicketMessage } from "@/types/tickets";
-
-import { getSpecializedContact, SpecializedContact } from "@/utils/contacts";
-
 // Importar AttachmentInfo y SendPayload desde @/types/chat o un lugar centralizado
 // Asegúrate de que SendPayload en @/types/chat.ts incluya attachmentInfo
 import { AttachmentInfo, SendPayload as TypeSendPayload } from "@/types/chat";
@@ -73,9 +70,7 @@ const ChatPage = () => {
   const [ticketInfo, setTicketInfo] = useState<any>(null);
   const [timelineHistory, setTimelineHistory] = useState<TicketHistoryEvent[]>([]);
   const [timelineMessages, setTimelineMessages] = useState<TicketMessage[]>([]);
-  const [specialContact, setSpecialContact] = useState<SpecializedContact | null>(null);
   const [estadoChat, setEstadoChat] = useState('');
-
   const chatMessagesContainerRef = useRef<HTMLDivElement>(null);
   const lastQueryRef = useRef<string | null>(null);
   const ultimoMensajeIdRef = useRef<number>(0);
@@ -165,7 +160,6 @@ const ChatPage = () => {
         longitud: data.longitud != null ? Number(data.longitud) : null,
       };
       setTicketInfo(normalized);
-      getSpecializedContact(normalized.categoria).then(setSpecialContact);
       try {
         const timeline = await getTicketTimeline(normalized.id, normalized.tipo || 'municipio', { public: true });
         setTimelineHistory(timeline.history);
@@ -490,16 +484,7 @@ const ChatPage = () => {
                       )}
                     </div>
                   )}
-                  {specialContact && (
-                    <div className="mt-4 text-sm space-y-1">
-                      <p className="font-medium">Contacto para seguimiento:</p>
-                      <p>{specialContact.nombre}</p>
-                      {specialContact.titulo && <p>{specialContact.titulo}</p>}
-                      {specialContact.telefono && <p>Teléfono: {specialContact.telefono}</p>}
-                      {specialContact.horario && <p>Horario: {specialContact.horario}</p>}
-                      {specialContact.email && <p>Email: {specialContact.email}</p>}
-                    </div>
-                  )}
+
                   <TicketMap ticket={{ ...ticketInfo, tipo: 'municipio' }} />
                 </div>
                 <div>

@@ -9,9 +9,6 @@ import TicketTimeline from '@/components/tickets/TicketTimeline';
 import TicketMap from '@/components/TicketMap';
 import { Separator } from '@/components/ui/separator';
 import { getErrorMessage, ApiError } from '@/utils/api';
-
-import { getSpecializedContact, SpecializedContact } from '@/utils/contacts';
-
 export default function TicketLookup() {
   const { ticketId } = useParams<{ ticketId: string }>();
   const navigate = useNavigate();
@@ -40,7 +37,6 @@ export default function TicketLookup() {
     setTimelineHistory([]);
     setTimelineMessages([]);
     setEstadoChat('');
-    setSpecialContact(null);
     try {
       const data = await getTicketByNumber(id, pinVal);
       setTicket(data);
@@ -163,16 +159,7 @@ export default function TicketLookup() {
                 )}
               </div>
             )}
-            {specialContact && (
-              <div className="mt-4 text-sm space-y-1">
-                <p className="font-medium">Contacto para seguimiento:</p>
-                <p>{specialContact.nombre}</p>
-                {specialContact.titulo && <p>{specialContact.titulo}</p>}
-                {specialContact.telefono && <p>Teléfono: {specialContact.telefono}</p>}
-                {specialContact.horario && <p>Horario: {specialContact.horario}</p>}
-                {specialContact.email && <p>Email: {specialContact.email}</p>}
-              </div>
-            )}
+
             <TicketMap ticket={ticket} />
           </div>
 
