@@ -59,16 +59,17 @@ interface EventFormProps {
   onCancel: () => void;
   isSubmitting?: boolean;
   initialData?: Partial<EventFormValues>;
+  fixedTipoPost?: 'noticia' | 'evento';
 }
 
-export const EventForm: React.FC<EventFormProps> = ({ onSubmit, onCancel, isSubmitting, initialData }) => {
+export const EventForm: React.FC<EventFormProps> = ({ onSubmit, onCancel, isSubmitting, initialData, fixedTipoPost }) => {
   const form = useForm<EventFormValues>({
     resolver: zodResolver(eventFormSchema),
     defaultValues: {
       title: '',
       subtitle: '',
       description: '',
-      tipo_post: 'noticia',
+      tipo_post: fixedTipoPost || 'noticia',
       startDate: undefined,
       endDate: undefined,
       location: { address: '' },
@@ -86,27 +87,29 @@ export const EventForm: React.FC<EventFormProps> = ({ onSubmit, onCancel, isSubm
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-6">
-        <FormField
-          control={form.control}
-          name="tipo_post"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Tipo de Publicación</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecciona un tipo" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="noticia">Noticia</SelectItem>
-                  <SelectItem value="evento">Evento</SelectItem>
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        {!fixedTipoPost && (
+          <FormField
+            control={form.control}
+            name="tipo_post"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Tipo de Publicación</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecciona un tipo" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="noticia">Noticia</SelectItem>
+                    <SelectItem value="evento">Evento</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
         <FormField
           control={form.control}
           name="title"
@@ -233,7 +236,7 @@ export const EventForm: React.FC<EventFormProps> = ({ onSubmit, onCancel, isSubm
                       placeholder="Ej: Parque San Martín, Mendoza"
                       onSelect={(address) => controllerField.onChange(address)}
                       value={controllerField.value ? { label: controllerField.value, value: controllerField.value } : null}
-                      onChange={(option) => controllerField.onChange(option ? option.label : '')}
+                      onChange={(option) => controllerField.onChange(option ? option.value : '')}
                     />
                   )}
                 />
