@@ -25,10 +25,14 @@ export default function useTicketUpdates(options: UseTicketUpdatesOptions = {}) 
   const newCommentRef = useRef<UseTicketUpdatesOptions['onNewComment']>(onNewComment);
   const { user } = useUser();
 
+  // Keep listeners synced with the latest callbacks without re-subscribing
   useEffect(() => {
     newTicketRef.current = onNewTicket;
+  }, [onNewTicket]);
+
+  useEffect(() => {
     newCommentRef.current = onNewComment;
-  }, [onNewTicket, onNewComment]);
+  }, [onNewComment]);
 
   useEffect(() => {
     if (!user) return;
