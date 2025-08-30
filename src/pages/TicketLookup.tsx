@@ -6,9 +6,11 @@ import { getTicketByNumber, getTicketTimeline } from '@/services/ticketService';
 import { Ticket, Message, TicketHistoryEvent } from '@/types/tickets';
 import { formatDate } from '@/utils/fecha';
 import TicketTimeline from '@/components/tickets/TicketTimeline';
+import TicketMap from '@/components/TicketMap';
 import { Separator } from '@/components/ui/separator';
 import { getErrorMessage, ApiError } from '@/utils/api';
-import { getContactPhone } from '@/utils/ticket';
+import { getContactPhone, getCitizenDni } from '@/utils/ticket';
+import { getSpecializedContact, SpecializedContact } from '@/utils/contacts';
 
 export default function TicketLookup() {
   const { ticketId } = useParams<{ ticketId: string }>();
@@ -22,6 +24,7 @@ export default function TicketLookup() {
   const [timelineHistory, setTimelineHistory] = useState<TicketHistoryEvent[]>([]);
   const [timelineMessages, setTimelineMessages] = useState<Message[]>([]);
   const [estadoChat, setEstadoChat] = useState('');
+  const [specialContact, setSpecialContact] = useState<SpecializedContact | null>(null);
 
   const performSearch = useCallback(async (searchId: string, searchPin: string) => {
     const id = searchId.trim();
@@ -37,9 +40,11 @@ export default function TicketLookup() {
     setTimelineHistory([]);
     setTimelineMessages([]);
     setEstadoChat('');
+    setSpecialContact(null);
     try {
       const data = await getTicketByNumber(id, pinVal);
       setTicket(data);
+      getSpecializedContact(data.categoria).then(setSpecialContact);
 
       // Usar el historial y mensajes incluidos en el ticket si están presentes
       if (data.history || data.messages) {
@@ -147,8 +152,8 @@ export default function TicketLookup() {
                 {(ticket.informacion_personal_vecino?.nombre || ticket.display_name) && (
                   <p>Nombre: {ticket.informacion_personal_vecino?.nombre || ticket.display_name}</p>
                 )}
-                {(ticket.informacion_personal_vecino?.dni || ticket.dni) && (
-                  <p>DNI: {ticket.informacion_personal_vecino?.dni || ticket.dni}</p>
+                {getCitizenDni(ticket) && (
+                  <p>DNI: {getCitizenDni(ticket)}</p>
                 )}
                 {(ticket.informacion_personal_vecino?.email || ticket.email) && (
                   <p>Email: {ticket.informacion_personal_vecino?.email || ticket.email}</p>
@@ -158,6 +163,17 @@ export default function TicketLookup() {
                 )}
               </div>
             )}
+            {specialContact && (
+              <div className="mt-4 text-sm space-y-1">
+                <p className="font-medium">Contacto para seguimiento:</p>
+                <p>{specialContact.nombre}</p>
+                {specialContact.titulo && <p>{specialContact.titulo}</p>}
+                {specialContact.telefono && <p>Teléfono: {specialContact.telefono}</p>}
+                {specialContact.horario && <p>Horario: {specialContact.horario}</p>}
+                {specialContact.email && <p>Email: {specialContact.email}</p>}
+              </div>
+            )}
+            <TicketMap ticket={ticket} />
           </div>
 
           <Separator />
