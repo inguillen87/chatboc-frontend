@@ -11,9 +11,15 @@ import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { useUser } from "@/hooks/useUser";
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import TicketMap from "@/components/TicketMap";
+import TicketTimeline from "@/components/tickets/TicketTimeline";
 import getOrCreateAnonId from "@/utils/anonId";
 import { toast } from "@/components/ui/use-toast";
 import { requestLocation } from "@/utils/geolocation";
+import { formatDate } from "@/utils/fecha";
+import { getTicketTimeline } from "@/services/ticketService";
+import { TicketHistoryEvent, Message as TicketMessage } from "@/types/tickets";
+import { getContactPhone } from "@/utils/ticket";
+import { getSpecializedContact, SpecializedContact } from "@/utils/contacts";
 
 // Importar AttachmentInfo y SendPayload desde @/types/chat o un lugar centralizado
 // Asegúrate de que SendPayload en @/types/chat.ts incluya attachmentInfo
@@ -65,6 +71,10 @@ const ChatPage = () => {
   const [showCierre, setShowCierre] = useState<{ show: boolean; text: string } | null>(null);
   const [activeTicketId, setActiveTicketId] = useState<number | null>(null);
   const [ticketInfo, setTicketInfo] = useState<any>(null);
+  const [timelineHistory, setTimelineHistory] = useState<TicketHistoryEvent[]>([]);
+  const [timelineMessages, setTimelineMessages] = useState<TicketMessage[]>([]);
+  const [specialContact, setSpecialContact] = useState<SpecializedContact | null>(null);
+  const [estadoChat, setEstadoChat] = useState('');
 
   const chatMessagesContainerRef = useRef<HTMLDivElement>(null);
   const lastQueryRef = useRef<string | null>(null);
@@ -149,12 +159,22 @@ const ChatPage = () => {
         `/tickets/municipio/${activeTicketId}`,
         { sendAnonId: isAnonimo, sendEntityToken: true }
       );
-      setTicketInfo({
+      const normalized = {
         ...data,
         latitud: data.latitud != null ? Number(data.latitud) : null,
         longitud: data.longitud != null ? Number(data.longitud) : null,
-      });
-    } catch (error) { 
+      };
+      setTicketInfo(normalized);
+      getSpecializedContact(normalized.categoria).then(setSpecialContact);
+      try {
+        const timeline = await getTicketTimeline(normalized.id, normalized.tipo || 'municipio', { public: true });
+        setTimelineHistory(timeline.history);
+        setTimelineMessages(timeline.messages);
+        setEstadoChat(timeline.estado_chat);
+      } catch (msgErr) {
+        console.error('Error fetching timeline for ticket', msgErr);
+      }
+    } catch (error) {
         console.error("Error fetching ticket info:", error);
     }
   }, [activeTicketId, isAnonimo]);
@@ -394,14 +414,6 @@ const ChatPage = () => {
     }
   }, [handleSend]);
 
-  const isTicketLocationValid =
-    !!ticketInfo &&
-    typeof ticketInfo.latitud === "number" &&
-    typeof ticketInfo.longitud === "number" &&
-    !isNaN(ticketInfo.latitud) &&
-    !isNaN(ticketInfo.longitud) &&
-    tipoChat === "municipio";
-
   return (
     <div className="min-h-screen flex flex-col w-full bg-background text-foreground">
       <Navbar />
@@ -448,13 +460,61 @@ const ChatPage = () => {
               />
             ))}
             {isTyping && <TypingIndicator />}
-            {isTicketLocationValid && <TicketMap ticket={{ ...ticketInfo, tipo: "municipio" }} />}
+            {ticketInfo && (
+              <div className="border rounded-xl p-4 sm:p-6 bg-card shadow-lg space-y-6">
+                <div>
+                  <p className="text-sm text-muted-foreground">Ticket #{ticketInfo.nro_ticket}</p>
+                  <h2 className="text-2xl font-semibold">{ticketInfo.asunto}</h2>
+                  <p className="pt-1">
+                    <span className="font-medium">Estado actual:</span>{' '}
+                    <span className="text-primary font-semibold">{estadoChat || ticketInfo.estado}</span>
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Creado el: {formatDate(ticketInfo.fecha, Intl.DateTimeFormat().resolvedOptions().timeZone, 'es-AR')}
+                  </p>
+                  {ticketInfo.direccion && (
+                    <p className="text-sm text-muted-foreground mt-1">Dirección: {ticketInfo.direccion}</p>
+                  )}
+                  {(getContactPhone(ticketInfo) || ticketInfo.email || ticketInfo.dni || ticketInfo.informacion_personal_vecino) && (
+                    <div className="mt-4 text-sm space-y-1">
+                      {(ticketInfo.informacion_personal_vecino?.nombre || ticketInfo.display_name) && (
+                        <p>Nombre: {ticketInfo.informacion_personal_vecino?.nombre || ticketInfo.display_name}</p>
+                      )}
+                      {(ticketInfo.informacion_personal_vecino?.dni || ticketInfo.dni) && (
+                        <p>DNI: {ticketInfo.informacion_personal_vecino?.dni || ticketInfo.dni}</p>
+                      )}
+                      {(ticketInfo.informacion_personal_vecino?.email || ticketInfo.email) && (
+                        <p>Email: {ticketInfo.informacion_personal_vecino?.email || ticketInfo.email}</p>
+                      )}
+                      {getContactPhone(ticketInfo) && (
+                        <p>Teléfono: {getContactPhone(ticketInfo)}</p>
+                      )}
+                    </div>
+                  )}
+                  {specialContact && (
+                    <div className="mt-4 text-sm space-y-1">
+                      <p className="font-medium">Contacto para seguimiento:</p>
+                      <p>{specialContact.nombre}</p>
+                      {specialContact.titulo && <p>{specialContact.titulo}</p>}
+                      {specialContact.telefono && <p>Teléfono: {specialContact.telefono}</p>}
+                      {specialContact.horario && <p>Horario: {specialContact.horario}</p>}
+                      {specialContact.email && <p>Email: {specialContact.email}</p>}
+                    </div>
+                  )}
+                  <TicketMap ticket={{ ...ticketInfo, tipo: 'municipio' }} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-semibold mb-4">Historial del Reclamo</h3>
+                  <TicketTimeline history={timelineHistory} messages={timelineMessages} />
+                </div>
+              </div>
+            )}
             {showCierre && showCierre.show && (
               <div className="my-3 p-3 rounded-lg bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-center font-medium shadow-sm border border-green-200 dark:border-green-700">
                 {showCierre.text}
               </div>
             )}
-            <div style={{ height: '1px' }} /> 
+            <div style={{ height: '1px' }} />
           </div>
 
           <footer className="bg-card/95 backdrop-blur-sm p-3 sm:p-4 border-t border-border min-w-0">

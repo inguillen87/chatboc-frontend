@@ -6,6 +6,10 @@ interface TicketLocation {
   direccion?: string | null;
   municipio_nombre?: string | null;
   tipo?: 'pyme' | 'municipio';
+  origen_latitud?: number | null;
+  origen_longitud?: number | null;
+  municipio_latitud?: number | null;
+  municipio_longitud?: number | null;
 }
 
 const buildFullAddress = (ticket: TicketLocation) => {
@@ -24,9 +28,15 @@ const TicketMap: React.FC<{ ticket: TicketLocation }> = ({ ticket }) => {
   const direccionCompleta = buildFullAddress(ticket);
   const hasCoords =
     typeof ticket.latitud === 'number' && typeof ticket.longitud === 'number';
-  const mapSrc = hasCoords
-    ? `https://www.google.com/maps?q=${ticket.latitud},${ticket.longitud}&output=embed`
-    : `https://www.google.com/maps?q=${encodeURIComponent(direccionCompleta)}&output=embed`;
+  const originLat = ticket.origen_latitud ?? ticket.municipio_latitud;
+  const originLon = ticket.origen_longitud ?? ticket.municipio_longitud;
+  const hasRoute =
+    hasCoords && typeof originLat === 'number' && typeof originLon === 'number';
+  const mapSrc = hasRoute
+    ? `https://www.google.com/maps/dir/?api=1&origin=${originLat},${originLon}&destination=${ticket.latitud},${ticket.longitud}&travelmode=driving&output=embed`
+    : hasCoords
+      ? `https://www.google.com/maps?q=${ticket.latitud},${ticket.longitud}&output=embed`
+      : `https://www.google.com/maps?q=${encodeURIComponent(direccionCompleta)}&output=embed`;
   return ticket.direccion || hasCoords ? (
     <div className="mb-6">
       <h4 className="font-semibold mb-2">Ubicación aproximada</h4>
