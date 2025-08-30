@@ -1,7 +1,7 @@
-import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
+import React, { createContext, useState, useContext, useEffect, ReactNode, useCallback } from 'react';
 import { Ticket } from '@/types/tickets';
 import { getTickets } from '@/services/ticketService';
-import { toast } from 'sonner';
+import useTicketUpdates from '@/hooks/useTicketUpdates';
 
 interface TicketContextType {
   tickets: Ticket[];
@@ -32,33 +32,31 @@ export const TicketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchTickets = async () => {
-      try {
-        setLoading(true);
-        const apiResponse = await getTickets();
-        const fetchedTickets = (apiResponse as any)?.tickets;
+  const fetchTickets = useCallback(async () => {
+    try {
+      const apiResponse = await getTickets();
+      const fetchedTickets = (apiResponse as any)?.tickets;
 
-        if (Array.isArray(fetchedTickets)) {
-            setTickets(fetchedTickets);
-            if (fetchedTickets.length > 0) {
-                setSelectedTicket(fetchedTickets[0]);
-            }
-        } else {
-            console.warn("La respuesta de la API no contiene un array de tickets:", apiResponse);
-            setTickets([]);
-        }
-      } catch (err) {
-        console.error('Error fetching tickets:', err);
-        setError('No se pudieron cargar los tickets.');
+      if (Array.isArray(fetchedTickets)) {
+        setTickets(fetchedTickets);
+        setSelectedTicket((prev) => prev ?? (fetchedTickets[0] || null));
+      } else {
+        console.warn("La respuesta de la API no contiene un array de tickets:", apiResponse);
         setTickets([]);
-      } finally {
-        setLoading(false);
       }
-    };
-
-    fetchTickets();
+    } catch (err) {
+      console.error('Error fetching tickets:', err);
+      setError('No se pudieron cargar los tickets.');
+      setTickets([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    setLoading(true);
+    fetchTickets();
+  }, [fetchTickets]);
 
   const selectTicket = (ticketId: number | null) => {
     if (ticketId === null) {
@@ -79,6 +77,13 @@ export const TicketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       setSelectedTicket(prev => prev ? { ...prev, ...updates } : null);
     }
   };
+
+  useTicketUpdates({
+    onNewTicket: fetchTickets,
+    onNewComment: (data) => {
+      updateTicket(data.ticketId, { estado: data.estado });
+    },
+  });
 
   const ticketsByCategory = groupTicketsByCategory(tickets);
 

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { toast } from '@/components/ui/use-toast';
 import { useUser } from './useUser';
@@ -11,17 +11,59 @@ interface TicketUpdate {
   mensaje?: string | null;
 }
 
+interface UseTicketUpdatesOptions {
+  onNewTicket?: (data: any) => void;
+  onNewComment?: (data: any) => void;
+}
+
 // Asegúrate de que esta URL coincida con tu servidor de Socket.io
 const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
-export default function useTicketUpdates() {
+export default function useTicketUpdates(options: UseTicketUpdatesOptions = {}) {
+  const { onNewTicket, onNewComment } = options;
+  const newTicketRef = useRef<UseTicketUpdatesOptions['onNewTicket']>(onNewTicket);
+  const newCommentRef = useRef<UseTicketUpdatesOptions['onNewComment']>(onNewComment);
   const { user } = useUser();
+
+  // Keep listeners synced with the latest callbacks without re-subscribing
+  useEffect(() => {
+    newTicketRef.current = onNewTicket;
+  }, [onNewTicket]);
+
+  useEffect(() => {
+    newCommentRef.current = onNewComment;
+  }, [onNewComment]);
 
   useEffect(() => {
     if (!user) return;
 
     let socket: Socket | null = null;
     let active = true;
+
+    const handleConnect = () => {
+      console.log('Socket.io connected successfully');
+    };
+    const handleDisconnect = () => {
+      console.log('Socket.io disconnected');
+    };
+    const handleNewTicket = (data: any) => {
+      newTicketRef.current?.(data);
+      toast({
+        title: `Nuevo Ticket #${data.nro_ticket}`,
+        description: data.asunto,
+      });
+    };
+    const handleNewComment = (data: any) => {
+      newCommentRef.current?.(data);
+      toast({
+        title: `Nuevo Comentario en Ticket #${data.ticketId}`,
+        description: data.comment.comentario,
+      });
+    };
+    const handleConnectError = (err: any) => {
+      console.error('Socket.io connection error:', err);
+      socket?.close();
+    };
 
     const initSocket = async () => {
       try {
@@ -36,29 +78,6 @@ export default function useTicketUpdates() {
         });
 
         assertEventSource(socket, 'ticket-socket');
-
-        const handleConnect = () => {
-          console.log('Socket.io connected successfully');
-        };
-        const handleDisconnect = () => {
-          console.log('Socket.io disconnected');
-        };
-        const handleNewTicket = (data: any) => {
-          toast({
-            title: `Nuevo Ticket #${data.nro_ticket}`,
-            description: data.asunto,
-          });
-        };
-        const handleNewComment = (data: any) => {
-          toast({
-            title: `Nuevo Comentario en Ticket #${data.ticketId}`,
-            description: data.comment.comentario,
-          });
-        };
-        const handleConnectError = (err: any) => {
-          console.error('Socket.io connection error:', err);
-          socket?.close();
-        };
 
         safeOn(socket, 'connect', handleConnect);
         safeOn(socket, 'disconnect', handleDisconnect);
