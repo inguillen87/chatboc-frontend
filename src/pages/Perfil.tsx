@@ -23,6 +23,7 @@ import {
   Loader2, // Icono de carga
 } from "lucide-react";
 import { EventForm } from "@/components/admin/EventForm";
+import { AgendaPasteForm } from "@/components/admin/AgendaPasteForm";
 import MunicipioIcon from "@/components/ui/MunicipioIcon";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -52,6 +53,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import LocationMap from "@/components/LocationMap";
@@ -148,6 +150,47 @@ export default function Perfil() {
   const [horariosOpen, setHorariosOpen] = useState(false);
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [isSubmittingEvent, setIsSubmittingEvent] = useState(false);
+  const [activeEventTab, setActiveEventTab] = useState<"event" | "news" | "paste">("event");
+
+  const handleSubmitPost = async (values: any) => {
+    setIsSubmittingEvent(true);
+    try {
+      const formData = new FormData();
+
+      formData.append('titulo', values.title);
+      if (values.subtitle) formData.append('subtitulo', values.subtitle);
+      if (values.description) formData.append('contenido', values.description);
+      formData.append('tipo_post', values.tipo_post);
+      if (values.imageUrl) formData.append('imagen_url', values.imageUrl);
+      if (values.startDate) formData.append('fecha_evento_inicio', values.startDate.toISOString());
+      if (values.endDate) formData.append('fecha_evento_fin', values.endDate.toISOString());
+      if (values.location?.address) formData.append('direccion', values.location.address);
+
+      if (values.flyer && values.flyer.length > 0) {
+        formData.append('flyer_image', values.flyer[0]);
+      }
+
+      await apiFetch('/municipal/posts', {
+        method: 'POST',
+        body: formData,
+      });
+
+      toast({
+        title: "Éxito",
+        description: "El evento/noticia ha sido creado correctamente.",
+      });
+
+      setIsEventModalOpen(false);
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error al crear el evento",
+        description: getErrorMessage(error, "No se pudo guardar el evento. Intenta de nuevo."),
+      });
+    } finally {
+      setIsSubmittingEvent(false);
+    }
+  };
   const [ticketLocations, setTicketLocations] = useState<TicketLocation[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedBarrios, setSelectedBarrios] = useState<string[]>([]);
@@ -1338,14 +1381,30 @@ export default function Perfil() {
                 <p className="text-sm text-muted-foreground">
                   Crea y gestiona los eventos, anuncios y noticias que se mostrarán a tus usuarios en el chat.
                 </p>
-                <div className="flex-grow"></div>
-                <Button
-                  onClick={() => setIsEventModalOpen(true)}
-                  className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-2.5 mt-auto"
-                >
-                  <PlusCircle className="w-4 h-4 mr-2" />
-                  Crear Nuevo Evento / Noticia
-                </Button>
+                <div className="flex-grow" />
+                <div className="flex flex-col gap-2 mt-auto">
+                  <Button
+                    onClick={() => {
+                      setActiveEventTab("event");
+                      setIsEventModalOpen(true);
+                    }}
+                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-2.5"
+                  >
+                    <PlusCircle className="w-4 h-4 mr-2" />
+                    Crear Nuevo Evento / Noticia
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setActiveEventTab("paste");
+                      setIsEventModalOpen(true);
+                    }}
+                    className="w-full py-2.5"
+                  >
+                    <UploadCloud className="w-4 h-4 mr-2" />
+                    Subir Información
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           )}
@@ -1492,7 +1551,13 @@ export default function Perfil() {
       </Dialog>
 
        {/* --- Modal para Crear Evento/Noticia --- */}
-      <Dialog open={isEventModalOpen} onOpenChange={setIsEventModalOpen}>
+      <Dialog
+        open={isEventModalOpen}
+        onOpenChange={(open) => {
+          setIsEventModalOpen(open);
+          if (!open) setActiveEventTab("event");
+        }}
+      >
         <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle className="text-xl flex items-center">
@@ -1504,53 +1569,32 @@ export default function Perfil() {
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 max-h-[70vh] overflow-y-auto px-2">
-            <EventForm
-              onCancel={() => setIsEventModalOpen(false)}
-              isSubmitting={isSubmittingEvent}
-              onSubmit={async (values) => {
-                setIsSubmittingEvent(true);
-                try {
-                  const formData = new FormData();
-
-                  // Map frontend form values to backend field names and append them
-                  formData.append('titulo', values.title);
-                  if (values.subtitle) formData.append('subtitulo', values.subtitle);
-                  if (values.description) formData.append('contenido', values.description);
-                  formData.append('tipo_post', values.tipo_post);
-                  if (values.imageUrl) formData.append('imagen_url', values.imageUrl);
-                  if (values.startDate) formData.append('fecha_evento_inicio', values.startDate.toISOString());
-                  if (values.endDate) formData.append('fecha_evento_fin', values.endDate.toISOString());
-
-                  // Append the file if it exists
-                  if (values.flyer && values.flyer.length > 0) {
-                    // Assuming the backend will expect the file under the key 'flyer_image'
-                    formData.append('flyer_image', values.flyer[0]);
-                  }
-
-                  // Use the endpoint provided by the backend team
-                  await apiFetch('/municipal/posts', {
-                    method: 'POST',
-                    body: formData, // apiFetch will handle the Content-Type
-                  });
-
-                  toast({
-                    title: "Éxito",
-                    description: "El evento/noticia ha sido creado correctamente.",
-                  });
-
-                  setIsEventModalOpen(false);
-
-                } catch (error) {
-                  toast({
-                    variant: "destructive",
-                    title: "Error al crear el evento",
-                    description: getErrorMessage(error, "No se pudo guardar el evento. Intenta de nuevo."),
-                  });
-                } finally {
-                  setIsSubmittingEvent(false);
-                }
-              }}
-            />
+            <Tabs value={activeEventTab} onValueChange={setActiveEventTab}>
+              <TabsList className="mb-4 grid w-full grid-cols-3">
+                <TabsTrigger value="event">Evento</TabsTrigger>
+                <TabsTrigger value="news">Noticia</TabsTrigger>
+                <TabsTrigger value="paste">Subir Información</TabsTrigger>
+              </TabsList>
+              <TabsContent value="event">
+                <EventForm
+                  fixedTipoPost="evento"
+                  onCancel={() => setIsEventModalOpen(false)}
+                  isSubmitting={isSubmittingEvent}
+                  onSubmit={handleSubmitPost}
+                />
+              </TabsContent>
+              <TabsContent value="news">
+                <EventForm
+                  fixedTipoPost="noticia"
+                  onCancel={() => setIsEventModalOpen(false)}
+                  isSubmitting={isSubmittingEvent}
+                  onSubmit={handleSubmitPost}
+                />
+              </TabsContent>
+              <TabsContent value="paste">
+                <AgendaPasteForm onCancel={() => setIsEventModalOpen(false)} />
+              </TabsContent>
+            </Tabs>
           </div>
         </DialogContent>
       </Dialog>
