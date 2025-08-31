@@ -474,8 +474,6 @@ const ChatPage = () => {
                       {(ticketInfo.informacion_personal_vecino?.nombre || ticketInfo.display_name) && (
                         <p>Nombre: {ticketInfo.informacion_personal_vecino?.nombre || ticketInfo.display_name}</p>
                       )}
-
-                      )}
                       {(ticketInfo.informacion_personal_vecino?.email || ticketInfo.email) && (
                         <p>Email: {ticketInfo.informacion_personal_vecino?.email || ticketInfo.email}</p>
                       )}
