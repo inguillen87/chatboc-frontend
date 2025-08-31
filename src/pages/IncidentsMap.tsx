@@ -80,12 +80,10 @@ export default function IncidentsMap() {
   }, [setError, setMapState, mapState]); // mapState dependency to sync if ref set but state not.
 
   useEffect(() => {
-    setIsMapInitializing(true);
     setError(null);
     loadGoogleMapsApi(["visualization"])
       .then(() => {
         console.log("Google Maps API loaded successfully.");
-        initializeMap();
       })
       .catch((err) => {
         console.error("Google Maps API failed to load", err);
@@ -94,7 +92,13 @@ export default function IncidentsMap() {
       .finally(() => {
         setIsMapInitializing(false);
       });
-  }, [initializeMap, setError]);
+  }, [setError]);
+
+  useEffect(() => {
+    if (!isMapInitializing) {
+      initializeMap();
+    }
+  }, [isMapInitializing, initializeMap]);
 
 
   const fetchDataAndRefreshMap = useCallback(async () => {
