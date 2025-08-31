@@ -1402,7 +1402,7 @@ export default function Perfil() {
                     className="w-full py-2.5"
                   >
                     <UploadCloud className="w-4 h-4 mr-2" />
-                    Pegar Información
+                    Subir Información
                   </Button>
                 </div>
               </CardContent>
@@ -1573,7 +1573,7 @@ export default function Perfil() {
               <TabsList className="mb-4 grid w-full grid-cols-3">
                 <TabsTrigger value="event">Evento</TabsTrigger>
                 <TabsTrigger value="news">Noticia</TabsTrigger>
-                <TabsTrigger value="paste">Pegar Información</TabsTrigger>
+                <TabsTrigger value="paste">Subir Información</TabsTrigger>
               </TabsList>
               <TabsContent value="event">
                 <EventForm
