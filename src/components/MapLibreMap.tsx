@@ -131,49 +131,47 @@ export default function MapLibreMap({
           };
 
           const loadHandler = () => {
-            // Para la capa de calor no necesitamos iconos personalizados;
-            // por lo tanto omitimos la carga de recursos adicionales aquí.
+            // Solo agregamos la capa de calor si se proporcionan datos.
+            if (heatmapData && heatmapData.length > 0) {
+              const sourceData = {
+                type: "FeatureCollection",
+                features: heatmapData.map((p) => ({
+                  type: "Feature",
+                  properties: { weight: p.weight ?? 1 },
+                  geometry: { type: "Point", coordinates: [p.lng, p.lat] },
+                })),
+              } as const;
 
-            const sourceData = heatmapData
-              ? {
-                  type: "FeatureCollection",
-                  features: heatmapData.map((p) => ({
-                    type: "Feature",
-                    properties: { weight: p.weight ?? 1 },
-                    geometry: { type: "Point", coordinates: [p.lng, p.lat] },
-                  })),
-                }
-              : "/api/puntos";
+              map.addSource?.("puntos", {
+                type: "geojson",
+                data: sourceData as any,
+              });
 
-            map.addSource?.("puntos", {
-              type: "geojson",
-              data: sourceData as any,
-            });
+              map.addLayer?.({
+                id: "tickets-heat",
+                type: "heatmap",
+                source: "puntos",
+                maxzoom: 15,
+                paint: {
+                  "heatmap-weight": ["get", "weight"],
+                  "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 0, 1, 15, 3],
+                  "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 0, 2, 9, 20],
+                  "heatmap-opacity": 0.6,
+                },
+              });
 
-            map.addLayer?.({
-              id: "tickets-heat",
-              type: "heatmap",
-              source: "puntos",
-              maxzoom: 15,
-              paint: {
-                "heatmap-weight": ["get", "weight"],
-                "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 0, 1, 15, 3],
-                "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 0, 2, 9, 20],
-                "heatmap-opacity": 0.6,
-              },
-            });
-
-            map.addLayer?.({
-              id: "tickets-circles",
-              type: "circle",
-              source: "puntos",
-              minzoom: 14,
-              paint: {
-                "circle-radius": 6,
-                "circle-color": "#3b82f6",
-                "circle-opacity": 0.9,
-              },
-            });
+              map.addLayer?.({
+                id: "tickets-circles",
+                type: "circle",
+                source: "puntos",
+                minzoom: 14,
+                paint: {
+                  "circle-radius": 6,
+                  "circle-color": "#3b82f6",
+                  "circle-opacity": 0.9,
+                },
+              });
+            }
           };
 
           if (onSelect) {
@@ -208,19 +206,47 @@ export default function MapLibreMap({
         console.error("MapLibreMap: failed to remove map", err);
       }
     };
-  }, [apiKey, initialCenter, initialZoom, heatmapData, onSelect]);
+  }, [apiKey, initialCenter, initialZoom, onSelect]);
 
   useEffect(() => {
-    if (!mapRef.current || typeof mapRef.current.getSource !== "function") return;
-    const source = mapRef.current.getSource("puntos");
-    if (!source || typeof (source as any).setData !== "function") return;
-    const features = (heatmapData ?? []).map((p) => ({
+    if (!mapRef.current || !heatmapData || heatmapData.length === 0) return;
+    const map = mapRef.current;
+    const features = heatmapData.map((p) => ({
       type: "Feature",
       properties: { weight: p.weight ?? 1 },
       geometry: { type: "Point", coordinates: [p.lng, p.lat] },
     }));
     const geojson = { type: "FeatureCollection", features } as const;
-    source.setData(geojson as any);
+
+    let source = map.getSource("puntos") as any;
+    if (!source) {
+      map.addSource?.("puntos", { type: "geojson", data: geojson as any });
+      map.addLayer?.({
+        id: "tickets-heat",
+        type: "heatmap",
+        source: "puntos",
+        maxzoom: 15,
+        paint: {
+          "heatmap-weight": ["get", "weight"],
+          "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 0, 1, 15, 3],
+          "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 0, 2, 9, 20],
+          "heatmap-opacity": 0.6,
+        },
+      });
+      map.addLayer?.({
+        id: "tickets-circles",
+        type: "circle",
+        source: "puntos",
+        minzoom: 14,
+        paint: {
+          "circle-radius": 6,
+          "circle-color": "#3b82f6",
+          "circle-opacity": 0.9,
+        },
+      });
+      source = map.getSource("puntos") as any;
+    }
+    source?.setData?.(geojson as any);
   }, [heatmapData]);
 
   return (
