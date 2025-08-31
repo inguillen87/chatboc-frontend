@@ -150,6 +150,7 @@ export default function Perfil() {
   const [horariosOpen, setHorariosOpen] = useState(false);
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [isSubmittingEvent, setIsSubmittingEvent] = useState(false);
+  const [activeEventTab, setActiveEventTab] = useState<"event" | "news" | "paste">("event");
 
   const handleSubmitPost = async (values: any) => {
     setIsSubmittingEvent(true);
@@ -1380,14 +1381,30 @@ export default function Perfil() {
                 <p className="text-sm text-muted-foreground">
                   Crea y gestiona los eventos, anuncios y noticias que se mostrarán a tus usuarios en el chat.
                 </p>
-                <div className="flex-grow"></div>
-                <Button
-                  onClick={() => setIsEventModalOpen(true)}
-                  className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-2.5 mt-auto"
-                >
-                  <PlusCircle className="w-4 h-4 mr-2" />
-                  Crear Nuevo Evento / Noticia
-                </Button>
+                <div className="flex-grow" />
+                <div className="flex flex-col gap-2 mt-auto">
+                  <Button
+                    onClick={() => {
+                      setActiveEventTab("event");
+                      setIsEventModalOpen(true);
+                    }}
+                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-2.5"
+                  >
+                    <PlusCircle className="w-4 h-4 mr-2" />
+                    Crear Nuevo Evento / Noticia
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setActiveEventTab("paste");
+                      setIsEventModalOpen(true);
+                    }}
+                    className="w-full py-2.5"
+                  >
+                    <UploadCloud className="w-4 h-4 mr-2" />
+                    Pegar Información
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           )}
@@ -1534,7 +1551,13 @@ export default function Perfil() {
       </Dialog>
 
        {/* --- Modal para Crear Evento/Noticia --- */}
-      <Dialog open={isEventModalOpen} onOpenChange={setIsEventModalOpen}>
+      <Dialog
+        open={isEventModalOpen}
+        onOpenChange={(open) => {
+          setIsEventModalOpen(open);
+          if (!open) setActiveEventTab("event");
+        }}
+      >
         <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle className="text-xl flex items-center">
@@ -1546,7 +1569,7 @@ export default function Perfil() {
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 max-h-[70vh] overflow-y-auto px-2">
-            <Tabs defaultValue="event">
+            <Tabs value={activeEventTab} onValueChange={setActiveEventTab}>
               <TabsList className="mb-4 grid w-full grid-cols-3">
                 <TabsTrigger value="event">Evento</TabsTrigger>
                 <TabsTrigger value="news">Noticia</TabsTrigger>
