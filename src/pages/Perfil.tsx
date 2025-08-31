@@ -64,6 +64,7 @@ import { useUser } from "@/hooks/useUser";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
 import { apiFetch, getErrorMessage, ApiError } from "@/utils/api"; // Importa apiFetch y getErrorMessage
+import { toLocalISOString } from "@/utils/fecha";
 import { suggestMappings, SystemField, DEFAULT_SYSTEM_FIELDS } from "@/utils/columnMatcher";
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
@@ -162,9 +163,24 @@ export default function Perfil() {
       if (values.description) formData.append('contenido', values.description);
       formData.append('tipo_post', values.tipo_post);
       if (values.imageUrl) formData.append('imagen_url', values.imageUrl);
-      if (values.startDate) formData.append('fecha_evento_inicio', values.startDate.toISOString());
-      if (values.endDate) formData.append('fecha_evento_fin', values.endDate.toISOString());
+      if (values.startDate) {
+        const start = new Date(values.startDate);
+        if (values.startTime) {
+          const [h, m] = values.startTime.split(':').map(Number);
+          start.setHours(h || 0, m || 0, 0, 0);
+        }
+        formData.append('fecha_evento_inicio', toLocalISOString(start));
+      }
+      if (values.endDate) {
+        const end = new Date(values.endDate);
+        if (values.endTime) {
+          const [h, m] = values.endTime.split(':').map(Number);
+          end.setHours(h || 0, m || 0, 0, 0);
+        }
+        formData.append('fecha_evento_fin', toLocalISOString(end));
+      }
       if (values.location?.address) formData.append('direccion', values.location.address);
+      if (values.link) formData.append('enlace', values.link);
 
       if (values.flyer && values.flyer.length > 0) {
         formData.append('flyer_image', values.flyer[0]);

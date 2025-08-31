@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Loader2 } from 'lucide-react';
-import { parseAgendaText } from '@/utils/agendaParser';
+import { parseAgendaText, type Agenda } from '@/utils/agendaParser';
 import { apiFetch, getErrorMessage } from '@/utils/api';
 import { toast } from '@/components/ui/use-toast';
 
@@ -15,6 +15,15 @@ export const AgendaPasteForm: React.FC<AgendaPasteFormProps> = ({ onCancel }) =>
   const [text, setText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [fileName, setFileName] = useState('');
+
+  const parsedAgenda = useMemo<Agenda | null>(() => {
+    if (!text.trim()) return null;
+    try {
+      return parseAgendaText(text);
+    } catch {
+      return null;
+    }
+  }, [text]);
 
   async function handleFile(file: File) {
     setFileName(file.name);
@@ -43,9 +52,20 @@ export const AgendaPasteForm: React.FC<AgendaPasteFormProps> = ({ onCancel }) =>
     setIsSubmitting(true);
     try {
       const agenda = parseAgendaText(text);
+      const events = agenda.days.flatMap((day) =>
+        day.events.map((ev) => ({
+          title: ev.title,
+          day: day.day,
+          start_time: ev.startTime,
+          end_time: ev.endTime,
+          location: ev.location,
+          link: ev.link,
+          image: ev.image,
+        }))
+      );
       await apiFetch('/municipal/posts/bulk', {
         method: 'POST',
-        body: JSON.stringify(agenda),
+        body: JSON.stringify({ events }),
         headers: { 'Content-Type': 'application/json' },
       });
       toast({ title: 'Éxito', description: 'La agenda ha sido procesada correctamente.' });
@@ -82,6 +102,36 @@ export const AgendaPasteForm: React.FC<AgendaPasteFormProps> = ({ onCancel }) =>
         value={text}
         onChange={(e) => setText(e.target.value)}
       />
+      {parsedAgenda && parsedAgenda.days.length > 0 && (
+        <div className="max-h-60 overflow-y-auto rounded-md border p-4 text-sm">
+          <p className="mb-2 font-semibold">{parsedAgenda.title}</p>
+          {parsedAgenda.days.map((day, idx) => (
+            <div key={idx} className="mb-2">
+              <p className="font-medium">{day.day}</p>
+              <ul className="ml-4 list-disc">
+                {day.events.map((ev, i) => (
+                  <li key={i} className="mb-1">
+                    {ev.startTime && (
+                      <span className="font-medium">
+                        {ev.startTime}
+                        {ev.endTime ? ` - ${ev.endTime}` : ''}{' '}
+                      </span>
+                    )}
+                    {ev.title}
+                    {ev.location && <span className="text-muted-foreground"> - {ev.location}</span>}
+                    {ev.link && (
+                      <div className="ml-4 break-all text-muted-foreground">{ev.link}</div>
+                    )}
+                    {ev.image && (
+                      <div className="ml-4 break-all text-muted-foreground">{ev.image}</div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="flex justify-end gap-4">
         <Button type="button" variant="ghost" onClick={onCancel} disabled={isSubmitting}>
           Cancelar
