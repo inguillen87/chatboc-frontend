@@ -1,7 +1,10 @@
 export interface AgendaEvent {
-  time: string;
+  startTime: string;
+  endTime?: string;
   title: string;
   location: string;
+  link?: string;
+  image?: string;
 }
 
 export interface AgendaDay {
@@ -49,14 +52,32 @@ export function parseAgendaText(raw: string): Agenda {
     }
 
     if (line.startsWith("🕑")) {
-      const time = stripEmojis(line, "🕑").replace(/hs?\.?$/, "").trim();
+      const rawTime = stripEmojis(line, "🕑").replace(/hs?\.?$/, "").trim();
+      let startTime = rawTime;
+      let endTime: string | undefined;
+      const range = rawTime.split(/\s+a\s+/i);
+      if (range.length === 2) {
+        startTime = range[0].trim();
+        endTime = range[1].trim();
+      }
       const titleLine = lines[i + 1] ? stripEmojis(lines[i + 1], "✅") : "";
       const locationLine = lines[i + 2] ? stripEmojis(lines[i + 2], "📍") : "";
+      let nextIndex = i + 3;
+      let link = "";
+      let image = "";
+      if (lines[nextIndex] && lines[nextIndex].startsWith("🔗")) {
+        link = stripEmojis(lines[nextIndex], "🔗");
+        nextIndex++;
+      }
+      if (lines[nextIndex] && lines[nextIndex].startsWith("🖼")) {
+        image = stripEmojis(lines[nextIndex], "🖼");
+        nextIndex++;
+      }
 
       if (currentDay) {
-        currentDay.events.push({ time, title: titleLine, location: locationLine });
+        currentDay.events.push({ startTime, endTime, title: titleLine, location: locationLine, link, image });
       }
-      i += 3;
+      i = nextIndex;
       continue;
     }
 
