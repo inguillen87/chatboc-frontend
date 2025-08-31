@@ -205,10 +205,18 @@ export function useChatLogic({ tipoChat, entityToken: propToken, tokenKey = 'aut
 
     // Sanitize text by removing emojis to prevent issues with backend services like Google Search.
     const emojiRegex = /([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g;
-    const sanitizedText = (actualPayload.text || "").replace(emojiRegex, '').trim();
+    let sanitizedText = (actualPayload.text || "").replace(emojiRegex, '').trim();
 
     const { text: userMessageText, attachmentInfo, ubicacion_usuario, action, location } = actualPayload;
     const actionPayload = 'payload' in actualPayload ? actualPayload.payload : undefined;
+
+    if (!sanitizedText) {
+      if (attachmentInfo || actualPayload.archivo_url) {
+        sanitizedText = '[adjunto]';
+      } else if (location || ubicacion_usuario) {
+        sanitizedText = '[ubicacion]';
+      }
+    }
 
     // Allow confirming/cancelling a claim with free text when awaiting confirmation
     let resolvedAction = action;
