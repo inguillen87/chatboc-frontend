@@ -181,6 +181,9 @@ export default function Perfil() {
       }
       if (values.location?.address) formData.append('direccion', values.location.address);
       if (values.link) formData.append('enlace', values.link);
+      if (values.facebook) formData.append('facebook', values.facebook);
+      if (values.instagram) formData.append('instagram', values.instagram);
+      if (values.youtube) formData.append('youtube', values.youtube);
 
       if (values.flyer && values.flyer.length > 0) {
         formData.append('flyer_image', values.flyer[0]);
