@@ -299,7 +299,10 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   useEffect(() => {
     async function fetchEntityProfile() {
       // Wait until the token is resolved before deciding what to do.
-      if (entityToken == null) return;
+      if (entityToken === undefined) {
+        setProfileLoading(false);
+        return;
+      }
       if (!entityToken) {
         console.log("ChatWidget: No hay entityToken, se asume configuración por defecto.");
         setProfileLoading(false);
