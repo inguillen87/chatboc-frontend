@@ -2,7 +2,7 @@ import React from 'react';
 import { Post } from '@/types/chat';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Clock } from 'lucide-react';
+import { Calendar, Clock, Facebook, Instagram, Youtube, ExternalLink } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -34,11 +34,19 @@ const EventCard: React.FC<EventCardProps> = ({ post }) => {
   const endDate = formatDate(post.fecha_evento_fin);
   const endTime = formatTime(post.fecha_evento_fin);
 
+  const image = post.imagen_url || post.image;
+  const mainLink = post.url || post.enlace || post.link;
+  const socials = [
+    { key: 'facebook', url: post.facebook, Icon: Facebook },
+    { key: 'instagram', url: post.instagram, Icon: Instagram },
+    { key: 'youtube', url: post.youtube, Icon: Youtube },
+  ].filter((s) => s.url);
+
   return (
     <Card className="w-full max-w-sm bg-card/60 border-border/80 shadow-lg rounded-xl overflow-hidden my-2">
-      {post.imagen_url && (
+      {image && (
         <div className="aspect-video w-full overflow-hidden">
-          <img src={post.imagen_url} alt={post.titulo} className="w-full h-full object-cover" />
+          <img src={image} alt={post.titulo} className="w-full h-full object-cover" />
         </div>
       )}
       <CardHeader>
@@ -72,16 +80,30 @@ const EventCard: React.FC<EventCardProps> = ({ post }) => {
           </div>
         )}
       </CardContent>
-      {post.url && (
-        <CardFooter>
-          <a
-            href={post.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm font-semibold text-primary hover:underline"
-          >
-            Ver más detalles...
-          </a>
+      {(mainLink || socials.length > 0) && (
+        <CardFooter className="flex flex-wrap gap-3">
+          {mainLink && (
+            <a
+              href={mainLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm font-semibold text-primary hover:underline inline-flex items-center gap-1"
+            >
+              Ver más detalles <ExternalLink size={14} />
+            </a>
+          )}
+          {socials.map(({ key, url, Icon }) => (
+            <a
+              key={key}
+              href={url!}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-muted-foreground hover:text-primary inline-flex items-center gap-1 text-sm"
+            >
+              <Icon className="w-4 h-4" />
+              <span className="hidden sm:inline capitalize">{key}</span>
+            </a>
+          ))}
         </CardFooter>
       )}
     </Card>

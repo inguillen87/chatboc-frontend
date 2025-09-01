@@ -42,9 +42,15 @@ export interface Post {
   contenido: string;
   tipo_post: 'noticia' | 'evento';
   imagen_url?: string;
+  image?: string; // compatibilidad con "image"
   fecha_evento_inicio?: string; // ISO 8601 string
   fecha_evento_fin?: string; // ISO 8601 string
-  url?: string; // Un enlace para "ver más"
+  url?: string; // Un enlace principal
+  enlace?: string; // alias para URL
+  link?: string; // alias adicional
+  facebook?: string; // enlaces opcionales a redes
+  instagram?: string;
+  youtube?: string;
 }
 
 // Define cómo es un objeto Mensaje
@@ -80,6 +86,7 @@ export interface Message {
   displayHint?: 'default' | 'pymeProductCard' | 'municipalInfoSummary' | 'genericTable' | 'compactList'; // Sugerencia para el frontend sobre cómo renderizar la totalidad del mensaje
   chatBubbleStyle?: 'standard' | 'compact' | 'emphasis' | 'alert'; // Para controlar el estilo visual de la burbuja del mensaje
   posts?: Post[]; // Array de posts para mostrar como tarjetas de eventos/noticias
+  socialLinks?: Record<string, string>; // Enlaces generales a redes sociales
 }
 
 // --- INTERFAZ PARA EL PAYLOAD DE ENVÍO DE MENSAJES (lo que el usuario envía al bot) ---

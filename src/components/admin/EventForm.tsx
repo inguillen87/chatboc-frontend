@@ -35,11 +35,17 @@ const eventFormSchema = z.object({
   tipo_post: z.enum(['noticia', 'evento'], { required_error: "Debe seleccionar un tipo."}),
   startDate: z.date().optional(),
   endDate: z.date().optional(),
+  startTime: z.string().optional(),
+  endTime: z.string().optional(),
   location: z.object({
       address: z.string().optional(),
   }).optional(),
   category: z.string().optional(),
   imageUrl: z.string().url({ message: 'Por favor, introduce una URL válida.' }).optional().or(z.literal('')),
+  link: z.string().url({ message: 'Por favor, introduce una URL válida.' }).optional().or(z.literal('')),
+  facebook: z.string().url({ message: 'URL inválida.' }).optional().or(z.literal('')),
+  instagram: z.string().url({ message: 'URL inválida.' }).optional().or(z.literal('')),
+  youtube: z.string().url({ message: 'URL inválida.' }).optional().or(z.literal('')),
   flyer: z.any()
     .optional()
     .refine((files) => {
@@ -72,9 +78,15 @@ export const EventForm: React.FC<EventFormProps> = ({ onSubmit, onCancel, isSubm
       tipo_post: fixedTipoPost || 'noticia',
       startDate: undefined,
       endDate: undefined,
+      startTime: '',
+      endTime: '',
       location: { address: '' },
       category: '',
       imageUrl: '',
+      link: '',
+      facebook: '',
+      instagram: '',
+      youtube: '',
       flyer: undefined,
       ...initialData,
     },
@@ -221,6 +233,34 @@ export const EventForm: React.FC<EventFormProps> = ({ onSubmit, onCancel, isSubm
             )}
           />
         </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="startTime"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Hora de Inicio</FormLabel>
+                <FormControl>
+                  <Input type="time" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="endTime"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Hora de Fin (Opcional)</FormLabel>
+                <FormControl>
+                  <Input type="time" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
         <FormField
           control={form.control}
           name="location.address"
@@ -269,6 +309,58 @@ export const EventForm: React.FC<EventFormProps> = ({ onSubmit, onCancel, isSubm
               <FormLabel>URL de la Imagen (Opcional)</FormLabel>
               <FormControl>
                 <Input placeholder="https://ejemplo.com/imagen.jpg" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="link"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Enlace (Opcional)</FormLabel>
+              <FormControl>
+                <Input placeholder="https://ejemplo.com" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="facebook"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Facebook (Opcional)</FormLabel>
+              <FormControl>
+                <Input placeholder="https://facebook.com/municipio" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="instagram"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Instagram (Opcional)</FormLabel>
+              <FormControl>
+                <Input placeholder="https://instagram.com/municipio" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="youtube"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>YouTube / Streaming (Opcional)</FormLabel>
+              <FormControl>
+                <Input placeholder="https://youtube.com/..." {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
