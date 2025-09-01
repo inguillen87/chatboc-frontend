@@ -74,6 +74,23 @@ export default function MapLibreMap({
         try {
           const mod = await import("maplibre-gl");
           lib = (mod as any).default || mod;
+          // MapLibre v4+ requiere un web worker explícito cuando se usa como módulo.
+          // Intentamos importarlo dinámicamente. Si falla, continuamos y dejaremos
+          // que el fallback al CDN maneje el worker incorporado.
+          try {
+            const workerMod = await import("maplibre-gl/dist/maplibre-gl-csp-worker");
+            const worker = (workerMod as any).default || workerMod;
+            if (worker) {
+              // Algunos bundles exponen `workerClass`, otros `setWorkerClass`.
+              if ("workerClass" in lib) {
+                (lib as any).workerClass = worker;
+              } else if (typeof (lib as any).setWorkerClass === "function") {
+                (lib as any).setWorkerClass(worker);
+              }
+            }
+          } catch (workerErr) {
+            console.warn("MapLibreMap: failed to load worker", workerErr);
+          }
         } catch (err) {
           console.error("MapLibreMap: failed to load library", err);
           lib = await loadFromCDN();
