@@ -11,6 +11,7 @@ import AttachmentPreview from "./AttachmentPreview";
 import { deriveAttachmentInfo, AttachmentInfo } from "@/utils/attachment";
 import MessageBubble from "./MessageBubble";
 import EventCard from './EventCard';
+import SocialLinks from './SocialLinks';
 
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useUser } from "@/hooks/useUser";
@@ -194,6 +195,28 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
 
   const showStructuredContent = !!(message.structuredContent && message.structuredContent.length > 0);
   const showPosts = !!(message.posts && message.posts.length > 0);
+  const showSocialLinks = message.socialLinks && Object.keys(message.socialLinks).length > 0;
+  const now = new Date();
+  const postsToShow = showPosts
+    ? message.posts!
+        .filter((post) => {
+          if (post.tipo_post === 'evento') {
+            const end = post.fecha_evento_fin
+              ? new Date(post.fecha_evento_fin)
+              : post.fecha_evento_inicio
+                ? new Date(post.fecha_evento_inicio)
+                : null;
+            return !end || end >= now;
+          }
+          return true;
+        })
+        .sort((a, b) => {
+          const aTime = new Date(a.fecha_evento_inicio || a.fecha_evento_fin || 0).getTime();
+          const bTime = new Date(b.fecha_evento_inicio || b.fecha_evento_fin || 0).getTime();
+          return aTime - bTime;
+        })
+        .slice(0, 6)
+    : [];
 
   // Display hint puede usarse para aplicar un contenedor especial alrededor del mensaje, o pasar a MessageBubble
   // Por ahora, lo mantendremos simple.
@@ -254,13 +277,15 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
           )}
 
           {/* Render Event/News Posts */}
-          {showPosts && (
+          {postsToShow.length > 0 && (
             <div className="flex flex-col gap-3 mt-2">
-              {message.posts?.map((post) => (
+              {postsToShow.map((post) => (
                 <EventCard key={post.id} post={post} />
               ))}
             </div>
           )}
+
+          {showSocialLinks && <SocialLinks links={message.socialLinks!} />}
 
           {/* Botones (categorized or flat) */}
           {isBot && message.categorias && message.categorias.length > 0 ? (
