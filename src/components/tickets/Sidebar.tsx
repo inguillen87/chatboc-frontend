@@ -25,12 +25,25 @@ const Sidebar: React.FC = () => {
       return ticketsByCategory;
     }
     const filtered: { [key: string]: any[] } = {};
+    const term = debouncedSearchTerm.toLowerCase();
     for (const category in ticketsByCategory) {
-      const tickets = ticketsByCategory[category].filter(ticket =>
-        (ticket.asunto || '').toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
-        (ticket.name || '').toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
-        (ticket.nro_ticket || '').toString().toLowerCase().includes(debouncedSearchTerm.toLowerCase())
-      );
+      const tickets = ticketsByCategory[category].filter((ticket) => {
+        const fields = [
+          ticket.asunto,
+          ticket.display_name,
+          ticket.nombre_usuario,
+          ticket.nro_ticket?.toString(),
+          ticket.telefono,
+          ticket.email,
+          ticket.dni,
+          ticket.informacion_personal_vecino?.nombre,
+          ticket.informacion_personal_vecino?.telefono,
+          ticket.informacion_personal_vecino?.email,
+          ticket.informacion_personal_vecino?.dni,
+          ticket.direccion,
+        ];
+        return fields.some((field) => (field || '').toLowerCase().includes(term));
+      });
       if (tickets.length > 0) {
         filtered[category] = tickets;
       }
@@ -66,7 +79,7 @@ const Sidebar: React.FC = () => {
         <div className="relative">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Buscar por nro, asunto, nombre..."
+            placeholder="Buscar por nro, asunto, nombre, DNI..."
             className="pl-8"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
