@@ -1,15 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import MapLibreMap from '@/components/MapLibreMap';
+import TicketStatsCharts from '@/components/TicketStatsCharts';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
-import { apiFetch, ApiError } from '@/utils/api';
+import { ApiError } from '@/utils/api';
 import useRequireRole from '@/hooks/useRequireRole';
 import type { Role } from '@/utils/roles';
-
-interface IncidentMapPoint {
-  location: { lat: number; lng: number };
-  weight: number;
-}
+import { getTicketStats, TicketStatsResponse } from '@/services/statsService';
 
 export default function IncidentsMap() {
   useRequireRole(['admin'] as Role[]);
@@ -19,6 +16,7 @@ export default function IncidentsMap() {
   const [center, setCenter] = useState<[number, number] | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [charts, setCharts] = useState<TicketStatsResponse['charts']>([]);
 
   const startDateRef = useRef<HTMLInputElement>(null);
   const endDateRef = useRef<HTMLInputElement>(null);
@@ -30,17 +28,16 @@ export default function IncidentsMap() {
     setIsLoading(true);
     setError(null);
 
-    const params = new URLSearchParams();
-    if (startDateRef.current?.value) params.append('fecha_inicio', startDateRef.current.value);
-    if (endDateRef.current?.value) params.append('fecha_fin', endDateRef.current.value);
-    if (categoryRef.current?.value) params.append('categoria', categoryRef.current.value);
-
     try {
-      const data = await apiFetch<IncidentMapPoint[]>(`/tickets/${ticketType}/mapa?${params.toString()}`);
-      const points = Array.isArray(data)
-        ? data.map((d) => ({ lat: d.location.lat, lng: d.location.lng, weight: d.weight }))
-        : [];
+      const stats = await getTicketStats({
+        tipo: ticketType,
+        fecha_inicio: startDateRef.current?.value,
+        fecha_fin: endDateRef.current?.value,
+        categoria: categoryRef.current?.value,
+      });
+      const points = Array.isArray(stats.heatmap) ? stats.heatmap : [];
       setHeatmapData(points);
+      setCharts(stats.charts || []);
 
       if (points.length > 0) {
         const total = points.reduce((sum, p) => sum + (p.weight ?? 1), 0);
@@ -156,6 +153,7 @@ export default function IncidentsMap() {
           </div>
         )}
       </div>
+      <TicketStatsCharts charts={charts} />
     </div>
   );
 }
