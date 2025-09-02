@@ -11,18 +11,23 @@ import { safeOn, assertEventSource } from "@/utils/safeOn";
 type HeatPoint = { lat: number; lng: number; weight?: number };
 
 type Props = {
-  initialCenter?: [number, number]; // [lon, lat]
+  center?: [number, number]; // [lon, lat]
   initialZoom?: number;
   onSelect?: (lat: number, lon: number, address?: string) => void;
   heatmapData?: HeatPoint[];
+  /**
+   * When true the heatmap layer is shown, otherwise points are rendered as circles.
+   */
+  showHeatmap?: boolean;
   className?: string;
 };
 
 export default function MapLibreMap({
-  initialCenter = [-68.845, -32.889],
+  center,
   initialZoom = 12,
   onSelect,
   heatmapData,
+  showHeatmap = true,
   className,
 }: Props) {
   const ref = useRef<HTMLDivElement>(null);
@@ -31,6 +36,7 @@ export default function MapLibreMap({
   const mapRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
   const apiKey = import.meta.env.VITE_MAPTILER_KEY;
+  const initialCenter = center ?? [-68.845, -32.889];
 
   useEffect(() => {
     if (!ref.current) {
@@ -241,7 +247,18 @@ export default function MapLibreMap({
         console.error("MapLibreMap: failed to remove map", err);
       }
     };
-  }, [apiKey, initialCenter, initialZoom, onSelect]);
+    }, [apiKey, initialZoom, onSelect]);
+
+  // Allow external components to re-center the map after initialization
+  useEffect(() => {
+    if (mapRef.current && center) {
+      try {
+        mapRef.current.setCenter(center);
+      } catch (err) {
+        console.error("MapLibreMap: failed to set center", err);
+      }
+    }
+  }, [center]);
 
   useEffect(() => {
     if (!mapRef.current || !heatmapData || heatmapData.length === 0) return;
@@ -267,6 +284,7 @@ export default function MapLibreMap({
           "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 0, 2, 9, 20],
           "heatmap-opacity": 0.6,
         },
+        layout: { visibility: showHeatmap ? "visible" : "none" },
       });
       map.addLayer?.({
         id: "tickets-circles",
@@ -278,11 +296,38 @@ export default function MapLibreMap({
           "circle-color": "#3b82f6",
           "circle-opacity": 0.9,
         },
+        layout: { visibility: showHeatmap ? "none" : "visible" },
       });
       source = map.getSource("puntos") as any;
     }
     source?.setData?.(geojson as any);
-  }, [heatmapData]);
+    map.setLayoutProperty?.(
+      "tickets-heat",
+      "visibility",
+      showHeatmap ? "visible" : "none"
+    );
+    map.setLayoutProperty?.(
+      "tickets-circles",
+      "visibility",
+      showHeatmap ? "none" : "visible"
+    );
+  }, [heatmapData, showHeatmap]);
+
+  // Update visibility if toggle changes but data already rendered
+  useEffect(() => {
+    if (!mapRef.current) return;
+    const map = mapRef.current;
+    map.setLayoutProperty?.(
+      "tickets-heat",
+      "visibility",
+      showHeatmap ? "visible" : "none"
+    );
+    map.setLayoutProperty?.(
+      "tickets-circles",
+      "visibility",
+      showHeatmap ? "none" : "visible"
+    );
+  }, [showHeatmap]);
 
   return (
     <div

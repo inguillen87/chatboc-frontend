@@ -57,6 +57,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import LocationMap from "@/components/LocationMap";
+import TicketStatsCharts from "@/components/TicketStatsCharts";
 import { useNavigate } from "react-router-dom";
 import QuickLinksCard from "@/components/QuickLinksCard";
 import MiniChatWidgetPreview from "@/components/ui/MiniChatWidgetPreview"; // Importar el nuevo componente
@@ -68,6 +69,7 @@ import { toLocalISOString } from "@/utils/fecha";
 import { suggestMappings, SystemField, DEFAULT_SYSTEM_FIELDS } from "@/utils/columnMatcher";
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
+import { getTicketStats, TicketStatsResponse } from "@/services/statsService";
 
 
 // Durante el desarrollo usamos "/api" para evitar problemas de CORS.
@@ -221,6 +223,7 @@ export default function Perfil() {
     { lat: number; lng: number; weight?: number }[]
   >([]);
   const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number } | null>(null);
+  const [charts, setCharts] = useState<TicketStatsResponse['charts']>([]);
 
   // --- Estados para el nuevo modal de carga de catálogo ---
   const [isMappingModalOpen, setIsMappingModalOpen] = useState(false);
@@ -340,6 +343,16 @@ export default function Perfil() {
     }
   }, []);
 
+  const fetchChartStats = useCallback(async () => {
+    try {
+      const tipo = getCurrentTipoChat();
+      const stats = await getTicketStats({ tipo });
+      setCharts(stats.charts || []);
+    } catch (error) {
+      console.error("Error fetching chart data:", error);
+    }
+  }, []);
+
   useEffect(() => {
     const token = safeLocalStorage.getItem("authToken");
     if (!token) {
@@ -349,8 +362,9 @@ export default function Perfil() {
     (async () => {
       await fetchPerfil();
       await fetchHeatmapData();
+      await fetchChartStats();
     })();
-  }, [fetchPerfil, fetchHeatmapData, navigate]);
+  }, [fetchPerfil, fetchHeatmapData, fetchChartStats, navigate]);
 
   useEffect(() => {
     const filtered = ticketLocations.filter(
@@ -1086,6 +1100,11 @@ export default function Perfil() {
                   <p className="text-sm text-muted-foreground">
                     No hay datos de ubicación disponibles.
                   </p>
+                )}
+                {charts.length > 0 && (
+                  <div className="mt-6">
+                    <TicketStatsCharts charts={charts} />
+                  </div>
                 )}
               </CardContent>
             </Card>
