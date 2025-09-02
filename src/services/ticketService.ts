@@ -134,13 +134,35 @@ export const getTicketMessages = async (
         : `/tickets/chat/pyme/${ticketId}/mensajes`;
     const response = await apiFetch<{ mensajes?: any[]; messages?: any[] }>(endpoint);
     const rawMsgs = response.mensajes || response.messages || [];
-    return rawMsgs.map((m: any) => ({
-      ...m,
+
+    const parseAdminFlag = (val: any): boolean => {
+      if (val === undefined || val === null) return false;
+      if (typeof val === 'boolean') return val;
+      if (typeof val === 'number') return val !== 0;
+      if (typeof val === 'string') {
+        const normalized = val.trim().toLowerCase();
+        if (['1', 'true', 't', 'yes', 'y', 'si', 's'].includes(normalized)) return true;
+        if (['0', 'false', 'f', 'no', 'n'].includes(normalized)) return false;
+        return Boolean(normalized);
+      }
+      return Boolean(val);
+    };
+
+    return rawMsgs.map((m: any, idx: number) => ({
+      id: m.id ?? idx,
+      author: parseAdminFlag(m.es_admin ?? m.esAdmin ?? m.is_admin ?? m.isAdmin)
+        ? 'agent'
+        : 'user',
+      agentName: m.nombre_agente || m.agentName,
       content: m.content || m.texto || m.mensaje || '',
       timestamp:
         typeof m.timestamp === 'number'
           ? new Date(m.timestamp).toISOString()
-          : m.timestamp || new Date().toISOString(),
+          : m.timestamp || m.fecha || new Date().toISOString(),
+      attachments: m.attachments || m.adjuntos,
+      botones: m.botones,
+      structuredContent: m.structuredContent,
+      ubicacion: m.ubicacion,
     }));
   } catch (error) {
     console.error(`Error fetching messages for ticket ${ticketId}:`, error);
