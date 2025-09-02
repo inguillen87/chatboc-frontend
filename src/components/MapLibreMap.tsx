@@ -8,7 +8,13 @@ import { cn } from "@/lib/utils";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { safeOn, assertEventSource } from "@/utils/safeOn";
 
-type HeatPoint = { lat: number; lng: number; weight?: number };
+type HeatPoint = {
+  lat: number;
+  lng: number;
+  weight?: number;
+  id?: number;
+  ticket?: string;
+};
 
 type Props = {
   center?: [number, number]; // [lon, lat]
@@ -35,6 +41,7 @@ export default function MapLibreMap({
   // se carga dinámicamente y puede no estar presente en tiempo de ejecución.
   const mapRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
+  const libRef = useRef<any>(null);
   const apiKey = import.meta.env.VITE_MAPTILER_KEY;
   const initialCenter = center ?? [-68.845, -32.889];
 
@@ -134,6 +141,7 @@ export default function MapLibreMap({
         }
 
         mapRef.current = map;
+        libRef.current = lib;
         assertEventSource(map, "map");
         safeOn(map, "error", (e) => {
           console.error(
@@ -261,11 +269,15 @@ export default function MapLibreMap({
   }, [center]);
 
   useEffect(() => {
-    if (!mapRef.current || !heatmapData || heatmapData.length === 0) return;
+    if (!mapRef.current) return;
     const map = mapRef.current;
-    const features = heatmapData.map((p) => ({
+    const features = (heatmapData ?? []).map((p) => ({
       type: "Feature",
-      properties: { weight: p.weight ?? 1 },
+      properties: {
+        weight: p.weight ?? 1,
+        id: p.id,
+        ticket: p.ticket,
+      },
       geometry: { type: "Point", coordinates: [p.lng, p.lat] },
     }));
     const geojson = { type: "FeatureCollection", features } as const;
@@ -298,35 +310,55 @@ export default function MapLibreMap({
         },
         layout: { visibility: showHeatmap ? "none" : "visible" },
       });
+      map.on?.("click", "tickets-circles", (e: any) => {
+        const feature = e.features?.[0];
+        const coords = feature?.geometry?.coordinates;
+        if (!feature || !coords || !libRef.current?.Popup) return;
+        const { id, ticket } = feature.properties || {};
+        new libRef.current.Popup()
+          .setLngLat(coords as [number, number])
+          .setHTML(
+            `<div class="text-sm"><p>Ticket #${ticket ?? id}</p><a href="/chat/${id}" class="text-blue-600 underline">Ver ticket</a></div>`
+          )
+          .addTo(map);
+      });
       source = map.getSource("puntos") as any;
     }
     source?.setData?.(geojson as any);
-    map.setLayoutProperty?.(
-      "tickets-heat",
-      "visibility",
-      showHeatmap ? "visible" : "none"
-    );
-    map.setLayoutProperty?.(
-      "tickets-circles",
-      "visibility",
-      showHeatmap ? "none" : "visible"
-    );
+    if (map.getLayer?.("tickets-heat")) {
+      map.setLayoutProperty(
+        "tickets-heat",
+        "visibility",
+        showHeatmap ? "visible" : "none"
+      );
+    }
+    if (map.getLayer?.("tickets-circles")) {
+      map.setLayoutProperty(
+        "tickets-circles",
+        "visibility",
+        showHeatmap ? "none" : "visible"
+      );
+    }
   }, [heatmapData, showHeatmap]);
 
   // Update visibility if toggle changes but data already rendered
   useEffect(() => {
     if (!mapRef.current) return;
     const map = mapRef.current;
-    map.setLayoutProperty?.(
-      "tickets-heat",
-      "visibility",
-      showHeatmap ? "visible" : "none"
-    );
-    map.setLayoutProperty?.(
-      "tickets-circles",
-      "visibility",
-      showHeatmap ? "none" : "visible"
-    );
+    if (map.getLayer?.("tickets-heat")) {
+      map.setLayoutProperty(
+        "tickets-heat",
+        "visibility",
+        showHeatmap ? "visible" : "none"
+      );
+    }
+    if (map.getLayer?.("tickets-circles")) {
+      map.setLayoutProperty(
+        "tickets-circles",
+        "visibility",
+        showHeatmap ? "none" : "visible"
+      );
+    }
   }, [showHeatmap]);
 
   return (

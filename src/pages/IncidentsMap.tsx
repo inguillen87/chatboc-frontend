@@ -6,12 +6,12 @@ import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/
 import { ApiError } from '@/utils/api';
 import useRequireRole from '@/hooks/useRequireRole';
 import type { Role } from '@/utils/roles';
-import { getTicketStats, TicketStatsResponse } from '@/services/statsService';
+import { getTicketStats, HeatPoint, TicketStatsResponse } from '@/services/statsService';
 
 export default function IncidentsMap() {
   useRequireRole(['admin'] as Role[]);
 
-  const [heatmapData, setHeatmapData] = useState<{ lat: number; lng: number; weight?: number }[]>([]);
+  const [heatmapData, setHeatmapData] = useState<HeatPoint[]>([]);
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [center, setCenter] = useState<[number, number] | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(false);
@@ -35,14 +35,15 @@ export default function IncidentsMap() {
         fecha_fin: endDateRef.current?.value,
         categoria: categoryRef.current?.value,
       });
-      const points = Array.isArray(stats.heatmap) ? stats.heatmap : [];
-      setHeatmapData(points);
       setCharts(stats.charts || []);
 
+      const points = stats.heatmap || [];
+      setHeatmapData(points);
+
       if (points.length > 0) {
-        const total = points.reduce((sum, p) => sum + (p.weight ?? 1), 0);
-        const avgLat = points.reduce((sum, p) => sum + p.lat * (p.weight ?? 1), 0) / total;
-        const avgLng = points.reduce((sum, p) => sum + p.lng * (p.weight ?? 1), 0) / total;
+        const total = points.length;
+        const avgLat = points.reduce((sum, p) => sum + p.lat, 0) / total;
+        const avgLng = points.reduce((sum, p) => sum + p.lng, 0) / total;
         setCenter([avgLng, avgLat]);
       }
     } catch (err) {

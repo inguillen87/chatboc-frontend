@@ -4,6 +4,11 @@ export interface HeatPoint {
   lat: number;
   lng: number;
   weight?: number;
+  id?: number;
+  ticket?: string;
+  categoria?: string;
+  barrio?: string;
+  tipo_ticket?: string;
 }
 
 export interface TicketStatsResponse {
