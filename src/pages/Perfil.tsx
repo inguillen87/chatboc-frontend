@@ -57,6 +57,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import LocationMap from "@/components/LocationMap";
+import TicketStatsCharts from "@/components/TicketStatsCharts";
 import { useNavigate } from "react-router-dom";
 import QuickLinksCard from "@/components/QuickLinksCard";
 import MiniChatWidgetPreview from "@/components/ui/MiniChatWidgetPreview"; // Importar el nuevo componente
@@ -68,6 +69,7 @@ import { toLocalISOString } from "@/utils/fecha";
 import { suggestMappings, SystemField, DEFAULT_SYSTEM_FIELDS } from "@/utils/columnMatcher";
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
+import { getTicketStats, TicketStatsResponse, HeatPoint } from "@/services/statsService";
 
 
 // Durante el desarrollo usamos "/api" para evitar problemas de CORS.
@@ -108,14 +110,6 @@ const DIAS = [
   "Domingo",
 ];
 
-interface TicketLocation {
-  lat: number;
-  lng: number;
-  weight: number;
-  categoria?: string;
-  barrio?: string;
-  tipo_ticket?: string;
-}
 
 export default function Perfil() {
   const navigate = useNavigate();
@@ -210,17 +204,16 @@ export default function Perfil() {
       setIsSubmittingEvent(false);
     }
   };
-  const [ticketLocations, setTicketLocations] = useState<TicketLocation[]>([]);
+  const [ticketLocations, setTicketLocations] = useState<HeatPoint[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedBarrios, setSelectedBarrios] = useState<string[]>([]);
   const [selectedTipos, setSelectedTipos] = useState<string[]>([]);
   const [availableCategories, setAvailableCategories] = useState<string[]>([]);
   const [availableBarrios, setAvailableBarrios] = useState<string[]>([]);
   const [availableTipos, setAvailableTipos] = useState<string[]>([]);
-  const [heatmapData, setHeatmapData] = useState<
-    { lat: number; lng: number; weight?: number }[]
-  >([]);
+  const [heatmapData, setHeatmapData] = useState<HeatPoint[]>([]);
   const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number } | null>(null);
+  const [charts, setCharts] = useState<TicketStatsResponse['charts']>([]);
 
   // --- Estados para el nuevo modal de carga de catálogo ---
   const [isMappingModalOpen, setIsMappingModalOpen] = useState(false);
@@ -307,36 +300,21 @@ export default function Perfil() {
     }
   }, [navigate, refreshUser]); // Añadir navigate y refreshUser a las dependencias
 
-  const fetchHeatmapData = useCallback(async () => {
+  const fetchStats = useCallback(async () => {
     try {
       const tipo = getCurrentTipoChat();
-      const raw = await apiFetch<any>(`/tickets/${tipo}/mapa`);
-      const arrayData = Array.isArray(raw)
-        ? raw
-        : Array.isArray(raw?.data)
-          ? raw.data
-          : Array.isArray(raw?.tickets)
-            ? raw.tickets
-            : [];
-      const mapped: TicketLocation[] = arrayData.map((d: any) => ({
-        lat: d.location?.lat ?? 0,
-        lng: d.location?.lng ?? 0,
-        weight: d.weight,
-        categoria: d.categoria,
-        barrio: d.barrio,
-        tipo_ticket: d.tipo_ticket,
-      }));
-      setTicketLocations(mapped);
-      const cats = Array.from(new Set(mapped.map((d) => d.categoria).filter(Boolean))) as string[];
+      const stats = await getTicketStats({ tipo });
+      const points = stats.heatmap || [];
+      setTicketLocations(points);
+      setCharts(stats.charts || []);
+      const cats = Array.from(new Set(points.map((d) => d.categoria).filter(Boolean))) as string[];
       setAvailableCategories(cats);
-      const barrios = Array.from(new Set(mapped.map((d) => d.barrio).filter(Boolean))) as string[];
+      const barrios = Array.from(new Set(points.map((d) => d.barrio).filter(Boolean))) as string[];
       setAvailableBarrios(barrios);
-      const tipos = Array.from(new Set(mapped.map((d) => d.tipo_ticket).filter(Boolean))) as string[];
+      const tipos = Array.from(new Set(points.map((d) => d.tipo_ticket).filter(Boolean))) as string[];
       setAvailableTipos(tipos);
     } catch (error) {
-      console.error("Error fetching heatmap data:", error);
-      // Do not show a toast here to avoid spamming the user if the endpoint is not ready yet.
-      // The feature will just not display the heatmap, which is a graceful failure.
+      console.error("Error fetching ticket stats:", error);
     }
   }, []);
 
@@ -348,9 +326,9 @@ export default function Perfil() {
     }
     (async () => {
       await fetchPerfil();
-      await fetchHeatmapData();
+      await fetchStats();
     })();
-  }, [fetchPerfil, fetchHeatmapData, navigate]);
+  }, [fetchPerfil, fetchStats, navigate]);
 
   useEffect(() => {
     const filtered = ticketLocations.filter(
@@ -1086,6 +1064,11 @@ export default function Perfil() {
                   <p className="text-sm text-muted-foreground">
                     No hay datos de ubicación disponibles.
                   </p>
+                )}
+                {charts.length > 0 && (
+                  <div className="mt-6">
+                    <TicketStatsCharts charts={charts} />
+                  </div>
                 )}
               </CardContent>
             </Card>

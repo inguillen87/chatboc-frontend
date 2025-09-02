@@ -10,7 +10,7 @@ export default function EstadisticasPage() {
   useEffect(() => {
     (async () => {
       try {
-        const stats = await getTicketStats();
+        const stats = await getTicketStats({ tipo: 'municipio' });
         setCharts(stats.charts || []);
         setHeatmap(stats.heatmap || []);
       } catch (err) {
