@@ -1,9 +1,7 @@
 // src/components/ui/AdjuntarArchivo.tsx
 import React, { useRef, forwardRef, useImperativeHandle } from 'react';
 import { Button } from '@/components/ui/button';
-import { Paperclip, Image as ImageIcon } from 'lucide-react';
-import { apiFetch } from '@/utils/api';
-import { useUser } from '@/hooks/useUser';
+import { Paperclip } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 
 const MAX_FILE_SIZE_MB = 10;
@@ -36,8 +34,6 @@ const ALL_ALLOWED_MIMETYPES = {
   'video/x-msvideo': ['avi'],
 };
 
-const IMAGE_MIMETYPES = Object.keys(ALL_ALLOWED_MIMETYPES).filter(m => m.startsWith('image/'));
-
 export interface AdjuntarArchivoProps {
   onFileSelected: (file: File) => void;
   disabled?: boolean;
@@ -50,7 +46,6 @@ export interface AdjuntarArchivoHandle {
 
 const AdjuntarArchivo = forwardRef<AdjuntarArchivoHandle, AdjuntarArchivoProps>(({ onFileSelected, disabled = false, allowedFileTypes }, ref) => {
   const inputRef = useRef<HTMLInputElement>(null);
-  const { user } = useUser();
 
   useImperativeHandle(ref, () => ({
     openFileDialog: () => {
@@ -108,12 +103,6 @@ const AdjuntarArchivo = forwardRef<AdjuntarArchivoHandle, AdjuntarArchivoProps>(
       inputRef.current.value = '';
     }
   };
-
-  if (!user) {
-    // console.log('AdjuntarArchivo: No user found, component will not render button.'); // Mantener para depuración
-    // No renderizar nada si no hay usuario, o un placeholder/mensaje si se prefiere.
-    return null; 
-  }
 
   return (
     <div className="flex items-center"> {/* Eliminado gap-2, el toast no necesita estar espaciado aquí */}
