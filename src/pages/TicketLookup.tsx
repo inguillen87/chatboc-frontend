@@ -23,9 +23,9 @@ export default function TicketLookup() {
   const [estadoChat, setEstadoChat] = useState('');
   const [specialContact, setSpecialContact] = useState<SpecializedContact | null>(null);
 
-  const performSearch = useCallback(async (searchId: string, searchPin: string) => {
-    const id = searchId.trim();
-    const pinVal = searchPin.trim();
+  const performSearch = useCallback(async (searchId?: string, searchPin?: string) => {
+    const id = (searchId || '').trim();
+    const pinVal = (searchPin || '').trim();
     if (!id) return;
     if (!pinVal) {
       setError('El PIN es obligatorio para consultar el ticket');

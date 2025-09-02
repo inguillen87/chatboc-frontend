@@ -16,15 +16,27 @@ interface TicketContextType {
 const TicketContext = createContext<TicketContextType | undefined>(undefined);
 
 const groupTicketsByCategory = (tickets: Ticket[]) => {
-    return tickets.reduce((acc, ticket) => {
-      const category = ticket.categoria || 'Sin Categoría';
-      if (!acc[category]) {
-        acc[category] = [];
-      }
-      acc[category].push(ticket);
-      return acc;
-    }, {} as { [key: string]: Ticket[] });
-  };
+  const groups: { [key: string]: Ticket[] } = {};
+  const resolved: Ticket[] = [];
+
+  tickets.forEach((ticket) => {
+    if (ticket.estado === 'resuelto') {
+      resolved.push(ticket);
+      return;
+    }
+    const category = ticket.categoria || 'Sin Categoría';
+    if (!groups[category]) {
+      groups[category] = [];
+    }
+    groups[category].push(ticket);
+  });
+
+  if (resolved.length > 0) {
+    groups['Resueltos'] = resolved;
+  }
+
+  return groups;
+};
 
 export const TicketProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [tickets, setTickets] = useState<Ticket[]>([]);

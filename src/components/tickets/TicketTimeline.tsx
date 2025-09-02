@@ -18,6 +18,13 @@ type TimelineEvent =
       content: string;
     };
 
+const formatStatus = (status: string) =>
+  status
+    ? status
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, (c) => c.toUpperCase())
+    : '';
+
 const TicketTimeline: React.FC<TicketTimelineProps> = ({ history, messages = [] }) => {
   const events: TimelineEvent[] = [
     ...history.map((h) => ({ type: 'status', ...h })),
@@ -26,9 +33,12 @@ const TicketTimeline: React.FC<TicketTimelineProps> = ({ history, messages = [] 
       date: m.timestamp,
       author: m.agentName || (m.author === 'agent' ? 'Agente' : 'Vecino'),
       origin: m.author,
-      content: m.content,
+      content: m.content || '',
     })),
-  ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  ].sort(
+    (a, b) =>
+      (new Date(a.date).getTime() || 0) - (new Date(b.date).getTime() || 0)
+  );
 
   if (events.length === 0) {
     return <p className="text-sm text-muted-foreground">No hay historial disponible.</p>;
@@ -60,7 +70,7 @@ const TicketTimeline: React.FC<TicketTimelineProps> = ({ history, messages = [] 
             </span>
             {isStatus ? (
               <div className="flex flex-col gap-1">
-                <h4 className="font-semibold">{event.status}</h4>
+                <h4 className="font-semibold">{formatStatus(event.status)}</h4>
                 <time className="text-sm text-muted-foreground">
                   {formatDate(
                     event.date,
