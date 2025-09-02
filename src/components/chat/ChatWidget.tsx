@@ -335,6 +335,18 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     fetchEntityProfile();
   }, [entityToken]);
 
+  // Fallback to avoid indefinite loading spinner if the profile request hangs
+  useEffect(() => {
+    if (!isProfileLoading) return;
+    const timeout = setTimeout(() => {
+      if (isProfileLoading) {
+        setProfileError("No se pudo cargar la configuración del widget.");
+        setProfileLoading(false);
+      }
+    }, 10000);
+    return () => clearTimeout(timeout);
+  }, [isProfileLoading]);
+
   const openSpring = { type: "spring", stiffness: 280, damping: 28 };
   const closeSpring = { type: "spring", stiffness: 300, damping: 30 };
 
