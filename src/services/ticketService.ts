@@ -147,14 +147,29 @@ export const getTicketTimeline = async (
     const response = await apiFetch<TicketTimelineResponse>(endpoint, fetchOpts);
     const history: TicketHistoryEvent[] = [];
     const messages: Message[] = [];
+    const parseAdminFlag = (val: any): boolean | null => {
+      if (val === undefined || val === null) return null;
+      if (typeof val === 'boolean') return val;
+      if (typeof val === 'number') return val !== 0;
+      if (typeof val === 'string') {
+        const normalized = val.trim().toLowerCase();
+        if (['1', 'true', 't', 'yes', 'y', 'si', 's'].includes(normalized)) return true;
+        if (['0', 'false', 'f', 'no', 'n'].includes(normalized)) return false;
+        return Boolean(normalized);
+      }
+      return Boolean(val);
+    };
+
     response.timeline?.forEach((evt, idx) => {
       if (evt.tipo === 'comentario') {
         const isAgent =
-          typeof evt.es_admin === 'boolean' ? evt.es_admin : !!evt.user_id;
+          parseAdminFlag(evt.es_admin) ?? !!evt.user_id;
+        const content =
+          (evt as any).comentario ?? (evt as any).mensaje ?? evt.texto ?? '';
         messages.push({
           id: idx,
           author: isAgent ? 'agent' : 'user',
-          content: evt.texto || '',
+          content,
           timestamp: evt.fecha,
         });
       } else {
