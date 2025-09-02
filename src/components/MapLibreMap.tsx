@@ -186,7 +186,9 @@ export default function MapLibreMap({
                 type: "FeatureCollection",
                 features: heatmapData.map((p) => ({
                   type: "Feature",
-                  properties: { weight: p.weight ?? 1 },
+                  properties: {
+                    weight: p.weight ?? (p.estado?.toLowerCase() === 'resuelto' ? 2 : 1),
+                  },
                   geometry: { type: "Point", coordinates: [p.lng, p.lat] },
                 })),
               } as const;
@@ -274,7 +276,7 @@ export default function MapLibreMap({
     const features = (heatmapData ?? []).map((p) => ({
       type: "Feature",
       properties: {
-        weight: p.weight ?? 1,
+        weight: p.weight ?? (p.estado?.toLowerCase() === 'resuelto' ? 2 : 1),
         id: p.id,
         ticket: p.ticket,
       },

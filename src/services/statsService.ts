@@ -9,6 +9,7 @@ export interface HeatPoint {
   categoria?: string;
   barrio?: string;
   tipo_ticket?: string;
+  estado?: string;
 }
 
 export interface TicketStatsResponse {

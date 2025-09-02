@@ -20,7 +20,8 @@ const groupTicketsByCategory = (tickets: Ticket[]) => {
   const resolved: Ticket[] = [];
 
   tickets.forEach((ticket) => {
-    if (ticket.estado === 'resuelto') {
+    const status = ticket.estado?.toLowerCase();
+    if (status && ['resuelto', 'cerrado'].includes(status)) {
       resolved.push(ticket);
       return;
     }
