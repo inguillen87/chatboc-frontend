@@ -16,6 +16,7 @@ import getOrCreateAnonId from "@/utils/anonId";
 import { toast } from "@/components/ui/use-toast";
 import { requestLocation } from "@/utils/geolocation";
 import { formatDate } from "@/utils/fecha";
+import { getContactPhone } from "@/utils/ticket";
 import { getTicketTimeline } from "@/services/ticketService";
 import { TicketHistoryEvent, Message as TicketMessage } from "@/types/tickets";
 // Importar AttachmentInfo y SendPayload desde @/types/chat o un lugar centralizado

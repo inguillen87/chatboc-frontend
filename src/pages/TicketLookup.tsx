@@ -9,6 +9,8 @@ import TicketTimeline from '@/components/tickets/TicketTimeline';
 import TicketMap from '@/components/TicketMap';
 import { Separator } from '@/components/ui/separator';
 import { getErrorMessage, ApiError } from '@/utils/api';
+import { getContactPhone, getCitizenDni } from '@/utils/ticket';
+import { getSpecializedContact, SpecializedContact } from '@/utils/contacts';
 export default function TicketLookup() {
   const { ticketId } = useParams<{ ticketId: string }>();
   const navigate = useNavigate();
