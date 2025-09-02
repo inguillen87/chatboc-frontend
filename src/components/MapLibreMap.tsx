@@ -134,10 +134,14 @@ export default function MapLibreMap({
             "MapLibreMap: style or runtime error",
             (e as any)?.error ?? e
           );
+          // Evita que MapLibre eleve el error y detenga la carga del mapa
+          (e as any)?.preventDefault?.();
         });
 
         try {
-          map.addControl?.(new lib.NavigationControl(), "top-right");
+          if (typeof lib.NavigationControl === "function") {
+            map.addControl?.(new lib.NavigationControl(), "top-right");
+          }
 
           const clickHandler = (e: any) => {
             const { lng, lat } = e.lngLat || {};
