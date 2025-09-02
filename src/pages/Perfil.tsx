@@ -318,16 +318,6 @@ export default function Perfil() {
     }
   }, []);
 
-  const fetchChartStats = useCallback(async () => {
-    try {
-      const tipo = getCurrentTipoChat();
-      const stats = await getTicketStats({ tipo });
-      setCharts(stats.charts || []);
-    } catch (error) {
-      console.error("Error fetching chart data:", error);
-    }
-  }, []);
-
   useEffect(() => {
     const token = safeLocalStorage.getItem("authToken");
     if (!token) {
