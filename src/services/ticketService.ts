@@ -123,16 +123,30 @@ export const sendTicketHistory = async (ticket: Ticket): Promise<void> => {
     }
 };
 
-export const getTicketMessages = async (ticketId: number, tipo: 'municipio' | 'pyme'): Promise<Message[]> => {
-    try {
-        const endpoint = tipo === 'municipio' ? `/tickets/chat/${ticketId}/mensajes` : `/tickets/chat/pyme/${ticketId}/mensajes`;
-        const response = await apiFetch<{ mensajes: Message[] }>(endpoint);
-        return response.mensajes || [];
-    } catch (error) {
-        console.error(`Error fetching messages for ticket ${ticketId}:`, error);
-        throw error;
-    }
-}
+export const getTicketMessages = async (
+  ticketId: number,
+  tipo: 'municipio' | 'pyme'
+): Promise<Message[]> => {
+  try {
+    const endpoint =
+      tipo === 'municipio'
+        ? `/tickets/chat/${ticketId}/mensajes`
+        : `/tickets/chat/pyme/${ticketId}/mensajes`;
+    const response = await apiFetch<{ mensajes?: any[]; messages?: any[] }>(endpoint);
+    const rawMsgs = response.mensajes || response.messages || [];
+    return rawMsgs.map((m: any) => ({
+      ...m,
+      content: m.content || m.texto || m.mensaje || '',
+      timestamp:
+        typeof m.timestamp === 'number'
+          ? new Date(m.timestamp).toISOString()
+          : m.timestamp || new Date().toISOString(),
+    }));
+  } catch (error) {
+    console.error(`Error fetching messages for ticket ${ticketId}:`, error);
+    throw error;
+  }
+};
 
 export const getTicketTimeline = async (
   ticketId: number,
