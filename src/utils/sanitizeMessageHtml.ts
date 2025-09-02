@@ -1,5 +1,14 @@
 import DOMPurify from 'dompurify';
 
+// Ensure all links open outside the iframe to avoid blocked pages
+// by enforcing target="_blank" and rel="noopener noreferrer" on anchors.
+DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+  if (node.tagName === 'A') {
+    node.setAttribute('target', '_blank');
+    node.setAttribute('rel', 'noopener noreferrer');
+  }
+});
+
 const ALLOWED_TAGS = [
   'b',
   'strong',
