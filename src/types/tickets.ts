@@ -64,7 +64,8 @@ export interface TicketTimelineEvent {
   fecha: string;
   estado?: string;
   texto?: string;
-  es_admin?: boolean;
+  comentario?: string;
+  es_admin?: boolean | number | string;
   user_id?: number;
 }
 

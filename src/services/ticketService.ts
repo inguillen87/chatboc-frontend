@@ -149,10 +149,16 @@ export const getTicketTimeline = async (
     const messages: Message[] = [];
     response.timeline?.forEach((evt, idx) => {
       if (evt.tipo === 'comentario') {
+        const isAgent =
+          evt.es_admin !== undefined && evt.es_admin !== null
+            ? Boolean(evt.es_admin)
+            : !!evt.user_id;
+        const content =
+          evt.texto ?? (evt as any).comentario ?? (evt as any).mensaje ?? '';
         messages.push({
           id: idx,
-          author: evt.es_admin ? 'agent' : 'user',
-          content: evt.texto || '',
+          author: isAgent ? 'agent' : 'user',
+          content,
           timestamp: evt.fecha,
         });
       } else {
