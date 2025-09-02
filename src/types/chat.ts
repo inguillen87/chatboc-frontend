@@ -43,6 +43,7 @@ export interface Post {
   tipo_post: 'noticia' | 'evento';
   imagen_url?: string;
   image?: string; // compatibilidad con "image"
+  imageUrl?: string; // alias adicional para imagen
   fecha_evento_inicio?: string; // ISO 8601 string
   fecha_evento_fin?: string; // ISO 8601 string
   url?: string; // Un enlace principal

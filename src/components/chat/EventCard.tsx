@@ -3,18 +3,24 @@ import { Post } from '@/types/chat';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Calendar, Clock, Facebook, Instagram, Youtube, ExternalLink } from 'lucide-react';
-import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
+import { useDateSettings } from '@/hooks/useDateSettings';
 
 interface EventCardProps {
   post: Post;
 }
 
 const EventCard: React.FC<EventCardProps> = ({ post }) => {
+  const { timezone, locale } = useDateSettings();
+
   const formatDate = (dateString?: string) => {
     if (!dateString) return null;
     try {
-      return format(new Date(dateString), "d 'de' MMMM, yyyy", { locale: es });
+      return new Date(dateString).toLocaleDateString(locale, {
+        timeZone: timezone,
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+      });
     } catch {
       return null;
     }
@@ -23,7 +29,14 @@ const EventCard: React.FC<EventCardProps> = ({ post }) => {
   const formatTime = (dateString?: string) => {
     if (!dateString) return null;
     try {
-      return format(new Date(dateString), "HH:mm 'hs'", { locale: es });
+      return (
+        new Date(dateString).toLocaleTimeString(locale, {
+          timeZone: timezone,
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        }) + ' hs'
+      );
     } catch {
       return null;
     }
@@ -34,7 +47,7 @@ const EventCard: React.FC<EventCardProps> = ({ post }) => {
   const endDate = formatDate(post.fecha_evento_fin);
   const endTime = formatTime(post.fecha_evento_fin);
 
-  const image = post.imagen_url || post.image;
+  const image = post.imagen_url || post.image || post.imageUrl;
   const mainLink = post.url || post.enlace || post.link;
   const socials = [
     { key: 'facebook', url: post.facebook, Icon: Facebook },
@@ -61,7 +74,7 @@ const EventCard: React.FC<EventCardProps> = ({ post }) => {
         )}
       </CardHeader>
       <CardContent>
-        <p className="text-sm text-foreground/90 whitespace-pre-wrap">{post.contenido}</p>
+        <p className="text-sm text-foreground/90 whitespace-pre-wrap text-justify">{post.contenido}</p>
 
         {post.tipo_post === 'evento' && startDate && (
           <div className="mt-4 pt-4 border-t border-border/60 space-y-2">
