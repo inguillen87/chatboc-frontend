@@ -307,9 +307,10 @@ const ChatPage = () => {
           const requestPayload: Record<string, any> = { 
             pregunta: userMessageText, 
             contexto_previo: contexto,
-            ...(payload.attachmentInfo && { attachment_info: payload.attachmentInfo }), 
+            ...(payload.attachmentInfo && { attachment_info: payload.attachmentInfo }),
             ...(payload.es_ubicacion && { es_ubicacion: true, ubicacion_usuario: payload.ubicacion_usuario }),
             ...(payload.action && { action: payload.action }),
+            ...(payload.payload !== undefined && { payload: payload.payload }),
             // Mantener campos legados si el bot los necesita para transición
             ...(payload.archivo_url && !payload.attachmentInfo && { archivo_url: payload.archivo_url }),
             ...(payload.es_foto && !payload.attachmentInfo && { es_foto: payload.es_foto }),

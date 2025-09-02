@@ -69,8 +69,8 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
             return;
         }
 
-        // Priority 5: Default - send button text as a simple message to backend
-        onButtonClick({ text: boton.texto });
+        // Priority 5: Default - send button text along with payload (if any)
+        onButtonClick({ text: boton.texto, payload: boton.payload });
     };
 
     const baseClass =
