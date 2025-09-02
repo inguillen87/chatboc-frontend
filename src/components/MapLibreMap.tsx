@@ -33,11 +33,14 @@ export default function MapLibreMap({
   const apiKey = import.meta.env.VITE_MAPTILER_KEY;
 
   useEffect(() => {
-    if (!ref.current || !apiKey) {
-      if (!apiKey) {
-        console.warn("MapLibreMap: missing VITE_MAPTILER_KEY; skipping map initialization.");
-      }
+    if (!ref.current) {
       return;
+    }
+
+    if (!apiKey) {
+      console.warn(
+        "MapLibreMap: missing VITE_MAPTILER_KEY; using public demo tiles."
+      );
     }
     let isMounted = true;
     (async () => {
@@ -100,9 +103,14 @@ export default function MapLibreMap({
           console.error("MapLibreMap: Map constructor unavailable", lib);
           return;
         }
+
+        const styleUrl = apiKey
+          ? `https://api.maptiler.com/maps/streets-v2/style.json?key=${apiKey}`
+          : "https://demotiles.maplibre.org/style.json";
+
         const map = new lib.Map({
           container: ref.current!,
-          style: `https://api.maptiler.com/maps/streets-v2/style.json?key=${apiKey}`,
+          style: styleUrl,
           center: initialCenter,
           zoom: initialZoom,
         });
@@ -121,9 +129,19 @@ export default function MapLibreMap({
 
         mapRef.current = map;
         assertEventSource(map, "map");
+        safeOn(map, "error", (e) => {
+          console.error(
+            "MapLibreMap: style or runtime error",
+            (e as any)?.error ?? e
+          );
+          // Evita que MapLibre eleve el error y detenga la carga del mapa
+          (e as any)?.preventDefault?.();
+        });
 
         try {
-          map.addControl?.(new lib.NavigationControl(), "top-right");
+          if (typeof lib.NavigationControl === "function") {
+            map.addControl?.(new lib.NavigationControl(), "top-right");
+          }
 
           const clickHandler = (e: any) => {
             const { lng, lat } = e.lngLat || {};
