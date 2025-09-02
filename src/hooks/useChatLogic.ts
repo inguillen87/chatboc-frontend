@@ -87,7 +87,8 @@ export function useChatLogic({ tipoChat, entityToken: propToken, tokenKey = 'aut
       socket.emit('join', { room: sessionId, channel: 'web' });
 
       // Automatically send a silent greeting to fetch the main menu on connect.
-      const endpoint = getAskEndpoint({ tipoChat, rubro: null });
+      const rubro = safeLocalStorage.getItem("rubroSeleccionado") || null;
+      const endpoint = getAskEndpoint({ tipoChat, rubro });
       const initialContext = getInitialMunicipioContext();
 
       console.log("useChatLogic: Sending initial greeting to fetch menu.");
@@ -102,6 +103,7 @@ export function useChatLogic({ tipoChat, entityToken: propToken, tokenKey = 'aut
           action: 'initial_greeting',
           contexto_previo: initialContext,
           tipo_chat: tipoChat,
+          ...(rubro && { rubro_clave: rubro }),
           ...(initialName && { nombre_usuario: initialName }),
         },
       })
