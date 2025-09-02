@@ -241,8 +241,8 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
 
           {/* Prioridad al texto si no hay otros contenidos especiales */}
           {(!showAttachmentOrMap && !showStructuredContent && sanitizedHtml) && (
-            <span
-              className="max-w-none text-sm [&_p]:my-0"
+            <div
+              className="whitespace-pre-wrap text-justify max-w-none text-sm [&_p]:my-0 mb-2"
               dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
             />
           )}
@@ -262,8 +262,8 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
             <>
               {/* Si hay texto Y contenido estructurado, el texto puede ser una introducción */}
               {sanitizedHtml && !showAttachmentOrMap && (
-                 <span
-                    className="max-w-none text-sm [&_p]:my-0 mb-2 block"
+                 <div
+                    className="whitespace-pre-wrap text-justify max-w-none text-sm [&_p]:my-0 mb-2"
                     dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
                 />
               )}
