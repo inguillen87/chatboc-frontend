@@ -6,15 +6,17 @@ interface Props {
   onSelect?: (lat: number, lng: number, address?: string) => void;
   heatmapData?: { lat: number; lng: number; weight?: number }[];
   className?: string;
+  showHeatmap?: boolean;
 }
 
-export default function LocationMap({ lat, lng, onSelect, heatmapData, className }: Props) {
+export default function LocationMap({ lat, lng, onSelect, heatmapData, className, showHeatmap }: Props) {
   const center = lat != null && lng != null ? ([lng, lat] as [number, number]) : undefined;
   return (
     <MapLibreMap
-      initialCenter={center}
+      center={center}
       onSelect={onSelect}
       heatmapData={heatmapData}
+      showHeatmap={showHeatmap}
       className={className}
     />
   );
