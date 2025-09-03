@@ -245,12 +245,13 @@ map will refresh automatically without additional frontend changes.
 
 The `/perfil` page also embeds a Google Map when the backend includes
 either a `direccion` or the coordinates `latitud` and `longitud`.
-Address selection uses the `AddressAutocomplete` component powered by
-Google Places. Once an address is chosen, an interactive map with a
-draggable marker appears so the user can fine‑tune the coordinates.
-Make sure to define `VITE_Maps_API_KEY` in your `.env` file so the map
-script loads correctly. If the backend does not provide any location
-data, the map remains hidden as specified in [`AGENTS.md`](AGENTS.md).
+Address selection uses the `AutocompleteInput` component, which queries
+MapTiler and falls back to OpenStreetMap. Once an address is chosen, an
+interactive map with a draggable marker appears so the user can
+fine‑tune the coordinates. Make sure to define `VITE_Maps_API_KEY` in
+your `.env` file so the map script loads correctly. If the backend does
+not provide any location data, the map remains hidden as specified in
+[`AGENTS.md`](AGENTS.md).
 
 
 

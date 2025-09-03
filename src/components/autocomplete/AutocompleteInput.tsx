@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Input } from "./input";
+import { Input } from "../ui/input";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 
-interface AddressAutocompleteProps {
+interface AutocompleteInputProps {
   onSelect: (address: string) => void;
   value?: { label: string; value: string } | null;
   onChange?: (option: { label: string; value: string } | null) => void;
@@ -14,9 +14,7 @@ interface AddressAutocompleteProps {
   disabled?: boolean;
 }
 
-const MAPTILER_KEY = import.meta.env.VITE_MAPTILER_KEY || "";
-
-const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
+const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
   onSelect,
   value,
   onChange,
@@ -27,6 +25,8 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   readOnly = false,
   disabled = false,
 }) => {
+  const mapTilerKey = import.meta.env.VITE_MAPTILER_KEY || "";
+  const geocoderCountries = import.meta.env.VITE_GEOCODER_COUNTRIES || "";
   const [query, setQuery] = useState(value?.label || "");
   const [options, setOptions] = useState<string[]>([]);
   const [open, setOpen] = useState(false);
@@ -66,35 +66,73 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
     }
   }, [value]);
 
-  // Fetch suggestions from MapTiler
+  // Fetch suggestions from MapTiler with OpenStreetMap fallback
   useEffect(() => {
-    if (!MAPTILER_KEY || query.trim().length < 3) {
+    if (query.trim().length < 3) {
       setOptions([]);
       return;
     }
     const controller = new AbortController();
-    fetch(
-      `https://api.maptiler.com/geocoding/${encodeURIComponent(query)}.json?key=${MAPTILER_KEY}&language=es&limit=5`,
-      { signal: controller.signal }
-    )
-      .then((r) => r.json())
-      .then((data) => {
-        const feats = Array.isArray(data?.features) ? data.features : [];
-        const opts = feats
-          .map(
-            (f: any) =>
-              f.place_name ||
-              f.text ||
-              f.properties?.name ||
-              f.properties?.address ||
-              f.properties?.formatted
-          )
-          .filter(Boolean);
+
+    const fetchSuggestions = async () => {
+      const mtCountry = geocoderCountries
+        ? `&country=${encodeURIComponent(geocoderCountries)}`
+        : "";
+      if (mapTilerKey) {
+        try {
+          const res = await fetch(
+            `https://api.maptiler.com/geocoding/${encodeURIComponent(
+              query
+            )}.json?key=${mapTilerKey}&language=es&limit=5${mtCountry}`,
+            { signal: controller.signal }
+          );
+          const data = await res.json();
+          const feats = Array.isArray(data?.features) ? data.features : [];
+          const opts = feats
+            .map(
+              (f: any) =>
+                f.place_name ||
+                f.text ||
+                f.properties?.name ||
+                f.properties?.address ||
+                f.properties?.formatted
+            )
+            .filter(Boolean);
+          if (opts.length) {
+            setOptions(opts);
+            return;
+          }
+        } catch (e) {
+          // continue to OSM fallback
+        }
+      }
+
+      try {
+        const osmCountry = geocoderCountries
+          ? `&countrycodes=${encodeURIComponent(geocoderCountries)}`
+          : "";
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
+            query
+          )}&format=json&addressdetails=1&limit=5${osmCountry}`,
+          {
+            signal: controller.signal,
+            headers: { "Accept-Language": "es" },
+          }
+        );
+        const data = await res.json();
+        const opts = Array.isArray(data)
+          ? data.map((d: any) => d.display_name).filter(Boolean)
+          : [];
         setOptions(opts);
-      })
-      .catch(() => {});
+      } catch (e) {
+        setOptions([]);
+      }
+    };
+
+    fetchSuggestions();
     return () => controller.abort();
-  }, [query]);
+  }, [query, geocoderCountries, mapTilerKey]);
 
   if (readOnly || disabled) {
     return (
@@ -155,4 +193,4 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   );
 };
 
-export default AddressAutocomplete;
+export default AutocompleteInput;

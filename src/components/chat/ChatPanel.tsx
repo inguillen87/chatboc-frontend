@@ -14,7 +14,6 @@ import { Message } from "@/types/chat";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { requestLocation } from "@/utils/geolocation";
 import { toast } from "@/components/ui/use-toast";
-import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import TicketMap from "@/components/TicketMap";
 import { apiFetch } from "@/utils/api";
 import { useUser } from "@/hooks/useUser";

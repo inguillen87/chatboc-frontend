@@ -15,7 +15,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Controller } from 'react-hook-form';
-import AddressAutocomplete from '@/components/ui/AddressAutocomplete';
+import AutocompleteInput from '@/components/autocomplete/AutocompleteInput';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
@@ -272,7 +272,7 @@ export const EventForm: React.FC<EventFormProps> = ({ onSubmit, onCancel, isSubm
                   control={form.control}
                   name="location.address"
                   render={({ field: controllerField }) => (
-                    <AddressAutocomplete
+                    <AutocompleteInput
                       placeholder="Ej: Parque San Martín, Mendoza"
                       onSelect={(address) => controllerField.onChange(address)}
                       value={controllerField.value ? { label: controllerField.value, value: controllerField.value } : null}

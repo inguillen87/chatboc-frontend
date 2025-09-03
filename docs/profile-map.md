@@ -4,7 +4,7 @@ La página `/perfil` incorpora Google Maps para mostrar la ubicación de la empr
 El mapa se renderiza únicamente si el backend provee la dirección o las coordenadas `latitud` y `longitud`.
 Si no hay datos de ubicación, el componente permanece oculto según las pautas de `AGENTS.md`.
 
-- La selección de dirección utiliza `AddressAutocomplete`, que depende del servicio Places de Google.
+- La selección de dirección utiliza `AutocompleteInput`, que consulta MapTiler y, si es necesario, OpenStreetMap.
 - Al elegir una dirección, se muestra un mapa interactivo con un marcador arrastrable para ajustar la posición.
 - Es necesario definir la variable `VITE_Maps_API_KEY` en el archivo `.env` para cargar dicho script.
 - Al guardar el perfil, las coordenadas finales enviadas por el backend determinan la ubicación.

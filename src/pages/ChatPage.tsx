@@ -9,7 +9,7 @@ import { apiFetch, getErrorMessage } from "@/utils/api";
 import { getAskEndpoint, esRubroPublico, parseRubro } from "@/utils/chatEndpoints";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { useUser } from "@/hooks/useUser";
-import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
+import AutocompleteInput from "@/components/autocomplete/AutocompleteInput";
 import TicketMap from "@/components/TicketMap";
 import TicketTimeline from "@/components/tickets/TicketTimeline";
 import getOrCreateAnonId from "@/utils/anonId";
@@ -504,7 +504,7 @@ const ChatPage = () => {
           <footer className="bg-card/95 backdrop-blur-sm p-3 sm:p-4 border-t border-border min-w-0">
             {esperandoDireccion ? (
               <div>
-                <AddressAutocomplete
+                <AutocompleteInput
                   onSelect={(addressText: string) => handleSend({ text: addressText })}
                   autoFocus
                   placeholder="Ej: Av. Principal 123, Ciudad"

@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import AddressAutocomplete from '@/components/ui/AddressAutocomplete'; // Reutilizar
+import AutocompleteInput from '@/components/autocomplete/AutocompleteInput'; // Reutilizar
 import { Loader2, AlertTriangle, ArrowLeft, CheckCircle } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 
@@ -228,9 +228,10 @@ export default function ProductCheckoutPage() {
                   name="direccion"
                   control={control}
                   render={({ field }) => (
-                    <AddressAutocomplete
+                    <AutocompleteInput
                       onSelect={(address) => field.onChange(address)}
-                      initialValue={field.value} // Para que se muestre si ya hay un valor
+                      value={field.value ? { label: field.value, value: field.value } : undefined}
+                      onChange={(opt) => field.onChange(opt ? opt.value : '')}
                       placeholder="Ingresa tu dirección completa"
                     />
                   )}
