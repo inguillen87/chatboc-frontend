@@ -55,7 +55,7 @@ function ChatWidgetComponent({
   );
 }
 
-export default function Iframe() {
+function Iframe() {
   const [widgetParams, setWidgetParams] = useState<any | null>(null);
   const [entityToken, setEntityToken] = useState<string | null>(null);
   const [tipoChat, setTipoChat] = useState<'pyme' | 'municipio' | null>(null);
@@ -143,3 +143,5 @@ createRoot(container).render(
         <Iframe />
     </ErrorBoundary>
 );
+
+export default Iframe;
