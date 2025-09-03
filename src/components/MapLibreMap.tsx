@@ -236,7 +236,6 @@ export default function MapLibreMap({
           } catch (err) {
             console.error("MapLibreMap: failed to configure map", err);
           }
-        }
       })();
     return () => {
       isMounted = false;
