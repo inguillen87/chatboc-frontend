@@ -35,7 +35,8 @@ export default defineConfig(({ mode }) => {
         },
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
-          maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
+          // Allow larger chunks like MapLibre (~3MB) to be precached
+          maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
           runtimeCaching: [
             {
               urlPattern: /^https:\/\/maps\.googleapis\.com\/.*/,
