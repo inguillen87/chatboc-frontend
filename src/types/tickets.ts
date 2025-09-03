@@ -25,6 +25,8 @@ export interface Attachment {
   url: string;
   size: number;
   mime_type?: string;
+  thumbUrl?: string;
+  thumb_url?: string;
 }
 
 export interface Message {

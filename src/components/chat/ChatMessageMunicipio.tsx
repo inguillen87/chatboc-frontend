@@ -126,7 +126,8 @@ const ChatMessageMunicipio = React.forwardRef<HTMLDivElement, ChatMessageProps>(
       message.attachmentInfo.url,
       message.attachmentInfo.name,
       message.attachmentInfo.mimeType,
-      message.attachmentInfo.size
+      message.attachmentInfo.size,
+      message.attachmentInfo.thumbUrl
     );
   } else if (message.mediaUrl && isBot) {
     processedAttachmentInfo = deriveAttachmentInfo(message.mediaUrl, message.mediaUrl.split('/').pop() || "archivo_adjunto");

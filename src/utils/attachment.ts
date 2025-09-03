@@ -17,6 +17,7 @@ export interface AttachmentInfo {
   type: AttachmentType;
   extension: string;
   name: string;
+  thumbUrl?: string;
   mimeType?: string;
   size?: number;
   isUploading?: boolean; // New flag for optimistic UI
@@ -99,7 +100,8 @@ export function deriveAttachmentInfo(
   url: string,
   name: string,
   mimeType?: string,
-  size?: number
+  size?: number,
+  thumbUrl?: string
 ): AttachmentInfo {
   const fallbackName = name || url.split('/').pop()?.split(/[?#]/)[0] || 'archivo_desconocido';
   const extension = (fallbackName.includes('.') ? fallbackName.split('.').pop()?.toLowerCase() : '') || '';
@@ -136,7 +138,8 @@ export function deriveAttachmentInfo(
     mimeType: mimeType || 'application/octet-stream', // Default a octet-stream si no se provee
     type,
     extension,
-    size
+    size,
+    thumbUrl
   };
 }
 
