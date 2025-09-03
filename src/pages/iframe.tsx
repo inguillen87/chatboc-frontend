@@ -55,7 +55,7 @@ function ChatWidgetComponent({
   );
 }
 
-function Iframe() {
+const Iframe: React.FC = () => {
   const [widgetParams, setWidgetParams] = useState<any | null>(null);
   const [entityToken, setEntityToken] = useState<string | null>(null);
   const [tipoChat, setTipoChat] = useState<'pyme' | 'municipio' | null>(null);
@@ -135,13 +135,15 @@ function Iframe() {
       <MemoryRouter>{widgetNode}</MemoryRouter>
     </GoogleOAuthProvider>
   );
-}
+};
+
+export default Iframe;
 
 const container = document.getElementById('root')!;
 createRoot(container).render(
-    <ErrorBoundary>
-        <Iframe />
-    </ErrorBoundary>
+  <ErrorBoundary>
+    <Iframe />
+  </ErrorBoundary>
 );
 
 export default Iframe;
