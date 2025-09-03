@@ -255,6 +255,16 @@ export default function MapLibreMap({
           });
         };
 
+        if (onSelect) {
+          safeOn(map, "click", clickHandler);
+        }
+        safeOn(map, "styleimagemissing", styleImageMissingHandler);
+        safeOn(map, "load", loadHandler);
+      } catch (err) {
+        console.error("MapLibreMap: failed to configure map", err);
+      }
+      };
+
       init();
     return () => {
       isMounted = false;

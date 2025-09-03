@@ -147,8 +147,9 @@ export default function Perfil() {
   const [horariosOpen, setHorariosOpen] = useState(false);
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [isSubmittingEvent, setIsSubmittingEvent] = useState(false);
-  const [activeEventTab, setActiveEventTab] = useState<"event" | "news" | "paste">("event");
-  const [isPromotionModalOpen, setIsPromotionModalOpen] = useState(false);
+  const [activeEventTab, setActiveEventTab] = useState<
+    "event" | "news" | "paste" | "promotion"
+  >("event");
   const [isSubmittingPromotion, setIsSubmittingPromotion] = useState(false);
   const [hasSentPromotionToday, setHasSentPromotionToday] = useState(false);
 
@@ -242,7 +243,7 @@ export default function Perfil() {
       const today = new Date().toISOString().slice(0, 10);
       safeLocalStorage.setItem('lastPromotionDate', today);
       setHasSentPromotionToday(true);
-      setIsPromotionModalOpen(false);
+      setIsEventModalOpen(false);
     } catch (error) {
       toast({
         variant: "destructive",
@@ -1456,7 +1457,10 @@ export default function Perfil() {
                     Subir Información
                   </Button>
                   <Button
-                    onClick={() => setIsPromotionModalOpen(true)}
+                    onClick={() => {
+                      setActiveEventTab("promotion");
+                      setIsEventModalOpen(true);
+                    }}
                     disabled={hasSentPromotionToday}
                     className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-2.5"
                   >
@@ -1660,10 +1664,11 @@ export default function Perfil() {
           </DialogHeader>
           <div className="py-4 max-h-[70vh] overflow-y-auto px-2">
             <Tabs value={activeEventTab} onValueChange={setActiveEventTab}>
-              <TabsList className="mb-4 grid w-full grid-cols-3">
+              <TabsList className="mb-4 grid w-full grid-cols-4">
                 <TabsTrigger value="event">Evento</TabsTrigger>
                 <TabsTrigger value="news">Noticia</TabsTrigger>
                 <TabsTrigger value="paste">Subir Información</TabsTrigger>
+                <TabsTrigger value="promotion">Promocionar</TabsTrigger>
               </TabsList>
               <TabsContent value="event">
                 <EventForm
@@ -1683,6 +1688,13 @@ export default function Perfil() {
               </TabsContent>
               <TabsContent value="paste">
                 <AgendaPasteForm onCancel={() => setIsEventModalOpen(false)} />
+              </TabsContent>
+              <TabsContent value="promotion">
+                <PromotionForm
+                  onCancel={() => setIsEventModalOpen(false)}
+                  isSubmitting={isSubmittingPromotion}
+                  onSubmit={handleSubmitPromotion}
+                />
               </TabsContent>
             </Tabs>
           </div>
