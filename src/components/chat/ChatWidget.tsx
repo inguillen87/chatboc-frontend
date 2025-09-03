@@ -15,8 +15,6 @@ import ChatUserPanel from "./ChatUserPanel";
 import ChatHeader from "./ChatHeader";
 import EntityInfoPanel from "./EntityInfoPanel";
 import ChatPanel from "./ChatPanel";
-import RubroSelector, { Rubro } from "./RubroSelector";
-import { esRubroPublico, parseRubro } from "@/utils/chatEndpoints";
 
 interface ChatWidgetProps {
   mode?: "standalone" | "iframe" | "script";
@@ -95,31 +93,19 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     getOrCreateAnonId();
   }, []);
 
-  useEffect(() => {
-    if (!esperandoRubro) return;
-    setRubrosLoading(true);
-    apiFetch<Rubro[]>("/rubros/", { skipAuth: true })
-      .then((data) => setRubrosDisponibles(Array.isArray(data) ? data : []))
-      .catch(() => setRubrosDisponibles([]))
-      .finally(() => setRubrosLoading(false));
-  }, [esperandoRubro]);
-
   const [showCta, setShowCta] = useState(false);
   const [proactiveMessage, setProactiveMessage] = useState<string | null>(null);
   const [showProactiveBubble, setShowProactiveBubble] = useState(false);
   const [proactiveCycle, setProactiveCycle] = useState(0);
-  const storedRubro = typeof window !== 'undefined' ? safeLocalStorage.getItem('rubroSeleccionado') : null;
-  const [selectedRubro, setSelectedRubro] = useState<string | null>(initialRubro || storedRubro);
-  const [rubrosDisponibles, setRubrosDisponibles] = useState<Rubro[]>([]);
-  const [esperandoRubro, setEsperandoRubro] = useState(!entityToken && !(initialRubro || storedRubro));
-  const [rubrosLoading, setRubrosLoading] = useState(false);
+  const [selectedRubro, setSelectedRubro] = useState<string | null>(initialRubro || null);
+  const [hasSetInitialRubro, setHasSetInitialRubro] = useState(false);
 
   useEffect(() => {
-    if (initialRubro && initialRubro !== selectedRubro) {
+    if (initialRubro && !hasSetInitialRubro) {
       setSelectedRubro(initialRubro);
-      setEsperandoRubro(false);
+      setHasSetInitialRubro(true);
     }
-  }, [initialRubro, selectedRubro]);
+  }, [initialRubro, hasSetInitialRubro]);
 
   const openUserPanel = useCallback(() => {
     if (user) {
@@ -146,19 +132,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       return nv;
     });
   }, []);
-
-  const handleRubroSelect = useCallback((r: Rubro) => {
-    safeLocalStorage.setItem('rubroSeleccionado', r.nombre);
-    setSelectedRubro(r.nombre);
-    setEsperandoRubro(false);
-    setResolvedTipoChat(esRubroPublico(parseRubro(r.nombre)) ? 'municipio' : 'pyme');
-  }, []);
-
-  useEffect(() => {
-    if (selectedRubro) {
-      setResolvedTipoChat(esRubroPublico(parseRubro(selectedRubro)) ? 'municipio' : 'pyme');
-    }
-  }, [selectedRubro]);
 
   const [viewport, setViewport] = useState({
     width: typeof window !== "undefined" ? window.innerWidth : 0,
@@ -476,41 +449,24 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                 : view === "login" ? <ChatUserLoginPanel onSuccess={() => setView("chat")} onShowRegister={() => setView("register")} />
                 : view === "user" ? <ChatUserPanel onClose={() => setView("chat")} />
                 : view === "info" ? <EntityInfoPanel info={entityInfo} onClose={() => setView("chat")} />
-                : esperandoRubro ? (
-                    <>
-                      <ChatHeader onClose={toggleChat} onProfile={openUserPanel} muted={muted} onToggleSound={toggleMuted} onCart={openCart} />
-                      <div className="flex-1 p-4 overflow-y-auto text-center">
-                        {rubrosLoading ? (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-                          </div>
-                        ) : (
-                          <>
-                            <p className="mb-4 text-sm text-muted-foreground">Seleccioná un rubro para comenzar:</p>
-                            <RubroSelector rubros={rubrosDisponibles} onSelect={handleRubroSelect} />
-                          </>
-                        )}
-                      </div>
-                    </>
-                  ) : (
-                    <ChatPanel
-                      mode={mode}
-                      widgetId={widgetId}
-                      entityToken={entityToken}
-                      openWidth={finalOpenWidth}
-                      openHeight={finalOpenHeight}
-                      onClose={toggleChat}
-                      tipoChat={resolvedTipoChat}
-                      onRequireAuth={() => setView("register")}
-                      onShowLogin={() => setView("login")}
-                      onShowRegister={() => setView("register")}
-                      onOpenUserPanel={openUserPanel}
-                      muted={muted}
-                      onToggleSound={toggleMuted}
-                      onCart={openCart}
-                      selectedRubro={entityInfo?.rubro || selectedRubro}
-                    />
-                  )}
+                : <ChatPanel
+                    mode={mode}
+                    widgetId={widgetId}
+                    entityToken={entityToken}
+                    openWidth={finalOpenWidth}
+                    openHeight={finalOpenHeight}
+                    onClose={toggleChat}
+                    tipoChat={resolvedTipoChat}
+                    onRequireAuth={() => setView("register")}
+                    onShowLogin={() => setView("login")}
+                    onShowRegister={() => setView("register")}
+                    onOpenUserPanel={openUserPanel}
+                    muted={muted}
+                    onToggleSound={toggleMuted}
+                    onCart={openCart}
+                    selectedRubro={entityInfo?.rubro || selectedRubro}
+                    onRubroSelect={setSelectedRubro}
+                  />}
             </motion.div>
           ) : (
             <motion.div

@@ -10,13 +10,16 @@ import ScrollToBottomButton from "@/components/ui/ScrollToBottomButton";
 import { useChatLogic } from "@/hooks/useChatLogic";
 import { SendPayload } from "@/types/chat";
 import PersonalDataForm from './PersonalDataForm';
+import { Rubro } from "./RubroSelector";
 import { Message } from "@/types/chat";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { requestLocation } from "@/utils/geolocation";
 import { toast } from "@/components/ui/use-toast";
+import RubroSelector from "./RubroSelector";
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import TicketMap from "@/components/TicketMap";
 import { apiFetch } from "@/utils/api";
+import { parseRubro, esRubroPublico } from "@/utils/chatEndpoints";
 import { useUser } from "@/hooks/useUser";
 import { motion } from "framer-motion";
 import { useBusinessHours } from "@/hooks/useBusinessHours";
@@ -53,6 +56,7 @@ interface ChatPanelProps {
   onShowLogin?: () => void;
   onShowRegister?: () => void;
   selectedRubro?: string | null;
+  onRubroSelect?: (rubro: any) => void;
   muted?: boolean;
   onToggleSound?: () => void;
   onCart?: () => void;
@@ -69,6 +73,7 @@ const ChatPanel = ({
   onToggleSound,
   onRequireAuth,
   selectedRubro,
+  onRubroSelect,
   mode,
   entityToken: propEntityToken,
 }: ChatPanelProps) => {
@@ -121,20 +126,6 @@ const ChatPanel = ({
     const stored = safeLocalStorage.getItem("ultima_direccion");
     if (stored) setDireccionGuardada(stored);
   }, []);
-
-  useEffect(() => {
-    if (selectedRubro && messages.length === 0) {
-      setMessages([
-        {
-          id: Date.now(),
-          text: `¡Hola! Soy Chatboc, tu asistente para ${selectedRubro.toLowerCase()}. ¿En qué puedo ayudarte hoy?`,
-          isBot: true,
-          timestamp: new Date(),
-          query: undefined,
-        },
-      ]);
-    }
-  }, [selectedRubro, messages.length, setMessages]);
 
   useEffect(() => {
     if (activeTicketId) {

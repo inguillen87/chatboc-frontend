@@ -6,8 +6,6 @@ import { TicketHistoryEvent, Message } from '@/types/tickets';
 interface TicketTimelineProps {
   history: TicketHistoryEvent[];
   messages?: Message[];
-  currentStatus?: string;
-  statusOrder?: string[];
 }
 
 type TimelineEvent =
@@ -27,21 +25,7 @@ const formatStatus = (status: string) =>
         .replace(/\b\w/g, (c) => c.toUpperCase())
     : '';
 
-const DEFAULT_STATUS_ORDER = [
-  'nuevo',
-  'abierto',
-  'en_proceso',
-  'completado',
-  'resuelto',
-  'cerrado',
-];
-
-const TicketTimeline: React.FC<TicketTimelineProps> = ({
-  history,
-  messages = [],
-  currentStatus,
-  statusOrder = DEFAULT_STATUS_ORDER,
-}) => {
+const TicketTimeline: React.FC<TicketTimelineProps> = ({ history, messages = [] }) => {
   const events: TimelineEvent[] = [
     ...history.map((h) => ({ type: 'status', ...h })),
     ...messages.map((m) => ({
@@ -55,40 +39,6 @@ const TicketTimeline: React.FC<TicketTimelineProps> = ({
     (a, b) =>
       (new Date(a.date).getTime() || 0) - (new Date(b.date).getTime() || 0)
   );
-
-  if (events.length === 0 && currentStatus) {
-    const currentIndex = statusOrder.indexOf(currentStatus);
-    if (currentIndex === -1) {
-      return (
-        <p className="text-sm text-muted-foreground">No hay historial disponible.</p>
-      );
-    }
-    return (
-      <ol className="relative border-l border-gray-200 dark:border-gray-700">
-        {statusOrder.map((status, index) => {
-          const reached = index <= currentIndex;
-          const icon = reached ? (
-            <CheckCircle size={16} />
-          ) : (
-            <Clock size={16} />
-          );
-          const circleClass = reached
-            ? 'bg-green-500 text-white'
-            : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300';
-          return (
-            <li key={status} className="mb-8 ml-6">
-              <span
-                className={`absolute -left-3 flex items-center justify-center w-6 h-6 rounded-full ring-8 ring-white dark:ring-gray-900 ${circleClass}`}
-              >
-                {icon}
-              </span>
-              <h4 className="font-semibold">{formatStatus(status)}</h4>
-            </li>
-          );
-        })}
-      </ol>
-    );
-  }
 
   if (events.length === 0) {
     return <p className="text-sm text-muted-foreground">No hay historial disponible.</p>;
