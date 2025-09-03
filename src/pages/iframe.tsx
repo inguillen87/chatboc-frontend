@@ -145,5 +145,3 @@ createRoot(container).render(
     <Iframe />
   </ErrorBoundary>
 );
-
-export default Iframe;
