@@ -1455,6 +1455,19 @@ export default function Perfil() {
                     <UploadCloud className="w-4 h-4 mr-2" />
                     Subir Información
                   </Button>
+                  <Button
+                    onClick={() => setIsPromotionModalOpen(true)}
+                    disabled={hasSentPromotionToday}
+                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-2.5"
+                  >
+                    <Megaphone className="w-4 h-4 mr-2" />
+                    Promocionar en WhatsApp
+                  </Button>
+                  {hasSentPromotionToday && (
+                    <p className="text-xs text-muted-foreground text-center">
+                      Ya enviaste una promoción hoy. Podrás enviar otra mañana.
+                    </p>
+                  )}
                 </div>
               </CardContent>
             </Card>
