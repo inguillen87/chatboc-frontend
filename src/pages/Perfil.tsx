@@ -21,8 +21,10 @@ import {
   FileCog, // Icono general para formatos/mapeos
   Wand2, // Icono para sugerencias
   Loader2, // Icono de carga
+  Megaphone, // Icono para promociones
 } from "lucide-react";
 import { EventForm } from "@/components/admin/EventForm";
+import { PromotionForm, PromotionFormValues } from "@/components/admin/PromotionForm";
 import { AgendaPasteForm } from "@/components/admin/AgendaPasteForm";
 import MunicipioIcon from "@/components/ui/MunicipioIcon";
 import { Badge } from "@/components/ui/badge";
@@ -146,6 +148,17 @@ export default function Perfil() {
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [isSubmittingEvent, setIsSubmittingEvent] = useState(false);
   const [activeEventTab, setActiveEventTab] = useState<"event" | "news" | "paste">("event");
+  const [isPromotionModalOpen, setIsPromotionModalOpen] = useState(false);
+  const [isSubmittingPromotion, setIsSubmittingPromotion] = useState(false);
+  const [hasSentPromotionToday, setHasSentPromotionToday] = useState(false);
+
+  useEffect(() => {
+    const lastPromotionDate = safeLocalStorage.getItem('lastPromotionDate');
+    const today = new Date().toISOString().slice(0, 10);
+    if (lastPromotionDate === today) {
+      setHasSentPromotionToday(true);
+    }
+  }, []);
 
   const handleSubmitPost = async (values: any) => {
     setIsSubmittingEvent(true);
@@ -202,6 +215,42 @@ export default function Perfil() {
       });
     } finally {
       setIsSubmittingEvent(false);
+    }
+  };
+
+  const handleSubmitPromotion = async (values: PromotionFormValues) => {
+    setIsSubmittingPromotion(true);
+    try {
+      const formData = new FormData();
+      formData.append('title', values.title);
+      formData.append('description', values.description);
+      formData.append('link', values.link);
+      formData.append('languages', 'es');
+      if (values.flyer && values.flyer.length > 0) {
+        formData.append('flyer_image', values.flyer[0]);
+      }
+
+      await apiFetch('/municipal/promotions', {
+        method: 'POST',
+        body: formData,
+      });
+
+      toast({
+        title: "Éxito",
+        description: "La promoción se ha enviado correctamente.",
+      });
+      const today = new Date().toISOString().slice(0, 10);
+      safeLocalStorage.setItem('lastPromotionDate', today);
+      setHasSentPromotionToday(true);
+      setIsPromotionModalOpen(false);
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error al enviar la promoción",
+        description: getErrorMessage(error, "No se pudo enviar la promoción. Intenta de nuevo."),
+      });
+    } finally {
+      setIsSubmittingPromotion(false);
     }
   };
   const [ticketLocations, setTicketLocations] = useState<HeatPoint[]>([]);
@@ -1406,6 +1455,19 @@ export default function Perfil() {
                     <UploadCloud className="w-4 h-4 mr-2" />
                     Subir Información
                   </Button>
+                  <Button
+                    onClick={() => setIsPromotionModalOpen(true)}
+                    disabled={hasSentPromotionToday}
+                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-2.5"
+                  >
+                    <Megaphone className="w-4 h-4 mr-2" />
+                    Promocionar en WhatsApp
+                  </Button>
+                  {hasSentPromotionToday && (
+                    <p className="text-xs text-muted-foreground text-center">
+                      Ya enviaste una promoción hoy. Podrás enviar otra mañana.
+                    </p>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -1597,6 +1659,28 @@ export default function Perfil() {
                 <AgendaPasteForm onCancel={() => setIsEventModalOpen(false)} />
               </TabsContent>
             </Tabs>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* --- Modal para Promocionar --- */}
+      <Dialog open={isPromotionModalOpen} onOpenChange={setIsPromotionModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl flex items-center">
+              <Megaphone className="w-5 h-5 mr-2 text-primary" />
+              Enviar Promoción
+            </DialogTitle>
+            <DialogDescription>
+              Completa los detalles para enviar un mensaje promocional por WhatsApp.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 max-h-[70vh] overflow-y-auto px-2">
+            <PromotionForm
+              onCancel={() => setIsPromotionModalOpen(false)}
+              isSubmitting={isSubmittingPromotion}
+              onSubmit={handleSubmitPromotion}
+            />
           </div>
         </DialogContent>
       </Dialog>
