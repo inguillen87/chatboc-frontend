@@ -89,6 +89,9 @@ export default defineConfig(({ mode }) => {
         }
       },
     },
+    optimizeDeps: {
+      exclude: ['mammoth'],
+    },
     test: {
       globals: true,
       environment: 'jsdom',
