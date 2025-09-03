@@ -27,11 +27,16 @@ const buildFullAddress = (ticket: TicketLocation) => {
 const TicketMap: React.FC<{ ticket: TicketLocation }> = ({ ticket }) => {
   const direccionCompleta = buildFullAddress(ticket);
   const hasCoords =
-    typeof ticket.latitud === 'number' && typeof ticket.longitud === 'number';
+    typeof ticket.latitud === 'number' &&
+    typeof ticket.longitud === 'number' &&
+    (ticket.latitud !== 0 || ticket.longitud !== 0);
   const originLat = ticket.origen_latitud ?? ticket.municipio_latitud;
   const originLon = ticket.origen_longitud ?? ticket.municipio_longitud;
-  const hasRoute =
-    hasCoords && typeof originLat === 'number' && typeof originLon === 'number';
+  const hasOrigin =
+    typeof originLat === 'number' &&
+    typeof originLon === 'number' &&
+    (originLat !== 0 || originLon !== 0);
+  const hasRoute = hasCoords && hasOrigin;
   const mapSrc = hasRoute
     ? `https://www.google.com/maps/dir/?api=1&origin=${originLat},${originLon}&destination=${ticket.latitud},${ticket.longitud}&travelmode=driving&output=embed`
     : hasCoords
