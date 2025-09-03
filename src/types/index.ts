@@ -36,6 +36,10 @@ export interface Ticket {
   archivo_url?: string;        // URL a un archivo adjunto principal del ticket (diferente de los adjuntos en comentarios)
   categoria?: string;          // Categoría asignada al ticket
   municipio_nombre?: string;   // Nombre del municipio (relevante si tipo='municipio')
+  municipio_latitud?: number;  // Latitud del municipio u origen de la cuadrilla
+  municipio_longitud?: number; // Longitud del municipio u origen de la cuadrilla
+  origen_latitud?: number;     // Latitud específica de salida si difiere del municipio
+  origen_longitud?: number;    // Longitud específica de salida si difiere del municipio
 
   // Coordenadas geográficas
   latitud?: number | null;
