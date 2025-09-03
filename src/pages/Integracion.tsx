@@ -125,40 +125,68 @@ const Integracion = () => {
 
     return `<script>
 document.addEventListener('DOMContentLoaded', function () {
-  // Asegura que el widget se destruya y se vuelva a crear si ya existe
-  if (window.chatbocDestroyWidget) {
-    window.chatbocDestroyWidget('${entityToken}');
-  }
-  window.APP_TARGET = '${endpoint}'; // Define el endpoint antes de cargar el script
+  const ENTITY_TOKEN = '${entityToken}';
+  let currentToken = null;
+  let currentScript = null;
 
-  var s = document.createElement('script');
-  s.src = 'https://chatboc.ar/widget.js'; // URL del script del widget
-  s.async = true; // Carga asíncrona para no bloquear el renderizado de la página
-  s.setAttribute('data-entity-token', '${entityToken}'); // Token de la entidad para el widget
-  s.setAttribute('data-default-open', 'false'); // El widget comienza cerrado por defecto
-  s.setAttribute('data-width', '${WIDGET_STD_WIDTH}'); // Ancho del widget abierto
-  s.setAttribute('data-height', '${WIDGET_STD_HEIGHT}'); // Alto del widget abierto
-  s.setAttribute('data-closed-width', '${WIDGET_STD_CLOSED_WIDTH}'); // Ancho del widget cerrado (burbuja)
-  s.setAttribute('data-closed-height', '${WIDGET_STD_CLOSED_HEIGHT}'); // Alto del widget cerrado (burbuja)
-  s.setAttribute('data-bottom', '${WIDGET_STD_BOTTOM}'); // Posición desde abajo
-  s.setAttribute('data-right', '${WIDGET_STD_RIGHT}'); // Posición desde la derecha
-  s.setAttribute('data-endpoint', '${endpoint}'); // Tipo de chat (pyme o municipio)
+  async function loadWidget() {
+    try {
+      const res = await fetch('https://chatboc.ar/auth/widget-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: ENTITY_TOKEN })
+      });
+      const data = await res.json();
+      const token = data.token;
+
+      if (currentScript) {
+        currentScript.remove();
+      }
+      if (window.chatbocDestroyWidget && currentToken) {
+        window.chatbocDestroyWidget(currentToken);
+      }
+      currentToken = token;
+      window.APP_TARGET = '${endpoint}';
+
+      var s = document.createElement('script');
+      s.src = 'https://chatboc.ar/widget.js';
+      s.async = true;
+      s.setAttribute('data-entity-token', token);
+      s.setAttribute('data-default-open', 'false');
+      s.setAttribute('data-width', '${WIDGET_STD_WIDTH}');
+      s.setAttribute('data-height', '${WIDGET_STD_HEIGHT}');
+      s.setAttribute('data-closed-width', '${WIDGET_STD_CLOSED_WIDTH}');
+      s.setAttribute('data-closed-height', '${WIDGET_STD_CLOSED_HEIGHT}');
+      s.setAttribute('data-bottom', '${WIDGET_STD_BOTTOM}');
+      s.setAttribute('data-right', '${WIDGET_STD_RIGHT}');
+      s.setAttribute('data-endpoint', '${endpoint}');
 ${customLines ? customLines + "\n" : ""}  // Importante para la geolocalización y el portapapeles:
-  // widget.js establecerá allow="clipboard-write; geolocation" en su iframe interno.
-  // Si este script se inserta dentro de un iframe en tu sitio, ese iframe contenedor
-  // también debe incluir allow="clipboard-write; geolocation" en sus atributos.
-  // Ejemplo: <iframe src="tu_pagina_con_widget.html" allow="clipboard-write; geolocation"></iframe>
+      // widget.js establecerá allow="clipboard-write; geolocation" en su iframe interno.
+      // Si este script se inserta dentro de un iframe en tu sitio, ese iframe contenedor
+      // también debe incluir allow="clipboard-write; geolocation" en sus atributos.
+      // Ejemplo: <iframe src="tu_pagina_con_widget.html" allow="clipboard-write; geolocation"></iframe>
 
-  document.body.appendChild(s); // Añade el script al final del body
+      document.body.appendChild(s);
+      currentScript = s;
 
-  // Opcional: Escuchar evento de widget cargado
-  s.onload = function() {
-    console.log('Chatboc Widget cargado y listo.');
-    // Puedes añadir lógica adicional aquí si es necesario
-  };
-  s.onerror = function() {
-    console.error('Error al cargar Chatboc Widget.');
-  };
+      s.onload = function() {
+        console.log('Chatboc Widget cargado y listo.');
+      };
+      s.onerror = function() {
+        console.error('Error al cargar Chatboc Widget.');
+      };
+
+      const [, payload] = token.split('.');
+      const { exp } = JSON.parse(atob(payload));
+      const refreshMs = exp * 1000 - Date.now() - 60000;
+      setTimeout(loadWidget, Math.max(refreshMs, 30000));
+    } catch (err) {
+      console.error('No se pudo obtener un nuevo token', err);
+      setTimeout(loadWidget, 30000);
+    }
+  }
+
+  loadWidget();
 });
 </script>`;
   }, [entityToken, endpoint, primaryColor, logoUrl, logoAnimation]);
