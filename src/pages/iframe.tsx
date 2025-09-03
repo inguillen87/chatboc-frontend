@@ -121,9 +121,7 @@ const Iframe = () => {
       </MemoryRouter>
     </GoogleOAuthProvider>
   );
-};
-
-export default Iframe;
+}
 
 const container = document.getElementById('root')!;
 createRoot(container).render(
