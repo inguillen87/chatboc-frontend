@@ -1,5 +1,7 @@
 // src/utils/contexto_municipio.ts
 
+import { mapToKnownCategory } from './category';
+
 // Define la estructura del contexto específico para municipios.
 export interface MunicipioContext {
   estado_conversacion: 'inicio' | 'recolectando_info' | 'recolectando_datos_personales' | 'confirmando_reclamo' | 'reclamo_creado' | 'conversacion_general';
@@ -54,7 +56,7 @@ export function updateMunicipioContext(
     const { datos_estructura } = interaction.llmResponse;
     const reclamo = newContext.datos_reclamo;
 
-    if (datos_estructura.categoria) reclamo.categoria = datos_estructura.categoria;
+    if (datos_estructura.categoria) reclamo.categoria = mapToKnownCategory(datos_estructura.categoria);
     if (datos_estructura.descripcion) reclamo.descripcion = datos_estructura.descripcion;
     if (datos_estructura.ubicacion) reclamo.ubicacion = datos_estructura.ubicacion;
     if (datos_estructura.nombre_usuario_detectado) reclamo.nombre_ciudadano = datos_estructura.nombre_usuario_detectado;
