@@ -137,13 +137,9 @@ const Iframe: React.FC = () => {
   );
 };
 
-export default Iframe;
-
 const container = document.getElementById('root')!;
 createRoot(container).render(
   <ErrorBoundary>
     <Iframe />
   </ErrorBoundary>
 );
-
-export default Iframe;
