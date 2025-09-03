@@ -11,6 +11,7 @@ type HeatPoint = {
   weight?: number;
   id?: number;
   ticket?: string;
+  estado?: string;
 };
 
 type Props = {
@@ -58,7 +59,7 @@ export default function MapLibreMap({
       let styleImageMissingHandler: any;
       let loadHandler: any;
 
-      (async () => {
+      const init = async () => {
         async function loadLocal() {
         try {
           const libMod = await import("maplibre-gl");
@@ -249,7 +250,9 @@ export default function MapLibreMap({
       } catch (err) {
         console.error("MapLibreMap: failed to configure map", err);
       }
-      })();
+      };
+
+      init();
     return () => {
       isMounted = false;
       // Remove marker and all event listeners safely
