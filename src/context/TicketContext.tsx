@@ -26,7 +26,7 @@ const groupTicketsByCategory = (tickets: Ticket[]) => {
       resolved.push(ticket);
       return;
     }
-    const category = mapToKnownCategory(ticket.categoria);
+    const category = ticket.categoria || 'General';
     if (!groups[category]) {
       groups[category] = [];
     }

@@ -1,6 +1,5 @@
 // src/utils/contexto_municipio.ts
 
-import { mapToKnownCategory } from './category';
 
 // Define la estructura del contexto específico para municipios.
 export interface MunicipioContext {
