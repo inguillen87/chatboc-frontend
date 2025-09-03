@@ -44,11 +44,13 @@ const TicketMap: React.FC<{ ticket: TicketLocation }> = ({ ticket }) => {
     (originLat !== 0 || originLon !== 0);
   const hasRoute = hasCoords && hasOrigin;
   const mapSrc = hasRoute
-    ? `https://www.google.com/maps/dir/?api=1&origin=${originLat},${originLon}&destination=${ticket.latitud},${ticket.longitud}&travelmode=driving&output=embed`
+    ? `https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=${originLat},${originLon};${ticket.latitud},${ticket.longitud}`
     : hasCoords
-      ? `https://www.google.com/maps?q=${ticket.latitud},${ticket.longitud}&output=embed`
-      : `https://www.google.com/maps?q=${encodeURIComponent(direccionCompleta)}&output=embed`;
-  return ticket.direccion || hasCoords ? (
+      ? `https://www.openstreetmap.org/export/embed.html?mlat=${ticket.latitud}&mlon=${ticket.longitud}&marker=${ticket.latitud},${ticket.longitud}&zoom=15&layer=mapnik`
+      : direccionCompleta
+        ? `https://www.openstreetmap.org/search?query=${encodeURIComponent(direccionCompleta)}`
+        : '';
+  return mapSrc ? (
     <div className="mb-6">
       <h4 className="font-semibold mb-2">Ubicación aproximada</h4>
       {/* Responsive height for the map container */}
