@@ -20,7 +20,7 @@ import { getInitials, cn } from "@/lib/utils";
 import UserAvatarAnimated from "./UserAvatarAnimated";
 import { Badge } from "@/components/ui/badge";
 
-type RawAttachment = { url: string; name: string; mimeType?: string; size?: number };
+type RawAttachment = { url: string; name: string; mimeType?: string; size?: number; thumbUrl?: string };
 
 function normalizeAttachment(msg: any): RawAttachment | null {
   if (msg?.attachmentInfo && msg.attachmentInfo.url && msg.attachmentInfo.name) {
@@ -28,7 +28,15 @@ function normalizeAttachment(msg: any): RawAttachment | null {
   }
   if (Array.isArray(msg?.attachments) && msg.attachments.length > 0) {
     const first = msg.attachments[0];
-    if (first?.url && first?.name) return first;
+    if (first?.url && (first?.name || first?.filename)) {
+      return {
+        url: first.url,
+        name: first.name || first.filename,
+        mimeType: first.mimeType || first.mime_type,
+        size: first.size,
+        thumbUrl: first.thumbUrl || first.thumb_url,
+      };
+    }
   }
   return null;
 }
@@ -172,7 +180,8 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
       normalized.url,
       normalized.name,
       normalized.mimeType,
-      normalized.size
+      normalized.size,
+      normalized.thumbUrl
     );
   } else if (message.mediaUrl && isBot) {
     // Esto es para mediaUrl en mensajes de bot, no relevante para adjuntos de usuario ahora mismo
