@@ -150,6 +150,15 @@ export default function Perfil() {
   const [activeEventTab, setActiveEventTab] = useState<"event" | "news" | "paste">("event");
   const [isPromotionModalOpen, setIsPromotionModalOpen] = useState(false);
   const [isSubmittingPromotion, setIsSubmittingPromotion] = useState(false);
+  const [hasSentPromotionToday, setHasSentPromotionToday] = useState(false);
+
+  useEffect(() => {
+    const lastPromotionDate = safeLocalStorage.getItem('lastPromotionDate');
+    const today = new Date().toISOString().slice(0, 10);
+    if (lastPromotionDate === today) {
+      setHasSentPromotionToday(true);
+    }
+  }, []);
 
   const handleSubmitPost = async (values: any) => {
     setIsSubmittingEvent(true);
@@ -230,6 +239,9 @@ export default function Perfil() {
         title: "Éxito",
         description: "La promoción se ha enviado correctamente.",
       });
+      const today = new Date().toISOString().slice(0, 10);
+      safeLocalStorage.setItem('lastPromotionDate', today);
+      setHasSentPromotionToday(true);
       setIsPromotionModalOpen(false);
     } catch (error) {
       toast({
@@ -1457,11 +1469,14 @@ export default function Perfil() {
               </CardHeader>
               <CardContent className="space-y-4 flex flex-col flex-grow">
                 <p className="text-sm text-muted-foreground">
-                  Envía un mensaje promocional a todos tus usuarios de WhatsApp.
+                  {hasSentPromotionToday
+                    ? 'Ya enviaste una promoción hoy. Podrás enviar otra mañana.'
+                    : 'Envía un mensaje promocional a todos tus usuarios de WhatsApp.'}
                 </p>
                 <div className="flex-grow" />
                 <Button
                   onClick={() => setIsPromotionModalOpen(true)}
+                  disabled={hasSentPromotionToday}
                   className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-2.5 mt-auto"
                 >
                   <Megaphone className="w-4 h-4 mr-2" />
