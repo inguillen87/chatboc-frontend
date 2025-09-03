@@ -30,7 +30,7 @@ export const AgendaPasteForm: React.FC<AgendaPasteFormProps> = ({ onCancel }) =>
     try {
       let content = '';
       if (file.name.toLowerCase().endsWith('.docx')) {
-        const mammoth = await import('mammoth');
+        const mammoth = await import('mammoth/mammoth.browser');
         const arrayBuffer = await file.arrayBuffer();
         const result = await mammoth.extractRawText({ arrayBuffer });
         content = result.value;
