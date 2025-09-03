@@ -87,32 +87,34 @@ const Iframe = () => {
     return null; // O un componente de carga más explícito
   }
 
-  const ChatWidgetComponent = () => (
-    <ChatWidget
-      mode="iframe"
-      entityToken={entityToken}
-      defaultOpen={widgetParams.defaultOpen}
-      widgetId={widgetParams.widgetId}
-      tipoChat={tipoChat || undefined}
-      openWidth={widgetParams.openWidth}
-      openHeight={widgetParams.openHeight}
-      closedWidth={widgetParams.closedWidth}
-      closedHeight={widgetParams.closedHeight}
-      initialPosition={{ bottom: widgetParams.bottom, right: widgetParams.right }}
-      ctaMessage={widgetParams.ctaMessage}
-      initialView={widgetParams.view}
-      initialRubro={widgetParams.rubro}
-    />
-  );
+  function ChatWidgetComponent() {
+    return (
+      <ChatWidget
+        mode="iframe"
+        entityToken={entityToken}
+        defaultOpen={widgetParams.defaultOpen}
+        widgetId={widgetParams.widgetId}
+        tipoChat={tipoChat || undefined}
+        openWidth={widgetParams.openWidth}
+        openHeight={widgetParams.openHeight}
+        closedWidth={widgetParams.closedWidth}
+        closedHeight={widgetParams.closedHeight}
+        initialPosition={{ bottom: widgetParams.bottom, right: widgetParams.right }}
+        ctaMessage={widgetParams.ctaMessage}
+        initialView={widgetParams.view}
+        initialRubro={widgetParams.rubro}
+      />
+    );
+  }
 
   // Si no hay Google Client ID, no renderizar el Provider para evitar que crashee.
-  if (!GOOGLE_CLIENT_ID) {
-    return (
-      <MemoryRouter>
-      <ChatWidgetComponent />
-    </MemoryRouter>
-  );
-}
+    if (!GOOGLE_CLIENT_ID) {
+      return (
+        <MemoryRouter>
+          <ChatWidgetComponent />
+        </MemoryRouter>
+      );
+    }
 
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
