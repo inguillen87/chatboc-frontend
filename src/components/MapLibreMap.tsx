@@ -58,7 +58,7 @@ export default function MapLibreMap({
       let styleImageMissingHandler: any;
       let loadHandler: any;
 
-      async function init() {
+
         async function loadLocal() {
         try {
           const libMod = await import("maplibre-gl");

@@ -2,6 +2,7 @@ import React, { createContext, useState, useContext, useEffect, ReactNode, useCa
 import { Ticket } from '@/types/tickets';
 import { getTickets } from '@/services/ticketService';
 import useTicketUpdates from '@/hooks/useTicketUpdates';
+import { mapToKnownCategory } from '@/utils/category';
 
 interface TicketContextType {
   tickets: Ticket[];
@@ -25,11 +26,11 @@ const groupTicketsByCategory = (tickets: Ticket[]) => {
       resolved.push(ticket);
       return;
     }
-    const category = ticket.categoria || 'Sin Categoría';
+    const category = mapToKnownCategory(ticket.categoria);
     if (!groups[category]) {
       groups[category] = [];
     }
-    groups[category].push(ticket);
+    groups[category].push({ ...ticket, categoria: category });
   });
 
   if (resolved.length > 0) {
@@ -51,8 +52,12 @@ export const TicketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       const fetchedTickets = (apiResponse as any)?.tickets;
 
       if (Array.isArray(fetchedTickets)) {
-        setTickets(fetchedTickets);
-        setSelectedTicket((prev) => prev ?? (fetchedTickets[0] || null));
+        const normalizedTickets = fetchedTickets.map((t: Ticket) => ({
+          ...t,
+          categoria: mapToKnownCategory(t.categoria),
+        }));
+        setTickets(normalizedTickets);
+        setSelectedTicket((prev) => prev ?? (normalizedTickets[0] || null));
       } else {
         console.warn("La respuesta de la API no contiene un array de tickets:", apiResponse);
         setTickets([]);
