@@ -169,7 +169,11 @@ export default function TicketLookup() {
 
           <div>
             <h3 className="text-xl font-semibold mb-4">Historial del Reclamo</h3>
-            <TicketTimeline history={timelineHistory} messages={timelineMessages} />
+            <TicketTimeline
+              history={timelineHistory}
+              messages={timelineMessages}
+              currentStatus={estadoChat || ticket.estado}
+            />
           </div>
 
         </div>
