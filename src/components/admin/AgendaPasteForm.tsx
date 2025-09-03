@@ -65,8 +65,7 @@ export const AgendaPasteForm: React.FC<AgendaPasteFormProps> = ({ onCancel }) =>
       );
       await apiFetch('/municipal/posts/bulk', {
         method: 'POST',
-        body: JSON.stringify({ events }),
-        headers: { 'Content-Type': 'application/json' },
+        body: { events },
       });
       toast({ title: 'Éxito', description: 'La agenda ha sido procesada correctamente.' });
       onCancel();
