@@ -1,9 +1,9 @@
 import "../index.css";
-import { createRoot } from 'react-dom/client';
+import { createRoot } from "react-dom/client";
 import React, { useEffect, useState } from "react";
 import ChatWidget from "../components/chat/ChatWidget";
 import { GoogleOAuthProvider } from "@react-oauth/google";
-import ErrorBoundary from '../components/ErrorBoundary';
+import ErrorBoundary from "../components/ErrorBoundary";
 import { MemoryRouter } from "react-router-dom";
 import { getChatbocConfig } from "@/utils/config";
 
@@ -24,6 +24,36 @@ if (!GOOGLE_CLIENT_ID) {
 }
 
 import { apiFetch } from "@/services/apiService";
+
+interface ChatWidgetComponentProps {
+  entityToken: string | null;
+  widgetParams: any;
+  tipoChat: "pyme" | "municipio" | null;
+}
+
+function ChatWidgetComponent({
+  entityToken,
+  widgetParams,
+  tipoChat,
+}: ChatWidgetComponentProps) {
+  return (
+    <ChatWidget
+      mode="iframe"
+      entityToken={entityToken}
+      defaultOpen={widgetParams.defaultOpen}
+      widgetId={widgetParams.widgetId}
+      tipoChat={tipoChat || undefined}
+      openWidth={widgetParams.openWidth}
+      openHeight={widgetParams.openHeight}
+      closedWidth={widgetParams.closedWidth}
+      closedHeight={widgetParams.closedHeight}
+      initialPosition={{ bottom: widgetParams.bottom, right: widgetParams.right }}
+      ctaMessage={widgetParams.ctaMessage}
+      initialView={widgetParams.view}
+      initialRubro={widgetParams.rubro}
+    />
+  );
+}
 
 const Iframe = () => {
   const [widgetParams, setWidgetParams] = useState<any | null>(null);
@@ -87,40 +117,22 @@ const Iframe = () => {
     return null; // O un componente de carga más explícito
   }
 
-  function ChatWidgetComponent() {
-    return (
-      <ChatWidget
-        mode="iframe"
-        entityToken={entityToken}
-        defaultOpen={widgetParams.defaultOpen}
-        widgetId={widgetParams.widgetId}
-        tipoChat={tipoChat || undefined}
-        openWidth={widgetParams.openWidth}
-        openHeight={widgetParams.openHeight}
-        closedWidth={widgetParams.closedWidth}
-        closedHeight={widgetParams.closedHeight}
-        initialPosition={{ bottom: widgetParams.bottom, right: widgetParams.right }}
-        ctaMessage={widgetParams.ctaMessage}
-        initialView={widgetParams.view}
-        initialRubro={widgetParams.rubro}
-      />
-    );
-  }
+  const widgetNode = (
+    <ChatWidgetComponent
+      entityToken={entityToken}
+      widgetParams={widgetParams}
+      tipoChat={tipoChat}
+    />
+  );
 
   // Si no hay Google Client ID, no renderizar el Provider para evitar que crashee.
-    if (!GOOGLE_CLIENT_ID) {
-      return (
-        <MemoryRouter>
-          <ChatWidgetComponent />
-        </MemoryRouter>
-      );
-    }
+  if (!GOOGLE_CLIENT_ID) {
+    return <MemoryRouter>{widgetNode}</MemoryRouter>;
+  }
 
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-      <MemoryRouter>
-        <ChatWidgetComponent />
-      </MemoryRouter>
+      <MemoryRouter>{widgetNode}</MemoryRouter>
     </GoogleOAuthProvider>
   );
 };
