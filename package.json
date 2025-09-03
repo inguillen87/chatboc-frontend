@@ -103,5 +103,8 @@
     "vite": "^6.3.5",
     "vite-plugin-pwa": "^1.0.2",
     "vitest": "^3.2.4"
+  },
+  "overrides": {
+    "react-google-places-autocomplete/react-select": "^5.8.0"
   }
 }

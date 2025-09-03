@@ -11,6 +11,7 @@ type HeatPoint = {
   weight?: number;
   id?: number;
   ticket?: string;
+  estado?: string;
 };
 
 type Props = {
