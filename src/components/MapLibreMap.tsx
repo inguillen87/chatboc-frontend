@@ -57,8 +57,7 @@ export default function MapLibreMap({
     }
     let isMounted = true;
     (async () => {
-      try {
-        let lib: any = null;
+      let lib: any = maplibregl as any;
 
         async function loadFromCDN() {
           const existing = (window as any).maplibregl;
@@ -87,7 +86,6 @@ export default function MapLibreMap({
           return (window as any).maplibregl || null;
         }
 
-        lib = maplibregl as any;
         if (!lib || typeof lib.Map !== "function") {
           lib = await loadFromCDN();
         } else {
@@ -121,8 +119,8 @@ export default function MapLibreMap({
           zoom: initialZoom,
         });
 
-        const hasOn = typeof (map as any).on === "function";
-        const hasRemove = typeof (map as any).remove === "function";
+          const hasOn = typeof (map as any).on === "function";
+          const hasRemove = typeof (map as any).remove === "function";
         if (!hasOn || !hasRemove) {
           console.error("MapLibreMap: map instance missing methods", map);
           try {
@@ -235,13 +233,11 @@ export default function MapLibreMap({
               console.error("MapLibreMap: failed to remove map", err);
             }
           };
-        } catch (err) {
-          console.error("MapLibreMap: failed to configure map", err);
+          } catch (err) {
+            console.error("MapLibreMap: failed to configure map", err);
+          }
         }
-      } catch (err) {
-        console.error("Error initializing map", err);
-      }
-    })();
+      })();
     return () => {
       isMounted = false;
       try {
