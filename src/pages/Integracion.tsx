@@ -126,6 +126,8 @@ const Integracion = () => {
     return `<script>
 document.addEventListener('DOMContentLoaded', function () {
   const ENTITY_TOKEN = '${entityToken}';
+  let currentToken = null;
+  let currentScript = null;
 
   async function loadWidget() {
     try {
@@ -137,9 +139,13 @@ document.addEventListener('DOMContentLoaded', function () {
       const data = await res.json();
       const token = data.token;
 
-      if (window.chatbocDestroyWidget) {
-        window.chatbocDestroyWidget(token);
+      if (currentScript) {
+        currentScript.remove();
       }
+      if (window.chatbocDestroyWidget && currentToken) {
+        window.chatbocDestroyWidget(currentToken);
+      }
+      currentToken = token;
       window.APP_TARGET = '${endpoint}';
 
       var s = document.createElement('script');
@@ -161,6 +167,7 @@ ${customLines ? customLines + "\n" : ""}  // Importante para la geolocalización
       // Ejemplo: <iframe src="tu_pagina_con_widget.html" allow="clipboard-write; geolocation"></iframe>
 
       document.body.appendChild(s);
+      currentScript = s;
 
       s.onload = function() {
         console.log('Chatboc Widget cargado y listo.');

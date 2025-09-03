@@ -9,10 +9,17 @@ function decodeExpiration(jwt: string): number {
   return exp * 1000; // exp comes in seconds, convert to ms
 }
 
+let currentToken: string | null = null;
+let currentScript: HTMLScriptElement | null = null;
+
 function injectWidget(token: string) {
-  if ((window as any).chatbocDestroyWidget) {
-    (window as any).chatbocDestroyWidget(token);
+  if (currentScript) {
+    currentScript.remove();
   }
+  if ((window as any).chatbocDestroyWidget && currentToken) {
+    (window as any).chatbocDestroyWidget(currentToken);
+  }
+  currentToken = token;
 
   (window as any).APP_TARGET = 'municipio';
 
@@ -34,6 +41,7 @@ function injectWidget(token: string) {
   s.onerror = () => console.error('Error al cargar Chatboc Widget.');
 
   document.body.appendChild(s);
+  currentScript = s;
 }
 
 export default function Integracion() {
