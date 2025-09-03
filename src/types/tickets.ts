@@ -87,6 +87,11 @@ export interface Ticket {
   esquinas_cercanas?: string;
   latitud?: number;
   longitud?: number;
+  municipio_nombre?: string;
+  municipio_latitud?: number;
+  municipio_longitud?: number;
+  origen_latitud?: number;
+  origen_longitud?: number;
   avatarUrl?: string;
   history?: TicketHistoryEvent[];
 

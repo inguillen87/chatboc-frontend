@@ -26,4 +26,8 @@ Este documento resume la lógica sugerida para manejar reclamos ciudadanos y con
 ## 6. Consulta de tickets
 - Permitir que el usuario ingrese su número de reclamo para obtener estado, fecha y comentarios. No abrir un chat nuevo a menos que lo solicite.
 
+- Si el ticket incluye coordenadas válidas, se muestra un mapa basado en OpenStreetMap que traza la ruta desde el municipio hasta la dirección del vecino.
+- Cuando no hay coordenadas, se intenta geolocalizar por la dirección textual utilizando el buscador de OpenStreetMap.
+- La sección de historial presenta una línea de tiempo en orden cronológico combinando los cambios de estado y los mensajes enviados por agentes y vecinos.
+
 Estas pautas están orientadas a mejorar la experiencia tanto del ciudadano como de los administradores del municipio, asegurando que se obtenga toda la información necesaria antes de crear un reclamo y que el seguimiento sea claro y eficiente.
