@@ -55,7 +55,7 @@ function ChatWidgetComponent({
   );
 }
 
-function Iframe() {
+export default function Iframe() {
   const [widgetParams, setWidgetParams] = useState<any | null>(null);
   const [entityToken, setEntityToken] = useState<string | null>(null);
   const [tipoChat, setTipoChat] = useState<'pyme' | 'municipio' | null>(null);
@@ -137,9 +137,16 @@ function Iframe() {
   );
 }
 
-const container = document.getElementById('root')!;
-createRoot(container).render(
-  <ErrorBoundary>
-    <Iframe />
-  </ErrorBoundary>
-);
+// When built as a standalone entry (e.g. for embedding the widget),
+// render the component directly. When imported within the main app,
+// the root element will already contain content and this block will be skipped.
+if (typeof document !== 'undefined') {
+  const container = document.getElementById('root');
+  if (container && container.childElementCount === 0) {
+    createRoot(container).render(
+      <ErrorBoundary>
+        <Iframe />
+      </ErrorBoundary>
+    );
+  }
+}
