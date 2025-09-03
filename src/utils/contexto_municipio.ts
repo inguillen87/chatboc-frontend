@@ -1,5 +1,6 @@
 // src/utils/contexto_municipio.ts
 
+
 // Define la estructura del contexto específico para municipios.
 export interface MunicipioContext {
   estado_conversacion: 'inicio' | 'recolectando_info' | 'recolectando_datos_personales' | 'confirmando_reclamo' | 'reclamo_creado' | 'conversacion_general';

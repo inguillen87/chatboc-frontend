@@ -25,11 +25,11 @@ const groupTicketsByCategory = (tickets: Ticket[]) => {
       resolved.push(ticket);
       return;
     }
-    const category = ticket.categoria || 'Sin Categoría';
+    const category = ticket.categoria || 'General';
     if (!groups[category]) {
       groups[category] = [];
     }
-    groups[category].push(ticket);
+    groups[category].push({ ...ticket, categoria: category });
   });
 
   if (resolved.length > 0) {
