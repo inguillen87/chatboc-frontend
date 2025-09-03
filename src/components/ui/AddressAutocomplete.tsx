@@ -15,6 +15,8 @@ interface AddressAutocompleteProps {
 }
 
 const MAPTILER_KEY = import.meta.env.VITE_MAPTILER_KEY || "";
+// Optional comma-separated list of country codes to restrict geocoding results
+const GEOCODER_COUNTRIES = import.meta.env.VITE_GEOCODER_COUNTRIES || "";
 
 const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   onSelect,
@@ -73,8 +75,13 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
       return;
     }
     const controller = new AbortController();
+    const countryParam = GEOCODER_COUNTRIES
+      ? `&country=${encodeURIComponent(GEOCODER_COUNTRIES)}`
+      : "";
     fetch(
-      `https://api.maptiler.com/geocoding/${encodeURIComponent(query)}.json?key=${MAPTILER_KEY}&language=es&limit=5`,
+      `https://api.maptiler.com/geocoding/${encodeURIComponent(
+        query
+      )}.json?key=${MAPTILER_KEY}&language=es&limit=5${countryParam}`,
       { signal: controller.signal }
     )
       .then((r) => r.json())
