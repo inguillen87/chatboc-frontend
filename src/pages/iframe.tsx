@@ -139,7 +139,7 @@ export default function Iframe() {
 
 const container = document.getElementById('root')!;
 createRoot(container).render(
-    <ErrorBoundary>
-        <Iframe />
-    </ErrorBoundary>
+  <ErrorBoundary>
+    <Iframe />
+  </ErrorBoundary>
 );
