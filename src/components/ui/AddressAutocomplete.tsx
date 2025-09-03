@@ -29,7 +29,6 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   readOnly = false,
   disabled = false,
 }) => {
-  const geocoderCountries = import.meta.env.VITE_GEOCODER_COUNTRIES || "";
   const [query, setQuery] = useState(value?.label || "");
   const [options, setOptions] = useState<string[]>([]);
   const [open, setOpen] = useState(false);
@@ -76,8 +75,8 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
       return;
     }
     const controller = new AbortController();
-    const countryParam = geocoderCountries
-      ? `&country=${encodeURIComponent(geocoderCountries)}`
+    const countryParam = GEOCODER_COUNTRIES
+      ? `&country=${encodeURIComponent(GEOCODER_COUNTRIES)}`
       : "";
     fetch(
       `https://api.maptiler.com/geocoding/${encodeURIComponent(
@@ -102,7 +101,7 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
       })
       .catch(() => {});
     return () => controller.abort();
-  }, [query, geocoderCountries]);
+  }, [query]);
 
   if (readOnly || disabled) {
     return (
