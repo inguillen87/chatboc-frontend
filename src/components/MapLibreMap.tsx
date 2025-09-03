@@ -1,10 +1,10 @@
 import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
-// MapLibre se importa de forma dinámica para evitar errores en entornos donde
-// la librería no esté disponible completamente o falten métodos como `on`.
-// Intentamos importar el bundle de MapLibre de manera dinámica. Si no está
-// disponible (por ejemplo, cuando la dependencia no pudo instalarse), se
-// cargará desde un CDN junto con su hoja de estilos.
+// MapLibre se importa de forma directa. Si por algún motivo la librería no se
+// encuentra disponible en el bundle, se utilizará un fallback que la carga
+// desde un CDN junto con su hoja de estilos.
+import maplibregl from "maplibre-gl";
+import maplibreWorker from "maplibre-gl/dist/maplibre-gl-csp-worker";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { safeOn, assertEventSource } from "@/utils/safeOn";
 
@@ -57,8 +57,7 @@ export default function MapLibreMap({
     }
     let isMounted = true;
     (async () => {
-      try {
-        let lib: any = null;
+      let lib: any = maplibregl as any;
 
         async function loadFromCDN() {
           const existing = (window as any).maplibregl;
@@ -87,17 +86,12 @@ export default function MapLibreMap({
           return (window as any).maplibregl || null;
         }
 
-        try {
-          const mod = await import("maplibre-gl");
-          lib = (mod as any).default || mod;
-          // MapLibre v4+ requiere un web worker explícito cuando se usa como módulo.
-          // Intentamos importarlo dinámicamente. Si falla, continuamos y dejaremos
-          // que el fallback al CDN maneje el worker incorporado.
+        if (!lib || typeof lib.Map !== "function") {
+          lib = await loadFromCDN();
+        } else {
           try {
-            const workerMod = await import("maplibre-gl/dist/maplibre-gl-csp-worker");
-            const worker = (workerMod as any).default || workerMod;
+            const worker = (maplibreWorker as any).default || maplibreWorker;
             if (worker) {
-              // Algunos bundles exponen `workerClass`, otros `setWorkerClass`.
               if ("workerClass" in lib) {
                 (lib as any).workerClass = worker;
               } else if (typeof (lib as any).setWorkerClass === "function") {
@@ -107,9 +101,6 @@ export default function MapLibreMap({
           } catch (workerErr) {
             console.warn("MapLibreMap: failed to load worker", workerErr);
           }
-        } catch (err) {
-          console.error("MapLibreMap: failed to load library", err);
-          lib = await loadFromCDN();
         }
 
         if (!isMounted || !lib || typeof lib.Map !== "function") {
@@ -128,8 +119,8 @@ export default function MapLibreMap({
           zoom: initialZoom,
         });
 
-        const hasOn = typeof (map as any).on === "function";
-        const hasRemove = typeof (map as any).remove === "function";
+          const hasOn = typeof (map as any).on === "function";
+          const hasRemove = typeof (map as any).remove === "function";
         if (!hasOn || !hasRemove) {
           console.error("MapLibreMap: map instance missing methods", map);
           try {
@@ -242,13 +233,10 @@ export default function MapLibreMap({
               console.error("MapLibreMap: failed to remove map", err);
             }
           };
-        } catch (err) {
-          console.error("MapLibreMap: failed to configure map", err);
-        }
-      } catch (err) {
-        console.error("Error initializing map", err);
-      }
-    })();
+          } catch (err) {
+            console.error("MapLibreMap: failed to configure map", err);
+          }
+      })();
     return () => {
       isMounted = false;
       try {
