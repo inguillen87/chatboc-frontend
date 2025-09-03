@@ -253,8 +253,7 @@ export default function MapLibreMap({
               console.error("MapLibreMap: failed to configure map", err);
             }
           });
-      }
-      };
+        };
 
       init();
     return () => {
