@@ -31,6 +31,8 @@ const adaptTicketMessageToChatMessage = (msg: TicketMessage, ticket: Ticket): Ch
     attachmentInfo: msg.attachments?.[0] ? {
         name: msg.attachments[0].filename,
         url: msg.attachments[0].url,
+        thumbUrl: msg.attachments[0].thumbUrl || msg.attachments[0].thumb_url,
+        mimeType: msg.attachments[0].mime_type,
         size: msg.attachments[0].size
     } : undefined,
     // Add other fields if they exist in your new TicketMessage type
