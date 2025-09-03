@@ -52,9 +52,14 @@ export default function MapLibreMap({
         "MapLibreMap: missing VITE_MAPTILER_KEY; using public demo tiles."
       );
     }
-    let isMounted = true;
-    (async () => {
-      async function loadLocal() {
+      let isMounted = true;
+      // Handlers are declared in the outer scope so they can be cleaned up on unmount
+      let clickHandler: any;
+      let styleImageMissingHandler: any;
+      let loadHandler: any;
+
+      (async () => {
+        async function loadLocal() {
         try {
           const libMod = await import("maplibre-gl");
           const workerMod = await import(
@@ -153,7 +158,7 @@ export default function MapLibreMap({
           map.addControl?.(new lib.NavigationControl(), "top-right");
         }
 
-        const clickHandler = (e: any) => {
+        clickHandler = (e: any) => {
           const { lng, lat } = e.lngLat || {};
           if (typeof lng === "number" && typeof lat === "number") {
             markerRef.current?.remove?.();
@@ -164,7 +169,7 @@ export default function MapLibreMap({
           }
         };
 
-        const styleImageMissingHandler = (e: any) => {
+        styleImageMissingHandler = (e: any) => {
           const name = (e.id as string | undefined)?.trim() ?? "";
           if (map.hasImage?.(name)) return;
           // Si el estilo solicita un icono que no tenemos disponible,
@@ -181,7 +186,7 @@ export default function MapLibreMap({
           }
         };
 
-        const loadHandler = () => {
+        loadHandler = () => {
           // Solo agregamos la capa de calor si se proporcionan datos.
           if (heatmapData && heatmapData.length > 0) {
             const sourceData = {
@@ -241,26 +246,20 @@ export default function MapLibreMap({
         }
         safeOn(map, "styleimagemissing", styleImageMissingHandler);
         safeOn(map, "load", loadHandler);
-
-        return () => {
-          markerRef.current?.remove?.();
-          map.off?.("click", clickHandler);
-          map.off?.("styleimagemissing", styleImageMissingHandler);
-          map.off?.("load", loadHandler);
-          try {
-            map.remove?.();
-          } catch (err) {
-            console.error("MapLibreMap: failed to remove map", err);
-          }
-        };
       } catch (err) {
         console.error("MapLibreMap: failed to configure map", err);
       }
       })();
     return () => {
       isMounted = false;
+      // Remove marker and all event listeners safely
+      markerRef.current?.remove?.();
+      const map = mapRef.current;
+      map?.off?.("click", clickHandler);
+      map?.off?.("styleimagemissing", styleImageMissingHandler);
+      map?.off?.("load", loadHandler);
       try {
-        mapRef.current?.remove?.();
+        map?.remove?.();
       } catch (err) {
         console.error("MapLibreMap: failed to remove map", err);
       }
