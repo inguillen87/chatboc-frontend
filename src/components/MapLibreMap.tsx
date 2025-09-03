@@ -256,23 +256,13 @@ export default function MapLibreMap({
           });
         };
 
-        if (onSelect) {
-          safeOn(map, "click", clickHandler);
-        }
-        safeOn(map, "styleimagemissing", styleImageMissingHandler);
-        safeOn(map, "load", loadHandler);
-      } catch (err) {
-        console.error("MapLibreMap: failed to configure map", err);
-      }
-      };
-
-      init();
-    return () => {
-      isMounted = false;
-      // Remove marker and all event listeners safely
-      markerRef.current?.remove?.();
-      const map = mapRef.current;
-      map?.off?.("click", clickHandler);
+        init();
+      return () => {
+        isMounted = false;
+        // Remove marker and all event listeners safely
+        markerRef.current?.remove?.();
+        const map = mapRef.current;
+        map?.off?.("click", clickHandler);
       map?.off?.("styleimagemissing", styleImageMissingHandler);
       map?.off?.("load", loadHandler);
       try {
