@@ -1,9 +1,11 @@
 import React from 'react';
 
-interface TicketLocation {
+export interface TicketLocation {
   latitud?: number | null;
   longitud?: number | null;
   direccion?: string | null;
+  esquinas_cercanas?: string | null;
+  distrito?: string | null;
   municipio_nombre?: string | null;
   tipo?: 'pyme' | 'municipio';
   origen_latitud?: number | null;
@@ -12,16 +14,21 @@ interface TicketLocation {
   municipio_longitud?: number | null;
 }
 
-const buildFullAddress = (ticket: TicketLocation) => {
-  const direccion = ticket.direccion || '';
+export const buildFullAddress = (ticket: TicketLocation) => {
+  const parts: string[] = [];
+  if (ticket.direccion) parts.push(ticket.direccion);
+  if (ticket.esquinas_cercanas) parts.push(ticket.esquinas_cercanas);
+  if (ticket.distrito) parts.push(ticket.distrito);
   if (
     ticket.tipo !== 'pyme' &&
     ticket.municipio_nombre &&
-    !direccion.toLowerCase().includes(ticket.municipio_nombre.toLowerCase())
+    !parts.some(p =>
+      p.toLowerCase().includes(ticket.municipio_nombre!.toLowerCase())
+    )
   ) {
-    return `${direccion ? `${direccion}, ` : ''}${ticket.municipio_nombre}`;
+    parts.push(ticket.municipio_nombre);
   }
-  return direccion;
+  return parts.join(', ');
 };
 
 const TicketMap: React.FC<{ ticket: TicketLocation }> = ({ ticket }) => {

@@ -54,7 +54,7 @@ export const TicketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       if (Array.isArray(fetchedTickets)) {
         const normalizedTickets = fetchedTickets.map((t: Ticket) => ({
           ...t,
-          categoria: mapToKnownCategory(t.categoria),
+          categoria: mapToKnownCategory(t.categoria, t.categories),
         }));
         setTickets(normalizedTickets);
         setSelectedTicket((prev) => prev ?? (normalizedTickets[0] || null));

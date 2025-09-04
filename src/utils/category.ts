@@ -1,23 +1,16 @@
-export const DEFAULT_CATEGORIES = [
-  'Alumbrado',
-  'Bache',
-  'Limpieza',
-  'Arbolado',
-  'General'
-];
+export function mapToKnownCategory(
+  categoria?: string | null,
+  categories?: (string | null | undefined)[] | null
+): string {
+  const direct = categoria?.toString().trim();
+  if (direct) return direct;
 
-function normalize(str: string): string {
-  return str
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[^\w\s]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
+  if (Array.isArray(categories)) {
+    for (const c of categories) {
+      const trimmed = c?.toString().trim();
+      if (trimmed) return trimmed;
+    }
+  }
 
-export function mapToKnownCategory(categoria?: string | null): string {
-  if (!categoria) return 'General';
-  const target = normalize(categoria);
-  const match = DEFAULT_CATEGORIES.find(c => normalize(c) === target);
-  return match || 'General';
+  return 'General';
 }

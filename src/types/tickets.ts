@@ -84,6 +84,10 @@ export interface Ticket {
   estado: TicketStatus;
   fecha: string; // ISO format
   categoria?: string;
+  categories?: string[];
+  categoria_principal?: string;
+  categoria_secundaria?: string;
+  categoria_simple?: string;
   direccion?: string;
   distrito?: string;
   esquinas_cercanas?: string;

@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Mail, MapPin, Ticket as TicketIcon, Info, FileDown, User, ExternalLink, MessageCircle, Building, Hash, Copy, ChevronDown, ChevronUp, UserCheck, Bot } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { motion } from 'framer-motion';
-import TicketMap from '../TicketMap';
+import TicketMap, { buildFullAddress } from '../TicketMap';
 import TicketTimeline from './TicketTimeline';
 import { useTickets } from '@/context/TicketContext';
 import { exportToPdf, exportToXlsx } from '@/services/exportService';
@@ -104,10 +104,19 @@ const DetailsPanel: React.FC = () => {
 
   const openGoogleMaps = () => {
     if (!ticket) return;
-    const url = ticket.latitud && ticket.longitud
-      ? `https://www.google.com/maps/search/?api=1&query=${ticket.latitud},${ticket.longitud}`
-      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ticket.direccion || '')}`;
-    window.open(url, '_blank');
+    if (ticket.latitud && ticket.longitud) {
+      window.open(
+        `https://www.google.com/maps/search/?api=1&query=${ticket.latitud},${ticket.longitud}`,
+        '_blank'
+      );
+      return;
+    }
+    const address = buildFullAddress(ticket);
+    if (!address) return;
+    window.open(
+      `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`,
+      '_blank'
+    );
   };
 
   React.useEffect(() => {
