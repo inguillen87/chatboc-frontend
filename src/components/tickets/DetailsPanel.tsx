@@ -104,10 +104,24 @@ const DetailsPanel: React.FC = () => {
 
   const openGoogleMaps = () => {
     if (!ticket) return;
-    const url = ticket.latitud && ticket.longitud
-      ? `https://www.google.com/maps/search/?api=1&query=${ticket.latitud},${ticket.longitud}`
-      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ticket.direccion || '')}`;
-    window.open(url, '_blank');
+    if (ticket.latitud && ticket.longitud) {
+      window.open(
+        `https://www.google.com/maps/search/?api=1&query=${ticket.latitud},${ticket.longitud}`,
+        '_blank'
+      );
+      return;
+    }
+    const address = [
+      ticket.direccion,
+      ticket.esquinas_cercanas,
+      ticket.distrito,
+    ]
+      .filter(Boolean)
+      .join(', ');
+    window.open(
+      `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`,
+      '_blank'
+    );
   };
 
   React.useEffect(() => {
