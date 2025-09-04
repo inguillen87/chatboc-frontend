@@ -177,7 +177,9 @@ ${customLines ? customLines + "\n" : ""}  // Importante para la geolocalización
       };
 
       const [, payload] = token.split('.');
-      const { exp } = JSON.parse(atob(payload));
+      const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+      const padded = base64.padEnd(base64.length + (4 - (base64.length % 4)) % 4, '=');
+      const { exp } = JSON.parse(atob(padded));
       const refreshMs = exp * 1000 - Date.now() - 60000;
       setTimeout(loadWidget, Math.max(refreshMs, 30000));
     } catch (err) {

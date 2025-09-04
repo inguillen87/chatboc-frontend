@@ -5,7 +5,9 @@ const ENTITY_TOKEN = 'REPLACE_WITH_STATIC_ENTITY_TOKEN';
 
 function decodeExpiration(jwt: string): number {
   const [, payload] = jwt.split('.');
-  const { exp } = JSON.parse(atob(payload));
+  const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = base64.padEnd(base64.length + (4 - (base64.length % 4)) % 4, '=');
+  const { exp } = JSON.parse(atob(padded));
   return exp * 1000; // exp comes in seconds, convert to ms
 }
 
