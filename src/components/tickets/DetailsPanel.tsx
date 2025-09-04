@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { motion } from 'framer-motion';
 import TicketMap, { buildFullAddress } from '../TicketMap';
 import TicketTimeline from './TicketTimeline';
+import TicketStatusBar from './TicketStatusBar';
 import { useTickets } from '@/context/TicketContext';
 import { exportToPdf, exportToXlsx } from '@/services/exportService';
 import { sendTicketHistory, getTicketById, getTicketMessages } from '@/services/ticketService';
@@ -32,6 +33,7 @@ const DetailsPanel: React.FC = () => {
   const [timelineHistory, setTimelineHistory] = React.useState<TicketHistoryEvent[]>([]);
   const [timelineMessages, setTimelineMessages] = React.useState<Message[]>([]);
   const [specialContact, setSpecialContact] = React.useState<SpecializedContact | null>(null);
+  const statusFlow = React.useMemo(() => timelineHistory.map(h => h.status), [timelineHistory]);
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text).then(() => {
@@ -329,6 +331,7 @@ const DetailsPanel: React.FC = () => {
                     <span className="text-muted-foreground">Estado:</span>
                     <Badge variant="outline" className="capitalize">{ticket.estado || 'N/A'}</Badge>
                 </div>
+                <TicketStatusBar status={ticket.estado} flow={statusFlow} />
                 <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Canal:</span>
                     <span className="capitalize">{ticket.channel || 'N/A'}</span>

@@ -93,6 +93,12 @@ export interface Ticket {
   esquinas_cercanas?: string;
   latitud?: number;
   longitud?: number;
+  lat_destino?: number;
+  lon_destino?: number;
+  lat_origen?: number;
+  lon_origen?: number;
+  lat_actual?: number;
+  lon_actual?: number;
   municipio_nombre?: string;
   municipio_latitud?: number;
   municipio_longitud?: number;
