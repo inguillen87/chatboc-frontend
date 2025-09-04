@@ -20,7 +20,7 @@ interface Category {
 }
 
 export default function InternalUsers() {
-  useRequireRole(['admin' as Role]);
+useRequireRole(['admin', 'super_admin'] as Role[]);
   const [users, setUsers] = useState<InternalUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

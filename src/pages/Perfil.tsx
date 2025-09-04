@@ -151,14 +151,30 @@ export default function Perfil() {
     "event" | "news" | "paste" | "promotion"
   >("event");
   const [isSubmittingPromotion, setIsSubmittingPromotion] = useState(false);
+  const [isPromotionModalOpen, setIsPromotionModalOpen] = useState(false);
   const [hasSentPromotionToday, setHasSentPromotionToday] = useState(false);
+  const isStaff = ['admin', 'empleado', 'super_admin'].includes(user?.rol ?? '');
 
   useEffect(() => {
-    const lastPromotionDate = safeLocalStorage.getItem('lastPromotionDate');
-    const today = new Date().toISOString().slice(0, 10);
-    if (lastPromotionDate === today) {
-      setHasSentPromotionToday(true);
-    }
+    const checkPromotionStatus = async () => {
+      try {
+        const data = await apiFetch<any>('/api/whatsapp/promocionar');
+        const last = data?.ultimo_envio || data?.last_sent || data?.lastSent;
+        const today = new Date().toISOString().slice(0, 10);
+        if ((data?.can_send === false) || (data?.disponible === false)) {
+          setHasSentPromotionToday(true);
+        } else if (last && last.slice(0, 10) === today) {
+          setHasSentPromotionToday(true);
+        }
+      } catch {
+        const lastPromotionDate = safeLocalStorage.getItem('lastPromotionDate');
+        const today = new Date().toISOString().slice(0, 10);
+        if (lastPromotionDate === today) {
+          setHasSentPromotionToday(true);
+        }
+      }
+    };
+    checkPromotionStatus();
   }, []);
 
   const handleSubmitPost = async (values: any) => {
@@ -222,37 +238,52 @@ export default function Perfil() {
   const handleSubmitPromotion = async (values: PromotionFormValues) => {
     setIsSubmittingPromotion(true);
     try {
-      const formData = new FormData();
-      formData.append('title', values.title);
-      formData.append('description', values.description);
-      formData.append('link', values.link);
-      formData.append('languages', 'es');
-      if (values.flyer && values.flyer.length > 0) {
-        formData.append('flyer_image', values.flyer[0]);
-      }
+      const body = {
+        titulo: values.title,
+        descripcion: values.description,
+        link: values.link,
+        url_imagen: values.imageUrl || undefined,
+      };
 
-      await apiFetch('/municipal/promotions', {
+      const resp = await apiFetch<{ enviados?: number }>('/api/whatsapp/promocionar', {
         method: 'POST',
-        body: formData,
+        body,
       });
 
       toast({
-        title: "Éxito",
-        description: "La promoción se ha enviado correctamente.",
+        title: 'Éxito',
+        description: resp.enviados ? `La promoción se ha enviado a ${resp.enviados} contactos.` : 'La promoción se ha enviado correctamente.',
       });
       const today = new Date().toISOString().slice(0, 10);
       safeLocalStorage.setItem('lastPromotionDate', today);
       setHasSentPromotionToday(true);
       setIsEventModalOpen(false);
     } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Error al enviar la promoción",
-        description: getErrorMessage(error, "No se pudo enviar la promoción. Intenta de nuevo."),
-      });
+      if (error instanceof ApiError && error.status === 429) {
+        toast({
+          variant: 'destructive',
+          title: 'Límite diario superado',
+          description: 'Ya se envió una promoción hoy. Intenta nuevamente mañana.',
+        });
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Error al enviar la promoción',
+          description: getErrorMessage(error, 'No se pudo enviar la promoción. Intenta de nuevo.'),
+        });
+      }
     } finally {
       setIsSubmittingPromotion(false);
     }
+  };
+
+  const handlePromoteEvent = async (values: any) => {
+    await handleSubmitPromotion({
+      title: values.title,
+      description: values.description || '',
+      link: values.link || '',
+      imageUrl: values.imageUrl || '',
+    });
   };
   const [ticketLocations, setTicketLocations] = useState<HeatPoint[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
@@ -357,14 +388,23 @@ export default function Perfil() {
       const points = stats.heatmap || [];
       setTicketLocations(points);
       setCharts(stats.charts || []);
-      const cats = Array.from(new Set(points.map((d) => d.categoria).filter(Boolean))) as string[];
-      setAvailableCategories(cats);
       const barrios = Array.from(new Set(points.map((d) => d.barrio).filter(Boolean))) as string[];
       setAvailableBarrios(barrios);
       const tipos = Array.from(new Set(points.map((d) => d.tipo_ticket).filter(Boolean))) as string[];
       setAvailableTipos(tipos);
     } catch (error) {
       console.error("Error fetching ticket stats:", error);
+    }
+  }, []);
+
+  const fetchCategories = useCallback(async () => {
+    try {
+      const data = await apiFetch<{ id: number; nombre: string }[]>(
+        '/municipal/categorias'
+      );
+      setAvailableCategories(data.map((c) => c.nombre));
+    } catch (error) {
+      console.error('Error fetching ticket categories:', error);
     }
   }, []);
 
@@ -377,8 +417,9 @@ export default function Perfil() {
     (async () => {
       await fetchPerfil();
       await fetchStats();
+      await fetchCategories();
     })();
-  }, [fetchPerfil, fetchStats, navigate]);
+  }, [fetchPerfil, fetchStats, fetchCategories, navigate]);
 
   useEffect(() => {
     const filtered = ticketLocations.filter(
@@ -1422,7 +1463,7 @@ export default function Perfil() {
           </Card>
 
           {/* Gestión de Eventos y Noticias Card */}
-          {(user?.rol === 'admin' || user?.rol === 'empleado') && (
+          {isStaff && (
             <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm flex flex-col flex-grow">
               <CardHeader>
                 <CardTitle className="text-lg font-semibold text-primary">
@@ -1477,7 +1518,7 @@ export default function Perfil() {
             </Card>
           )}
 
-          {(user?.rol === 'admin' || user?.rol === 'empleado') && (
+          {isStaff && (
             <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm flex flex-col flex-grow">
               <CardHeader>
                 <CardTitle className="text-lg font-semibold text-primary">
@@ -1676,6 +1717,9 @@ export default function Perfil() {
                   onCancel={() => setIsEventModalOpen(false)}
                   isSubmitting={isSubmittingEvent}
                   onSubmit={handleSubmitPost}
+                  onPromote={handlePromoteEvent}
+                  isPromoting={isSubmittingPromotion}
+                  disablePromote={hasSentPromotionToday}
                 />
               </TabsContent>
               <TabsContent value="news">
@@ -1684,6 +1728,9 @@ export default function Perfil() {
                   onCancel={() => setIsEventModalOpen(false)}
                   isSubmitting={isSubmittingEvent}
                   onSubmit={handleSubmitPost}
+                  onPromote={handlePromoteEvent}
+                  isPromoting={isSubmittingPromotion}
+                  disablePromote={hasSentPromotionToday}
                 />
               </TabsContent>
               <TabsContent value="paste">

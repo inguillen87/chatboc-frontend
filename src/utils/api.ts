@@ -46,6 +46,7 @@ export async function apiFetch<T>(
 
   // Normalize URL to prevent double slashes
   const url = `${BASE_API_URL.replace(/\/$/, "")}/${path.replace(/^\//, "")}`;
+  const fallbackUrl = `/${path.replace(/^\//, "")}`;
   const headers: Record<string, string> = { ...(options.headers || {}) };
 
   const isForm = body instanceof FormData;
@@ -77,15 +78,30 @@ export async function apiFetch<T>(
     headers,
   });
 
-  try {
-    const response = await fetch(url, {
-      method,
-      headers,
-      body: isForm ? body : body ? JSON.stringify(body) : undefined,
-      credentials: 'include', // ensure cookies like session are sent
-      cache,
-    });
+  const requestInit: RequestInit = {
+    method,
+    headers,
+    body: isForm ? body : body ? JSON.stringify(body) : undefined,
+    credentials: 'include', // ensure cookies like session are sent
+    cache,
+  };
 
+  let response: Response;
+  try {
+    response = await fetch(url, requestInit);
+  } catch (primaryErr) {
+    if (BASE_API_URL !== window.location.origin) {
+      try {
+        response = await fetch(fallbackUrl, requestInit);
+      } catch {
+        throw primaryErr;
+      }
+    } else {
+      throw primaryErr;
+    }
+  }
+
+  try {
     // Puede devolver vacío (204 No Content)
     const text = await response.text().catch(() => "");
     let data: any = null;
