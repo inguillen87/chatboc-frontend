@@ -13,7 +13,7 @@ interface Tramite {
 }
 
 export default function TramitesCatalog() {
-  useRequireRole(['admin'] as Role[]);
+  useRequireRole(['admin', 'super_admin'] as Role[]);
   const [tramites, setTramites] = useState<Tramite[]>([]);
   const [filtered, setFiltered] = useState<Tramite[]>([]);
   const [loading, setLoading] = useState(true);

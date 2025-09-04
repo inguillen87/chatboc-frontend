@@ -9,7 +9,7 @@ import type { Role } from '@/utils/roles';
 import { getTicketStats, HeatPoint, TicketStatsResponse } from '@/services/statsService';
 
 export default function IncidentsMap() {
-  useRequireRole(['admin'] as Role[]);
+  useRequireRole(['admin', 'super_admin'] as Role[]);
 
   const [heatmapData, setHeatmapData] = useState<HeatPoint[]>([]);
   const [showHeatmap, setShowHeatmap] = useState(false);
