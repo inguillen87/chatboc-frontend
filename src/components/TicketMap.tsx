@@ -1,6 +1,6 @@
 import React from 'react';
 
-interface TicketLocation {
+export interface TicketLocation {
   latitud?: number | null;
   longitud?: number | null;
   direccion?: string | null;
@@ -14,7 +14,7 @@ interface TicketLocation {
   municipio_longitud?: number | null;
 }
 
-const buildFullAddress = (ticket: TicketLocation) => {
+export const buildFullAddress = (ticket: TicketLocation) => {
   const parts: string[] = [];
   if (ticket.direccion) parts.push(ticket.direccion);
   if (ticket.esquinas_cercanas) parts.push(ticket.esquinas_cercanas);
