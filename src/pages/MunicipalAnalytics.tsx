@@ -18,7 +18,7 @@ interface AnalyticsResponse {
 }
 
 export default function MunicipalAnalytics() {
-  useRequireRole(['admin'] as Role[]);
+  useRequireRole(['admin', 'super_admin'] as Role[]);
   const [data, setData] = useState<AnalyticsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

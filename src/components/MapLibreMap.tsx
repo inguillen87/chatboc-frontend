@@ -175,7 +175,8 @@ export default function MapLibreMap({
 
               styleImageMissingHandler = (e: any) => {
                 const name = (e.id as string | undefined)?.trim() ?? "";
-                if (map.hasImage?.(name)) return;
+                // Evita llamadas inválidas cuando el nombre viene vacío
+                if (!name || map.hasImage?.(name)) return;
                 // Si el estilo solicita un icono que no tenemos disponible,
                 // agregamos un pixel transparente para evitar errores fatales.
                 const empty = {
