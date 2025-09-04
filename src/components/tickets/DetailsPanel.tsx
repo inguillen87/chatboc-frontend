@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { motion } from 'framer-motion';
 import TicketMap, { buildFullAddress } from '../TicketMap';
 import TicketTimeline from './TicketTimeline';
+import TicketStatusBar from './TicketStatusBar';
 import { useTickets } from '@/context/TicketContext';
 import { exportToPdf, exportToXlsx } from '@/services/exportService';
 import { sendTicketHistory, getTicketById, getTicketMessages } from '@/services/ticketService';
@@ -32,6 +33,15 @@ const DetailsPanel: React.FC = () => {
   const [timelineHistory, setTimelineHistory] = React.useState<TicketHistoryEvent[]>([]);
   const [timelineMessages, setTimelineMessages] = React.useState<Message[]>([]);
   const [specialContact, setSpecialContact] = React.useState<SpecializedContact | null>(null);
+  const [completionSent, setCompletionSent] = React.useState(false);
+  const statusFlow = React.useMemo(
+    () => timelineHistory.map((h) => h.status).filter(Boolean),
+    [timelineHistory],
+  );
+  const currentStatus = React.useMemo(
+    () => ticket?.estado || statusFlow[statusFlow.length - 1] || '',
+    [ticket?.estado, statusFlow],
+  );
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text).then(() => {
@@ -48,7 +58,8 @@ const DetailsPanel: React.FC = () => {
     } else {
       setSpecialContact(null);
     }
-  }, [ticket?.categoria]);
+    setCompletionSent(false);
+  }, [ticket?.categoria, ticket?.id]);
 
   const getInitials = (name: string) => {
     return name ? name.split(' ').map(n => n[0]).join('').toUpperCase() : '??';
@@ -101,6 +112,21 @@ const DetailsPanel: React.FC = () => {
         setIsSendingEmail(false);
     }
   };
+
+  React.useEffect(() => {
+    const normalizeStatus = (s?: string | null) =>
+      s ? s.toLowerCase().replace(/\s+/g, '_') : '';
+    const normalized = normalizeStatus(currentStatus);
+    if (
+      (normalized === 'completado' || normalized === 'resuelto') &&
+      !completionSent
+    ) {
+      sendTicketHistory(ticket).catch((err) =>
+        console.error('Error sending completion email:', err),
+      );
+      setCompletionSent(true);
+    }
+  }, [currentStatus, completionSent, ticket]);
 
   const openGoogleMaps = () => {
     if (!ticket) return;
@@ -327,8 +353,9 @@ const DetailsPanel: React.FC = () => {
                 </div>
                 <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Estado:</span>
-                    <Badge variant="outline" className="capitalize">{ticket.estado || 'N/A'}</Badge>
+                    <Badge variant="outline" className="capitalize">{currentStatus || 'N/A'}</Badge>
                 </div>
+                <TicketStatusBar status={currentStatus} flow={statusFlow} />
                 <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Canal:</span>
                     <span className="capitalize">{ticket.channel || 'N/A'}</span>
