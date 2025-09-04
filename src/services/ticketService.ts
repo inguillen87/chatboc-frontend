@@ -210,8 +210,9 @@ export const getTicketTimeline = async (
         });
       } else {
         history.push({
-          status: evt.estado || '',
+          status: evt.estado || (evt.tipo === 'ticket_creado' ? 'ticket_creado' : ''),
           date: evt.fecha,
+          notes: evt.texto || (evt as any).comentario || undefined,
         });
       }
     });
