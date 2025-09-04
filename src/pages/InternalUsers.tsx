@@ -12,6 +12,7 @@ interface InternalUser {
   email: string;
   rol?: string | null;
   atendidos?: number | null;
+  categoria_id?: number | null;
 }
 
 interface Category {
@@ -45,14 +46,12 @@ useRequireRole(['admin', 'super_admin'] as Role[]);
         }
         setLoading(false);
       });
-    apiFetch<Category[]>('/municipal/categorias')
+    apiFetch<{ categorias: Category[] }>('/municipal/categorias', { sendEntityToken: true })
       .then((data) => {
-        if (Array.isArray(data)) {
-          setCategories(data);
+        if (Array.isArray(data.categorias)) {
+          setCategories(data.categorias);
         } else {
-          // Log an error or handle unexpected data format if necessary
-          console.warn("Categories data is not an array:", data);
-          setCategories([]); // Default to an empty array
+          setCategories([]);
         }
       })
       .catch((err: any) => {
@@ -154,23 +153,28 @@ useRequireRole(['admin', 'super_admin'] as Role[]);
             <th className="p-2">Nombre</th>
             <th className="p-2">Email</th>
             <th className="p-2">Rol</th>
+            <th className="p-2">Categoría</th>
             <th className="p-2">Tickets atendidos</th>
             <th className="p-2">Acciones</th>
           </tr>
         </thead>
         <tbody>
-          {users.map((u) => (
-            <tr key={u.id} className="border-t">
-              <td className="p-2">{u.nombre}</td>
-              <td className="p-2">{u.email}</td>
-              <td className="p-2">{u.rol || '-'}</td>
-              <td className="p-2">{u.atendidos || 0}</td>
-              <td className="p-2">
-                <Button variant="outline" size="sm" className="mr-2">Editar</Button>
-                <Button variant="destructive" size="sm" onClick={() => handleDelete(u.id)}>Eliminar</Button>
-              </td>
-            </tr>
-          ))}
+          {users.map((u) => {
+            const categoriaNombre = categories.find((c) => c.id === u.categoria_id)?.nombre;
+            return (
+              <tr key={u.id} className="border-t">
+                <td className="p-2">{u.nombre}</td>
+                <td className="p-2">{u.email}</td>
+                <td className="p-2">{u.rol || '-'}</td>
+                <td className="p-2">{categoriaNombre || '-'}</td>
+                <td className="p-2">{u.atendidos || 0}</td>
+                <td className="p-2">
+                  <Button variant="outline" size="sm" className="mr-2">Editar</Button>
+                  <Button variant="destructive" size="sm" onClick={() => handleDelete(u.id)}>Eliminar</Button>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

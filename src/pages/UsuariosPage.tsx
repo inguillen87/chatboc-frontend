@@ -113,6 +113,7 @@ export default function UsuariosPage() {
                   <th className="p-2 cursor-pointer" onClick={() => requestSort('telefono')}>
                     Teléfono {sortConfig?.key === 'telefono' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}
                   </th>
+                  <th className="p-2">Etiquetas</th>
                 </tr>
               </thead>
               <tbody>
@@ -121,6 +122,7 @@ export default function UsuariosPage() {
                     <td className="p-2">{u.nombre}</td>
                     <td className="p-2">{u.email}</td>
                     <td className="p-2">{u.telefono || '-'}</td>
+                    <td className="p-2">{u.etiquetas && u.etiquetas.length > 0 ? u.etiquetas.join(', ') : '-'}</td>
                   </tr>
                 ))}
               </tbody>

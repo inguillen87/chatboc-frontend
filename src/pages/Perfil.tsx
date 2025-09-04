@@ -400,10 +400,12 @@ export default function Perfil() {
 
   const fetchCategories = useCallback(async () => {
     try {
-      const data = await apiFetch<{ id: number; nombre: string }[]>(
+      const data = await apiFetch<{ categorias: { id: number; nombre: string }[] }>(
         '/municipal/categorias'
       );
-      setAvailableCategories(data.map((c) => c.nombre));
+      setAvailableCategories(
+        Array.isArray(data.categorias) ? data.categorias.map((c) => c.nombre) : []
+      );
     } catch (error) {
       console.error('Error fetching ticket categories:', error);
     }
