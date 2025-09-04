@@ -64,6 +64,7 @@ export async function apiFetch<T>(
   }
   if (effectiveEntityToken) {
     headers["X-Entity-Token"] = effectiveEntityToken;
+    headers["token"] = effectiveEntityToken;
   }
   // Log request details without exposing full tokens
   const mask = (t: string | null) => (t ? `${t.slice(0, 8)}...` : null);

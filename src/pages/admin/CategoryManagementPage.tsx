@@ -30,8 +30,8 @@ const CategoryManagementPage: React.FC = () => {
   const fetchCategories = useCallback(async () => {
     setIsLoading(true);
     try {
-      const data = await apiFetch<Category[]>('/municipal/categorias', { sendEntityToken: true });
-      setCategories(data);
+      const data = await apiFetch<{ categorias: Category[] }>('/municipal/categorias', { sendEntityToken: true });
+      setCategories(Array.isArray(data.categorias) ? data.categorias : []);
       setError(null);
     } catch (err) {
       const message = err instanceof ApiError ? err.message : 'Ocurrió un error al cargar las categorías.';
