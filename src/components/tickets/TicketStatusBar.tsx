@@ -18,10 +18,8 @@ const formatLabel = (s: string) =>
 const TicketStatusBar: React.FC<TicketStatusBarProps> = ({ status, flow = [] }) => {
   const current = normalize(status);
   const steps = React.useMemo(() => {
-    const set = new Set(flow.map(normalize));
-    if (set.size === 0) {
-      DEFAULT_FLOW.forEach((s) => set.add(s));
-    }
+    const set = new Set(DEFAULT_FLOW);
+    flow.map(normalize).forEach((s) => set.add(s));
     if (current) set.add(current);
     return Array.from(set).sort((a, b) => {
       const ia = DEFAULT_FLOW.indexOf(a);
