@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { getTicketByNumber, getTicketTimeline } from '@/services/ticketService';
+import { getTicketByNumber, getTicketTimeline, sendTicketHistory } from '@/services/ticketService';
 import { Ticket, Message, TicketHistoryEvent } from '@/types/tickets';
 import { formatDate } from '@/utils/fecha';
 import TicketTimeline from '@/components/tickets/TicketTimeline';
@@ -25,7 +25,15 @@ export default function TicketLookup() {
   const [timelineMessages, setTimelineMessages] = useState<Message[]>([]);
   const [estadoChat, setEstadoChat] = useState('');
   const [specialContact, setSpecialContact] = useState<SpecializedContact | null>(null);
-  const statusFlow = React.useMemo(() => timelineHistory.map(h => h.status), [timelineHistory]);
+  const [completionSent, setCompletionSent] = useState(false);
+  const statusFlow = React.useMemo(
+    () => timelineHistory.map((h) => h.status).filter(Boolean),
+    [timelineHistory],
+  );
+  const currentStatus = React.useMemo(
+    () => estadoChat || ticket?.estado || statusFlow[statusFlow.length - 1] || '',
+    [estadoChat, ticket?.estado, statusFlow],
+  );
 
   const performSearch = useCallback(async (searchId?: string, searchPin?: string) => {
     const id = (searchId || '').trim();
@@ -41,6 +49,7 @@ export default function TicketLookup() {
     setTimelineHistory([]);
     setTimelineMessages([]);
     setEstadoChat('');
+    setCompletionSent(false);
     try {
       const data = await getTicketByNumber(id, pinVal);
       setTicket(data);
@@ -106,6 +115,22 @@ export default function TicketLookup() {
     }
   };
 
+  useEffect(() => {
+    const normalizeStatus = (s?: string | null) =>
+      s ? s.toLowerCase().replace(/\s+/g, '_') : '';
+    if (!ticket) return;
+    if (
+      (normalizeStatus(currentStatus) === 'completado' ||
+        normalizeStatus(currentStatus) === 'resuelto') &&
+      !completionSent
+    ) {
+      sendTicketHistory(ticket).catch((err) =>
+        console.error('Error sending completion email:', err),
+      );
+      setCompletionSent(true);
+    }
+  }, [ticket, currentStatus, completionSent]);
+
   return (
     <div className="p-4 max-w-2xl mx-auto space-y-6">
       <div className="text-center">
@@ -140,11 +165,24 @@ export default function TicketLookup() {
           <div>
             <p className="text-sm text-muted-foreground">Ticket #{ticket.nro_ticket}</p>
             <h2 className="text-2xl font-semibold">{ticket.asunto}</h2>
-            <p className="pt-1"><span className="font-medium">Estado actual:</span> <span className="text-primary font-semibold">{estadoChat || ticket.estado}</span></p>
-            <TicketStatusBar status={estadoChat || ticket.estado} flow={statusFlow} />
+            <p className="pt-1"><span className="font-medium">Estado actual:</span> <span className="text-primary font-semibold">{currentStatus}</span></p>
+            <TicketStatusBar status={currentStatus} flow={statusFlow} />
             <p className="text-sm text-muted-foreground">
               Creado el: {formatDate(ticket.fecha, Intl.DateTimeFormat().resolvedOptions().timeZone, 'es-AR')}
             </p>
+            <p className="text-sm text-muted-foreground">
+              Canal: <span className="capitalize">{ticket.channel || 'N/A'}</span>
+            </p>
+            {ticket.categoria && (
+              <p className="text-sm text-muted-foreground">
+                Categoría: {ticket.categoria}
+              </p>
+            )}
+            {(ticket.description || ticket.detalles) && (
+              <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">
+                {ticket.description || ticket.detalles}
+              </p>
+            )}
             {ticket.direccion && (
               <p className="text-sm text-muted-foreground mt-1">Dirección: {ticket.direccion}</p>
             )}

@@ -6,7 +6,7 @@ interface TicketStatusBarProps {
   flow?: string[];
 }
 
-const DEFAULT_FLOW = ['nuevo', 'en_proceso', 'completado'];
+const DEFAULT_FLOW = ['nuevo', 'en_proceso', 'completado', 'resuelto'];
 const normalize = (s?: string | null) =>
   s ? s.toLowerCase().replace(/\s+/g, '_') : '';
 
