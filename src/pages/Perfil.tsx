@@ -152,6 +152,7 @@ export default function Perfil() {
   >("event");
   const [isSubmittingPromotion, setIsSubmittingPromotion] = useState(false);
   const [hasSentPromotionToday, setHasSentPromotionToday] = useState(false);
+  const isStaff = ['admin', 'empleado', 'super_admin'].includes(user?.rol ?? '');
 
   useEffect(() => {
     const checkPromotionStatus = async () => {
@@ -1451,7 +1452,7 @@ export default function Perfil() {
           </Card>
 
           {/* Gestión de Eventos y Noticias Card */}
-          {(user?.rol === 'admin' || user?.rol === 'empleado') && (
+          {isStaff && (
             <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm flex flex-col flex-grow">
               <CardHeader>
                 <CardTitle className="text-lg font-semibold text-primary">
@@ -1506,7 +1507,7 @@ export default function Perfil() {
             </Card>
           )}
 
-          {(user?.rol === 'admin' || user?.rol === 'empleado') && (
+          {isStaff && (
             <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm flex flex-col flex-grow">
               <CardHeader>
                 <CardTitle className="text-lg font-semibold text-primary">

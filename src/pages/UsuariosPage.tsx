@@ -18,7 +18,7 @@ interface Usuario {
 }
 
 export default function UsuariosPage() {
-  useRequireRole(['admin', 'empleado'] as Role[]);
+  useRequireRole(['admin', 'empleado', 'super_admin'] as Role[]);
   const navigate = useNavigate();
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [loading, setLoading] = useState(true);

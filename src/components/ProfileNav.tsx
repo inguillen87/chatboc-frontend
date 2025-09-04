@@ -21,17 +21,17 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { label: 'Panel de Tickets', path: '/tickets', roles: ['admin', 'empleado'] },
-  { label: 'Pedidos', path: '/pedidos', roles: ['admin', 'empleado'], tipo: 'pyme' },
-  { label: 'Usuarios', path: '/usuarios', roles: ['admin', 'empleado'] },
-  { label: 'Catálogo', path: '/pyme/catalog', roles: ['admin'], tipo: 'pyme' },
-  { label: 'Métricas', path: '/pyme/metrics', roles: ['admin'], tipo: 'pyme' },
+  { label: 'Panel de Tickets', path: '/tickets', roles: ['admin', 'empleado', 'super_admin'] },
+  { label: 'Pedidos', path: '/pedidos', roles: ['admin', 'empleado', 'super_admin'], tipo: 'pyme' },
+  { label: 'Usuarios', path: '/usuarios', roles: ['admin', 'empleado', 'super_admin'] },
+  { label: 'Catálogo', path: '/pyme/catalog', roles: ['admin', 'super_admin'], tipo: 'pyme' },
+  { label: 'Métricas', path: '/pyme/metrics', roles: ['admin', 'super_admin'], tipo: 'pyme' },
   // Municipio specific items
-  { label: 'Trámites', path: '/municipal/tramites', roles: ['admin'], tipo: 'municipio' },
-  { label: 'Estadísticas', path: '/municipal/stats', roles: ['admin'], tipo: 'municipio' },
-  { label: 'Analíticas', path: '/municipal/analytics', roles: ['admin'], tipo: 'municipio' },
-  { label: 'Empleados', path: '/municipal/usuarios', roles: ['admin'], tipo: 'municipio' },
-  { label: 'Mapa de Incidentes', path: '/municipal/incidents', roles: ['admin'], tipo: 'municipio' },
+  { label: 'Trámites', path: '/municipal/tramites', roles: ['admin', 'super_admin'], tipo: 'municipio' },
+  { label: 'Estadísticas', path: '/municipal/stats', roles: ['admin', 'super_admin'], tipo: 'municipio' },
+  { label: 'Analíticas', path: '/municipal/analytics', roles: ['admin', 'super_admin'], tipo: 'municipio' },
+  { label: 'Empleados', path: '/municipal/usuarios', roles: ['admin', 'super_admin'], tipo: 'municipio' },
+  { label: 'Mapa de Incidentes', path: '/municipal/incidents', roles: ['admin', 'super_admin'], tipo: 'municipio' },
 ];
 
 export default function ProfileNav() {
