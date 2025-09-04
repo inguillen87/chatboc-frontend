@@ -23,6 +23,7 @@ import { TicketHistoryEvent, Message as TicketMessage } from "@/types/tickets";
 // Asegúrate de que SendPayload en @/types/chat.ts incluya attachmentInfo
 import { AttachmentInfo, SendPayload as TypeSendPayload } from "@/types/chat";
 import { v4 as uuidv4 } from 'uuid'; // <--- IMPORTAR uuid
+import { useIsMobile } from "@/hooks/use-mobile";
 
 // Si SendPayload no está en @/types/chat.ts o necesita ser específico aquí:
 // interface SendPayload {
@@ -34,18 +35,6 @@ import { v4 as uuidv4 } from 'uuid'; // <--- IMPORTAR uuid
 //   action?: string;
 //   attachmentInfo?: AttachmentInfo;
 // }
-
-function useIsMobile(breakpoint = 768) {
-  const [isMobile, setIsMobile] = useState(
-    typeof window !== "undefined" ? window.innerWidth < breakpoint : false,
-  );
-  useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < breakpoint);
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, [breakpoint]);
-  return isMobile;
-}
 
 const FRASES_DIRECCION = [
   "indicame la dirección", "necesito la dirección", "ingresa la dirección",
