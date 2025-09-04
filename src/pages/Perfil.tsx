@@ -151,6 +151,7 @@ export default function Perfil() {
     "event" | "news" | "paste" | "promotion"
   >("event");
   const [isSubmittingPromotion, setIsSubmittingPromotion] = useState(false);
+  const [isPromotionModalOpen, setIsPromotionModalOpen] = useState(false);
   const [hasSentPromotionToday, setHasSentPromotionToday] = useState(false);
   const isStaff = ['admin', 'empleado', 'super_admin'].includes(user?.rol ?? '');
 
