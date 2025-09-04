@@ -388,14 +388,23 @@ export default function Perfil() {
       const points = stats.heatmap || [];
       setTicketLocations(points);
       setCharts(stats.charts || []);
-      const cats = Array.from(new Set(points.map((d) => d.categoria).filter(Boolean))) as string[];
-      setAvailableCategories(cats);
       const barrios = Array.from(new Set(points.map((d) => d.barrio).filter(Boolean))) as string[];
       setAvailableBarrios(barrios);
       const tipos = Array.from(new Set(points.map((d) => d.tipo_ticket).filter(Boolean))) as string[];
       setAvailableTipos(tipos);
     } catch (error) {
       console.error("Error fetching ticket stats:", error);
+    }
+  }, []);
+
+  const fetchCategories = useCallback(async () => {
+    try {
+      const data = await apiFetch<{ id: number; nombre: string }[]>(
+        '/municipal/categorias'
+      );
+      setAvailableCategories(data.map((c) => c.nombre));
+    } catch (error) {
+      console.error('Error fetching ticket categories:', error);
     }
   }, []);
 
@@ -408,8 +417,9 @@ export default function Perfil() {
     (async () => {
       await fetchPerfil();
       await fetchStats();
+      await fetchCategories();
     })();
-  }, [fetchPerfil, fetchStats, navigate]);
+  }, [fetchPerfil, fetchStats, fetchCategories, navigate]);
 
   useEffect(() => {
     const filtered = ticketLocations.filter(
