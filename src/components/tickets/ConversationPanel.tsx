@@ -2,16 +2,16 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, PanelLeft, MessageSquare, PanelLeftClose, MessageCircle, Mic, MicOff, X, FileText } from 'lucide-react';
+import { Send, PanelLeft, MessageSquare, PanelLeftClose, MessageCircle, Mic, MicOff, X, FileText, ChevronDown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Ticket, Message as TicketMessage } from '@/types/tickets';
+import { Ticket, TicketStatus, Message as TicketMessage } from '@/types/tickets';
 import { Message as ChatMessageData, SendPayload, AttachmentInfo } from '@/types/chat';
 import ChatMessage from './ChatMessage';
 import { AnimatePresence, motion } from 'framer-motion';
 import PredefinedMessagesModal from './PredefinedMessagesModal';
 import useSpeechRecognition from '@/hooks/useSpeechRecognition';
 import { usePusher } from '@/hooks/usePusher';
-import { getTicketMessages, sendMessage } from '@/services/ticketService';
+import { getTicketMessages, sendMessage, updateTicketStatus } from '@/services/ticketService';
 import { toast } from 'sonner';
 import { useUser } from '@/hooks/useUser';
 import { useTickets } from '@/context/TicketContext';
@@ -19,6 +19,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import ScrollToBottomButton from '../ui/ScrollToBottomButton';
 import AdjuntarArchivo from '../ui/AdjuntarArchivo';
 import { apiFetch } from '@/utils/api';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 // Helper to adapt ticket messages to the format ChatMessageBase expects
 const adaptTicketMessageToChatMessage = (msg: TicketMessage, ticket: Ticket): ChatMessageData => {
@@ -59,6 +60,8 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
   const channelName = selectedTicket ? `ticket-${selectedTicket.tipo}-${selectedTicket.id}` : null;
   const channel = usePusher(channelName);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const statusOptions: TicketStatus[] = ['nuevo', 'abierto', 'en_proceso', 'en-espera', 'resuelto', 'cerrado'];
+  const formatStatus = (s: string) => s.replace(/[_-]/g, ' ');
 
   useEffect(() => {
     if (transcript) {
@@ -220,11 +223,17 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
     setMessage(prev => prev ? `${prev}\n${predefinedMessage}` : predefinedMessage);
   };
 
-  const handleCloseTicket = () => {
-    if(!selectedTicket) return;
-    updateTicket(selectedTicket.id, { ...selectedTicket, estado: 'resuelto' });
-    toast.success('Ticket cerrado con éxito');
-  }
+  const handleStatusChange = async (newStatus: TicketStatus) => {
+    if (!selectedTicket) return;
+    try {
+      await updateTicketStatus(selectedTicket.id, selectedTicket.tipo, newStatus);
+      updateTicket(selectedTicket.id, { estado: newStatus });
+      toast.success(`Estado actualizado a ${formatStatus(newStatus)}`);
+    } catch (error) {
+      console.error('Error updating ticket status:', error);
+      toast.error('No se pudo actualizar el estado.');
+    }
+  };
 
   return (
     <motion.div
@@ -254,10 +263,25 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
           </div>
         </div>
         <div className="flex items-center space-x-2">
-          <Button variant="outline" size="sm" onClick={handleCloseTicket} aria-label="Cerrar Ticket">
-            <X className="h-4 w-4 mr-2" />
-            Cerrar Ticket
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="capitalize" aria-label="Cambiar estado">
+                {formatStatus(selectedTicket.estado)}
+                <ChevronDown className="h-4 w-4 ml-2" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {statusOptions.map((status) => (
+                <DropdownMenuItem
+                  key={status}
+                  className="capitalize"
+                  onClick={() => handleStatusChange(status)}
+                >
+                  {formatStatus(status)}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
 
