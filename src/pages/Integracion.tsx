@@ -131,7 +131,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   async function loadWidget() {
     try {
-      const res = await fetch('https://chatboc.ar/auth/widget-token', {
+      const res = await fetch('https://chatboc.ar/auth/widget-token/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: ENTITY_TOKEN })
