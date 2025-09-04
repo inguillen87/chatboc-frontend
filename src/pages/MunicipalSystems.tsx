@@ -12,7 +12,7 @@ interface Integration {
 }
 
 export default function MunicipalSystems() {
-  useRequireRole(['admin'] as Role[]);
+  useRequireRole(['admin', 'super_admin'] as Role[]);
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

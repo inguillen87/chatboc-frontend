@@ -22,7 +22,7 @@ interface Metrics {
 }
 
 export default function MunicipalMessageMetrics() {
-  useRequireRole(['admin'] as Role[]);
+  useRequireRole(['admin', 'super_admin'] as Role[]);
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

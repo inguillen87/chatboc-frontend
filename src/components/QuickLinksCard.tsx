@@ -27,15 +27,15 @@ interface LinkItem {
 }
 
 const ITEMS: LinkItem[] = [
-  { label: "Tickets", path: "/tickets", icon: Ticket, roles: ["admin", "empleado"] },
-  { label: "Pedidos", path: "/pedidos", icon: Package, roles: ["admin", "empleado"], tipo: "pyme" },
-  { label: "Métricas", path: "/pyme/metrics", icon: TrendingUp, roles: ["admin"], tipo: "pyme" },
-  { label: "Catálogo", path: "/pyme/catalog", icon: Boxes, roles: ["admin"], tipo: "pyme" },
-  { label: "Usuarios", path: "/usuarios", icon: Users, roles: ["admin", "empleado"] },
-  { label: "Estadísticas", path: "/municipal/stats", icon: BarChart2, roles: ["admin"], tipo: "municipio" },
-  { label: "Analíticas", path: "/municipal/analytics", icon: TrendingUp, roles: ["admin"], tipo: "municipio" },
-  { label: "Empleados", path: "/municipal/usuarios", icon: UserCog, roles: ["admin"], tipo: "municipio" },
-  { label: "Mapa", path: "/municipal/incidents", icon: MapPin, roles: ["admin"], tipo: "municipio" },
+  { label: "Tickets", path: "/tickets", icon: Ticket, roles: ["admin", "empleado", "super_admin"] },
+  { label: "Pedidos", path: "/pedidos", icon: Package, roles: ["admin", "empleado", "super_admin"], tipo: "pyme" },
+  { label: "Métricas", path: "/pyme/metrics", icon: TrendingUp, roles: ["admin", "super_admin"], tipo: "pyme" },
+  { label: "Catálogo", path: "/pyme/catalog", icon: Boxes, roles: ["admin", "super_admin"], tipo: "pyme" },
+  { label: "Usuarios", path: "/usuarios", icon: Users, roles: ["admin", "empleado", "super_admin"] },
+  { label: "Estadísticas", path: "/municipal/stats", icon: BarChart2, roles: ["admin", "super_admin"], tipo: "municipio" },
+  { label: "Analíticas", path: "/municipal/analytics", icon: TrendingUp, roles: ["admin", "super_admin"], tipo: "municipio" },
+  { label: "Empleados", path: "/municipal/usuarios", icon: UserCog, roles: ["admin", "super_admin"], tipo: "municipio" },
+  { label: "Mapa", path: "/municipal/incidents", icon: MapPin, roles: ["admin", "super_admin"], tipo: "municipio" },
 ];
 
 export default function QuickLinksCard() {

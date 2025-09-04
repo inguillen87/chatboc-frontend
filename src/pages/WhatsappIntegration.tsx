@@ -13,7 +13,7 @@ interface WhatsappInfo {
 }
 
 export default function WhatsappIntegration() {
-  useRequireRole(['admin'] as Role[]);
+  useRequireRole(['admin', 'super_admin'] as Role[]);
   const [info, setInfo] = useState<WhatsappInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

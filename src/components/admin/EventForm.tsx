@@ -66,9 +66,21 @@ interface EventFormProps {
   isSubmitting?: boolean;
   initialData?: Partial<EventFormValues>;
   fixedTipoPost?: 'noticia' | 'evento';
+  onPromote?: (values: EventFormValues) => void;
+  isPromoting?: boolean;
+  disablePromote?: boolean;
 }
 
-export const EventForm: React.FC<EventFormProps> = ({ onSubmit, onCancel, isSubmitting, initialData, fixedTipoPost }) => {
+export const EventForm: React.FC<EventFormProps> = ({
+  onSubmit,
+  onCancel,
+  isSubmitting,
+  initialData,
+  fixedTipoPost,
+  onPromote,
+  isPromoting,
+  disablePromote,
+}) => {
   const form = useForm<EventFormValues>({
     resolver: zodResolver(eventFormSchema),
     defaultValues: {
@@ -389,10 +401,26 @@ export const EventForm: React.FC<EventFormProps> = ({ onSubmit, onCancel, isSubm
           )}
         />
         <div className="flex justify-end gap-4 pt-4">
-          <Button type="button" variant="ghost" onClick={onCancel} disabled={isSubmitting}>
+          <Button type="button" variant="ghost" onClick={onCancel} disabled={isSubmitting || isPromoting}>
             Cancelar
           </Button>
-          <Button type="submit" disabled={isSubmitting}>
+          {onPromote && (
+            <Button
+              type="button"
+              onClick={form.handleSubmit(onPromote)}
+              disabled={isPromoting || disablePromote}
+            >
+              {isPromoting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Enviando...
+                </>
+              ) : (
+                'Promocionar'
+              )}
+            </Button>
+          )}
+          <Button type="submit" disabled={isSubmitting || isPromoting}>
             {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
