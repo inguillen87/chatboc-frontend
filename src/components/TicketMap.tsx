@@ -43,25 +43,43 @@ const TicketMap: React.FC<{ ticket: TicketLocation }> = ({ ticket }) => {
     typeof originLon === 'number' &&
     (originLat !== 0 || originLon !== 0);
   const hasRoute = hasCoords && hasOrigin;
-  const mapSrc = hasRoute
+
+  // Primary map is Google Maps; fallback to OpenStreetMap if it fails
+  const googleSrc = hasRoute
+    ? `https://maps.google.com/maps?f=d&source=s_d&saddr=${originLat},${originLon}&daddr=${ticket.latitud},${ticket.longitud}&output=embed`
+    : hasCoords
+      ? `https://maps.google.com/maps?q=${ticket.latitud},${ticket.longitud}&z=15&output=embed`
+      : direccionCompleta
+        ? `https://maps.google.com/maps?q=${encodeURIComponent(direccionCompleta)}&z=15&output=embed`
+        : '';
+  const osmSrc = hasRoute
     ? `https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=${originLat},${originLon};${ticket.latitud},${ticket.longitud}`
     : hasCoords
       ? `https://www.openstreetmap.org/export/embed.html?mlat=${ticket.latitud}&mlon=${ticket.longitud}&marker=${ticket.latitud},${ticket.longitud}&zoom=15&layer=mapnik`
       : direccionCompleta
         ? `https://www.openstreetmap.org/search?query=${encodeURIComponent(direccionCompleta)}`
         : '';
-  return mapSrc ? (
+
+  const [src, setSrc] = React.useState(googleSrc || osmSrc);
+
+  if (!src) return null;
+
+  return (
     <div className="mb-6">
       <h4 className="font-semibold mb-2">Ubicación aproximada</h4>
-      {/* Responsive height for the map container */}
       <div className="w-full rounded overflow-hidden h-[150px] sm:h-[180px]">
         <iframe
           width="100%"
-          height="100%" // Make iframe fill the container
+          height="100%"
           style={{ border: 0 }}
           loading="lazy"
           allowFullScreen
-          src={mapSrc}
+          src={src}
+          onError={() => {
+            if (src !== osmSrc) {
+              setSrc(osmSrc);
+            }
+          }}
         />
       </div>
       {direccionCompleta && (
@@ -70,7 +88,7 @@ const TicketMap: React.FC<{ ticket: TicketLocation }> = ({ ticket }) => {
         </div>
       )}
     </div>
-  ) : null;
+  );
 };
 
 export default TicketMap;
