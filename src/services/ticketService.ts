@@ -4,6 +4,7 @@ import {
   Message,
   TicketHistoryEvent,
   TicketTimelineResponse,
+  TicketStatus,
 } from '@/types/tickets';
 import { AttachmentInfo } from '@/types/chat';
 
@@ -119,6 +120,22 @@ export const sendTicketHistory = async (ticket: Ticket): Promise<void> => {
         });
     } catch (error) {
         console.error(`Error sending ticket history for ticket ${ticket.id}:`, error);
+        throw error;
+    }
+};
+
+export const updateTicketStatus = async (
+    ticketId: number,
+    tipo: 'municipio' | 'pyme',
+    estado: TicketStatus
+): Promise<void> => {
+    try {
+        await apiFetch(`/tickets/${tipo}/${ticketId}/estado`, {
+            method: 'PUT',
+            body: { estado },
+        });
+    } catch (error) {
+        console.error(`Error updating status for ticket ${ticketId}:`, error);
         throw error;
     }
 };
