@@ -151,7 +151,8 @@ export default function Perfil() {
     "event" | "news" | "paste" | "promotion"
   >("event");
   const [isSubmittingPromotion, setIsSubmittingPromotion] = useState(false);
-  const [isPromotionModalOpen, setIsPromotionModalOpen] = useState(false);
+  // Separado del modal de eventos para evitar referencias inexistentes
+  const [promotionModalOpen, setPromotionModalOpen] = useState(false);
   const [hasSentPromotionToday, setHasSentPromotionToday] = useState(false);
   const isStaff = ['admin', 'empleado', 'super_admin'].includes(user?.rol ?? '');
 
@@ -1533,7 +1534,7 @@ export default function Perfil() {
                 </p>
                 <div className="flex-grow" />
                 <Button
-                  onClick={() => setIsPromotionModalOpen(true)}
+                  onClick={() => setPromotionModalOpen(true)}
                   disabled={hasSentPromotionToday}
                   className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-2.5 mt-auto"
                 >
@@ -1749,7 +1750,7 @@ export default function Perfil() {
       </Dialog>
 
       {/* --- Modal para Promocionar --- */}
-      <Dialog open={isPromotionModalOpen} onOpenChange={setIsPromotionModalOpen}>
+      <Dialog open={promotionModalOpen} onOpenChange={setPromotionModalOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-xl flex items-center">
@@ -1762,7 +1763,7 @@ export default function Perfil() {
           </DialogHeader>
           <div className="py-4 max-h-[70vh] overflow-y-auto px-2">
             <PromotionForm
-              onCancel={() => setIsPromotionModalOpen(false)}
+              onCancel={() => setPromotionModalOpen(false)}
               isSubmitting={isSubmittingPromotion}
               onSubmit={handleSubmitPromotion}
             />
