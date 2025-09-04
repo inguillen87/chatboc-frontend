@@ -11,6 +11,7 @@ import { Separator } from '@/components/ui/separator';
 import { getErrorMessage, ApiError } from '@/utils/api';
 import { getContactPhone, getCitizenDni } from '@/utils/ticket';
 import { getSpecializedContact, SpecializedContact } from '@/utils/contacts';
+import TicketStatusBar from '@/components/tickets/TicketStatusBar';
 export default function TicketLookup() {
   const { ticketId } = useParams<{ ticketId: string }>();
   const navigate = useNavigate();
@@ -139,6 +140,7 @@ export default function TicketLookup() {
             <p className="text-sm text-muted-foreground">Ticket #{ticket.nro_ticket}</p>
             <h2 className="text-2xl font-semibold">{ticket.asunto}</h2>
             <p className="pt-1"><span className="font-medium">Estado actual:</span> <span className="text-primary font-semibold">{estadoChat || ticket.estado}</span></p>
+            <TicketStatusBar status={estadoChat || ticket.estado} />
             <p className="text-sm text-muted-foreground">
               Creado el: {formatDate(ticket.fecha, Intl.DateTimeFormat().resolvedOptions().timeZone, 'es-AR')}
             </p>

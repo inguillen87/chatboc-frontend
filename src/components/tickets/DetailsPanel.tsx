@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { motion } from 'framer-motion';
 import TicketMap, { buildFullAddress } from '../TicketMap';
 import TicketTimeline from './TicketTimeline';
+import TicketStatusBar from './TicketStatusBar';
 import { useTickets } from '@/context/TicketContext';
 import { exportToPdf, exportToXlsx } from '@/services/exportService';
 import { sendTicketHistory, getTicketById, getTicketMessages } from '@/services/ticketService';
@@ -329,6 +330,7 @@ const DetailsPanel: React.FC = () => {
                     <span className="text-muted-foreground">Estado:</span>
                     <Badge variant="outline" className="capitalize">{ticket.estado || 'N/A'}</Badge>
                 </div>
+                <TicketStatusBar status={ticket.estado} />
                 <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Canal:</span>
                     <span className="capitalize">{ticket.channel || 'N/A'}</span>
