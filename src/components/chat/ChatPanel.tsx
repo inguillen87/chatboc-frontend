@@ -60,6 +60,10 @@ interface ChatPanelProps {
   muted?: boolean;
   onToggleSound?: () => void;
   onCart?: () => void;
+  headerLogoUrl?: string;
+  welcomeTitle?: string;
+  welcomeSubtitle?: string;
+  logoAnimation?: string;
 }
 
 const ChatPanel = ({
@@ -76,6 +80,10 @@ const ChatPanel = ({
   onRubroSelect,
   mode,
   entityToken: propEntityToken,
+  headerLogoUrl,
+  welcomeTitle,
+  welcomeSubtitle,
+  logoAnimation,
 }: ChatPanelProps) => {
   const isMobile = useIsMobile();
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -263,7 +271,17 @@ const ChatPanel = ({
 
   return (
     <div className={cn("flex flex-col w-full h-full bg-card text-card-foreground overflow-hidden relative", isMobile ? undefined : "rounded-[inherit]")}> 
-      <ChatHeader onClose={onClose} onProfile={onOpenUserPanel} muted={muted} onToggleSound={onToggleSound} onCart={onCart} />
+      <ChatHeader
+        onClose={onClose}
+        onProfile={onOpenUserPanel}
+        muted={muted}
+        onToggleSound={onToggleSound}
+        onCart={onCart}
+        logoUrl={headerLogoUrl}
+        title={welcomeTitle}
+        subtitle={welcomeSubtitle}
+        logoAnimation={logoAnimation}
+      />
       <div ref={chatContainerRef} className="flex-1 p-2 sm:p-4 min-h-0 flex flex-col gap-3 overflow-y-auto">
         {messages.map((msg) =>
           <ChatMessage key={msg.id} message={msg}

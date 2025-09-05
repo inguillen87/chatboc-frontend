@@ -45,6 +45,9 @@ const Integracion = () => {
   const [primaryColor, setPrimaryColor] = useState("#007aff");
   const [logoUrl, setLogoUrl] = useState("");
   const [logoAnimation, setLogoAnimation] = useState("");
+  const [headerLogoUrl, setHeaderLogoUrl] = useState("");
+  const [welcomeTitle, setWelcomeTitle] = useState("");
+  const [welcomeSubtitle, setWelcomeSubtitle] = useState("");
 
   const validarAcceso = (currentUser: User | null) => {
     if (!currentUser) {
@@ -118,7 +121,10 @@ const Integracion = () => {
     const customLines = [
       primaryColor && `      s.setAttribute('data-primary-color', '${primaryColor}'); // Color del launcher`,
       logoUrl && `      s.setAttribute('data-logo-url', '${logoUrl}'); // URL del icono`,
+      headerLogoUrl && `      s.setAttribute('data-header-logo-url', '${headerLogoUrl}'); // Logo del encabezado`,
       logoAnimation && `      s.setAttribute('data-logo-animation', '${logoAnimation}'); // Animación del icono`,
+      welcomeTitle && `      s.setAttribute('data-welcome-title', '${welcomeTitle}'); // Título de bienvenida`,
+      welcomeSubtitle && `      s.setAttribute('data-welcome-subtitle', '${welcomeSubtitle}'); // Subtítulo de bienvenida`,
     ]
       .filter(Boolean)
       .join("\n");
@@ -215,7 +221,7 @@ ${customLines ? customLines + "\n" : ""}  // Importante para la geolocalización
   refreshToken();
 });
 </script>`;
-  }, [entityToken, endpoint, primaryColor, logoUrl, logoAnimation]);
+  }, [entityToken, endpoint, primaryColor, logoUrl, headerLogoUrl, logoAnimation, welcomeTitle, welcomeSubtitle]);
 
   const iframeSrcUrl = useMemo(() => {
     const url = new URL("https://chatboc.ar/iframe");
@@ -223,9 +229,12 @@ ${customLines ? customLines + "\n" : ""}  // Importante para la geolocalización
     url.searchParams.set("tipo_chat", endpoint);
     if (primaryColor) url.searchParams.set("primaryColor", primaryColor);
     if (logoUrl) url.searchParams.set("logoUrl", logoUrl);
+    if (headerLogoUrl) url.searchParams.set("headerLogoUrl", headerLogoUrl);
     if (logoAnimation) url.searchParams.set("logoAnimation", logoAnimation);
+    if (welcomeTitle) url.searchParams.set("welcomeTitle", welcomeTitle);
+    if (welcomeSubtitle) url.searchParams.set("welcomeSubtitle", welcomeSubtitle);
     return url.toString();
-  }, [entityToken, endpoint, primaryColor, logoUrl, logoAnimation]);
+  }, [entityToken, endpoint, primaryColor, logoUrl, headerLogoUrl, logoAnimation, welcomeTitle, welcomeSubtitle]);
   
   const codeIframe = useMemo(() => `<iframe
   id="chatboc-iframe"
@@ -430,6 +439,15 @@ document.addEventListener('DOMContentLoaded', function () {
                 onChange={(e) => setLogoUrl(e.target.value)}
               />
             </div>
+            <div className="flex flex-col space-y-2">
+              <Label htmlFor="headerLogoUrl">URL del logo del encabezado</Label>
+              <Input
+                id="headerLogoUrl"
+                placeholder="https://..."
+                value={headerLogoUrl}
+                onChange={(e) => setHeaderLogoUrl(e.target.value)}
+              />
+            </div>
             <div className="flex flex-col space-y-2 sm:col-span-2">
               <Label htmlFor="logoAnimation">Animación del logo</Label>
               <Select value={logoAnimation} onValueChange={setLogoAnimation}>
@@ -442,6 +460,24 @@ document.addEventListener('DOMContentLoaded', function () {
                   <SelectItem value="spin 2s linear infinite">Spin</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div className="flex flex-col space-y-2 sm:col-span-2">
+              <Label htmlFor="welcomeTitle">Título de bienvenida</Label>
+              <Input
+                id="welcomeTitle"
+                placeholder="¡Hola! Soy tu asistente virtual"
+                value={welcomeTitle}
+                onChange={(e) => setWelcomeTitle(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col space-y-2 sm:col-span-2">
+              <Label htmlFor="welcomeSubtitle">Subtítulo de bienvenida</Label>
+              <Input
+                id="welcomeSubtitle"
+                placeholder="Estoy aquí para ayudarte"
+                value={welcomeSubtitle}
+                onChange={(e) => setWelcomeSubtitle(e.target.value)}
+              />
             </div>
           </CardContent>
         </Card>

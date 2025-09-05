@@ -35,6 +35,12 @@
     closedHeight: ds.closedHeight || "72px",
     bottom: ds.bottom || "20px",
     right: ds.right || "20px",
+    primaryColor: ds.primaryColor || "#007aff",
+    logoUrl: ds.logoUrl || "",
+    headerLogoUrl: ds.headerLogoUrl || ds.logoUrl || "",
+    logoAnimation: ds.logoAnimation || "",
+    welcomeTitle: ds.welcomeTitle || "",
+    welcomeSubtitle: ds.welcomeSubtitle || "",
   };
 
   const qs = new URLSearchParams({
@@ -49,6 +55,12 @@
     right: cfg.right,
     widgetId: iframeId,
     hostDomain: window.location.origin,
+    primaryColor: cfg.primaryColor,
+    logoUrl: cfg.logoUrl,
+    headerLogoUrl: cfg.headerLogoUrl,
+    logoAnimation: cfg.logoAnimation,
+    welcomeTitle: cfg.welcomeTitle,
+    welcomeSubtitle: cfg.welcomeSubtitle,
   });
 
   const iframeSrc = `${cfg.host}${cfg.iframePath}?${qs.toString()}`;
