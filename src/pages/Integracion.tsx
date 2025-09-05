@@ -115,26 +115,60 @@ const Integracion = () => {
   const WIDGET_STD_RIGHT = "20px";
   
   const codeScript = useMemo(() => {
-    const opts: Record<string, string> = {
-      width: WIDGET_STD_WIDTH,
-      height: WIDGET_STD_HEIGHT,
-      closedWidth: WIDGET_STD_CLOSED_WIDTH,
-      closedHeight: WIDGET_STD_CLOSED_HEIGHT,
-      bottom: WIDGET_STD_BOTTOM,
-      right: WIDGET_STD_RIGHT,
-    };
-    if (primaryColor) opts.primaryColor = primaryColor;
-    if (logoUrl) opts.logoUrl = logoUrl;
-    if (logoAnimation) opts.logoAnimation = logoAnimation;
-
-    const optionsJson = JSON.stringify(opts, null, 2);
-
     return `<script>
 document.addEventListener('DOMContentLoaded', function () {
   const ENTITY_TOKEN = '${entityToken}';
   const WIDGET_OPTIONS = ${optionsJson};
   let currentToken = null;
   let currentScript = null;
+  let refreshRef = null;
+
+  function injectWidget(token) {
+    if (currentScript) currentScript.remove();
+    if (window.chatbocDestroyWidget && currentToken) {
+      window.chatbocDestroyWidget(currentToken);
+    }
+    currentToken = token;
+    window.APP_TARGET = '${endpoint}';
+
+    var s = document.createElement('script');
+    s.src = 'https://chatboc.ar/widget.js';
+    s.async = true;
+    s.setAttribute('data-entity-token', token);
+    s.setAttribute('data-default-open', 'false');
+    s.setAttribute('data-width', '${WIDGET_STD_WIDTH}');
+    s.setAttribute('data-height', '${WIDGET_STD_HEIGHT}');
+    s.setAttribute('data-closed-width', '${WIDGET_STD_CLOSED_WIDTH}');
+    s.setAttribute('data-closed-height', '${WIDGET_STD_CLOSED_HEIGHT}');
+    s.setAttribute('data-bottom', '${WIDGET_STD_BOTTOM}');
+    s.setAttribute('data-right', '${WIDGET_STD_RIGHT}');
+    s.setAttribute('data-endpoint', '${endpoint}');
+    ${primaryColor ? `s.setAttribute('data-primary-color', '${primaryColor}');\n    ` : ""}${logoUrl ? `s.setAttribute('data-logo-url', '${logoUrl}');\n    ` : ""}${logoAnimation ? `s.setAttribute('data-logo-animation', '${logoAnimation}');\n    ` : ""}
+
+    s.onload = function() {
+      console.log('Chatboc Widget cargado y listo.');
+    };
+    s.onerror = function() {
+      console.error('Error al cargar Chatboc Widget.');
+    };
+
+    document.body.appendChild(s);
+    currentScript = s;
+  }
+
+  function scheduleRefresh(token) {
+    try {
+      const [, payload] = token.split('.');
+      const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+      const padded = base64.padEnd(base64.length + (4 - (base64.length % 4)) % 4, '=');
+      const { exp } = JSON.parse(atob(padded));
+      const refreshMs = exp * 1000 - Date.now() - 60000;
+      refreshRef = setTimeout(loadWidget, Math.max(refreshMs, 30000));
+    } catch (err) {
+      console.error('No se pudo programar la renovación del token', err);
+      refreshRef = setTimeout(loadWidget, 30000);
+    }
+  }
 
   async function loadWidget() {
     let token = ENTITY_TOKEN;
@@ -144,14 +178,17 @@ document.addEventListener('DOMContentLoaded', function () {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: ENTITY_TOKEN })
       });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.token) token = data.token;
-      } else {
-        console.error('Respuesta no válida al obtener token', res.status);
-      }
+      const data = await res.json();
+      if (!data.token) throw new Error('Token ausente en la respuesta');
+      const token = data.token;
+      injectWidget(token);
+      scheduleRefresh(token);
     } catch (err) {
       console.error('No se pudo obtener un nuevo token', err);
+      if (!currentToken) {
+        injectWidget(ENTITY_TOKEN);
+      }
+      refreshRef = setTimeout(loadWidget, 30000);
     }
 
     if (currentScript) {
