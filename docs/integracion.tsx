@@ -1,7 +1,23 @@
 import { useEffect, useRef } from 'react';
 
-// Replace with the static token provided for your entity.
+// Static token provided for your entity.
 const ENTITY_TOKEN = 'REPLACE_WITH_STATIC_ENTITY_TOKEN';
+
+/**
+ * Opciones de personalización del widget.
+ * Cualquier propiedad puede omitirse para usar su valor por defecto.
+ */
+const WIDGET_OPTIONS = {
+  width: '460px',
+  height: '680px',
+  closedWidth: '112px',
+  closedHeight: '112px',
+  bottom: '20px',
+  right: '20px',
+  primaryColor: '#007aff',
+  // logoUrl: 'https://example.com/logo.png',
+  // logoAnimation: 'spin 2s linear infinite',
+};
 
 function decodeExpiration(jwt: string): number {
   const [, payload] = jwt.split('.');
@@ -14,10 +30,8 @@ function decodeExpiration(jwt: string): number {
 let currentToken: string | null = null;
 let currentScript: HTMLScriptElement | null = null;
 
-function injectWidget(token: string) {
-  if (currentScript) {
-    currentScript.remove();
-  }
+function injectWidget(token: string, opts = WIDGET_OPTIONS) {
+  if (currentScript) currentScript.remove();
   if ((window as any).chatbocDestroyWidget && currentToken) {
     (window as any).chatbocDestroyWidget(currentToken);
   }
@@ -30,14 +44,16 @@ function injectWidget(token: string) {
   s.async = true;
   s.setAttribute('data-entity-token', token);
   s.setAttribute('data-default-open', 'false');
-  s.setAttribute('data-width', '460px');
-  s.setAttribute('data-height', '680px');
-  s.setAttribute('data-closed-width', '112px');
-  s.setAttribute('data-closed-height', '112px');
-  s.setAttribute('data-bottom', '20px');
-  s.setAttribute('data-right', '20px');
+  s.setAttribute('data-width', opts.width);
+  s.setAttribute('data-height', opts.height);
+  s.setAttribute('data-closed-width', opts.closedWidth);
+  s.setAttribute('data-closed-height', opts.closedHeight);
+  s.setAttribute('data-bottom', opts.bottom);
+  s.setAttribute('data-right', opts.right);
   s.setAttribute('data-endpoint', 'municipio');
-  s.setAttribute('data-primary-color', '#007aff');
+  if (opts.primaryColor) s.setAttribute('data-primary-color', opts.primaryColor);
+  if (opts.logoUrl) s.setAttribute('data-logo-url', opts.logoUrl);
+  if (opts.logoAnimation) s.setAttribute('data-logo-animation', opts.logoAnimation);
 
   s.onload = () => console.log('Chatboc Widget cargado y listo.');
   s.onerror = () => console.error('Error al cargar Chatboc Widget.');
@@ -47,25 +63,25 @@ function injectWidget(token: string) {
 }
 
 export default function Integracion() {
-  const refreshRef = useRef<NodeJS.Timeout>();
+  const refreshRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   async function refreshToken() {
     try {
       const res = await fetch('https://chatboc.ar/auth/widget-token/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: ENTITY_TOKEN })
+        body: JSON.stringify({ token: ENTITY_TOKEN }),
       });
       const data = await res.json();
+      if (!data.token) throw new Error('Token ausente en la respuesta');
       const token = data.token as string;
       injectWidget(token);
 
       const expires = decodeExpiration(token);
-      const timeout = expires - Date.now() - 60_000; // refresh 1 min before expiry
-      refreshRef.current = setTimeout(refreshToken, Math.max(timeout, 0));
+      const timeout = Math.max(expires - Date.now() - 60_000, 30_000);
+      refreshRef.current = setTimeout(refreshToken, timeout);
     } catch (err) {
       console.error('No se pudo obtener un nuevo token', err);
-      // Reintentar en 30s en caso de error
       refreshRef.current = setTimeout(refreshToken, 30_000);
     }
   }
@@ -74,6 +90,10 @@ export default function Integracion() {
     refreshToken();
     return () => {
       if (refreshRef.current) clearTimeout(refreshRef.current);
+      if (currentScript) currentScript.remove();
+      if ((window as any).chatbocDestroyWidget && currentToken) {
+        (window as any).chatbocDestroyWidget(currentToken);
+      }
     };
   }, []);
 
