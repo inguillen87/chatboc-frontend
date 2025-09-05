@@ -136,38 +136,48 @@ document.addEventListener('DOMContentLoaded', function () {
   let currentToken = null;
   let currentScript = null;
 
-  function decodeExpiration(jwt) {
-    const [, payload] = jwt.split('.');
-    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
-    const padded = base64.padEnd(base64.length + (4 - (base64.length % 4)) % 4, '=');
-    const { exp } = JSON.parse(atob(padded));
-    return exp * 1000;
-  }
+  async function loadWidget() {
+    let token = ENTITY_TOKEN;
+    try {
+      const res = await fetch('https://chatboc.ar/auth/widget-token/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: ENTITY_TOKEN })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.token) token = data.token;
+      } else {
+        console.error('Respuesta no válida al obtener token', res.status);
+      }
+    } catch (err) {
+      console.error('No se pudo obtener un nuevo token', err);
+    }
 
-  function injectWidget(token, opts = WIDGET_OPTIONS) {
-    if (currentScript) currentScript.remove();
+    if (currentScript) {
+      currentScript.remove();
+    }
     if (window.chatbocDestroyWidget && currentToken) {
       window.chatbocDestroyWidget(currentToken);
     }
     currentToken = token;
-
     window.APP_TARGET = '${endpoint}';
 
-    const s = document.createElement('script');
+    var s = document.createElement('script');
     s.src = 'https://chatboc.ar/widget.js';
     s.async = true;
     s.setAttribute('data-entity-token', token);
     s.setAttribute('data-default-open', 'false');
-    s.setAttribute('data-width', opts.width);
-    s.setAttribute('data-height', opts.height);
-    s.setAttribute('data-closed-width', opts.closedWidth);
-    s.setAttribute('data-closed-height', opts.closedHeight);
-    s.setAttribute('data-bottom', opts.bottom);
-    s.setAttribute('data-right', opts.right);
+    s.setAttribute('data-width', WIDGET_OPTIONS.width);
+    s.setAttribute('data-height', WIDGET_OPTIONS.height);
+    s.setAttribute('data-closed-width', WIDGET_OPTIONS.closedWidth);
+    s.setAttribute('data-closed-height', WIDGET_OPTIONS.closedHeight);
+    s.setAttribute('data-bottom', WIDGET_OPTIONS.bottom);
+    s.setAttribute('data-right', WIDGET_OPTIONS.right);
     s.setAttribute('data-endpoint', '${endpoint}');
-    if (opts.primaryColor) s.setAttribute('data-primary-color', opts.primaryColor);
-    if (opts.logoUrl) s.setAttribute('data-logo-url', opts.logoUrl);
-    if (opts.logoAnimation) s.setAttribute('data-logo-animation', opts.logoAnimation);
+    if (WIDGET_OPTIONS.primaryColor) s.setAttribute('data-primary-color', WIDGET_OPTIONS.primaryColor);
+    if (WIDGET_OPTIONS.logoUrl) s.setAttribute('data-logo-url', WIDGET_OPTIONS.logoUrl);
+    if (WIDGET_OPTIONS.logoAnimation) s.setAttribute('data-logo-animation', WIDGET_OPTIONS.logoAnimation);
 
     // Importante para la geolocalización y el portapapeles:
     // widget.js establecerá allow="clipboard-write; geolocation" en su iframe interno.
@@ -175,74 +185,22 @@ document.addEventListener('DOMContentLoaded', function () {
     // también debe incluir allow="clipboard-write; geolocation" en sus atributos.
     // Ejemplo: <iframe src="tu_pagina_con_widget.html" allow="clipboard-write; geolocation"></iframe>
 
-    s.onload = () => console.log('Chatboc Widget cargado y listo.');
-    s.onerror = () => console.error('Error al cargar Chatboc Widget.');
+    s.onload = function() {
+      console.log('Chatboc Widget cargado y listo.');
+    };
+    s.onerror = function() {
+      console.error('Error al cargar Chatboc Widget.');
+    };
 
     document.body.appendChild(s);
     currentScript = s;
-  }
 
-  async function refreshToken() {
-    try {
-      const res = await fetch('https://chatboc.ar/auth/widget-token/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: ENTITY_TOKEN })
-      });
-      const data = await res.json();
-      const token = data.token;
-
-      if (currentScript) {
-        currentScript.remove();
-      }
-      if (window.chatbocDestroyWidget && currentToken) {
-        window.chatbocDestroyWidget(currentToken);
-      }
-      currentToken = token;
-      window.APP_TARGET = '${endpoint}';
-
-      var s = document.createElement('script');
-      s.src = 'https://chatboc.ar/widget.js';
-      s.async = true;
-      s.setAttribute('data-entity-token', token);
-      s.setAttribute('data-default-open', 'false');
-      s.setAttribute('data-width', WIDGET_OPTIONS.width);
-      s.setAttribute('data-height', WIDGET_OPTIONS.height);
-      s.setAttribute('data-closed-width', WIDGET_OPTIONS.closedWidth);
-      s.setAttribute('data-closed-height', WIDGET_OPTIONS.closedHeight);
-      s.setAttribute('data-bottom', WIDGET_OPTIONS.bottom);
-      s.setAttribute('data-right', WIDGET_OPTIONS.right);
-      s.setAttribute('data-endpoint', '${endpoint}');
-      if (WIDGET_OPTIONS.primaryColor) s.setAttribute('data-primary-color', WIDGET_OPTIONS.primaryColor);
-      if (WIDGET_OPTIONS.logoUrl) s.setAttribute('data-logo-url', WIDGET_OPTIONS.logoUrl);
-      if (WIDGET_OPTIONS.logoAnimation) s.setAttribute('data-logo-animation', WIDGET_OPTIONS.logoAnimation);
-
-      // Importante para la geolocalización y el portapapeles:
-      // widget.js establecerá allow="clipboard-write; geolocation" en su iframe interno.
-      // Si este script se inserta dentro de un iframe en tu sitio, ese iframe contenedor
-      // también debe incluir allow="clipboard-write; geolocation" en sus atributos.
-      // Ejemplo: <iframe src="tu_pagina_con_widget.html" allow="clipboard-write; geolocation"></iframe>
-
-      s.onload = function() {
-        console.log('Chatboc Widget cargado y listo.');
-      };
-      s.onerror = function() {
-        console.error('Error al cargar Chatboc Widget.');
-      };
-
-      document.body.appendChild(s);
-      currentScript = s;
-
-      const [, payload] = token.split('.');
-      const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
-      const padded = base64.padEnd(base64.length + (4 - (base64.length % 4)) % 4, '=');
-      const { exp } = JSON.parse(atob(padded));
-      const refreshMs = exp * 1000 - Date.now() - 60000;
-      setTimeout(loadWidget, Math.max(refreshMs, 30000));
-    } catch (err) {
-      console.error('No se pudo obtener un nuevo token', err);
-      setTimeout(refreshToken, 30000);
-    }
+    const [, payload] = token.split('.');
+    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64.padEnd(base64.length + (4 - (base64.length % 4)) % 4, '=');
+    const { exp } = JSON.parse(atob(padded));
+    const refreshMs = exp * 1000 - Date.now() - 60000;
+    setTimeout(loadWidget, Math.max(refreshMs, 30000));
   }
 
   refreshToken();

@@ -66,24 +66,27 @@ export default function Integracion() {
   const refreshRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   async function refreshToken() {
+    let token = ENTITY_TOKEN;
     try {
       const res = await fetch('https://chatboc.ar/auth/widget-token/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: ENTITY_TOKEN }),
       });
-      const data = await res.json();
-      if (!data.token) throw new Error('Token ausente en la respuesta');
-      const token = data.token as string;
-      injectWidget(token);
-
-      const expires = decodeExpiration(token);
-      const timeout = Math.max(expires - Date.now() - 60_000, 30_000);
-      refreshRef.current = setTimeout(refreshToken, timeout);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.token) token = data.token as string;
+      } else {
+        console.error('Respuesta no válida al obtener token', res.status);
+      }
     } catch (err) {
       console.error('No se pudo obtener un nuevo token', err);
-      refreshRef.current = setTimeout(refreshToken, 30_000);
     }
+
+    injectWidget(token);
+    const expires = decodeExpiration(token);
+    const timeout = Math.max(expires - Date.now() - 60_000, 30_000);
+    refreshRef.current = setTimeout(refreshToken, timeout);
   }
 
   useEffect(() => {
