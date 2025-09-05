@@ -502,6 +502,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                 message={proactiveMessage || ""}
                 onClick={toggleChat}
                 visible={showProactiveBubble && !showCta}
+                logoUrl={headerLogoUrl || customLauncherLogoUrl || entityInfo?.logo_url}
+                logoAnimation={logoAnimation}
               />
               {showCta && ctaMessage && !showProactiveBubble && (
                 <motion.div

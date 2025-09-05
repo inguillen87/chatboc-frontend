@@ -42,20 +42,33 @@ function normalizeAttachment(msg: any): RawAttachment | null {
 }
 
 // --- Avatares (reutilizados de ChatMessagePyme/Municipio) ---
-const AvatarBot: React.FC<{ isTyping: boolean }> = ({ isTyping }) => (
+const AvatarBot: React.FC<{ isTyping: boolean; logoUrl?: string; logoAnimation?: string }> = ({
+  isTyping,
+  logoUrl,
+  logoAnimation,
+}) => (
   <motion.div
     initial={{ scale: 0.8, opacity: 0 }}
     animate={{ scale: 1, opacity: 1 }}
     transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.1 }}
     className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-muted rounded-full shadow"
   >
-    <ChatbocLogoAnimated
-      size={24}
-      smiling={isTyping}
-      movingEyes={isTyping}
-      blinking
-      pulsing
-    />
+    {logoUrl ? (
+      <img
+        src={logoUrl}
+        alt="Bot"
+        className="w-6 h-6 rounded-full"
+        style={{ animation: logoAnimation || undefined }}
+      />
+    ) : (
+      <ChatbocLogoAnimated
+        size={24}
+        smiling={isTyping}
+        movingEyes={isTyping}
+        blinking
+        pulsing
+      />
+    )}
   </motion.div>
 );
 
@@ -147,6 +160,8 @@ export interface ChatMessageBaseProps {
   onButtonClick: (valueToSend: SendPayload) => void;
   onInternalAction?: (action: string) => void;
   tipoChat?: "pyme" | "municipio"; // Puede usarse para alguna lógica residual muy específica
+  botLogoUrl?: string;
+  logoAnimation?: string;
 }
 
 const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( (
@@ -237,7 +252,7 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
       // layout // Podría causar problemas con scroll, evaluar
     >
       <div className={`flex items-end gap-2 ${isBot ? "" : "flex-row-reverse"}`}>
-        {isBot && <AvatarBot isTyping={isTyping} />}
+        {isBot && <AvatarBot isTyping={isTyping} logoUrl={botLogoUrl} logoAnimation={logoAnimation} />}
 
         <MessageBubble className={cn(bubbleBaseClass, bubbleStyleClass, message.isError && "bg-destructive/20 border border-destructive/50")}>
           {/* Icono de error */}
