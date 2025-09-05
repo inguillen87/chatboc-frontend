@@ -38,6 +38,10 @@ const Iframe = () => {
 
     const primaryColor = urlParams.get("primaryColor") || cfg.primaryColor || "#007aff";
     document.documentElement.style.setProperty("--primary", primaryColor);
+    const accentColor = urlParams.get("accentColor") || cfg.accentColor || "";
+    if (accentColor) {
+      document.documentElement.style.setProperty("--accent", accentColor);
+    }
 
     const tokenFromUrl = urlParams.get("entityToken") || cfg.entityToken || '';
     if (tokenFromUrl) {
@@ -73,6 +77,7 @@ const Iframe = () => {
       bottom: parseInt(urlParams.get("bottom") || cfg.bottom || String(DEFAULTS.bottom), 10),
       right: parseInt(urlParams.get("right") || cfg.right || String(DEFAULTS.right), 10),
       primaryColor,
+      accentColor,
       logoUrl: urlParams.get("logoUrl") || cfg.logoUrl || '',
       headerLogoUrl: urlParams.get("headerLogoUrl") || cfg.headerLogoUrl || '',
       logoAnimation: urlParams.get("logoAnimation") || cfg.logoAnimation || '',
