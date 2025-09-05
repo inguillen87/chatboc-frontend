@@ -16,7 +16,10 @@ const WIDGET_OPTIONS = {
   right: '20px',
   primaryColor: '#007aff',
   // logoUrl: 'https://example.com/logo.png',
+  // headerLogoUrl: 'https://example.com/header-logo.png',
   // logoAnimation: 'spin 2s linear infinite',
+  // welcomeTitle: '¡Hola! Soy tu asistente virtual',
+  // welcomeSubtitle: 'Estoy aquí para ayudarte',
 };
 
 function decodeExpiration(jwt: string): number {
@@ -53,7 +56,10 @@ function injectWidget(token: string, opts = WIDGET_OPTIONS) {
   s.setAttribute('data-endpoint', 'municipio');
   if (opts.primaryColor) s.setAttribute('data-primary-color', opts.primaryColor);
   if (opts.logoUrl) s.setAttribute('data-logo-url', opts.logoUrl);
+  if (opts.headerLogoUrl) s.setAttribute('data-header-logo-url', opts.headerLogoUrl);
   if (opts.logoAnimation) s.setAttribute('data-logo-animation', opts.logoAnimation);
+  if (opts.welcomeTitle) s.setAttribute('data-welcome-title', opts.welcomeTitle);
+  if (opts.welcomeSubtitle) s.setAttribute('data-welcome-subtitle', opts.welcomeSubtitle);
 
   s.onload = () => console.log('Chatboc Widget cargado y listo.');
   s.onerror = () => console.error('Error al cargar Chatboc Widget.');

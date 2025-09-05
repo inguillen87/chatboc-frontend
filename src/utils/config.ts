@@ -10,7 +10,13 @@ export function getChatbocConfig() {
     closedWidth: g.closedWidth || '72px',
     closedHeight: g.closedHeight || '72px',
     bottom: g.bottom || '20px',
-    right: g.right || '20px'
+    right: g.right || '20px',
+    primaryColor: g.primaryColor || '#007aff',
+    logoUrl: g.logoUrl || '',
+    headerLogoUrl: g.headerLogoUrl || g.logoUrl || '',
+    logoAnimation: g.logoAnimation || '',
+    welcomeTitle: g.welcomeTitle || '',
+    welcomeSubtitle: g.welcomeSubtitle || ''
   };
 }
 

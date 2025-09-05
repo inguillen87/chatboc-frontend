@@ -75,8 +75,12 @@
     const langAttr = script.getAttribute("data-lang") || "";
     const primaryColor = script.getAttribute("data-primary-color") || "#007aff";
     const logoUrlAttr = script.getAttribute("data-logo-url");
+    const headerLogoUrlAttr = script.getAttribute("data-header-logo-url");
     const logoAnimationAttr = script.getAttribute("data-logo-animation") || "";
+    const welcomeTitleAttr = script.getAttribute("data-welcome-title") || "";
+    const welcomeSubtitleAttr = script.getAttribute("data-welcome-subtitle") || "";
     const logoUrl = logoUrlAttr || `${chatbocDomain}/chatboc_widget_64x64.webp`;
+    const headerLogoUrl = headerLogoUrlAttr || logoUrl;
     const endpointAttr = script.getAttribute("data-endpoint");
     const tipoChat =
       endpointAttr === "municipio" || endpointAttr === "pyme"
@@ -212,6 +216,12 @@
       if (rubroAttr) iframeSrc.searchParams.set("rubro", rubroAttr);
       if (finalCta) iframeSrc.searchParams.set("ctaMessage", finalCta);
       if (langAttr) iframeSrc.searchParams.set("lang", langAttr);
+      if (primaryColor) iframeSrc.searchParams.set("primaryColor", primaryColor);
+      if (logoUrlAttr) iframeSrc.searchParams.set("logoUrl", logoUrlAttr);
+      if (headerLogoUrlAttr) iframeSrc.searchParams.set("headerLogoUrl", headerLogoUrlAttr);
+      if (logoAnimationAttr) iframeSrc.searchParams.set("logoAnimation", logoAnimationAttr);
+      if (welcomeTitleAttr) iframeSrc.searchParams.set("welcomeTitle", welcomeTitleAttr);
+      if (welcomeSubtitleAttr) iframeSrc.searchParams.set("welcomeSubtitle", welcomeSubtitleAttr);
       iframe.src = iframeSrc.toString();
 
       if (langAttr) iframe.setAttribute("lang", langAttr);
