@@ -24,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Copy, Check, ExternalLink, Eye, Code, HelpCircle, AlertTriangle, Settings, Info } from "lucide-react";
+import { Copy, Check, Code, HelpCircle, AlertTriangle, Settings, Info } from "lucide-react";
 
 interface User {
   id: number;
@@ -116,9 +116,9 @@ const Integracion = () => {
   
   const codeScript = useMemo(() => {
     const customLines = [
-      primaryColor && `  s.setAttribute('data-primary-color', '${primaryColor}'); // Color del launcher`,
-      logoUrl && `  s.setAttribute('data-logo-url', '${logoUrl}'); // URL del icono`,
-      logoAnimation && `  s.setAttribute('data-logo-animation', '${logoAnimation}'); // Animación del icono`,
+      primaryColor && `      s.setAttribute('data-primary-color', '${primaryColor}'); // Color del launcher`,
+      logoUrl && `      s.setAttribute('data-logo-url', '${logoUrl}'); // URL del icono`,
+      logoAnimation && `      s.setAttribute('data-logo-animation', '${logoAnimation}'); // Animación del icono`,
     ]
       .filter(Boolean)
       .join("\n");
@@ -138,10 +138,9 @@ document.addEventListener('DOMContentLoaded', function () {
       });
       const data = await res.json();
       const token = data.token;
+      if (!token) throw new Error('Token ausente en la respuesta');
 
-      if (currentScript) {
-        currentScript.remove();
-      }
+      if (currentScript) currentScript.remove();
       if (window.chatbocDestroyWidget && currentToken) {
         window.chatbocDestroyWidget(currentToken);
       }
@@ -160,11 +159,10 @@ document.addEventListener('DOMContentLoaded', function () {
       s.setAttribute('data-bottom', '${WIDGET_STD_BOTTOM}');
       s.setAttribute('data-right', '${WIDGET_STD_RIGHT}');
       s.setAttribute('data-endpoint', '${endpoint}');
-${customLines ? customLines + "\n" : ""}  // Importante para la geolocalización y el portapapeles:
+${customLines ? customLines + "\n" : ""}      // Importante para la geolocalización y el portapapeles:
       // widget.js establecerá allow="clipboard-write; geolocation" en su iframe interno.
       // Si este script se inserta dentro de un iframe en tu sitio, ese iframe contenedor
       // también debe incluir allow="clipboard-write; geolocation" en sus atributos.
-      // Ejemplo: <iframe src="tu_pagina_con_widget.html" allow="clipboard-write; geolocation"></iframe>
 
       document.body.appendChild(s);
       currentScript = s;
@@ -461,66 +459,6 @@ document.addEventListener('DOMContentLoaded', function () {
           </Card>
         </TabsContent>
       </Tabs>
-
-      <section className="mt-12">
-        <h2 className="text-2xl font-semibold mb-4 flex items-center">
-          <Eye size={28} className="mr-3 text-primary" />
-          Vista Previa en Vivo
-        </h2>
-        <Card className="overflow-hidden shadow-xl">
-          <CardContent className="p-0">
-            <div
-              className="bg-slate-100 dark:bg-slate-800 flex items-center justify-center"
-              style={{ minHeight: '720px' }} // Aumentado para mejor visualización
-            >
-              <div
-                style={{
-                  width: WIDGET_STD_WIDTH,
-                  height: WIDGET_STD_HEIGHT,
-                  border: "1px solid #ccc", // Borde más sutil
-                  borderRadius: "16px", // Consistente con el widget
-                  overflow: "hidden",
-                  background: "#ffffff", // Fondo blanco explícito
-                  boxShadow: "0 10px 30px rgba(0,0,0,0.15)", // Sombra más pronunciada
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                {user && user.token && user.tipo_chat ? (
-                  <iframe
-                    src={iframeSrcUrl}
-                    width={WIDGET_STD_WIDTH}
-                    height={WIDGET_STD_HEIGHT}
-                    style={{
-                      border: "none",
-                      width: "100%",
-                      height: "100%",
-                      borderRadius: "16px", // Asegurar que el iframe interno también tenga bordes redondeados
-                      background: "transparent", // Fondo transparente para el iframe
-                      display: "block"
-                    }}
-                    loading="lazy"
-                    title="Vista previa del Chatbot Chatboc"
-                    allow="clipboard-write; geolocation" // Importante para la funcionalidad completa en la vista previa
-                  />
-                ) : (
-                  <div className="p-4 text-center text-muted-foreground">
-                    <AlertTriangle size={32} className="mx-auto mb-2" />
-                    La vista previa no está disponible. Verifica la configuración del usuario.
-                  </div>
-                )}
-              </div>
-            </div>
-          </CardContent>
-           <CardFooter className="p-4 bg-muted/20 dark:bg-muted/10 flex items-center justify-center">
-            <p className="text-xs text-muted-foreground text-center">
-              Esta es una simulación de cómo se verá el widget en tu sitio. <br/>
-              Las dimensiones y la posición pueden variar según tu implementación.
-            </p>
-          </CardFooter>
-        </Card>
-      </section>
 
       <section className="mt-12">
         <h2 className="text-2xl font-semibold mb-4 flex items-center">

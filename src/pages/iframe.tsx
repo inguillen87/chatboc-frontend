@@ -35,12 +35,16 @@ const Iframe = () => {
     const cfg = getChatbocConfig();
     const urlParams = new URLSearchParams(window.location.search);
 
-    setEntityToken(cfg.entityToken || null);
+    const tokenFromUrl = urlParams.get("entityToken") || '';
+    setEntityToken(cfg.entityToken || tokenFromUrl || null);
 
+    const endpointFromUrl = urlParams.get("endpoint") || urlParams.get("tipo_chat");
     const endpointParam =
       cfg.endpoint === 'pyme' || cfg.endpoint === 'municipio'
         ? (cfg.endpoint as 'pyme' | 'municipio')
-        : null;
+        : endpointFromUrl === 'pyme' || endpointFromUrl === 'municipio'
+          ? (endpointFromUrl as 'pyme' | 'municipio')
+          : null;
     if (endpointParam) {
       setTipoChat(endpointParam);
     }
