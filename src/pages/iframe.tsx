@@ -38,10 +38,10 @@ const Iframe = () => {
     const urlParams = new URLSearchParams(window.location.search);
 
     const primaryColor = urlParams.get("primaryColor") || cfg.primaryColor || "#007aff";
-    document.documentElement.style.setProperty("--primary", hexToHsl(primaryColor));
+    document.documentElement.style.setProperty("--primary", primaryColor);
     const accentColor = urlParams.get("accentColor") || cfg.accentColor || "";
     if (accentColor) {
-      document.documentElement.style.setProperty("--accent", hexToHsl(accentColor));
+      document.documentElement.style.setProperty("--accent", accentColor);
     }
 
     const tokenFromUrl = urlParams.get("entityToken") || cfg.entityToken || '';

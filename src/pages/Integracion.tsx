@@ -43,7 +43,7 @@ const Integracion = () => {
   const [copiado, setCopiado] = useState<"iframe" | "script" | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [primaryColor, setPrimaryColor] = useState("#007aff");
-  const [accentColor, setAccentColor] = useState("#d4a01a");
+  const [accentColor, setAccentColor] = useState("#007aff");
   const [logoUrl, setLogoUrl] = useState("");
   const [logoAnimation, setLogoAnimation] = useState("");
   const [headerLogoUrl, setHeaderLogoUrl] = useState("");

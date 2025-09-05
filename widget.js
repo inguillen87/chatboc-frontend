@@ -74,7 +74,7 @@
     const ctaMessageAttr = script.getAttribute("data-cta-message") || "";
     const langAttr = script.getAttribute("data-lang") || "";
     const primaryColor = script.getAttribute("data-primary-color") || "#007aff";
-    const accentColorAttr = script.getAttribute("data-accent-color") || "";
+    const accentColor = script.getAttribute("data-accent-color") || "";
     const logoUrlAttr = script.getAttribute("data-logo-url");
     const headerLogoUrlAttr = script.getAttribute("data-header-logo-url");
     const logoAnimationAttr = script.getAttribute("data-logo-animation") || "";
@@ -218,7 +218,7 @@
       if (finalCta) iframeSrc.searchParams.set("ctaMessage", finalCta);
       if (langAttr) iframeSrc.searchParams.set("lang", langAttr);
       if (primaryColor) iframeSrc.searchParams.set("primaryColor", primaryColor);
-      if (accentColorAttr) iframeSrc.searchParams.set("accentColor", accentColorAttr);
+      if (accentColor) iframeSrc.searchParams.set("accentColor", accentColor);
       if (logoUrlAttr) iframeSrc.searchParams.set("logoUrl", logoUrlAttr);
       if (headerLogoUrlAttr) iframeSrc.searchParams.set("headerLogoUrl", headerLogoUrlAttr);
       if (logoAnimationAttr) iframeSrc.searchParams.set("logoAnimation", logoAnimationAttr);

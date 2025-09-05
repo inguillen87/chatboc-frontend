@@ -15,9 +15,9 @@ const WIDGET_OPTIONS = {
   bottom: '20px',
   right: '20px',
   primaryColor: '#007aff',
-  // accentColor: '#d4a01a',
-  // logoUrl: 'https://example.com/logo.png',
-  // headerLogoUrl: 'https://example.com/header-logo.png',
+  accentColor: '#007aff',
+  // logoUrl: 'https://example.com/logo.png', // usado en el botón y como fallback general
+  // headerLogoUrl: 'https://example.com/header-logo.png', // opcional: reemplaza el avatar del bot y el logo del encabezado
   // logoAnimation: 'spin 2s linear infinite',
   // welcomeTitle: '¡Hola! Soy tu asistente virtual',
   // welcomeSubtitle: 'Estoy aquí para ayudarte',
