@@ -151,8 +151,6 @@ export default function Perfil() {
     "event" | "news" | "paste" | "promotion"
   >("event");
   const [isSubmittingPromotion, setIsSubmittingPromotion] = useState(false);
-  // Separado del modal de eventos para evitar referencias inexistentes
-  const [promotionModalOpen, setPromotionModalOpen] = useState(false);
   const [hasSentPromotionToday, setHasSentPromotionToday] = useState(false);
   const isStaff = ['admin', 'empleado', 'super_admin'].includes(user?.rol ?? '');
 
@@ -1521,32 +1519,6 @@ export default function Perfil() {
             </Card>
           )}
 
-          {isStaff && (
-            <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm flex flex-col flex-grow">
-              <CardHeader>
-                <CardTitle className="text-lg font-semibold text-primary">
-                  Promocionar en WhatsApp
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4 flex flex-col flex-grow">
-                <p className="text-sm text-muted-foreground">
-                  {hasSentPromotionToday
-                    ? 'Ya enviaste una promoción hoy. Podrás enviar otra mañana.'
-                    : 'Envía un mensaje promocional a todos tus usuarios de WhatsApp.'}
-                </p>
-                <div className="flex-grow" />
-                <Button
-                  onClick={() => setPromotionModalOpen(true)}
-                  disabled={hasSentPromotionToday}
-                  className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-2.5 mt-auto"
-                >
-                  <Megaphone className="w-4 h-4 mr-2" />
-                  Promocionar
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
           {/* Tarjeta de Integración */}
           <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm flex flex-col flex-grow">
             <CardHeader>
@@ -1751,27 +1723,6 @@ export default function Perfil() {
         </DialogContent>
       </Dialog>
 
-      {/* --- Modal para Promocionar --- */}
-      <Dialog open={promotionModalOpen} onOpenChange={setPromotionModalOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-xl flex items-center">
-              <Megaphone className="w-5 h-5 mr-2 text-primary" />
-              Enviar Promoción
-            </DialogTitle>
-            <DialogDescription>
-              Completa los detalles para enviar un mensaje promocional por WhatsApp.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4 max-h-[70vh] overflow-y-auto px-2">
-            <PromotionForm
-              onCancel={() => setPromotionModalOpen(false)}
-              isSubmitting={isSubmittingPromotion}
-              onSubmit={handleSubmitPromotion}
-            />
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
