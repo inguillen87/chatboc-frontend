@@ -11,6 +11,10 @@ interface Props {
   muted?: boolean;
   onToggleSound?: () => void;
   onCart?: () => void;
+  logoUrl?: string;
+  title?: string;
+  subtitle?: string;
+  logoAnimation?: string;
 }
 
 const ChatHeader: React.FC<Props> = ({
@@ -22,35 +26,45 @@ const ChatHeader: React.FC<Props> = ({
   muted = false,
   onToggleSound,
   onCart,
+  logoUrl,
+  title,
+  subtitle,
+  logoAnimation,
 }) => {
   return (
     <div
       className={`
         flex items-center justify-between flex-shrink-0 w-full
         px-2 sm:px-4 py-3 border-b border-border
-        bg-card/90 backdrop-blur-md
-        text-card-foreground
+        bg-primary backdrop-blur-md text-primary-foreground
         transition-all rounded-t-[inherit] overflow-hidden
       `}
     >
       {/* Logo y nombre sin cuadrado */}
       <div className="flex items-center gap-2 sm:gap-3"> {/* Reduced gap for mobile */}
         <div className="flex items-center justify-center w-10 h-10">
-          {/* Sin fondo ni border ni shadow: que use tu PNG o SVG de logo */}
-          <ChatbocLogoAnimated
-            size={32}
-            smiling={isTyping}
-            movingEyes={isTyping}
-            blinking
-            pulsing
-          />
+          {logoUrl ? (
+            <img
+              src={logoUrl}
+              alt="Logo"
+              style={{ width: 32, height: 32, borderRadius: "50%", animation: logoAnimation || undefined }}
+            />
+          ) : (
+            <ChatbocLogoAnimated
+              size={32}
+              smiling={isTyping}
+              movingEyes={isTyping}
+              blinking
+              pulsing
+            />
+          )}
         </div>
         <div className="ml-1 flex flex-col leading-tight">
           <span className="font-extrabold text-base tracking-wide" style={{ letterSpacing: ".02em" }}>
-            Chatboc
+            {title || 'Chatboc'}
           </span>
           <span className="text-xs text-muted-foreground" style={{ fontWeight: 500 }}>
-            Asistente Virtual
+            {subtitle || 'Asistente Virtual'}
           </span>
         </div>
       </div>

@@ -30,6 +30,11 @@ interface ChatWidgetProps {
   closedHeight?: string;
   tipoChat?: "pyme" | "municipio";
   ctaMessage?: string;
+  customLauncherLogoUrl?: string;
+  logoAnimation?: string;
+  headerLogoUrl?: string;
+  welcomeTitle?: string;
+  welcomeSubtitle?: string;
 }
 
 const PROACTIVE_MESSAGES = [
@@ -53,6 +58,11 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   tipoChat = getCurrentTipoChat(),
   initialPosition = { bottom: 32, right: 32 },
   ctaMessage,
+  customLauncherLogoUrl,
+  logoAnimation,
+  headerLogoUrl,
+  welcomeTitle,
+  welcomeSubtitle,
 }) => {
   const proactiveMessageTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const hideProactiveBubbleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -443,7 +453,18 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
               {...panelAnimation}
             >
               {(view === "register" || view === "login" || view === "user" || view === "info") && (
-                <ChatHeader onClose={toggleChat} onBack={() => setView("chat")} showProfile={false} muted={muted} onToggleSound={toggleMuted} onCart={openCart} />
+                <ChatHeader
+                  onClose={toggleChat}
+                  onBack={() => setView("chat")}
+                  showProfile={false}
+                  muted={muted}
+                  onToggleSound={toggleMuted}
+                  onCart={openCart}
+                  logoUrl={headerLogoUrl || customLauncherLogoUrl || entityInfo?.logo_url}
+                  title={welcomeTitle}
+                  subtitle={welcomeSubtitle}
+                  logoAnimation={logoAnimation}
+                />
               )}
               {view === "register" ? <ChatUserRegisterPanel onSuccess={() => setView("chat")} onShowLogin={() => setView("login")} entityToken={entityToken} />
                 : view === "login" ? <ChatUserLoginPanel onSuccess={() => setView("chat")} onShowRegister={() => setView("register")} />
@@ -466,6 +487,10 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                     onCart={openCart}
                     selectedRubro={entityInfo?.rubro || selectedRubro}
                     onRubroSelect={setSelectedRubro}
+                    headerLogoUrl={headerLogoUrl || customLauncherLogoUrl || entityInfo?.logo_url}
+                    welcomeTitle={welcomeTitle}
+                    welcomeSubtitle={welcomeSubtitle}
+                    logoAnimation={logoAnimation}
                   />}
             </motion.div>
           ) : (
@@ -513,14 +538,15 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                   animate={isOpen ? "open" : "closed"}
                   transition={openSpring}
                 >
-                  {entityInfo?.logo_url ? (
+                  {entityInfo?.logo_url || customLauncherLogoUrl ? (
                     <img
-                      src={entityInfo.logo_url}
+                      src={entityInfo?.logo_url || customLauncherLogoUrl}
                       alt="Logo"
                       style={{
                         width: calculatedLogoSize,
                         height: calculatedLogoSize,
                         borderRadius: "50%",
+                        animation: logoAnimation || undefined,
                       }}
                     />
                   ) : (

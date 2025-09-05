@@ -6,6 +6,7 @@ import { GoogleOAuthProvider } from "@react-oauth/google";
 import ErrorBoundary from '../components/ErrorBoundary';
 import { MemoryRouter } from "react-router-dom";
 import { getChatbocConfig } from "@/utils/config";
+import { hexToHsl } from "@/utils/color";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 
 const DEFAULTS = {
@@ -35,6 +36,13 @@ const Iframe = () => {
   useEffect(() => {
     const cfg = getChatbocConfig();
     const urlParams = new URLSearchParams(window.location.search);
+
+    const primaryColor = urlParams.get("primaryColor") || cfg.primaryColor || "#007aff";
+    document.documentElement.style.setProperty("--primary", hexToHsl(primaryColor));
+    const accentColor = urlParams.get("accentColor") || cfg.accentColor || "";
+    if (accentColor) {
+      document.documentElement.style.setProperty("--accent", hexToHsl(accentColor));
+    }
 
     const tokenFromUrl = urlParams.get("entityToken") || cfg.entityToken || '';
     if (tokenFromUrl) {
@@ -69,6 +77,13 @@ const Iframe = () => {
       endpoint: endpointParam || undefined,
       bottom: parseInt(urlParams.get("bottom") || cfg.bottom || String(DEFAULTS.bottom), 10),
       right: parseInt(urlParams.get("right") || cfg.right || String(DEFAULTS.right), 10),
+      primaryColor,
+      accentColor,
+      logoUrl: urlParams.get("logoUrl") || cfg.logoUrl || '',
+      headerLogoUrl: urlParams.get("headerLogoUrl") || cfg.headerLogoUrl || '',
+      logoAnimation: urlParams.get("logoAnimation") || cfg.logoAnimation || '',
+      welcomeTitle: urlParams.get("welcomeTitle") || cfg.welcomeTitle || '',
+      welcomeSubtitle: urlParams.get("welcomeSubtitle") || cfg.welcomeSubtitle || '',
     });
 
     setIsLoading(false);
@@ -113,6 +128,11 @@ const Iframe = () => {
       ctaMessage={widgetParams.ctaMessage}
       initialView={widgetParams.view}
       initialRubro={widgetParams.rubro}
+      customLauncherLogoUrl={widgetParams.logoUrl}
+      logoAnimation={widgetParams.logoAnimation}
+      headerLogoUrl={widgetParams.headerLogoUrl}
+      welcomeTitle={widgetParams.welcomeTitle}
+      welcomeSubtitle={widgetParams.welcomeSubtitle}
     />
   );
 
