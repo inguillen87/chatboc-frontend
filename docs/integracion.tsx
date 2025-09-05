@@ -15,6 +15,7 @@ const WIDGET_OPTIONS = {
   bottom: '20px',
   right: '20px',
   primaryColor: '#007aff',
+  accentColor: '#007aff',
   // logoUrl: 'https://example.com/logo.png',
   // headerLogoUrl: 'https://example.com/header-logo.png',
   // logoAnimation: 'spin 2s linear infinite',
@@ -55,6 +56,7 @@ function injectWidget(token: string, opts = WIDGET_OPTIONS) {
   s.setAttribute('data-right', opts.right);
   s.setAttribute('data-endpoint', 'municipio');
   if (opts.primaryColor) s.setAttribute('data-primary-color', opts.primaryColor);
+  if (opts.accentColor) s.setAttribute('data-accent-color', opts.accentColor);
   if (opts.logoUrl) s.setAttribute('data-logo-url', opts.logoUrl);
   if (opts.headerLogoUrl) s.setAttribute('data-header-logo-url', opts.headerLogoUrl);
   if (opts.logoAnimation) s.setAttribute('data-logo-animation', opts.logoAnimation);
