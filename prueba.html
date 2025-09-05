@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Demostración Chatboc Municipio</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    *{box-sizing:border-box;}
+    body{
+      margin:0;
+      font-family:'Poppins',sans-serif;
+      color:#fff;
+      background:#f5f5f5;
+    }
+    header{
+      position:fixed;
+      top:0;left:0;
+      width:100%;
+      padding:0.5rem 1.5rem;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      background:rgba(0,0,0,0.3);
+      backdrop-filter:blur(6px);
+      z-index:1000;
+    }
+    header img{
+      height:48px;
+      transition:transform .3s ease;
+    }
+    header nav a{
+      margin-left:1rem;
+      color:#fff;
+      text-decoration:none;
+      font-weight:500;
+    }
+    .hero{
+      height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+      background:linear-gradient(rgba(0,108,63,.85),rgba(0,108,63,.85)), url('https://images.unsplash.com/photo-1502920917128-1aa500764b1c?auto=format&fit=crop&w=1650&q=80') center/cover no-repeat;
+    }
+    .hero h1{
+      font-size:3rem;
+      margin-bottom:.5rem;
+    }
+    .hero p{
+      font-size:1.25rem;
+      margin:0;
+    }
+    @keyframes spin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
+    @keyframes pulse{0%{transform:scale(1);}50%{transform:scale(1.08);}100%{transform:scale(1);}}
+    .rotateOnce{animation:spin 1s linear;}
+  </style>
+</head>
+<body>
+  <header>
+    <img id="municipal-logo" src="./juni-logo.svg" alt="Municipio de Junín" />
+    <nav>
+      <a href="#">Inicio</a>
+      <a href="#">Trámites</a>
+      <a href="#">Contacto</a>
+    </nav>
+  </header>
+  <main class="hero">
+    <div class="hero-content">
+      <h1>Municipalidad de Junín</h1>
+      <p>Demostración del asistente virtual</p>
+    </div>
+  </main>
+
+  <script>
+    const municipalLogo=document.getElementById('municipal-logo');
+    function spinLogo(){
+      municipalLogo.classList.remove('rotateOnce');
+      void municipalLogo.offsetWidth;
+      municipalLogo.classList.add('rotateOnce');
+    }
+    window.addEventListener('message',(event)=>{
+      if(event.data && (event.data.type==='chatboc:open' || event.data==='chatboc_widget_opened')){
+        spinLogo();
+      }
+    });
+  </script>
+
+  <script>
+  document.addEventListener('DOMContentLoaded', function () {
+    if (window.chatbocDestroyWidget) {
+      window.chatbocDestroyWidget('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo0LCJleHAiOjE3NTc1NDI2Nzl9.FtoJGSfL9OmaWHxYw8hyhp6nIbiBaFUKUdgzODwY3tk');
+    }
+    window.APP_TARGET = 'municipio';
+
+    var s = document.createElement('script');
+    s.src = 'https://chatboc.ar/widget.js';
+    s.async = true;
+    s.setAttribute('data-entity-token','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo0LCJleHAiOjE3NTc1NDI2Nzl9.FtoJGSfL9OmaWHxYw8hyhp6nIbiBaFUKUdgzODwY3tk');
+    s.setAttribute('data-default-open','false');
+    s.setAttribute('data-width','460px');
+    s.setAttribute('data-height','680px');
+    s.setAttribute('data-closed-width','112px');
+    s.setAttribute('data-closed-height','112px');
+    s.setAttribute('data-bottom','20px');
+    s.setAttribute('data-right','20px');
+    s.setAttribute('data-endpoint','municipio');
+    s.setAttribute('data-primary-color','#006C3F');
+    s.setAttribute('data-logo-url','./juni-logo.svg');
+    s.setAttribute('data-logo-animation','pulse 6s ease-in-out infinite');
+
+    document.body.appendChild(s);
+
+    s.onload = function() { console.log('Chatboc Widget cargado y listo.'); };
+    s.onerror = function() { console.error('Error al cargar Chatboc Widget.'); };
+  });
+  </script>
+</body>
+</html>
