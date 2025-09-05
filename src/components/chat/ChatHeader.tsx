@@ -36,8 +36,7 @@ const ChatHeader: React.FC<Props> = ({
       className={`
         flex items-center justify-between flex-shrink-0 w-full
         px-2 sm:px-4 py-3 border-b border-border
-        bg-card/90 backdrop-blur-md
-        text-card-foreground
+        bg-primary backdrop-blur-md text-primary-foreground
         transition-all rounded-t-[inherit] overflow-hidden
       `}
     >
