@@ -15,11 +15,7 @@ const WIDGET_OPTIONS = {
   bottom: '20px',
   right: '20px',
   primaryColor: '#007aff',
-<<<<<<< codex/make-widget.js-fully-customizable-f72hnr
   // accentColor: '#d4a01a',
-=======
-  accentColor: '#007aff',
->>>>>>> main
   // logoUrl: 'https://example.com/logo.png',
   // headerLogoUrl: 'https://example.com/header-logo.png',
   // logoAnimation: 'spin 2s linear infinite',

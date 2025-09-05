@@ -18,6 +18,12 @@ document.addEventListener('DOMContentLoaded', function () {
   s.setAttribute('data-bottom', '20px'); // Posición desde abajo
   s.setAttribute('data-right', '20px'); // Posición desde la derecha
   s.setAttribute('data-endpoint', 'municipio'); // Tipo de chat (pyme o municipio)
+  s.setAttribute('data-primary-color', '#006C3F'); // Color personalizado
+  s.setAttribute('data-logo-url', 'https://example.com/logo.png'); // Logo del launcher
+  s.setAttribute('data-header-logo-url', 'https://example.com/header-logo.png'); // Logo del encabezado
+  s.setAttribute('data-logo-animation', 'bounce 2s infinite'); // Animación del logo
+  s.setAttribute('data-welcome-title', '¡Hola! Soy tu asistente');
+  s.setAttribute('data-welcome-subtitle', 'Estoy aquí para ayudarte');
   
   // Importante para la geolocalización y el portapapeles:
   // widget.js establecerá allow="clipboard-write; geolocation" en su iframe interno.
