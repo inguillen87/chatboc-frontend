@@ -284,11 +284,15 @@ const ChatPanel = ({
       />
       <div ref={chatContainerRef} className="flex-1 p-2 sm:p-4 min-h-0 flex flex-col gap-3 overflow-y-auto">
         {messages.map((msg) =>
-          <ChatMessage key={msg.id} message={msg}
+          <ChatMessage
+            key={msg.id}
+            message={msg}
             isTyping={isTyping}
             onButtonClick={handleSend}
             onInternalAction={handleInternalAction}
             tipoChat={tipoChat}
+            botLogoUrl={headerLogoUrl}
+            logoAnimation={logoAnimation}
           />
         )}
         {isTyping && <TypingIndicator />}
