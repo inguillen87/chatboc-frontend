@@ -170,6 +170,8 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
     isTyping,
     onButtonClick,
     onInternalAction,
+    botLogoUrl,
+    logoAnimation,
     // tipoChat, // tipoChat podría usarse si hay alguna variación mínima que no dependa del contenido del mensaje
   },
   ref
