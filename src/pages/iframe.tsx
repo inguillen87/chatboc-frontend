@@ -6,6 +6,7 @@ import { GoogleOAuthProvider } from "@react-oauth/google";
 import ErrorBoundary from '../components/ErrorBoundary';
 import { MemoryRouter } from "react-router-dom";
 import { getChatbocConfig } from "@/utils/config";
+import { safeLocalStorage } from "@/utils/safeLocalStorage";
 
 const DEFAULTS = {
   openWidth: "460px",
@@ -35,12 +36,22 @@ const Iframe = () => {
     const cfg = getChatbocConfig();
     const urlParams = new URLSearchParams(window.location.search);
 
-    setEntityToken(cfg.entityToken || null);
+    const tokenFromUrl = urlParams.get("entityToken") || cfg.entityToken || '';
+    if (tokenFromUrl) {
+      setEntityToken(tokenFromUrl);
+      safeLocalStorage.setItem("entityToken", tokenFromUrl);
+    } else {
+      setEntityToken(null);
+      safeLocalStorage.removeItem("entityToken");
+    }
 
+    const endpointFromUrl = urlParams.get("endpoint") || urlParams.get("tipo_chat");
     const endpointParam =
       cfg.endpoint === 'pyme' || cfg.endpoint === 'municipio'
         ? (cfg.endpoint as 'pyme' | 'municipio')
-        : null;
+        : endpointFromUrl === 'pyme' || endpointFromUrl === 'municipio'
+          ? (endpointFromUrl as 'pyme' | 'municipio')
+          : null;
     if (endpointParam) {
       setTipoChat(endpointParam);
     }
