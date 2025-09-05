@@ -188,6 +188,27 @@ ${customLines ? customLines + "\n" : ""}    // Importante para la geolocalizaci�
       setTimeout(refreshToken, 30000);
     }
   }
+  window.APP_TARGET = '${endpoint}'; // Define el endpoint antes de cargar el script
+
+  var s = document.createElement('script');
+  s.src = 'https://chatboc.ar/widget.js'; // URL del script del widget
+  s.async = true; // Carga asíncrona para no bloquear el renderizado de la página
+  s.setAttribute('data-entity-token', '${entityToken}'); // Token de la entidad para el widget
+  s.setAttribute('data-default-open', 'false'); // El widget comienza cerrado por defecto
+  s.setAttribute('data-width', '${WIDGET_STD_WIDTH}'); // Ancho del widget abierto
+  s.setAttribute('data-height', '${WIDGET_STD_HEIGHT}'); // Alto del widget abierto
+  s.setAttribute('data-closed-width', '${WIDGET_STD_CLOSED_WIDTH}'); // Ancho del widget cerrado (burbuja)
+  s.setAttribute('data-closed-height', '${WIDGET_STD_CLOSED_HEIGHT}'); // Alto del widget cerrado (burbuja)
+  s.setAttribute('data-bottom', '${WIDGET_STD_BOTTOM}'); // Posición desde abajo
+  s.setAttribute('data-right', '${WIDGET_STD_RIGHT}'); // Posición desde la derecha
+  s.setAttribute('data-endpoint', '${endpoint}'); // Tipo de chat (pyme o municipio)
+${customLines ? customLines + "\n" : ""}  // Importante para la geolocalización y el portapapeles:
+  // widget.js establecerá allow="clipboard-write; geolocation" en su iframe interno.
+  // Si este script se inserta dentro de un iframe en tu sitio, ese iframe contenedor
+  // también debe incluir allow="clipboard-write; geolocation" en sus atributos.
+  // Ejemplo: <iframe src="tu_pagina_con_widget.html" allow="clipboard-write; geolocation"></iframe>
+
+  document.body.appendChild(s); // Añade el script al final del body
 
   window.APP_TARGET = '${endpoint}';
   injectWidget(ENTITY_TOKEN);
