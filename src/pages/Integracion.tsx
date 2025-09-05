@@ -117,130 +117,40 @@ const Integracion = () => {
   const codeScript = useMemo(() => {
     return `<script>
 document.addEventListener('DOMContentLoaded', function () {
-  const ENTITY_TOKEN = '${entityToken}';
-  const WIDGET_OPTIONS = ${optionsJson};
-  let currentToken = null;
-  let currentScript = null;
-  let refreshRef = null;
-
-  function injectWidget(token) {
-    if (currentScript) currentScript.remove();
-    if (window.chatbocDestroyWidget && currentToken) {
-      window.chatbocDestroyWidget(currentToken);
-    }
-    currentToken = token;
-    window.APP_TARGET = '${endpoint}';
-
-    var s = document.createElement('script');
-    s.src = 'https://chatboc.ar/widget.js';
-    s.async = true;
-    s.setAttribute('data-entity-token', token);
-    s.setAttribute('data-default-open', 'false');
-    s.setAttribute('data-width', '${WIDGET_STD_WIDTH}');
-    s.setAttribute('data-height', '${WIDGET_STD_HEIGHT}');
-    s.setAttribute('data-closed-width', '${WIDGET_STD_CLOSED_WIDTH}');
-    s.setAttribute('data-closed-height', '${WIDGET_STD_CLOSED_HEIGHT}');
-    s.setAttribute('data-bottom', '${WIDGET_STD_BOTTOM}');
-    s.setAttribute('data-right', '${WIDGET_STD_RIGHT}');
-    s.setAttribute('data-endpoint', '${endpoint}');
-    ${primaryColor ? `s.setAttribute('data-primary-color', '${primaryColor}');\n    ` : ""}${logoUrl ? `s.setAttribute('data-logo-url', '${logoUrl}');\n    ` : ""}${logoAnimation ? `s.setAttribute('data-logo-animation', '${logoAnimation}');\n    ` : ""}
-
-    s.onload = function() {
-      console.log('Chatboc Widget cargado y listo.');
-    };
-    s.onerror = function() {
-      console.error('Error al cargar Chatboc Widget.');
-    };
-
-    document.body.appendChild(s);
-    currentScript = s;
+  // Asegura que el widget se destruya y se vuelva a crear si ya existe
+  if (window.chatbocDestroyWidget) {
+    window.chatbocDestroyWidget('${entityToken}');
   }
+  window.APP_TARGET = '${endpoint}'; // Define el endpoint antes de cargar el script
 
-  function scheduleRefresh(token) {
-    try {
-      const [, payload] = token.split('.');
-      const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
-      const padded = base64.padEnd(base64.length + (4 - (base64.length % 4)) % 4, '=');
-      const { exp } = JSON.parse(atob(padded));
-      const refreshMs = exp * 1000 - Date.now() - 60000;
-      refreshRef = setTimeout(loadWidget, Math.max(refreshMs, 30000));
-    } catch (err) {
-      console.error('No se pudo programar la renovación del token', err);
-      refreshRef = setTimeout(loadWidget, 30000);
-    }
-  }
+  var s = document.createElement('script');
+  s.src = 'https://chatboc.ar/widget.js'; // URL del script del widget
+  s.async = true; // Carga asíncrona para no bloquear el renderizado de la página
+  s.setAttribute('data-entity-token', '${entityToken}'); // Token de la entidad para el widget
+  s.setAttribute('data-default-open', 'false'); // El widget comienza cerrado por defecto
+  s.setAttribute('data-width', '${WIDGET_STD_WIDTH}'); // Ancho del widget abierto
+  s.setAttribute('data-height', '${WIDGET_STD_HEIGHT}'); // Alto del widget abierto
+  s.setAttribute('data-closed-width', '${WIDGET_STD_CLOSED_WIDTH}'); // Ancho del widget cerrado (burbuja)
+  s.setAttribute('data-closed-height', '${WIDGET_STD_CLOSED_HEIGHT}'); // Alto del widget cerrado (burbuja)
+  s.setAttribute('data-bottom', '${WIDGET_STD_BOTTOM}'); // Posición desde abajo
+  s.setAttribute('data-right', '${WIDGET_STD_RIGHT}'); // Posición desde la derecha
+  s.setAttribute('data-endpoint', '${endpoint}'); // Tipo de chat (pyme o municipio)
+${customLines ? customLines + "\n" : ""}  // Importante para la geolocalización y el portapapeles:
+  // widget.js establecerá allow="clipboard-write; geolocation" en su iframe interno.
+  // Si este script se inserta dentro de un iframe en tu sitio, ese iframe contenedor
+  // también debe incluir allow="clipboard-write; geolocation" en sus atributos.
+  // Ejemplo: <iframe src="tu_pagina_con_widget.html" allow="clipboard-write; geolocation"></iframe>
 
-  async function loadWidget() {
-    let token = ENTITY_TOKEN;
-    try {
-      const res = await fetch('https://chatboc.ar/auth/widget-token/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: ENTITY_TOKEN })
-      });
-      const data = await res.json();
-      if (!data.token) throw new Error('Token ausente en la respuesta');
-      const token = data.token;
-      injectWidget(token);
-      scheduleRefresh(token);
-    } catch (err) {
-      console.error('No se pudo obtener un nuevo token', err);
-      if (!currentToken) {
-        injectWidget(ENTITY_TOKEN);
-      }
-      refreshRef = setTimeout(loadWidget, 30000);
-    }
+  document.body.appendChild(s); // Añade el script al final del body
 
-    if (currentScript) {
-      currentScript.remove();
-    }
-    if (window.chatbocDestroyWidget && currentToken) {
-      window.chatbocDestroyWidget(currentToken);
-    }
-    currentToken = token;
-    window.APP_TARGET = '${endpoint}';
-
-    var s = document.createElement('script');
-    s.src = 'https://chatboc.ar/widget.js';
-    s.async = true;
-    s.setAttribute('data-entity-token', token);
-    s.setAttribute('data-default-open', 'false');
-    s.setAttribute('data-width', WIDGET_OPTIONS.width);
-    s.setAttribute('data-height', WIDGET_OPTIONS.height);
-    s.setAttribute('data-closed-width', WIDGET_OPTIONS.closedWidth);
-    s.setAttribute('data-closed-height', WIDGET_OPTIONS.closedHeight);
-    s.setAttribute('data-bottom', WIDGET_OPTIONS.bottom);
-    s.setAttribute('data-right', WIDGET_OPTIONS.right);
-    s.setAttribute('data-endpoint', '${endpoint}');
-    if (WIDGET_OPTIONS.primaryColor) s.setAttribute('data-primary-color', WIDGET_OPTIONS.primaryColor);
-    if (WIDGET_OPTIONS.logoUrl) s.setAttribute('data-logo-url', WIDGET_OPTIONS.logoUrl);
-    if (WIDGET_OPTIONS.logoAnimation) s.setAttribute('data-logo-animation', WIDGET_OPTIONS.logoAnimation);
-
-    // Importante para la geolocalización y el portapapeles:
-    // widget.js establecerá allow="clipboard-write; geolocation" en su iframe interno.
-    // Si este script se inserta dentro de un iframe en tu sitio, ese iframe contenedor
-    // también debe incluir allow="clipboard-write; geolocation" en sus atributos.
-    // Ejemplo: <iframe src="tu_pagina_con_widget.html" allow="clipboard-write; geolocation"></iframe>
-
-    s.onload = function() {
-      console.log('Chatboc Widget cargado y listo.');
-    };
-    s.onerror = function() {
-      console.error('Error al cargar Chatboc Widget.');
-    };
-
-    document.body.appendChild(s);
-    currentScript = s;
-
-    const [, payload] = token.split('.');
-    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
-    const padded = base64.padEnd(base64.length + (4 - (base64.length % 4)) % 4, '=');
-    const { exp } = JSON.parse(atob(padded));
-    const refreshMs = exp * 1000 - Date.now() - 60000;
-    setTimeout(loadWidget, Math.max(refreshMs, 30000));
-  }
-
-  refreshToken();
+  // Opcional: Escuchar evento de widget cargado
+  s.onload = function() {
+    console.log('Chatboc Widget cargado y listo.');
+    // Puedes añadir lógica adicional aquí si es necesario
+  };
+  s.onerror = function() {
+    console.error('Error al cargar Chatboc Widget.');
+  };
 });
 </script>`;
   }, [entityToken, endpoint, primaryColor, logoUrl, logoAnimation]);
