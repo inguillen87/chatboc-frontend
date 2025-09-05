@@ -115,21 +115,74 @@ const Integracion = () => {
   const WIDGET_STD_RIGHT = "20px";
   
   const codeScript = useMemo(() => {
-    const customLines = [
-      primaryColor && `  s.setAttribute('data-primary-color', '${primaryColor}'); // Color del launcher`,
-      logoUrl && `  s.setAttribute('data-logo-url', '${logoUrl}'); // URL del icono`,
-      logoAnimation && `  s.setAttribute('data-logo-animation', '${logoAnimation}'); // Animación del icono`,
-    ]
-      .filter(Boolean)
-      .join("\n");
+    const opts: Record<string, string> = {
+      width: WIDGET_STD_WIDTH,
+      height: WIDGET_STD_HEIGHT,
+      closedWidth: WIDGET_STD_CLOSED_WIDTH,
+      closedHeight: WIDGET_STD_CLOSED_HEIGHT,
+      bottom: WIDGET_STD_BOTTOM,
+      right: WIDGET_STD_RIGHT,
+    };
+    if (primaryColor) opts.primaryColor = primaryColor;
+    if (logoUrl) opts.logoUrl = logoUrl;
+    if (logoAnimation) opts.logoAnimation = logoAnimation;
+
+    const optionsJson = JSON.stringify(opts, null, 2);
 
     return `<script>
 document.addEventListener('DOMContentLoaded', function () {
   const ENTITY_TOKEN = '${entityToken}';
+  const WIDGET_OPTIONS = ${optionsJson};
   let currentToken = null;
   let currentScript = null;
 
-  async function loadWidget() {
+  function decodeExpiration(jwt) {
+    const [, payload] = jwt.split('.');
+    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64.padEnd(base64.length + (4 - (base64.length % 4)) % 4, '=');
+    const { exp } = JSON.parse(atob(padded));
+    return exp * 1000;
+  }
+
+  function injectWidget(token, opts = WIDGET_OPTIONS) {
+    if (currentScript) currentScript.remove();
+    if (window.chatbocDestroyWidget && currentToken) {
+      window.chatbocDestroyWidget(currentToken);
+    }
+    currentToken = token;
+
+    window.APP_TARGET = '${endpoint}';
+
+    const s = document.createElement('script');
+    s.src = 'https://chatboc.ar/widget.js';
+    s.async = true;
+    s.setAttribute('data-entity-token', token);
+    s.setAttribute('data-default-open', 'false');
+    s.setAttribute('data-width', opts.width);
+    s.setAttribute('data-height', opts.height);
+    s.setAttribute('data-closed-width', opts.closedWidth);
+    s.setAttribute('data-closed-height', opts.closedHeight);
+    s.setAttribute('data-bottom', opts.bottom);
+    s.setAttribute('data-right', opts.right);
+    s.setAttribute('data-endpoint', '${endpoint}');
+    if (opts.primaryColor) s.setAttribute('data-primary-color', opts.primaryColor);
+    if (opts.logoUrl) s.setAttribute('data-logo-url', opts.logoUrl);
+    if (opts.logoAnimation) s.setAttribute('data-logo-animation', opts.logoAnimation);
+
+    // Importante para la geolocalización y el portapapeles:
+    // widget.js establecerá allow="clipboard-write; geolocation" en su iframe interno.
+    // Si este script se inserta dentro de un iframe en tu sitio, ese iframe contenedor
+    // también debe incluir allow="clipboard-write; geolocation" en sus atributos.
+    // Ejemplo: <iframe src="tu_pagina_con_widget.html" allow="clipboard-write; geolocation"></iframe>
+
+    s.onload = () => console.log('Chatboc Widget cargado y listo.');
+    s.onerror = () => console.error('Error al cargar Chatboc Widget.');
+
+    document.body.appendChild(s);
+    currentScript = s;
+  }
+
+  async function refreshToken() {
     try {
       const res = await fetch('https://chatboc.ar/auth/widget-token/', {
         method: 'POST',
@@ -153,21 +206,22 @@ document.addEventListener('DOMContentLoaded', function () {
       s.async = true;
       s.setAttribute('data-entity-token', token);
       s.setAttribute('data-default-open', 'false');
-      s.setAttribute('data-width', '${WIDGET_STD_WIDTH}');
-      s.setAttribute('data-height', '${WIDGET_STD_HEIGHT}');
-      s.setAttribute('data-closed-width', '${WIDGET_STD_CLOSED_WIDTH}');
-      s.setAttribute('data-closed-height', '${WIDGET_STD_CLOSED_HEIGHT}');
-      s.setAttribute('data-bottom', '${WIDGET_STD_BOTTOM}');
-      s.setAttribute('data-right', '${WIDGET_STD_RIGHT}');
+      s.setAttribute('data-width', WIDGET_OPTIONS.width);
+      s.setAttribute('data-height', WIDGET_OPTIONS.height);
+      s.setAttribute('data-closed-width', WIDGET_OPTIONS.closedWidth);
+      s.setAttribute('data-closed-height', WIDGET_OPTIONS.closedHeight);
+      s.setAttribute('data-bottom', WIDGET_OPTIONS.bottom);
+      s.setAttribute('data-right', WIDGET_OPTIONS.right);
       s.setAttribute('data-endpoint', '${endpoint}');
-${customLines ? customLines + "\n" : ""}  // Importante para la geolocalización y el portapapeles:
+      if (WIDGET_OPTIONS.primaryColor) s.setAttribute('data-primary-color', WIDGET_OPTIONS.primaryColor);
+      if (WIDGET_OPTIONS.logoUrl) s.setAttribute('data-logo-url', WIDGET_OPTIONS.logoUrl);
+      if (WIDGET_OPTIONS.logoAnimation) s.setAttribute('data-logo-animation', WIDGET_OPTIONS.logoAnimation);
+
+      // Importante para la geolocalización y el portapapeles:
       // widget.js establecerá allow="clipboard-write; geolocation" en su iframe interno.
       // Si este script se inserta dentro de un iframe en tu sitio, ese iframe contenedor
       // también debe incluir allow="clipboard-write; geolocation" en sus atributos.
       // Ejemplo: <iframe src="tu_pagina_con_widget.html" allow="clipboard-write; geolocation"></iframe>
-
-      document.body.appendChild(s);
-      currentScript = s;
 
       s.onload = function() {
         console.log('Chatboc Widget cargado y listo.');
@@ -175,6 +229,9 @@ ${customLines ? customLines + "\n" : ""}  // Importante para la geolocalización
       s.onerror = function() {
         console.error('Error al cargar Chatboc Widget.');
       };
+
+      document.body.appendChild(s);
+      currentScript = s;
 
       const [, payload] = token.split('.');
       const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
@@ -184,11 +241,11 @@ ${customLines ? customLines + "\n" : ""}  // Importante para la geolocalización
       setTimeout(loadWidget, Math.max(refreshMs, 30000));
     } catch (err) {
       console.error('No se pudo obtener un nuevo token', err);
-      setTimeout(loadWidget, 30000);
+      setTimeout(refreshToken, 30000);
     }
   }
 
-  loadWidget();
+  refreshToken();
 });
 </script>`;
   }, [entityToken, endpoint, primaryColor, logoUrl, logoAnimation]);
