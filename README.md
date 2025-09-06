@@ -128,8 +128,8 @@ You can embed the floating chat widget on any site by loading `widget.js` and pa
     // s.setAttribute('data-cta-message', '¿Necesitás ayuda?');
     // Optional: force light or dark theme
     // s.setAttribute('data-theme', 'dark');
-    // The widget will set `allow="clipboard-write; geolocation"` on
-    // the iframe it injects so it can ask for location permissions.
+    // The widget will set `allow="clipboard-write; geolocation; microphone; camera"` on
+    // the iframe it injects so it can ask for location or audio permissions.
     document.body.appendChild(s); // append once the DOM is ready
   });
 </script>
@@ -149,9 +149,9 @@ to load its scripts from the wrong origin, leading to console errors and 403
 responses from `https://api.chatboc.ar`. If you see messages such as `attribute
 cx: Expected length` or `Access Forbidden`, verify that `data-domain` is set to
 `https://chatboc.ar`.
-The script automatically adds `allow="clipboard-write; geolocation"` to the underlying iframe so the widget can request GPS access.
+The script automatically adds `allow="clipboard-write; geolocation; microphone; camera"` to the underlying iframe so the widget can request GPS or media access.
 If your site embeds this script inside another `<iframe>`, be sure that outer frame also includes
-`allow="clipboard-write; geolocation"`. The permission must be granted at every level
+`allow="clipboard-write; geolocation; microphone; camera"`. The permission must be granted at every level
 for the browser to allow geolocation requests inside the widget.
 
 ### Customization
@@ -189,7 +189,7 @@ If your site blocks external JavaScript, you can embed the chatbot using an
   id="chatboc-iframe"
   src="https://chatboc.ar/iframe.html?entityToken=TU_TOKEN_AQUI&endpoint=pyme&rubro=comercio" <!-- or "municipio"; `tipo_chat` also works -->
   style="position:fixed;bottom:24px;right:24px;border:none;border-radius:50%;z-index:9999;box-shadow:0 4px 32px rgba(0,0,0,0.2);background:transparent;overflow:hidden;width:96px!important;height:96px!important;display:block"
-  allow="clipboard-write; geolocation"
+  allow="clipboard-write; geolocation; microphone; camera"
   loading="lazy"
 ></iframe>
 <script>
@@ -212,11 +212,11 @@ If your site blocks external JavaScript, you can embed the chatbot using an
   });
 </script>
 ```
-When embedding via `<iframe>`, include `allow="clipboard-write; geolocation"`
-so the widget can request GPS permissions from the browser. If this snippet is
+When embedding via `<iframe>`, include `allow="clipboard-write; geolocation; microphone; camera"`
+so the widget can request GPS or media permissions from the browser. If this snippet is
 loaded inside another `<iframe>`, that outer frame must have the same `allow`
-attribute. Without these permissions the browser will block GPS access and
-users will need to enter their address manually.
+attribute. Without these permissions the browser will block GPS, audio or camera access and
+users will need to enter their address manually or skip media features.
 
 ### Removing an existing widget
 If your site loads the script multiple times (for example when navigating a SPA), call `window.chatbocDestroyWidget('<TOKEN>')` before injecting a new one.

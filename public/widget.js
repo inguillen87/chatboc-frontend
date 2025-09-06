@@ -79,7 +79,7 @@
   iframe.src = iframeSrc;
   iframe.style.cssText =
     "width: 100%; height: 100%; border: none; background: transparent;";
-  iframe.allow = "microphone; geolocation; clipboard-write";
+  iframe.allow = "microphone; geolocation; clipboard-write; camera";
   iframe.sandbox =
     "allow-forms allow-popups allow-modals allow-scripts allow-same-origin allow-downloads";
 

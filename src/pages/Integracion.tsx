@@ -157,9 +157,9 @@ document.addEventListener('DOMContentLoaded', function () {
     s.setAttribute('data-right', '${WIDGET_STD_RIGHT}');
     s.setAttribute('data-endpoint', '${endpoint}');
 ${customLines ? customLines + "\n" : ""}    // Importante para la geolocalización y el portapapeles:
-    // widget.js establecerá allow="clipboard-write; geolocation" en su iframe interno.
+    // widget.js establecerá allow="clipboard-write; geolocation; microphone; camera" en su iframe interno.
     // Si este script se inserta dentro de un iframe en tu sitio, ese iframe contenedor
-    // también debe incluir allow="clipboard-write; geolocation" en sus atributos.
+    // también debe incluir allow="clipboard-write; geolocation; microphone; camera" en sus atributos.
 
     document.body.appendChild(s);
     currentScript = s;
@@ -211,10 +211,10 @@ ${customLines ? customLines + "\n" : ""}    // Importante para la geolocalizaci�
   s.setAttribute('data-right', '${WIDGET_STD_RIGHT}'); // Posición desde la derecha
   s.setAttribute('data-endpoint', '${endpoint}'); // Tipo de chat (pyme o municipio)
 ${customLines ? customLines + "\n" : ""}  // Importante para la geolocalización y el portapapeles:
-  // widget.js establecerá allow="clipboard-write; geolocation" en su iframe interno.
+  // widget.js establecerá allow="clipboard-write; geolocation; microphone; camera" en su iframe interno.
   // Si este script se inserta dentro de un iframe en tu sitio, ese iframe contenedor
-  // también debe incluir allow="clipboard-write; geolocation" en sus atributos.
-  // Ejemplo: <iframe src="tu_pagina_con_widget.html" allow="clipboard-write; geolocation"></iframe>
+  // también debe incluir allow="clipboard-write; geolocation; microphone; camera" en sus atributos.
+  // Ejemplo: <iframe src="tu_pagina_con_widget.html" allow="clipboard-write; geolocation; microphone; camera"></iframe>
 
   document.body.appendChild(s); // Añade el script al final del body
 
@@ -243,7 +243,7 @@ ${customLines ? customLines + "\n" : ""}  // Importante para la geolocalización
   id="chatboc-iframe"
   src="${iframeSrcUrl}"
   style="position:fixed; bottom:${WIDGET_STD_BOTTOM}; right:${WIDGET_STD_RIGHT}; border:none; border-radius:50%; z-index:9999; box-shadow:0 4px 32px rgba(0,0,0,0.2); background:transparent; overflow:hidden; width:${WIDGET_STD_CLOSED_WIDTH}; height:${WIDGET_STD_CLOSED_HEIGHT}; display:block; transition: width 0.3s ease, height 0.3s ease, border-radius 0.3s ease;"
-  allow="clipboard-write; geolocation"
+  allow="clipboard-write; geolocation; microphone; camera"
   loading="lazy"
   title="Chatboc Widget"
 ></iframe>
@@ -253,8 +253,8 @@ document.addEventListener('DOMContentLoaded', function () {
   var chatIframe = document.getElementById('chatboc-iframe');
 
   // Es crucial que si este código de iframe se inserta dentro de OTRO iframe en tu sitio,
-  // ese iframe contenedor también debe tener 'allow="clipboard-write; geolocation"'.
-  // Ejemplo: <iframe src="pagina_con_este_codigo.html" allow="clipboard-write; geolocation"></iframe>
+  // ese iframe contenedor también debe tener 'allow="clipboard-write; geolocation; microphone; camera"'.
+  // Ejemplo: <iframe src="pagina_con_este_codigo.html" allow="clipboard-write; geolocation; microphone; camera"></iframe>
 
   // Comunicación con el iframe para ajustar tamaño y forma
   window.addEventListener('message', function (event) {
@@ -513,7 +513,7 @@ document.addEventListener('DOMContentLoaded', function () {
             </CardHeader>
             <CardContent className="text-sm space-y-2">
               <p><strong>Ventajas:</strong> Mayor flexibilidad, actualizaciones automáticas del widget, mejor integración con la página anfitriona.</p>
-              <p><strong>Geolocalización y Portapapeles:</strong> Si tu página (donde pegas este script) ya está dentro de un iframe, asegúrate de que ese iframe contenedor tenga el atributo <code>allow="clipboard-write; geolocation"</code> para que estas funciones del chatbot operen correctamente.</p>
+              <p><strong>Geolocalización, micrófono y portapapeles:</strong> Si tu página (donde pegas este script) ya está dentro de un iframe, asegúrate de que ese iframe contenedor tenga el atributo <code>allow="clipboard-write; geolocation; microphone; camera"</code> para que estas funciones del chatbot operen correctamente.</p>
               <p><strong>Personalización:</strong> Puedes modificar los atributos <code>data-*</code> en el script para ajustar la apariencia y comportamiento iniciales del widget. Por ejemplo, <code>data-default-open="true"</code> para que el chat se abra al cargar la página.</p>
             </CardContent>
           </Card>
@@ -527,7 +527,7 @@ document.addEventListener('DOMContentLoaded', function () {
             </CardHeader>
             <CardContent className="text-sm space-y-2">
               <p><strong>Ventajas:</strong> Aislamiento completo del contenido del widget, puede ser más simple de implementar en algunas plataformas con restricciones de scripts.</p>
-              <p><strong>Geolocalización y Portapapeles:</strong> Similar al método script, si la página donde insertas este iframe está a su vez dentro de otro iframe, el iframe más externo debe incluir <code>allow="clipboard-write; geolocation"</code>.</p>
+              <p><strong>Geolocalización, micrófono y portapapeles:</strong> Similar al método script, si la página donde insertas este iframe está a su vez dentro de otro iframe, el iframe más externo debe incluir <code>allow="clipboard-write; geolocation; microphone; camera"</code>.</p>
               <p><strong>Limitaciones:</strong> Menos flexibilidad para la comunicación directa con la página anfitriona en comparación con el método script. Las actualizaciones del widget se manejan dentro del iframe.</p>
             </CardContent>
           </Card>
@@ -574,7 +574,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     }}
                     loading="lazy"
                     title="Vista previa del Chatbot Chatboc"
-                    allow="clipboard-write; geolocation"
+                    allow="clipboard-write; geolocation; microphone; camera"
                   />
                 ) : (
                   <div className="p-4 text-center text-muted-foreground">
@@ -608,9 +608,9 @@ document.addEventListener('DOMContentLoaded', function () {
               En Tiendanube, por ejemplo, puedes necesitar usar la opción de "Editar Código Avanzado".
             </p>
             <p>
-              <strong>Problemas de Geolocalización o Portapapeles:</strong>
-              Asegúrate de que tu sitio se sirva a través de <strong>HTTPS</strong>, ya que muchas funciones del navegador, incluida la geolocalización, lo requieren.
-              Si tu página está incrustada en otro iframe, el iframe contenedor DEBE tener el atributo <code>allow="clipboard-write; geolocation"</code>.
+              <strong>Problemas de Geolocalización, micrófono o Portapapeles:</strong>
+              Asegúrate de que tu sitio se sirva a través de <strong>HTTPS</strong>, ya que muchas funciones del navegador, incluida la geolocalización y el acceso al micrófono, lo requieren.
+              Si tu página está incrustada en otro iframe, el iframe contenedor DEBE tener el atributo <code>allow="clipboard-write; geolocation; microphone; camera"</code>.
             </p>
              <p>
               <strong>Conflictos de Estilos o Scripts:</strong>

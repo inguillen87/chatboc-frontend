@@ -241,7 +241,7 @@
       iframe.setAttribute("width", "100%");
       iframe.setAttribute("height", "100%");
       iframe.setAttribute("frameborder", "0");
-      iframe.allow = "clipboard-write; geolocation";
+      iframe.allow = "clipboard-write; geolocation; microphone; camera";
       iframe.setAttribute("title", "Chatboc Asistente Virtual");
       widgetContainer.appendChild(iframe);
 

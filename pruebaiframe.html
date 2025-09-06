@@ -2,7 +2,7 @@
   id="chatboc-iframe"
   src="https://chatboc.ar/iframe?entityToken=ef403b5b-e0df-4b35-be34-35b9dac0d6f1&tipo_chat=municipio"
   style="position:fixed; bottom:20px; right:20px; border:none; border-radius:50%; z-index:9999; box-shadow:0 4px 32px rgba(0,0,0,0.2); background:transparent; overflow:hidden; width:112px; height:112px; display:block; transition: width 0.3s ease, height 0.3s ease, border-radius 0.3s ease;"
-  allow="clipboard-write; geolocation"
+  allow="clipboard-write; geolocation; microphone; camera"
   loading="lazy"
   title="Chatboc Widget"
 ></iframe>
@@ -12,8 +12,8 @@ document.addEventListener('DOMContentLoaded', function () {
   var chatIframe = document.getElementById('chatboc-iframe');
 
   // Es crucial que si este código de iframe se inserta dentro de OTRO iframe en tu sitio,
-  // ese iframe contenedor también debe tener 'allow="clipboard-write; geolocation"'.
-  // Ejemplo: <iframe src="pagina_con_este_codigo.html" allow="clipboard-write; geolocation"></iframe>
+  // ese iframe contenedor también debe tener 'allow="clipboard-write; geolocation; microphone; camera"'.
+  // Ejemplo: <iframe src="pagina_con_este_codigo.html" allow="clipboard-write; geolocation; microphone; camera"></iframe>
 
   // Comunicación con el iframe para ajustar tamaño y forma
   window.addEventListener('message', function (event) {
