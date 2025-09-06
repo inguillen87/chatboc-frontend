@@ -7,12 +7,16 @@ interface ProactiveBubbleProps {
   message: string;
   onClick: () => void;
   visible: boolean;
+  logoUrl?: string;
+  logoAnimation?: string;
 }
 
 const ProactiveBubble: React.FC<ProactiveBubbleProps> = ({
   message,
   onClick,
   visible,
+  logoUrl,
+  logoAnimation,
 }) => {
   if (!visible) return null;
 
@@ -56,7 +60,16 @@ const ProactiveBubble: React.FC<ProactiveBubbleProps> = ({
         initial={{ scale: 0, opacity: 0, x: 10 }}
         animate={{ scale: 1, opacity: 1, x: 0, transition: { type: "spring", stiffness: 260, damping: 18, delay: 0.4 } }}
       >
-        <ChatbocLogoAnimated size={26} blinking />
+        {logoUrl ? (
+          <img
+            src={logoUrl}
+            alt="Bot"
+            className="w-6 h-6 rounded-full"
+            style={{ animation: logoAnimation || undefined }}
+          />
+        ) : (
+          <ChatbocLogoAnimated size={26} blinking />
+        )}
       </motion.div>
     </motion.div>
   );

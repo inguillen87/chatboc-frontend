@@ -74,6 +74,7 @@
     const ctaMessageAttr = script.getAttribute("data-cta-message") || "";
     const langAttr = script.getAttribute("data-lang") || "";
     const primaryColor = script.getAttribute("data-primary-color") || "#007aff";
+    const accentColor = script.getAttribute("data-accent-color") || "";
     const logoUrlAttr = script.getAttribute("data-logo-url");
     const headerLogoUrlAttr = script.getAttribute("data-header-logo-url");
     const logoAnimationAttr = script.getAttribute("data-logo-animation") || "";
@@ -217,6 +218,7 @@
       if (finalCta) iframeSrc.searchParams.set("ctaMessage", finalCta);
       if (langAttr) iframeSrc.searchParams.set("lang", langAttr);
       if (primaryColor) iframeSrc.searchParams.set("primaryColor", primaryColor);
+      if (accentColor) iframeSrc.searchParams.set("accentColor", accentColor);
       if (logoUrlAttr) iframeSrc.searchParams.set("logoUrl", logoUrlAttr);
       if (headerLogoUrlAttr) iframeSrc.searchParams.set("headerLogoUrl", headerLogoUrlAttr);
       if (logoAnimationAttr) iframeSrc.searchParams.set("logoAnimation", logoAnimationAttr);
@@ -239,7 +241,7 @@
       iframe.setAttribute("width", "100%");
       iframe.setAttribute("height", "100%");
       iframe.setAttribute("frameborder", "0");
-      iframe.allow = "clipboard-write; geolocation";
+      iframe.allow = "clipboard-write; geolocation; microphone; camera";
       iframe.setAttribute("title", "Chatboc Asistente Virtual");
       widgetContainer.appendChild(iframe);
 

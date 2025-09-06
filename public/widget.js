@@ -36,6 +36,7 @@
     bottom: ds.bottom || "20px",
     right: ds.right || "20px",
     primaryColor: ds.primaryColor || "#007aff",
+    accentColor: ds.accentColor || "",
     logoUrl: ds.logoUrl || "",
     headerLogoUrl: ds.headerLogoUrl || ds.logoUrl || "",
     logoAnimation: ds.logoAnimation || "",
@@ -56,6 +57,7 @@
     widgetId: iframeId,
     hostDomain: window.location.origin,
     primaryColor: cfg.primaryColor,
+    accentColor: cfg.accentColor,
     logoUrl: cfg.logoUrl,
     headerLogoUrl: cfg.headerLogoUrl,
     logoAnimation: cfg.logoAnimation,
@@ -77,7 +79,7 @@
   iframe.src = iframeSrc;
   iframe.style.cssText =
     "width: 100%; height: 100%; border: none; background: transparent;";
-  iframe.allow = "microphone; geolocation; clipboard-write";
+  iframe.allow = "microphone; geolocation; clipboard-write; camera";
   iframe.sandbox =
     "allow-forms allow-popups allow-modals allow-scripts allow-same-origin allow-downloads";
 

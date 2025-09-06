@@ -25,11 +25,11 @@ document.addEventListener('DOMContentLoaded', function () {
   s.setAttribute('data-welcome-title', '¡Hola! Soy tu asistente');
   s.setAttribute('data-welcome-subtitle', 'Estoy aquí para ayudarte');
   
-  // Importante para la geolocalización y el portapapeles:
-  // widget.js establecerá allow="clipboard-write; geolocation" en su iframe interno.
+  // Importante para la geolocalización, micrófono y portapapeles:
+  // widget.js establecerá allow="clipboard-write; geolocation; microphone; camera" en su iframe interno.
   // Si este script se inserta dentro de un iframe en tu sitio, ese iframe contenedor
-  // también debe incluir allow="clipboard-write; geolocation" en sus atributos.
-  // Ejemplo: <iframe src="tu_pagina_con_widget.html" allow="clipboard-write; geolocation"></iframe>
+  // también debe incluir allow="clipboard-write; geolocation; microphone; camera" en sus atributos.
+  // Ejemplo: <iframe src="tu_pagina_con_widget.html" allow="clipboard-write; geolocation; microphone; camera"></iframe>
 
   document.body.appendChild(s); // Añade el script al final del body
 
