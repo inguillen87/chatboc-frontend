@@ -467,8 +467,7 @@ document.addEventListener('DOMContentLoaded', function () {
       <text x="50%" y="55%" text-anchor="middle" font-family="Arial" font-size="140" fill="#fff" font-weight="700">J</text>
     </svg>`);
 
-  const ENTITY_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo0LCJleHAiOjE3NTc4NjI0MTR9.vP7q9deJytnH4quRmhu-YtzYaObN_2N6hgR9XJUMDxU';
-  let currentToken = null;
+  const OWNER_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo0LCJleHAiOjE3NTc4NjI0MTR9.vP7q9deJytnH4quRmhu-YtzYaObN_2N6hgR9XJUMDxU';
   let currentScript = null;
 
   const toggle = document.querySelector('.menu-toggle');
@@ -477,12 +476,11 @@ document.addEventListener('DOMContentLoaded', function () {
     toggle.addEventListener('click', () => nav.classList.toggle('show'));
   }
 
-  function injectWidget(token) {
+  function injectWidget() {
     if (currentScript) currentScript.remove();
-    if (window.chatbocDestroyWidget && currentToken) {
-      window.chatbocDestroyWidget(currentToken);
+    if (window.chatbocDestroyWidget) {
+      window.chatbocDestroyWidget(OWNER_TOKEN);
     }
-    currentToken = token;
 
     const isMobile = window.matchMedia('(max-width:600px)').matches;
     const size = isMobile ? '96px' : '150px';
@@ -492,7 +490,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var s = document.createElement('script');
     s.src = 'https://chatboc.ar/widget.js?v=' + Date.now();
     s.async = true;
-    s.setAttribute('data-entity-token', token);
+    s.setAttribute('data-owner-token', OWNER_TOKEN);
     s.setAttribute('data-default-open', 'false');
     s.setAttribute('data-width', '460px');
     s.setAttribute('data-height', '680px');
@@ -534,35 +532,8 @@ document.addEventListener('DOMContentLoaded', function () {
     launcher.addEventListener('mouseup', () => launcher.style.transform = 'scale(1.1) rotate(3deg)');
   }
 
-  async function refreshToken() {
-    try {
-      const res = await fetch('https://chatboc.ar/auth/widget-token/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache'
-        },
-        cache: 'no-store',
-        body: JSON.stringify({ token: ENTITY_TOKEN })
-      });
-      const data = await res.json();
-      const token = data.token;
-      if (!token) throw new Error('Token ausente en la respuesta');
-
-      injectWidget(token);
-
-      const [, payload] = token.split('.');
-      const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
-      const padded = base64.padEnd(base64.length + (4 - (base64.length % 4)) % 4, '=');
-      const { exp } = JSON.parse(atob(padded));
-      const refreshMs = exp * 1000 - Date.now() - 60000;
-      setTimeout(refreshToken, Math.max(refreshMs, 30000));
-    } catch (err) {
-      console.error('No se pudo obtener un nuevo token', err);
-      injectWidget(ENTITY_TOKEN);
-      setTimeout(refreshToken, 30000);
-    }
-  }
+  // The widget handles token minting and refresh internally,
+  // so no manual refresh logic is required here.
 
   window.APP_TARGET = 'municipio';
   const tag = document.getElementById('helpTag');
@@ -586,8 +557,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }, 4000);
   }
 
-  injectWidget(ENTITY_TOKEN);
-  refreshToken();
+  injectWidget();
 });
 </script>
 </body>
