@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import ChatHeader from "./ChatHeader";
+import type { Prefs } from "./AccessibilityToggle";
 import ChatMessage from "./ChatMessage";
 import TypingIndicator from "./TypingIndicator";
 import UserTypingIndicator from "./UserTypingIndicator";
@@ -64,6 +65,8 @@ interface ChatPanelProps {
   welcomeTitle?: string;
   welcomeSubtitle?: string;
   logoAnimation?: string;
+  onA11yChange?: (p: Prefs) => void;
+  a11yPrefs?: Prefs;
 }
 
 const ChatPanel = ({
@@ -84,6 +87,8 @@ const ChatPanel = ({
   welcomeTitle,
   welcomeSubtitle,
   logoAnimation,
+  onA11yChange,
+  a11yPrefs,
 }: ChatPanelProps) => {
   const isMobile = useIsMobile();
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -270,7 +275,7 @@ const ChatPanel = ({
   }, []);
 
   return (
-    <div className={cn("flex flex-col w-full h-full bg-card text-card-foreground overflow-hidden relative", isMobile ? undefined : "rounded-[inherit]")}> 
+    <div className={cn("chat-root flex flex-col w-full h-full bg-card text-card-foreground overflow-hidden relative", isMobile ? undefined : "rounded-[inherit]")}> 
       <ChatHeader
         onClose={onClose}
         onProfile={onOpenUserPanel}
@@ -281,11 +286,12 @@ const ChatPanel = ({
         title={welcomeTitle}
         subtitle={welcomeSubtitle}
         logoAnimation={logoAnimation}
+        onA11yChange={onA11yChange}
       />
       <div ref={chatContainerRef} className="flex-1 p-2 sm:p-4 min-h-0 flex flex-col gap-3 overflow-y-auto">
-        {messages.map((msg) =>
+        {messages.map((msg) => (
           <ChatMessage
-            key={msg.id}
+            key={`${msg.id}-${a11yPrefs?.simplified ? "s" : "f"}`}
             message={msg}
             isTyping={isTyping}
             onButtonClick={handleSend}
@@ -294,7 +300,7 @@ const ChatPanel = ({
             botLogoUrl={headerLogoUrl}
             logoAnimation={logoAnimation}
           />
-        )}
+        ))}
         {isTyping && <TypingIndicator />}
         {userTyping && <UserTypingIndicator />}
         <div ref={messagesEndRef} />
