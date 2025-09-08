@@ -118,6 +118,8 @@ const Integracion = () => {
   const WIDGET_STD_BOTTOM = "20px";
   const WIDGET_STD_RIGHT = "20px";
   const apiBase = (import.meta.env.VITE_WIDGET_API_BASE || "https://chatboc.ar").replace(/\/+$/, "");
+  const defaultWidgetScriptUrl = `${apiBase}/widget.js`;
+  const widgetScriptUrl = import.meta.env.VITE_WIDGET_SCRIPT_URL || defaultWidgetScriptUrl;
   const iframeBase = window.location.origin;
   
   const codeScript = useMemo(() => {
@@ -133,7 +135,7 @@ const Integracion = () => {
       .filter(Boolean)
       .join("\n");
 
-    return `<script async src="https://cdn.chatboc.ar/widget.js"
+    return `<script async src="${widgetScriptUrl}"
   data-api-base="${apiBase}"
   data-owner-token="${ownerToken}"
   data-default-open="false"
@@ -145,7 +147,7 @@ const Integracion = () => {
   data-right="${WIDGET_STD_RIGHT}"
   data-endpoint="${endpoint}"
 ${customAttrs ? customAttrs + "\n" : ""}></script>`;
-  }, [apiBase, ownerToken, endpoint, primaryColor, accentColor, logoUrl, headerLogoUrl, logoAnimation, welcomeTitle, welcomeSubtitle]);
+  }, [apiBase, widgetScriptUrl, ownerToken, endpoint, primaryColor, accentColor, logoUrl, headerLogoUrl, logoAnimation, welcomeTitle, welcomeSubtitle]);
 
   const iframeSrcUrl = useMemo(() => {
     const url = new URL(`${apiBase}/iframe`);
@@ -214,11 +216,10 @@ document.addEventListener('DOMContentLoaded', function () {
   useEffect(() => {
     if (!ownerToken) return;
     let scriptEl: HTMLScriptElement | null = null;
-    const inject = () => {
-      if (scriptEl) scriptEl.remove();
-      (window as any).chatbocDestroyWidget?.(ownerToken);
+
+    const buildScript = (src: string) => {
       const s = document.createElement('script');
-      s.src = 'https://cdn.chatboc.ar/widget.js';
+      s.src = src;
       s.async = true;
       s.setAttribute('data-api-base', apiBase);
       s.setAttribute('data-owner-token', ownerToken);
@@ -237,15 +238,30 @@ document.addEventListener('DOMContentLoaded', function () {
       if (logoAnimation) s.setAttribute('data-logo-animation', logoAnimation);
       if (welcomeTitle) s.setAttribute('data-welcome-title', welcomeTitle);
       if (welcomeSubtitle) s.setAttribute('data-welcome-subtitle', welcomeSubtitle);
+      return s;
+    };
+
+    const inject = () => {
+      if (scriptEl) scriptEl.remove();
+      (window as any).chatbocDestroyWidget?.(ownerToken);
+      const s = buildScript(widgetScriptUrl);
+      s.onerror = () => {
+        if (widgetScriptUrl !== defaultWidgetScriptUrl) {
+          const fallback = buildScript(defaultWidgetScriptUrl);
+          document.body.appendChild(fallback);
+          scriptEl = fallback;
+        }
+      };
       document.body.appendChild(s);
       scriptEl = s;
     };
+
     inject();
     return () => {
       if (scriptEl) scriptEl.remove();
       (window as any).chatbocDestroyWidget?.(ownerToken);
     };
-  }, [apiBase, ownerToken, endpoint, primaryColor, accentColor, logoUrl, headerLogoUrl, logoAnimation, welcomeTitle, welcomeSubtitle]);
+  }, [apiBase, widgetScriptUrl, defaultWidgetScriptUrl, ownerToken, endpoint, primaryColor, accentColor, logoUrl, headerLogoUrl, logoAnimation, welcomeTitle, welcomeSubtitle]);
 
 
   const copiarCodigo = async (tipo: "iframe" | "script") => {

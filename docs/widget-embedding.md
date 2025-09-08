@@ -3,7 +3,7 @@
 Include the widget script to mint and refresh tokens automatically:
 
 ```html
-<script async src="https://cdn.chatboc.ar/widget.js"
+<script async src="https://chatboc.ar/widget.js"
         data-api-base="https://chatboc.ar"
         data-owner-token="OWNER_TOKEN_DE_LA_ENTIDAD"
         data-primary-color="#007aff"
