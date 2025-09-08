@@ -325,7 +325,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
       try {
         const data = await apiFetch<any>("/perfil", {
-          ownerToken: ownerToken,
+          entityToken: ownerToken,
         });
         console.log("ChatWidget: Perfil recibido:", data);
         if (data && typeof data.esPublico === "boolean") {
@@ -466,14 +466,14 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                   logoAnimation={logoAnimation}
                 />
               )}
-              {view === "register" ? <ChatUserRegisterPanel onSuccess={() => setView("chat")} onShowLogin={() => setView("login")} ownerToken={ownerToken} />
+              {view === "register" ? <ChatUserRegisterPanel onSuccess={() => setView("chat")} onShowLogin={() => setView("login")} entityToken={ownerToken} />
                 : view === "login" ? <ChatUserLoginPanel onSuccess={() => setView("chat")} onShowRegister={() => setView("register")} />
                 : view === "user" ? <ChatUserPanel onClose={() => setView("chat")} />
                 : view === "info" ? <EntityInfoPanel info={entityInfo} onClose={() => setView("chat")} />
                 : <ChatPanel
                     mode={mode}
                     widgetId={widgetId}
-                    ownerToken={ownerToken}
+                    entityToken={ownerToken}
                     openWidth={finalOpenWidth}
                     openHeight={finalOpenHeight}
                     onClose={toggleChat}
