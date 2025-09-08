@@ -11,7 +11,7 @@
   }
 
   async function mint() {
-    const r = await fetch(API + "/auth/widget-token", {
+    const r = await fetch(API + "/auth/widget-token/", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: "{}"
@@ -22,7 +22,7 @@
   }
 
   async function refresh(old) {
-    const r = await fetch(API + "/auth/widget-refresh", {
+    const r = await fetch(API + "/auth/widget-refresh/", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token: old })
