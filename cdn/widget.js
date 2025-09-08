@@ -3,7 +3,7 @@
   const S = document.currentScript;
   const API = (S?.dataset?.apiBase || "https://chatboc.ar").replace(/\/+$/, "");
   const OWNER = S?.dataset?.ownerToken || "";
-  let token = null, timer = null;
+  let token = null, timer = null, retry = 15000;
 
   function notify(t) {
     try { window.dispatchEvent(new CustomEvent("chatboc-token", { detail: t })); }
@@ -47,11 +47,14 @@
     timer = setTimeout(async () => {
       try {
         token = await refresh(token);
+        retry = 15000;
       } catch {
         try {
           token = await mint();
+          retry = 15000;
         } catch {
-          schedule(token);
+          timer = setTimeout(() => schedule(token), retry);
+          retry = Math.min(retry * 2, 600000);
           return;
         }
       }
