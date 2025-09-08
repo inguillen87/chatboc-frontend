@@ -1,4 +1,5 @@
 (function () {
+  // Auth helper: exposes window.chatbocAuth; load widget.js separately to render the UI.
   console.log("Chatboc widget v1");
   const S = document.currentScript;
   const API = (S?.dataset?.apiBase || "https://chatboc.ar").replace(/\/+$/, "");

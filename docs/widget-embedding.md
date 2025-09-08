@@ -1,9 +1,9 @@
 # How to Embed the Chat Widget
 
-Include the auth helper to mint and refresh tokens automatically:
+Include the widget script to mint and refresh tokens automatically:
 
 ```html
-<script async src="https://cdn.chatboc.ar/widget/v1.js"
+<script async src="https://cdn.chatboc.ar/widget.js"
         data-api-base="https://chatboc.ar"
         data-owner-token="OWNER_TOKEN_DE_LA_ENTIDAD"
         data-primary-color="#007aff"
@@ -22,7 +22,7 @@ Include the auth helper to mint and refresh tokens automatically:
         data-endpoint="pyme"></script>
 ```
 
-The script above both mints and refreshes tokens automatically and mounts the chat widget.
+The script above mints and refreshes tokens automatically and mounts the chat widget.
 
 ## Customization
 
