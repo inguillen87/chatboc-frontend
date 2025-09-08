@@ -117,7 +117,8 @@ const Integracion = () => {
   const WIDGET_STD_CLOSED_HEIGHT = "112px"; // Increased from 96px
   const WIDGET_STD_BOTTOM = "20px";
   const WIDGET_STD_RIGHT = "20px";
-  const apiBase = (import.meta.env.VITE_WIDGET_API_BASE || import.meta.env.VITE_API_URL || window.location.origin).replace(/\/+$/, "");
+  const apiBase = (import.meta.env.VITE_WIDGET_API_BASE || "https://chatboc.ar").replace(/\/+$/, "");
+  const iframeBase = window.location.origin;
   
   const codeScript = useMemo(() => {
     const customAttrs = [
@@ -132,7 +133,7 @@ const Integracion = () => {
       .filter(Boolean)
       .join("\n");
 
-    return `<script async src="https://cdn.chatboc.ar/widget.js"
+    return `<script async src="https://cdn.chatboc.ar/widget/v1.js"
   data-api-base="${apiBase}"
   data-owner-token="${ownerToken}"
   data-default-open="false"
@@ -159,6 +160,20 @@ ${customAttrs ? customAttrs + "\n" : ""}></script>`;
     if (welcomeSubtitle) url.searchParams.set("welcomeSubtitle", welcomeSubtitle);
     return url.toString();
   }, [apiBase, ownerToken, endpoint, primaryColor, accentColor, logoUrl, headerLogoUrl, logoAnimation, welcomeTitle, welcomeSubtitle]);
+
+  const previewIframeUrl = useMemo(() => {
+    const url = new URL(`${iframeBase}/iframe`);
+    url.searchParams.set("ownerToken", ownerToken);
+    url.searchParams.set("tipo_chat", endpoint);
+    if (primaryColor) url.searchParams.set("primaryColor", primaryColor);
+    if (accentColor) url.searchParams.set("accentColor", accentColor);
+    if (logoUrl) url.searchParams.set("logoUrl", logoUrl);
+    if (headerLogoUrl) url.searchParams.set("headerLogoUrl", headerLogoUrl);
+    if (logoAnimation) url.searchParams.set("logoAnimation", logoAnimation);
+    if (welcomeTitle) url.searchParams.set("welcomeTitle", welcomeTitle);
+    if (welcomeSubtitle) url.searchParams.set("welcomeSubtitle", welcomeSubtitle);
+    return url.toString();
+  }, [iframeBase, ownerToken, endpoint, primaryColor, accentColor, logoUrl, headerLogoUrl, logoAnimation, welcomeTitle, welcomeSubtitle]);
   
   const codeIframe = useMemo(() => `<iframe
   id="chatboc-iframe"
@@ -194,7 +209,43 @@ document.addEventListener('DOMContentLoaded', function () {
   //   chatIframe.contentWindow.postMessage({ type: 'chatboc-init', settings: { exampleSetting: true } }, '${apiBase}');
   // };
 });
-</script>`, [iframeSrcUrl, endpoint]);
+</script>`, [iframeSrcUrl, apiBase, endpoint]);
+
+  useEffect(() => {
+    if (!ownerToken) return;
+    let scriptEl: HTMLScriptElement | null = null;
+    const inject = () => {
+      if (scriptEl) scriptEl.remove();
+      (window as any).chatbocDestroyWidget?.(ownerToken);
+      const s = document.createElement('script');
+      s.src = 'https://cdn.chatboc.ar/widget/v1.js';
+      s.async = true;
+      s.setAttribute('data-api-base', apiBase);
+      s.setAttribute('data-owner-token', ownerToken);
+      s.setAttribute('data-default-open', 'false');
+      s.setAttribute('data-width', WIDGET_STD_WIDTH);
+      s.setAttribute('data-height', WIDGET_STD_HEIGHT);
+      s.setAttribute('data-closed-width', WIDGET_STD_CLOSED_WIDTH);
+      s.setAttribute('data-closed-height', WIDGET_STD_CLOSED_HEIGHT);
+      s.setAttribute('data-bottom', WIDGET_STD_BOTTOM);
+      s.setAttribute('data-right', WIDGET_STD_RIGHT);
+      s.setAttribute('data-endpoint', endpoint);
+      if (primaryColor) s.setAttribute('data-primary-color', primaryColor);
+      if (accentColor) s.setAttribute('data-accent-color', accentColor);
+      if (logoUrl) s.setAttribute('data-logo-url', logoUrl);
+      if (headerLogoUrl) s.setAttribute('data-header-logo-url', headerLogoUrl);
+      if (logoAnimation) s.setAttribute('data-logo-animation', logoAnimation);
+      if (welcomeTitle) s.setAttribute('data-welcome-title', welcomeTitle);
+      if (welcomeSubtitle) s.setAttribute('data-welcome-subtitle', welcomeSubtitle);
+      document.body.appendChild(s);
+      scriptEl = s;
+    };
+    inject();
+    return () => {
+      if (scriptEl) scriptEl.remove();
+      (window as any).chatbocDestroyWidget?.(ownerToken);
+    };
+  }, [apiBase, ownerToken, endpoint, primaryColor, accentColor, logoUrl, headerLogoUrl, logoAnimation, welcomeTitle, welcomeSubtitle]);
 
   useEffect(() => {
     if (!ownerToken) return;
@@ -517,7 +568,7 @@ document.addEventListener('DOMContentLoaded', function () {
               >
                 {user && user.token && user.tipo_chat ? (
                   <iframe
-                    src={iframeSrcUrl}
+                    src={previewIframeUrl}
                     width={WIDGET_STD_WIDTH}
                     height={WIDGET_STD_HEIGHT}
                     style={{
