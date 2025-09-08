@@ -102,25 +102,7 @@ Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-trick
 
 ## Embedding the Chatboc widget
 
-You can embed the floating chat widget on any site by loading `widget/v1.js` with your owner token:
 
-```html
-<script async src="https://cdn.chatboc.ar/widget/v1.js"
-        data-api-base="https://chatboc.ar"
-        data-owner-token="OWNER_TOKEN_DE_LA_ENTIDAD"
-        data-endpoint="pyme"></script>
-```
-
-This snippet loads the widget without needing an iframe and creates a floating bubble styled just like on chatboc.ar.
-You can also pass `data-theme="dark"` or `data-theme="light"` to force a specific theme inside the widget.
-If you host `widget/v1.js` yourself, remember to add `data-domain="https://chatboc.ar"` so the iframe loads from our servers. Example self-hosted snippet:
-
-```html
-<script async src="/widget/v1.js"
-  data-api-base="https://chatboc.ar"
-  data-owner-token="OWNER_TOKEN_DE_LA_ENTIDAD"></script>
-```
-Using `widget/v1.js` from another domain **without** this attribute causes the iframe
 to load its scripts from the wrong origin, leading to console errors and 403
 responses from `https://api.chatboc.ar`. If you see messages such as `attribute
 cx: Expected length` or `Access Forbidden`, verify that `data-domain` is set to
@@ -135,7 +117,7 @@ for the browser to allow geolocation requests inside the widget.
 The `<script>` tag accepts several extra `data-*` attributes to control the widget's look:
 
 - `data-bottom` and `data-right` – offset from the bottom-right corner (`20px` by default).
-  - `data-endpoint` – `pyme` or `municipio` to pick the API endpoint (`pyme` by default).
+
 - `data-default-open="true"` – open the chat automatically when the page loads.
 - `data-width` / `data-height` – size of the open chat window (defaults to `460px` × `680px`).
 - `data-closed-width` / `data-closed-height` – size of the closed bubble (`96px` × `96px`).
@@ -168,8 +150,6 @@ If your site blocks external JavaScript, you can embed the chatbot using an
   loading="lazy"
 ></iframe>
 <script>
-  document.addEventListener('DOMContentLoaded', function () {
-    var f = document.getElementById('chatboc-iframe');
 
     // If you load this snippet more than once (e.g. in a SPA)
     // call `window.chatbocDestroyWidget('<TOKEN>')` before
@@ -196,7 +176,7 @@ users will need to enter their address manually or skip media features.
 If your site loads the script multiple times (for example when navigating a SPA), call `window.chatbocDestroyWidget('<TOKEN>')` before injecting a new one.
 This ensures only one widget per token remains active.
 
-From version X.X onward, `widget/v1.js` automatically ignores duplicate script tags
+
 for the same token. To reload the widget manually, include
 `data-force="true"` on the `<script>` tag or call
 `window.chatbocDestroyWidget('<TOKEN>')` before reinserting it.
@@ -337,8 +317,7 @@ update the `width` prop in `src/components/auth/GoogleLoginButton.tsx` to a
 numeric value like `width={300}`. The Google OAuth library does not accept
 percentage values.
 
-If you host `widget/v1.js` on your own domain and forget to include
-`data-domain="https://chatboc.ar"`, the iframe will attempt to load its
+
 assets from your site. This results in an HTML error page being parsed as
 JavaScript and the browser reports `Uncaught SyntaxError: Invalid or
 unexpected token (window-provider.js:...)`. Always set the `data-domain`
