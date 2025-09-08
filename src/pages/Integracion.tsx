@@ -133,7 +133,7 @@ const Integracion = () => {
       .filter(Boolean)
       .join("\n");
 
-    return `<script async src="https://cdn.chatboc.ar/widget/v1.js"
+    return `<script async src="https://cdn.chatboc.ar/widget.js"
   data-api-base="${apiBase}"
   data-owner-token="${ownerToken}"
   data-default-open="false"
@@ -218,7 +218,7 @@ document.addEventListener('DOMContentLoaded', function () {
       if (scriptEl) scriptEl.remove();
       (window as any).chatbocDestroyWidget?.(ownerToken);
       const s = document.createElement('script');
-      s.src = 'https://cdn.chatboc.ar/widget/v1.js';
+      s.src = 'https://cdn.chatboc.ar/widget.js';
       s.async = true;
       s.setAttribute('data-api-base', apiBase);
       s.setAttribute('data-owner-token', ownerToken);
