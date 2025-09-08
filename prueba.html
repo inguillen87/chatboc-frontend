@@ -270,37 +270,32 @@
 
   <!-- WIDGET SCRIPT -->
   <script>
-    document.addEventListener('DOMContentLoaded', function () {
-      // Fallback logo SVG
+    document.addEventListener("DOMContentLoaded", function () {
       window.__FALLBACK_LOGO =
         'data:image/svg+xml;utf8,' +
         encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256">
           <circle cx="128" cy="128" r="120" fill="#006C3F"/>
           <text x="50%" y="55%" text-anchor="middle" font-family="Arial" font-size="140" fill="#fff" font-weight="700">J</text>
         </svg>`);
-
-      const ENTITY_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo0LCJleHAiOjE3NTc2OTAxNTF9._vI8DgAfyMBnxgK32L1MwgPjwPK2KJrtcoYOHqlXcPQ";
-
-      const s = document.createElement('script');
-      s.src = 'https://chatboc.ar/widget.js';
-      s.async = true;
-      s.setAttribute('data-entity-token', ENTITY_TOKEN);
-      s.setAttribute('data-endpoint', 'municipio');
-      s.setAttribute('data-primary-color', '#006C3F');
-      s.setAttribute('data-accent-color', '#d4a01a');
-      s.setAttribute('data-logo-url', 'https://chatboc-demo-widget-oigs.vercel.app/junilogo.png');
-      s.setAttribute('data-logo-animation', 'pulse 5s ease-in-out infinite');
-      s.setAttribute('data-welcome-title', '¡Hola! Soy JUNI');
-      s.setAttribute('data-welcome-subtitle', 'Asistente Virtual de Junín');
-      s.setAttribute('data-bottom', '20px');
-      s.setAttribute('data-right', '20px');
-      s.setAttribute('data-width', '460px');
-      s.setAttribute('data-height', '680px');
-      s.setAttribute('data-closed-width', '112px');
-      s.setAttribute('data-closed-height', '112px');
-      document.body.appendChild(s);
     });
   </script>
+  <script async src="https://cdn.chatboc.ar/widget/v1.js"
+          data-api-base="https://chatboc.ar"
+          data-owner-token="OWNER_TOKEN_DE_LA_ENTIDAD"
+          data-endpoint="municipio"
+          data-primary-color="#006C3F"
+          data-accent-color="#d4a01a"
+          data-logo-url="https://chatboc-demo-widget-oigs.vercel.app/junilogo.png"
+          data-logo-animation="pulse 5s ease-in-out infinite"
+          data-welcome-title="¡Hola! Soy JUNI"
+          data-welcome-subtitle="Asistente Virtual de Junín"
+          data-bottom="20px"
+          data-right="20px"
+          data-width="460px"
+          data-height="680px"
+          data-closed-width="112px"
+          data-closed-height="112px"
+          data-default-open="false"></script>
 </body>
 </html>
 

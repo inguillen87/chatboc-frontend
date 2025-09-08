@@ -49,9 +49,9 @@
 
     <!--
         The widget script.
-        - data-entity-token must be set to your widget token.
-        - data-domain should point to the server where the iframe content is hosted.
-          During local development, this will be the Vite dev server.
+        - data-owner-token must be set to your widget token.
+        - data-api-base debe apuntar a la base del API.
+          Durante el desarrollo local, será el servidor de pruebas.
         - Other options like 'data-bottom' and 'data-right' are passed to the iframe.
     -->
     <script>
@@ -68,12 +68,11 @@
           if (window.chatbocDestroyWidget) {
             window.chatbocDestroyWidget(token);
           }
-          window.APP_TARGET = 'municipio'; // Define el endpoint antes de cargar el script
-
           var s = document.createElement('script');
-          s.src = '/widget.js'; // URL del script del widget
+          s.src = 'https://cdn.chatboc.ar/widget/v1.js'; // URL del script del widget
           s.async = true; // Carga asíncrona para no bloquear el renderizado de la página
-          s.setAttribute('data-entity-token', token); // Token de la entidad para el widget
+          s.setAttribute('data-owner-token', token);
+          s.setAttribute('data-api-base', 'https://chatboc.ar'); // Base del API para las llamadas
           s.setAttribute('data-default-open', 'true'); // El widget comienza cerrado por defecto
           s.setAttribute('data-width', '460px'); // Ancho del widget abierto
           s.setAttribute('data-height', '680px'); // Alto del widget abierto
