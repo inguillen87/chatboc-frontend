@@ -1,6 +1,14 @@
 import { useEffect, useState } from "react";
-import { WholeWord, List } from "lucide-react";
+import { BookOpen, List } from "lucide-react";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export type Prefs = {
   dyslexia: boolean;
@@ -36,32 +44,48 @@ export default function AccessibilityToggle({
   }, [prefs, onChange]);
 
   return (
-    <div className="flex items-center gap-1">
-      <button
-        className={`h-8 px-2 flex items-center gap-1 rounded border text-xs ${
-          prefs.dyslexia ? "bg-amber-100" : "bg-white"
-        }`}
-        onClick={() => setPrefs((p) => ({ ...p, dyslexia: !p.dyslexia }))}
-        aria-pressed={prefs.dyslexia}
-        aria-label="Modo Dislexia"
-        title="Modo Dislexia"
-      >
-        <WholeWord className="w-4 h-4" />
-        <span>Dislexia</span>
-      </button>
-      <button
-        className={`h-8 px-2 flex items-center gap-1 rounded border text-xs ${
-          prefs.simplified ? "bg-amber-100" : "bg-white"
-        }`}
-        onClick={() => setPrefs((p) => ({ ...p, simplified: !p.simplified }))}
-        aria-pressed={prefs.simplified}
-        aria-label="Texto simplificado"
-        title="Texto simplificado"
-      >
-        <List className="w-4 h-4" />
-        <span>Simple</span>
-      </button>
-    </div>
+    <TooltipProvider delayDuration={0}>
+      <div className="flex items-center gap-1">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              size="icon"
+              variant="ghost"
+              className={cn(
+                "h-8 w-8",
+                prefs.dyslexia && "bg-amber-100 text-amber-900"
+              )}
+              onClick={() => setPrefs((p) => ({ ...p, dyslexia: !p.dyslexia }))}
+              aria-pressed={prefs.dyslexia}
+              aria-label="Modo dislexia"
+            >
+              <BookOpen className="w-5 h-5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Modo dislexia</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              size="icon"
+              variant="ghost"
+              className={cn(
+                "h-8 w-8",
+                prefs.simplified && "bg-amber-100 text-amber-900"
+              )}
+              onClick={() =>
+                setPrefs((p) => ({ ...p, simplified: !p.simplified }))
+              }
+              aria-pressed={prefs.simplified}
+              aria-label="Texto simplificado"
+            >
+              <List className="w-5 h-5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Texto simplificado</TooltipContent>
+        </Tooltip>
+      </div>
+    </TooltipProvider>
   );
 }
 
