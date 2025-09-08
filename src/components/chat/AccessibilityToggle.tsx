@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { WholeWord, List } from "lucide-react";
 
 export type Prefs = {
   dyslexia: boolean;
@@ -36,24 +37,28 @@ export default function AccessibilityToggle({
   return (
     <div className="flex items-center gap-1">
       <button
-        className={`px-2 py-1 rounded text-xs border ${
+        className={`w-8 h-8 flex items-center justify-center rounded border ${
           prefs.dyslexia ? "bg-amber-100" : "bg-white"
         }`}
         onClick={() => setPrefs((p) => ({ ...p, dyslexia: !p.dyslexia }))}
         aria-pressed={prefs.dyslexia}
+        aria-label="Modo Dislexia"
         title="Modo Dislexia"
       >
-        Dislexia
+        <WholeWord className="w-5 h-5" />
+        <span className="sr-only">Modo Dislexia</span>
       </button>
       <button
-        className={`px-2 py-1 rounded text-xs border ${
+        className={`w-8 h-8 flex items-center justify-center rounded border ${
           prefs.simplified ? "bg-amber-100" : "bg-white"
         }`}
         onClick={() => setPrefs((p) => ({ ...p, simplified: !p.simplified }))}
         aria-pressed={prefs.simplified}
+        aria-label="Texto simplificado"
         title="Texto simplificado"
       >
-        Simple
+        <List className="w-5 h-5" />
+        <span className="sr-only">Texto simplificado</span>
       </button>
     </div>
   );
