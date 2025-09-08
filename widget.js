@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  function init() {
+  async function init() {
     const SCRIPT_CONFIG = {
       WIDGET_JS_FILENAME: "widget.js",
       DEFAULT_TOKEN: "demo-anon",
@@ -28,32 +28,29 @@
       return;
     }
 
-    const userTokenAttr = script.getAttribute("data-token");
-    const entityTokenAttr = script.getAttribute("data-entity-token");
-    const generateAnonToken = () =>
-      (globalThis.crypto && typeof globalThis.crypto.randomUUID === "function"
-        ? `anon-${globalThis.crypto.randomUUID()}`
-        : `anon-${Math.random().toString(36).slice(2)}`);
-    const userToken = userTokenAttr || generateAnonToken();
-    const entityToken = entityTokenAttr || userTokenAttr || SCRIPT_CONFIG.DEFAULT_TOKEN;
+    const ownerTokenAttr =
+      script.getAttribute("data-owner-token") || script.getAttribute("data-entity-token");
+    const ownerToken = ownerTokenAttr || SCRIPT_CONFIG.DEFAULT_TOKEN;
     const registry = (window.__chatbocWidgets = window.__chatbocWidgets || {});
 
-    if (registry[entityToken]) {
+    if (registry[ownerToken]) {
       if (script.getAttribute("data-force") === "true") {
-        if (typeof registry[entityToken].destroy === "function") {
-          registry[entityToken].destroy();
+        if (typeof registry[ownerToken].destroy === "function") {
+          registry[ownerToken].destroy();
         }
-        delete registry[entityToken];
+        delete registry[ownerToken];
       } else {
         console.warn(
-          `Chatboc widget already loaded for token ${entityToken}. Skipping.`
+          `Chatboc widget already loaded for token ${ownerToken}. Skipping.`
         );
         return;
       }
     }
 
-    const scriptOrigin = (script.src && new URL(script.src, window.location.href).origin) || SCRIPT_CONFIG.DEFAULT_CHATBOC_DOMAIN;
-    const chatbocDomain = script.getAttribute("data-domain") || scriptOrigin;
+    const scriptOrigin =
+      (script.src && new URL(script.src, window.location.href).origin) ||
+      SCRIPT_CONFIG.DEFAULT_CHATBOC_DOMAIN;
+    const apiBase = (script.getAttribute("data-api-base") || scriptOrigin).replace(/\/+$/, "");
 
     const WIDGET_DIMENSIONS = {
       OPEN: {
@@ -80,15 +77,22 @@
     const logoAnimationAttr = script.getAttribute("data-logo-animation") || "";
     const welcomeTitleAttr = script.getAttribute("data-welcome-title") || "";
     const welcomeSubtitleAttr = script.getAttribute("data-welcome-subtitle") || "";
-    const logoUrl = logoUrlAttr || `${chatbocDomain}/chatboc_widget_64x64.webp`;
+    const logoUrl = logoUrlAttr || `${apiBase}/chatboc_widget_64x64.webp`;
     const headerLogoUrl = headerLogoUrlAttr || logoUrl;
     const endpointAttr = script.getAttribute("data-endpoint");
     const tipoChat =
-      endpointAttr === "municipio" || endpointAttr === "pyme"
-        ? endpointAttr
-        : window.APP_TARGET === "municipio"
-        ? "municipio"
-        : "pyme";
+      endpointAttr === "municipio" || endpointAttr === "pyme" ? endpointAttr : "pyme";
+
+    let latestToken = null;
+    window.addEventListener("chatboc-token", (e) => {
+      latestToken = e.detail;
+      const reg = registry[ownerToken];
+      if (reg && typeof reg.post === "function") {
+        reg.post({ type: "AUTH", token: latestToken });
+      }
+    });
+
+    latestToken = await window.chatbocAuth.ensureToken();
 
     function buildWidget(finalCta) {
       const zIndexBase = parseInt(script.getAttribute("data-z") || SCRIPT_CONFIG.DEFAULT_Z_INDEX, 10);
@@ -133,7 +137,7 @@
 
       const widgetContainer = document.createElement("div");
       widgetContainer.id = `chatboc-widget-container-${iframeId}`;
-      widgetContainer.setAttribute("data-chatboc-token", entityToken);
+      widgetContainer.setAttribute("data-chatboc-token", ownerToken);
       Object.assign(widgetContainer.style, {
         position: "fixed",
         bottom: initialBottom,
@@ -197,15 +201,15 @@
         transition: "opacity 0.3s ease-out 0.1s",
         zIndex: "2",
       });
-      loader.innerHTML = `<img src="${chatbocDomain}/favicon/favicon-96x96.png" alt="Cargando Chatboc..." style="width: 60%; height: 60%; max-width: 96px; max-height: 96px; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.2));"/>`;
+      loader.innerHTML = `<img src="${apiBase}/favicon/favicon-96x96.png" alt="Cargando Chatboc..." style="width: 60%; height: 60%; max-width: 96px; max-height: 96px; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.2));"/>`;
       widgetContainer.appendChild(loader);
 
       const iframe = document.createElement("iframe");
       iframe.id = iframeId;
       // Use explicit .html path so integrations without rewrite rules work
-      const iframeSrc = new URL(`${chatbocDomain}/iframe.html`);
-      iframeSrc.searchParams.set("token", userToken);
-      iframeSrc.searchParams.set("entityToken", entityToken);
+      const iframeSrc = new URL(`${apiBase}/iframe.html`);
+      iframeSrc.searchParams.set("token", latestToken);
+      iframeSrc.searchParams.set("entityToken", ownerToken);
       iframeSrc.searchParams.set("widgetId", iframeId);
       iframeSrc.searchParams.set("defaultOpen", String(defaultOpen));
       iframeSrc.searchParams.set("tipo_chat", tipoChat);
@@ -265,7 +269,7 @@
         if (!attemptedFallback) {
           attemptedFallback = true;
           iframe.style.display = "none";
-          iframe.src = `${chatbocDomain}/iframe`;
+          iframe.src = `${apiBase}/iframe`;
           iframe.style.display = "block";
           return;
         }
@@ -277,7 +281,7 @@
       };
 
       function messageHandler(event) {
-        const isSafeOrigin = event.origin === chatbocDomain || chatbocDomain.startsWith("http://localhost");
+        const isSafeOrigin = event.origin === apiBase || apiBase.startsWith("http://localhost");
         if (!isSafeOrigin) {
           if (event.data?.type?.startsWith('chatboc-')) {
             console.warn(`Chatboc widget: Ignored message from unsafe origin: ${event.origin}`);
@@ -289,6 +293,7 @@
           loader.style.opacity = "0";
           setTimeout(() => loader.remove(), 300);
           iframe.style.opacity = "1";
+          postToIframe({ type: "AUTH", token: latestToken });
           return;
         }
 
@@ -373,7 +378,7 @@
 
 
       function postToIframe(msg) {
-        iframe?.contentWindow?.postMessage({ ...msg, widgetId: iframeId }, chatbocDomain);
+        iframe?.contentWindow?.postMessage({ ...msg, widgetId: iframeId }, apiBase);
       }
 
       function destroy() {
@@ -382,10 +387,10 @@
         widgetContainer.removeEventListener("mousedown", dragStart);
         widgetContainer.removeEventListener("touchstart", dragStart);
         widgetContainer?.remove();
-        delete registry[entityToken];
+        delete registry[ownerToken];
       }
 
-      registry[entityToken] = { destroy, container: widgetContainer, post: postToIframe };
+      registry[ownerToken] = { destroy, container: widgetContainer, post: postToIframe };
 
       // Global API
       if (!window.Chatboc) window.Chatboc = {};
@@ -405,7 +410,8 @@
     if (ctaMessageAttr) {
       buildWidget(ctaMessageAttr);
     } else {
-      fetch(`${chatbocDomain}/widget/attention`)
+      window.chatbocAuth
+        .apiFetch(`${apiBase}/widget/attention`)
         .then((r) => (r.ok ? r.json() : {}))
         .then((d) => buildWidget(d.message || ""))
         .catch(() => buildWidget("")); // Always build widget, even if fetch fails
