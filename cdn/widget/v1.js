@@ -37,8 +37,17 @@
     const secs = (exp || 0) - now, wait = Math.max(secs - 120, 15) * 1000;
     clearTimeout(timer);
     timer = setTimeout(async () => {
-      try { token = await refresh(token); schedule(token); }
-      catch { token = await mint(); schedule(token); }
+      try {
+        token = await refresh(token);
+      } catch {
+        try {
+          token = await mint();
+        } catch {
+          schedule(token);
+          return;
+        }
+      }
+      schedule(token);
     }, wait);
   }
 
