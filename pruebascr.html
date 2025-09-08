@@ -1,32 +1,595 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Demo Chatboc · Municipalidad de Junín</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --prim:#006C3F;
+      --acento:#d4a01a;
+      --txt:#2c3e50;
+      --txt-2:#5a6a7a;
+      --fondo:#f5f8f7;
+      --radius:16px;
+      --shadow:0 10px 30px rgba(0,0,0,.08);
+    }
+
+    * { box-sizing:border-box; margin:0; padding:0 }
+    body {
+      font-family:Poppins, Arial, sans-serif;
+      background: var(--fondo);
+      color: var(--txt);
+    }
+
+    header {
+      position:sticky;top:0;z-index:1000;
+      background:rgba(255,255,255,.7);
+      backdrop-filter:blur(12px);
+      padding:10px 20px;
+      display:flex;align-items:center;justify-content:center;
+      box-shadow:var(--shadow);
+      position:relative;
+    }
+
+    .logo-container{
+      position:relative;
+      width:80px;height:80px;
+      display:flex;align-items:center;justify-content:center;
+    }
+    .logo-container img{
+      width:100%;height:100%;
+      border-radius:50%;border:2px solid var(--prim);object-fit:cover;
+      transition:transform .3s;
+    }
+    .logo-container:hover img{ transform:scale(1.1) rotate(-5deg); }
+    .logo-container:active img{ transform:scale(0.95) rotate(5deg); }
+    .logo-container::after{
+      content:"";
+      position:absolute;top:-6px;right:-6px;
+      width:14px;height:14px;background:var(--acento);border-radius:50%;
+      transition:transform .3s;
+    }
+    .logo-container:hover::after{ animation:flower-hop .8s ease-in-out; }
+    @keyframes flower-hop{
+      0%,100%{transform:translateY(0);}
+      50%{transform:translateY(-6px);}
+    }
+
+    .menu-toggle{
+      position:absolute;left:20px;
+      display:none;flex-direction:column;gap:4px;
+      background:transparent;border:none;cursor:pointer;
+    }
+    .menu-toggle span{
+      width:26px;height:3px;background:var(--prim);border-radius:2px;
+      transition:background .3s;
+    }
+
+    nav { display:flex; gap:12px; flex-wrap:wrap; justify-content:center; position:absolute; right:20px; top:50%; transform:translateY(-50%); }
+    nav a {
+      padding:6px 14px;
+      border:1px solid var(--prim);
+      border-radius:999px;
+      color:var(--prim);
+      font-weight:500;
+      background:white;
+      text-decoration:none;
+      transition:background-color .2s,color .2s;
+    }
+    nav a:hover { background:var(--prim); color:#fff; }
+
+    @media(max-width:768px){
+      nav{display:none;flex-direction:column;align-items:center;position:absolute;top:100%;left:0;width:100%;background:rgba(255,255,255,.95);padding:10px 0;box-shadow:var(--shadow);transform:none;right:auto;}
+      nav.show{display:flex;}
+      nav a{margin:8px 0;}
+      .menu-toggle{display:flex;}
+    }
+
+    /* Hero */
+    .hero {
+      display:grid;grid-template-columns:1fr 1fr;gap:30px;
+      padding:50px 20px;max-width:1200px;margin:0 auto;align-items:center;
+    }
+    .hero-text { text-align:center; }
+    .hero-text h1 {
+      font-size:2.4rem;line-height:1.2;color:var(--prim);margin-bottom:12px;
+    }
+    .hero-text p {
+      font-size:1.1rem;color:var(--txt-2);margin-bottom:24px;
+    }
+    .cta-group { display:flex;gap:16px;flex-wrap:wrap;justify-content:center; }
+    .cta {
+      padding:12px 24px;border-radius:999px;background:var(--acento);
+      color:#fff;font-weight:600;box-shadow:0 8px 22px rgba(212,160,26,.35);
+      transition:transform .3s ease, box-shadow .3s ease, filter .3s ease;
+    }
+    .cta:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 12px 28px rgba(212,160,26,.45);
+      filter: brightness(1.05);
+    }
+
+    /* ChatWidget embebido */
+    .chat-preview {
+      border-radius: 20px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      height: 480px;
+      max-width: 420px;
+      margin-left: auto;
+      margin-right: auto;
+      display: flex;
+      flex-direction: column;
+    }
+    .chat-header {
+      background:var(--prim);color:white;padding:12px;
+      font-weight:600;display:flex;align-items:center;gap:12px;
+    }
+    .chat-header img {
+      width:40px;height:40px;border-radius:50%;object-fit:cover;
+    }
+    iframe {
+      border:none;
+      flex-grow:1;
+    }
+
+    .chat-body {
+      background-color: #fff;
+      padding: 20px;
+      flex-grow: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    @keyframes bubble-in {
+      from {
+        opacity: 0;
+        transform: translateY(10px) scale(0.95);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+    .chat-bubble {
+      padding: 10px 15px;
+      border-radius: 18px;
+      max-width: 80%;
+      font-size: .95rem;
+      line-height: 1.4;
+      opacity: 0;
+      animation: bubble-in 0.4s ease-out forwards;
+    }
+    .chat-bubble:nth-child(1) { animation-delay: 0.5s; }
+    .chat-bubble:nth-child(2) { animation-delay: 1.5s; }
+    .chat-bubble:nth-child(3) { animation-delay: 2.5s; }
+    .chat-bubble:nth-child(4) { animation-delay: 3.5s; }
+    .chat-bubble.user {
+      background-color: var(--acento);
+      color: white;
+      align-self: flex-end;
+      border-bottom-right-radius: 4px;
+    }
+    .chat-bubble.bot {
+      background-color: #e5e5ea;
+      color: var(--txt);
+      align-self: flex-start;
+      border-bottom-left-radius: 4px;
+    }
+
+    .help-tag {
+      position: fixed;
+      right: 180px;
+      bottom: 90px;
+      background: var(--prim);
+      color: #fff;
+      padding: 12px 24px;
+      border-radius: var(--radius);
+      font-weight: 600;
+      box-shadow: var(--shadow);
+      font-size: 1.1rem;
+      cursor: pointer;
+      animation: float 3s ease-in-out infinite, pulse-shadow 3s ease-in-out infinite;
+      transition: transform .3s, opacity .3s;
+    }
+    .help-tag .help-text{ display:block; }
+    .help-tag:hover{ transform:scale(1.08) rotate(2deg); }
+    .help-tag:active{ transform:scale(0.95); }
+    .help-tag::after {
+      content: "";
+      position: absolute;
+      right: -16px;
+      top: 50%;
+      transform: translateY(-50%);
+      border-left: 16px solid var(--prim);
+      border-top: 10px solid transparent;
+      border-bottom: 10px solid transparent;
+    }
+    @keyframes float {
+      0%,100% { transform: translateY(0); }
+      50% { transform: translateY(-6px); }
+    }
+    @keyframes pulse-shadow {
+      0%,100% { box-shadow: var(--shadow); }
+      50% { box-shadow: 0 0 20px rgba(0,108,63,.4); }
+    }
+
+    @keyframes logo-bounce {
+      0%,100%{transform:translateY(0);}50%{transform:translateY(-6px);} }
+    @keyframes pulse {0%,100%{transform:scale(1);}50%{transform:scale(1.15);} }
+
+    /* Why JUNI */
+    .why { padding:40px 20px; background:#fff; }
+    .why h2 { text-align:center; margin-bottom:24px; font-size:2rem; color:var(--prim); }
+    .why-grid {
+      display:grid;
+      grid-template-columns:repeat(auto-fit, minmax(260px,1fr));
+      gap:20px;
+      max-width:1200px;
+      margin:0 auto;
+    }
+    .why-card {
+      background:var(--fondo);
+      border-radius:var(--radius);
+      padding:24px;
+      text-align:center;
+      box-shadow:var(--shadow);
+    }
+    .why-card svg { width:40px;height:40px;color:var(--prim);margin-bottom:12px; }
+    .why-card p { font-weight:500;color:var(--txt-2); }
+
+    footer {
+      margin-top:40px;padding:20px;text-align:center;
+      color:var(--txt-2);font-size:.95rem;
+    }
+
+    /* Services */
+    .services { padding: 40px 20px; }
+    .services h2 { text-align: center; margin-bottom: 24px; font-size: 2rem; color: var(--prim); }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .card {
+      background: #fff;
+      border-radius: var(--radius);
+      padding: 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      box-shadow: var(--shadow);
+      transition: transform .3s ease, box-shadow .3s ease;
+    }
+    .card:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 18px 40px rgba(0,0,0,.12);
+    }
+    .icon {
+      width: 48px;
+      height: 48px;
+      display: grid;
+      place-items: center;
+      border-radius: 12px;
+      background: rgba(0,108,63,.08);
+      flex-shrink: 0;
+      transition: background-color .3s ease, transform .3s ease;
+    }
+    .card:hover .icon {
+      background-color: var(--prim);
+      transform: scale(1.1);
+    }
+    .card:hover .icon svg {
+      color: white;
+    }
+    .icon svg {
+      width: 28px;
+      height: 28px;
+      color: var(--prim);
+    }
+    .card span {
+      font-weight: 600;
+      font-size: 1.05rem;
+    }
+
+    /* Widget launcher */
+    #chatboc-launcher {
+      transition: transform .3s ease, box-shadow .3s ease;
+      z-index: 100000;
+    }
+    #chatboc-launcher:hover {
+      transform: scale(1.1);
+      box-shadow: 0 8px 20px rgba(0,0,0,.25);
+    }
+    #chatboc-launcher:active {
+      transform: scale(0.95);
+      box-shadow: 0 4px 12px rgba(0,0,0,.3);
+    }
+    #chatboc-launcher img {
+      width: 90%;
+      height: 90%;
+    }
+
+    @media(max-width:900px){
+      .hero{grid-template-columns:1fr;text-align:center;}
+      .cta-group{justify-content:center;}
+    }
+
+    @media(max-width:600px){
+      header{padding:12px 20px;}
+      nav a{padding:6px 10px;font-size:.9rem;margin:4px 0;}
+      .hero{padding:40px 10px;}
+      .hero-text h1{font-size:2rem;}
+      .chat-preview{height:420px;max-width:100%;}
+      .help-tag{right:20px;bottom:130px;font-size:1rem;padding:10px 20px;}
+      .help-tag::after{display:none;}
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <button class="menu-toggle" aria-label="Menú"><span></span><span></span><span></span></button>
+    <div class="logo-container">
+      <img id="logoHeader" src="./junilogo.png" alt="Logo Junín" onerror="this.src=window.__FALLBACK_LOGO" />
+    </div>
+    <nav>
+      <a href="#">Noticias</a>
+      <a href="#">Cultura</a>
+      <a href="#">Turismo</a>
+      <a href="#">Servicios</a>
+      <a href="#">Transparencia</a>
+    </nav>
+  </header>
+
+  <section class="hero">
+    <!-- Texto -->
+    <div class="hero-text">
+      <h1>Atención al ciudadano, 24/7 y sin espera</h1>
+      <p>El asistente <b>JUNI</b> resuelve trámites, reclamos, tasas y consultas en segundos.
+      Integrado a WhatsApp y web, con seguimiento y tickets.</p>
+      <div class="cta-group">
+        <a class="cta" onclick="window.postMessage({type:'chatboc:open'}, '*')">Probar el asistente</a>
+        <a class="cta" style="background:#25D366;">WhatsApp</a>
+        <a class="cta" style="background:#007BFF;">Consultar reclamos</a>
+      </div>
+    </div>
+
+    <!-- Vista previa del chat -->
+    <div class="chat-preview">
+      <div class="chat-header">
+        <img src="./junilogo.png" alt="Juni" onerror="this.src=window.__FALLBACK_LOGO">
+        <span>Asistente Virtual JUNI</span>
+      </div>
+      <div class="chat-body">
+        <div class="chat-bubble bot">
+            ¡Hola! Soy JUNI, tu asistente virtual. ¿En qué puedo ayudarte hoy?
+        </div>
+        <div class="chat-bubble user">
+            Quiero reportar un foco de luz quemado.
+        </div>
+        <div class="chat-bubble bot">
+            Claro, ¿podés indicarme la dirección exacta para registrar el reclamo?
+        </div>
+        <div class="chat-bubble user">
+            Es en Belgrano 789.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="why">
+    <h2>¿Por qué elegir a JUNI?</h2>
+    <div class="why-grid">
+      <div class="why-card">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="9" stroke-width="2"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 7v5l3 3"/></svg>
+        <p>Atención disponible las 24 hs de la semana.</p>
+      </div>
+      <div class="why-card">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        <p>Respuestas inmediatas sin filas ni esperas.</p>
+      </div>
+      <div class="why-card">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2l7 4v6c0 5-3 9-7 10-4-1-7-5-7-10V6l7-4z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4"/></svg>
+        <p>Gestiones seguras con seguimiento en cada trámite.</p>
+      </div>
+      <div class="why-card">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 002.828 2.828l6.586-6.586a4 4 0 10-5.657-5.657L6.343 10.657a6 6 0 008.485 8.485L21 13"/></svg>
+        <p>Adjuntá fotos, tu ubicación o notas de voz para explicar mejor tu consulta.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="services">
+    <h2>Servicios Municipales</h2>
+    <div class="grid">
+      <div class="card">
+        <div class="icon">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+        </div>
+        <span>Atención al Ciudadano</span>
+      </div>
+      <div class="card">
+        <div class="icon">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
+        </div>
+        <span>Trámites</span>
+      </div>
+      <div class="card">
+        <div class="icon">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        </div>
+        <span>Información</span>
+      </div>
+      <div class="card">
+        <div class="icon">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="5" width="20" height="14" rx="2" ry="2" stroke-width="2"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2 10h20m-6 5h2m-4 0h1"/></svg>
+        </div>
+        <span>Pagos Online</span>
+      </div>
+      <div class="card">
+        <div class="icon">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+        </div>
+        <span>Turnos</span>
+      </div>
+      <div class="card">
+        <div class="icon">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 20l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11v2m0-6h.01"/></svg>
+        </div>
+        <span>Reclamos</span>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    Demostración oficial · Chatboc.ar para Municipalidad de Junín
+  </footer>
+
+  <div id="helpTag" class="help-tag" onclick="window.postMessage({type:'chatboc:open'}, '*')">
+    <span class="help-text">¿Necesitas ayuda?</span>
+  </div>
+
+  <!-- WIDGET SCRIPT -->
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-  var s = document.createElement('script');
-  s.src = 'https://cdn.chatboc.ar/widget/v1.js';
-  s.async = true;
-  s.setAttribute('data-api-base', 'https://chatboc.ar');
-  s.setAttribute('data-owner-token', 'ef403b5b-e0df-4b35-be34-35b9dac0d6f1');
-  s.setAttribute('data-default-open', 'false');
-  s.setAttribute('data-width', '460px');
-  s.setAttribute('data-height', '680px');
-  s.setAttribute('data-closed-width', '112px');
-  s.setAttribute('data-closed-height', '112px');
-  s.setAttribute('data-bottom', '20px');
-  s.setAttribute('data-right', '20px');
-  s.setAttribute('data-endpoint', 'municipio');
-  s.setAttribute('data-primary-color', '#006C3F');
-  s.setAttribute('data-logo-url', 'https://example.com/logo.png');
-  s.setAttribute('data-header-logo-url', 'https://example.com/header-logo.png');
-  s.setAttribute('data-logo-animation', 'bounce 2s infinite');
-  s.setAttribute('data-welcome-title', '¡Hola! Soy tu asistente');
-  s.setAttribute('data-welcome-subtitle', 'Estoy aquí para ayudarte');
+  window.__FALLBACK_LOGO =
+    'data:image/svg+xml;utf8,' +
+    encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256">
+      <circle cx="128" cy="128" r="120" fill="#006C3F"/>
+      <text x="50%" y="55%" text-anchor="middle" font-family="Arial" font-size="140" fill="#fff" font-weight="700">J</text>
+    </svg>`);
 
-  document.body.appendChild(s);
+  const ENTITY_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo0LCJleHAiOjE3NTc4NjI0MTR9.vP7q9deJytnH4quRmhu-YtzYaObN_2N6hgR9XJUMDxU';
+  let currentToken = null;
+  let currentScript = null;
 
-  s.onload = function() {
-    console.log('Chatboc Widget cargado y listo.');
-  };
-  s.onerror = function() {
-    console.error('Error al cargar Chatboc Widget.');
-  };
+  const toggle = document.querySelector('.menu-toggle');
+  const nav = document.querySelector('nav');
+  if(toggle && nav){
+    toggle.addEventListener('click', () => nav.classList.toggle('show'));
+  }
+
+  function injectWidget(token) {
+    if (currentScript) currentScript.remove();
+    if (window.chatbocDestroyWidget && currentToken) {
+      window.chatbocDestroyWidget(currentToken);
+    }
+    currentToken = token;
+
+    const isMobile = window.matchMedia('(max-width:600px)').matches;
+    const size = isMobile ? '96px' : '150px';
+
+    Object.keys(localStorage).forEach(k => { if(k.includes('chatboc')) localStorage.removeItem(k); });
+
+    var s = document.createElement('script');
+    s.src = 'https://chatboc.ar/widget.js?v=' + Date.now();
+    s.async = true;
+    s.setAttribute('data-entity-token', token);
+    s.setAttribute('data-default-open', 'false');
+    s.setAttribute('data-width', '460px');
+    s.setAttribute('data-height', '680px');
+    s.setAttribute('data-closed-width', size);
+    s.setAttribute('data-closed-height', size);
+    s.setAttribute('data-bottom', '20px');
+    s.setAttribute('data-right', '20px');
+    s.setAttribute('data-endpoint', 'municipio');
+    s.setAttribute('data-z-index', '100000');
+    s.setAttribute('data-primary-color', '#006c3f');
+    s.setAttribute('data-accent-color', '#006c3f');
+    s.setAttribute('data-logo-url', 'https://chatboc-demo-widget-oigs.vercel.app/junilogo.png');
+    s.setAttribute('data-logo-animation', 'logo-bounce 2s infinite, pulse 4s ease-in-out infinite');
+    s.setAttribute('data-welcome-title', 'Hola Soy JUNI');
+    s.setAttribute('data-welcome-subtitle', 'Tu Asistente Virtual Inteligente e Inclusivo');
+    s.setAttribute('data-allow-attachments', 'true');
+    s.setAttribute('data-allow-location', 'true');
+    s.setAttribute('data-allow-audio', 'true');
+
+    document.body.appendChild(s);
+    currentScript = s;
+
+    s.onload = function() {
+      console.log('Chatboc Widget cargado y listo.');
+      enhanceLauncher();
+    };
+    s.onerror = function() {
+      console.error('Error al cargar Chatboc Widget.');
+    };
+  }
+
+  function enhanceLauncher(){
+    const launcher = document.querySelector('[id^="chatboc-launcher"],[class*="chatboc-launcher"]');
+    if(!launcher){ setTimeout(enhanceLauncher, 500); return; }
+    launcher.style.transition = 'transform .3s';
+    launcher.addEventListener('mouseenter', () => launcher.style.transform = 'scale(1.1) rotate(3deg)');
+    launcher.addEventListener('mouseleave', () => launcher.style.transform = 'scale(1) rotate(0)');
+    launcher.addEventListener('mousedown', () => launcher.style.transform = 'scale(0.95) rotate(-3deg)');
+    launcher.addEventListener('mouseup', () => launcher.style.transform = 'scale(1.1) rotate(3deg)');
+  }
+
+  async function refreshToken() {
+    try {
+      const res = await fetch('https://chatboc.ar/auth/widget-token/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache'
+        },
+        cache: 'no-store',
+        body: JSON.stringify({ token: ENTITY_TOKEN })
+      });
+      const data = await res.json();
+      const token = data.token;
+      if (!token) throw new Error('Token ausente en la respuesta');
+
+      injectWidget(token);
+
+      const [, payload] = token.split('.');
+      const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+      const padded = base64.padEnd(base64.length + (4 - (base64.length % 4)) % 4, '=');
+      const { exp } = JSON.parse(atob(padded));
+      const refreshMs = exp * 1000 - Date.now() - 60000;
+      setTimeout(refreshToken, Math.max(refreshMs, 30000));
+    } catch (err) {
+      console.error('No se pudo obtener un nuevo token', err);
+      injectWidget(ENTITY_TOKEN);
+      setTimeout(refreshToken, 30000);
+    }
+  }
+
+  window.APP_TARGET = 'municipio';
+  const tag = document.getElementById('helpTag');
+  const phrases = [
+    '¿Necesitas ayuda?',
+    '¿Querés hacer una sugerencia?',
+    '¿Tenés un reclamo?',
+    '¿Tenés consultas? ¡Preguntame!'
+  ];
+  if(tag){
+    const textEl = tag.querySelector('.help-text');
+    textEl.style.transition = 'opacity .3s';
+    let i = 0;
+    setInterval(() => {
+      textEl.style.opacity = 0;
+      setTimeout(() => {
+        i = (i + 1) % phrases.length;
+        textEl.textContent = phrases[i];
+        textEl.style.opacity = 1;
+      }, 300);
+    }, 4000);
+  }
+
+  injectWidget(ENTITY_TOKEN);
+  refreshToken();
 });
 </script>
+</body>
+</html>
+
