@@ -116,7 +116,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const [a11yPrefs, setA11yPrefs] = useState<Prefs>(() => {
     try {
       return (
-        JSON.parse(localStorage.getItem(LS_KEY) || "") || {
+        JSON.parse(safeLocalStorage.getItem(LS_KEY) || "") || {
           dyslexia: false,
           simplified: true,
         }
@@ -129,7 +129,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   useEffect(() => {
     const handleStorage = () => {
       try {
-        const p = JSON.parse(localStorage.getItem(LS_KEY) || "") || {
+        const p = JSON.parse(safeLocalStorage.getItem(LS_KEY) || "") || {
           dyslexia: false,
           simplified: true,
         };
@@ -138,8 +138,10 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         /* ignore */
       }
     };
-    window.addEventListener("storage", handleStorage);
-    return () => window.removeEventListener("storage", handleStorage);
+    if (typeof window !== "undefined") {
+      window.addEventListener("storage", handleStorage);
+      return () => window.removeEventListener("storage", handleStorage);
+    }
   }, []);
 
   useEffect(() => {

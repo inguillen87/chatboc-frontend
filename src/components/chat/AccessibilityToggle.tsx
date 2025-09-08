@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { WholeWord, List } from "lucide-react";
+import { safeLocalStorage } from "@/utils/safeLocalStorage";
 
 export type Prefs = {
   dyslexia: boolean;
@@ -16,7 +17,7 @@ export default function AccessibilityToggle({
   const [prefs, setPrefs] = useState<Prefs>(() => {
     try {
       return (
-        JSON.parse(localStorage.getItem(LS_KEY) || "") || {
+        JSON.parse(safeLocalStorage.getItem(LS_KEY) || "") || {
           dyslexia: false,
           simplified: true,
         }
@@ -27,7 +28,7 @@ export default function AccessibilityToggle({
   });
 
   useEffect(() => {
-    localStorage.setItem(LS_KEY, JSON.stringify(prefs));
+    safeLocalStorage.setItem(LS_KEY, JSON.stringify(prefs));
     onChange?.(prefs);
     const root = document.documentElement;
     root.classList.toggle("a11y-dyslexia", !!prefs.dyslexia);
@@ -37,7 +38,7 @@ export default function AccessibilityToggle({
   return (
     <div className="flex items-center gap-1">
       <button
-        className={`w-8 h-8 flex items-center justify-center rounded border ${
+        className={`h-8 px-2 flex items-center gap-1 rounded border text-xs ${
           prefs.dyslexia ? "bg-amber-100" : "bg-white"
         }`}
         onClick={() => setPrefs((p) => ({ ...p, dyslexia: !p.dyslexia }))}
@@ -45,11 +46,11 @@ export default function AccessibilityToggle({
         aria-label="Modo Dislexia"
         title="Modo Dislexia"
       >
-        <WholeWord className="w-5 h-5" />
-        <span className="sr-only">Modo Dislexia</span>
+        <WholeWord className="w-4 h-4" />
+        <span>Dislexia</span>
       </button>
       <button
-        className={`w-8 h-8 flex items-center justify-center rounded border ${
+        className={`h-8 px-2 flex items-center gap-1 rounded border text-xs ${
           prefs.simplified ? "bg-amber-100" : "bg-white"
         }`}
         onClick={() => setPrefs((p) => ({ ...p, simplified: !p.simplified }))}
@@ -57,8 +58,8 @@ export default function AccessibilityToggle({
         aria-label="Texto simplificado"
         title="Texto simplificado"
       >
-        <List className="w-5 h-5" />
-        <span className="sr-only">Texto simplificado</span>
+        <List className="w-4 h-4" />
+        <span>Simple</span>
       </button>
     </div>
   );

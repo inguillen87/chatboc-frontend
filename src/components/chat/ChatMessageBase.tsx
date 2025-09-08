@@ -8,6 +8,7 @@ import { motion } from "framer-motion";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 import sanitizeMessageHtml from "@/utils/sanitizeMessageHtml";
 import { simplify } from "@/lib/simplify";
+import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import AttachmentPreview from "./AttachmentPreview";
 import { deriveAttachmentInfo, AttachmentInfo } from "@/utils/attachment";
 import MessageBubble from "./MessageBubble";
@@ -193,7 +194,7 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
   const simplified = useMemo(() => simplify(plainText), [plainText]);
   const [simple, setSimple] = useState<boolean>(() => {
     try {
-      const p = JSON.parse(localStorage.getItem("chatboc_accessibility") || "{}");
+      const p = JSON.parse(safeLocalStorage.getItem("chatboc_accessibility") || "{}");
       return !!p?.simplified;
     } catch {
       return true;
