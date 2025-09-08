@@ -1,6 +1,7 @@
 import React from "react";
 import { X, User, ChevronLeft, Volume2, VolumeX, ShoppingCart } from "lucide-react";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
+import AccessibilityToggle, { Prefs } from "./AccessibilityToggle";
 
 interface Props {
   onClose: () => void;
@@ -15,6 +16,7 @@ interface Props {
   title?: string;
   subtitle?: string;
   logoAnimation?: string;
+  onA11yChange?: (p: Prefs) => void;
 }
 
 const ChatHeader: React.FC<Props> = ({
@@ -30,6 +32,7 @@ const ChatHeader: React.FC<Props> = ({
   title,
   subtitle,
   logoAnimation,
+  onA11yChange,
 }) => {
   return (
     <div
@@ -70,13 +73,7 @@ const ChatHeader: React.FC<Props> = ({
         </div>
       </div>
       <div className="flex items-center gap-1 sm:gap-2"> {/* Reduced gap for mobile */}
-        <span
-          className="text-primary-foreground text-xs font-semibold flex items-center"
-          aria-label="Estado del bot: Online"
-        >
-          <span className="w-2 h-2 bg-primary-foreground rounded-full mr-1 sm:mr-1.5"></span> {/* Reduced margin for mobile */}
-          <span className="hidden sm:inline">Online</span> {/* Hide "Online" text on very small screens */}
-        </span>
+        <AccessibilityToggle onChange={onA11yChange} />
         {onBack ? (
           <button
             onClick={onBack}
