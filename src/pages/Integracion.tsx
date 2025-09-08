@@ -247,42 +247,6 @@ document.addEventListener('DOMContentLoaded', function () {
     };
   }, [apiBase, ownerToken, endpoint, primaryColor, accentColor, logoUrl, headerLogoUrl, logoAnimation, welcomeTitle, welcomeSubtitle]);
 
-  useEffect(() => {
-    if (!ownerToken) return;
-    let scriptEl: HTMLScriptElement | null = null;
-    const inject = () => {
-      if (scriptEl) scriptEl.remove();
-      (window as any).chatbocDestroyWidget?.(ownerToken);
-      const s = document.createElement('script');
-      s.src = 'https://cdn.chatboc.ar/widget.js';
-      s.async = true;
-      s.setAttribute('data-api-base', apiBase);
-      s.setAttribute('data-owner-token', ownerToken);
-      s.setAttribute('data-default-open', 'false');
-      s.setAttribute('data-width', WIDGET_STD_WIDTH);
-      s.setAttribute('data-height', WIDGET_STD_HEIGHT);
-      s.setAttribute('data-closed-width', WIDGET_STD_CLOSED_WIDTH);
-      s.setAttribute('data-closed-height', WIDGET_STD_CLOSED_HEIGHT);
-      s.setAttribute('data-bottom', WIDGET_STD_BOTTOM);
-      s.setAttribute('data-right', WIDGET_STD_RIGHT);
-      s.setAttribute('data-endpoint', endpoint);
-      if (primaryColor) s.setAttribute('data-primary-color', primaryColor);
-      if (accentColor) s.setAttribute('data-accent-color', accentColor);
-      if (logoUrl) s.setAttribute('data-logo-url', logoUrl);
-      if (headerLogoUrl) s.setAttribute('data-header-logo-url', headerLogoUrl);
-      if (logoAnimation) s.setAttribute('data-logo-animation', logoAnimation);
-      if (welcomeTitle) s.setAttribute('data-welcome-title', welcomeTitle);
-      if (welcomeSubtitle) s.setAttribute('data-welcome-subtitle', welcomeSubtitle);
-      document.body.appendChild(s);
-      scriptEl = s;
-    };
-    inject();
-    return () => {
-      if (scriptEl) scriptEl.remove();
-      (window as any).chatbocDestroyWidget?.(ownerToken);
-    };
-  }, [apiBase, ownerToken, endpoint, primaryColor, accentColor, logoUrl, headerLogoUrl, logoAnimation, welcomeTitle, welcomeSubtitle]);
-
 
   const copiarCodigo = async (tipo: "iframe" | "script") => {
     const textoACopiar = tipo === "iframe" ? codeIframe : codeScript;
