@@ -5,6 +5,11 @@
   const OWNER = S?.dataset?.ownerToken || "";
   let token = null, timer = null;
 
+  function notify(t) {
+    try { window.dispatchEvent(new CustomEvent("chatboc-token", { detail: t })); }
+    catch (e) { console.error("chatboc-token dispatch failed", e); }
+  }
+
   function decode(t) {
     try {
       const p = t.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
@@ -38,6 +43,7 @@
     const { exp } = decode(t), now = Math.floor(Date.now() / 1000);
     const secs = (exp || 0) - now, wait = Math.max(secs - 120, 15) * 1000;
     clearTimeout(timer);
+    notify(t);
     timer = setTimeout(async () => {
       try {
         token = await refresh(token);
