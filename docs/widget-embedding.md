@@ -1,32 +1,50 @@
 # How to Embed the Chat Widget
 
-To embed the chat widget on your website, you need to add the following script tag to your HTML file, just before the closing `</body>` tag:
+Include the widget script to mint and refresh tokens automatically:
 
 ```html
-<script src="http://localhost:3001/widget.js"></script>
+<script async src="https://cdn.chatboc.ar/widget.js"
+        data-api-base="https://chatboc.ar"
+        data-owner-token="OWNER_TOKEN_DE_LA_ENTIDAD"
+        data-primary-color="#007aff"
+        data-accent-color="#ff6600"
+        data-logo-url="https://example.com/logo.png"
+        data-header-logo-url="https://example.com/header.png"
+        data-logo-animation="bounce 2s infinite"
+        data-welcome-title="Hola"
+        data-welcome-subtitle="¿En qué podemos ayudarte?"
+        data-bottom="20px"
+        data-right="20px"
+        data-width="460px"
+        data-height="680px"
+        data-closed-width="112px"
+        data-closed-height="112px"
+        data-endpoint="pyme"></script>
 ```
+
+The script above mints and refreshes tokens automatically and mounts the chat widget.
 
 ## Customization
 
 You can customize the chat widget by adding the following attributes to the script tag:
 
-*   `data-primary-color`: Background color of the closed launcher (any CSS color).
-*   `data-logo-url`: URL of the image shown inside the launcher.
-*   `data-logo-animation`: CSS animation to apply to the launcher image (e.g., `bounce 2s infinite`).
-*   `data-bottom` / `data-right`: Offsets (e.g., `24px`) to tweak widget position.
-*   `data-lang`: ISO language code (for example, `es` or `en`) used to request localized widget content.
+* `data-api-base`: Base URL for API calls.
+* `data-owner-token`: Owner token for minting.
+* `data-primary-color`, `data-accent-color`: Colors for launcher and accents.
+* `data-logo-url`, `data-header-logo-url`: URLs for launcher and header logos.
+* `data-logo-animation`: CSS animation for the launcher image.
+* `data-welcome-title`, `data-welcome-subtitle`: Texts displayed on the welcome screen.
+* `data-bottom`, `data-right`: Offsets to tweak widget position.
+* `data-width`, `data-height`: Open widget size.
+* `data-closed-width`, `data-closed-height`: Closed launcher size.
+* `data-endpoint`: `pyme` or `municipio`.
 
-Example:
+If you embed this snippet inside another `<iframe>`, ensure that container iframe includes:
 
 ```html
-<script
-  src="http://localhost:3001/widget.js"
-  data-primary-color="#ff0000"
-  data-logo-url="https://example.com/logo.png"
-  data-logo-animation="bounce 2s infinite"
-  data-lang="es"
-></script>
+allow="clipboard-write; geolocation; microphone; camera"
 ```
+to grant the widget the necessary permissions.
 
 ## How it works
 

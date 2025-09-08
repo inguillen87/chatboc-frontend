@@ -22,7 +22,7 @@ interface ChatWidgetProps {
   defaultOpen?: boolean;
   initialView?: 'chat' | 'register' | 'login' | 'user' | 'info';
   widgetId?: string;
-  entityToken?: string;
+  ownerToken?: string;
   initialRubro?: string;
   openWidth?: string;
   openHeight?: string;
@@ -49,7 +49,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   defaultOpen = false,
   initialView = 'chat',
   widgetId = "chatboc-widget-iframe",
-  entityToken,
+  ownerToken,
   initialRubro,
   openWidth = "460px",
   openHeight = "680px",
@@ -309,23 +309,23 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   useEffect(() => {
     async function fetchEntityProfile() {
       // Wait until the token is resolved before deciding what to do.
-      if (entityToken === undefined) {
+      if (ownerToken === undefined) {
         setProfileLoading(false);
         return;
       }
-      if (!entityToken) {
-        console.log("ChatWidget: No hay entityToken, se asume configuración por defecto.");
+      if (!ownerToken) {
+        console.log("ChatWidget: No hay ownerToken, se asume configuración por defecto.");
         setProfileLoading(false);
         return;
       }
 
       setProfileLoading(true);
       setProfileError(null);
-      console.log("ChatWidget: Intentando obtener perfil con token:", entityToken);
+      console.log("ChatWidget: Intentando obtener perfil con token:", ownerToken);
 
       try {
         const data = await apiFetch<any>("/perfil", {
-          entityToken: entityToken,
+          entityToken: ownerToken,
         });
         console.log("ChatWidget: Perfil recibido:", data);
         if (data && typeof data.esPublico === "boolean") {
@@ -343,7 +343,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       }
     }
     fetchEntityProfile();
-  }, [entityToken]);
+  }, [ownerToken]);
 
   // Fallback to avoid indefinite loading spinner if the profile request hangs
   useEffect(() => {
@@ -423,7 +423,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         data-mode={mode}
         data-default-open={defaultOpen}
         data-widget-id={widgetId}
-        data-entity-token={entityToken}
+        data-owner-token={ownerToken}
         data-tipo-chat={tipoChat}
         data-initial-rubro={initialRubro}
         className={cn(
@@ -466,14 +466,14 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                   logoAnimation={logoAnimation}
                 />
               )}
-              {view === "register" ? <ChatUserRegisterPanel onSuccess={() => setView("chat")} onShowLogin={() => setView("login")} entityToken={entityToken} />
+              {view === "register" ? <ChatUserRegisterPanel onSuccess={() => setView("chat")} onShowLogin={() => setView("login")} entityToken={ownerToken} />
                 : view === "login" ? <ChatUserLoginPanel onSuccess={() => setView("chat")} onShowRegister={() => setView("register")} />
                 : view === "user" ? <ChatUserPanel onClose={() => setView("chat")} />
                 : view === "info" ? <EntityInfoPanel info={entityInfo} onClose={() => setView("chat")} />
                 : <ChatPanel
                     mode={mode}
                     widgetId={widgetId}
-                    entityToken={entityToken}
+                    entityToken={ownerToken}
                     openWidth={finalOpenWidth}
                     openHeight={finalOpenHeight}
                     onClose={toggleChat}

@@ -1,42 +1,29 @@
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-  // Asegura que el widget se destruya y se vuelva a crear si ya existe
-  if (window.chatbocDestroyWidget) {
-    window.chatbocDestroyWidget('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJleHAiOjE3NTYxMzIzNjJ9.aYOws-XI6g4iMUXrrnWusB6DVXtQ593Ctc5nMsch10c');
-  }
-  window.APP_TARGET = 'municipio'; // Define el endpoint antes de cargar el script
-
   var s = document.createElement('script');
-  s.src = 'https://chatboc.ar/widget.js'; // URL del script del widget
-  s.async = true; // Carga asíncrona para no bloquear el renderizado de la página
-  s.setAttribute('data-entity-token', 'ef403b5b-e0df-4b35-be34-35b9dac0d6f1'); // Token de la entidad para el widget
-  s.setAttribute('data-default-open', 'false'); // El widget comienza cerrado por defecto
-  s.setAttribute('data-width', '460px'); // Ancho del widget abierto
-  s.setAttribute('data-height', '680px'); // Alto del widget abierto
-  s.setAttribute('data-closed-width', '112px'); // Ancho del widget cerrado (burbuja)
-  s.setAttribute('data-closed-height', '112px'); // Alto del widget cerrado (burbuja)
-  s.setAttribute('data-bottom', '20px'); // Posición desde abajo
-  s.setAttribute('data-right', '20px'); // Posición desde la derecha
-  s.setAttribute('data-endpoint', 'municipio'); // Tipo de chat (pyme o municipio)
-  s.setAttribute('data-primary-color', '#006C3F'); // Color personalizado
-  s.setAttribute('data-logo-url', 'https://example.com/logo.png'); // Logo del launcher
-  s.setAttribute('data-header-logo-url', 'https://example.com/header-logo.png'); // Logo del encabezado
-  s.setAttribute('data-logo-animation', 'bounce 2s infinite'); // Animación del logo
+  s.src = 'https://cdn.chatboc.ar/widget.js';
+  s.async = true;
+  s.setAttribute('data-api-base', 'https://chatboc.ar');
+  s.setAttribute('data-owner-token', 'ef403b5b-e0df-4b35-be34-35b9dac0d6f1');
+  s.setAttribute('data-default-open', 'false');
+  s.setAttribute('data-width', '460px');
+  s.setAttribute('data-height', '680px');
+  s.setAttribute('data-closed-width', '112px');
+  s.setAttribute('data-closed-height', '112px');
+  s.setAttribute('data-bottom', '20px');
+  s.setAttribute('data-right', '20px');
+  s.setAttribute('data-endpoint', 'municipio');
+  s.setAttribute('data-primary-color', '#006C3F');
+  s.setAttribute('data-logo-url', 'https://example.com/logo.png');
+  s.setAttribute('data-header-logo-url', 'https://example.com/header-logo.png');
+  s.setAttribute('data-logo-animation', 'bounce 2s infinite');
   s.setAttribute('data-welcome-title', '¡Hola! Soy tu asistente');
   s.setAttribute('data-welcome-subtitle', 'Estoy aquí para ayudarte');
-  
-  // Importante para la geolocalización, micrófono y portapapeles:
-  // widget.js establecerá allow="clipboard-write; geolocation; microphone; camera" en su iframe interno.
-  // Si este script se inserta dentro de un iframe en tu sitio, ese iframe contenedor
-  // también debe incluir allow="clipboard-write; geolocation; microphone; camera" en sus atributos.
-  // Ejemplo: <iframe src="tu_pagina_con_widget.html" allow="clipboard-write; geolocation; microphone; camera"></iframe>
 
-  document.body.appendChild(s); // Añade el script al final del body
+  document.body.appendChild(s);
 
-  // Opcional: Escuchar evento de widget cargado
   s.onload = function() {
     console.log('Chatboc Widget cargado y listo.');
-    // Puedes añadir lógica adicional aquí si es necesario
   };
   s.onerror = function() {
     console.error('Error al cargar Chatboc Widget.');

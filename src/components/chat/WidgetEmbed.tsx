@@ -20,7 +20,7 @@ const WidgetEmbed = ({ token }: { token: string }) => {
     }
   }, []);
 
-  const embedCode = `<script>(function(){var s=document.createElement('script');s.src='https://chatboc.ar/widget.js';s.async=true;s.setAttribute('data-entity-token','${token}');s.setAttribute('data-endpoint','${tipoChat}');document.head.appendChild(s);})();</script>`;
+  const embedCode = `<script async src="https://cdn.chatboc.ar/widget.js" data-api-base="https://chatboc.ar" data-owner-token="${token}" data-endpoint="${tipoChat}" data-default-open="false" data-width="460px" data-height="680px" data-closed-width="112px" data-closed-height="112px" data-bottom="20px" data-right="20px"></script>`;
 
   const copiar = () => {
     navigator.clipboard.writeText(embedCode)

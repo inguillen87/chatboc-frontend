@@ -102,37 +102,13 @@ Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-trick
 
 ## Embedding the Chatboc widget
 
-You can embed the floating chat widget on any site by loading `widget.js` and passing your entity token. Example:
+You can embed the floating chat widget on any site by loading `widget.js` with your owner token:
 
 ```html
-<script>
-  document.addEventListener('DOMContentLoaded', function () {
-    // Set the target before loading the widget so the style matches
-    window.APP_TARGET = 'pyme'; // or 'municipio'
-
-    // If the widget was already injected, destroy it to avoid flicker
-    if (window.chatbocDestroyWidget) {
-      window.chatbocDestroyWidget('TU_TOKEN_AQUI');
-    }
-
-    var s = document.createElement('script');
-    s.src = 'https://chatboc.ar/widget.js';
-    s.async = true;
-    s.setAttribute('data-entity-token', 'TU_TOKEN_AQUI');
-    // Choose the API endpoint. If omitted, the widget falls back
-    // to `window.APP_TARGET` and then "pyme" if none is set
-    s.setAttribute('data-endpoint', 'pyme'); // or "municipio"
-    // Optional: preselect the business category
-    // s.setAttribute('data-rubro', 'comercio');
-    // Optional: show a call-to-action bubble once
-    // s.setAttribute('data-cta-message', '¿Necesitás ayuda?');
-    // Optional: force light or dark theme
-    // s.setAttribute('data-theme', 'dark');
-    // The widget will set `allow="clipboard-write; geolocation; microphone; camera"` on
-    // the iframe it injects so it can ask for location or audio permissions.
-    document.body.appendChild(s); // append once the DOM is ready
-  });
-</script>
+<script async src="https://cdn.chatboc.ar/widget.js"
+        data-api-base="https://chatboc.ar"
+        data-owner-token="OWNER_TOKEN_DE_LA_ENTIDAD"
+        data-endpoint="pyme"></script>
 ```
 
 This snippet loads the widget without needing an iframe and creates a floating bubble styled just like on chatboc.ar.
@@ -141,8 +117,8 @@ If you host `widget.js` yourself, remember to add `data-domain="https://chatboc.
 
 ```html
 <script async src="/widget.js"
-  data-domain="https://chatboc.ar"
-  data-entity-token="TU_TOKEN_AQUI"></script>
+  data-api-base="https://chatboc.ar"
+  data-owner-token="OWNER_TOKEN_DE_LA_ENTIDAD"></script>
 ```
 Using `widget.js` from another domain **without** this attribute causes the iframe
 to load its scripts from the wrong origin, leading to console errors and 403
@@ -159,8 +135,7 @@ for the browser to allow geolocation requests inside the widget.
 The `<script>` tag accepts several extra `data-*` attributes to control the widget's look:
 
 - `data-bottom` and `data-right` – offset from the bottom-right corner (`20px` by default).
-- `data-endpoint` – `pyme` or `municipio` to pick the API endpoint. If not
-  specified, the widget falls back to the global `APP_TARGET` (usually `pyme`).
+  - `data-endpoint` – `pyme` or `municipio` to pick the API endpoint (`pyme` by default).
 - `data-default-open="true"` – open the chat automatically when the page loads.
 - `data-width` / `data-height` – size of the open chat window (defaults to `460px` × `680px`).
 - `data-closed-width` / `data-closed-height` – size of the closed bubble (`96px` × `96px`).
@@ -194,7 +169,6 @@ If your site blocks external JavaScript, you can embed the chatbot using an
 ></iframe>
 <script>
   document.addEventListener('DOMContentLoaded', function () {
-    window.APP_TARGET = 'pyme'; // or 'municipio'
     var f = document.getElementById('chatboc-iframe');
 
     // If you load this snippet more than once (e.g. in a SPA)
