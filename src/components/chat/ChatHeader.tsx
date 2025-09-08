@@ -74,13 +74,6 @@ const ChatHeader: React.FC<Props> = ({
       </div>
       <div className="flex items-center gap-1 sm:gap-2"> {/* Reduced gap for mobile */}
         <AccessibilityToggle onChange={onA11yChange} />
-        <span
-          className="text-primary-foreground text-xs font-semibold flex items-center"
-          aria-label="Estado del bot: Online"
-        >
-          <span className="w-2 h-2 bg-primary-foreground rounded-full mr-1 sm:mr-1.5"></span> {/* Reduced margin for mobile */}
-          <span className="hidden sm:inline">Online</span> {/* Hide "Online" text on very small screens */}
-        </span>
         {onBack ? (
           <button
             onClick={onBack}

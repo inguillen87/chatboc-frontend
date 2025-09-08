@@ -62,7 +62,7 @@ export default function AccessibilityToggle({
               <BookOpen className="w-5 h-5" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="bottom">Modo dislexia</TooltipContent>
+          <TooltipContent side="top">Modo dislexia</TooltipContent>
         </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -82,7 +82,7 @@ export default function AccessibilityToggle({
               <List className="w-5 h-5" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="bottom">Texto simplificado</TooltipContent>
+          <TooltipContent side="top">Texto simplificado</TooltipContent>
         </Tooltip>
       </div>
     </TooltipProvider>
