@@ -15,6 +15,8 @@ import ChatUserPanel from "./ChatUserPanel";
 import ChatHeader from "./ChatHeader";
 import EntityInfoPanel from "./EntityInfoPanel";
 import ChatPanel from "./ChatPanel";
+import ReadingRuler from "./ReadingRuler";
+import type { Prefs } from "./AccessibilityToggle";
 
 interface ChatWidgetProps {
   mode?: "standalone" | "iframe" | "script";
@@ -43,6 +45,8 @@ const PROACTIVE_MESSAGES = [
   "¿Tienes alguna consulta? ¡Pregúntame!",
   "Explora nuestros servicios, ¡te ayudo!",
 ];
+
+const LS_KEY = "chatboc_accessibility";
 
 const ChatWidget: React.FC<ChatWidgetProps> = ({
   mode = "standalone",
@@ -109,6 +113,36 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const [proactiveCycle, setProactiveCycle] = useState(0);
   const [selectedRubro, setSelectedRubro] = useState<string | null>(initialRubro || null);
   const [hasSetInitialRubro, setHasSetInitialRubro] = useState(false);
+  const [a11yPrefs, setA11yPrefs] = useState<Prefs>(() => {
+    try {
+      return (
+        JSON.parse(safeLocalStorage.getItem(LS_KEY) || "") || {
+          dyslexia: false,
+          simplified: true,
+        }
+      );
+    } catch {
+      return { dyslexia: false, simplified: true };
+    }
+  });
+
+  useEffect(() => {
+    const handleStorage = () => {
+      try {
+        const p = JSON.parse(safeLocalStorage.getItem(LS_KEY) || "") || {
+          dyslexia: false,
+          simplified: true,
+        };
+        setA11yPrefs(p);
+      } catch {
+        /* ignore */
+      }
+    };
+    if (typeof window !== "undefined") {
+      window.addEventListener("storage", handleStorage);
+      return () => window.removeEventListener("storage", handleStorage);
+    }
+  }, []);
 
   useEffect(() => {
     if (initialRubro && !hasSetInitialRubro) {
@@ -177,7 +211,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const closedWidthPx = parseInt(finalClosedWidth.replace('px', ''), 10);
   const calculatedLogoSize = Math.floor(closedWidthPx * logoSizeFactor);
 
-  const commonPanelStyles = cn("bg-card border shadow-lg", "flex flex-col overflow-hidden");
+  const commonPanelStyles = cn("chat-root bg-card border shadow-lg", "flex flex-col overflow-hidden");
   const commonButtonStyles = cn(
     "rounded-full flex items-center justify-center",
     "bg-primary text-primary-foreground hover:bg-primary/90",
@@ -434,6 +468,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         )}
         style={containerStyle}
       >
+        {isOpen && a11yPrefs.dyslexia && <ReadingRuler />}
         {isProfileLoading ? (
           <div className="w-full h-full flex items-center justify-center bg-card rounded-2xl">
             <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
@@ -464,6 +499,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                   title={welcomeTitle}
                   subtitle={welcomeSubtitle}
                   logoAnimation={logoAnimation}
+                  onA11yChange={setA11yPrefs}
                 />
               )}
               {view === "register" ? <ChatUserRegisterPanel onSuccess={() => setView("chat")} onShowLogin={() => setView("login")} entityToken={ownerToken} />
@@ -491,6 +527,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                     welcomeTitle={welcomeTitle}
                     welcomeSubtitle={welcomeSubtitle}
                     logoAnimation={logoAnimation}
+                    onA11yChange={setA11yPrefs}
+                    a11yPrefs={a11yPrefs}
                   />}
             </motion.div>
           ) : (

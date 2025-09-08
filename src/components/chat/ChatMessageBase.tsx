@@ -1,5 +1,5 @@
 // src/components/chat/ChatMessageBase.tsx
-import React from "react";
+import React, { useState, useMemo } from "react";
 import { Message, SendPayload, StructuredContentItem } from "@/types/chat";
 import ChatButtons from "./ChatButtons";
 import CategorizedButtons from "./CategorizedButtons";
@@ -7,6 +7,8 @@ import AudioPlayer from "./AudioPlayer";
 import { motion } from "framer-motion";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 import sanitizeMessageHtml from "@/utils/sanitizeMessageHtml";
+import { simplify } from "@/lib/simplify";
+import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import AttachmentPreview from "./AttachmentPreview";
 import { deriveAttachmentInfo, AttachmentInfo } from "@/utils/attachment";
 import MessageBubble from "./MessageBubble";
@@ -188,6 +190,42 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
 
   const safeText = typeof message.text === "string" && message.text !== "NaN" ? message.text : "";
   const sanitizedHtml = sanitizeMessageHtml(safeText);
+  const plainText = useMemo(() => safeText.replace(/<[^>]+>/g, ""), [safeText]);
+  const simplified = useMemo(() => simplify(plainText), [plainText]);
+  const [simple, setSimple] = useState<boolean>(() => {
+    try {
+      const p = JSON.parse(safeLocalStorage.getItem("chatboc_accessibility") || "{}");
+      return !!p?.simplified;
+    } catch {
+      return true;
+    }
+  });
+
+  const renderText = simple ? (
+    <pre className="whitespace-pre-wrap text-justify max-w-none text-sm mb-2 chat-message">{simplified}</pre>
+  ) : (
+    <div
+      className="whitespace-pre-wrap text-justify max-w-none text-sm [&_p]:my-0 mb-2 chat-message"
+      dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
+    />
+  );
+
+  const textBlock = sanitizedHtml
+    ? isBot
+      ? (
+          <>
+            {renderText}
+            <div className="mt-1 text-[12px] flex gap-2">
+              <button className="underline" onClick={() => setSimple((s) => !s)}>
+                {simple ? "Ver completo" : "Ver simple"}
+              </button>
+            </div>
+          </>
+        )
+      : (
+          renderText
+        )
+    : null;
 
   let processedAttachmentInfo: AttachmentInfo | null = null;
 
@@ -266,12 +304,7 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
           )}
 
           {/* Prioridad al texto si no hay otros contenidos especiales */}
-          {(!showAttachmentOrMap && !showStructuredContent && sanitizedHtml) && (
-            <div
-              className="whitespace-pre-wrap text-justify max-w-none text-sm [&_p]:my-0 mb-2"
-              dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
-            />
-          )}
+          {!showAttachmentOrMap && !showStructuredContent && textBlock}
 
           {/* Mostrar adjunto o mapa */}
           {showAttachmentOrMap && (
@@ -287,12 +320,7 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
           {showStructuredContent && (
             <>
               {/* Si hay texto Y contenido estructurado, el texto puede ser una introducción */}
-              {sanitizedHtml && !showAttachmentOrMap && (
-                 <div
-                    className="whitespace-pre-wrap text-justify max-w-none text-sm [&_p]:my-0 mb-2"
-                    dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
-                />
-              )}
+              {sanitizedHtml && !showAttachmentOrMap && textBlock}
               <StructuredContentDisplay items={message.structuredContent!} />
             </>
           )}
