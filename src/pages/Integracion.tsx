@@ -108,7 +108,7 @@ const Integracion = () => {
     return user.tipo_chat === "municipio" ? "municipio" : "pyme";
   }, [user?.tipo_chat]);
 
-  const entityToken = useMemo(() => user?.token || "TU_TOKEN_DEL_WIDGET", [user?.token]);
+  const ownerToken = useMemo(() => user?.token || "OWNER_TOKEN_DEL_WIDGET", [user?.token]);
   const isFullPlan = (user?.plan || "").toLowerCase() === "full";
 
   const WIDGET_STD_WIDTH = "460px";
@@ -134,7 +134,7 @@ const Integracion = () => {
 
     return `<script async src="https://cdn.chatboc.ar/widget.js"
   data-api-base="${apiBase}"
-  data-owner-token="${entityToken}"
+  data-owner-token="${ownerToken}"
   data-default-open="false"
   data-width="${WIDGET_STD_WIDTH}"
   data-height="${WIDGET_STD_HEIGHT}"
@@ -144,11 +144,11 @@ const Integracion = () => {
   data-right="${WIDGET_STD_RIGHT}"
   data-endpoint="${endpoint}"
 ${customAttrs ? customAttrs + "\n" : ""}></script>`;
-  }, [apiBase, entityToken, endpoint, primaryColor, accentColor, logoUrl, headerLogoUrl, logoAnimation, welcomeTitle, welcomeSubtitle]);
+  }, [apiBase, ownerToken, endpoint, primaryColor, accentColor, logoUrl, headerLogoUrl, logoAnimation, welcomeTitle, welcomeSubtitle]);
 
   const iframeSrcUrl = useMemo(() => {
     const url = new URL(`${apiBase}/iframe`);
-    url.searchParams.set("entityToken", entityToken);
+    url.searchParams.set("ownerToken", ownerToken);
     url.searchParams.set("tipo_chat", endpoint);
     if (primaryColor) url.searchParams.set("primaryColor", primaryColor);
     if (accentColor) url.searchParams.set("accentColor", accentColor);
@@ -158,7 +158,7 @@ ${customAttrs ? customAttrs + "\n" : ""}></script>`;
     if (welcomeTitle) url.searchParams.set("welcomeTitle", welcomeTitle);
     if (welcomeSubtitle) url.searchParams.set("welcomeSubtitle", welcomeSubtitle);
     return url.toString();
-  }, [apiBase, entityToken, endpoint, primaryColor, accentColor, logoUrl, headerLogoUrl, logoAnimation, welcomeTitle, welcomeSubtitle]);
+  }, [apiBase, ownerToken, endpoint, primaryColor, accentColor, logoUrl, headerLogoUrl, logoAnimation, welcomeTitle, welcomeSubtitle]);
   
   const codeIframe = useMemo(() => `<iframe
   id="chatboc-iframe"
@@ -170,7 +170,6 @@ ${customAttrs ? customAttrs + "\n" : ""}></script>`;
 ></iframe>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-  window.APP_TARGET = '${endpoint}';
   var chatIframe = document.getElementById('chatboc-iframe');
 
   // Es crucial que si este código de iframe se inserta dentro de OTRO iframe en tu sitio,
@@ -198,16 +197,16 @@ document.addEventListener('DOMContentLoaded', function () {
 </script>`, [iframeSrcUrl, endpoint]);
 
   useEffect(() => {
-    if (!entityToken) return;
+    if (!ownerToken) return;
     let scriptEl: HTMLScriptElement | null = null;
     const inject = () => {
       if (scriptEl) scriptEl.remove();
-      (window as any).chatbocDestroyWidget?.(entityToken);
+      (window as any).chatbocDestroyWidget?.(ownerToken);
       const s = document.createElement('script');
       s.src = 'https://cdn.chatboc.ar/widget.js';
       s.async = true;
       s.setAttribute('data-api-base', apiBase);
-      s.setAttribute('data-owner-token', entityToken);
+      s.setAttribute('data-owner-token', ownerToken);
       s.setAttribute('data-default-open', 'false');
       s.setAttribute('data-width', WIDGET_STD_WIDTH);
       s.setAttribute('data-height', WIDGET_STD_HEIGHT);
@@ -229,9 +228,9 @@ document.addEventListener('DOMContentLoaded', function () {
     inject();
     return () => {
       if (scriptEl) scriptEl.remove();
-      (window as any).chatbocDestroyWidget?.(entityToken);
+      (window as any).chatbocDestroyWidget?.(ownerToken);
     };
-  }, [apiBase, entityToken, endpoint, primaryColor, accentColor, logoUrl, headerLogoUrl, logoAnimation, welcomeTitle, welcomeSubtitle]);
+  }, [apiBase, ownerToken, endpoint, primaryColor, accentColor, logoUrl, headerLogoUrl, logoAnimation, welcomeTitle, welcomeSubtitle]);
 
 
   const copiarCodigo = async (tipo: "iframe" | "script") => {
@@ -367,7 +366,7 @@ document.addEventListener('DOMContentLoaded', function () {
             Ambos métodos de integración (Script y Iframe) están diseñados para ser seguros y eficientes. El método de Script es generalmente más flexible y recomendado.
           </p>
           <p>
-            <strong>Token del Widget:</strong> Tu token de integración es <code>{entityToken.substring(0,8)}...</code>. Ya está incluido en los códigos de abajo.
+            <strong>Token del Widget:</strong> Tu token de integración es <code>{ownerToken.substring(0,8)}...</code>. Ya está incluido en los códigos de abajo.
           </p>
         </CardContent>
       </Card>
