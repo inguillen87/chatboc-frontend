@@ -1,10 +1,14 @@
 # How to Embed the Chat Widget
 
-To embed the chat widget on your website, you need to add the following script tag to your HTML file, just before the closing `</body>` tag:
+Include the auth helper to mint and refresh tokens automatically:
 
 ```html
-<script src="http://localhost:3001/widget.js"></script>
+<script async src="https://cdn.chatboc.ar/widget.js"
+        data-api-base="https://api.chatboc.ar"
+        data-owner-token="OWNER_TOKEN_DE_LA_ENTIDAD"></script>
 ```
+
+The script above both mints and refreshes tokens automatically and mounts the chat widget.
 
 ## Customization
 
@@ -20,7 +24,7 @@ Example:
 
 ```html
 <script
-  src="http://localhost:3001/widget.js"
+  src="https://cdn.chatboc.ar/widget.js"
   data-primary-color="#ff0000"
   data-logo-url="https://example.com/logo.png"
   data-logo-animation="bounce 2s infinite"
