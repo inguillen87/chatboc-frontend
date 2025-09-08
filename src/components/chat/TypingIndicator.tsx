@@ -6,7 +6,7 @@ const LOGO_BOT = "/favicon/favicon-512x512.png";
 const TypingIndicator: React.FC = () => (
   <div className="flex items-end gap-2.5 justify-start">
     {/* Avatar del bot, bien integrado */}
-    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-card flex items-center justify-center border border-blue-100 dark:border-blue-800 shadow">
+    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-card flex items-center justify-center border border-primary/20 dark:border-primary/40 shadow">
       <img
         src={LOGO_BOT}
         alt="Chatboc"

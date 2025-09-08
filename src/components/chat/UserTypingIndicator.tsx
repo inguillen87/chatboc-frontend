@@ -5,7 +5,7 @@ import UserAvatarAnimated from "./UserAvatarAnimated";
 const UserTypingIndicator: React.FC = () => (
   <div className="flex items-end gap-2.5 justify-end">
     <motion.div
-      className="flex-shrink-0 w-9 h-9 rounded-full bg-secondary flex items-center justify-center border border-blue-300 shadow"
+      className="flex-shrink-0 w-9 h-9 rounded-full bg-secondary flex items-center justify-center border border-primary/40 shadow"
       initial={{ scale: 0.8, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
       transition={{ type: "spring", stiffness: 200, damping: 20 }}
@@ -13,7 +13,7 @@ const UserTypingIndicator: React.FC = () => (
       <UserAvatarAnimated size={20} talking />
     </motion.div>
     <motion.div
-      className="px-4 py-3 max-w-[320px] shadow-md relative bg-gradient-to-tr from-blue-500 to-blue-700 text-white rounded-b-2xl rounded-tl-2xl after:content-[''] after:absolute after:bottom-0 after:right-[-8px] after:w-0 after:h-0 after:border-8 after:border-transparent after:border-t-blue-700 after:border-l-blue-700"
+      className="px-4 py-3 max-w-[320px] shadow-md relative bg-primary text-primary-foreground rounded-b-2xl rounded-tl-2xl after:content-[''] after:absolute after:bottom-0 after:right-[-8px] after:w-0 after:h-0 after:border-8 after:border-transparent after:border-t-primary after:border-l-primary"
       initial={{ opacity: 0, y: 10, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.3, ease: "easeOut" }}
