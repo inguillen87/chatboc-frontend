@@ -1,6 +1,8 @@
 (function () {
+  console.log("Chatboc widget v1");
   const S = document.currentScript;
-  const API = (S?.dataset?.apiBase || "https://chatboc.ar").replace(/\x2f+$/, "");
+  const API = (S?.dataset?.apiBase || "https://chatboc.ar").replace(/\/+$/, "");
+  const OWNER = S?.dataset?.ownerToken || "";
   let token = null, timer = null;
 
   function decode(t) {
@@ -11,9 +13,9 @@
   }
 
   async function mint() {
-    const r = await fetch(API + "/auth/widget-token/", {
+    const r = await fetch(API + "/auth/widget-token", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: Object.assign({ "Content-Type": "application/json" }, OWNER ? { "Authorization": OWNER } : {}),
       body: "{}"
     });
     const j = await r.json();
@@ -22,7 +24,7 @@
   }
 
   async function refresh(old) {
-    const r = await fetch(API + "/auth/widget-refresh/", {
+    const r = await fetch(API + "/auth/widget-refresh", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token: old })
