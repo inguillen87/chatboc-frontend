@@ -126,6 +126,7 @@ const AdjuntarArchivo = forwardRef<AdjuntarArchivoHandle, AdjuntarArchivoProps>(
         className="hidden"
         onChange={handleFileChange}
         disabled={disabled}
+        capture={allowedFileTypes?.some(type => type.startsWith('image/')) ? 'environment' : undefined}
       />
       {/* El span de error local se ha eliminado. Los errores se muestran mediante toasts. */}
     </div>
