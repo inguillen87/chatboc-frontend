@@ -4,6 +4,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { FaWhatsapp } from 'react-icons/fa';
+import { useDateSettings } from '@/hooks/useDateSettings';
 
 interface TicketListItemProps {
   ticket: Ticket;
@@ -15,6 +16,16 @@ const TicketListItem: React.FC<TicketListItemProps> = ({ ticket, isSelected, onC
 const getInitials = (name: string) => {
     return name ? name.split(' ').map(n => n[0]).join('').toUpperCase() : '??';
   };
+
+  const { timezone, locale } = useDateSettings();
+  const formattedTime = new Date(ticket.fecha).toLocaleTimeString(locale, {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: timezone,
+  });
+
+  const subject = ticket.categoria || ticket.asunto || 'Sin asunto';
 
   return (
     <div
@@ -43,24 +54,23 @@ const getInitials = (name: string) => {
         </div>
         <div className="flex items-center gap-2">
           {ticket.channel === 'whatsapp' && <FaWhatsapp className="h-4 w-4 text-green-500" />}
-          <span className="text-xs text-muted-foreground">
-            {new Date(ticket.fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-          </span>
+          <span className="text-xs text-muted-foreground">{formattedTime}</span>
         </div>
       </div>
-      <p className="font-semibold text-sm ml-13 mb-2">{ticket.asunto || 'Sin asunto'}</p>
+      <p className="font-semibold text-sm ml-13 mb-2">{subject}</p>
       <p className="text-sm text-muted-foreground truncate ml-13">{ticket.lastMessage || '...'}</p>
       <div className="flex items-center justify-between mt-2 ml-13">
-         <Badge variant={ticket.estado === 'nuevo' ? 'default' : 'outline'}
-               className={cn(
-                'capitalize',
-                ticket.estado === 'nuevo' && 'bg-blue-500 text-white',
-                ticket.estado === 'abierto' && 'text-green-500 border-green-500',
-                ticket.estado === 'en_proceso' && 'text-yellow-500 border-yellow-500',
-               )}>
+         <Badge
+           variant={ticket.estado === 'nuevo' ? 'default' : 'outline'}
+           className={cn(
+             'capitalize',
+             ticket.estado === 'nuevo' && 'bg-blue-500 text-white',
+             ticket.estado === 'abierto' && 'text-green-500 border-green-500',
+             ticket.estado === 'en_proceso' && 'text-yellow-500 border-yellow-500',
+           )}
+         >
           {ticket.estado}
         </Badge>
-        {ticket.categoria && <p className="text-xs font-bold text-muted-foreground">{ticket.categoria}</p>}
       </div>
     </div>
   );
