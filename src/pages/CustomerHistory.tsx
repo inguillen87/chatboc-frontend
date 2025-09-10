@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { apiFetch, getErrorMessage } from "@/utils/api";
-import { formatDate } from "@/utils/fecha";
+import { fmtAR } from "@/utils/date";
 import {
   Dialog,
   DialogContent,
@@ -310,7 +310,7 @@ export default function CustomerHistory() {
                     >
                       <div className="flex justify-between items-center">
                         <span className="font-medium">
-                          {formatDate(item.fecha)}
+                          {fmtAR(item.fecha)}
                         </span>
                         {item.archivo_url && (
                           <Button asChild variant="outline" size="sm">
@@ -361,7 +361,7 @@ export default function CustomerHistory() {
           {selected && (
             <div className="space-y-2">
               <p className="text-sm text-muted-foreground">
-                {formatDate(selected.fecha)}
+                {fmtAR(selected.fecha)}
               </p>
               {selected.descripcion && <p>{selected.descripcion}</p>}
               {selected.usuario && (
@@ -430,7 +430,7 @@ export default function CustomerHistory() {
                       >
                         <p>{m.texto || m.mensaje}</p>
                         <p className="text-xs mt-1 text-muted-foreground">
-                          {formatDate(m.fecha)}
+                          {fmtAR(m.fecha)}
                         </p>
                       </div>
                       {!m.es_admin && <User className="w-4 h-4 mt-1" />}

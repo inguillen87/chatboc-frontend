@@ -1,5 +1,5 @@
 import React from 'react';
-import { formatDate } from '@/utils/fecha';
+import { fmtAR } from '@/utils/date';
 import { CheckCircle, Clock, MessageSquare } from 'lucide-react';
 import { TicketHistoryEvent, Message } from '@/types/tickets';
 
@@ -72,11 +72,7 @@ const TicketTimeline: React.FC<TicketTimelineProps> = ({ history, messages = [] 
               <div className="flex flex-col gap-1">
                 <h4 className="font-semibold">{formatStatus(event.status)}</h4>
                 <time className="text-sm text-muted-foreground">
-                  {formatDate(
-                    event.date,
-                    Intl.DateTimeFormat().resolvedOptions().timeZone,
-                    'es-AR'
-                  )}
+                  {fmtAR(event.date)}
                 </time>
                 {'notes' in event && event.notes && (
                   <p className="text-sm mt-1">{event.notes}</p>
@@ -94,11 +90,7 @@ const TicketTimeline: React.FC<TicketTimelineProps> = ({ history, messages = [] 
                   <p className="text-sm">{event.content}</p>
                 </div>
                 <time className="text-sm text-muted-foreground">
-                  {formatDate(
-                    event.date,
-                    Intl.DateTimeFormat().resolvedOptions().timeZone,
-                    'es-AR'
-                  )}
+                  {fmtAR(event.date)}
                 </time>
               </div>
             )}

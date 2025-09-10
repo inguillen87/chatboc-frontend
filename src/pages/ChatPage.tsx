@@ -15,7 +15,7 @@ import TicketTimeline from "@/components/tickets/TicketTimeline";
 import getOrCreateAnonId from "@/utils/anonId";
 import { toast } from "@/components/ui/use-toast";
 import { requestLocation } from "@/utils/geolocation";
-import { formatDate } from "@/utils/fecha";
+import { fmtAR } from "@/utils/date";
 import { getContactPhone } from "@/utils/ticket";
 import { getTicketTimeline } from "@/services/ticketService";
 import { TicketHistoryEvent, Message as TicketMessage } from "@/types/tickets";
@@ -455,7 +455,7 @@ const ChatPage = () => {
                     <span className="text-primary font-semibold">{estadoChat || ticketInfo.estado}</span>
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    Creado el: {formatDate(ticketInfo.fecha, Intl.DateTimeFormat().resolvedOptions().timeZone, 'es-AR')}
+                    Creado el: {fmtAR(ticketInfo.fecha)}
                   </p>
                   {ticketInfo.direccion && (
                     <p className="text-sm text-muted-foreground mt-1">Dirección: {ticketInfo.direccion}</p>

@@ -24,6 +24,7 @@ import { FaWhatsapp } from 'react-icons/fa';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { getContactPhone, getCitizenDni } from '@/utils/ticket';
+import { fmtAR } from '@/utils/date';
 import { getSpecializedContact, SpecializedContact } from '@/utils/contacts';
 
 
@@ -189,14 +190,8 @@ const DetailsPanel: React.FC = () => {
     return base;
   };
 
-  const formatDate = (dateString: string | undefined) => {
-    if (!dateString) return 'No informado';
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) {
-      return 'Fecha inválida';
-    }
-    return date.toLocaleString();
-  };
+  const formatDate = (dateString: string | undefined) =>
+    dateString ? fmtAR(dateString) : 'No informado';
 
 
   return (

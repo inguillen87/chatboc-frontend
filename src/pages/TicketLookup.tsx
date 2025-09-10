@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { getTicketByNumber, getTicketTimeline, sendTicketHistory } from '@/services/ticketService';
 import { Ticket, Message, TicketHistoryEvent } from '@/types/tickets';
-import { formatDate } from '@/utils/fecha';
+import { fmtAR } from '@/utils/date';
 import TicketTimeline from '@/components/tickets/TicketTimeline';
 import TicketMap from '@/components/TicketMap';
 import { Separator } from '@/components/ui/separator';
@@ -168,7 +168,7 @@ export default function TicketLookup() {
             <p className="pt-1"><span className="font-medium">Estado actual:</span> <span className="text-primary font-semibold">{currentStatus}</span></p>
             <TicketStatusBar status={currentStatus} flow={statusFlow} />
             <p className="text-sm text-muted-foreground">
-              Creado el: {formatDate(ticket.fecha, Intl.DateTimeFormat().resolvedOptions().timeZone, 'es-AR')}
+              Creado el: {fmtAR(ticket.fecha)}
             </p>
             <p className="text-sm text-muted-foreground">
               Canal: <span className="capitalize">{ticket.channel || 'N/A'}</span>
