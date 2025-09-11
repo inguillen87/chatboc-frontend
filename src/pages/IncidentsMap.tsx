@@ -3,8 +3,9 @@ import MapLibreMap from '@/components/MapLibreMap';
 import TicketStatsCharts from '@/components/TicketStatsCharts';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
-import { ApiError } from '@/utils/api';
+import { ApiError, apiFetch } from '@/utils/api';
 import useRequireRole from '@/hooks/useRequireRole';
+import { useUser } from '@/hooks/useUser';
 import type { Role } from '@/utils/roles';
 import {
   getTicketStats,
@@ -15,6 +16,7 @@ import {
 
 export default function IncidentsMap() {
   useRequireRole(['admin', 'super_admin'] as Role[]);
+  const { user } = useUser();
 
   const [heatmapData, setHeatmapData] = useState<HeatPoint[]>([]);
   const [showHeatmap, setShowHeatmap] = useState(false);
@@ -22,10 +24,11 @@ export default function IncidentsMap() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [charts, setCharts] = useState<TicketStatsResponse['charts']>([]);
+  const [categories, setCategories] = useState<string[]>([]);
 
   const startDateRef = useRef<HTMLInputElement>(null);
   const endDateRef = useRef<HTMLInputElement>(null);
-  const categoryRef = useRef<HTMLInputElement>(null);
+  const categoryRef = useRef<HTMLSelectElement>(null);
   const districtRef = useRef<HTMLInputElement>(null);
 
   const ticketType = 'municipio';
@@ -50,13 +53,18 @@ export default function IncidentsMap() {
       setHeatmapData(heatmapPoints);
       if (heatmapPoints.length > 0) {
         const total = heatmapPoints.length;
-        const avgLat =
-          heatmapPoints.reduce((sum, p) => sum + p.lat, 0) / total;
-        const avgLng =
-          heatmapPoints.reduce((sum, p) => sum + p.lng, 0) / total;
+        const avgLat = heatmapPoints.reduce((sum, p) => sum + p.lat, 0) / total;
+        const avgLng = heatmapPoints.reduce((sum, p) => sum + p.lng, 0) / total;
         if (!Number.isNaN(avgLat) && !Number.isNaN(avgLng)) {
           setCenter([avgLng, avgLat]);
         }
+      } else if (
+        user?.latitud !== undefined &&
+        user?.longitud !== undefined &&
+        !Number.isNaN(user.longitud) &&
+        !Number.isNaN(user.latitud)
+      ) {
+        setCenter([user.longitud, user.latitud]);
       }
     } catch (err) {
       const message = err instanceof ApiError ? err.message : 'Error al cargar datos del mapa';
@@ -70,6 +78,31 @@ export default function IncidentsMap() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    apiFetch<{ categorias: { nombre: string }[] }>('/municipal/categorias', {
+      sendEntityToken: true,
+    })
+      .then((data) => {
+        const names = Array.isArray(data.categorias)
+          ? data.categorias.map((c) => c.nombre)
+          : [];
+        setCategories(names);
+      })
+      .catch((err) => console.error('Error fetching categories:', err));
+  }, []);
+
+  useEffect(() => {
+    if (
+      !center &&
+      user?.latitud !== undefined &&
+      user?.longitud !== undefined &&
+      !Number.isNaN(user.longitud) &&
+      !Number.isNaN(user.latitud)
+    ) {
+      setCenter([user.longitud, user.latitud]);
+    }
+  }, [center, user?.latitud, user?.longitud]);
 
   const handleLocate = () => {
     if (navigator.geolocation) {
@@ -125,12 +158,29 @@ export default function IncidentsMap() {
                 <label htmlFor="category" className="block text-sm font-medium text-muted-foreground mb-1">
                   Categoría
                 </label>
-                <input
-                  type="text"
+                <select
                   id="category"
                   ref={categoryRef}
                   className="mt-1 block w-full px-3 py-2 bg-input border-border text-foreground rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
-                  placeholder="Ej: Bache, Alumbrado"
+                >
+                  <option value="">Todas</option>
+                  {categories.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="district" className="block text-sm font-medium text-muted-foreground mb-1">
+                  Distrito
+                </label>
+                <input
+                  type="text"
+                  id="district"
+                  ref={districtRef}
+                  className="mt-1 block w-full px-3 py-2 bg-input border-border text-foreground rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+                  placeholder="Ej: Centro"
                 />
               </div>
               <div>
