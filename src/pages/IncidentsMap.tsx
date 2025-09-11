@@ -6,7 +6,12 @@ import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/
 import { ApiError } from '@/utils/api';
 import useRequireRole from '@/hooks/useRequireRole';
 import type { Role } from '@/utils/roles';
-import { getTicketStats, HeatPoint, TicketStatsResponse } from '@/services/statsService';
+import {
+  getTicketStats,
+  getHeatmapPoints,
+  HeatPoint,
+  TicketStatsResponse,
+} from '@/services/statsService';
 
 export default function IncidentsMap() {
   useRequireRole(['admin', 'super_admin'] as Role[]);
@@ -21,6 +26,7 @@ export default function IncidentsMap() {
   const startDateRef = useRef<HTMLInputElement>(null);
   const endDateRef = useRef<HTMLInputElement>(null);
   const categoryRef = useRef<HTMLInputElement>(null);
+  const districtRef = useRef<HTMLInputElement>(null);
 
   const ticketType = 'municipio';
 
@@ -29,22 +35,28 @@ export default function IncidentsMap() {
     setError(null);
 
     try {
-      const stats = await getTicketStats({
-        tipo: ticketType,
+      const filters = {
         fecha_inicio: startDateRef.current?.value,
         fecha_fin: endDateRef.current?.value,
         categoria: categoryRef.current?.value,
-      });
+        distrito: districtRef.current?.value,
+      };
+
+      const [heatmapPoints, stats] = await Promise.all([
+        getHeatmapPoints({ tipo_ticket: ticketType, ...filters }),
+        getTicketStats({ tipo: ticketType, ...filters }),
+      ]);
       setCharts(stats.charts || []);
-
-      const points = stats.heatmap || [];
-      setHeatmapData(points);
-
-      if (points.length > 0) {
-        const total = points.length;
-        const avgLat = points.reduce((sum, p) => sum + p.lat, 0) / total;
-        const avgLng = points.reduce((sum, p) => sum + p.lng, 0) / total;
-        setCenter([avgLng, avgLat]);
+      setHeatmapData(heatmapPoints);
+      if (heatmapPoints.length > 0) {
+        const total = heatmapPoints.length;
+        const avgLat =
+          heatmapPoints.reduce((sum, p) => sum + p.lat, 0) / total;
+        const avgLng =
+          heatmapPoints.reduce((sum, p) => sum + p.lng, 0) / total;
+        if (!Number.isNaN(avgLat) && !Number.isNaN(avgLng)) {
+          setCenter([avgLng, avgLat]);
+        }
       }
     } catch (err) {
       const message = err instanceof ApiError ? err.message : 'Error al cargar datos del mapa';
@@ -53,7 +65,7 @@ export default function IncidentsMap() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [ticketType]);
 
   useEffect(() => {
     fetchData();
@@ -119,6 +131,18 @@ export default function IncidentsMap() {
                   ref={categoryRef}
                   className="mt-1 block w-full px-3 py-2 bg-input border-border text-foreground rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
                   placeholder="Ej: Bache, Alumbrado"
+                />
+              </div>
+              <div>
+                <label htmlFor="district" className="block text-sm font-medium text-muted-foreground mb-1">
+                  Distrito
+                </label>
+                <input
+                  type="text"
+                  id="district"
+                  ref={districtRef}
+                  className="mt-1 block w-full px-3 py-2 bg-input border-border text-foreground rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+                  placeholder="Ej: Centro"
                 />
               </div>
               <div className="sm:col-span-full flex justify-between mt-2">
