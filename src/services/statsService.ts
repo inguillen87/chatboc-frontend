@@ -7,7 +7,8 @@ export interface HeatPoint {
   id?: number;
   ticket?: string;
   categoria?: string;
-  barrio?: string;
+  direccion?: string;
+  distrito?: string;
   tipo_ticket?: string;
   estado?: string;
 }
@@ -22,6 +23,7 @@ export interface TicketStatsParams {
   fecha_inicio?: string;
   fecha_fin?: string;
   categoria?: string;
+  distrito?: string;
 }
 
 export const getTicketStats = async (
@@ -40,5 +42,43 @@ export const getTicketStats = async (
     console.error('Error fetching ticket stats:', err);
     throw err;
   }
+};
+
+export interface HeatmapParams {
+  tipo_ticket?: string;
+  municipio_id?: number;
+  rubro_id?: number;
+  fecha_inicio?: string;
+  fecha_fin?: string;
+  categoria?: string;
+  estado?: string;
+  distrito?: string;
+}
+
+export const getHeatmapPoints = async (
+  params?: HeatmapParams,
+): Promise<HeatPoint[]> => {
+  const qs = new URLSearchParams();
+  Object.entries(params || {}).forEach(([k, v]) => {
+    if (v !== undefined && v !== null) qs.append(k, String(v));
+  });
+  const query = qs.toString();
+  const data = await apiFetch<any[]>(
+    `/estadisticas/mapa_calor/datos${query ? `?${query}` : ''}`,
+  );
+  return data
+    .map((p) => ({
+      lat: Number(p.location?.lat),
+      lng: Number(p.location?.lng),
+      weight: p.weight,
+      id: p.id,
+      ticket: p.ticket,
+      categoria: p.categoria,
+      direccion: p.direccion,
+      distrito: p.distrito,
+      tipo_ticket: p.tipo_ticket,
+      estado: p.estado,
+    }))
+    .filter((p) => !Number.isNaN(p.lat) && !Number.isNaN(p.lng));
 };
 

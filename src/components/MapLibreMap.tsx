@@ -4,15 +4,7 @@ import { cn } from "@/lib/utils";
 // librería se carga de manera dinámica más adelante.
 import "maplibre-gl/dist/maplibre-gl.css";
 import { safeOn, assertEventSource } from "@/utils/safeOn";
-
-type HeatPoint = {
-  lat: number;
-  lng: number;
-  weight?: number;
-  id?: number;
-  ticket?: string;
-  estado?: string;
-};
+import type { HeatPoint } from "@/services/statsService";
 
 type Props = {
   center?: [number, number]; // [lon, lat]
@@ -41,7 +33,7 @@ export default function MapLibreMap({
   const markerRef = useRef<any>(null);
   const libRef = useRef<any>(null);
   const apiKey = import.meta.env.VITE_MAPTILER_KEY;
-  const initialCenter = center ?? [-68.845, -32.889];
+  const initialCenter = center ?? [0, 0];
 
   useEffect(() => {
     if (!ref.current) {
@@ -201,6 +193,11 @@ export default function MapLibreMap({
                       properties: {
                         weight:
                           p.weight ?? (p.estado?.toLowerCase() === "resuelto" ? 2 : 1),
+                        id: p.id,
+                        ticket: p.ticket,
+                        categoria: p.categoria,
+                        direccion: p.direccion,
+                        distrito: p.distrito,
                       },
                       geometry: { type: "Point", coordinates: [p.lng, p.lat] },
                     })),
@@ -276,7 +273,14 @@ export default function MapLibreMap({
 
   // Allow external components to re-center the map after initialization
   useEffect(() => {
-    if (mapRef.current && center) {
+    if (
+      mapRef.current &&
+      center &&
+      typeof center[0] === "number" &&
+      typeof center[1] === "number" &&
+      !Number.isNaN(center[0]) &&
+      !Number.isNaN(center[1])
+    ) {
       try {
         mapRef.current.setCenter(center);
       } catch (err) {
@@ -294,6 +298,9 @@ export default function MapLibreMap({
         weight: p.weight ?? (p.estado?.toLowerCase() === 'resuelto' ? 2 : 1),
         id: p.id,
         ticket: p.ticket,
+        categoria: p.categoria,
+        direccion: p.direccion,
+        distrito: p.distrito,
       },
       geometry: { type: "Point", coordinates: [p.lng, p.lat] },
     }));
@@ -331,12 +338,18 @@ export default function MapLibreMap({
         const feature = e.features?.[0];
         const coords = feature?.geometry?.coordinates;
         if (!feature || !coords || !libRef.current?.Popup) return;
-        const { id, ticket } = feature.properties || {};
+        const { id, ticket, categoria, direccion, distrito } =
+          feature.properties || {};
+        const lines = [
+          `<p>Ticket #${ticket ?? id}</p>`,
+          categoria ? `<p>Categoria: ${categoria}</p>` : '',
+          distrito ? `<p>Distrito: ${distrito}</p>` : '',
+          direccion ? `<p>Direccion: ${direccion}</p>` : '',
+          `<a href="/chat/${id}" class="text-blue-600 underline">Ver ticket</a>`,
+        ].filter(Boolean);
         new libRef.current.Popup()
           .setLngLat(coords as [number, number])
-          .setHTML(
-            `<div class="text-sm"><p>Ticket #${ticket ?? id}</p><a href="/chat/${id}" class="text-blue-600 underline">Ver ticket</a></div>`
-          )
+          .setHTML(`<div class="text-sm">${lines.join('')}</div>`)
           .addTo(map);
       });
       source = map.getSource("puntos") as any;
