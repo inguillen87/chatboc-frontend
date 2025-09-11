@@ -3,10 +3,9 @@ import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { Ticket, Message } from '@/types/tickets';
 import { getContactPhone } from '@/utils/ticket';
+import { fmtAR } from '@/utils/date';
 
-const formatDate = (dateString: string) => {
-  return new Date(dateString).toLocaleString();
-};
+const formatDate = (dateString: string) => fmtAR(dateString);
 
 const getTicketData = (ticket: Ticket) => {
   const data: { [key: string]: any } = {

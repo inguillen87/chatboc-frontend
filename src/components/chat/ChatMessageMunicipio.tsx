@@ -14,6 +14,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useUser } from "@/hooks/useUser";
 import { User as UserIcon } from "lucide-react";
 import { getInitials } from "@/lib/utils";
+import { useDateSettings } from "@/hooks/useDateSettings";
 
 const messageVariants = {
   initial: (isBot: boolean) => ({
@@ -112,6 +113,7 @@ const ChatMessageMunicipio = React.forwardRef<HTMLDivElement, ChatMessageProps>(
 
   const safeText = typeof message.text === "string" && message.text !== "NaN" ? message.text : "";
   const sanitizedHtml = sanitizeMessageHtml(safeText);
+  const { timezone, locale } = useDateSettings();
 
   const bubbleClass = isBot
     ? "bg-muted text-muted-foreground" // Bot's bubble color
@@ -168,8 +170,17 @@ const ChatMessageMunicipio = React.forwardRef<HTMLDivElement, ChatMessageProps>(
             )
           )}
           {message.timestamp && (
-            <div className={`text-xs mt-1.5 ${isBot ? 'text-muted-foreground/80' : 'text-primary-foreground/70'} ${isBot ? 'text-left' : 'text-right'}`}>
-              {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
+            <div
+              className={`text-xs mt-1.5 ${isBot ? 'text-muted-foreground/80' : 'text-primary-foreground/70'} ${
+                isBot ? 'text-left' : 'text-right'
+              }`}
+            >
+              {new Date(message.timestamp).toLocaleTimeString(locale, {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true,
+                timeZone: timezone,
+              })}
             </div>
           )}
           {isBot && message.botones && message.botones.length > 0 && (

@@ -9,7 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { AlertCircle, ChevronLeft, ChevronUp, ChevronDown, LogOut, Inbox, X, Ticket as TicketIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
-import { formatDate } from '@/utils/fecha';
+import { fmtAR } from '@/utils/date';
 import { useDateSettings } from '@/hooks/useDateSettings';
 import { LOCALE_OPTIONS } from '@/utils/localeOptions';
 import {
@@ -83,7 +83,7 @@ const PedidoCard: FC<{ pedido: Pedido; onSelect: (p: Pedido) => void; selected: 
       </div>
       <p className="font-medium text-foreground truncate" title={pedido.asunto}>{pedido.asunto}</p>
       <p className="text-xs text-muted-foreground truncate">
-        {formatDate(pedido.fecha_creacion, timezone, locale)}
+        {fmtAR(pedido.fecha_creacion)}
       </p>
     </div>
   );
@@ -102,7 +102,7 @@ const PedidoDetail: FC<{ pedido: Pedido; onClose: () => void; timezone: string; 
         <p><strong>Cliente:</strong> {pedido.nombre_cliente || 'N/A'}</p>
         <p><strong>Email:</strong> {pedido.email_cliente || 'N/A'}</p>
         <p><strong>Teléfono:</strong> {pedido.telefono_cliente || 'N/A'}</p>
-        <p><strong>Fecha:</strong> {formatDate(pedido.fecha_creacion, timezone, locale)}</p>
+        <p><strong>Fecha:</strong> {fmtAR(pedido.fecha_creacion)}</p>
         <p><strong>Rubro:</strong> <span className="capitalize">{pedido.rubro}</span></p>
       </div>
       {pedido.detalles && pedido.detalles.length > 0 && (
