@@ -37,14 +37,20 @@ export default function IncidentsMap() {
       });
       setCharts(stats.charts || []);
 
-      const points = stats.heatmap || [];
+      const points = (stats.heatmap || [])
+        .map((p) => ({ ...p, lat: Number(p.lat), lng: Number(p.lng) }))
+        .filter((p) => !Number.isNaN(p.lat) && !Number.isNaN(p.lng));
       setHeatmapData(points);
 
       if (points.length > 0) {
         const total = points.length;
-        const avgLat = points.reduce((sum, p) => sum + p.lat, 0) / total;
-        const avgLng = points.reduce((sum, p) => sum + p.lng, 0) / total;
-        setCenter([avgLng, avgLat]);
+        const avgLat =
+          points.reduce((sum, p) => sum + p.lat, 0) / total;
+        const avgLng =
+          points.reduce((sum, p) => sum + p.lng, 0) / total;
+        if (!Number.isNaN(avgLat) && !Number.isNaN(avgLng)) {
+          setCenter([avgLng, avgLat]);
+        }
       }
     } catch (err) {
       const message = err instanceof ApiError ? err.message : 'Error al cargar datos del mapa';

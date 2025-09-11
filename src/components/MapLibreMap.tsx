@@ -41,7 +41,7 @@ export default function MapLibreMap({
   const markerRef = useRef<any>(null);
   const libRef = useRef<any>(null);
   const apiKey = import.meta.env.VITE_MAPTILER_KEY;
-  const initialCenter = center ?? [-68.845, -32.889];
+  const initialCenter = center ?? [0, 0];
 
   useEffect(() => {
     if (!ref.current) {
@@ -276,7 +276,14 @@ export default function MapLibreMap({
 
   // Allow external components to re-center the map after initialization
   useEffect(() => {
-    if (mapRef.current && center) {
+    if (
+      mapRef.current &&
+      center &&
+      typeof center[0] === "number" &&
+      typeof center[1] === "number" &&
+      !Number.isNaN(center[0]) &&
+      !Number.isNaN(center[1])
+    ) {
       try {
         mapRef.current.setCenter(center);
       } catch (err) {
