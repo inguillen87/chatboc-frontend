@@ -78,7 +78,7 @@ export const getHeatmapPoints = async (
 ): Promise<HeatPoint[]> => {
   const qs = new URLSearchParams();
   Object.entries(params || {}).forEach(([k, v]) => {
-    if (v !== undefined && v !== null) qs.append(k, String(v));
+    if (v !== undefined && v !== null && String(v) !== '') qs.append(k, String(v));
   });
   const query = qs.toString();
   const data = await apiFetch<any[]>(
