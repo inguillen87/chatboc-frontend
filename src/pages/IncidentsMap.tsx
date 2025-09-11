@@ -67,8 +67,11 @@ export default function IncidentsMap() {
         setCenter([user.longitud, user.latitud]);
       }
     } catch (err) {
-      const message = err instanceof ApiError ? err.message : 'Error al cargar datos del mapa';
+      const message =
+        err instanceof ApiError ? err.message : 'Error al cargar datos del mapa';
       setError(message);
+      setCharts([]);
+      setHeatmapData([]);
       console.error('Error fetching map data:', err);
     } finally {
       setIsLoading(false);
