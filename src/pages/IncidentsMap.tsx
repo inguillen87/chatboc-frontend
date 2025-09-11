@@ -183,18 +183,6 @@ export default function IncidentsMap() {
                   placeholder="Ej: Centro"
                 />
               </div>
-              <div>
-                <label htmlFor="district" className="block text-sm font-medium text-muted-foreground mb-1">
-                  Distrito
-                </label>
-                <input
-                  type="text"
-                  id="district"
-                  ref={districtRef}
-                  className="mt-1 block w-full px-3 py-2 bg-input border-border text-foreground rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
-                  placeholder="Ej: Centro"
-                />
-              </div>
               <div className="sm:col-span-full flex justify-between mt-2">
                 <div className="flex items-center">
                   <Button
