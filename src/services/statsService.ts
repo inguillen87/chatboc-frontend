@@ -39,23 +39,26 @@ export const getTicketStats = async (
     const resp = await apiFetch<TicketStatsResponse>(
       `/estadisticas/tickets${query ? `?${query}` : ''}`,
     );
-    if (Array.isArray(resp.heatmap)) {
-      resp.heatmap = resp.heatmap
-        .map((p: any) => {
-          const district = p.distrito ?? p.barrio;
-          const lat = Number(p.location?.lat ?? p.lat);
-          const lng = Number(p.location?.lng ?? p.lng);
-          return {
-            ...p,
-            lat,
-            lng,
-            distrito: district,
-            barrio: district,
-          } as HeatPoint;
-        })
-        .filter((p) => !Number.isNaN(p.lat) && !Number.isNaN(p.lng));
-    }
-    return resp;
+
+    const charts = resp?.charts || [];
+    const heatmap = Array.isArray(resp?.heatmap)
+      ? resp!.heatmap
+          .map((p: any) => {
+            const district = p.distrito ?? p.barrio;
+            const lat = Number(p.location?.lat ?? p.lat);
+            const lng = Number(p.location?.lng ?? p.lng);
+            return {
+              ...p,
+              lat,
+              lng,
+              distrito: district,
+              barrio: district,
+            } as HeatPoint;
+          })
+          .filter((p) => !Number.isNaN(p.lat) && !Number.isNaN(p.lng))
+      : [];
+
+    return { charts, heatmap };
   } catch (err) {
     console.error('Error fetching ticket stats:', err);
     throw err;
@@ -76,31 +79,38 @@ export interface HeatmapParams {
 export const getHeatmapPoints = async (
   params?: HeatmapParams,
 ): Promise<HeatPoint[]> => {
-  const qs = new URLSearchParams();
-  Object.entries(params || {}).forEach(([k, v]) => {
-    if (v !== undefined && v !== null && String(v) !== '') qs.append(k, String(v));
-  });
-  const query = qs.toString();
-  const data = await apiFetch<any[]>(
-    `/estadisticas/mapa_calor/datos${query ? `?${query}` : ''}`,
-  );
-  return data
-    .map((p) => {
-      const district = p.distrito ?? p.barrio;
-      return {
-        lat: Number(p.location?.lat),
-        lng: Number(p.location?.lng),
-        weight: p.weight,
-        id: p.id,
-        ticket: p.ticket,
-        categoria: p.categoria,
-        direccion: p.direccion,
-        distrito: district,
-        barrio: district,
-        tipo_ticket: p.tipo_ticket,
-        estado: p.estado,
-      };
-    })
-    .filter((p) => !Number.isNaN(p.lat) && !Number.isNaN(p.lng));
+  try {
+    const qs = new URLSearchParams();
+    Object.entries(params || {}).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && String(v) !== '')
+        qs.append(k, String(v));
+    });
+    const query = qs.toString();
+    const data = await apiFetch<any[]>(
+      `/estadisticas/mapa_calor/datos${query ? `?${query}` : ''}`,
+    );
+    if (!Array.isArray(data)) return [];
+    return data
+      .map((p) => {
+        const district = p.distrito ?? p.barrio;
+        return {
+          lat: Number(p.location?.lat),
+          lng: Number(p.location?.lng),
+          weight: p.weight,
+          id: p.id,
+          ticket: p.ticket,
+          categoria: p.categoria,
+          direccion: p.direccion,
+          distrito: district,
+          barrio: district,
+          tipo_ticket: p.tipo_ticket,
+          estado: p.estado,
+        };
+      })
+      .filter((p) => !Number.isNaN(p.lat) && !Number.isNaN(p.lng));
+  } catch (err) {
+    console.error('Error fetching heatmap points:', err);
+    throw err;
+  }
 };
 
