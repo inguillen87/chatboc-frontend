@@ -18,6 +18,8 @@ interface UserData {
   rol?: string;
   widget_icon_url?: string;
   widget_animation?: string;
+  latitud?: number;
+  longitud?: number;
 }
 
 interface UserContextValue {
@@ -79,6 +81,8 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       token,
       widget_icon_url: data.widget_icon_url,
       widget_animation: data.widget_animation,
+      latitud: typeof data.latitud === 'number' ? data.latitud : Number(data.latitud),
+      longitud: typeof data.longitud === 'number' ? data.longitud : Number(data.longitud),
     };
     safeLocalStorage.setItem('user', JSON.stringify(updated));
     setUser(updated);
