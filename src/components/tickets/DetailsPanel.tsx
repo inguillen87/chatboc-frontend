@@ -9,6 +9,7 @@ import { motion } from 'framer-motion';
 import TicketMap, { buildFullAddress } from '../TicketMap';
 import TicketTimeline from './TicketTimeline';
 import TicketStatusBar from './TicketStatusBar';
+import TicketAttachments from './TicketAttachments';
 import { useTickets } from '@/context/TicketContext';
 import { exportToPdf, exportToXlsx } from '@/services/exportService';
 import { sendTicketHistory, getTicketById, getTicketMessages } from '@/services/ticketService';
@@ -372,6 +373,10 @@ const DetailsPanel: React.FC = () => {
                     </div>
                 )}
             </CardContent>
+
+            {ticket.attachments?.length ? (
+              <TicketAttachments attachments={ticket.attachments} />
+            ) : null}
 
             {hasLocation && (
                 <CardContent className="p-4 border-t">
