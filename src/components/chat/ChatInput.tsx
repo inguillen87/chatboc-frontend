@@ -1,6 +1,6 @@
 // src/components/chat/ChatInput.tsx
 import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from "react";
-import { Send, MapPin, Mic, MicOff, X, FileText } from "lucide-react";
+import { Send, MapPin, Mic, MicOff, X, FileText, Smile } from "lucide-react";
 import AdjuntarArchivo, { AdjuntarArchivoHandle } from "@/components/ui/AdjuntarArchivo";
 import { apiFetch, getErrorMessage } from "@/utils/api";
 import { requestLocation } from "@/utils/geolocation";
@@ -29,11 +29,22 @@ const PLACEHOLDERS = [
   "¿Cuánto cuesta el servicio?",
 ];
 
+// Emojis funcionales para reclamos comunes. Evitamos caritas u otros iconos
+// decorativos para mantener la interfaz limpia y significativa.
+const QUICK_EMOJIS = [
+  { emoji: "🌳", category: "arbolado" },
+  { emoji: "💧", category: "agua" },
+  { emoji: "🔥", category: "fuego" },
+  { emoji: "🐶", category: "animales" },
+  { emoji: "🚮", category: "limpieza" },
+];
+
 const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping, inputRef, onTypingChange, onSystemMessage }, ref) => {
   const [input, setInput] = useState("");
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [isLocating, setIsLocating] = useState(false);
   const [attachmentPreview, setAttachmentPreview] = useState<{ file: File; previewUrl: string } | null>(null);
+  const [showEmojis, setShowEmojis] = useState(false);
   const internalRef = inputRef || useRef<HTMLInputElement>(null);
   const { isRecording, startRecording, stopRecording } = useAudioRecorder();
   const adjRef = useRef<AdjuntarArchivoHandle>(null);
@@ -84,6 +95,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
     onSendMessage({ text: input.trim(), attachmentInfo: attachmentData });
     setInput("");
     setAttachmentPreview(null);
+    setShowEmojis(false);
     onTypingChange?.(false);
     internalRef.current?.focus();
   };
@@ -160,7 +172,29 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
   };
 
   return (
-    <div className="w-full flex flex-col gap-2 px-2 py-2 sm:px-3 sm:py-3 bg-background">
+    <div className="relative w-full flex flex-col gap-2 px-2 py-2 sm:px-3 sm:py-3 bg-background">
+      {showEmojis && (
+        <div className="absolute bottom-full mb-2 left-0 right-0 flex flex-wrap gap-2 p-2 bg-background border border-border rounded-lg shadow-lg">
+          {QUICK_EMOJIS.map((item) => (
+            <button
+              key={item.emoji}
+              className="text-2xl p-2 hover:bg-muted rounded"
+              onClick={() => {
+                onSendMessage({
+                  text: item.emoji,
+                  action: "quick_emoji",
+                  payload: { category: item.category },
+                });
+                setShowEmojis(false);
+              }}
+              type="button"
+              aria-label={`Enviar emoji ${item.emoji}`}
+            >
+              {item.emoji}
+            </button>
+          ))}
+        </div>
+      )}
       {attachmentPreview && (
         <div className="relative w-full p-2 bg-muted rounded-lg flex items-center gap-3">
           {attachmentPreview.previewUrl ? (
@@ -233,6 +267,23 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
           type="button"
         >
           {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+        </button>
+        <button
+          onClick={() => setShowEmojis((v) => !v)}
+          disabled={isTyping || isLocating || !!attachmentPreview}
+          className={`
+            flex items-center justify-center
+            rounded-full p-2 sm:p-2.5
+            shadow-md transition-all duration-150
+            focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-1 focus:ring-offset-background
+            active:scale-95
+            bg-secondary text-secondary-foreground hover:bg-secondary/80
+            ${isTyping || isLocating || !!attachmentPreview ? "opacity-50 cursor-not-allowed" : ""}
+          `}
+          aria-label="Mostrar emojis"
+          type="button"
+        >
+          <Smile className="w-5 h-5" />
         </button>
         <input
           ref={internalRef}
