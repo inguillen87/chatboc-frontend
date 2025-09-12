@@ -88,6 +88,7 @@ export interface Message {
   chatBubbleStyle?: 'standard' | 'compact' | 'emphasis' | 'alert'; // Para controlar el estilo visual de la burbuja del mensaje
   posts?: Post[]; // Array de posts para mostrar como tarjetas de eventos/noticias
   socialLinks?: Record<string, string>; // Enlaces generales a redes sociales
+  listItems?: string[]; // Lista de elementos para mostrar como viñetas numeradas o con emojis
 }
 
 // --- INTERFAZ PARA EL PAYLOAD DE ENVÍO DE MENSAJES (lo que el usuario envía al bot) ---
