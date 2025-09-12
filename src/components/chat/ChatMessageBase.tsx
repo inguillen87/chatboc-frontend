@@ -227,6 +227,26 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
         )
     : null;
 
+  const listBlock = message.listItems && message.listItems.length > 0 ? (
+    <ul className="mt-2 list-disc pl-4 space-y-1">
+      {message.listItems.map((item, idx) => (
+        <li key={idx}>
+          <span
+            dangerouslySetInnerHTML={{ __html: sanitizeMessageHtml(item) }}
+          />
+        </li>
+      ))}
+    </ul>
+  ) : null;
+
+  const textAndListBlock =
+    (sanitizedHtml || listBlock) ? (
+      <>
+        {sanitizedHtml && textBlock}
+        {listBlock}
+      </>
+    ) : null;
+
   let processedAttachmentInfo: AttachmentInfo | null = null;
 
   const normalized = normalizeAttachment(message);
@@ -304,7 +324,7 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
           )}
 
           {/* Prioridad al texto si no hay otros contenidos especiales */}
-          {!showAttachmentOrMap && !showStructuredContent && textBlock}
+          {!showAttachmentOrMap && !showStructuredContent && textAndListBlock}
 
           {/* Mostrar adjunto o mapa */}
           {showAttachmentOrMap && (
@@ -320,7 +340,7 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
           {showStructuredContent && (
             <>
               {/* Si hay texto Y contenido estructurado, el texto puede ser una introducción */}
-              {sanitizedHtml && !showAttachmentOrMap && textBlock}
+              {textAndListBlock && !showAttachmentOrMap && textAndListBlock}
               <StructuredContentDisplay items={message.structuredContent!} />
             </>
           )}

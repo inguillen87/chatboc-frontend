@@ -10,7 +10,7 @@
     @apply bg-primary text-primary-foreground rounded-lg p-3 max-w-xs sm:max-w-md break-words shadow-md;
   }
   .chat-bubble-bot {
-    @apply bg-secondary text-secondary-foreground rounded-lg p-3 max-w-xs sm:max-w-md break-words shadow-md;
+    @apply bg-secondary text-secondary-foreground rounded-lg p-3 max-w-xs sm:max-w-md break-words shadow-md border border-primary/20;
   }
   .chat-container {
     @apply flex flex-col gap-4 p-4;
