@@ -29,26 +29,6 @@ const TicketAttachments: React.FC<Props> = ({ attachments }) => {
   const thumbsRef = useRef<(HTMLButtonElement | null)[]>([]);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setOpenUrl(null);
-      }
-    };
-    if (openUrl) {
-      document.addEventListener('keydown', handleKeyDown);
-      closeBtnRef.current?.focus();
-    }
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [openUrl]);
-
-  useEffect(() => {
-    if (!openUrl && openIndex !== null) {
-      thumbsRef.current[openIndex]?.focus();
-      setOpenIndex(null);
-    }
-  }, [openUrl, openIndex]);
-
   if (!images.length && !others.length && !disallowed.length) return null;
 
   return (
