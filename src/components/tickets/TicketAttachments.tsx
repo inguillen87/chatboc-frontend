@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { CardContent } from '@/components/ui/card';
 import type { Attachment } from '@/types/tickets';
-import { deriveAttachmentInfo } from '@/utils/attachment';
+import { deriveAttachmentInfo, isAllowedAttachmentType } from '@/utils/attachment';
 import { Paperclip } from 'lucide-react';
 
 interface Props {
@@ -20,11 +20,13 @@ const TicketAttachments: React.FC<Props> = ({ attachments }) => {
     ),
   }));
 
-  const images = processed.filter((p) => p.info.type === 'image');
-  const others = processed.filter((p) => p.info.type !== 'image');
+  const allowed = processed.filter((p) => isAllowedAttachmentType(p.info));
+  const disallowed = processed.filter((p) => !isAllowedAttachmentType(p.info));
+  const images = allowed.filter((p) => p.info.type === 'image');
+  const others = allowed.filter((p) => p.info.type !== 'image');
   const [openUrl, setOpenUrl] = useState<string | null>(null);
 
-  if (!images.length && !others.length) return null;
+  if (!images.length && !others.length && !disallowed.length) return null;
 
   return (
     <CardContent className="p-4 border-t">
@@ -64,6 +66,11 @@ const TicketAttachments: React.FC<Props> = ({ attachments }) => {
             </li>
           ))}
         </ul>
+      )}
+      {disallowed.length > 0 && (
+        <p className="text-xs text-destructive mt-2">
+          Algunos archivos no se muestran por tipo no permitido.
+        </p>
       )}
       {openUrl && (
         <div
