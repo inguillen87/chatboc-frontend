@@ -174,7 +174,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
   return (
     <div className="relative w-full flex flex-col gap-2 px-2 py-2 sm:px-3 sm:py-3 bg-background">
       {showEmojis && (
-        <div className="absolute bottom-full mb-2 left-0 right-0 flex flex-wrap gap-2 p-2 bg-background border border-border rounded-lg shadow-lg">
+        <div className="absolute bottom-full right-0 mb-2 flex flex-wrap gap-2 p-2 bg-background border border-border rounded-lg shadow-lg">
           {QUICK_EMOJIS.map((item) => (
             <button
               key={item.emoji}
@@ -214,6 +214,42 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
         </div>
       )}
       <div className="w-full flex items-center gap-1 sm:gap-2">
+        <input
+          ref={internalRef}
+          className={`
+            flex-1 max-w-full min-w-0
+            rounded-full px-4 py-2 sm:px-4 sm:py-2.5
+            text-base
+            outline-none transition-all duration-200
+            focus:ring-2 focus:ring-primary/50 focus:border-transparent
+            placeholder:text-muted-foreground
+            font-medium
+            disabled:cursor-not-allowed
+            bg-input text-foreground
+            border border-border
+            dark:bg-input dark:text-foreground dark:border-border
+            ${isTyping ? "opacity-60 bg-muted-foreground/10 dark:bg-muted-foreground/20" : ""}
+          `}
+          type="text"
+          placeholder={attachmentPreview ? "Añade un comentario..." : PLACEHOLDERS[placeholderIndex]}
+          value={input}
+          onChange={(e) => {
+            const val = e.target.value;
+            setInput(val);
+            onTypingChange?.(val.trim().length > 0);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              handleSend();
+            }
+          }}
+          autoFocus
+          autoComplete="off"
+          maxLength={200}
+          aria-label="Escribir mensaje"
+          disabled={isTyping || isRecording}
+        />
         <AdjuntarArchivo
           ref={adjRef}
           onFileSelected={handleFileSelected}
@@ -285,42 +321,6 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
         >
           <Smile className="w-5 h-5" />
         </button>
-        <input
-          ref={internalRef}
-          className={`
-            flex-1 max-w-full min-w-0
-            rounded-full px-4 py-2 sm:px-4 sm:py-2.5
-            text-base
-            outline-none transition-all duration-200
-            focus:ring-2 focus:ring-primary/50 focus:border-transparent
-            placeholder:text-muted-foreground
-            font-medium
-            disabled:cursor-not-allowed
-            bg-input text-foreground
-            border border-border
-            dark:bg-input dark:text-foreground dark:border-border
-            ${isTyping ? "opacity-60 bg-muted-foreground/10 dark:bg-muted-foreground/20" : ""}
-          `}
-          type="text"
-          placeholder={attachmentPreview ? "Añade un comentario..." : PLACEHOLDERS[placeholderIndex]}
-          value={input}
-          onChange={(e) => {
-            const val = e.target.value;
-            setInput(val);
-            onTypingChange?.(val.trim().length > 0);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              handleSend();
-            }
-          }}
-          autoFocus
-          autoComplete="off"
-          maxLength={200}
-          aria-label="Escribir mensaje"
-          disabled={isTyping || isRecording}
-        />
         <button
           className={`
             flex items-center justify-center
