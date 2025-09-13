@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { CardContent } from '@/components/ui/card';
 import type { Attachment } from '@/types/tickets';
 import { deriveAttachmentInfo, isAllowedAttachmentType } from '@/utils/attachment';
-import { Paperclip } from 'lucide-react';
+import { Paperclip, X } from 'lucide-react';
 
 interface Props {
   attachments: Attachment[];
