@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { apiFetch, ApiError } from '@/utils/api';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import {
   ResponsiveContainer,
   BarChart,
@@ -27,6 +28,8 @@ interface Municipality {
 
 interface AnalyticsResponse {
   municipalities: Municipality[];
+  genderTotals?: Record<string, number>;
+  ageRanges?: Record<string, number>;
 }
 
 export default function MunicipalAnalytics() {
@@ -35,19 +38,35 @@ export default function MunicipalAnalytics() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [genderFilter, setGenderFilter] = useState('');
+  const [ageMin, setAgeMin] = useState('');
+  const [ageMax, setAgeMax] = useState('');
 
-  useEffect(() => {
-    apiFetch<AnalyticsResponse>('/municipal/analytics')
+  const fetchData = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    const qs = new URLSearchParams();
+    if (genderFilter) qs.append('genero', genderFilter);
+    if (ageMin) qs.append('edad_min', ageMin);
+    if (ageMax) qs.append('edad_max', ageMax);
+    apiFetch<AnalyticsResponse>(
+      `/municipal/analytics${qs.toString() ? `?${qs.toString()}` : ''}`,
+    )
       .then((resp) => {
         setData(resp);
         setLoading(false);
       })
       .catch((err: any) => {
-        const message = err instanceof ApiError ? err.message : 'Error al cargar analíticas.';
+        const message =
+          err instanceof ApiError ? err.message : 'Error al cargar analíticas.';
         setError(message);
         setLoading(false);
       });
-  }, []);
+  }, [genderFilter, ageMin, ageMax]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   if (loading) return <p className="p-4 text-center">Cargando analíticas...</p>;
   if (error) return <p className="p-4 text-destructive text-center">Error: {error}</p>;
@@ -78,6 +97,13 @@ export default function MunicipalAnalytics() {
   const totalTickets = data.municipalities.reduce((acc, m) => acc + m.totalTickets, 0);
   const totalResponseHours = data.municipalities.reduce((acc, m) => acc + m.averageResponseHours, 0);
   const averageResponseHours = totalResponseHours / data.municipalities.length;
+
+  const genderData = data.genderTotals
+    ? Object.entries(data.genderTotals).map(([name, value]) => ({ name, value }))
+    : [];
+  const ageData = data.ageRanges
+    ? Object.entries(data.ageRanges).map(([name, value]) => ({ name, value }))
+    : [];
 
   const CustomTooltip = ({ active, payload }: TooltipProps<number, string>) => {
     if (!active || !payload || payload.length === 0) return null;
@@ -110,6 +136,43 @@ export default function MunicipalAnalytics() {
             ))}
           </select>
         </label>
+        <label className="text-sm">
+          Género:
+          <select
+            className="ml-2 border rounded p-1 bg-background"
+            value={genderFilter}
+            onChange={(e) => setGenderFilter(e.target.value)}
+          >
+            <option value="">Todos</option>
+            <option value="F">Femenino</option>
+            <option value="M">Masculino</option>
+            <option value="X">Otro</option>
+          </select>
+        </label>
+        <label className="text-sm">
+          Edad mínima:
+          <input
+            type="number"
+            className="ml-2 border rounded p-1 w-20 bg-background"
+            value={ageMin}
+            onChange={(e) => setAgeMin(e.target.value)}
+          />
+        </label>
+        <label className="text-sm">
+          Edad máxima:
+          <input
+            type="number"
+            className="ml-2 border rounded p-1 w-20 bg-background"
+            value={ageMax}
+            onChange={(e) => setAgeMax(e.target.value)}
+          />
+        </label>
+        <Button
+          className="bg-primary hover:bg-primary/90 text-primary-foreground"
+          onClick={fetchData}
+        >
+          Aplicar
+        </Button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -205,6 +268,74 @@ export default function MunicipalAnalytics() {
           </div>
         </CardContent>
       </Card>
+
+      {genderData.length > 0 && (
+        <Card className="shadow-lg">
+          <CardHeader>
+            <CardTitle className="text-xl">Distribución por Género</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={genderData}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    label
+                  >
+                    {genderData.map((entry, index) => (
+                      <Cell
+                        key={`gender-${index}`}
+                        fill={`var(--chart-${(index % 12) + 1})`}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip cursor={false} content={<ChartTooltip />} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {ageData.length > 0 && (
+        <Card className="shadow-lg">
+          <CardHeader>
+            <CardTitle className="text-xl">Distribución por Rango Etario</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={ageData}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    label
+                  >
+                    {ageData.map((entry, index) => (
+                      <Cell
+                        key={`age-${index}`}
+                        fill={`var(--chart-${(index % 12) + 1})`}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip cursor={false} content={<ChartTooltip />} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {data.municipalities.map((m) => (
