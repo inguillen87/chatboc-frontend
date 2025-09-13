@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, PanelLeft, MessageSquare, PanelLeftClose, MessageCircle, Mic, MicOff, X, FileText, ChevronDown } from 'lucide-react';
+import { Send, PanelLeft, MessageSquare, PanelLeftClose, MessageCircle, Mic, MicOff, X, FileText, ChevronDown, Info } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Ticket, TicketStatus, Message as TicketMessage } from '@/types/tickets';
 import { Message as ChatMessageData, SendPayload, AttachmentInfo } from '@/types/chat';
@@ -263,6 +263,11 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
           </div>
         </div>
         <div className="flex items-center space-x-2">
+          {isMobile && (
+            <Button variant="ghost" size="icon" onClick={onToggleDetails} aria-label="Ver detalles">
+              <Info className="h-5 w-5" />
+            </Button>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="capitalize" aria-label="Cambiar estado">

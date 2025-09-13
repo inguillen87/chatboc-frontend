@@ -34,6 +34,9 @@ export default function TicketLookup() {
     () => estadoChat || ticket?.estado || statusFlow[statusFlow.length - 1] || '',
     [estadoChat, ticket?.estado, statusFlow],
   );
+  const estimatedArrival =
+    ticket?.tiempo_estimado ||
+    (currentStatus.toLowerCase().replace(/\s+/g, '_') === 'en_proceso' ? '4h' : null);
 
   const performSearch = useCallback(async (searchId?: string, searchPin?: string) => {
     const id = (searchId || '').trim();
@@ -162,49 +165,60 @@ export default function TicketLookup() {
       {error && <p className="text-destructive text-sm text-center">{error}</p>}
       {ticket && (
         <div className="border rounded-xl p-4 sm:p-6 space-y-6 bg-card shadow-lg">
-          <div>
+          <div className="space-y-2 text-justify">
             <p className="text-sm text-muted-foreground">Ticket #{ticket.nro_ticket}</p>
-            <h2 className="text-2xl font-semibold">{ticket.asunto}</h2>
+            <h2 className="text-2xl font-semibold break-words">{ticket.asunto}</h2>
             <p className="pt-1"><span className="font-medium">Estado actual:</span> <span className="text-primary font-semibold">{currentStatus}</span></p>
             <TicketStatusBar status={currentStatus} flow={statusFlow} />
             <TicketMap ticket={ticket} />
-            <p className="text-sm text-muted-foreground">
-              Creado el: {fmtAR(ticket.fecha)}
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Canal: <span className="capitalize">{ticket.channel || 'N/A'}</span>
-            </p>
-            {ticket.tiempo_estimado && (
-              <p className="text-sm text-muted-foreground">
-                Tiempo estimado de llegada: {ticket.tiempo_estimado}
-              </p>
-            )}
-            {ticket.categoria && (
-              <p className="text-sm text-muted-foreground">
-                Categoría: {ticket.categoria}
-              </p>
-            )}
+            <dl className="text-sm text-muted-foreground grid grid-cols-[auto_1fr] gap-x-2 gap-y-1">
+              <dt>Creado el:</dt>
+              <dd>{fmtAR(ticket.fecha)}</dd>
+              <dt>Canal:</dt>
+              <dd className="capitalize">{ticket.channel || 'N/A'}</dd>
+              {estimatedArrival && (
+                <>
+                  <dt>Tiempo estimado:</dt>
+                  <dd>{estimatedArrival}</dd>
+                </>
+              )}
+              {ticket.categoria && (
+                <>
+                  <dt>Categoría:</dt>
+                  <dd>{ticket.categoria}</dd>
+                </>
+              )}
+              {ticket.direccion && (
+                <>
+                  <dt>Dirección:</dt>
+                  <dd>{ticket.direccion}</dd>
+                </>
+              )}
+              {ticket.esquinas_cercanas && (
+                <>
+                  <dt>Esquinas:</dt>
+                  <dd className="break-words">{ticket.esquinas_cercanas}</dd>
+                </>
+              )}
+            </dl>
             {(ticket.description || ticket.detalles) && (
-              <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">
+              <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap break-words text-justify">
                 {ticket.description || ticket.detalles}
               </p>
             )}
-            {ticket.direccion && (
-              <p className="text-sm text-muted-foreground mt-1">Dirección: {ticket.direccion}</p>
-            )}
             {(getContactPhone(ticket) || ticket.email || ticket.dni || ticket.informacion_personal_vecino) && (
-              <div className="mt-4 text-sm space-y-1">
+              <div className="mt-4 text-sm space-y-1 text-justify">
                 {(ticket.informacion_personal_vecino?.nombre || ticket.display_name) && (
-                  <p>Nombre: {ticket.informacion_personal_vecino?.nombre || ticket.display_name}</p>
+                  <p className="break-words">Nombre: {ticket.informacion_personal_vecino?.nombre || ticket.display_name}</p>
                 )}
                 {getCitizenDni(ticket) && (
-                  <p>DNI: {getCitizenDni(ticket)}</p>
+                  <p className="break-words">DNI: {getCitizenDni(ticket)}</p>
                 )}
                 {(ticket.informacion_personal_vecino?.email || ticket.email) && (
-                  <p>Email: {ticket.informacion_personal_vecino?.email || ticket.email}</p>
+                  <p className="break-words">Email: {ticket.informacion_personal_vecino?.email || ticket.email}</p>
                 )}
                 {getContactPhone(ticket) && (
-                  <p>Teléfono: {getContactPhone(ticket)}</p>
+                  <p className="break-words">Teléfono: {getContactPhone(ticket)}</p>
                 )}
               </div>
             )}
