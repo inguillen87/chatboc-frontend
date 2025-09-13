@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useDarkMode } from "@/hooks/useDarkMode";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
 import { cn } from "@/lib/utils";
@@ -70,6 +71,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 }) => {
   const proactiveMessageTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const hideProactiveBubbleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isDarkMode = useDarkMode();
 
   const [isOpen, setIsOpen] = useState(() => {
     if (mode !== 'standalone' && typeof defaultOpen === 'string') {
@@ -495,7 +497,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                   muted={muted}
                   onToggleSound={toggleMuted}
                   onCart={openCart}
-                  logoUrl={headerLogoUrl || customLauncherLogoUrl || entityInfo?.logo_url}
+                  logoUrl={headerLogoUrl || customLauncherLogoUrl || entityInfo?.logo_url || (isDarkMode ? '/chatbocar.png' : '/chatbocar2.png')}
                   title={welcomeTitle}
                   subtitle={welcomeSubtitle}
                   logoAnimation={logoAnimation}
@@ -523,7 +525,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                     onCart={openCart}
                     selectedRubro={entityInfo?.rubro || selectedRubro}
                     onRubroSelect={setSelectedRubro}
-                    headerLogoUrl={headerLogoUrl || customLauncherLogoUrl || entityInfo?.logo_url}
+                    headerLogoUrl={headerLogoUrl || customLauncherLogoUrl || entityInfo?.logo_url || (isDarkMode ? '/chatbocar.png' : '/chatbocar2.png')}
                     welcomeTitle={welcomeTitle}
                     welcomeSubtitle={welcomeSubtitle}
                     logoAnimation={logoAnimation}
@@ -540,7 +542,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                 message={proactiveMessage || ""}
                 onClick={toggleChat}
                 visible={showProactiveBubble && !showCta}
-                logoUrl={headerLogoUrl || customLauncherLogoUrl || entityInfo?.logo_url}
+                logoUrl={headerLogoUrl || customLauncherLogoUrl || entityInfo?.logo_url || (isDarkMode ? '/chatbocar.png' : '/chatbocar2.png')}
                 logoAnimation={logoAnimation}
               />
               {showCta && ctaMessage && !showProactiveBubble && (
@@ -578,25 +580,14 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                   animate={isOpen ? "open" : "closed"}
                   transition={openSpring}
                 >
-                  {entityInfo?.logo_url || customLauncherLogoUrl ? (
-                    <img
-                      src={entityInfo?.logo_url || customLauncherLogoUrl}
-                      alt="Logo"
-                      style={{
-                        width: calculatedLogoSize,
-                        height: calculatedLogoSize,
-                        borderRadius: "50%",
-                        animation: logoAnimation || undefined,
-                      }}
-                    />
-                  ) : (
-                    <ChatbocLogoAnimated
-                      size={calculatedLogoSize}
-                      blinking={!isOpen}
-                      floating={!isOpen}
-                      pulsing={!isOpen}
-                    />
-                  )}
+                  <ChatbocLogoAnimated
+                    src={entityInfo?.logo_url || customLauncherLogoUrl || (isDarkMode ? '/chatbocar.png' : '/chatbocar2.png')}
+                    size={calculatedLogoSize}
+                    blinking={!isOpen}
+                    floating={!isOpen}
+                    pulsing={!isOpen}
+                    animation={logoAnimation}
+                  />
                 </motion.div>
               </motion.button>
             </motion.div>
