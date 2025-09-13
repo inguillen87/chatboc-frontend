@@ -240,6 +240,7 @@ export default function IncidentsMap() {
       <div className="relative mb-6 border border-border rounded-lg shadow bg-muted/20 dark:bg-slate-800/30">
         <MapLibreMap
           center={center ? [center.lng, center.lat] : undefined}
+          marker={center ? [center.lng, center.lat] : undefined}
           heatmapData={heatmapData}
           showHeatmap={showHeatmap}
           className="h-[600px]"

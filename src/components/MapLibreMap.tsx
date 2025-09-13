@@ -10,6 +10,7 @@ type Props = {
   onSelect?: (lat: number, lon: number, address?: string) => void;
   heatmapData?: HeatPoint[];
   showHeatmap?: boolean;
+  marker?: [number, number];
   className?: string;
 };
 
@@ -31,6 +32,7 @@ export default function MapLibreMap({
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<Map | null>(null);
   const libRef = useRef<any>(null);
+  const markerRef = useRef<any>(null);
   const apiKey = import.meta.env.VITE_MAPTILER_KEY;
 
   // Effect for map initialization and cleanup
@@ -211,6 +213,42 @@ export default function MapLibreMap({
     map.setLayoutProperty("tickets-heat", "visibility", showHeatmap ? "visible" : "none");
     map.setLayoutProperty("tickets-circles", "visibility", showHeatmap ? "none" : "visible");
   }, [showHeatmap]);
+
+  // Effect for pulsing heatmap intensity
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !showHeatmap) return;
+    let frame: number;
+    const animate = () => {
+      const t = (Date.now() % 2000) / 2000;
+      const intensity = 1 + 0.5 * Math.sin(t * Math.PI * 2);
+      map.setPaintProperty("tickets-heat", "heatmap-intensity", intensity);
+      frame = requestAnimationFrame(animate);
+    };
+    animate();
+    return () => cancelAnimationFrame(frame);
+  }, [showHeatmap]);
+
+  // Effect for adding/updating municipality marker
+  useEffect(() => {
+    const map = mapRef.current;
+    const maplibre = libRef.current;
+    if (!map) return;
+    if (marker) {
+      if (markerRef.current) {
+        markerRef.current.setLngLat(marker);
+      } else if (maplibre) {
+        const el = document.createElement("div");
+        el.className = "pulse-marker";
+        markerRef.current = new maplibre.Marker({ element: el })
+          .setLngLat(marker)
+          .addTo(map);
+      }
+    } else if (markerRef.current) {
+      markerRef.current.remove();
+      markerRef.current = null;
+    }
+  }, [marker]);
 
   return (
     <div

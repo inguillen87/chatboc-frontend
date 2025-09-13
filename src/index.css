@@ -15,6 +15,15 @@
   .chat-container {
     @apply flex flex-col gap-4 p-4;
   }
+  .pulse-marker {
+    @apply w-4 h-4 rounded-full bg-blue-500 relative;
+  }
+  .pulse-marker::after {
+    content: "";
+    @apply absolute inset-0 rounded-full bg-blue-500 opacity-50;
+    animation: pulse 2s infinite;
+    transform-origin: center;
+  }
 }
 
 @layer base {
@@ -117,6 +126,20 @@
   html {
     scroll-behavior: smooth;
   }
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  70% {
+    transform: scale(2);
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
   * {
     @apply border-border;
   }
