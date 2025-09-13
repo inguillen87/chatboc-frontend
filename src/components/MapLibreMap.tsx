@@ -27,6 +27,7 @@ export default function MapLibreMap({
   onSelect,
   heatmapData = [],
   showHeatmap = true,
+  marker,
   className,
 }: Props) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
