@@ -1,13 +1,38 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Lexend&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+@layer components {
+  .chat-bubble-user {
+    @apply bg-primary text-primary-foreground rounded-lg p-3 max-w-xs sm:max-w-md break-words shadow-md;
+  }
+  .chat-bubble-bot {
+    @apply bg-secondary text-secondary-foreground rounded-lg p-3 max-w-xs sm:max-w-md break-words shadow-md border border-primary/20;
+  }
+  .chat-container {
+    @apply flex flex-col gap-4 p-4;
+  }
+  .home-marker {
+    @apply w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white relative;
+  }
+  .home-marker::after {
+    content: "";
+    @apply absolute inset-0 rounded-full bg-blue-600 opacity-50;
+    animation: pulse 2s infinite;
+  }
+  .home-marker svg {
+    @apply w-4 h-4;
+  }
+}
+
 @layer base {
   :root {
-    --background: 0 0% 100%; /* Light mode background (white) */
-    --foreground: 224 71.4% 4.1%; /* Dark text for light mode */
+    --primary-dark: 217 100% 30%;
+    --background: 0 0% 100%;
+    --foreground: 224 71.4% 4.1%;
 
     --card: 0 0% 100%;
     --card-foreground: 224 71.4% 4.1%;
@@ -15,14 +40,14 @@
     --popover: 0 0% 100%;
     --popover-foreground: 224 71.4% 4.1%;
 
-    --primary: 217 91.2% 59.8%; /* Adjusted primary blue for better vibrancy */
-    --primary-foreground: 210 20% 98%; /* White/very light text on primary */
+    --primary: 217 100% 50%; /* #007AFF - Propuesta Jules (ajustado para mayor saturación) */
+    --primary-foreground: 210 20% 98%;
 
-    --secondary: 220 14.3% 95.9%; /* Light gray for secondary elements */
-    --secondary-foreground: 220.9 39.3% 11%; /* Darker text for secondary */
+    --secondary: 220 14.3% 95.9%;
+    --secondary-foreground: 220.9 39.3% 11%;
 
     --muted: 220 14.3% 95.9%;
-    --muted-foreground: 220 8.9% 46.1%; /* Softer text for muted elements */
+    --muted-foreground: 210 9% 45%; /* #6c757d - Gris neutro para texto secundario (propuesta Jules) */
 
     --accent: 220 14.3% 95.9%;
     --accent-foreground: 220.9 39.3% 11%;
@@ -30,56 +55,69 @@
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 20% 98%;
 
-    --border: 220 13% 91%; /* Lighter border for light mode */
-    --input: 0 0% 98%; /* Slightly off-white for input fields in light mode */
-    --ring: 217 91.2% 59.8%; /* Ring to match primary */
+    --success: 134 61% 41%; /* #28a745 - Verde (propuesta Jules) */
+    --success-foreground: 0 0% 100%; /* Blanco */
 
-    --radius: 0.5rem;
+    --warning: 45 100% 51%; /* #ffc107 - Amarillo (propuesta Jules) */
+    --warning-foreground: 0 0% 0%; /* Negro o gris muy oscuro */
+
+    --border: 220 13% 91%;
+    --input: 0 0% 98%;
+    --ring: 217 91.2% 59.8%;
+
+    --radius: 0.25rem; /* Propuesta Jules - más nítido */
 
     /* Sidebar specific colors for light mode */
-    --sidebar-background: 0 0% 97%; /* Slightly off-white, distinct from main bg */
+    --sidebar-background: 0 0% 97%;
     --sidebar-foreground: 224 71.4% 4.1%;
-    --sidebar-primary: 217 91.2% 59.8%;
+    --sidebar-primary: 217 100% 50%;
     --sidebar-primary-foreground: 210 20% 98%;
-    --sidebar-accent: 220 14.3% 93%; /* Slightly darker accent for sidebar */
+    --sidebar-accent: 220 14.3% 93%;
     --sidebar-accent-foreground: 220.9 39.3% 11%;
-    --sidebar-border: 220 13% 88%; /* Slightly darker border for sidebar */
+    --sidebar-border: 220 13% 88%;
     --sidebar-ring: 217 91.2% 59.8%;
   }
 
   .dark {
-    --background: 220 15% 10%; /* Dark cool gray */
-    --foreground: 210 30% 95%; /* Softer white for text */
+    --primary-dark: 217 91.2% 59.8%;
+    --background: 220 15% 10%;
+    --foreground: 210 30% 95%;
 
-    --card: 220 15% 13%; /* Slightly lighter than background for cards */
+    --card: 220 15% 13%;
     --card-foreground: 210 30% 95%;
 
-    --popover: 220 15% 8%; /* Darker for popovers */
+    --popover: 220 15% 8%;
     --popover-foreground: 210 30% 95%;
 
     --primary: 217 91.2% 59.8%; /* Vibrant blue, same as light mode for consistency */
     --primary-foreground: 210 20% 98%;
 
-    --secondary: 220 15% 20%; /* Darker gray for secondary elements */
-    --secondary-foreground: 210 30% 90%; /* Lighter text for secondary */
+    --secondary: 220 15% 20%;
+    --secondary-foreground: 210 30% 90%;
 
     --muted: 220 15% 20%;
-    --muted-foreground: 215 20% 70%; /* Softer text for muted */
+    --muted-foreground: 215 15% 60%; /* Ajustado para mayor contraste con el --secondary-foreground */
 
     --accent: 220 15% 20%;
     --accent-foreground: 210 30% 90%;
 
-    --destructive: 0 72.2% 50.6%; /* Adjusted destructive red for dark mode */
+    --destructive: 0 72.2% 50.6%;
     --destructive-foreground: 210 20% 98%;
 
-    --border: 220 15% 25%; /* Border for dark mode */
-    --input: 220 15% 16%; /* Input background for dark mode, distinct from card */
+    --success: 134 61% 41%; /* Mantenemos el mismo verde */
+    --success-foreground: 0 0% 100%;
+
+    --warning: 45 100% 51%; /* Mantenemos el mismo amarillo */
+    --warning-foreground: 0 0% 0%;
+
+    --border: 220 15% 25%;
+    --input: 220 15% 16%;
     --ring: 217 91.2% 59.8%;
 
     /* Sidebar specific colors for dark mode */
-    --sidebar-background: 220 15% 8%; /* Even darker for sidebar */
+    --sidebar-background: 220 15% 8%;
     --sidebar-foreground: 210 30% 90%;
-    --sidebar-primary: 217 91.2% 59.8%;
+    --sidebar-primary: 217 91.2% 59.8%; /* Ajustado para coincidir con el primario general del dark mode */
     --sidebar-primary-foreground: 210 20% 98%;
     --sidebar-accent: 220 15% 18%;
     --sidebar-accent-foreground: 210 30% 90%;
@@ -90,12 +128,26 @@
   html {
     scroll-behavior: smooth;
   }
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  70% {
+    transform: scale(2);
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
   * {
     @apply border-border;
   }
   body {
     @apply bg-background text-foreground;
-    font-family: 'Inter', 'Poppins', sans-serif;
+    font-family: 'Inter', sans-serif; /* Simplificado a Inter */
     line-height: 1.6; /* Slightly increased line height for better readability */
     -webkit-font-smoothing: antialiased; /* Safari & Chrome */
     -moz-osx-font-smoothing: grayscale; /* Firefox */
@@ -106,7 +158,7 @@
   background-color: hsl(var(--input)) !important;
   color: hsl(var(--foreground)) !important;
   border: 1px solid hsl(var(--border)) !important;
-  border-radius: 0.5rem !important;
+  border-radius: var(--radius) !important; /* Usar la variable de radius */
   padding: 0.5rem 0.75rem !important;
   font-size: 1rem !important;
   transition: background 0.2s;
@@ -119,13 +171,13 @@
 .pac-container {
   background: hsl(var(--card)) !important;
   color: hsl(var(--foreground)) !important;
-  border-radius: 0.5rem !important;
+  border-radius: var(--radius) !important; /* Usar la variable de radius */
   z-index: 999999 !important;
 }
 .pac-item {
   color: inherit !important;
   background: transparent !important;
-  border-radius: 0.4rem !important;
+  border-radius: calc(var(--radius) - 2px) !important; /* Ligeramente menor para items internos */
   padding: 0.4rem 1rem !important;
 }
 .pac-item:hover {
@@ -157,4 +209,36 @@ body,
 }
 .animate-pulse-subtle {
   animation: pulse-subtle 1.5s infinite ease-in-out;
+}
+
+@layer utilities {
+  .text-primary-dark {
+    color: hsl(var(--primary-dark));
+  }
+}
+
+:root.a11y-dyslexia {
+  --chat-font: 'Lexend', system-ui, -apple-system, Segoe UI, Roboto, Arial;
+  --chat-line-height: 1.8;
+  --chat-letter-spacing: 0.0125em;
+  --chat-max-width: 52ch;
+}
+
+:root.a11y-simplified .chat-message p {
+  margin-bottom: 0.65rem;
+}
+
+.chat-root {
+  font-family: var(--chat-font, system-ui);
+}
+
+.chat-message {
+  line-height: var(--chat-line-height, 1.6);
+  letter-spacing: var(--chat-letter-spacing, 0);
+  max-width: var(--chat-max-width, 64ch);
+}
+
+.chat-message strong {
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
