@@ -365,12 +365,14 @@ const DetailsPanel: React.FC = () => {
                     <p className="font-medium">{ticket.categoria || 'No informada'}</p>
                 </div>
                 {(ticket.description || ticket.detalles) && (
-                    <div className="space-y-1">
-                        <span className="text-muted-foreground">Descripción:</span>
-                        <p className="text-sm whitespace-pre-wrap break-words">
-                            {ticket.description || ticket.detalles || '—'}
-                        </p>
-                    </div>
+                  <div className="space-y-1">
+                    <span className="text-muted-foreground">Descripción:</span>
+                    {(ticket.description || ticket.detalles || '—').split('\n').map((line, index) => (
+                      <p key={index} className="text-sm break-words text-justify">
+                        {line}
+                      </p>
+                    ))}
+                  </div>
                 )}
             </CardContent>
 
