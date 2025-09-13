@@ -13,8 +13,7 @@ import {
   HeatPoint,
   TicketStatsResponse,
 } from '@/services/statsService';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 
 export default function IncidentsMap() {
   useRequireRole(['admin', 'super_admin'] as Role[]);
@@ -27,6 +26,9 @@ export default function IncidentsMap() {
   const [error, setError] = useState<string | null>(null);
   const [charts, setCharts] = useState<TicketStatsResponse['charts']>([]);
   const [categories, setCategories] = useState<string[]>([]);
+  const [states, setStates] = useState<string[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [selectedStates, setSelectedStates] = useState<string[]>([]);
   const [availableBarrios, setAvailableBarrios] = useState<string[]>([]);
   const [provider, setProvider] = useState<'maplibre' | 'google'>('maplibre');
 
@@ -40,7 +42,6 @@ export default function IncidentsMap() {
 
   const startDateRef = useRef<HTMLInputElement>(null);
   const endDateRef = useRef<HTMLInputElement>(null);
-  const categoryRef = useRef<HTMLSelectElement>(null);
   const districtRef = useRef<HTMLInputElement>(null);
   const barrioRef = useRef<HTMLSelectElement>(null);
   const genderRef = useRef<HTMLSelectElement>(null);
@@ -57,7 +58,8 @@ export default function IncidentsMap() {
       const filters = {
         fecha_inicio: startDateRef.current?.value,
         fecha_fin: endDateRef.current?.value,
-        categoria: categoryRef.current?.value,
+        categoria: selectedCategories,
+        estado: selectedStates,
         distrito: districtRef.current?.value,
         barrio: barrioRef.current?.value,
         genero: genderRef.current?.value,
@@ -121,7 +123,7 @@ export default function IncidentsMap() {
     } finally {
       setIsLoading(false);
     }
-  }, [ticketType, user]);
+  }, [ticketType, user, selectedCategories, selectedStates]);
 
   useEffect(() => {
     fetchData();
@@ -138,6 +140,20 @@ export default function IncidentsMap() {
         setCategories(names);
       })
       .catch((err) => console.error('Error fetching categories:', err));
+  }, []);
+
+  useEffect(() => {
+    apiFetch<{ estados: { nombre: string }[] | string[] }>('/municipal/estados', {
+      sendEntityToken: true,
+    })
+      .then((data) => {
+        const raw = (data as any).estados;
+        const names = Array.isArray(raw)
+          ? raw.map((e: any) => (typeof e === 'string' ? e : e.nombre))
+          : [];
+        setStates(names);
+      })
+      .catch((err) => console.error('Error fetching states:', err));
   }, []);
 
   useEffect(() => {
@@ -159,6 +175,15 @@ export default function IncidentsMap() {
       });
     }
   };
+
+  const legendText = [
+    selectedCategories.length
+      ? `Categorías: ${selectedCategories.join(', ')}`
+      : 'Todas las categorías',
+    selectedStates.length
+      ? `Estados: ${selectedStates.join(', ')}`
+      : 'Todos los estados',
+  ].join(' | ');
 
   return (
     <div className="p-4">
@@ -226,21 +251,50 @@ export default function IncidentsMap() {
                 />
               </div>
               <div>
-                <label htmlFor="category" className="block text-sm font-medium text-muted-foreground mb-1">
-                  Categoría
-                </label>
-                <select
-                  id="category"
-                  ref={categoryRef}
-                  className="mt-1 block w-full px-3 py-2 bg-input border-border text-foreground rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
-                >
-                  <option value="">Todas</option>
+                <span className="block text-sm font-medium text-muted-foreground mb-1">
+                  Categorías
+                </span>
+                <div className="mt-1 max-h-40 overflow-y-auto px-3 py-2 bg-input border border-border text-foreground rounded-md shadow-sm">
                   {categories.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
+                    <div key={c} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`cat-${c}`}
+                        checked={selectedCategories.includes(c)}
+                        onCheckedChange={(checked) =>
+                          setSelectedCategories((prev) =>
+                            checked ? [...prev, c] : prev.filter((x) => x !== c),
+                          )
+                        }
+                      />
+                      <label htmlFor={`cat-${c}`} className="text-sm font-medium">
+                        {c}
+                      </label>
+                    </div>
                   ))}
-                </select>
+                </div>
+              </div>
+              <div>
+                <span className="block text-sm font-medium text-muted-foreground mb-1">
+                  Estados
+                </span>
+                <div className="mt-1 max-h-40 overflow-y-auto px-3 py-2 bg-input border border-border text-foreground rounded-md shadow-sm">
+                  {states.map((s) => (
+                    <div key={s} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`state-${s}`}
+                        checked={selectedStates.includes(s)}
+                        onCheckedChange={(checked) =>
+                          setSelectedStates((prev) =>
+                            checked ? [...prev, s] : prev.filter((x) => x !== s),
+                          )
+                        }
+                      />
+                      <label htmlFor={`state-${s}`} className="text-sm font-medium capitalize">
+                        {s.replace(/_/g, ' ')}
+                      </label>
+                    </div>
+                  ))}
+                </div>
               </div>
               <div>
                 <label htmlFor="barrio" className="block text-sm font-medium text-muted-foreground mb-1">
@@ -342,6 +396,9 @@ export default function IncidentsMap() {
           showHeatmap={showHeatmap}
           className="h-[600px]"
         />
+        <div className="absolute bottom-2 left-2 bg-background/80 text-foreground px-2 py-1 rounded shadow text-xs">
+          {legendText}
+        </div>
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-background/50 backdrop-blur-sm z-10">
             <p className="text-lg font-semibold text-foreground">Cargando datos en el mapa...</p>
