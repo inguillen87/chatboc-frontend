@@ -207,7 +207,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose }) => {
         initial={{ opacity: 0.5 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
-        className="w-full lg:w-[420px] border-l border-border flex flex-col h-screen bg-muted/20 shrink-0"
+        className="w-full lg:w-[460px] border-l border-border flex flex-col h-screen bg-muted/20 shrink-0"
     >
       <header className="p-4 border-b border-border flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -236,7 +236,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose }) => {
         </DropdownMenu>
       </header>
       <ScrollArea className="flex-1">
-        <div className="p-4 space-y-4">
+        <div className="p-4 pr-6 space-y-4">
           <Card>
             <CardHeader className="flex flex-row items-center gap-4 p-4">
               <Avatar className="h-14 w-14">
@@ -413,8 +413,16 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose }) => {
                     {ticket.direccion && <p className="text-sm font-medium mb-2 text-primary">{ticket.direccion}</p>}
                     {ticket.distrito && (
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Building className="h-4 w-4" />
-                            <span>Distrito: {ticket.distrito}</span>
+                            <Building className="h-4 w-4 flex-shrink-0" />
+                            <span className="flex-1 break-words">Distrito: {ticket.distrito}</span>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => copyToClipboard(ticket.distrito || '', 'Distrito')}
+                                title="Copiar Distrito"
+                            >
+                                <Copy className="h-4 w-4" />
+                            </Button>
                         </div>
                     )}
                     {ticket.esquinas_cercanas && (
@@ -431,9 +439,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose }) => {
                             </Button>
                         </div>
                     )}
-                    <div className="aspect-video rounded-md overflow-hidden mt-2">
-                        <TicketMap ticket={ticket} />
-                    </div>
+                    <TicketMap ticket={ticket} />
                 </CardContent>
             )}
 
