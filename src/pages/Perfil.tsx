@@ -58,6 +58,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
+import EnhancedMap, { MapProvider } from "@/components/EnhancedMap";
 import LocationMap from "@/components/LocationMap";
 import TicketStatsCharts from "@/components/TicketStatsCharts";
 import { useNavigate } from "react-router-dom";
@@ -72,6 +73,7 @@ import { suggestMappings, SystemField, DEFAULT_SYSTEM_FIELDS } from "@/utils/col
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 import { getTicketStats, TicketStatsResponse, HeatPoint } from "@/services/statsService";
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 
 // Durante el desarrollo usamos "/api" para evitar problemas de CORS.
@@ -294,6 +296,7 @@ export default function Perfil() {
   const [heatmapData, setHeatmapData] = useState<HeatPoint[]>([]);
   const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number } | null>(null);
   const [charts, setCharts] = useState<TicketStatsResponse['charts']>([]);
+  const [heatmapMapProvider, setHeatmapMapProvider] = useState<MapProvider>('maplibre');
 
   // --- Estados para el nuevo modal de carga de catálogo ---
   const [isMappingModalOpen, setIsMappingModalOpen] = useState(false);
@@ -1145,12 +1148,30 @@ export default function Perfil() {
                     </div>
                   </div>
                 )}
+                <div className='mt-4'>
+                  <Label className="block text-sm font-medium text-muted-foreground mb-2">Proveedor del Mapa</Label>
+                  <RadioGroup
+                    defaultValue="maplibre"
+                    onValueChange={(value: MapProvider) => setHeatmapMapProvider(value)}
+                    className="flex items-center space-x-4"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="maplibre" id="maplibre-heatmap" />
+                      <Label htmlFor="maplibre-heatmap">MapLibre</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="google" id="google-heatmap" />
+                      <Label htmlFor="google-heatmap">Google Maps</Label>
+                    </div>
+                  </RadioGroup>
+                </div>
                 {heatmapData.length > 0 ? (
-                  <LocationMap
-                    lat={mapCenter?.lat}
-                    lng={mapCenter?.lng}
+                  <EnhancedMap
+                    provider={heatmapMapProvider}
+                    center={mapCenter || undefined}
                     heatmapData={heatmapData}
                     className="h-[600px]"
+                    markers={heatmapData.map(p => ({ lat: p.lat, lng: p.lng }))}
                   />
                 ) : (
                   <p className="text-sm text-muted-foreground">

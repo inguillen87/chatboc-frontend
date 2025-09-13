@@ -417,7 +417,7 @@ const DetailsPanel: React.FC = () => {
 
             <CardContent className="p-4 border-t">
                 <h4 className="font-semibold mb-2">Historial del Ticket</h4>
-                <TicketTimeline history={timelineHistory} messages={timelineMessages} />
+                <TicketTimeline history={timelineHistory} messages={timelineMessages} ticket={ticket} />
             </CardContent>
 
           </Card>

@@ -1,11 +1,13 @@
 import React from 'react';
 import { fmtAR } from '@/utils/date';
 import { CheckCircle, Clock, MessageSquare } from 'lucide-react';
-import { TicketHistoryEvent, Message } from '@/types/tickets';
+import { TicketHistoryEvent, Message, Ticket } from '@/types/tickets';
+import TicketMap from '../TicketMap';
 
 interface TicketTimelineProps {
   history: TicketHistoryEvent[];
   messages?: Message[];
+  ticket: Ticket | null;
 }
 
 type TimelineEvent =
@@ -25,7 +27,7 @@ const formatStatus = (status: string) =>
         .replace(/\b\w/g, (c) => c.toUpperCase())
     : '';
 
-const TicketTimeline: React.FC<TicketTimelineProps> = ({ history, messages = [] }) => {
+const TicketTimeline: React.FC<TicketTimelineProps> = ({ history, messages = [], ticket }) => {
   const events: TimelineEvent[] = [
     ...history.map((h) => ({ type: 'status', ...h })),
     ...messages.map((m) => ({
@@ -48,6 +50,8 @@ const TicketTimeline: React.FC<TicketTimelineProps> = ({ history, messages = [] 
     (last, evt, idx) => (evt.type === 'status' ? idx : last),
     -1
   );
+
+  const hasLocation = ticket && (ticket.latitud || ticket.longitud);
 
   return (
     <ol className="relative border-l border-gray-200 dark:border-gray-700">
@@ -76,6 +80,11 @@ const TicketTimeline: React.FC<TicketTimelineProps> = ({ history, messages = [] 
                 </time>
                 {'notes' in event && event.notes && (
                   <p className="text-sm mt-1">{event.notes}</p>
+                )}
+                {hasLocation && (
+                  <div className="mt-2">
+                    <TicketMap ticket={ticket} />
+                  </div>
                 )}
               </div>
             ) : (
