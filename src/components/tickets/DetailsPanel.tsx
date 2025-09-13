@@ -96,11 +96,20 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose }) => {
   }
 
 
+  const parse = (v: unknown) => {
+    if (typeof v === 'number') return v;
+    if (typeof v === 'string') {
+      const n = parseFloat(v);
+      return Number.isFinite(n) ? n : undefined;
+    }
+    return undefined;
+  };
+
   const hasLocation =
     !!ticket.direccion ||
-    (typeof ticket.latitud === 'number' && typeof ticket.longitud === 'number') ||
-    (typeof ticket.municipio_latitud === 'number' &&
-      typeof ticket.municipio_longitud === 'number');
+    (parse(ticket.latitud) !== undefined && parse(ticket.longitud) !== undefined) ||
+    (parse(ticket.municipio_latitud) !== undefined &&
+      parse(ticket.municipio_longitud) !== undefined);
 
   const handleExportPdf = () => {
     exportToPdf(ticket, ticket.messages || []);
