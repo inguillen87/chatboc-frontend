@@ -117,7 +117,7 @@ const NewTicketsPanel: React.FC = () => {
           </AnimatePresence>
         </div>
       ) : (
-        <div className="grid grid-cols-[320px_1fr_320px] h-full w-full">
+        <div className="grid grid-cols-[320px_1fr_380px] h-full w-full">
           <Sidebar />
           <ConversationPanel
             isMobile={false}
