@@ -3,7 +3,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Mail, MapPin, Ticket as TicketIcon, Info, FileDown, User, ExternalLink, MessageCircle, Building, Hash, Copy, ChevronDown, ChevronUp, UserCheck, Bot, ChevronLeft } from 'lucide-react';
+import { Mail, MapPin, Ticket as TicketIcon, Info, FileDown, User, ExternalLink, MessageCircle, Building, Hash, Copy, ChevronDown, ChevronUp, UserCheck, Bot } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { motion } from 'framer-motion';
 import TicketMap, { buildFullAddress } from '../TicketMap';
@@ -11,7 +11,6 @@ import TicketTimeline from './TicketTimeline';
 import TicketStatusBar from './TicketStatusBar';
 import TicketAttachments from './TicketAttachments';
 import { useTickets } from '@/context/TicketContext';
-import { useIsMobile } from '@/hooks/use-mobile';
 import { exportToPdf, exportToXlsx } from '@/services/exportService';
 import { sendTicketHistory, getTicketById, getTicketMessages } from '@/services/ticketService';
 import { Ticket, Message, TicketHistoryEvent } from '@/types/tickets';
@@ -30,13 +29,8 @@ import { fmtAR } from '@/utils/date';
 import { getSpecializedContact, SpecializedContact } from '@/utils/contacts';
 
 
-interface DetailsPanelProps {
-  onClose?: () => void;
-}
-
-const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose }) => {
+const DetailsPanel: React.FC = () => {
   const { selectedTicket: ticket } = useTickets();
-  const isMobile = useIsMobile();
   const [isSendingEmail, setIsSendingEmail] = React.useState(false);
   const [timelineHistory, setTimelineHistory] = React.useState<TicketHistoryEvent[]>([]);
   const [timelineMessages, setTimelineMessages] = React.useState<Message[]>([]);
@@ -85,7 +79,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose }) => {
 
   if (!ticket) {
     return (
-       <aside className="w-full lg:w-[420px] border-l border-border flex-col h-screen bg-muted/20 shrink-0 hidden lg:flex items-center justify-center p-6">
+       <aside className="w-full border-l border-border flex-col h-screen bg-muted/20 shrink-0 hidden lg:flex items-center justify-center p-6">
          <div className="text-center text-muted-foreground">
             <Info className="h-12 w-12 mx-auto mb-4" />
             <h3 className="font-semibold">Detalles del Ticket</h3>
@@ -96,20 +90,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose }) => {
   }
 
 
-  const parse = (v: unknown) => {
-    if (typeof v === 'number') return v;
-    if (typeof v === 'string') {
-      const n = parseFloat(v);
-      return Number.isFinite(n) ? n : undefined;
-    }
-    return undefined;
-  };
-
-  const hasLocation =
-    !!ticket.direccion ||
-    (parse(ticket.latitud) !== undefined && parse(ticket.longitud) !== undefined) ||
-    (parse(ticket.municipio_latitud) !== undefined &&
-      parse(ticket.municipio_longitud) !== undefined);
+  const hasLocation = ticket.direccion || (ticket.latitud && ticket.longitud);
 
   const handleExportPdf = () => {
     exportToPdf(ticket, ticket.messages || []);
@@ -220,17 +201,10 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose }) => {
         initial={{ opacity: 0.5 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
-        className="w-full lg:w-[460px] border-l border-border flex flex-col h-screen bg-muted/20 shrink-0"
+        className="w-full border-l border-border flex flex-col h-screen bg-muted/20 shrink-0"
     >
       <header className="p-4 border-b border-border flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          {isMobile && onClose && (
-            <Button variant="ghost" size="icon" onClick={onClose} aria-label="Volver">
-              <ChevronLeft className="h-5 w-5" />
-            </Button>
-          )}
-          <h3 className="font-semibold">Detalles del Ticket</h3>
-        </div>
+        <h3 className="font-semibold">Detalles del Ticket</h3>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm">
@@ -248,8 +222,8 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose }) => {
           </DropdownMenuContent>
         </DropdownMenu>
       </header>
-      <ScrollArea className="flex-1 overflow-x-auto">
-        <div className="p-4 lg:pr-6 space-y-4">
+      <ScrollArea className="flex-1">
+        <div className="p-4 space-y-4">
           <Card>
             <CardHeader className="flex flex-row items-center gap-4 p-4">
               <Avatar className="h-14 w-14">
@@ -263,18 +237,17 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose }) => {
                 <p className="text-xs text-muted-foreground">Vecino/a</p>
               </div>
             </CardHeader>
-            <CardContent className="p-4 space-y-3 text-sm border-t text-justify">
+            <CardContent className="p-4 space-y-3 text-sm border-t">
               <h4 className="font-semibold mb-2">Información Personal del Vecino</h4>
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  <span className={cn("flex-1 break-words", !isSpecified(personal?.nombre) && "text-muted-foreground")}>{personal?.nombre || 'No especificado'}</span>
+                  <span className={cn("flex-1", !isSpecified(personal?.nombre) && "text-muted-foreground")}>{personal?.nombre || 'No especificado'}</span>
                   {isSpecified(personal?.nombre) && (
                     <Button
                       variant="ghost"
                       size="icon"
                       onClick={() => copyToClipboard(personal?.nombre || '', 'Nombre')}
-                      title="Copiar Nombre"
                     >
                       <Copy className="h-4 w-4" />
                     </Button>
@@ -282,13 +255,12 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose }) => {
                 </div>
                 <div className="flex items-center gap-2">
                   <Info className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  <span className={cn("flex-1 break-words", !isSpecified(personal?.dni) && "text-muted-foreground")}>DNI: {personal?.dni || 'No especificado'}</span>
+                  <span className={cn("flex-1", !isSpecified(personal?.dni) && "text-muted-foreground")}>DNI: {personal?.dni || 'No especificado'}</span>
                   {isSpecified(personal?.dni) && (
                     <Button
                       variant="ghost"
                       size="icon"
                       onClick={() => copyToClipboard(personal?.dni || '', 'DNI')}
-                      title="Copiar DNI"
                     >
                       <Copy className="h-4 w-4" />
                     </Button>
@@ -311,7 +283,6 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose }) => {
                       variant="ghost"
                       size="icon"
                       onClick={() => copyToClipboard(personal?.email || '', 'Email')}
-                      title="Copiar Email"
                     >
                       <Copy className="h-4 w-4" />
                     </Button>
@@ -336,7 +307,6 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose }) => {
                       variant="ghost"
                       size="icon"
                       onClick={() => copyToClipboard(personal?.telefono || '', 'Teléfono')}
-                      title="Copiar Teléfono"
                     >
                       <Copy className="h-4 w-4" />
                     </Button>
@@ -344,13 +314,12 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose }) => {
                 </div>
                 <div className="flex items-center gap-2">
                   <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  <span className={cn("flex-1 break-words", !isSpecified(personal?.direccion) && "text-muted-foreground")}>{personal?.direccion || 'No especificado'}</span>
+                  <span className={cn("flex-1", !isSpecified(personal?.direccion) && "text-muted-foreground")}>{personal?.direccion || 'No especificado'}</span>
                   {isSpecified(personal?.direccion) && (
                     <Button
                       variant="ghost"
                       size="icon"
                       onClick={() => copyToClipboard(personal?.direccion || '', 'Dirección')}
-                      title="Copiar Dirección"
                     >
                       <Copy className="h-4 w-4" />
                     </Button>
@@ -372,7 +341,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose }) => {
               </CardContent>
             )}
 
-            <CardContent className="p-4 space-y-3 text-sm border-t text-justify">
+            <CardContent className="p-4 space-y-3 text-sm border-t">
                 <h4 className="font-semibold mb-2">Detalles del Ticket</h4>
                 <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">ID:</span>
@@ -391,12 +360,6 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose }) => {
                     <span className="text-muted-foreground">Creado:</span>
                     <span>{formatDate(ticket.fecha)}</span>
                 </div>
-                {ticket.tiempo_estimado && (
-                    <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">Tiempo estimado:</span>
-                        <span>{ticket.tiempo_estimado}</span>
-                    </div>
-                )}
                  <div className="space-y-1">
                     <span className="text-muted-foreground">Categoría:</span>
                     <p className="font-medium">{ticket.categoria || 'No informada'}</p>
@@ -416,43 +379,29 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose }) => {
             ) : null}
 
             {hasLocation && (
-                <CardContent className="p-4 border-t text-justify space-y-2">
-                    <div className="flex items-center justify-between">
-                        <h4 className="font-semibold">Ubicación</h4>
+                <CardContent className="p-4 border-t">
+                    <h4 className="font-semibold mb-2 flex items-center justify-between">
+                        Ubicación
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={openGoogleMaps}>
                             <ExternalLink className="h-4 w-4" />
                         </Button>
-                    </div>
-                    <TicketMap ticket={ticket} />
-                    {ticket.direccion && <p className="text-sm font-medium text-primary">{ticket.direccion}</p>}
+                    </h4>
+                    {ticket.direccion && <p className="text-sm font-medium mb-2 text-primary">{ticket.direccion}</p>}
                     {ticket.distrito && (
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Building className="h-4 w-4 flex-shrink-0" />
-                            <span className="flex-1 break-words">Distrito: {ticket.distrito}</span>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => copyToClipboard(ticket.distrito || '', 'Distrito')}
-                                title="Copiar Distrito"
-                            >
-                                <Copy className="h-4 w-4" />
-                            </Button>
+                            <Building className="h-4 w-4" />
+                            <span>Distrito: {ticket.distrito}</span>
                         </div>
                     )}
                     {ticket.esquinas_cercanas && (
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             <Hash className="h-4 w-4" />
-                            <span className="flex-1 break-words">Esquinas: {ticket.esquinas_cercanas}</span>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => copyToClipboard(ticket.esquinas_cercanas || '', 'Esquinas')}
-                                title="Copiar Esquinas"
-                            >
-                                <Copy className="h-4 w-4" />
-                            </Button>
+                            <span>Esquinas: {ticket.esquinas_cercanas}</span>
                         </div>
                     )}
+                    <div className="aspect-video rounded-md overflow-hidden mt-2">
+                        <TicketMap ticket={ticket} />
+                    </div>
                 </CardContent>
             )}
 
