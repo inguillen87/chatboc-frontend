@@ -248,8 +248,8 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose }) => {
           </DropdownMenuContent>
         </DropdownMenu>
       </header>
-      <ScrollArea className="flex-1">
-        <div className="p-4 pr-6 space-y-4">
+      <ScrollArea className="flex-1 overflow-x-auto">
+        <div className="p-4 lg:pr-6 space-y-4">
           <Card>
             <CardHeader className="flex flex-row items-center gap-4 p-4">
               <Avatar className="h-14 w-14">
