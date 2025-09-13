@@ -25,6 +25,9 @@ export interface TicketStatsParams {
   fecha_fin?: string;
   categoria?: string;
   distrito?: string;
+  genero?: string;
+  edad_min?: number;
+  edad_max?: number;
 }
 
 export const getTicketStats = async (
@@ -33,7 +36,7 @@ export const getTicketStats = async (
   try {
     const qs = new URLSearchParams();
     Object.entries(params || {}).forEach(([k, v]) => {
-      if (v) qs.append(k, String(v));
+      if (v !== undefined && v !== null && String(v) !== '') qs.append(k, String(v));
     });
     const query = qs.toString();
     const resp = await apiFetch<TicketStatsResponse>(
@@ -74,6 +77,9 @@ export interface HeatmapParams {
   categoria?: string;
   estado?: string;
   distrito?: string;
+  genero?: string;
+  edad_min?: number;
+  edad_max?: number;
 }
 
 export const getHeatmapPoints = async (
