@@ -28,6 +28,15 @@ export default function IncidentsMap() {
   const [charts, setCharts] = useState<TicketStatsResponse['charts']>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [availableBarrios, setAvailableBarrios] = useState<string[]>([]);
+  const [provider, setProvider] = useState<'maplibre' | 'google'>('maplibre');
+
+  const heatmapCache = useRef<Record<string, HeatPoint[]>>({});
+  const lastFiltersRef = useRef<{
+    fecha_inicio?: string;
+    fecha_fin?: string;
+    distrito?: string;
+    barrio?: string;
+  }>({});
 
   const startDateRef = useRef<HTMLInputElement>(null);
   const endDateRef = useRef<HTMLInputElement>(null);
@@ -50,8 +59,29 @@ export default function IncidentsMap() {
         barrio: barrioRef.current?.value,
       };
 
+      const { fecha_inicio, fecha_fin, distrito, barrio, categoria } = filters;
+      const otherFilters = { fecha_inicio, fecha_fin, distrito, barrio };
+      const lastFilters = lastFiltersRef.current;
+      if (
+        lastFilters.fecha_inicio !== otherFilters.fecha_inicio ||
+        lastFilters.fecha_fin !== otherFilters.fecha_fin ||
+        lastFilters.distrito !== otherFilters.distrito ||
+        lastFilters.barrio !== otherFilters.barrio
+      ) {
+        heatmapCache.current = {};
+        lastFiltersRef.current = otherFilters;
+      }
+
+      const categoryKey = categoria || 'all';
+      const heatmapPromise = heatmapCache.current[categoryKey]
+        ? Promise.resolve(heatmapCache.current[categoryKey])
+        : getHeatmapPoints({ tipo_ticket: ticketType, ...filters }).then((data) => {
+            heatmapCache.current[categoryKey] = data;
+            return data;
+          });
+
       const [heatmapPoints, stats] = await Promise.all([
-        getHeatmapPoints({ tipo_ticket: ticketType, ...filters }),
+        heatmapPromise,
         getTicketStats({ tipo: ticketType, ...filters }),
       ]);
       setCharts(stats.charts || []);
@@ -143,6 +173,29 @@ export default function IncidentsMap() {
                 <label htmlFor="heatmapToggle" className="text-sm font-medium text-muted-foreground cursor-pointer">
                   Mostrar Mapa de Calor
                 </label>
+              </div>
+              <div className="pt-5">
+                <Label className="block text-sm font-medium text-muted-foreground mb-1">
+                  Proveedor de Mapa
+                </Label>
+                <RadioGroup
+                  value={provider}
+                  onValueChange={(v) => setProvider(v as 'maplibre' | 'google')}
+                  className="flex space-x-4"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="maplibre" id="provider-maplibre" />
+                    <Label htmlFor="provider-maplibre" className="text-sm text-muted-foreground">
+                      MapLibre
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="google" id="provider-google" />
+                    <Label htmlFor="provider-google" className="text-sm text-muted-foreground">
+                      Google
+                    </Label>
+                  </div>
+                </RadioGroup>
               </div>
               <div>
                 <label htmlFor="startDate" className="block text-sm font-medium text-muted-foreground mb-1">
@@ -239,6 +292,7 @@ export default function IncidentsMap() {
 
       <div className="relative mb-6 border border-border rounded-lg shadow bg-muted/20 dark:bg-slate-800/30">
         <MapLibreMap
+          provider={provider}
           center={center ? [center.lng, center.lat] : undefined}
           marker={center ? [center.lng, center.lat] : undefined}
           heatmapData={heatmapData}

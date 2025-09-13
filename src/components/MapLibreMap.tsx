@@ -12,6 +12,7 @@ type Props = {
   showHeatmap?: boolean;
   marker?: [number, number];
   className?: string;
+  provider?: "maplibre" | "google";
 };
 
 // Function to safely add a layer
@@ -29,7 +30,20 @@ export default function MapLibreMap({
   showHeatmap = true,
   marker,
   className,
+  provider = "maplibre",
 }: Props) {
+  if (provider === "google") {
+    const query = center ? `${center[1]},${center[0]}` : "0,0";
+    const url = `https://maps.google.com/maps?q=${query}&z=${initialZoom}&output=embed`;
+    return (
+      <iframe
+        src={url}
+        className={cn("w-full rounded-2xl overflow-hidden", className ?? "h-[500px]")}
+        loading="lazy"
+        referrerPolicy="no-referrer-when-downgrade"
+      />
+    );
+  }
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<Map | null>(null);
   const libRef = useRef<any>(null);
