@@ -52,7 +52,7 @@ const TicketMap: React.FC<{ ticket: TicketLocation }> = ({ ticket }) => {
       center={center}
       marker={hasCoords ? [destLon as number, destLat as number] : undefined}
       initialZoom={15}
-      className="w-full h-[150px] sm:h-[180px] rounded-md overflow-hidden"
+      className="w-full h-[200px] sm:h-[240px] rounded-md overflow-hidden"
     />
   );
 };
