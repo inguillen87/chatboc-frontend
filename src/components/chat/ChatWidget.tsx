@@ -41,10 +41,10 @@ interface ChatWidgetProps {
 }
 
 const PROACTIVE_MESSAGES = [
-  "¿Necesitas ayuda para encontrar algo?",
-  "¡Hola! Estoy aquí para asistirte.",
-  "¿Tienes alguna consulta? ¡Pregúntame!",
-  "Explora nuestros servicios, ¡te ayudo!",
+  "¿Necesitas ayuda?",
+  "¿Querés hacer una sugerencia?",
+  "¿Tenés un reclamo?",
+  "¿Tenés consultas? ¡Preguntame!",
 ];
 
 const LS_KEY = "chatboc_accessibility";
