@@ -20,6 +20,7 @@ export interface TicketLocation {
   municipio_longitud?: number | null;
   tiempo_estimado?: string | null;
   eta?: string | null;
+  estado?: string | null;
 }
 
 export const buildFullAddress = (ticket: TicketLocation) => {
@@ -78,7 +79,12 @@ const TicketMap: React.FC<{ ticket: TicketLocation }> = ({ ticket }) => {
     typeof originLon === 'number' &&
     (originLat !== 0 || originLon !== 0);
   const hasRoute = hasCoords && hasOrigin;
-  const eta = ticket.tiempo_estimado || ticket.eta;
+  const eta =
+    ticket.tiempo_estimado ||
+    ticket.eta ||
+    (ticket.estado && ticket.estado.toLowerCase().includes('proceso')
+      ? '4h'
+      : undefined);
 
   // -------- MapLibre dynamic map for active routes ---------
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -123,7 +129,13 @@ const TicketMap: React.FC<{ ticket: TicketLocation }> = ({ ticket }) => {
           source: 'route',
           paint: { 'line-color': '#2563eb', 'line-width': 4 },
         });
-        markerRef.current = new maplibre.Marker().setLngLat([originLon as number, originLat as number]).addTo(map);
+        const el = document.createElement('div');
+        el.textContent = '🚚';
+        el.style.fontSize = '24px';
+        el.style.lineHeight = '24px';
+        markerRef.current = new maplibre.Marker({ element: el, anchor: 'center' })
+          .setLngLat([originLon as number, originLat as number])
+          .addTo(map);
         routeRef.current = [[originLon as number, originLat as number]];
       });
     })();
