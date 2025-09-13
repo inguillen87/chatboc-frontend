@@ -1141,7 +1141,7 @@ export default function Perfil() {
                   <MapLibreMap
                     center={mapCenter ? [mapCenter.lng, mapCenter.lat] : municipalityCoords}
                     heatmapData={heatmapData}
-                    marker={mapCenter ? [mapCenter.lng, mapCenter.lat] : municipalityCoords}
+                    marker={municipalityCoords}
                     onSelect={handleMapSelect}
                     className="h-[600px]"
                   />
