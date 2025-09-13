@@ -15,14 +15,16 @@
   .chat-container {
     @apply flex flex-col gap-4 p-4;
   }
-  .pulse-marker {
-    @apply w-4 h-4 rounded-full bg-blue-500 relative;
+  .home-marker {
+    @apply w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white relative;
   }
-  .pulse-marker::after {
+  .home-marker::after {
     content: "";
-    @apply absolute inset-0 rounded-full bg-blue-500 opacity-50;
+    @apply absolute inset-0 rounded-full bg-blue-600 opacity-50;
     animation: pulse 2s infinite;
-    transform-origin: center;
+  }
+  .home-marker svg {
+    @apply w-4 h-4;
   }
 }
 
