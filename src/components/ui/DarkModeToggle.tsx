@@ -17,8 +17,9 @@ const DarkModeToggle = () => {
 
   const toggleTheme = () => {
     const html = document.documentElement;
+    const isCurrentlyDark = html.classList.contains("dark");
 
-    if (html.classList.contains("dark")) {
+    if (isCurrentlyDark) {
       html.classList.remove("dark");
       safeLocalStorage.setItem("theme", "light");
       setIsDark(false);
@@ -27,6 +28,7 @@ const DarkModeToggle = () => {
       safeLocalStorage.setItem("theme", "dark");
       setIsDark(true);
     }
+    window.dispatchEvent(new CustomEvent('themechange'));
   };
 
   return (

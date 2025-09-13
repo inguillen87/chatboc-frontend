@@ -11,8 +11,26 @@ const ChatbocLogoAnimated = ({
   floating = false,
   pulsing = false,
   style = {},
+  src,
+  animation,
 }) => {
   const actualSize = Math.max(size, 1); // Asegurar que el tamaño no sea 0 o negativo
+
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt="Logo"
+        style={{
+          width: actualSize,
+          height: actualSize,
+          borderRadius: "50%",
+          animation: animation || undefined,
+          ...style,
+        }}
+      />
+    );
+  }
 
   const eyeBaseY = 24;
   const leftEyeX = movingEyes ? 19 : 18;
