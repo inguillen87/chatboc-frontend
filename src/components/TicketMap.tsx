@@ -18,6 +18,8 @@ export interface TicketLocation {
   origen_longitud?: number | null;
   municipio_latitud?: number | null;
   municipio_longitud?: number | null;
+  tiempo_estimado?: string | null;
+  eta?: string | null;
 }
 
 export const buildFullAddress = (ticket: TicketLocation) => {
@@ -76,6 +78,7 @@ const TicketMap: React.FC<{ ticket: TicketLocation }> = ({ ticket }) => {
     typeof originLon === 'number' &&
     (originLat !== 0 || originLon !== 0);
   const hasRoute = hasCoords && hasOrigin;
+  const eta = ticket.tiempo_estimado || ticket.eta;
 
   // Primary map is Google Maps; fallback to OpenStreetMap if it fails
   const googleSrc = hasRoute
@@ -118,6 +121,11 @@ const TicketMap: React.FC<{ ticket: TicketLocation }> = ({ ticket }) => {
       {direccionCompleta && (
         <div className="text-xs mt-1 text-muted-foreground truncate">
           {direccionCompleta}
+        </div>
+      )}
+      {(hasRoute || eta) && (
+        <div className="text-xs mt-1 text-muted-foreground">
+          {eta ? `Tiempo estimado de llegada: ${eta}` : 'Cuadrilla en camino'}
         </div>
       )}
     </div>

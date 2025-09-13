@@ -58,7 +58,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
-import LocationMap from "@/components/LocationMap";
+import MapLibreMap from "@/components/MapLibreMap";
 import TicketStatsCharts from "@/components/TicketStatsCharts";
 import { useNavigate } from "react-router-dom";
 import QuickLinksCard from "@/components/QuickLinksCard";
@@ -72,6 +72,7 @@ import { suggestMappings, SystemField, DEFAULT_SYSTEM_FIELDS } from "@/utils/col
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 import { getTicketStats, TicketStatsResponse, HeatPoint } from "@/services/statsService";
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 
 // Durante el desarrollo usamos "/api" para evitar problemas de CORS.
@@ -294,6 +295,11 @@ export default function Perfil() {
   const [heatmapData, setHeatmapData] = useState<HeatPoint[]>([]);
   const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number } | null>(null);
   const [charts, setCharts] = useState<TicketStatsResponse['charts']>([]);
+
+  const municipalityCoords =
+    perfil.latitud !== null && perfil.longitud !== null
+      ? [perfil.longitud, perfil.latitud] as [number, number]
+      : undefined;
 
   // --- Estados para el nuevo modal de carga de catálogo ---
   const [isMappingModalOpen, setIsMappingModalOpen] = useState(false);
@@ -910,20 +916,6 @@ export default function Perfil() {
                   </div>
                 </div>
 
-                {/* Ubicación en el Mapa - Integrado en la tarjeta de Datos */}
-                {(perfil.direccion || (perfil.latitud !== null && perfil.longitud !== null)) && (
-                  <div className="mt-4 flex flex-col flex-grow"> {/* Add margin top, flex-grow and flex-col */}
-                    <Label className="text-muted-foreground text-sm mb-1 block">
-                      Ubicación en el Mapa
-                    </Label>
-                    <LocationMap
-                      lat={perfil.latitud ?? undefined}
-                      lng={perfil.longitud ?? undefined}
-                      onSelect={handleMapSelect}
-                      className="h-[400px]"
-                    />
-                  </div>
-                )}
 
                 <div>
                   <Label className="text-muted-foreground text-sm block mb-2">
@@ -1053,7 +1045,7 @@ export default function Perfil() {
               </form>
             </CardContent>
           </Card>
-          {ticketLocations.length > 0 && (
+          {(ticketLocations.length > 0 || municipalityCoords) && (
             <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm">
               <CardHeader>
                 <CardTitle className="text-xl font-semibold text-primary">
@@ -1145,11 +1137,12 @@ export default function Perfil() {
                     </div>
                   </div>
                 )}
-                {heatmapData.length > 0 ? (
-                  <LocationMap
-                    lat={mapCenter?.lat}
-                    lng={mapCenter?.lng}
+                {heatmapData.length > 0 || municipalityCoords ? (
+                  <MapLibreMap
+                    center={mapCenter ? [mapCenter.lng, mapCenter.lat] : municipalityCoords}
                     heatmapData={heatmapData}
+                    marker={mapCenter ? [mapCenter.lng, mapCenter.lat] : municipalityCoords}
+                    onSelect={handleMapSelect}
                     className="h-[600px]"
                   />
                 ) : (
