@@ -248,6 +248,7 @@ const DetailsPanel: React.FC = () => {
                       variant="ghost"
                       size="icon"
                       onClick={() => copyToClipboard(personal?.nombre || '', 'Nombre')}
+                      title="Copiar Nombre"
                     >
                       <Copy className="h-4 w-4" />
                     </Button>
@@ -261,6 +262,7 @@ const DetailsPanel: React.FC = () => {
                       variant="ghost"
                       size="icon"
                       onClick={() => copyToClipboard(personal?.dni || '', 'DNI')}
+                      title="Copiar DNI"
                     >
                       <Copy className="h-4 w-4" />
                     </Button>
@@ -283,6 +285,7 @@ const DetailsPanel: React.FC = () => {
                       variant="ghost"
                       size="icon"
                       onClick={() => copyToClipboard(personal?.email || '', 'Email')}
+                      title="Copiar Email"
                     >
                       <Copy className="h-4 w-4" />
                     </Button>
@@ -307,6 +310,7 @@ const DetailsPanel: React.FC = () => {
                       variant="ghost"
                       size="icon"
                       onClick={() => copyToClipboard(personal?.telefono || '', 'Teléfono')}
+                      title="Copiar Teléfono"
                     >
                       <Copy className="h-4 w-4" />
                     </Button>
@@ -320,6 +324,7 @@ const DetailsPanel: React.FC = () => {
                       variant="ghost"
                       size="icon"
                       onClick={() => copyToClipboard(personal?.direccion || '', 'Dirección')}
+                      title="Copiar Dirección"
                     >
                       <Copy className="h-4 w-4" />
                     </Button>
@@ -402,7 +407,15 @@ const DetailsPanel: React.FC = () => {
                     {ticket.esquinas_cercanas && (
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             <Hash className="h-4 w-4" />
-                            <span>Esquinas: {ticket.esquinas_cercanas}</span>
+                            <span className="flex-1">Esquinas: {ticket.esquinas_cercanas}</span>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => copyToClipboard(ticket.esquinas_cercanas || '', 'Esquinas')}
+                                title="Copiar Esquinas"
+                            >
+                                <Copy className="h-4 w-4" />
+                            </Button>
                         </div>
                     )}
                     <div className="aspect-video rounded-md overflow-hidden mt-2">
