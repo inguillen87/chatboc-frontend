@@ -96,7 +96,11 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose }) => {
   }
 
 
-  const hasLocation = ticket.direccion || (ticket.latitud && ticket.longitud);
+  const hasLocation =
+    !!ticket.direccion ||
+    (typeof ticket.latitud === 'number' && typeof ticket.longitud === 'number') ||
+    (typeof ticket.municipio_latitud === 'number' &&
+      typeof ticket.municipio_longitud === 'number');
 
   const handleExportPdf = () => {
     exportToPdf(ticket, ticket.messages || []);
@@ -403,14 +407,15 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose }) => {
             ) : null}
 
             {hasLocation && (
-                <CardContent className="p-4 border-t text-justify">
-                    <h4 className="font-semibold mb-2 flex items-center justify-between">
-                        Ubicación
+                <CardContent className="p-4 border-t text-justify space-y-2">
+                    <div className="flex items-center justify-between">
+                        <h4 className="font-semibold">Ubicación</h4>
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={openGoogleMaps}>
                             <ExternalLink className="h-4 w-4" />
                         </Button>
-                    </h4>
-                    {ticket.direccion && <p className="text-sm font-medium mb-2 text-primary">{ticket.direccion}</p>}
+                    </div>
+                    <TicketMap ticket={ticket} />
+                    {ticket.direccion && <p className="text-sm font-medium text-primary">{ticket.direccion}</p>}
                     {ticket.distrito && (
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             <Building className="h-4 w-4 flex-shrink-0" />
@@ -439,7 +444,6 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose }) => {
                             </Button>
                         </div>
                     )}
-                    <TicketMap ticket={ticket} />
                 </CardContent>
             )}
 
