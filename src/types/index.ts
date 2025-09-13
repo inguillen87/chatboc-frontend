@@ -40,6 +40,7 @@ export interface Ticket {
   municipio_longitud?: number; // Longitud del municipio u origen de la cuadrilla
   origen_latitud?: number;     // Latitud específica de salida si difiere del municipio
   origen_longitud?: number;    // Longitud específica de salida si difiere del municipio
+  tiempo_estimado?: string;    // Tiempo estimado de llegada o resolución
 
   // Coordenadas geográficas
   latitud?: number | null;

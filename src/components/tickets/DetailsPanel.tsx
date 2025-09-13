@@ -360,6 +360,12 @@ const DetailsPanel: React.FC = () => {
                     <span className="text-muted-foreground">Creado:</span>
                     <span>{formatDate(ticket.fecha)}</span>
                 </div>
+                {ticket.tiempo_estimado && (
+                    <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">Tiempo estimado:</span>
+                        <span>{ticket.tiempo_estimado}</span>
+                    </div>
+                )}
                  <div className="space-y-1">
                     <span className="text-muted-foreground">Categoría:</span>
                     <p className="font-medium">{ticket.categoria || 'No informada'}</p>

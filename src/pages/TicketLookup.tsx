@@ -174,6 +174,11 @@ export default function TicketLookup() {
             <p className="text-sm text-muted-foreground">
               Canal: <span className="capitalize">{ticket.channel || 'N/A'}</span>
             </p>
+            {ticket.tiempo_estimado && (
+              <p className="text-sm text-muted-foreground">
+                Tiempo estimado de llegada: {ticket.tiempo_estimado}
+              </p>
+            )}
             {ticket.categoria && (
               <p className="text-sm text-muted-foreground">
                 Categoría: {ticket.categoria}
