@@ -9,6 +9,7 @@ import { apiFetch, getErrorMessage } from "@/utils/api";
 import { getAskEndpoint, esRubroPublico, parseRubro } from "@/utils/chatEndpoints";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { useUser } from "@/hooks/useUser";
+import { useDarkMode } from "@/hooks/useDarkMode";
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import TicketMap from "@/components/TicketMap";
 import TicketTimeline from "@/components/tickets/TicketTimeline";
@@ -67,6 +68,7 @@ const ChatPage = () => {
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const { user, refreshUser, loading } = useUser();
+  const isDarkMode = useDarkMode();
   const authToken = safeLocalStorage.getItem("authToken");
   const isAnonimo = !authToken;
   const anonId = getOrCreateAnonId();
@@ -416,7 +418,7 @@ const ChatPage = () => {
           <header className="p-3 sm:p-4 border-b border-border bg-card/95 backdrop-blur-sm flex items-center justify-between">
             <div className="flex items-center gap-3">
               <img
-                src={tipoChat === "municipio" ? "/favicon/favicon-96x96.png" : "/chatboc_widget_64x64.webp"}
+                src={isDarkMode ? "/chatbocar.png" : "/chatbocar2.png"}
                 alt="Chat Icon"
                 className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-primary/10 p-1"
               />
