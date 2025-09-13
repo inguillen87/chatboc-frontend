@@ -23,8 +23,10 @@ export interface TicketStatsParams {
   tipo?: string;
   fecha_inicio?: string;
   fecha_fin?: string;
-  categoria?: string;
+  categoria?: string | string[];
+  estado?: string | string[];
   distrito?: string;
+  barrio?: string;
 }
 
 export const getTicketStats = async (
@@ -33,7 +35,11 @@ export const getTicketStats = async (
   try {
     const qs = new URLSearchParams();
     Object.entries(params || {}).forEach(([k, v]) => {
-      if (v) qs.append(k, String(v));
+      if (Array.isArray(v)) {
+        v.filter(Boolean).forEach((val) => qs.append(k, String(val)));
+      } else if (v) {
+        qs.append(k, String(v));
+      }
     });
     const query = qs.toString();
     const resp = await apiFetch<TicketStatsResponse>(
@@ -71,9 +77,10 @@ export interface HeatmapParams {
   rubro_id?: number;
   fecha_inicio?: string;
   fecha_fin?: string;
-  categoria?: string;
-  estado?: string;
+  categoria?: string | string[];
+  estado?: string | string[];
   distrito?: string;
+  barrio?: string;
 }
 
 export const getHeatmapPoints = async (
@@ -82,8 +89,12 @@ export const getHeatmapPoints = async (
   try {
     const qs = new URLSearchParams();
     Object.entries(params || {}).forEach(([k, v]) => {
-      if (v !== undefined && v !== null && String(v) !== '')
+      if (Array.isArray(v)) {
+        v.filter((val) => val !== undefined && val !== null && String(val) !== '')
+          .forEach((val) => qs.append(k, String(val)));
+      } else if (v !== undefined && v !== null && String(v) !== '') {
         qs.append(k, String(v));
+      }
     });
     const query = qs.toString();
     const data = await apiFetch<any[]>(
