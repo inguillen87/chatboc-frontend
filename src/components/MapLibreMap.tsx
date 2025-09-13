@@ -10,6 +10,7 @@ type Props = {
   onSelect?: (lat: number, lon: number, address?: string) => void;
   heatmapData?: HeatPoint[];
   showHeatmap?: boolean;
+  marker?: [number, number];
   className?: string;
 };
 
@@ -26,11 +27,13 @@ export default function MapLibreMap({
   onSelect,
   heatmapData = [],
   showHeatmap = true,
+  marker,
   className,
 }: Props) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<Map | null>(null);
   const libRef = useRef<any>(null);
+  const markerRef = useRef<any>(null);
   const apiKey = import.meta.env.VITE_MAPTILER_KEY;
 
   // Effect for map initialization and cleanup
@@ -211,6 +214,48 @@ export default function MapLibreMap({
     map.setLayoutProperty("tickets-heat", "visibility", showHeatmap ? "visible" : "none");
     map.setLayoutProperty("tickets-circles", "visibility", showHeatmap ? "none" : "visible");
   }, [showHeatmap]);
+
+  // Effect for pulsing heatmap intensity
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !showHeatmap) return;
+    let frame: number;
+    const animate = () => {
+      const t = (Date.now() % 2000) / 2000;
+      const intensity = 1 + 0.5 * Math.sin(t * Math.PI * 2);
+      map.setPaintProperty("tickets-heat", "heatmap-intensity", intensity);
+      frame = requestAnimationFrame(animate);
+    };
+    animate();
+    return () => cancelAnimationFrame(frame);
+  }, [showHeatmap]);
+
+  // Effect for adding/updating municipality marker
+  useEffect(() => {
+    const map = mapRef.current;
+    const maplibre = libRef.current;
+    if (!map) return;
+    if (marker) {
+      if (markerRef.current) {
+        markerRef.current.setLngLat(marker);
+      } else if (maplibre) {
+        const el = document.createElement("div");
+        el.className = "home-marker";
+        el.innerHTML = `
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+            <polyline points="9 22 9 12 15 12 15 22" />
+          </svg>
+        `;
+        markerRef.current = new maplibre.Marker({ element: el })
+          .setLngLat(marker)
+          .addTo(map);
+      }
+    } else if (markerRef.current) {
+      markerRef.current.remove();
+      markerRef.current = null;
+    }
+  }, [marker]);
 
   return (
     <div

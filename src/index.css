@@ -15,6 +15,17 @@
   .chat-container {
     @apply flex flex-col gap-4 p-4;
   }
+  .home-marker {
+    @apply w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white relative;
+  }
+  .home-marker::after {
+    content: "";
+    @apply absolute inset-0 rounded-full bg-blue-600 opacity-50;
+    animation: pulse 2s infinite;
+  }
+  .home-marker svg {
+    @apply w-4 h-4;
+  }
 }
 
 @layer base {
@@ -117,6 +128,20 @@
   html {
     scroll-behavior: smooth;
   }
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  70% {
+    transform: scale(2);
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
   * {
     @apply border-border;
   }

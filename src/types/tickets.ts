@@ -104,6 +104,7 @@ export interface Ticket {
   municipio_longitud?: number;
   origen_latitud?: number;
   origen_longitud?: number;
+  tiempo_estimado?: string;
   avatarUrl?: string;
   history?: TicketHistoryEvent[];
 

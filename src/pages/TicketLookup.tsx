@@ -167,12 +167,18 @@ export default function TicketLookup() {
             <h2 className="text-2xl font-semibold">{ticket.asunto}</h2>
             <p className="pt-1"><span className="font-medium">Estado actual:</span> <span className="text-primary font-semibold">{currentStatus}</span></p>
             <TicketStatusBar status={currentStatus} flow={statusFlow} />
+            <TicketMap ticket={ticket} />
             <p className="text-sm text-muted-foreground">
               Creado el: {fmtAR(ticket.fecha)}
             </p>
             <p className="text-sm text-muted-foreground">
               Canal: <span className="capitalize">{ticket.channel || 'N/A'}</span>
             </p>
+            {ticket.tiempo_estimado && (
+              <p className="text-sm text-muted-foreground">
+                Tiempo estimado de llegada: {ticket.tiempo_estimado}
+              </p>
+            )}
             {ticket.categoria && (
               <p className="text-sm text-muted-foreground">
                 Categoría: {ticket.categoria}
@@ -202,15 +208,13 @@ export default function TicketLookup() {
                 )}
               </div>
             )}
-
-            <TicketMap ticket={ticket} />
           </div>
 
           <Separator />
 
           <div>
             <h3 className="text-xl font-semibold mb-4">Historial del Reclamo</h3>
-            <TicketTimeline history={timelineHistory} messages={timelineMessages} />
+            <TicketTimeline history={timelineHistory} messages={timelineMessages} ticket={ticket} />
           </div>
 
         </div>
