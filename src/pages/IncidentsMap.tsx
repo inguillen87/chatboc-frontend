@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import EnhancedMap, { MapProvider } from '@/components/EnhancedMap';
+import MapLibreMap from '@/components/MapLibreMap';
 import TicketStatsCharts from '@/components/TicketStatsCharts';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
@@ -28,7 +28,6 @@ export default function IncidentsMap() {
   const [charts, setCharts] = useState<TicketStatsResponse['charts']>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [availableBarrios, setAvailableBarrios] = useState<string[]>([]);
-  const [mapProvider, setMapProvider] = useState<MapProvider>('maplibre');
 
   const startDateRef = useRef<HTMLInputElement>(null);
   const endDateRef = useRef<HTMLInputElement>(null);
@@ -232,23 +231,6 @@ export default function IncidentsMap() {
                 </div>
               </div>
             </div>
-            <div className='mt-4'>
-              <Label className="block text-sm font-medium text-muted-foreground mb-2">Proveedor del Mapa</Label>
-              <RadioGroup
-                defaultValue="maplibre"
-                onValueChange={(value: MapProvider) => setMapProvider(value)}
-                className="flex items-center space-x-4"
-              >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="maplibre" id="maplibre" />
-                  <Label htmlFor="maplibre">MapLibre</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="google" id="google" />
-                  <Label htmlFor="google">Google Maps</Label>
-                </div>
-              </RadioGroup>
-            </div>
           </AccordionContent>
         </AccordionItem>
       </Accordion>
@@ -256,13 +238,11 @@ export default function IncidentsMap() {
       {error && <p className="text-destructive text-center mb-4 p-3 bg-destructive/10 rounded-md">{error}</p>}
 
       <div className="relative mb-6 border border-border rounded-lg shadow bg-muted/20 dark:bg-slate-800/30">
-        <EnhancedMap
-          provider={mapProvider}
-          center={center}
+        <MapLibreMap
+          center={center ? [center.lng, center.lat] : undefined}
           heatmapData={heatmapData}
           showHeatmap={showHeatmap}
           className="h-[600px]"
-          markers={heatmapData.map(p => ({ lat: p.lat, lng: p.lng }))}
         />
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-background/50 backdrop-blur-sm z-10">
