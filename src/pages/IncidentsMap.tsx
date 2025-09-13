@@ -14,6 +14,8 @@ import {
   TicketStatsResponse,
 } from '@/services/statsService';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 export default function IncidentsMap() {
   useRequireRole(['admin', 'super_admin'] as Role[]);
