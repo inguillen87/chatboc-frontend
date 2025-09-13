@@ -1,5 +1,5 @@
 import React from 'react';
-import { Check } from 'lucide-react';
+import { Check, MapPin, Wrench, CheckCircle2 } from 'lucide-react';
 
 interface TicketStatusBarProps {
   status?: string | null;
@@ -7,6 +7,12 @@ interface TicketStatusBarProps {
 }
 
 const DEFAULT_FLOW = ['nuevo', 'en_proceso', 'completado', 'resuelto'];
+const ICONS: Record<string, React.ReactNode> = {
+  nuevo: <MapPin className="w-3 h-3" />, // ticket creado
+  en_proceso: <Wrench className="w-3 h-3" />, // cuadrilla trabajando
+  completado: <CheckCircle2 className="w-3 h-3" />, // finalizado internamente
+  resuelto: <CheckCircle2 className="w-3 h-3" />, // finalizado para el ciudadano
+};
 const normalize = (s?: string | null) =>
   s ? s.toLowerCase().replace(/\s+/g, '_') : '';
 
@@ -36,18 +42,19 @@ const TicketStatusBar: React.FC<TicketStatusBarProps> = ({ status, flow = [] }) 
     <div className="flex items-center gap-3 my-4">
       {steps.map((step, idx) => {
         const completed = idx <= currentIndex;
+        const icon = ICONS[step] || <Check className="w-3 h-3" />;
         return (
           <React.Fragment key={step}>
             <div className="flex flex-col items-center">
               <div
                 className={
-                  `w-6 h-6 rounded-full border flex items-center justify-center text-xs ` +
+                  `w-7 h-7 rounded-full border flex items-center justify-center text-xs transition-colors ` +
                   (completed
                     ? 'bg-primary border-primary text-primary-foreground'
                     : 'bg-muted border-muted-foreground text-muted-foreground')
                 }
               >
-                {completed && <Check className="w-3 h-3" />}
+                {icon}
               </div>
               <span
                 className={`mt-2 text-xs text-center font-medium capitalize ${completed ? 'text-primary' : 'text-muted-foreground'}`}
