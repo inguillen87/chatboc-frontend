@@ -43,6 +43,9 @@ export default function IncidentsMap() {
   const categoryRef = useRef<HTMLSelectElement>(null);
   const districtRef = useRef<HTMLInputElement>(null);
   const barrioRef = useRef<HTMLSelectElement>(null);
+  const genderRef = useRef<HTMLSelectElement>(null);
+  const ageMinRef = useRef<HTMLInputElement>(null);
+  const ageMaxRef = useRef<HTMLInputElement>(null);
 
   const ticketType = 'municipio';
 
@@ -57,6 +60,9 @@ export default function IncidentsMap() {
         categoria: categoryRef.current?.value,
         distrito: districtRef.current?.value,
         barrio: barrioRef.current?.value,
+        genero: genderRef.current?.value,
+        edad_min: ageMinRef.current?.value,
+        edad_max: ageMaxRef.current?.value,
       };
 
       const { fecha_inicio, fecha_fin, distrito, barrio, categoria } = filters;
@@ -263,6 +269,43 @@ export default function IncidentsMap() {
                   ref={districtRef}
                   className="mt-1 block w-full px-3 py-2 bg-input border-border text-foreground rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
                   placeholder="Ej: Centro"
+                />
+              </div>
+              <div>
+                <label htmlFor="gender" className="block text-sm font-medium text-muted-foreground mb-1">
+                  Género
+                </label>
+                <select
+                  id="gender"
+                  ref={genderRef}
+                  className="mt-1 block w-full px-3 py-2 bg-input border-border text-foreground rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+                >
+                  <option value="">Todos</option>
+                  <option value="F">Femenino</option>
+                  <option value="M">Masculino</option>
+                  <option value="X">Otro</option>
+                </select>
+              </div>
+              <div>
+                <label htmlFor="ageMin" className="block text-sm font-medium text-muted-foreground mb-1">
+                  Edad mínima
+                </label>
+                <input
+                  type="number"
+                  id="ageMin"
+                  ref={ageMinRef}
+                  className="mt-1 block w-full px-3 py-2 bg-input border-border text-foreground rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+                />
+              </div>
+              <div>
+                <label htmlFor="ageMax" className="block text-sm font-medium text-muted-foreground mb-1">
+                  Edad máxima
+                </label>
+                <input
+                  type="number"
+                  id="ageMax"
+                  ref={ageMaxRef}
+                  className="mt-1 block w-full px-3 py-2 bg-input border-border text-foreground rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
                 />
               </div>
               <div className="sm:col-span-full flex justify-between mt-2">
