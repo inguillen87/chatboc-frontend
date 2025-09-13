@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import MapLibreMap from '@/components/MapLibreMap';
+import EnhancedMap, { MapProvider } from '@/components/EnhancedMap';
 import TicketStatsCharts from '@/components/TicketStatsCharts';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
@@ -13,23 +13,28 @@ import {
   HeatPoint,
   TicketStatsResponse,
 } from '@/services/statsService';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
 
 export default function IncidentsMap() {
   useRequireRole(['admin', 'super_admin'] as Role[]);
   const { user } = useUser();
 
   const [heatmapData, setHeatmapData] = useState<HeatPoint[]>([]);
-  const [showHeatmap, setShowHeatmap] = useState(false);
-  const [center, setCenter] = useState<[number, number] | undefined>(undefined);
+  const [showHeatmap, setShowHeatmap] = useState(true);
+  const [center, setCenter] = useState<{ lat: number; lng: number } | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [charts, setCharts] = useState<TicketStatsResponse['charts']>([]);
   const [categories, setCategories] = useState<string[]>([]);
+  const [availableBarrios, setAvailableBarrios] = useState<string[]>([]);
+  const [mapProvider, setMapProvider] = useState<MapProvider>('maplibre');
 
   const startDateRef = useRef<HTMLInputElement>(null);
   const endDateRef = useRef<HTMLInputElement>(null);
   const categoryRef = useRef<HTMLSelectElement>(null);
   const districtRef = useRef<HTMLInputElement>(null);
+  const barrioRef = useRef<HTMLSelectElement>(null);
 
   const ticketType = 'municipio';
 
@@ -43,6 +48,7 @@ export default function IncidentsMap() {
         fecha_fin: endDateRef.current?.value,
         categoria: categoryRef.current?.value,
         distrito: districtRef.current?.value,
+        barrio: barrioRef.current?.value,
       };
 
       const [heatmapPoints, stats] = await Promise.all([
@@ -51,12 +57,16 @@ export default function IncidentsMap() {
       ]);
       setCharts(stats.charts || []);
       setHeatmapData(heatmapPoints);
+
+      const barrios = Array.from(new Set(heatmapPoints.map((d) => d.barrio).filter(Boolean))) as string[];
+      setAvailableBarrios(barrios);
+
       if (heatmapPoints.length > 0) {
         const total = heatmapPoints.length;
         const avgLat = heatmapPoints.reduce((sum, p) => sum + p.lat, 0) / total;
         const avgLng = heatmapPoints.reduce((sum, p) => sum + p.lng, 0) / total;
         if (!Number.isNaN(avgLat) && !Number.isNaN(avgLng)) {
-          setCenter([avgLng, avgLat]);
+          setCenter({ lat: avgLat, lng: avgLng });
         }
       } else if (
         user?.latitud !== undefined &&
@@ -64,7 +74,7 @@ export default function IncidentsMap() {
         !Number.isNaN(user.longitud) &&
         !Number.isNaN(user.latitud)
       ) {
-        setCenter([user.longitud, user.latitud]);
+        setCenter({ lat: user.latitud, lng: user.longitud });
       }
     } catch (err) {
       const message =
@@ -76,7 +86,7 @@ export default function IncidentsMap() {
     } finally {
       setIsLoading(false);
     }
-  }, [ticketType]);
+  }, [ticketType, user]);
 
   useEffect(() => {
     fetchData();
@@ -103,14 +113,14 @@ export default function IncidentsMap() {
       !Number.isNaN(user.longitud) &&
       !Number.isNaN(user.latitud)
     ) {
-      setCenter([user.longitud, user.latitud]);
+      setCenter({ lat: user.latitud, lng: user.longitud });
     }
   }, [center, user?.latitud, user?.longitud]);
 
   const handleLocate = () => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition((pos) => {
-        setCenter([pos.coords.longitude, pos.coords.latitude]);
+        setCenter({ lat: pos.coords.latitude, lng: pos.coords.longitude });
       });
     }
   };
@@ -118,9 +128,9 @@ export default function IncidentsMap() {
   return (
     <div className="p-4">
       <h1 className="text-2xl font-bold mb-4">Mapa de Incidentes</h1>
-      <Accordion type="single" collapsible className="w-full">
+      <Accordion type="single" collapsible className="w-full" defaultValue='filters'>
         <AccordionItem value="filters">
-          <AccordionTrigger>Filtros</AccordionTrigger>
+          <AccordionTrigger>Filtros y Opciones</AccordionTrigger>
           <AccordionContent>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-3 items-end">
               <div className="flex items-center space-x-2 pt-5">
@@ -175,6 +185,23 @@ export default function IncidentsMap() {
                 </select>
               </div>
               <div>
+                <label htmlFor="barrio" className="block text-sm font-medium text-muted-foreground mb-1">
+                  Barrio
+                </label>
+                <select
+                  id="barrio"
+                  ref={barrioRef}
+                  className="mt-1 block w-full px-3 py-2 bg-input border-border text-foreground rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+                >
+                  <option value="">Todos</option>
+                  {availableBarrios.map((b) => (
+                    <option key={b} value={b}>
+                      {b}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
                 <label htmlFor="district" className="block text-sm font-medium text-muted-foreground mb-1">
                   Distrito
                 </label>
@@ -205,6 +232,23 @@ export default function IncidentsMap() {
                 </div>
               </div>
             </div>
+            <div className='mt-4'>
+              <Label className="block text-sm font-medium text-muted-foreground mb-2">Proveedor del Mapa</Label>
+              <RadioGroup
+                defaultValue="maplibre"
+                onValueChange={(value: MapProvider) => setMapProvider(value)}
+                className="flex items-center space-x-4"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="maplibre" id="maplibre" />
+                  <Label htmlFor="maplibre">MapLibre</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="google" id="google" />
+                  <Label htmlFor="google">Google Maps</Label>
+                </div>
+              </RadioGroup>
+            </div>
           </AccordionContent>
         </AccordionItem>
       </Accordion>
@@ -212,7 +256,14 @@ export default function IncidentsMap() {
       {error && <p className="text-destructive text-center mb-4 p-3 bg-destructive/10 rounded-md">{error}</p>}
 
       <div className="relative mb-6 border border-border rounded-lg shadow bg-muted/20 dark:bg-slate-800/30">
-        <MapLibreMap center={center} heatmapData={heatmapData} showHeatmap={showHeatmap} className="h-[600px]" />
+        <EnhancedMap
+          provider={mapProvider}
+          center={center}
+          heatmapData={heatmapData}
+          showHeatmap={showHeatmap}
+          className="h-[600px]"
+          markers={heatmapData.map(p => ({ lat: p.lat, lng: p.lng }))}
+        />
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-background/50 backdrop-blur-sm z-10">
             <p className="text-lg font-semibold text-foreground">Cargando datos en el mapa...</p>
