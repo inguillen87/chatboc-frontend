@@ -6,11 +6,20 @@ interface TicketStatusBarProps {
   flow?: string[];
 }
 
-const DEFAULT_FLOW = ['nuevo', 'en_proceso', 'completado', 'resuelto'];
+const DEFAULT_FLOW = [
+  'nuevo',
+  'en_proceso',
+  'en_camino',
+  'completado',
+  'llegado',
+  'resuelto',
+];
 const ICONS: Record<string, React.ReactNode> = {
   nuevo: <MapPin className="w-3 h-3" />, // ticket creado
   en_proceso: <Wrench className="w-3 h-3" />, // cuadrilla trabajando
+  en_camino: <MapPin className="w-3 h-3" />, // cuadrilla en camino
   completado: <CheckCircle2 className="w-3 h-3" />, // finalizado internamente
+  llegado: <CheckCircle2 className="w-3 h-3" />, // llegada a destino
   resuelto: <CheckCircle2 className="w-3 h-3" />, // finalizado para el ciudadano
 };
 const normalize = (s?: string | null) =>
@@ -22,7 +31,19 @@ const formatLabel = (s: string) =>
     .replace(/\b\w/g, (c) => c.toUpperCase());
 
 const TicketStatusBar: React.FC<TicketStatusBarProps> = ({ status, flow = [] }) => {
-  const current = normalize(status);
+  const [routeStatus, setRouteStatus] = React.useState<string | null>(null);
+
+  // listen to custom route status events dispatched by TicketMap
+  React.useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<string>).detail;
+      setRouteStatus(detail);
+    };
+    window.addEventListener('route-status', handler);
+    return () => window.removeEventListener('route-status', handler);
+  }, []);
+
+  const current = normalize(routeStatus || status);
   const steps = React.useMemo(() => {
     const set = new Set(DEFAULT_FLOW);
     flow.map(normalize).forEach((s) => set.add(s));

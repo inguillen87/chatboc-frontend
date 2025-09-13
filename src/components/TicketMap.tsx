@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 export interface TicketLocation {
   latitud?: number | null;
@@ -80,23 +80,177 @@ const TicketMap: React.FC<{ ticket: TicketLocation }> = ({ ticket }) => {
   const hasRoute = hasCoords && hasOrigin;
   const eta = ticket.tiempo_estimado || ticket.eta;
 
-  // Primary map is Google Maps; fallback to OpenStreetMap if it fails
+  // -------- MapLibre dynamic map for active routes ---------
+  const mapContainer = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<any>(null);
+  const markerRef = useRef<any>(null);
+  const animRef = useRef<number>();
+  const routeRef = useRef<[number, number][]>([]); // [lon, lat]
+  const [currentPos, setCurrentPos] = useState<[number, number] | null>(
+    hasOrigin ? [originLon as number, originLat as number] : null
+  );
+
+  // initialize map when route is available
+  useEffect(() => {
+    if (!hasRoute || mapRef.current || !mapContainer.current) return;
+
+    let isMounted = true;
+
+    (async () => {
+      const maplibre = (await import('maplibre-gl')).default;
+      if (!isMounted || !mapContainer.current) return;
+
+      const map = new maplibre.Map({
+        container: mapContainer.current,
+        style: 'https://demotiles.maplibre.org/style.json',
+        center: [originLon as number, originLat as number],
+        zoom: 13,
+      });
+
+      mapRef.current = map;
+
+      map.on('load', () => {
+        map.addSource('route', {
+          type: 'geojson',
+          data: {
+            type: 'Feature',
+            geometry: { type: 'LineString', coordinates: [] },
+          },
+        });
+        map.addLayer({
+          id: 'route-line',
+          type: 'line',
+          source: 'route',
+          paint: { 'line-color': '#2563eb', 'line-width': 4 },
+        });
+        markerRef.current = new maplibre.Marker().setLngLat([originLon as number, originLat as number]).addTo(map);
+        routeRef.current = [[originLon as number, originLat as number]];
+      });
+    })();
+
+    return () => {
+      isMounted = false;
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
+      if (animRef.current) cancelAnimationFrame(animRef.current);
+    };
+  }, [hasRoute, originLat, originLon]);
+
+  // helper for distance in km using haversine formula
+  const distanceKm = (a: [number, number], b: [number, number]) => {
+    const toRad = (n: number) => (n * Math.PI) / 180;
+    const dLat = toRad(b[1] - a[1]);
+    const dLon = toRad(b[0] - a[0]);
+    const lat1 = toRad(a[1]);
+    const lat2 = toRad(b[1]);
+    const h =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+    return 2 * 6371 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+  };
+
+  // fetch periodic position updates
+  useEffect(() => {
+    if (!hasRoute || !ticket || !(ticket as any).id) return;
+    const id: any = (ticket as any).id;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/tickets/${id}/posicion`);
+        const data = await res.json();
+        const lat = Number(data.lat ?? data.latitud);
+        const lon = Number(data.lon ?? data.longitud);
+        if (!Number.isNaN(lat) && !Number.isNaN(lon)) {
+          // update ticket and local state
+          (ticket as any).lat_actual = lat;
+          (ticket as any).lon_actual = lon;
+          setCurrentPos([lon, lat]);
+          routeRef.current.push([lon, lat]);
+
+          const map = mapRef.current;
+          const source = map?.getSource('route') as any;
+          if (source) {
+            source.setData({
+              type: 'Feature',
+              geometry: { type: 'LineString', coordinates: routeRef.current },
+            });
+          }
+
+          // animate marker
+          const prev = routeRef.current[routeRef.current.length - 2];
+          if (prev && markerRef.current) {
+            const start = prev;
+            const end = [lon, lat];
+            if (animRef.current) cancelAnimationFrame(animRef.current);
+            const duration = 1000;
+            const startTime = performance.now();
+            const animate = (time: number) => {
+              const t = Math.min((time - startTime) / duration, 1);
+              const currLon = start[0] + (end[0] - start[0]) * t;
+              const currLat = start[1] + (end[1] - start[1]) * t;
+              markerRef.current.setLngLat([currLon, currLat]);
+              if (t < 1) {
+                animRef.current = requestAnimationFrame(animate);
+              }
+            };
+            animRef.current = requestAnimationFrame(animate);
+          }
+
+          // dispatch status events
+          const dest = [destLon as number, destLat as number] as [number, number];
+          const dist = distanceKm([lon, lat], dest);
+          const status = dist < 0.05 ? 'llegado' : 'en_camino';
+          window.dispatchEvent(new CustomEvent('route-status', { detail: status }));
+        }
+      } catch (e) {
+        console.error('position fetch failed', e);
+      }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [hasRoute, ticket, destLat, destLon]);
+
+  // update map center when current position changes
+  useEffect(() => {
+    if (!currentPos || !mapRef.current) return;
+    mapRef.current.setCenter(currentPos);
+  }, [currentPos]);
+
+  // ---------- Fallback static map for no route ----------
   const googleSrc = hasRoute
-    ? `https://maps.google.com/maps?f=d&source=s_d&saddr=${originLat},${originLon}&daddr=${destLat},${destLon}&output=embed`
+    ? ''
     : hasCoords
       ? `https://maps.google.com/maps?q=${destLat},${destLon}&z=15&output=embed`
       : direccionCompleta
         ? `https://maps.google.com/maps?q=${encodeURIComponent(direccionCompleta)}&z=15&output=embed`
         : '';
   const osmSrc = hasRoute
-    ? `https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=${originLat},${originLon};${destLat},${destLon}`
+    ? ''
     : hasCoords
       ? `https://www.openstreetmap.org/export/embed.html?mlat=${destLat}&mlon=${destLon}&marker=${destLat},${destLon}&zoom=15&layer=mapnik`
       : direccionCompleta
         ? `https://www.openstreetmap.org/search?query=${encodeURIComponent(direccionCompleta)}`
         : '';
+  const [src, setSrc] = useState(googleSrc || osmSrc);
 
-  const [src, setSrc] = React.useState(googleSrc || osmSrc);
+  if (hasRoute) {
+    return (
+      <div className="mb-6">
+        <h4 className="font-semibold mb-2">Ubicación aproximada</h4>
+        <div ref={mapContainer} className="w-full rounded overflow-hidden h-[150px] sm:h-[180px]" />
+        {direccionCompleta && (
+          <div className="text-xs mt-1 text-muted-foreground truncate">
+            {direccionCompleta}
+          </div>
+        )}
+        {(hasRoute || eta) && (
+          <div className="text-xs mt-1 text-muted-foreground">
+            {eta ? `Tiempo estimado de llegada: ${eta}` : 'Cuadrilla en camino'}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   if (!src) return null;
 
@@ -123,9 +277,9 @@ const TicketMap: React.FC<{ ticket: TicketLocation }> = ({ ticket }) => {
           {direccionCompleta}
         </div>
       )}
-      {(hasRoute || eta) && (
+      {eta && (
         <div className="text-xs mt-1 text-muted-foreground">
-          {eta ? `Tiempo estimado de llegada: ${eta}` : 'Cuadrilla en camino'}
+          {`Tiempo estimado de llegada: ${eta}`}
         </div>
       )}
     </div>
