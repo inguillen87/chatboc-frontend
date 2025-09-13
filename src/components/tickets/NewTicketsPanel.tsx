@@ -111,7 +111,7 @@ const NewTicketsPanel: React.FC = () => {
                     transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                     className="absolute top-0 left-0 h-full w-full z-30 bg-background"
                 >
-                    <DetailsPanel />
+                    <DetailsPanel onClose={toggleDetails} />
                 </motion.div>
             )}
           </AnimatePresence>

@@ -3,7 +3,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Mail, MapPin, Ticket as TicketIcon, Info, FileDown, User, ExternalLink, MessageCircle, Building, Hash, Copy, ChevronDown, ChevronUp, UserCheck, Bot } from 'lucide-react';
+import { Mail, MapPin, Ticket as TicketIcon, Info, FileDown, User, ExternalLink, MessageCircle, Building, Hash, Copy, ChevronDown, ChevronUp, UserCheck, Bot, ChevronLeft } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { motion } from 'framer-motion';
 import TicketMap, { buildFullAddress } from '../TicketMap';
@@ -11,6 +11,7 @@ import TicketTimeline from './TicketTimeline';
 import TicketStatusBar from './TicketStatusBar';
 import TicketAttachments from './TicketAttachments';
 import { useTickets } from '@/context/TicketContext';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { exportToPdf, exportToXlsx } from '@/services/exportService';
 import { sendTicketHistory, getTicketById, getTicketMessages } from '@/services/ticketService';
 import { Ticket, Message, TicketHistoryEvent } from '@/types/tickets';
@@ -29,8 +30,13 @@ import { fmtAR } from '@/utils/date';
 import { getSpecializedContact, SpecializedContact } from '@/utils/contacts';
 
 
-const DetailsPanel: React.FC = () => {
+interface DetailsPanelProps {
+  onClose?: () => void;
+}
+
+const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose }) => {
   const { selectedTicket: ticket } = useTickets();
+  const isMobile = useIsMobile();
   const [isSendingEmail, setIsSendingEmail] = React.useState(false);
   const [timelineHistory, setTimelineHistory] = React.useState<TicketHistoryEvent[]>([]);
   const [timelineMessages, setTimelineMessages] = React.useState<Message[]>([]);
@@ -79,7 +85,7 @@ const DetailsPanel: React.FC = () => {
 
   if (!ticket) {
     return (
-       <aside className="w-full border-l border-border flex-col h-screen bg-muted/20 shrink-0 hidden lg:flex items-center justify-center p-6">
+       <aside className="w-full lg:w-[380px] border-l border-border flex-col h-screen bg-muted/20 shrink-0 hidden lg:flex items-center justify-center p-6">
          <div className="text-center text-muted-foreground">
             <Info className="h-12 w-12 mx-auto mb-4" />
             <h3 className="font-semibold">Detalles del Ticket</h3>
@@ -201,10 +207,17 @@ const DetailsPanel: React.FC = () => {
         initial={{ opacity: 0.5 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
-        className="w-full border-l border-border flex flex-col h-screen bg-muted/20 shrink-0"
+        className="w-full lg:w-[380px] border-l border-border flex flex-col h-screen bg-muted/20 shrink-0"
     >
       <header className="p-4 border-b border-border flex items-center justify-between">
-        <h3 className="font-semibold">Detalles del Ticket</h3>
+        <div className="flex items-center gap-2">
+          {isMobile && onClose && (
+            <Button variant="ghost" size="icon" onClick={onClose} aria-label="Volver">
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
+          )}
+          <h3 className="font-semibold">Detalles del Ticket</h3>
+        </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm">
