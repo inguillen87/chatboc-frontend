@@ -96,11 +96,20 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose }) => {
   }
 
 
+  const parse = (v: unknown) => {
+    if (typeof v === 'number') return v;
+    if (typeof v === 'string') {
+      const n = parseFloat(v);
+      return Number.isFinite(n) ? n : undefined;
+    }
+    return undefined;
+  };
+
   const hasLocation =
     !!ticket.direccion ||
-    (typeof ticket.latitud === 'number' && typeof ticket.longitud === 'number') ||
-    (typeof ticket.municipio_latitud === 'number' &&
-      typeof ticket.municipio_longitud === 'number');
+    (parse(ticket.latitud) !== undefined && parse(ticket.longitud) !== undefined) ||
+    (parse(ticket.municipio_latitud) !== undefined &&
+      parse(ticket.municipio_longitud) !== undefined);
 
   const handleExportPdf = () => {
     exportToPdf(ticket, ticket.messages || []);
@@ -239,8 +248,8 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose }) => {
           </DropdownMenuContent>
         </DropdownMenu>
       </header>
-      <ScrollArea className="flex-1">
-        <div className="p-4 pr-6 space-y-4">
+      <ScrollArea className="flex-1 overflow-x-auto">
+        <div className="p-4 lg:pr-6 space-y-4">
           <Card>
             <CardHeader className="flex flex-row items-center gap-4 p-4">
               <Avatar className="h-14 w-14">
