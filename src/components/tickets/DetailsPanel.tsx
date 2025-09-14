@@ -367,11 +367,10 @@ const DetailsPanel: React.FC = () => {
                 {(ticket.description || ticket.detalles) && (
                   <div className="space-y-1">
                     <span className="text-muted-foreground">Descripción:</span>
-                    {(ticket.description || ticket.detalles || '—').split('\n').map((line, index) => (
-                      <p key={index} className="text-sm break-words text-justify">
-                        {line}
-                      </p>
-                    ))}
+                    <div
+                      className="text-sm whitespace-pre-wrap break-words text-justify"
+                      dangerouslySetInnerHTML={{ __html: (ticket.description || ticket.detalles || '—').replace(/\n/g, '<br />') }}
+                    />
                   </div>
                 )}
             </CardContent>
