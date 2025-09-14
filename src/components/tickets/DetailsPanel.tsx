@@ -32,6 +32,11 @@ import { getSpecializedContact, SpecializedContact } from '@/utils/contacts';
 const DetailsPanel: React.FC = () => {
   const { selectedTicket: ticket, updateTicket } = useTickets();
   const [isSendingEmail, setIsSendingEmail] = React.useState(false);
+
+  const allAttachments = React.useMemo(() => {
+    if (!ticket?.messages) return [];
+    return ticket.messages.flatMap(msg => msg.attachments || []);
+  }, [ticket?.messages]);
   const [timelineHistory, setTimelineHistory] = React.useState<TicketHistoryEvent[]>([]);
   const [timelineMessages, setTimelineMessages] = React.useState<Message[]>([]);
   const [specialContact, setSpecialContact] = React.useState<SpecializedContact | null>(null);
@@ -377,11 +382,11 @@ const DetailsPanel: React.FC = () => {
                 )}
             </CardContent>
 
-            {ticket.attachments && ticket.attachments.length > 0 && (
+            {allAttachments.length > 0 && (
               <CardContent className="p-4 border-t">
                 <h4 className="font-semibold mb-2">Imagen Adjunta</h4>
                 <div className="grid grid-cols-3 gap-2 mb-2">
-                  {ticket.attachments.filter(att => att.mime_type?.startsWith('image/')).map((attachment) => (
+                  {allAttachments.filter(att => att.mime_type?.startsWith('image/')).map((attachment) => (
                     <a key={attachment.id} href={attachment.url} target="_blank" rel="noopener noreferrer" className="relative group aspect-video overflow-hidden rounded-lg border">
                       <img
                         src={attachment.thumbUrl || attachment.thumb_url || attachment.url}
