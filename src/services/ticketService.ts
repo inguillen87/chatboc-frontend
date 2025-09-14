@@ -288,7 +288,7 @@ export const sendMessage = async (
             // Cuerpo de mensaje estándar.
             // El backend espera `attachment_info`
             body = {
-                comentario: comentario,
+                comentario: comentario || (attachmentInfo ? ' ' : ''),
                 ...(attachmentInfo && { attachment_info: attachmentInfo }),
             };
         }
