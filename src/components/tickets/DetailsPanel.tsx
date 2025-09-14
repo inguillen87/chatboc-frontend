@@ -368,7 +368,7 @@ const DetailsPanel: React.FC = () => {
                   <div className="space-y-1">
                     <span className="text-muted-foreground">Descripción:</span>
                     {(ticket.description || ticket.detalles || '—').split('\n').map((line, index) => (
-                      <p key={index} className="text-sm break-words text-justify hyphens-auto">
+                      <p key={index} className="text-sm break-words text-justify">
                         {line}
                       </p>
                     ))}
