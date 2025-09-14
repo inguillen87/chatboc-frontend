@@ -30,7 +30,7 @@ import { getSpecializedContact, SpecializedContact } from '@/utils/contacts';
 
 
 const DetailsPanel: React.FC = () => {
-  const { selectedTicket: ticket } = useTickets();
+  const { selectedTicket: ticket, updateTicket } = useTickets();
   const [isSendingEmail, setIsSendingEmail] = React.useState(false);
   const [timelineHistory, setTimelineHistory] = React.useState<TicketHistoryEvent[]>([]);
   const [timelineMessages, setTimelineMessages] = React.useState<Message[]>([]);
@@ -164,6 +164,7 @@ const DetailsPanel: React.FC = () => {
 
       try {
         const detailed = await getTicketById(ticket.id.toString());
+        updateTicket(ticket.id, detailed);
         setTimelineHistory(detailed.history || []);
         setTimelineMessages(detailed.messages || []);
       } catch (error) {
@@ -179,7 +180,7 @@ const DetailsPanel: React.FC = () => {
       }
     };
     fetchTimeline();
-  }, [ticket]);
+  }, [ticket, updateTicket]);
 
 
   const formatCategory = (t: typeof ticket) => {
@@ -376,9 +377,23 @@ const DetailsPanel: React.FC = () => {
                 )}
             </CardContent>
 
-            {ticket.attachments?.length ? (
-              <TicketAttachments attachments={ticket.attachments} />
-            ) : null}
+            {ticket.attachments && ticket.attachments.length > 0 && (
+              <CardContent className="p-4 border-t">
+                <h4 className="font-semibold mb-2">Imagen Adjunta</h4>
+                <div className="grid grid-cols-3 gap-2 mb-2">
+                  {ticket.attachments.filter(att => att.mime_type?.startsWith('image/')).map((attachment) => (
+                    <a key={attachment.id} href={attachment.url} target="_blank" rel="noopener noreferrer" className="relative group aspect-video overflow-hidden rounded-lg border">
+                      <img
+                        src={attachment.thumbUrl || attachment.thumb_url || attachment.url}
+                        alt={attachment.filename || 'Adjunto'}
+                        className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                        loading="lazy"
+                      />
+                    </a>
+                  ))}
+                </div>
+              </CardContent>
+            )}
 
             {hasLocation && (
                 <CardContent className="p-4 border-t">

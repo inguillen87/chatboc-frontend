@@ -76,16 +76,16 @@ export const TicketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     fetchTickets();
   }, [fetchTickets]);
 
-  const selectTicket = (ticketId: number | null) => {
+  const selectTicket = useCallback((ticketId: number | null) => {
     if (ticketId === null) {
         setSelectedTicket(null);
         return;
     }
     const ticket = tickets.find(t => t.id === ticketId);
     setSelectedTicket(ticket || null);
-  };
+  }, [tickets]);
 
-  const updateTicket = (ticketId: number, updates: Partial<Ticket>) => {
+  const updateTicket = useCallback((ticketId: number, updates: Partial<Ticket>) => {
     setTickets(prevTickets =>
       prevTickets.map(ticket =>
         ticket.id === ticketId ? { ...ticket, ...updates } : ticket
@@ -94,7 +94,7 @@ export const TicketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     if (selectedTicket && selectedTicket.id === ticketId) {
       setSelectedTicket(prev => prev ? { ...prev, ...updates } : null);
     }
-  };
+  }, [selectedTicket]);
 
   useTicketUpdates({
     onNewTicket: fetchTickets,
