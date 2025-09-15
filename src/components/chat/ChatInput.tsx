@@ -73,13 +73,20 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
       formData.append('file', attachmentPreview.file);
 
       try {
-        const response = await apiFetch<{ url: string; thumbUrl: string; name: string; mimeType: string; size: number }>('/archivos/upload/chat_attachment', {
+        const response = await apiFetch<{
+          url: string;
+          thumbUrl?: string;
+          thumbnail_url?: string;
+          name: string;
+          mimeType: string;
+          size: number;
+        }>('/archivos/upload/chat_attachment', {
           method: 'POST',
           body: formData,
         });
         attachmentData = {
           url: response.url,
-          thumbUrl: response.thumbUrl,
+          thumbUrl: response.thumbUrl || response.thumbnail_url,
           name: response.name,
           mimeType: response.mimeType,
           size: response.size,

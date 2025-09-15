@@ -13,7 +13,7 @@ describe('TicketAttachments', () => {
       url: 'https://example.com/photo.jpg',
       size: 1234,
       mime_type: 'image/jpeg',
-      thumbUrl: 'https://example.com/thumb-photo.jpg',
+      thumbnail_url: 'https://example.com/thumb-photo.jpg',
     },
     {
       id: 2,
