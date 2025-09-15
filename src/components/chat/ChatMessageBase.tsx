@@ -22,11 +22,27 @@ import { getInitials, cn } from "@/lib/utils";
 import UserAvatarAnimated from "./UserAvatarAnimated";
 import { Badge } from "@/components/ui/badge";
 
-type RawAttachment = { url: string; name: string; mimeType?: string; size?: number; thumbUrl?: string };
+type RawAttachment = {
+  url: string;
+  name: string;
+  mimeType?: string;
+  size?: number;
+  thumbUrl?: string;
+  thumb_url?: string;
+  thumbnail_url?: string;
+  thumbnailUrl?: string;
+};
 
 function normalizeAttachment(msg: any): RawAttachment | null {
   if (msg?.attachmentInfo && msg.attachmentInfo.url && msg.attachmentInfo.name) {
-    return msg.attachmentInfo;
+    const a = msg.attachmentInfo;
+    return {
+      url: a.url,
+      name: a.name,
+      mimeType: a.mimeType || a.mime_type,
+      size: a.size,
+      thumbUrl: a.thumbUrl || a.thumb_url || a.thumbnail_url || a.thumbnailUrl,
+    };
   }
   if (Array.isArray(msg?.attachments) && msg.attachments.length > 0) {
     const first = msg.attachments[0];
@@ -36,7 +52,7 @@ function normalizeAttachment(msg: any): RawAttachment | null {
         name: first.name || first.filename,
         mimeType: first.mimeType || first.mime_type,
         size: first.size,
-        thumbUrl: first.thumbUrl || first.thumb_url,
+        thumbUrl: first.thumbUrl || first.thumb_url || first.thumbnail_url || first.thumbnailUrl,
       };
     }
   }

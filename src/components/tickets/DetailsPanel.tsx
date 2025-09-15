@@ -9,7 +9,6 @@ import { motion } from 'framer-motion';
 import TicketMap, { buildFullAddress } from '../TicketMap';
 import TicketTimeline from './TicketTimeline';
 import TicketStatusBar from './TicketStatusBar';
-import TicketAttachments from './TicketAttachments';
 import { useTickets } from '@/context/TicketContext';
 import { exportToPdf, exportToXlsx } from '@/services/exportService';
 import { sendTicketHistory, getTicketById, getTicketMessages } from '@/services/ticketService';
@@ -389,7 +388,13 @@ const DetailsPanel: React.FC = () => {
                   {allAttachments.filter(att => att.mime_type?.startsWith('image/')).map((attachment) => (
                     <a key={attachment.id} href={attachment.url} target="_blank" rel="noopener noreferrer" className="relative group aspect-video overflow-hidden rounded-lg border">
                       <img
-                        src={attachment.thumbUrl || attachment.thumb_url || attachment.url}
+                        src={
+                          attachment.thumbUrl ||
+                          attachment.thumb_url ||
+                          attachment.thumbnail_url ||
+                          attachment.thumbnailUrl ||
+                          attachment.url
+                        }
                         alt={attachment.filename || 'Adjunto'}
                         className="h-full w-full object-cover transition-transform group-hover:scale-105"
                         loading="lazy"

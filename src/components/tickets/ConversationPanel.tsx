@@ -32,7 +32,11 @@ const adaptTicketMessageToChatMessage = (msg: TicketMessage, ticket: Ticket): Ch
     attachmentInfo: msg.attachments?.[0] ? {
         name: msg.attachments[0].filename,
         url: msg.attachments[0].url,
-        thumbUrl: msg.attachments[0].thumbUrl || msg.attachments[0].thumb_url,
+        thumbUrl:
+          msg.attachments[0].thumbUrl ||
+          msg.attachments[0].thumb_url ||
+          msg.attachments[0].thumbnail_url ||
+          msg.attachments[0].thumbnailUrl,
         mimeType: msg.attachments[0].mime_type,
         size: msg.attachments[0].size
     } : undefined,
@@ -153,13 +157,20 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
       formData.append('file', attachmentPreview.file);
 
       try {
-        const response = await apiFetch<{ url: string; thumbUrl: string; name: string; mimeType: string; size: number }>('/archivos/upload/chat_attachment', {
+        const response = await apiFetch<{
+          url: string;
+          thumbUrl?: string;
+          thumbnail_url?: string;
+          name: string;
+          mimeType: string;
+          size: number;
+        }>('/archivos/upload/chat_attachment', {
           method: 'POST',
           body: formData,
         });
         attachmentData = {
           url: response.url,
-          thumbUrl: response.thumbUrl,
+          thumbUrl: response.thumbUrl || response.thumbnail_url,
           name: response.name,
           mimeType: response.mimeType,
           size: response.size,

@@ -16,7 +16,7 @@ const TicketAttachments: React.FC<Props> = ({ attachments }) => {
       att.filename || att.url.split('/').pop() || 'archivo_adj',
       att.mime_type,
       att.size,
-      att.thumbUrl || att.thumb_url
+      att.thumbUrl || att.thumb_url || att.thumbnail_url || att.thumbnailUrl
     ),
   }));
 
@@ -48,7 +48,14 @@ const TicketAttachments: React.FC<Props> = ({ attachments }) => {
               aria-label="Abrir imagen adjunta"
             >
               <img
-                src={info.thumbUrl || data.thumbUrl || data.thumb_url || data.url}
+                src={
+                  info.thumbUrl ||
+                  data.thumbUrl ||
+                  data.thumb_url ||
+                  data.thumbnail_url ||
+                  data.thumbnailUrl ||
+                  data.url
+                }
                 alt={info.name || 'Adjunto'}
                 className="h-full w-full object-cover transition-transform group-hover:scale-105"
                 loading="lazy"
