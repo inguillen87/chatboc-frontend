@@ -279,6 +279,16 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
     processedAttachmentInfo = deriveAttachmentInfo(message.mediaUrl, message.mediaUrl.split('/').pop() || "archivo_adjunto");
   }
 
+  const audioSrc = useMemo(() => {
+    if (message.audioUrl) {
+      return message.audioUrl;
+    }
+    if (processedAttachmentInfo?.type === 'audio') {
+      return processedAttachmentInfo.url;
+    }
+    return null;
+  }, [message.audioUrl, processedAttachmentInfo]);
+
   const bubbleBaseClass = isBot ? "chat-bubble-bot" : "chat-bubble-user";
   let bubbleStyleClass = "";
   if (message.chatBubbleStyle === 'compact') {
@@ -289,7 +299,7 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
 
   // Determinar si se muestra la sección de adjuntos/mapa o el contenido estructurado
   const showAttachmentOrMap = !!(
-    (processedAttachmentInfo && (processedAttachmentInfo.type !== 'other' || !!processedAttachmentInfo.extension)) ||
+    (processedAttachmentInfo && processedAttachmentInfo.type !== 'audio' && (processedAttachmentInfo.type !== 'other' || !!processedAttachmentInfo.extension)) ||
     message.locationData
   );
 
@@ -340,15 +350,15 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
           )}
 
           {/* Prioridad al texto si no hay otros contenidos especiales */}
-          {!showAttachmentOrMap && !showStructuredContent && textAndListBlock}
+          {!showAttachmentOrMap && !showStructuredContent && !audioSrc && textAndListBlock}
 
-          {/* Mostrar adjunto o mapa */}
+          {/* Mostrar adjunto o mapa (no audio) */}
           {showAttachmentOrMap && (
               <AttachmentPreview
                 message={message} // Pasamos el mensaje completo para que AttachmentPreview decida
                 attachmentInfo={processedAttachmentInfo}
                 // Si hay adjunto pero también texto, el texto puede ser un caption o fallback
-                fallbackText={sanitizedHtml && !showStructuredContent ? sanitizedHtml : undefined}
+                fallbackText={sanitizedHtml && !showStructuredContent && !audioSrc ? sanitizedHtml : undefined}
               />
           )}
 
@@ -356,14 +366,18 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
           {showStructuredContent && (
             <>
               {/* Si hay texto Y contenido estructurado, el texto puede ser una introducción */}
-              {textAndListBlock && !showAttachmentOrMap && textAndListBlock}
+              {textAndListBlock && !showAttachmentOrMap && !audioSrc && textAndListBlock}
               <StructuredContentDisplay items={message.structuredContent!} />
             </>
           )}
 
-          {/* Audio Player */}
-          {isBot && message.audioUrl && (
-            <AudioPlayer src={message.audioUrl} />
+          {/* Audio Player Unificado */}
+          {audioSrc && (
+            <>
+              {/* Si hay texto Y audio, el texto puede ser una introducción/transcripción */}
+              {textAndListBlock}
+              <AudioPlayer src={audioSrc} />
+            </>
           )}
 
           {/* Render Event/News Posts */}
