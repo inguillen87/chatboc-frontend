@@ -61,6 +61,7 @@ export async function apiFetch<T>(
   // Si el endpoint necesita identificar usuario anónimo, mandá siempre el header "Anon-Id"
   if (((!token && anonId) || sendAnonId) && anonId) {
     headers["Anon-Id"] = anonId;
+    headers["X-Anon-Id"] = anonId;
   }
   if (effectiveEntityToken) {
     headers["X-Entity-Token"] = effectiveEntityToken;
@@ -102,6 +103,22 @@ export async function apiFetch<T>(
   }
 
   try {
+    const responseAnonId =
+      response.headers.get("X-Anon-Id") || response.headers.get("Anon-Id");
+    if (responseAnonId) {
+      try {
+        const storedAnonId = safeLocalStorage.getItem("anon_id");
+        if (storedAnonId !== responseAnonId) {
+          safeLocalStorage.setItem("anon_id", responseAnonId);
+        }
+      } catch (storageError) {
+        console.warn(
+          "[apiFetch] Unable to persist anon_id header",
+          storageError,
+        );
+      }
+    }
+
     // Puede devolver vacío (204 No Content)
     const text = await response.text().catch(() => "");
     let data: any = null;
