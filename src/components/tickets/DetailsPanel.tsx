@@ -2,17 +2,18 @@ import React from 'react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Mail, MapPin, Ticket as TicketIcon, Info, FileDown, User, ExternalLink, MessageCircle, Building, Hash, Copy, ChevronDown, ChevronUp, UserCheck, Bot } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { motion } from 'framer-motion';
 import TicketMap, { buildFullAddress } from '../TicketMap';
 import TicketTimeline from './TicketTimeline';
 import TicketStatusBar from './TicketStatusBar';
+import TicketAttachments from './TicketAttachments';
 import { useTickets } from '@/context/TicketContext';
 import { exportToPdf, exportToXlsx } from '@/services/exportService';
 import { sendTicketHistory, getTicketById, getTicketMessages } from '@/services/ticketService';
-import { Ticket, Message, TicketHistoryEvent } from '@/types/tickets';
+import { Ticket, Message, TicketHistoryEvent, Attachment } from '@/types/tickets';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,16 +27,247 @@ import { cn } from '@/lib/utils';
 import { getContactPhone, getCitizenDni } from '@/utils/ticket';
 import { fmtAR } from '@/utils/date';
 import { getSpecializedContact, SpecializedContact } from '@/utils/contacts';
+import { deriveAttachmentInfo } from '@/utils/attachment';
+
+const sanitizeMediaUrl = (value?: string | null): string | undefined => {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  let result = value.trim();
+
+  if (!result) {
+    return undefined;
+  }
+
+  if (result.startsWith('//')) {
+    result = `https:${result}`;
+  }
+
+  if (result.startsWith('http://')) {
+    result = `https://${result.slice('http://'.length)}`;
+  }
+
+  const hasScheme = /^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(result);
+
+  if (hasScheme) {
+    return result;
+  }
+
+  if (typeof window !== 'undefined') {
+    try {
+      return new URL(result, window.location.origin).toString();
+    } catch {
+      return undefined;
+    }
+  }
+
+  return result;
+};
+
+const pickFirstString = (...values: unknown[]): string | undefined => {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value;
+    }
+  }
+  return undefined;
+};
+
+const pickFirstNumber = (...values: unknown[]): number | undefined => {
+  for (const value of values) {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+    if (typeof value === 'string' && value.trim().length > 0) {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) {
+        return parsed;
+      }
+    }
+  }
+  return undefined;
+};
+
+const normalizeAttachment = (raw: any, fallbackIndex: number): Attachment | null => {
+  const rawUrl = pickFirstString(
+    raw?.url,
+    raw?.archivo_url,
+    raw?.attachment_url,
+    raw?.file_url,
+    raw?.fileUrl,
+    raw?.media_url,
+    raw?.location_url
+  );
+
+  const url = sanitizeMediaUrl(rawUrl);
+
+  if (!url) {
+    return null;
+  }
+
+  const filename =
+    pickFirstString(raw?.filename, raw?.nombre, raw?.name, raw?.original_filename, raw?.file_name) ||
+    url.split('/').pop()?.split(/[?#]/)[0] ||
+    `archivo_${fallbackIndex + 1}`;
+
+  const size = pickFirstNumber(raw?.size, raw?.size_bytes, raw?.bytes);
+  const mimeType = pickFirstString(raw?.mime_type, raw?.mimeType, raw?.tipo_mime, raw?.content_type);
+  const thumbUrl = sanitizeMediaUrl(pickFirstString(
+    raw?.thumbUrl,
+    raw?.thumb_url,
+    raw?.thumbnail_url,
+    raw?.thumbnailUrl,
+    raw?.analisis?.datos_estructurados?.thumbnail_url,
+    raw?.analisis?.datos_estructurados?.url,
+    raw?.analysis?.datos_estructurados?.thumbnail_url,
+    raw?.analysis?.datos_estructurados?.url,
+    raw?.analysis?.structured_data?.thumbnail_url,
+    raw?.analysis?.structured_data?.url,
+    raw?.datos_estructurados?.thumbnail_url,
+    raw?.datos_estructurados?.url
+  ));
+
+  const id =
+    pickFirstNumber(raw?.id, raw?.file_id, raw?.archivo_id, raw?.media_id, raw?.attachment_id) ??
+    fallbackIndex + 1;
+
+  return {
+    id,
+    filename,
+    url,
+    size,
+    mime_type: mimeType,
+    mimeType,
+    thumbUrl: thumbUrl || undefined,
+    thumb_url: sanitizeMediaUrl(raw?.thumb_url) || undefined,
+    thumbnail_url: sanitizeMediaUrl(raw?.thumbnail_url) || undefined,
+    thumbnailUrl: sanitizeMediaUrl(raw?.thumbnailUrl) || undefined,
+    analisis: raw?.analisis,
+    analysis: raw?.analysis,
+    datos_estructurados: raw?.datos_estructurados,
+  };
+};
+
+const collectAttachmentsFromTicket = (ticket?: Ticket | null): Attachment[] => {
+  if (!ticket) {
+    return [];
+  }
+
+  const sources: any[] = [];
+
+  if (Array.isArray(ticket.archivos_adjuntos)) {
+    sources.push(ticket.archivos_adjuntos);
+  }
+
+  const legacyArchivos = (ticket as any)?.archivosAdjuntos;
+  if (Array.isArray(legacyArchivos)) {
+    sources.push(legacyArchivos);
+  }
+
+  if (Array.isArray(ticket.attachments)) {
+    sources.push(ticket.attachments);
+  }
+
+  if (Array.isArray(ticket.messages)) {
+    sources.push(ticket.messages.flatMap((msg) => msg.attachments || []));
+  }
+
+  const seen = new Set<string>();
+  const normalized: Attachment[] = [];
+  let fallbackIndex = 0;
+
+  for (const list of sources) {
+    if (!Array.isArray(list)) continue;
+    for (const raw of list) {
+      const attachment = normalizeAttachment(raw, fallbackIndex);
+      fallbackIndex += 1;
+      if (!attachment) continue;
+      const key = `${attachment.url}|${attachment.filename}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      normalized.push(attachment);
+    }
+  }
+
+  return normalized;
+};
+
+const getPrimaryImageUrl = (ticket: Ticket | null, attachments: Attachment[]): string | undefined => {
+  if (!ticket) {
+    return undefined;
+  }
+
+  const directPhoto = sanitizeMediaUrl(
+    pickFirstString(
+      ticket.foto_url_directa,
+      (ticket as any)?.foto_url_directa,
+      (ticket as any)?.foto_url
+    )
+  );
+
+  if (directPhoto) {
+    return directPhoto;
+  }
+
+  for (const attachment of attachments) {
+    const info = deriveAttachmentInfo(
+      attachment.url,
+      attachment.filename,
+      attachment.mime_type || attachment.mimeType,
+      attachment.size,
+      attachment.thumbUrl || attachment.thumb_url || attachment.thumbnail_url || attachment.thumbnailUrl
+    );
+
+    if (info.type === 'image') {
+      const candidate = sanitizeMediaUrl(
+        info.thumbUrl ||
+          attachment.thumbUrl ||
+          attachment.thumb_url ||
+          attachment.thumbnail_url ||
+          attachment.thumbnailUrl ||
+          attachment.analisis?.datos_estructurados?.thumbnail_url ||
+          attachment.analisis?.datos_estructurados?.url ||
+          attachment.analysis?.datos_estructurados?.thumbnail_url ||
+          attachment.analysis?.datos_estructurados?.url ||
+          attachment.analysis?.structured_data?.thumbnail_url ||
+          attachment.analysis?.structured_data?.url ||
+          attachment.datos_estructurados?.thumbnail_url ||
+          attachment.datos_estructurados?.url ||
+          attachment.url
+      );
+
+      if (candidate) {
+        return candidate;
+      }
+    }
+  }
+
+  return undefined;
+};
 
 
 const DetailsPanel: React.FC = () => {
   const { selectedTicket: ticket, updateTicket } = useTickets();
   const [isSendingEmail, setIsSendingEmail] = React.useState(false);
 
-  const allAttachments = React.useMemo(() => {
-    if (!ticket?.messages) return [];
-    return ticket.messages.flatMap(msg => msg.attachments || []);
-  }, [ticket?.messages]);
+  const attachments = React.useMemo(() => collectAttachmentsFromTicket(ticket), [ticket]);
+  const primaryImageUrl = React.useMemo(
+    () => getPrimaryImageUrl(ticket, attachments),
+    [attachments, ticket]
+  );
+  const neighborAvatarUrl = React.useMemo(
+    () =>
+      sanitizeMediaUrl(
+        pickFirstString(
+          ticket?.avatarUrl,
+          ticket?.user?.avatarUrl,
+          (ticket as any)?.nombre_y_avatar_whatsapp?.avatar
+        )
+      ),
+    [ticket]
+  );
+  const [imageError, setImageError] = React.useState(false);
   const [timelineHistory, setTimelineHistory] = React.useState<TicketHistoryEvent[]>([]);
   const [timelineMessages, setTimelineMessages] = React.useState<Message[]>([]);
   const [specialContact, setSpecialContact] = React.useState<SpecializedContact | null>(null);
@@ -80,6 +312,10 @@ const DetailsPanel: React.FC = () => {
   };
   const isSpecified = (value?: string) => value && value.toLowerCase() !== 'no especificado';
   const displayName = personal?.nombre || ticket?.display_name || '';
+
+  React.useEffect(() => {
+    setImageError(false);
+  }, [primaryImageUrl]);
 
   if (!ticket) {
     return (
@@ -230,16 +466,23 @@ const DetailsPanel: React.FC = () => {
       <ScrollArea className="flex-1">
         <div className="p-4 space-y-4">
           <Card>
-            <CardHeader className="flex flex-row items-center gap-4 p-4">
-              <Avatar className="h-14 w-14">
-                <AvatarImage src={ticket.avatarUrl || ticket.user?.avatarUrl} alt={displayName} />
-                <AvatarFallback>{getInitials(displayName)}</AvatarFallback>
-              </Avatar>
-              <div>
-                <h2 className={cn("text-lg font-semibold whitespace-normal break-words", !displayName && "text-muted-foreground")}> 
-                  {displayName || 'No especificado'}
-                </h2>
-                <p className="text-xs text-muted-foreground">Vecino/a</p>
+            <CardHeader className="p-4">
+              <div className="flex items-center gap-4">
+                <Avatar className="h-14 w-14">
+                  <AvatarImage src={neighborAvatarUrl || undefined} alt={displayName} />
+                  <AvatarFallback>{getInitials(displayName)}</AvatarFallback>
+                </Avatar>
+                <div>
+                  <h2
+                    className={cn(
+                      "text-lg font-semibold whitespace-normal break-words",
+                      !displayName && "text-muted-foreground"
+                    )}
+                  >
+                    {displayName || 'No especificado'}
+                  </h2>
+                  <p className="text-xs text-muted-foreground">Vecino/a</p>
+                </div>
               </div>
             </CardHeader>
             <CardContent className="p-4 space-y-3 text-sm border-t">
@@ -333,16 +576,31 @@ const DetailsPanel: React.FC = () => {
               </div>
             </CardContent>
 
-            {specialContact && (
-              <CardContent className="p-4 text-sm border-t">
-                <h4 className="font-semibold mb-2">Contacto para seguimiento</h4>
-                <div className="space-y-1">
-                  <p>{specialContact.nombre}</p>
-                  {specialContact.titulo && <p>{specialContact.titulo}</p>}
-                  {specialContact.telefono && <p>Teléfono: {specialContact.telefono}</p>}
-                  {specialContact.horario && <p>Horario: {specialContact.horario}</p>}
-                  {specialContact.email && <p>Email: {specialContact.email}</p>}
-                </div>
+            {attachments.length > 0 && <TicketAttachments attachments={attachments} />}
+
+            {(specialContact || (primaryImageUrl && !imageError)) && (
+              <CardContent className="p-4 text-sm border-t space-y-3">
+                <h4 className="font-semibold">Contacto para seguimiento</h4>
+                {primaryImageUrl && !imageError && (
+                  <div className="aspect-video rounded-md overflow-hidden border bg-muted">
+                    <img
+                      src={primaryImageUrl}
+                      alt="Foto enviada en el reclamo"
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                      onError={() => setImageError(true)}
+                    />
+                  </div>
+                )}
+                {specialContact && (
+                  <div className="space-y-1">
+                    <p>{specialContact.nombre}</p>
+                    {specialContact.titulo && <p>{specialContact.titulo}</p>}
+                    {specialContact.telefono && <p>Teléfono: {specialContact.telefono}</p>}
+                    {specialContact.horario && <p>Horario: {specialContact.horario}</p>}
+                    {specialContact.email && <p>Email: {specialContact.email}</p>}
+                  </div>
+                )}
               </CardContent>
             )}
 
@@ -380,31 +638,6 @@ const DetailsPanel: React.FC = () => {
                   </div>
                 )}
             </CardContent>
-
-            {allAttachments.length > 0 && (
-              <CardContent className="p-4 border-t">
-                <h4 className="font-semibold mb-2">Imagen Adjunta</h4>
-                <div className="grid grid-cols-3 gap-2 mb-2">
-                  {allAttachments.filter(att => att.mime_type?.startsWith('image/')).map((attachment) => (
-                    <a key={attachment.id} href={attachment.url} target="_blank" rel="noopener noreferrer" className="relative group aspect-video overflow-hidden rounded-lg border">
-                      <img
-                        src={
-                          attachment.thumbUrl ||
-                          attachment.thumb_url ||
-                          attachment.thumbnail_url ||
-                          attachment.thumbnailUrl ||
-                          attachment.url
-                        }
-                        alt={attachment.filename || 'Adjunto'}
-                        className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                        loading="lazy"
-                      />
-                    </a>
-                  ))}
-                </div>
-              </CardContent>
-            )}
-
             {hasLocation && (
                 <CardContent className="p-4 border-t">
                     <h4 className="font-semibold mb-2 flex items-center justify-between">

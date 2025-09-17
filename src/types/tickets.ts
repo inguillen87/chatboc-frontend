@@ -19,16 +19,32 @@ export interface User {
   horario?: Horario;
 }
 
+export interface AttachmentAnalysisData {
+  url?: string;
+  thumbnail_url?: string;
+  [key: string]: unknown;
+}
+
+export interface AttachmentAnalysis {
+  datos_estructurados?: AttachmentAnalysisData;
+  structured_data?: AttachmentAnalysisData;
+  [key: string]: unknown;
+}
+
 export interface Attachment {
   id: number;
   filename: string;
   url: string;
-  size: number;
+  size?: number;
   mime_type?: string;
+  mimeType?: string;
   thumbUrl?: string;
   thumb_url?: string;
   thumbnail_url?: string;
   thumbnailUrl?: string;
+  analisis?: AttachmentAnalysis;
+  analysis?: AttachmentAnalysis;
+  datos_estructurados?: AttachmentAnalysisData;
 }
 
 export interface Message {
@@ -41,6 +57,7 @@ export interface Message {
 
   // Fields to align with ChatMessageData
   attachments?: Attachment[];
+  archivos_adjuntos?: Attachment[];
   botones?: Boton[];
   structuredContent?: StructuredContentItem[];
 
@@ -124,6 +141,7 @@ export interface Ticket {
   // Fields that might come from a detailed view, but good to have
   messages?: Message[];
   attachments?: Attachment[];
+  archivos_adjuntos?: Attachment[];
   activityLog?: any[];
   hasUnreadMessages?: boolean;
 
@@ -136,4 +154,5 @@ export interface Ticket {
   channel?: 'whatsapp' | 'web' | 'email' | 'phone' | 'other';
   assignedAgent?: User;
   whatsapp_conversation_id?: string;
+  foto_url_directa?: string;
 }
