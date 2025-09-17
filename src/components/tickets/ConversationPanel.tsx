@@ -48,11 +48,12 @@ const adaptTicketMessageToChatMessage = (msg: TicketMessage, ticket: Ticket): Ch
 interface ConversationPanelProps {
   isMobile: boolean;
   isSidebarVisible: boolean;
+  isDetailsVisible: boolean;
   onToggleSidebar: () => void;
   onToggleDetails: () => void;
 }
 
-const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSidebarVisible, onToggleSidebar, onToggleDetails }) => {
+const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSidebarVisible, isDetailsVisible, onToggleSidebar, onToggleDetails }) => {
   const { selectedTicket, updateTicket } = useTickets();
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<ChatMessageData[]>([]);
@@ -275,8 +276,16 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
         </div>
         <div className="flex items-center space-x-2">
           {isMobile && (
-            <Button variant="ghost" size="icon" onClick={onToggleDetails} aria-label="Ver detalles">
-              <Info className="h-5 w-5" />
+            <Button
+              variant={isDetailsVisible ? 'secondary' : 'outline'}
+              size="sm"
+              onClick={onToggleDetails}
+              aria-label={isDetailsVisible ? 'Ocultar detalles del ticket' : 'Ver detalles del ticket'}
+              aria-pressed={isDetailsVisible}
+              className="flex items-center gap-2"
+            >
+              <Info className="h-4 w-4" />
+              <span className="text-sm font-medium">Detalles</span>
             </Button>
           )}
           <DropdownMenu>

@@ -3,7 +3,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Mail, MapPin, Ticket as TicketIcon, Info, FileDown, User, ExternalLink, MessageCircle, Building, Hash, Copy, ChevronDown, ChevronUp, UserCheck, Bot } from 'lucide-react';
+import { Mail, MapPin, Info, FileDown, User, ExternalLink, Building, Hash, Copy, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { motion } from 'framer-motion';
 import TicketMap, { buildFullAddress } from '../TicketMap';
@@ -149,28 +149,54 @@ const normalizeAttachment = (raw: any, fallbackIndex: number): Attachment | null
   };
 };
 
-const collectAttachmentsFromTicket = (ticket?: Ticket | null): Attachment[] => {
-  if (!ticket) {
+const collectAttachmentsFromTicket = (ticket?: Ticket | null, extraMessages?: Message[]): Attachment[] => {
+  if (!ticket && !extraMessages?.length) {
     return [];
   }
 
   const sources: any[] = [];
+  const pushIfArray = (value: unknown) => {
+    if (Array.isArray(value)) {
+      sources.push(value);
+    }
+  };
 
-  if (Array.isArray(ticket.archivos_adjuntos)) {
-    sources.push(ticket.archivos_adjuntos);
+  if (ticket) {
+    pushIfArray(ticket.archivos_adjuntos);
+    pushIfArray((ticket as any)?.archivosAdjuntos);
+    pushIfArray(ticket.attachments);
+
+    const additionalCollections = [
+      (ticket as any)?.media,
+      (ticket as any)?.mediaItems,
+      (ticket as any)?.imagenes,
+      (ticket as any)?.imagenes_adjuntas,
+      (ticket as any)?.fotos,
+      (ticket as any)?.fotos_adjuntas,
+      (ticket as any)?.photos,
+      (ticket as any)?.evidencias,
+      (ticket as any)?.evidences,
+    ];
+
+    additionalCollections.forEach(pushIfArray);
+
+    if (Array.isArray(ticket.messages)) {
+      sources.push(
+        ticket.messages.flatMap((msg) => [
+          ...(Array.isArray(msg.attachments) ? msg.attachments : []),
+          ...(Array.isArray((msg as any)?.archivos_adjuntos) ? (msg as any).archivos_adjuntos : []),
+        ]),
+      );
+    }
   }
 
-  const legacyArchivos = (ticket as any)?.archivosAdjuntos;
-  if (Array.isArray(legacyArchivos)) {
-    sources.push(legacyArchivos);
-  }
-
-  if (Array.isArray(ticket.attachments)) {
-    sources.push(ticket.attachments);
-  }
-
-  if (Array.isArray(ticket.messages)) {
-    sources.push(ticket.messages.flatMap((msg) => msg.attachments || []));
+  if (Array.isArray(extraMessages) && extraMessages.length > 0) {
+    sources.push(
+      extraMessages.flatMap((msg) => [
+        ...(Array.isArray(msg.attachments) ? msg.attachments : []),
+        ...(Array.isArray((msg as any)?.archivos_adjuntos) ? (msg as any).archivos_adjuntos : []),
+      ]),
+    );
   }
 
   const seen = new Set<string>();
@@ -247,11 +273,21 @@ const getPrimaryImageUrl = (ticket: Ticket | null, attachments: Attachment[]): s
 };
 
 
-const DetailsPanel: React.FC = () => {
+interface DetailsPanelProps {
+  onClose?: () => void;
+}
+
+const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose }) => {
   const { selectedTicket: ticket, updateTicket } = useTickets();
   const [isSendingEmail, setIsSendingEmail] = React.useState(false);
 
-  const attachments = React.useMemo(() => collectAttachmentsFromTicket(ticket), [ticket]);
+  const [timelineHistory, setTimelineHistory] = React.useState<TicketHistoryEvent[]>([]);
+  const [timelineMessages, setTimelineMessages] = React.useState<Message[]>([]);
+
+  const attachments = React.useMemo(
+    () => collectAttachmentsFromTicket(ticket, timelineMessages),
+    [ticket, timelineMessages]
+  );
   const primaryImageUrl = React.useMemo(
     () => getPrimaryImageUrl(ticket, attachments),
     [attachments, ticket]
@@ -268,8 +304,6 @@ const DetailsPanel: React.FC = () => {
     [ticket]
   );
   const [imageError, setImageError] = React.useState(false);
-  const [timelineHistory, setTimelineHistory] = React.useState<TicketHistoryEvent[]>([]);
-  const [timelineMessages, setTimelineMessages] = React.useState<Message[]>([]);
   const [specialContact, setSpecialContact] = React.useState<SpecializedContact | null>(null);
   const [completionSent, setCompletionSent] = React.useState(false);
   const statusFlow = React.useMemo(
@@ -442,15 +476,33 @@ const DetailsPanel: React.FC = () => {
         initial={{ opacity: 0.5 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
-        className="w-full border-l border-border flex flex-col h-screen bg-muted/20 shrink-0"
+        className={cn(
+          "flex flex-col bg-muted/20 shrink-0 border-border",
+          onClose
+            ? "h-full md:h-screen w-full md:w-[360px] lg:w-[380px] border-l md:border-l"
+            : "h-screen w-full border-l"
+        )}
     >
-      <header className="p-4 border-b border-border flex items-center justify-between">
-        <h3 className="font-semibold">Detalles del Ticket</h3>
+      <header className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-border p-4 bg-muted/80 backdrop-blur supports-[backdrop-filter]:bg-muted/60">
+        <div className="flex items-center gap-2">
+          {onClose && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="md:hidden"
+              onClick={onClose}
+              aria-label="Cerrar detalles del ticket"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+          <h3 className="font-semibold text-base md:text-lg">Detalles del Ticket</h3>
+        </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm">
-              <FileDown className="h-4 w-4 mr-2" />
-              Exportar
+            <Button variant="outline" size="sm" className="gap-2" aria-label="Opciones de exportación">
+              <FileDown className="h-4 w-4" />
+              <span className="hidden sm:inline">Exportar</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
@@ -464,7 +516,7 @@ const DetailsPanel: React.FC = () => {
         </DropdownMenu>
       </header>
       <ScrollArea className="flex-1">
-        <div className="p-4 space-y-4">
+        <div className="p-4 space-y-4 pb-24 md:pb-6">
           <Card>
             <CardHeader className="p-4">
               <div className="flex items-center gap-4">

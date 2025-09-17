@@ -97,6 +97,7 @@ const NewTicketsPanel: React.FC = () => {
             <ConversationPanel
               isMobile={true}
               isSidebarVisible={isSidebarVisible}
+              isDetailsVisible={isDetailsVisible}
               onToggleSidebar={toggleSidebar}
               onToggleDetails={toggleDetails}
             />
@@ -122,6 +123,7 @@ const NewTicketsPanel: React.FC = () => {
           <ConversationPanel
             isMobile={false}
             isSidebarVisible={isSidebarVisible}
+            isDetailsVisible={true}
             onToggleSidebar={toggleSidebar}
             onToggleDetails={toggleDetails}
           />

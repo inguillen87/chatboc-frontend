@@ -32,7 +32,7 @@ const TicketAttachments: React.FC<Props> = ({ attachments }) => {
     <CardContent className="p-4 border-t">
       <h4 className="font-semibold mb-2">Adjuntos</h4>
       {images.length > 0 && (
-        <div className="grid grid-cols-3 gap-2 mb-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-2">
           {images.map(({ data, info }) => (
             <button
               key={`${data.id}-${info.url}`}
