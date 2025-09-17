@@ -29,6 +29,42 @@ import { fmtAR } from '@/utils/date';
 import { getSpecializedContact, SpecializedContact } from '@/utils/contacts';
 import { deriveAttachmentInfo } from '@/utils/attachment';
 
+const sanitizeMediaUrl = (value?: string | null): string | undefined => {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  let result = value.trim();
+
+  if (!result) {
+    return undefined;
+  }
+
+  if (result.startsWith('//')) {
+    result = `https:${result}`;
+  }
+
+  if (result.startsWith('http://')) {
+    result = `https://${result.slice('http://'.length)}`;
+  }
+
+  const hasScheme = /^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(result);
+
+  if (hasScheme) {
+    return result;
+  }
+
+  if (typeof window !== 'undefined') {
+    try {
+      return new URL(result, window.location.origin).toString();
+    } catch {
+      return undefined;
+    }
+  }
+
+  return result;
+};
+
 const pickFirstString = (...values: unknown[]): string | undefined => {
   for (const value of values) {
     if (typeof value === 'string' && value.trim().length > 0) {
@@ -54,7 +90,7 @@ const pickFirstNumber = (...values: unknown[]): number | undefined => {
 };
 
 const normalizeAttachment = (raw: any, fallbackIndex: number): Attachment | null => {
-  const url = pickFirstString(
+  const rawUrl = pickFirstString(
     raw?.url,
     raw?.archivo_url,
     raw?.attachment_url,
@@ -63,6 +99,8 @@ const normalizeAttachment = (raw: any, fallbackIndex: number): Attachment | null
     raw?.media_url,
     raw?.location_url
   );
+
+  const url = sanitizeMediaUrl(rawUrl);
 
   if (!url) {
     return null;
@@ -75,7 +113,7 @@ const normalizeAttachment = (raw: any, fallbackIndex: number): Attachment | null
 
   const size = pickFirstNumber(raw?.size, raw?.size_bytes, raw?.bytes);
   const mimeType = pickFirstString(raw?.mime_type, raw?.mimeType, raw?.tipo_mime, raw?.content_type);
-  const thumbUrl = pickFirstString(
+  const thumbUrl = sanitizeMediaUrl(pickFirstString(
     raw?.thumbUrl,
     raw?.thumb_url,
     raw?.thumbnail_url,
@@ -88,7 +126,7 @@ const normalizeAttachment = (raw: any, fallbackIndex: number): Attachment | null
     raw?.analysis?.structured_data?.url,
     raw?.datos_estructurados?.thumbnail_url,
     raw?.datos_estructurados?.url
-  );
+  ));
 
   const id =
     pickFirstNumber(raw?.id, raw?.file_id, raw?.archivo_id, raw?.media_id, raw?.attachment_id) ??
@@ -102,9 +140,9 @@ const normalizeAttachment = (raw: any, fallbackIndex: number): Attachment | null
     mime_type: mimeType,
     mimeType,
     thumbUrl: thumbUrl || undefined,
-    thumb_url: raw?.thumb_url,
-    thumbnail_url: raw?.thumbnail_url,
-    thumbnailUrl: raw?.thumbnailUrl,
+    thumb_url: sanitizeMediaUrl(raw?.thumb_url) || undefined,
+    thumbnail_url: sanitizeMediaUrl(raw?.thumbnail_url) || undefined,
+    thumbnailUrl: sanitizeMediaUrl(raw?.thumbnailUrl) || undefined,
     analisis: raw?.analisis,
     analysis: raw?.analysis,
     datos_estructurados: raw?.datos_estructurados,
@@ -160,10 +198,12 @@ const getPrimaryImageUrl = (ticket: Ticket | null, attachments: Attachment[]): s
     return undefined;
   }
 
-  const directPhoto = pickFirstString(
-    ticket.foto_url_directa,
-    (ticket as any)?.foto_url_directa,
-    (ticket as any)?.foto_url
+  const directPhoto = sanitizeMediaUrl(
+    pickFirstString(
+      ticket.foto_url_directa,
+      (ticket as any)?.foto_url_directa,
+      (ticket as any)?.foto_url
+    )
   );
 
   if (directPhoto) {
@@ -180,22 +220,26 @@ const getPrimaryImageUrl = (ticket: Ticket | null, attachments: Attachment[]): s
     );
 
     if (info.type === 'image') {
-      return (
+      const candidate = sanitizeMediaUrl(
         info.thumbUrl ||
-        attachment.thumbUrl ||
-        attachment.thumb_url ||
-        attachment.thumbnail_url ||
-        attachment.thumbnailUrl ||
-        attachment.analisis?.datos_estructurados?.thumbnail_url ||
-        attachment.analisis?.datos_estructurados?.url ||
-        attachment.analysis?.datos_estructurados?.thumbnail_url ||
-        attachment.analysis?.datos_estructurados?.url ||
-        attachment.analysis?.structured_data?.thumbnail_url ||
-        attachment.analysis?.structured_data?.url ||
-        attachment.datos_estructurados?.thumbnail_url ||
-        attachment.datos_estructurados?.url ||
-        attachment.url
+          attachment.thumbUrl ||
+          attachment.thumb_url ||
+          attachment.thumbnail_url ||
+          attachment.thumbnailUrl ||
+          attachment.analisis?.datos_estructurados?.thumbnail_url ||
+          attachment.analisis?.datos_estructurados?.url ||
+          attachment.analysis?.datos_estructurados?.thumbnail_url ||
+          attachment.analysis?.datos_estructurados?.url ||
+          attachment.analysis?.structured_data?.thumbnail_url ||
+          attachment.analysis?.structured_data?.url ||
+          attachment.datos_estructurados?.thumbnail_url ||
+          attachment.datos_estructurados?.url ||
+          attachment.url
       );
+
+      if (candidate) {
+        return candidate;
+      }
     }
   }
 
@@ -212,6 +256,18 @@ const DetailsPanel: React.FC = () => {
     () => getPrimaryImageUrl(ticket, attachments),
     [attachments, ticket]
   );
+  const neighborAvatarUrl = React.useMemo(
+    () =>
+      sanitizeMediaUrl(
+        pickFirstString(
+          ticket?.avatarUrl,
+          ticket?.user?.avatarUrl,
+          (ticket as any)?.nombre_y_avatar_whatsapp?.avatar
+        )
+      ),
+    [ticket]
+  );
+  const [imageError, setImageError] = React.useState(false);
   const [timelineHistory, setTimelineHistory] = React.useState<TicketHistoryEvent[]>([]);
   const [timelineMessages, setTimelineMessages] = React.useState<Message[]>([]);
   const [specialContact, setSpecialContact] = React.useState<SpecializedContact | null>(null);
@@ -256,6 +312,10 @@ const DetailsPanel: React.FC = () => {
   };
   const isSpecified = (value?: string) => value && value.toLowerCase() !== 'no especificado';
   const displayName = personal?.nombre || ticket?.display_name || '';
+
+  React.useEffect(() => {
+    setImageError(false);
+  }, [primaryImageUrl]);
 
   if (!ticket) {
     return (
@@ -407,28 +467,21 @@ const DetailsPanel: React.FC = () => {
         <div className="p-4 space-y-4">
           <Card>
             <CardHeader className="p-4">
-              <div className="flex items-start gap-4">
-                {primaryImageUrl && (
-                  <div className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg border bg-muted">
-                    <img
-                      src={primaryImageUrl}
-                      alt="Foto del reclamo"
-                      className="h-full w-full object-cover"
-                      loading="lazy"
-                    />
-                  </div>
-                )}
-                <div className="flex items-center gap-4">
-                  <Avatar className="h-14 w-14">
-                    <AvatarImage src={primaryImageUrl || ticket.avatarUrl || ticket.user?.avatarUrl} alt={displayName} />
-                    <AvatarFallback>{getInitials(displayName)}</AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <h2 className={cn("text-lg font-semibold whitespace-normal break-words", !displayName && "text-muted-foreground")}>
-                      {displayName || 'No especificado'}
-                    </h2>
-                    <p className="text-xs text-muted-foreground">Vecino/a</p>
-                  </div>
+              <div className="flex items-center gap-4">
+                <Avatar className="h-14 w-14">
+                  <AvatarImage src={neighborAvatarUrl || undefined} alt={displayName} />
+                  <AvatarFallback>{getInitials(displayName)}</AvatarFallback>
+                </Avatar>
+                <div>
+                  <h2
+                    className={cn(
+                      "text-lg font-semibold whitespace-normal break-words",
+                      !displayName && "text-muted-foreground"
+                    )}
+                  >
+                    {displayName || 'No especificado'}
+                  </h2>
+                  <p className="text-xs text-muted-foreground">Vecino/a</p>
                 </div>
               </div>
             </CardHeader>
@@ -525,16 +578,29 @@ const DetailsPanel: React.FC = () => {
 
             {attachments.length > 0 && <TicketAttachments attachments={attachments} />}
 
-            {specialContact && (
-              <CardContent className="p-4 text-sm border-t">
-                <h4 className="font-semibold mb-2">Contacto para seguimiento</h4>
-                <div className="space-y-1">
-                  <p>{specialContact.nombre}</p>
-                  {specialContact.titulo && <p>{specialContact.titulo}</p>}
-                  {specialContact.telefono && <p>Teléfono: {specialContact.telefono}</p>}
-                  {specialContact.horario && <p>Horario: {specialContact.horario}</p>}
-                  {specialContact.email && <p>Email: {specialContact.email}</p>}
-                </div>
+            {(specialContact || (primaryImageUrl && !imageError)) && (
+              <CardContent className="p-4 text-sm border-t space-y-3">
+                <h4 className="font-semibold">Contacto para seguimiento</h4>
+                {primaryImageUrl && !imageError && (
+                  <div className="aspect-video rounded-md overflow-hidden border bg-muted">
+                    <img
+                      src={primaryImageUrl}
+                      alt="Foto enviada en el reclamo"
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                      onError={() => setImageError(true)}
+                    />
+                  </div>
+                )}
+                {specialContact && (
+                  <div className="space-y-1">
+                    <p>{specialContact.nombre}</p>
+                    {specialContact.titulo && <p>{specialContact.titulo}</p>}
+                    {specialContact.telefono && <p>Teléfono: {specialContact.telefono}</p>}
+                    {specialContact.horario && <p>Horario: {specialContact.horario}</p>}
+                    {specialContact.email && <p>Email: {specialContact.email}</p>}
+                  </div>
+                )}
               </CardContent>
             )}
 
