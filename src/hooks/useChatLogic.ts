@@ -210,14 +210,6 @@ export function useChatLogic({ tipoChat, entityToken: propToken, tokenKey = 'aut
     const { text: userMessageText, attachmentInfo, ubicacion_usuario, action, location } = actualPayload;
     const actionPayload = 'payload' in actualPayload ? actualPayload.payload : undefined;
 
-    if (!sanitizedText) {
-      if (attachmentInfo || actualPayload.archivo_url) {
-        sanitizedText = '[adjunto]';
-      } else if (location || ubicacion_usuario) {
-        sanitizedText = '[ubicacion]';
-      }
-    }
-
     // Allow confirming/cancelling a claim with free text when awaiting confirmation
     let resolvedAction = action;
     const awaitingConfirmation =
