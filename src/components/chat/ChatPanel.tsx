@@ -107,14 +107,12 @@ const ChatPanel = ({
     skipAuth,
   });
 
+  const rubrosEnabled = tipoChat === 'pyme';
   const [rubros, setRubros] = useState<Rubro[]>([]);
   const [isLoadingRubros, setIsLoadingRubros] = useState(false);
   const [rubrosError, setRubrosError] = useState<string | null>(null);
   const welcomeShownRef = useRef(false);
-  const [localRubro, setLocalRubro] = useState<string | null>(() => {
-    const stored = safeLocalStorage.getItem("rubroSeleccionado");
-    return selectedRubro ?? stored;
-  });
+  const [localRubro, setLocalRubro] = useState<string | null>(() => selectedRubro ?? null);
 
   const loadRubros = useCallback(() => {
     setIsLoadingRubros(true);
@@ -138,45 +136,84 @@ const ChatPanel = ({
 
 
   useEffect(() => {
-    if (localRubro) {
+    if (!rubrosEnabled) {
+      safeLocalStorage.removeItem("rubroSeleccionado");
+      welcomeShownRef.current = false;
+      const nextValue = selectedRubro ?? null;
+      if (localRubro !== nextValue) {
+        setLocalRubro(nextValue);
+      }
+      return;
+    }
+
+    if (selectedRubro && selectedRubro !== localRubro) {
+      welcomeShownRef.current = false;
+      setLocalRubro(selectedRubro);
+      return;
+    }
+
+    if (!selectedRubro && !localRubro) {
+      const stored = safeLocalStorage.getItem("rubroSeleccionado");
+      if (stored) {
+        setLocalRubro(stored);
+      }
+    }
+  }, [rubrosEnabled, selectedRubro, localRubro]);
+
+
+  useEffect(() => {
+    if (!rubrosEnabled || localRubro) {
       return;
     }
     if (isLoadingRubros || rubros.length > 0 || rubrosError) {
       return;
     }
     loadRubros();
-  }, [localRubro, isLoadingRubros, rubros.length, rubrosError, loadRubros]);
+  }, [rubrosEnabled, localRubro, isLoadingRubros, rubros.length, rubrosError, loadRubros]);
 
   useEffect(() => {
-    if (selectedRubro && selectedRubro !== localRubro) {
-      welcomeShownRef.current = false;
-      setLocalRubro(selectedRubro);
+    if (!rubrosEnabled) {
+      return;
     }
-  }, [selectedRubro, localRubro]);
-
-  useEffect(() => {
     if (!selectedRubro && localRubro && onRubroSelect) {
       onRubroSelect(localRubro);
     }
-  }, [selectedRubro, localRubro, onRubroSelect]);
+  }, [rubrosEnabled, selectedRubro, localRubro, onRubroSelect]);
 
   useEffect(() => {
+    if (!rubrosEnabled) {
+      return;
+    }
     if (localRubro) {
       safeLocalStorage.setItem("rubroSeleccionado", localRubro);
     } else {
       safeLocalStorage.removeItem("rubroSeleccionado");
       welcomeShownRef.current = false;
     }
-  }, [localRubro]);
+  }, [rubrosEnabled, localRubro]);
 
   useEffect(() => {
+    if (!rubrosEnabled) {
+      return;
+    }
     if (localRubro && messages.length === 0 && !welcomeShownRef.current) {
       addSystemMessage(
         `¡Hola! Soy Chatboc, tu asistente para ${localRubro.toLowerCase()}. ¿En qué puedo ayudarte hoy?`
       );
       welcomeShownRef.current = true;
     }
-  }, [localRubro, messages.length, addSystemMessage]);
+  }, [rubrosEnabled, localRubro, messages.length, addSystemMessage]);
+
+  const [esperandoDireccion, setEsperandoDireccion] = useState(false);
+  const [forzarDireccion, setForzarDireccion] = useState(false);
+  const [direccionGuardada, setDireccionGuardada] = useState<string | null>(null);
+  const [showCierre, setShowCierre] = useState<{ show: boolean; text: string } | null>(null);
+  const [ticketLocation, setTicketLocation] = useState<{
+    direccion?: string | null;
+    latitud?: number | null;
+    longitud?: number | null;
+    municipio_nombre?: string | null;
+  } | null>(null);
 
   const [esperandoDireccion, setEsperandoDireccion] = useState(false);
   const [forzarDireccion, setForzarDireccion] = useState(false);
@@ -216,7 +253,7 @@ const ChatPanel = ({
     ]
   );
 
-  const showRubroSelector = !localRubro;
+  const showRubroSelector = rubrosEnabled && !localRubro;
 
   const [visitorName, setVisitorNameState] = useState(() => getVisitorName());
 
