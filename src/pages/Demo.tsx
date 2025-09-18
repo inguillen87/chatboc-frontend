@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
+import { resetChatSessionId } from "@/utils/chatSessionId";
 import getOrCreateAnonId from "@/utils/anonId";
 import ChatInput from "@/components/chat/ChatInput";
 import TypingIndicator from "@/components/chat/TypingIndicator";
@@ -36,6 +37,7 @@ const Demo = () => {
 
   const handleChangeRubro = () => {
     safeLocalStorage.removeItem("rubroSeleccionado");
+    resetChatSessionId();
     setRubroSeleccionado(null);
     setEsperandoRubro(true);
     setMessages([]);
