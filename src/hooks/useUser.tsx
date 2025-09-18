@@ -3,7 +3,6 @@ import { apiFetch } from '@/utils/api';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { enforceTipoChatForRubro, parseRubro } from '@/utils/tipoChat';
 import { getIframeToken } from '@/utils/config';
-import { getStoredEntityToken } from '@/utils/entityToken';
 
 interface UserData {
   id?: number;
@@ -40,9 +39,7 @@ const UserContext = React.createContext<UserContextValue>({
 export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<UserData | null>(() => {
     try {
-      const storedEntityToken = getStoredEntityToken();
-      const iframeEntityToken = getIframeToken();
-      const hasEntity = storedEntityToken || iframeEntityToken;
+      const hasEntity = safeLocalStorage.getItem('entityToken') || getIframeToken();
       const chatToken = safeLocalStorage.getItem('chatAuthToken');
       if (hasEntity && !chatToken) return null;
       const stored = safeLocalStorage.getItem('user');
@@ -54,9 +51,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(false);
 
   const refreshUser = useCallback(async () => {
-    const storedEntityToken = getStoredEntityToken();
-    const iframeEntityToken = getIframeToken();
-    const tokenKey = (storedEntityToken || iframeEntityToken) ? 'chatAuthToken' : 'authToken';
+    const tokenKey = (safeLocalStorage.getItem('entityToken') || getIframeToken()) ? 'chatAuthToken' : 'authToken';
     const token = safeLocalStorage.getItem(tokenKey);
     if (!token) return;
     setLoading(true);
@@ -95,9 +90,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Error fetching user profile, logging out.', e);
       // If fetching the user fails, the token is likely invalid or expired.
       // Clear the user data and token to force a re-login.
-      const storedEntityToken = getStoredEntityToken();
-      const iframeEntityToken = getIframeToken();
-      const tokenKey = (storedEntityToken || iframeEntityToken) ? 'chatAuthToken' : 'authToken';
+      const tokenKey = (safeLocalStorage.getItem('entityToken') || getIframeToken()) ? 'chatAuthToken' : 'authToken';
       safeLocalStorage.removeItem('user');
       safeLocalStorage.removeItem(tokenKey);
       setUser(null);
@@ -107,9 +100,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   useEffect(() => {
-    const storedEntityToken = getStoredEntityToken();
-    const iframeEntityToken = getIframeToken();
-    const tokenKey = (storedEntityToken || iframeEntityToken) ? 'chatAuthToken' : 'authToken';
+    const tokenKey = (safeLocalStorage.getItem('entityToken') || getIframeToken()) ? 'chatAuthToken' : 'authToken';
     const token = safeLocalStorage.getItem(tokenKey);
     if (token && (!user || !user.rubro)) {
       refreshUser();

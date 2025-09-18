@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { apiFetch, ApiError } from "@/utils/api";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
-import { storeEntityToken } from "@/utils/entityToken";
 import { useUser } from "@/hooks/useUser";
 import GoogleLoginButton from "@/components/auth/GoogleLoginButton";
 
@@ -42,7 +41,7 @@ const Login = () => {
 
       safeLocalStorage.setItem("authToken", data.token);
       if (data.entityToken) {
-        storeEntityToken(data.entityToken);
+        safeLocalStorage.setItem("entityToken", data.entityToken);
       }
 
       await refreshUser();
