@@ -20,6 +20,7 @@ import { fmtAR } from "@/utils/date";
 import { getContactPhone } from "@/utils/ticket";
 import { getTicketTimeline } from "@/services/ticketService";
 import { TicketHistoryEvent, Message as TicketMessage } from "@/types/tickets";
+import { extractButtonsFromResponse } from "@/utils/chatButtons";
 // Importar AttachmentInfo y SendPayload desde @/types/chat o un lugar centralizado
 // Asegúrate de que SendPayload en @/types/chat.ts incluya attachmentInfo
 import { AttachmentInfo, SendPayload as TypeSendPayload } from "@/types/chat";
@@ -329,7 +330,7 @@ const ChatPage = () => {
           setContexto(data.contexto_actualizado || {});
 
           const respuestaText = data.respuesta_usuario || "⚠️ No se pudo generar una respuesta.";
-          const botones = data.botones || [];
+          const botones = extractButtonsFromResponse(data);
 
           // Mensaje de respuesta del Bot
           const botMessage: Message = {
