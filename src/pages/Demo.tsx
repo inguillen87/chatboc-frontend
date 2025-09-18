@@ -9,6 +9,7 @@ import { Message, SendPayload } from "@/types/chat";
 import { apiFetch, getErrorMessage } from "@/utils/api";
 import { getCurrentTipoChat, enforceTipoChatForRubro, parseRubro } from "@/utils/tipoChat";
 import { getAskEndpoint, esRubroPublico } from "@/utils/chatEndpoints";
+import { extractButtonsFromResponse } from "@/utils/chatButtons";
 import { ShoppingCart } from "lucide-react";
 
 const MAX_PREGUNTAS = 15;
@@ -152,7 +153,7 @@ const Demo = () => {
         setContexto(response.contexto_actualizado || {});
 
         const respuestaText = response.respuesta_usuario || "⚠️ No se pudo generar una respuesta.";
-        const botones = response.botones || [];
+        const botones = extractButtonsFromResponse(response);
 
         const botMessage: Message = {
           id: Date.now(),
