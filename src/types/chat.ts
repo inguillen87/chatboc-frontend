@@ -59,7 +59,7 @@ export interface Post {
 
 // Define cómo es un objeto Mensaje
 export interface Message {
-  id: number; // Identificador único del mensaje
+  id: number | string; // Identificador único del mensaje
   text: string; // Texto principal o fallback del mensaje. Puede ser HTML sanitizado.
   isBot: boolean; // True si el mensaje es del bot, false si es del usuario
   timestamp: Date; // Fecha y hora del mensaje
@@ -67,6 +67,8 @@ export interface Message {
   botones?: Boton[]; // Array de botones interactivos asociados al mensaje (si los hay)
   categorias?: Categoria[]; // Array de categorías con botones (formato anidado para acordeones)
   query?: string; // La consulta original del usuario que generó esta respuesta (opcional)
+  isError?: boolean; // Indica si el mensaje representa un estado de error
+  ticketId?: number; // Ticket asociado cuando el backend crea uno
 
   // Campos para contenido multimedia y adjuntos
   mediaUrl?: string; // URL directa a una imagen/video (para compatibilidad o casos simples)
@@ -86,6 +88,7 @@ export interface Message {
     thumbnailUrl?: string;
     mimeType?: string; // Tipo MIME del archivo (ej. "application/pdf", "image/jpeg")
     size?: number; // Tamaño del archivo en bytes (opcional)
+    isUploading?: boolean; // Marca si el adjunto está en proceso de subida
   };
 
   // Campos para contenido estructurado y personalización de la UI
