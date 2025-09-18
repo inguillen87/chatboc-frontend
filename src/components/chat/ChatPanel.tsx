@@ -136,6 +136,7 @@ const ChatPanel = ({
       });
   }, []);
 
+
   useEffect(() => {
     if (localRubro) {
       return;
@@ -176,6 +177,17 @@ const ChatPanel = ({
       welcomeShownRef.current = true;
     }
   }, [localRubro, messages.length, addSystemMessage]);
+
+  const [esperandoDireccion, setEsperandoDireccion] = useState(false);
+  const [forzarDireccion, setForzarDireccion] = useState(false);
+  const [direccionGuardada, setDireccionGuardada] = useState<string | null>(null);
+  const [showCierre, setShowCierre] = useState<{ show: boolean; text: string } | null>(null);
+  const [ticketLocation, setTicketLocation] = useState<{
+    direccion?: string | null;
+    latitud?: number | null;
+    longitud?: number | null;
+    municipio_nombre?: string | null;
+  } | null>(null);
 
   const handleRubroSelection = useCallback(
     (rubro: Rubro) => {
@@ -226,11 +238,6 @@ const ChatPanel = ({
     });
   };
 
-  const [esperandoDireccion, setEsperandoDireccion] = useState(false);
-  const [forzarDireccion, setForzarDireccion] = useState(false);
-  const [direccionGuardada, setDireccionGuardada] = useState<string | null>(null);
-  const [showCierre, setShowCierre] = useState<{ show: boolean; text: string } | null>(null);
-  const [ticketLocation, setTicketLocation] = useState<{ direccion?: string | null; latitud?: number | null; longitud?: number | null; municipio_nombre?: string | null } | null>(null);
   const esAnonimo = skipAuth || !safeLocalStorage.getItem("authToken");
   const { user } = useUser();
 
