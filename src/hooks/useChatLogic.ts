@@ -19,7 +19,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { MunicipioContext, updateMunicipioContext, getInitialMunicipioContext } from "@/utils/contexto_municipio";
 import { useUser } from './useUser';
 import { safeOn, assertEventSource } from "@/utils/safeOn";
-import { getVisitorName } from "@/utils/visitorName";
+import { getVisitorName, setVisitorName } from "@/utils/visitorName";
 import { ensureAbsoluteUrl, mergeButtons, pickFirstString } from "@/utils/chatButtons";
 
 interface UseChatLogicOptions {
@@ -646,6 +646,13 @@ export function useChatLogic({ tipoChat, entityToken: propToken, tokenKey = 'aut
     if (!userMessageText && !attachmentInfo && !ubicacion_usuario && !resolvedAction && !actualPayload.archivo_url && !location) return;
     if (isTyping) return;
 
+    const normalizedAction = typeof resolvedAction === 'string' ? resolvedAction.toLowerCase() : undefined;
+    const rawPayloadNombre = typeof actionPayload?.nombre === 'string' ? actionPayload.nombre.trim() : '';
+    const payloadNombre = rawPayloadNombre ? rawPayloadNombre : undefined;
+    if (normalizedAction && ['submit_personal_data', 'set_user_name'].includes(normalizedAction) && payloadNombre) {
+      setVisitorName(payloadNombre);
+    }
+
     if (resolvedAction === 'iniciar_creacion_reclamo') {
       // Check for existing user data
       const userData = user || JSON.parse(safeLocalStorage.getItem('user') || 'null');
@@ -691,13 +698,14 @@ export function useChatLogic({ tipoChat, entityToken: propToken, tokenKey = 'aut
         estado_conversacion: 'confirmando_reclamo',
         datos_reclamo: {
           ...prev.datos_reclamo,
-          nombre_ciudadano: actionPayload.nombre,
+          nombre_ciudadano:
+            payloadNombre ?? (typeof actionPayload.nombre === 'string' ? actionPayload.nombre : null),
           email_ciudadano: actionPayload.email,
           telefono_ciudadano: actionPayload.telefono,
           dni_ciudadano: actionPayload.dni,
         }
       }));
-       setMessages(prev => [...prev, {
+      setMessages(prev => [...prev, {
         id: generateClientMessageId(),
         text: "¡Gracias! Revisa que los datos sean correctos y confirma para generar el reclamo.",
         isBot: true,
