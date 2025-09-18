@@ -23,11 +23,22 @@
 
   const ds = script ? script.dataset : {};
 
+  const PLACEHOLDER_PREFIX = "demo-anon";
+  const sanitizeEntityToken = (token) => {
+    if (!token) return "";
+    const trimmed = token.trim();
+    if (!trimmed) return "";
+    return trimmed.toLowerCase().startsWith(PLACEHOLDER_PREFIX) ? "" : trimmed;
+  };
+
+  const rawEntityToken = ds.token || ds.entityToken || "";
+  const sanitizedEntityToken = sanitizeEntityToken(rawEntityToken);
+
   const cfg = {
     host: chatbocDomain,
     iframePath: ds.iframePath || "/iframe",
     endpoint: ds.endpoint || "municipio",
-    entityToken: ds.token || ds.entityToken || "demo-anon",
+    entityToken: sanitizedEntityToken,
     defaultOpen: ds.defaultOpen === "true",
     width: ds.width || "460px",
     height: ds.height || "680px",
@@ -44,26 +55,27 @@
     welcomeSubtitle: ds.welcomeSubtitle || "",
   };
 
-  const qs = new URLSearchParams({
-    endpoint: cfg.endpoint,
-    entityToken: cfg.entityToken,
-    defaultOpen: String(cfg.defaultOpen),
-    width: cfg.width,
-    height: cfg.height,
-    closedWidth: cfg.closedWidth,
-    closedHeight: cfg.closedHeight,
-    bottom: cfg.bottom,
-    right: cfg.right,
-    widgetId: iframeId,
-    hostDomain: window.location.origin,
-    primaryColor: cfg.primaryColor,
-    accentColor: cfg.accentColor,
-    logoUrl: cfg.logoUrl,
-    headerLogoUrl: cfg.headerLogoUrl,
-    logoAnimation: cfg.logoAnimation,
-    welcomeTitle: cfg.welcomeTitle,
-    welcomeSubtitle: cfg.welcomeSubtitle,
-  });
+  const qs = new URLSearchParams();
+  qs.set("endpoint", cfg.endpoint);
+  if (cfg.entityToken) {
+    qs.set("entityToken", cfg.entityToken);
+  }
+  qs.set("defaultOpen", String(cfg.defaultOpen));
+  qs.set("width", cfg.width);
+  qs.set("height", cfg.height);
+  qs.set("closedWidth", cfg.closedWidth);
+  qs.set("closedHeight", cfg.closedHeight);
+  qs.set("bottom", cfg.bottom);
+  qs.set("right", cfg.right);
+  qs.set("widgetId", iframeId);
+  qs.set("hostDomain", window.location.origin);
+  qs.set("primaryColor", cfg.primaryColor);
+  if (cfg.accentColor) qs.set("accentColor", cfg.accentColor);
+  if (cfg.logoUrl) qs.set("logoUrl", cfg.logoUrl);
+  if (cfg.headerLogoUrl) qs.set("headerLogoUrl", cfg.headerLogoUrl);
+  if (cfg.logoAnimation) qs.set("logoAnimation", cfg.logoAnimation);
+  if (cfg.welcomeTitle) qs.set("welcomeTitle", cfg.welcomeTitle);
+  if (cfg.welcomeSubtitle) qs.set("welcomeSubtitle", cfg.welcomeSubtitle);
 
   const iframeSrc = `${cfg.host}${cfg.iframePath}?${qs.toString()}`;
 

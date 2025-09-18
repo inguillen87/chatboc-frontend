@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import GoogleLoginButton from "@/components/auth/GoogleLoginButton";
 import { apiFetch, ApiError } from "@/utils/api";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
+import { getStoredEntityToken, sanitizeEntityToken, storeEntityToken } from "@/utils/entityToken";
 import { useUser } from "@/hooks/useUser";
 
 
@@ -55,14 +56,14 @@ const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin, entity
       if (phone.trim()) payload.telefono = phone.trim();
 
       // Prioritize entityToken from prop, then localStorage, then URL (handled by useEffect)
-      let currentEntityToken = entityToken || safeLocalStorage.getItem("entityToken");
+      let currentEntityToken = sanitizeEntityToken(entityToken) || getStoredEntityToken();
 
       if (!currentEntityToken) {
         const params = new URLSearchParams(window.location.search);
-        const tokenFromUrl = params.get('token');
+        const tokenFromUrl = sanitizeEntityToken(params.get('token'));
         if (tokenFromUrl) {
           currentEntityToken = tokenFromUrl;
-          safeLocalStorage.setItem('entityToken', tokenFromUrl); // Save it for potential future use in this session
+          storeEntityToken(tokenFromUrl); // Save it for potential future use in this session
         }
       }
 

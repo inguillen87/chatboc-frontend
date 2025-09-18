@@ -4,6 +4,7 @@ import { BASE_API_URL } from '@/config';
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateChatSessionId from "@/utils/chatSessionId"; // Import the new function
 import { getIframeToken } from "@/utils/config";
+import { getStoredEntityToken, sanitizeEntityToken } from "@/utils/entityToken";
 
 export class ApiError extends Error {
   public readonly status: number;
@@ -38,7 +39,12 @@ export async function apiFetch<T>(
 ): Promise<T> {
   const { method = "GET", body, skipAuth, sendAnonId, entityToken, cache } = options;
 
-  const effectiveEntityToken = entityToken ?? getIframeToken();
+  const sanitizedOptionEntityToken = sanitizeEntityToken(entityToken);
+  const storedEntityToken = getStoredEntityToken();
+  const iframeEntityToken = sanitizeEntityToken(getIframeToken());
+  const effectiveEntityToken =
+    sanitizedOptionEntityToken ?? storedEntityToken ?? iframeEntityToken;
+
   const tokenKey = effectiveEntityToken ? "chatAuthToken" : "authToken";
   const token = safeLocalStorage.getItem(tokenKey);
   const anonId = safeLocalStorage.getItem("anon_id");

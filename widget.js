@@ -5,6 +5,7 @@
     const SCRIPT_CONFIG = {
       WIDGET_JS_FILENAME: "widget.js",
       DEFAULT_TOKEN: "demo-anon",
+      PLACEHOLDER_PREFIX: "demo-anon",
       DEFAULT_Z_INDEX: "9999",
       DEFAULT_INITIAL_BOTTOM: "24px",
       DEFAULT_INITIAL_RIGHT: "24px",
@@ -28,9 +29,20 @@
       return;
     }
 
+    const sanitizeEntityToken = (token) => {
+      if (!token) return null;
+      const trimmed = token.trim();
+      if (!trimmed) return null;
+      return trimmed.toLowerCase().startsWith(SCRIPT_CONFIG.PLACEHOLDER_PREFIX)
+        ? null
+        : trimmed;
+    };
+
     const ownerTokenAttr =
       script.getAttribute("data-owner-token") || script.getAttribute("data-entity-token");
-    const ownerToken = ownerTokenAttr || SCRIPT_CONFIG.DEFAULT_TOKEN;
+    const trimmedOwnerTokenAttr = ownerTokenAttr ? ownerTokenAttr.trim() : "";
+    const ownerToken = trimmedOwnerTokenAttr || SCRIPT_CONFIG.DEFAULT_TOKEN;
+    const iframeEntityToken = sanitizeEntityToken(trimmedOwnerTokenAttr);
     const registry = (window.__chatbocWidgets = window.__chatbocWidgets || {});
 
     if (registry[ownerToken]) {
@@ -209,7 +221,9 @@
       // Use explicit .html path so integrations without rewrite rules work
       const iframeSrc = new URL(`${apiBase}/iframe.html`);
       iframeSrc.searchParams.set("token", latestToken);
-      iframeSrc.searchParams.set("entityToken", ownerToken);
+      if (iframeEntityToken) {
+        iframeSrc.searchParams.set("entityToken", iframeEntityToken);
+      }
       iframeSrc.searchParams.set("widgetId", iframeId);
       iframeSrc.searchParams.set("defaultOpen", String(defaultOpen));
       iframeSrc.searchParams.set("tipo_chat", tipoChat);
