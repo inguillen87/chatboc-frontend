@@ -19,16 +19,16 @@ import { toast } from "@/components/ui/use-toast";
 import RubroSelector from "./RubroSelector";
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import TicketMap from "@/components/TicketMap";
-import { apiFetch } from "@/utils/api";
-import { parseRubro, esRubroPublico } from "@/utils/chatEndpoints";
+import { apiFetch, getErrorMessage } from "@/utils/api";
 import { useUser } from "@/hooks/useUser";
-import { motion } from "framer-motion";
 import { useBusinessHours } from "@/hooks/useBusinessHours";
 import { Button } from "@/components/ui/button";
 import io from 'socket.io-client';
 import { getSocketUrl } from "@/config";
 import { safeOn, assertEventSource } from "@/utils/safeOn";
 import { getVisitorName, setVisitorName } from "@/utils/visitorName";
+import { Loader2 } from "lucide-react";
+import { getInitialMunicipioContext } from "@/utils/contexto_municipio";
 
 const PENDING_TICKET_KEY = 'pending_ticket_id';
 const PENDING_GPS_KEY = 'pending_gps';
@@ -101,11 +101,110 @@ const ChatPanel = ({
   const socketRef = useRef<SocketIOClient.Socket | null>(null);
 
   const skipAuth = mode === 'script';
-  const { messages, isTyping, handleSend, activeTicketId, setMessages, contexto, addSystemMessage } = useChatLogic({
+  const { messages, isTyping, handleSend, activeTicketId, setMessages, setContexto, setActiveTicketId, contexto, addSystemMessage } = useChatLogic({
     tipoChat: tipoChat,
     entityToken: propEntityToken,
     skipAuth,
   });
+
+  const [rubros, setRubros] = useState<Rubro[]>([]);
+  const [isLoadingRubros, setIsLoadingRubros] = useState(false);
+  const [rubrosError, setRubrosError] = useState<string | null>(null);
+  const welcomeShownRef = useRef(false);
+  const [localRubro, setLocalRubro] = useState<string | null>(() => {
+    const stored = safeLocalStorage.getItem("rubroSeleccionado");
+    return selectedRubro ?? stored;
+  });
+
+  const loadRubros = useCallback(() => {
+    setIsLoadingRubros(true);
+    setRubrosError(null);
+    apiFetch<Rubro[]>("/rubros/", { skipAuth: true })
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setRubros(data);
+        } else {
+          setRubros([]);
+        }
+      })
+      .catch((error) => {
+        setRubros([]);
+        setRubrosError(getErrorMessage(error, "No se pudieron cargar los rubros."));
+      })
+      .finally(() => {
+        setIsLoadingRubros(false);
+      });
+  }, []);
+
+  useEffect(() => {
+    if (localRubro) {
+      return;
+    }
+    if (isLoadingRubros || rubros.length > 0 || rubrosError) {
+      return;
+    }
+    loadRubros();
+  }, [localRubro, isLoadingRubros, rubros.length, rubrosError, loadRubros]);
+
+  useEffect(() => {
+    if (selectedRubro && selectedRubro !== localRubro) {
+      welcomeShownRef.current = false;
+      setLocalRubro(selectedRubro);
+    }
+  }, [selectedRubro, localRubro]);
+
+  useEffect(() => {
+    if (!selectedRubro && localRubro && onRubroSelect) {
+      onRubroSelect(localRubro);
+    }
+  }, [selectedRubro, localRubro, onRubroSelect]);
+
+  useEffect(() => {
+    if (localRubro) {
+      safeLocalStorage.setItem("rubroSeleccionado", localRubro);
+    } else {
+      safeLocalStorage.removeItem("rubroSeleccionado");
+      welcomeShownRef.current = false;
+    }
+  }, [localRubro]);
+
+  useEffect(() => {
+    if (localRubro && messages.length === 0 && !welcomeShownRef.current) {
+      addSystemMessage(
+        `¡Hola! Soy Chatboc, tu asistente para ${localRubro.toLowerCase()}. ¿En qué puedo ayudarte hoy?`
+      );
+      welcomeShownRef.current = true;
+    }
+  }, [localRubro, messages.length, addSystemMessage]);
+
+  const handleRubroSelection = useCallback(
+    (rubro: Rubro) => {
+      const nombre = rubro.nombre;
+      welcomeShownRef.current = false;
+      safeLocalStorage.setItem("rubroSeleccionado", nombre);
+      setLocalRubro(nombre);
+      setMessages([]);
+      setActiveTicketId(null);
+      setContexto(getInitialMunicipioContext());
+      setEsperandoDireccion(false);
+      setForzarDireccion(false);
+      setShowCierre(null);
+      setTicketLocation(null);
+      onRubroSelect?.(nombre);
+    },
+    [
+      onRubroSelect,
+      setMessages,
+      setActiveTicketId,
+      setContexto,
+      setEsperandoDireccion,
+      setForzarDireccion,
+      setShowCierre,
+      setTicketLocation,
+    ]
+  );
+
+  const showRubroSelector = !localRubro;
 
   const [visitorName, setVisitorNameState] = useState(() => getVisitorName());
 
@@ -274,8 +373,59 @@ const ChatPanel = ({
     return () => container.removeEventListener("scroll", onScroll);
   }, []);
 
+  if (showRubroSelector) {
+    return (
+      <div className={cn("chat-root flex flex-col w-full h-full bg-card text-card-foreground overflow-hidden relative", isMobile ? undefined : "rounded-[inherit]")}>
+        <ChatHeader
+          onClose={onClose}
+          onProfile={onOpenUserPanel}
+          muted={muted}
+          onToggleSound={onToggleSound}
+          onCart={onCart}
+          logoUrl={headerLogoUrl}
+          title={welcomeTitle}
+          subtitle={welcomeSubtitle}
+          logoAnimation={logoAnimation}
+          onA11yChange={onA11yChange}
+        />
+        <div className="flex-1 flex items-center justify-center p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-border bg-background/90 p-6 text-center shadow-lg">
+            <img
+              src="/chatboc_logo_clean_transparent.png"
+              alt="Chatboc"
+              className="mx-auto mb-4 h-14 w-14"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = "/favicon/favicon-48x48.png";
+              }}
+            />
+            <h2 className="mb-2 text-xl font-semibold text-primary">¡Bienvenido a Chatboc!</h2>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Seleccioná el rubro que más se parece a tu negocio:
+            </p>
+            {isLoadingRubros ? (
+              <div className="flex justify-center py-6">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              </div>
+            ) : rubrosError ? (
+              <div className="space-y-4">
+                <p className="text-sm text-destructive">{rubrosError}</p>
+                <Button onClick={loadRubros} className="w-full">
+                  Reintentar
+                </Button>
+              </div>
+            ) : rubros.length > 0 ? (
+              <RubroSelector rubros={rubros} onSelect={handleRubroSelection} />
+            ) : (
+              <p className="text-sm text-muted-foreground">No hay rubros disponibles por el momento.</p>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className={cn("chat-root flex flex-col w-full h-full bg-card text-card-foreground overflow-hidden relative", isMobile ? undefined : "rounded-[inherit]")}> 
+    <div className={cn("chat-root flex flex-col w-full h-full bg-card text-card-foreground overflow-hidden relative", isMobile ? undefined : "rounded-[inherit]")}>
       <ChatHeader
         onClose={onClose}
         onProfile={onOpenUserPanel}
