@@ -39,6 +39,44 @@ const QUICK_EMOJIS = [
   { emoji: "🚮", category: "limpieza" },
 ];
 
+type UploadResponse = {
+  url?: string;
+  attachmentUrl?: string;
+  attachment_url?: string;
+  fileUrl?: string;
+  file_url?: string;
+  archivo_url?: string;
+  thumbUrl?: string;
+  thumb_url?: string;
+  thumbnailUrl?: string;
+  thumbnail_url?: string;
+  name?: string;
+  filename?: string;
+  fileName?: string;
+  mimeType?: string;
+  mime_type?: string;
+  size?: number;
+  fileSize?: number;
+};
+
+const pickFirstString = (...values: (string | null | undefined)[]) => {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value;
+    }
+  }
+  return undefined;
+};
+
+const pickFirstNumber = (...values: (number | null | undefined)[]) => {
+  for (const value of values) {
+    if (typeof value === "number" && !Number.isNaN(value)) {
+      return value;
+    }
+  }
+  return undefined;
+};
+
 const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping, inputRef, onTypingChange, onSystemMessage }, ref) => {
   const [input, setInput] = useState("");
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
@@ -66,6 +104,8 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
     if ((!input.trim() && !attachmentPreview) || isTyping) return;
 
     let attachmentData: AttachmentInfo | undefined = undefined;
+    let legacyArchivoUrl: string | undefined;
+    let legacyEsFoto = false;
 
     if (attachmentPreview) {
       toast({ title: "Subiendo archivo...", description: attachmentPreview.file.name });
@@ -73,24 +113,39 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
       formData.append('file', attachmentPreview.file);
 
       try {
-        const response = await apiFetch<{
-          url: string;
-          thumbUrl?: string;
-          thumbnail_url?: string;
-          name: string;
-          mimeType: string;
-          size: number;
-        }>('/archivos/upload/chat_attachment', {
+        const response = await apiFetch<UploadResponse>('/archivos/upload/chat_attachment', {
           method: 'POST',
           body: formData,
         });
+        const originalFile = attachmentPreview.file;
+        const uploadedUrl = pickFirstString(
+          response.url,
+          response.attachmentUrl,
+          response.attachment_url,
+          response.fileUrl,
+          response.file_url,
+          response.archivo_url,
+        );
+
+        if (!uploadedUrl) {
+          throw new Error('La respuesta del servidor no incluyó la URL del archivo subido.');
+        }
+
+        const uploadedName = pickFirstString(response.name, response.filename, response.fileName) || originalFile.name;
+        const uploadedMime = pickFirstString(response.mimeType, response.mime_type, originalFile.type);
+        const uploadedSize = pickFirstNumber(response.size, response.fileSize) ?? originalFile.size;
+        const uploadedThumb = pickFirstString(response.thumbUrl, response.thumb_url, response.thumbnailUrl, response.thumbnail_url);
+
         attachmentData = {
-          url: response.url,
-          thumbUrl: response.thumbUrl || response.thumbnail_url,
-          name: response.name,
-          mimeType: response.mimeType,
-          size: response.size,
+          url: uploadedUrl,
+          name: uploadedName,
+          mimeType: uploadedMime,
+          size: uploadedSize,
+          ...(uploadedThumb ? { thumbUrl: uploadedThumb } : {}),
         };
+        legacyArchivoUrl = uploadedUrl;
+        const mimeForPhotoCheck = (uploadedMime || originalFile.type || '').toLowerCase();
+        legacyEsFoto = mimeForPhotoCheck.startsWith('image/');
       } catch (error) {
         console.error("Error uploading file:", error);
         toast({ title: "Error de subida", description: "No se pudo subir el archivo.", variant: "destructive" });
@@ -99,7 +154,17 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
       }
     }
 
-    onSendMessage({ text: input.trim(), attachmentInfo: attachmentData });
+    const finalAttachment = attachmentData;
+    const finalArchivoUrl = legacyArchivoUrl || finalAttachment?.url;
+    const finalEsFoto =
+      legacyEsFoto || ((finalAttachment?.mimeType || '').toLowerCase().startsWith('image/'));
+
+    onSendMessage({
+      text: input.trim(),
+      attachmentInfo: finalAttachment,
+      ...(finalArchivoUrl ? { archivo_url: finalArchivoUrl } : {}),
+      ...(finalEsFoto ? { es_foto: true } : {}),
+    });
     setInput("");
     setAttachmentPreview(null);
     setShowEmojis(false);
@@ -152,22 +217,39 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
     formData.append('file', audioBlob, filename);
 
     try {
-      const data = await apiFetch<any>('/archivos/upload/chat_attachment', {
+      const data = await apiFetch<UploadResponse>('/archivos/upload/chat_attachment', {
         method: 'POST',
         body: formData,
       });
 
-      if (!data || !data.url || !data.name) {
+      const uploadedUrl = pickFirstString(
+        data.url,
+        data.attachmentUrl,
+        data.attachment_url,
+        data.fileUrl,
+        data.file_url,
+        data.archivo_url,
+      );
+
+      if (!uploadedUrl) {
         throw new Error("La respuesta del servidor para la subida del audio fue inválida.");
       }
 
+      const uploadedName = pickFirstString(data.name, data.filename, data.fileName) || filename;
+      const uploadedMime = pickFirstString(data.mimeType, data.mime_type) || 'audio/webm';
+      const uploadedSize = pickFirstNumber(data.size, data.fileSize);
+      const uploadedThumb = pickFirstString(data.thumbUrl, data.thumb_url, data.thumbnailUrl, data.thumbnail_url);
+
       onSendMessage({
-        text: `Audio adjunto: ${data.name}`,
+        text: `Audio adjunto: ${uploadedName}`,
         attachmentInfo: {
-          name: data.name,
-          url: data.url,
-          mimeType: 'audio/webm',
-        }
+          name: uploadedName,
+          url: uploadedUrl,
+          mimeType: uploadedMime,
+          size: uploadedSize,
+          ...(uploadedThumb ? { thumbUrl: uploadedThumb } : {}),
+        },
+        archivo_url: uploadedUrl,
       });
       // Optional: a success system message could be sent here, but it might be noisy.
       // onSystemMessage?.('Audio enviado con éxito.', 'info');

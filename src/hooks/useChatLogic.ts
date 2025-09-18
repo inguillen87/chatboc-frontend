@@ -344,6 +344,18 @@ export function useChatLogic({ tipoChat, entityToken: propToken, tokenKey = 'aut
         ...(visitorName && { nombre_usuario: visitorName }),
       };
 
+      const legacyAttachmentUrl = attachmentInfo?.url || actualPayload.archivo_url;
+      if (legacyAttachmentUrl) {
+        requestBody.archivo_url = legacyAttachmentUrl;
+      }
+
+      const shouldMarkAsPhoto =
+        actualPayload.es_foto === true ||
+        (attachmentInfo?.mimeType ? attachmentInfo.mimeType.toLowerCase().startsWith('image/') : false);
+      if (shouldMarkAsPhoto) {
+        requestBody.es_foto = true;
+      }
+
       if (resolvedAction === 'confirmar_reclamo') {
         requestBody.datos_personales = {
           nombre: contexto.datos_reclamo.nombre_ciudadano,
