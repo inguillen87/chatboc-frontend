@@ -7,7 +7,7 @@ import ErrorBoundary from '../components/ErrorBoundary';
 import { MemoryRouter } from "react-router-dom";
 import { getChatbocConfig } from "@/utils/config";
 import { hexToHsl } from "@/utils/color";
-import { safeLocalStorage } from "@/utils/safeLocalStorage";
+import { sanitizeEntityToken, storeEntityToken } from "@/utils/entityToken";
 
 const DEFAULTS = {
   openWidth: "460px",
@@ -44,13 +44,17 @@ const Iframe = () => {
       document.documentElement.style.setProperty("--accent", hexToHsl(accentColorHex));
     }
 
-    const tokenFromUrl = urlParams.get("entityToken") || cfg.entityToken || '';
-    if (tokenFromUrl) {
-      setEntityToken(tokenFromUrl);
-      safeLocalStorage.setItem("entityToken", tokenFromUrl);
+    const rawTokenFromUrl = urlParams.get("entityToken");
+    const sanitizedFromUrl = sanitizeEntityToken(rawTokenFromUrl);
+    const sanitizedFromConfig = sanitizeEntityToken(cfg.entityToken);
+    const finalEntityToken = sanitizedFromUrl ?? sanitizedFromConfig;
+
+    if (finalEntityToken) {
+      setEntityToken(finalEntityToken);
+      storeEntityToken(finalEntityToken);
     } else {
       setEntityToken(null);
-      safeLocalStorage.removeItem("entityToken");
+      storeEntityToken(null);
     }
 
     const endpointFromUrl = urlParams.get("endpoint") || urlParams.get("tipo_chat");
