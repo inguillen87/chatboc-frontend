@@ -1,8 +1,15 @@
 // src/hooks/useChatLogic.ts
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Message, SendPayload as TypeSendPayload } from "@/types/chat";
+import {
+  Message,
+  SendPayload as TypeSendPayload,
+  Boton,
+  Categoria,
+  StructuredContentItem,
+  Post,
+} from "@/types/chat";
 import { io, Socket } from "socket.io-client";
-import { getSocketUrl } from "@/config";
+import { BASE_API_URL, getSocketUrl } from "@/config";
 import { apiFetch, getErrorMessage } from "@/utils/api";
 import { getAskEndpoint } from "@/utils/chatEndpoints";
 import { enforceTipoChatForRubro } from "@/utils/tipoChat";
@@ -44,6 +51,301 @@ export function useChatLogic({ tipoChat, entityToken: propToken, tokenKey = 'aut
   };
 
   const socketRef = useRef<Socket | null>(null);
+
+  const baseApiUrl = (BASE_API_URL || "").replace(/\/$/, "");
+
+  const ensureAbsoluteUrl = (value?: string | null): string | undefined => {
+    if (typeof value !== "string") return undefined;
+    const trimmed = value.trim();
+    if (!trimmed) return undefined;
+    if (/^(?:[a-z][a-z0-9+\-.]*:|\/\/)/i.test(trimmed)) {
+      return trimmed;
+    }
+    if (baseApiUrl) {
+      if (trimmed.startsWith("/")) {
+        return `${baseApiUrl}${trimmed}`;
+      }
+      return `${baseApiUrl}/${trimmed}`;
+    }
+    if (trimmed.startsWith("/")) {
+      return trimmed;
+    }
+    return `/${trimmed}`;
+  };
+
+  const pickFirstString = (...values: unknown[]): string | undefined => {
+    for (const value of values) {
+      if (typeof value === "string" && value.trim()) {
+        return value;
+      }
+    }
+    return undefined;
+  };
+
+  const extractArray = (source: any): any[] => {
+    if (!source) return [];
+    if (Array.isArray(source)) return source;
+    if (Array.isArray(source?.botones)) return source.botones;
+    if (Array.isArray(source?.buttons)) return source.buttons;
+    if (Array.isArray(source?.options)) return source.options;
+    if (Array.isArray(source?.items)) return source.items;
+    return [];
+  };
+
+  const normalizeButton = (raw: any): Boton | null => {
+    if (!raw || typeof raw !== "object") return null;
+    const texto = pickFirstString(
+      raw.texto,
+      raw.label,
+      raw.title,
+      raw.nombre,
+      raw.name,
+      raw.text,
+      raw.caption,
+      raw.display_name,
+      raw.displayName
+    );
+    const actionId = pickFirstString(raw.action_id, raw.actionId);
+    const action = pickFirstString(raw.action, actionId);
+    const accionInterna = pickFirstString(raw.accion_interna, raw.internal_action, raw.internalAction);
+    const url = ensureAbsoluteUrl(pickFirstString(raw.url, raw.link, raw.href));
+    const payload = raw?.payload ?? raw?.data ?? raw?.extra ?? raw?.meta ?? raw?.parameters ?? raw?.params ?? raw?.value_payload;
+
+    if (!texto && !url && !action && !accionInterna) {
+      return null;
+    }
+
+    const boton: Boton = {
+      texto: texto || action || accionInterna || url || "Opción",
+    };
+
+    if (url) {
+      boton.url = url;
+    }
+    if (accionInterna) {
+      boton.accion_interna = accionInterna;
+    }
+    if (action) {
+      boton.action = action;
+    }
+    if (actionId) {
+      boton.action_id = actionId;
+      if (!boton.action) {
+        boton.action = actionId;
+      }
+    }
+    if (payload !== undefined) {
+      boton.payload = payload;
+    }
+
+    return boton;
+  };
+
+  const mergeButtons = (...sources: any[]): Boton[] => {
+    const seen = new Set<string>();
+    const result: Boton[] = [];
+    sources.forEach((source) => {
+      extractArray(source)
+        .map(normalizeButton)
+        .forEach((btn) => {
+          if (!btn) return;
+          const key = `${btn.texto}|${btn.action || ""}|${btn.accion_interna || ""}|${btn.url || ""}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            result.push(btn);
+          }
+        });
+    });
+    return result;
+  };
+
+  const normalizeCategories = (...sources: any[]): Categoria[] => {
+    const rawCategories: any[] = [];
+    sources.forEach((source) => {
+      if (!source) return;
+      if (Array.isArray(source)) {
+        rawCategories.push(...source);
+      } else if (Array.isArray(source?.categorias)) {
+        rawCategories.push(...source.categorias);
+      }
+    });
+
+    const categories: Categoria[] = [];
+    rawCategories.forEach((cat) => {
+      if (!cat || typeof cat !== "object") return;
+      const titulo = pickFirstString(cat.titulo, cat.title, cat.nombre, cat.name, cat.label) || "Opciones";
+      const botones = mergeButtons(cat.botones, cat.buttons, cat.options);
+      if (!botones.length && !titulo) return;
+      categories.push({ titulo, botones });
+    });
+
+    return categories;
+  };
+
+  const normalizeAttachmentInfo = (raw: any) => {
+    if (!raw || typeof raw !== "object") return undefined;
+    const normalized = { ...raw } as Message["attachmentInfo"];
+    const normalizedUrl = ensureAbsoluteUrl(pickFirstString(raw.url));
+    if (normalizedUrl) {
+      normalized.url = normalizedUrl;
+    }
+    (['thumbUrl', 'thumb_url', 'thumbnail_url', 'thumbnailUrl'] as const).forEach((key) => {
+      const absolute = ensureAbsoluteUrl(pickFirstString(raw[key]));
+      if (absolute) {
+        normalized[key] = absolute;
+      }
+    });
+    return normalized;
+  };
+
+  const normalizeStructuredContent = (...sources: any[]): StructuredContentItem[] | undefined => {
+    const items: StructuredContentItem[] = [];
+    const pushItem = (item: any) => {
+      if (item && typeof item === "object" && typeof item.label === "string" && Object.prototype.hasOwnProperty.call(item, 'value')) {
+        items.push(item as StructuredContentItem);
+      }
+    };
+
+    sources.forEach((source) => {
+      if (!source) return;
+      if (Array.isArray(source)) {
+        source.forEach(pushItem);
+      } else if (Array.isArray(source?.items)) {
+        source.items.forEach(pushItem);
+      }
+    });
+
+    return items.length > 0 ? items : undefined;
+  };
+
+  const normalizeListItems = (...sources: any[]): string[] | undefined => {
+    const items: string[] = [];
+    const pushValue = (value: any) => {
+      if (typeof value === "string" && value.trim()) {
+        items.push(value);
+      } else if (value && typeof value === "object") {
+        const text = pickFirstString(value.texto, value.text, value.label, value.title, value.value);
+        if (text && text.trim()) {
+          items.push(text);
+        }
+      }
+    };
+
+    sources.forEach((source) => {
+      if (!source) return;
+      if (Array.isArray(source)) {
+        source.forEach(pushValue);
+      } else if (Array.isArray(source?.items)) {
+        source.items.forEach(pushValue);
+      }
+    });
+
+    return items.length > 0 ? items : undefined;
+  };
+
+  const collectPosts = (source: any): any[] => {
+    if (!source) return [];
+    if (Array.isArray(source)) return source;
+    if (Array.isArray(source?.posts)) return source.posts;
+    if (Array.isArray(source?.eventos)) return source.eventos;
+    if (Array.isArray(source?.novedades)) return source.novedades;
+    if (Array.isArray(source?.noticias)) return source.noticias;
+    return [];
+  };
+
+  const normalizePosts = (...sources: any[]): Post[] | undefined => {
+    const posts: Post[] = [];
+    sources.forEach((source) => {
+      collectPosts(source).forEach((post: any) => {
+        if (!post || typeof post !== "object") return;
+        const normalized: Post = { ...post };
+
+        const imageCandidate = pickFirstString(post.imagen_url, post.image, post.imageUrl, post.thumbnail_url, post.thumbnailUrl);
+        const resolvedImage = ensureAbsoluteUrl(imageCandidate);
+        if (resolvedImage) {
+          normalized.imagen_url = resolvedImage;
+          normalized.image = resolvedImage;
+          normalized.imageUrl = resolvedImage;
+        }
+
+        const resolvedThumb = ensureAbsoluteUrl(pickFirstString(post.thumbnail_url, post.thumbnailUrl));
+        if (resolvedThumb) {
+          normalized.thumbnail_url = resolvedThumb;
+          normalized.thumbnailUrl = resolvedThumb;
+        }
+
+        const resolvedMainLink = ensureAbsoluteUrl(pickFirstString(post.url, post.enlace, post.link));
+        if (resolvedMainLink) {
+          normalized.url = resolvedMainLink;
+          normalized.enlace = resolvedMainLink;
+          normalized.link = resolvedMainLink;
+        } else {
+          if (post.url) normalized.url = ensureAbsoluteUrl(post.url) ?? post.url;
+          if (post.enlace) normalized.enlace = ensureAbsoluteUrl(post.enlace) ?? post.enlace;
+          if (post.link) normalized.link = ensureAbsoluteUrl(post.link) ?? post.link;
+        }
+
+        posts.push(normalized);
+      });
+    });
+
+    return posts.length > 0 ? posts : undefined;
+  };
+
+  const normalizeSocialLinks = (raw: any): Record<string, string> | undefined => {
+    if (!raw || typeof raw !== "object") return undefined;
+    const entries: [string, string][] = [];
+    Object.entries(raw).forEach(([key, value]) => {
+      if (typeof value === "string" && value.trim()) {
+        entries.push([key, ensureAbsoluteUrl(value) ?? value]);
+      }
+    });
+    return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+  };
+
+  const normalizeLocation = (raw: any) => {
+    if (!raw || typeof raw !== "object") return undefined;
+    const latValue = raw.lat ?? raw.latitude;
+    const lonValue = raw.lon ?? raw.lng ?? raw.longitude ?? raw.long;
+    const lat = typeof latValue === "number" ? latValue : typeof latValue === "string" ? parseFloat(latValue) : NaN;
+    const lon = typeof lonValue === "number" ? lonValue : typeof lonValue === "string" ? parseFloat(lonValue) : NaN;
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return undefined;
+    const name = pickFirstString(raw.name, raw.nombre, raw.title);
+    const address = pickFirstString(raw.address, raw.direccion, raw.formatted_address);
+    return {
+      lat,
+      lon,
+      ...(name ? { name } : {}),
+      ...(address ? { address } : {}),
+    };
+  };
+
+  const DISPLAY_HINTS = new Set<Message["displayHint"]>([
+    "default",
+    "pymeProductCard",
+    "municipalInfoSummary",
+    "genericTable",
+    "compactList",
+  ]);
+
+  const CHAT_BUBBLE_STYLES = new Set<Message["chatBubbleStyle"]>([
+    "standard",
+    "compact",
+    "emphasis",
+    "alert",
+  ]);
+
+  const normalizeDisplayHint = (value?: string): Message["displayHint"] | undefined => {
+    if (!value) return undefined;
+    const trimmed = value.trim() as Message["displayHint"];
+    return DISPLAY_HINTS.has(trimmed) ? trimmed : undefined;
+  };
+
+  const normalizeBubbleStyle = (value?: string): Message["chatBubbleStyle"] | undefined => {
+    if (!value) return undefined;
+    const trimmed = value.trim() as Message["chatBubbleStyle"];
+    return CHAT_BUBBLE_STYLES.has(trimmed) ? trimmed : undefined;
+  };
 
   useEffect(() => {
     if (!entityToken) {
@@ -121,43 +423,264 @@ export function useChatLogic({ tipoChat, entityToken: propToken, tokenKey = 'aut
     safeOn(socket, 'connect', handleConnect);
     safeOn(socket, 'connect_error', handleConnectError);
 
-    const handleBotMessage = (data: any) => {
-      console.log('Bot response received:', data);
+    const handleBotMessage = (rawPayload: any) => {
+      console.log('Bot response received:', rawPayload);
 
       // Actualizar el contexto con la respuesta del bot
-      setContexto(prevContext => updateMunicipioContext(prevContext, { llmResponse: data }));
+      setContexto(prevContext => updateMunicipioContext(prevContext, { llmResponse: rawPayload }));
 
-      // Sanitizar mensajes que mencionen al administrador del municipio
-      let text = data.comentario || data.message_body || "⚠️ No se pudo generar una respuesta.";
-      if (/es el Administrador de la Municipalidad/i.test(text)) {
-        text = text
-          .replace(/,?\s*[^.]*es el Administrador de la Municipalidad\.\s*/i, ' ')
-          .replace(/^Hola\s+/, 'Hola, ') // Asegurar coma después de "Hola"
-          .replace(/\s{2,}/g, ' ') // Colapsar espacios múltiples
-          .trim();
+      const asArray = Array.isArray(rawPayload)
+        ? rawPayload
+        : Array.isArray(rawPayload?.messages)
+          ? rawPayload.messages
+          : Array.isArray(rawPayload?.responses)
+            ? rawPayload.responses
+            : [rawPayload];
+
+      const normalizedMessages: Message[] = [];
+
+      asArray.forEach((data: any) => {
+        if (!data || typeof data !== 'object') {
+          return;
+        }
+
+        const rawText = pickFirstString(
+          data.comentario,
+          data.message_body,
+          data.messageBody,
+          data.respuesta,
+          data.reply,
+          data.texto,
+          data.text,
+          data.respuesta_usuario,
+          data.html_text,
+          data.html,
+          data.caption,
+          data.descripcion,
+          data.description
+        );
+
+        const attachmentInfo = normalizeAttachmentInfo(
+          data.attachment_info ??
+            data.attachmentInfo ??
+            data.archivo ??
+            data.attachment ??
+            data.file ??
+            data.metadata?.attachment_info ??
+            data.metadata?.attachment
+        );
+
+        const botones = mergeButtons(
+          data.botones,
+          data.options_list,
+          data.optionsList,
+          data.options,
+          data.botones_sugeridos,
+          data.buttons,
+          data.botonesSugeridos,
+          data.quick_replies,
+          data.metadata
+        );
+        const categorias = normalizeCategories(
+          data.categorias,
+          data.categories,
+          data.botones_categorizados,
+          data.options_grouped,
+          data.buttonCategories,
+          data.metadata
+        );
+        const structuredContent = normalizeStructuredContent(
+          data.structured_content,
+          data.structuredContent,
+          data.contenido_estructurado,
+          data.metadata?.structured_content,
+          data.metadata?.structuredContent
+        );
+        const listItems = normalizeListItems(
+          data.list_items,
+          data.listItems,
+          data.lista_items,
+          data.lista_opciones,
+          data.items_lista,
+          data.items,
+          data.lista,
+          data.metadata?.list_items
+        );
+        const posts = normalizePosts(
+          data.posts,
+          data.eventos,
+          data.novedades,
+          data.noticias,
+          data.cards,
+          data.metadata?.posts
+        );
+        const socialLinks = normalizeSocialLinks(
+          data.social_links ||
+            data.socialLinks ||
+            data.redes_sociales ||
+            data.socials ||
+            data.metadata?.social_links
+        );
+        const mediaUrl = ensureAbsoluteUrl(
+          pickFirstString(
+            data.media_url,
+            data.mediaUrl,
+            data.image_url,
+            data.imageUrl,
+            data.image,
+            data.media?.url,
+            data.metadata?.media_url
+          )
+        );
+        const audioCandidate = pickFirstString(
+          data.audio_url,
+          data.audioUrl,
+          data.audio_response_url,
+          data.audio_cache_url,
+          data.tts_audio_url,
+          data.ttsAudioUrl,
+          data.audio?.url,
+          data.audio?.cached_url,
+          data.audio?.cache_url,
+          data.audio?.public_url,
+          data.audio?.path
+        );
+        const audioUrlValue = audioCandidate ? ensureAbsoluteUrl(audioCandidate) ?? audioCandidate : undefined;
+        const locationData = normalizeLocation(
+          data.location_data ||
+            data.locationData ||
+            data.location ||
+            data.ubicacion ||
+            data.ubicacion_usuario ||
+            data.metadata?.location
+        );
+        const displayHint = normalizeDisplayHint(
+          pickFirstString(
+            data.display_hint,
+            data.displayHint,
+            data.template,
+            data.metadata?.display_hint
+          )
+        );
+        const chatBubbleStyle = normalizeBubbleStyle(
+          pickFirstString(
+            data.chat_bubble_style,
+            data.chatBubbleStyle,
+            data.bubbleStyle,
+            data.metadata?.chat_bubble_style
+          )
+        );
+
+        const hasNonTextContent =
+          botones.length > 0 ||
+          categorias.length > 0 ||
+          (structuredContent?.length ?? 0) > 0 ||
+          (listItems?.length ?? 0) > 0 ||
+          (posts?.length ?? 0) > 0 ||
+          !!mediaUrl ||
+          !!audioUrlValue ||
+          !!attachmentInfo ||
+          !!locationData ||
+          !!socialLinks;
+
+        let text = rawText ?? (hasNonTextContent ? '' : '⚠️ No se pudo generar una respuesta.');
+        if (text && /es el Administrador de la Municipalidad/i.test(text)) {
+          text = text
+            .replace(/,?\s*[^.]*es el Administrador de la Municipalidad\.\s*/i, ' ')
+            .replace(/^Hola\s+/, 'Hola, ')
+            .replace(/\s{2,}/g, ' ')
+            .trim();
+        }
+
+        const ticketCandidate = data.ticket_id ?? data.ticketId ?? data.ticket?.id;
+        let ticketId: number | undefined;
+        if (typeof ticketCandidate === 'number' && Number.isFinite(ticketCandidate)) {
+          ticketId = ticketCandidate;
+        } else if (typeof ticketCandidate === 'string') {
+          const parsed = Number.parseInt(ticketCandidate, 10);
+          if (Number.isFinite(parsed)) {
+            ticketId = parsed;
+          }
+        }
+
+        const messageIdCandidate = data.id ?? data.message_id ?? data.messageId;
+        const messageId =
+          typeof messageIdCandidate === 'number' || typeof messageIdCandidate === 'string'
+            ? messageIdCandidate
+            : generateClientMessageId();
+
+        const timestampCandidate =
+          data.fecha ??
+          data.timestamp ??
+          data.created_at ??
+          data.createdAt ??
+          data.updated_at ??
+          data.updatedAt ??
+          Date.now();
+        const timestampValue =
+          typeof timestampCandidate === 'string' || typeof timestampCandidate === 'number'
+            ? timestampCandidate
+            : Date.now();
+
+        const explicitError = (() => {
+          const candidate =
+            data.isError ?? data.is_error ?? data.error ?? data.metadata?.isError ?? data.metadata?.is_error;
+          if (typeof candidate === 'boolean') {
+            return candidate;
+          }
+          if (typeof candidate === 'string') {
+            const normalized = candidate.trim().toLowerCase();
+            if (['true', '1', 'yes', 'si', 'sí'].includes(normalized)) return true;
+            if (['false', '0', 'no'].includes(normalized)) return false;
+          }
+          return undefined;
+        })();
+
+        const botMessage: Message = {
+          id: messageId,
+          text,
+          isBot: true,
+          timestamp: new Date(timestampValue),
+          origen: data.origen ?? data.source,
+          ...(botones.length ? { botones } : {}),
+          ...(categorias.length ? { categorias } : {}),
+          ...(mediaUrl ? { mediaUrl } : {}),
+          ...(audioUrlValue ? { audioUrl: audioUrlValue } : {}),
+          ...(locationData ? { locationData } : {}),
+          ...(attachmentInfo ? { attachmentInfo } : {}),
+          ...(structuredContent ? { structuredContent } : {}),
+          ...(listItems ? { listItems } : {}),
+          ...(displayHint ? { displayHint } : {}),
+          ...(chatBubbleStyle ? { chatBubbleStyle } : {}),
+          ...(posts ? { posts } : {}),
+          ...(socialLinks ? { socialLinks } : {}),
+          ...(ticketId ? { ticketId } : {}),
+          ...(data.query ? { query: data.query } : {}),
+          isError: explicitError ?? (!rawText && !hasNonTextContent),
+        };
+
+        normalizedMessages.push(botMessage);
+
+        if (ticketId) {
+          setActiveTicketId(ticketId);
+        }
+      });
+
+      if (normalizedMessages.length > 0) {
+        setMessages(prev => [...prev, ...normalizedMessages]);
+      } else {
+        setMessages(prev => [
+          ...prev,
+          {
+            id: generateClientMessageId(),
+            text: '⚠️ No se pudo procesar la respuesta del servidor.',
+            isBot: true,
+            timestamp: new Date(),
+            isError: true,
+          },
+        ]);
       }
 
-      const botMessage: Message = {
-        id: data.id || generateClientMessageId(),
-        text,
-        isBot: true,
-        timestamp: new Date(data.fecha || Date.now()),
-        origen: data.origen,
-        attachmentInfo: data.attachment_info,
-        botones: data.botones || [],
-        categorias: data.categorias || [],
-        mediaUrl: data.media_url,
-        locationData: data.location_data,
-        isError: !data.message_body && !data.comentario,
-        // Si el backend envía un ticket_id, lo adjuntamos al mensaje para referencia futura
-        ticketId: data.ticket_id,
-      };
-
-      if (data.ticket_id) {
-        setActiveTicketId(data.ticket_id);
-      }
-
-      setMessages(prev => [...prev, botMessage]);
       setIsTyping(false);
     };
 
