@@ -731,8 +731,14 @@ export function useChatLogic({ tipoChat, entityToken: propToken, tokenKey = 'aut
 
     try {
       const storedUser = JSON.parse(safeLocalStorage.getItem('user') || 'null');
-      const rubro = storedUser?.rubro?.clave || storedUser?.rubro?.nombre || safeLocalStorage.getItem("rubroSeleccionado") || null;
-      const tipoChatFinal = enforceTipoChatForRubro(tipoChat, rubro);
+      const storedRubro =
+        storedUser?.rubro?.clave ||
+        storedUser?.rubro?.nombre ||
+        safeLocalStorage.getItem("rubroSeleccionado") ||
+        null;
+
+      const tipoChatFinal = enforceTipoChatForRubro(tipoChat, storedRubro);
+      const rubro = tipoChatFinal === 'pyme' ? storedRubro : null;
 
       const updatedContext = updateMunicipioContext(contexto, { userInput: userMessageText, action: resolvedAction });
       setContexto(updatedContext);
