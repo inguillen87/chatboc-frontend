@@ -94,6 +94,35 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     typeof window !== "undefined" && window.innerWidth < 640
   );
 
+  const isEmbedded = mode !== "standalone";
+
+  const derivedEntityTitle =
+    (typeof entityInfo?.nombre_empresa === "string" && entityInfo.nombre_empresa.trim()) ||
+    (typeof entityInfo?.nombre === "string" && entityInfo.nombre.trim()) ||
+    (typeof entityInfo?.nombre_publico === "string" && entityInfo.nombre_publico.trim()) ||
+    (typeof entityInfo?.nombre_fantasia === "string" && entityInfo.nombre_fantasia.trim()) ||
+    (typeof entityInfo?.nombreFantasia === "string" && entityInfo.nombreFantasia.trim()) ||
+    (typeof entityInfo?.nombre_asistente === "string" && entityInfo.nombre_asistente.trim()) ||
+    (typeof entityInfo?.nombreAsistente === "string" && entityInfo.nombreAsistente.trim()) ||
+    (typeof entityInfo?.bot_nombre === "string" && entityInfo.bot_nombre.trim()) ||
+    (typeof entityInfo?.botNombre === "string" && entityInfo.botNombre.trim()) ||
+    (typeof entityInfo?.display_name === "string" && entityInfo.display_name.trim()) ||
+    (typeof entityInfo?.municipio_nombre === "string" && entityInfo.municipio_nombre.trim()) ||
+    (typeof entityInfo?.municipio === "string" && entityInfo.municipio.trim()) ||
+    "";
+
+  const derivedEntitySubtitle =
+    (typeof entityInfo?.rubro === "string" && entityInfo.rubro.trim()) ||
+    (typeof entityInfo?.descripcion === "string" && entityInfo.descripcion.trim()) ||
+    (typeof entityInfo?.descripcion_corta === "string" && entityInfo.descripcion_corta.trim()) ||
+    (typeof entityInfo?.tagline === "string" && entityInfo.tagline.trim()) ||
+    (typeof entityInfo?.eslogan === "string" && entityInfo.eslogan.trim()) ||
+    (typeof entityInfo?.slogan === "string" && entityInfo.slogan.trim()) ||
+    "";
+
+  const headerTitle = isEmbedded ? derivedEntityTitle : welcomeTitle;
+  const headerSubtitle = isEmbedded ? derivedEntitySubtitle : welcomeSubtitle;
+
   useEffect(() => {
     const checkMobile = () => {
       if (typeof window !== "undefined") {
@@ -498,8 +527,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                   onToggleSound={toggleMuted}
                   onCart={openCart}
                   logoUrl={headerLogoUrl || customLauncherLogoUrl || entityInfo?.logo_url || (isDarkMode ? '/chatbocar.png' : '/chatbocar2.png')}
-                  title={welcomeTitle}
-                  subtitle={welcomeSubtitle}
+                  title={headerTitle}
+                  subtitle={headerSubtitle}
                   logoAnimation={logoAnimation}
                   onA11yChange={setA11yPrefs}
                 />
@@ -526,8 +555,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                     selectedRubro={entityInfo?.rubro || selectedRubro}
                     onRubroSelect={setSelectedRubro}
                     headerLogoUrl={headerLogoUrl || customLauncherLogoUrl || entityInfo?.logo_url || (isDarkMode ? '/chatbocar.png' : '/chatbocar2.png')}
-                    welcomeTitle={welcomeTitle}
-                    welcomeSubtitle={welcomeSubtitle}
+                    welcomeTitle={headerTitle}
+                    welcomeSubtitle={headerSubtitle}
                     logoAnimation={logoAnimation}
                     onA11yChange={setA11yPrefs}
                     a11yPrefs={a11yPrefs}
