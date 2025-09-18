@@ -210,14 +210,6 @@ export function useChatLogic({ tipoChat, entityToken: propToken, tokenKey = 'aut
     const { text: userMessageText, attachmentInfo, ubicacion_usuario, action, location } = actualPayload;
     const actionPayload = 'payload' in actualPayload ? actualPayload.payload : undefined;
 
-    if (!sanitizedText) {
-      if (attachmentInfo || actualPayload.archivo_url) {
-        sanitizedText = '[adjunto]';
-      } else if (location || ubicacion_usuario) {
-        sanitizedText = '[ubicacion]';
-      }
-    }
-
     // Allow confirming/cancelling a claim with free text when awaiting confirmation
     let resolvedAction = action;
     const awaitingConfirmation =
@@ -343,6 +335,18 @@ export function useChatLogic({ tipoChat, entityToken: propToken, tokenKey = 'aut
         ...(resolvedAction === "confirmar_reclamo" && currentClaimIdempotencyKey && { idempotency_key: currentClaimIdempotencyKey }),
         ...(visitorName && { nombre_usuario: visitorName }),
       };
+
+      const legacyAttachmentUrl = attachmentInfo?.url || actualPayload.archivo_url;
+      if (legacyAttachmentUrl) {
+        requestBody.archivo_url = legacyAttachmentUrl;
+      }
+
+      const shouldMarkAsPhoto =
+        actualPayload.es_foto === true ||
+        (attachmentInfo?.mimeType ? attachmentInfo.mimeType.toLowerCase().startsWith('image/') : false);
+      if (shouldMarkAsPhoto) {
+        requestBody.es_foto = true;
+      }
 
       if (resolvedAction === 'confirmar_reclamo') {
         requestBody.datos_personales = {
