@@ -30,4 +30,26 @@ export function getOrCreateChatSessionId(): string {
   }
 }
 
+/**
+ * Resets the current chat session ID by removing the stored value and creating a new one.
+ * Useful when starting a new conversation flow that should not reuse the previous context.
+ */
+export function resetChatSessionId(): string {
+  const newSessionId = uuidv4();
+
+  if (typeof window === 'undefined') {
+    console.warn('resetChatSessionId called in a non-browser environment. Returning a new UUID without persisting it.');
+    return newSessionId;
+  }
+
+  try {
+    safeLocalStorage.removeItem(CHAT_SESSION_ID_KEY);
+    safeLocalStorage.setItem(CHAT_SESSION_ID_KEY, newSessionId);
+  } catch (error) {
+    console.error('Error resetting chat session ID in localStorage:', error);
+  }
+
+  return newSessionId;
+}
+
 export default getOrCreateChatSessionId;

@@ -29,6 +29,7 @@ import { safeOn, assertEventSource } from "@/utils/safeOn";
 import { getVisitorName, setVisitorName } from "@/utils/visitorName";
 import { Loader2 } from "lucide-react";
 import { getInitialMunicipioContext } from "@/utils/contexto_municipio";
+import { resetChatSessionId } from "@/utils/chatSessionId";
 
 const PENDING_TICKET_KEY = 'pending_ticket_id';
 const PENDING_GPS_KEY = 'pending_gps';
@@ -221,6 +222,7 @@ const ChatPanel = ({
       welcomeShownRef.current = false;
       safeLocalStorage.setItem("rubroSeleccionado", nombre);
       setLocalRubro(nombre);
+      resetChatSessionId();
       setMessages([]);
       setActiveTicketId(null);
       setContexto(getInitialMunicipioContext());
