@@ -9,7 +9,6 @@ import UserTypingIndicator from "./UserTypingIndicator";
 import ChatInput, { ChatInputHandle } from "./ChatInput";
 import ScrollToBottomButton from "@/components/ui/ScrollToBottomButton";
 import { useChatLogic } from "@/hooks/useChatLogic";
-import { SendPayload } from "@/types/chat";
 import PersonalDataForm from './PersonalDataForm';
 import { Rubro } from "./RubroSelector";
 import { Message } from "@/types/chat";
@@ -26,7 +25,6 @@ import { Button } from "@/components/ui/button";
 import io from 'socket.io-client';
 import { getSocketUrl } from "@/config";
 import { safeOn, assertEventSource } from "@/utils/safeOn";
-import { getVisitorName, setVisitorName } from "@/utils/visitorName";
 import { Loader2 } from "lucide-react";
 import { getInitialMunicipioContext } from "@/utils/contexto_municipio";
 
@@ -244,23 +242,11 @@ const ChatPanel = ({
 
   const showRubroSelector = rubrosEnabled && !localRubro;
 
-  const [visitorName, setVisitorNameState] = useState(() => getVisitorName());
-
-  useEffect(() => {
-    if (!visitorName && typeof window !== 'undefined') {
-      const nombre = window.prompt('¿Cuál es tu nombre?');
-      if (nombre) {
-        setVisitorName(nombre);
-        setVisitorNameState(nombre);
-        handleSend({ action: 'set_user_name', payload: { nombre } });
-      }
-    }
-  }, [visitorName, handleSend]);
-
   const handlePersonalDataSubmit = (data: { nombre: string; email: string; telefono: string; dni: string; }) => {
+    const normalizedName = data?.nombre?.trim();
     handleSend({
       action: 'submit_personal_data',
-      payload: data,
+      payload: normalizedName ? { ...data, nombre: normalizedName } : data,
     });
   };
 
