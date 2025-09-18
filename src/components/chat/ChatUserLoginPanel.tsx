@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import GoogleLoginButton from "@/components/auth/GoogleLoginButton";
 import { apiFetch, ApiError } from "@/utils/api";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
-import { getStoredEntityToken, sanitizeEntityToken, storeEntityToken } from "@/utils/entityToken";
 import { useUser } from "@/hooks/useUser";
 
 interface LoginResponse {
@@ -41,8 +40,7 @@ const ChatUserLoginPanel: React.FC<Props> = ({ onSuccess, onShowRegister }) => {
       const params = new URLSearchParams(window.location.search);
       const tokenFromUrl = params.get('token');
       if (tokenFromUrl) {
-        const sanitized = sanitizeEntityToken(tokenFromUrl);
-        storeEntityToken(sanitized);
+        safeLocalStorage.setItem('entityToken', tokenFromUrl);
       }
     }
   }, []);
@@ -53,8 +51,8 @@ const ChatUserLoginPanel: React.FC<Props> = ({ onSuccess, onShowRegister }) => {
     setLoading(true);
     try {
       const payload: Record<string, any> = { email, password };
-      const empresaToken = getStoredEntityToken();
-      payload.empresa_token = empresaToken ?? null;
+      const empresaToken = safeLocalStorage.getItem("entityToken");
+      payload.empresa_token = empresaToken;
       const anon = safeLocalStorage.getItem("anon_id");
       if (anon) payload.anon_id = anon;
       const data = await apiFetch<LoginResponse>("/chatuserloginpanel", {

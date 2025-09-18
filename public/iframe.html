@@ -50,14 +50,9 @@
     // Config que llega por query (encapsulada para no contaminar el global)
     (() => {
       const params = new URLSearchParams(location.search);
-      const rawEntityToken = params.get('entityToken');
-      const sanitizedEntityToken = rawEntityToken && rawEntityToken.trim().toLowerCase().startsWith('demo-anon')
-        ? ''
-        : (rawEntityToken ? rawEntityToken.trim() : '');
-
       window.CHATBOC_CONFIG = {
         endpoint: params.get('endpoint') || 'municipio',
-        entityToken: sanitizedEntityToken,
+        entityToken: params.get('entityToken') || '',
         userToken: params.get('userToken') || null,
         defaultOpen: params.get('defaultOpen') === 'true',
         width: params.get('width') || '460px',
