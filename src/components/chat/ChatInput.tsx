@@ -261,29 +261,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
   };
 
   return (
-    <div className="relative w-full flex flex-col gap-2 px-2 py-2 sm:px-3 sm:py-3 bg-background">
-      {showEmojis && (
-        <div className="absolute bottom-full right-0 mb-2 flex flex-wrap gap-2 p-2 bg-background border border-border rounded-lg shadow-lg">
-          {QUICK_EMOJIS.map((item) => (
-            <button
-              key={item.emoji}
-              className="text-2xl p-2 hover:bg-muted rounded"
-              onClick={() => {
-                onSendMessage({
-                  text: item.emoji,
-                  action: "quick_emoji",
-                  payload: { category: item.category },
-                });
-                setShowEmojis(false);
-              }}
-              type="button"
-              aria-label={`Enviar emoji ${item.emoji}`}
-            >
-              {item.emoji}
-            </button>
-          ))}
-        </div>
-      )}
+    <div className="w-full flex flex-col gap-3 px-2 py-2 sm:px-3 sm:py-3 bg-background">
       {attachmentPreview && (
         <div className="relative w-full p-2 bg-muted rounded-lg flex items-center gap-3">
           {attachmentPreview.previewUrl ? (
@@ -302,131 +280,160 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
           </Button>
         </div>
       )}
-      <div className="w-full flex items-center gap-1 sm:gap-2">
-        <input
-          ref={internalRef}
-          className={`
-            flex-1 max-w-full min-w-0
-            rounded-full px-4 py-2 sm:px-4 sm:py-2.5
-            text-base
-            outline-none transition-all duration-200
-            focus:ring-2 focus:ring-primary/50 focus:border-transparent
-            placeholder:text-muted-foreground
-            font-medium
-            disabled:cursor-not-allowed
-            bg-input text-foreground
-            border border-border
-            dark:bg-input dark:text-foreground dark:border-border
-            ${isTyping ? "opacity-60 bg-muted-foreground/10 dark:bg-muted-foreground/20" : ""}
-          `}
-          type="text"
-          placeholder={attachmentPreview ? "Añade un comentario..." : PLACEHOLDERS[placeholderIndex]}
-          value={input}
-          onChange={(e) => {
-            const val = e.target.value;
-            setInput(val);
-            onTypingChange?.(val.trim().length > 0);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              handleSend();
-            }
-          }}
-          autoFocus
-          autoComplete="off"
-          maxLength={200}
-          aria-label="Escribir mensaje"
-          disabled={isTyping || isRecording}
-        />
-        <AdjuntarArchivo
-          ref={adjRef}
-          onFileSelected={handleFileSelected}
-          disabled={isRecording || !!attachmentPreview}
-          allowedFileTypes={['image/*', 'application/pdf']}
-        />
-        <button
-          onClick={handleShareLocation}
-          disabled={isTyping || isLocating || isRecording || !!attachmentPreview}
-          className={`
-            flex items-center justify-center
-            rounded-full p-2 sm:p-2.5
-            shadow-md transition-all duration-150
-            focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-1 focus:ring-offset-background
-            active:scale-95
-            bg-secondary text-secondary-foreground hover:bg-secondary/80
-            ${isTyping || isLocating || !!attachmentPreview ? "opacity-50 cursor-not-allowed" : ""}
-          `}
-          aria-label="Compartir ubicación"
-          type="button"
-        >
-          {isLocating ? <div className="w-5 h-5 border-2 border-t-transparent border-white rounded-full animate-spin" /> : <MapPin className="w-5 h-5" />}
-        </button>
-        <button
-          onClick={async () => {
-            if (isRecording) {
-              const audioBlob = await stopRecording();
-              if (audioBlob) {
-                handleSendAudio(audioBlob);
+      <div className="flex flex-col gap-2">
+        <div className="w-full">
+          <input
+            ref={internalRef}
+            className={`
+              w-full
+              rounded-full px-4 py-3 sm:px-4 sm:py-3
+              text-base
+              outline-none transition-all duration-200
+              focus:ring-2 focus:ring-primary/50 focus:border-transparent
+              placeholder:text-muted-foreground
+              font-medium
+              disabled:cursor-not-allowed
+              bg-input text-foreground
+              border border-border
+              dark:bg-input dark:text-foreground dark:border-border
+              ${isTyping ? "opacity-60 bg-muted-foreground/10 dark:bg-muted-foreground/20" : ""}
+            `}
+            type="text"
+            placeholder={attachmentPreview ? "Añade un comentario..." : PLACEHOLDERS[placeholderIndex]}
+            value={input}
+            onChange={(e) => {
+              const val = e.target.value;
+              setInput(val);
+              onTypingChange?.(val.trim().length > 0);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
               }
-            } else {
-              try {
-                await startRecording();
-              } catch (error) {
-                toast({ title: "Error al grabar", description: "No se pudo iniciar la grabación. Verifica los permisos del micrófono.", variant: "destructive" });
-              }
-            }
-          }}
-          disabled={isTyping || isLocating || !!attachmentPreview}
-          className={`
-            flex items-center justify-center
-            rounded-full p-2 sm:p-2.5
-            shadow-md transition-all duration-150
-            focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-1 focus:ring-offset-background
-            active:scale-95
-            bg-secondary text-secondary-foreground hover:bg-secondary/80
-            ${isTyping || isLocating || !!attachmentPreview ? "opacity-50 cursor-not-allowed" : ""}
-            ${isRecording ? "text-destructive bg-destructive/20 hover:bg-destructive/30" : ""}
-          `}
-          aria-label={isRecording ? "Detener grabación" : "Grabar audio"}
-          type="button"
-        >
-          {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
-        </button>
-        <button
-          onClick={() => setShowEmojis((v) => !v)}
-          disabled={isTyping || isLocating || !!attachmentPreview}
-          className={`
-            flex items-center justify-center
-            rounded-full p-2 sm:p-2.5
-            shadow-md transition-all duration-150
-            focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-1 focus:ring-offset-background
-            active:scale-95
-            bg-secondary text-secondary-foreground hover:bg-secondary/80
-            ${isTyping || isLocating || !!attachmentPreview ? "opacity-50 cursor-not-allowed" : ""}
-          `}
-          aria-label="Mostrar emojis"
-          type="button"
-        >
-          <Smile className="w-5 h-5" />
-        </button>
-        <button
-          className={`
-            flex items-center justify-center
-            rounded-full p-2.5 sm:p-3 ml-1 sm:ml-2
-            shadow-md transition-all duration-150
-            focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-1 focus:ring-offset-background
-            active:scale-95
-            bg-primary text-primary-foreground hover:bg-primary/90
-            disabled:opacity-50 disabled:cursor-not-allowed
-          `}
-          onClick={handleSend}
-          disabled={(!input.trim() && !attachmentPreview) || isTyping || isRecording}
-          aria-label="Enviar mensaje"
-          type="button"
-        >
-          <Send className="w-5 h-5" />
-        </button>
+            }}
+            autoFocus
+            autoComplete="off"
+            maxLength={200}
+            aria-label="Escribir mensaje"
+            disabled={isTyping || isRecording}
+          />
+        </div>
+        <div className="relative flex w-full flex-wrap items-center gap-2">
+          {showEmojis && (
+            <div className="absolute bottom-full right-0 mb-2 flex flex-wrap gap-2 p-2 bg-background border border-border rounded-lg shadow-lg z-10">
+              {QUICK_EMOJIS.map((item) => (
+                <button
+                  key={item.emoji}
+                  className="text-2xl p-2 hover:bg-muted rounded"
+                  onClick={() => {
+                    onSendMessage({
+                      text: item.emoji,
+                      action: "quick_emoji",
+                      payload: { category: item.category },
+                    });
+                    setShowEmojis(false);
+                  }}
+                  type="button"
+                  aria-label={`Enviar emoji ${item.emoji}`}
+                >
+                  {item.emoji}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="flex items-center gap-2 flex-wrap">
+            <AdjuntarArchivo
+              ref={adjRef}
+              onFileSelected={handleFileSelected}
+              disabled={isRecording || !!attachmentPreview}
+              allowedFileTypes={['image/*', 'application/pdf']}
+            />
+            <button
+              onClick={handleShareLocation}
+              disabled={isTyping || isLocating || isRecording || !!attachmentPreview}
+              className={`
+                flex items-center justify-center
+                rounded-full p-2.5 sm:p-3
+                shadow-md transition-all duration-150
+                focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-1 focus:ring-offset-background
+                active:scale-95
+                bg-secondary text-secondary-foreground hover:bg-secondary/80
+                ${isTyping || isLocating || !!attachmentPreview ? "opacity-50 cursor-not-allowed" : ""}
+              `}
+              aria-label="Compartir ubicación"
+              type="button"
+            >
+              {isLocating ? <div className="w-5 h-5 border-2 border-t-transparent border-white rounded-full animate-spin" /> : <MapPin className="w-5 h-5" />}
+            </button>
+            <button
+              onClick={async () => {
+                if (isRecording) {
+                  const audioBlob = await stopRecording();
+                  if (audioBlob) {
+                    handleSendAudio(audioBlob);
+                  }
+                } else {
+                  try {
+                    await startRecording();
+                  } catch (error) {
+                    toast({ title: "Error al grabar", description: "No se pudo iniciar la grabación. Verifica los permisos del micrófono.", variant: "destructive" });
+                  }
+                }
+              }}
+              disabled={isTyping || isLocating || !!attachmentPreview}
+              className={`
+                flex items-center justify-center
+                rounded-full p-2.5 sm:p-3
+                shadow-md transition-all duration-150
+                focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-1 focus:ring-offset-background
+                active:scale-95
+                bg-secondary text-secondary-foreground hover:bg-secondary/80
+                ${isTyping || isLocating || !!attachmentPreview ? "opacity-50 cursor-not-allowed" : ""}
+                ${isRecording ? "text-destructive bg-destructive/20 hover:bg-destructive/30" : ""}
+              `}
+              aria-label={isRecording ? "Detener grabación" : "Grabar audio"}
+              type="button"
+            >
+              {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+            </button>
+            <button
+              onClick={() => setShowEmojis((v) => !v)}
+              disabled={isTyping || isLocating || !!attachmentPreview}
+              className={`
+                flex items-center justify-center
+                rounded-full p-2.5 sm:p-3
+                shadow-md transition-all duration-150
+                focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-1 focus:ring-offset-background
+                active:scale-95
+                bg-secondary text-secondary-foreground hover:bg-secondary/80
+                ${isTyping || isLocating || !!attachmentPreview ? "opacity-50 cursor-not-allowed" : ""}
+              `}
+              aria-label="Mostrar emojis"
+              type="button"
+            >
+              <Smile className="w-5 h-5" />
+            </button>
+          </div>
+          <button
+            className={`
+              ml-auto flex-shrink-0
+              flex items-center justify-center
+              rounded-full p-3 sm:p-3.5
+              shadow-md transition-all duration-150
+              focus:outline-none focus:ring-2 focus:ring-primary/60 focus:ring-offset-1 focus:ring-offset-background
+              active:scale-95
+              bg-primary text-primary-foreground hover:bg-primary/90
+              disabled:opacity-50 disabled:cursor-not-allowed
+            `}
+            onClick={handleSend}
+            disabled={(!input.trim() && !attachmentPreview) || isTyping || isRecording}
+            aria-label="Enviar mensaje"
+            type="button"
+          >
+            <Send className="w-5 h-5" />
+          </button>
+        </div>
       </div>
     </div>
   );
