@@ -1,8 +1,15 @@
+import { safeLocalStorage } from '@/utils/safeLocalStorage';
+
 export function getChatbocConfig() {
   const g = (window as any).CHATBOC_CONFIG || {};
+  const storedToken = safeLocalStorage.getItem('entityToken') || '';
+  const effectiveEntityToken =
+    typeof g.entityToken === 'string' && g.entityToken.trim()
+      ? g.entityToken
+      : storedToken;
   return {
     endpoint: g.endpoint || 'municipio',
-    entityToken: g.entityToken || '',
+    entityToken: effectiveEntityToken,
     userToken: g.userToken || null,
     defaultOpen: !!g.defaultOpen,
     width: g.width || '460px',
@@ -22,5 +29,14 @@ export function getChatbocConfig() {
 }
 
 export function getIframeToken(): string {
-  return (window as any).CHATBOC_CONFIG?.entityToken || '';
+  const globalToken = (window as any).CHATBOC_CONFIG?.entityToken;
+  if (typeof globalToken === 'string' && globalToken.trim()) {
+    return globalToken;
+  }
+
+  try {
+    return safeLocalStorage.getItem('entityToken') || '';
+  } catch {
+    return '';
+  }
 }

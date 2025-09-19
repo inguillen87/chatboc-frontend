@@ -28,6 +28,12 @@ import { safeOn, assertEventSource } from "@/utils/safeOn";
 import { Loader2 } from "lucide-react";
 import { getInitialMunicipioContext } from "@/utils/contexto_municipio";
 import { resetChatSessionId } from "@/utils/chatSessionId";
+import {
+  clearStoredRubroSelection,
+  extractRubroInfo,
+  getStoredRubroInfo,
+  persistRubroSelection,
+} from "@/utils/rubroStorage";
 
 const PENDING_TICKET_KEY = 'pending_ticket_id';
 const PENDING_GPS_KEY = 'pending_gps';
@@ -100,7 +106,15 @@ const ChatPanel = ({
   const socketRef = useRef<SocketIOClient.Socket | null>(null);
 
   const skipAuth = mode === 'script';
-  const [localRubro, setLocalRubro] = useState<string | null>(() => selectedRubro ?? null);
+  const [localRubro, setLocalRubro] = useState<string | null>(() => {
+    const selectedInfo = extractRubroInfo(selectedRubro ?? null);
+    if (selectedInfo.clave || selectedInfo.nombre) {
+      const persisted = persistRubroSelection(selectedInfo);
+      return persisted.clave ?? persisted.nombre ?? null;
+    }
+    const stored = getStoredRubroInfo();
+    return stored.clave ?? stored.nombre ?? null;
+  });
   const resolvedSelectedRubro = localRubro ?? selectedRubro ?? null;
   const {
     messages,
@@ -149,26 +163,31 @@ const ChatPanel = ({
 
   useEffect(() => {
     if (!rubrosEnabled) {
-      safeLocalStorage.removeItem("rubroSeleccionado");
+      clearStoredRubroSelection();
       lastInitializedRubro.current = null;
-      const nextValue = selectedRubro ?? null;
+      const desired = extractRubroInfo(selectedRubro ?? null);
+      const nextValue = desired.clave ?? desired.nombre ?? null;
       if (localRubro !== nextValue) {
         setLocalRubro(nextValue);
       }
       return;
     }
 
-    if (selectedRubro && selectedRubro !== localRubro) {
+    const selectedInfo = extractRubroInfo(selectedRubro ?? null);
+    const resolvedSelected = selectedInfo.clave ?? selectedInfo.nombre ?? null;
+    if (resolvedSelected && resolvedSelected !== localRubro) {
+      persistRubroSelection(selectedInfo);
       lastInitializedRubro.current = null;
-      setLocalRubro(selectedRubro);
+      setLocalRubro(resolvedSelected);
       return;
     }
 
-    if (!selectedRubro && !localRubro) {
-      const stored = safeLocalStorage.getItem("rubroSeleccionado");
-      if (stored) {
+    if (!resolvedSelected && !localRubro) {
+      const stored = getStoredRubroInfo();
+      const resolvedStored = stored.clave ?? stored.nombre ?? null;
+      if (resolvedStored) {
         lastInitializedRubro.current = null;
-        setLocalRubro(stored);
+        setLocalRubro(resolvedStored);
       }
     }
   }, [rubrosEnabled, selectedRubro, localRubro]);
@@ -217,10 +236,8 @@ const ChatPanel = ({
     if (!rubrosEnabled) {
       return;
     }
-    if (localRubro) {
-      safeLocalStorage.setItem("rubroSeleccionado", localRubro);
-    } else {
-      safeLocalStorage.removeItem("rubroSeleccionado");
+    if (!localRubro) {
+      clearStoredRubroSelection();
       lastInitializedRubro.current = null;
     }
   }, [rubrosEnabled, localRubro]);
@@ -236,28 +253,41 @@ const ChatPanel = ({
     municipio_nombre?: string | null;
   } | null>(null);
 
-  const handleRubroSelection = useCallback(
-    (rubro: Rubro) => {
-      const nombre = rubro.nombre;
-      lastInitializedRubro.current = null;
-      safeLocalStorage.setItem("rubroSeleccionado", nombre);
-      setLocalRubro(nombre);
-      resetChatSessionId();
-      setMessages([]);
-      setActiveTicketId(null);
-      setContexto(getInitialMunicipioContext());
-      setEsperandoDireccion(false);
-      setForzarDireccion(false);
-      setShowCierre(null);
-      setTicketLocation(null);
-      onRubroSelect?.(nombre);
-      initializeConversation({
-        rubroOverride: nombre,
-        resetContext: true,
-        resetMessages: true,
-        force: true,
-      });
-      lastInitializedRubro.current = nombre;
+  const applyRubroChange = useCallback(
+    (source: unknown, options?: { reinitialize?: boolean }) => {
+      const persisted = persistRubroSelection(source);
+      const selectionValue = persisted.clave ?? persisted.nombre ?? null;
+      if (!selectionValue) {
+        clearStoredRubroSelection();
+        setLocalRubro(null);
+        return;
+      }
+      const shouldReinitialize = options?.reinitialize !== false;
+
+      if (shouldReinitialize) {
+        lastInitializedRubro.current = null;
+        setLocalRubro(selectionValue);
+        resetChatSessionId();
+        setMessages([]);
+        setActiveTicketId(null);
+        setContexto(getInitialMunicipioContext());
+        setEsperandoDireccion(false);
+        setForzarDireccion(false);
+        setShowCierre(null);
+        setTicketLocation(null);
+        onRubroSelect?.(selectionValue);
+        initializeConversation({
+          rubroOverride: selectionValue,
+          resetContext: true,
+          resetMessages: true,
+          force: true,
+        });
+        lastInitializedRubro.current = selectionValue;
+      } else {
+        lastInitializedRubro.current = selectionValue;
+        setLocalRubro((current) => (current === selectionValue ? current : selectionValue));
+        onRubroSelect?.(selectionValue);
+      }
     },
     [
       onRubroSelect,
@@ -269,14 +299,64 @@ const ChatPanel = ({
       setShowCierre,
       setTicketLocation,
       initializeConversation,
+      clearStoredRubroSelection,
+      resetChatSessionId,
     ]
+  );
+
+  const handleRubroSelection = useCallback(
+    (rubro: Rubro) => {
+      applyRubroChange(rubro);
+    },
+    [applyRubroChange]
   );
 
   const showRubroSelector = rubrosEnabled && !localRubro;
 
+  const handleSendWithRubroSync = useCallback(
+    (payload: Parameters<typeof handleSend>[0]) => {
+      if (typeof payload !== 'string') {
+        const rawPayload = 'payload' in payload ? (payload as any).payload : undefined;
+        const actionCandidate = typeof payload.action === 'string' ? payload.action.toLowerCase() : '';
+        const payloadKeys =
+          rawPayload && typeof rawPayload === 'object'
+            ? Object.keys(rawPayload as Record<string, unknown>)
+            : [];
+        const payloadHasRubroKey = payloadKeys.some((key) => key.toLowerCase().includes('rubro'));
+
+        if (payloadHasRubroKey || actionCandidate.includes('rubro')) {
+          let info = extractRubroInfo(rawPayload ?? null, {
+            allowPlainString: typeof rawPayload === 'string' || payloadHasRubroKey,
+            preferRubroKeys: true,
+          });
+
+          if (!info.clave && !info.nombre) {
+            info = extractRubroInfo(payload, {
+              allowPlainString: false,
+              preferRubroKeys: true,
+            });
+          }
+
+          if (!info.clave && !info.nombre) {
+            const fallbackSource =
+              (typeof (payload as any).text === 'string' ? (payload as any).text : undefined) ?? undefined;
+            info = extractRubroInfo(fallbackSource ?? null);
+          }
+
+          if (info.clave || info.nombre) {
+            applyRubroChange(info, { reinitialize: false });
+          }
+        }
+      }
+
+      handleSend(payload);
+    },
+    [handleSend, applyRubroChange]
+  );
+
   const handlePersonalDataSubmit = (data: { nombre: string; email: string; telefono: string; dni: string; }) => {
     const normalizedName = data?.nombre?.trim();
-    handleSend({
+    handleSendWithRubroSync({
       action: 'submit_personal_data',
       payload: normalizedName ? { ...data, nombre: normalizedName } : data,
     });
@@ -323,7 +403,7 @@ const ChatPanel = ({
   }, [activeTicketId, tipoChat, setMessages]);
 
   const handleLiveChatRequest = () => {
-    handleSend({
+    handleSendWithRubroSync({
       text: "Quisiera hablar con un representante",
       action: "request_agent",
     });
@@ -349,7 +429,7 @@ const ChatPanel = ({
         try {
           const position = await requestLocation();
           if (position) {
-            handleSend({
+            handleSendWithRubroSync({
               text: "Ubicación compartida.",
               ubicacion_usuario: {
                 lat: position.latitud,
@@ -396,7 +476,7 @@ const ChatPanel = ({
 
       // For other actions, the backend request was already sent. No extra handling needed.
     },
-    [handleSend, onShowLogin, onShowRegister, onCart, toast]
+    [handleSendWithRubroSync, onShowLogin, onShowRegister, onCart, toast]
   );
 
   useEffect(() => {
@@ -495,7 +575,7 @@ const ChatPanel = ({
             key={`${msg.id}-${a11yPrefs?.simplified ? "s" : "f"}`}
             message={msg}
             isTyping={isTyping}
-            onButtonClick={handleSend}
+            onButtonClick={handleSendWithRubroSync}
             onInternalAction={handleInternalAction}
             tipoChat={tipoChat}
             botLogoUrl={headerLogoUrl}
@@ -529,7 +609,7 @@ const ChatPanel = ({
         ) : (
           <ChatInput
             ref={chatInputHandleRef}
-            onSendMessage={handleSend}
+            onSendMessage={handleSendWithRubroSync}
             isTyping={isTyping}
             inputRef={chatInputTextRef}
             onTypingChange={setUserTyping}
