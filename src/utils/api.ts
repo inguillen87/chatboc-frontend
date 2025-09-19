@@ -39,8 +39,14 @@ export async function apiFetch<T>(
   const { method = "GET", body, skipAuth, sendAnonId, entityToken, cache } = options;
 
   const effectiveEntityToken = entityToken ?? getIframeToken();
-  const tokenKey = effectiveEntityToken ? "chatAuthToken" : "authToken";
-  const token = safeLocalStorage.getItem(tokenKey);
+  const panelToken = safeLocalStorage.getItem("authToken");
+  const chatToken = safeLocalStorage.getItem("chatAuthToken");
+  const token = panelToken || chatToken;
+  const tokenSource: "authToken" | "chatAuthToken" | null = panelToken
+    ? "authToken"
+    : chatToken
+      ? "chatAuthToken"
+      : null;
   const anonId = safeLocalStorage.getItem("anon_id");
   const chatSessionId = getOrCreateChatSessionId(); // Get or create the chat session ID
 
@@ -72,7 +78,8 @@ export async function apiFetch<T>(
     method,
     url,
     hasBody: !!body,
-    authToken: mask(token),
+    authToken: mask(panelToken),
+    chatAuthToken: mask(chatToken),
     anonId: mask(anonId),
     entityToken: mask(effectiveEntityToken || null),
     sendAnonId,
@@ -138,7 +145,9 @@ export async function apiFetch<T>(
     if (response.status === 401) {
       // Sólo limpia sesión si no es skipAuth
       if (!skipAuth) {
-        safeLocalStorage.removeItem("authToken");
+        if (tokenSource === "authToken") {
+          safeLocalStorage.removeItem("authToken");
+        }
         // El widget maneja la autenticación sin salir del chat
       }
       throw new ApiError(
