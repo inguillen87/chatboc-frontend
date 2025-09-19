@@ -44,51 +44,99 @@ const Iframe = () => {
       document.documentElement.style.setProperty("--accent", hexToHsl(accentColorHex));
     }
 
-    const tokenFromUrl =
+    const rawEntityToken =
       urlParams.get("entityToken") ||
       urlParams.get("ownerToken") ||
       cfg.entityToken ||
       '';
-    if (tokenFromUrl) {
-      setEntityToken(tokenFromUrl);
-      safeLocalStorage.setItem("entityToken", tokenFromUrl);
+    if (rawEntityToken) {
+      setEntityToken(rawEntityToken);
+      safeLocalStorage.setItem("entityToken", rawEntityToken);
     } else {
       setEntityToken(null);
       safeLocalStorage.removeItem("entityToken");
     }
 
     const endpointFromUrl = urlParams.get("endpoint") || urlParams.get("tipo_chat");
-    const endpointParam =
+    const configEndpoint =
       cfg.endpoint === 'pyme' || cfg.endpoint === 'municipio'
         ? (cfg.endpoint as 'pyme' | 'municipio')
-        : endpointFromUrl === 'pyme' || endpointFromUrl === 'municipio'
-          ? (endpointFromUrl as 'pyme' | 'municipio')
-          : null;
-    if (endpointParam) {
-      setTipoChat(endpointParam);
+        : null;
+    const endpointParam =
+      endpointFromUrl === 'pyme' || endpointFromUrl === 'municipio'
+        ? (endpointFromUrl as 'pyme' | 'municipio')
+        : null;
+    const resolvedEndpoint = endpointParam || configEndpoint || null;
+    if (resolvedEndpoint) {
+      setTipoChat(resolvedEndpoint);
     }
 
+    const widgetId = urlParams.get("widgetId") || "chatboc-iframe-unknown";
+    const view = urlParams.get("view") || 'chat';
+    const defaultOpenParam = urlParams.get("defaultOpen");
+    const defaultOpen =
+      typeof defaultOpenParam === 'string'
+        ? defaultOpenParam === 'true'
+        : cfg.defaultOpen;
+    const openWidth = urlParams.get("openWidth") || cfg.width || DEFAULTS.openWidth;
+    const openHeight = urlParams.get("openHeight") || cfg.height || DEFAULTS.openHeight;
+    const closedWidth = urlParams.get("closedWidth") || cfg.closedWidth || DEFAULTS.closedWidth;
+    const closedHeight = urlParams.get("closedHeight") || cfg.closedHeight || DEFAULTS.closedHeight;
+    const bottomParam = urlParams.get("bottom") || cfg.bottom || String(DEFAULTS.bottom);
+    const rightParam = urlParams.get("right") || cfg.right || String(DEFAULTS.right);
+    const bottomValue = Number.parseInt(bottomParam, 10);
+    const rightValue = Number.parseInt(rightParam, 10);
+    const logoUrl = urlParams.get("logoUrl") || cfg.logoUrl || '';
+    const headerLogoUrl = urlParams.get("headerLogoUrl") || cfg.headerLogoUrl || '';
+    const logoAnimation = urlParams.get("logoAnimation") || cfg.logoAnimation || '';
+    const welcomeTitle = urlParams.get("welcomeTitle") || cfg.welcomeTitle || '';
+    const welcomeSubtitle = urlParams.get("welcomeSubtitle") || cfg.welcomeSubtitle || '';
+
     setWidgetParams({
-      defaultOpen: cfg.defaultOpen,
-      widgetId: urlParams.get("widgetId") || "chatboc-iframe-unknown",
-      view: urlParams.get("view") || 'chat',
-      openWidth: urlParams.get("openWidth") || cfg.width || DEFAULTS.openWidth,
-      openHeight: urlParams.get("openHeight") || cfg.height || DEFAULTS.openHeight,
-      closedWidth: urlParams.get("closedWidth") || cfg.closedWidth || DEFAULTS.closedWidth,
-      closedHeight: urlParams.get("closedHeight") || cfg.closedHeight || DEFAULTS.closedHeight,
+      defaultOpen,
+      widgetId,
+      view,
+      openWidth,
+      openHeight,
+      closedWidth,
+      closedHeight,
       ctaMessage: urlParams.get("ctaMessage") || undefined,
       rubro: urlParams.get("rubro") || undefined,
-      endpoint: endpointParam || undefined,
-      bottom: parseInt(urlParams.get("bottom") || cfg.bottom || String(DEFAULTS.bottom), 10),
-      right: parseInt(urlParams.get("right") || cfg.right || String(DEFAULTS.right), 10),
+      endpoint: resolvedEndpoint || undefined,
+      bottom: Number.isFinite(bottomValue) ? bottomValue : DEFAULTS.bottom,
+      right: Number.isFinite(rightValue) ? rightValue : DEFAULTS.right,
       primaryColor: primaryColorHex,
       accentColor: accentColorHex,
-      logoUrl: urlParams.get("logoUrl") || cfg.logoUrl || '',
-      headerLogoUrl: urlParams.get("headerLogoUrl") || cfg.headerLogoUrl || '',
-      logoAnimation: urlParams.get("logoAnimation") || cfg.logoAnimation || '',
-      welcomeTitle: urlParams.get("welcomeTitle") || cfg.welcomeTitle || '',
-      welcomeSubtitle: urlParams.get("welcomeSubtitle") || cfg.welcomeSubtitle || '',
+      logoUrl,
+      headerLogoUrl,
+      logoAnimation,
+      welcomeTitle,
+      welcomeSubtitle,
     });
+
+    const mergedConfig = {
+      ...cfg,
+      endpoint: resolvedEndpoint || cfg.endpoint || 'pyme',
+      entityToken: rawEntityToken || '',
+      defaultOpen,
+      width: openWidth,
+      height: openHeight,
+      closedWidth,
+      closedHeight,
+      bottom: bottomParam,
+      right: rightParam,
+      primaryColor: primaryColorHex,
+      accentColor: accentColorHex,
+      logoUrl,
+      headerLogoUrl,
+      logoAnimation,
+      welcomeTitle,
+      welcomeSubtitle,
+    };
+
+    if (typeof window !== 'undefined') {
+      (window as any).CHATBOC_CONFIG = mergedConfig;
+    }
 
     setIsLoading(false);
   }, []);
@@ -144,10 +192,10 @@ const Iframe = () => {
   if (!GOOGLE_CLIENT_ID) {
     return (
       <MemoryRouter>
-      <ChatWidgetComponent />
-    </MemoryRouter>
-  );
-}
+        <ChatWidgetComponent />
+      </MemoryRouter>
+    );
+  }
 
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
