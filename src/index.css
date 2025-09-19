@@ -243,6 +243,51 @@ body,
   text-underline-offset: 2px;
 }
 
+.chat-message a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.9rem;
+  border-radius: 9999px;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  text-decoration: none;
+  font-weight: 600;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.14);
+  margin-top: 0.5rem;
+  margin-right: 0.5rem;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+  max-width: min(100%, 280px);
+  white-space: normal;
+  word-break: break-word;
+  text-align: center;
+}
+
+.chat-message a:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.18);
+}
+
+.chat-message a:active {
+  transform: translateY(0);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.2);
+}
+
+.chat-message a svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+.chat-message a + a {
+  margin-left: 0.35rem;
+}
+
+.chat-message .chat-link-placeholder {
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
 @keyframes float {
   0%,100% { transform: translateY(0); }
   50% { transform: translateY(-6px); }
