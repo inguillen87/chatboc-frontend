@@ -44,7 +44,11 @@ const Iframe = () => {
       document.documentElement.style.setProperty("--accent", hexToHsl(accentColorHex));
     }
 
-    const tokenFromUrl = urlParams.get("entityToken") || cfg.entityToken || '';
+    const tokenFromUrl =
+      urlParams.get("entityToken") ||
+      urlParams.get("ownerToken") ||
+      cfg.entityToken ||
+      '';
     if (tokenFromUrl) {
       setEntityToken(tokenFromUrl);
       safeLocalStorage.setItem("entityToken", tokenFromUrl);
