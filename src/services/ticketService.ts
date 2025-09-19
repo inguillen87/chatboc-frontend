@@ -167,26 +167,29 @@ export const getTicketMessages = async (
     };
 
     return rawMsgs.map((m: any, idx: number) => {
-      const attachmentsList = [
+      const combinedAttachments: any[] = [];
+      for (const value of [
         m.archivos_adjuntos,
         m.attachments,
         m.adjuntos,
-      ].reduce<Attachment[]>((acc, value) => {
+      ]) {
         if (!value) {
-          return acc;
+          continue;
         }
         if (Array.isArray(value)) {
-          acc.push(...(value as Attachment[]));
+          combinedAttachments.push(...value);
         } else {
-          acc.push(value as Attachment);
+          combinedAttachments.push(value);
         }
-        return acc;
-      }, []);
-      const attachments = attachmentsList.length > 0 ? attachmentsList : undefined;
+      }
+      const normalizedAttachments =
+        combinedAttachments.length > 0 ? combinedAttachments : undefined;
 
       return {
         id: m.id ?? idx,
-        author: parseAdminFlag(m.es_admin ?? m.esAdmin ?? m.is_admin ?? m.isAdmin)
+        author: parseAdminFlag(
+          m.es_admin ?? m.esAdmin ?? m.is_admin ?? m.isAdmin,
+        )
           ? 'agent'
           : 'user',
         agentName: m.nombre_agente || m.agentName,
@@ -195,8 +198,8 @@ export const getTicketMessages = async (
           typeof m.timestamp === 'number'
             ? new Date(m.timestamp).toISOString()
             : m.timestamp || m.fecha || new Date().toISOString(),
-        attachments,
-        archivos_adjuntos: attachments,
+        attachments: normalizedAttachments,
+        archivos_adjuntos: normalizedAttachments,
         botones: m.botones,
         structuredContent: m.structuredContent,
         ubicacion: m.ubicacion,
