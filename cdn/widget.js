@@ -725,7 +725,7 @@ if (typeof window !== "undefined") {
 
       unsubscribeAuth = authManager.subscribe((token) => {
         latestToken = token;
-        postToIframe({ type: "AUTH", token });
+        postToIframe({ type: "AUTH", token: latestToken });
       });
 
       function dragStart(event) {
