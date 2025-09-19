@@ -100,18 +100,31 @@ const ChatPanel = ({
   const socketRef = useRef<SocketIOClient.Socket | null>(null);
 
   const skipAuth = mode === 'script';
-  const { messages, isTyping, handleSend, activeTicketId, setMessages, setContexto, setActiveTicketId, contexto, addSystemMessage } = useChatLogic({
+  const [localRubro, setLocalRubro] = useState<string | null>(() => selectedRubro ?? null);
+  const resolvedSelectedRubro = localRubro ?? selectedRubro ?? null;
+  const {
+    messages,
+    isTyping,
+    handleSend,
+    activeTicketId,
+    setMessages,
+    setContexto,
+    setActiveTicketId,
+    contexto,
+    addSystemMessage,
+    initializeConversation,
+  } = useChatLogic({
     tipoChat: tipoChat,
     entityToken: propEntityToken,
     skipAuth,
+    selectedRubro: resolvedSelectedRubro,
   });
 
   const rubrosEnabled = tipoChat === 'pyme';
   const [rubros, setRubros] = useState<Rubro[]>([]);
   const [isLoadingRubros, setIsLoadingRubros] = useState(false);
   const [rubrosError, setRubrosError] = useState<string | null>(null);
-  const welcomeShownRef = useRef(false);
-  const [localRubro, setLocalRubro] = useState<string | null>(() => selectedRubro ?? null);
+  const lastInitializedRubro = useRef<string | null>(null);
 
   const loadRubros = useCallback(() => {
     setIsLoadingRubros(true);
@@ -137,7 +150,7 @@ const ChatPanel = ({
   useEffect(() => {
     if (!rubrosEnabled) {
       safeLocalStorage.removeItem("rubroSeleccionado");
-      welcomeShownRef.current = false;
+      lastInitializedRubro.current = null;
       const nextValue = selectedRubro ?? null;
       if (localRubro !== nextValue) {
         setLocalRubro(nextValue);
@@ -146,7 +159,7 @@ const ChatPanel = ({
     }
 
     if (selectedRubro && selectedRubro !== localRubro) {
-      welcomeShownRef.current = false;
+      lastInitializedRubro.current = null;
       setLocalRubro(selectedRubro);
       return;
     }
@@ -154,10 +167,31 @@ const ChatPanel = ({
     if (!selectedRubro && !localRubro) {
       const stored = safeLocalStorage.getItem("rubroSeleccionado");
       if (stored) {
+        lastInitializedRubro.current = null;
         setLocalRubro(stored);
       }
     }
   }, [rubrosEnabled, selectedRubro, localRubro]);
+
+  useEffect(() => {
+    if (!rubrosEnabled) {
+      return;
+    }
+    if (!localRubro) {
+      return;
+    }
+    if (lastInitializedRubro.current === localRubro) {
+      return;
+    }
+
+    initializeConversation({
+      rubroOverride: localRubro,
+      resetContext: true,
+      resetMessages: true,
+      force: true,
+    });
+    lastInitializedRubro.current = localRubro;
+  }, [rubrosEnabled, localRubro, initializeConversation]);
 
 
   useEffect(() => {
@@ -187,21 +221,9 @@ const ChatPanel = ({
       safeLocalStorage.setItem("rubroSeleccionado", localRubro);
     } else {
       safeLocalStorage.removeItem("rubroSeleccionado");
-      welcomeShownRef.current = false;
+      lastInitializedRubro.current = null;
     }
   }, [rubrosEnabled, localRubro]);
-
-  useEffect(() => {
-    if (!rubrosEnabled) {
-      return;
-    }
-    if (localRubro && messages.length === 0 && !welcomeShownRef.current) {
-      addSystemMessage(
-        `¡Hola! Soy Chatboc, tu asistente para ${localRubro.toLowerCase()}. ¿En qué puedo ayudarte hoy?`
-      );
-      welcomeShownRef.current = true;
-    }
-  }, [rubrosEnabled, localRubro, messages.length, addSystemMessage]);
 
   const [esperandoDireccion, setEsperandoDireccion] = useState(false);
   const [forzarDireccion, setForzarDireccion] = useState(false);
@@ -217,7 +239,7 @@ const ChatPanel = ({
   const handleRubroSelection = useCallback(
     (rubro: Rubro) => {
       const nombre = rubro.nombre;
-      welcomeShownRef.current = false;
+      lastInitializedRubro.current = null;
       safeLocalStorage.setItem("rubroSeleccionado", nombre);
       setLocalRubro(nombre);
       resetChatSessionId();
@@ -229,6 +251,13 @@ const ChatPanel = ({
       setShowCierre(null);
       setTicketLocation(null);
       onRubroSelect?.(nombre);
+      initializeConversation({
+        rubroOverride: nombre,
+        resetContext: true,
+        resetMessages: true,
+        force: true,
+      });
+      lastInitializedRubro.current = nombre;
     },
     [
       onRubroSelect,
@@ -239,6 +268,7 @@ const ChatPanel = ({
       setForzarDireccion,
       setShowCierre,
       setTicketLocation,
+      initializeConversation,
     ]
   );
 
