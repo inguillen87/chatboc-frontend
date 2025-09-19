@@ -5,6 +5,7 @@ import {
   TicketHistoryEvent,
   TicketTimelineResponse,
   TicketStatus,
+  Attachment,
 } from '@/types/tickets';
 import { AttachmentInfo } from '@/types/chat';
 
@@ -165,22 +166,42 @@ export const getTicketMessages = async (
       return Boolean(val);
     };
 
-    return rawMsgs.map((m: any, idx: number) => ({
-      id: m.id ?? idx,
-      author: parseAdminFlag(m.es_admin ?? m.esAdmin ?? m.is_admin ?? m.isAdmin)
-        ? 'agent'
-        : 'user',
-      agentName: m.nombre_agente || m.agentName,
-      content: m.content || m.texto || m.mensaje || '',
-      timestamp:
-        typeof m.timestamp === 'number'
-          ? new Date(m.timestamp).toISOString()
-          : m.timestamp || m.fecha || new Date().toISOString(),
-      attachments: m.attachments || m.adjuntos,
-      botones: m.botones,
-      structuredContent: m.structuredContent,
-      ubicacion: m.ubicacion,
-    }));
+    return rawMsgs.map((m: any, idx: number) => {
+      const attachmentsList = [
+        m.archivos_adjuntos,
+        m.attachments,
+        m.adjuntos,
+      ].reduce<Attachment[]>((acc, value) => {
+        if (!value) {
+          return acc;
+        }
+        if (Array.isArray(value)) {
+          acc.push(...(value as Attachment[]));
+        } else {
+          acc.push(value as Attachment);
+        }
+        return acc;
+      }, []);
+      const attachments = attachmentsList.length > 0 ? attachmentsList : undefined;
+
+      return {
+        id: m.id ?? idx,
+        author: parseAdminFlag(m.es_admin ?? m.esAdmin ?? m.is_admin ?? m.isAdmin)
+          ? 'agent'
+          : 'user',
+        agentName: m.nombre_agente || m.agentName,
+        content: m.content || m.texto || m.mensaje || '',
+        timestamp:
+          typeof m.timestamp === 'number'
+            ? new Date(m.timestamp).toISOString()
+            : m.timestamp || m.fecha || new Date().toISOString(),
+        attachments,
+        archivos_adjuntos: attachments,
+        botones: m.botones,
+        structuredContent: m.structuredContent,
+        ubicacion: m.ubicacion,
+      };
+    });
   } catch (error) {
     console.error(`Error fetching messages for ticket ${ticketId}:`, error);
     throw error;
