@@ -175,6 +175,12 @@ export function useChatLogic({
     [contexto, selectedRubro, skipAuth, tipoChat]
   );
 
+  const initializeConversationRef = useRef(initializeConversation);
+
+  useEffect(() => {
+    initializeConversationRef.current = initializeConversation;
+  }, [initializeConversation]);
+
   const token = skipAuth ? null : safeLocalStorage.getItem(tokenKey);
   const isAnonimo = skipAuth || !token;
 
@@ -418,7 +424,7 @@ export function useChatLogic({
       console.log('Socket.IO connected, joining room with web channel...');
       socket.emit('join', { room: sessionId, channel: 'web' });
 
-      initializeConversation({ resetContext: true });
+      initializeConversationRef.current?.({ resetContext: true });
     };
 
     const handleConnectError = (err: any) => {
@@ -707,7 +713,7 @@ export function useChatLogic({
       socket.off?.('disconnect', handleDisconnect);
       socket.disconnect();
     };
-}, [entityToken, initializeConversation, tipoChat]);
+}, [entityToken, tipoChat, skipAuth, tokenKey]);
 
   useEffect(() => {
     if (contexto.estado_conversacion === 'confirmando_reclamo' && !activeTicketId) {
