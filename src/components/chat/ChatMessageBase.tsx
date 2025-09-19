@@ -1,6 +1,6 @@
 // src/components/chat/ChatMessageBase.tsx
 import React, { useState, useMemo } from "react";
-import { Message, SendPayload, StructuredContentItem } from "@/types/chat";
+import { Boton, Message, SendPayload, StructuredContentItem } from "@/types/chat";
 import ChatButtons from "./ChatButtons";
 import CategorizedButtons from "./CategorizedButtons";
 import AudioPlayer from "./AudioPlayer";
@@ -58,6 +58,188 @@ function normalizeAttachment(msg: any): RawAttachment | null {
   }
   return null;
 }
+
+const LINK_LABEL_MAX_LENGTH = 48;
+const FALLBACK_URL_BASE = "https://chatboc.local";
+
+const createDomParser = () => {
+  if (typeof window !== "undefined" && typeof window.DOMParser !== "undefined") {
+    return new window.DOMParser();
+  }
+  if (typeof DOMParser !== "undefined") {
+    return new DOMParser();
+  }
+  return null;
+};
+
+const normaliseUrlForKey = (url: string) => {
+  try {
+    const parsed = new URL(url, url.startsWith("http") ? undefined : FALLBACK_URL_BASE);
+    return parsed.href.replace(/\/+$/, "").toLowerCase();
+  } catch {
+    return url.trim().toLowerCase();
+  }
+};
+
+const stableSerialize = (value: unknown): string => {
+  const cache = new WeakSet<object>();
+
+  const normalise = (input: unknown): unknown => {
+    if (input === null) return null;
+    if (typeof input === "bigint") return input.toString();
+    if (typeof input !== "object") return input;
+
+    if (cache.has(input as object)) {
+      return "[Circular]";
+    }
+
+    cache.add(input as object);
+
+    if (Array.isArray(input)) {
+      const arr = input.map((item) => normalise(item));
+      cache.delete(input as object);
+      return arr;
+    }
+
+    if (input instanceof Date) {
+      cache.delete(input as object);
+      return input.toISOString();
+    }
+
+    if (typeof (input as { toJSON?: () => unknown }).toJSON === "function") {
+      try {
+        const jsonValue = (input as { toJSON: () => unknown }).toJSON();
+        cache.delete(input as object);
+        return normalise(jsonValue);
+      } catch {
+        cache.delete(input as object);
+        return "[Invalid toJSON]";
+      }
+    }
+
+    const sortedKeys = Object.keys(input as Record<string, unknown>).sort();
+    const normalisedEntries: Record<string, unknown> = {};
+
+    sortedKeys.forEach((key) => {
+      normalisedEntries[key] = normalise((input as Record<string, unknown>)[key]);
+    });
+
+    cache.delete(input as object);
+
+    return normalisedEntries;
+  };
+
+  try {
+    return JSON.stringify(normalise(value));
+  } catch {
+    return String(value);
+  }
+};
+
+const buttonKey = (button: Boton): string => {
+  const keyParts: string[] = [];
+
+  if (typeof button.action === "string" && button.action.trim()) {
+    keyParts.push(`action:${button.action.trim().toLowerCase()}`);
+  }
+
+  if (typeof button.action_id === "string" && button.action_id.trim()) {
+    keyParts.push(`action_id:${button.action_id.trim().toLowerCase()}`);
+  }
+
+  if (typeof button.accion_interna === "string" && button.accion_interna.trim()) {
+    keyParts.push(`internal:${button.accion_interna.trim().toLowerCase()}`);
+  }
+
+  if (typeof button.url === "string" && button.url.trim()) {
+    keyParts.push(`url:${normaliseUrlForKey(button.url)}`);
+  }
+
+  if (typeof button.texto === "string" && button.texto.trim()) {
+    keyParts.push(`text:${button.texto.trim().toLowerCase()}`);
+  }
+
+  if (typeof button.payload !== "undefined") {
+    keyParts.push(`payload:${stableSerialize(button.payload)}`);
+  }
+
+  if (!keyParts.length) {
+    return Math.random().toString(36);
+  }
+
+  return keyParts.join("|");
+};
+
+const formatLinkLabel = (rawText: string | null | undefined, href: string): string => {
+  const normalizedHref = href?.trim?.() ?? "";
+  const cleanedText = rawText?.replace(/\s+/g, " ")?.trim() ?? "";
+
+  const textLooksLikeUrl = cleanedText.length > 0 &&
+    cleanedText.replace(/\/?$/, "").toLowerCase() === normalizedHref.replace(/\/?$/, "").toLowerCase();
+
+  let candidate = cleanedText || normalizedHref;
+
+  if (!cleanedText || cleanedText.length > LINK_LABEL_MAX_LENGTH || textLooksLikeUrl) {
+    try {
+      const url = new URL(normalizedHref, normalizedHref.startsWith("http") ? undefined : FALLBACK_URL_BASE);
+      const hostname = url.hostname.replace(/^www\./i, "");
+      const firstSegment = url.pathname.split("/").filter(Boolean)[0];
+      candidate = firstSegment ? `${hostname} / ${firstSegment}` : hostname || normalizedHref;
+    } catch {
+      candidate = cleanedText || normalizedHref;
+    }
+  }
+
+  if (candidate.length > LINK_LABEL_MAX_LENGTH) {
+    return `${candidate.slice(0, LINK_LABEL_MAX_LENGTH - 3)}…`;
+  }
+
+  return candidate;
+};
+
+const extractLinkButtons = (
+  html: string
+): { cleanedHtml: string; linkButtons: Boton[] } => {
+  if (!html) {
+    return { cleanedHtml: "", linkButtons: [] };
+  }
+
+  const parser = createDomParser();
+  if (!parser) {
+    return { cleanedHtml: html, linkButtons: [] };
+  }
+
+  try {
+    const doc = parser.parseFromString(`<div>${html}</div>`, "text/html");
+    const container = doc.body.firstElementChild as HTMLElement | null;
+    if (!container) {
+      return { cleanedHtml: html, linkButtons: [] };
+    }
+
+    const anchors = Array.from(container.querySelectorAll("a"));
+    const derivedButtons: Boton[] = [];
+
+    anchors.forEach((anchor) => {
+      const href = anchor.getAttribute("href");
+      if (!href) {
+        return;
+      }
+      const label = formatLinkLabel(anchor.textContent, href);
+      derivedButtons.push({ texto: label, url: href });
+      const replacement = doc.createElement("span");
+      replacement.textContent = label;
+      replacement.className = "chat-link-placeholder";
+      anchor.replaceWith(replacement);
+    });
+
+    return {
+      cleanedHtml: container.innerHTML,
+      linkButtons: derivedButtons,
+    };
+  } catch {
+    return { cleanedHtml: html, linkButtons: [] };
+  }
+};
 
 // --- Avatares (reutilizados de ChatMessagePyme/Municipio) ---
 const AvatarBot: React.FC<{ isTyping: boolean; logoUrl?: string; logoAnimation?: string }> = ({
@@ -206,6 +388,43 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
 
   const safeText = typeof message.text === "string" && message.text !== "NaN" ? message.text : "";
   const sanitizedHtml = sanitizeMessageHtml(safeText);
+  const { cleanedHtml, linkButtons } = useMemo(() => {
+    if (!isBot) {
+      return { cleanedHtml: sanitizedHtml, linkButtons: [] as Boton[] };
+    }
+    return extractLinkButtons(sanitizedHtml);
+  }, [isBot, sanitizedHtml]);
+
+  const { combinedButtons, derivedLinkButtons } = useMemo(() => {
+    const existing = Array.isArray(message.botones) ? message.botones : [];
+    if (!linkButtons.length) {
+      return {
+        combinedButtons: existing,
+        derivedLinkButtons: [] as Boton[],
+      };
+    }
+
+    const seen = new Set<string>();
+    const combined: Boton[] = [];
+    const derivedOnly: Boton[] = [];
+
+    const register = (button: Boton, isDerived: boolean) => {
+      if (!button) return;
+      const key = buttonKey(button);
+      if (seen.has(key)) return;
+      seen.add(key);
+      combined.push(button);
+      if (isDerived) {
+        derivedOnly.push(button);
+      }
+    };
+
+    existing.forEach((btn) => register(btn, false));
+    linkButtons.forEach((btn) => register(btn, true));
+
+    return { combinedButtons: combined, derivedLinkButtons: derivedOnly };
+  }, [message.botones, linkButtons]);
+
   const plainText = useMemo(() => safeText.replace(/<[^>]+>/g, ""), [safeText]);
   const simplified = useMemo(() => simplify(plainText), [plainText]);
   const [simple, setSimple] = useState<boolean>(() => {
@@ -222,11 +441,11 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
   ) : (
     <div
       className="whitespace-pre-wrap text-justify max-w-none text-sm [&_p]:my-0 mb-2 chat-message"
-      dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
+      dangerouslySetInnerHTML={{ __html: cleanedHtml }}
     />
   );
 
-  const textBlock = sanitizedHtml
+  const textBlock = cleanedHtml
     ? isBot
       ? (
           <>
@@ -256,9 +475,9 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
   ) : null;
 
   const textAndListBlock =
-    (sanitizedHtml || listBlock) ? (
+    (cleanedHtml || listBlock) ? (
       <>
-        {sanitizedHtml && textBlock}
+        {cleanedHtml && textBlock}
         {listBlock}
       </>
     ) : null;
@@ -358,7 +577,7 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
                 message={message} // Pasamos el mensaje completo para que AttachmentPreview decida
                 attachmentInfo={processedAttachmentInfo}
                 // Si hay adjunto pero también texto, el texto puede ser un caption o fallback
-                fallbackText={sanitizedHtml && !showStructuredContent && !audioSrc ? sanitizedHtml : undefined}
+                fallbackText={cleanedHtml && !showStructuredContent && !audioSrc ? cleanedHtml : undefined}
               />
           )}
 
@@ -393,14 +612,23 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
 
           {/* Botones (categorized or flat) */}
           {isBot && message.categorias && message.categorias.length > 0 ? (
-            <CategorizedButtons
-              categorias={message.categorias}
-              onButtonClick={onButtonClick}
-              onInternalAction={onInternalAction}
-            />
-          ) : isBot && message.botones && message.botones.length > 0 ? (
+            <>
+              <CategorizedButtons
+                categorias={message.categorias}
+                onButtonClick={onButtonClick}
+                onInternalAction={onInternalAction}
+              />
+              {derivedLinkButtons.length > 0 && (
+                <ChatButtons
+                  botones={derivedLinkButtons}
+                  onButtonClick={onButtonClick}
+                  onInternalAction={onInternalAction}
+                />
+              )}
+            </>
+          ) : isBot && combinedButtons.length > 0 ? (
             <ChatButtons
-              botones={message.botones}
+              botones={combinedButtons}
               onButtonClick={onButtonClick}
               onInternalAction={onInternalAction}
             />
