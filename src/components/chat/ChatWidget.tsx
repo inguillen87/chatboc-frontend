@@ -4,6 +4,7 @@ import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
 import { cn } from "@/lib/utils";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
+import { extractRubroKey } from "@/utils/rubros";
 import getOrCreateAnonId from "@/utils/anonId";
 import { motion, AnimatePresence } from "framer-motion";
 import { useUser } from "@/hooks/useUser";
@@ -142,7 +143,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const [proactiveMessage, setProactiveMessage] = useState<string | null>(null);
   const [showProactiveBubble, setShowProactiveBubble] = useState(false);
   const [proactiveCycle, setProactiveCycle] = useState(0);
-  const [selectedRubro, setSelectedRubro] = useState<string | null>(initialRubro || null);
+  const [selectedRubro, setSelectedRubro] = useState<string | null>(() => extractRubroKey(initialRubro) ?? null);
   const entityDefaultRubro = useMemo(() => {
     if (!entityInfo) return null;
 
@@ -156,31 +157,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       info?.rubro_default ??
       info?.rubro;
 
-    if (!rawRubro) {
-      return null;
-    }
-
-    if (typeof rawRubro === "string") {
-      const trimmed = rawRubro.trim();
-      return trimmed.length ? trimmed : null;
-    }
-
-    if (typeof rawRubro === "object") {
-      const candidate =
-        (rawRubro as any).clave ??
-        (rawRubro as any).nombre ??
-        (rawRubro as any).name ??
-        (rawRubro as any).title ??
-        (rawRubro as any).label ??
-        null;
-
-      if (typeof candidate === "string") {
-        const trimmed = candidate.trim();
-        return trimmed.length ? trimmed : null;
-      }
-    }
-
-    return null;
+    const normalized = extractRubroKey(rawRubro);
+    return normalized;
   }, [entityInfo]);
   const [a11yPrefs, setA11yPrefs] = useState<Prefs>(() => {
     try {
@@ -226,8 +204,9 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         ? fallbackCandidate.trim()
         : fallbackCandidate;
 
-    if (fallbackRubro) {
-      setSelectedRubro(fallbackRubro);
+    const normalizedFallback = extractRubroKey(fallbackRubro);
+    if (normalizedFallback) {
+      setSelectedRubro(normalizedFallback);
     }
   }, [selectedRubro, initialRubro, entityDefaultRubro]);
 
@@ -235,9 +214,11 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     const trimmedInitial =
       typeof initialRubro === "string" ? initialRubro.trim() : null;
 
-    if (trimmedInitial) {
-      if (selectedRubro !== trimmedInitial) {
-        setSelectedRubro(trimmedInitial);
+    const normalizedInitial = trimmedInitial ? extractRubroKey(trimmedInitial) : null;
+
+    if (normalizedInitial) {
+      if (selectedRubro !== normalizedInitial) {
+        setSelectedRubro(normalizedInitial);
       }
     } else if (lastOwnerTokenRef.current !== ownerToken) {
       setSelectedRubro(null);
@@ -270,6 +251,11 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       safeLocalStorage.setItem('chatboc_muted', nv ? '1' : '0');
       return nv;
     });
+  }, []);
+
+  const handleRubroSelect = useCallback((value: any) => {
+    const normalized = extractRubroKey(value);
+    setSelectedRubro(normalized ?? null);
   }, []);
 
   const [viewport, setViewport] = useState({
@@ -617,7 +603,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                     onToggleSound={toggleMuted}
                     onCart={openCart}
                     selectedRubro={selectedRubro ?? entityDefaultRubro}
-                    onRubroSelect={setSelectedRubro}
+                    onRubroSelect={handleRubroSelect}
                     headerLogoUrl={headerLogoUrl || customLauncherLogoUrl || entityInfo?.logo_url || (isDarkMode ? '/chatbocar.png' : '/chatbocar2.png')}
                     welcomeTitle={headerTitle}
                     welcomeSubtitle={headerSubtitle}

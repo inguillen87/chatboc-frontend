@@ -10,6 +10,7 @@ import { Message, SendPayload } from "@/types/chat";
 import { apiFetch, getErrorMessage } from "@/utils/api";
 import { getCurrentTipoChat, enforceTipoChatForRubro, parseRubro } from "@/utils/tipoChat";
 import { getAskEndpoint, esRubroPublico } from "@/utils/chatEndpoints";
+import { extractRubroKey, extractRubroLabel } from "@/utils/rubros";
 import { extractButtonsFromResponse } from "@/utils/chatButtons";
 import { ShoppingCart } from "lucide-react";
 
@@ -20,6 +21,7 @@ const Demo = () => {
   const [isTyping, setIsTyping] = useState(false);
   const [preguntasUsadas, setPreguntasUsadas] = useState(0);
   const [rubroSeleccionado, setRubroSeleccionado] = useState<string | null>(null);
+  const [rubroClaveSeleccionado, setRubroClaveSeleccionado] = useState<string | null>(null);
   const [rubrosDisponibles, setRubrosDisponibles] = useState<Rubro[]>([]);
   const [esperandoRubro, setEsperandoRubro] = useState(true); // Initialize to true
   const [anonId, setAnonId] = useState<string>("");
@@ -27,7 +29,8 @@ const Demo = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastQueryRef = useRef<string | null>(null);
 
-  const rubroNormalizado = parseRubro(rubroSeleccionado);
+  const rubroClave = rubroClaveSeleccionado || extractRubroKey(rubroSeleccionado);
+  const rubroNormalizado = parseRubro(rubroClave);
   const isMunicipioRubro = esRubroPublico(rubroNormalizado || undefined);
 
   // Actions like openCart, changeRubro
@@ -37,8 +40,10 @@ const Demo = () => {
 
   const handleChangeRubro = () => {
     safeLocalStorage.removeItem("rubroSeleccionado");
+    safeLocalStorage.removeItem("rubroSeleccionado_label");
     resetChatSessionId();
     setRubroSeleccionado(null);
+    setRubroClaveSeleccionado(null);
     setEsperandoRubro(true);
     setMessages([]);
     setPreguntasUsadas(0);
@@ -128,12 +133,18 @@ const Demo = () => {
 
   // Load rubros and handle initial welcome message
   useEffect(() => {
-    const storedRubro = safeLocalStorage.getItem("rubroSeleccionado");
-    if (storedRubro && !rubroSeleccionado) {
-      setRubroSeleccionado(storedRubro);
+    const storedClave = safeLocalStorage.getItem("rubroSeleccionado");
+    const storedLabel = safeLocalStorage.getItem("rubroSeleccionado_label");
+
+    if (storedClave && !rubroClaveSeleccionado) {
+      const normalizedClave = extractRubroKey(storedClave) ?? storedClave;
+      setRubroClaveSeleccionado(normalizedClave);
+      if (!rubroSeleccionado) {
+        setRubroSeleccionado(storedLabel || storedClave);
+      }
       setEsperandoRubro(false);
-      void startDemoConversation(storedRubro);
-    } else if (!storedRubro) {
+      void startDemoConversation(normalizedClave);
+    } else if (!storedClave) {
       setEsperandoRubro(true);
       setMessages([]);
       apiFetch<any[]>("/rubros/", { skipAuth: true })
@@ -142,7 +153,7 @@ const Demo = () => {
           setRubrosDisponibles([]);
         });
     }
-  }, [rubroSeleccionado, startDemoConversation]);
+  }, [rubroClaveSeleccionado, rubroSeleccionado, startDemoConversation]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -184,10 +195,11 @@ const Demo = () => {
 
       try {
         const currentTipo = getCurrentTipoChat();
-        const adjustedTipo = enforceTipoChatForRubro(currentTipo, rubroSeleccionado);
+        const rubroParaTipo = rubroClave ?? rubroSeleccionado;
+        const adjustedTipo = enforceTipoChatForRubro(currentTipo, rubroParaTipo);
         const payloadBody: Record<string, any> = {
           pregunta: text,
-          rubro_clave: rubroSeleccionado,
+          rubro_clave: rubroClave ?? rubroSeleccionado,
           contexto_previo: contexto,
           anon_id: anonId,
           tipo_chat: adjustedTipo,
@@ -267,10 +279,30 @@ const Demo = () => {
           <RubroSelector
             rubros={rubrosDisponibles}
             onSelect={(rubro) => {
-              safeLocalStorage.setItem("rubroSeleccionado", rubro.nombre);
-              setRubroSeleccionado(rubro.nombre);
+              const clave = extractRubroKey(rubro);
+              const etiqueta = extractRubroLabel(rubro) || rubro.nombre;
+
+              if (!clave && !etiqueta) {
+                console.warn('Demo: rubro recibido sin datos suficientes', rubro);
+                return;
+              }
+
+              if (clave) {
+                safeLocalStorage.setItem("rubroSeleccionado", clave);
+              } else {
+                safeLocalStorage.removeItem("rubroSeleccionado");
+              }
+
+              if (etiqueta) {
+                safeLocalStorage.setItem("rubroSeleccionado_label", etiqueta);
+              } else {
+                safeLocalStorage.removeItem("rubroSeleccionado_label");
+              }
+
+              setRubroSeleccionado(etiqueta || clave || null);
+              setRubroClaveSeleccionado(clave ?? null);
               setEsperandoRubro(false);
-              void startDemoConversation(rubro.nombre);
+              void startDemoConversation(clave ?? etiqueta ?? rubro.nombre);
             }}
           />
         </div>

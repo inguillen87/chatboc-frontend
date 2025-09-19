@@ -11,6 +11,7 @@ import { io, Socket } from "socket.io-client";
 import { getSocketUrl } from "@/config";
 import { apiFetch, getErrorMessage } from "@/utils/api";
 import { getAskEndpoint, parseRubro } from "@/utils/chatEndpoints";
+import { extractRubroKey } from "@/utils/rubros";
 import { enforceTipoChatForRubro } from "@/utils/tipoChat";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateChatSessionId from "@/utils/chatSessionId";
@@ -51,28 +52,8 @@ export function useChatLogic({
   }, [messages]);
 
   const sanitizeRubroValue = (value: unknown): string | null => {
-    if (value === null || value === undefined) {
-      return null;
-    }
-
-    if (typeof value === "string") {
-      const trimmed = value.trim();
-      return trimmed.length ? trimmed : null;
-    }
-
-    if (typeof value === "object") {
-      const candidate =
-        (value as { clave?: unknown; nombre?: unknown; name?: unknown }).clave ||
-        (value as { clave?: unknown; nombre?: unknown; name?: unknown }).nombre ||
-        (value as { clave?: unknown; nombre?: unknown; name?: unknown }).name;
-
-      if (typeof candidate === "string") {
-        const trimmed = candidate.trim();
-        return trimmed.length ? trimmed : null;
-      }
-    }
-
-    return null;
+    const key = extractRubroKey(value);
+    return key && key.length > 0 ? key : null;
   };
 
   const initializeConversation = useCallback(

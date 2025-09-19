@@ -49,8 +49,8 @@ describe('parseAgendaText', () => {
 
   it('parses event details', () => {
     const event = result.days[0].events[0];
-    expect(event).toEqual({
-      time: '9.30',
+    expect(event).toMatchObject({
+      startTime: '9.30',
       title: 'Entrega de reconocimientos a los cuatro primeros Presidentes del HCD en democracia.',
       location: 'HCD',
     });

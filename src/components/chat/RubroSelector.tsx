@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 export interface Rubro {
   id: number;
   nombre: string;
+  clave?: string;
   subrubros?: Rubro[];
 }
 
