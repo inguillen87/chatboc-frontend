@@ -1,4 +1,5 @@
 import React from 'react';
+import { cn } from '@/lib/utils';
 
 export interface TicketLocation {
   latitud?: number | null;
@@ -37,7 +38,23 @@ export const buildFullAddress = (ticket: TicketLocation) => {
   return parts.join(', ');
 };
 
-const TicketMap: React.FC<{ ticket: TicketLocation }> = ({ ticket }) => {
+interface TicketMapProps {
+  ticket: TicketLocation;
+  className?: string;
+  hideTitle?: boolean;
+  title?: React.ReactNode;
+  heightClassName?: string;
+  showAddressHint?: boolean;
+}
+
+const TicketMap: React.FC<TicketMapProps> = ({
+  ticket,
+  className,
+  hideTitle = false,
+  title = 'Ubicación aproximada',
+  heightClassName,
+  showAddressHint = true,
+}) => {
   const direccionCompleta = buildFullAddress(ticket);
   const destLat =
     typeof ticket.lat_destino === 'number'
@@ -97,10 +114,14 @@ const TicketMap: React.FC<{ ticket: TicketLocation }> = ({ ticket }) => {
 
   if (!src) return null;
 
+  const heightClasses = heightClassName ?? 'h-[150px] sm:h-[180px]';
+
   return (
-    <div className="mb-6">
-      <h4 className="font-semibold mb-2">Ubicación aproximada</h4>
-      <div className="w-full rounded overflow-hidden h-[150px] sm:h-[180px]">
+    <div className={cn('mb-6', className)}>
+      {!hideTitle && title && (
+        <h4 className="font-semibold mb-2">{title}</h4>
+      )}
+      <div className={cn('w-full rounded overflow-hidden', heightClasses)}>
         <iframe
           width="100%"
           height="100%"
@@ -115,7 +136,7 @@ const TicketMap: React.FC<{ ticket: TicketLocation }> = ({ ticket }) => {
           }}
         />
       </div>
-      {direccionCompleta && (
+      {direccionCompleta && showAddressHint && (
         <div className="text-xs mt-1 text-muted-foreground truncate">
           {direccionCompleta}
         </div>

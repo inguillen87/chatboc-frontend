@@ -3,7 +3,19 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Mail, MapPin, Info, FileDown, User, ExternalLink, Building, Hash, Copy, X } from 'lucide-react';
+import {
+  Mail,
+  MapPin,
+  Info,
+  FileDown,
+  User,
+  ExternalLink,
+  Building,
+  Hash,
+  Copy,
+  X,
+  Maximize2,
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { motion } from 'framer-motion';
 import TicketMap, { buildFullAddress } from '../TicketMap';
@@ -219,7 +231,7 @@ export const collectAttachmentsFromTicket = (ticket?: Ticket | null, extraMessag
   return normalized;
 };
 
-const getPrimaryImageUrl = (ticket: Ticket | null, attachments: Attachment[]): string | undefined => {
+export const getPrimaryImageUrl = (ticket: Ticket | null, attachments: Attachment[]): string | undefined => {
   if (!ticket) {
     return undefined;
   }
@@ -304,6 +316,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose }) => {
     [ticket]
   );
   const [imageError, setImageError] = React.useState(false);
+  const [isImageModalOpen, setIsImageModalOpen] = React.useState(false);
   const [specialContact, setSpecialContact] = React.useState<SpecializedContact | null>(null);
   const [completionSent, setCompletionSent] = React.useState(false);
   const statusFlow = React.useMemo(
@@ -349,7 +362,24 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose }) => {
 
   React.useEffect(() => {
     setImageError(false);
+    setIsImageModalOpen(false);
   }, [primaryImageUrl]);
+
+  const renderSpecialContact = (withSeparator = false) => {
+    if (!specialContact) {
+      return null;
+    }
+
+    return (
+      <div className={cn('space-y-1', withSeparator && 'border-t pt-3')}>
+        <p>{specialContact.nombre}</p>
+        {specialContact.titulo && <p>{specialContact.titulo}</p>}
+        {specialContact.telefono && <p>Teléfono: {specialContact.telefono}</p>}
+        {specialContact.horario && <p>Horario: {specialContact.horario}</p>}
+        {specialContact.email && <p>Email: {specialContact.email}</p>}
+      </div>
+    );
+  };
 
   if (!ticket) {
     return (
@@ -630,30 +660,69 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose }) => {
 
             {attachments.length > 0 && <TicketAttachments attachments={attachments} />}
 
-            {(specialContact || (primaryImageUrl && !imageError)) && (
+            {primaryImageUrl && (
               <CardContent className="p-4 text-sm border-t space-y-3">
-                <h4 className="font-semibold">Contacto para seguimiento</h4>
-                {primaryImageUrl && !imageError && (
-                  <div className="aspect-video rounded-md overflow-hidden border bg-muted">
+                <h4 className="font-semibold">Imagen del reclamo</h4>
+                {imageError ? (
+                  <div className="rounded-md border bg-muted/50 p-4 text-muted-foreground">
+                    No se pudo cargar la imagen proporcionada.
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setIsImageModalOpen(true)}
+                    className="group relative aspect-video w-full overflow-hidden rounded-md border bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                    aria-label="Ampliar imagen del reclamo"
+                  >
                     <img
                       src={primaryImageUrl}
                       alt="Foto enviada en el reclamo"
-                      className="h-full w-full object-cover"
+                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                       loading="lazy"
-                      onError={() => setImageError(true)}
+                      onError={() => {
+                        setImageError(true);
+                        setIsImageModalOpen(false);
+                      }}
                     />
-                  </div>
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/20">
+                      <Maximize2 className="h-6 w-6 text-white opacity-0 transition-opacity group-hover:opacity-100" />
+                    </div>
+                  </button>
                 )}
-                {specialContact && (
-                  <div className="space-y-1">
-                    <p>{specialContact.nombre}</p>
-                    {specialContact.titulo && <p>{specialContact.titulo}</p>}
-                    {specialContact.telefono && <p>Teléfono: {specialContact.telefono}</p>}
-                    {specialContact.horario && <p>Horario: {specialContact.horario}</p>}
-                    {specialContact.email && <p>Email: {specialContact.email}</p>}
-                  </div>
-                )}
+                {renderSpecialContact(true)}
               </CardContent>
+            )}
+
+            {!primaryImageUrl && specialContact && (
+              <CardContent className="p-4 text-sm border-t space-y-1">
+                <h4 className="font-semibold">Contacto sugerido</h4>
+                {renderSpecialContact()}
+              </CardContent>
+            )}
+
+            {isImageModalOpen && primaryImageUrl && !imageError && (
+              <div
+                className="fixed inset-0 z-50 bg-black/70 p-4 flex items-center justify-center"
+                onClick={() => setIsImageModalOpen(false)}
+                role="dialog"
+                aria-modal="true"
+              >
+                <div className="relative" onClick={(event) => event.stopPropagation()}>
+                  <img
+                    src={primaryImageUrl}
+                    alt="Foto ampliada del reclamo"
+                    className="max-h-[90vh] max-w-[90vw] rounded-lg shadow-2xl"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setIsImageModalOpen(false)}
+                    className="absolute top-2 right-2 rounded-full bg-black/60 p-1 text-white transition hover:bg-black/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                    aria-label="Cerrar imagen ampliada"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
             )}
 
             <CardContent className="p-4 space-y-3 text-sm border-t">
