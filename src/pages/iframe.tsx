@@ -116,7 +116,7 @@ const Iframe = () => {
   const ChatWidgetComponent = () => (
     <ChatWidget
       mode="iframe"
-      entityToken={entityToken}
+      ownerToken={entityToken || undefined}
       defaultOpen={widgetParams.defaultOpen}
       widgetId={widgetParams.widgetId}
       tipoChat={tipoChat || undefined}
