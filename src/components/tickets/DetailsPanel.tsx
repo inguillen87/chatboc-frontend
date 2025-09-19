@@ -149,7 +149,7 @@ const normalizeAttachment = (raw: any, fallbackIndex: number): Attachment | null
   };
 };
 
-const collectAttachmentsFromTicket = (ticket?: Ticket | null, extraMessages?: Message[]): Attachment[] => {
+export const collectAttachmentsFromTicket = (ticket?: Ticket | null, extraMessages?: Message[]): Attachment[] => {
   if (!ticket && !extraMessages?.length) {
     return [];
   }
