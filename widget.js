@@ -338,7 +338,6 @@
     const tipoChat =
       endpointAttr === "municipio" || endpointAttr === "pyme" ? endpointAttr : "pyme";
 
-    let latestToken = null;
     function buildWidget(finalCta) {
       const zIndexBase = parseInt(script.getAttribute("data-z") || SCRIPT_CONFIG.DEFAULT_Z_INDEX, 10);
       const iframeId = `chatboc-dynamic-iframe-${Math.random().toString(36).substring(2, 9)}`;
@@ -644,7 +643,7 @@
 
       unsubscribeAuth = authManager.subscribe((token) => {
         latestToken = token;
-        postToIframe({ type: "AUTH", token });
+        postToIframe({ type: "AUTH", token: latestToken });
       });
 
       // Global API
