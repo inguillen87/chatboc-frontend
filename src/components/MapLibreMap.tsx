@@ -59,7 +59,17 @@ export default function MapLibreMap({
 
     const initMap = async () => {
       try {
-        const maplibre = (await import("maplibre-gl")).default;
+        const maplibreModule = await import("maplibre-gl");
+        const maplibre = (
+          maplibreModule as typeof import("maplibre-gl") & {
+            default?: typeof import("maplibre-gl");
+          }
+        ).default ?? maplibreModule;
+
+        if (!maplibre?.Map) {
+          throw new Error("MapLibre library failed to load");
+        }
+
         libRef.current = maplibre;
 
         if (!isMounted || !mapContainerRef.current) return;
