@@ -10,7 +10,7 @@ import {
 import { io, Socket } from "socket.io-client";
 import { getSocketUrl } from "@/config";
 import { apiFetch, getErrorMessage } from "@/utils/api";
-import { getAskEndpoint } from "@/utils/chatEndpoints";
+import { getAskEndpoint, parseRubro } from "@/utils/chatEndpoints";
 import { enforceTipoChatForRubro } from "@/utils/tipoChat";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateChatSessionId from "@/utils/chatSessionId";
@@ -27,9 +27,16 @@ interface UseChatLogicOptions {
   entityToken?: string;
   tokenKey?: string;
   skipAuth?: boolean;
+  selectedRubro?: string | null;
 }
 
-export function useChatLogic({ tipoChat, entityToken: propToken, tokenKey = 'authToken', skipAuth = false }: UseChatLogicOptions) {
+export function useChatLogic({
+  tipoChat,
+  entityToken: propToken,
+  tokenKey = 'authToken',
+  skipAuth = false,
+  selectedRubro = null,
+}: UseChatLogicOptions) {
   const entityToken = propToken || getIframeToken();
   const { user } = useUser();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -37,6 +44,136 @@ export function useChatLogic({ tipoChat, entityToken: propToken, tokenKey = 'aut
   const [contexto, setContexto] = useState<MunicipioContext>(() => getInitialMunicipioContext());
   const [activeTicketId, setActiveTicketId] = useState<number | null>(null);
   const [currentClaimIdempotencyKey, setCurrentClaimIdempotencyKey] = useState<string | null>(null);
+  const messagesRef = useRef<Message[]>([]);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  const sanitizeRubroValue = (value: unknown): string | null => {
+    if (value === null || value === undefined) {
+      return null;
+    }
+
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      return trimmed.length ? trimmed : null;
+    }
+
+    if (typeof value === "object") {
+      const candidate =
+        (value as { clave?: unknown; nombre?: unknown; name?: unknown }).clave ||
+        (value as { clave?: unknown; nombre?: unknown; name?: unknown }).nombre ||
+        (value as { clave?: unknown; nombre?: unknown; name?: unknown }).name;
+
+      if (typeof candidate === "string") {
+        const trimmed = candidate.trim();
+        return trimmed.length ? trimmed : null;
+      }
+    }
+
+    return null;
+  };
+
+  const initializeConversation = useCallback(
+    async (options?: {
+      rubroOverride?: string | null;
+      resetContext?: boolean;
+      resetMessages?: boolean;
+      force?: boolean;
+    }) => {
+      if (!options?.force && messagesRef.current.length > 0) {
+        return;
+      }
+
+      let rawRubro = sanitizeRubroValue(options?.rubroOverride);
+      if (!rawRubro) {
+        rawRubro = sanitizeRubroValue(selectedRubro);
+      }
+
+      if (!rawRubro) {
+        try {
+          const storedUser = JSON.parse(safeLocalStorage.getItem('user') || 'null');
+          rawRubro =
+            sanitizeRubroValue(storedUser?.rubro) ||
+            sanitizeRubroValue(storedUser?.rubro?.clave) ||
+            sanitizeRubroValue(storedUser?.rubro?.nombre) ||
+            null;
+        } catch {
+          rawRubro = null;
+        }
+      }
+
+      if (!rawRubro) {
+        rawRubro = sanitizeRubroValue(safeLocalStorage.getItem('rubroSeleccionado'));
+      }
+
+      const normalizedRubro = rawRubro ? parseRubro(rawRubro) : null;
+      const tipoChatFinal = enforceTipoChatForRubro(tipoChat, normalizedRubro || undefined);
+      const rubroForPayload = tipoChatFinal === 'pyme' ? rawRubro : null;
+
+      if (tipoChatFinal === 'pyme' && !rubroForPayload) {
+        console.log('useChatLogic: Rubro no seleccionado para chat pyme, se omite el saludo inicial.');
+        setIsTyping(false);
+        return;
+      }
+
+      if (options?.resetMessages) {
+        setMessages([]);
+        setActiveTicketId(null);
+      }
+
+      const shouldResetContext = options?.resetContext ?? messagesRef.current.length === 0;
+      const contextToSend = shouldResetContext ? getInitialMunicipioContext() : contexto;
+      if (shouldResetContext) {
+        setContexto(contextToSend);
+      }
+
+      const visitorName = getVisitorName();
+      const endpoint = getAskEndpoint({
+        tipoChat: tipoChatFinal,
+        rubro: normalizedRubro || null,
+      });
+
+      console.log('useChatLogic: Enviando saludo inicial', {
+        endpoint,
+        tipoChatFinal,
+        rubroForPayload,
+      });
+
+      setIsTyping(true);
+
+      try {
+        await apiFetch<any>(endpoint, {
+          method: 'POST',
+          skipAuth,
+          body: {
+            pregunta: '',
+            action: 'initial_greeting',
+            contexto_previo: contextToSend,
+            tipo_chat: tipoChatFinal,
+            ...(rubroForPayload && { rubro_clave: rubroForPayload }),
+            ...(visitorName && { nombre_usuario: visitorName }),
+          },
+        });
+      } catch (error) {
+        console.error('Error sending initial greeting:', getErrorMessage(error));
+        const errorMsg = getErrorMessage(error, '⚠️ No se pudo cargar el menú inicial.');
+        setMessages(prev => [
+          ...prev,
+          {
+            id: generateClientMessageId(),
+            text: errorMsg,
+            isBot: true,
+            timestamp: new Date(),
+            isError: true,
+          },
+        ]);
+        setIsTyping(false);
+      }
+    },
+    [contexto, selectedRubro, skipAuth, tipoChat]
+  );
 
   const token = skipAuth ? null : safeLocalStorage.getItem(tokenKey);
   const isAnonimo = skipAuth || !token;
@@ -281,31 +418,7 @@ export function useChatLogic({ tipoChat, entityToken: propToken, tokenKey = 'aut
       console.log('Socket.IO connected, joining room with web channel...');
       socket.emit('join', { room: sessionId, channel: 'web' });
 
-      // Automatically send a silent greeting to fetch the main menu on connect.
-      const endpoint = getAskEndpoint({ tipoChat, rubro: null });
-      const initialContext = getInitialMunicipioContext();
-
-      console.log("useChatLogic: Sending initial greeting to fetch menu.");
-      setIsTyping(true);
-
-      const initialName = getVisitorName();
-      apiFetch<any>(endpoint, {
-        method: 'POST',
-        skipAuth,
-        body: {
-          pregunta: '',
-          action: 'initial_greeting',
-          contexto_previo: initialContext,
-          tipo_chat: tipoChat,
-          ...(initialName && { nombre_usuario: initialName }),
-        },
-      })
-        .catch(error => {
-          console.error("Error sending initial greeting:", getErrorMessage(error));
-          const errorMsg = getErrorMessage(error, '⚠️ No se pudo cargar el menú inicial.');
-          setMessages(prev => [...prev, { id: generateClientMessageId(), text: errorMsg, isBot: true, timestamp: new Date(), isError: true }]);
-          setIsTyping(false);
-        });
+      initializeConversation({ resetContext: true });
     };
 
     const handleConnectError = (err: any) => {
@@ -594,7 +707,7 @@ export function useChatLogic({ tipoChat, entityToken: propToken, tokenKey = 'aut
       socket.off?.('disconnect', handleDisconnect);
       socket.disconnect();
     };
-}, [entityToken, tipoChat]);
+}, [entityToken, initializeConversation, tipoChat]);
 
   useEffect(() => {
     if (contexto.estado_conversacion === 'confirmando_reclamo' && !activeTicketId) {
@@ -809,5 +922,16 @@ export function useChatLogic({ tipoChat, entityToken: propToken, tokenKey = 'aut
     }
   }, [contexto, activeTicketId, isTyping, isAnonimo, currentClaimIdempotencyKey, tipoChat]);
 
-  return { messages, isTyping, handleSend, activeTicketId, setMessages, setContexto, setActiveTicketId, contexto, addSystemMessage };
+  return {
+    messages,
+    isTyping,
+    handleSend,
+    activeTicketId,
+    setMessages,
+    setContexto,
+    setActiveTicketId,
+    contexto,
+    addSystemMessage,
+    initializeConversation,
+  };
 }

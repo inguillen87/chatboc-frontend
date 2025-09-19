@@ -43,6 +43,7 @@ const Demo = () => {
     setMessages([]);
     setPreguntasUsadas(0);
     setContexto({});
+    lastQueryRef.current = null;
     // The useEffect for loading rubros will trigger again due to rubroSeleccionado being null
     // or rather, we explicitly set esperandoRubro to true and then the rubro loading logic runs
     apiFetch<any[]>("/rubros/", { skipAuth: true })
@@ -53,6 +54,73 @@ const Demo = () => {
   };
 
 
+  const startDemoConversation = useCallback(
+    async (rubroNombre: string) => {
+      const normalized = parseRubro(rubroNombre);
+      const baseTipo = getCurrentTipoChat();
+      const adjustedTipo = enforceTipoChatForRubro(baseTipo, normalized);
+      const endpoint = getAskEndpoint({ tipoChat: adjustedTipo, rubro: normalized || undefined });
+
+      const currentAnonId = anonId || getOrCreateAnonId();
+      if (!anonId) {
+        setAnonId(currentAnonId);
+      }
+
+      setIsTyping(true);
+      setMessages([]);
+      setPreguntasUsadas(0);
+      setContexto({});
+      lastQueryRef.current = null;
+
+      try {
+        const response = await apiFetch<any>(endpoint, {
+          method: "POST",
+          body: {
+            pregunta: "",
+            action: "initial_greeting",
+            contexto_previo: {},
+            anon_id: currentAnonId,
+            tipo_chat: adjustedTipo,
+            ...(adjustedTipo === "pyme" && rubroNombre
+              ? { rubro_clave: rubroNombre }
+              : {}),
+          },
+          headers: { "Content-Type": "application/json" },
+          skipAuth: true,
+        });
+
+        setContexto(response.contexto_actualizado || {});
+        const respuestaText = response.respuesta_usuario || "⚠️ No se pudo generar una respuesta.";
+        const botones = extractButtonsFromResponse(response);
+
+        const botMessage: Message = {
+          id: Date.now(),
+          text: respuestaText,
+          isBot: true,
+          timestamp: new Date(),
+          botones,
+        };
+
+        setMessages([botMessage]);
+      } catch (error: any) {
+        const errorMsg = getErrorMessage(error, "⚠️ No se pudo cargar el menú inicial.");
+        setMessages([
+          {
+            id: Date.now(),
+            text: errorMsg,
+            isBot: true,
+            timestamp: new Date(),
+            query: undefined,
+          },
+        ]);
+      } finally {
+        setIsTyping(false);
+      }
+    },
+    [anonId, setAnonId, setContexto, setIsTyping, setMessages, setPreguntasUsadas]
+  );
+
+
   // Set Anon ID on mount
   useEffect(() => {
     setAnonId(getOrCreateAnonId());
@@ -61,23 +129,10 @@ const Demo = () => {
   // Load rubros and handle initial welcome message
   useEffect(() => {
     const storedRubro = safeLocalStorage.getItem("rubroSeleccionado");
-    if (storedRubro && !rubroSeleccionado) { // Check !rubroSeleccionado to prevent re-running if already set
+    if (storedRubro && !rubroSeleccionado) {
       setRubroSeleccionado(storedRubro);
       setEsperandoRubro(false);
-      setMessages([
-        {
-          id: Date.now(),
-          text: `¡Hola! Soy Chatboc, tu asistente para ${storedRubro.toLowerCase()}. ¿En qué puedo ayudarte hoy?`,
-          isBot: true,
-          timestamp: new Date(),
-          query: undefined,
-          botones: [
-            { texto: "¿Qué servicios ofrecen?", payload: "¿Qué servicios ofrecen?" },
-            { texto: "Necesito ayuda con un problema", payload: "Necesito ayuda con un problema" },
-            { texto: "Ver planes y precios", payload: "Ver planes y precios" },
-          ]
-        },
-      ]);
+      void startDemoConversation(storedRubro);
     } else if (!storedRubro) {
       setEsperandoRubro(true);
       setMessages([]);
@@ -87,7 +142,7 @@ const Demo = () => {
           setRubrosDisponibles([]);
         });
     }
-  }, [rubroSeleccionado]); // Add rubroSeleccionado to dependencies
+  }, [rubroSeleccionado, startDemoConversation]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -215,14 +270,7 @@ const Demo = () => {
               safeLocalStorage.setItem("rubroSeleccionado", rubro.nombre);
               setRubroSeleccionado(rubro.nombre);
               setEsperandoRubro(false);
-              setMessages([
-                {
-                  id: Date.now(),
-                  text: `¡Hola! Soy Chatboc, tu asistente para ${rubro.nombre.toLowerCase()}. ¿En qué puedo ayudarte hoy?`,
-                  isBot: true,
-                  timestamp: new Date(),
-                },
-              ]);
+              void startDemoConversation(rubro.nombre);
             }}
           />
         </div>

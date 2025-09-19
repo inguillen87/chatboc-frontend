@@ -143,7 +143,45 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const [showProactiveBubble, setShowProactiveBubble] = useState(false);
   const [proactiveCycle, setProactiveCycle] = useState(0);
   const [selectedRubro, setSelectedRubro] = useState<string | null>(initialRubro || null);
-  const [hasSetInitialRubro, setHasSetInitialRubro] = useState(false);
+  const entityDefaultRubro = useMemo(() => {
+    if (!entityInfo) return null;
+
+    const info: any = entityInfo;
+    const rawRubro =
+      info?.rubro_clave ??
+      info?.rubroClave ??
+      info?.rubro_nombre ??
+      info?.rubroNombre ??
+      info?.defaultRubro ??
+      info?.rubro_default ??
+      info?.rubro;
+
+    if (!rawRubro) {
+      return null;
+    }
+
+    if (typeof rawRubro === "string") {
+      const trimmed = rawRubro.trim();
+      return trimmed.length ? trimmed : null;
+    }
+
+    if (typeof rawRubro === "object") {
+      const candidate =
+        (rawRubro as any).clave ??
+        (rawRubro as any).nombre ??
+        (rawRubro as any).name ??
+        (rawRubro as any).title ??
+        (rawRubro as any).label ??
+        null;
+
+      if (typeof candidate === "string") {
+        const trimmed = candidate.trim();
+        return trimmed.length ? trimmed : null;
+      }
+    }
+
+    return null;
+  }, [entityInfo]);
   const [a11yPrefs, setA11yPrefs] = useState<Prefs>(() => {
     try {
       return (
@@ -175,12 +213,38 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     }
   }, []);
 
+  const lastOwnerTokenRef = useRef<string | null | undefined>(ownerToken);
+
   useEffect(() => {
-    if (initialRubro && !hasSetInitialRubro) {
-      setSelectedRubro(initialRubro);
-      setHasSetInitialRubro(true);
+    if (selectedRubro) {
+      return;
     }
-  }, [initialRubro, hasSetInitialRubro]);
+
+    const fallbackCandidate = initialRubro ?? entityDefaultRubro;
+    const fallbackRubro =
+      typeof fallbackCandidate === "string"
+        ? fallbackCandidate.trim()
+        : fallbackCandidate;
+
+    if (fallbackRubro) {
+      setSelectedRubro(fallbackRubro);
+    }
+  }, [selectedRubro, initialRubro, entityDefaultRubro]);
+
+  useEffect(() => {
+    const trimmedInitial =
+      typeof initialRubro === "string" ? initialRubro.trim() : null;
+
+    if (trimmedInitial) {
+      if (selectedRubro !== trimmedInitial) {
+        setSelectedRubro(trimmedInitial);
+      }
+    } else if (lastOwnerTokenRef.current !== ownerToken) {
+      setSelectedRubro(null);
+    }
+
+    lastOwnerTokenRef.current = ownerToken;
+  }, [ownerToken, initialRubro, selectedRubro]);
 
   const openUserPanel = useCallback(() => {
     if (user) {
@@ -552,7 +616,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                     muted={muted}
                     onToggleSound={toggleMuted}
                     onCart={openCart}
-                    selectedRubro={entityInfo?.rubro || selectedRubro}
+                    selectedRubro={selectedRubro ?? entityDefaultRubro}
                     onRubroSelect={setSelectedRubro}
                     headerLogoUrl={headerLogoUrl || customLauncherLogoUrl || entityInfo?.logo_url || (isDarkMode ? '/chatbocar.png' : '/chatbocar2.png')}
                     welcomeTitle={headerTitle}
