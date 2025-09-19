@@ -231,7 +231,7 @@ export const collectAttachmentsFromTicket = (ticket?: Ticket | null, extraMessag
   return normalized;
 };
 
-const getPrimaryImageUrl = (ticket: Ticket | null, attachments: Attachment[]): string | undefined => {
+export const getPrimaryImageUrl = (ticket: Ticket | null, attachments: Attachment[]): string | undefined => {
   if (!ticket) {
     return undefined;
   }
