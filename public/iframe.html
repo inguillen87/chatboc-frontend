@@ -50,25 +50,57 @@
     // Config que llega por query (encapsulada para no contaminar el global)
     (() => {
       const params = new URLSearchParams(location.search);
+      const endpoint =
+        params.get('endpoint') ||
+        params.get('tipo_chat') ||
+        'municipio';
+      const entityToken =
+        params.get('entityToken') ||
+        params.get('ownerToken') ||
+        '';
+      const openWidth = params.get('openWidth') || params.get('width') || '460px';
+      const openHeight = params.get('openHeight') || params.get('height') || '680px';
+      const closedWidth = params.get('closedWidth') || '72px';
+      const closedHeight = params.get('closedHeight') || '72px';
+      const bottom = params.get('bottom') || '20px';
+      const right = params.get('right') || '20px';
+      const primaryColor = params.get('primaryColor') || '#007aff';
+      const accentColor = params.get('accentColor') || '';
+      const logoUrl = params.get('logoUrl') || '';
+      const headerLogoUrl = params.get('headerLogoUrl') || logoUrl;
+      const logoAnimation = params.get('logoAnimation') || '';
+      const welcomeTitle = params.get('welcomeTitle') || '';
+      const welcomeSubtitle = params.get('welcomeSubtitle') || '';
+
       window.CHATBOC_CONFIG = {
-        endpoint: params.get('endpoint') || 'municipio',
-        entityToken: params.get('entityToken') || '',
+        endpoint,
+        entityToken,
         userToken: params.get('userToken') || null,
         defaultOpen: params.get('defaultOpen') === 'true',
-        width: params.get('width') || '460px',
-        height: params.get('height') || '680px',
-        closedWidth: params.get('closedWidth') || '72px',
-        closedHeight: params.get('closedHeight') || '72px',
-        bottom: params.get('bottom') || '20px',
-        right: params.get('right') || '20px',
-        primaryColor: params.get('primaryColor') || '#007aff',
-        accentColor: params.get('accentColor') || '',
-        logoUrl: params.get('logoUrl') || '',
-        headerLogoUrl: params.get('headerLogoUrl') || params.get('logoUrl') || '',
-        logoAnimation: params.get('logoAnimation') || '',
-        welcomeTitle: params.get('welcomeTitle') || '',
-        welcomeSubtitle: params.get('welcomeSubtitle') || ''
+        width: openWidth,
+        height: openHeight,
+        closedWidth,
+        closedHeight,
+        bottom,
+        right,
+        primaryColor,
+        accentColor,
+        logoUrl,
+        headerLogoUrl,
+        logoAnimation,
+        welcomeTitle,
+        welcomeSubtitle
       };
+
+      try {
+        if (entityToken) {
+          localStorage.setItem('entityToken', entityToken);
+        } else {
+          localStorage.removeItem('entityToken');
+        }
+      } catch (err) {
+        console.warn('No se pudo persistir el entityToken en localStorage.', err);
+      }
     })();
   </script>
 

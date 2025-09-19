@@ -151,7 +151,7 @@ ${customAttrs ? customAttrs + "\n" : ""}></script>`;
 
   const iframeSrcUrl = useMemo(() => {
     const url = new URL(`${apiBase}/iframe`);
-    url.searchParams.set("ownerToken", ownerToken);
+    url.searchParams.set("entityToken", ownerToken);
     url.searchParams.set("tipo_chat", endpoint);
     if (primaryColor) url.searchParams.set("primaryColor", primaryColor);
     if (accentColor) url.searchParams.set("accentColor", accentColor);
@@ -165,7 +165,7 @@ ${customAttrs ? customAttrs + "\n" : ""}></script>`;
 
   const previewIframeUrl = useMemo(() => {
     const url = new URL(`${iframeBase}/iframe`);
-    url.searchParams.set("ownerToken", ownerToken);
+    url.searchParams.set("entityToken", ownerToken);
     url.searchParams.set("tipo_chat", endpoint);
     if (primaryColor) url.searchParams.set("primaryColor", primaryColor);
     if (accentColor) url.searchParams.set("accentColor", accentColor);
