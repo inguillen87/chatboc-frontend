@@ -50,10 +50,29 @@ export function useChatLogic({
     messagesRef.current = messages;
   }, [messages]);
 
-  const sanitizeRubroValue = (value: string | null | undefined) => {
-    if (!value) return null;
-    const trimmed = value.toString().trim();
-    return trimmed.length ? trimmed : null;
+  const sanitizeRubroValue = (value: unknown): string | null => {
+    if (value === null || value === undefined) {
+      return null;
+    }
+
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      return trimmed.length ? trimmed : null;
+    }
+
+    if (typeof value === "object") {
+      const candidate =
+        (value as { clave?: unknown; nombre?: unknown; name?: unknown }).clave ||
+        (value as { clave?: unknown; nombre?: unknown; name?: unknown }).nombre ||
+        (value as { clave?: unknown; nombre?: unknown; name?: unknown }).name;
+
+      if (typeof candidate === "string") {
+        const trimmed = candidate.trim();
+        return trimmed.length ? trimmed : null;
+      }
+    }
+
+    return null;
   };
 
   const initializeConversation = useCallback(
@@ -76,6 +95,7 @@ export function useChatLogic({
         try {
           const storedUser = JSON.parse(safeLocalStorage.getItem('user') || 'null');
           rawRubro =
+            sanitizeRubroValue(storedUser?.rubro) ||
             sanitizeRubroValue(storedUser?.rubro?.clave) ||
             sanitizeRubroValue(storedUser?.rubro?.nombre) ||
             null;
