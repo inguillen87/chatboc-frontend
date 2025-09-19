@@ -13,6 +13,7 @@ import PersonalDataForm from './PersonalDataForm';
 import { Rubro } from "./RubroSelector";
 import { Message } from "@/types/chat";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
+import { extractRubroKey, extractRubroLabel } from "@/utils/rubros";
 import { requestLocation } from "@/utils/geolocation";
 import { toast } from "@/components/ui/use-toast";
 import RubroSelector from "./RubroSelector";
@@ -100,8 +101,9 @@ const ChatPanel = ({
   const socketRef = useRef<SocketIOClient.Socket | null>(null);
 
   const skipAuth = mode === 'script';
-  const [localRubro, setLocalRubro] = useState<string | null>(() => selectedRubro ?? null);
-  const resolvedSelectedRubro = localRubro ?? selectedRubro ?? null;
+  const normalizedPropRubro = extractRubroKey(selectedRubro);
+  const [localRubro, setLocalRubro] = useState<string | null>(() => normalizedPropRubro ?? null);
+  const resolvedSelectedRubro = localRubro ?? normalizedPropRubro ?? null;
   const {
     messages,
     isTyping,
@@ -150,25 +152,28 @@ const ChatPanel = ({
   useEffect(() => {
     if (!rubrosEnabled) {
       safeLocalStorage.removeItem("rubroSeleccionado");
+      safeLocalStorage.removeItem("rubroSeleccionado_label");
       lastInitializedRubro.current = null;
-      const nextValue = selectedRubro ?? null;
+      const nextValue = extractRubroKey(selectedRubro);
       if (localRubro !== nextValue) {
-        setLocalRubro(nextValue);
+        setLocalRubro(nextValue ?? null);
       }
       return;
     }
 
-    if (selectedRubro && selectedRubro !== localRubro) {
+    const sanitizedSelected = extractRubroKey(selectedRubro);
+    if (sanitizedSelected && sanitizedSelected !== localRubro) {
       lastInitializedRubro.current = null;
-      setLocalRubro(selectedRubro);
+      setLocalRubro(sanitizedSelected);
       return;
     }
 
     if (!selectedRubro && !localRubro) {
       const stored = safeLocalStorage.getItem("rubroSeleccionado");
-      if (stored) {
+      const storedKey = extractRubroKey(stored);
+      if (storedKey) {
         lastInitializedRubro.current = null;
-        setLocalRubro(stored);
+        setLocalRubro(storedKey);
       }
     }
   }, [rubrosEnabled, selectedRubro, localRubro]);
@@ -221,6 +226,7 @@ const ChatPanel = ({
       safeLocalStorage.setItem("rubroSeleccionado", localRubro);
     } else {
       safeLocalStorage.removeItem("rubroSeleccionado");
+      safeLocalStorage.removeItem("rubroSeleccionado_label");
       lastInitializedRubro.current = null;
     }
   }, [rubrosEnabled, localRubro]);
@@ -238,10 +244,22 @@ const ChatPanel = ({
 
   const handleRubroSelection = useCallback(
     (rubro: Rubro) => {
-      const nombre = rubro.nombre;
+      const rubroKey = extractRubroKey(rubro);
+      if (!rubroKey) {
+        console.warn("handleRubroSelection: rubro inválido", rubro);
+        return;
+      }
+
+      const rubroLabel = extractRubroLabel(rubro);
+
       lastInitializedRubro.current = null;
-      safeLocalStorage.setItem("rubroSeleccionado", nombre);
-      setLocalRubro(nombre);
+      safeLocalStorage.setItem("rubroSeleccionado", rubroKey);
+      if (rubroLabel) {
+        safeLocalStorage.setItem("rubroSeleccionado_label", rubroLabel);
+      } else {
+        safeLocalStorage.removeItem("rubroSeleccionado_label");
+      }
+      setLocalRubro(rubroKey);
       resetChatSessionId();
       setMessages([]);
       setActiveTicketId(null);
@@ -250,14 +268,14 @@ const ChatPanel = ({
       setForzarDireccion(false);
       setShowCierre(null);
       setTicketLocation(null);
-      onRubroSelect?.(nombre);
+      onRubroSelect?.(rubroKey);
       initializeConversation({
-        rubroOverride: nombre,
+        rubroOverride: rubroKey,
         resetContext: true,
         resetMessages: true,
         force: true,
       });
-      lastInitializedRubro.current = nombre;
+      lastInitializedRubro.current = rubroKey;
     },
     [
       onRubroSelect,
