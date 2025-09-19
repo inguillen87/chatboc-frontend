@@ -1,6 +1,204 @@
 (function () {
   "use strict";
 
+  const TOKEN_EVENT_NAME = "chatboc-token";
+  const TOKEN_MANAGER_REGISTRY_KEY = "__chatbocTokenManagers";
+  const INITIAL_RETRY_DELAY_MS = 15000;
+  const MAX_RETRY_DELAY_MS = 600000;
+  const REFRESH_BUFFER_SECONDS = 120;
+  const MIN_REFRESH_SECONDS = 15;
+  const FALLBACK_REFRESH_SECONDS = 600;
+
+  function normalizeBase(url) {
+    return (url || "").replace(/\/+$/, "");
+  }
+
+  function decodeJwtPayload(token) {
+    if (!token) return {};
+    const parts = token.split(".");
+    if (parts.length < 2) return {};
+    try {
+      const payload = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+      return JSON.parse(atob(payload));
+    } catch (err) {
+      console.warn("Chatboc widget: unable to decode JWT payload", err);
+      return {};
+    }
+  }
+
+  function getTokenRegistry() {
+    if (!window[TOKEN_MANAGER_REGISTRY_KEY]) {
+      window[TOKEN_MANAGER_REGISTRY_KEY] = {};
+    }
+    return window[TOKEN_MANAGER_REGISTRY_KEY];
+  }
+
+  function createTokenManager(ownerToken, apiBase) {
+    let activeToken = null;
+    let refreshTimer = null;
+    let retryDelay = INITIAL_RETRY_DELAY_MS;
+    const subscribers = new Set();
+
+    async function fetchJson(url, options) {
+      const response = await fetch(url, options);
+      let payload = {};
+      try {
+        payload = await response.json();
+      } catch (err) {
+        // Ignore JSON parse errors; payload stays empty.
+      }
+      if (!response.ok) {
+        const error = new Error(`HTTP ${response.status}`);
+        error.payload = payload;
+        throw error;
+      }
+      return payload;
+    }
+
+    async function mint() {
+      const payload = await fetchJson(`${apiBase}/auth/widget-token`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: ownerToken,
+        },
+        body: "{}",
+      });
+      if (!payload?.token) {
+        throw new Error("mint_missing_token");
+      }
+      return payload.token;
+    }
+
+    async function refreshToken(current) {
+      const payload = await fetchJson(`${apiBase}/auth/widget-refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: current }),
+      });
+      if (!payload?.token) {
+        throw new Error("refresh_missing_token");
+      }
+      return payload.token;
+    }
+
+    function notify(token) {
+      subscribers.forEach((listener) => {
+        try {
+          listener(token);
+        } catch (err) {
+          console.error("Chatboc widget: token subscriber failed", err);
+        }
+      });
+
+      try {
+        window.dispatchEvent(
+          new CustomEvent(TOKEN_EVENT_NAME, {
+            detail: { token, ownerToken, apiBase },
+          })
+        );
+      } catch (err) {
+        console.error("Chatboc widget: failed to dispatch token event", err);
+      }
+    }
+
+    function scheduleNext(token) {
+      if (!token) return;
+      notify(token);
+      const { exp } = decodeJwtPayload(token);
+      const now = Math.floor(Date.now() / 1000);
+      const secondsUntilExpiry = exp ? exp - now : FALLBACK_REFRESH_SECONDS;
+      const waitSeconds = Math.max(
+        secondsUntilExpiry - REFRESH_BUFFER_SECONDS,
+        MIN_REFRESH_SECONDS
+      );
+
+      clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(async () => {
+        try {
+          activeToken = await refreshToken(activeToken);
+          retryDelay = INITIAL_RETRY_DELAY_MS;
+        } catch (refreshError) {
+          console.warn(
+            "Chatboc widget: token refresh failed, attempting mint",
+            refreshError
+          );
+          try {
+            activeToken = await mint();
+            retryDelay = INITIAL_RETRY_DELAY_MS;
+          } catch (mintError) {
+            console.error(
+              "Chatboc widget: unable to mint widget token",
+              mintError
+            );
+            refreshTimer = window.setTimeout(
+              () => scheduleNext(activeToken),
+              retryDelay
+            );
+            retryDelay = Math.min(retryDelay * 2, MAX_RETRY_DELAY_MS);
+            return;
+          }
+        }
+        scheduleNext(activeToken);
+      }, waitSeconds * 1000);
+    }
+
+    async function ensureToken() {
+      if (activeToken) return activeToken;
+      try {
+        activeToken = await mint();
+      } catch (err) {
+        activeToken = null;
+        throw err;
+      }
+      retryDelay = INITIAL_RETRY_DELAY_MS;
+      scheduleNext(activeToken);
+      return activeToken;
+    }
+
+    async function apiFetch(url, init) {
+      const token = await ensureToken();
+      const headers = Object.assign({}, init?.headers || {}, {
+        Authorization: `Bearer ${token}`,
+      });
+      return fetch(url, Object.assign({}, init || {}, { headers }));
+    }
+
+    function subscribe(listener) {
+      if (typeof listener !== "function") {
+        return () => {};
+      }
+      subscribers.add(listener);
+      if (activeToken) {
+        try {
+          listener(activeToken);
+        } catch (err) {
+          console.error("Chatboc widget: token subscriber failed", err);
+        }
+      }
+      return () => subscribers.delete(listener);
+    }
+
+    function destroy() {
+      clearTimeout(refreshTimer);
+      refreshTimer = null;
+      subscribers.clear();
+      activeToken = null;
+    }
+
+    return { ensureToken, apiFetch, subscribe, destroy };
+  }
+
+  function getTokenManager(ownerToken, apiBase) {
+    const registry = getTokenRegistry();
+    const normalizedBase = normalizeBase(apiBase);
+    const key = `${normalizedBase}::${ownerToken}`;
+    if (!registry[key]) {
+      registry[key] = createTokenManager(ownerToken, normalizedBase);
+    }
+    return registry[key];
+  }
+
   async function init() {
     const SCRIPT_CONFIG = {
       WIDGET_JS_FILENAME: "widget.js",
@@ -30,7 +228,24 @@
 
     const ownerTokenAttr =
       script.getAttribute("data-owner-token") || script.getAttribute("data-entity-token");
-    const ownerToken = ownerTokenAttr || SCRIPT_CONFIG.DEFAULT_TOKEN;
+    const ownerToken = (ownerTokenAttr || "").trim();
+
+    if (!ownerToken) {
+      console.error(
+        "Chatboc widget: Missing required data-owner-token attribute. Aborting widget initialization."
+      );
+      return;
+    }
+
+    if (ownerToken === SCRIPT_CONFIG.DEFAULT_TOKEN) {
+      console.warn(
+        "Chatboc widget: using demo token 'demo-anon'. Do not use this value in production embeds."
+      );
+    }
+
+    const entityTokenAttr = script.getAttribute("data-entity-token");
+    const entityToken = (entityTokenAttr || ownerToken).trim();
+
     const registry = (window.__chatbocWidgets = window.__chatbocWidgets || {});
 
     if (registry[ownerToken]) {
@@ -50,7 +265,47 @@
     const scriptOrigin =
       (script.src && new URL(script.src, window.location.href).origin) ||
       SCRIPT_CONFIG.DEFAULT_CHATBOC_DOMAIN;
-    const apiBase = (script.getAttribute("data-api-base") || scriptOrigin).replace(/\/+$/, "");
+    const apiBase = normalizeBase(
+      script.getAttribute("data-api-base") || scriptOrigin
+    );
+
+    const authManager = getTokenManager(ownerToken, apiBase);
+    window.chatbocAuth = authManager;
+
+    let latestToken;
+    try {
+      latestToken = await authManager.ensureToken();
+    } catch (err) {
+      console.error("Chatboc widget: unable to obtain widget token", err);
+      return;
+    }
+
+    const tokenEventHandler = (event) => {
+      const detail = event.detail;
+      if (!detail) return;
+      const incomingToken =
+        typeof detail === "string" ? detail : detail.token || detail.authToken;
+      const incomingOwner =
+        typeof detail === "string"
+          ? ownerToken
+          : detail.ownerToken || detail.entityToken || detail.owner;
+      const incomingApiBase =
+        typeof detail === "object" && detail
+          ? normalizeBase(detail.apiBase || detail.baseUrl || detail.domain || "")
+          : "";
+
+      if (!incomingToken) return;
+      if (incomingOwner && incomingOwner !== ownerToken) return;
+      if (incomingApiBase && incomingApiBase !== apiBase) return;
+
+      latestToken = incomingToken;
+      const reg = registry[ownerToken];
+      if (reg && typeof reg.post === "function") {
+        reg.post({ type: "AUTH", token: latestToken });
+      }
+    };
+
+    window.addEventListener(TOKEN_EVENT_NAME, tokenEventHandler);
 
     const WIDGET_DIMENSIONS = {
       OPEN: {
@@ -84,20 +339,12 @@
       endpointAttr === "municipio" || endpointAttr === "pyme" ? endpointAttr : "pyme";
 
     let latestToken = null;
-    window.addEventListener("chatboc-token", (e) => {
-      latestToken = e.detail;
-      const reg = registry[ownerToken];
-      if (reg && typeof reg.post === "function") {
-        reg.post({ type: "AUTH", token: latestToken });
-      }
-    });
-
-    latestToken = await window.chatbocAuth.ensureToken();
-
     function buildWidget(finalCta) {
       const zIndexBase = parseInt(script.getAttribute("data-z") || SCRIPT_CONFIG.DEFAULT_Z_INDEX, 10);
       const iframeId = `chatboc-dynamic-iframe-${Math.random().toString(36).substring(2, 9)}`;
       let iframeIsCurrentlyOpen = defaultOpen;
+
+      let unsubscribeAuth = null;
 
       const parsePx = (val) => parseInt(val, 10) || 0;
 
@@ -209,7 +456,8 @@
       // Use explicit .html path so integrations without rewrite rules work
       const iframeSrc = new URL(`${apiBase}/iframe.html`);
       iframeSrc.searchParams.set("token", latestToken);
-      iframeSrc.searchParams.set("entityToken", ownerToken);
+      iframeSrc.searchParams.set("entityToken", entityToken);
+      iframeSrc.searchParams.set("ownerToken", ownerToken);
       iframeSrc.searchParams.set("widgetId", iframeId);
       iframeSrc.searchParams.set("defaultOpen", String(defaultOpen));
       iframeSrc.searchParams.set("tipo_chat", tipoChat);
@@ -388,9 +636,16 @@
         widgetContainer.removeEventListener("touchstart", dragStart);
         widgetContainer?.remove();
         delete registry[ownerToken];
+        unsubscribeAuth?.();
+        window.removeEventListener(TOKEN_EVENT_NAME, tokenEventHandler);
       }
 
       registry[ownerToken] = { destroy, container: widgetContainer, post: postToIframe };
+
+      unsubscribeAuth = authManager.subscribe((token) => {
+        latestToken = token;
+        postToIframe({ type: "AUTH", token });
+      });
 
       // Global API
       if (!window.Chatboc) window.Chatboc = {};
@@ -410,7 +665,7 @@
     if (ctaMessageAttr) {
       buildWidget(ctaMessageAttr);
     } else {
-      window.chatbocAuth
+      authManager
         .apiFetch(`${apiBase}/widget/attention`)
         .then((r) => (r.ok ? r.json() : {}))
         .then((d) => buildWidget(d.message || ""))
