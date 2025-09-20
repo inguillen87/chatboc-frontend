@@ -14,8 +14,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { cn } from '@/lib/utils';
 
-const Sidebar: React.FC = () => {
+interface SidebarProps {
+  className?: string;
+}
+
+const Sidebar: React.FC<SidebarProps> = ({ className }) => {
   const { tickets, ticketsByCategory, selectedTicket, selectTicket } = useTickets();
   const [searchTerm, setSearchTerm] = React.useState('');
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
@@ -55,7 +60,12 @@ const Sidebar: React.FC = () => {
   }, [ticketsByCategory, debouncedSearchTerm]);
 
   return (
-    <aside className="w-80 border-r border-border flex flex-col h-screen bg-muted/20 shrink-0">
+    <aside
+      className={cn(
+        'flex h-full w-full max-w-full flex-col border-r border-border bg-muted/20 md:w-[280px] lg:w-[320px] xl:w-[360px]',
+        className,
+      )}
+    >
       <div className="p-4 space-y-4">
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-bold">Tickets</h1>

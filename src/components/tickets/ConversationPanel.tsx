@@ -51,9 +51,19 @@ interface ConversationPanelProps {
   isDetailsVisible: boolean;
   onToggleSidebar: () => void;
   onToggleDetails: () => void;
+  canToggleSidebar?: boolean;
+  showDetailsToggle?: boolean;
 }
 
-const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSidebarVisible, isDetailsVisible, onToggleSidebar, onToggleDetails }) => {
+const ConversationPanel: React.FC<ConversationPanelProps> = ({
+  isMobile,
+  isSidebarVisible,
+  isDetailsVisible,
+  onToggleSidebar,
+  onToggleDetails,
+  canToggleSidebar = false,
+  showDetailsToggle = false,
+}) => {
   const { selectedTicket, updateTicket } = useTickets();
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<ChatMessageData[]>([]);
@@ -223,7 +233,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
 
   if (!selectedTicket) {
     return (
-      <div className="flex flex-col h-screen bg-background items-center justify-center text-center p-4">
+      <div className="flex h-full flex-col items-center justify-center bg-background p-4 text-center">
         <MessageSquare className="w-16 h-16 text-muted-foreground mb-4" />
         <h2 className="text-xl font-semibold">Selecciona un ticket</h2>
         <p className="text-muted-foreground">Elige un ticket de la lista para ver la conversación.</p>
@@ -253,12 +263,17 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
-        className="flex flex-col h-screen bg-background"
+        className="flex h-full min-w-0 flex-col bg-background"
     >
       <header className="p-3 border-b border-border flex items-center justify-between shrink-0 h-16">
         <div className="flex items-center space-x-3">
-          {(isMobile || !isSidebarVisible) && (
-            <Button variant="ghost" size="icon" onClick={onToggleSidebar} aria-label="Toggle Sidebar">
+          {canToggleSidebar && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onToggleSidebar}
+              aria-label={isSidebarVisible ? 'Ocultar lista de tickets' : 'Mostrar lista de tickets'}
+            >
               {isSidebarVisible ? <PanelLeftClose className="h-5 w-5" /> : <PanelLeft className="h-5 w-5" />}
             </Button>
           )}
@@ -275,7 +290,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
           </div>
         </div>
         <div className="flex items-center space-x-2">
-          {isMobile && (
+          {showDetailsToggle && (
             <Button
               variant={isDetailsVisible ? 'secondary' : 'outline'}
               size="sm"
@@ -309,6 +324,35 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
           </DropdownMenu>
         </div>
       </header>
+
+      {showDetailsToggle && (
+        <div className="px-3 pb-2 md:px-4 md:pb-3">
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              type="button"
+              variant={isDetailsVisible ? 'outline' : 'secondary'}
+              onClick={() => {
+                if (isDetailsVisible) {
+                  onToggleDetails();
+                }
+              }}
+            >
+              Conversación
+            </Button>
+            <Button
+              type="button"
+              variant={isDetailsVisible ? 'secondary' : 'outline'}
+              onClick={() => {
+                if (!isDetailsVisible) {
+                  onToggleDetails();
+                }
+              }}
+            >
+              Información
+            </Button>
+          </div>
+        </div>
+      )}
 
       <div className="flex-1 relative bg-gray-50/50 dark:bg-gray-900/50">
         <ScrollArea className="h-full p-4" ref={scrollAreaRef} onScroll={handleScroll}>
