@@ -85,15 +85,12 @@ const Integracion = () => {
     setOwnerTokenLoading(true);
     setOwnerTokenError(null);
 
+    const previousToken = getStoredEntityToken();
     let lastError: unknown = null;
 
     const resolveFromPayload = (payload: any) => {
       const direct = extractEntityToken(payload);
-      let normalized = applyOwnerToken(direct);
-      if (!normalized) {
-        normalized = applyOwnerToken(getStoredEntityToken());
-      }
-      return normalized;
+      return applyOwnerToken(direct);
     };
 
     const attempt = async (fn: () => Promise<any>) => {
@@ -113,12 +110,17 @@ const Integracion = () => {
           apiFetch<any>("/perfil", { cache: "no-store", entityToken: "" }),
         );
       }
-      if (!resolved) {
-        resolved = applyOwnerToken(getStoredEntityToken());
-      }
 
       if (resolved) {
         return resolved;
+      }
+
+      if (previousToken) {
+        applyOwnerToken(previousToken);
+        setOwnerTokenError(
+          "No pudimos refrescar el token de integración. Se mantiene el último token disponible.",
+        );
+        return previousToken;
       }
 
       if (lastError) {

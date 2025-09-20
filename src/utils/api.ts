@@ -60,8 +60,8 @@ export async function apiFetch<T>(
   const rawPanelToken = safeLocalStorage.getItem("authToken");
   const rawChatToken = safeLocalStorage.getItem("chatAuthToken");
   const panelToken = preferChatToken ? null : rawPanelToken;
-  const chatToken = rawChatToken;
-  const token = panelToken || chatToken;
+  const chatToken = preferChatToken ? rawChatToken : null;
+  const token = panelToken ?? chatToken ?? null;
   const tokenSource: "authToken" | "chatAuthToken" | null = panelToken
     ? "authToken"
     : chatToken
@@ -99,7 +99,7 @@ export async function apiFetch<T>(
     url,
     hasBody: !!body,
     authToken: mask(rawPanelToken),
-    chatAuthToken: mask(chatToken),
+    chatAuthToken: mask(rawChatToken),
     anonId: mask(anonId),
     entityToken: mask(effectiveEntityToken || null),
     sendAnonId,

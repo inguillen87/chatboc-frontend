@@ -7,7 +7,6 @@ import {
   extractEntityToken,
   getStoredEntityToken,
   persistEntityToken,
-  clearStoredEntityToken,
 } from '@/utils/entityToken';
 
 interface UserData {
