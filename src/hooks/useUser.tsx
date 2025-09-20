@@ -3,12 +3,19 @@ import { apiFetch } from '@/utils/api';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { enforceTipoChatForRubro, parseRubro } from '@/utils/tipoChat';
 import { getIframeToken } from '@/utils/config';
+import {
+  extractEntityToken,
+  getStoredEntityToken,
+  persistEntityToken,
+  clearStoredEntityToken,
+} from '@/utils/entityToken';
 
 interface UserData {
   id?: number;
   name?: string;
   email?: string;
   token?: string;
+  entityToken?: string;
   plan?: string;
   rubro?: string;
   nombre_empresa?: string;
@@ -43,7 +50,21 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const chatToken = safeLocalStorage.getItem('chatAuthToken');
       if (hasEntity && !chatToken) return null;
       const stored = safeLocalStorage.getItem('user');
-      return stored ? JSON.parse(stored) : null;
+      if (!stored) return null;
+      const parsed = JSON.parse(stored);
+      const storedEntityToken = getStoredEntityToken();
+      if (storedEntityToken && (!parsed || typeof parsed !== 'object')) {
+        return { entityToken: storedEntityToken };
+      }
+      if (parsed && typeof parsed === 'object') {
+        return {
+          ...parsed,
+          ...(storedEntityToken && !parsed.entityToken
+            ? { entityToken: storedEntityToken }
+            : {}),
+        } as UserData;
+      }
+      return null;
     } catch {
       return null;
     }
@@ -70,6 +91,12 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!data.rol) {
         console.warn('rol faltante en respuesta de /me');
       }
+      const entityToken =
+        extractEntityToken(data) ??
+        getStoredEntityToken();
+      if (entityToken) {
+        persistEntityToken(entityToken);
+      }
       const finalTipo = data.tipo_chat
         ? enforceTipoChatForRubro(data.tipo_chat as 'pyme' | 'municipio', rubroNorm)
         : undefined;
@@ -85,6 +112,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         tipo_chat: finalTipo,
         rol: data.rol,
         token: activeToken,
+        ...(entityToken ? { entityToken } : {}),
         widget_icon_url: data.widget_icon_url,
         widget_animation: data.widget_animation,
         latitud: typeof data.latitud === 'number' ? data.latitud : Number(data.latitud),
@@ -100,6 +128,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (tokenKey) {
         safeLocalStorage.removeItem(tokenKey);
       }
+      clearStoredEntityToken();
       setUser(null);
     } finally {
       setLoading(false);
