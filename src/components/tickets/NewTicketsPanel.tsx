@@ -15,17 +15,54 @@ const NewTicketsPanel: React.FC = () => {
   const { loading, error, selectedTicket } = useTickets();
   const [isSidebarVisible, setIsSidebarVisible] = React.useState(!isMobile);
   const [isDetailsVisible, setIsDetailsVisible] = React.useState(!isMobile);
+  const [isWideLayout, setIsWideLayout] = React.useState<boolean>(() => {
+    if (typeof window === 'undefined') {
+      return true;
+    }
+    return window.matchMedia('(min-width: 1280px)').matches;
+  });
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const mediaQuery = window.matchMedia('(min-width: 1280px)');
+    const applyMatch = (value: boolean) => setIsWideLayout(value);
+
+    applyMatch(mediaQuery.matches);
+
+    const handler = (event: MediaQueryListEvent) => applyMatch(event.matches);
+
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', handler);
+      return () => mediaQuery.removeEventListener('change', handler);
+    }
+
+    mediaQuery.addListener(handler);
+    return () => mediaQuery.removeListener(handler);
+  }, []);
+
+  React.useEffect(() => {
+    if (!isMobile) {
+      return;
+    }
+    setIsDetailsVisible(false);
+    // Show sidebar only if no ticket is selected on mobile
+    setIsSidebarVisible(!selectedTicket);
+  }, [isMobile, selectedTicket]);
 
   React.useEffect(() => {
     if (isMobile) {
-      setIsDetailsVisible(false);
-      // Show sidebar only if no ticket is selected on mobile
-      setIsSidebarVisible(!selectedTicket);
-    } else {
-      setIsDetailsVisible(true);
-      setIsSidebarVisible(true);
+      return;
     }
-  }, [isMobile, selectedTicket]);
+    if (isWideLayout) {
+      setIsDetailsVisible(true);
+    } else {
+      setIsDetailsVisible(false);
+    }
+    setIsSidebarVisible(true);
+  }, [isMobile, isWideLayout]);
 
   const toggleSidebar = () => setIsSidebarVisible(prev => !prev);
   const toggleDetails = () => setIsDetailsVisible(prev => !prev);
@@ -72,7 +109,7 @@ const NewTicketsPanel: React.FC = () => {
   }
 
   return (
-    <Card className="flex w-full min-h-[calc(100vh-6rem)] flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-xl backdrop-blur-sm">
+    <Card className="relative flex h-full w-full flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-xl backdrop-blur-sm">
       {isMobile ? (
         <div className="relative flex-1 overflow-hidden">
           <AnimatePresence>
@@ -83,17 +120,17 @@ const NewTicketsPanel: React.FC = () => {
                 animate={{ x: 0 }}
                 exit={{ x: '-100%' }}
                 transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                className="absolute top-0 left-0 z-20 h-full w-full"
+                className="absolute left-0 top-0 z-20 h-full w-full"
               >
-                <Sidebar className="min-w-full" />
+                <Sidebar className="h-full min-w-full" />
               </motion.div>
             )}
           </AnimatePresence>
           <motion.div
-             key="conversation"
-             className="absolute top-0 left-0 h-full w-full z-10"
-             animate={{ x: isSidebarVisible ? '100%' : '0%' }}
-             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+            key="conversation"
+            className="absolute left-0 top-0 z-10 h-full w-full"
+            animate={{ x: isSidebarVisible ? '100%' : '0%' }}
+            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
           >
             <ConversationPanel
               isMobile={true}
@@ -101,43 +138,68 @@ const NewTicketsPanel: React.FC = () => {
               isDetailsVisible={isDetailsVisible}
               onToggleSidebar={toggleSidebar}
               onToggleDetails={toggleDetails}
+              canToggleSidebar
+              showDetailsToggle
             />
           </motion.div>
           <AnimatePresence>
             {isDetailsVisible && (
-                <motion.div
-                    key="details"
-                    initial={{ x: '100%' }}
-                    animate={{ x: 0 }}
-                    exit={{ x: '100%' }}
-                    transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                    className="absolute top-0 left-0 z-30 h-full w-full overflow-y-auto bg-background"
-                >
-                    <DetailsPanel onClose={toggleDetails} />
-                </motion.div>
+              <motion.div
+                key="details"
+                initial={{ x: '100%' }}
+                animate={{ x: 0 }}
+                exit={{ x: '100%' }}
+                transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                className="absolute left-0 top-0 z-30 h-full w-full overflow-y-auto bg-background"
+              >
+                <DetailsPanel onClose={toggleDetails} />
+              </motion.div>
             )}
           </AnimatePresence>
         </div>
-      ) : (
-        <ResizablePanelGroup direction="horizontal" className="flex-1">
-          <ResizablePanel defaultSize={26} minSize={20} maxSize={35} className="min-w-[280px]">
-            <Sidebar className="h-full" />
-          </ResizablePanel>
-          <ResizableHandle withHandle />
-          <ResizablePanel defaultSize={48} minSize={38} className="min-w-[420px]">
+      ) : isWideLayout ? (
+        <div className="flex h-full w-full overflow-hidden">
+          <Sidebar />
+          <div className="flex min-w-0 flex-1 bg-background">
             <ConversationPanel
               isMobile={false}
-              isSidebarVisible={isSidebarVisible}
+              isSidebarVisible={true}
               isDetailsVisible={true}
               onToggleSidebar={toggleSidebar}
               onToggleDetails={toggleDetails}
             />
-          </ResizablePanel>
-          <ResizableHandle withHandle />
-          <ResizablePanel defaultSize={26} minSize={22} maxSize={40} className="min-w-[340px]">
-            <DetailsPanel className="h-full" />
-          </ResizablePanel>
-        </ResizablePanelGroup>
+          </div>
+          <DetailsPanel className="w-[340px] lg:w-[360px] xl:w-[400px] 2xl:w-[440px]" />
+        </div>
+      ) : (
+        <div className="flex h-full w-full overflow-hidden">
+          {isSidebarVisible && <Sidebar />}
+          <div className="relative flex min-w-0 flex-1 bg-background">
+            <ConversationPanel
+              isMobile={false}
+              isSidebarVisible={isSidebarVisible}
+              isDetailsVisible={isDetailsVisible}
+              onToggleSidebar={toggleSidebar}
+              onToggleDetails={toggleDetails}
+              canToggleSidebar
+              showDetailsToggle
+            />
+            <AnimatePresence>
+              {isDetailsVisible && (
+                <motion.div
+                  key="compact-details"
+                  initial={{ x: '100%' }}
+                  animate={{ x: 0 }}
+                  exit={{ x: '100%' }}
+                  transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+                  className="absolute inset-y-0 right-0 z-30 flex w-full max-w-[340px] sm:max-w-[360px] md:max-w-[380px] lg:max-w-[400px] overflow-hidden border-l border-border bg-card shadow-xl"
+                >
+                  <DetailsPanel onClose={toggleDetails} className="w-full" />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
       )}
       <Toaster richColors />
     </Card>

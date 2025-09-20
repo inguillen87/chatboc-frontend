@@ -51,9 +51,19 @@ interface ConversationPanelProps {
   isDetailsVisible: boolean;
   onToggleSidebar: () => void;
   onToggleDetails: () => void;
+  canToggleSidebar?: boolean;
+  showDetailsToggle?: boolean;
 }
 
-const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSidebarVisible, isDetailsVisible, onToggleSidebar, onToggleDetails }) => {
+const ConversationPanel: React.FC<ConversationPanelProps> = ({
+  isMobile,
+  isSidebarVisible,
+  isDetailsVisible,
+  onToggleSidebar,
+  onToggleDetails,
+  canToggleSidebar = false,
+  showDetailsToggle = false,
+}) => {
   const { selectedTicket, updateTicket } = useTickets();
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<ChatMessageData[]>([]);
@@ -257,8 +267,13 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
     >
       <header className="p-3 border-b border-border flex items-center justify-between shrink-0 h-16">
         <div className="flex items-center space-x-3">
-          {(isMobile || !isSidebarVisible) && (
-            <Button variant="ghost" size="icon" onClick={onToggleSidebar} aria-label="Toggle Sidebar">
+          {canToggleSidebar && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onToggleSidebar}
+              aria-label={isSidebarVisible ? 'Ocultar lista de tickets' : 'Mostrar lista de tickets'}
+            >
               {isSidebarVisible ? <PanelLeftClose className="h-5 w-5" /> : <PanelLeft className="h-5 w-5" />}
             </Button>
           )}
@@ -275,7 +290,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
           </div>
         </div>
         <div className="flex items-center space-x-2">
-          {isMobile && (
+          {showDetailsToggle && (
             <Button
               variant={isDetailsVisible ? 'secondary' : 'outline'}
               size="sm"
@@ -310,8 +325,8 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ isMobile, isSideb
         </div>
       </header>
 
-      {isMobile && (
-        <div className="px-3 pb-2">
+      {showDetailsToggle && (
+        <div className="px-3 pb-2 md:px-4 md:pb-3">
           <div className="grid grid-cols-2 gap-2">
             <Button
               type="button"
