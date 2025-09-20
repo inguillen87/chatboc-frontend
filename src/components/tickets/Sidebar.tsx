@@ -60,10 +60,12 @@ const Sidebar: React.FC<SidebarProps> = ({ className }) => {
   }, [ticketsByCategory, debouncedSearchTerm]);
 
   return (
-    <aside className={cn(
-      'flex h-full min-w-[260px] flex-col border-r border-border bg-muted/20',
-      className,
-    )}>
+    <aside
+      className={cn(
+        'flex h-full w-full max-w-full flex-col border-r border-border bg-muted/20 md:w-[280px] lg:w-[320px] xl:w-[360px]',
+        className,
+      )}
+    >
       <div className="p-4 space-y-4">
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-bold">Tickets</h1>
