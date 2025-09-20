@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import MapLibreMap from '@/components/MapLibreMap';
 import TicketStatsCharts from '@/components/TicketStatsCharts';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,26 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 export default function IncidentsMap() {
   useRequireRole(['admin', 'super_admin'] as Role[]);
   const { user } = useUser();
+
+  const parseCoordinate = (value: unknown): number | undefined => {
+    if (typeof value === 'number' && !Number.isNaN(value)) {
+      return value;
+    }
+    if (typeof value === 'string' && value.trim() !== '') {
+      const parsed = Number(value);
+      return Number.isNaN(parsed) ? undefined : parsed;
+    }
+    return undefined;
+  };
+
+  const adminCoords = useMemo(() => {
+    const lat = parseCoordinate(user?.latitud);
+    const lng = parseCoordinate(user?.longitud);
+    if (lat === undefined || lng === undefined) {
+      return undefined;
+    }
+    return [lng, lat] as [number, number];
+  }, [user?.latitud, user?.longitud]);
 
   const [heatmapData, setHeatmapData] = useState<HeatPoint[]>([]);
   const [showHeatmap, setShowHeatmap] = useState(true);
@@ -107,13 +127,8 @@ export default function IncidentsMap() {
         if (!Number.isNaN(avgLat) && !Number.isNaN(avgLng)) {
           setCenter({ lat: avgLat, lng: avgLng });
         }
-      } else if (
-        user?.latitud !== undefined &&
-        user?.longitud !== undefined &&
-        !Number.isNaN(user.longitud) &&
-        !Number.isNaN(user.latitud)
-      ) {
-        setCenter({ lat: user.latitud, lng: user.longitud });
+      } else if (adminCoords) {
+        setCenter({ lat: adminCoords[1], lng: adminCoords[0] });
       }
     } catch (err) {
       const message =
@@ -125,7 +140,7 @@ export default function IncidentsMap() {
     } finally {
       setIsLoading(false);
     }
-  }, [ticketType, user, selectedCategories, selectedStates]);
+  }, [ticketType, adminCoords, selectedCategories, selectedStates]);
 
   useEffect(() => {
     fetchData();
@@ -159,16 +174,10 @@ export default function IncidentsMap() {
   }, []);
 
   useEffect(() => {
-    if (
-      !center &&
-      user?.latitud !== undefined &&
-      user?.longitud !== undefined &&
-      !Number.isNaN(user.longitud) &&
-      !Number.isNaN(user.latitud)
-    ) {
-      setCenter({ lat: user.latitud, lng: user.longitud });
+    if (!center && adminCoords) {
+      setCenter({ lat: adminCoords[1], lng: adminCoords[0] });
     }
-  }, [center, user?.latitud, user?.longitud]);
+  }, [adminCoords, center]);
 
   const handleLocate = () => {
     if (navigator.geolocation) {
@@ -394,6 +403,7 @@ export default function IncidentsMap() {
           provider={provider}
           center={center ? [center.lng, center.lat] : undefined}
           marker={center ? [center.lng, center.lat] : undefined}
+          adminLocation={adminCoords}
           heatmapData={heatmapData}
           showHeatmap={showHeatmap}
           className="h-[600px]"
