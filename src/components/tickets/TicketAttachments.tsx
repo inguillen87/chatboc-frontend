@@ -114,7 +114,7 @@ const TicketAttachments: React.FC<Props> = ({ attachments }) => {
             <img
               src={openUrl}
               alt="Adjunto ampliado"
-              className="max-h-[90vh] max-w-[90vw] rounded-lg shadow-2xl"
+              className="max-h-[95vh] max-w-[95vw] rounded-lg object-contain shadow-2xl"
             />
             <button
               onClick={() => setOpenUrl(null)}
