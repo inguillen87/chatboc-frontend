@@ -36,7 +36,7 @@ import {
 import { FaWhatsapp } from 'react-icons/fa';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { getContactPhone, getCitizenDni } from '@/utils/ticket';
+import { getContactPhone, getCitizenDni, getTicketChannel } from '@/utils/ticket';
 import { fmtAR } from '@/utils/date';
 import { getSpecializedContact, SpecializedContact } from '@/utils/contacts';
 import { deriveAttachmentInfo } from '@/utils/attachment';
@@ -497,8 +497,8 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
     return base;
   };
 
-  const formatDate = (dateString: string | undefined) =>
-    dateString ? fmtAR(dateString) : 'No informado';
+  const formatDate = (dateString?: string) => fmtAR(dateString ?? '');
+  const channelLabel = React.useMemo(() => getTicketChannel(ticket), [ticket]);
 
 
   return (
@@ -735,10 +735,19 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                     <span className="text-muted-foreground">Estado:</span>
                     <Badge variant="outline" className="capitalize">{currentStatus || 'N/A'}</Badge>
                 </div>
-                <TicketStatusBar status={currentStatus} flow={statusFlow} />
+                <TicketStatusBar status={currentStatus} flow={statusFlow} history={ticket.history} />
                 <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Canal:</span>
-                    <span className="capitalize">{ticket.channel || 'N/A'}</span>
+                    <span
+                      className={cn(
+                        'font-medium',
+                        channelLabel === 'N/A'
+                          ? 'uppercase tracking-wide text-muted-foreground'
+                          : 'capitalize text-foreground'
+                      )}
+                    >
+                      {channelLabel}
+                    </span>
                 </div>
                 <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Creado:</span>
