@@ -18,6 +18,8 @@ const ENTITY_TOKEN_KEYS = [
   "organization_token",
   "botToken",
   "bot_token",
+  "tokenIntegracion",
+  "token_integracion",
 ];
 
 const NESTED_TOKEN_SOURCES = [
@@ -31,12 +33,32 @@ const NESTED_TOKEN_SOURCES = [
   "widget",
   "tokens",
   "credentials",
+  "integration",
+  "integracion",
 ];
+
+const PLACEHOLDER_TOKENS = new Set([
+  "",
+  "demo-anon",
+  "null",
+  "undefined",
+  "none",
+]);
 
 export function normalizeEntityToken(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
+  if (!trimmed) return null;
+  const withoutBearer = trimmed.startsWith("Bearer ")
+    ? trimmed.slice(7).trim()
+    : trimmed;
+  if (!withoutBearer) return null;
+  const candidate = withoutBearer.replace(/^"|"$/g, "").trim();
+  if (!candidate) return null;
+  if (PLACEHOLDER_TOKENS.has(candidate.toLowerCase())) {
+    return null;
+  }
+  return candidate;
 }
 
 export function extractEntityToken(source: any, depth = 0): string | null {
