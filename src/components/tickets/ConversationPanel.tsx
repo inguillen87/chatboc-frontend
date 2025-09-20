@@ -326,7 +326,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         </div>
       </header>
 
-      {showDetailsToggle && (isMobile || canToggleSidebar) && (
+      {showDetailsToggle && !isMobile && canToggleSidebar && (
         <div className="px-3 pb-2 md:px-4 md:pb-3">
           <div className="grid grid-cols-2 gap-2">
             <Button
@@ -352,12 +352,6 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
               Información
             </Button>
           </div>
-        </div>
-      )}
-
-      {showDetailsToggle && selectedTicket && (
-        <div className="px-3 pb-3 md:px-4 md:pb-4">
-          <TicketLogisticsSummary ticket={selectedTicket} />
         </div>
       )}
 

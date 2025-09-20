@@ -18,9 +18,10 @@ import { cn } from '@/lib/utils';
 
 interface SidebarProps {
   className?: string;
+  onTicketSelected?: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ className }) => {
+const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
   const { tickets, ticketsByCategory, selectedTicket, selectTicket } = useTickets();
   const [searchTerm, setSearchTerm] = React.useState('');
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
@@ -113,7 +114,10 @@ const Sidebar: React.FC<SidebarProps> = ({ className }) => {
                       key={ticket.id}
                       ticket={ticket}
                       isSelected={selectedTicket?.id === ticket.id}
-                      onClick={() => selectTicket(ticket.id)}
+                      onClick={() => {
+                        selectTicket(ticket.id);
+                        onTicketSelected?.();
+                      }}
                     />
                   ))}
                 </div>
