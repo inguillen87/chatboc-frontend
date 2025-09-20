@@ -5,7 +5,11 @@ const ENTITY_TOKEN_KEYS = [
   "entity_token",
   "widgetToken",
   "widget_token",
+  "ownerToken",
+  "owner_token",
   "token_widget",
+  "widgetOwnerToken",
+  "widget_owner_token",
   "empresa_token",
   "empresaToken",
   "municipio_token",
@@ -25,6 +29,8 @@ const NESTED_TOKEN_SOURCES = [
   "organizacion",
   "config",
   "widget",
+  "tokens",
+  "credentials",
 ];
 
 export function normalizeEntityToken(value: unknown): string | null {
