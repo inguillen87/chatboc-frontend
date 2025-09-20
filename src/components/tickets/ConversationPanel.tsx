@@ -355,6 +355,12 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         </div>
       )}
 
+      {showDetailsToggle && selectedTicket && (
+        <div className="px-3 pb-3 md:px-4 md:pb-4">
+          <TicketLogisticsSummary ticket={selectedTicket} />
+        </div>
+      )}
+
       <div className="flex-1 relative bg-gray-50/50 dark:bg-gray-900/50">
         <ScrollArea className="h-full p-4" ref={scrollAreaRef} onScroll={handleScroll}>
           <AnimatePresence>

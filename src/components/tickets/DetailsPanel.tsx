@@ -735,7 +735,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                     <span className="text-muted-foreground">Estado:</span>
                     <Badge variant="outline" className="capitalize">{currentStatus || 'N/A'}</Badge>
                 </div>
-                <TicketStatusBar status={currentStatus} flow={statusFlow} />
+                <TicketStatusBar status={currentStatus} flow={statusFlow} history={ticket.history} />
                 <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Canal:</span>
                     <span

@@ -225,7 +225,7 @@ export default function TicketLookup() {
                 <span className="font-medium">Estado actual:</span>{' '}
                 <span className="text-primary font-semibold">{currentStatus}</span>
               </p>
-              <TicketStatusBar status={currentStatus} flow={statusFlow} />
+              <TicketStatusBar status={currentStatus} flow={statusFlow} history={timelineHistory} />
               {(primaryImageUrl || hasLocation) && (
                 <div className="grid gap-4 pt-4 sm:grid-cols-2">
                   {primaryImageUrl && (
