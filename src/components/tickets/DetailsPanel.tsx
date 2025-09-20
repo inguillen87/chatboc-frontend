@@ -287,9 +287,10 @@ export const getPrimaryImageUrl = (ticket: Ticket | null, attachments: Attachmen
 
 interface DetailsPanelProps {
   onClose?: () => void;
+  className?: string;
 }
 
-const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose }) => {
+const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
   const { selectedTicket: ticket, updateTicket } = useTickets();
   const [isSendingEmail, setIsSendingEmail] = React.useState(false);
 
@@ -383,7 +384,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose }) => {
 
   if (!ticket) {
     return (
-       <aside className="w-full border-l border-border flex-col h-screen bg-muted/20 shrink-0 hidden lg:flex items-center justify-center p-6">
+       <aside className="hidden h-full w-full flex-col items-center justify-center border-l border-border bg-muted/20 p-6 lg:flex">
          <div className="text-center text-muted-foreground">
             <Info className="h-12 w-12 mx-auto mb-4" />
             <h3 className="font-semibold">Detalles del Ticket</h3>
@@ -507,10 +508,9 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose }) => {
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
         className={cn(
-          "flex flex-col bg-muted/20 shrink-0 border-border",
-          onClose
-            ? "h-full md:h-screen w-full md:w-[360px] lg:w-[380px] border-l md:border-l"
-            : "h-screen w-full border-l"
+          'flex h-full shrink-0 flex-col border-border bg-muted/20',
+          onClose ? 'w-full border-0 md:border-l' : 'w-full border-l',
+          className,
         )}
     >
       <header className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-border p-4 bg-muted/80 backdrop-blur supports-[backdrop-filter]:bg-muted/60">
