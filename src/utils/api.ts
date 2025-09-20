@@ -5,6 +5,10 @@ import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateChatSessionId from "@/utils/chatSessionId"; // Import the new function
 import { getIframeToken } from "@/utils/config";
 import { isWidgetModeActive } from "@/utils/widgetMode";
+import {
+  normalizeEntityToken,
+  persistEntityToken,
+} from "@/utils/entityToken";
 
 export class ApiError extends Error {
   public readonly status: number;
@@ -140,6 +144,18 @@ export async function apiFetch<T>(
           "[apiFetch] Unable to persist anon_id header",
           storageError,
         );
+      }
+    }
+
+    const responseEntityToken =
+      response.headers.get("X-Entity-Token") ||
+      response.headers.get("X-Owner-Token") ||
+      response.headers.get("X-Widget-Token") ||
+      response.headers.get("X-Integration-Token");
+    if (responseEntityToken) {
+      const normalizedEntityHeader = normalizeEntityToken(responseEntityToken);
+      if (normalizedEntityHeader) {
+        persistEntityToken(normalizedEntityHeader);
       }
     }
 

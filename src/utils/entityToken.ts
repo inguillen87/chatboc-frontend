@@ -22,6 +22,24 @@ const ENTITY_TOKEN_KEYS = [
   "token_integracion",
 ];
 
+const ENTITY_TOKEN_KEY_SET = new Set(
+  ENTITY_TOKEN_KEYS.map((key) => key.toLowerCase()),
+);
+
+const GENERIC_TOKEN_KEYS = [
+  "token",
+  "value",
+  "jwt",
+  "jwt_token",
+  "access_token",
+  "accesstoken",
+  "auth_token",
+  "authtoken",
+  "api_token",
+  "apitoken",
+  "authorization",
+];
+
 const NESTED_TOKEN_SOURCES = [
   "entity",
   "entidad",
@@ -35,6 +53,49 @@ const NESTED_TOKEN_SOURCES = [
   "credentials",
   "integration",
   "integracion",
+  "owner",
+  "owners",
+  "ownerinfo",
+  "owner_info",
+  "ownerdata",
+  "owner_data",
+  "propietario",
+  "dueno",
+  "dueño",
+  "perfil",
+  "profile",
+  "account",
+  "cuenta",
+];
+
+const NESTED_TOKEN_SOURCE_SET = new Set(
+  NESTED_TOKEN_SOURCES.map((key) => key.toLowerCase()),
+);
+
+const TOKEN_CONTEXT_HINTS = [
+  "entity",
+  "entidad",
+  "empresa",
+  "municipio",
+  "organization",
+  "organizacion",
+  "config",
+  "widget",
+  "tokens",
+  "credentials",
+  "integration",
+  "integracion",
+  "owner",
+  "owners",
+  "propietario",
+  "dueno",
+  "dueño",
+  "perfil",
+  "profile",
+  "account",
+  "cuenta",
+  "bot",
+  "assistant",
 ];
 
 const PLACEHOLDER_TOKENS = new Set([
@@ -61,34 +122,98 @@ export function normalizeEntityToken(value: unknown): string | null {
   return candidate;
 }
 
-export function extractEntityToken(source: any, depth = 0): string | null {
-  if (!source || typeof source !== "object") return null;
-
-  for (const key of ENTITY_TOKEN_KEYS) {
-    const candidate = normalizeEntityToken((source as Record<string, unknown>)[key]);
-    if (candidate) {
-      return candidate;
-    }
+function shouldCaptureFromContext(key: string, path: string[]): boolean {
+  if (!path.length) {
+    return TOKEN_CONTEXT_HINTS.some((hint) => key.toLowerCase().includes(hint));
   }
+  const normalizedPath = path.map((segment) => segment.toLowerCase());
+  if (normalizedPath.some((segment) => TOKEN_CONTEXT_HINTS.some((hint) => segment.includes(hint)))) {
+    return true;
+  }
+  return TOKEN_CONTEXT_HINTS.some((hint) => key.toLowerCase().includes(hint));
+}
 
-  if (depth >= 3) {
+function shouldRecurseInto(key: string, depth: number): boolean {
+  const normalizedKey = key.toLowerCase();
+  if (NESTED_TOKEN_SOURCE_SET.has(normalizedKey)) return true;
+  if (
+    normalizedKey.includes("token") ||
+    normalizedKey.includes("owner") ||
+    normalizedKey.includes("widget") ||
+    normalizedKey.includes("entity") ||
+    normalizedKey.includes("empresa") ||
+    normalizedKey.includes("municipio") ||
+    normalizedKey.includes("organizacion") ||
+    normalizedKey.includes("organization") ||
+    normalizedKey.includes("perfil") ||
+    normalizedKey.includes("profile") ||
+    normalizedKey.includes("account") ||
+    normalizedKey.includes("cuenta") ||
+    normalizedKey.includes("credencial") ||
+    normalizedKey.includes("credential") ||
+    normalizedKey.includes("integration") ||
+    normalizedKey.includes("integracion")
+  ) {
+    return true;
+  }
+  return depth < 1;
+}
+
+export function extractEntityToken(source: any, depth = 0, path: string[] = []): string | null {
+  if (!source) return null;
+
+  if (Array.isArray(source)) {
+    if (depth >= 6) return null;
+    for (const item of source) {
+      const candidate = extractEntityToken(item, depth + 1, path);
+      if (candidate) return candidate;
+    }
     return null;
   }
 
-  for (const nestedKey of NESTED_TOKEN_SOURCES) {
-    const nested = (source as Record<string, unknown>)[nestedKey];
-    if (!nested) continue;
+  if (typeof source !== "object") {
+    return null;
+  }
 
-    if (Array.isArray(nested)) {
-      for (const item of nested) {
-        const candidate = extractEntityToken(item, depth + 1);
-        if (candidate) return candidate;
+  const record = source as Record<string, unknown>;
+
+  for (const [rawKey, rawValue] of Object.entries(record)) {
+    const normalizedKey = rawKey.toLowerCase();
+    if (ENTITY_TOKEN_KEY_SET.has(normalizedKey)) {
+      const candidate = normalizeEntityToken(rawValue);
+      if (candidate) {
+        return candidate;
       }
+    }
+
+    if (typeof rawValue === "string") {
+      const genericKey = GENERIC_TOKEN_KEYS.includes(normalizedKey) || normalizedKey.includes("token");
+      if (genericKey && shouldCaptureFromContext(rawKey, path)) {
+        const candidate = normalizeEntityToken(rawValue);
+        if (candidate) {
+          return candidate;
+        }
+      }
+    }
+  }
+
+  if (depth >= 6) {
+    return null;
+  }
+
+  for (const [rawKey, rawValue] of Object.entries(record)) {
+    if (!rawValue || typeof rawValue === "string") continue;
+
+    const nextPath = [...path, rawKey];
+
+    if (Array.isArray(rawValue)) {
+      const candidate = extractEntityToken(rawValue, depth + 1, nextPath);
+      if (candidate) return candidate;
       continue;
     }
 
-    if (typeof nested === "object") {
-      const candidate = extractEntityToken(nested, depth + 1);
+    if (typeof rawValue === "object" && shouldRecurseInto(rawKey, depth)) {
+      const candidate = extractEntityToken(rawValue, depth + 1, nextPath);
       if (candidate) return candidate;
     }
   }

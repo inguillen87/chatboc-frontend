@@ -61,6 +61,21 @@ const Integracion = () => {
   const [ownerTokenLoading, setOwnerTokenLoading] = useState(false);
   const [ownerTokenError, setOwnerTokenError] = useState<string | null>(null);
 
+  const applyOwnerToken = useCallback(
+    (candidate: string | null | undefined) => {
+      const normalized = normalizeEntityToken(candidate ?? null);
+      if (!normalized) {
+        return null;
+      }
+      const persisted = persistEntityToken(normalized) ?? normalized;
+      setOwnerToken(persisted);
+      setOwnerTokenError(null);
+      setUser((prev) => (prev ? { ...prev, entityToken: persisted } : prev));
+      return persisted;
+    },
+    [setUser],
+  );
+
   const fetchOwnerTokenFromApi = useCallback(async () => {
     const authToken = safeLocalStorage.getItem("authToken");
     if (!authToken) {
@@ -69,33 +84,58 @@ const Integracion = () => {
 
     setOwnerTokenLoading(true);
     setOwnerTokenError(null);
+
+    let lastError: unknown = null;
+
+    const resolveFromPayload = (payload: any) => {
+      const direct = extractEntityToken(payload);
+      let normalized = applyOwnerToken(direct);
+      if (!normalized) {
+        normalized = applyOwnerToken(getStoredEntityToken());
+      }
+      return normalized;
+    };
+
+    const attempt = async (fn: () => Promise<any>) => {
+      try {
+        const payload = await fn();
+        return resolveFromPayload(payload);
+      } catch (err) {
+        lastError = lastError ?? err;
+        return null;
+      }
+    };
+
     try {
-      const data = await apiFetch<any>("/me", { cache: "no-store" });
-      const tokenFromResponse = extractEntityToken(data);
-      if (tokenFromResponse) {
-        const normalized = persistEntityToken(tokenFromResponse) ?? tokenFromResponse;
-        setOwnerToken(normalized);
-        setOwnerTokenError(null);
-        setUser((prev) => (prev ? { ...prev, entityToken: normalized } : prev));
-        return normalized;
+      let resolved = await attempt(() => apiFetch<any>("/me", { cache: "no-store" }));
+      if (!resolved) {
+        resolved = await attempt(() =>
+          apiFetch<any>("/perfil", { cache: "no-store", entityToken: "" }),
+        );
+      }
+      if (!resolved) {
+        resolved = applyOwnerToken(getStoredEntityToken());
       }
 
+      if (resolved) {
+        return resolved;
+      }
+
+      if (lastError) {
+        console.error("Integracion: no se pudo obtener el token de integración", lastError);
+      }
+      persistEntityToken(null);
       setOwnerToken(null);
       setOwnerTokenError(
-        "Tu cuenta no tiene un token de integración activo. Escribinos para activarlo."
-      );
-      return null;
-    } catch (err) {
-      console.error("Integracion: no se pudo obtener el token de integración", err);
-      setOwnerToken(null);
-      setOwnerTokenError(
-        "No pudimos obtener el token de integración. Reintentá más tarde o contactá soporte."
+        lastError
+          ? "No pudimos obtener el token de integración. Reintentá más tarde o contactá soporte."
+          : "Tu cuenta no tiene un token de integración activo. Escribinos para activarlo.",
       );
       return null;
     } finally {
       setOwnerTokenLoading(false);
     }
-  }, [setUser]);
+  }, [applyOwnerToken]);
 
   const validarAcceso = (currentUser: User | null) => {
     if (!currentUser) {
@@ -164,16 +204,18 @@ const Integracion = () => {
   }, [navigate, fetchOwnerTokenFromApi]);
 
   useEffect(() => {
-    const normalized = normalizeEntityToken(user?.entityToken ?? null);
-    if (normalized) {
-      if (normalized !== ownerToken) {
-        setOwnerToken(normalized);
-        setOwnerTokenError(null);
-      }
+    if (!user) {
+      return;
+    }
+    const normalized = normalizeEntityToken(user.entityToken ?? null);
+    if (normalized && normalized !== ownerToken) {
+      setOwnerToken(normalized);
+      setOwnerTokenError(null);
     } else if (!normalized && ownerToken) {
+      persistEntityToken(null);
       setOwnerToken(null);
     }
-  }, [user?.entityToken, ownerToken]);
+  }, [user, ownerToken]);
 
 
   const endpoint = useMemo(() => {
