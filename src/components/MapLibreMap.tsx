@@ -30,95 +30,41 @@ declare global {
   }
 }
 
-const MAPLIBRE_VERSION = "4.7.1";
-const CDN_SOURCES = [
-  `https://cdn.maptiler.com/maplibre-gl-js/v${MAPLIBRE_VERSION}/maplibre-gl.js`,
-  `https://unpkg.com/maplibre-gl@${MAPLIBRE_VERSION}/dist/maplibre-gl.js`,
-];
-
-let libraryPromise: Promise<MapLibreModule> | null = null;
-
-const loadExternalScript = (src: string) =>
-  new Promise<void>((resolve, reject) => {
-    if (typeof document === "undefined") {
-      reject(new Error("Document is not available to load MapLibre"));
-      return;
-    }
-
-    const existing = document.querySelector<HTMLScriptElement>(
-      `script[data-maplibre-loader="${src}"]`,
-    );
-
-    if (existing?.dataset.loaded === "true") {
-      resolve();
-      return;
-    }
-
-    const script = existing ?? document.createElement("script");
-    script.src = src;
-    script.async = true;
-    script.dataset.maplibreLoader = src;
-    script.onload = () => {
-      script.dataset.loaded = "true";
-      resolve();
-    };
-    script.onerror = () => {
-      reject(new Error(`No se pudo cargar MapLibre desde ${src}`));
-    };
-
-    if (!existing) {
-      document.head.appendChild(script);
-    }
-  });
+let cachedMapLibre: MapLibreModule | null = null;
+let maplibrePromise: Promise<MapLibreModule> | null = null;
 
 const loadMapLibre = async (): Promise<MapLibreModule> => {
   if (typeof window === "undefined") {
     throw new Error("MapLibre solo puede inicializarse en el navegador");
   }
 
+  if (cachedMapLibre?.Map) {
+    return cachedMapLibre;
+  }
+
   if (window.maplibregl?.Map) {
+    cachedMapLibre = window.maplibregl;
     return window.maplibregl;
   }
 
-  if (!libraryPromise) {
-    libraryPromise = (async () => {
-      try {
-        const module = await import("maplibre-gl");
+  if (!maplibrePromise) {
+    maplibrePromise = import("maplibre-gl")
+      .then((module) => {
         const lib = (module as MapLibreModule & { default?: MapLibreModule }).default ?? module;
-        if (lib?.Map) {
-          window.maplibregl = lib;
-          return lib;
+        if (!lib?.Map) {
+          throw new Error("MapLibre library failed to load");
         }
-      } catch (err) {
-        console.warn("Fallo la carga dinámica de maplibre-gl, se usará el CDN", err);
-      }
-
-      if (window.maplibregl?.Map) {
-        return window.maplibregl;
-      }
-
-      for (const src of CDN_SOURCES) {
-        try {
-          await loadExternalScript(src);
-          if (window.maplibregl?.Map) {
-            return window.maplibregl;
-          }
-        } catch (cdnError) {
-          console.warn(`Fallo la carga desde ${src}`, cdnError);
-        }
-      }
-
-      throw new Error("MapLibre library failed to load");
-    })();
+        window.maplibregl = lib;
+        cachedMapLibre = lib;
+        return lib;
+      })
+      .catch((error) => {
+        maplibrePromise = null;
+        throw error;
+      });
   }
 
-  try {
-    const lib = await libraryPromise;
-    return lib;
-  } catch (error) {
-    libraryPromise = null;
-    throw error;
-  }
+  return maplibrePromise;
 };
 
 const buildGeoJson = (points: HeatPoint[]) => ({
@@ -203,8 +149,10 @@ export default function MapLibreMap({
     latestHeatmap.current = heatmapData;
   }, [heatmapData]);
 
-  const shouldRenderGoogle =
-    provider === "google" || (provider === "maplibre" && mapError !== null);
+  const shouldRenderGoogle = useMemo(
+    () => provider === "google" || (provider === "maplibre" && mapError !== null),
+    [provider, mapError],
+  );
 
   const fallbackQuery = useMemo(() => {
     if (center && !Number.isNaN(center[0]) && !Number.isNaN(center[1])) {
@@ -219,10 +167,8 @@ export default function MapLibreMap({
     if (heatmapData.length > 0) {
       const totalWeight = heatmapData.reduce((sum, p) => sum + (p.weight ?? 1), 0);
       const divisor = totalWeight > 0 ? totalWeight : heatmapData.length;
-      const avgLat =
-        heatmapData.reduce((sum, p) => sum + p.lat * (p.weight ?? 1), 0) / divisor;
-      const avgLng =
-        heatmapData.reduce((sum, p) => sum + p.lng * (p.weight ?? 1), 0) / divisor;
+      const avgLat = heatmapData.reduce((sum, p) => sum + p.lat * (p.weight ?? 1), 0) / divisor;
+      const avgLng = heatmapData.reduce((sum, p) => sum + p.lng * (p.weight ?? 1), 0) / divisor;
       if (!Number.isNaN(avgLat) && !Number.isNaN(avgLng)) {
         return `${avgLat},${avgLng}`;
       }
@@ -252,20 +198,27 @@ export default function MapLibreMap({
   }, [shouldRenderGoogle]);
 
   useEffect(() => {
+    if (provider === "maplibre") {
+      return;
+    }
+
+    setMapError(null);
+    if (mapRef.current) {
+      mapRef.current.remove();
+      mapRef.current = null;
+    }
+    if (markerRef.current) {
+      markerRef.current.remove();
+      markerRef.current = null;
+    }
+    if (adminMarkerRef.current) {
+      adminMarkerRef.current.remove();
+      adminMarkerRef.current = null;
+    }
+  }, [provider]);
+
+  useEffect(() => {
     if (provider !== "maplibre") {
-      setMapError(null);
-      if (mapRef.current) {
-        mapRef.current.remove();
-        mapRef.current = null;
-      }
-      if (markerRef.current) {
-        markerRef.current.remove();
-        markerRef.current = null;
-      }
-      if (adminMarkerRef.current) {
-        adminMarkerRef.current.remove();
-        adminMarkerRef.current = null;
-      }
       return;
     }
 
@@ -277,6 +230,7 @@ export default function MapLibreMap({
 
     const initMap = async () => {
       try {
+        setMapError(null);
         const maplibre = await loadMapLibre();
         libRef.current = maplibre;
 
@@ -295,7 +249,6 @@ export default function MapLibreMap({
         });
 
         mapRef.current = mapInstance;
-        setMapError(null);
 
         if (typeof maplibre.NavigationControl === "function") {
           mapInstance.addControl(new maplibre.NavigationControl(), "top-right");
@@ -554,11 +507,11 @@ export default function MapLibreMap({
               )
             : undefined;
 
-        const marker = new maplibre.Marker({ color: "#059669" }).setLngLat(adminLocation);
+        const markerInstance = new maplibre.Marker({ color: "#059669" }).setLngLat(adminLocation);
         if (popup) {
-          marker.setPopup(popup);
+          markerInstance.setPopup(popup);
         }
-        adminMarkerRef.current = marker.addTo(map);
+        adminMarkerRef.current = markerInstance.addTo(map);
       }
     } else if (adminMarkerRef.current) {
       adminMarkerRef.current.remove();
