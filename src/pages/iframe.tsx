@@ -8,7 +8,6 @@ import { MemoryRouter } from "react-router-dom";
 import { getChatbocConfig } from "@/utils/config";
 import { hexToHsl } from "@/utils/color";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
-import { activateWidgetMode, deactivateWidgetMode } from "@/utils/widgetMode";
 
 const DEFAULTS = {
   openWidth: "460px",
@@ -33,13 +32,6 @@ const Iframe = () => {
   const [entityToken, setEntityToken] = useState<string | null>(null);
   const [tipoChat, setTipoChat] = useState<'pyme' | 'municipio' | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    activateWidgetMode();
-    return () => {
-      deactivateWidgetMode();
-    };
-  }, []);
 
   useEffect(() => {
     const cfg = getChatbocConfig();

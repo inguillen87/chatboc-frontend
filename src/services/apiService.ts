@@ -1,7 +1,6 @@
 // --- src/services/apiService.ts (CORREGIDO Y COMPLETO) ---
 import type { Ticket, Comment, TicketStatus } from '@/types'; // CAMBIO: Se agrega TicketStatus a la importación
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
-import { isWidgetModeActive } from "@/utils/widgetMode";
 
 // Use the same base URL resolution as api.ts. Default to the Vite dev
 // proxy path when no env variable is provided.
@@ -11,11 +10,8 @@ interface TicketsApiResponse { ok: boolean; tickets: Ticket[]; error?: string; }
 interface CommentsApiResponse { ok: boolean; comentarios: Comment[]; error?: string; }
 
 async function apiFetch<T>(endpoint:string, options: RequestInit = {}): Promise<T> {
-  const widgetMode = isWidgetModeActive();
+  const userToken = safeLocalStorage.getItem("authToken");
   const entityToken = safeLocalStorage.getItem("entityToken");
-  const userToken = widgetMode
-    ? safeLocalStorage.getItem("chatAuthToken")
-    : safeLocalStorage.getItem("authToken");
 
   const headers: HeadersInit = { // Default headers
     ...options.headers,
@@ -38,7 +34,6 @@ async function apiFetch<T>(endpoint:string, options: RequestInit = {}): Promise<
   const config: RequestInit = {
     ...options,
     headers,
-    credentials: widgetMode ? "omit" : options.credentials,
   };
   const mask = (t: string | null) => (t ? `${t.slice(0, 8)}...` : null);
   console.log('[apiService] Request', {
@@ -48,7 +43,6 @@ async function apiFetch<T>(endpoint:string, options: RequestInit = {}): Promise<
     entityToken: mask(entityToken),
     hasBody: !!options.body,
     headers,
-    widgetMode,
   });
 
   // Normalize URL to prevent double slashes
