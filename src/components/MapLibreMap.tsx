@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { HeatPoint } from "@/services/statsService";
@@ -13,13 +13,144 @@ type Props = {
   marker?: [number, number];
   className?: string;
   provider?: "maplibre" | "google";
+  adminLocation?: [number, number];
 };
 
-// Function to safely add a layer
 const addLayer = (map: Map, layer: any) => {
   if (!map.getLayer(layer.id)) {
     map.addLayer(layer);
   }
+};
+
+type MapLibreModule = typeof import("maplibre-gl");
+
+declare global {
+  interface Window {
+    maplibregl?: MapLibreModule;
+  }
+}
+
+const MAPLIBRE_VERSION = "4.7.1";
+const CDN_SOURCES = [
+  `https://cdn.maptiler.com/maplibre-gl-js/v${MAPLIBRE_VERSION}/maplibre-gl.js`,
+  `https://unpkg.com/maplibre-gl@${MAPLIBRE_VERSION}/dist/maplibre-gl.js`,
+];
+
+let libraryPromise: Promise<MapLibreModule> | null = null;
+
+const loadExternalScript = (src: string) =>
+  new Promise<void>((resolve, reject) => {
+    if (typeof document === "undefined") {
+      reject(new Error("Document is not available to load MapLibre"));
+      return;
+    }
+
+    const existing = document.querySelector<HTMLScriptElement>(
+      `script[data-maplibre-loader="${src}"]`,
+    );
+
+    if (existing?.dataset.loaded === "true") {
+      resolve();
+      return;
+    }
+
+    const script = existing ?? document.createElement("script");
+    script.src = src;
+    script.async = true;
+    script.dataset.maplibreLoader = src;
+    script.onload = () => {
+      script.dataset.loaded = "true";
+      resolve();
+    };
+    script.onerror = () => {
+      reject(new Error(`No se pudo cargar MapLibre desde ${src}`));
+    };
+
+    if (!existing) {
+      document.head.appendChild(script);
+    }
+  });
+
+const loadMapLibre = async (): Promise<MapLibreModule> => {
+  if (typeof window === "undefined") {
+    throw new Error("MapLibre solo puede inicializarse en el navegador");
+  }
+
+  if (window.maplibregl?.Map) {
+    return window.maplibregl;
+  }
+
+  if (!libraryPromise) {
+    libraryPromise = (async () => {
+      try {
+        const module = await import("maplibre-gl");
+        const lib = (module as MapLibreModule & { default?: MapLibreModule }).default ?? module;
+        if (lib?.Map) {
+          window.maplibregl = lib;
+          return lib;
+        }
+      } catch (err) {
+        console.warn("Fallo la carga dinámica de maplibre-gl, se usará el CDN", err);
+      }
+
+      if (window.maplibregl?.Map) {
+        return window.maplibregl;
+      }
+
+      for (const src of CDN_SOURCES) {
+        try {
+          await loadExternalScript(src);
+          if (window.maplibregl?.Map) {
+            return window.maplibregl;
+          }
+        } catch (cdnError) {
+          console.warn(`Fallo la carga desde ${src}`, cdnError);
+        }
+      }
+
+      throw new Error("MapLibre library failed to load");
+    })();
+  }
+
+  try {
+    const lib = await libraryPromise;
+    return lib;
+  } catch (error) {
+    libraryPromise = null;
+    throw error;
+  }
+};
+
+const buildGeoJson = (points: HeatPoint[]) => ({
+  type: "FeatureCollection",
+  features: points.map((p) => ({
+    type: "Feature",
+    properties: {
+      weight: p.weight ?? 1,
+      id: p.id,
+      ticket: p.ticket,
+      categoria: p.categoria,
+      direccion: p.direccion,
+      distrito: p.distrito,
+    },
+    geometry: { type: "Point", coordinates: [p.lng, p.lat] },
+  })),
+});
+
+const updateHeatmapSource = (map: Map, points: HeatPoint[]) => {
+  const source = map.getSource("points");
+  if (source && typeof (source as any).setData === "function") {
+    (source as any).setData(buildGeoJson(points));
+  }
+};
+
+const toggleLayers = (map: Map, showHeatmap: boolean) => {
+  if (!map.getLayer("tickets-heat") || !map.getLayer("tickets-circles")) {
+    return;
+  }
+
+  map.setLayoutProperty("tickets-heat", "visibility", showHeatmap ? "visible" : "none");
+  map.setLayoutProperty("tickets-circles", "visibility", showHeatmap ? "none" : "visible");
 };
 
 export default function MapLibreMap({
@@ -31,76 +162,159 @@ export default function MapLibreMap({
   marker,
   className,
   provider = "maplibre",
+  adminLocation,
 }: Props) {
-  if (provider === "google") {
-    const query = center ? `${center[1]},${center[0]}` : "0,0";
-    const url = `https://maps.google.com/maps?q=${query}&z=${initialZoom}&output=embed`;
+  const [mapError, setMapError] = useState<string | null>(null);
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<Map | null>(null);
+  const libRef = useRef<MapLibreModule | null>(null);
+  const markerRef = useRef<any>(null);
+  const adminMarkerRef = useRef<any>(null);
+  const latestHeatmap = useRef<HeatPoint[]>(heatmapData);
+
+  const apiKey = import.meta.env.VITE_MAPTILER_KEY;
+  const apiKeyRef = useRef(apiKey);
+  const centerRef = useRef(center);
+  const showHeatmapRef = useRef(showHeatmap);
+  const onSelectRef = useRef(onSelect);
+  const initialZoomRef = useRef(initialZoom);
+
+  useEffect(() => {
+    apiKeyRef.current = apiKey;
+  }, [apiKey]);
+
+  useEffect(() => {
+    centerRef.current = center;
+  }, [center]);
+
+  useEffect(() => {
+    showHeatmapRef.current = showHeatmap;
+  }, [showHeatmap]);
+
+  useEffect(() => {
+    onSelectRef.current = onSelect;
+  }, [onSelect]);
+
+  useEffect(() => {
+    initialZoomRef.current = initialZoom;
+  }, [initialZoom]);
+
+  useEffect(() => {
+    latestHeatmap.current = heatmapData;
+  }, [heatmapData]);
+
+  const shouldRenderGoogle =
+    provider === "google" || (provider === "maplibre" && mapError !== null);
+
+  const fallbackQuery = (() => {
+    if (center && !Number.isNaN(center[0]) && !Number.isNaN(center[1])) {
+      return `${center[1]},${center[0]}`;
+    }
+    if (marker && !Number.isNaN(marker[0]) && !Number.isNaN(marker[1])) {
+      return `${marker[1]},${marker[0]}`;
+    }
+    if (adminLocation && !Number.isNaN(adminLocation[0]) && !Number.isNaN(adminLocation[1])) {
+      return `${adminLocation[1]},${adminLocation[0]}`;
+    }
+    if (heatmapData.length > 0) {
+      const totalWeight = heatmapData.reduce((sum, p) => sum + (p.weight ?? 1), 0);
+      const divisor = totalWeight > 0 ? totalWeight : heatmapData.length;
+      const avgLat =
+        heatmapData.reduce((sum, p) => sum + p.lat * (p.weight ?? 1), 0) / divisor;
+      const avgLng =
+        heatmapData.reduce((sum, p) => sum + p.lng * (p.weight ?? 1), 0) / divisor;
+      if (!Number.isNaN(avgLat) && !Number.isNaN(avgLng)) {
+        return `${avgLat},${avgLng}`;
+      }
+    }
+    return "Argentina";
+  })();
+
+  if (shouldRenderGoogle) {
+    const url = `https://maps.google.com/maps?q=${encodeURIComponent(
+      fallbackQuery,
+    )}&z=${initialZoom}&output=embed`;
+    const containerClassName = cn(
+      "relative w-full rounded-2xl overflow-hidden",
+      className,
+      !className && "h-[500px]",
+    );
+
     return (
-      <iframe
-        src={url}
-        className={cn("w-full rounded-2xl overflow-hidden", className ?? "h-[500px]")}
-        loading="lazy"
-        referrerPolicy="no-referrer-when-downgrade"
-      />
+      <div className={containerClassName}>
+        <iframe
+          src={url}
+          className="h-full w-full border-0"
+          loading="lazy"
+          title="Mapa interactivo"
+          referrerPolicy="no-referrer-when-downgrade"
+        />
+        {mapError && provider === "maplibre" && (
+          <div className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-md bg-background/90 px-3 py-2 text-xs text-foreground shadow">
+            No se pudo cargar MapLibre. Se muestra Google Maps como alternativa.
+          </div>
+        )}
+      </div>
     );
   }
-  const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<Map | null>(null);
-  const libRef = useRef<any>(null);
-  const markerRef = useRef<any>(null);
-  const apiKey = import.meta.env.VITE_MAPTILER_KEY;
 
-  // Effect for map initialization and cleanup
   useEffect(() => {
-    if (!mapContainerRef.current || mapRef.current) return; // Initialize only once
+    if (provider !== "maplibre") {
+      setMapError(null);
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
+      if (markerRef.current) {
+        markerRef.current.remove();
+        markerRef.current = null;
+      }
+      if (adminMarkerRef.current) {
+        adminMarkerRef.current.remove();
+        adminMarkerRef.current = null;
+      }
+      return;
+    }
+
+    if (!mapContainerRef.current || mapRef.current) {
+      return;
+    }
 
     let isMounted = true;
-    let map: Map;
 
     const initMap = async () => {
       try {
-        const maplibreModule = await import("maplibre-gl");
-        const maplibre = (
-          maplibreModule as typeof import("maplibre-gl") & {
-            default?: typeof import("maplibre-gl");
-          }
-        ).default ?? maplibreModule;
-
-        if (!maplibre?.Map) {
-          throw new Error("MapLibre library failed to load");
-        }
-
+        const maplibre = await loadMapLibre();
         libRef.current = maplibre;
 
         if (!isMounted || !mapContainerRef.current) return;
 
-        const styleUrl = apiKey
-          ? `https://api.maptiler.com/maps/streets-v2/style.json?key=${apiKey}`
+        const key = apiKeyRef.current;
+        const styleUrl = key
+          ? `https://api.maptiler.com/maps/streets-v2/style.json?key=${key}`
           : "https://demotiles.maplibre.org/style.json";
 
-        map = new maplibre.Map({
+        const mapInstance = new maplibre.Map({
           container: mapContainerRef.current,
           style: styleUrl,
-          center: center ?? [0, 0],
-          zoom: initialZoom,
+          center: centerRef.current ?? [0, 0],
+          zoom: initialZoomRef.current,
         });
 
-        mapRef.current = map;
+        mapRef.current = mapInstance;
+        setMapError(null);
 
-        map.addControl(new maplibre.NavigationControl(), "top-right");
+        if (typeof maplibre.NavigationControl === "function") {
+          mapInstance.addControl(new maplibre.NavigationControl(), "top-right");
+        }
 
-        map.on('load', () => {
-          if (!isMounted) return;
-
-          map.addSource("points", {
+        const handleLoad = () => {
+          mapInstance.addSource("points", {
             type: "geojson",
-            data: {
-              type: "FeatureCollection",
-              features: [],
-            },
+            data: { type: "FeatureCollection", features: [] },
           });
 
-          addLayer(map, {
+          addLayer(mapInstance, {
             id: "tickets-heat",
             type: "heatmap",
             source: "points",
@@ -108,36 +322,63 @@ export default function MapLibreMap({
             paint: {
               "heatmap-weight": ["get", "weight"],
               "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 0, 1, 15, 3],
-              "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 0, 2, 9, 20],
-              "heatmap-opacity": 0.6,
+              "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 0, 2, 9, 24],
+              "heatmap-opacity": 0.65,
+              "heatmap-color": [
+                "interpolate",
+                ["linear"],
+                ["heatmap-density"],
+                0,
+                "rgba(14,165,233,0)",
+                0.3,
+                "rgba(14,165,233,0.6)",
+                0.6,
+                "rgba(59,130,246,0.8)",
+                1,
+                "rgba(239,68,68,0.95)",
+              ],
             },
           });
 
-          addLayer(map, {
+          addLayer(mapInstance, {
             id: "tickets-circles",
             type: "circle",
             source: "points",
-            minzoom: 14,
+            minzoom: 11,
             paint: {
-              "circle-radius": 6,
-              "circle-color": "#3b82f6",
+              "circle-radius": [
+                "interpolate",
+                ["linear"],
+                ["zoom"],
+                11,
+                4,
+                16,
+                12,
+              ],
+              "circle-color": "#2563eb",
               "circle-opacity": 0.9,
             },
           });
 
-          // Set initial visibility based on prop
-          map.setLayoutProperty("tickets-heat", "visibility", showHeatmap ? "visible" : "none");
-          map.setLayoutProperty("tickets-circles", "visibility", showHeatmap ? "none" : "visible");
-        });
+          toggleLayers(mapInstance, showHeatmapRef.current);
+          updateHeatmapSource(mapInstance, latestHeatmap.current);
+        };
 
-        if (onSelect) {
-          map.on('click', (e) => {
-            const { lng, lat } = e.lngLat;
-            onSelect(lat, lng);
-          });
+        if (mapInstance.isStyleLoaded()) {
+          handleLoad();
+        } else {
+          mapInstance.once("load", handleLoad);
         }
 
-        map.on('click', 'tickets-circles', (e) => {
+        const handleClick = (event: { lngLat: { lat: number; lng: number } }) => {
+          const callback = onSelectRef.current;
+          if (callback) {
+            const { lng, lat } = event.lngLat;
+            callback(lat, lng);
+          }
+        };
+
+        const handleCircleClick = (e: any) => {
           if (!e.features?.length) return;
           const feature = e.features[0];
           const coords = (feature.geometry as any).coordinates.slice();
@@ -149,116 +390,133 @@ export default function MapLibreMap({
 
           const lines = [
             `<p>Ticket #${ticket ?? id}</p>`,
-            categoria ? `<p>Categoría: ${categoria}</p>` : '',
-            distrito ? `<p>Distrito: ${distrito}</p>` : '',
-            direccion ? `<p>Dirección: ${direccion}</p>` : '',
+            categoria ? `<p>Categoría: ${categoria}</p>` : "",
+            distrito ? `<p>Distrito: ${distrito}</p>` : "",
+            direccion ? `<p>Dirección: ${direccion}</p>` : "",
             `<a href="/chat/${id}" class="text-blue-600 underline" target="_blank" rel="noopener noreferrer">Ver ticket</a>`,
           ].filter(Boolean);
 
-          new libRef.current.Popup()
+          const popup = new maplibre.Popup();
+          popup
             .setLngLat(coords as LngLatLike)
-            .setHTML(`<div class="text-sm">${lines.join('')}</div>`)
-            .addTo(map);
-        });
+            .setHTML(`<div class="text-sm">${lines.join("")}</div>`)
+            .addTo(mapInstance);
+        };
 
-        // Add a fallback for missing images to prevent errors
-        map.on('styleimagemissing', (e) => {
+        const handleMissingImage = (e: any) => {
           const id = e.id;
-          if (!map.hasImage(id)) {
+          if (!mapInstance.hasImage(id)) {
             const empty = { width: 1, height: 1, data: new Uint8Array([0, 0, 0, 0]) };
-            map.addImage(id, empty as any);
+            mapInstance.addImage(id, empty as any);
           }
-        });
+        };
 
+        mapInstance.on("click", handleClick);
+        mapInstance.on("click", "tickets-circles", handleCircleClick);
+        mapInstance.on("styleimagemissing", handleMissingImage);
+
+        return () => {
+          mapInstance.off("click", handleClick);
+          mapInstance.off("click", "tickets-circles", handleCircleClick);
+          mapInstance.off("styleimagemissing", handleMissingImage);
+        };
       } catch (error) {
         console.error("Failed to initialize map:", error);
+        setMapError(error instanceof Error ? error.message : "No se pudo cargar el mapa");
       }
+
+      return undefined;
     };
 
-    initMap();
+    const cleanupEventsPromise = initMap();
 
     return () => {
       isMounted = false;
+      if (cleanupEventsPromise) {
+        cleanupEventsPromise
+          .then((cleanup) => {
+            if (cleanup) {
+              cleanup();
+            }
+          })
+          .catch(() => undefined);
+      }
       if (mapRef.current) {
         mapRef.current.remove();
         mapRef.current = null;
       }
+      if (markerRef.current) {
+        markerRef.current.remove();
+        markerRef.current = null;
+      }
+      if (adminMarkerRef.current) {
+        adminMarkerRef.current.remove();
+        adminMarkerRef.current = null;
+      }
     };
-  }, []); // Empty dependency array ensures this runs only once
+  }, [provider]);
 
-  // Effect for updating map center
   useEffect(() => {
     const map = mapRef.current;
-    if (map && center && !Number.isNaN(center[0]) && !Number.isNaN(center[1])) {
+    if (!map || provider !== "maplibre") return;
+
+    if (center && !Number.isNaN(center[0]) && !Number.isNaN(center[1])) {
       map.flyTo({ center, zoom: initialZoom });
     }
-  }, [center]);
+  }, [center, initialZoom, provider]);
 
-  // Effect for updating heatmap data
   useEffect(() => {
     const map = mapRef.current;
-    const source = map?.getSource("points");
-    if (!map || !source || !map.isStyleLoaded()) {
-      // If map/source not ready, retry after a short delay
-      const timeoutId = setTimeout(() => {
-        const updatedSource = map?.getSource("points");
-        if(updatedSource && typeof (updatedSource as any).setData === 'function'){
-           const geojson = {
-            type: "FeatureCollection",
-            features: heatmapData.map((p) => ({
-              type: "Feature",
-              properties: { weight: p.weight ?? 1, id: p.id, ticket: p.ticket, categoria: p.categoria, direccion: p.direccion, distrito: p.distrito },
-              geometry: { type: "Point", coordinates: [p.lng, p.lat] },
-            })),
-          };
-          (updatedSource as any).setData(geojson);
-        }
-      }, 200);
-      return () => clearTimeout(timeoutId);
+    if (!map || provider !== "maplibre") return;
+
+    const applyData = () => updateHeatmapSource(map, heatmapData);
+    const source = map.getSource("points");
+    if (source && typeof (source as any).setData === "function") {
+      applyData();
+      return;
     }
 
-    if (source && typeof (source as any).setData === 'function') {
-      const geojson = {
-        type: "FeatureCollection",
-        features: heatmapData.map((p) => ({
-          type: "Feature",
-          properties: { weight: p.weight ?? 1, id: p.id, ticket: p.ticket, categoria: p.categoria, direccion: p.direccion, distrito: p.distrito },
-          geometry: { type: "Point", coordinates: [p.lng, p.lat] },
-        })),
+    map.once("load", applyData);
+    return () => {
+      map.off("load", applyData);
+    };
+  }, [heatmapData, provider]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || provider !== "maplibre") return;
+
+    if (!map.getLayer("tickets-heat") || !map.getLayer("tickets-circles")) {
+      const handler = () => toggleLayers(map, showHeatmap);
+      map.once("load", handler);
+      return () => {
+        map.off("load", handler);
       };
-      (source as any).setData(geojson);
     }
-  }, [heatmapData]);
 
-  // Effect for toggling layer visibility
+    toggleLayers(map, showHeatmap);
+  }, [showHeatmap, provider]);
+
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !map.isStyleLoaded()) return;
-
-    map.setLayoutProperty("tickets-heat", "visibility", showHeatmap ? "visible" : "none");
-    map.setLayoutProperty("tickets-circles", "visibility", showHeatmap ? "none" : "visible");
-  }, [showHeatmap]);
-
-  // Effect for pulsing heatmap intensity
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !showHeatmap) return;
+    if (!map || !showHeatmap || provider !== "maplibre") return;
     let frame: number;
+
     const animate = () => {
       const t = (Date.now() % 2000) / 2000;
       const intensity = 1 + 0.5 * Math.sin(t * Math.PI * 2);
       map.setPaintProperty("tickets-heat", "heatmap-intensity", intensity);
       frame = requestAnimationFrame(animate);
     };
+
     animate();
     return () => cancelAnimationFrame(frame);
-  }, [showHeatmap]);
+  }, [showHeatmap, provider]);
 
-  // Effect for adding/updating municipality marker
   useEffect(() => {
     const map = mapRef.current;
     const maplibre = libRef.current;
-    if (!map) return;
+    if (!map || provider !== "maplibre") return;
     if (marker) {
       if (markerRef.current) {
         markerRef.current.setLngLat(marker);
@@ -279,12 +537,50 @@ export default function MapLibreMap({
       markerRef.current.remove();
       markerRef.current = null;
     }
-  }, [marker]);
+  }, [marker, provider]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    const maplibre = libRef.current;
+    if (!map || provider !== "maplibre") {
+      if (adminMarkerRef.current) {
+        adminMarkerRef.current.remove();
+        adminMarkerRef.current = null;
+      }
+      return;
+    }
+
+    if (adminLocation) {
+      if (adminMarkerRef.current) {
+        adminMarkerRef.current.setLngLat(adminLocation);
+      } else if (maplibre) {
+        const popup =
+          typeof maplibre.Popup === "function"
+            ? new maplibre.Popup({ offset: 12 }).setHTML(
+                '<div class="text-sm font-medium">Ubicación del administrador</div>',
+              )
+            : undefined;
+
+        const marker = new maplibre.Marker({ color: "#059669" }).setLngLat(adminLocation);
+        if (popup) {
+          marker.setPopup(popup);
+        }
+        adminMarkerRef.current = marker.addTo(map);
+      }
+    } else if (adminMarkerRef.current) {
+      adminMarkerRef.current.remove();
+      adminMarkerRef.current = null;
+    }
+  }, [adminLocation, provider]);
 
   return (
     <div
       ref={mapContainerRef}
-      className={cn("w-full rounded-2xl overflow-hidden", className ?? "h-[500px]")}
+      className={cn(
+        "relative w-full rounded-2xl overflow-hidden",
+        className,
+        !className && "h-[500px]",
+      )}
     />
   );
 }

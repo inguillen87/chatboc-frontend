@@ -117,6 +117,16 @@ const DIAS = [
 export default function Perfil() {
   const navigate = useNavigate();
   const { user, refreshUser } = useUser(); // Usa refreshUser del hook
+  const parseCoordinate = (value: unknown): number | null => {
+    if (typeof value === "number" && !Number.isNaN(value)) {
+      return value;
+    }
+    if (typeof value === "string" && value.trim() !== "") {
+      const parsed = Number(value);
+      return Number.isNaN(parsed) ? null : parsed;
+    }
+    return null;
+  };
   const [perfil, setPerfil] = useState({
     nombre_empresa: "",
     telefono: "",
@@ -297,8 +307,11 @@ export default function Perfil() {
   const [charts, setCharts] = useState<TicketStatsResponse['charts']>([]);
 
   const municipalityCoords =
-    perfil.latitud !== null && perfil.longitud !== null
-      ? [perfil.longitud, perfil.latitud] as [number, number]
+    typeof perfil.latitud === "number" &&
+    typeof perfil.longitud === "number" &&
+    !Number.isNaN(perfil.latitud) &&
+    !Number.isNaN(perfil.longitud)
+      ? ([perfil.longitud, perfil.latitud] as [number, number])
       : undefined;
 
   // --- Estados para el nuevo modal de carga de catálogo ---
@@ -358,8 +371,8 @@ export default function Perfil() {
         ciudad: data.ciudad || "",
         provincia: data.provincia || "",
         pais: data.pais || "Argentina",
-        latitud: data.latitud || null,
-        longitud: data.longitud || null,
+        latitud: parseCoordinate(data.latitud ?? data.lat),
+        longitud: parseCoordinate(data.longitud ?? data.lng),
         link_web: data.link_web || "",
         plan: data.plan || "gratis",
         preguntas_usadas: data.preguntas_usadas ?? 0,
@@ -1142,6 +1155,7 @@ export default function Perfil() {
                     center={mapCenter ? [mapCenter.lng, mapCenter.lat] : municipalityCoords}
                     heatmapData={heatmapData}
                     marker={mapCenter ? [mapCenter.lng, mapCenter.lat] : municipalityCoords}
+                    adminLocation={municipalityCoords}
                     onSelect={handleMapSelect}
                     className="h-[600px]"
                   />
