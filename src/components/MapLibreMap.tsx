@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { HeatPoint } from "@/services/statsService";
@@ -206,7 +206,7 @@ export default function MapLibreMap({
   const shouldRenderGoogle =
     provider === "google" || (provider === "maplibre" && mapError !== null);
 
-  const fallbackQuery = (() => {
+  const fallbackQuery = useMemo(() => {
     if (center && !Number.isNaN(center[0]) && !Number.isNaN(center[1])) {
       return `${center[1]},${center[0]}`;
     }
@@ -228,35 +228,28 @@ export default function MapLibreMap({
       }
     }
     return "Argentina";
-  })();
+  }, [adminLocation, center, heatmapData, marker]);
 
-  if (shouldRenderGoogle) {
-    const url = `https://maps.google.com/maps?q=${encodeURIComponent(
-      fallbackQuery,
-    )}&z=${initialZoom}&output=embed`;
-    const containerClassName = cn(
-      "relative w-full rounded-2xl overflow-hidden",
-      className,
-      !className && "h-[500px]",
-    );
+  useEffect(() => {
+    if (!shouldRenderGoogle) {
+      return;
+    }
 
-    return (
-      <div className={containerClassName}>
-        <iframe
-          src={url}
-          className="h-full w-full border-0"
-          loading="lazy"
-          title="Mapa interactivo"
-          referrerPolicy="no-referrer-when-downgrade"
-        />
-        {mapError && provider === "maplibre" && (
-          <div className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-md bg-background/90 px-3 py-2 text-xs text-foreground shadow">
-            No se pudo cargar MapLibre. Se muestra Google Maps como alternativa.
-          </div>
-        )}
-      </div>
-    );
-  }
+    if (mapRef.current) {
+      mapRef.current.remove();
+      mapRef.current = null;
+    }
+
+    if (markerRef.current) {
+      markerRef.current.remove();
+      markerRef.current = null;
+    }
+
+    if (adminMarkerRef.current) {
+      adminMarkerRef.current.remove();
+      adminMarkerRef.current = null;
+    }
+  }, [shouldRenderGoogle]);
 
   useEffect(() => {
     if (provider !== "maplibre") {
@@ -573,14 +566,40 @@ export default function MapLibreMap({
     }
   }, [adminLocation, provider]);
 
+  const containerClassName = cn(
+    "relative w-full rounded-2xl overflow-hidden",
+    className,
+    !className && "h-[500px]",
+  );
+
+  const mapContainerClass = cn(
+    "absolute inset-0",
+    shouldRenderGoogle && "hidden",
+  );
+
+  const googleUrl = `https://maps.google.com/maps?q=${encodeURIComponent(
+    fallbackQuery,
+  )}&z=${initialZoom}&output=embed`;
+
   return (
-    <div
-      ref={mapContainerRef}
-      className={cn(
-        "relative w-full rounded-2xl overflow-hidden",
-        className,
-        !className && "h-[500px]",
+    <div className={containerClassName}>
+      <div ref={mapContainerRef} className={mapContainerClass} />
+      {shouldRenderGoogle && (
+        <>
+          <iframe
+            src={googleUrl}
+            className="absolute inset-0 h-full w-full border-0"
+            loading="lazy"
+            title="Mapa interactivo"
+            referrerPolicy="no-referrer-when-downgrade"
+          />
+          {mapError && provider === "maplibre" && (
+            <div className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-md bg-background/90 px-3 py-2 text-xs text-foreground shadow">
+              No se pudo cargar MapLibre. Se muestra Google Maps como alternativa.
+            </div>
+          )}
+        </>
       )}
-    />
+    </div>
   );
 }
