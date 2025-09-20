@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Ticket, TicketStatus, Message as TicketMessage } from '@/types/tickets';
 import { Message as ChatMessageData, SendPayload, AttachmentInfo } from '@/types/chat';
 import ChatMessage from './ChatMessage';
+import TicketLogisticsSummary from './TicketLogisticsSummary';
 import { AnimatePresence, motion } from 'framer-motion';
 import PredefinedMessagesModal from './PredefinedMessagesModal';
 import useSpeechRecognition from '@/hooks/useSpeechRecognition';
@@ -351,6 +352,12 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
               Información
             </Button>
           </div>
+        </div>
+      )}
+
+      {showDetailsToggle && selectedTicket && (
+        <div className="px-3 pb-3 md:px-4 md:pb-4">
+          <TicketLogisticsSummary ticket={selectedTicket} />
         </div>
       )}
 
