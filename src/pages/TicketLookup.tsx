@@ -9,7 +9,7 @@ import TicketTimeline from '@/components/tickets/TicketTimeline';
 import TicketMap from '@/components/TicketMap';
 import { Separator } from '@/components/ui/separator';
 import { getErrorMessage, ApiError } from '@/utils/api';
-import { getContactPhone, getCitizenDni } from '@/utils/ticket';
+import { getContactPhone, getCitizenDni, getTicketChannel } from '@/utils/ticket';
 import { getSpecializedContact, SpecializedContact } from '@/utils/contacts';
 import TicketStatusBar from '@/components/tickets/TicketStatusBar';
 import { collectAttachmentsFromTicket, getPrimaryImageUrl } from '@/components/tickets/DetailsPanel';
@@ -46,6 +46,7 @@ export default function TicketLookup() {
     () => estadoChat || ticket?.estado || statusFlow[statusFlow.length - 1] || '',
     [estadoChat, ticket?.estado, statusFlow],
   );
+  const channelLabel = React.useMemo(() => getTicketChannel(ticket), [ticket]);
   const hasLocation = React.useMemo(() => {
     if (!ticket) return false;
     const hasCoords =
@@ -305,7 +306,15 @@ export default function TicketLookup() {
                 <dt>Creado el:</dt>
                 <dd>{fmtAR(ticket.fecha)}</dd>
                 <dt>Canal:</dt>
-                <dd className="capitalize">{ticket.channel || 'N/A'}</dd>
+                <dd
+                  className={
+                    channelLabel === 'N/A'
+                      ? 'uppercase tracking-wide text-muted-foreground'
+                      : 'capitalize text-foreground'
+                  }
+                >
+                  {channelLabel}
+                </dd>
                 {estimatedArrival && (
                   <>
                     <dt>Tiempo estimado:</dt>
