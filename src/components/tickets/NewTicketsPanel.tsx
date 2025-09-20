@@ -8,6 +8,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useTickets } from '@/context/TicketContext';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card } from '@/components/ui/card';
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 
 const NewTicketsPanel: React.FC = () => {
   const isMobile = useIsMobile();
@@ -71,9 +72,9 @@ const NewTicketsPanel: React.FC = () => {
   }
 
   return (
-    <Card className="h-screen w-full bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm overflow-hidden">
+    <Card className="flex w-full min-h-[calc(100vh-6rem)] flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-xl backdrop-blur-sm">
       {isMobile ? (
-        <div className="relative h-full w-full overflow-hidden">
+        <div className="relative flex-1 overflow-hidden">
           <AnimatePresence>
             {isSidebarVisible && (
               <motion.div
@@ -82,9 +83,9 @@ const NewTicketsPanel: React.FC = () => {
                 animate={{ x: 0 }}
                 exit={{ x: '-100%' }}
                 transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                className="absolute top-0 left-0 h-full w-full z-20"
+                className="absolute top-0 left-0 z-20 h-full w-full"
               >
-                <Sidebar />
+                <Sidebar className="min-w-full" />
               </motion.div>
             )}
           </AnimatePresence>
@@ -110,7 +111,7 @@ const NewTicketsPanel: React.FC = () => {
                     animate={{ x: 0 }}
                     exit={{ x: '100%' }}
                     transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                    className="absolute top-0 left-0 h-full w-full z-30 bg-background"
+                    className="absolute top-0 left-0 z-30 h-full w-full overflow-y-auto bg-background"
                 >
                     <DetailsPanel onClose={toggleDetails} />
                 </motion.div>
@@ -118,17 +119,25 @@ const NewTicketsPanel: React.FC = () => {
           </AnimatePresence>
         </div>
       ) : (
-        <div className="grid grid-cols-[320px_1fr_380px] h-full w-full">
-          <Sidebar />
-          <ConversationPanel
-            isMobile={false}
-            isSidebarVisible={isSidebarVisible}
-            isDetailsVisible={true}
-            onToggleSidebar={toggleSidebar}
-            onToggleDetails={toggleDetails}
-          />
-          <DetailsPanel />
-        </div>
+        <ResizablePanelGroup direction="horizontal" className="flex-1">
+          <ResizablePanel defaultSize={26} minSize={20} maxSize={35} className="min-w-[280px]">
+            <Sidebar className="h-full" />
+          </ResizablePanel>
+          <ResizableHandle withHandle />
+          <ResizablePanel defaultSize={48} minSize={38} className="min-w-[420px]">
+            <ConversationPanel
+              isMobile={false}
+              isSidebarVisible={isSidebarVisible}
+              isDetailsVisible={true}
+              onToggleSidebar={toggleSidebar}
+              onToggleDetails={toggleDetails}
+            />
+          </ResizablePanel>
+          <ResizableHandle withHandle />
+          <ResizablePanel defaultSize={26} minSize={22} maxSize={40} className="min-w-[340px]">
+            <DetailsPanel className="h-full" />
+          </ResizablePanel>
+        </ResizablePanelGroup>
       )}
       <Toaster richColors />
     </Card>
