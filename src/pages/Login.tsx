@@ -8,6 +8,7 @@ import { apiFetch, ApiError } from "@/utils/api";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { useUser } from "@/hooks/useUser";
 import GoogleLoginButton from "@/components/auth/GoogleLoginButton";
+import { extractEntityToken, persistEntityToken } from "@/utils/entityToken";
 
 // Asegúrate de que esta interfaz refleje EXACTAMENTE lo que tu backend devuelve en /login
 interface LoginResponse {
@@ -40,8 +41,9 @@ const Login = () => {
       });
 
       safeLocalStorage.setItem("authToken", data.token);
-      if (data.entityToken) {
-        safeLocalStorage.setItem("entityToken", data.entityToken);
+      const loginEntityToken = extractEntityToken(data);
+      if (loginEntityToken) {
+        persistEntityToken(loginEntityToken);
       }
 
       await refreshUser();
