@@ -1,10 +1,17 @@
 // src/pages/Integracion.tsx
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
+import { apiFetch } from "@/utils/api";
+import {
+  extractEntityToken,
+  getStoredEntityToken,
+  persistEntityToken,
+  normalizeEntityToken,
+} from "@/utils/entityToken";
 import {
   Card,
   CardContent,
@@ -31,6 +38,7 @@ interface User {
   name: string;
   email: string;
   token: string;
+  entityToken?: string;
   plan?: string;
   tipo_chat?: "pyme" | "municipio";
   widget_icon_url?: string;
@@ -49,6 +57,85 @@ const Integracion = () => {
   const [headerLogoUrl, setHeaderLogoUrl] = useState("");
   const [welcomeTitle, setWelcomeTitle] = useState("");
   const [welcomeSubtitle, setWelcomeSubtitle] = useState("");
+  const [ownerToken, setOwnerToken] = useState<string | null>(null);
+  const [ownerTokenLoading, setOwnerTokenLoading] = useState(false);
+  const [ownerTokenError, setOwnerTokenError] = useState<string | null>(null);
+
+  const applyOwnerToken = useCallback(
+    (candidate: string | null | undefined) => {
+      const normalized = normalizeEntityToken(candidate ?? null);
+      if (!normalized) {
+        return null;
+      }
+      const persisted = persistEntityToken(normalized) ?? normalized;
+      setOwnerToken(persisted);
+      setOwnerTokenError(null);
+      setUser((prev) => (prev ? { ...prev, entityToken: persisted } : prev));
+      return persisted;
+    },
+    [setUser],
+  );
+
+  const fetchOwnerTokenFromApi = useCallback(async () => {
+    const authToken = safeLocalStorage.getItem("authToken");
+    if (!authToken) {
+      return null;
+    }
+
+    setOwnerTokenLoading(true);
+    setOwnerTokenError(null);
+
+    let lastError: unknown = null;
+
+    const resolveFromPayload = (payload: any) => {
+      const direct = extractEntityToken(payload);
+      let normalized = applyOwnerToken(direct);
+      if (!normalized) {
+        normalized = applyOwnerToken(getStoredEntityToken());
+      }
+      return normalized;
+    };
+
+    const attempt = async (fn: () => Promise<any>) => {
+      try {
+        const payload = await fn();
+        return resolveFromPayload(payload);
+      } catch (err) {
+        lastError = lastError ?? err;
+        return null;
+      }
+    };
+
+    try {
+      let resolved = await attempt(() => apiFetch<any>("/me", { cache: "no-store" }));
+      if (!resolved) {
+        resolved = await attempt(() =>
+          apiFetch<any>("/perfil", { cache: "no-store", entityToken: "" }),
+        );
+      }
+      if (!resolved) {
+        resolved = applyOwnerToken(getStoredEntityToken());
+      }
+
+      if (resolved) {
+        return resolved;
+      }
+
+      if (lastError) {
+        console.error("Integracion: no se pudo obtener el token de integración", lastError);
+      }
+      persistEntityToken(null);
+      setOwnerToken(null);
+      setOwnerTokenError(
+        lastError
+          ? "No pudimos obtener el token de integración. Reintentá más tarde o contactá soporte."
+          : "Tu cuenta no tiene un token de integración activo. Escribinos para activarlo.",
+      );
+      return null;
+    } finally {
+      setOwnerTokenLoading(false);
+    }
+  }, [applyOwnerToken]);
 
   const validarAcceso = (currentUser: User | null) => {
     if (!currentUser) {
@@ -83,6 +170,10 @@ const Integracion = () => {
       return;
     }
 
+    const storedEntityToken = extractEntityToken(parsedUser) ?? getStoredEntityToken();
+    const normalizedEntityToken =
+      storedEntityToken ? persistEntityToken(storedEntityToken) ?? storedEntityToken : null;
+
     const fullUser: User = {
       ...parsedUser,
       token: authToken,
@@ -90,17 +181,41 @@ const Integracion = () => {
       tipo_chat: parsedUser.tipo_chat || undefined,
       widget_icon_url: parsedUser.widget_icon_url,
       widget_animation: parsedUser.widget_animation,
+      ...(normalizedEntityToken ? { entityToken: normalizedEntityToken } : {}),
     };
     setUser(fullUser);
-    setIsLoading(false);
 
     if (!validarAcceso(fullUser)) {
+      setIsLoading(false);
       return;
+    }
+
+    if (normalizedEntityToken) {
+      setOwnerToken(normalizedEntityToken);
+      setOwnerTokenError(null);
+    } else {
+      setOwnerToken(null);
+      fetchOwnerTokenFromApi();
     }
 
     setLogoUrl(fullUser.widget_icon_url || "");
     setLogoAnimation(fullUser.widget_animation || "");
-  }, [navigate]);
+    setIsLoading(false);
+  }, [navigate, fetchOwnerTokenFromApi]);
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+    const normalized = normalizeEntityToken(user.entityToken ?? null);
+    if (normalized && normalized !== ownerToken) {
+      setOwnerToken(normalized);
+      setOwnerTokenError(null);
+    } else if (!normalized && ownerToken) {
+      persistEntityToken(null);
+      setOwnerToken(null);
+    }
+  }, [user, ownerToken]);
 
 
   const endpoint = useMemo(() => {
@@ -108,7 +223,10 @@ const Integracion = () => {
     return user.tipo_chat === "municipio" ? "municipio" : "pyme";
   }, [user?.tipo_chat]);
 
-  const ownerToken = useMemo(() => user?.token || "OWNER_TOKEN_DEL_WIDGET", [user?.token]);
+  const hasOwnerToken = typeof ownerToken === "string" && ownerToken.length > 0;
+  const maskedOwnerToken = hasOwnerToken && ownerToken
+    ? `${ownerToken.substring(0, 8)}...`
+    : "No disponible";
   const isFullPlan = (user?.plan || "").toLowerCase() === "full";
 
   const WIDGET_STD_WIDTH = "460px";
@@ -123,6 +241,10 @@ const Integracion = () => {
   const iframeBase = window.location.origin;
   
   const codeScript = useMemo(() => {
+    if (!ownerToken) {
+      return "<!-- Token del widget no disponible. Reintentá regenerarlo desde el panel de integración. -->";
+    }
+
     const customAttrs = [
       primaryColor && `  data-primary-color="${primaryColor}"`,
       accentColor && `  data-accent-color="${accentColor}"`,
@@ -150,6 +272,10 @@ ${customAttrs ? customAttrs + "\n" : ""}></script>`;
   }, [apiBase, widgetScriptUrl, ownerToken, endpoint, primaryColor, accentColor, logoUrl, headerLogoUrl, logoAnimation, welcomeTitle, welcomeSubtitle]);
 
   const iframeSrcUrl = useMemo(() => {
+    if (!ownerToken) {
+      return "";
+    }
+
     const url = new URL(`${apiBase}/iframe`);
     url.searchParams.set("entityToken", ownerToken);
     url.searchParams.set("tipo_chat", endpoint);
@@ -164,6 +290,10 @@ ${customAttrs ? customAttrs + "\n" : ""}></script>`;
   }, [apiBase, ownerToken, endpoint, primaryColor, accentColor, logoUrl, headerLogoUrl, logoAnimation, welcomeTitle, welcomeSubtitle]);
 
   const previewIframeUrl = useMemo(() => {
+    if (!ownerToken) {
+      return "";
+    }
+
     const url = new URL(`${iframeBase}/iframe`);
     url.searchParams.set("entityToken", ownerToken);
     url.searchParams.set("tipo_chat", endpoint);
@@ -177,7 +307,12 @@ ${customAttrs ? customAttrs + "\n" : ""}></script>`;
     return url.toString();
   }, [iframeBase, ownerToken, endpoint, primaryColor, accentColor, logoUrl, headerLogoUrl, logoAnimation, welcomeTitle, welcomeSubtitle]);
   
-  const codeIframe = useMemo(() => `<iframe
+  const codeIframe = useMemo(() => {
+    if (!ownerToken || !iframeSrcUrl) {
+      return "<!-- Token del widget no disponible. Reintentá regenerarlo desde el panel de integración. -->";
+    }
+
+    return `<iframe
   id="chatboc-iframe"
   src="${iframeSrcUrl}"
   style="position:fixed; bottom:${WIDGET_STD_BOTTOM}; right:${WIDGET_STD_RIGHT}; border:none; border-radius:50%; z-index:9999; box-shadow:0 4px 32px rgba(0,0,0,0.2); background:transparent; overflow:hidden; width:${WIDGET_STD_CLOSED_WIDTH}; height:${WIDGET_STD_CLOSED_HEIGHT}; display:block; transition: width 0.3s ease, height 0.3s ease, border-radius 0.3s ease;"
@@ -211,7 +346,8 @@ document.addEventListener('DOMContentLoaded', function () {
   //   chatIframe.contentWindow.postMessage({ type: 'chatboc-init', settings: { exampleSetting: true } }, '${apiBase}');
   // };
 });
-</script>`, [iframeSrcUrl, apiBase, endpoint]);
+</script>`;
+  }, [iframeSrcUrl, apiBase, endpoint, ownerToken]);
 
   useEffect(() => {
     if (!ownerToken) return;
@@ -264,7 +400,30 @@ document.addEventListener('DOMContentLoaded', function () {
   }, [apiBase, widgetScriptUrl, defaultWidgetScriptUrl, ownerToken, endpoint, primaryColor, accentColor, logoUrl, headerLogoUrl, logoAnimation, welcomeTitle, welcomeSubtitle]);
 
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== "entityToken") return;
+      const normalized = normalizeEntityToken(event.newValue);
+      setOwnerToken(normalized);
+      setOwnerTokenError(null);
+      setUser((prev) => (prev ? { ...prev, entityToken: normalized ?? undefined } : prev));
+    };
+
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, [setUser]);
+
+
   const copiarCodigo = async (tipo: "iframe" | "script") => {
+    if (!ownerToken) {
+      toast.error("No hay un token de integración disponible. Reintentá obtenerlo desde esta página.", {
+        icon: <AlertTriangle className="text-destructive" />,
+      });
+      return;
+    }
+
     const textoACopiar = tipo === "iframe" ? codeIframe : codeScript;
     try {
       await navigator.clipboard.writeText(textoACopiar);
@@ -336,13 +495,14 @@ document.addEventListener('DOMContentLoaded', function () {
                   variant="ghost"
                   size="icon"
                   onClick={() => copiarCodigo(type)}
+                  disabled={!hasOwnerToken}
                   aria-label={`Copiar código ${type}`}
                 >
                   {copiado === type ? <Check size={18} className="text-green-500" /> : <Copy size={18} />}
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                <p>Copiar código {type}</p>
+                <p>{hasOwnerToken ? `Copiar código ${type}` : "Token no disponible"}</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -356,10 +516,11 @@ document.addEventListener('DOMContentLoaded', function () {
         </pre>
       </CardContent>
       <CardFooter className="p-4 bg-muted/20 dark:bg-muted/10">
-         <Button
+        <Button
             className="w-full"
             onClick={() => copiarCodigo(type)}
             variant="secondary"
+            disabled={!hasOwnerToken}
           >
             {copiado === type ? <Check size={18} className="mr-2 text-green-500" /> : <Copy size={18} className="mr-2" />}
             {copiado === type ? `¡Código ${type} Copiado!` : `Copiar Código ${type}`}
@@ -397,16 +558,48 @@ document.addEventListener('DOMContentLoaded', function () {
             Ambos métodos de integración (Script y Iframe) están diseñados para ser seguros y eficientes. El método de Script es generalmente más flexible y recomendado.
           </p>
           <p>
-            <strong>Token del Widget:</strong> Tu token de integración es <code>{ownerToken.substring(0,8)}...</code>. Ya está incluido en los códigos de abajo.
+            <strong>Token del Widget:</strong>{" "}
+            {ownerTokenLoading ? (
+              "Generando token seguro..."
+            ) : hasOwnerToken ? (
+              <>Tu token de integración es <code>{maskedOwnerToken}</code>. Ya está incluido en los códigos de abajo.</>
+            ) : (
+              "Todavía no encontramos un token activo. Usá el botón de reintentar o contactá a soporte."
+            )}
           </p>
+      </CardContent>
+    </Card>
+
+    {!hasOwnerToken && !ownerTokenLoading && (
+      <Card className="mb-8 border-yellow-300 bg-yellow-50 dark:bg-yellow-900/30 dark:border-yellow-700">
+        <CardHeader>
+          <CardTitle className="flex items-center text-yellow-800 dark:text-yellow-200">
+            <AlertTriangle size={20} className="mr-2" />
+            Necesitamos tu token de integración
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="text-sm space-y-3 text-yellow-800 dark:text-yellow-100">
+          <p>
+            {ownerTokenError ||
+              "Generamos un token seguro por cada cuenta para que tus integraciones sigan funcionando después de los deploys."}
+          </p>
+          <Button
+            variant="outline"
+            onClick={fetchOwnerTokenFromApi}
+            disabled={ownerTokenLoading}
+            className="w-full sm:w-auto"
+          >
+            {ownerTokenLoading ? "Generando..." : "Reintentar"}
+          </Button>
         </CardContent>
       </Card>
+    )}
 
-      {isFullPlan && (
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="text-lg">Personalización del Widget</CardTitle>
-            <CardDescription>
+    {isFullPlan && (
+      <Card className="mb-8">
+        <CardHeader>
+          <CardTitle className="text-lg">Personalización del Widget</CardTitle>
+          <CardDescription>
               Ajusta el color y el icono del lanzador para adaptarlo a tu sitio.
             </CardDescription>
           </CardHeader>
@@ -546,7 +739,19 @@ document.addEventListener('DOMContentLoaded', function () {
                   justifyContent: "center",
                 }}
               >
-                {user && user.token && user.tipo_chat ? (
+                {ownerTokenLoading ? (
+                  <div className="p-4 text-center text-muted-foreground">
+                    <svg className="mx-auto mb-2 h-8 w-8 animate-spin text-primary" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                    Preparando la vista previa segura...
+                  </div>
+                ) : hasOwnerToken && previewIframeUrl ? (
                   <iframe
                     src={previewIframeUrl}
                     width={WIDGET_STD_WIDTH}
@@ -566,7 +771,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 ) : (
                   <div className="p-4 text-center text-muted-foreground">
                     <AlertTriangle size={32} className="mx-auto mb-2" />
-                    La vista previa no está disponible. Verifica la configuración del usuario.
+                    La vista previa se habilita cuando haya un token de integración válido. Generalo desde esta misma página.
                   </div>
                 )}
               </div>

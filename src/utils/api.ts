@@ -4,6 +4,11 @@ import { BASE_API_URL } from '@/config';
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateChatSessionId from "@/utils/chatSessionId"; // Import the new function
 import { getIframeToken } from "@/utils/config";
+import { isWidgetModeActive } from "@/utils/widgetMode";
+import {
+  normalizeEntityToken,
+  persistEntityToken,
+} from "@/utils/entityToken";
 
 export class ApiError extends Error {
   public readonly status: number;
@@ -25,6 +30,8 @@ interface ApiFetchOptions {
   sendAnonId?: boolean;
   entityToken?: string | null;
   cache?: RequestCache;
+  omitCredentials?: boolean;
+  preferChatAuthToken?: boolean;
 }
 
 /**
@@ -36,11 +43,24 @@ export async function apiFetch<T>(
   path: string,
   options: ApiFetchOptions = {}
 ): Promise<T> {
-  const { method = "GET", body, skipAuth, sendAnonId, entityToken, cache } = options;
+  const {
+    method = "GET",
+    body,
+    skipAuth,
+    sendAnonId,
+    entityToken,
+    cache,
+    omitCredentials,
+    preferChatAuthToken,
+  } = options;
 
   const effectiveEntityToken = entityToken ?? getIframeToken();
-  const panelToken = safeLocalStorage.getItem("authToken");
-  const chatToken = safeLocalStorage.getItem("chatAuthToken");
+  const widgetMode = isWidgetModeActive();
+  const preferChatToken = preferChatAuthToken ?? widgetMode;
+  const rawPanelToken = safeLocalStorage.getItem("authToken");
+  const rawChatToken = safeLocalStorage.getItem("chatAuthToken");
+  const panelToken = preferChatToken ? null : rawPanelToken;
+  const chatToken = rawChatToken;
   const token = panelToken || chatToken;
   const tokenSource: "authToken" | "chatAuthToken" | null = panelToken
     ? "authToken"
@@ -78,19 +98,20 @@ export async function apiFetch<T>(
     method,
     url,
     hasBody: !!body,
-    authToken: mask(panelToken),
+    authToken: mask(rawPanelToken),
     chatAuthToken: mask(chatToken),
     anonId: mask(anonId),
     entityToken: mask(effectiveEntityToken || null),
     sendAnonId,
     headers,
+    widgetMode,
   });
 
   const requestInit: RequestInit = {
     method,
     headers,
     body: isForm ? body : body ? JSON.stringify(body) : undefined,
-    credentials: 'include', // ensure cookies like session are sent
+    credentials: (omitCredentials ?? widgetMode) ? 'omit' : 'include',
     cache,
   };
 
@@ -123,6 +144,18 @@ export async function apiFetch<T>(
           "[apiFetch] Unable to persist anon_id header",
           storageError,
         );
+      }
+    }
+
+    const responseEntityToken =
+      response.headers.get("X-Entity-Token") ||
+      response.headers.get("X-Owner-Token") ||
+      response.headers.get("X-Widget-Token") ||
+      response.headers.get("X-Integration-Token");
+    if (responseEntityToken) {
+      const normalizedEntityHeader = normalizeEntityToken(responseEntityToken);
+      if (normalizedEntityHeader) {
+        persistEntityToken(normalizedEntityHeader);
       }
     }
 

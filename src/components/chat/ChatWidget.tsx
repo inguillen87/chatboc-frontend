@@ -19,6 +19,7 @@ import EntityInfoPanel from "./EntityInfoPanel";
 import ChatPanel from "./ChatPanel";
 import ReadingRuler from "./ReadingRuler";
 import type { Prefs } from "./AccessibilityToggle";
+import { activateWidgetMode, deactivateWidgetMode } from "@/utils/widgetMode";
 
 interface ChatWidgetProps {
   mode?: "standalone" | "iframe" | "script";
@@ -96,6 +97,14 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   );
 
   const isEmbedded = mode !== "standalone";
+
+  useEffect(() => {
+    if (!isEmbedded) return;
+    activateWidgetMode();
+    return () => {
+      deactivateWidgetMode();
+    };
+  }, [isEmbedded]);
 
   const derivedEntityTitle =
     (typeof entityInfo?.nombre_empresa === "string" && entityInfo.nombre_empresa.trim()) ||
