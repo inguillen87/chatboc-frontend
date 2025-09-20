@@ -26,6 +26,28 @@ const TicketAttachments: React.FC<Props> = ({ attachments }) => {
   const others = allowed.filter((p) => p.info.type !== 'image');
   const [openUrl, setOpenUrl] = useState<string | null>(null);
 
+  React.useEffect(() => {
+    if (!openUrl) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpenUrl(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [openUrl]);
+
   if (!images.length && !others.length && !disallowed.length) return null;
 
   return (
@@ -83,7 +105,7 @@ const TicketAttachments: React.FC<Props> = ({ attachments }) => {
       )}
       {openUrl && (
         <div
-          className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
           onClick={() => setOpenUrl(null)}
           role="dialog"
           aria-modal="true"
