@@ -1,6 +1,5 @@
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import TicketStatusBar from './TicketStatusBar';
 import TicketMap from '../TicketMap';
 import { Ticket } from '@/types/tickets';
@@ -23,13 +22,54 @@ const formatStatus = (status?: string | null) =>
         .replace(/\b\w/g, (char) => char.toUpperCase())
     : 'Sin estado';
 
+const pickHistoryDate = (entry: unknown): string | number | Date | null => {
+  if (!entry || typeof entry !== 'object') {
+    return null;
+  }
+
+  const record = entry as Record<string, unknown>;
+  const candidateKeys = ['date', 'fecha', 'created_at', 'updated_at', 'timestamp'];
+
+  for (const key of candidateKeys) {
+    const raw = record[key];
+    if (
+      typeof raw === 'string' ||
+      typeof raw === 'number' ||
+      raw instanceof Date
+    ) {
+      return raw;
+    }
+  }
+
+  return null;
+};
+
+const formatHistoryDate = (value: string | number | Date | null | undefined) => {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  try {
+    return new Intl.DateTimeFormat('es-AR', {
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(date);
+  } catch (error) {
+    console.error('Error formatting history date', error);
+    return null;
+  }
+};
+
 const hasCoordinateValue = (value?: number | null) =>
   typeof value === 'number' && Number.isFinite(value) && value !== 0;
 
 const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({ ticket, className }) => {
-  const statusFlow = Array.isArray(ticket.history)
-    ? ticket.history.map((h) => h.status).filter(Boolean)
-    : [];
+  const rawHistory = Array.isArray(ticket.history) ? ticket.history : [];
+  const statusFlow = rawHistory.map((h) => h.status).filter(Boolean);
 
   const channelLabel = getTicketChannel(ticket);
   const createdAtLabel = fmtAR(ticket.fecha);
@@ -94,9 +134,36 @@ const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({ ticket,
 
   const heading = ticket.categoria || ticket.asunto || 'Seguimiento del reclamo';
 
+  const statusTimeline = rawHistory
+    .map((entry, index) => {
+      if (!entry || typeof entry.status !== 'string') {
+        return null;
+      }
+
+      const formattedDate = formatHistoryDate(pickHistoryDate(entry));
+
+      return {
+        key: `${entry.status}-${index}`,
+        status: entry.status,
+        label: formatStatus(entry.status),
+        formattedDate,
+      };
+    })
+    .filter(Boolean) as {
+      key: string;
+      status: string;
+      label: string;
+      formattedDate: string | null;
+    }[];
+
+  const recentStatusTimeline = statusTimeline.slice(-3).reverse();
+  const lastUpdatedLabel =
+    recentStatusTimeline.find((item) => item.formattedDate)?.formattedDate ||
+    (createdAtLabel || undefined);
+
   return (
     <Card className={cn('bg-card/90 border border-primary/20 shadow-lg backdrop-blur-sm', className)}>
-      <CardContent className="space-y-4 p-4">
+      <CardContent className="space-y-5 p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -104,9 +171,53 @@ const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({ ticket,
             </p>
             <h3 className="text-lg font-semibold leading-tight text-foreground">{heading}</h3>
           </div>
-          <Badge variant="secondary" className="capitalize">
-            {formatStatus(ticket.estado)}
-          </Badge>
+        </div>
+
+        <div className="rounded-2xl border border-primary/30 bg-primary/5 p-3 sm:p-4 shadow-inner">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                Estado del reclamo
+              </p>
+              <p className="text-base font-semibold text-primary">
+                {formatStatus(ticket.estado)}
+              </p>
+            </div>
+            {lastUpdatedLabel && (
+              <div className="rounded-full bg-background/70 px-3 py-1 text-[11px] font-medium text-muted-foreground">
+                Última actualización: <span className="text-foreground">{lastUpdatedLabel}</span>
+              </div>
+            )}
+          </div>
+          <TicketStatusBar
+            status={ticket.estado}
+            flow={statusFlow}
+            history={rawHistory}
+            className="my-3"
+          />
+          {recentStatusTimeline.length > 0 && (
+            <div className="mt-3 space-y-2">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                Últimos movimientos
+              </p>
+              <ul className="space-y-2">
+                {recentStatusTimeline.map((item) => (
+                  <li
+                    key={item.key}
+                    className="flex items-start justify-between gap-3 text-xs sm:text-sm"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="mt-1 h-2 w-2 rounded-full bg-primary" aria-hidden />
+                      <span className="font-medium text-foreground">{item.label}</span>
+                    </div>
+                    {item.formattedDate && (
+                      <span className="text-muted-foreground">{item.formattedDate}</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
 
         {metaItems.length > 0 && (
@@ -124,12 +235,8 @@ const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({ ticket,
           </div>
         )}
 
-        {(ticket.estado || statusFlow.length > 0) && (
-          <TicketStatusBar status={ticket.estado} flow={statusFlow} />
-        )}
-
         <div className="grid gap-4 md:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-          <div className="space-y-3 text-sm">
+          <div className="space-y-4 text-sm">
             {detailItems.length > 0 && (
               <div className="grid gap-3">
                 {detailItems.map((item) => (
