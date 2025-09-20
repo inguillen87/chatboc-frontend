@@ -8,7 +8,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useTickets } from '@/context/TicketContext';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card } from '@/components/ui/card';
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
+import type { ImperativePanelHandle } from 'react-resizable-panels';
 
 const NewTicketsPanel: React.FC = () => {
   const isMobile = useIsMobile();
@@ -19,15 +20,17 @@ const NewTicketsPanel: React.FC = () => {
     if (typeof window === 'undefined') {
       return true;
     }
-    return window.matchMedia('(min-width: 1280px)').matches;
+    return window.matchMedia('(min-width: 1440px)').matches;
   });
+  const detailsPanelRef = React.useRef<ImperativePanelHandle | null>(null);
+  const lastWideDetailsSize = React.useRef<number | null>(null);
 
   React.useEffect(() => {
     if (typeof window === 'undefined') {
       return;
     }
 
-    const mediaQuery = window.matchMedia('(min-width: 1280px)');
+    const mediaQuery = window.matchMedia('(min-width: 1440px)');
     const applyMatch = (value: boolean) => setIsWideLayout(value);
 
     applyMatch(mediaQuery.matches);
@@ -63,6 +66,47 @@ const NewTicketsPanel: React.FC = () => {
     }
     setIsSidebarVisible(true);
   }, [isMobile, isWideLayout]);
+
+  React.useEffect(() => {
+    if (!isWideLayout) {
+      return;
+    }
+
+    const panel = detailsPanelRef.current;
+
+    if (!panel) {
+      return;
+    }
+
+    if (lastWideDetailsSize.current === null) {
+      const currentSize = panel.getSize();
+
+      if (currentSize > 0) {
+        lastWideDetailsSize.current = currentSize;
+      }
+    }
+
+    if (isDetailsVisible) {
+      const storedSize = lastWideDetailsSize.current;
+
+      if (panel.isCollapsed()) {
+        panel.expand(
+          typeof storedSize === 'number' && storedSize > 0 ? storedSize : undefined,
+        );
+      }
+
+      if (typeof storedSize === 'number' && storedSize > 0) {
+        const currentSize = panel.getSize();
+
+        if (Math.abs(currentSize - storedSize) > 0.5) {
+          panel.resize(storedSize);
+        }
+      }
+    } else if (!panel.isCollapsed()) {
+      lastWideDetailsSize.current = panel.getSize();
+      panel.collapse();
+    }
+  }, [isDetailsVisible, isWideLayout]);
 
   const toggleSidebar = () => setIsSidebarVisible(prev => !prev);
   const toggleDetails = () => setIsDetailsVisible(prev => !prev);
@@ -122,7 +166,7 @@ const NewTicketsPanel: React.FC = () => {
                 transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                 className="absolute left-0 top-0 z-20 h-full w-full"
               >
-                <Sidebar className="h-full min-w-full" />
+                <Sidebar className="h-full w-full min-w-full" />
               </motion.div>
             )}
           </AnimatePresence>
@@ -158,22 +202,59 @@ const NewTicketsPanel: React.FC = () => {
           </AnimatePresence>
         </div>
       ) : isWideLayout ? (
-        <div className="flex h-full w-full overflow-hidden">
-          <Sidebar />
-          <div className="flex min-w-0 flex-1 bg-background">
+        <ResizablePanelGroup direction="horizontal" className="flex h-full w-full overflow-hidden">
+          <ResizablePanel
+            defaultSize={22}
+            minSize={18}
+            maxSize={30}
+            className="min-w-[260px]"
+          >
+            <Sidebar className="h-full w-full shrink-0" />
+          </ResizablePanel>
+          <ResizableHandle withHandle className="bg-border/70 transition-colors hover:bg-primary/50" />
+          <ResizablePanel
+            defaultSize={48}
+            minSize={36}
+            className="min-w-[620px]"
+          >
             <ConversationPanel
               isMobile={false}
               isSidebarVisible={true}
-              isDetailsVisible={true}
+              isDetailsVisible={isDetailsVisible}
               onToggleSidebar={toggleSidebar}
               onToggleDetails={toggleDetails}
+              showDetailsToggle
             />
-          </div>
-          <DetailsPanel className="w-[340px] lg:w-[360px] xl:w-[400px] 2xl:w-[440px]" />
-        </div>
+          </ResizablePanel>
+          <ResizableHandle withHandle className="bg-border/70 transition-colors hover:bg-primary/50" />
+          <ResizablePanel
+            ref={detailsPanelRef}
+            defaultSize={30}
+            minSize={22}
+            maxSize={40}
+            collapsible
+            collapsedSize={0}
+            onResize={(size) => {
+              if (size > 0) {
+                lastWideDetailsSize.current = size;
+              }
+            }}
+            onCollapse={() =>
+              setIsDetailsVisible((prev) => (prev ? false : prev))
+            }
+            onExpand={() =>
+              setIsDetailsVisible((prev) => (prev ? prev : true))
+            }
+            className="min-w-[320px] max-w-[560px] overflow-hidden"
+          >
+            <DetailsPanel className="h-full w-full" />
+          </ResizablePanel>
+        </ResizablePanelGroup>
       ) : (
         <div className="flex h-full w-full overflow-hidden">
-          {isSidebarVisible && <Sidebar />}
+          {isSidebarVisible && (
+            <Sidebar className="w-[clamp(260px,26vw,340px)] shrink-0 xl:w-[clamp(280px,22vw,360px)] 2xl:w-[clamp(300px,20vw,380px)]" />
+          )}
           <div className="relative flex min-w-0 flex-1 bg-background">
             <ConversationPanel
               isMobile={false}
@@ -192,7 +273,7 @@ const NewTicketsPanel: React.FC = () => {
                   animate={{ x: 0 }}
                   exit={{ x: '100%' }}
                   transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-                  className="absolute inset-y-0 right-0 z-30 flex w-full max-w-[340px] sm:max-w-[360px] md:max-w-[380px] lg:max-w-[400px] overflow-hidden border-l border-border bg-card shadow-xl"
+                  className="absolute inset-y-0 right-0 z-30 flex w-full max-w-[clamp(320px,42vw,520px)] overflow-hidden border-l border-border bg-card shadow-xl"
                 >
                   <DetailsPanel onClose={toggleDetails} className="w-full" />
                 </motion.div>

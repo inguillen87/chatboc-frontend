@@ -62,7 +62,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className }) => {
   return (
     <aside
       className={cn(
-        'flex h-full w-full max-w-full flex-col border-r border-border bg-muted/20 md:w-[280px] lg:w-[320px] xl:w-[360px]',
+        'flex h-full min-w-0 shrink-0 flex-col border-r border-border bg-muted/20',
         className,
       )}
     >
