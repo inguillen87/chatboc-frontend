@@ -2,15 +2,27 @@ import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import TicketStatusBar from './TicketStatusBar';
 import TicketMap from '../TicketMap';
-import { Ticket } from '@/types/tickets';
+import { Ticket, TicketHistoryEvent } from '@/types/tickets';
 import { fmtAR } from '@/utils/date';
 import { getTicketChannel } from '@/utils/ticket';
 import { cn } from '@/lib/utils';
-import { CalendarClock, Clock3, MapPin, Building, Hash, MessageCircle, Tag } from 'lucide-react';
+import {
+  CalendarClock,
+  Clock3,
+  MapPin,
+  Building,
+  Hash,
+  MessageCircle,
+  Tag,
+  ExternalLink,
+} from 'lucide-react';
 
 interface TicketLogisticsSummaryProps {
   ticket: Ticket;
   className?: string;
+  statusOverride?: string | null;
+  historyOverride?: TicketHistoryEvent[] | null;
+  onOpenMap?: () => void;
 }
 
 type IconType = React.ComponentType<React.SVGProps<SVGSVGElement>>;
@@ -67,13 +79,24 @@ const formatHistoryDate = (value: string | number | Date | null | undefined) => 
 const hasCoordinateValue = (value?: number | null) =>
   typeof value === 'number' && Number.isFinite(value) && value !== 0;
 
-const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({ ticket, className }) => {
-  const rawHistory = Array.isArray(ticket.history) ? ticket.history : [];
-  const statusFlow = rawHistory.map((h) => h.status).filter(Boolean);
+const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({
+  ticket,
+  className,
+  statusOverride,
+  historyOverride,
+  onOpenMap,
+}) => {
+  const historyEntries = Array.isArray(historyOverride)
+    ? historyOverride
+    : Array.isArray(ticket.history)
+      ? ticket.history
+      : [];
+  const statusFlow = historyEntries.map((h) => h.status).filter(Boolean);
 
   const channelLabel = getTicketChannel(ticket);
   const createdAtLabel = fmtAR(ticket.fecha);
   const estimatedArrival = ticket.tiempo_estimado;
+  const currentStatus = statusOverride ?? ticket.estado;
 
   const metaItems = [
     {
@@ -134,7 +157,7 @@ const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({ ticket,
 
   const heading = ticket.categoria || ticket.asunto || 'Seguimiento del reclamo';
 
-  const statusTimeline = rawHistory
+  const statusTimeline = historyEntries
     .map((entry, index) => {
       if (!entry || typeof entry.status !== 'string') {
         return null;
@@ -180,7 +203,7 @@ const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({ ticket,
                 Estado del reclamo
               </p>
               <p className="text-base font-semibold text-primary">
-                {formatStatus(ticket.estado)}
+                {formatStatus(currentStatus)}
               </p>
             </div>
             {lastUpdatedLabel && (
@@ -190,9 +213,9 @@ const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({ ticket,
             )}
           </div>
           <TicketStatusBar
-            status={ticket.estado}
+            status={currentStatus}
             flow={statusFlow}
-            history={rawHistory}
+            history={historyEntries}
             className="my-3"
           />
           {recentStatusTimeline.length > 0 && (
@@ -255,7 +278,17 @@ const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({ ticket,
           </div>
 
           {hasLocation && (
-            <div className="overflow-hidden rounded-xl border border-border bg-muted/40 shadow-sm">
+            <div className="relative overflow-hidden rounded-xl border border-border bg-muted/40 shadow-sm">
+              {onOpenMap && (
+                <button
+                  type="button"
+                  onClick={onOpenMap}
+                  className="absolute right-3 top-3 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full bg-background/90 text-muted-foreground shadow transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                  aria-label="Abrir ubicación en Google Maps"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                </button>
+              )}
               <TicketMap
                 ticket={ticket}
                 hideTitle
