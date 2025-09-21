@@ -6,8 +6,7 @@ import { getTicketByNumber, getTicketTimeline, sendTicketHistory } from '@/servi
 import { Ticket, Message, TicketHistoryEvent } from '@/types/tickets';
 import { fmtAR } from '@/utils/date';
 import TicketTimeline from '@/components/tickets/TicketTimeline';
-import TicketMap from '@/components/TicketMap';
-import TicketStatusBar from '@/components/tickets/TicketStatusBar';
+import TicketLogisticsSummary from '@/components/tickets/TicketLogisticsSummary';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { getErrorMessage, ApiError } from '@/utils/api';
 import { getContactPhone, getCitizenDni, getTicketChannel } from '@/utils/ticket';
@@ -261,25 +260,13 @@ export default function TicketLookup() {
       {ticketForSummary && (
         <>
           <div className="space-y-6">
-            <TicketMap
+            <TicketLogisticsSummary
               ticket={ticketForSummary}
-              status={currentStatus}
-              history={historyForSummary}
-              heightClassName="h-[300px] sm:h-[400px]"
+              statusOverride={currentStatus}
+              historyOverride={historyForSummary}
+              onOpenMap={hasLocation ? openGoogleMaps : undefined}
             />
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-xl font-semibold">Estado del reclamo</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <TicketStatusBar
-                  status={currentStatus}
-                  flow={statusFlow}
-                  history={historyForSummary}
-                />
-              </CardContent>
-            </Card>
-            <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+            <div className="grid gap-6 md:grid-cols-2">
               <Card className="overflow-hidden">
                 <CardHeader>
                   <CardTitle className="text-xl font-semibold">Detalle del reclamo</CardTitle>
@@ -330,7 +317,8 @@ export default function TicketLookup() {
                   )}
                 </CardContent>
               </Card>
-              <Card className="overflow-hidden">
+              <div className="space-y-6">
+                <Card className="overflow-hidden">
                 <CardHeader>
                   <CardTitle className="text-xl font-semibold">Datos de contacto</CardTitle>
                 </CardHeader>
@@ -417,6 +405,7 @@ export default function TicketLookup() {
                   </CardContent>
                 )}
               </Card>
+              </div>
             </div>
             <Card className="overflow-hidden">
               <CardHeader>
