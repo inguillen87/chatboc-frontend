@@ -114,7 +114,15 @@ const TicketMap: React.FC<TicketMapProps> = ({
         ? `https://www.openstreetmap.org/search?query=${encodeURIComponent(direccionCompleta)}`
         : '';
 
-  const [src, setSrc] = React.useState(googleSrc || osmSrc);
+  const initialSrc = React.useMemo(
+    () => googleSrc || osmSrc || '',
+    [googleSrc, osmSrc],
+  );
+  const [src, setSrc] = React.useState(initialSrc);
+
+  React.useEffect(() => {
+    setSrc(initialSrc);
+  }, [initialSrc]);
 
   if (!src) return null;
 

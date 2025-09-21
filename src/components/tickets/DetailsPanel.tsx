@@ -464,8 +464,8 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
   const openGoogleMaps = () => {
     if (!ticket) return;
 
-    const destLat = pickFirstCoordinate(ticket.latitud, ticket.lat_destino);
-    const destLon = pickFirstCoordinate(ticket.longitud, ticket.lon_destino);
+    const destLat = pickFirstCoordinate(ticket.lat_destino, ticket.latitud);
+    const destLon = pickFirstCoordinate(ticket.lon_destino, ticket.longitud);
     const originLat = pickFirstCoordinate(
       ticket.lat_actual,
       ticket.lat_origen,
