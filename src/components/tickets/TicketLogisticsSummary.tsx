@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import TicketStatusBar from './TicketStatusBar';
 import TicketMap from '../TicketMap';
 import { Ticket, TicketHistoryEvent } from '@/types/tickets';
-import { fmtARWithOffset } from '@/utils/date';
+import { fmtARWithOffset, shiftDateByHours } from '@/utils/date';
 import { getTicketChannel } from '@/utils/ticket';
 import { cn } from '@/lib/utils';
 import { hasCoordinateValue } from '@/utils/location';
@@ -330,6 +330,7 @@ const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({
                 hideTitle
                 heightClassName="h-[160px] sm:h-[180px]"
                 showAddressHint={false}
+                showOverlay={false}
               />
             </div>
           )}

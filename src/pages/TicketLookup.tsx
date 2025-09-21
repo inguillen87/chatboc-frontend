@@ -6,7 +6,7 @@ import { getTicketByNumber, getTicketTimeline, sendTicketHistory } from '@/servi
 import { Ticket, Message, TicketHistoryEvent } from '@/types/tickets';
 import { fmtAR } from '@/utils/date';
 import TicketTimeline from '@/components/tickets/TicketTimeline';
-import TicketLogisticsSummary from '@/components/tickets/TicketLogisticsSummary';
+import TicketMap from '@/components/TicketMap';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { getErrorMessage, ApiError } from '@/utils/api';
 import { getContactPhone, getCitizenDni, getTicketChannel } from '@/utils/ticket';
@@ -260,12 +260,14 @@ export default function TicketLookup() {
       {ticketForSummary && (
         <>
           <div className="space-y-6">
-            <TicketLogisticsSummary
-              ticket={ticketForSummary}
-              statusOverride={currentStatus}
-              historyOverride={historyForSummary}
-              onOpenMap={hasLocation ? openGoogleMaps : undefined}
-            />
+            {hasLocation && (
+              <TicketMap
+                ticket={ticketForSummary}
+                status={currentStatus}
+                history={historyForSummary}
+                heightClassName="h-[300px] sm:h-[400px]"
+              />
+            )}
             <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
               <Card className="overflow-hidden">
                 <CardHeader>

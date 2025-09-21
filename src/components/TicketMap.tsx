@@ -117,6 +117,7 @@ interface TicketMapProps {
   title?: React.ReactNode;
   heightClassName?: string;
   showAddressHint?: boolean;
+  showOverlay?: boolean;
   status?: string | null;
   history?: TicketHistoryEvent[] | null;
   estimatedTime?: string | null;
@@ -132,6 +133,7 @@ const TicketMap: React.FC<TicketMapProps> = ({
   title = 'Ubicación aproximada',
   heightClassName,
   showAddressHint = true,
+  showOverlay = true,
   status,
   history,
   estimatedTime,
@@ -356,106 +358,108 @@ const TicketMap: React.FC<TicketMapProps> = ({
             }
           }}
         />
-        <div className="pointer-events-none absolute inset-0 flex flex-col justify-between p-3 sm:p-4">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-            <div className="pointer-events-auto rounded-lg bg-background/80 p-3 text-xs shadow-md backdrop-blur-sm sm:text-sm">
-              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                Origen
-              </p>
-              <p className="font-semibold text-foreground">{originLabel}</p>
-              {originCoordinatesLabel && (
-                <p className="text-[11px] text-muted-foreground">
-                  {originCoordinatesLabel}
+        {showOverlay && (
+          <div className="pointer-events-none absolute inset-0 flex flex-col justify-between p-3 sm:p-4">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div className="pointer-events-auto rounded-lg bg-background/80 p-3 text-xs shadow-md backdrop-blur-sm sm:text-sm">
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                  Origen
                 </p>
-              )}
-            </div>
-            <div className="pointer-events-auto rounded-lg bg-background/80 p-3 text-xs shadow-md backdrop-blur-sm sm:text-sm">
-              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                Destino
-              </p>
-              <p className="font-semibold text-foreground">
-                {destinationLabel}
-              </p>
-              {destinationCoordinatesLabel && (
-                <p className="text-[11px] text-muted-foreground">
-                  {destinationCoordinatesLabel}
-                </p>
-              )}
-            </div>
-          </div>
-          <div className="pointer-events-auto rounded-xl bg-background/85 p-3 text-[11px] shadow-lg backdrop-blur-sm sm:text-xs">
-            <div className="flex flex-wrap items-center justify-between gap-2 text-muted-foreground">
-              <span className="font-semibold text-foreground">
-                Seguimiento del reclamo
-              </span>
-              {resolvedStatusLabel && (
-                <span className="text-foreground">{resolvedStatusLabel}</span>
-              )}
-              {estimatedTime && (
-                <span>
-                  ETA{' '}
-                  <span className="text-foreground">{estimatedTime}</span>
-                </span>
-              )}
-            </div>
-            <div className="relative mt-3 h-2 w-full overflow-hidden rounded-full bg-muted/50">
-              <div
-                className="absolute inset-y-0 left-0 rounded-full bg-primary transition-all duration-500 ease-out"
-                style={{ width: `${progressPercentage}%` }}
-              />
-              {ALLOWED_TICKET_STATUSES.map((step, idx) => {
-                const position =
-                  ALLOWED_TICKET_STATUSES.length > 1
-                    ? (idx / (ALLOWED_TICKET_STATUSES.length - 1)) * 100
-                    : 0;
-                const completed = idx <= effectiveIndex && effectiveIndex >= 0;
-                return (
-                  <div
-                    key={step}
-                    className={cn(
-                      'absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background transition-colors',
-                      completed ? 'bg-primary shadow-sm' : 'bg-muted/80',
-                    )}
-                    style={{ left: `${position}%` }}
-                  />
-                );
-              })}
-              <div
-                className="absolute top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background bg-primary text-primary-foreground shadow-lg transition-all duration-500 ease-out"
-                style={{ left: `${progressPercentage}%` }}
-              />
-            </div>
-            <div className="mt-3 grid gap-2 sm:grid-cols-3">
-              {statusTimeline.map((item) => (
-                <div
-                  key={item.status}
-                  className="rounded-lg bg-muted/40 px-2 py-2"
-                >
-                  <p className="text-xs font-semibold text-foreground sm:text-sm">
-                    {item.label}
-                  </p>
+                <p className="font-semibold text-foreground">{originLabel}</p>
+                {originCoordinatesLabel && (
                   <p className="text-[11px] text-muted-foreground">
-                    {item.timestamp || '—'}
+                    {originCoordinatesLabel}
                   </p>
-                </div>
-              ))}
+                )}
+              </div>
+              <div className="pointer-events-auto rounded-lg bg-background/80 p-3 text-xs shadow-md backdrop-blur-sm sm:text-sm">
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                  Destino
+                </p>
+                <p className="font-semibold text-foreground">
+                  {destinationLabel}
+                </p>
+                {destinationCoordinatesLabel && (
+                  <p className="text-[11px] text-muted-foreground">
+                    {destinationCoordinatesLabel}
+                  </p>
+                )}
+              </div>
             </div>
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
-              {createdAtLabel && (
-                <span>
-                  Creado:{' '}
-                  <span className="text-foreground">{createdAtLabel}</span>
+            <div className="pointer-events-auto rounded-xl bg-background/85 p-3 text-[11px] shadow-lg backdrop-blur-sm sm:text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-muted-foreground">
+                <span className="font-semibold text-foreground">
+                  Seguimiento del reclamo
                 </span>
-              )}
-              {lastUpdatedLabel && (
-                <span>
-                  Actualizado:{' '}
-                  <span className="text-foreground">{lastUpdatedLabel}</span>
-                </span>
-              )}
+                {resolvedStatusLabel && (
+                  <span className="text-foreground">{resolvedStatusLabel}</span>
+                )}
+                {estimatedTime && (
+                  <span>
+                    ETA{' '}
+                    <span className="text-foreground">{estimatedTime}</span>
+                  </span>
+                )}
+              </div>
+              <div className="relative mt-3 h-2 w-full overflow-hidden rounded-full bg-muted/50">
+                <div
+                  className="absolute inset-y-0 left-0 rounded-full bg-primary transition-all duration-500 ease-out"
+                  style={{ width: `${progressPercentage}%` }}
+                />
+                {ALLOWED_TICKET_STATUSES.map((step, idx) => {
+                  const position =
+                    ALLOWED_TICKET_STATUSES.length > 1
+                      ? (idx / (ALLOWED_TICKET_STATUSES.length - 1)) * 100
+                      : 0;
+                  const completed = idx <= effectiveIndex && effectiveIndex >= 0;
+                  return (
+                    <div
+                      key={step}
+                      className={cn(
+                        'absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background transition-colors',
+                        completed ? 'bg-primary shadow-sm' : 'bg-muted/80',
+                      )}
+                      style={{ left: `${position}%` }}
+                    />
+                  );
+                })}
+                <div
+                  className="absolute top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background bg-primary text-primary-foreground shadow-lg transition-all duration-500 ease-out"
+                  style={{ left: `${progressPercentage}%` }}
+                />
+              </div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                {statusTimeline.map((item) => (
+                  <div
+                    key={item.status}
+                    className="rounded-lg bg-muted/40 px-2 py-2"
+                  >
+                    <p className="text-xs font-semibold text-foreground sm:text-sm">
+                      {item.label}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {item.timestamp || '—'}
+                    </p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                {createdAtLabel && (
+                  <span>
+                    Creado:{' '}
+                    <span className="text-foreground">{createdAtLabel}</span>
+                  </span>
+                )}
+                {lastUpdatedLabel && (
+                  <span>
+                    Actualizado:{' '}
+                    <span className="text-foreground">{lastUpdatedLabel}</span>
+                  </span>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
       {direccionCompleta && showAddressHint && (
         <div className="text-xs mt-1 text-muted-foreground truncate">
