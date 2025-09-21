@@ -564,7 +564,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
         className={cn(
-          'flex h-full shrink-0 flex-col border-border bg-muted/20',
+          'flex h-full min-w-0 max-w-full shrink-0 flex-col border-border bg-muted/20',
           onClose ? 'w-full border-0 md:border-l' : 'w-full border-l',
           className,
         )}
