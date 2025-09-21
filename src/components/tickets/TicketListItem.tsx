@@ -5,6 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { FaWhatsapp } from 'react-icons/fa';
 import { useDateSettings } from '@/hooks/useDateSettings';
+import { formatTicketStatusLabel, normalizeTicketStatus } from '@/utils/ticketStatus';
+import { shiftDateByHours } from '@/utils/date';
 
 interface TicketListItemProps {
   ticket: Ticket;
@@ -18,12 +20,15 @@ const getInitials = (name: string) => {
   };
 
   const { timezone, locale } = useDateSettings();
-  const formattedTime = new Date(ticket.fecha).toLocaleTimeString(locale, {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-    timeZone: timezone,
-  });
+  const createdDate = shiftDateByHours(ticket.fecha, -3);
+  const formattedTime = createdDate
+    ? createdDate.toLocaleTimeString(locale, {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+        timeZone: timezone,
+      })
+    : '—';
 
   const subject = ticket.categoria || ticket.asunto || 'Sin asunto';
 
@@ -60,17 +65,24 @@ const getInitials = (name: string) => {
       <p className="font-semibold text-sm ml-13 mb-2">{subject}</p>
       <p className="text-sm text-muted-foreground truncate ml-13">{ticket.lastMessage || '...'}</p>
       <div className="flex items-center justify-between mt-2 ml-13">
-         <Badge
-           variant={ticket.estado === 'nuevo' ? 'default' : 'outline'}
-           className={cn(
-             'capitalize',
-             ticket.estado === 'nuevo' && 'bg-blue-500 text-white',
-             ticket.estado === 'abierto' && 'text-green-500 border-green-500',
-             ticket.estado === 'en_proceso' && 'text-yellow-500 border-yellow-500',
-           )}
-         >
-          {ticket.estado}
-        </Badge>
+        {(() => {
+          const normalizedStatus = normalizeTicketStatus(ticket.estado);
+          const statusLabel = formatTicketStatusLabel(ticket.estado);
+          const variant = normalizedStatus === 'nuevo' ? 'secondary' : 'outline';
+          const statusClass = cn(
+            'capitalize',
+            normalizedStatus === 'nuevo' && 'bg-blue-500 text-white border-transparent',
+            normalizedStatus === 'en_proceso' && 'text-yellow-500 border-yellow-500',
+            normalizedStatus === 'resuelto' && 'text-emerald-500 border-emerald-500',
+            !normalizedStatus && 'text-muted-foreground border-muted-foreground/40',
+          );
+
+          return (
+            <Badge variant={variant} className={statusClass}>
+              {statusLabel}
+            </Badge>
+          );
+        })()}
       </div>
     </div>
   );

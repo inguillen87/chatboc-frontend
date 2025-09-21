@@ -7,7 +7,6 @@ import { Badge } from '@/components/ui/badge';
 import { Ticket, TicketStatus, Message as TicketMessage } from '@/types/tickets';
 import { Message as ChatMessageData, SendPayload, AttachmentInfo } from '@/types/chat';
 import ChatMessage from './ChatMessage';
-import TicketLogisticsSummary from './TicketLogisticsSummary';
 import { AnimatePresence, motion } from 'framer-motion';
 import PredefinedMessagesModal from './PredefinedMessagesModal';
 import useSpeechRecognition from '@/hooks/useSpeechRecognition';
@@ -21,6 +20,7 @@ import ScrollToBottomButton from '../ui/ScrollToBottomButton';
 import AdjuntarArchivo from '../ui/AdjuntarArchivo';
 import { apiFetch } from '@/utils/api';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { ALLOWED_TICKET_STATUSES, formatTicketStatusLabel } from '@/utils/ticketStatus';
 
 // Helper to adapt ticket messages to the format ChatMessageBase expects
 const adaptTicketMessageToChatMessage = (msg: TicketMessage, ticket: Ticket): ChatMessageData => {
@@ -76,8 +76,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   const channelName = selectedTicket ? `ticket-${selectedTicket.tipo}-${selectedTicket.id}` : null;
   const channel = usePusher(channelName);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const statusOptions: TicketStatus[] = ['nuevo', 'abierto', 'en_proceso', 'en-espera', 'resuelto', 'cerrado'];
-  const formatStatus = (s: string) => s.replace(/[_-]/g, ' ');
+  const statusOptions = ALLOWED_TICKET_STATUSES;
 
   useEffect(() => {
     if (transcript) {
@@ -251,7 +250,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     try {
       await updateTicketStatus(selectedTicket.id, selectedTicket.tipo, newStatus);
       updateTicket(selectedTicket.id, { estado: newStatus });
-      toast.success(`Estado actualizado a ${formatStatus(newStatus)}`);
+      toast.success(`Estado actualizado a ${formatTicketStatusLabel(newStatus)}`);
     } catch (error) {
       console.error('Error updating ticket status:', error);
       toast.error('No se pudo actualizar el estado.');
@@ -285,7 +284,9 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
           <div>
             <h2 className="text-md font-semibold">{selectedTicket.name}</h2>
             <div className="flex items-center gap-2">
-              <Badge variant="outline" className="capitalize text-xs">{selectedTicket.estado}</Badge>
+              <Badge variant="outline" className="capitalize text-xs">
+                {formatTicketStatusLabel(selectedTicket.estado)}
+              </Badge>
               <Badge variant="secondary" className="capitalize text-xs">{selectedTicket.categoria || 'General'}</Badge>
             </div>
           </div>
@@ -307,7 +308,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="capitalize" aria-label="Cambiar estado">
-                {formatStatus(selectedTicket.estado)}
+                {formatTicketStatusLabel(selectedTicket.estado)}
                 <ChevronDown className="h-4 w-4 ml-2" />
               </Button>
             </DropdownMenuTrigger>
@@ -316,9 +317,9 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
                 <DropdownMenuItem
                   key={status}
                   className="capitalize"
-                  onClick={() => handleStatusChange(status)}
+                  onClick={() => handleStatusChange(status as TicketStatus)}
                 >
-                  {formatStatus(status)}
+                  {formatTicketStatusLabel(status)}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>
@@ -352,12 +353,6 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
               Información
             </Button>
           </div>
-        </div>
-      )}
-
-      {showDetailsToggle && selectedTicket && (
-        <div className="px-3 pb-3 md:px-4 md:pb-4">
-          <TicketLogisticsSummary ticket={selectedTicket} />
         </div>
       )}
 

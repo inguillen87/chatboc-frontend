@@ -9,19 +9,16 @@ import {
   Info,
   FileDown,
   User,
-  ExternalLink,
-  Building,
-  Hash,
   Copy,
   X,
   Maximize2,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { motion } from 'framer-motion';
-import TicketMap, { buildFullAddress } from '../TicketMap';
+import { buildFullAddress } from '../TicketMap';
 import TicketTimeline from './TicketTimeline';
-import TicketStatusBar from './TicketStatusBar';
 import TicketAttachments from './TicketAttachments';
+import TicketLogisticsSummary from './TicketLogisticsSummary';
 import { useTickets } from '@/context/TicketContext';
 import { exportToPdf, exportToXlsx } from '@/services/exportService';
 import { sendTicketHistory, getTicketById, getTicketMessages } from '@/services/ticketService';
@@ -37,9 +34,10 @@ import { FaWhatsapp } from 'react-icons/fa';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { getContactPhone, getCitizenDni, getTicketChannel } from '@/utils/ticket';
-import { fmtAR } from '@/utils/date';
+import { fmtARWithOffset } from '@/utils/date';
 import { getSpecializedContact, SpecializedContact } from '@/utils/contacts';
 import { deriveAttachmentInfo } from '@/utils/attachment';
+import { formatTicketStatusLabel, normalizeTicketStatus } from '@/utils/ticketStatus';
 
 const sanitizeMediaUrl = (value?: string | null): string | undefined => {
   if (typeof value !== 'string') {
@@ -320,14 +318,16 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
   const [isImageModalOpen, setIsImageModalOpen] = React.useState(false);
   const [specialContact, setSpecialContact] = React.useState<SpecializedContact | null>(null);
   const [completionSent, setCompletionSent] = React.useState(false);
-  const statusFlow = React.useMemo(
-    () => timelineHistory.map((h) => h.status).filter(Boolean),
-    [timelineHistory],
-  );
-  const currentStatus = React.useMemo(
-    () => ticket?.estado || statusFlow[statusFlow.length - 1] || '',
-    [ticket?.estado, statusFlow],
-  );
+  const currentStatus = React.useMemo(() => {
+    if (ticket?.estado) {
+      return ticket.estado;
+    }
+
+    const lastHistoryStatus = timelineHistory[timelineHistory.length - 1]?.status;
+    return typeof lastHistoryStatus === 'string' ? lastHistoryStatus : '';
+  }, [ticket?.estado, timelineHistory]);
+  const normalizedCurrentStatus = normalizeTicketStatus(currentStatus);
+  const currentStatusLabel = formatTicketStatusLabel(currentStatus);
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text).then(() => {
@@ -407,10 +407,6 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
        </aside>
     );
   }
-
-
-  const hasLocation = ticket.direccion || (ticket.latitud && ticket.longitud);
-
   const handleExportPdf = () => {
     exportToPdf(ticket, ticket.messages || []);
   };
@@ -435,19 +431,13 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
   };
 
   React.useEffect(() => {
-    const normalizeStatus = (s?: string | null) =>
-      s ? s.toLowerCase().replace(/\s+/g, '_') : '';
-    const normalized = normalizeStatus(currentStatus);
-    if (
-      (normalized === 'completado' || normalized === 'resuelto') &&
-      !completionSent
-    ) {
+    if (normalizedCurrentStatus === 'resuelto' && !completionSent) {
       sendTicketHistory(ticket).catch((err) =>
         console.error('Error sending completion email:', err),
       );
       setCompletionSent(true);
     }
-  }, [currentStatus, completionSent, ticket]);
+  }, [normalizedCurrentStatus, completionSent, ticket]);
 
   const openGoogleMaps = () => {
     if (!ticket) return;
@@ -511,7 +501,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
     return base;
   };
 
-  const formatDate = (dateString?: string) => fmtAR(dateString ?? '');
+  const formatDate = (dateString?: string) => fmtARWithOffset(dateString ?? '', -3);
   const channelLabel = React.useMemo(() => getTicketChannel(ticket), [ticket]);
 
 
@@ -561,6 +551,12 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
       </header>
       <ScrollArea className="flex-1">
         <div className="p-4 space-y-4 pb-24 md:pb-6">
+          <TicketLogisticsSummary
+            ticket={ticket}
+            statusOverride={currentStatus}
+            historyOverride={timelineHistory}
+            onOpenMap={openGoogleMaps}
+          />
           <Card>
             <CardHeader className="p-4">
               <div className="flex items-center gap-4">
@@ -793,9 +789,8 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                 </div>
                 <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Estado:</span>
-                    <Badge variant="outline" className="capitalize">{currentStatus || 'N/A'}</Badge>
+                    <Badge variant="outline" className="capitalize">{currentStatusLabel}</Badge>
                 </div>
-                <TicketStatusBar status={currentStatus} flow={statusFlow} history={ticket.history} />
                 <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Canal:</span>
                     <span
@@ -828,33 +823,6 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                   </div>
                 )}
             </CardContent>
-            {hasLocation && (
-                <CardContent className="p-4 border-t">
-                    <h4 className="font-semibold mb-2 flex items-center justify-between">
-                        Ubicación
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={openGoogleMaps}>
-                            <ExternalLink className="h-4 w-4" />
-                        </Button>
-                    </h4>
-                    {ticket.direccion && <p className="text-sm font-medium mb-2 text-primary">{ticket.direccion}</p>}
-                    {ticket.distrito && (
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Building className="h-4 w-4" />
-                            <span>Distrito: {ticket.distrito}</span>
-                        </div>
-                    )}
-                    {ticket.esquinas_cercanas && (
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Hash className="h-4 w-4" />
-                            <span>Esquinas: {ticket.esquinas_cercanas}</span>
-                        </div>
-                    )}
-                    <div className="aspect-video rounded-md overflow-hidden mt-2">
-                        <TicketMap ticket={ticket} />
-                    </div>
-                </CardContent>
-            )}
-
             {ticket.assignedAgent && (
                 <CardContent className="p-4 border-t">
                     <h4 className="font-semibold mb-2">Agente Asignado</h4>
