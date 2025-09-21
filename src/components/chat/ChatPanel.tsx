@@ -520,7 +520,9 @@ const ChatPanel = ({
             logoAnimation={logoAnimation}
           />
         ))}
-        {isTyping && <TypingIndicator />}
+        {isTyping && (
+          <TypingIndicator logoUrl={headerLogoUrl} logoAnimation={logoAnimation} />
+        )}
         {userTyping && <UserTypingIndicator />}
         <div ref={messagesEndRef} />
       </div>
