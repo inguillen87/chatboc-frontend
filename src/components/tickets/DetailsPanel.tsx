@@ -351,14 +351,28 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
     return name ? name.split(' ').map(n => n[0]).join('').toUpperCase() : '??';
   };
 
-  const personal = {
-    nombre: ticket?.informacion_personal_vecino?.nombre || ticket?.display_name,
-    telefono: getContactPhone(ticket),
-    email: ticket?.informacion_personal_vecino?.email || ticket?.email,
-    direccion: ticket?.informacion_personal_vecino?.direccion || ticket?.direccion,
-    dni: getCitizenDni(ticket),
+  const normalizePersonalValue = (value?: string | number | null) => {
+    if (typeof value === 'number') return String(value).trim();
+    if (typeof value === 'string') return value.trim();
+    return '';
   };
-  const isSpecified = (value?: string) => value && value.toLowerCase() !== 'no especificado';
+  const personal = {
+    nombre:
+      normalizePersonalValue(ticket?.informacion_personal_vecino?.nombre) ||
+      normalizePersonalValue(ticket?.display_name),
+    telefono: normalizePersonalValue(getContactPhone(ticket)),
+    email:
+      normalizePersonalValue(ticket?.informacion_personal_vecino?.email) ||
+      normalizePersonalValue(ticket?.email),
+    direccion:
+      normalizePersonalValue(ticket?.informacion_personal_vecino?.direccion) ||
+      normalizePersonalValue(ticket?.direccion),
+    dni: normalizePersonalValue(getCitizenDni(ticket)),
+  };
+  const emailHref = personal.email ? `mailto:${personal.email}` : undefined;
+  const phoneHref = personal.telefono
+    ? `https://wa.me/${personal.telefono.replace(/\D/g, '')}`
+    : undefined;
   const displayName = personal?.nombre || ticket?.display_name || '';
 
   React.useEffect(() => {
@@ -569,87 +583,133 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
             </CardHeader>
             <CardContent className="p-4 space-y-3 text-sm border-t">
               <h4 className="font-semibold mb-2">Información Personal del Vecino</h4>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  <span className={cn("flex-1", !isSpecified(personal?.nombre) && "text-muted-foreground")}>{personal?.nombre || 'No especificado'}</span>
-                  {isSpecified(personal?.nombre) && (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="flex items-start gap-3 rounded-lg border border-border/60 bg-background/70 p-3 shadow-sm">
+                  <User className="mt-1 h-4 w-4 text-primary" />
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Nombre</p>
+                    <p
+                      className={cn(
+                        'text-sm leading-snug break-words',
+                        personal.nombre ? 'font-medium text-foreground' : 'text-muted-foreground'
+                      )}
+                    >
+                      {personal.nombre || 'No especificado'}
+                    </p>
+                  </div>
+                  {personal.nombre && (
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => copyToClipboard(personal?.nombre || '', 'Nombre')}
+                      className="ml-auto h-8 w-8 shrink-0 text-muted-foreground transition hover:text-foreground"
+                      onClick={() => copyToClipboard(personal.nombre, 'Nombre')}
+                      aria-label="Copiar nombre"
                     >
                       <Copy className="h-4 w-4" />
                     </Button>
                   )}
                 </div>
-                <div className="flex items-center gap-2">
-                  <Info className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  <span className={cn("flex-1", !isSpecified(personal?.dni) && "text-muted-foreground")}>DNI: {personal?.dni || 'No especificado'}</span>
-                  {isSpecified(personal?.dni) && (
+                <div className="flex items-start gap-3 rounded-lg border border-border/60 bg-background/70 p-3 shadow-sm">
+                  <Info className="mt-1 h-4 w-4 text-primary" />
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">DNI</p>
+                    <p
+                      className={cn(
+                        'text-sm leading-snug break-words',
+                        personal.dni ? 'font-medium text-foreground' : 'text-muted-foreground'
+                      )}
+                    >
+                      {personal.dni || 'No especificado'}
+                    </p>
+                  </div>
+                  {personal.dni && (
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => copyToClipboard(personal?.dni || '', 'DNI')}
+                      className="ml-auto h-8 w-8 shrink-0 text-muted-foreground transition hover:text-foreground"
+                      onClick={() => copyToClipboard(personal.dni, 'DNI')}
+                      aria-label="Copiar DNI"
                     >
                       <Copy className="h-4 w-4" />
                     </Button>
                   )}
                 </div>
-                <div className="flex items-center gap-2">
-                  <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  {isSpecified(personal?.email) ? (
-                    <a
-                      href={`mailto:${personal?.email}`}
-                      className="flex-1 text-sm hover:underline break-words"
-                    >
-                      <span className="break-all">{personal?.email}</span>
-                    </a>
-                  ) : (
-                    <span className="flex-1 text-muted-foreground">No especificado</span>
-                  )}
-                  {isSpecified(personal?.email) && (
+                <div className="flex items-start gap-3 rounded-lg border border-border/60 bg-background/70 p-3 shadow-sm sm:col-span-2">
+                  <Mail className="mt-1 h-4 w-4 text-primary" />
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Email</p>
+                    {personal.email ? (
+                      <a
+                        href={emailHref}
+                        className="text-sm font-medium text-foreground break-all hover:underline"
+                      >
+                        {personal.email}
+                      </a>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No especificado</p>
+                    )}
+                  </div>
+                  {personal.email && (
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => copyToClipboard(personal?.email || '', 'Email')}
+                      className="ml-auto h-8 w-8 shrink-0 text-muted-foreground transition hover:text-foreground"
+                      onClick={() => copyToClipboard(personal.email, 'Email')}
+                      aria-label="Copiar email"
                     >
                       <Copy className="h-4 w-4" />
                     </Button>
                   )}
                 </div>
-                <div className="flex items-center gap-2">
-                  <FaWhatsapp className="h-4 w-4 text-green-500 flex-shrink-0" />
-                  {isSpecified(personal?.telefono) ? (
-                    <a
-                      href={`https://wa.me/${personal?.telefono?.replace(/\D/g, '')}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex-1 text-sm hover:underline break-words"
-                    >
-                      {personal?.telefono}
-                    </a>
-                  ) : (
-                    <span className="flex-1 text-muted-foreground">No especificado</span>
-                  )}
-                  {isSpecified(personal?.telefono) && (
+                <div className="flex items-start gap-3 rounded-lg border border-border/60 bg-background/70 p-3 shadow-sm">
+                  <FaWhatsapp className="mt-1 h-4 w-4 text-green-500" />
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Teléfono</p>
+                    {personal.telefono ? (
+                      <a
+                        href={phoneHref}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-sm font-medium text-foreground hover:underline"
+                      >
+                        {personal.telefono}
+                      </a>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No especificado</p>
+                    )}
+                  </div>
+                  {personal.telefono && (
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => copyToClipboard(personal?.telefono || '', 'Teléfono')}
+                      className="ml-auto h-8 w-8 shrink-0 text-muted-foreground transition hover:text-foreground"
+                      onClick={() => copyToClipboard(personal.telefono, 'Teléfono')}
+                      aria-label="Copiar teléfono"
                     >
                       <Copy className="h-4 w-4" />
                     </Button>
                   )}
                 </div>
-                <div className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  <span className={cn("flex-1", !isSpecified(personal?.direccion) && "text-muted-foreground")}>{personal?.direccion || 'No especificado'}</span>
-                  {isSpecified(personal?.direccion) && (
+                <div className="flex items-start gap-3 rounded-lg border border-border/60 bg-background/70 p-3 shadow-sm sm:col-span-2">
+                  <MapPin className="mt-1 h-4 w-4 text-primary" />
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Dirección</p>
+                    <p
+                      className={cn(
+                        'text-sm leading-snug break-words',
+                        personal.direccion ? 'font-medium text-foreground' : 'text-muted-foreground'
+                      )}
+                    >
+                      {personal.direccion || 'No especificado'}
+                    </p>
+                  </div>
+                  {personal.direccion && (
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => copyToClipboard(personal?.direccion || '', 'Dirección')}
+                      className="ml-auto h-8 w-8 shrink-0 text-muted-foreground transition hover:text-foreground"
+                      onClick={() => copyToClipboard(personal.direccion, 'Dirección')}
+                      aria-label="Copiar dirección"
                     >
                       <Copy className="h-4 w-4" />
                     </Button>
