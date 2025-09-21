@@ -611,15 +611,15 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
           />
           <Card>
             <CardHeader className="p-4">
-              <div className="flex items-center gap-4">
-                <Avatar className="h-14 w-14">
+              <div className="flex items-start gap-4">
+                <Avatar className="h-14 w-14 flex-shrink-0">
                   <AvatarImage src={neighborAvatarUrl || undefined} alt={displayName} />
                   <AvatarFallback>{getInitials(displayName)}</AvatarFallback>
                 </Avatar>
-                <div>
+                <div className="min-w-0 flex-1">
                   <h2
                     className={cn(
-                      "text-lg font-semibold whitespace-normal break-words",
+                      "text-lg font-semibold break-words",
                       !displayName && "text-muted-foreground"
                     )}
                   >
@@ -633,12 +633,12 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
               <h4 className="font-semibold mb-2">Información Personal del Vecino</h4>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="flex items-start gap-3 rounded-lg border border-border/60 bg-background/70 p-3 shadow-sm">
-                  <User className="mt-1 h-4 w-4 text-primary" />
+                  <User className="mt-1 h-4 w-4 flex-shrink-0 text-primary" />
                   <div className="min-w-0 flex-1 space-y-1">
                     <p className="text-xs uppercase tracking-wide text-muted-foreground">Nombre</p>
                     <p
                       className={cn(
-                        'text-sm leading-snug break-words',
+                        'break-words text-sm leading-snug',
                         personal.nombre ? 'font-medium text-foreground' : 'text-muted-foreground'
                       )}
                     >
@@ -658,12 +658,12 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                   )}
                 </div>
                 <div className="flex items-start gap-3 rounded-lg border border-border/60 bg-background/70 p-3 shadow-sm">
-                  <Info className="mt-1 h-4 w-4 text-primary" />
+                  <Info className="mt-1 h-4 w-4 flex-shrink-0 text-primary" />
                   <div className="min-w-0 flex-1 space-y-1">
                     <p className="text-xs uppercase tracking-wide text-muted-foreground">DNI</p>
                     <p
                       className={cn(
-                        'text-sm leading-snug break-words',
+                        'break-words text-sm leading-snug',
                         personal.dni ? 'font-medium text-foreground' : 'text-muted-foreground'
                       )}
                     >
@@ -683,13 +683,13 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                   )}
                 </div>
                 <div className="flex items-start gap-3 rounded-lg border border-border/60 bg-background/70 p-3 shadow-sm sm:col-span-2">
-                  <Mail className="mt-1 h-4 w-4 text-primary" />
+                  <Mail className="mt-1 h-4 w-4 flex-shrink-0 text-primary" />
                   <div className="min-w-0 flex-1 space-y-1">
                     <p className="text-xs uppercase tracking-wide text-muted-foreground">Email</p>
                     {personal.email ? (
                       <a
                         href={emailHref}
-                        className="text-sm font-medium text-foreground break-all hover:underline"
+                        className="break-all text-sm font-medium text-foreground hover:underline"
                       >
                         {personal.email}
                       </a>
@@ -710,7 +710,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                   )}
                 </div>
                 <div className="flex items-start gap-3 rounded-lg border border-border/60 bg-background/70 p-3 shadow-sm">
-                  <FaWhatsapp className="mt-1 h-4 w-4 text-green-500" />
+                  <FaWhatsapp className="mt-1 h-4 w-4 flex-shrink-0 text-green-500" />
                   <div className="min-w-0 flex-1 space-y-1">
                     <p className="text-xs uppercase tracking-wide text-muted-foreground">Teléfono</p>
                     {personal.telefono ? (
@@ -718,7 +718,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                         href={phoneHref}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-sm font-medium text-foreground hover:underline"
+                        className="break-all text-sm font-medium text-foreground hover:underline"
                       >
                         {personal.telefono}
                       </a>
@@ -739,12 +739,12 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                   )}
                 </div>
                 <div className="flex items-start gap-3 rounded-lg border border-border/60 bg-background/70 p-3 shadow-sm sm:col-span-2">
-                  <MapPin className="mt-1 h-4 w-4 text-primary" />
+                  <MapPin className="mt-1 h-4 w-4 flex-shrink-0 text-primary" />
                   <div className="min-w-0 flex-1 space-y-1">
                     <p className="text-xs uppercase tracking-wide text-muted-foreground">Dirección</p>
                     <p
                       className={cn(
-                        'text-sm leading-snug break-words',
+                        'break-words text-sm leading-snug',
                         personal.direccion ? 'font-medium text-foreground' : 'text-muted-foreground'
                       )}
                     >
