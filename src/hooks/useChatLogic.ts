@@ -851,11 +851,21 @@ export function useChatLogic({
   }, []);
 
   const handleSend = useCallback(async (payload: string | TypeSendPayload) => {
-    const actualPayload: TypeSendPayload = typeof payload === 'string' ? { text: payload.trim() } : { ...payload, text: payload.text?.trim() || "" };
+    const actualPayload: TypeSendPayload =
+      typeof payload === 'string'
+        ? { text: payload.trim() }
+        : { ...payload, text: payload.text?.trim() || "" };
+
+    const originalText = actualPayload.text || "";
 
     // Sanitize text by removing emojis to prevent issues with backend services like Google Search.
     const emojiRegex = /([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g;
-    let sanitizedText = (actualPayload.text || "").replace(emojiRegex, '').trim();
+    let sanitizedText = originalText.replace(emojiRegex, '').trim();
+
+    // If the message only contained emojis, fall back to the original emoji text so the backend can understand it.
+    if (!sanitizedText && originalText) {
+      sanitizedText = originalText;
+    }
 
     const { text: userMessageText, attachmentInfo, ubicacion_usuario, action, location } = actualPayload;
     const actionPayload = 'payload' in actualPayload ? actualPayload.payload : undefined;
