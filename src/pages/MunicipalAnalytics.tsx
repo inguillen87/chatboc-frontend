@@ -277,26 +277,13 @@ export default function MunicipalAnalytics() {
           <CardContent>
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={genderData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={80}
-                    label
-                  >
-                    {genderData.map((entry, index) => (
-                      <Cell
-                        key={`gender-${index}`}
-                        fill={`var(--chart-${(index % 12) + 1})`}
-                      />
-                    ))}
-                  </Pie>
+                <BarChart data={genderData}>
+                  <XAxis dataKey="name" />
+                  <YAxis />
                   <Tooltip cursor={false} content={<ChartTooltip />} />
                   <Legend />
-                </PieChart>
+                  <Bar dataKey="value" fill="var(--color-gender)" radius={4} />
+                </BarChart>
               </ResponsiveContainer>
             </div>
           </CardContent>
@@ -311,26 +298,13 @@ export default function MunicipalAnalytics() {
           <CardContent>
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={ageData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={80}
-                    label
-                  >
-                    {ageData.map((entry, index) => (
-                      <Cell
-                        key={`age-${index}`}
-                        fill={`var(--chart-${(index % 12) + 1})`}
-                      />
-                    ))}
-                  </Pie>
+                <BarChart data={ageData}>
+                  <XAxis dataKey="name" />
+                  <YAxis />
                   <Tooltip cursor={false} content={<ChartTooltip />} />
                   <Legend />
-                </PieChart>
+                  <Bar dataKey="value" fill="var(--color-age)" radius={4} />
+                </BarChart>
               </ResponsiveContainer>
             </div>
           </CardContent>
