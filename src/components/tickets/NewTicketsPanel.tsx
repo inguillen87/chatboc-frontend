@@ -23,6 +23,7 @@ const NewTicketsPanel: React.FC = () => {
   // Desktop-specific state
   const [isSidebarVisible, setIsSidebarVisible] = React.useState(!isMobile);
   const [isDetailsVisible, setIsDetailsVisible] = React.useState(!isMobile);
+  const [desktopView, setDesktopView] = React.useState<'chat' | 'details'>('chat');
 
   const sidebarPanelRef = React.useRef<ImperativePanelHandle | null>(null);
   const detailsPanelRef = React.useRef<ImperativePanelHandle | null>(null);
@@ -259,24 +260,28 @@ const NewTicketsPanel: React.FC = () => {
               onToggleDetails={() => setIsDetailsVisible((prev) => !prev)}
               canToggleSidebar
               showDetailsToggle
+              desktopView={desktopView}
+              setDesktopView={setDesktopView}
             />
           </ResizablePanel>
 
-          {isDetailsVisible && <ResizableHandle withHandle className="w-2 bg-border/60 transition-colors hover:bg-primary/50" />}
           {isDetailsVisible && (
-            <ResizablePanel
-              ref={detailsPanelRef}
-              order={3}
-              defaultSize={30}
-              minSize={25}
-              maxSize={DETAILS_PANEL_MAX_SIZE}
-              collapsible
-              collapsedSize={0}
-              onCollapse={() => setIsDetailsVisible(false)}
-              className="min-w-[360px]"
-            >
-              <DetailsPanel className="h-full w-full" />
-            </ResizablePanel>
+            <>
+              <ResizableHandle withHandle className="w-2 bg-border/60 transition-colors hover:bg-primary/50" />
+              <ResizablePanel
+                ref={detailsPanelRef}
+                order={3}
+                defaultSize={30}
+                minSize={25}
+                maxSize={DETAILS_PANEL_MAX_SIZE}
+                collapsible
+                collapsedSize={0}
+                onCollapse={() => setIsDetailsVisible(false)}
+                className="min-w-[360px]"
+              >
+                <DetailsPanel className="h-full w-full" />
+              </ResizablePanel>
+            </>
           )}
         </ResizablePanelGroup>
       )}

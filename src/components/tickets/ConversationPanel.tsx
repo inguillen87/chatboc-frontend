@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Ticket, TicketStatus, Message as TicketMessage } from '@/types/tickets';
 import { Message as ChatMessageData, SendPayload, AttachmentInfo } from '@/types/chat';
 import ChatMessage from './ChatMessage';
+import DetailsPanel from './DetailsPanel';
 import { AnimatePresence, motion } from 'framer-motion';
 import PredefinedMessagesModal from './PredefinedMessagesModal';
 import useSpeechRecognition from '@/hooks/useSpeechRecognition';
@@ -54,6 +55,8 @@ interface ConversationPanelProps {
   onToggleDetails: () => void;
   canToggleSidebar?: boolean;
   showDetailsToggle?: boolean;
+  desktopView?: 'chat' | 'details';
+  setDesktopView?: (view: 'chat' | 'details') => void;
 }
 
 const EmptyState: React.FC<{ icon: React.ElementType; title: string; description: string }> = ({
@@ -76,6 +79,8 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   onToggleDetails,
   canToggleSidebar = false,
   showDetailsToggle = false,
+  desktopView,
+  setDesktopView,
 }) => {
   const { selectedTicket, updateTicket } = useTickets();
   const [message, setMessage] = useState('');
@@ -356,41 +361,66 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         </div>
       </header>
 
+      {!isMobile && isDetailsVisible && setDesktopView && (
+        <div className="p-2 border-b border-border">
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              variant={desktopView === 'chat' ? 'secondary' : 'ghost'}
+              onClick={() => setDesktopView('chat')}
+            >
+              Conversación
+            </Button>
+            <Button
+              variant={desktopView === 'details' ? 'secondary' : 'ghost'}
+              onClick={() => setDesktopView('details')}
+            >
+              Información
+            </Button>
+          </div>
+        </div>
+      )}
+
       <div className="flex-1 relative bg-muted/20">
-        <ScrollArea className="h-full p-4" ref={scrollAreaRef} onScroll={handleScroll}>
-          {isLoading ? (
-            <div className="flex h-full items-center justify-center">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : messages.length === 0 ? (
-            <EmptyState
-              icon={MessageSquare}
-              title="No hay mensajes"
-              description="Esta conversación aún no tiene mensajes. ¡Envía el primero!"
-            />
-          ) : (
-            <AnimatePresence>
-                <motion.div className="space-y-4">
-                {messages.map((msg, index) => (
-                  <motion.div
-                    key={msg.id || index}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.05 }}
-                  >
-                    <ChatMessage
-                      message={msg}
-                      isTyping={false}
-                      onButtonClick={handleButtonClick}
-                      tipoChat={selectedTicket.tipo}
-                    />
-                  </motion.div>
-                ))}
-                </motion.div>
-            </AnimatePresence>
-          )}
-        </ScrollArea>
-        {showScrollToBottom && <ScrollToBottomButton onClick={scrollToBottom} />}
+        {desktopView === 'details' && !isMobile ? (
+          <DetailsPanel />
+        ) : (
+          <>
+            <ScrollArea className="h-full p-4" ref={scrollAreaRef} onScroll={handleScroll}>
+              {isLoading ? (
+                <div className="flex h-full items-center justify-center">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : messages.length === 0 ? (
+                <EmptyState
+                  icon={MessageSquare}
+                  title="No hay mensajes"
+                  description="Esta conversación aún no tiene mensajes. ¡Envía el primero!"
+                />
+              ) : (
+                <AnimatePresence>
+                    <motion.div className="space-y-4">
+                    {messages.map((msg, index) => (
+                      <motion.div
+                        key={msg.id || index}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.05 }}
+                      >
+                        <ChatMessage
+                          message={msg}
+                          isTyping={false}
+                          onButtonClick={handleButtonClick}
+                          tipoChat={selectedTicket.tipo}
+                        />
+                      </motion.div>
+                    ))}
+                    </motion.div>
+                </AnimatePresence>
+              )}
+            </ScrollArea>
+            {showScrollToBottom && <ScrollToBottomButton onClick={scrollToBottom} />}
+          </>
+        )}
       </div>
 
       <footer className="p-2 border-t border-border shrink-0">
