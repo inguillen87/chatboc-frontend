@@ -16,61 +16,35 @@ import { PanelLeft, MessageSquare, Info } from 'lucide-react';
 const NewTicketsPanel: React.FC = () => {
   const isMobile = useIsMobile();
   const { loading, error, selectedTicket } = useTickets();
-  const [isSidebarVisible, setIsSidebarVisible] = React.useState(!isMobile);
+
+  // Mobile-specific state
+  const [mobileView, setMobileView] = React.useState<'tickets' | 'chat' | 'details'>('tickets');
+
+  // Desktop-specific state
   const [isDetailsVisible, setIsDetailsVisible] = React.useState(!isMobile);
-  const [mobileView, setMobileView] = React.useState<'tickets' | 'chat' | 'details'>('chat');
+
   const detailsPanelRef = React.useRef<ImperativePanelHandle | null>(null);
   const lastDetailsSize = React.useRef<number | null>(null);
   const lastMobileTicketId = React.useRef<string | number | null>(null);
   const DETAILS_PANEL_MAX_SIZE = 72;
 
-  React.useEffect(() => {
-    if (!isMobile) {
-      setMobileView('chat');
-      return;
-    }
-
-    if (!selectedTicket) {
-      lastMobileTicketId.current = null;
-      setMobileView('tickets');
-      return;
-    }
-
-    if (lastMobileTicketId.current !== selectedTicket.id) {
-      lastMobileTicketId.current = selectedTicket.id;
-      setMobileView('chat');
-    }
-  }, [isMobile, selectedTicket]);
-
-  React.useEffect(() => {
-    if (!isMobile) {
-      return;
-    }
-
-    if (mobileView === 'tickets') {
-      setIsSidebarVisible(true);
-      setIsDetailsVisible(false);
-      return;
-    }
-
-    if (mobileView === 'details') {
-      setIsSidebarVisible(false);
-      setIsDetailsVisible(true);
-      return;
-    }
-
-    setIsSidebarVisible(false);
-    setIsDetailsVisible(false);
-  }, [isMobile, mobileView]);
-
+  // Sync mobile view with ticket selection
   React.useEffect(() => {
     if (isMobile) {
-      return;
+      if (selectedTicket && selectedTicket.id !== lastMobileTicketId.current) {
+        setMobileView('chat');
+        lastMobileTicketId.current = selectedTicket.id;
+      } else if (!selectedTicket) {
+        setMobileView('tickets');
+        lastMobileTicketId.current = null;
+      }
     }
+  }, [selectedTicket, isMobile]);
 
-    setIsSidebarVisible(true);
-    setIsDetailsVisible(true);
-  }, [isMobile]);
+  // Derived state for mobile panel visibility
+  const isSidebarVisibleOnMobile = isMobile && mobileView === 'tickets';
+  const isDetailsVisibleOnMobile = isMobile && mobileView === 'details';
+  const isChatVisibleOnMobile = isMobile && (mobileView === 'chat' || !selectedTicket);
 
   React.useEffect(() => {
     if (isMobile) {
@@ -116,27 +90,10 @@ const NewTicketsPanel: React.FC = () => {
     }
   }, [isDetailsVisible, isMobile]);
 
-  const toggleSidebar = () => {
-    if (isMobile) {
-      setMobileView((current) => (current === 'tickets' ? 'chat' : 'tickets'));
-    }
-  };
-
-  const toggleDetails = () => {
-    if (isMobile) {
-      setMobileView((current) => (current === 'details' ? 'chat' : 'details'));
-      return;
-    }
-
-    setIsDetailsVisible((prev) => !prev);
-  };
-
   const handleMobileTicketSelection = React.useCallback(() => {
-    if (!isMobile) {
-      return;
+    if (isMobile) {
+      setMobileView('chat');
     }
-
-    setMobileView('chat');
   }, [isMobile]);
 
   const mobileNavButtonClass = (
@@ -231,46 +188,54 @@ const NewTicketsPanel: React.FC = () => {
           </div>
           <div className="relative flex-1 overflow-hidden">
             <AnimatePresence>
-              {isSidebarVisible && (
+              {mobileView === 'tickets' && (
                 <motion.div
                   key="sidebar"
                   initial={{ x: '-100%' }}
                   animate={{ x: 0 }}
                   exit={{ x: '-100%' }}
                   transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                  className="absolute left-0 top-0 z-20 h-full w-full"
+                  className="absolute inset-0 z-20"
                 >
                   <Sidebar className="h-full w-full min-w-full" onTicketSelected={handleMobileTicketSelection} />
                 </motion.div>
               )}
             </AnimatePresence>
-            <motion.div
-              key="conversation"
-              className="absolute left-0 top-0 z-10 h-full w-full"
-              animate={{ x: isSidebarVisible ? '100%' : '0%' }}
-              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-            >
-              <ConversationPanel
-                isMobile={true}
-                isSidebarVisible={isSidebarVisible}
-                isDetailsVisible={isDetailsVisible}
-                onToggleSidebar={toggleSidebar}
-                onToggleDetails={toggleDetails}
-                canToggleSidebar
-                showDetailsToggle
-              />
-            </motion.div>
+
             <AnimatePresence>
-              {isDetailsVisible && (
+              {mobileView === 'chat' && (
+                <motion.div
+                  key="conversation"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="absolute inset-0 z-10"
+                >
+                  <ConversationPanel
+                    isMobile={true}
+                    isSidebarVisible={false}
+                    isDetailsVisible={false}
+                    onToggleSidebar={() => setMobileView('tickets')}
+                    onToggleDetails={() => setMobileView('details')}
+                    canToggleSidebar
+                    showDetailsToggle
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+              {mobileView === 'details' && (
                 <motion.div
                   key="details"
                   initial={{ x: '100%' }}
                   animate={{ x: 0 }}
                   exit={{ x: '100%' }}
                   transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                  className="absolute left-0 top-0 z-30 h-full w-full overflow-y-auto bg-background"
+                  className="absolute inset-0 z-30 overflow-y-auto bg-background"
                 >
-                  <DetailsPanel onClose={toggleDetails} />
+                  <DetailsPanel onClose={() => setMobileView('chat')} />
                 </motion.div>
               )}
             </AnimatePresence>
@@ -279,47 +244,42 @@ const NewTicketsPanel: React.FC = () => {
       ) : (
         <ResizablePanelGroup direction="horizontal" className="flex h-full w-full overflow-hidden">
           <ResizablePanel
-            defaultSize={22}
-            minSize={18}
-            maxSize={28}
-            className="lg:min-w-[240px] xl:min-w-[300px]"
+            defaultSize={25}
+            minSize={20}
+            maxSize={40}
+            className="min-w-[300px]"
           >
             <Sidebar className="h-full w-full shrink-0" />
           </ResizablePanel>
           <ResizableHandle withHandle className="w-2 bg-border/60 transition-colors hover:bg-primary/50" />
           <ResizablePanel
-            defaultSize={34}
+            defaultSize={45}
             minSize={30}
-            className="lg:min-w-[360px] xl:min-w-[520px]"
           >
             <ConversationPanel
               isMobile={false}
-              isSidebarVisible={isSidebarVisible}
+              isSidebarVisible={true}
               isDetailsVisible={isDetailsVisible}
-              onToggleSidebar={toggleSidebar}
-              onToggleDetails={toggleDetails}
+              onToggleSidebar={() => {}} // No-op on desktop
+              onToggleDetails={() => setIsDetailsVisible((prev) => !prev)}
               showDetailsToggle
             />
           </ResizablePanel>
-          <ResizableHandle withHandle className="w-2 bg-border/60 transition-colors hover:bg-primary/50" />
-          <ResizablePanel
-            ref={detailsPanelRef}
-            defaultSize={44}
-            minSize={34}
-            maxSize={DETAILS_PANEL_MAX_SIZE}
-            collapsible
-            collapsedSize={0}
-            onResize={(size) => {
-              if (size > 0) {
-                lastDetailsSize.current = Math.min(size, DETAILS_PANEL_MAX_SIZE);
-              }
-            }}
-            onCollapse={() => setIsDetailsVisible(false)}
-            onExpand={() => setIsDetailsVisible(true)}
-            className="lg:min-w-[360px] xl:min-w-[520px] 2xl:min-w-[600px]"
-          >
-            <DetailsPanel className="h-full w-full" />
-          </ResizablePanel>
+          {isDetailsVisible && <ResizableHandle withHandle className="w-2 bg-border/60 transition-colors hover:bg-primary/50" />}
+          {isDetailsVisible && (
+            <ResizablePanel
+              ref={detailsPanelRef}
+              defaultSize={30}
+              minSize={25}
+              maxSize={50}
+              collapsible
+              collapsedSize={0}
+              onCollapse={() => setIsDetailsVisible(false)}
+              className="min-w-[360px]"
+            >
+              <DetailsPanel className="h-full w-full" />
+            </ResizablePanel>
+          )}
         </ResizablePanelGroup>
       )}
       <Toaster richColors />
