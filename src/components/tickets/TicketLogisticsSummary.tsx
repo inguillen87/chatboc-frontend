@@ -3,9 +3,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import TicketStatusBar from './TicketStatusBar';
 import TicketMap from '../TicketMap';
 import { Ticket, TicketHistoryEvent } from '@/types/tickets';
-import { fmtAR } from '@/utils/date';
+import { fmtARWithOffset } from '@/utils/date';
 import { getTicketChannel } from '@/utils/ticket';
 import { cn } from '@/lib/utils';
+import { hasCoordinateValue } from '@/utils/location';
 import {
   CalendarClock,
   Clock3,
@@ -16,6 +17,12 @@ import {
   Tag,
   ExternalLink,
 } from 'lucide-react';
+import {
+  buildStatusFlow,
+  formatTicketStatusLabel,
+  normalizeTicketStatus,
+} from '@/utils/ticketStatus';
+import { formatHistoryDate, pickHistoryDate } from '@/utils/ticketHistory';
 
 interface TicketLogisticsSummaryProps {
   ticket: Ticket;
@@ -26,13 +33,6 @@ interface TicketLogisticsSummaryProps {
 }
 
 type IconType = React.ComponentType<React.SVGProps<SVGSVGElement>>;
-
-const formatStatus = (status?: string | null) =>
-  status
-    ? status
-        .replace(/[_-]+/g, ' ')
-        .replace(/\b\w/g, (char) => char.toUpperCase())
-    : 'Sin estado';
 
 const pickHistoryDate = (entry: unknown): string | number | Date | null => {
   if (!entry || typeof entry !== 'object') {
@@ -58,8 +58,10 @@ const pickHistoryDate = (entry: unknown): string | number | Date | null => {
 
 const formatHistoryDate = (value: string | number | Date | null | undefined) => {
   if (!value) return null;
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) {
+
+  const shifted = shiftDateByHours(value, -3);
+
+  if (!shifted) {
     return null;
   }
 
@@ -69,15 +71,12 @@ const formatHistoryDate = (value: string | number | Date | null | undefined) => 
       month: '2-digit',
       hour: '2-digit',
       minute: '2-digit',
-    }).format(date);
+    }).format(shifted);
   } catch (error) {
     console.error('Error formatting history date', error);
     return null;
   }
 };
-
-const hasCoordinateValue = (value?: number | null) =>
-  typeof value === 'number' && Number.isFinite(value) && value !== 0;
 
 const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({
   ticket,
@@ -91,17 +90,37 @@ const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({
     : Array.isArray(ticket.history)
       ? ticket.history
       : [];
-  const statusFlow = historyEntries.map((h) => h.status).filter(Boolean);
+  const statusFlow = buildStatusFlow([
+    statusOverride,
+    ticket.estado,
+    ...historyEntries.map((h) => h.status).filter(Boolean),
+  ]);
 
   const channelLabel = getTicketChannel(ticket);
-  const createdAtLabel = fmtAR(ticket.fecha);
+  const createdAtLabel = React.useMemo(() => {
+    const formatted = fmtARWithOffset(ticket.fecha, -3);
+
+    if (formatted && formatted !== 'Fecha no disponible') {
+      return formatted;
+    }
+
+    for (const entry of historyEntries) {
+      const fallback = formatHistoryDate(pickHistoryDate(entry));
+      if (fallback) {
+        return fallback;
+      }
+    }
+
+    return null;
+  }, [ticket.fecha, historyEntries]);
   const estimatedArrival = ticket.tiempo_estimado;
   const currentStatus = statusOverride ?? ticket.estado;
+  const currentStatusLabel = formatTicketStatusLabel(currentStatus);
 
   const metaItems = [
     {
       label: 'Creado el',
-      value: createdAtLabel,
+      value: createdAtLabel ?? '—',
       icon: CalendarClock,
       valueClassName: 'text-foreground',
     },
@@ -124,12 +143,18 @@ const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({
       : null,
   ].filter(Boolean) as { label: string; value: string; icon: IconType; valueClassName?: string }[];
 
+  const normalizedAddress =
+    (typeof ticket.direccion === 'string' ? ticket.direccion.trim() : '') ||
+    (typeof ticket.informacion_personal_vecino?.direccion === 'string'
+      ? ticket.informacion_personal_vecino.direccion.trim()
+      : '');
+
   const detailItems = [
     ticket.categoria
       ? { label: 'Categoría', value: ticket.categoria, icon: Tag }
       : null,
-    ticket.direccion
-      ? { label: 'Dirección', value: ticket.direccion, icon: MapPin }
+    normalizedAddress
+      ? { label: 'Dirección', value: normalizedAddress, icon: MapPin }
       : null,
     ticket.esquinas_cercanas
       ? { label: 'Esquinas', value: ticket.esquinas_cercanas, icon: Hash }
@@ -140,7 +165,7 @@ const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({
   ].filter(Boolean) as { label: string; value: string; icon?: IconType }[];
 
   const hasLocation = Boolean(
-    ticket.direccion ||
+    normalizedAddress ||
       hasCoordinateValue(ticket.latitud) ||
       hasCoordinateValue(ticket.longitud) ||
       hasCoordinateValue(ticket.lat_destino) ||
@@ -157,6 +182,11 @@ const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({
 
   const heading = ticket.categoria || ticket.asunto || 'Seguimiento del reclamo';
 
+  const mapTicket =
+    normalizedAddress && normalizedAddress !== ticket.direccion
+      ? { ...ticket, direccion: normalizedAddress }
+      : ticket;
+
   const statusTimeline = historyEntries
     .map((entry, index) => {
       if (!entry || typeof entry.status !== 'string') {
@@ -165,10 +195,16 @@ const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({
 
       const formattedDate = formatHistoryDate(pickHistoryDate(entry));
 
+      const normalizedStatus = normalizeTicketStatus(entry.status);
+
+      if (!normalizedStatus) {
+        return null;
+      }
+
       return {
-        key: `${entry.status}-${index}`,
-        status: entry.status,
-        label: formatStatus(entry.status),
+        key: `${normalizedStatus}-${index}`,
+        status: normalizedStatus,
+        label: formatTicketStatusLabel(normalizedStatus),
         formattedDate,
       };
     })
@@ -185,7 +221,7 @@ const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({
     (createdAtLabel || undefined);
 
   return (
-    <Card className={cn('bg-card/90 border border-primary/20 shadow-lg backdrop-blur-sm', className)}>
+    <Card className={cn('min-w-0 bg-card/90 border border-primary/20 shadow-lg backdrop-blur-sm', className)}>
       <CardContent className="space-y-5 p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -203,7 +239,7 @@ const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({
                 Estado del reclamo
               </p>
               <p className="text-base font-semibold text-primary">
-                {formatStatus(currentStatus)}
+                {currentStatusLabel}
               </p>
             </div>
             {lastUpdatedLabel && (
@@ -259,7 +295,7 @@ const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({
         )}
 
         <div className="grid gap-4 md:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-          <div className="space-y-4 text-sm">
+          <div className="min-w-0 space-y-4 text-sm">
             {detailItems.length > 0 && (
               <div className="grid gap-3">
                 {detailItems.map((item) => (
@@ -278,7 +314,7 @@ const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({
           </div>
 
           {hasLocation && (
-            <div className="relative overflow-hidden rounded-xl border border-border bg-muted/40 shadow-sm">
+            <div className="relative min-w-0 overflow-hidden rounded-xl border border-border bg-muted/40 shadow-sm">
               {onOpenMap && (
                 <button
                   type="button"
@@ -290,10 +326,16 @@ const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({
                 </button>
               )}
               <TicketMap
-                ticket={ticket}
+                ticket={mapTicket}
                 hideTitle
                 heightClassName="h-[160px] sm:h-[180px]"
                 showAddressHint={false}
+                status={currentStatus}
+                history={historyEntries}
+                createdAtLabel={createdAtLabel ?? undefined}
+                lastUpdatedLabel={lastUpdatedLabel}
+                estimatedTime={estimatedArrival}
+                currentStatusLabel={currentStatusLabel}
               />
             </div>
           )}
