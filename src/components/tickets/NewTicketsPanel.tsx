@@ -22,6 +22,7 @@ const NewTicketsPanel: React.FC = () => {
   const detailsPanelRef = React.useRef<ImperativePanelHandle | null>(null);
   const lastDetailsSize = React.useRef<number | null>(null);
   const lastMobileTicketId = React.useRef<string | number | null>(null);
+  const DETAILS_PANEL_MAX_SIZE = 50;
 
   React.useEffect(() => {
     if (!isMobile) {
@@ -86,7 +87,7 @@ const NewTicketsPanel: React.FC = () => {
       const currentSize = panel.getSize();
 
       if (currentSize > 0) {
-        lastDetailsSize.current = currentSize;
+        lastDetailsSize.current = Math.min(currentSize, DETAILS_PANEL_MAX_SIZE);
       }
     }
 
@@ -94,20 +95,23 @@ const NewTicketsPanel: React.FC = () => {
       const storedSize = lastDetailsSize.current;
 
       if (panel.isCollapsed()) {
-        panel.expand(
-          typeof storedSize === 'number' && storedSize > 0 ? storedSize : undefined,
-        );
+        const sizeToApply =
+          typeof storedSize === 'number' && storedSize > 0
+            ? Math.min(storedSize, DETAILS_PANEL_MAX_SIZE)
+            : undefined;
+        panel.expand(sizeToApply);
       }
 
       if (typeof storedSize === 'number' && storedSize > 0) {
+        const targetSize = Math.min(storedSize, DETAILS_PANEL_MAX_SIZE);
         const currentSize = panel.getSize();
 
-        if (Math.abs(currentSize - storedSize) > 0.5) {
-          panel.resize(storedSize);
+        if (Math.abs(currentSize - targetSize) > 0.5) {
+          panel.resize(targetSize);
         }
       }
     } else if (!panel.isCollapsed()) {
-      lastDetailsSize.current = panel.getSize();
+      lastDetailsSize.current = Math.min(panel.getSize(), DETAILS_PANEL_MAX_SIZE);
       panel.collapse();
     }
   }, [isDetailsVisible, isMobile]);
@@ -284,9 +288,9 @@ const NewTicketsPanel: React.FC = () => {
           </ResizablePanel>
           <ResizableHandle withHandle className="w-2 bg-border/60 transition-colors hover:bg-primary/50" />
           <ResizablePanel
-            defaultSize={48}
-            minSize={40}
-            className="min-w-[600px]"
+            defaultSize={40}
+            minSize={34}
+            className="min-w-[520px]"
           >
             <ConversationPanel
               isMobile={false}
@@ -300,19 +304,19 @@ const NewTicketsPanel: React.FC = () => {
           <ResizableHandle withHandle className="w-2 bg-border/60 transition-colors hover:bg-primary/50" />
           <ResizablePanel
             ref={detailsPanelRef}
-            defaultSize={26}
-            minSize={20}
-            maxSize={36}
+            defaultSize={34}
+            minSize={26}
+            maxSize={DETAILS_PANEL_MAX_SIZE}
             collapsible
             collapsedSize={0}
             onResize={(size) => {
               if (size > 0) {
-                lastDetailsSize.current = size;
+                lastDetailsSize.current = Math.min(size, DETAILS_PANEL_MAX_SIZE);
               }
             }}
             onCollapse={() => setIsDetailsVisible(false)}
             onExpand={() => setIsDetailsVisible(true)}
-            className="min-w-[320px] max-w-[520px]"
+            className="min-w-[360px] lg:min-w-[420px]"
           >
             <DetailsPanel className="h-full w-full" />
           </ResizablePanel>

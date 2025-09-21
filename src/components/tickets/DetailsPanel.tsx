@@ -38,6 +38,7 @@ import { fmtARWithOffset } from '@/utils/date';
 import { getSpecializedContact, SpecializedContact } from '@/utils/contacts';
 import { deriveAttachmentInfo } from '@/utils/attachment';
 import { formatTicketStatusLabel, normalizeTicketStatus } from '@/utils/ticketStatus';
+import { pickFirstCoordinate } from '@/utils/location';
 
 const sanitizeMediaUrl = (value?: string | null): string | undefined => {
   if (typeof value !== 'string') {
@@ -329,6 +330,27 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
   const normalizedCurrentStatus = normalizeTicketStatus(currentStatus);
   const currentStatusLabel = formatTicketStatusLabel(currentStatus);
 
+  const locationTicket = React.useMemo(() => {
+    if (!ticket) {
+      return null;
+    }
+
+    const normalizedAddress =
+      (typeof ticket.direccion === 'string' ? ticket.direccion.trim() : '') ||
+      (typeof ticket.informacion_personal_vecino?.direccion === 'string'
+        ? ticket.informacion_personal_vecino.direccion.trim()
+        : '');
+
+    if (!normalizedAddress || normalizedAddress === ticket.direccion) {
+      return ticket;
+    }
+
+    return {
+      ...ticket,
+      direccion: normalizedAddress,
+    };
+  }, [ticket]);
+
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text).then(() => {
       toast.success(`${label} copiado al portapapeles`);
@@ -441,18 +463,48 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
 
   const openGoogleMaps = () => {
     if (!ticket) return;
-    if (ticket.latitud && ticket.longitud) {
+
+    const destLat = pickFirstCoordinate(ticket.latitud, ticket.lat_destino);
+    const destLon = pickFirstCoordinate(ticket.longitud, ticket.lon_destino);
+    const originLat = pickFirstCoordinate(
+      ticket.lat_actual,
+      ticket.lat_origen,
+      ticket.origen_latitud,
+      ticket.municipio_latitud,
+    );
+    const originLon = pickFirstCoordinate(
+      ticket.lon_actual,
+      ticket.lon_origen,
+      ticket.origen_longitud,
+      ticket.municipio_longitud,
+    );
+
+    if (typeof destLat === 'number' && typeof destLon === 'number') {
+      if (typeof originLat === 'number' && typeof originLon === 'number') {
+        window.open(
+          `https://www.google.com/maps/dir/?api=1&origin=${originLat},${originLon}&destination=${destLat},${destLon}`,
+          '_blank',
+        );
+        return;
+      }
+
       window.open(
-        `https://www.google.com/maps/search/?api=1&query=${ticket.latitud},${ticket.longitud}`,
-        '_blank'
+        `https://www.google.com/maps/search/?api=1&query=${destLat},${destLon}`,
+        '_blank',
       );
       return;
     }
-    const address = buildFullAddress(ticket);
-    if (!address) return;
+
+    const addressTicket = locationTicket ?? ticket;
+    const address = buildFullAddress(addressTicket);
+
+    if (!address) {
+      return;
+    }
+
     window.open(
       `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`,
-      '_blank'
+      '_blank',
     );
   };
 
@@ -552,7 +604,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
       <ScrollArea className="flex-1">
         <div className="p-4 space-y-4 pb-24 md:pb-6">
           <TicketLogisticsSummary
-            ticket={ticket}
+            ticket={locationTicket ?? ticket}
             statusOverride={currentStatus}
             historyOverride={timelineHistory}
             onOpenMap={openGoogleMaps}

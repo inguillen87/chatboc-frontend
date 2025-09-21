@@ -1,5 +1,6 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
+import { pickFirstCoordinate } from '@/utils/location';
 
 export interface TicketLocation {
   latitud?: number | null;
@@ -23,18 +24,39 @@ export interface TicketLocation {
 
 export const buildFullAddress = (ticket: TicketLocation) => {
   const parts: string[] = [];
-  if (ticket.direccion) parts.push(ticket.direccion);
-  if (ticket.esquinas_cercanas) parts.push(ticket.esquinas_cercanas);
-  if (ticket.distrito) parts.push(ticket.distrito);
+  const addPart = (value?: string | null) => {
+    if (typeof value !== 'string') {
+      return;
+    }
+
+    const trimmed = value.trim();
+
+    if (!trimmed) {
+      return;
+    }
+
+    parts.push(trimmed);
+  };
+
+  addPart(ticket.direccion);
+  addPart(ticket.esquinas_cercanas);
+  addPart(ticket.distrito);
+
+  const municipioNombre =
+    typeof ticket.municipio_nombre === 'string'
+      ? ticket.municipio_nombre.trim()
+      : '';
+
   if (
     ticket.tipo !== 'pyme' &&
-    ticket.municipio_nombre &&
-    !parts.some(p =>
-      p.toLowerCase().includes(ticket.municipio_nombre!.toLowerCase())
+    municipioNombre &&
+    !parts.some((part) =>
+      part.toLowerCase().includes(municipioNombre.toLowerCase()),
     )
   ) {
-    parts.push(ticket.municipio_nombre);
+    parts.push(municipioNombre);
   }
+
   return parts.join(', ');
 };
 
@@ -56,42 +78,24 @@ const TicketMap: React.FC<TicketMapProps> = ({
   showAddressHint = true,
 }) => {
   const direccionCompleta = buildFullAddress(ticket);
-  const destLat =
-    typeof ticket.lat_destino === 'number'
-      ? ticket.lat_destino
-      : typeof ticket.latitud === 'number'
-        ? ticket.latitud
-        : undefined;
-  const destLon =
-    typeof ticket.lon_destino === 'number'
-      ? ticket.lon_destino
-      : typeof ticket.longitud === 'number'
-        ? ticket.longitud
-        : undefined;
+  const destLat = pickFirstCoordinate(ticket.lat_destino, ticket.latitud);
+  const destLon = pickFirstCoordinate(ticket.lon_destino, ticket.longitud);
   const hasCoords =
-    typeof destLat === 'number' &&
-    typeof destLon === 'number' &&
-    (destLat !== 0 || destLon !== 0);
-  const originLat =
-    typeof ticket.lat_actual === 'number' && ticket.lat_actual !== 0
-      ? ticket.lat_actual
-      : typeof ticket.lat_origen === 'number' && ticket.lat_origen !== 0
-        ? ticket.lat_origen
-        : typeof ticket.origen_latitud === 'number' && ticket.origen_latitud !== 0
-          ? ticket.origen_latitud
-          : ticket.municipio_latitud;
-  const originLon =
-    typeof ticket.lon_actual === 'number' && ticket.lon_actual !== 0
-      ? ticket.lon_actual
-      : typeof ticket.lon_origen === 'number' && ticket.lon_origen !== 0
-        ? ticket.lon_origen
-        : typeof ticket.origen_longitud === 'number' && ticket.origen_longitud !== 0
-          ? ticket.origen_longitud
-          : ticket.municipio_longitud;
+    typeof destLat === 'number' && typeof destLon === 'number';
+  const originLat = pickFirstCoordinate(
+    ticket.lat_actual,
+    ticket.lat_origen,
+    ticket.origen_latitud,
+    ticket.municipio_latitud,
+  );
+  const originLon = pickFirstCoordinate(
+    ticket.lon_actual,
+    ticket.lon_origen,
+    ticket.origen_longitud,
+    ticket.municipio_longitud,
+  );
   const hasOrigin =
-    typeof originLat === 'number' &&
-    typeof originLon === 'number' &&
-    (originLat !== 0 || originLon !== 0);
+    typeof originLat === 'number' && typeof originLon === 'number';
   const hasRoute = hasCoords && hasOrigin;
 
   // Primary map is Google Maps; fallback to OpenStreetMap if it fails

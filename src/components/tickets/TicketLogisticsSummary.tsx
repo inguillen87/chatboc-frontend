@@ -6,6 +6,7 @@ import { Ticket, TicketHistoryEvent } from '@/types/tickets';
 import { fmtARWithOffset, shiftDateByHours } from '@/utils/date';
 import { getTicketChannel } from '@/utils/ticket';
 import { cn } from '@/lib/utils';
+import { hasCoordinateValue } from '@/utils/location';
 import {
   CalendarClock,
   Clock3,
@@ -76,9 +77,6 @@ const formatHistoryDate = (value: string | number | Date | null | undefined) => 
   }
 };
 
-const hasCoordinateValue = (value?: number | null) =>
-  typeof value === 'number' && Number.isFinite(value) && value !== 0;
-
 const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({
   ticket,
   className,
@@ -129,12 +127,18 @@ const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({
       : null,
   ].filter(Boolean) as { label: string; value: string; icon: IconType; valueClassName?: string }[];
 
+  const normalizedAddress =
+    (typeof ticket.direccion === 'string' ? ticket.direccion.trim() : '') ||
+    (typeof ticket.informacion_personal_vecino?.direccion === 'string'
+      ? ticket.informacion_personal_vecino.direccion.trim()
+      : '');
+
   const detailItems = [
     ticket.categoria
       ? { label: 'Categoría', value: ticket.categoria, icon: Tag }
       : null,
-    ticket.direccion
-      ? { label: 'Dirección', value: ticket.direccion, icon: MapPin }
+    normalizedAddress
+      ? { label: 'Dirección', value: normalizedAddress, icon: MapPin }
       : null,
     ticket.esquinas_cercanas
       ? { label: 'Esquinas', value: ticket.esquinas_cercanas, icon: Hash }
@@ -145,7 +149,7 @@ const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({
   ].filter(Boolean) as { label: string; value: string; icon?: IconType }[];
 
   const hasLocation = Boolean(
-    ticket.direccion ||
+    normalizedAddress ||
       hasCoordinateValue(ticket.latitud) ||
       hasCoordinateValue(ticket.longitud) ||
       hasCoordinateValue(ticket.lat_destino) ||
@@ -161,6 +165,11 @@ const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({
   );
 
   const heading = ticket.categoria || ticket.asunto || 'Seguimiento del reclamo';
+
+  const mapTicket =
+    normalizedAddress && normalizedAddress !== ticket.direccion
+      ? { ...ticket, direccion: normalizedAddress }
+      : ticket;
 
   const statusTimeline = historyEntries
     .map((entry, index) => {
@@ -196,7 +205,7 @@ const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({
     (createdAtLabel || undefined);
 
   return (
-    <Card className={cn('bg-card/90 border border-primary/20 shadow-lg backdrop-blur-sm', className)}>
+    <Card className={cn('min-w-0 bg-card/90 border border-primary/20 shadow-lg backdrop-blur-sm', className)}>
       <CardContent className="space-y-5 p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -270,7 +279,7 @@ const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({
         )}
 
         <div className="grid gap-4 md:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-          <div className="space-y-4 text-sm">
+          <div className="min-w-0 space-y-4 text-sm">
             {detailItems.length > 0 && (
               <div className="grid gap-3">
                 {detailItems.map((item) => (
@@ -289,7 +298,7 @@ const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({
           </div>
 
           {hasLocation && (
-            <div className="relative overflow-hidden rounded-xl border border-border bg-muted/40 shadow-sm">
+            <div className="relative min-w-0 overflow-hidden rounded-xl border border-border bg-muted/40 shadow-sm">
               {onOpenMap && (
                 <button
                   type="button"
@@ -301,7 +310,7 @@ const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({
                 </button>
               )}
               <TicketMap
-                ticket={ticket}
+                ticket={mapTicket}
                 hideTitle
                 heightClassName="h-[160px] sm:h-[180px]"
                 showAddressHint={false}
