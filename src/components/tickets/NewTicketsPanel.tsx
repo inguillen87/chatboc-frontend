@@ -22,7 +22,7 @@ const NewTicketsPanel: React.FC = () => {
   const detailsPanelRef = React.useRef<ImperativePanelHandle | null>(null);
   const lastDetailsSize = React.useRef<number | null>(null);
   const lastMobileTicketId = React.useRef<string | number | null>(null);
-  const DETAILS_PANEL_MAX_SIZE = 60;
+  const DETAILS_PANEL_MAX_SIZE = 72;
 
   React.useEffect(() => {
     if (!isMobile) {
@@ -279,18 +279,18 @@ const NewTicketsPanel: React.FC = () => {
       ) : (
         <ResizablePanelGroup direction="horizontal" className="flex h-full w-full overflow-hidden">
           <ResizablePanel
-            defaultSize={24}
+            defaultSize={22}
             minSize={18}
-            maxSize={30}
+            maxSize={28}
             className="lg:min-w-[240px] xl:min-w-[300px]"
           >
             <Sidebar className="h-full w-full shrink-0" />
           </ResizablePanel>
           <ResizableHandle withHandle className="w-2 bg-border/60 transition-colors hover:bg-primary/50" />
           <ResizablePanel
-            defaultSize={38}
-            minSize={32}
-            className="lg:min-w-[380px] xl:min-w-[520px]"
+            defaultSize={34}
+            minSize={30}
+            className="lg:min-w-[360px] xl:min-w-[520px]"
           >
             <ConversationPanel
               isMobile={false}
@@ -304,8 +304,8 @@ const NewTicketsPanel: React.FC = () => {
           <ResizableHandle withHandle className="w-2 bg-border/60 transition-colors hover:bg-primary/50" />
           <ResizablePanel
             ref={detailsPanelRef}
-            defaultSize={38}
-            minSize={28}
+            defaultSize={44}
+            minSize={34}
             maxSize={DETAILS_PANEL_MAX_SIZE}
             collapsible
             collapsedSize={0}
@@ -316,7 +316,7 @@ const NewTicketsPanel: React.FC = () => {
             }}
             onCollapse={() => setIsDetailsVisible(false)}
             onExpand={() => setIsDetailsVisible(true)}
-            className="lg:min-w-[320px] xl:min-w-[440px]"
+            className="lg:min-w-[360px] xl:min-w-[520px] 2xl:min-w-[600px]"
           >
             <DetailsPanel className="h-full w-full" />
           </ResizablePanel>
