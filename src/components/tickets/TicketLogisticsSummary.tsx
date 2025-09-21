@@ -330,12 +330,6 @@ const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({
                 hideTitle
                 heightClassName="h-[160px] sm:h-[180px]"
                 showAddressHint={false}
-                status={currentStatus}
-                history={historyEntries}
-                createdAtLabel={createdAtLabel ?? undefined}
-                lastUpdatedLabel={lastUpdatedLabel}
-                estimatedTime={estimatedArrival}
-                currentStatusLabel={currentStatusLabel}
               />
             </div>
           )}

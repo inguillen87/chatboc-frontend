@@ -201,31 +201,19 @@ const NewTicketsPanel: React.FC = () => {
             </div>
           </div>
           <div className="relative flex-1 overflow-hidden">
-            <AnimatePresence>
-              {mobileView === 'tickets' && (
-                <motion.div
-                  key="sidebar"
-                  initial={{ x: '-100%' }}
-                  animate={{ x: 0 }}
-                  exit={{ x: '-100%' }}
-                  transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                  className="absolute inset-0 z-20"
-                >
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={mobileView}
+                initial={{ opacity: 0, x: mobileView === 'tickets' ? -300 : mobileView === 'details' ? 300 : 0 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: mobileView === 'tickets' ? -300 : mobileView === 'details' ? 300 : 0 }}
+                transition={{ type: 'spring', stiffness: 260, damping: 30 }}
+                className="absolute inset-0"
+              >
+                {mobileView === 'tickets' && (
                   <Sidebar className="h-full w-full min-w-full" onTicketSelected={handleMobileTicketSelection} />
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            <AnimatePresence>
-              {mobileView === 'chat' && (
-                <motion.div
-                  key="conversation"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="absolute inset-0 z-10"
-                >
+                )}
+                {mobileView === 'chat' && (
                   <ConversationPanel
                     isMobile={true}
                     isSidebarVisible={false}
@@ -235,23 +223,11 @@ const NewTicketsPanel: React.FC = () => {
                     canToggleSidebar
                     showDetailsToggle
                   />
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            <AnimatePresence>
-              {mobileView === 'details' && (
-                <motion.div
-                  key="details"
-                  initial={{ x: '100%' }}
-                  animate={{ x: 0 }}
-                  exit={{ x: '100%' }}
-                  transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                  className="absolute inset-0 z-30 overflow-y-auto bg-background"
-                >
+                )}
+                {mobileView === 'details' && (
                   <DetailsPanel onClose={() => setMobileView('chat')} />
-                </motion.div>
-              )}
+                )}
+              </motion.div>
             </AnimatePresence>
           </div>
         </div>
