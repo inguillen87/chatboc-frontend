@@ -57,33 +57,29 @@ const getInitials = (name: string) => {
             <p className="text-xs text-muted-foreground">{ticket.nro_ticket}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {ticket.channel === 'whatsapp' && <FaWhatsapp className="h-4 w-4 text-green-500" />}
+        <div className="flex flex-col items-end gap-2">
           <span className="text-xs text-muted-foreground">{formattedTime}</span>
+          {(() => {
+            const normalizedStatus = normalizeTicketStatus(ticket.estado);
+            const statusLabel = formatTicketStatusLabel(ticket.estado);
+            const statusClass = cn(
+              'text-xs capitalize px-1.5 py-0.5', // smaller padding
+              normalizedStatus === 'nuevo' && 'bg-blue-500/80 text-white border-transparent',
+              normalizedStatus === 'en_proceso' && 'bg-yellow-500/80 text-white border-transparent',
+              normalizedStatus === 'resuelto' && 'bg-emerald-500/80 text-white border-transparent',
+              !normalizedStatus && 'bg-muted-foreground/20 text-muted-foreground border-transparent'
+            );
+
+            return (
+              <Badge variant="outline" className={statusClass}>
+                {statusLabel}
+              </Badge>
+            );
+          })()}
         </div>
       </div>
       <p className="font-semibold text-sm ml-13 mb-2">{subject}</p>
       <p className="text-sm text-muted-foreground truncate ml-13">{ticket.lastMessage || '...'}</p>
-      <div className="flex items-center justify-between mt-2 ml-13">
-        {(() => {
-          const normalizedStatus = normalizeTicketStatus(ticket.estado);
-          const statusLabel = formatTicketStatusLabel(ticket.estado);
-          const variant = normalizedStatus === 'nuevo' ? 'secondary' : 'outline';
-          const statusClass = cn(
-            'capitalize',
-            normalizedStatus === 'nuevo' && 'bg-blue-500 text-white border-transparent',
-            normalizedStatus === 'en_proceso' && 'text-yellow-500 border-yellow-500',
-            normalizedStatus === 'resuelto' && 'text-emerald-500 border-emerald-500',
-            !normalizedStatus && 'text-muted-foreground border-muted-foreground/40',
-          );
-
-          return (
-            <Badge variant={variant} className={statusClass}>
-              {statusLabel}
-            </Badge>
-          );
-        })()}
-      </div>
     </div>
   );
 };
