@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import TicketStatusBar from './TicketStatusBar';
 import TicketMap from '../TicketMap';
 import { Ticket, TicketHistoryEvent } from '@/types/tickets';
-import { fmtARWithOffset, shiftDateByHours } from '@/utils/date';
+import { fmtARWithOffset } from '@/utils/date';
 import { getTicketChannel } from '@/utils/ticket';
 import { cn } from '@/lib/utils';
 import {
@@ -21,6 +21,7 @@ import {
   formatTicketStatusLabel,
   normalizeTicketStatus,
 } from '@/utils/ticketStatus';
+import { formatHistoryDate, pickHistoryDate } from '@/utils/ticketHistory';
 
 interface TicketLogisticsSummaryProps {
   ticket: Ticket;
@@ -31,50 +32,6 @@ interface TicketLogisticsSummaryProps {
 }
 
 type IconType = React.ComponentType<React.SVGProps<SVGSVGElement>>;
-
-const pickHistoryDate = (entry: unknown): string | number | Date | null => {
-  if (!entry || typeof entry !== 'object') {
-    return null;
-  }
-
-  const record = entry as Record<string, unknown>;
-  const candidateKeys = ['date', 'fecha', 'created_at', 'updated_at', 'timestamp'];
-
-  for (const key of candidateKeys) {
-    const raw = record[key];
-    if (
-      typeof raw === 'string' ||
-      typeof raw === 'number' ||
-      raw instanceof Date
-    ) {
-      return raw;
-    }
-  }
-
-  return null;
-};
-
-const formatHistoryDate = (value: string | number | Date | null | undefined) => {
-  if (!value) return null;
-
-  const shifted = shiftDateByHours(value, -3);
-
-  if (!shifted) {
-    return null;
-  }
-
-  try {
-    return new Intl.DateTimeFormat('es-AR', {
-      day: '2-digit',
-      month: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(shifted);
-  } catch (error) {
-    console.error('Error formatting history date', error);
-    return null;
-  }
-};
 
 const hasCoordinateValue = (value?: number | null) =>
   typeof value === 'number' && Number.isFinite(value) && value !== 0;
@@ -98,7 +55,22 @@ const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({
   ]);
 
   const channelLabel = getTicketChannel(ticket);
-  const createdAtLabel = fmtARWithOffset(ticket.fecha, -3);
+  const createdAtLabel = React.useMemo(() => {
+    const formatted = fmtARWithOffset(ticket.fecha, -3);
+
+    if (formatted && formatted !== 'Fecha no disponible') {
+      return formatted;
+    }
+
+    for (const entry of historyEntries) {
+      const fallback = formatHistoryDate(pickHistoryDate(entry));
+      if (fallback) {
+        return fallback;
+      }
+    }
+
+    return null;
+  }, [ticket.fecha, historyEntries]);
   const estimatedArrival = ticket.tiempo_estimado;
   const currentStatus = statusOverride ?? ticket.estado;
   const currentStatusLabel = formatTicketStatusLabel(currentStatus);
@@ -106,7 +78,7 @@ const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({
   const metaItems = [
     {
       label: 'Creado el',
-      value: createdAtLabel,
+      value: createdAtLabel ?? '—',
       icon: CalendarClock,
       valueClassName: 'text-foreground',
     },
@@ -305,6 +277,12 @@ const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({
                 hideTitle
                 heightClassName="h-[160px] sm:h-[180px]"
                 showAddressHint={false}
+                status={currentStatus}
+                history={historyEntries}
+                createdAtLabel={createdAtLabel ?? undefined}
+                lastUpdatedLabel={lastUpdatedLabel}
+                estimatedTime={estimatedArrival}
+                currentStatusLabel={currentStatusLabel}
               />
             </div>
           )}
