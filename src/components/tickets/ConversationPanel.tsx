@@ -252,10 +252,10 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
 
   if (!selectedTicket) {
     return (
-      <div className="flex h-full flex-col items-center justify-center bg-background p-4 text-center">
-        <MessageSquare className="w-16 h-16 text-muted-foreground mb-4" />
-        <h2 className="text-xl font-semibold">Selecciona un ticket</h2>
-        <p className="text-muted-foreground">Elige un ticket de la lista para ver la conversación.</p>
+      <div className="flex h-full flex-col items-center justify-center bg-muted/20 p-4 text-center">
+        <img src="/chatboc_logo_clean_transparent.png" alt="Chatboc Logo" className="w-24 h-24 mb-4" />
+        <h2 className="text-2xl font-bold text-foreground">Bienvenido al Panel de Tickets</h2>
+        <p className="text-lg text-muted-foreground">Selecciona un ticket de la lista para comenzar a trabajar.</p>
       </div>
     );
   }
@@ -343,6 +343,16 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
+          {showDetailsToggle && (
+            <Button
+              variant={isDetailsVisible ? 'secondary' : 'ghost'}
+              size="icon"
+              onClick={onToggleDetails}
+              aria-label={isDetailsVisible ? 'Ocultar detalles' : 'Mostrar detalles'}
+            >
+              <Info className="h-5 w-5" />
+            </Button>
+          )}
         </div>
       </header>
 

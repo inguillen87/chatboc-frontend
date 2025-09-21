@@ -21,10 +21,13 @@ interface SidebarProps {
   onTicketSelected?: () => void;
 }
 
+const ITEMS_PER_PAGE = 10;
+
 const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
   const { tickets, ticketsByCategory, selectedTicket, selectTicket } = useTickets();
   const [searchTerm, setSearchTerm] = React.useState('');
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
+  const [visibleCounts, setVisibleCounts] = React.useState<{ [key: string]: number }>({});
 
   const filteredTicketsByCategory = React.useMemo(() => {
     if (!debouncedSearchTerm) {
@@ -59,6 +62,21 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
     }
     return filtered;
   }, [ticketsByCategory, debouncedSearchTerm]);
+
+  React.useEffect(() => {
+    const newVisibleCounts: { [key: string]: number } = {};
+    for (const category in filteredTicketsByCategory) {
+      newVisibleCounts[category] = ITEMS_PER_PAGE;
+    }
+    setVisibleCounts(newVisibleCounts);
+  }, [filteredTicketsByCategory]);
+
+  const handleLoadMore = (category: string) => {
+    setVisibleCounts((prev) => ({
+      ...prev,
+      [category]: (prev[category] || ITEMS_PER_PAGE) + ITEMS_PER_PAGE,
+    }));
+  };
 
   return (
     <aside
@@ -109,7 +127,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
               </AccordionTrigger>
               <AccordionContent>
                 <div className="p-1 space-y-2">
-                  {tickets.map((ticket) => (
+                  {tickets.slice(0, visibleCounts[category] || ITEMS_PER_PAGE).map((ticket) => (
                     <TicketListItem
                       key={ticket.id}
                       ticket={ticket}
@@ -120,6 +138,17 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
                       }}
                     />
                   ))}
+                  {(visibleCounts[category] || ITEMS_PER_PAGE) < tickets.length && (
+                    <div className="p-2">
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => handleLoadMore(category)}
+                      >
+                        Cargar más
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </AccordionContent>
             </AccordionItem>
