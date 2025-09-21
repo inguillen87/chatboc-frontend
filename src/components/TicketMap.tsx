@@ -1,6 +1,14 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 import { pickFirstCoordinate } from '@/utils/location';
+import type { TicketHistoryEvent } from '@/types/tickets';
+import {
+  ALLOWED_TICKET_STATUSES,
+  AllowedTicketStatus,
+  formatTicketStatusLabel,
+  normalizeTicketStatus,
+} from '@/utils/ticketStatus';
+import { formatHistoryDate, pickHistoryDate } from '@/utils/ticketHistory';
 
 export interface TicketLocation {
   latitud?: number | null;
@@ -58,6 +66,48 @@ export const buildFullAddress = (ticket: TicketLocation) => {
   }
 
   return parts.join(', ');
+};
+
+const pickFirstNonEmptyString = (
+  ...values: Array<string | null | undefined>
+) => {
+  for (const value of values) {
+    if (typeof value !== 'string') {
+      continue;
+    }
+
+    const trimmed = value.trim();
+
+    if (trimmed) {
+      return trimmed;
+    }
+  }
+
+  return null;
+};
+
+const formatCoordinatePair = (
+  lat?: number,
+  lon?: number,
+): string | null => {
+  if (
+    typeof lat !== 'number' ||
+    Number.isNaN(lat) ||
+    typeof lon !== 'number' ||
+    Number.isNaN(lon)
+  ) {
+    return null;
+  }
+
+  const latFixed = lat.toFixed(5);
+  const lonFixed = lon.toFixed(5);
+  return `${latFixed}, ${lonFixed}`;
+};
+
+type TimelineItem = {
+  status: AllowedTicketStatus;
+  label: string;
+  timestamp: string | null;
 };
 
 interface TicketMapProps {
@@ -131,6 +181,149 @@ const TicketMap: React.FC<TicketMapProps> = ({
     [googleSrc, osmSrc],
   );
   const [src, setSrc] = React.useState(initialSrc);
+
+  const originCoordinatesLabel = React.useMemo(
+    () => formatCoordinatePair(originLat, originLon),
+    [originLat, originLon],
+  );
+
+  const destinationCoordinatesLabel = React.useMemo(
+    () => formatCoordinatePair(destLat, destLon),
+    [destLat, destLon],
+  );
+
+  const originLabel = React.useMemo(() => {
+    const candidate = pickFirstNonEmptyString(ticket.municipio_nombre);
+    if (candidate) {
+      return candidate;
+    }
+
+    if (originCoordinatesLabel) {
+      return originCoordinatesLabel;
+    }
+
+    return '—';
+  }, [ticket.municipio_nombre, originCoordinatesLabel]);
+
+  const destinationLabel = React.useMemo(() => {
+    if (direccionCompleta) {
+      return direccionCompleta;
+    }
+
+    if (destinationCoordinatesLabel) {
+      return destinationCoordinatesLabel;
+    }
+
+    return '—';
+  }, [direccionCompleta, destinationCoordinatesLabel]);
+
+  const historyTimeline = React.useMemo(() => {
+    if (!Array.isArray(history)) {
+      return [] as TimelineItem[];
+    }
+
+    return history
+      .map((entry) => {
+        const normalized = normalizeTicketStatus(entry?.status);
+        if (!normalized) {
+          return null;
+        }
+
+        const timestamp = formatHistoryDate(pickHistoryDate(entry));
+
+        const timelineItem: TimelineItem = {
+          status: normalized,
+          label: formatTicketStatusLabel(normalized),
+          timestamp,
+        };
+
+        return timelineItem;
+      })
+      .filter((item): item is TimelineItem => Boolean(item));
+  }, [history]);
+
+  const historyStatuses = React.useMemo(
+    () => historyTimeline.map((item) => item.status),
+    [historyTimeline],
+  );
+
+  const highestHistoryIndex = React.useMemo(
+    () =>
+      historyStatuses.reduce((acc, value) => {
+        const idx = ALLOWED_TICKET_STATUSES.indexOf(value);
+        return idx > acc ? idx : acc;
+      }, -1),
+    [historyStatuses],
+  );
+
+  const currentStatusNormalized = React.useMemo(() => {
+    const normalized = normalizeTicketStatus(status);
+    if (normalized) {
+      return normalized;
+    }
+
+    return historyStatuses[historyStatuses.length - 1] ?? null;
+  }, [status, historyStatuses]);
+
+  const effectiveIndex = React.useMemo(() => {
+    if (!currentStatusNormalized) {
+      return -1;
+    }
+
+    return ALLOWED_TICKET_STATUSES.indexOf(currentStatusNormalized);
+  }, [currentStatusNormalized]);
+
+  const resolvedIndex =
+    effectiveIndex === -1 ? highestHistoryIndex : effectiveIndex;
+
+  const progressPercentage = React.useMemo(() => {
+    if (resolvedIndex < 0) {
+      return 0;
+    }
+
+    if (ALLOWED_TICKET_STATUSES.length <= 1) {
+      return 100;
+    }
+
+    const raw =
+      (resolvedIndex / (ALLOWED_TICKET_STATUSES.length - 1)) * 100;
+    return Math.min(100, Math.max(0, raw));
+  }, [resolvedIndex]);
+
+  const resolvedStatusLabel = React.useMemo(() => {
+    if (currentStatusLabel) {
+      return currentStatusLabel;
+    }
+
+    if (currentStatusNormalized) {
+      return formatTicketStatusLabel(currentStatusNormalized);
+    }
+
+    return null;
+  }, [currentStatusLabel, currentStatusNormalized]);
+
+  const statusTimeline = React.useMemo(() => {
+    const seen = new Set<AllowedTicketStatus>();
+    const timeline: TimelineItem[] = [];
+
+    historyTimeline.forEach((item) => {
+      if (seen.has(item.status)) {
+        return;
+      }
+      seen.add(item.status);
+      timeline.push(item);
+    });
+
+    if (currentStatusNormalized && !seen.has(currentStatusNormalized)) {
+      timeline.push({
+        status: currentStatusNormalized,
+        label: formatTicketStatusLabel(currentStatusNormalized),
+        timestamp: null,
+      });
+    }
+
+    return timeline;
+  }, [historyTimeline, currentStatusNormalized]);
 
   React.useEffect(() => {
     setSrc(initialSrc);
