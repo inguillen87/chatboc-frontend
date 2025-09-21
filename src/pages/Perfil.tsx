@@ -58,8 +58,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
-import { getTicketStats } from "@/services/statsService";
-import AnalyticsHeatmap from "@/components/analytics/Heatmap";
+import MapLibreMap from "@/components/MapLibreMap";
+import TicketStatsCharts from "@/components/TicketStatsCharts";
 import { useNavigate } from "react-router-dom";
 import QuickLinksCard from "@/components/QuickLinksCard";
 import MiniChatWidgetPreview from "@/components/ui/MiniChatWidgetPreview"; // Importar el nuevo componente
@@ -71,7 +71,7 @@ import { toLocalISOString } from "@/utils/fecha";
 import { suggestMappings, SystemField, DEFAULT_SYSTEM_FIELDS } from "@/utils/columnMatcher";
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
-import { TicketStatsResponse, HeatPoint } from "@/services/statsService";
+import { getTicketStats, TicketStatsResponse, HeatPoint } from "@/services/statsService";
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 
@@ -295,11 +295,16 @@ export default function Perfil() {
       imageUrl: values.imageUrl || '',
     });
   };
-
-  const [heatmapData, setHeatmapData] = useState<HeatPoint[]>([]);
+  const [ticketLocations, setTicketLocations] = useState<HeatPoint[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [selectedBarrios, setSelectedBarrios] = useState<string[]>([]);
+  const [selectedTipos, setSelectedTipos] = useState<string[]>([]);
   const [availableCategories, setAvailableCategories] = useState<string[]>([]);
   const [availableBarrios, setAvailableBarrios] = useState<string[]>([]);
   const [availableTipos, setAvailableTipos] = useState<string[]>([]);
+  const [heatmapData, setHeatmapData] = useState<HeatPoint[]>([]);
+  const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number } | null>(null);
+  const [charts, setCharts] = useState<TicketStatsResponse['charts']>([]);
 
   const municipalityCoords =
     typeof perfil.latitud === "number" &&
@@ -394,34 +399,34 @@ export default function Perfil() {
     }
   }, [navigate, refreshUser]); // Añadir navigate y refreshUser a las dependencias
 
-  const fetchMapData = useCallback(async () => {
+  const fetchStats = useCallback(async () => {
     try {
       const tipo = getCurrentTipoChat();
       const stats = await getTicketStats({ tipo });
       const points = stats.heatmap || [];
-      setHeatmapData(points);
-
+      setTicketLocations(points);
+      setCharts(stats.charts || []);
       const barrios = Array.from(new Set(points.map((d) => d.barrio).filter(Boolean))) as string[];
       setAvailableBarrios(barrios);
-
       const tipos = Array.from(new Set(points.map((d) => d.tipo_ticket).filter(Boolean))) as string[];
       setAvailableTipos(tipos);
-
-      const categoryData = await apiFetch<{ categorias: { id: number; nombre: string }[] }>('/municipal/categorias');
-      setAvailableCategories(
-        Array.isArray(categoryData.categorias) ? categoryData.categorias.map((c) => c.nombre) : []
-      );
-
     } catch (error) {
-      console.error("Error fetching map data:", error);
-      toast({
-        variant: "destructive",
-        title: "Error al cargar datos del mapa",
-        description: getErrorMessage(error),
-      });
+      console.error("Error fetching ticket stats:", error);
     }
   }, []);
 
+  const fetchCategories = useCallback(async () => {
+    try {
+      const data = await apiFetch<{ categorias: { id: number; nombre: string }[] }>(
+        '/municipal/categorias'
+      );
+      setAvailableCategories(
+        Array.isArray(data.categorias) ? data.categorias.map((c) => c.nombre) : []
+      );
+    } catch (error) {
+      console.error('Error fetching ticket categories:', error);
+    }
+  }, []);
 
   useEffect(() => {
     const token = safeLocalStorage.getItem("authToken");
@@ -431,9 +436,40 @@ export default function Perfil() {
     }
     (async () => {
       await fetchPerfil();
-      await fetchMapData();
+      await fetchStats();
+      await fetchCategories();
     })();
-  }, [fetchPerfil, fetchMapData, navigate]);
+  }, [fetchPerfil, fetchStats, fetchCategories, navigate]);
+
+  useEffect(() => {
+    const filtered = ticketLocations.filter(
+      (t) =>
+        (selectedTipos.length === 0 ||
+          (t.tipo_ticket && selectedTipos.includes(t.tipo_ticket))) &&
+        (selectedCategories.length === 0 ||
+          (t.categoria && selectedCategories.includes(t.categoria))) &&
+        (selectedBarrios.length === 0 ||
+          (t.barrio && selectedBarrios.includes(t.barrio)))
+    );
+    const points = filtered.map(({ lat, lng, weight }) => ({
+      lat,
+      lng,
+      weight,
+    }));
+    setHeatmapData(points);
+    if (filtered.length > 0) {
+      const totalWeight = filtered.reduce((sum, t) => sum + (t.weight || 0), 0);
+      if (totalWeight > 0) {
+        const avgLat =
+          filtered.reduce((sum, t) => sum + t.lat * (t.weight || 0), 0) /
+          totalWeight;
+        const avgLng =
+          filtered.reduce((sum, t) => sum + t.lng * (t.weight || 0), 0) /
+          totalWeight;
+        setMapCenter({ lat: avgLat, lng: avgLng });
+      }
+    }
+  }, [ticketLocations, selectedTipos, selectedCategories, selectedBarrios]);
 
   // Función para cargar las configuraciones de mapeo
   const fetchMappingConfigs = useCallback(async () => {
@@ -1022,13 +1058,120 @@ export default function Perfil() {
               </form>
             </CardContent>
           </Card>
-          <AnalyticsHeatmap
-            initialHeatmapData={heatmapData}
-            adminLocation={municipalityCoords}
-            availableCategories={availableCategories}
-            availableBarrios={availableBarrios}
-            availableTipos={availableTipos}
-          />
+          {(ticketLocations.length > 0 || municipalityCoords) && (
+            <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm">
+              <CardHeader>
+                <CardTitle className="text-xl font-semibold text-primary">
+                  Mapa de calor de reclamos
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {availableTipos.length > 0 && (
+                  <div>
+                    <Label className="text-muted-foreground text-sm mb-1 block">
+                      Tipos de ticket
+                    </Label>
+                    <div className="flex flex-wrap gap-2">
+                      {availableTipos.map((tipo) => (
+                        <label
+                          key={tipo}
+                          className="flex items-center gap-1 text-xs text-foreground"
+                        >
+                          <Checkbox
+                            checked={selectedTipos.includes(tipo)}
+                            onCheckedChange={(checked) => {
+                              const isChecked = checked === true;
+                              setSelectedTipos((prev) =>
+                                isChecked
+                                  ? [...prev, tipo]
+                                  : prev.filter((t) => t !== tipo)
+                              );
+                            }}
+                          />
+                          {tipo}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {availableCategories.length > 0 && (
+                  <div>
+                    <Label className="text-muted-foreground text-sm mb-1 block">
+                      Categorías
+                    </Label>
+                    <div className="flex flex-wrap gap-2">
+                      {availableCategories.map((cat) => (
+                        <label
+                          key={cat}
+                          className="flex items-center gap-1 text-xs text-foreground"
+                        >
+                          <Checkbox
+                            checked={selectedCategories.includes(cat)}
+                            onCheckedChange={(checked) => {
+                              const isChecked = checked === true;
+                              setSelectedCategories((prev) =>
+                                isChecked
+                                  ? [...prev, cat]
+                                  : prev.filter((c) => c !== cat)
+                              );
+                            }}
+                          />
+                          {cat}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {availableBarrios.length > 0 && (
+                  <div>
+                    <Label className="text-muted-foreground text-sm mb-1 block">
+                      Barrios
+                    </Label>
+                    <div className="flex flex-wrap gap-2">
+                      {availableBarrios.map((barr) => (
+                        <label
+                          key={barr}
+                          className="flex items-center gap-1 text-xs text-foreground"
+                        >
+                          <Checkbox
+                            checked={selectedBarrios.includes(barr)}
+                            onCheckedChange={(checked) => {
+                              const isChecked = checked === true;
+                              setSelectedBarrios((prev) =>
+                                isChecked
+                                  ? [...prev, barr]
+                                  : prev.filter((b) => b !== barr)
+                              );
+                            }}
+                          />
+                          {barr}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {heatmapData.length > 0 || municipalityCoords ? (
+                  <MapLibreMap
+                    center={mapCenter ? [mapCenter.lng, mapCenter.lat] : municipalityCoords}
+                    heatmapData={heatmapData}
+                    marker={mapCenter ? [mapCenter.lng, mapCenter.lat] : municipalityCoords}
+                    adminLocation={municipalityCoords}
+                    onSelect={handleMapSelect}
+                    className="h-[600px]"
+                  />
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No hay datos de ubicación disponibles.
+                  </p>
+                )}
+                {charts.length > 0 && (
+                  <div className="mt-6">
+                    <TicketStatsCharts charts={charts} />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Columna Derecha: Plan, Catálogo, Integración */}

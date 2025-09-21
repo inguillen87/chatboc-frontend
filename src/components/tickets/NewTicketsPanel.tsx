@@ -233,22 +233,21 @@ const NewTicketsPanel: React.FC = () => {
         </div>
       ) : (
         <ResizablePanelGroup direction="horizontal" className="flex h-full w-full overflow-hidden">
-          {isSidebarVisible && (
-            <ResizablePanel
-              ref={sidebarPanelRef}
-              order={1}
-              defaultSize={25}
-              minSize={20}
-              maxSize={SIDEBAR_PANEL_MAX_SIZE}
-              collapsible
-              collapsedSize={0}
-              onCollapse={() => setIsSidebarVisible(false)}
-              className="min-w-[300px]"
-            >
-              <Sidebar className="h-full w-full shrink-0" />
-            </ResizablePanel>
-          )}
-          {isSidebarVisible && <ResizableHandle withHandle className="w-2 bg-border/60 transition-colors hover:bg-primary/50" />}
+          <ResizablePanel
+            ref={sidebarPanelRef}
+            order={1}
+            defaultSize={25}
+            minSize={20}
+            maxSize={SIDEBAR_PANEL_MAX_SIZE}
+            collapsible
+            collapsedSize={0}
+            onCollapse={() => setIsSidebarVisible(false)}
+            className={cn("min-w-[300px]", !isSidebarVisible && "hidden")}
+          >
+            <Sidebar className="h-full w-full shrink-0" />
+          </ResizablePanel>
+
+          <ResizableHandle withHandle className={cn("w-2 bg-border/60 transition-colors hover:bg-primary/50", !isSidebarVisible && "hidden")} />
 
           <ResizablePanel order={2} defaultSize={45} minSize={30}>
             <ConversationPanel
@@ -262,22 +261,21 @@ const NewTicketsPanel: React.FC = () => {
             />
           </ResizablePanel>
 
-          {isDetailsVisible && <ResizableHandle withHandle className="w-2 bg-border/60 transition-colors hover:bg-primary/50" />}
-          {isDetailsVisible && (
-            <ResizablePanel
-              ref={detailsPanelRef}
-              order={3}
-              defaultSize={30}
-              minSize={25}
-              maxSize={DETAILS_PANEL_MAX_SIZE}
-              collapsible
-              collapsedSize={0}
-              onCollapse={() => setIsDetailsVisible(false)}
-              className="min-w-[360px]"
-            >
-              <DetailsPanel className="h-full w-full" />
-            </ResizablePanel>
-          )}
+          <ResizableHandle withHandle className={cn("w-2 bg-border/60 transition-colors hover:bg-primary/50", !isDetailsVisible && "hidden")} />
+
+          <ResizablePanel
+            ref={detailsPanelRef}
+            order={3}
+            defaultSize={30}
+            minSize={25}
+            maxSize={DETAILS_PANEL_MAX_SIZE}
+            collapsible
+            collapsedSize={0}
+            onCollapse={() => setIsDetailsVisible(false)}
+            className={cn("min-w-[360px]", !isDetailsVisible && "hidden")}
+          >
+            <DetailsPanel className="h-full w-full" />
+          </ResizablePanel>
         </ResizablePanelGroup>
       )}
       <Toaster richColors />
