@@ -604,12 +604,14 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
       </header>
       <ScrollArea className="flex-1">
         <div className="space-y-4 p-4 pb-24 md:pb-6">
-          <TicketLogisticsSummary
-            ticket={locationTicket ?? ticket}
-            statusOverride={currentStatus}
-            historyOverride={timelineHistory}
-            onOpenMap={openGoogleMaps}
-          />
+          {locationTicket && (
+            <TicketLogisticsSummary
+              ticket={locationTicket}
+              statusOverride={currentStatus}
+              historyOverride={timelineHistory}
+              onOpenMap={openGoogleMaps}
+            />
+          )}
           <Card>
             <CardHeader className="p-4">
               <div className="flex items-start gap-4">
@@ -869,7 +871,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                         <button
                           type="button"
                           onClick={() => setIsImageModalOpen(true)}
-                          className="group relative aspect-video w-full overflow-hidden rounded-md border bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                          className="group relative h-32 w-auto overflow-hidden rounded-md border bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                           aria-label="Ampliar imagen del reclamo"
                         >
                           <img
