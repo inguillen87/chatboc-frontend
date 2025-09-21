@@ -2,6 +2,7 @@ import React from 'react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import {
   Mail,
@@ -602,7 +603,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
         </DropdownMenu>
       </header>
       <ScrollArea className="flex-1">
-        <div className="p-4 space-y-4 pb-24 md:pb-6">
+        <div className="space-y-4 p-4 pb-24 md:pb-6">
           <TicketLogisticsSummary
             ticket={locationTicket ?? ticket}
             statusOverride={currentStatus}
@@ -619,8 +620,8 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                 <div className="min-w-0 flex-1">
                   <h2
                     className={cn(
-                      "text-lg font-semibold break-words",
-                      !displayName && "text-muted-foreground"
+                      'break-words text-lg font-semibold',
+                      !displayName && 'text-muted-foreground',
                     )}
                   >
                     {displayName || 'No especificado'}
@@ -629,268 +630,315 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="p-4 space-y-3 text-sm border-t">
-              <h4 className="font-semibold mb-2">Información Personal del Vecino</h4>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="flex items-start gap-3 rounded-lg border border-border/60 bg-background/70 p-3 shadow-sm">
-                  <User className="mt-1 h-4 w-4 flex-shrink-0 text-primary" />
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Nombre</p>
-                    <p
-                      className={cn(
-                        'break-words text-sm leading-snug',
-                        personal.nombre ? 'font-medium text-foreground' : 'text-muted-foreground'
-                      )}
-                    >
-                      {personal.nombre || 'No especificado'}
-                    </p>
-                  </div>
-                  {personal.nombre && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="ml-auto h-8 w-8 shrink-0 text-muted-foreground transition hover:text-foreground"
-                      onClick={() => copyToClipboard(personal.nombre, 'Nombre')}
-                      aria-label="Copiar nombre"
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-                <div className="flex items-start gap-3 rounded-lg border border-border/60 bg-background/70 p-3 shadow-sm">
-                  <Info className="mt-1 h-4 w-4 flex-shrink-0 text-primary" />
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">DNI</p>
-                    <p
-                      className={cn(
-                        'break-words text-sm leading-snug',
-                        personal.dni ? 'font-medium text-foreground' : 'text-muted-foreground'
-                      )}
-                    >
-                      {personal.dni || 'No especificado'}
-                    </p>
-                  </div>
-                  {personal.dni && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="ml-auto h-8 w-8 shrink-0 text-muted-foreground transition hover:text-foreground"
-                      onClick={() => copyToClipboard(personal.dni, 'DNI')}
-                      aria-label="Copiar DNI"
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-                <div className="flex items-start gap-3 rounded-lg border border-border/60 bg-background/70 p-3 shadow-sm sm:col-span-2">
-                  <Mail className="mt-1 h-4 w-4 flex-shrink-0 text-primary" />
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Email</p>
-                    {personal.email ? (
-                      <a
-                        href={emailHref}
-                        className="break-all text-sm font-medium text-foreground hover:underline"
-                      >
-                        {personal.email}
-                      </a>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">No especificado</p>
-                    )}
-                  </div>
-                  {personal.email && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="ml-auto h-8 w-8 shrink-0 text-muted-foreground transition hover:text-foreground"
-                      onClick={() => copyToClipboard(personal.email, 'Email')}
-                      aria-label="Copiar email"
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-                <div className="flex items-start gap-3 rounded-lg border border-border/60 bg-background/70 p-3 shadow-sm">
-                  <FaWhatsapp className="mt-1 h-4 w-4 flex-shrink-0 text-green-500" />
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Teléfono</p>
-                    {personal.telefono ? (
-                      <a
-                        href={phoneHref}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="break-all text-sm font-medium text-foreground hover:underline"
-                      >
-                        {personal.telefono}
-                      </a>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">No especificado</p>
-                    )}
-                  </div>
-                  {personal.telefono && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="ml-auto h-8 w-8 shrink-0 text-muted-foreground transition hover:text-foreground"
-                      onClick={() => copyToClipboard(personal.telefono, 'Teléfono')}
-                      aria-label="Copiar teléfono"
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-                <div className="flex items-start gap-3 rounded-lg border border-border/60 bg-background/70 p-3 shadow-sm sm:col-span-2">
-                  <MapPin className="mt-1 h-4 w-4 flex-shrink-0 text-primary" />
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Dirección</p>
-                    <p
-                      className={cn(
-                        'break-words text-sm leading-snug',
-                        personal.direccion ? 'font-medium text-foreground' : 'text-muted-foreground'
-                      )}
-                    >
-                      {personal.direccion || 'No especificado'}
-                    </p>
-                  </div>
-                  {personal.direccion && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="ml-auto h-8 w-8 shrink-0 text-muted-foreground transition hover:text-foreground"
-                      onClick={() => copyToClipboard(personal.direccion, 'Dirección')}
-                      aria-label="Copiar dirección"
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </CardContent>
+          </Card>
 
-            {attachments.length > 0 && <TicketAttachments attachments={attachments} />}
-
-            {primaryImageUrl && (
-              <CardContent className="p-4 text-sm border-t space-y-3">
-                <h4 className="font-semibold">Imagen del reclamo</h4>
-                {imageError ? (
-                  <div className="rounded-md border bg-muted/50 p-4 text-muted-foreground">
-                    No se pudo cargar la imagen proporcionada.
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setIsImageModalOpen(true)}
-                    className="group relative aspect-video w-full overflow-hidden rounded-md border bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                    aria-label="Ampliar imagen del reclamo"
-                  >
-                    <img
-                      src={primaryImageUrl}
-                      alt="Foto enviada en el reclamo"
-                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                      loading="lazy"
-                      onError={() => {
-                        setImageError(true);
-                        setIsImageModalOpen(false);
-                      }}
-                    />
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/20">
-                      <Maximize2 className="h-6 w-6 text-white opacity-0 transition-opacity group-hover:opacity-100" />
+          <Accordion
+            type="multiple"
+            defaultValue={['info-personal', 'info-ticket']}
+            className="w-full"
+          >
+            <AccordionItem value="info-personal">
+              <AccordionTrigger className="text-base font-semibold">
+                Información Personal
+              </AccordionTrigger>
+              <AccordionContent className="pt-2">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="flex items-start gap-3 rounded-lg border border-border/60 bg-background/70 p-3 shadow-sm">
+                    <User className="mt-1 h-4 w-4 flex-shrink-0 text-primary" />
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Nombre
+                      </p>
+                      <p
+                        className={cn(
+                          'break-words text-sm leading-snug',
+                          personal.nombre
+                            ? 'font-medium text-foreground'
+                            : 'text-muted-foreground',
+                        )}
+                      >
+                        {personal.nombre || 'No especificado'}
+                      </p>
                     </div>
-                  </button>
-                )}
-                {renderSpecialContact(true)}
-              </CardContent>
-            )}
-
-            {!primaryImageUrl && specialContact && (
-              <CardContent className="p-4 text-sm border-t space-y-1">
-                <h4 className="font-semibold">Contacto sugerido</h4>
-                {renderSpecialContact()}
-              </CardContent>
-            )}
-
-            {isImageModalOpen && primaryImageUrl && !imageError && (
-              <div
-                className="fixed inset-0 z-50 bg-black/70 p-4 flex items-center justify-center"
-                onClick={() => setIsImageModalOpen(false)}
-                role="dialog"
-                aria-modal="true"
-              >
-                <div className="relative" onClick={(event) => event.stopPropagation()}>
-                  <img
-                    src={primaryImageUrl}
-                    alt="Foto ampliada del reclamo"
-                    className="max-h-[90vh] max-w-[90vw] rounded-lg shadow-2xl"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setIsImageModalOpen(false)}
-                    className="absolute top-2 right-2 rounded-full bg-black/60 p-1 text-white transition hover:bg-black/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                    aria-label="Cerrar imagen ampliada"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <CardContent className="p-4 space-y-3 text-sm border-t">
-                <h4 className="font-semibold mb-2">Detalles del Ticket</h4>
-                <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground">ID:</span>
-                    <span className="font-mono text-xs">{ticket.nro_ticket || 'N/A'}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground">Estado:</span>
-                    <Badge variant="outline" className="capitalize">{currentStatusLabel}</Badge>
-                </div>
-                <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground">Canal:</span>
-                    <span
-                      className={cn(
-                        'font-medium',
-                        channelLabel === 'N/A'
-                          ? 'uppercase tracking-wide text-muted-foreground'
-                          : 'capitalize text-foreground'
+                    {personal.nombre && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="ml-auto h-8 w-8 shrink-0 text-muted-foreground transition hover:text-foreground"
+                        onClick={() => copyToClipboard(personal.nombre, 'Nombre')}
+                        aria-label="Copiar nombre"
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                  <div className="flex items-start gap-3 rounded-lg border border-border/60 bg-background/70 p-3 shadow-sm">
+                    <Info className="mt-1 h-4 w-4 flex-shrink-0 text-primary" />
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">DNI</p>
+                      <p
+                        className={cn(
+                          'break-words text-sm leading-snug',
+                          personal.dni ? 'font-medium text-foreground' : 'text-muted-foreground',
+                        )}
+                      >
+                        {personal.dni || 'No especificado'}
+                      </p>
+                    </div>
+                    {personal.dni && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="ml-auto h-8 w-8 shrink-0 text-muted-foreground transition hover:text-foreground"
+                        onClick={() => copyToClipboard(personal.dni, 'DNI')}
+                        aria-label="Copiar DNI"
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                  <div className="flex items-start gap-3 rounded-lg border border-border/60 bg-background/70 p-3 shadow-sm sm:col-span-2">
+                    <Mail className="mt-1 h-4 w-4 flex-shrink-0 text-primary" />
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Email
+                      </p>
+                      {personal.email ? (
+                        <a
+                          href={emailHref}
+                          className="break-all text-sm font-medium text-foreground hover:underline"
+                        >
+                          {personal.email}
+                        </a>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">No especificado</p>
                       )}
-                    >
-                      {channelLabel}
-                    </span>
+                    </div>
+                    {personal.email && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="ml-auto h-8 w-8 shrink-0 text-muted-foreground transition hover:text-foreground"
+                        onClick={() => copyToClipboard(personal.email, 'Email')}
+                        aria-label="Copiar email"
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                  <div className="flex items-start gap-3 rounded-lg border border-border/60 bg-background/70 p-3 shadow-sm">
+                    <FaWhatsapp className="mt-1 h-4 w-4 flex-shrink-0 text-green-500" />
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Teléfono
+                      </p>
+                      {personal.telefono ? (
+                        <a
+                          href={phoneHref}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="break-all text-sm font-medium text-foreground hover:underline"
+                        >
+                          {personal.telefono}
+                        </a>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">No especificado</p>
+                      )}
+                    </div>
+                    {personal.telefono && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="ml-auto h-8 w-8 shrink-0 text-muted-foreground transition hover:text-foreground"
+                        onClick={() => copyToClipboard(personal.telefono, 'Teléfono')}
+                        aria-label="Copiar teléfono"
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                  <div className="flex items-start gap-3 rounded-lg border border-border/60 bg-background/70 p-3 shadow-sm sm:col-span-2">
+                    <MapPin className="mt-1 h-4 w-4 flex-shrink-0 text-primary" />
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Dirección
+                      </p>
+                      <p
+                        className={cn(
+                          'break-words text-sm leading-snug',
+                          personal.direccion
+                            ? 'font-medium text-foreground'
+                            : 'text-muted-foreground',
+                        )}
+                      >
+                        {personal.direccion || 'No especificado'}
+                      </p>
+                    </div>
+                    {personal.direccion && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="ml-auto h-8 w-8 shrink-0 text-muted-foreground transition hover:text-foreground"
+                        onClick={() => copyToClipboard(personal.direccion, 'Dirección')}
+                        aria-label="Copiar dirección"
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
-                <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground">Creado:</span>
-                    <span>{formatDate(ticket.fecha)}</span>
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="info-ticket">
+              <AccordionTrigger className="text-base font-semibold">
+                Detalles del Ticket
+              </AccordionTrigger>
+              <AccordionContent className="space-y-3 pt-2 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">ID:</span>
+                  <span className="font-mono text-xs">{ticket.nro_ticket || 'N/A'}</span>
                 </div>
-                 <div className="space-y-1">
-                    <span className="text-muted-foreground">Categoría:</span>
-                    <p className="font-medium">{ticket.categoria || 'No informada'}</p>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Estado:</span>
+                  <Badge variant="outline" className="capitalize">
+                    {currentStatusLabel}
+                  </Badge>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Canal:</span>
+                  <span
+                    className={cn(
+                      'font-medium',
+                      channelLabel === 'N/A'
+                        ? 'uppercase tracking-wide text-muted-foreground'
+                        : 'capitalize text-foreground',
+                    )}
+                  >
+                    {channelLabel}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Creado:</span>
+                  <span>{formatDate(ticket.fecha)}</span>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-muted-foreground">Categoría:</span>
+                  <p className="font-medium">{ticket.categoria || 'No informada'}</p>
                 </div>
                 {(ticket.description || ticket.detalles) && (
                   <div className="space-y-1">
                     <span className="text-muted-foreground">Descripción:</span>
-                    {(ticket.description || ticket.detalles || '—').split('\n').map((line, index) => (
-                      <p key={index} className="text-sm break-words text-justify">
-                        {line}
-                      </p>
-                    ))}
+                    {(ticket.description || ticket.detalles || '—')
+                      .split('\n')
+                      .map((line, index) => (
+                        <p key={index} className="break-words text-justify text-sm">
+                          {line}
+                        </p>
+                      ))}
                   </div>
                 )}
-            </CardContent>
-            {ticket.assignedAgent && (
-                <CardContent className="p-4 border-t">
-                    <h4 className="font-semibold mb-2">Agente Asignado</h4>
-                     <div className="flex items-center gap-3">
-                        <User className="h-4 w-4 text-muted-foreground" />
-                        <span>{ticket.assignedAgent.nombre_usuario}</span>
-                     </div>
-                </CardContent>
+                 {ticket.assignedAgent && (
+                    <div className="space-y-2 pt-2">
+                        <h4 className="font-semibold">Agente Asignado</h4>
+                        <div className="flex items-center gap-3">
+                            <User className="h-4 w-4 text-muted-foreground" />
+                            <span>{ticket.assignedAgent.nombre_usuario}</span>
+                        </div>
+                    </div>
+                )}
+              </AccordionContent>
+            </AccordionItem>
+
+            {(attachments.length > 0 || primaryImageUrl) && (
+              <AccordionItem value="archivos">
+                <AccordionTrigger className="text-base font-semibold">
+                  Archivos Adjuntos
+                </AccordionTrigger>
+                <AccordionContent className="space-y-4 pt-2">
+                  {attachments.length > 0 && <TicketAttachments attachments={attachments} />}
+
+                  {primaryImageUrl && (
+                    <div className="space-y-3 text-sm">
+                      <h4 className="font-semibold">Imagen del reclamo</h4>
+                      {imageError ? (
+                        <div className="rounded-md border bg-muted/50 p-4 text-muted-foreground">
+                          No se pudo cargar la imagen proporcionada.
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setIsImageModalOpen(true)}
+                          className="group relative aspect-video w-full overflow-hidden rounded-md border bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                          aria-label="Ampliar imagen del reclamo"
+                        >
+                          <img
+                            src={primaryImageUrl}
+                            alt="Foto enviada en el reclamo"
+                            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                            loading="lazy"
+                            onError={() => {
+                              setImageError(true);
+                              setIsImageModalOpen(false);
+                            }}
+                          />
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/20">
+                            <Maximize2 className="h-6 w-6 text-white opacity-0 transition-opacity group-hover:opacity-100" />
+                          </div>
+                        </button>
+                      )}
+                      {renderSpecialContact(true)}
+                    </div>
+                  )}
+
+                  {!primaryImageUrl && specialContact && (
+                    <div className="space-y-1 text-sm">
+                      <h4 className="font-semibold">Contacto sugerido</h4>
+                      {renderSpecialContact()}
+                    </div>
+                  )}
+                </AccordionContent>
+              </AccordionItem>
             )}
 
-            <CardContent className="p-4 border-t">
-                <h4 className="font-semibold mb-2">Historial del Ticket</h4>
-                <TicketTimeline history={timelineHistory} messages={timelineMessages} ticket={ticket} />
-            </CardContent>
+            <AccordionItem value="historial">
+              <AccordionTrigger className="text-base font-semibold">
+                Historial del Ticket
+              </AccordionTrigger>
+              <AccordionContent>
+                <TicketTimeline
+                  history={timelineHistory}
+                  messages={timelineMessages}
+                  ticket={ticket}
+                />
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
 
-          </Card>
+          {isImageModalOpen && primaryImageUrl && !imageError && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+              onClick={() => setIsImageModalOpen(false)}
+              role="dialog"
+              aria-modal="true"
+            >
+              <div className="relative" onClick={(event) => event.stopPropagation()}>
+                <img
+                  src={primaryImageUrl}
+                  alt="Foto ampliada del reclamo"
+                  className="max-h-[90vh] max-w-[90vw] rounded-lg shadow-2xl"
+                />
+                <button
+                  type="button"
+                  onClick={() => setIsImageModalOpen(false)}
+                  className="absolute right-2 top-2 rounded-full bg-black/60 p-1 text-white transition hover:bg-black/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                  aria-label="Cerrar imagen ampliada"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </ScrollArea>
     </motion.aside>

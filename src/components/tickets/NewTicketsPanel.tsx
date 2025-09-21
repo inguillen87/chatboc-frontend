@@ -21,12 +21,16 @@ const NewTicketsPanel: React.FC = () => {
   const [mobileView, setMobileView] = React.useState<'tickets' | 'chat' | 'details'>('tickets');
 
   // Desktop-specific state
+  const [isSidebarVisible, setIsSidebarVisible] = React.useState(!isMobile);
   const [isDetailsVisible, setIsDetailsVisible] = React.useState(!isMobile);
 
+  const sidebarPanelRef = React.useRef<ImperativePanelHandle | null>(null);
   const detailsPanelRef = React.useRef<ImperativePanelHandle | null>(null);
+  const lastSidebarSize = React.useRef<number | null>(null);
   const lastDetailsSize = React.useRef<number | null>(null);
   const lastMobileTicketId = React.useRef<string | number | null>(null);
   const DETAILS_PANEL_MAX_SIZE = 72;
+  const SIDEBAR_PANEL_MAX_SIZE = 40;
 
   // Sync mobile view with ticket selection
   React.useEffect(() => {
@@ -46,47 +50,57 @@ const NewTicketsPanel: React.FC = () => {
   const isDetailsVisibleOnMobile = isMobile && mobileView === 'details';
   const isChatVisibleOnMobile = isMobile && (mobileView === 'chat' || !selectedTicket);
 
+  // Effect for sidebar panel
   React.useEffect(() => {
-    if (isMobile) {
-      return;
+    if (isMobile) return;
+
+    const panel = sidebarPanelRef.current;
+    if (!panel) return;
+
+    if (lastSidebarSize.current === null) {
+      const currentSize = panel.getSize();
+      if (currentSize > 0) {
+        lastSidebarSize.current = Math.min(currentSize, SIDEBAR_PANEL_MAX_SIZE);
+      }
     }
+
+    if (isSidebarVisible) {
+      if (panel.isCollapsed()) {
+        const sizeToApply = lastSidebarSize.current ?? undefined;
+        panel.expand(sizeToApply);
+      }
+    } else {
+      if (!panel.isCollapsed()) {
+        lastSidebarSize.current = Math.min(panel.getSize(), SIDEBAR_PANEL_MAX_SIZE);
+        panel.collapse();
+      }
+    }
+  }, [isSidebarVisible, isMobile]);
+
+  // Effect for details panel
+  React.useEffect(() => {
+    if (isMobile) return;
 
     const panel = detailsPanelRef.current;
-
-    if (!panel) {
-      return;
-    }
+    if (!panel) return;
 
     if (lastDetailsSize.current === null) {
       const currentSize = panel.getSize();
-
       if (currentSize > 0) {
         lastDetailsSize.current = Math.min(currentSize, DETAILS_PANEL_MAX_SIZE);
       }
     }
 
     if (isDetailsVisible) {
-      const storedSize = lastDetailsSize.current;
-
       if (panel.isCollapsed()) {
-        const sizeToApply =
-          typeof storedSize === 'number' && storedSize > 0
-            ? Math.min(storedSize, DETAILS_PANEL_MAX_SIZE)
-            : undefined;
+        const sizeToApply = lastDetailsSize.current ?? undefined;
         panel.expand(sizeToApply);
       }
-
-      if (typeof storedSize === 'number' && storedSize > 0) {
-        const targetSize = Math.min(storedSize, DETAILS_PANEL_MAX_SIZE);
-        const currentSize = panel.getSize();
-
-        if (Math.abs(currentSize - targetSize) > 0.5) {
-          panel.resize(targetSize);
-        }
+    } else {
+      if (!panel.isCollapsed()) {
+        lastDetailsSize.current = Math.min(panel.getSize(), DETAILS_PANEL_MAX_SIZE);
+        panel.collapse();
       }
-    } else if (!panel.isCollapsed()) {
-      lastDetailsSize.current = Math.min(panel.getSize(), DETAILS_PANEL_MAX_SIZE);
-      panel.collapse();
     }
   }, [isDetailsVisible, isMobile]);
 
@@ -243,35 +257,43 @@ const NewTicketsPanel: React.FC = () => {
         </div>
       ) : (
         <ResizablePanelGroup direction="horizontal" className="flex h-full w-full overflow-hidden">
-          <ResizablePanel
-            defaultSize={25}
-            minSize={20}
-            maxSize={40}
-            className="min-w-[300px]"
-          >
-            <Sidebar className="h-full w-full shrink-0" />
-          </ResizablePanel>
-          <ResizableHandle withHandle className="w-2 bg-border/60 transition-colors hover:bg-primary/50" />
-          <ResizablePanel
-            defaultSize={45}
-            minSize={30}
-          >
+          {isSidebarVisible && (
+            <ResizablePanel
+              ref={sidebarPanelRef}
+              order={1}
+              defaultSize={25}
+              minSize={20}
+              maxSize={SIDEBAR_PANEL_MAX_SIZE}
+              collapsible
+              collapsedSize={0}
+              onCollapse={() => setIsSidebarVisible(false)}
+              className="min-w-[300px]"
+            >
+              <Sidebar className="h-full w-full shrink-0" />
+            </ResizablePanel>
+          )}
+          {isSidebarVisible && <ResizableHandle withHandle className="w-2 bg-border/60 transition-colors hover:bg-primary/50" />}
+
+          <ResizablePanel order={2} defaultSize={45} minSize={30}>
             <ConversationPanel
               isMobile={false}
-              isSidebarVisible={true}
+              isSidebarVisible={isSidebarVisible}
               isDetailsVisible={isDetailsVisible}
-              onToggleSidebar={() => {}} // No-op on desktop
+              onToggleSidebar={() => setIsSidebarVisible((prev) => !prev)}
               onToggleDetails={() => setIsDetailsVisible((prev) => !prev)}
+              canToggleSidebar
               showDetailsToggle
             />
           </ResizablePanel>
+
           {isDetailsVisible && <ResizableHandle withHandle className="w-2 bg-border/60 transition-colors hover:bg-primary/50" />}
           {isDetailsVisible && (
             <ResizablePanel
               ref={detailsPanelRef}
+              order={3}
               defaultSize={30}
               minSize={25}
-              maxSize={50}
+              maxSize={DETAILS_PANEL_MAX_SIZE}
               collapsible
               collapsedSize={0}
               onCollapse={() => setIsDetailsVisible(false)}

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, PanelLeft, MessageSquare, PanelLeftClose, MessageCircle, Mic, MicOff, X, FileText, ChevronDown, Info } from 'lucide-react';
+import { Send, PanelLeft, MessageSquare, PanelLeftClose, MessageCircle, Mic, MicOff, X, FileText, ChevronDown, Info, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Ticket, TicketStatus, Message as TicketMessage } from '@/types/tickets';
 import { Message as ChatMessageData, SendPayload, AttachmentInfo } from '@/types/chat';
@@ -56,6 +56,18 @@ interface ConversationPanelProps {
   showDetailsToggle?: boolean;
 }
 
+const EmptyState: React.FC<{ icon: React.ElementType; title: string; description: string }> = ({
+  icon: Icon,
+  title,
+  description,
+}) => (
+  <div className="flex h-full flex-col items-center justify-center text-center">
+    <Icon className="mb-4 h-12 w-12 text-muted-foreground" />
+    <h3 className="font-semibold">{title}</h3>
+    <p className="text-sm text-muted-foreground">{description}</p>
+  </div>
+);
+
 const ConversationPanel: React.FC<ConversationPanelProps> = ({
   isMobile,
   isSidebarVisible,
@@ -69,6 +81,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<ChatMessageData[]>([]);
   const [isSending, setIsSending] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [attachmentPreview, setAttachmentPreview] = useState<{ file: File; previewUrl: string } | null>(null);
   const { user } = useUser();
@@ -86,24 +99,30 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
 
   useEffect(() => {
     const fetchMessages = async () => {
-        if (!selectedTicket) {
-            setMessages([]);
-            return;
-        }
+      if (!selectedTicket) {
+        setMessages([]);
+        setIsLoading(false);
+        return;
+      }
 
-        // Usar los mensajes existentes si vienen con el ticket
-        if (selectedTicket.messages) {
-            setMessages(selectedTicket.messages.map(msg => adaptTicketMessageToChatMessage(msg, selectedTicket)));
-            return;
-        }
+      setIsLoading(true);
 
-        try {
-            const fetchedMessages = await getTicketMessages(selectedTicket.id, selectedTicket.tipo);
-            setMessages(fetchedMessages.map(msg => adaptTicketMessageToChatMessage(msg, selectedTicket)));
-        } catch (error) {
-            toast.error("No se pudo cargar el historial de mensajes.");
-            setMessages([]);
-        }
+      // Usar los mensajes existentes si vienen con el ticket
+      if (selectedTicket.messages) {
+        setMessages(selectedTicket.messages.map(msg => adaptTicketMessageToChatMessage(msg, selectedTicket)));
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const fetchedMessages = await getTicketMessages(selectedTicket.id, selectedTicket.tipo);
+        setMessages(fetchedMessages.map(msg => adaptTicketMessageToChatMessage(msg, selectedTicket)));
+      } catch (error) {
+        toast.error('No se pudo cargar el historial de mensajes.');
+        setMessages([]);
+      } finally {
+        setIsLoading(false);
+      }
     };
     fetchMessages();
   }, [selectedTicket]);
@@ -327,56 +346,39 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         </div>
       </header>
 
-      {showDetailsToggle && !isMobile && canToggleSidebar && (
-        <div className="px-3 pb-2 md:px-4 md:pb-3">
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              type="button"
-              variant={isDetailsVisible ? 'outline' : 'secondary'}
-              onClick={() => {
-                if (isDetailsVisible) {
-                  onToggleDetails();
-                }
-              }}
-            >
-              Conversación
-            </Button>
-            <Button
-              type="button"
-              variant={isDetailsVisible ? 'secondary' : 'outline'}
-              onClick={() => {
-                if (!isDetailsVisible) {
-                  onToggleDetails();
-                }
-              }}
-            >
-              Información
-            </Button>
-          </div>
-        </div>
-      )}
-
-      <div className="flex-1 relative bg-gray-50/50 dark:bg-gray-900/50">
+      <div className="flex-1 relative bg-muted/20">
         <ScrollArea className="h-full p-4" ref={scrollAreaRef} onScroll={handleScroll}>
-          <AnimatePresence>
-              <motion.div className="space-y-4">
-              {messages.map((msg, index) => (
-                <motion.div
-                  key={msg.id || index}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.05 }}
-                >
-                  <ChatMessage
-                    message={msg}
-                    isTyping={false}
-                    onButtonClick={handleButtonClick}
-                    tipoChat={selectedTicket.tipo}
-                  />
+          {isLoading ? (
+            <div className="flex h-full items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : messages.length === 0 ? (
+            <EmptyState
+              icon={MessageSquare}
+              title="No hay mensajes"
+              description="Esta conversación aún no tiene mensajes. ¡Envía el primero!"
+            />
+          ) : (
+            <AnimatePresence>
+                <motion.div className="space-y-4">
+                {messages.map((msg, index) => (
+                  <motion.div
+                    key={msg.id || index}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.05 }}
+                  >
+                    <ChatMessage
+                      message={msg}
+                      isTyping={false}
+                      onButtonClick={handleButtonClick}
+                      tipoChat={selectedTicket.tipo}
+                    />
+                  </motion.div>
+                ))}
                 </motion.div>
-              ))}
-              </motion.div>
-          </AnimatePresence>
+            </AnimatePresence>
+          )}
         </ScrollArea>
         {showScrollToBottom && <ScrollToBottomButton onClick={scrollToBottom} />}
       </div>
