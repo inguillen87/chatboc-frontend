@@ -34,3 +34,29 @@ export function getCitizenDni(ticket?: Ticket | null): string | undefined {
     (ticket as any)?.documento
   );
 }
+
+/**
+ * Returns a human readable channel label for the ticket.
+ * Falls back to "N/A" when no channel information is available.
+ */
+export function getTicketChannel(ticket?: Ticket | null): string {
+  if (!ticket) return 'N/A';
+
+  const rawChannel = (
+    (ticket as any)?.channel ??
+    (ticket as any)?.canal ??
+    ticket.channel
+  );
+
+  if (typeof rawChannel !== 'string') {
+    return 'N/A';
+  }
+
+  const trimmed = rawChannel.trim();
+
+  if (!trimmed || /^n\s*\/\s*a$/i.test(trimmed)) {
+    return 'N/A';
+  }
+
+  return trimmed.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ');
+}

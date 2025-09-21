@@ -6,14 +6,13 @@ import { getTicketByNumber, getTicketTimeline, sendTicketHistory } from '@/servi
 import { Ticket, Message, TicketHistoryEvent } from '@/types/tickets';
 import { fmtAR } from '@/utils/date';
 import TicketTimeline from '@/components/tickets/TicketTimeline';
-import TicketMap from '@/components/TicketMap';
-import { Separator } from '@/components/ui/separator';
+import TicketLogisticsSummary from '@/components/tickets/TicketLogisticsSummary';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { getErrorMessage, ApiError } from '@/utils/api';
 import { getContactPhone, getCitizenDni } from '@/utils/ticket';
 import { getSpecializedContact, SpecializedContact } from '@/utils/contacts';
-import TicketStatusBar from '@/components/tickets/TicketStatusBar';
 import { collectAttachmentsFromTicket, getPrimaryImageUrl } from '@/components/tickets/DetailsPanel';
-import { Maximize2, X, ExternalLink, Building, Hash } from 'lucide-react';
+import { Maximize2, X } from 'lucide-react';
 export default function TicketLookup() {
   const { ticketId } = useParams<{ ticketId: string }>();
   const navigate = useNavigate();
@@ -53,9 +52,51 @@ export default function TicketLookup() {
       (typeof ticket.lat_destino === 'number' && typeof ticket.lon_destino === 'number');
     return Boolean(ticket.direccion || hasCoords);
   }, [ticket]);
-  const estimatedArrival =
-    ticket?.tiempo_estimado ||
-    (currentStatus.toLowerCase().replace(/\s+/g, '_') === 'en_proceso' ? '4h' : null);
+  const historyForSummary = React.useMemo(
+    () => (timelineHistory.length ? timelineHistory : ticket?.history || []),
+    [timelineHistory, ticket?.history],
+  );
+  const normalizedStatus = React.useMemo(
+    () => (currentStatus || '').toLowerCase().replace(/\s+/g, '_'),
+    [currentStatus],
+  );
+  const ticketForSummary = React.useMemo(() => {
+    if (!ticket) return null;
+    const fallbackEta =
+      ticket.tiempo_estimado || (normalizedStatus === 'en_proceso' ? '4h' : undefined);
+    return {
+      ...ticket,
+      ...(fallbackEta ? { tiempo_estimado: fallbackEta } : {}),
+      history: historyForSummary,
+    };
+  }, [ticket, normalizedStatus, historyForSummary]);
+  const contactInfo = React.useMemo(() => {
+    if (!ticket) {
+      return { name: '', dni: '', email: '', phone: '', address: '' };
+    }
+    const normalize = (value?: string | number | null) => {
+      if (typeof value === 'number') return String(value).trim();
+      if (typeof value === 'string') return value.trim();
+      return '';
+    };
+    return {
+      name:
+        normalize(ticket.informacion_personal_vecino?.nombre) ||
+        normalize(ticket.display_name),
+      dni: normalize(getCitizenDni(ticket)),
+      email:
+        normalize(ticket.informacion_personal_vecino?.email) ||
+        normalize(ticket.email),
+      phone: normalize(getContactPhone(ticket)),
+      address:
+        normalize(ticket.informacion_personal_vecino?.direccion) ||
+        normalize(ticket.direccion),
+    };
+  }, [ticket]);
+  const contactEmailHref = contactInfo.email ? `mailto:${contactInfo.email}` : undefined;
+  const contactPhoneHref = contactInfo.phone
+    ? `https://wa.me/${contactInfo.phone.replace(/\D/g, '')}`
+    : undefined;
 
   const performSearch = useCallback(async (searchId?: string, searchPin?: string) => {
     const id = (searchId || '').trim();
@@ -74,7 +115,7 @@ export default function TicketLookup() {
     setCompletionSent(false);
     try {
       const data = await getTicketByNumber(id, pinVal);
-      setTicket(data);
+      setTicket({ ...data, history: data.history || [] });
       getSpecializedContact(data.categoria).then(setSpecialContact);
 
       // Usar el historial y mensajes incluidos en el ticket si están presentes
@@ -88,6 +129,7 @@ export default function TicketLookup() {
         setTimelineHistory(timeline.history);
         setTimelineMessages(timeline.messages);
         setEstadoChat(timeline.estado_chat);
+        setTicket((prev) => (prev ? { ...prev, history: timeline.history } : prev));
       } catch (msgErr) {
         console.error('Error fetching timeline for ticket', msgErr);
       }
@@ -214,21 +256,23 @@ export default function TicketLookup() {
         </Button>
       </form>
       {error && <p className="text-destructive text-sm text-center">{error}</p>}
-      {ticket && (
+      {ticketForSummary && (
         <>
-          <div className="border rounded-xl p-4 sm:p-6 space-y-6 bg-card shadow-lg">
-            <div className="space-y-2 text-justify">
-              <p className="text-sm text-muted-foreground">Ticket #{ticket.nro_ticket}</p>
-              <h2 className="text-2xl font-semibold break-words">{ticket.asunto}</h2>
-              <p className="pt-1">
-                <span className="font-medium">Estado actual:</span>{' '}
-                <span className="text-primary font-semibold">{currentStatus}</span>
-              </p>
-              <TicketStatusBar status={currentStatus} flow={statusFlow} />
-              {(primaryImageUrl || hasLocation) && (
-                <div className="grid gap-4 pt-4 sm:grid-cols-2">
+          <div className="space-y-6">
+            <TicketLogisticsSummary
+              ticket={ticketForSummary}
+              statusOverride={currentStatus}
+              historyOverride={historyForSummary}
+              onOpenMap={hasLocation ? openGoogleMaps : undefined}
+            />
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+              <Card className="overflow-hidden">
+                <CardHeader>
+                  <CardTitle className="text-xl font-semibold">Detalle del reclamo</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-5 text-sm leading-relaxed">
                   {primaryImageUrl && (
-                    <div className="space-y-2 rounded-lg border border-border bg-muted/30 p-3">
+                    <div className="space-y-2">
                       <h4 className="text-base font-semibold">Imagen del reclamo</h4>
                       {imageError ? (
                         <p className="text-sm text-muted-foreground">
@@ -258,112 +302,116 @@ export default function TicketLookup() {
                       )}
                     </div>
                   )}
-                  {hasLocation && (
-                    <div className="space-y-2 rounded-lg border border-border bg-muted/30 p-3">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-base font-semibold">Ubicación</h4>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={openGoogleMaps}
-                          aria-label="Abrir ubicación en Google Maps"
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      {ticket.direccion && (
-                        <p className="text-sm font-medium text-primary break-words">{ticket.direccion}</p>
-                      )}
-                      {ticket.distrito && (
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Building className="h-4 w-4" />
-                          <span className="break-words">Distrito: {ticket.distrito}</span>
-                        </div>
-                      )}
-                      {ticket.esquinas_cercanas && (
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Hash className="h-4 w-4" />
-                          <span className="break-words">Esquinas: {ticket.esquinas_cercanas}</span>
-                        </div>
-                      )}
-                      <div className="aspect-video overflow-hidden rounded-md border border-border bg-muted/40">
-                        <TicketMap
-                          ticket={ticket}
-                          hideTitle
-                          className="mb-0"
-                          heightClassName="h-full"
-                          showAddressHint={false}
-                        />
-                      </div>
+                  {(ticketForSummary.description || ticketForSummary.detalles) && (
+                    <div className="space-y-2">
+                      <h4 className="text-base font-semibold">Descripción</h4>
+                      {(ticketForSummary.description || ticketForSummary.detalles || '—')
+                        .split('\n')
+                        .map((line, index) => (
+                          <p key={index} className="text-sm text-muted-foreground leading-relaxed break-words">
+                            {line}
+                          </p>
+                        ))}
                     </div>
                   )}
-                </div>
-              )}
-              <dl className="text-sm text-muted-foreground grid grid-cols-[auto_1fr] gap-x-2 gap-y-1">
-                <dt>Creado el:</dt>
-                <dd>{fmtAR(ticket.fecha)}</dd>
-                <dt>Canal:</dt>
-                <dd className="capitalize">{ticket.channel || 'N/A'}</dd>
-                {estimatedArrival && (
-                  <>
-                    <dt>Tiempo estimado:</dt>
-                    <dd>{estimatedArrival}</dd>
-                  </>
-                )}
-                {ticket.categoria && (
-                  <>
-                    <dt>Categoría:</dt>
-                    <dd>{ticket.categoria}</dd>
-                  </>
-                )}
-                {ticket.direccion && (
-                  <>
-                    <dt>Dirección:</dt>
-                    <dd>{ticket.direccion}</dd>
-                  </>
-                )}
-                {ticket.esquinas_cercanas && (
-                  <>
-                    <dt>Esquinas:</dt>
-                    <dd className="break-words">{ticket.esquinas_cercanas}</dd>
-                  </>
-                )}
-              </dl>
-              {(ticket.description || ticket.detalles) && (
-                <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap break-words text-justify">
-                  {ticket.description || ticket.detalles}
-                </p>
-              )}
-              {(getContactPhone(ticket) || ticket.email || ticket.dni || ticket.informacion_personal_vecino) && (
-                <div className="mt-4 text-sm space-y-1 text-justify">
-                  {(ticket.informacion_personal_vecino?.nombre || ticket.display_name) && (
-                    <p className="break-words">
-                      Nombre: {ticket.informacion_personal_vecino?.nombre || ticket.display_name}
+                </CardContent>
+              </Card>
+              <Card className="overflow-hidden">
+                <CardHeader>
+                  <CardTitle className="text-xl font-semibold">Datos de contacto</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4 text-sm">
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Nombre</p>
+                    <p
+                      className={
+                        contactInfo.name
+                          ? 'text-sm font-medium text-foreground break-words'
+                          : 'text-sm text-muted-foreground'
+                      }
+                    >
+                      {contactInfo.name || 'No especificado'}
                     </p>
-                  )}
-                  {getCitizenDni(ticket) && (
-                    <p className="break-words">DNI: {getCitizenDni(ticket)}</p>
-                  )}
-                  {(ticket.informacion_personal_vecino?.email || ticket.email) && (
-                    <p className="break-words">
-                      Email: {ticket.informacion_personal_vecino?.email || ticket.email}
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">DNI</p>
+                    <p
+                      className={
+                        contactInfo.dni
+                          ? 'text-sm font-medium text-foreground break-words'
+                          : 'text-sm text-muted-foreground'
+                      }
+                    >
+                      {contactInfo.dni || 'No especificado'}
                     </p>
-                  )}
-                  {getContactPhone(ticket) && (
-                    <p className="break-words">Teléfono: {getContactPhone(ticket)}</p>
-                  )}
-                </div>
-              )}
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Email</p>
+                    {contactInfo.email ? (
+                      <a
+                        href={contactEmailHref}
+                        className="text-sm font-medium text-foreground break-all hover:underline"
+                      >
+                        {contactInfo.email}
+                      </a>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No especificado</p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Teléfono</p>
+                    {contactInfo.phone ? (
+                      <a
+                        href={contactPhoneHref}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-sm font-medium text-foreground hover:underline"
+                      >
+                        {contactInfo.phone}
+                      </a>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No especificado</p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Dirección</p>
+                    <p
+                      className={
+                        contactInfo.address
+                          ? 'text-sm font-medium text-foreground break-words'
+                          : 'text-sm text-muted-foreground'
+                      }
+                    >
+                      {contactInfo.address || 'No especificado'}
+                    </p>
+                  </div>
+                </CardContent>
+                {specialContact && (
+                  <CardContent className="border-t bg-muted/40 pt-4 text-sm space-y-1">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Contacto sugerido</p>
+                    <p className="font-semibold text-foreground">{specialContact.nombre}</p>
+                    {specialContact.titulo && <p className="text-muted-foreground">{specialContact.titulo}</p>}
+                    {specialContact.telefono && (
+                      <p className="text-muted-foreground">Teléfono: {specialContact.telefono}</p>
+                    )}
+                    {specialContact.horario && (
+                      <p className="text-muted-foreground">Horario: {specialContact.horario}</p>
+                    )}
+                    {specialContact.email && (
+                      <p className="text-muted-foreground">Email: {specialContact.email}</p>
+                    )}
+                  </CardContent>
+                )}
+              </Card>
             </div>
-
-            <Separator />
-
-            <div>
-              <h3 className="text-xl font-semibold mb-4">Historial del Reclamo</h3>
-              <TicketTimeline history={timelineHistory} messages={timelineMessages} ticket={ticket} />
-            </div>
+            <Card className="overflow-hidden">
+              <CardHeader>
+                <CardTitle className="text-xl font-semibold">Historial del reclamo</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <TicketTimeline history={timelineHistory} messages={timelineMessages} ticket={ticketForSummary} />
+              </CardContent>
+            </Card>
           </div>
           {isImageModalOpen && primaryImageUrl && !imageError && (
             <div
