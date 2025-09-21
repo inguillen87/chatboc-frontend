@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import TicketStatusBar from './TicketStatusBar';
 import TicketMap from '../TicketMap';
 import { Ticket, TicketHistoryEvent } from '@/types/tickets';
-import { fmtAR } from '@/utils/date';
+import { fmtARWithOffset, shiftDateByHours } from '@/utils/date';
 import { getTicketChannel } from '@/utils/ticket';
 import { cn } from '@/lib/utils';
 import {
@@ -16,6 +16,11 @@ import {
   Tag,
   ExternalLink,
 } from 'lucide-react';
+import {
+  buildStatusFlow,
+  formatTicketStatusLabel,
+  normalizeTicketStatus,
+} from '@/utils/ticketStatus';
 
 interface TicketLogisticsSummaryProps {
   ticket: Ticket;
@@ -26,13 +31,6 @@ interface TicketLogisticsSummaryProps {
 }
 
 type IconType = React.ComponentType<React.SVGProps<SVGSVGElement>>;
-
-const formatStatus = (status?: string | null) =>
-  status
-    ? status
-        .replace(/[_-]+/g, ' ')
-        .replace(/\b\w/g, (char) => char.toUpperCase())
-    : 'Sin estado';
 
 const pickHistoryDate = (entry: unknown): string | number | Date | null => {
   if (!entry || typeof entry !== 'object') {
@@ -58,8 +56,10 @@ const pickHistoryDate = (entry: unknown): string | number | Date | null => {
 
 const formatHistoryDate = (value: string | number | Date | null | undefined) => {
   if (!value) return null;
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) {
+
+  const shifted = shiftDateByHours(value, -3);
+
+  if (!shifted) {
     return null;
   }
 
@@ -69,7 +69,7 @@ const formatHistoryDate = (value: string | number | Date | null | undefined) => 
       month: '2-digit',
       hour: '2-digit',
       minute: '2-digit',
-    }).format(date);
+    }).format(shifted);
   } catch (error) {
     console.error('Error formatting history date', error);
     return null;
@@ -91,12 +91,17 @@ const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({
     : Array.isArray(ticket.history)
       ? ticket.history
       : [];
-  const statusFlow = historyEntries.map((h) => h.status).filter(Boolean);
+  const statusFlow = buildStatusFlow([
+    statusOverride,
+    ticket.estado,
+    ...historyEntries.map((h) => h.status).filter(Boolean),
+  ]);
 
   const channelLabel = getTicketChannel(ticket);
-  const createdAtLabel = fmtAR(ticket.fecha);
+  const createdAtLabel = fmtARWithOffset(ticket.fecha, -3);
   const estimatedArrival = ticket.tiempo_estimado;
   const currentStatus = statusOverride ?? ticket.estado;
+  const currentStatusLabel = formatTicketStatusLabel(currentStatus);
 
   const metaItems = [
     {
@@ -165,10 +170,16 @@ const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({
 
       const formattedDate = formatHistoryDate(pickHistoryDate(entry));
 
+      const normalizedStatus = normalizeTicketStatus(entry.status);
+
+      if (!normalizedStatus) {
+        return null;
+      }
+
       return {
-        key: `${entry.status}-${index}`,
-        status: entry.status,
-        label: formatStatus(entry.status),
+        key: `${normalizedStatus}-${index}`,
+        status: normalizedStatus,
+        label: formatTicketStatusLabel(normalizedStatus),
         formattedDate,
       };
     })
@@ -203,7 +214,7 @@ const TicketLogisticsSummary: React.FC<TicketLogisticsSummaryProps> = ({
                 Estado del reclamo
               </p>
               <p className="text-base font-semibold text-primary">
-                {formatStatus(currentStatus)}
+                {currentStatusLabel}
               </p>
             </div>
             {lastUpdatedLabel && (

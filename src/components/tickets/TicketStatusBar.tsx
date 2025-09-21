@@ -1,17 +1,13 @@
 import React from 'react';
-import {
-  BadgeCheck,
-  Check,
-  CircleDot,
-  ClipboardCheck,
-  Lock,
-  MapPin,
-  Navigation,
-  PauseCircle,
-  Truck,
-  Wrench,
-} from 'lucide-react';
+import { BadgeCheck, Check, CircleDot, Wrench } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import {
+  AllowedTicketStatus,
+  buildStatusFlow,
+  formatTicketStatusLabel,
+  normalizeTicketStatus,
+} from '@/utils/ticketStatus';
+import { shiftDateByHours } from '@/utils/date';
 
 type StatusHistoryEntry = {
   status?: string | null;
@@ -26,60 +22,18 @@ interface TicketStatusBarProps {
   className?: string;
 }
 
-const KNOWN_STATUS_ORDER: Record<string, number> = {
-  nuevo: 0,
-  abierto: 1,
-  en_proceso: 2,
-  en_espera: 3,
-  en_camino: 4,
-  llegando: 5,
-  completado: 6,
-  llegado: 7,
-  resuelto: 8,
-  cerrado: 9,
+const ICONS: Record<AllowedTicketStatus, React.ReactNode> = {
+  nuevo: <CircleDot className="h-3.5 w-3.5" />,
+  en_proceso: <Wrench className="h-3.5 w-3.5" />,
+  resuelto: <BadgeCheck className="h-3.5 w-3.5" />,
 };
-
-const DEFAULT_FLOW = Object.keys(KNOWN_STATUS_ORDER);
-
-const ICONS: Record<string, React.ReactNode> = {
-  nuevo: <CircleDot className="h-3.5 w-3.5" />, // ticket creado
-  abierto: <CircleDot className="h-3.5 w-3.5" />, // asignado/abierto
-  en_proceso: <Wrench className="h-3.5 w-3.5" />, // cuadrilla trabajando
-  en_espera: <PauseCircle className="h-3.5 w-3.5" />, // a la espera
-  en_camino: <Truck className="h-3.5 w-3.5" />, // cuadrilla en ruta
-  llegando: <Navigation className="h-3.5 w-3.5" />, // llegada inminente
-  completado: <ClipboardCheck className="h-3.5 w-3.5" />, // finalizado internamente
-  llegado: <MapPin className="h-3.5 w-3.5" />, // llegada a destino
-  resuelto: <BadgeCheck className="h-3.5 w-3.5" />, // finalizado para el ciudadano
-  cerrado: <Lock className="h-3.5 w-3.5" />, // cierre administrativo
-};
-
-const LABEL_OVERRIDES: Record<string, string> = {
-  nuevo: 'Nuevo',
-  abierto: 'Abierto',
-  en_proceso: 'En proceso',
-  en_espera: 'En espera',
-  en_camino: 'En camino',
-  llegando: 'Llegando',
-  completado: 'Completado',
-  llegado: 'Llegado',
-  resuelto: 'Resuelto',
-  cerrado: 'Cerrado',
-};
-
-const normalize = (s?: string | null) => (s ? s.toLowerCase().replace(/[\s-]+/g, '_') : '');
-
-const formatLabel = (s: string) =>
-  LABEL_OVERRIDES[s] ||
-  s
-    .replace(/[_-]+/g, ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase());
 
 const formatStepDate = (value?: string | number | Date | null) => {
   if (!value) return null;
-  const date = value instanceof Date ? value : new Date(value);
 
-  if (Number.isNaN(date.getTime())) {
+  const shifted = shiftDateByHours(value, -3);
+
+  if (!shifted) {
     return null;
   }
 
@@ -89,7 +43,7 @@ const formatStepDate = (value?: string | number | Date | null) => {
       month: '2-digit',
       hour: '2-digit',
       minute: '2-digit',
-    }).format(date);
+    }).format(shifted);
   } catch (error) {
     console.error('Error formatting status date', error);
     return null;
@@ -135,13 +89,13 @@ const TicketStatusBar: React.FC<TicketStatusBarProps> = ({
   }, []);
 
   const historyMap = React.useMemo(() => {
-    const map = new Map<string, string>();
+    const map = new Map<AllowedTicketStatus, string>();
     if (!Array.isArray(history)) {
       return map;
     }
 
     history.forEach((entry) => {
-      const normalized = normalize(entry?.status);
+      const normalized = normalizeTicketStatus(entry?.status);
       if (!normalized || map.has(normalized)) {
         return;
       }
@@ -153,41 +107,46 @@ const TicketStatusBar: React.FC<TicketStatusBarProps> = ({
     return map;
   }, [history]);
 
-  const historyStatuses = React.useMemo(
-    () => Array.from(historyMap.keys()),
-    [historyMap],
-  );
+  const historyStatuses = React.useMemo(() => {
+    if (!Array.isArray(history)) {
+      return [] as AllowedTicketStatus[];
+    }
+
+    return history
+      .map((entry) => normalizeTicketStatus(entry?.status))
+      .filter((value): value is AllowedTicketStatus => Boolean(value));
+  }, [history]);
   const historySet = React.useMemo(
     () => new Set(historyStatuses),
     [historyStatuses],
   );
 
-  const lastHistoryStatus = historyStatuses[historyStatuses.length - 1] ?? '';
-  const current = normalize(routeStatus || status) || lastHistoryStatus;
+  const providedFlow = React.useMemo(
+    () => buildStatusFlow(flow ?? []),
+    [flow],
+  );
+
+  const lastHistoryStatus =
+    historyStatuses[historyStatuses.length - 1] ?? null;
+  const current =
+    normalizeTicketStatus(routeStatus || status) || lastHistoryStatus;
 
   const steps = React.useMemo(() => {
-    const set = new Set(DEFAULT_FLOW);
-    flow.map(normalize).forEach((s) => s && set.add(s));
-    historyStatuses.forEach((s) => s && set.add(s));
-    if (current) set.add(current);
-    set.delete('');
+    const flowCandidates: Array<string | null | undefined> = [
+      ...providedFlow,
+      ...historyStatuses,
+      current ?? undefined,
+    ];
+    return buildStatusFlow(flowCandidates);
+  }, [providedFlow, historyStatuses, current]);
 
-    return Array.from(set).sort((a, b) => {
-      const orderA = KNOWN_STATUS_ORDER[a];
-      const orderB = KNOWN_STATUS_ORDER[b];
-      if (orderA === undefined && orderB === undefined) {
-        return a.localeCompare(b);
-      }
-      if (orderA === undefined) return 1;
-      if (orderB === undefined) return -1;
-      return orderA - orderB;
-    });
-  }, [flow, historyStatuses, current]);
-
-  const currentIndex = steps.indexOf(current);
+  const currentIndex = current ? steps.indexOf(current) : -1;
   const highestHistoryIndex = React.useMemo(
     () =>
-      steps.reduce((acc, step, idx) => (historySet.has(step) ? idx : acc), -1),
+      steps.reduce(
+        (acc, step, idx) => (historySet.has(step) ? idx : acc),
+        -1,
+      ),
     [steps, historySet],
   );
   const resolvedCurrentIndex = currentIndex === -1 ? highestHistoryIndex : currentIndex;
@@ -223,7 +182,7 @@ const TicketStatusBar: React.FC<TicketStatusBarProps> = ({
                     completed ? 'text-primary' : 'text-muted-foreground',
                   )}
                 >
-                  {formatLabel(step)}
+                  {formatTicketStatusLabel(step)}
                 </span>
                 {timestamp && (
                   <span
