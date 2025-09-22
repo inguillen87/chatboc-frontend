@@ -448,6 +448,239 @@ function generateSyntheticTickets(count = 360): TicketRecord[] {
   return tickets;
 }
 
+function normalizeKeyName(key: unknown): string {
+  if (typeof key !== 'string') return '';
+  return key
+    .normalize('NFD')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+function toTitleCase(label: string): string {
+  return label
+    .split(' ')
+    .filter((chunk) => chunk.length > 0)
+    .map((chunk) => chunk.charAt(0).toUpperCase() + chunk.slice(1))
+    .join(' ');
+}
+
+function coerceNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const normalized = value
+      .replace(/[^0-9,.-]+/g, '')
+      .replace(/,(?=.*[,.])/g, '.')
+      .trim();
+    if (!normalized) return null;
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function formatKeyLabel(key: string): string {
+  return toTitleCase(
+    key
+      .replace(/[_-]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim(),
+  );
+}
+
+function buildNormalizedMap(record: Record<string, unknown>): Map<string, unknown> {
+  const map = new Map<string, unknown>();
+  Object.entries(record).forEach(([key, value]) => {
+    map.set(normalizeKeyName(key), value);
+  });
+  return map;
+}
+
+function getMapValue(map: Map<string, unknown>, keys: string[]): unknown {
+  for (const key of keys) {
+    const normalized = normalizeKeyName(key);
+    if (map.has(normalized)) return map.get(normalized);
+  }
+  return undefined;
+}
+
+function getStringFromMap(
+  map: Map<string, unknown>,
+  keys: string[],
+): string | undefined {
+  const value = getMapValue(map, keys);
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(value);
+  }
+  return undefined;
+}
+
+function getNumberFromMap(
+  map: Map<string, unknown>,
+  keys: string[],
+): number | undefined {
+  const value = getMapValue(map, keys);
+  const numberValue = coerceNumber(value);
+  return numberValue === null ? undefined : numberValue;
+}
+
+function getBooleanFromMap(
+  map: Map<string, unknown>,
+  keys: string[],
+): boolean | undefined {
+  const value = getMapValue(map, keys);
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (['true', '1', 'si', 'sí', 'yes'].includes(normalized)) return true;
+    if (['false', '0', 'no'].includes(normalized)) return false;
+  }
+  return undefined;
+}
+
+function parseDateInput(value: unknown): Date | undefined {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const date = new Date(value);
+    if (!Number.isNaN(date.getTime())) return date;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return undefined;
+    const numeric = Number(trimmed);
+    if (Number.isFinite(numeric)) {
+      const numericDate = new Date(numeric);
+      if (!Number.isNaN(numericDate.getTime())) return numericDate;
+    }
+    const parsed = new Date(trimmed);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+  return undefined;
+}
+
+const RAW_STATUS_ALIASES: Record<string, string> = {
+  nuevo: 'Nuevo',
+  abierta: 'Nuevo',
+  abiertas: 'Nuevo',
+  abierto: 'Nuevo',
+  abiertos: 'Nuevo',
+  'in progress': 'En progreso',
+  'en progreso': 'En progreso',
+  procesando: 'En progreso',
+  pendiente: 'En espera',
+  'on hold': 'En espera',
+  espera: 'En espera',
+  derivado: 'Derivado',
+  derivada: 'Derivado',
+  asignado: 'Asignado',
+  asignada: 'Asignado',
+  resuelto: 'Resuelto',
+  resuelta: 'Resuelto',
+  resolved: 'Resuelto',
+  cerrado: 'Cerrado',
+  cerrada: 'Cerrado',
+  closed: 'Cerrado',
+  vencido: 'Vencido',
+  vencida: 'Vencido',
+  overdue: 'Vencido',
+  reabierto: 'Reabierto',
+  reabierta: 'Reabierto',
+  reopened: 'Reabierto',
+};
+
+const STATUS_ALIASES: Record<string, string> = Object.fromEntries(
+  Object.entries(RAW_STATUS_ALIASES).map(([alias, value]) => [
+    normalizeKeyName(alias),
+    value,
+  ]),
+);
+
+const RAW_PRIORITY_ALIASES: Record<string, 'Alta' | 'Media' | 'Baja'> = {
+  alta: 'Alta',
+  urgente: 'Alta',
+  high: 'Alta',
+  critica: 'Alta',
+  crítica: 'Alta',
+  media: 'Media',
+  normal: 'Media',
+  medium: 'Media',
+  baja: 'Baja',
+  low: 'Baja',
+  menor: 'Baja',
+};
+
+const PRIORITY_ALIASES: Record<string, 'Alta' | 'Media' | 'Baja'> =
+  Object.fromEntries(
+    Object.entries(RAW_PRIORITY_ALIASES).map(([alias, value]) => [
+      normalizeKeyName(alias),
+      value,
+    ]),
+  );
+
+const RAW_CHANNEL_ALIASES: Record<string, string> = {
+  whatsapp: 'WhatsApp',
+  wsp: 'WhatsApp',
+  email: 'Email',
+  correo: 'Email',
+  telefono: 'Teléfono',
+  teléfono: 'Teléfono',
+  phone: 'Teléfono',
+  web: 'Web',
+  sitio: 'Web',
+  app: 'App móvil',
+  mobile: 'App móvil',
+  presencial: 'Oficina',
+  oficina: 'Oficina',
+  chat: 'Chat',
+  facebook: 'Redes sociales',
+  instagram: 'Redes sociales',
+};
+
+const CHANNEL_ALIASES: Record<string, string> = Object.fromEntries(
+  Object.entries(RAW_CHANNEL_ALIASES).map(([alias, value]) => [
+    normalizeKeyName(alias),
+    value,
+  ]),
+);
+
+function normalizeStatusValue(raw: string): string {
+  const normalized = normalizeKeyName(raw);
+  if (normalized.length === 0) return 'Nuevo';
+  if (STATUS_ALIASES[normalized]) return STATUS_ALIASES[normalized];
+  const partial = Object.entries(STATUS_ALIASES).find(([alias]) =>
+    normalized.includes(alias),
+  );
+  if (partial) return partial[1];
+  return toTitleCase(raw.trim());
+}
+
+function normalizePriorityValue(raw: string): 'Alta' | 'Media' | 'Baja' {
+  const normalized = normalizeKeyName(raw);
+  if (PRIORITY_ALIASES[normalized]) return PRIORITY_ALIASES[normalized];
+  const partial = Object.entries(PRIORITY_ALIASES).find(([alias]) =>
+    normalized.includes(alias),
+  );
+  if (partial) return partial[1];
+  return 'Media';
+}
+
+function normalizeChannelValue(raw: string): string {
+  const normalized = normalizeKeyName(raw);
+  if (CHANNEL_ALIASES[normalized]) return CHANNEL_ALIASES[normalized];
+  const partial = Object.entries(CHANNEL_ALIASES).find(([alias]) =>
+    normalized.includes(alias),
+  );
+  if (partial) return partial[1];
+  if (!raw.trim()) return 'Canal desconocido';
+  return toTitleCase(raw.trim());
+}
+
 function formatValue(value: number) {
   if (Number.isNaN(value)) return '0';
   if (Number.isInteger(value)) return value.toLocaleString('es-AR');
@@ -499,7 +732,526 @@ function parseFiltersResponse(
   };
 }
 
-function buildFallbackStats(filters: FilterState): StatsResponse {
+function mergeStatLists(primary: StatItem[], secondary: StatItem[]): StatItem[] {
+  const seen = new Set(primary.map((item) => item.label));
+  const extras = secondary.filter((item) => !seen.has(item.label));
+  return [...primary, ...extras];
+}
+
+function normalizeStatItemsValue(value: unknown): StatItem[] {
+  if (!value) return [];
+  const items: StatItem[] = [];
+
+  const pushItem = (labelValue: unknown, rawValue: unknown, unit?: unknown) => {
+    const label =
+      typeof labelValue === 'string'
+        ? labelValue.trim()
+        : typeof labelValue === 'number'
+          ? String(labelValue)
+          : '';
+    if (!label) return;
+    const numericValue = coerceNumber(rawValue);
+    if (numericValue === null) return;
+    const resolvedUnit =
+      typeof unit === 'string' && unit.trim().length > 0
+        ? unit.trim()
+        : undefined;
+    items.push({ label, value: numericValue, unit: resolvedUnit });
+  };
+
+  if (Array.isArray(value)) {
+    value.forEach((entry) => {
+      if (!entry) return;
+      if (Array.isArray(entry)) {
+        const [label, val, maybeUnit] = entry;
+        pushItem(label, val, maybeUnit);
+        return;
+      }
+      if (typeof entry === 'object') {
+        const record = entry as Record<string, unknown>;
+        const map = buildNormalizedMap(record);
+        const label =
+          getStringFromMap(map, ['label', 'nombre', 'name', 'titulo', 'title']) ||
+          getStringFromMap(map, ['metric', 'metrica', 'indicador']);
+        const rawValue =
+          getMapValue(map, ['value', 'valor', 'count', 'cantidad', 'total', 'monto']);
+        const unit =
+          getStringFromMap(map, ['unit', 'unidad', 'sufijo', 'suffix']) ||
+          (getBooleanFromMap(map, ['es porcentaje', 'is percent']) ? '%' : undefined);
+        if (label && rawValue !== undefined) {
+          pushItem(label, rawValue, unit);
+        }
+      }
+    });
+    return items;
+  }
+
+  if (typeof value === 'object') {
+    Object.entries(value as Record<string, unknown>).forEach(([key, rawValue]) => {
+      const numericValue = coerceNumber(rawValue);
+      if (numericValue === null) return;
+      pushItem(formatKeyLabel(key), numericValue);
+    });
+  }
+
+  return items;
+}
+
+function normalizeCountMetricsValue(value: unknown): CountMetric[] {
+  return normalizeStatItemsValue(value)
+    .map((item) => ({ name: item.label, count: Math.round(item.value) }))
+    .filter((item) => Number.isFinite(item.count));
+}
+
+function normalizeValueMetricsValue(value: unknown): ValueMetric[] {
+  return normalizeStatItemsValue(value)
+    .map((item) => ({ name: item.label, value: item.value }))
+    .filter((item) => Number.isFinite(item.value));
+}
+
+function normalizeSatisfactionSummaryValue(
+  value: unknown,
+): StatsResponse['satisfactionSummary'] | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const record = value as Record<string, unknown>;
+  const map = buildNormalizedMap(record);
+  const average = getNumberFromMap(map, ['average', 'avg', 'promedio', 'csat']);
+  const nps = getNumberFromMap(map, ['nps', 'net promoter score']);
+  const promoters = getNumberFromMap(map, ['promoters', 'promotores']);
+  const passives = getNumberFromMap(map, ['passives', 'neutros']);
+  const detractors = getNumberFromMap(map, ['detractors', 'detractores']);
+  const responseRate = getNumberFromMap(map, ['response rate', 'tasa respuesta']);
+
+  const summary = {
+    average: average ?? 0,
+    nps: nps ?? 0,
+    promoters: promoters ?? 0,
+    passives: passives ?? 0,
+    detractors: detractors ?? 0,
+    responseRate: responseRate ?? 0,
+  };
+
+  const hasValue = Object.values(summary).some(
+    (num) => typeof num === 'number' && num !== 0,
+  );
+
+  return hasValue ? summary : undefined;
+}
+
+function normalizeMonthlyTrendValue(value: unknown): MonthlyTrendMetric[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((entry) => {
+      if (!entry || typeof entry !== 'object') return null;
+      const record = entry as Record<string, unknown>;
+      const map = buildNormalizedMap(record);
+      const label =
+        getStringFromMap(map, ['label', 'mes', 'periodo', 'periodo mensual']) ||
+        getStringFromMap(map, ['month', 'mes']);
+      if (!label) return null;
+      const monthKey =
+        getStringFromMap(map, ['month', 'mes', 'periodo', 'period']) || label;
+      const nuevos =
+        getNumberFromMap(map, ['nuevos', 'created', 'abiertos', 'ingresados']) ?? 0;
+      const resueltos =
+        getNumberFromMap(map, ['resueltos', 'resolved', 'cerrados', 'closed']) ?? 0;
+      const vencidos =
+        getNumberFromMap(map, ['vencidos', 'overdue', 'expirados']) ?? 0;
+      const reabiertos =
+        getNumberFromMap(map, ['reabiertos', 'reopened', 'reaperturas']) ?? 0;
+      return {
+        month: monthKey,
+        label,
+        nuevos,
+        resueltos,
+        vencidos,
+        reabiertos,
+      } satisfies MonthlyTrendMetric;
+    })
+    .filter((entry): entry is MonthlyTrendMetric => entry !== null);
+}
+
+function normalizeSatisfactionTrendValue(
+  value: unknown,
+): SatisfactionTrendMetric[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((entry) => {
+      if (!entry || typeof entry !== 'object') return null;
+      const record = entry as Record<string, unknown>;
+      const map = buildNormalizedMap(record);
+      const label =
+        getStringFromMap(map, ['label', 'mes', 'periodo']) ||
+        getStringFromMap(map, ['month', 'mes']);
+      if (!label) return null;
+      const average =
+        getNumberFromMap(map, ['average', 'avg', 'promedio', 'valor']) ?? null;
+      if (average === null) return null;
+      return {
+        month: label,
+        label,
+        average: Number(average.toFixed(2)),
+      } satisfies SatisfactionTrendMetric;
+    })
+    .filter((entry): entry is SatisfactionTrendMetric => entry !== null);
+}
+
+function normalizeHeatmapValue(value: unknown): HeatmapRow[] {
+  if (!Array.isArray(value)) return [];
+  const rows: HeatmapRow[] = [];
+  value.forEach((entry) => {
+    if (!entry || typeof entry !== 'object') return;
+    const record = entry as Record<string, unknown>;
+    const map = buildNormalizedMap(record);
+    const day =
+      getStringFromMap(map, ['day', 'dia', 'día', 'weekday', 'label', 'nombre']) ||
+      undefined;
+    const slotsRaw =
+      getMapValue(map, ['slots', 'values', 'horas', 'times', 'time slots']) || [];
+    if (!day || !Array.isArray(slotsRaw)) return;
+    const slots: HeatmapCell[] = [];
+    slotsRaw.forEach((slot) => {
+      if (!slot || typeof slot !== 'object') return;
+      const slotMap = buildNormalizedMap(slot as Record<string, unknown>);
+      const timeSlot =
+        getStringFromMap(slotMap, ['time', 'time slot', 'franja', 'hora', 'label']) ||
+        '';
+      if (!timeSlot) return;
+      const count =
+        getNumberFromMap(slotMap, ['count', 'valor', 'total', 'tickets', 'cantidad']) ??
+        0;
+      slots.push({ timeSlot, count: Math.max(0, Math.round(count)) });
+    });
+    if (slots.length > 0) {
+      rows.push({ day, slots });
+    }
+  });
+  return rows;
+}
+
+function normalizeBacklogAgingValue(value: unknown): BacklogMetric[] {
+  return normalizeCountMetricsValue(value).map((item) => ({
+    range: item.name,
+    count: item.count,
+  }));
+}
+
+function normalizeCategoryResolutionValue(
+  value: unknown,
+): CategoryResolutionMetric[] {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value
+      .map((entry) => {
+        if (!entry || typeof entry !== 'object') return null;
+        const record = entry as Record<string, unknown>;
+        const map = buildNormalizedMap(record);
+        const category =
+          getStringFromMap(map, ['category', 'categoria', 'rubro', 'label', 'name']) ||
+          undefined;
+        if (!category) return null;
+        const hours =
+          getNumberFromMap(map, ['avgHours', 'average', 'hours', 'horas']) ??
+          getNumberFromMap(map, ['value', 'valor']);
+        if (hours === undefined) return null;
+        return {
+          category,
+          avgHours: Number(hours.toFixed(1)),
+        } satisfies CategoryResolutionMetric;
+      })
+      .filter((entry): entry is CategoryResolutionMetric => entry !== null);
+  }
+  if (typeof value === 'object') {
+    return Object.entries(value as Record<string, unknown>)
+      .map(([key, rawValue]) => {
+        const numeric = coerceNumber(rawValue);
+        if (numeric === null) return null;
+        return {
+          category: formatKeyLabel(key),
+          avgHours: Number(numeric.toFixed(1)),
+        } satisfies CategoryResolutionMetric;
+      })
+      .filter((entry): entry is CategoryResolutionMetric => entry !== null);
+  }
+  return [];
+}
+
+function normalizeAgentPerformanceValue(value: unknown): AgentPerformanceMetric[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((entry) => {
+      if (!entry || typeof entry !== 'object') return null;
+      const record = entry as Record<string, unknown>;
+      const map = buildNormalizedMap(record);
+      const agent =
+        getStringFromMap(map, ['agent', 'agente', 'equipo', 'team', 'nombre']) || '';
+      if (!agent) return null;
+      const tickets =
+        getNumberFromMap(map, ['tickets', 'total', 'cantidad', 'count']) ?? 0;
+      const resolved =
+        getNumberFromMap(map, ['resolved', 'resueltos', 'cerrados', 'closed']) ?? 0;
+      const sla = getNumberFromMap(map, ['sla', 'cumplimiento', 'compliance']) ?? 0;
+      const satisfaction =
+        getNumberFromMap(map, ['satisfaction', 'csat', 'promedio', 'average']) ?? 0;
+      const firstResponse =
+        getNumberFromMap(map, ['firstResponse', 'primer respuesta', 'response']) ?? 0;
+      return {
+        agent,
+        tickets: Math.round(tickets),
+        resolved: Math.round(resolved),
+        sla: Math.round(sla),
+        satisfaction: Number(satisfaction.toFixed(2)),
+        firstResponse: Number(firstResponse.toFixed(1)),
+      } satisfies AgentPerformanceMetric;
+    })
+    .filter((entry): entry is AgentPerformanceMetric => entry !== null);
+}
+
+function extractStatsContainer(payload: unknown): Record<string, unknown> | null {
+  const visited = new Set<unknown>();
+  const queue: unknown[] = [payload];
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current || typeof current !== 'object' || visited.has(current)) continue;
+    visited.add(current);
+    if (Array.isArray(current)) {
+      current.forEach((item) => queue.push(item));
+      continue;
+    }
+    const record = current as Record<string, unknown>;
+    if ('stats' in record) return record;
+    Object.values(record).forEach((value) => {
+      if (value && typeof value === 'object') queue.push(value);
+    });
+  }
+  return null;
+}
+
+const TICKET_KEYWORDS = ['ticket', 'reclamo', 'incidente', 'case', 'expediente'];
+
+function extractTicketCandidates(payload: unknown): unknown[] {
+  const visited = new Set<unknown>();
+  const queue: unknown[] = [payload];
+  const tickets: unknown[] = [];
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current || typeof current !== 'object' || visited.has(current)) continue;
+    visited.add(current);
+    if (Array.isArray(current)) {
+      current.forEach((item) => queue.push(item));
+      continue;
+    }
+    const record = current as Record<string, unknown>;
+    Object.entries(record).forEach(([key, value]) => {
+      if (Array.isArray(value)) {
+        const normalizedKey = normalizeKeyName(key);
+        if (TICKET_KEYWORDS.some((keyword) => normalizedKey.includes(keyword))) {
+          tickets.push(...value);
+        } else {
+          value.forEach((item) => queue.push(item));
+        }
+      } else if (value && typeof value === 'object') {
+        queue.push(value);
+      }
+    });
+  }
+  return tickets;
+}
+
+function normalizeTicketRecords(rawTickets: unknown[]): TicketRecord[] {
+  return rawTickets
+    .map((ticket, index) => normalizeTicketRecord(ticket, index))
+    .filter((ticket): ticket is TicketRecord => ticket !== null);
+}
+
+function normalizeTicketRecord(raw: unknown, index: number): TicketRecord | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const record = raw as Record<string, unknown>;
+  const map = buildNormalizedMap(record);
+
+  const id =
+    getStringFromMap(map, [
+      'id',
+      'ticket id',
+      'ticket',
+      'numero',
+      'nro',
+      'numero ticket',
+      'expediente',
+    ]) ?? `ticket-${index + 1}`;
+
+  const rubro =
+    getStringFromMap(map, ['rubro', 'category', 'categoria', 'area', 'sector', 'tema']) ??
+    'General';
+
+  const barrio =
+    getStringFromMap(map, ['barrio', 'zona', 'distrito', 'localidad', 'region']) ??
+    'Sin barrio';
+
+  const tipo =
+    getStringFromMap(map, ['tipo', 'tipo ticket', 'tipo reclamo', 'tipo consulta']) ??
+    rubro;
+
+  const status = normalizeStatusValue(
+    getStringFromMap(map, ['status', 'estado', 'situacion', 'situación', 'etapa']) ??
+      'Nuevo',
+  );
+
+  const category =
+    getStringFromMap(map, ['category', 'categoria', 'rubro', 'tipo ticket']) ?? rubro;
+
+  const priority = normalizePriorityValue(
+    getStringFromMap(map, ['priority', 'prioridad', 'urgencia', 'nivel']) ?? '',
+  );
+
+  const channel = normalizeChannelValue(
+    getStringFromMap(map, ['channel', 'canal', 'origen', 'medio', 'fuente']) ?? '',
+  );
+
+  const createdAt =
+    parseDateInput(
+      getMapValue(map, [
+        'created at',
+        'fecha creacion',
+        'creado',
+        'fecha',
+        'timestamp',
+        'ingreso',
+        'fecha ingreso',
+      ]),
+    ) ?? new Date();
+
+  const resolvedAt = parseDateInput(
+    getMapValue(map, [
+      'resolved at',
+      'fecha resolucion',
+      'fecha resolución',
+      'cerrado',
+      'fecha cierre',
+      'closed at',
+      'fecha solucion',
+      'fecha finalizacion',
+    ]),
+  );
+
+  const resolutionTimeHours = (() => {
+    const explicit = getNumberFromMap(map, [
+      'resolution time hours',
+      'tiempo resolucion horas',
+      'horas resolucion',
+      'horas cierre',
+      'sla horas',
+    ]);
+    if (typeof explicit === 'number') return explicit;
+    const minutes = getNumberFromMap(map, [
+      'resolution time minutes',
+      'tiempo resolucion minutos',
+      'minutos resolucion',
+    ]);
+    if (typeof minutes === 'number') return minutes / 60;
+    const milliseconds = getNumberFromMap(map, [
+      'resolution time ms',
+      'tiempo resolucion ms',
+    ]);
+    if (typeof milliseconds === 'number') return milliseconds / 3600000;
+    const responseHours = getNumberFromMap(map, [
+      'response hours',
+      'horas respuesta',
+      'tiempo respuesta horas',
+    ]);
+    if (typeof responseHours === 'number') return responseHours;
+    const responseMs = getNumberFromMap(map, ['response ms']);
+    if (typeof responseMs === 'number') return responseMs / 3600000;
+    if (resolvedAt) {
+      const diff = resolvedAt.getTime() - createdAt.getTime();
+      if (Number.isFinite(diff) && diff > 0) return diff / 3600000;
+    }
+    const responseDays = getNumberFromMap(map, [
+      'dias abiertos',
+      'dias resolucion',
+      'tiempo resolucion dias',
+    ]);
+    if (typeof responseDays === 'number') return responseDays * 24;
+    return 48;
+  })();
+
+  const firstResponseHours = (() => {
+    const explicit = getNumberFromMap(map, [
+      'first response hours',
+      'primer respuesta horas',
+      'tiempo primera respuesta',
+    ]);
+    if (typeof explicit === 'number') return explicit;
+    const minutes = getNumberFromMap(map, [
+      'first response minutes',
+      'primer respuesta minutos',
+    ]);
+    if (typeof minutes === 'number') return minutes / 60;
+    const milliseconds = getNumberFromMap(map, [
+      'first response ms',
+      'primer respuesta ms',
+      'response ms',
+    ]);
+    if (typeof milliseconds === 'number') return milliseconds / 3600000;
+    return Math.min(resolutionTimeHours, 6);
+  })();
+
+  const satisfaction = (() => {
+    const direct = getNumberFromMap(map, [
+      'satisfaction',
+      'satisfaccion',
+      'csat',
+      'puntaje',
+      'score',
+    ]);
+    if (typeof direct === 'number' && Number.isFinite(direct)) return direct;
+    const percent = getNumberFromMap(map, [
+      'satisfaction percent',
+      'csat percent',
+      'satisfaccion porcentaje',
+    ]);
+    if (typeof percent === 'number') {
+      return Math.max(0, Math.min(100, percent)) / 20;
+    }
+    return 3.5;
+  })();
+
+  const reopened =
+    getBooleanFromMap(map, ['reabierto', 'reopened', 'reapertura']) ??
+    normalizeKeyName(status) === normalizeKeyName('Reabierto');
+
+  const surveyResponded =
+    getBooleanFromMap(map, ['survey responded', 'respondio encuesta', 'encuesta respondida']) ??
+    false;
+
+  const agent =
+    getStringFromMap(map, ['agent', 'agente', 'equipo', 'team', 'assigned to', 'responsable']) ??
+    'Equipo Municipal';
+
+  return {
+    id,
+    rubro,
+    barrio,
+    tipo,
+    status,
+    category,
+    priority,
+    channel,
+    createdAt,
+    resolvedAt,
+    resolutionTimeHours: Math.max(1, Math.round(resolutionTimeHours)),
+    satisfaction: Number(Math.min(5, Math.max(1.5, satisfaction)).toFixed(2)),
+    firstResponseHours: Math.max(1, Math.round(firstResponseHours)),
+    reopened,
+    surveyResponded,
+    agent,
+  };
+}
+
+function buildFallbackStats(
+  filters: FilterState,
+  sourceTickets?: TicketRecord[],
+): StatsResponse {
   const now = new Date();
   const rangeKey =
     filters.rango && filters.rango in FALLBACK_RANGE_MAP
@@ -511,7 +1263,12 @@ function buildFallbackStats(filters: FilterState): StatsResponse {
       ? new Date(now.getTime() - daysRange * 86400000)
       : null;
 
-  const filteredTickets = FALLBACK_TICKETS.filter((ticket) => {
+  const ticketsSource =
+    Array.isArray(sourceTickets) && sourceTickets.length > 0
+      ? sourceTickets
+      : FALLBACK_TICKETS;
+
+  const filteredTickets = ticketsSource.filter((ticket) => {
     if (filters.rubro && ticket.rubro !== filters.rubro) return false;
     if (filters.barrio && ticket.barrio !== filters.barrio) return false;
     if (filters.tipo && ticket.tipo !== filters.tipo) return false;
@@ -910,6 +1667,194 @@ function buildFallbackStats(filters: FilterState): StatsResponse {
   };
 }
 
+interface StatsNormalizationResult {
+  response: StatsResponse;
+  usedFallback: boolean;
+}
+
+function resolveStatsPayload(
+  payload: unknown,
+  filters: FilterState,
+): StatsNormalizationResult {
+  const container = extractStatsContainer(payload);
+  const apiStats = container
+    ? normalizeStatItemsValue((container as Record<string, unknown>).stats)
+    : [];
+  const ticketRecords = normalizeTicketRecords(extractTicketCandidates(payload));
+
+  if (ticketRecords.length > 0) {
+    const derived = buildFallbackStats(filters, ticketRecords);
+    const stats =
+      apiStats.length > 0 ? mergeStatLists(apiStats, derived.stats) : derived.stats;
+    return {
+      response: { ...derived, stats },
+      usedFallback: false,
+    };
+  }
+
+  if (container) {
+    const response: StatsResponse = {
+      stats: apiStats,
+    };
+
+    const categories = normalizeCountMetricsValue(
+      (container as Record<string, unknown>).categoryBreakdown ??
+        (container as Record<string, unknown>).categories ??
+        (container as Record<string, unknown>).category_metrics ??
+        (container as Record<string, unknown>).categorias,
+    );
+    if (categories.length > 0) response.categoryBreakdown = categories;
+
+    const statuses = normalizeValueMetricsValue(
+      (container as Record<string, unknown>).statusBreakdown ??
+        (container as Record<string, unknown>).status ??
+        (container as Record<string, unknown>).status_metrics ??
+        (container as Record<string, unknown>).estados,
+    );
+    if (statuses.length > 0) response.statusBreakdown = statuses;
+
+    const priorities = normalizeCountMetricsValue(
+      (container as Record<string, unknown>).priorityBreakdown ??
+        (container as Record<string, unknown>).priorities ??
+        (container as Record<string, unknown>).priority_metrics ??
+        (container as Record<string, unknown>).prioridades,
+    );
+    if (priorities.length > 0) response.priorityBreakdown = priorities;
+
+    const channels = normalizeCountMetricsValue(
+      (container as Record<string, unknown>).channelBreakdown ??
+        (container as Record<string, unknown>).channels ??
+        (container as Record<string, unknown>).canales,
+    );
+    if (channels.length > 0) response.channelBreakdown = channels;
+
+    const barrios = normalizeCountMetricsValue(
+      (container as Record<string, unknown>).barrioBreakdown ??
+        (container as Record<string, unknown>).barrios ??
+        (container as Record<string, unknown>).distritos ??
+        (container as Record<string, unknown>).zonas,
+    );
+    if (barrios.length > 0) response.barrioBreakdown = barrios;
+
+    const summary = normalizeSatisfactionSummaryValue(
+      (container as Record<string, unknown>).satisfactionSummary ??
+        (container as Record<string, unknown>).satisfaction ??
+        (container as Record<string, unknown>).csat ??
+        (container as Record<string, unknown>).nps,
+    );
+    if (summary) response.satisfactionSummary = summary;
+
+    const distribution = normalizeValueMetricsValue(
+      (container as Record<string, unknown>).satisfactionDistribution ??
+        (container as Record<string, unknown>).npsBreakdown ??
+        (container as Record<string, unknown>).nps_breakdown,
+    );
+    if (distribution.length > 0)
+      response.satisfactionDistribution = distribution;
+
+    const monthly = normalizeMonthlyTrendValue(
+      (container as Record<string, unknown>).monthlyTrend ??
+        (container as Record<string, unknown>).monthly_trend ??
+        (container as Record<string, unknown>).timeline ??
+        (container as Record<string, unknown>).mensual,
+    );
+    if (monthly.length > 0) response.monthlyTrend = monthly;
+
+    const satisfactionTrend = normalizeSatisfactionTrendValue(
+      (container as Record<string, unknown>).satisfactionTrend ??
+        (container as Record<string, unknown>).satisfaction_trend ??
+        (container as Record<string, unknown>).csatTrend ??
+        (container as Record<string, unknown>).csat_trend,
+    );
+    if (satisfactionTrend.length > 0)
+      response.satisfactionTrend = satisfactionTrend;
+
+    const heatmap = normalizeHeatmapValue(
+      (container as Record<string, unknown>).heatmap ??
+        (container as Record<string, unknown>).heat_map ??
+        (container as Record<string, unknown>).activityHeatmap,
+    );
+    if (heatmap.length > 0) response.heatmap = heatmap;
+
+    const backlog = normalizeBacklogAgingValue(
+      (container as Record<string, unknown>).backlogAging ??
+        (container as Record<string, unknown>).backlog ??
+        (container as Record<string, unknown>).pendingAging,
+    );
+    if (backlog.length > 0) response.backlogAging = backlog;
+
+    const resolution = normalizeCategoryResolutionValue(
+      (container as Record<string, unknown>).categoryResolution ??
+        (container as Record<string, unknown>).category_resolution ??
+        (container as Record<string, unknown>).resolutionByCategory,
+    );
+    if (resolution.length > 0) response.categoryResolution = resolution;
+
+    const agentPerformance = normalizeAgentPerformanceValue(
+      (container as Record<string, unknown>).agentPerformance ??
+        (container as Record<string, unknown>).agents ??
+        (container as Record<string, unknown>).agent_performance ??
+        (container as Record<string, unknown>).teamPerformance,
+    );
+    if (agentPerformance.length > 0) response.agentPerformance = agentPerformance;
+
+    if (response.stats.length > 0) {
+      return { response, usedFallback: false };
+    }
+
+    const fallback = buildFallbackStats(filters);
+    const merged: StatsResponse = { ...fallback };
+
+    if (response.categoryBreakdown?.length) {
+      merged.categoryBreakdown = response.categoryBreakdown;
+    }
+    if (response.statusBreakdown?.length) {
+      merged.statusBreakdown = response.statusBreakdown;
+    }
+    if (response.priorityBreakdown?.length) {
+      merged.priorityBreakdown = response.priorityBreakdown;
+    }
+    if (response.channelBreakdown?.length) {
+      merged.channelBreakdown = response.channelBreakdown;
+    }
+    if (response.barrioBreakdown?.length) {
+      merged.barrioBreakdown = response.barrioBreakdown;
+    }
+    if (response.monthlyTrend?.length) {
+      merged.monthlyTrend = response.monthlyTrend;
+    }
+    if (response.satisfactionTrend?.length) {
+      merged.satisfactionTrend = response.satisfactionTrend;
+    }
+    if (response.satisfactionSummary) {
+      merged.satisfactionSummary = response.satisfactionSummary;
+    }
+    if (response.satisfactionDistribution?.length) {
+      merged.satisfactionDistribution = response.satisfactionDistribution;
+    }
+    if (response.heatmap?.length) {
+      merged.heatmap = response.heatmap;
+    }
+    if (response.backlogAging?.length) {
+      merged.backlogAging = response.backlogAging;
+    }
+    if (response.categoryResolution?.length) {
+      merged.categoryResolution = response.categoryResolution;
+    }
+    if (response.agentPerformance?.length) {
+      merged.agentPerformance = response.agentPerformance;
+    }
+
+    return { response: merged, usedFallback: true };
+  }
+
+  const fallback = buildFallbackStats(filters);
+  return {
+    response: fallback,
+    usedFallback: true,
+  };
+}
+
 export default function MunicipalStats() {
   useRequireRole(['admin', 'super_admin'] as Role[]);
   const [data, setData] = useState<StatsResponse | null>(null);
@@ -965,11 +1910,17 @@ export default function MunicipalStats() {
     if (filtroRango) params.append('rango', filtroRango);
 
     try {
-      const resp = await apiFetch<StatsResponse>(
+      const resp = await apiFetch<unknown>(
         `/municipal/stats?${params.toString()}`,
       );
-      setData(resp);
-      setUsingFallback(false);
+      const normalized = resolveStatsPayload(resp, {
+        rubro: filtroRubro || undefined,
+        barrio: filtroBarrio || undefined,
+        tipo: filtroTipo || undefined,
+        rango: filtroRango || undefined,
+      });
+      setData(normalized.response);
+      setUsingFallback(normalized.usedFallback);
     } catch (err) {
       console.warn('Using synthetic municipal stats fallback', err);
       const fallbackData = buildFallbackStats({
