@@ -48,7 +48,7 @@ interface Municipality {
   name: string;
   totalTickets: number;
   categories: Record<string, number>;
-  averageResponseHours: number;
+  averageResponseHours?: number | null;
   statuses?: Record<string, number>;
   genderBreakdown?: Record<string, number>;
   ageRanges?: Record<string, number>;
@@ -75,6 +75,94 @@ const formatLabel = (value: string) =>
 const safeNumber = (value: unknown): number => {
   const num = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(num) ? num : 0;
+};
+
+const getResponseHours = (value: unknown): number | null =>
+  typeof value === 'number' && Number.isFinite(value) ? value : null;
+
+const STATUS_KEYWORDS = ['estado', 'status', 'situacion', 'situación'];
+const GENDER_KEYWORDS = ['género', 'genero', 'gender'];
+const AGE_KEYWORDS = ['edad', 'age'];
+
+const extractChartData = (
+  charts: TicketStatsResponse['charts'],
+  keywords: string[],
+): Record<string, number> => {
+  if (!Array.isArray(charts)) return {};
+  const chart = charts.find((item) => {
+    const title = (item?.title ?? '').toString().toLowerCase();
+    return keywords.some((keyword) => title.includes(keyword));
+  });
+  if (!chart || !chart.data) return {};
+  return Object.entries(chart.data).reduce((acc, [key, value]) => {
+    const normalizedKey = typeof key === 'string' ? key.trim() : '';
+    const normalizedValue = typeof value === 'number' ? value : Number(value);
+    if (normalizedKey.length > 0 && Number.isFinite(normalizedValue)) {
+      acc[normalizedKey] = normalizedValue;
+    }
+    return acc;
+  }, {} as Record<string, number>);
+};
+
+const buildMunicipalityFallback = (points: HeatPoint[]): Municipality[] => {
+  const map = new Map<string, Municipality>();
+  points.forEach((point) => {
+    const rawName =
+      (typeof point.distrito === 'string' && point.distrito.trim()) ||
+      (typeof point.barrio === 'string' && point.barrio.trim()) ||
+      (typeof point.tipo_ticket === 'string' && point.tipo_ticket.trim()) ||
+      '';
+    const name = rawName.length > 0 ? rawName : 'General';
+    const existing = map.get(name) ?? {
+      name,
+      totalTickets: 0,
+      categories: {},
+      averageResponseHours: null,
+      statuses: {},
+    };
+
+    existing.totalTickets += 1;
+    if (typeof point.categoria === 'string' && point.categoria.trim().length > 0) {
+      const category = point.categoria.trim();
+      existing.categories[category] = (existing.categories[category] ?? 0) + 1;
+    }
+    if (typeof point.estado === 'string' && point.estado.trim().length > 0) {
+      const status = point.estado.trim();
+      if (!existing.statuses) existing.statuses = {};
+      existing.statuses[status] = (existing.statuses[status] ?? 0) + 1;
+    }
+
+    map.set(name, existing);
+  });
+  return Array.from(map.values());
+};
+
+const buildFallbackAnalytics = (
+  stats: TicketStatsResponse | null,
+  heatmap: HeatPoint[],
+): AnalyticsResponse => {
+  const charts = stats?.charts;
+  const statusFromCharts = extractChartData(charts, STATUS_KEYWORDS);
+  const statusFromHeatmap = heatmap.reduce((acc, point) => {
+    const status = typeof point.estado === 'string' ? point.estado.trim() : '';
+    if (status.length > 0) {
+      acc[status] = (acc[status] ?? 0) + 1;
+    }
+    return acc;
+  }, {} as Record<string, number>);
+
+  const genderTotals = extractChartData(charts, GENDER_KEYWORDS);
+  const ageRanges = extractChartData(charts, AGE_KEYWORDS);
+
+  const municipalities = buildMunicipalityFallback(heatmap);
+
+  return {
+    municipalities,
+    statusTotals:
+      Object.keys(statusFromCharts).length > 0 ? statusFromCharts : statusFromHeatmap,
+    genderTotals: Object.keys(genderTotals).length > 0 ? genderTotals : undefined,
+    ageRanges: Object.keys(ageRanges).length > 0 ? ageRanges : undefined,
+  };
 };
 
 export default function MunicipalAnalytics() {
@@ -122,22 +210,20 @@ export default function MunicipalAnalytics() {
       .filter((status) => status)
       .forEach((status) => qs.append('estado', status));
 
+    const statsParams = {
+      tipo: 'municipio',
+      categoria: categoryFilter !== 'all' ? categoryFilter : undefined,
+      genero: genderFilter || undefined,
+      edad_min: ageMin || undefined,
+      edad_max: ageMax || undefined,
+      estado: statusFilters.length > 0 ? statusFilters : undefined,
+    };
+
     try {
-      const analyticsResponse = await apiFetch<AnalyticsResponse>(
-        `/municipal/analytics${qs.toString() ? `?${qs.toString()}` : ''}`,
-      );
-      setData(analyticsResponse);
-
-      const statsParams = {
-        tipo: 'municipio',
-        categoria: categoryFilter !== 'all' ? categoryFilter : undefined,
-        genero: genderFilter || undefined,
-        edad_min: ageMin || undefined,
-        edad_max: ageMax || undefined,
-        estado: statusFilters.length > 0 ? statusFilters : undefined,
-      };
-
-      const [statsResult, heatmapResult] = await Promise.allSettled([
+      const [analyticsResult, statsResult, heatmapResult] = await Promise.allSettled([
+        apiFetch<AnalyticsResponse>(
+          `/municipal/analytics${qs.toString() ? `?${qs.toString()}` : ''}`,
+        ),
         getTicketStats(statsParams),
         getHeatmapPoints({
           tipo_ticket: 'municipio',
@@ -149,18 +235,55 @@ export default function MunicipalAnalytics() {
         }),
       ]);
 
-      if (statsResult.status === 'fulfilled') {
-        setCharts(statsResult.value.charts || []);
-      } else {
-        setCharts([]);
+      const analyticsValue =
+        analyticsResult.status === 'fulfilled' ? analyticsResult.value : null;
+      if (analyticsResult.status === 'rejected') {
+        console.warn('Municipal analytics endpoint unavailable:', analyticsResult.reason);
+      }
+
+      const statsValue =
+        statsResult.status === 'fulfilled' ? statsResult.value : null;
+      if (statsResult.status === 'rejected') {
         console.error('Error fetching ticket stats:', statsResult.reason);
       }
 
-      if (heatmapResult.status === 'fulfilled') {
-        setHeatmapData(heatmapResult.value);
-      } else {
-        setHeatmapData([]);
+      const heatmapValue =
+        heatmapResult.status === 'fulfilled' && Array.isArray(heatmapResult.value)
+          ? heatmapResult.value
+          : [];
+      if (heatmapResult.status === 'rejected') {
         console.error('Error fetching heatmap data:', heatmapResult.reason);
+      }
+
+      const fallbackAnalytics = buildFallbackAnalytics(statsValue, heatmapValue);
+      const resolvedAnalytics = analyticsValue && Array.isArray(analyticsValue.municipalities)
+        ? {
+            ...analyticsValue,
+            statusTotals:
+              analyticsValue.statusTotals ?? fallbackAnalytics.statusTotals,
+            genderTotals:
+              analyticsValue.genderTotals ?? fallbackAnalytics.genderTotals,
+            ageRanges: analyticsValue.ageRanges ?? fallbackAnalytics.ageRanges,
+          }
+        : fallbackAnalytics;
+
+      setData(resolvedAnalytics);
+      setCharts(statsValue?.charts || []);
+      setHeatmapData(heatmapValue);
+
+      const hasAnyData =
+        resolvedAnalytics.municipalities.length > 0 ||
+        (resolvedAnalytics.statusTotals &&
+          Object.keys(resolvedAnalytics.statusTotals).length > 0) ||
+        (resolvedAnalytics.genderTotals &&
+          Object.keys(resolvedAnalytics.genderTotals).length > 0) ||
+        (resolvedAnalytics.ageRanges &&
+          Object.keys(resolvedAnalytics.ageRanges).length > 0) ||
+        (statsValue?.charts && statsValue.charts.length > 0) ||
+        heatmapValue.length > 0;
+
+      if (!hasAnyData) {
+        setError('No hay datos disponibles con los filtros actuales.');
       }
     } catch (err: any) {
       const message =
@@ -178,20 +301,32 @@ export default function MunicipalAnalytics() {
     fetchData();
   }, [fetchData]);
 
+  const statusTotals = useMemo(() => {
+    if (data?.statusTotals && Object.keys(data.statusTotals).length > 0) {
+      return data.statusTotals;
+    }
+    const aggregated: Record<string, number> = {};
+    data?.municipalities.forEach((m) => {
+      Object.entries(m.statuses || {}).forEach(([status, value]) => {
+        if (!status) return;
+        aggregated[status] = (aggregated[status] ?? 0) + safeNumber(value);
+      });
+    });
+    return aggregated;
+  }, [data]);
+
   const statusKeys = useMemo(() => {
     const set = new Set<string>(allowedStatuses.filter(Boolean));
-    if (data?.statusTotals) {
-      Object.keys(data.statusTotals).forEach((status) => {
-        if (status) set.add(status);
-      });
-    }
+    Object.keys(statusTotals || {}).forEach((status) => {
+      if (status) set.add(status);
+    });
     data?.municipalities.forEach((m) => {
       Object.keys(m.statuses || {}).forEach((status) => {
         if (status) set.add(status);
       });
     });
     return Array.from(set);
-  }, [allowedStatuses, data]);
+  }, [allowedStatuses, data, statusTotals]);
 
   useEffect(() => {
     setStatusFilters((prev) => {
@@ -220,17 +355,53 @@ export default function MunicipalAnalytics() {
     });
   }, [data, statusFilters]);
 
+  const hasResponseMetrics = useMemo(
+    () => filteredMunicipalities.some((m) => getResponseHours(m.averageResponseHours) !== null),
+    [filteredMunicipalities],
+  );
+
+  useEffect(() => {
+    if (!hasResponseMetrics && sortOption !== 'tickets_desc') {
+      setSortOption('tickets_desc');
+    }
+  }, [hasResponseMetrics, sortOption]);
+
+  const sortOptionsList = useMemo<{ value: SortOption; label: string }[]>(() => {
+    const base: { value: SortOption; label: string }[] = [
+      { value: 'tickets_desc', label: 'Mayor cantidad de tickets' },
+    ];
+    if (hasResponseMetrics) {
+      base.push(
+        { value: 'response_asc', label: 'Menor tiempo de respuesta' },
+        { value: 'response_desc', label: 'Mayor tiempo de respuesta' },
+      );
+    }
+    return base;
+  }, [hasResponseMetrics]);
+
+  const effectiveSortOption = hasResponseMetrics ? sortOption : 'tickets_desc';
+
   const sortedMunicipalities = useMemo(() => {
     const entries = [...filteredMunicipalities];
-    switch (sortOption) {
+    switch (effectiveSortOption) {
       case 'response_asc':
-        return entries.sort(
-          (a, b) => safeNumber(a.averageResponseHours) - safeNumber(b.averageResponseHours),
-        );
+        return entries.sort((a, b) => {
+          const aValue = getResponseHours(a.averageResponseHours);
+          const bValue = getResponseHours(b.averageResponseHours);
+          if (aValue === null && bValue === null) return 0;
+          if (aValue === null) return 1;
+          if (bValue === null) return -1;
+          return aValue - bValue;
+        });
       case 'response_desc':
-        return entries.sort(
-          (a, b) => safeNumber(b.averageResponseHours) - safeNumber(a.averageResponseHours),
-        );
+        return entries.sort((a, b) => {
+          const aValue = getResponseHours(a.averageResponseHours);
+          const bValue = getResponseHours(b.averageResponseHours);
+          if (aValue === null && bValue === null) return 0;
+          if (aValue === null) return 1;
+          if (bValue === null) return -1;
+          return bValue - aValue;
+        });
       default:
         return entries.sort((a, b) => {
           const aValue =
@@ -244,7 +415,7 @@ export default function MunicipalAnalytics() {
           return bValue - aValue;
         });
     }
-  }, [filteredMunicipalities, sortOption, categoryFilter]);
+  }, [filteredMunicipalities, effectiveSortOption, categoryFilter]);
 
   const totalTickets = useMemo(
     () =>
@@ -327,17 +498,11 @@ export default function MunicipalAnalytics() {
 
   const statusSummary = useMemo(
     () =>
-      statusKeys.map((status) => {
-        const totalFromResponse = safeNumber(data?.statusTotals?.[status]);
-        const aggregated = safeNumber(
-          data?.municipalities.reduce(
-            (sum, m) => sum + safeNumber(m.statuses?.[status]),
-            0,
-          ),
-        );
-        return { status, value: totalFromResponse || aggregated };
-      }),
-    [data, statusKeys],
+      statusKeys.map((status) => ({
+        status,
+        value: safeNumber(statusTotals[status]),
+      })),
+    [statusKeys, statusTotals],
   );
 
   const stackedStatusData = useMemo(
@@ -398,9 +563,23 @@ export default function MunicipalAnalytics() {
     });
   }, []);
 
+  const hasMunicipalityRows = filteredMunicipalities.length > 0;
+  const hasStatusData = statusSummary.some((item) => safeNumber(item.value) > 0);
+  const hasGenderData = genderData.length > 0;
+  const hasAgeData = ageData.length > 0;
+  const hasChartsData = charts && charts.length > 0;
+  const hasHeatmapPoints = heatmapData.length > 0;
+
   if (loading) return <p className="p-4 text-center">Cargando analíticas...</p>;
   if (error) return <p className="p-4 text-destructive text-center">Error: {error}</p>;
-  if (!data || filteredMunicipalities.length === 0)
+  if (
+    !hasMunicipalityRows &&
+    !hasStatusData &&
+    !hasGenderData &&
+    !hasAgeData &&
+    !hasChartsData &&
+    !hasHeatmapPoints
+  )
     return (
       <p className="p-4 text-center text-muted-foreground">
         No hay datos disponibles con los filtros actuales.
@@ -466,9 +645,11 @@ export default function MunicipalAnalytics() {
                 <SelectValue placeholder="Ordenar" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="tickets_desc">Mayor cantidad de tickets</SelectItem>
-                <SelectItem value="response_asc">Menor tiempo de respuesta</SelectItem>
-                <SelectItem value="response_desc">Mayor tiempo de respuesta</SelectItem>
+                {sortOptionsList.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

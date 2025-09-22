@@ -134,3 +134,70 @@ export const getHeatmapPoints = async (
   }
 };
 
+type MunicipalStatesPayload =
+  | string[]
+  | {
+      estados?: unknown;
+      states?: unknown;
+      data?: unknown;
+      [key: string]: unknown;
+    };
+
+const normalizeStatesResponse = (payload: MunicipalStatesPayload | null | undefined): string[] => {
+  const potentialLists: unknown[] = [];
+  if (Array.isArray(payload)) {
+    potentialLists.push(payload);
+  } else if (payload && typeof payload === 'object') {
+    potentialLists.push(payload.estados, payload.states, payload.data);
+  }
+
+  for (const value of potentialLists) {
+    if (Array.isArray(value)) {
+      return value
+        .map((item) => (typeof item === 'string' ? item.trim() : ''))
+        .filter((item): item is string => item.length > 0);
+    }
+  }
+
+  return [];
+};
+
+const STATUS_KEYWORDS = ['estado', 'status', 'situacion', 'situación'];
+
+const extractStatusKeysFromCharts = (
+  charts: TicketStatsResponse['charts'],
+): string[] => {
+  if (!Array.isArray(charts)) return [];
+  const statusChart = charts.find((chart) => {
+    const title = (chart?.title ?? '').toString().toLowerCase();
+    return STATUS_KEYWORDS.some((keyword) => title.includes(keyword));
+  });
+
+  if (!statusChart || !statusChart.data) return [];
+
+  return Object.keys(statusChart.data).filter((key) => typeof key === 'string' && key.trim().length > 0);
+};
+
+export const getMunicipalTicketStates = async (): Promise<string[]> => {
+  let payload: MunicipalStatesPayload | null = null;
+  try {
+    payload = await apiFetch<MunicipalStatesPayload>('/municipal/estados');
+  } catch (err) {
+    console.warn('Error fetching municipal ticket states from /municipal/estados, attempting fallback.', err);
+  }
+
+  const normalized = normalizeStatesResponse(payload);
+  if (normalized.length > 0) {
+    return Array.from(new Set(normalized));
+  }
+
+  try {
+    const stats = await getTicketStats({ tipo: 'municipio' });
+    const derived = extractStatusKeysFromCharts(stats?.charts);
+    return Array.from(new Set(derived));
+  } catch (err) {
+    console.error('Error fetching municipal ticket states:', err);
+    return [];
+  }
+};
+
