@@ -17,6 +17,40 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
+const HEATMAP_CACHE_LIMIT = 20;
+
+const normalizeValue = (value: unknown): string => {
+  if (value === undefined || value === null) return '';
+  if (typeof value === 'string') return value.trim();
+  return String(value);
+};
+
+const normalizeArrayValue = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => normalizeValue(item))
+    .filter((item): item is string => item.length > 0)
+    .sort((a, b) => a.localeCompare(b));
+};
+
+const buildHeatmapCacheKey = (filters: Record<string, unknown>): string => {
+  const normalizedEntries = Object.entries(filters).map(([key, value]) => {
+    if (Array.isArray(value)) {
+      return [key, normalizeArrayValue(value)];
+    }
+    return [key, normalizeValue(value)];
+  });
+
+  normalizedEntries.sort(([a], [b]) => a.localeCompare(b));
+  return JSON.stringify(normalizedEntries);
+};
+
+const sanitizeFilterValue = (value?: string | null): string | undefined => {
+  if (value === undefined || value === null) return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+};
+
 export default function IncidentsMap() {
   useRequireRole(['admin', 'super_admin'] as Role[]);
   const { user } = useUser();
@@ -54,13 +88,7 @@ export default function IncidentsMap() {
   const [availableBarrios, setAvailableBarrios] = useState<string[]>([]);
   const [provider, setProvider] = useState<'maplibre' | 'google'>('maplibre');
 
-  const heatmapCache = useRef<Record<string, HeatPoint[]>>({});
-  const lastFiltersRef = useRef<{
-    fecha_inicio?: string;
-    fecha_fin?: string;
-    distrito?: string;
-    barrio?: string;
-  }>({});
+  const heatmapCache = useRef<Map<string, HeatPoint[]>>(new Map());
 
   const startDateRef = useRef<HTMLInputElement>(null);
   const endDateRef = useRef<HTMLInputElement>(null);
@@ -72,41 +100,39 @@ export default function IncidentsMap() {
 
   const ticketType = 'municipio';
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (forceRefresh = false) => {
     setIsLoading(true);
     setError(null);
 
     try {
       const filters = {
-        fecha_inicio: startDateRef.current?.value,
-        fecha_fin: endDateRef.current?.value,
+        fecha_inicio: sanitizeFilterValue(startDateRef.current?.value),
+        fecha_fin: sanitizeFilterValue(endDateRef.current?.value),
         categoria: selectedCategories,
         estado: selectedStates,
-        distrito: districtRef.current?.value,
-        barrio: barrioRef.current?.value,
-        genero: genderRef.current?.value,
-        edad_min: ageMinRef.current?.value,
-        edad_max: ageMaxRef.current?.value,
+        distrito: sanitizeFilterValue(districtRef.current?.value),
+        barrio: sanitizeFilterValue(barrioRef.current?.value),
+        genero: sanitizeFilterValue(genderRef.current?.value),
+        edad_min: sanitizeFilterValue(ageMinRef.current?.value),
+        edad_max: sanitizeFilterValue(ageMaxRef.current?.value),
       };
 
-      const { fecha_inicio, fecha_fin, distrito, barrio, categoria } = filters;
-      const otherFilters = { fecha_inicio, fecha_fin, distrito, barrio };
-      const lastFilters = lastFiltersRef.current;
-      if (
-        lastFilters.fecha_inicio !== otherFilters.fecha_inicio ||
-        lastFilters.fecha_fin !== otherFilters.fecha_fin ||
-        lastFilters.distrito !== otherFilters.distrito ||
-        lastFilters.barrio !== otherFilters.barrio
-      ) {
-        heatmapCache.current = {};
-        lastFiltersRef.current = otherFilters;
-      }
+      const heatmapKey = buildHeatmapCacheKey({
+        ...filters,
+        tipo_ticket: ticketType,
+      });
 
-      const categoryKey = categoria || 'all';
-      const heatmapPromise = heatmapCache.current[categoryKey]
-        ? Promise.resolve(heatmapCache.current[categoryKey])
+      const cache = heatmapCache.current;
+      const heatmapPromise = !forceRefresh && cache.has(heatmapKey)
+        ? Promise.resolve(cache.get(heatmapKey) ?? [])
         : getHeatmapPoints({ tipo_ticket: ticketType, ...filters }).then((data) => {
-            heatmapCache.current[categoryKey] = data;
+            cache.set(heatmapKey, data);
+            if (cache.size > HEATMAP_CACHE_LIMIT) {
+              const firstKey = cache.keys().next().value;
+              if (firstKey) {
+                cache.delete(firstKey);
+              }
+            }
             return data;
           });
 
@@ -376,7 +402,9 @@ export default function IncidentsMap() {
               <div className="sm:col-span-full flex justify-between mt-2">
                 <div className="flex items-center">
                   <Button
-                    onClick={fetchData}
+                    onClick={() => {
+                      void fetchData(true);
+                    }}
                     disabled={isLoading}
                     className="bg-primary hover:bg-primary/90 text-primary-foreground mr-2"
                   >
