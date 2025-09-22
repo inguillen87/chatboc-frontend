@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { cn } from '@/lib/utils';
+import { normalizeTicketStatus } from '@/utils/ticketStatus';
 
 interface SidebarProps {
   className?: string;
@@ -28,6 +29,22 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
   const [searchTerm, setSearchTerm] = React.useState('');
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
   const [visibleCounts, setVisibleCounts] = React.useState<{ [key: string]: number }>({});
+  const [openCategories, setOpenCategories] = React.useState<string[]>([]);
+  const previousOpenCategoriesRef = React.useRef<string[] | null>(null);
+
+  const selectedCategory = React.useMemo(() => {
+    if (!selectedTicket) {
+      return null;
+    }
+
+    const status = normalizeTicketStatus(selectedTicket.estado);
+
+    if (status === 'resuelto') {
+      return 'Resueltos';
+    }
+
+    return selectedTicket.categoria || 'General';
+  }, [selectedTicket]);
 
   const filteredTicketsByCategory = React.useMemo(() => {
     if (!debouncedSearchTerm) {
@@ -70,6 +87,83 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
     }
     setVisibleCounts(newVisibleCounts);
   }, [filteredTicketsByCategory]);
+
+  React.useEffect(() => {
+    setOpenCategories((prev) =>
+      prev.filter((category) => Boolean(filteredTicketsByCategory[category])),
+    );
+  }, [filteredTicketsByCategory]);
+
+  React.useEffect(() => {
+    if (!selectedCategory) {
+      return;
+    }
+
+    if (!filteredTicketsByCategory[selectedCategory]) {
+      return;
+    }
+
+    setOpenCategories((prev) =>
+      prev.includes(selectedCategory) ? prev : [...prev, selectedCategory],
+    );
+  }, [filteredTicketsByCategory, selectedCategory]);
+
+  React.useEffect(() => {
+    if (!debouncedSearchTerm) {
+      return;
+    }
+
+    if (previousOpenCategoriesRef.current === null) {
+      previousOpenCategoriesRef.current = openCategories.length
+        ? openCategories
+        : selectedCategory
+          ? [selectedCategory]
+          : [];
+    }
+
+    const categories = Object.keys(filteredTicketsByCategory);
+
+    if (categories.length === 0) {
+      if (openCategories.length > 0) {
+        setOpenCategories([]);
+      }
+      return;
+    }
+
+    const sameOrder =
+      categories.length === openCategories.length &&
+      categories.every((category, index) => category === openCategories[index]);
+
+    if (sameOrder) {
+      return;
+    }
+
+    setOpenCategories(categories);
+  }, [debouncedSearchTerm, filteredTicketsByCategory, openCategories, selectedCategory]);
+
+  React.useEffect(() => {
+    if (debouncedSearchTerm) {
+      return;
+    }
+
+    if (previousOpenCategoriesRef.current === null) {
+      return;
+    }
+
+    const restored = previousOpenCategoriesRef.current;
+    previousOpenCategoriesRef.current = null;
+
+    if (restored.length > 0) {
+      setOpenCategories(restored);
+      return;
+    }
+
+    if (selectedCategory) {
+      setOpenCategories([selectedCategory]);
+    } else {
+      setOpenCategories([]);
+    }
+  }, [debouncedSearchTerm, selectedCategory]);
 
   const handleLoadMore = (category: string) => {
     setVisibleCounts((prev) => ({
@@ -119,7 +213,12 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
         </div>
       </div>
       <ScrollArea className="flex-1">
-        <Accordion type="multiple" className="w-full" defaultValue={Object.keys(filteredTicketsByCategory)}>
+        <Accordion
+          type="multiple"
+          className="w-full"
+          value={openCategories}
+          onValueChange={setOpenCategories}
+        >
           {Object.entries(filteredTicketsByCategory).map(([category, tickets]) => (
             <AccordionItem value={category} key={category}>
               <AccordionTrigger className="px-4 font-semibold">

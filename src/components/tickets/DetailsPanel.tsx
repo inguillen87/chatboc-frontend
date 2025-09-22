@@ -296,6 +296,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
 
   const [timelineHistory, setTimelineHistory] = React.useState<TicketHistoryEvent[]>([]);
   const [timelineMessages, setTimelineMessages] = React.useState<Message[]>([]);
+  const [openSections, setOpenSections] = React.useState<string[]>([]);
 
   const attachments = React.useMemo(
     () => collectAttachmentsFromTicket(ticket, timelineMessages),
@@ -368,6 +369,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
       setSpecialContact(null);
     }
     setCompletionSent(false);
+    setOpenSections([]);
   }, [ticket?.categoria, ticket?.id]);
 
   const getInitials = (name: string) => {
@@ -634,7 +636,8 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
 
           <Accordion
             type="multiple"
-            defaultValue={['info-personal', 'info-ticket']}
+            value={openSections}
+            onValueChange={setOpenSections}
             className="w-full"
           >
             <AccordionItem value="info-personal">

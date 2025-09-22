@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -22,6 +22,59 @@ import AdjuntarArchivo from '../ui/AdjuntarArchivo';
 import { apiFetch } from '@/utils/api';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ALLOWED_TICKET_STATUSES, formatTicketStatusLabel } from '@/utils/ticketStatus';
+
+const formatRelativeTime = (input?: Date | null) => {
+  if (!input) {
+    return 'Sin actividad reciente';
+  }
+
+  const timestamp = input instanceof Date ? input : new Date(input);
+
+  if (Number.isNaN(timestamp.getTime())) {
+    return 'Sin actividad reciente';
+  }
+
+  const now = Date.now();
+  const diffInSeconds = Math.round((timestamp.getTime() - now) / 1000);
+  const absSeconds = Math.abs(diffInSeconds);
+
+  if (typeof Intl !== 'undefined' && typeof Intl.RelativeTimeFormat !== 'undefined') {
+    const rtf = new Intl.RelativeTimeFormat('es-AR', { numeric: 'auto' });
+
+    if (absSeconds < 60) {
+      return rtf.format(diffInSeconds, 'second');
+    }
+
+    const diffInMinutes = Math.round(diffInSeconds / 60);
+    if (Math.abs(diffInMinutes) < 60) {
+      return rtf.format(diffInMinutes, 'minute');
+    }
+
+    const diffInHours = Math.round(diffInMinutes / 60);
+    if (Math.abs(diffInHours) < 24) {
+      return rtf.format(diffInHours, 'hour');
+    }
+
+    const diffInDays = Math.round(diffInHours / 24);
+    if (Math.abs(diffInDays) < 7) {
+      return rtf.format(diffInDays, 'day');
+    }
+
+    const diffInWeeks = Math.round(diffInDays / 7);
+    if (Math.abs(diffInWeeks) < 4) {
+      return rtf.format(diffInWeeks, 'week');
+    }
+  }
+
+  try {
+    return new Intl.DateTimeFormat('es-AR', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    }).format(timestamp);
+  } catch {
+    return timestamp.toLocaleString('es-AR');
+  }
+};
 
 // Helper to adapt ticket messages to the format ChatMessageBase expects
 const adaptTicketMessageToChatMessage = (msg: TicketMessage, ticket: Ticket): ChatMessageData => {
@@ -95,6 +148,62 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
   const channel = usePusher(channelName);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const statusOptions = ALLOWED_TICKET_STATUSES;
+  const lastMessage = useMemo(() => (messages.length > 0 ? messages[messages.length - 1] : null), [messages]);
+  const { incomingMessagesCount, attachmentsCount } = useMemo(() => {
+    let incoming = 0;
+    let attachments = 0;
+
+    for (const msg of messages) {
+      if (!msg.isBot) {
+        incoming += 1;
+      }
+
+      if (msg.attachmentInfo) {
+        attachments += 1;
+      }
+    }
+
+    return { incomingMessagesCount: incoming, attachmentsCount: attachments };
+  }, [messages]);
+  const outgoingMessagesCount = messages.length - incomingMessagesCount;
+  const lastMessageSnippet = useMemo(() => {
+    if (!lastMessage) {
+      return '';
+    }
+
+    if (typeof lastMessage.text === 'string' && lastMessage.text.trim()) {
+      const plain = lastMessage.text
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      if (plain) {
+        return plain.length > 120 ? `${plain.slice(0, 117)}…` : plain;
+      }
+    }
+
+    if (lastMessage.attachmentInfo?.name) {
+      return `Archivo: ${lastMessage.attachmentInfo.name}`;
+    }
+
+    return '';
+  }, [lastMessage]);
+  const lastActivityLabel = useMemo(() => {
+    if (!lastMessage?.timestamp) {
+      return 'Sin actividad reciente';
+    }
+
+    const value = lastMessage.timestamp instanceof Date
+      ? lastMessage.timestamp
+      : new Date(lastMessage.timestamp);
+
+    if (Number.isNaN(value.getTime())) {
+      return 'Sin actividad reciente';
+    }
+
+    return formatRelativeTime(value);
+  }, [lastMessage]);
+  const isResponsePending = lastMessage ? !lastMessage.isBot : false;
 
   useEffect(() => {
     if (transcript) {
@@ -281,6 +390,12 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     }
   };
 
+  useEffect(() => {
+    if (isDetailsVisible && desktopView === 'details' && setDesktopView) {
+      setDesktopView('chat');
+    }
+  }, [desktopView, isDetailsVisible, setDesktopView]);
+
   return (
     <motion.div
         key={selectedTicket.id}
@@ -361,7 +476,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         </div>
       </header>
 
-      {!isMobile && isDetailsVisible && setDesktopView && (
+      {!isMobile && !isDetailsVisible && setDesktopView && (
         <div className="p-2 border-b border-border">
           <div className="grid grid-cols-2 gap-2">
             <Button
@@ -376,6 +491,41 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
             >
               Información
             </Button>
+          </div>
+        </div>
+      )}
+
+      {!isMobile && isDetailsVisible && (
+        <div className="border-b border-border bg-muted/30 px-3 py-3">
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="rounded-lg border border-border/60 bg-background/80 p-3">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Actividad reciente</p>
+              <p className="text-sm font-semibold text-foreground">{lastActivityLabel}</p>
+              {lastMessageSnippet && (
+                <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{lastMessageSnippet}</p>
+              )}
+            </div>
+            <div className="rounded-lg border border-border/60 bg-background/80 p-3">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Volumen</p>
+              <p className="text-sm font-semibold text-foreground">
+                {messages.length}{' '}
+                {messages.length === 1 ? 'mensaje' : 'mensajes'}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {incomingMessagesCount} del vecino · {outgoingMessagesCount} del agente
+              </p>
+            </div>
+            <div className="rounded-lg border border-border/60 bg-background/80 p-3">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Seguimiento</p>
+              <Badge variant={isResponsePending ? 'destructive' : 'secondary'} className="mt-1 w-fit">
+                {isResponsePending ? 'Respuesta pendiente' : 'Al día'}
+              </Badge>
+              <p className="mt-2 text-xs text-muted-foreground">
+                {attachmentsCount > 0
+                  ? `${attachmentsCount} ${attachmentsCount === 1 ? 'adjunto' : 'adjuntos'} compartidos`
+                  : 'Sin adjuntos'}
+              </p>
+            </div>
           </div>
         </div>
       )}
