@@ -32,6 +32,12 @@ import {
 } from 'recharts';
 import { Button } from '@/components/ui/button';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
   Accordion,
   AccordionContent,
   AccordionItem,
@@ -39,6 +45,7 @@ import {
 } from '@/components/ui/accordion';
 import useRequireRole from '@/hooks/useRequireRole';
 import type { Role } from '@/utils/roles';
+import { FileDown } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -48,6 +55,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  exportMunicipalStatsExcel,
+  exportMunicipalStatsPdf,
+} from '@/services/exportService';
 
 interface StatItem {
   label: string;
@@ -1941,6 +1952,32 @@ export default function MunicipalStats() {
     fetchStats();
   }, [fetchStats]);
 
+  const statsExportConfig = useMemo(() => {
+    if (!data) return null;
+    return {
+      data,
+      filters: {
+        rubro: filtroRubro || 'Todos',
+        barrio: filtroBarrio || 'Todos',
+        tipo: filtroTipo || 'Todos',
+        rango: filtroRango || 'Todos',
+      },
+      usingFallback,
+    };
+  }, [data, filtroRubro, filtroBarrio, filtroTipo, filtroRango, usingFallback]);
+
+  const canExportStats = Boolean(statsExportConfig);
+
+  const handleExportStatsPdf = useCallback(() => {
+    if (!statsExportConfig) return;
+    exportMunicipalStatsPdf(statsExportConfig);
+  }, [statsExportConfig]);
+
+  const handleExportStatsExcel = useCallback(() => {
+    if (!statsExportConfig) return;
+    exportMunicipalStatsExcel(statsExportConfig);
+  }, [statsExportConfig]);
+
   const heatmapMax = useMemo(() => {
     if (!data?.heatmap?.length) return 0;
     return data.heatmap.reduce((max, row) => {
@@ -1970,16 +2007,39 @@ export default function MunicipalStats() {
 
   return (
     <div className="p-4 max-w-6xl mx-auto space-y-6">
-      <div className="space-y-2">
-        <h1 className="text-3xl font-extrabold text-primary">
-          Estadísticas Municipales
-        </h1>
-        {usingFallback ? (
-          <p className="text-sm text-muted-foreground bg-muted/60 border border-dashed border-border rounded-md p-3">
-            Mostrando analíticas simuladas mientras se restablece la conexión
-            con el servidor.
-          </p>
-        ) : null}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-extrabold text-primary">
+            Estadísticas Municipales
+          </h1>
+          {usingFallback ? (
+            <p className="text-sm text-muted-foreground bg-muted/60 border border-dashed border-border rounded-md p-3">
+              Mostrando analíticas simuladas mientras se restablece la conexión
+              con el servidor.
+            </p>
+          ) : null}
+        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2"
+              disabled={!canExportStats}
+            >
+              <FileDown className="h-4 w-4" />
+              Exportar
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={handleExportStatsPdf} disabled={!canExportStats}>
+              Exportar PDF
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleExportStatsExcel} disabled={!canExportStats}>
+              Exportar Excel
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <Accordion type="single" collapsible className="w-full">
