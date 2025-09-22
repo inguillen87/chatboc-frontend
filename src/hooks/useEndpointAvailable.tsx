@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react';
 import { apiFetch, ApiError } from '@/utils/api';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
+import {
+  clearEndpointUnavailable,
+  isEndpointMarkedUnavailable,
+  markEndpointUnavailable,
+} from '@/utils/endpointAvailability';
 
 /**
  * Checks if an API endpoint exists. Returns:
@@ -18,15 +23,27 @@ export default function useEndpointAvailable(path: string) {
       return;
     }
 
+    if (isEndpointMarkedUnavailable(path)) {
+      setAvailable(false);
+      return;
+    }
+
     let canceled = false;
     (async () => {
       try {
         await apiFetch(path);
-        if (!canceled) setAvailable(true);
+        if (!canceled) {
+          setAvailable(true);
+          clearEndpointUnavailable(path);
+        }
       } catch (err: any) {
         if (!canceled) {
-          if (err instanceof ApiError && (err.status === 404 || err.status === 403 || err.status === 401)) {
+          if (
+            err instanceof ApiError &&
+            (err.status === 404 || err.status === 403 || err.status === 401 || err.status >= 500)
+          ) {
             setAvailable(false);
+            markEndpointUnavailable(path);
           } else {
             setAvailable(true);
           }
