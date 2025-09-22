@@ -19,68 +19,86 @@ self.addEventListener('install', event => {
 });
 
 self.addEventListener('fetch', event => {
-  // Ignore non-HTTP/HTTPS requests (e.g., chrome-extension://)
-  if (!event.request.url.startsWith('http')) {
+  const { request } = event;
+
+  // Ignore non-HTTP/HTTPS requests (e.g., chrome-extension://) and non-GET calls
+  // so POST/PUT requests (like token mints) always hit the network directly.
+  if (!request.url.startsWith('http') || request.method !== 'GET') {
     return;
   }
 
-  // Strategy: Network-first for navigation, Cache-first for others.
+  const url = new URL(request.url);
 
-  if (event.request.mode === 'navigate') {
-    const url = new URL(event.request.url);
+  // Strategy: Network-first for navigation, Cache-first for others.
+  if (request.mode === 'navigate') {
     // Let the browser handle iframe navigations so the widget always hits the network
     if (url.pathname.startsWith('/iframe')) {
       return;
     }
 
     event.respondWith(
-      fetch(event.request)
+      fetch(request)
         .then(response => {
           // If the fetch is successful, cache the response for offline use.
           if (response.ok) {
             const responseToCache = response.clone();
             caches.open(CACHE_NAME).then(cache => {
-              cache.put(event.request, responseToCache);
+              cache.put(request, responseToCache);
             });
           }
           return response;
         })
-        .catch(() => {
-          // If the network fails, fall back to the cache.
-          return caches.match(event.request);
+        .catch(() => caches.match(request))
+    );
+    return;
+  }
+
+  // JavaScript and CSS power both the main app and the embeddable widget.
+  // Serve them network-first so updates are not blocked by a stale cache.
+  const isCodeAsset = ['script', 'style', 'worker'].includes(request.destination);
+
+  if (isCodeAsset) {
+    event.respondWith(
+      fetch(request)
+        .then(response => {
+          if (response && response.status === 200 && response.type === 'basic') {
+            const responseToCache = response.clone();
+            caches.open(CACHE_NAME).then(cache => {
+              cache.put(request, responseToCache);
+            });
+          }
+          return response;
+        })
+        .catch(async err => {
+          const cached = await caches.match(request);
+          if (cached) {
+            return cached;
+          }
+          throw err;
         })
     );
     return;
   }
 
-  // For non-navigation requests (assets like JS, CSS, images),
-  // use the cache-first strategy for performance.
+  // For non-code assets (images, JSON, etc.), use the existing cache-first strategy.
   event.respondWith(
-    caches.match(event.request).then(response => {
-      // Cache hit - return response
+    caches.match(request).then(response => {
       if (response) {
         return response;
       }
 
-      // Not in cache, so fetch from network.
-      const fetchRequest = event.request.clone();
-
-      return fetch(fetchRequest).then(response => {
-        // Check if we received a valid response.
-        // The original check for 'basic' type is important to avoid caching
-        // opaque responses from third-party domains.
-        if (!response || response.status !== 200 || response.type !== 'basic') {
-          return response;
+      return fetch(request).then(networkResponse => {
+        if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
+          return networkResponse;
         }
 
-        // Clone the response because it's a stream and can be consumed only once.
-        const responseToCache = response.clone();
+        const responseToCache = networkResponse.clone();
 
         caches.open(CACHE_NAME).then(cache => {
-          cache.put(event.request, responseToCache);
+          cache.put(request, responseToCache);
         });
 
-        return response;
+        return networkResponse;
       });
     })
   );
