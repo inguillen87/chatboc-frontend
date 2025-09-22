@@ -2,6 +2,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Boton } from '@/types/chat';
+import { openExternalLink } from '@/utils/openExternalLink';
 
 interface ChatButtonsProps {
     botones: Boton[];
@@ -65,7 +66,7 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
 
         // Priority 4: Handle URL navigation
         if (boton.url) {
-            window.open(boton.url, "_blank", "noopener,noreferrer");
+            openExternalLink(boton.url);
             return;
         }
 
@@ -90,6 +91,11 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
                         href={boton.url}
                         target="_blank"
                         rel="noopener noreferrer"
+                        referrerPolicy="no-referrer"
+                        onClick={(event) => {
+                            event.preventDefault();
+                            openExternalLink(boton.url);
+                        }}
                         className={baseClass + " no-underline inline-flex items-center justify-center"}
                         style={{ maxWidth: 180 }}
                         title={boton.texto}
