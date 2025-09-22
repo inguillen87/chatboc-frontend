@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
@@ -44,6 +44,22 @@ export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({
     }
     return adminLocation;
   }, [initialHeatmapData, adminLocation]);
+
+  const boundsCoordinates = useMemo(() => {
+    const coords = heatmapData
+      .map((point) => [point.lng, point.lat] as [number, number])
+      .filter(([lng, lat]) => Number.isFinite(lng) && Number.isFinite(lat));
+
+    if (
+      adminLocation &&
+      Number.isFinite(adminLocation[0]) &&
+      Number.isFinite(adminLocation[1])
+    ) {
+      coords.push(adminLocation);
+    }
+
+    return coords;
+  }, [heatmapData, adminLocation]);
 
 
   const FilterGroup: React.FC<{ title: string; items: string[]; selected: string[]; onSelectedChange: (selected: string[]) => void }> = ({ title, items, selected, onSelectedChange }) => {
@@ -94,6 +110,8 @@ export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({
             heatmapData={heatmapData}
             adminLocation={adminLocation}
             className="h-[600px] rounded-lg"
+            fitToBounds={boundsCoordinates.length > 0 ? boundsCoordinates : undefined}
+            fallbackEnabled={false}
           />
         ) : (
           <div className="h-[600px] flex items-center justify-center bg-muted/30 rounded-lg">
