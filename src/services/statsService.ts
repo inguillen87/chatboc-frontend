@@ -27,6 +27,11 @@ export interface TicketStatsParams {
   estado?: string | string[];
   distrito?: string;
   barrio?: string;
+  genero?: string | string[];
+  edad_min?: string | number;
+  edad_max?: string | number;
+  sugerencia?: string | string[];
+  prioridad?: string | string[];
 }
 
 export const getTicketStats = async (
@@ -81,6 +86,10 @@ export interface HeatmapParams {
   estado?: string | string[];
   distrito?: string;
   barrio?: string;
+  genero?: string | string[];
+  edad_min?: string | number;
+  edad_max?: string | number;
+  sugerencia?: string | string[];
 }
 
 export const getHeatmapPoints = async (
