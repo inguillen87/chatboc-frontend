@@ -12,6 +12,7 @@ interface AddressAutocompleteProps {
   persistKey?: string;
   readOnly?: boolean;
   disabled?: boolean;
+  id?: string;
 }
 
 const MAPTILER_KEY = import.meta.env.VITE_MAPTILER_KEY || "";
@@ -26,6 +27,7 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   persistKey,
   readOnly = false,
   disabled = false,
+  id,
 }) => {
   const [query, setQuery] = useState(value?.label || "");
   const [options, setOptions] = useState<string[]>([]);
@@ -99,6 +101,7 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   if (readOnly || disabled) {
     return (
       <Input
+        id={id}
         value={query}
         readOnly
         disabled={disabled}
@@ -111,6 +114,7 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   return (
     <div className="relative">
       <Input
+        id={id}
         value={query}
         onChange={(e) => {
           const val = e.target.value;
