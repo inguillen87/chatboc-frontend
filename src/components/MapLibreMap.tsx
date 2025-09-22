@@ -14,6 +14,9 @@ type Props = {
   className?: string;
   provider?: "maplibre" | "google";
   adminLocation?: [number, number];
+  fitToBounds?: [number, number][];
+  boundsPadding?: number | { top?: number; bottom?: number; left?: number; right?: number };
+  fallbackEnabled?: boolean;
 };
 
 const addLayer = (map: Map, layer: any) => {
@@ -109,6 +112,9 @@ export default function MapLibreMap({
   className,
   provider = "maplibre",
   adminLocation,
+  fitToBounds,
+  boundsPadding,
+  fallbackEnabled = true,
 }: Props) {
   const [mapError, setMapError] = useState<string | null>(null);
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
@@ -150,8 +156,10 @@ export default function MapLibreMap({
   }, [heatmapData]);
 
   const shouldRenderGoogle = useMemo(
-    () => provider === "google" || (provider === "maplibre" && mapError !== null),
-    [provider, mapError],
+    () =>
+      fallbackEnabled !== false &&
+      (provider === "google" || (provider === "maplibre" && mapError !== null)),
+    [provider, mapError, fallbackEnabled],
   );
 
   const fallbackQuery = useMemo(() => {
@@ -173,8 +181,14 @@ export default function MapLibreMap({
         return `${avgLat},${avgLng}`;
       }
     }
+    if (fitToBounds?.length) {
+      const [lng, lat] = fitToBounds[0];
+      if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
+        return `${lat},${lng}`;
+      }
+    }
     return "Argentina";
-  }, [adminLocation, center, heatmapData, marker]);
+  }, [adminLocation, center, heatmapData, marker, fitToBounds]);
 
   useEffect(() => {
     if (!shouldRenderGoogle) {
@@ -407,9 +421,9 @@ export default function MapLibreMap({
     if (!map || provider !== "maplibre") return;
 
     if (center && !Number.isNaN(center[0]) && !Number.isNaN(center[1])) {
-      map.flyTo({ center, zoom: initialZoom });
+      map.flyTo({ center, zoom: initialZoomRef.current });
     }
-  }, [center, initialZoom, provider]);
+  }, [center, provider]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -519,6 +533,69 @@ export default function MapLibreMap({
     }
   }, [adminLocation, provider]);
 
+  useEffect(() => {
+    const map = mapRef.current;
+    const maplibre = libRef.current;
+    if (!map || provider !== "maplibre") return;
+
+    const coords = (fitToBounds ?? []).filter(
+      (value): value is [number, number] =>
+        Array.isArray(value) &&
+        value.length === 2 &&
+        Number.isFinite(value[0]) &&
+        Number.isFinite(value[1]),
+    );
+
+    if (!coords.length) {
+      return;
+    }
+
+    const applyBounds = () => {
+      if (coords.length === 1) {
+        map.flyTo({ center: coords[0], zoom: initialZoomRef.current });
+        return;
+      }
+
+      if (maplibre?.LngLatBounds) {
+        const bounds = coords.slice(1).reduce(
+          (acc, coord) => acc.extend(coord),
+          new maplibre.LngLatBounds(coords[0], coords[0]),
+        );
+
+        const samePoint =
+          typeof bounds.getNorth === "function" &&
+          bounds.getNorth() === bounds.getSouth() &&
+          bounds.getEast() === bounds.getWest();
+
+        if (samePoint && typeof bounds.getCenter === "function") {
+          map.flyTo({ center: bounds.getCenter().toArray() as [number, number], zoom: initialZoomRef.current });
+          return;
+        }
+
+        try {
+          map.fitBounds(bounds, {
+            padding: boundsPadding ?? 48,
+            duration: 1000,
+          });
+          return;
+        } catch (err) {
+          console.warn("No se pudo ajustar el mapa a los límites proporcionados", err);
+        }
+      }
+
+      map.flyTo({ center: coords[0], zoom: initialZoomRef.current });
+    };
+
+    if (map.isStyleLoaded()) {
+      applyBounds();
+    } else {
+      map.once("load", applyBounds);
+      return () => {
+        map.off("load", applyBounds);
+      };
+    }
+  }, [fitToBounds, boundsPadding, provider]);
+
   const containerClassName = cn(
     "relative w-full rounded-2xl overflow-hidden",
     className,
@@ -552,6 +629,11 @@ export default function MapLibreMap({
             </div>
           )}
         </>
+      )}
+      {!shouldRenderGoogle && mapError && provider === "maplibre" && (
+        <div className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-md bg-background/90 px-3 py-2 text-xs text-foreground shadow">
+          No se pudo cargar el mapa: {mapError}
+        </div>
       )}
     </div>
   );
