@@ -10,6 +10,7 @@ import type { Role } from '@/utils/roles';
 import {
   getTicketStats,
   getHeatmapPoints,
+  getMunicipalTicketStates,
   HeatPoint,
   TicketStatsResponse,
 } from '@/services/statsService';
@@ -117,6 +118,23 @@ export default function IncidentsMap() {
       setCharts(stats.charts || []);
       setHeatmapData(heatmapPoints);
 
+      const derivedStates = Array.from(
+        new Set(
+          heatmapPoints
+            .map((point) =>
+              typeof point.estado === 'string' ? point.estado.trim() : '',
+            )
+            .filter((value): value is string => value.length > 0),
+        ),
+      );
+      if (derivedStates.length > 0) {
+        setStates((prev) => {
+          const combined = new Set(prev);
+          derivedStates.forEach((state) => combined.add(state));
+          return Array.from(combined);
+        });
+      }
+
       const barrios = Array.from(new Set(heatmapPoints.map((d) => d.barrio).filter(Boolean))) as string[];
       setAvailableBarrios(barrios);
 
@@ -147,28 +165,27 @@ export default function IncidentsMap() {
   }, [fetchData]);
 
   useEffect(() => {
-    apiFetch<{ categorias: { nombre: string }[] }>('/municipal/categorias', {
-      sendEntityToken: true,
-    })
+    apiFetch<{ categorias?: { nombre?: string }[] | string[] }>(
+      '/municipal/categorias',
+    )
       .then((data) => {
-        const names = Array.isArray(data.categorias)
-          ? data.categorias.map((c) => c.nombre)
+        const list = (data as any)?.categorias;
+        const names = Array.isArray(list)
+          ? list.map((c: any) =>
+              typeof c === 'string' ? c : typeof c?.nombre === 'string' ? c.nombre : '',
+            )
           : [];
-        setCategories(names);
+        setCategories(names.filter((name: string) => name.trim().length > 0));
       })
       .catch((err) => console.error('Error fetching categories:', err));
   }, []);
 
   useEffect(() => {
-    apiFetch<{ estados: { nombre: string }[] | string[] }>('/municipal/estados', {
-      sendEntityToken: true,
-    })
-      .then((data) => {
-        const raw = (data as any).estados;
-        const names = Array.isArray(raw)
-          ? raw.map((e: any) => (typeof e === 'string' ? e : e.nombre))
-          : [];
-        setStates(names);
+    getMunicipalTicketStates()
+      .then((list) => {
+        if (Array.isArray(list) && list.length > 0) {
+          setStates(list);
+        }
       })
       .catch((err) => console.error('Error fetching states:', err));
   }, []);
