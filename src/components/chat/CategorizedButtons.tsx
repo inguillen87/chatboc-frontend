@@ -8,6 +8,7 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import { motion } from 'framer-motion';
+import { openExternalLink } from '@/utils/openExternalLink';
 
 interface CategorizedButtonsProps {
   categorias: Categoria[];
@@ -26,6 +27,11 @@ const SimpleButton: React.FC<{ boton: Boton, onClick: (boton: Boton) => void }> 
                 href={boton.url}
                 target="_blank"
                 rel="noopener noreferrer"
+                referrerPolicy="no-referrer"
+                onClick={(event) => {
+                    event.preventDefault();
+                    openExternalLink(boton.url);
+                }}
                 className={`${baseClass} no-underline inline-block w-full`}
                 title={boton.texto}
             >
@@ -75,7 +81,7 @@ const CategorizedButtons: React.FC<CategorizedButtonsProps> = ({
     }
 
     if (boton.url) {
-      window.open(boton.url, "_blank", "noopener,noreferrer");
+      openExternalLink(boton.url);
       return;
     }
 
