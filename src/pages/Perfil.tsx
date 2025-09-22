@@ -1,4 +1,10 @@
-import React, { useEffect, useState, useCallback, FormEvent } from "react";
+import React, {
+  useEffect,
+  useState,
+  useCallback,
+  FormEvent,
+  useRef,
+} from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -63,6 +69,7 @@ import AnalyticsHeatmap from "@/components/analytics/Heatmap";
 import { useNavigate } from "react-router-dom";
 import QuickLinksCard from "@/components/QuickLinksCard";
 import MiniChatWidgetPreview from "@/components/ui/MiniChatWidgetPreview"; // Importar el nuevo componente
+import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import { useUser } from "@/hooks/useUser";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
@@ -73,6 +80,7 @@ import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 import { TicketStatsResponse, HeatPoint } from "@/services/statsService";
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import MapLibreMap from "@/components/MapLibreMap";
 
 
 // Durante el desarrollo usamos "/api" para evitar problemas de CORS.
@@ -163,7 +171,14 @@ export default function Perfil() {
   >("event");
   const [isSubmittingPromotion, setIsSubmittingPromotion] = useState(false);
   const [hasSentPromotionToday, setHasSentPromotionToday] = useState(false);
+  const [isManualLocation, setIsManualLocation] = useState(false);
+  const [pendingGeocode, setPendingGeocode] = useState<string | null>(null);
+  const [lastGeocodedAddress, setLastGeocodedAddress] = useState<string | null>(null);
+  const [geocodingStatus, setGeocodingStatus] = useState<"idle" | "loading">("idle");
+  const [geocodingError, setGeocodingError] = useState<string | null>(null);
+  const geocodeAbortRef = useRef<AbortController | null>(null);
   const isStaff = ['admin', 'empleado', 'super_admin'].includes(user?.rol ?? '');
+  const maptilerKey = import.meta.env.VITE_MAPTILER_KEY || "";
 
   useEffect(() => {
     const checkPromotionStatus = async () => {
@@ -308,6 +323,14 @@ export default function Perfil() {
     !Number.isNaN(perfil.longitud)
       ? ([perfil.longitud, perfil.latitud] as [number, number])
       : undefined;
+  const hasValidLocation = Boolean(municipalityCoords);
+  const locationMarker = municipalityCoords;
+  const showLocationCard = Boolean(
+    (perfil.direccion && perfil.direccion.trim().length > 0) ||
+      hasValidLocation ||
+      geocodingStatus === "loading" ||
+      geocodingError,
+  );
 
   // --- Estados para el nuevo modal de carga de catálogo ---
   const [isMappingModalOpen, setIsMappingModalOpen] = useState(false);
@@ -339,7 +362,11 @@ export default function Perfil() {
     setMensaje(null);
     try {
       const data = await apiFetch<any>("/me"); // Usa apiFetch, que maneja el token
-      
+
+      const latitud = parseCoordinate(data.latitud ?? data.lat);
+      const longitud = parseCoordinate(data.longitud ?? data.lng);
+      const direccion = data.direccion || "";
+
       let horariosUi = DIAS.map((_, idx) => ({
         abre: "09:00",
         cierra: "20:00",
@@ -362,12 +389,12 @@ export default function Perfil() {
         ...prev,
         nombre_empresa: data.nombre_empresa || "",
         telefono: data.telefono || "",
-        direccion: data.direccion || "",
+        direccion,
         ciudad: data.ciudad || "",
         provincia: data.provincia || "",
         pais: data.pais || "Argentina",
-        latitud: parseCoordinate(data.latitud ?? data.lat),
-        longitud: parseCoordinate(data.longitud ?? data.lng),
+        latitud,
+        longitud,
         link_web: data.link_web || "",
         plan: data.plan || "gratis",
         preguntas_usadas: data.preguntas_usadas ?? 0,
@@ -376,7 +403,18 @@ export default function Perfil() {
         logo_url: data.logo_url || "",
         horarios_ui: horariosUi,
       }));
-      
+
+      const trimmedAddress = direccion.trim();
+      setLastGeocodedAddress(trimmedAddress ? trimmedAddress : null);
+      setIsManualLocation(Boolean(latitud !== null && longitud !== null));
+      setPendingGeocode(null);
+      setGeocodingError(null);
+      if (geocodeAbortRef.current) {
+        geocodeAbortRef.current.abort();
+        geocodeAbortRef.current = null;
+      }
+      setGeocodingStatus("idle");
+
       // Actualizar localStorage y contexto del usuario antes de otras llamadas que dependan de él
       await refreshUser();
 
@@ -461,19 +499,178 @@ export default function Perfil() {
     }
   }, [showManageMappingsDialog, user?.id, fetchMappingConfigs]);
 
+  useEffect(() => {
+    if (!pendingGeocode) {
+      return;
+    }
+
+    const addressToGeocode = pendingGeocode;
+
+    if (!maptilerKey) {
+      setGeocodingError(
+        "No se pudo obtener la ubicación automáticamente. Configurá la clave de MapTiler para habilitar esta función.",
+      );
+      setPendingGeocode(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    if (geocodeAbortRef.current) {
+      geocodeAbortRef.current.abort();
+    }
+    geocodeAbortRef.current = controller;
+
+    const fetchCoords = async () => {
+      try {
+        setGeocodingStatus("loading");
+        setGeocodingError(null);
+        const response = await fetch(
+          `https://api.maptiler.com/geocoding/${encodeURIComponent(addressToGeocode)}.json?key=${maptilerKey}&language=es&limit=1`,
+          { signal: controller.signal },
+        );
+
+        if (!response.ok) {
+          throw new Error(`Geocode request failed with status ${response.status}`);
+        }
+
+        const data = await response.json();
+        const feature = Array.isArray(data?.features) ? data.features[0] : null;
+        const coords = Array.isArray(feature?.center)
+          ? feature.center
+          : Array.isArray(feature?.geometry?.coordinates)
+            ? feature.geometry.coordinates
+            : null;
+
+        if (
+          Array.isArray(coords) &&
+          coords.length >= 2 &&
+          typeof coords[0] === "number" &&
+          typeof coords[1] === "number" &&
+          !Number.isNaN(coords[0]) &&
+          !Number.isNaN(coords[1])
+        ) {
+          const [lng, lat] = coords;
+          setPerfil((prev) => ({
+            ...prev,
+            latitud: lat,
+            longitud: lng,
+          }));
+          setLastGeocodedAddress(addressToGeocode);
+          setIsManualLocation(false);
+          return;
+        }
+
+        throw new Error("No coordinates found for the provided address");
+      } catch (error) {
+        if ((error as Error)?.name === "AbortError") {
+          return;
+        }
+        console.error("Failed to geocode address:", error);
+        setGeocodingError("No se pudo obtener la ubicación para la dirección ingresada.");
+        setLastGeocodedAddress(null);
+        setPerfil((prev) => ({
+          ...prev,
+          latitud: null,
+          longitud: null,
+        }));
+      } finally {
+        if (!controller.signal.aborted) {
+          setGeocodingStatus("idle");
+          setPendingGeocode(null);
+          geocodeAbortRef.current = null;
+        }
+      }
+    };
+
+    void fetchCoords();
+
+    return () => {
+      controller.abort();
+    };
+  }, [pendingGeocode, maptilerKey]);
+
+  useEffect(() => {
+    return () => {
+      if (geocodeAbortRef.current) {
+        geocodeAbortRef.current.abort();
+      }
+    };
+  }, []);
+
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => { // Tipado de 'e'
     const { id, value } = e.target;
     setPerfil((prev) => ({ ...prev, [id]: value }));
   };
 
+  const handleAddressOptionChange = (option: { label: string; value: string } | null) => {
+    const value = option?.value ?? "";
+    setPerfil((prev) => ({
+      ...prev,
+      direccion: value,
+      latitud: option ? prev.latitud : null,
+      longitud: option ? prev.longitud : null,
+    }));
+    if (!option) {
+      setPendingGeocode(null);
+      setLastGeocodedAddress(null);
+    }
+    setGeocodingError(null);
+    setIsManualLocation(false);
+  };
+
+  const handleAddressSelect = (address: string) => {
+    const trimmed = address.trim();
+    setPerfil((prev) => ({
+      ...prev,
+      direccion: address,
+      latitud: trimmed.length === 0 ? null : prev.latitud,
+      longitud: trimmed.length === 0 ? null : prev.longitud,
+    }));
+    setGeocodingError(null);
+
+    if (trimmed.length === 0) {
+      setPendingGeocode(null);
+      setLastGeocodedAddress(null);
+      setIsManualLocation(false);
+      return;
+    }
+
+    if (isManualLocation && trimmed === (lastGeocodedAddress ?? trimmed)) {
+      return;
+    }
+
+    if (trimmed === lastGeocodedAddress) {
+      return;
+    }
+
+    setIsManualLocation(false);
+    setPendingGeocode(trimmed);
+  };
+
   const handleMapSelect = (lat: number, lng: number, address?: string) => {
+    const updatedAddress = (address ?? perfil.direccion ?? "").trim();
+
+    if (geocodeAbortRef.current) {
+      geocodeAbortRef.current.abort();
+      geocodeAbortRef.current = null;
+    }
+
     setPerfil((prev) => ({
       ...prev,
       latitud: lat,
       longitud: lng,
       direccion: address ?? prev.direccion,
     }));
+
+    if (updatedAddress) {
+      setLastGeocodedAddress(updatedAddress);
+    }
+
+    setPendingGeocode(null);
+    setGeocodingStatus("idle");
+    setGeocodingError(null);
+    setIsManualLocation(true);
   };
 
 
@@ -845,12 +1042,18 @@ export default function Perfil() {
                   >
                     Dirección Completa*
                   </Label>
-                  <Input
+                  <AddressAutocomplete
                     id="direccion"
-                    value={perfil.direccion}
-                    onChange={handleInputChange}
+                    value={
+                      perfil.direccion
+                        ? { label: perfil.direccion, value: perfil.direccion }
+                        : null
+                    }
+                    onChange={handleAddressOptionChange}
+                    onSelect={handleAddressSelect}
                     placeholder="Ej: Av. Principal 123"
                     className="bg-input border-input text-foreground"
+                    persistKey="perfil_direccion"
                   />
                 </div>
 
@@ -1022,13 +1225,49 @@ export default function Perfil() {
               </form>
             </CardContent>
           </Card>
-          <AnalyticsHeatmap
-            initialHeatmapData={heatmapData}
-            adminLocation={municipalityCoords}
-            availableCategories={availableCategories}
-            availableBarrios={availableBarrios}
-            availableTipos={availableTipos}
-          />
+          {showLocationCard && (
+            <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm">
+              <CardHeader>
+                <CardTitle className="text-xl font-semibold text-primary">
+                  Ubicación en el mapa
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {geocodingError && (
+                  <div className="text-sm text-destructive-foreground bg-destructive/10 p-3 rounded-md">
+                    {geocodingError}
+                  </div>
+                )}
+                <div className="relative">
+                  <MapLibreMap
+                    center={locationMarker ?? undefined}
+                    marker={locationMarker}
+                    initialZoom={locationMarker ? 15 : 11}
+                    onSelect={handleMapSelect}
+                    className="h-[320px] rounded-xl"
+                  />
+                  {geocodingStatus === "loading" && (
+                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-background/70 backdrop-blur">
+                      <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                      <span className="text-sm text-muted-foreground">Localizando dirección...</span>
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Hacé clic en el mapa para ajustar el marcador. Los cambios se guardan con el botón "Guardar Cambios".
+                </p>
+              </CardContent>
+            </Card>
+          )}
+          {heatmapData.length > 0 && (
+            <AnalyticsHeatmap
+              initialHeatmapData={heatmapData}
+              adminLocation={municipalityCoords}
+              availableCategories={availableCategories}
+              availableBarrios={availableBarrios}
+              availableTipos={availableTipos}
+            />
+          )}
         </div>
 
         {/* Columna Derecha: Plan, Catálogo, Integración */}
