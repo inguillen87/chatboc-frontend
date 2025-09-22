@@ -27,6 +27,11 @@ export interface TicketStatsParams {
   estado?: string | string[];
   distrito?: string;
   barrio?: string;
+  genero?: string | string[];
+  edad_min?: string | number;
+  edad_max?: string | number;
+  sugerencia?: string | string[];
+  prioridad?: string | string[];
 }
 
 export const getTicketStats = async (
@@ -81,6 +86,10 @@ export interface HeatmapParams {
   estado?: string | string[];
   distrito?: string;
   barrio?: string;
+  genero?: string | string[];
+  edad_min?: string | number;
+  edad_max?: string | number;
+  sugerencia?: string | string[];
 }
 
 export const getHeatmapPoints = async (
@@ -121,6 +130,44 @@ export const getHeatmapPoints = async (
       .filter((p) => !Number.isNaN(p.lat) && !Number.isNaN(p.lng));
   } catch (err) {
     console.error('Error fetching heatmap points:', err);
+    throw err;
+  }
+};
+
+type MunicipalStatesPayload =
+  | string[]
+  | {
+      estados?: unknown;
+      states?: unknown;
+      data?: unknown;
+      [key: string]: unknown;
+    };
+
+const normalizeStatesResponse = (payload: MunicipalStatesPayload): string[] => {
+  const potentialLists: unknown[] = [];
+  if (Array.isArray(payload)) {
+    potentialLists.push(payload);
+  } else if (payload && typeof payload === 'object') {
+    potentialLists.push(payload.estados, payload.states, payload.data);
+  }
+
+  for (const value of potentialLists) {
+    if (Array.isArray(value)) {
+      return value
+        .map((item) => (typeof item === 'string' ? item.trim() : ''))
+        .filter((item): item is string => item.length > 0);
+    }
+  }
+
+  return [];
+};
+
+export const getMunicipalTicketStates = async (): Promise<string[]> => {
+  try {
+    const payload = await apiFetch<MunicipalStatesPayload>('/municipal/estados');
+    return normalizeStatesResponse(payload);
+  } catch (err) {
+    console.error('Error fetching municipal ticket states:', err);
     throw err;
   }
 };
