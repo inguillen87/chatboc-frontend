@@ -22,6 +22,7 @@ import { AnalyticsHeatmap } from '@/components/analytics/Heatmap';
 import {
   getHeatmapPoints,
   getTicketStats,
+  getMunicipalTicketStates,
   HeatPoint,
   TicketStatsResponse,
 } from '@/services/statsService';
@@ -89,6 +90,24 @@ export default function MunicipalAnalytics() {
   const [sortOption, setSortOption] = useState<SortOption>('tickets_desc');
   const [heatmapData, setHeatmapData] = useState<HeatPoint[]>([]);
   const [charts, setCharts] = useState<TicketStatsResponse['charts']>([]);
+  const [allowedStatuses, setAllowedStatuses] = useState<string[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    getMunicipalTicketStates()
+      .then((states) => {
+        if (!active) return;
+        setAllowedStatuses(states);
+      })
+      .catch((err) => {
+        if (!active) return;
+        setAllowedStatuses([]);
+        console.error('Error fetching allowed municipal states:', err);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -160,7 +179,7 @@ export default function MunicipalAnalytics() {
   }, [fetchData]);
 
   const statusKeys = useMemo(() => {
-    const set = new Set<string>();
+    const set = new Set<string>(allowedStatuses.filter(Boolean));
     if (data?.statusTotals) {
       Object.keys(data.statusTotals).forEach((status) => {
         if (status) set.add(status);
@@ -172,7 +191,7 @@ export default function MunicipalAnalytics() {
       });
     });
     return Array.from(set);
-  }, [data]);
+  }, [allowedStatuses, data]);
 
   useEffect(() => {
     setStatusFilters((prev) => {
