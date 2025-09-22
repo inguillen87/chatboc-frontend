@@ -147,6 +147,8 @@ interface FilterState {
   rango?: string;
 }
 
+type FiltersApiResponse = Partial<Record<keyof FallbackFilters, unknown>>;
+
 interface TicketRecord {
   id: string;
   rubro: string;
@@ -461,6 +463,39 @@ function getFallbackFilters(): FallbackFilters {
     barrios: [...FALLBACK_FILTERS.barrios],
     tipos: [...FALLBACK_FILTERS.tipos],
     rangos: [...FALLBACK_FILTERS.rangos],
+  };
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string');
+}
+
+function parseFiltersResponse(
+  response: FiltersApiResponse | null | undefined,
+): { filters: FallbackFilters; usedFallback: boolean } {
+  const fallback = getFallbackFilters();
+
+  if (!response) {
+    return { filters: fallback, usedFallback: true };
+  }
+
+  let usedFallback = false;
+  const ensureArray = (value: unknown | undefined, fallbackValues: string[]) => {
+    if (isStringArray(value)) {
+      return [...value];
+    }
+    usedFallback = true;
+    return fallbackValues;
+  };
+
+  return {
+    filters: {
+      rubros: ensureArray(response.rubros, fallback.rubros),
+      barrios: ensureArray(response.barrios, fallback.barrios),
+      tipos: ensureArray(response.tipos, fallback.tipos),
+      rangos: ensureArray(response.rangos, fallback.rangos),
+    },
+    usedFallback,
   };
 }
 
@@ -892,27 +927,28 @@ export default function MunicipalStats() {
 
   useEffect(() => {
     let active = true;
-    apiFetch<{
-      rubros: string[];
-      barrios: string[];
-      tipos: string[];
-      rangos: string[];
-    }>('/municipal/stats/filters')
+    apiFetch<FiltersApiResponse>('/municipal/stats/filters')
       .then((resp) => {
         if (!active) return;
-        setRubros(resp.rubros || []);
-        setBarrios(resp.barrios || []);
-        setTipos(resp.tipos || []);
-        setRangos(resp.rangos || []);
+        const parsed = parseFiltersResponse(resp);
+        if (parsed.usedFallback) {
+          console.warn(
+            'Municipal stats filters response was missing required arrays. Using fallback defaults for unavailable entries.',
+          );
+        }
+        setRubros(parsed.filters.rubros);
+        setBarrios(parsed.filters.barrios);
+        setTipos(parsed.filters.tipos);
+        setRangos(parsed.filters.rangos);
       })
       .catch((err) => {
         console.warn('Using fallback filters for municipal stats', err);
         if (!active) return;
-        const fallback = getFallbackFilters();
-        setRubros(fallback.rubros);
-        setBarrios(fallback.barrios);
-        setTipos(fallback.tipos);
-        setRangos(fallback.rangos);
+        const parsed = parseFiltersResponse(null);
+        setRubros(parsed.filters.rubros);
+        setBarrios(parsed.filters.barrios);
+        setTipos(parsed.filters.tipos);
+        setRangos(parsed.filters.rangos);
       });
     return () => {
       active = false;
