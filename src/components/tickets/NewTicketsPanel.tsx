@@ -13,12 +13,72 @@ import type { ImperativePanelHandle } from 'react-resizable-panels';
 import { cn } from '@/lib/utils';
 import { PanelLeft, MessageSquare, Info } from 'lucide-react';
 
+type MobileView = 'tickets' | 'chat' | 'details';
+type MobileTransitionDirection = -1 | 0 | 1;
+
+const MOBILE_VIEW_SEQUENCE = ['tickets', 'chat', 'details'] as const;
+
+const getDirectionBetweenViews = (
+  from: MobileView,
+  to: MobileView,
+): MobileTransitionDirection => {
+  if (from === to) {
+    return 0;
+  }
+
+  const fromIndex = MOBILE_VIEW_SEQUENCE.indexOf(from);
+  const toIndex = MOBILE_VIEW_SEQUENCE.indexOf(to);
+
+  if (fromIndex === -1 || toIndex === -1) {
+    return 0;
+  }
+
+  return (toIndex > fromIndex ? 1 : -1) as MobileTransitionDirection;
+};
+
+const mobileViewVariants = {
+  enter: (direction: MobileTransitionDirection) => ({
+    opacity: 0,
+    x: direction === 0 ? 0 : direction > 0 ? 48 : -48,
+  }),
+  center: {
+    opacity: 1,
+    x: 0,
+  },
+  exit: (direction: MobileTransitionDirection) => ({
+    opacity: 0,
+    x: direction === 0 ? 0 : direction > 0 ? -48 : 48,
+  }),
+};
+
+const mobileViewTransition = {
+  duration: 0.24,
+  ease: 'easeInOut' as const,
+};
+
 const NewTicketsPanel: React.FC = () => {
   const isMobile = useIsMobile();
   const { loading, error, selectedTicket } = useTickets();
 
   // Mobile-specific state
-  const [mobileView, setMobileView] = React.useState<'tickets' | 'chat' | 'details'>('tickets');
+  const [mobileView, setMobileViewState] = React.useState<MobileView>('tickets');
+  const mobileViewRef = React.useRef<MobileView>('tickets');
+  const [mobileTransitionDirection, setMobileTransitionDirection] =
+    React.useState<MobileTransitionDirection>(0);
+  const setActiveMobileView = React.useCallback(
+    (nextView: MobileView) => {
+      const nextDirection = getDirectionBetweenViews(mobileViewRef.current, nextView);
+      setMobileTransitionDirection(nextDirection);
+
+      if (mobileViewRef.current === nextView) {
+        return;
+      }
+
+      mobileViewRef.current = nextView;
+      setMobileViewState(nextView);
+    },
+    [setMobileViewState],
+  );
 
   // Desktop-specific state
   const [isSidebarVisible, setIsSidebarVisible] = React.useState(!isMobile);
@@ -33,23 +93,22 @@ const NewTicketsPanel: React.FC = () => {
   const DETAILS_PANEL_MAX_SIZE = 72;
   const SIDEBAR_PANEL_MAX_SIZE = 40;
 
+  React.useEffect(() => {
+    mobileViewRef.current = mobileView;
+  }, [mobileView]);
+
   // Sync mobile view with ticket selection
   React.useEffect(() => {
     if (isMobile) {
       if (selectedTicket && selectedTicket.id !== lastMobileTicketId.current) {
-        setMobileView('chat');
+        setActiveMobileView('chat');
         lastMobileTicketId.current = selectedTicket.id;
       } else if (!selectedTicket) {
-        setMobileView('tickets');
+        setActiveMobileView('tickets');
         lastMobileTicketId.current = null;
       }
     }
-  }, [selectedTicket, isMobile]);
-
-  // Derived state for mobile panel visibility
-  const isSidebarVisibleOnMobile = isMobile && mobileView === 'tickets';
-  const isDetailsVisibleOnMobile = isMobile && mobileView === 'details';
-  const isChatVisibleOnMobile = isMobile && (mobileView === 'chat' || !selectedTicket);
+  }, [selectedTicket, isMobile, setActiveMobileView]);
 
   // Effect for sidebar panel
   React.useEffect(() => {
@@ -107,9 +166,9 @@ const NewTicketsPanel: React.FC = () => {
 
   const handleMobileTicketSelection = React.useCallback(() => {
     if (isMobile) {
-      setMobileView('chat');
+      setActiveMobileView('chat');
     }
-  }, [isMobile]);
+  }, [isMobile, setActiveMobileView]);
 
   const mobileNavButtonClass = (
     value: 'tickets' | 'chat' | 'details',
@@ -172,7 +231,7 @@ const NewTicketsPanel: React.FC = () => {
             <div className="grid grid-cols-3 gap-2">
               <button
                 type="button"
-                onClick={() => setMobileView('tickets')}
+                onClick={() => setActiveMobileView('tickets')}
                 className={mobileNavButtonClass('tickets')}
                 aria-pressed={mobileView === 'tickets'}
               >
@@ -181,7 +240,7 @@ const NewTicketsPanel: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => setMobileView('chat')}
+                onClick={() => setActiveMobileView('chat')}
                 className={mobileNavButtonClass('chat', !selectedTicket)}
                 aria-pressed={mobileView === 'chat'}
                 disabled={!selectedTicket}
@@ -191,7 +250,7 @@ const NewTicketsPanel: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => setMobileView('details')}
+                onClick={() => setActiveMobileView('details')}
                 className={mobileNavButtonClass('details', !selectedTicket)}
                 aria-pressed={mobileView === 'details'}
                 disabled={!selectedTicket}
@@ -202,33 +261,64 @@ const NewTicketsPanel: React.FC = () => {
             </div>
           </div>
           <div className="relative flex-1 overflow-hidden">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={mobileView}
-                initial={{ opacity: 0, x: mobileView === 'tickets' ? -300 : mobileView === 'details' ? 300 : 0 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: mobileView === 'tickets' ? -300 : mobileView === 'details' ? 300 : 0 }}
-                transition={{ type: 'spring', stiffness: 260, damping: 30 }}
-                className="absolute inset-0"
-              >
-                {mobileView === 'tickets' && (
-                  <Sidebar className="h-full w-full min-w-full" onTicketSelected={handleMobileTicketSelection} />
-                )}
-                {mobileView === 'chat' && (
+            <AnimatePresence
+              initial={false}
+              custom={mobileTransitionDirection}
+              mode="sync"
+            >
+              {mobileView === 'tickets' && (
+                <motion.div
+                  key="tickets"
+                  variants={mobileViewVariants}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  custom={mobileTransitionDirection}
+                  transition={mobileViewTransition}
+                  className="absolute inset-0"
+                >
+                  <Sidebar
+                    className="h-full w-full min-w-full"
+                    onTicketSelected={handleMobileTicketSelection}
+                  />
+                </motion.div>
+              )}
+              {mobileView === 'chat' && (
+                <motion.div
+                  key="chat"
+                  variants={mobileViewVariants}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  custom={mobileTransitionDirection}
+                  transition={mobileViewTransition}
+                  className="absolute inset-0"
+                >
                   <ConversationPanel
                     isMobile={true}
                     isSidebarVisible={false}
                     isDetailsVisible={false}
-                    onToggleSidebar={() => setMobileView('tickets')}
-                    onToggleDetails={() => setMobileView('details')}
+                    onToggleSidebar={() => setActiveMobileView('tickets')}
+                    onToggleDetails={() => setActiveMobileView('details')}
                     canToggleSidebar
                     showDetailsToggle
                   />
-                )}
-                {mobileView === 'details' && (
-                  <DetailsPanel onClose={() => setMobileView('chat')} />
-                )}
-              </motion.div>
+                </motion.div>
+              )}
+              {mobileView === 'details' && (
+                <motion.div
+                  key="details"
+                  variants={mobileViewVariants}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  custom={mobileTransitionDirection}
+                  transition={mobileViewTransition}
+                  className="absolute inset-0"
+                >
+                  <DetailsPanel onClose={() => setActiveMobileView('chat')} />
+                </motion.div>
+              )}
             </AnimatePresence>
           </div>
         </div>
