@@ -1,121 +1,119 @@
 // public/sw.js
 
-const CACHE_NAME = 'chatboc-cache-v2';
-const urlsToCache = [
-  '/',
-  '/index.html',
-  // Add other assets that need to be cached
+const VERSION = 'v3';
+const APP_SHELL_CACHE = `chatboc-shell-${VERSION}`;
+const ASSET_CACHE = `chatboc-assets-${VERSION}`;
+const PRECACHE_URLS = ['/', '/index.html'];
+const BYPASS_PATH_PREFIXES = [
+  '/iframe',
+  '/assets/iframe',
+  '/widget',
+  '/cdn/widget',
+  '/cdn/iframe',
 ];
 
 self.addEventListener('install', event => {
   self.skipWaiting();
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => {
-        console.log('Opened cache');
-        return cache.addAll(urlsToCache);
-      })
+    caches.open(APP_SHELL_CACHE).then(cache => cache.addAll(PRECACHE_URLS))
   );
 });
+
+self.addEventListener('activate', event => {
+  const validCaches = new Set([APP_SHELL_CACHE, ASSET_CACHE]);
+  event.waitUntil(
+    caches.keys().then(cacheNames =>
+      Promise.all(
+        cacheNames
+          .filter(name => !validCaches.has(name))
+          .map(name => caches.delete(name))
+      ).then(() => self.clients.claim())
+    )
+  );
+});
+
+function shouldBypassPath(pathname) {
+  return BYPASS_PATH_PREFIXES.some(prefix => pathname.startsWith(prefix));
+}
+
+function isDataRequest(request, url) {
+  if (url.pathname.startsWith('/api') || url.pathname.startsWith('/auth')) {
+    return true;
+  }
+
+  const acceptHeader = request.headers.get('Accept') || '';
+  return request.destination === '' && acceptHeader.includes('application/json');
+}
+
+async function putInCache(cacheName, request, response) {
+  if (!response || !response.ok || response.type !== 'basic') {
+    return;
+  }
+  const cache = await caches.open(cacheName);
+  await cache.put(request, response.clone());
+}
+
+async function networkFirst(request, cacheName, useShellFallback = false) {
+  try {
+    const networkResponse = await fetch(request);
+    await putInCache(cacheName, request, networkResponse);
+    return networkResponse;
+  } catch (error) {
+    const cache = await caches.open(cacheName);
+    const cachedResponse = await cache.match(request);
+    if (cachedResponse) {
+      return cachedResponse;
+    }
+    if (useShellFallback) {
+      const fallback = (await cache.match('/')) || (await cache.match('/index.html'));
+      if (fallback) {
+        return fallback;
+      }
+    }
+    throw error;
+  }
+}
 
 self.addEventListener('fetch', event => {
   const { request } = event;
 
-  // Ignore non-HTTP/HTTPS requests (e.g., chrome-extension://) and non-GET calls
-  // so POST/PUT requests (like token mints) always hit the network directly.
-  if (!request.url.startsWith('http') || request.method !== 'GET') {
+  if (request.method !== 'GET' || !request.url.startsWith('http')) {
+    return;
+  }
+
+  if (request.cache === 'only-if-cached' && request.mode !== 'same-origin') {
     return;
   }
 
   const url = new URL(request.url);
 
-  // Strategy: Network-first for navigation, Cache-first for others.
+  if (url.origin !== self.location.origin) {
+    return;
+  }
+
+  if (shouldBypassPath(url.pathname)) {
+    return;
+  }
+
   if (request.mode === 'navigate') {
-    // Let the browser handle iframe navigations so the widget always hits the network
-    if (url.pathname.startsWith('/iframe')) {
-      return;
-    }
-
-    event.respondWith(
-      fetch(request)
-        .then(response => {
-          // If the fetch is successful, cache the response for offline use.
-          if (response.ok) {
-            const responseToCache = response.clone();
-            caches.open(CACHE_NAME).then(cache => {
-              cache.put(request, responseToCache);
-            });
-          }
-          return response;
-        })
-        .catch(() => caches.match(request))
-    );
+    event.respondWith(networkFirst(request, APP_SHELL_CACHE, true));
     return;
   }
 
-  // JavaScript and CSS power both the main app and the embeddable widget.
-  // Serve them network-first so updates are not blocked by a stale cache.
-  const isCodeAsset = ['script', 'style', 'worker'].includes(request.destination);
-
-  if (isCodeAsset) {
-    event.respondWith(
-      fetch(request)
-        .then(response => {
-          if (response && response.status === 200 && response.type === 'basic') {
-            const responseToCache = response.clone();
-            caches.open(CACHE_NAME).then(cache => {
-              cache.put(request, responseToCache);
-            });
-          }
-          return response;
-        })
-        .catch(async err => {
-          const cached = await caches.match(request);
-          if (cached) {
-            return cached;
-          }
-          throw err;
-        })
-    );
+  if (isDataRequest(request, url)) {
+    event.respondWith(fetch(request));
     return;
   }
 
-  // For non-code assets (images, JSON, etc.), use the existing cache-first strategy.
-  event.respondWith(
-    caches.match(request).then(response => {
-      if (response) {
-        return response;
-      }
+  if (['script', 'style', 'worker'].includes(request.destination)) {
+    event.respondWith(networkFirst(request, ASSET_CACHE));
+    return;
+  }
 
-      return fetch(request).then(networkResponse => {
-        if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
-          return networkResponse;
-        }
+  if (['image', 'font'].includes(request.destination)) {
+    event.respondWith(networkFirst(request, ASSET_CACHE));
+    return;
+  }
 
-        const responseToCache = networkResponse.clone();
-
-        caches.open(CACHE_NAME).then(cache => {
-          cache.put(request, responseToCache);
-        });
-
-        return networkResponse;
-      });
-    })
-  );
-});
-
-self.addEventListener('activate', event => {
-  self.clients.claim();
-  const cacheWhitelist = [CACHE_NAME];
-  event.waitUntil(
-    caches.keys().then(cacheNames => {
-      return Promise.all(
-        cacheNames.map(cacheName => {
-          if (cacheWhitelist.indexOf(cacheName) === -1) {
-            return caches.delete(cacheName);
-          }
-        })
-      );
-    })
-  );
+  event.respondWith(fetch(request));
 });
