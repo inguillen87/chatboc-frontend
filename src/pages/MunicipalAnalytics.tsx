@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { apiFetch, ApiError } from '@/utils/api';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -43,6 +43,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AlertCircle } from 'lucide-react';
+import {
+  clearEndpointUnavailable,
+  isEndpointMarkedUnavailable,
+  markEndpointUnavailable,
+} from '@/utils/endpointAvailability';
 
 interface Municipality {
   name: string;
@@ -64,6 +71,9 @@ interface AnalyticsResponse {
 type SortOption = 'tickets_desc' | 'response_asc' | 'response_desc';
 
 const STATUS_COLOR_PALETTE = Array.from({ length: 12 }, (_, idx) => `var(--chart-${idx + 1})`);
+const MUNICIPAL_ANALYTICS_PATH = '/municipal/analytics';
+const ANALYTICS_WARNING_MESSAGE =
+  'Las métricas profesionales no están disponibles en este momento. Mostramos los indicadores básicos con las estadísticas generales.';
 
 const formatLabel = (value: string) =>
   value
@@ -179,6 +189,27 @@ export default function MunicipalAnalytics() {
   const [heatmapData, setHeatmapData] = useState<HeatPoint[]>([]);
   const [charts, setCharts] = useState<TicketStatsResponse['charts']>([]);
   const [allowedStatuses, setAllowedStatuses] = useState<string[]>([]);
+  const analyticsInitialDisabled = useMemo(
+    () => isEndpointMarkedUnavailable(MUNICIPAL_ANALYTICS_PATH),
+    [],
+  );
+  const [analyticsWarning, setAnalyticsWarning] = useState<string | null>(
+    analyticsInitialDisabled ? ANALYTICS_WARNING_MESSAGE : null,
+  );
+  const [analyticsDisabled, setAnalyticsDisabled] = useState<boolean>(analyticsInitialDisabled);
+  const analyticsDisabledRef = useRef<boolean>(analyticsDisabled);
+
+  useEffect(() => {
+    analyticsDisabledRef.current = analyticsDisabled;
+  }, [analyticsDisabled]);
+
+  const markAnalyticsDisabled = useCallback(() => {
+    if (analyticsDisabledRef.current) return;
+    analyticsDisabledRef.current = true;
+    setAnalyticsDisabled(true);
+    setAnalyticsWarning(ANALYTICS_WARNING_MESSAGE);
+    markEndpointUnavailable(MUNICIPAL_ANALYTICS_PATH);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -201,6 +232,13 @@ export default function MunicipalAnalytics() {
     setLoading(true);
     setError(null);
 
+    const disableAnalytics = analyticsDisabledRef.current;
+    if (disableAnalytics) {
+      setAnalyticsWarning((prev) => prev ?? ANALYTICS_WARNING_MESSAGE);
+    } else {
+      setAnalyticsWarning(null);
+    }
+
     const qs = new URLSearchParams();
     if (categoryFilter !== 'all') qs.append('categoria', categoryFilter);
     if (genderFilter) qs.append('genero', genderFilter);
@@ -220,10 +258,14 @@ export default function MunicipalAnalytics() {
     };
 
     try {
+      const analyticsPromise = disableAnalytics
+        ? Promise.resolve<AnalyticsResponse | null>(null)
+        : apiFetch<AnalyticsResponse>(
+            `${MUNICIPAL_ANALYTICS_PATH}${qs.toString() ? `?${qs.toString()}` : ''}`,
+          );
+
       const [analyticsResult, statsResult, heatmapResult] = await Promise.allSettled([
-        apiFetch<AnalyticsResponse>(
-          `/municipal/analytics${qs.toString() ? `?${qs.toString()}` : ''}`,
-        ),
+        analyticsPromise,
         getTicketStats(statsParams),
         getHeatmapPoints({
           tipo_ticket: 'municipio',
@@ -239,6 +281,14 @@ export default function MunicipalAnalytics() {
         analyticsResult.status === 'fulfilled' ? analyticsResult.value : null;
       if (analyticsResult.status === 'rejected') {
         console.warn('Municipal analytics endpoint unavailable:', analyticsResult.reason);
+        setAnalyticsWarning(ANALYTICS_WARNING_MESSAGE);
+        const reason = analyticsResult.reason;
+        if (
+          reason instanceof ApiError &&
+          (reason.status === 404 || reason.status === 403 || reason.status === 401 || reason.status >= 500)
+        ) {
+          markAnalyticsDisabled();
+        }
       }
 
       const statsValue =
@@ -295,9 +345,17 @@ export default function MunicipalAnalytics() {
     } finally {
       setLoading(false);
     }
-  }, [categoryFilter, genderFilter, ageMin, ageMax, statusFilters]);
+  }, [categoryFilter, genderFilter, ageMin, ageMax, statusFilters, markAnalyticsDisabled]);
 
   useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const handleRetryAnalytics = useCallback(() => {
+    analyticsDisabledRef.current = false;
+    setAnalyticsDisabled(false);
+    clearEndpointUnavailable(MUNICIPAL_ANALYTICS_PATH);
+    setAnalyticsWarning(null);
     fetchData();
   }, [fetchData]);
 
@@ -589,6 +647,25 @@ export default function MunicipalAnalytics() {
   return (
     <div className="p-4 max-w-6xl mx-auto space-y-6">
       <h1 className="text-3xl font-extrabold text-primary mb-4">Analíticas Profesionales</h1>
+
+      {analyticsWarning && (
+        <Alert variant="destructive" className="bg-destructive/10 text-destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Analíticas limitadas</AlertTitle>
+          <AlertDescription className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <span>{analyticsWarning}</span>
+            {analyticsDisabled && (
+              <Button
+                variant="outline"
+                className="w-full sm:w-auto border-destructive text-destructive hover:bg-destructive/10"
+                onClick={handleRetryAnalytics}
+              >
+                Reintentar analíticas
+              </Button>
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="space-y-4">
         <div className="flex flex-wrap items-end gap-4">
