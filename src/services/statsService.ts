@@ -134,3 +134,41 @@ export const getHeatmapPoints = async (
   }
 };
 
+type MunicipalStatesPayload =
+  | string[]
+  | {
+      estados?: unknown;
+      states?: unknown;
+      data?: unknown;
+      [key: string]: unknown;
+    };
+
+const normalizeStatesResponse = (payload: MunicipalStatesPayload): string[] => {
+  const potentialLists: unknown[] = [];
+  if (Array.isArray(payload)) {
+    potentialLists.push(payload);
+  } else if (payload && typeof payload === 'object') {
+    potentialLists.push(payload.estados, payload.states, payload.data);
+  }
+
+  for (const value of potentialLists) {
+    if (Array.isArray(value)) {
+      return value
+        .map((item) => (typeof item === 'string' ? item.trim() : ''))
+        .filter((item): item is string => item.length > 0);
+    }
+  }
+
+  return [];
+};
+
+export const getMunicipalTicketStates = async (): Promise<string[]> => {
+  try {
+    const payload = await apiFetch<MunicipalStatesPayload>('/municipal/estados');
+    return normalizeStatesResponse(payload);
+  } catch (err) {
+    console.error('Error fetching municipal ticket states:', err);
+    throw err;
+  }
+};
+
