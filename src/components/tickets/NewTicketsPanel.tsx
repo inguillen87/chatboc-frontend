@@ -13,12 +13,45 @@ import type { ImperativePanelHandle } from 'react-resizable-panels';
 import { cn } from '@/lib/utils';
 import { PanelLeft, MessageSquare, Info } from 'lucide-react';
 
+type MobileView = 'tickets' | 'chat' | 'details';
+
+const getMobileViewOffset = (view: MobileView) => {
+  switch (view) {
+    case 'tickets':
+      return -40;
+    case 'details':
+      return 40;
+    default:
+      return 0;
+  }
+};
+
+const mobilePanelVariants = {
+  hidden: (view: MobileView) => ({
+    opacity: 0,
+    x: getMobileViewOffset(view),
+  }),
+  visible: {
+    opacity: 1,
+    x: 0,
+  },
+  exit: (view: MobileView) => ({
+    opacity: 0,
+    x: getMobileViewOffset(view),
+  }),
+};
+
+const mobilePanelTransition = {
+  duration: 0.25,
+  ease: 'easeInOut' as const,
+};
+
 const NewTicketsPanel: React.FC = () => {
   const isMobile = useIsMobile();
   const { loading, error, selectedTicket } = useTickets();
 
   // Mobile-specific state
-  const [mobileView, setMobileView] = React.useState<'tickets' | 'chat' | 'details'>('tickets');
+  const [mobileView, setMobileView] = React.useState<MobileView>('tickets');
 
   // Desktop-specific state
   const [isSidebarVisible, setIsSidebarVisible] = React.useState(!isMobile);
@@ -202,13 +235,15 @@ const NewTicketsPanel: React.FC = () => {
             </div>
           </div>
           <div className="relative flex-1 overflow-hidden">
-            <AnimatePresence mode="wait">
+            <AnimatePresence initial={false}>
               <motion.div
                 key={mobileView}
-                initial={{ opacity: 0, x: mobileView === 'tickets' ? -300 : mobileView === 'details' ? 300 : 0 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: mobileView === 'tickets' ? -300 : mobileView === 'details' ? 300 : 0 }}
-                transition={{ type: 'spring', stiffness: 260, damping: 30 }}
+                variants={mobilePanelVariants}
+                initial="hidden"
+                animate="visible"
+                exit="exit"
+                custom={mobileView}
+                transition={mobilePanelTransition}
                 className="absolute inset-0"
               >
                 {mobileView === 'tickets' && (
