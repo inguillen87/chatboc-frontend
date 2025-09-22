@@ -523,6 +523,16 @@ export default function MunicipalAnalytics() {
     [sortedMunicipalities, categoryFilter],
   );
 
+  const hasTicketsChartData = useMemo(
+    () => chartData.some((item) => safeNumber(item.value) > 0),
+    [chartData],
+  );
+
+  const hasCategoryTotals = useMemo(
+    () => categoryTotals.some((item) => safeNumber(item.value) > 0),
+    [categoryTotals],
+  );
+
   const genderData = useMemo(
     () =>
       data?.genderTotals
@@ -574,6 +584,167 @@ export default function MunicipalAnalytics() {
       })),
     [sortedMunicipalities, statusKeys],
   );
+
+  const hasStackedStatusChartData = useMemo(
+    () =>
+      stackedStatusData.some((row) =>
+        statusKeys.some((status) => safeNumber((row as Record<string, number>)[status]) > 0),
+      ),
+    [stackedStatusData, statusKeys],
+  );
+
+  const chartCards = useMemo(() => {
+    const cards: React.ReactNode[] = [];
+
+    if (hasTicketsChartData) {
+      cards.push(
+        <Card key="tickets" className="flex h-full flex-col shadow-lg">
+          <CardHeader>
+            <CardTitle className="text-xl">Tickets por Municipio</CardTitle>
+          </CardHeader>
+          <CardContent className="flex-1 pt-6">
+            <div className="h-full min-h-[260px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData}>
+                  <XAxis dataKey="name" />
+                  <YAxis allowDecimals={false} />
+                  <Tooltip cursor={false} content={<ChartTooltip />} />
+                  <Legend />
+                  <Bar dataKey="value" fill="var(--color-value)" radius={4} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>,
+      );
+    }
+
+    if (hasCategoryTotals) {
+      cards.push(
+        <Card key="categories" className="flex h-full flex-col shadow-lg">
+          <CardHeader>
+            <CardTitle className="text-xl">Distribución por Categoría</CardTitle>
+          </CardHeader>
+          <CardContent className="flex-1 pt-6">
+            <div className="h-full min-h-[260px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={categoryTotals}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={110}
+                    label={(entry) => `${entry.name}: ${entry.value}`}
+                  >
+                    {categoryTotals.map((entry, index) => (
+                      <Cell key={`cell-${entry.name}`} fill={`var(--chart-${(index % 12) + 1})`} />
+                    ))}
+                  </Pie>
+                  <Tooltip cursor={false} content={<ChartTooltip />} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>,
+      );
+    }
+
+    if (hasStatusData && hasStackedStatusChartData) {
+      cards.push(
+        <Card key="status" className="flex h-full flex-col shadow-lg">
+          <CardHeader>
+            <CardTitle className="text-xl">Estados por Municipio</CardTitle>
+          </CardHeader>
+          <CardContent className="flex-1 pt-6">
+            <div className="h-full min-h-[260px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={stackedStatusData}>
+                  <XAxis dataKey="name" />
+                  <YAxis allowDecimals={false} />
+                  <Tooltip cursor={false} content={<ChartTooltip />} />
+                  <Legend />
+                  {statusKeys.map((status) => (
+                    <Bar
+                      key={status}
+                      dataKey={status}
+                      stackId="status"
+                      fill={statusColors[status]}
+                      radius={[4, 4, 0, 0]}
+                    />
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>,
+      );
+    }
+
+    if (hasGenderData) {
+      cards.push(
+        <Card key="gender" className="flex h-full flex-col shadow-lg">
+          <CardHeader>
+            <CardTitle className="text-xl">Distribución por Género</CardTitle>
+          </CardHeader>
+          <CardContent className="flex-1 pt-6">
+            <div className="h-full min-h-[260px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={genderData}>
+                  <XAxis dataKey="name" />
+                  <YAxis allowDecimals={false} />
+                  <Tooltip cursor={false} content={<ChartTooltip />} />
+                  <Legend />
+                  <Bar dataKey="value" fill="var(--color-gender)" radius={4} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>,
+      );
+    }
+
+    if (hasAgeData) {
+      cards.push(
+        <Card key="age" className="flex h-full flex-col shadow-lg">
+          <CardHeader>
+            <CardTitle className="text-xl">Distribución por Rango Etario</CardTitle>
+          </CardHeader>
+          <CardContent className="flex-1 pt-6">
+            <div className="h-full min-h-[260px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={ageData}>
+                  <XAxis dataKey="name" />
+                  <YAxis allowDecimals={false} />
+                  <Tooltip cursor={false} content={<ChartTooltip />} />
+                  <Legend />
+                  <Bar dataKey="value" fill="var(--color-age)" radius={4} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>,
+      );
+    }
+
+    return cards;
+  }, [
+    hasTicketsChartData,
+    chartData,
+    hasCategoryTotals,
+    categoryTotals,
+    hasStatusData,
+    hasStackedStatusChartData,
+    stackedStatusData,
+    statusKeys,
+    statusColors,
+    hasGenderData,
+    genderData,
+    hasAgeData,
+    ageData,
+  ]);
 
   const heatmapCategories = useMemo(
     () =>
@@ -823,123 +994,10 @@ export default function MunicipalAnalytics() {
         </Card>
       </div>
 
-      <Card className="shadow-lg">
-        <CardHeader>
-          <CardTitle className="text-xl">Tickets por Municipio</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
-                <XAxis dataKey="name" />
-                <YAxis allowDecimals={false} />
-                <Tooltip cursor={false} content={<ChartTooltip />} />
-                <Legend />
-                <Bar dataKey="value" fill="var(--color-value)" radius={4} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="shadow-lg">
-        <CardHeader>
-          <CardTitle className="text-xl">Distribución por Categoría</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={categoryTotals}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={80}
-                  label={(entry) => `${entry.name}: ${entry.value}`}
-                >
-                  {categoryTotals.map((entry, index) => (
-                    <Cell key={`cell-${entry.name}`} fill={`var(--chart-${(index % 12) + 1})`} />
-                  ))}
-                </Pie>
-                <Tooltip cursor={false} content={<ChartTooltip />} />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </CardContent>
-      </Card>
-
-      {statusKeys.length > 0 && stackedStatusData.length > 0 && (
-        <Card className="shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-xl">Estados por Municipio</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={stackedStatusData}>
-                  <XAxis dataKey="name" />
-                  <YAxis allowDecimals={false} />
-                  <Tooltip cursor={false} content={<ChartTooltip />} />
-                  <Legend />
-                  {statusKeys.map((status) => (
-                    <Bar
-                      key={status}
-                      dataKey={status}
-                      stackId="status"
-                      fill={statusColors[status]}
-                      radius={[4, 4, 0, 0]}
-                    />
-                  ))}
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {genderData.length > 0 && (
-        <Card className="shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-xl">Distribución por Género</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={genderData}>
-                  <XAxis dataKey="name" />
-                  <YAxis allowDecimals={false} />
-                  <Tooltip cursor={false} content={<ChartTooltip />} />
-                  <Legend />
-                  <Bar dataKey="value" fill="var(--color-gender)" radius={4} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {ageData.length > 0 && (
-        <Card className="shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-xl">Distribución por Rango Etario</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={ageData}>
-                  <XAxis dataKey="name" />
-                  <YAxis allowDecimals={false} />
-                  <Tooltip cursor={false} content={<ChartTooltip />} />
-                  <Legend />
-                  <Bar dataKey="value" fill="var(--color-age)" radius={4} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
+      {chartCards.length > 0 && (
+        <section className="grid auto-rows-[minmax(0,1fr)] gap-6 lg:grid-cols-2 xl:grid-cols-3">
+          {chartCards}
+        </section>
       )}
 
       <Card className="shadow-lg">
