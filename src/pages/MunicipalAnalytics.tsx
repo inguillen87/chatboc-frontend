@@ -593,6 +593,14 @@ export default function MunicipalAnalytics() {
     [stackedStatusData, statusKeys],
   );
 
+  const hasStatusData = useMemo(
+    () => statusSummary.some((item) => safeNumber(item.value) > 0),
+    [statusSummary],
+  );
+
+  const hasGenderData = genderData.length > 0;
+  const hasAgeData = ageData.length > 0;
+
   const chartCards = useMemo(() => {
     const cards: React.ReactNode[] = [];
 
@@ -793,9 +801,6 @@ export default function MunicipalAnalytics() {
   }, []);
 
   const hasMunicipalityRows = filteredMunicipalities.length > 0;
-  const hasStatusData = statusSummary.some((item) => safeNumber(item.value) > 0);
-  const hasGenderData = genderData.length > 0;
-  const hasAgeData = ageData.length > 0;
   const hasChartsData = charts && charts.length > 0;
   const hasHeatmapPoints = heatmapData.length > 0;
 
