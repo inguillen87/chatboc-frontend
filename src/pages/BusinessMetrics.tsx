@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, FC } from "react";
+import React, { useEffect, useState, useCallback, FC, useMemo } from "react";
 import {
   BarChart,
   Bar,
@@ -30,8 +30,10 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { apiFetch, ApiError } from "@/utils/api";
+import { apiFetch, getErrorMessage } from "@/utils/api";
 import ChartTooltip from "@/components/analytics/ChartTooltip";
+import TicketStatsCharts from "@/components/TicketStatsCharts";
+import { getTicketStats, TicketStatsResponse } from "@/services/statsService";
 
 // --- MOCK DATA & TYPES (as per backend spec) ---
 
@@ -64,6 +66,20 @@ interface RegionSale {
   region_name: string;
   sales: number;
 }
+
+const formatStatusLabel = (value: string) =>
+  value
+    .split(/[_\s]+/)
+    .filter(Boolean)
+    .map((chunk) => chunk.charAt(0).toUpperCase() + chunk.slice(1))
+    .join(' ');
+
+const toNumber = (value: unknown): number => {
+  const num = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(num) ? num : 0;
+};
+
+const STATUS_TITLE_KEYWORDS = ['estado', 'status'];
 
 // --- UI Components ---
 
@@ -186,6 +202,7 @@ export default function BusinessMetrics() {
   const [topProducts, setTopProducts] = useState<TopProduct[] | null>(null);
   const [regions, setRegions] = useState<RegionSale[] | null>(null);
   const [summary, setSummary] = useState<string | null>(null);
+  const [ticketCharts, setTicketCharts] = useState<TicketStatsResponse['charts']>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -193,18 +210,25 @@ export default function BusinessMetrics() {
     setLoading(true);
     setError(null);
     try {
+      const ticketStatsPromise = getTicketStats({ tipo: 'pyme' }).catch((error) => {
+        console.error('Error fetching ticket stats:', error);
+        return { charts: [] } as TicketStatsResponse;
+      });
+
       const [
         summaryRes,
         kpisRes,
         salesRes,
         topProductsRes,
-        regionSalesRes
+        regionSalesRes,
+        ticketStatsRes
       ] = await Promise.all([
         apiFetch<{ summary: string }>('/api/metrics/summary'),
         apiFetch<KpiData>('/api/metrics/kpis'),
         apiFetch<{ data: SalesDataPoint[] }>('/api/metrics/sales-over-time?period=30d'),
         apiFetch<{ products: TopProduct[] }>('/api/metrics/top-products?limit=5'),
-        apiFetch<{ regions: RegionSale[] }>('/api/metrics/sales-by-region')
+        apiFetch<{ regions: RegionSale[] }>('/api/metrics/sales-by-region'),
+        ticketStatsPromise
       ]);
 
       setSummary(summaryRes.summary);
@@ -212,6 +236,7 @@ export default function BusinessMetrics() {
       setSales(salesRes.data);
       setTopProducts(topProductsRes.products);
       setRegions(regionSalesRes.regions);
+      setTicketCharts(ticketStatsRes.charts || []);
 
     } catch (err) {
         setError(getErrorMessage(err, "No se pudieron cargar todas las métricas. El backend puede no estar completamente implementado."));
@@ -223,6 +248,31 @@ export default function BusinessMetrics() {
   useEffect(() => {
     fetchAllMetrics();
   }, [fetchAllMetrics]);
+
+  const statusSummary = useMemo(
+    () => {
+      if (!ticketCharts || ticketCharts.length === 0) return [] as { status: string; value: number }[];
+      const statusChart = ticketCharts.find((chart) => {
+        const title = (chart?.title ?? '').toString().toLowerCase();
+        return STATUS_TITLE_KEYWORDS.some((keyword) => title.includes(keyword));
+      });
+      if (!statusChart) return [];
+      return Object.entries(statusChart.data || {}).map(([status, value]) => ({
+        status,
+        value: toNumber(value),
+      }));
+    },
+    [ticketCharts],
+  );
+
+  const additionalCharts = useMemo(
+    () =>
+      ticketCharts.filter((chart) => {
+        const title = (chart?.title ?? '').toString().toLowerCase();
+        return !STATUS_TITLE_KEYWORDS.some((keyword) => title.includes(keyword));
+      }),
+    [ticketCharts],
+  );
 
   if (loading) {
     return (
@@ -265,6 +315,27 @@ export default function BusinessMetrics() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {summary && <MetricsSummary summary={summary} />}
 
+        {statusSummary.length > 0 && (
+          <Card className="col-span-1 md:col-span-2 lg:col-span-4">
+            <CardHeader>
+              <CardTitle>Estado de Tickets</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {statusSummary.map(({ status, value }) => (
+                <div
+                  key={status}
+                  className="rounded-lg border border-border bg-muted/40 p-4"
+                >
+                  <p className="text-sm text-muted-foreground">
+                    {formatStatusLabel(status)}
+                  </p>
+                  <p className="mt-1 text-2xl font-bold">{value.toLocaleString('es-AR')}</p>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
         {kpis && (
             <>
                 <KpiCard title="Ventas Totales" data={kpis.total_sales} icon={<DollarSign className="h-4 w-4 text-muted-foreground" />} formatAsCurrency />
@@ -279,6 +350,17 @@ export default function BusinessMetrics() {
         {topProducts && <TopProductsList products={topProducts} />}
 
         {regions && <RegionChart data={regions} />}
+
+        {additionalCharts.length > 0 && (
+          <Card className="col-span-1 md:col-span-2 lg:col-span-4">
+            <CardHeader>
+              <CardTitle>Analíticas de Tickets</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <TicketStatsCharts charts={additionalCharts} />
+            </CardContent>
+          </Card>
+        )}
 
       </div>
     </div>

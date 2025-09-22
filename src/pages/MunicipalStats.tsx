@@ -3,7 +3,7 @@ import { apiFetch, ApiError } from '@/utils/api';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { ChartContainer } from '@/components/ui/chart';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, TooltipProps } from 'recharts';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import useRequireRole from '@/hooks/useRequireRole';
@@ -17,6 +17,18 @@ interface StatItem {
 interface StatsResponse {
   stats: StatItem[];
 }
+
+const CustomTooltip = ({ active, payload }: TooltipProps<number, string>) => {
+  if (!active || !payload?.length) return null;
+  const item = payload[0];
+  const label = (item as any).payload?.name ?? item.name;
+  return (
+    <div className="bg-background p-2 shadow-lg rounded-lg">
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <p className="text-sm font-bold">{item.value}</p>
+    </div>
+  );
+};
 
 export default function MunicipalStats() {
   useRequireRole(['admin', 'super_admin'] as Role[]);
@@ -196,13 +208,7 @@ export default function MunicipalStats() {
                 <BarChart data={data.stats.map(s => ({ name: s.label, value: typeof s.value === 'number' && !isNaN(s.value) ? s.value : 0 }))}>
                   <XAxis dataKey="name" tickFormatter={(value) => value.slice(0, 15)} />
                   <YAxis />
-                  <Tooltip
-                    cursor={false}
-                    content={<div className="bg-background p-2 shadow-lg rounded-lg">
-                      <p className="text-sm text-muted-foreground">{'{payload?.[0]?.payload?.name}'}</p>
-                      <p className="text-sm font-bold">{'{payload?.[0]?.value}'}</p>
-                    </div>}
-                  />
+                  <Tooltip cursor={false} content={<CustomTooltip />} />
                   <Legend />
                   <Bar dataKey="value" fill="var(--color-value)" radius={4} />
                 </BarChart>
