@@ -836,19 +836,23 @@ export function useChatLogic({
   const handleSend = useCallback(async (payload: string | TypeSendPayload) => {
     const actualPayload: TypeSendPayload =
       typeof payload === 'string'
-        ? { text: payload.trim() }
+        ? { text: payload.trim(), source: 'system' }
         : { ...payload, text: payload.text?.trim() || "" };
 
     const originalText = actualPayload.text || "";
 
     // Sanitize text by removing emojis to prevent issues with backend services like Google Search.
     const emojiRegex = /([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g;
-    let sanitizedText = originalText.replace(emojiRegex, '').trim();
+    const sanitizedCandidate = originalText.replace(emojiRegex, '').trim();
+    const sanitizedDiffers = sanitizedCandidate !== originalText;
+    const normalizedQuestionBase = sanitizedCandidate || originalText;
+    const questionForBackend =
+      actualPayload.source === 'button' && sanitizedDiffers
+        ? originalText
+        : normalizedQuestionBase;
 
-    // If the message only contained emojis, fall back to the original emoji text so the backend can understand it.
-    if (!sanitizedText && originalText) {
-      sanitizedText = originalText;
-    }
+    // Texto normalizado (sin emojis) para comparaciones locales
+    const normalizedForMatching = (normalizedQuestionBase || '').toLowerCase();
 
     const { text: userMessageText, attachmentInfo, ubicacion_usuario, action, location } = actualPayload;
     const actionPayload = 'payload' in actualPayload ? actualPayload.payload : undefined;
@@ -859,7 +863,7 @@ export function useChatLogic({
       contexto.estado_conversacion === 'confirmando_reclamo' ||
       contexto.reclamo_flow_v2?.state === 'ESPERANDO_CONFIRMACION';
     if (!resolvedAction && awaitingConfirmation) {
-      const normalized = sanitizedText.toLowerCase();
+      const normalized = normalizedForMatching;
       const confirmWords = ['1', 'si', 'sí', 's', 'ok', 'okay', 'acepto', 'aceptar', 'confirmar', 'confirmo'];
       const cancelWords = ['2', 'no', 'n', 'cancelar', 'cancel', 'rechazo', 'rechazar'];
       if (confirmWords.includes(normalized)) {
@@ -981,7 +985,7 @@ export function useChatLogic({
       const visitorName = getVisitorName();
 
       const requestBody: Record<string, any> = {
-        pregunta: sanitizedText,
+        pregunta: questionForBackend,
         contexto_previo: updatedContext,
         tipo_chat: tipoChatFinal,
         ...(rubro && { rubro_clave: rubro }),
@@ -992,6 +996,11 @@ export function useChatLogic({
         ...(resolvedAction === "confirmar_reclamo" && currentClaimIdempotencyKey && { idempotency_key: currentClaimIdempotencyKey }),
         ...(visitorName && { nombre_usuario: visitorName }),
       };
+
+      if (sanitizedDiffers) {
+        requestBody.pregunta_original = originalText;
+        requestBody.pregunta_sin_emojis = sanitizedCandidate;
+      }
 
       const legacyAttachmentUrl = attachmentInfo?.url || actualPayload.archivo_url;
       if (legacyAttachmentUrl) {

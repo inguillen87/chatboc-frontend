@@ -1,13 +1,13 @@
 // src/components/chat/ChatButtons.tsx
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Boton } from '@/types/chat';
+import { Boton, SendPayload } from '@/types/chat';
 import { openExternalLink } from '@/utils/openExternalLink';
 
 interface ChatButtonsProps {
     botones: Boton[];
     // onButtonClick ahora puede enviar un payload estructurado
-    onButtonClick: (payload: { text: string; action?: string; payload?: any; }) => void;
+    onButtonClick: (payload: SendPayload) => void;
     onInternalAction?: (action: string) => void;
 }
 
@@ -49,7 +49,7 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
         // Priority 2: Handle other `boton.action` (non-auth internal actions or backend actions)
         if (actionToUse) { // Will be non-auth at this point
             // Send raw action to backend so it can match exactly.
-            onButtonClick({ text: boton.texto, action: actionToUse, payload: boton.payload });
+            onButtonClick({ text: boton.texto, action: actionToUse, payload: boton.payload, source: 'button' });
             // Trigger potential frontend side-effects for this action.
             onInternalAction?.(actionToUse);
             return;
@@ -58,7 +58,7 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
         // Priority 3: Handle other `boton.accion_interna` (non-auth internal actions or backend actions)
         if (accionInterna) { // Will be non-auth at this point
             // Send raw internal action to backend.
-            onButtonClick({ text: boton.texto, action: accionInterna });
+            onButtonClick({ text: boton.texto, action: accionInterna, source: 'button' });
             // Handle potential UI side-effects for these actions too.
             onInternalAction?.(accionInterna);
             return;
@@ -71,7 +71,7 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
         }
 
         // Priority 5: Default - send button text along with payload (if any)
-        onButtonClick({ text: boton.texto, payload: boton.payload });
+        onButtonClick({ text: boton.texto, payload: boton.payload, source: 'button' });
     };
 
     const baseClass =

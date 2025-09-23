@@ -104,6 +104,12 @@ export interface Message {
 export interface SendPayload {
   text: string; // Texto del mensaje del usuario
 
+  /**
+   * Indica desde qué parte de la interfaz se originó el mensaje.
+   * Permite ajustar el payload que se envía al backend (ej. preservar emojis en botones).
+   */
+  source?: 'input' | 'button' | 'system';
+
   // Para adjuntos que el usuario envía (el backend los procesa y puede devolver un Message con attachmentInfo)
   es_foto?: boolean; // Deprecar en favor de attachmentInfo con mimeType. Indica si el adjunto es una foto.
   archivo_url?: string; // Deprecar en favor de attachmentInfo. URL del archivo subido por el usuario.
