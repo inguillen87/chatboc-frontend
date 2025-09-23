@@ -20,6 +20,12 @@ import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import ScrollToBottomButton from '../ui/ScrollToBottomButton';
 import AdjuntarArchivo from '../ui/AdjuntarArchivo';
 import { apiFetch } from '@/utils/api';
+import {
+  coalesceNumber,
+  coalesceString,
+  normalizeUploadResponse,
+  UploadResponsePayload,
+} from '@/utils/uploadResponse';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ALLOWED_TICKET_STATUSES, formatTicketStatusLabel } from '@/utils/ticketStatus';
 
@@ -301,23 +307,54 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
       formData.append('file', attachmentPreview.file);
 
       try {
-        const response = await apiFetch<{
-          url: string;
-          thumbUrl?: string;
-          thumbnail_url?: string;
-          name: string;
-          mimeType: string;
-          size: number;
-        }>('/archivos/upload/chat_attachment', {
+        const response = await apiFetch<UploadResponsePayload>('/archivos/upload/chat_attachment', {
           method: 'POST',
           body: formData,
         });
+        const normalized = normalizeUploadResponse(response);
+        const uploadedUrl =
+          normalized.url ||
+          coalesceString(
+            response.url,
+            response.attachmentUrl,
+            response.attachment_url,
+            response.fileUrl,
+            response.file_url,
+            response.archivo_url,
+          );
+
+        if (!uploadedUrl) {
+          throw new Error('La respuesta del servidor no incluyó la URL del archivo subido.');
+        }
+
+        const originalFile = attachmentPreview.file;
+        const uploadedName =
+          normalized.name ||
+          coalesceString(response.name, response.filename, response.fileName) ||
+          originalFile.name;
+        const uploadedMime =
+          normalized.mimeType ||
+          coalesceString(response.mimeType, response.mime_type) ||
+          originalFile.type;
+        const uploadedSize =
+          normalized.size ??
+          coalesceNumber(response.size, response.fileSize) ??
+          originalFile.size;
+        const uploadedThumb =
+          normalized.thumbUrl ||
+          coalesceString(
+            response.thumbUrl,
+            response.thumb_url,
+            response.thumbnailUrl,
+            response.thumbnail_url,
+          );
+
         attachmentData = {
-          url: response.url,
-          thumbUrl: response.thumbUrl || response.thumbnail_url,
-          name: response.name,
-          mimeType: response.mimeType,
-          size: response.size,
+          url: uploadedUrl,
+          ...(uploadedThumb ? { thumbUrl: uploadedThumb } : {}),
+          name: uploadedName,
+          mimeType: uploadedMime,
+          size: uploadedSize,
         };
         toast.success("Archivo subido con éxito.");
       } catch (error) {
