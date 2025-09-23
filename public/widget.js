@@ -80,8 +80,17 @@
   iframe.style.cssText =
     "width: 100%; height: 100%; border: none; background: transparent;";
   iframe.allow = "microphone; geolocation; clipboard-write; camera";
-  iframe.sandbox =
-    "allow-forms allow-popups allow-modals allow-scripts allow-same-origin allow-downloads";
+  // Allow popups to fully open outside of the sandbox so links like WhatsApp URLs work
+  iframe.sandbox = [
+    "allow-forms",
+    "allow-popups",
+    "allow-popups-to-escape-sandbox",
+    "allow-top-navigation-by-user-activation",
+    "allow-modals",
+    "allow-scripts",
+    "allow-same-origin",
+    "allow-downloads",
+  ].join(" ");
 
   const style = document.createElement("style");
   style.textContent = `
