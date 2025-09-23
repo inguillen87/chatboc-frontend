@@ -130,6 +130,7 @@ export function useChatLogic({
         const response = await apiFetch<any>(endpoint, {
           method: 'POST',
           skipAuth,
+          isWidgetRequest: true,
           body: {
             pregunta: '',
             action: 'initial_greeting',
@@ -1034,7 +1035,12 @@ export function useChatLogic({
       const endpoint = getAskEndpoint({ tipoChat: tipoChatFinal, rubro });
 
       console.log('useChatLogic: Sending message to backend', { endpoint, requestBody });
-      const response = await apiFetch<any>(endpoint, { method: 'POST', body: requestBody, skipAuth });
+      const response = await apiFetch<any>(endpoint, {
+        method: 'POST',
+        body: requestBody,
+        skipAuth,
+        isWidgetRequest: true,
+      });
       console.log('useChatLogic: Backend response', response);
       processBotPayload(response, {
         fallbackOnEmpty: !socketRef.current || !socketRef.current.connected,

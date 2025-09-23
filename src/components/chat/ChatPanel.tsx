@@ -131,7 +131,7 @@ const ChatPanel = ({
   const loadRubros = useCallback(() => {
     setIsLoadingRubros(true);
     setRubrosError(null);
-    apiFetch<Rubro[]>("/rubros/", { skipAuth: true })
+    apiFetch<Rubro[]>("/rubros/", { skipAuth: true, isWidgetRequest: true })
       .then((data) => {
         if (Array.isArray(data)) {
           setRubros(data);
@@ -300,7 +300,6 @@ const ChatPanel = ({
     });
   };
 
-  const esAnonimo = skipAuth || !safeLocalStorage.getItem("authToken");
   const { user } = useUser();
 
   useEffect(() => {

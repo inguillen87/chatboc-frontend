@@ -25,6 +25,16 @@ interface ApiFetchOptions {
   sendAnonId?: boolean;
   entityToken?: string | null;
   cache?: RequestCache;
+  /**
+   * When true, avoids sending browser cookies with the request.
+   * Useful for widget requests where the visitor should remain anonymous.
+   */
+  omitCredentials?: boolean;
+  /**
+   * Marks the request as originating from the public widget.
+   * Prevents leaking panel credentials while still allowing chat auth tokens.
+   */
+  isWidgetRequest?: boolean;
 }
 
 /**
@@ -36,17 +46,72 @@ export async function apiFetch<T>(
   path: string,
   options: ApiFetchOptions = {}
 ): Promise<T> {
-  const { method = "GET", body, skipAuth, sendAnonId, entityToken, cache } = options;
+  const {
+    method = "GET",
+    body,
+    skipAuth,
+    sendAnonId,
+    entityToken,
+    cache,
+    omitCredentials,
+    isWidgetRequest,
+  } = options;
 
-  const effectiveEntityToken = entityToken ?? getIframeToken();
+  const rawIframeToken = getIframeToken();
+  const effectiveEntityToken = entityToken ?? rawIframeToken;
+  const globalEntityToken =
+    typeof window !== "undefined"
+      ? (window as any)?.CHATBOC_CONFIG?.entityToken
+      : undefined;
+  const normalizedGlobalToken =
+    typeof globalEntityToken === "string" && globalEntityToken.trim()
+      ? globalEntityToken.trim()
+      : "";
+  const isWidgetContext = Boolean(normalizedGlobalToken || entityToken);
+  const treatAsWidget = isWidgetRequest ?? isWidgetContext;
   const panelToken = safeLocalStorage.getItem("authToken");
   const chatToken = safeLocalStorage.getItem("chatAuthToken");
-  const token = panelToken || chatToken;
-  const tokenSource: "authToken" | "chatAuthToken" | null = panelToken
-    ? "authToken"
-    : chatToken
-      ? "chatAuthToken"
-      : null;
+  let storedRole: string | null = null;
+  try {
+    const rawUser = safeLocalStorage.getItem("user");
+    if (rawUser) {
+      const parsed = JSON.parse(rawUser);
+      if (parsed && typeof parsed === "object" && typeof parsed.rol === "string") {
+        storedRole = parsed.rol;
+      }
+    }
+  } catch {
+    storedRole = null;
+  }
+  const normalizedRole = storedRole?.toLowerCase() || null;
+  const widgetAllowsPanelToken =
+    treatAsWidget && !chatToken && !!panelToken &&
+    (normalizedRole === "usuario" ||
+      normalizedRole === "ciudadano" ||
+      normalizedRole === "vecino" ||
+      normalizedRole === "neighbor");
+  let token: string | null = null;
+  let tokenSource: "authToken" | "chatAuthToken" | null = null;
+
+  if (!skipAuth) {
+    if (treatAsWidget) {
+      if (chatToken) {
+        token = chatToken;
+        tokenSource = "chatAuthToken";
+      } else if (widgetAllowsPanelToken) {
+        token = panelToken;
+        tokenSource = "authToken";
+      }
+    } else {
+      if (panelToken) {
+        token = panelToken;
+        tokenSource = "authToken";
+      } else if (chatToken) {
+        token = chatToken;
+        tokenSource = "chatAuthToken";
+      }
+    }
+  }
   const anonId = safeLocalStorage.getItem("anon_id");
   const chatSessionId = getOrCreateChatSessionId(); // Get or create the chat session ID
 
@@ -61,7 +126,7 @@ export async function apiFetch<T>(
   // Add the chat session ID header to all requests
   headers["X-Chat-Session-Id"] = chatSessionId;
 
-  if (!skipAuth && token) {
+  if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
   // Si el endpoint necesita identificar usuario anónimo, mandá siempre el header "Anon-Id"
@@ -83,14 +148,21 @@ export async function apiFetch<T>(
     anonId: mask(anonId),
     entityToken: mask(effectiveEntityToken || null),
     sendAnonId,
+    widgetRequest: treatAsWidget,
+    storedRole: normalizedRole,
     headers,
   });
+
+  const shouldOmitCredentials =
+    omitCredentials !== undefined
+      ? omitCredentials
+      : treatAsWidget;
 
   const requestInit: RequestInit = {
     method,
     headers,
     body: isForm ? body : body ? JSON.stringify(body) : undefined,
-    credentials: 'include', // ensure cookies like session are sent
+    credentials: shouldOmitCredentials ? 'omit' : 'include',
     cache,
   };
 
