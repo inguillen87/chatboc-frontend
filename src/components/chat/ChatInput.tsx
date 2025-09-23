@@ -9,6 +9,12 @@ import useAudioRecorder from "@/hooks/useAudioRecorder";
 import { AttachmentInfo } from "@/utils/attachment";
 import { SendPayload } from "@/types/chat";
 import { Button } from "@/components/ui/button";
+import {
+  coalesceNumber,
+  coalesceString,
+  normalizeUploadResponse,
+  UploadResponsePayload,
+} from "@/utils/uploadResponse";
 
 export interface ChatInputHandle {
   openFilePicker: () => void;
@@ -39,43 +45,7 @@ const QUICK_EMOJIS = [
   { emoji: "🚮", category: "limpieza" },
 ];
 
-type UploadResponse = {
-  url?: string;
-  attachmentUrl?: string;
-  attachment_url?: string;
-  fileUrl?: string;
-  file_url?: string;
-  archivo_url?: string;
-  thumbUrl?: string;
-  thumb_url?: string;
-  thumbnailUrl?: string;
-  thumbnail_url?: string;
-  name?: string;
-  filename?: string;
-  fileName?: string;
-  mimeType?: string;
-  mime_type?: string;
-  size?: number;
-  fileSize?: number;
-};
-
-const pickFirstString = (...values: (string | null | undefined)[]) => {
-  for (const value of values) {
-    if (typeof value === "string" && value.trim().length > 0) {
-      return value;
-    }
-  }
-  return undefined;
-};
-
-const pickFirstNumber = (...values: (number | null | undefined)[]) => {
-  for (const value of values) {
-    if (typeof value === "number" && !Number.isNaN(value)) {
-      return value;
-    }
-  }
-  return undefined;
-};
+type UploadResponse = UploadResponsePayload;
 
 const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping, inputRef, onTypingChange, onSystemMessage }, ref) => {
   const [input, setInput] = useState("");
@@ -119,23 +89,41 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
           isWidgetRequest: true,
         });
         const originalFile = attachmentPreview.file;
-        const uploadedUrl = pickFirstString(
-          response.url,
-          response.attachmentUrl,
-          response.attachment_url,
-          response.fileUrl,
-          response.file_url,
-          response.archivo_url,
-        );
+        const normalized = normalizeUploadResponse(response);
+        const uploadedUrl =
+          normalized.url ||
+          coalesceString(
+            response.url,
+            response.attachmentUrl,
+            response.attachment_url,
+            response.fileUrl,
+            response.file_url,
+            response.archivo_url,
+          );
 
         if (!uploadedUrl) {
           throw new Error('La respuesta del servidor no incluyó la URL del archivo subido.');
         }
 
-        const uploadedName = pickFirstString(response.name, response.filename, response.fileName) || originalFile.name;
-        const uploadedMime = pickFirstString(response.mimeType, response.mime_type, originalFile.type);
-        const uploadedSize = pickFirstNumber(response.size, response.fileSize) ?? originalFile.size;
-        const uploadedThumb = pickFirstString(response.thumbUrl, response.thumb_url, response.thumbnailUrl, response.thumbnail_url);
+        const uploadedName =
+          normalized.name ||
+          coalesceString(response.name, response.filename, response.fileName) ||
+          originalFile.name;
+        const uploadedMime =
+          normalized.mimeType ||
+          coalesceString(response.mimeType, response.mime_type, originalFile.type);
+        const uploadedSize =
+          normalized.size ??
+          coalesceNumber(response.size, response.fileSize) ??
+          originalFile.size;
+        const uploadedThumb =
+          normalized.thumbUrl ||
+          coalesceString(
+            response.thumbUrl,
+            response.thumb_url,
+            response.thumbnailUrl,
+            response.thumbnail_url,
+          );
 
         attachmentData = {
           url: uploadedUrl,
@@ -226,23 +214,42 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
         isWidgetRequest: true,
       });
 
-      const uploadedUrl = pickFirstString(
-        data.url,
-        data.attachmentUrl,
-        data.attachment_url,
-        data.fileUrl,
-        data.file_url,
-        data.archivo_url,
-      );
+      const normalized = normalizeUploadResponse(data);
+      const uploadedUrl =
+        normalized.url ||
+        coalesceString(
+          data.url,
+          data.attachmentUrl,
+          data.attachment_url,
+          data.fileUrl,
+          data.file_url,
+          data.archivo_url,
+        );
 
       if (!uploadedUrl) {
         throw new Error("La respuesta del servidor para la subida del audio fue inválida.");
       }
 
-      const uploadedName = pickFirstString(data.name, data.filename, data.fileName) || filename;
-      const uploadedMime = pickFirstString(data.mimeType, data.mime_type) || 'audio/webm';
-      const uploadedSize = pickFirstNumber(data.size, data.fileSize);
-      const uploadedThumb = pickFirstString(data.thumbUrl, data.thumb_url, data.thumbnailUrl, data.thumbnail_url);
+      const uploadedName =
+        normalized.name ||
+        coalesceString(data.name, data.filename, data.fileName) ||
+        filename;
+      const uploadedMime =
+        normalized.mimeType ||
+        coalesceString(data.mimeType, data.mime_type) ||
+        'audio/webm';
+      const uploadedSize =
+        normalized.size ??
+        coalesceNumber(data.size, data.fileSize) ??
+        (typeof audioBlob.size === 'number' ? audioBlob.size : undefined);
+      const uploadedThumb =
+        normalized.thumbUrl ||
+        coalesceString(
+          data.thumbUrl,
+          data.thumb_url,
+          data.thumbnailUrl,
+          data.thumbnail_url,
+        );
 
       onSendMessage({
         text: `Audio adjunto: ${uploadedName}`,
