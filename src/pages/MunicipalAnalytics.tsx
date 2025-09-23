@@ -36,6 +36,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
   Table,
   TableBody,
   TableCell,
@@ -44,12 +50,16 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, FileDown } from 'lucide-react';
 import {
   clearEndpointUnavailable,
   isEndpointMarkedUnavailable,
   markEndpointUnavailable,
 } from '@/utils/endpointAvailability';
+import {
+  exportMunicipalAnalyticsExcel,
+  exportMunicipalAnalyticsPdf,
+} from '@/services/exportService';
 
 interface Municipality {
   name: string;
@@ -790,6 +800,72 @@ export default function MunicipalAnalytics() {
     [heatmapData],
   );
 
+  const analyticsExportConfig = useMemo(() => {
+    if (!data) return null;
+    const genderLabels: Record<string, string> = {
+      '': 'Todos',
+      F: 'Femenino',
+      M: 'Masculino',
+      X: 'Otro',
+    };
+    return {
+      municipalities: sortedMunicipalities,
+      statusKeys,
+      statusTotals,
+      categoryTotals,
+      totals: {
+        totalTickets,
+        averageResponseHours,
+        ticketsLabel:
+          categoryFilter === 'all'
+            ? 'Tickets Totales'
+            : `Tickets (${formatLabel(categoryFilter)})`,
+      },
+      filters: {
+        category: categoryFilter === 'all' ? 'Todas' : formatLabel(categoryFilter),
+        gender: genderLabels[genderFilter] ?? (genderFilter || 'Todos'),
+        ageMin: ageMin || '—',
+        ageMax: ageMax || '—',
+        statuses:
+          statusFilters.length > 0
+            ? statusFilters.map((status) => formatLabel(status))
+            : ['Todos'],
+      },
+      genderTotals: data.genderTotals,
+      ageRanges: data.ageRanges,
+      charts,
+      heatmap: heatmapData,
+      categoryKey: categoryFilter,
+    };
+  }, [
+    data,
+    sortedMunicipalities,
+    statusKeys,
+    statusTotals,
+    categoryTotals,
+    totalTickets,
+    averageResponseHours,
+    categoryFilter,
+    genderFilter,
+    ageMin,
+    ageMax,
+    statusFilters,
+    charts,
+    heatmapData,
+  ]);
+
+  const canExportAnalytics = Boolean(analyticsExportConfig);
+
+  const handleExportAnalyticsPdf = useCallback(() => {
+    if (!analyticsExportConfig) return;
+    exportMunicipalAnalyticsPdf(analyticsExportConfig);
+  }, [analyticsExportConfig]);
+
+  const handleExportAnalyticsExcel = useCallback(() => {
+    if (!analyticsExportConfig) return;
+    exportMunicipalAnalyticsExcel(analyticsExportConfig);
+  }, [analyticsExportConfig]);
+
   const updateStatusFilter = useCallback((status: string, checked: boolean) => {
     setStatusFilters((prev) => {
       if (checked) {
@@ -822,7 +898,30 @@ export default function MunicipalAnalytics() {
 
   return (
     <div className="p-4 max-w-6xl mx-auto space-y-6">
-      <h1 className="text-3xl font-extrabold text-primary mb-4">Analíticas Profesionales</h1>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-3xl font-extrabold text-primary">Analíticas Profesionales</h1>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2"
+              disabled={!canExportAnalytics}
+            >
+              <FileDown className="h-4 w-4" />
+              Exportar
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={handleExportAnalyticsPdf} disabled={!canExportAnalytics}>
+              Exportar PDF
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleExportAnalyticsExcel} disabled={!canExportAnalytics}>
+              Exportar Excel
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
 
       {analyticsWarning && (
         <Alert variant="destructive" className="bg-destructive/10 text-destructive">
