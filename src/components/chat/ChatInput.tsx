@@ -165,6 +165,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
       attachmentInfo: finalAttachment,
       ...(finalArchivoUrl ? { archivo_url: finalArchivoUrl } : {}),
       ...(finalEsFoto ? { es_foto: true } : {}),
+      source: 'input',
     });
     setInput("");
     setAttachmentPreview(null);
@@ -193,7 +194,8 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
       if (coords) {
         onSendMessage({
           text: "", // Texto vacío como pide el backend
-          location: { lat: coords.latitud, lon: coords.longitud } // Usar el nuevo formato
+          location: { lat: coords.latitud, lon: coords.longitud }, // Usar el nuevo formato
+          source: 'system',
         });
         toast({ title: "Ubicación enviada", description: "Tu ubicación ha sido compartida.", duration: 3000 });
       } else {
@@ -252,6 +254,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
           ...(uploadedThumb ? { thumbUrl: uploadedThumb } : {}),
         },
         archivo_url: uploadedUrl,
+        source: 'input',
       });
       // Optional: a success system message could be sent here, but it might be noisy.
       // onSystemMessage?.('Audio enviado con éxito.', 'info');
@@ -333,6 +336,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
                       text: item.emoji,
                       action: "quick_emoji",
                       payload: { category: item.category },
+                      source: 'button',
                     });
                     setShowEmojis(false);
                   }}

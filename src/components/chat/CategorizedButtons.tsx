@@ -75,7 +75,7 @@ const CategorizedButtons: React.FC<CategorizedButtonsProps> = ({
     }
 
     if (action) {
-      onButtonClick({ text: boton.texto, action: action, payload: boton.payload });
+      onButtonClick({ text: boton.texto, action: action, payload: boton.payload, source: 'button' });
       if (onInternalAction) onInternalAction(action);
       return;
     }
@@ -85,7 +85,7 @@ const CategorizedButtons: React.FC<CategorizedButtonsProps> = ({
       return;
     }
 
-    onButtonClick({ text: boton.texto });
+    onButtonClick({ text: boton.texto, source: 'button' });
   };
 
   return (
