@@ -268,17 +268,8 @@ export function useChatLogic({
     { fallbackOnEmpty }: { fallbackOnEmpty: boolean },
   ): boolean => {
     if (!rawPayload) {
+      console.warn('useChatLogic: Received empty payload from backend.');
       if (fallbackOnEmpty) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: generateClientMessageId(),
-            text: '⚠️ No se pudo procesar la respuesta del servidor.',
-            isBot: true,
-            timestamp: new Date(),
-            isError: true,
-          },
-        ]);
         setIsTyping(false);
       }
       return false;
@@ -551,16 +542,7 @@ export function useChatLogic({
     }
 
     if (fallbackOnEmpty) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: generateClientMessageId(),
-          text: '⚠️ No se pudo procesar la respuesta del servidor.',
-          isBot: true,
-          timestamp: new Date(),
-          isError: true,
-        },
-      ]);
+      console.warn('useChatLogic: Normalized payload produced no messages.');
       setIsTyping(false);
     }
 
