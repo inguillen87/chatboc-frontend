@@ -10,16 +10,19 @@ interface TicketsApiResponse { ok: boolean; tickets: Ticket[]; error?: string; }
 interface CommentsApiResponse { ok: boolean; comentarios: Comment[]; error?: string; }
 
 async function apiFetch<T>(endpoint:string, options: RequestInit = {}): Promise<T> {
-  const userToken = safeLocalStorage.getItem("authToken");
+  const panelToken = safeLocalStorage.getItem("authToken");
+  const chatToken = safeLocalStorage.getItem("chatAuthToken");
   const entityToken = safeLocalStorage.getItem("entityToken");
+  const treatAsWidget = true;
 
   const headers: HeadersInit = { // Default headers
     ...options.headers,
   };
 
-  // Prioridad al token de autorización de usuario si existe.
-  if (userToken) {
-    headers["Authorization"] = `Bearer ${userToken}`;
+  if (chatToken) {
+    headers["Authorization"] = `Bearer ${chatToken}`;
+  } else if (!treatAsWidget && panelToken) {
+    headers["Authorization"] = `Bearer ${panelToken}`;
   }
   // Añadir el token de la entidad si existe. Puede coexistir con el de usuario.
   if (entityToken) {
@@ -31,17 +34,23 @@ async function apiFetch<T>(endpoint:string, options: RequestInit = {}): Promise<
     headers["Content-Type"] = "application/json";
   }
 
+  const desiredCredentials = options.credentials ?? 'omit';
+
   const config: RequestInit = {
     ...options,
     headers,
+    credentials: desiredCredentials,
   };
   const mask = (t: string | null) => (t ? `${t.slice(0, 8)}...` : null);
   console.log('[apiService] Request', {
     endpoint,
     method: options.method || 'GET',
-    authToken: mask(userToken),
+    panelToken: mask(panelToken),
+    chatAuthToken: mask(chatToken),
     entityToken: mask(entityToken),
     hasBody: !!options.body,
+    credentials: desiredCredentials,
+    widgetRequest: treatAsWidget,
     headers,
   });
 

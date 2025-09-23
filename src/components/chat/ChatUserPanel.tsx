@@ -28,7 +28,7 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const data = await apiFetch<any>("/me");
+        const data = await apiFetch<any>("/me", { isWidgetRequest: true });
         setName(data.name || "");
         setEmail(data.email || "");
         setPhone(data.telefono || "");
@@ -43,7 +43,7 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
         if (statusFilter) params.push(`estado=${encodeURIComponent(statusFilter)}`);
         if (categoryFilter) params.push(`categoria=${encodeURIComponent(categoryFilter)}`);
         if (params.length) url += `?${params.join("&")}`;
-        const data = await apiFetch<TicketSummary[]>(url, { sendEntityToken: true });
+        const data = await apiFetch<TicketSummary[]>(url, { sendEntityToken: true, isWidgetRequest: true });
         if (Array.isArray(data)) setTickets(data);
       } catch (e) {
         /* ignore */
@@ -58,7 +58,7 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
     setSaving(true);
     setError("");
     try {
-      await apiFetch("/api/me", { method: "PUT", body: { name, email, telefono: phone } });
+      await apiFetch("/api/me", { method: "PUT", body: { name, email, telefono: phone }, isWidgetRequest: true });
       const stored = safeLocalStorage.getItem("user");
       if (stored) {
         try {

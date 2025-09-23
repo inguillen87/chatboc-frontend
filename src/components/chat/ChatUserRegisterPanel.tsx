@@ -81,9 +81,11 @@ const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin, entity
         body: payload,
         skipAuth: true,
         sendAnonId: true,
+        isWidgetRequest: true,
         // sendEntityToken: true, // Removed: token is in body
       });
       safeLocalStorage.setItem("authToken", data.token);
+      safeLocalStorage.setItem("chatAuthToken", data.token);
       await refreshUser();
       onSuccess(data.rol);
     } catch (err) {

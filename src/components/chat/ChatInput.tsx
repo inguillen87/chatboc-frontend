@@ -116,6 +116,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
         const response = await apiFetch<UploadResponse>('/archivos/upload/chat_attachment', {
           method: 'POST',
           body: formData,
+          isWidgetRequest: true,
         });
         const originalFile = attachmentPreview.file;
         const uploadedUrl = pickFirstString(
@@ -220,6 +221,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
       const data = await apiFetch<UploadResponse>('/archivos/upload/chat_attachment', {
         method: 'POST',
         body: formData,
+        isWidgetRequest: true,
       });
 
       const uploadedUrl = pickFirstString(
