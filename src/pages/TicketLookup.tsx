@@ -99,6 +99,18 @@ export default function TicketLookup() {
     ? `https://wa.me/${contactInfo.phone.replace(/\D/g, '')}`
     : undefined;
 
+  const hasDescriptionContent = React.useMemo(() => {
+    if (!ticketForSummary) return false;
+    const normalize = (value?: string | null) =>
+      typeof value === 'string' ? value.trim() : '';
+    return Boolean(
+      normalize(ticketForSummary.description) ||
+        normalize((ticketForSummary as Ticket & { detalles?: string }).detalles),
+    );
+  }, [ticketForSummary]);
+
+  const showDetailsCard = Boolean(primaryImageUrl) || hasDescriptionContent;
+
   const performSearch = useCallback(async (searchId?: string, searchPin?: string) => {
     const id = (searchId || '').trim();
     const pinVal = (searchPin || '').trim();
@@ -266,145 +278,147 @@ export default function TicketLookup() {
               historyOverride={historyForSummary}
               onOpenMap={hasLocation ? openGoogleMaps : undefined}
             />
-            <div className="grid gap-6 md:grid-cols-2">
-              <Card className="overflow-hidden">
-                <CardHeader>
-                  <CardTitle className="text-xl font-semibold">Detalle del reclamo</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-5 text-sm leading-relaxed">
-                  {primaryImageUrl && (
-                    <div className="space-y-2">
-                      <h4 className="text-base font-semibold">Imagen del reclamo</h4>
-                      {imageError ? (
-                        <p className="text-sm text-muted-foreground">
-                          No se pudo cargar la imagen proporcionada.
-                        </p>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => setIsImageModalOpen(true)}
-                          className="group relative aspect-video w-full overflow-hidden rounded-md border bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                          aria-label="Ampliar imagen del reclamo"
-                        >
-                          <img
-                            src={primaryImageUrl}
-                            alt="Foto enviada en el reclamo"
-                            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                            loading="lazy"
-                            onError={() => {
-                              setImageError(true);
-                              setIsImageModalOpen(false);
-                            }}
-                          />
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/20">
-                            <Maximize2 className="h-6 w-6 text-white opacity-0 transition-opacity group-hover:opacity-100" />
-                          </div>
-                        </button>
-                      )}
-                    </div>
-                  )}
-                  {(ticketForSummary.description || ticketForSummary.detalles) && (
-                    <div className="space-y-2">
-                      <h4 className="text-base font-semibold">Descripción</h4>
-                      {(ticketForSummary.description || ticketForSummary.detalles || '—')
-                        .split('\n')
-                        .map((line, index) => (
-                          <p key={index} className="text-sm text-muted-foreground leading-relaxed break-words">
-                            {line}
-                          </p>
-                        ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-              <div className="space-y-6">
+            <div className={`grid gap-6 ${showDetailsCard ? 'md:grid-cols-2' : ''}`}>
+              {showDetailsCard && (
                 <Card className="overflow-hidden">
-                <CardHeader>
-                  <CardTitle className="text-xl font-semibold">Datos de contacto</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4 text-sm">
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Nombre</p>
-                    <p
-                      className={
-                        contactInfo.name
-                          ? 'text-sm font-medium text-foreground break-words'
-                          : 'text-sm text-muted-foreground'
-                      }
-                    >
-                      {contactInfo.name || 'No especificado'}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">DNI</p>
-                    <p
-                      className={
-                        contactInfo.dni
-                          ? 'text-sm font-medium text-foreground break-words'
-                          : 'text-sm text-muted-foreground'
-                      }
-                    >
-                      {contactInfo.dni || 'No especificado'}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Email</p>
-                    {contactInfo.email ? (
-                      <a
-                        href={contactEmailHref}
-                        className="text-sm font-medium text-foreground break-all hover:underline"
-                      >
-                        {contactInfo.email}
-                      </a>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">No especificado</p>
+                  <CardHeader>
+                    <CardTitle className="text-xl font-semibold">Detalle del reclamo</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-5 text-sm leading-relaxed">
+                    {primaryImageUrl && (
+                      <div className="space-y-2">
+                        <h4 className="text-base font-semibold">Imagen del reclamo</h4>
+                        {imageError ? (
+                          <p className="text-sm text-muted-foreground">
+                            No se pudo cargar la imagen proporcionada.
+                          </p>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setIsImageModalOpen(true)}
+                            className="group relative aspect-video w-full overflow-hidden rounded-md border bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                            aria-label="Ampliar imagen del reclamo"
+                          >
+                            <img
+                              src={primaryImageUrl}
+                              alt="Foto enviada en el reclamo"
+                              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                              loading="lazy"
+                              onError={() => {
+                                setImageError(true);
+                                setIsImageModalOpen(false);
+                              }}
+                            />
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/20">
+                              <Maximize2 className="h-6 w-6 text-white opacity-0 transition-opacity group-hover:opacity-100" />
+                            </div>
+                          </button>
+                        )}
+                      </div>
                     )}
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Teléfono</p>
-                    {contactInfo.phone ? (
-                      <a
-                        href={contactPhoneHref}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-sm font-medium text-foreground hover:underline"
-                      >
-                        {contactInfo.phone}
-                      </a>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">No especificado</p>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Dirección</p>
-                    <p
-                      className={
-                        contactInfo.address
-                          ? 'text-sm font-medium text-foreground break-words'
-                          : 'text-sm text-muted-foreground'
-                      }
-                    >
-                      {contactInfo.address || 'No especificado'}
-                    </p>
-                  </div>
-                </CardContent>
-                {specialContact && (
-                  <CardContent className="border-t bg-muted/40 pt-4 text-sm space-y-1">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Contacto sugerido</p>
-                    <p className="font-semibold text-foreground">{specialContact.nombre}</p>
-                    {specialContact.titulo && <p className="text-muted-foreground">{specialContact.titulo}</p>}
-                    {specialContact.telefono && (
-                      <p className="text-muted-foreground">Teléfono: {specialContact.telefono}</p>
-                    )}
-                    {specialContact.horario && (
-                      <p className="text-muted-foreground">Horario: {specialContact.horario}</p>
-                    )}
-                    {specialContact.email && (
-                      <p className="text-muted-foreground">Email: {specialContact.email}</p>
+                    {hasDescriptionContent && (
+                      <div className="space-y-2">
+                        <h4 className="text-base font-semibold">Descripción</h4>
+                        {(ticketForSummary.description || ticketForSummary.detalles || '—')
+                          .split('\n')
+                          .map((line, index) => (
+                            <p key={index} className="text-sm text-muted-foreground leading-relaxed break-words">
+                              {line}
+                            </p>
+                          ))}
+                      </div>
                     )}
                   </CardContent>
-                )}
-              </Card>
+                </Card>
+              )}
+              <div className="space-y-6">
+                <Card className="overflow-hidden">
+                  <CardHeader>
+                    <CardTitle className="text-xl font-semibold">Datos de contacto</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4 text-sm">
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Nombre</p>
+                      <p
+                        className={
+                          contactInfo.name
+                            ? 'text-sm font-medium text-foreground break-words'
+                            : 'text-sm text-muted-foreground'
+                        }
+                      >
+                        {contactInfo.name || 'No especificado'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">DNI</p>
+                      <p
+                        className={
+                          contactInfo.dni
+                            ? 'text-sm font-medium text-foreground break-words'
+                            : 'text-sm text-muted-foreground'
+                        }
+                      >
+                        {contactInfo.dni || 'No especificado'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Email</p>
+                      {contactInfo.email ? (
+                        <a
+                          href={contactEmailHref}
+                          className="text-sm font-medium text-foreground break-all hover:underline"
+                        >
+                          {contactInfo.email}
+                        </a>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">No especificado</p>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Teléfono</p>
+                      {contactInfo.phone ? (
+                        <a
+                          href={contactPhoneHref}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-sm font-medium text-foreground hover:underline"
+                        >
+                          {contactInfo.phone}
+                        </a>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">No especificado</p>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Dirección</p>
+                      <p
+                        className={
+                          contactInfo.address
+                            ? 'text-sm font-medium text-foreground break-words'
+                            : 'text-sm text-muted-foreground'
+                        }
+                      >
+                        {contactInfo.address || 'No especificado'}
+                      </p>
+                    </div>
+                  </CardContent>
+                  {specialContact && (
+                    <CardContent className="border-t bg-muted/40 pt-4 text-sm space-y-1">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Contacto sugerido</p>
+                      <p className="font-semibold text-foreground">{specialContact.nombre}</p>
+                      {specialContact.titulo && <p className="text-muted-foreground">{specialContact.titulo}</p>}
+                      {specialContact.telefono && (
+                        <p className="text-muted-foreground">Teléfono: {specialContact.telefono}</p>
+                      )}
+                      {specialContact.horario && (
+                        <p className="text-muted-foreground">Horario: {specialContact.horario}</p>
+                      )}
+                      {specialContact.email && (
+                        <p className="text-muted-foreground">Email: {specialContact.email}</p>
+                      )}
+                    </CardContent>
+                  )}
+                </Card>
               </div>
             </div>
             <Card className="overflow-hidden">
