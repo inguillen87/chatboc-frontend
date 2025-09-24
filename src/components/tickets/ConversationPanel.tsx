@@ -25,9 +25,13 @@ import {
   coalesceString,
   normalizeUploadResponse,
   UploadResponsePayload,
+  UploadResponseLike,
 } from '@/utils/uploadResponse';
+import { ensureAbsoluteUrl } from '@/utils/chatButtons';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ALLOWED_TICKET_STATUSES, formatTicketStatusLabel } from '@/utils/ticketStatus';
+
+type UploadResponse = UploadResponseLike;
 
 const formatRelativeTime = (input?: Date | null) => {
   if (!input) {
@@ -307,21 +311,63 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
       formData.append('file', attachmentPreview.file);
 
       try {
-        const response = await apiFetch<UploadResponsePayload>('/archivos/upload/chat_attachment', {
+        const response = await apiFetch<UploadResponse>('/archivos/upload/chat_attachment', {
           method: 'POST',
           body: formData,
         });
         const normalized = normalizeUploadResponse(response);
-        const uploadedUrl =
-          normalized.url ||
+        const responsePayload =
+          response && typeof response === 'object'
+            ? (response as UploadResponsePayload)
+            : undefined;
+        const fallbackRawUrl =
           coalesceString(
-            response.url,
-            response.attachmentUrl,
-            response.attachment_url,
-            response.fileUrl,
-            response.file_url,
-            response.archivo_url,
+            responsePayload?.url,
+            responsePayload?.attachmentUrl,
+            responsePayload?.attachment_url,
+            responsePayload?.fileUrl,
+            responsePayload?.file_url,
+            responsePayload?.archivo_url,
+            responsePayload?.public_url,
+            responsePayload?.publicUrl,
+            responsePayload?.secure_url,
+            responsePayload?.fallbackUrl,
+            responsePayload?.fallback_url,
+            responsePayload?.fallbackPublicUrl,
+            responsePayload?.fallback_public_url,
+            responsePayload?.local_url,
+            responsePayload?.localUrl,
+            responsePayload?.local_path,
+            responsePayload?.localPath,
+            responsePayload?.local_relative_path,
+            responsePayload?.localRelativePath,
+            responsePayload?.storage_path,
+            responsePayload?.storagePath,
+            responsePayload?.storage_url,
+            responsePayload?.storageUrl,
+            responsePayload?.static_url,
+            responsePayload?.staticUrl,
+            responsePayload?.relative_url,
+            responsePayload?.relativeUrl,
+            responsePayload?.full_path,
+            responsePayload?.fullPath,
+            responsePayload?.public_path,
+            responsePayload?.publicPath,
+            responsePayload?.path,
+            responsePayload?.web_path,
+            responsePayload?.webPath,
+            typeof response === 'string' ? response : undefined,
           );
+        const uploadedUrlCandidate =
+          normalized.url ||
+          (fallbackRawUrl
+            ? normalizeUploadResponse(fallbackRawUrl).url || fallbackRawUrl
+            : undefined);
+
+        const uploadedUrl =
+          uploadedUrlCandidate
+            ? ensureAbsoluteUrl(uploadedUrlCandidate) ?? uploadedUrlCandidate
+            : undefined;
 
         if (!uploadedUrl) {
           throw new Error('La respuesta del servidor no incluyó la URL del archivo subido.');
@@ -330,28 +376,39 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         const originalFile = attachmentPreview.file;
         const uploadedName =
           normalized.name ||
-          coalesceString(response.name, response.filename, response.fileName) ||
+          coalesceString(
+            responsePayload?.name,
+            responsePayload?.filename,
+            responsePayload?.fileName,
+          ) ||
           originalFile.name;
         const uploadedMime =
           normalized.mimeType ||
-          coalesceString(response.mimeType, response.mime_type) ||
+          coalesceString(
+            responsePayload?.mimeType,
+            responsePayload?.mime_type,
+          ) ||
           originalFile.type;
         const uploadedSize =
           normalized.size ??
-          coalesceNumber(response.size, response.fileSize) ??
+          coalesceNumber(responsePayload?.size, responsePayload?.fileSize) ??
           originalFile.size;
-        const uploadedThumb =
+        const uploadedThumbCandidate =
           normalized.thumbUrl ||
           coalesceString(
-            response.thumbUrl,
-            response.thumb_url,
-            response.thumbnailUrl,
-            response.thumbnail_url,
+            responsePayload?.thumbUrl,
+            responsePayload?.thumb_url,
+            responsePayload?.thumbnailUrl,
+            responsePayload?.thumbnail_url,
           );
+        const resolvedThumb =
+          uploadedThumbCandidate
+            ? ensureAbsoluteUrl(uploadedThumbCandidate) ?? uploadedThumbCandidate
+            : undefined;
 
         attachmentData = {
           url: uploadedUrl,
-          ...(uploadedThumb ? { thumbUrl: uploadedThumb } : {}),
+          ...(resolvedThumb ? { thumbUrl: resolvedThumb } : {}),
           name: uploadedName,
           mimeType: uploadedMime,
           size: uploadedSize,

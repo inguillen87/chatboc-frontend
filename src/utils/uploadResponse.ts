@@ -33,10 +33,34 @@ export interface UploadResponsePayload {
   permalinkUrl?: string;
   webUrl?: string;
   web_url?: string;
+  fallbackUrl?: string;
+  fallback_url?: string;
+  fallbackPublicUrl?: string;
+  fallback_public_url?: string;
+  fallbackPath?: string;
+  fallback_path?: string;
+  fallbackPublicPath?: string;
+  fallback_public_path?: string;
+  relativeUrl?: string;
+  relative_url?: string;
   local_url?: string;
   localUrl?: string;
+  local_path?: string;
+  localPath?: string;
+  local_file_path?: string;
+  localFilePath?: string;
+  local_relative_path?: string;
+  localRelativePath?: string;
+  local_public_path?: string;
+  localPublicPath?: string;
   storageUrl?: string;
   storage_url?: string;
+  storagePath?: string;
+  storage_path?: string;
+  staticUrl?: string;
+  static_url?: string;
+  staticPath?: string;
+  static_path?: string;
   gcsUrl?: string;
   gcs_url?: string;
   bucketUrl?: string;
@@ -44,6 +68,10 @@ export interface UploadResponsePayload {
   path?: string;
   fullPath?: string;
   full_path?: string;
+  downloadPath?: string;
+  download_path?: string;
+  webPath?: string;
+  web_path?: string;
   publicPath?: string;
   public_path?: string;
   relativePath?: string;
@@ -148,6 +176,8 @@ export interface UploadResponsePayload {
   [key: string]: unknown;
 }
 
+export type UploadResponseLike = UploadResponsePayload | string | null | undefined;
+
 export interface NormalizedUploadMetadata {
   url?: string;
   name?: string;
@@ -164,16 +194,28 @@ const PRIMARY_URL_KEYS: Array<keyof UploadResponsePayload | string> = [
   "fileUrl",
   "file_url",
   "archivo_url",
+  "fallbackUrl",
+  "fallback_url",
+  "fallbackPublicUrl",
+  "fallback_public_url",
+  "fallbackPath",
+  "fallback_path",
+  "fallbackPublicPath",
+  "fallback_public_path",
   "public_url",
   "publicUrl",
   "url_publica",
   "urlPublica",
   "url_public",
   "urlPublic",
+  "relativeUrl",
+  "relative_url",
   "signedUrl",
   "signed_url",
   "downloadUrl",
   "download_url",
+  "downloadPath",
+  "download_path",
   "mediaUrl",
   "media_url",
   "assetUrl",
@@ -183,6 +225,12 @@ const PRIMARY_URL_KEYS: Array<keyof UploadResponsePayload | string> = [
   "href",
   "link",
   "location",
+  "webPath",
+  "web_path",
+  "staticUrl",
+  "static_url",
+  "staticPath",
+  "static_path",
   "uri",
   "resourceUrl",
   "resource_url",
@@ -195,10 +243,22 @@ const PRIMARY_URL_KEYS: Array<keyof UploadResponsePayload | string> = [
   "localUrl",
   "storageUrl",
   "storage_url",
+  "storagePath",
+  "storage_path",
   "gcsUrl",
   "gcs_url",
   "bucketUrl",
   "bucket_url",
+  "local_url",
+  "localUrl",
+  "local_path",
+  "localPath",
+  "local_file_path",
+  "localFilePath",
+  "local_relative_path",
+  "localRelativePath",
+  "local_public_path",
+  "localPublicPath",
   "path",
   "fullPath",
   "full_path",
@@ -254,6 +314,10 @@ const THUMB_KEYS: Array<keyof UploadResponsePayload | string> = [
   "thumbnail_url",
   "previewUrl",
   "preview_url",
+  "previewPath",
+  "preview_path",
+  "fallbackThumbUrl",
+  "fallback_thumb_url",
   "miniatura",
   "miniatura_url",
   "small",
@@ -275,6 +339,105 @@ const THUMB_KEYS: Array<keyof UploadResponsePayload | string> = [
   "thumbnails",
   "variants",
   "sources",
+];
+
+const FOLDER_KEYS: Array<keyof UploadResponsePayload | string> = [
+  "folder",
+  "folder_path",
+  "folderPath",
+  "directory",
+  "directory_path",
+  "directoryPath",
+  "dir",
+  "entity_folder",
+  "entityFolder",
+  "entity_path",
+  "entityPath",
+  "subfolder",
+  "subFolder",
+  "sub_folder",
+  "subdir",
+  "sub_dir",
+  "subdirectory",
+  "subDirectory",
+  "relative_directory",
+  "relativeDirectory",
+  "relative_folder",
+  "relativeFolder",
+  "local_folder",
+  "localFolder",
+  "local_directory",
+  "localDirectory",
+  "storage_folder",
+  "storageFolder",
+  "storage_directory",
+  "storageDirectory",
+  "bucket_folder",
+  "bucketFolder",
+  "bucket_path",
+  "bucketPath",
+  "gcs_folder",
+  "gcsFolder",
+  "gcs_path",
+  "gcsPath",
+  "upload_folder",
+  "uploadFolder",
+  "upload_path",
+  "uploadPath",
+  "base_folder",
+  "baseFolder",
+  "base_path",
+  "basePath",
+  "root_folder",
+  "rootFolder",
+  "root_path",
+  "rootPath",
+  "path_folder",
+  "pathFolder",
+  "path_segment",
+  "pathSegment",
+];
+
+const PATH_PREFIX_KEYS: Array<keyof UploadResponsePayload | string> = [
+  "path_prefix",
+  "pathPrefix",
+  "storage_path_prefix",
+  "storagePathPrefix",
+  "public_path_prefix",
+  "publicPathPrefix",
+  "relative_path_prefix",
+  "relativePathPrefix",
+  "local_path_prefix",
+  "localPathPrefix",
+  "static_path_prefix",
+  "staticPathPrefix",
+  "base_path",
+  "basePath",
+  "static_root",
+  "staticRoot",
+  "static_base",
+  "staticBase",
+  "public_root",
+  "publicRoot",
+  "public_base",
+  "publicBase",
+  "storage_root",
+  "storageRoot",
+  "uploads_root",
+  "uploadsRoot",
+  "uploads_base",
+  "uploadsBase",
+];
+
+const ENTITY_FOLDER_KEYS: Array<keyof UploadResponsePayload | string> = [
+  "entity_folder",
+  "entityFolder",
+  "tenant_folder",
+  "tenantFolder",
+  "owner_folder",
+  "ownerFolder",
+  "municipio_folder",
+  "municipioFolder",
 ];
 
 const URL_CONTAINER_KEYS = new Set([
@@ -305,7 +468,7 @@ const URL_CONTAINER_PRIORITIES = [
   "media",
 ];
 
-const visitedForExtraction = new WeakSet<object>();
+let visitedForExtraction = new WeakSet<object>();
 
 function isLikelyUrl(value: string): boolean {
   const trimmed = value.trim();
@@ -319,6 +482,12 @@ function isLikelyUrl(value: string): boolean {
       return true;
     }
   }
+  if (!trimmed.includes(" ") && trimmed.includes("\\")) {
+    const lastSegment = trimmed.split(/[?#]/)[0].split(/\\/).pop();
+    if (lastSegment && lastSegment.includes(".")) {
+      return true;
+    }
+  }
   return false;
 }
 
@@ -328,6 +497,88 @@ function decodeMaybe(value: string): string {
   } catch {
     return value;
   }
+}
+
+function normalizePathSeparators(value: string): string {
+  return value.replace(/\\/g, "/");
+}
+
+function sanitizePotentialUrl(value?: string): string | undefined {
+  if (!value) return undefined;
+  const normalized = normalizePathSeparators(value).trim();
+  if (!normalized) return undefined;
+
+  if (normalized.startsWith("//")) {
+    return normalized;
+  }
+
+  const protocolMatch = normalized.match(/^([a-z][a-z0-9+\-.]*):/i);
+  if (protocolMatch) {
+    const scheme = protocolMatch[1]?.toLowerCase() ?? "";
+    if (scheme && scheme.length > 1) {
+      return normalized;
+    }
+    // If it's a single-letter scheme like "C:", treat it as a filesystem path and keep processing.
+  }
+
+  const staticMatch = normalized.match(/\/static\/[\w./-]+/i);
+  if (staticMatch && staticMatch[0]) {
+    const candidate = staticMatch[0];
+    return candidate.startsWith("/") ? candidate : `/${candidate}`;
+  }
+
+  if (normalized.startsWith("/")) {
+    return normalized;
+  }
+
+  if (/^(?:static|uploads|media)\//i.test(normalized)) {
+    return `/${normalized}`;
+  }
+
+  return normalized;
+}
+
+function joinPathSegments(
+  ...segments: Array<string | undefined>
+): string | undefined {
+  const filtered = segments
+    .map((segment) =>
+      typeof segment === "string" ? normalizePathSeparators(segment).trim() : "",
+    )
+    .filter((segment): segment is string => Boolean(segment));
+
+  if (!filtered.length) {
+    return undefined;
+  }
+
+  const cleaned: string[] = [];
+
+  filtered.forEach((segment, index) => {
+    if (/^[a-z][a-z0-9+\-.]*:\/\//i.test(segment) || segment.startsWith("//")) {
+      cleaned.push(segment.replace(/\/+$/, ""));
+      return;
+    }
+
+    const trimmed = index === 0
+      ? segment.replace(/^[./\\]+/, "").replace(/[\\/]+$/, "")
+      : segment.replace(/^[\\/]+/, "").replace(/[\\/]+$/, "");
+
+    if (trimmed) {
+      cleaned.push(trimmed);
+    }
+  });
+
+  if (!cleaned.length) {
+    return undefined;
+  }
+
+  const [first, ...rest] = cleaned;
+
+  if (/^[a-z][a-z0-9+\-.]*:\/\//i.test(first) || first.startsWith("//")) {
+    return [first, ...rest].join("/");
+  }
+
+  return [first, ...rest].join("/");
 }
 
 function coerceNumber(value: unknown): number | undefined {
@@ -433,7 +684,7 @@ function pickStringFromNodes(
   keys: Array<keyof UploadResponsePayload | string>,
   validator?: (value: string) => boolean,
 ): string | undefined {
-  visitedForExtraction.clear();
+  visitedForExtraction = new WeakSet<object>();
   for (const node of nodes) {
     for (const key of keys) {
       if (!(key in node)) continue;
@@ -473,7 +724,7 @@ function pickNumberFromNodes(
 }
 
 function searchUrlContainers(nodes: UploadResponsePayload[]): string | undefined {
-  visitedForExtraction.clear();
+  visitedForExtraction = new WeakSet<object>();
   for (const node of nodes) {
     for (const key of Object.keys(node)) {
       if (!URL_CONTAINER_KEYS.has(key)) continue;
@@ -511,7 +762,16 @@ function searchUrlContainers(nodes: UploadResponsePayload[]): string | undefined
 export function normalizeUploadResponse(
   raw: unknown,
 ): NormalizedUploadMetadata {
-  if (!raw || typeof raw !== "object") {
+  if (!raw) {
+    return {};
+  }
+
+  if (typeof raw === "string") {
+    const candidate = sanitizePotentialUrl(raw);
+    return candidate ? { url: candidate, name: decodeMaybe(candidate.split(/[?#]/)[0].split("/").pop() || "") } : {};
+  }
+
+  if (typeof raw !== "object") {
     return {};
   }
 
@@ -520,20 +780,22 @@ export function normalizeUploadResponse(
     return {};
   }
 
-  const url =
+  const rawUrlCandidate =
     pickStringFromNodes(nodes, PRIMARY_URL_KEYS, isLikelyUrl) ||
     searchUrlContainers(nodes);
+  const url = sanitizePotentialUrl(rawUrlCandidate);
 
   const name = pickStringFromNodes(nodes, NAME_KEYS, (value) => value.length > 0);
   const mimeType = pickStringFromNodes(nodes, MIME_KEYS, (value) => value.includes("/"));
   const size = pickNumberFromNodes(nodes, SIZE_KEYS);
-  const thumbUrl =
+  const rawThumbCandidate =
     pickStringFromNodes(nodes, THUMB_KEYS, isLikelyUrl) ||
     searchUrlContainers(
       nodes.filter((node) =>
         Object.keys(node).some((key) => URL_CONTAINER_KEYS.has(key)),
       ),
     );
+  const thumbUrl = sanitizePotentialUrl(rawThumbCandidate);
 
   const derivedName =
     name ||
@@ -541,8 +803,45 @@ export function normalizeUploadResponse(
       ? decodeMaybe(url.split(/[?#]/)[0].split("/").pop() || "")
       : undefined);
 
+  let resolvedUrl = url || undefined;
+
+  if (!resolvedUrl) {
+    const candidateName = derivedName || name || undefined;
+    const folderCandidate = pickStringFromNodes(nodes, FOLDER_KEYS, (value) => value.length > 0);
+    const prefixCandidate = pickStringFromNodes(nodes, PATH_PREFIX_KEYS, (value) => value.length > 0);
+    const entityFolderCandidate = pickStringFromNodes(nodes, ENTITY_FOLDER_KEYS, (value) => value.length > 0);
+
+    const candidatePaths: Array<string | undefined> = [];
+
+    if (entityFolderCandidate && candidateName) {
+      const normalizedEntity = normalizePathSeparators(entityFolderCandidate).trim();
+      const entityLooksAbsolute = /static\//i.test(normalizedEntity) || /uploads\//i.test(normalizedEntity);
+      if (entityLooksAbsolute) {
+        candidatePaths.push(joinPathSegments(entityFolderCandidate, candidateName));
+      } else {
+        candidatePaths.push(joinPathSegments("static/uploads", entityFolderCandidate, candidateName));
+      }
+    }
+
+    if (prefixCandidate && candidateName) {
+      candidatePaths.push(joinPathSegments(prefixCandidate, candidateName));
+    }
+
+    if (folderCandidate && candidateName) {
+      candidatePaths.push(joinPathSegments(folderCandidate, candidateName));
+    }
+
+    for (const candidate of candidatePaths) {
+      const sanitized = sanitizePotentialUrl(candidate);
+      if (sanitized) {
+        resolvedUrl = sanitized;
+        break;
+      }
+    }
+  }
+
   return {
-    url: url || undefined,
+    url: resolvedUrl,
     name: derivedName || undefined,
     mimeType: mimeType || undefined,
     size: size || undefined,
