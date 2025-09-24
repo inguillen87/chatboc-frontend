@@ -355,7 +355,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
           : undefined;
 
       onSendMessage({
-        text: `Audio adjunto: ${uploadedName}`,
+        text: '',
         attachmentInfo: {
           id: normalized.id,
           name: uploadedName,
