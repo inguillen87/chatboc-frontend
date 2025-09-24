@@ -312,8 +312,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
           body: formData,
         });
         const normalized = normalizeUploadResponse(response);
-        const uploadedUrl =
-          normalized.url ||
+        const fallbackRawUrl =
           coalesceString(
             response.url,
             response.attachmentUrl,
@@ -321,7 +320,40 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
             response.fileUrl,
             response.file_url,
             response.archivo_url,
+            response.public_url,
+            response.publicUrl,
+            response.secure_url,
+            response.fallbackUrl,
+            response.fallback_url,
+            response.fallbackPublicUrl,
+            response.fallback_public_url,
+            response.local_url,
+            response.localUrl,
+            response.local_path,
+            response.localPath,
+            response.local_relative_path,
+            response.localRelativePath,
+            response.storage_path,
+            response.storagePath,
+            response.storage_url,
+            response.storageUrl,
+            response.static_url,
+            response.staticUrl,
+            response.relative_url,
+            response.relativeUrl,
+            response.full_path,
+            response.fullPath,
+            response.public_path,
+            response.publicPath,
+            response.path,
+            response.web_path,
+            response.webPath,
           );
+        const uploadedUrl =
+          normalized.url ||
+          (fallbackRawUrl
+            ? normalizeUploadResponse(fallbackRawUrl).url || fallbackRawUrl
+            : undefined);
 
         if (!uploadedUrl) {
           throw new Error('La respuesta del servidor no incluyó la URL del archivo subido.');
