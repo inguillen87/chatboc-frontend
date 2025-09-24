@@ -200,11 +200,30 @@ export async function apiFetch<T>(
 
     // Puede devolver vacío (204 No Content)
     const text = await response.text().catch(() => "");
+    const trimmedText = text.trim();
     let data: any = null;
-    try {
-      if (text) data = JSON.parse(text);
-    } catch {
-      // body no es JSON válido
+    let parsedAsJson = false;
+
+    if (trimmedText) {
+      try {
+        data = JSON.parse(trimmedText);
+        parsedAsJson = true;
+      } catch (parseError) {
+        data = trimmedText;
+        const isProduction =
+          (typeof import.meta !== "undefined" && (import.meta as any)?.env?.PROD) ||
+          ((globalThis as any)?.process?.env?.NODE_ENV === "production");
+        if (!isProduction) {
+          console.warn(
+            `[apiFetch] Response body for ${method} ${url} is not valid JSON. Returning raw text instead.`,
+            parseError,
+          );
+        }
+      }
+    }
+
+    if (!parsedAsJson && !trimmedText) {
+      data = null;
     }
 
     console.log("[apiFetch] Response", {
