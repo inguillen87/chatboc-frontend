@@ -90,8 +90,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
         });
         const originalFile = attachmentPreview.file;
         const normalized = normalizeUploadResponse(response);
-        const uploadedUrl =
-          normalized.url ||
+        const fallbackRawUrl =
           coalesceString(
             response.url,
             response.attachmentUrl,
@@ -99,7 +98,40 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
             response.fileUrl,
             response.file_url,
             response.archivo_url,
+            response.public_url,
+            response.publicUrl,
+            response.secure_url,
+            response.fallbackUrl,
+            response.fallback_url,
+            response.fallbackPublicUrl,
+            response.fallback_public_url,
+            response.local_url,
+            response.localUrl,
+            response.local_path,
+            response.localPath,
+            response.local_relative_path,
+            response.localRelativePath,
+            response.storage_path,
+            response.storagePath,
+            response.storage_url,
+            response.storageUrl,
+            response.static_url,
+            response.staticUrl,
+            response.relative_url,
+            response.relativeUrl,
+            response.full_path,
+            response.fullPath,
+            response.public_path,
+            response.publicPath,
+            response.path,
+            response.web_path,
+            response.webPath,
           );
+        const uploadedUrl =
+          normalized.url ||
+          (fallbackRawUrl
+            ? normalizeUploadResponse(fallbackRawUrl).url || fallbackRawUrl
+            : undefined);
 
         if (!uploadedUrl) {
           throw new Error('La respuesta del servidor no incluyó la URL del archivo subido.');
@@ -215,8 +247,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
       });
 
       const normalized = normalizeUploadResponse(data);
-      const uploadedUrl =
-        normalized.url ||
+      const fallbackRawUrl =
         coalesceString(
           data.url,
           data.attachmentUrl,
@@ -224,7 +255,40 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
           data.fileUrl,
           data.file_url,
           data.archivo_url,
+          data.public_url,
+          data.publicUrl,
+          data.secure_url,
+          data.fallbackUrl,
+          data.fallback_url,
+          data.fallbackPublicUrl,
+          data.fallback_public_url,
+          data.local_url,
+          data.localUrl,
+          data.local_path,
+          data.localPath,
+          data.local_relative_path,
+          data.localRelativePath,
+          data.storage_path,
+          data.storagePath,
+          data.storage_url,
+          data.storageUrl,
+          data.static_url,
+          data.staticUrl,
+          data.relative_url,
+          data.relativeUrl,
+          data.full_path,
+          data.fullPath,
+          data.public_path,
+          data.publicPath,
+          data.path,
+          data.web_path,
+          data.webPath,
         );
+      const uploadedUrl =
+        normalized.url ||
+        (fallbackRawUrl
+          ? normalizeUploadResponse(fallbackRawUrl).url || fallbackRawUrl
+          : undefined);
 
       if (!uploadedUrl) {
         throw new Error("La respuesta del servidor para la subida del audio fue inválida.");
