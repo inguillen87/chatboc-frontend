@@ -76,4 +76,21 @@ describe('normalizeUploadResponse', () => {
     expect(normalized.url).toBe('/static/custom/doc.pdf');
     expect(normalized.name).toBe('doc.pdf');
   });
+
+  it('handles responses with a filePath key', () => {
+    const payload = {
+      data: {
+        filePath: '/static/uploads/municipio_1/new-format.jpg',
+        fileName: 'new-format.jpg',
+        fileSize: 54321,
+        mime_type: 'image/jpeg',
+      },
+    };
+
+    const normalized = normalizeUploadResponse(payload);
+    expect(normalized.url).toBe('/static/uploads/municipio_1/new-format.jpg');
+    expect(normalized.name).toBe('new-format.jpg');
+    expect(normalized.size).toBe(54321);
+    expect(normalized.mimeType).toBe('image/jpeg');
+  });
 });

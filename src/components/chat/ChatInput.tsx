@@ -462,7 +462,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
               ref={adjRef}
               onFileSelected={handleFileSelected}
               disabled={isRecording || !!attachmentPreview}
-              allowedFileTypes={['image/*', 'application/pdf']}
+              allowedFileTypes={['image/*', 'application/pdf', 'audio/*', 'video/*']}
             />
             <button
               onClick={handleShareLocation}
