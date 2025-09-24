@@ -181,6 +181,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
             : undefined;
 
         attachmentData = {
+          id: normalized.id,
           url: absoluteUploadedUrl,
           name: uploadedName,
           mimeType: uploadedMime,
@@ -356,6 +357,7 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
       onSendMessage({
         text: `Audio adjunto: ${uploadedName}`,
         attachmentInfo: {
+          id: normalized.id,
           name: uploadedName,
           url: absoluteUploadedUrl,
           mimeType: uploadedMime,
