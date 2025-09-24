@@ -14,7 +14,9 @@ import {
   coalesceString,
   normalizeUploadResponse,
   UploadResponsePayload,
+  UploadResponseLike,
 } from "@/utils/uploadResponse";
+import { ensureAbsoluteUrl } from "@/utils/chatButtons";
 
 export interface ChatInputHandle {
   openFilePicker: () => void;
@@ -45,7 +47,7 @@ const QUICK_EMOJIS = [
   { emoji: "🚮", category: "limpieza" },
 ];
 
-type UploadResponse = UploadResponsePayload;
+type UploadResponse = UploadResponseLike;
 
 const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping, inputRef, onTypingChange, onSystemMessage }, ref) => {
   const [input, setInput] = useState("");
@@ -90,81 +92,102 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
         });
         const originalFile = attachmentPreview.file;
         const normalized = normalizeUploadResponse(response);
+        const responsePayload =
+          response && typeof response === 'object'
+            ? (response as UploadResponsePayload)
+            : undefined;
         const fallbackRawUrl =
           coalesceString(
-            response.url,
-            response.attachmentUrl,
-            response.attachment_url,
-            response.fileUrl,
-            response.file_url,
-            response.archivo_url,
-            response.public_url,
-            response.publicUrl,
-            response.secure_url,
-            response.fallbackUrl,
-            response.fallback_url,
-            response.fallbackPublicUrl,
-            response.fallback_public_url,
-            response.local_url,
-            response.localUrl,
-            response.local_path,
-            response.localPath,
-            response.local_relative_path,
-            response.localRelativePath,
-            response.storage_path,
-            response.storagePath,
-            response.storage_url,
-            response.storageUrl,
-            response.static_url,
-            response.staticUrl,
-            response.relative_url,
-            response.relativeUrl,
-            response.full_path,
-            response.fullPath,
-            response.public_path,
-            response.publicPath,
-            response.path,
-            response.web_path,
-            response.webPath,
+            responsePayload?.url,
+            responsePayload?.attachmentUrl,
+            responsePayload?.attachment_url,
+            responsePayload?.fileUrl,
+            responsePayload?.file_url,
+            responsePayload?.archivo_url,
+            responsePayload?.public_url,
+            responsePayload?.publicUrl,
+            responsePayload?.secure_url,
+            responsePayload?.fallbackUrl,
+            responsePayload?.fallback_url,
+            responsePayload?.fallbackPublicUrl,
+            responsePayload?.fallback_public_url,
+            responsePayload?.local_url,
+            responsePayload?.localUrl,
+            responsePayload?.local_path,
+            responsePayload?.localPath,
+            responsePayload?.local_relative_path,
+            responsePayload?.localRelativePath,
+            responsePayload?.storage_path,
+            responsePayload?.storagePath,
+            responsePayload?.storage_url,
+            responsePayload?.storageUrl,
+            responsePayload?.static_url,
+            responsePayload?.staticUrl,
+            responsePayload?.relative_url,
+            responsePayload?.relativeUrl,
+            responsePayload?.full_path,
+            responsePayload?.fullPath,
+            responsePayload?.public_path,
+            responsePayload?.publicPath,
+            responsePayload?.path,
+            responsePayload?.web_path,
+            responsePayload?.webPath,
+            typeof response === 'string' ? response : undefined,
           );
-        const uploadedUrl =
+        const uploadedUrlCandidate =
           normalized.url ||
           (fallbackRawUrl
             ? normalizeUploadResponse(fallbackRawUrl).url || fallbackRawUrl
             : undefined);
+        const absoluteUploadedUrl =
+          uploadedUrlCandidate
+            ? ensureAbsoluteUrl(uploadedUrlCandidate) ?? uploadedUrlCandidate
+            : undefined;
 
-        if (!uploadedUrl) {
+        if (!absoluteUploadedUrl) {
           throw new Error('La respuesta del servidor no incluyó la URL del archivo subido.');
         }
 
         const uploadedName =
           normalized.name ||
-          coalesceString(response.name, response.filename, response.fileName) ||
+          coalesceString(
+            responsePayload?.name,
+            responsePayload?.filename,
+            responsePayload?.fileName,
+          ) ||
           originalFile.name;
         const uploadedMime =
           normalized.mimeType ||
-          coalesceString(response.mimeType, response.mime_type, originalFile.type);
+          coalesceString(
+            responsePayload?.mimeType,
+            responsePayload?.mime_type,
+            originalFile.type,
+          );
         const uploadedSize =
           normalized.size ??
-          coalesceNumber(response.size, response.fileSize) ??
+          coalesceNumber(responsePayload?.size, responsePayload?.fileSize) ??
           originalFile.size;
-        const uploadedThumb =
+        const uploadedThumbCandidate =
           normalized.thumbUrl ||
           coalesceString(
-            response.thumbUrl,
-            response.thumb_url,
-            response.thumbnailUrl,
-            response.thumbnail_url,
+            responsePayload?.thumbUrl,
+            responsePayload?.thumb_url,
+            responsePayload?.thumbnailUrl,
+            responsePayload?.thumbnail_url,
           );
+        const resolvedThumb =
+          uploadedThumbCandidate
+            ? ensureAbsoluteUrl(uploadedThumbCandidate) ?? uploadedThumbCandidate
+            : undefined;
 
         attachmentData = {
-          url: uploadedUrl,
+          url: absoluteUploadedUrl,
           name: uploadedName,
           mimeType: uploadedMime,
           size: uploadedSize,
-          ...(uploadedThumb ? { thumbUrl: uploadedThumb } : {}),
+          ...(resolvedThumb ? { thumbUrl: resolvedThumb } : {}),
         };
-        legacyArchivoUrl = uploadedUrl;
+        legacyArchivoUrl = absoluteUploadedUrl;
         const mimeForPhotoCheck = (uploadedMime || originalFile.type || '').toLowerCase();
         legacyEsFoto = mimeForPhotoCheck.startsWith('image/');
       } catch (error) {
@@ -247,84 +270,99 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
       });
 
       const normalized = normalizeUploadResponse(data);
+      const responsePayload =
+        data && typeof data === 'object' ? (data as UploadResponsePayload) : undefined;
       const fallbackRawUrl =
         coalesceString(
-          data.url,
-          data.attachmentUrl,
-          data.attachment_url,
-          data.fileUrl,
-          data.file_url,
-          data.archivo_url,
-          data.public_url,
-          data.publicUrl,
-          data.secure_url,
-          data.fallbackUrl,
-          data.fallback_url,
-          data.fallbackPublicUrl,
-          data.fallback_public_url,
-          data.local_url,
-          data.localUrl,
-          data.local_path,
-          data.localPath,
-          data.local_relative_path,
-          data.localRelativePath,
-          data.storage_path,
-          data.storagePath,
-          data.storage_url,
-          data.storageUrl,
-          data.static_url,
-          data.staticUrl,
-          data.relative_url,
-          data.relativeUrl,
-          data.full_path,
-          data.fullPath,
-          data.public_path,
-          data.publicPath,
-          data.path,
-          data.web_path,
-          data.webPath,
+          responsePayload?.url,
+          responsePayload?.attachmentUrl,
+          responsePayload?.attachment_url,
+          responsePayload?.fileUrl,
+          responsePayload?.file_url,
+          responsePayload?.archivo_url,
+          responsePayload?.public_url,
+          responsePayload?.publicUrl,
+          responsePayload?.secure_url,
+          responsePayload?.fallbackUrl,
+          responsePayload?.fallback_url,
+          responsePayload?.fallbackPublicUrl,
+          responsePayload?.fallback_public_url,
+          responsePayload?.local_url,
+          responsePayload?.localUrl,
+          responsePayload?.local_path,
+          responsePayload?.localPath,
+          responsePayload?.local_relative_path,
+          responsePayload?.localRelativePath,
+          responsePayload?.storage_path,
+          responsePayload?.storagePath,
+          responsePayload?.storage_url,
+          responsePayload?.storageUrl,
+          responsePayload?.static_url,
+          responsePayload?.staticUrl,
+          responsePayload?.relative_url,
+          responsePayload?.relativeUrl,
+          responsePayload?.full_path,
+          responsePayload?.fullPath,
+          responsePayload?.public_path,
+          responsePayload?.publicPath,
+          responsePayload?.path,
+          responsePayload?.web_path,
+          responsePayload?.webPath,
+          typeof data === 'string' ? data : undefined,
         );
-      const uploadedUrl =
+      const uploadedUrlCandidate =
         normalized.url ||
         (fallbackRawUrl
           ? normalizeUploadResponse(fallbackRawUrl).url || fallbackRawUrl
           : undefined);
+      const absoluteUploadedUrl =
+        uploadedUrlCandidate
+          ? ensureAbsoluteUrl(uploadedUrlCandidate) ?? uploadedUrlCandidate
+          : undefined;
 
-      if (!uploadedUrl) {
+      if (!absoluteUploadedUrl) {
         throw new Error("La respuesta del servidor para la subida del audio fue inválida.");
       }
 
       const uploadedName =
         normalized.name ||
-        coalesceString(data.name, data.filename, data.fileName) ||
+        coalesceString(
+          responsePayload?.name,
+          responsePayload?.filename,
+          responsePayload?.fileName,
+        ) ||
         filename;
       const uploadedMime =
         normalized.mimeType ||
-        coalesceString(data.mimeType, data.mime_type) ||
+        coalesceString(responsePayload?.mimeType, responsePayload?.mime_type) ||
         'audio/webm';
       const uploadedSize =
         normalized.size ??
-        coalesceNumber(data.size, data.fileSize) ??
+        coalesceNumber(responsePayload?.size, responsePayload?.fileSize) ??
         (typeof audioBlob.size === 'number' ? audioBlob.size : undefined);
-      const uploadedThumb =
+      const uploadedThumbCandidate =
         normalized.thumbUrl ||
         coalesceString(
-          data.thumbUrl,
-          data.thumb_url,
-          data.thumbnailUrl,
-          data.thumbnail_url,
+          responsePayload?.thumbUrl,
+          responsePayload?.thumb_url,
+          responsePayload?.thumbnailUrl,
+          responsePayload?.thumbnail_url,
         );
+      const resolvedThumb =
+        uploadedThumbCandidate
+          ? ensureAbsoluteUrl(uploadedThumbCandidate) ?? uploadedThumbCandidate
+          : undefined;
 
       onSendMessage({
         text: `Audio adjunto: ${uploadedName}`,
         attachmentInfo: {
           name: uploadedName,
-          url: uploadedUrl,
+          url: absoluteUploadedUrl,
           mimeType: uploadedMime,
           size: uploadedSize,
-          ...(uploadedThumb ? { thumbUrl: uploadedThumb } : {}),
+          ...(resolvedThumb ? { thumbUrl: resolvedThumb } : {}),
         },
-        archivo_url: uploadedUrl,
+        archivo_url: absoluteUploadedUrl,
         source: 'input',
       });
       // Optional: a success system message could be sent here, but it might be noisy.

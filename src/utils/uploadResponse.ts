@@ -176,6 +176,8 @@ export interface UploadResponsePayload {
   [key: string]: unknown;
 }
 
+export type UploadResponseLike = UploadResponsePayload | string | null | undefined;
+
 export interface NormalizedUploadMetadata {
   url?: string;
   name?: string;
@@ -339,6 +341,105 @@ const THUMB_KEYS: Array<keyof UploadResponsePayload | string> = [
   "sources",
 ];
 
+const FOLDER_KEYS: Array<keyof UploadResponsePayload | string> = [
+  "folder",
+  "folder_path",
+  "folderPath",
+  "directory",
+  "directory_path",
+  "directoryPath",
+  "dir",
+  "entity_folder",
+  "entityFolder",
+  "entity_path",
+  "entityPath",
+  "subfolder",
+  "subFolder",
+  "sub_folder",
+  "subdir",
+  "sub_dir",
+  "subdirectory",
+  "subDirectory",
+  "relative_directory",
+  "relativeDirectory",
+  "relative_folder",
+  "relativeFolder",
+  "local_folder",
+  "localFolder",
+  "local_directory",
+  "localDirectory",
+  "storage_folder",
+  "storageFolder",
+  "storage_directory",
+  "storageDirectory",
+  "bucket_folder",
+  "bucketFolder",
+  "bucket_path",
+  "bucketPath",
+  "gcs_folder",
+  "gcsFolder",
+  "gcs_path",
+  "gcsPath",
+  "upload_folder",
+  "uploadFolder",
+  "upload_path",
+  "uploadPath",
+  "base_folder",
+  "baseFolder",
+  "base_path",
+  "basePath",
+  "root_folder",
+  "rootFolder",
+  "root_path",
+  "rootPath",
+  "path_folder",
+  "pathFolder",
+  "path_segment",
+  "pathSegment",
+];
+
+const PATH_PREFIX_KEYS: Array<keyof UploadResponsePayload | string> = [
+  "path_prefix",
+  "pathPrefix",
+  "storage_path_prefix",
+  "storagePathPrefix",
+  "public_path_prefix",
+  "publicPathPrefix",
+  "relative_path_prefix",
+  "relativePathPrefix",
+  "local_path_prefix",
+  "localPathPrefix",
+  "static_path_prefix",
+  "staticPathPrefix",
+  "base_path",
+  "basePath",
+  "static_root",
+  "staticRoot",
+  "static_base",
+  "staticBase",
+  "public_root",
+  "publicRoot",
+  "public_base",
+  "publicBase",
+  "storage_root",
+  "storageRoot",
+  "uploads_root",
+  "uploadsRoot",
+  "uploads_base",
+  "uploadsBase",
+];
+
+const ENTITY_FOLDER_KEYS: Array<keyof UploadResponsePayload | string> = [
+  "entity_folder",
+  "entityFolder",
+  "tenant_folder",
+  "tenantFolder",
+  "owner_folder",
+  "ownerFolder",
+  "municipio_folder",
+  "municipioFolder",
+];
+
 const URL_CONTAINER_KEYS = new Set([
   "urls",
   "links",
@@ -435,6 +536,49 @@ function sanitizePotentialUrl(value?: string): string | undefined {
   }
 
   return normalized;
+}
+
+function joinPathSegments(
+  ...segments: Array<string | undefined>
+): string | undefined {
+  const filtered = segments
+    .map((segment) =>
+      typeof segment === "string" ? normalizePathSeparators(segment).trim() : "",
+    )
+    .filter((segment): segment is string => Boolean(segment));
+
+  if (!filtered.length) {
+    return undefined;
+  }
+
+  const cleaned: string[] = [];
+
+  filtered.forEach((segment, index) => {
+    if (/^[a-z][a-z0-9+\-.]*:\/\//i.test(segment) || segment.startsWith("//")) {
+      cleaned.push(segment.replace(/\/+$/, ""));
+      return;
+    }
+
+    const trimmed = index === 0
+      ? segment.replace(/^[./\\]+/, "").replace(/[\\/]+$/, "")
+      : segment.replace(/^[\\/]+/, "").replace(/[\\/]+$/, "");
+
+    if (trimmed) {
+      cleaned.push(trimmed);
+    }
+  });
+
+  if (!cleaned.length) {
+    return undefined;
+  }
+
+  const [first, ...rest] = cleaned;
+
+  if (/^[a-z][a-z0-9+\-.]*:\/\//i.test(first) || first.startsWith("//")) {
+    return [first, ...rest].join("/");
+  }
+
+  return [first, ...rest].join("/");
 }
 
 function coerceNumber(value: unknown): number | undefined {
@@ -659,8 +803,45 @@ export function normalizeUploadResponse(
       ? decodeMaybe(url.split(/[?#]/)[0].split("/").pop() || "")
       : undefined);
 
+  let resolvedUrl = url || undefined;
+
+  if (!resolvedUrl) {
+    const candidateName = derivedName || name || undefined;
+    const folderCandidate = pickStringFromNodes(nodes, FOLDER_KEYS, (value) => value.length > 0);
+    const prefixCandidate = pickStringFromNodes(nodes, PATH_PREFIX_KEYS, (value) => value.length > 0);
+    const entityFolderCandidate = pickStringFromNodes(nodes, ENTITY_FOLDER_KEYS, (value) => value.length > 0);
+
+    const candidatePaths: Array<string | undefined> = [];
+
+    if (entityFolderCandidate && candidateName) {
+      const normalizedEntity = normalizePathSeparators(entityFolderCandidate).trim();
+      const entityLooksAbsolute = /static\//i.test(normalizedEntity) || /uploads\//i.test(normalizedEntity);
+      if (entityLooksAbsolute) {
+        candidatePaths.push(joinPathSegments(entityFolderCandidate, candidateName));
+      } else {
+        candidatePaths.push(joinPathSegments("static/uploads", entityFolderCandidate, candidateName));
+      }
+    }
+
+    if (prefixCandidate && candidateName) {
+      candidatePaths.push(joinPathSegments(prefixCandidate, candidateName));
+    }
+
+    if (folderCandidate && candidateName) {
+      candidatePaths.push(joinPathSegments(folderCandidate, candidateName));
+    }
+
+    for (const candidate of candidatePaths) {
+      const sanitized = sanitizePotentialUrl(candidate);
+      if (sanitized) {
+        resolvedUrl = sanitized;
+        break;
+      }
+    }
+  }
+
   return {
-    url: url || undefined,
+    url: resolvedUrl,
     name: derivedName || undefined,
     mimeType: mimeType || undefined,
     size: size || undefined,

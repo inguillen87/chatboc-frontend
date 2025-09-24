@@ -48,4 +48,32 @@ describe('normalizeUploadResponse', () => {
     expect(normalized.mimeType).toBe('audio/ogg');
     expect(normalized.name).toBe('voice-note.ogg');
   });
+
+  it('reconstructs URLs from entity folder hints when no direct path is provided', () => {
+    const payload = {
+      entity_folder: 'municipio_1',
+      archivoAdjunto: {
+        original_filename: 'denuncia.jpg',
+      },
+    };
+
+    const normalized = normalizeUploadResponse(payload);
+
+    expect(normalized.url).toBe('/static/uploads/municipio_1/denuncia.jpg');
+    expect(normalized.name).toBe('denuncia.jpg');
+  });
+
+  it('uses explicit path prefixes to assemble accessible URLs', () => {
+    const payload = {
+      path_prefix: 'static/custom',
+      file: {
+        original_filename: 'doc.pdf',
+      },
+    };
+
+    const normalized = normalizeUploadResponse(payload);
+
+    expect(normalized.url).toBe('/static/custom/doc.pdf');
+    expect(normalized.name).toBe('doc.pdf');
+  });
 });
