@@ -179,6 +179,7 @@ export interface UploadResponsePayload {
 export type UploadResponseLike = UploadResponsePayload | string | null | undefined;
 
 export interface NormalizedUploadMetadata {
+  id?: string | number;
   url?: string;
   name?: string;
   mimeType?: string;
@@ -345,6 +346,24 @@ const THUMB_KEYS: Array<keyof UploadResponsePayload | string> = [
   "thumbnails",
   "variants",
   "sources",
+];
+
+const ID_KEYS: Array<keyof UploadResponsePayload | string> = [
+  "id",
+  "ID",
+  "uuid",
+  "guid",
+  "identifier",
+  "attachment_id",
+  "attachmentId",
+  "file_id",
+  "fileId",
+  "record_id",
+  "recordId",
+  "asset_id",
+  "assetId",
+  "upload_id",
+  "uploadId",
 ];
 
 const FOLDER_KEYS: Array<keyof UploadResponsePayload | string> = [
@@ -600,6 +619,47 @@ function coerceNumber(value: unknown): number | undefined {
   return undefined;
 }
 
+function pickIdentifierFromNodes(
+  nodes: UploadResponsePayload[],
+  keys: Array<keyof UploadResponsePayload | string>,
+): string | number | undefined {
+  for (const node of nodes) {
+    for (const key of keys) {
+      if (!(key in node)) continue;
+      const raw = node[key as keyof UploadResponsePayload];
+      if (raw === undefined || raw === null) continue;
+      if (Array.isArray(raw)) {
+        for (const entry of raw) {
+          const identifier = coerceIdentifier(entry);
+          if (identifier !== undefined) {
+            return identifier;
+          }
+        }
+      } else {
+        const identifier = coerceIdentifier(raw);
+        if (identifier !== undefined) {
+          return identifier;
+        }
+      }
+    }
+  }
+  return undefined;
+}
+
+function coerceIdentifier(value: unknown): string | number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === "string" && value.trim().length > 0) {
+    return value.trim();
+  }
+  // Also handle cases where ID might be a number-like string
+  const num = coerceNumber(value);
+  if (num !== undefined) return num;
+
+  return undefined;
+}
+
 export function coalesceString(
   ...values: Array<string | null | undefined>
 ): string | undefined {
@@ -791,6 +851,7 @@ export function normalizeUploadResponse(
     searchUrlContainers(nodes);
   const url = sanitizePotentialUrl(rawUrlCandidate);
 
+  const id = pickIdentifierFromNodes(nodes, ID_KEYS);
   const name = pickStringFromNodes(nodes, NAME_KEYS, (value) => value.length > 0);
   const mimeType = pickStringFromNodes(nodes, MIME_KEYS, (value) => value.includes("/"));
   const size = pickNumberFromNodes(nodes, SIZE_KEYS);
@@ -847,6 +908,7 @@ export function normalizeUploadResponse(
   }
 
   return {
+    id: id,
     url: resolvedUrl,
     name: derivedName || undefined,
     mimeType: mimeType || undefined,

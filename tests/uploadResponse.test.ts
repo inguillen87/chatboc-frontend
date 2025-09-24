@@ -93,4 +93,15 @@ describe('normalizeUploadResponse', () => {
     expect(normalized.size).toBe(54321);
     expect(normalized.mimeType).toBe('image/jpeg');
   });
+
+  it('handles responses with an attachment ID', () => {
+    const payload = {
+      id: 12345,
+      url: '/static/uploads/file.pdf'
+    };
+
+    const normalized = normalizeUploadResponse(payload);
+    expect(normalized.id).toBe(12345);
+    expect(normalized.url).toBe('/static/uploads/file.pdf');
+  });
 });
