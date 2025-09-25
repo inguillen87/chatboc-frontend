@@ -526,6 +526,11 @@ export default function MapLibreMap({
           markerInstance.setPopup(popup);
         }
         adminMarkerRef.current = markerInstance.addTo(map);
+
+        const markerElement = adminMarkerRef.current.getElement();
+        if (markerElement) {
+          markerElement.style.zIndex = "10";
+        }
       }
     } else if (adminMarkerRef.current) {
       adminMarkerRef.current.remove();
