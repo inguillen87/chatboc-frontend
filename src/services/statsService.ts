@@ -69,6 +69,75 @@ const NORMALIZED_NUMBER_FIELDS = {
   id: ['id', 'ticket_id', 'ticketid'],
 };
 
+const STRING_FIELD_KEYWORDS = Object.values(NORMALIZED_STRING_FIELDS).flat();
+const NUMBER_FIELD_KEYWORDS = Object.values(NORMALIZED_NUMBER_FIELDS).flat();
+
+const CHART_CONTAINER_KEYS = [
+  'chart',
+  'charts',
+  'chartdata',
+  'chartsdata',
+  'graphs',
+  'graph',
+  'graficos',
+  'grafico',
+  'datasets',
+  'series',
+  'breakdown',
+  'distribucion',
+  'distribution',
+];
+
+const CHART_LABEL_KEYS = [
+  'label',
+  'name',
+  'categoria',
+  'category',
+  'estado',
+  'status',
+  'tipo',
+  'type',
+  'segment',
+  'grupo',
+  'group',
+  'clase',
+  'class',
+  'nivel',
+  'level',
+];
+
+const CHART_VALUE_KEYS = [
+  'value',
+  'values',
+  'count',
+  'cantidad',
+  'total',
+  'tickets',
+  'numero',
+  'amount',
+  'porcentaje',
+  'percentage',
+  'percent',
+  'intensity',
+];
+
+const CHART_TITLE_KEYS = ['title', 'titulo', 'name', 'label'];
+
+const NESTED_CONTAINER_KEYS = [
+  'data',
+  'datos',
+  'payload',
+  'result',
+  'results',
+  'response',
+  'contenido',
+  'content',
+  'body',
+  'attributes',
+  'attributesdata',
+  'meta',
+];
+
 const normalizeKey = (key: string): string =>
   key
     .normalize('NFD')
@@ -302,6 +371,358 @@ const extractCoordinates = (raw: unknown): { lat?: number; lng?: number } => {
   return {};
 };
 
+const coerceString = (value: unknown): string | null => {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  return null;
+};
+
+const coerceNumber = (value: unknown): number | null => {
+  const parsed = parseNumberValue(value);
+  return parsed !== undefined && Number.isFinite(parsed) ? parsed : null;
+};
+
+const formatKeyLabel = (key: string): string =>
+  key
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (match) => match.toUpperCase());
+
+const findStringByKeywords = (
+  record: Record<string, unknown>,
+  keywords: string[],
+): string | null => {
+  for (const [key, value] of Object.entries(record)) {
+    const normalizedKey = normalizeKey(key);
+    if (keywords.some((keyword) => normalizedKey === keyword || normalizedKey.includes(keyword))) {
+      const coerced = coerceString(value);
+      if (coerced) {
+        return coerced;
+      }
+    }
+  }
+  return null;
+};
+
+const findNumberByKeywords = (
+  record: Record<string, unknown>,
+  keywords: string[],
+): number | null => {
+  for (const [key, value] of Object.entries(record)) {
+    const normalizedKey = normalizeKey(key);
+    if (keywords.some((keyword) => normalizedKey === keyword || normalizedKey.includes(keyword))) {
+      const numberValue = coerceNumber(value);
+      if (numberValue !== null) {
+        return numberValue;
+      }
+    }
+  }
+  return null;
+};
+
+const buildChartDataFromObject = (value: Record<string, unknown>): Record<string, number> => {
+  const entries: Record<string, number> = {};
+  for (const [key, raw] of Object.entries(value)) {
+    const numeric = coerceNumber(raw);
+    if (numeric !== null) {
+      const label = formatKeyLabel(key);
+      entries[label] = numeric;
+    }
+  }
+  return entries;
+};
+
+const buildChartData = (source: unknown): Record<string, number> => {
+  if (!source) return {};
+  if (Array.isArray(source)) {
+    const entries: Record<string, number> = {};
+    source.forEach((item, index) => {
+      if (!item) return;
+      if (typeof item === 'object') {
+        const record = item as Record<string, unknown>;
+        const label =
+          findStringByKeywords(record, CHART_LABEL_KEYS) ||
+          coerceString(record.label) ||
+          coerceString(record.name) ||
+          null;
+        const numeric =
+          findNumberByKeywords(record, CHART_VALUE_KEYS) ??
+          coerceNumber(record.value) ??
+          coerceNumber(record.count) ??
+          coerceNumber(record.total) ??
+          null;
+
+        if (label && numeric !== null) {
+          const normalizedLabel = label.trim();
+          if (normalizedLabel.length > 0) {
+            entries[normalizedLabel] = (entries[normalizedLabel] ?? 0) + numeric;
+            return;
+          }
+        }
+
+        const fallbackLabel = Object.keys(record).find((key) => {
+          const normalizedKey = normalizeKey(key);
+          return !CHART_VALUE_KEYS.some((keyword) => normalizedKey.includes(keyword));
+        });
+        const fallbackValue = fallbackLabel ? coerceNumber(record[fallbackLabel]) : null;
+        if (fallbackLabel && fallbackValue !== null) {
+          entries[formatKeyLabel(fallbackLabel)] =
+            (entries[formatKeyLabel(fallbackLabel)] ?? 0) + fallbackValue;
+        }
+      } else if (typeof item === 'string') {
+        const normalized = item.trim();
+        if (normalized.length > 0) {
+          entries[normalized] = (entries[normalized] ?? 0) + 1;
+        }
+      } else if (typeof item === 'number' && Number.isFinite(item)) {
+        const label = `Item ${index + 1}`;
+        entries[label] = (entries[label] ?? 0) + item;
+      }
+    });
+    return entries;
+  }
+
+  if (typeof source === 'object') {
+    return buildChartDataFromObject(source as Record<string, unknown>);
+  }
+
+  return {};
+};
+
+interface NormalizedChart {
+  title: string;
+  data: Record<string, number>;
+}
+
+const parseChartLikeObject = (raw: unknown): NormalizedChart | null => {
+  if (!raw || typeof raw !== 'object') return null;
+  const record = raw as Record<string, unknown>;
+  const title =
+    findStringByKeywords(record, CHART_TITLE_KEYS) ||
+    coerceString(record.title) ||
+    coerceString(record.name) ||
+    coerceString(record.label) ||
+    '';
+
+  const datasetCandidate =
+    record.data ??
+    record.values ??
+    (record.series as unknown) ??
+    (record.items as unknown) ??
+    (record.breakdown as unknown) ??
+    (record.dataset as unknown) ??
+    (record.metrics as unknown) ??
+    null;
+
+  let data = buildChartData(datasetCandidate);
+  if (Object.keys(data).length === 0) {
+    data = buildChartData(record);
+  }
+
+  if (Object.keys(data).length === 0) {
+    return null;
+  }
+
+  return { title: title || '', data };
+};
+
+const normalizeChartCollection = (value: unknown): NormalizedChart[] => {
+  if (!value) return [];
+
+  if (Array.isArray(value)) {
+    const charts: NormalizedChart[] = [];
+    value.forEach((entry) => {
+      const chart = parseChartLikeObject(entry);
+      if (chart) {
+        charts.push(chart);
+      }
+    });
+
+    if (charts.length > 0) {
+      return charts;
+    }
+
+    const aggregated = buildChartData(value);
+    if (Object.keys(aggregated).length > 0) {
+      return [{ title: '', data: aggregated }];
+    }
+
+    return [];
+  }
+
+  if (typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+
+    if ('title' in record || CHART_TITLE_KEYS.some((key) => key in record)) {
+      const chart = parseChartLikeObject(record);
+      return chart ? [chart] : [];
+    }
+
+    const direct = buildChartData(record);
+    if (Object.keys(direct).length > 0) {
+      return [{ title: '', data: direct }];
+    }
+
+    const charts: NormalizedChart[] = [];
+    for (const [key, nested] of Object.entries(record)) {
+      const nestedCharts = normalizeChartCollection(nested);
+      nestedCharts.forEach((chart) => {
+        const title = chart.title && chart.title.trim().length > 0 ? chart.title : formatKeyLabel(key);
+        charts.push({ title, data: chart.data });
+      });
+    }
+    return charts;
+  }
+
+  return [];
+};
+
+const extractChartsFromPayload = (payload: unknown): NormalizedChart[] => {
+  const charts: NormalizedChart[] = [];
+  const visited = new Set<unknown>();
+  const queue: unknown[] = [payload];
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current || visited.has(current)) continue;
+    visited.add(current);
+
+    if (Array.isArray(current)) {
+      current.forEach((item) => {
+        if (item && typeof item === 'object' && !visited.has(item)) {
+          queue.push(item);
+        }
+      });
+      continue;
+    }
+
+    if (typeof current !== 'object') {
+      continue;
+    }
+
+    const record = current as Record<string, unknown>;
+
+    for (const [key, value] of Object.entries(record)) {
+      const normalizedKey = normalizeKey(key);
+      if (CHART_CONTAINER_KEYS.some((keyword) => normalizedKey.includes(keyword))) {
+        const extracted = normalizeChartCollection(value);
+        extracted.forEach((chart) => charts.push(chart));
+      }
+
+      if (value && typeof value === 'object' && !visited.has(value)) {
+        queue.push(value);
+      }
+    }
+
+    for (const containerKey of NESTED_CONTAINER_KEYS) {
+      if (containerKey in record) {
+        const nested = record[containerKey];
+        if (nested && !visited.has(nested)) {
+          queue.push(nested);
+        }
+      }
+    }
+  }
+
+  if (charts.length === 0 && payload && typeof payload === 'object') {
+    const fallback = normalizeChartCollection(payload);
+    if (fallback.length > 0) {
+      charts.push(...fallback);
+    }
+  }
+
+  const dedupe = new Map<string, NormalizedChart>();
+  charts.forEach((chart) => {
+    const key = `${chart.title.toLowerCase()}|${JSON.stringify(chart.data)}`;
+    if (!dedupe.has(key)) {
+      dedupe.set(key, chart);
+    }
+  });
+
+  return Array.from(dedupe.values()).map((chart, index) => ({
+    title: chart.title && chart.title.trim().length > 0 ? chart.title : `Gráfico ${index + 1}`,
+    data: chart.data,
+  }));
+};
+
+const looksLikeHeatmapPoint = (value: unknown): boolean => {
+  if (Array.isArray(value)) return value.length >= 2;
+  if (!value || typeof value !== 'object') return false;
+  const record = value as Record<string, unknown>;
+  return Object.keys(record).some((key) => {
+    const normalizedKey = normalizeKey(key);
+    return (
+      LATITUDE_KEYWORDS.some((keyword) => normalizedKey.includes(keyword)) ||
+      LONGITUDE_KEYWORDS.some((keyword) => normalizedKey.includes(keyword)) ||
+      COORDINATE_CONTAINER_KEYWORDS.some((keyword) => normalizedKey.includes(keyword)) ||
+      STRING_FIELD_KEYWORDS.some((keyword) => normalizedKey.includes(keyword)) ||
+      NUMBER_FIELD_KEYWORDS.some((keyword) => normalizedKey.includes(keyword))
+    );
+  });
+};
+
+const extractHeatmapFromPayload = (payload: unknown): HeatPoint[] => {
+  const points: HeatPoint[] = [];
+  const visited = new Set<unknown>();
+  const seen = new Set<string>();
+  const queue: unknown[] = [payload];
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (current === undefined || current === null || visited.has(current)) continue;
+    visited.add(current);
+
+    if (Array.isArray(current)) {
+      current.forEach((item) => {
+        if (item && looksLikeHeatmapPoint(item)) {
+          const normalized = normalizeHeatPoint(item);
+          if (normalized) {
+            const key = `${normalized.lat.toFixed(6)}|${normalized.lng.toFixed(6)}|${normalized.categoria ?? ''}|${normalized.estado ?? ''}|${normalized.ticket ?? ''}`;
+            if (!seen.has(key)) {
+              seen.add(key);
+              points.push(normalized);
+            }
+          }
+        }
+        if (item && typeof item === 'object' && !visited.has(item)) {
+          queue.push(item);
+        }
+      });
+      continue;
+    }
+
+    if (typeof current !== 'object') {
+      continue;
+    }
+
+    const record = current as Record<string, unknown>;
+    if (looksLikeHeatmapPoint(record)) {
+      const directPoint = normalizeHeatPoint(record);
+      if (directPoint) {
+        const key = `${directPoint.lat.toFixed(6)}|${directPoint.lng.toFixed(6)}|${directPoint.categoria ?? ''}|${directPoint.estado ?? ''}|${directPoint.ticket ?? ''}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          points.push(directPoint);
+        }
+      }
+    }
+
+    for (const value of Object.values(record)) {
+      if (value && typeof value === 'object' && !visited.has(value)) {
+        queue.push(value);
+      }
+    }
+  }
+
+  return points;
+};
+
 const extractValueByKeywords = <T>(
   source: unknown,
   keywords: string[],
@@ -401,6 +822,21 @@ const pickNumberValue = (source: unknown, keywords: string[]): number | undefine
 };
 
 const normalizeHeatPoint = (raw: unknown): HeatPoint | null => {
+  if (Array.isArray(raw)) {
+    const pair = parseCoordinatePair(raw, 'auto');
+    if (pair.lat === undefined || pair.lng === undefined) return null;
+    const point: HeatPoint = { lat: pair.lat, lng: pair.lng };
+    if (raw.length >= 3) {
+      const weight = parseNumberValue(raw[2]);
+      if (weight !== undefined) point.weight = weight;
+    }
+    if (raw.length >= 4) {
+      const category = coerceString(raw[3]);
+      if (category) point.categoria = category;
+    }
+    return point;
+  }
+
   if (!raw || typeof raw !== 'object') return null;
 
   const { lat, lng } = extractCoordinates(raw);
@@ -449,16 +885,16 @@ export const getTicketStats = async (
       }
     });
     const query = qs.toString();
-    const resp = await apiFetch<TicketStatsResponse>(
+    const resp = await apiFetch<unknown>(
       `/estadisticas/tickets${query ? `?${query}` : ''}`,
     );
 
-    const charts = resp?.charts || [];
-    const heatmap = Array.isArray(resp?.heatmap)
-      ? resp!.heatmap
-          .map((item) => normalizeHeatPoint(item))
-          .filter((point): point is HeatPoint => point !== null)
-      : [];
+    const charts = extractChartsFromPayload(resp).map((chart) => ({
+      title: chart.title,
+      data: chart.data,
+    }));
+
+    const heatmap = extractHeatmapFromPayload(resp);
 
     return { charts, heatmap };
   } catch (err) {
@@ -497,13 +933,11 @@ export const getHeatmapPoints = async (
       }
     });
     const query = qs.toString();
-    const data = await apiFetch<any[]>(
+    const payload = await apiFetch<unknown>(
       `/estadisticas/mapa_calor/datos${query ? `?${query}` : ''}`,
     );
-    if (!Array.isArray(data)) return [];
-    return data
-      .map((item) => normalizeHeatPoint(item))
-      .filter((point): point is HeatPoint => point !== null);
+
+    return extractHeatmapFromPayload(payload);
   } catch (err) {
     console.error('Error fetching heatmap points:', err);
     throw err;
