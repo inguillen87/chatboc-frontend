@@ -23,9 +23,6 @@ import TicketsPanel from '@/pages/TicketsPanel';
 import PedidosPage from '@/pages/PedidosPage';
 import UsuariosPage from '@/pages/UsuariosPage';
 import ProductCatalog from '@/pages/ProductCatalog';
-import MunicipalStats from '@/pages/MunicipalStats';
-import IncidentsMap from '@/pages/IncidentsMap';
-import MunicipalAnalytics from '@/pages/MunicipalAnalytics';
 import MunicipalMessageMetrics from '@/pages/MunicipalMessageMetrics';
 import NotificationSettings from '@/pages/NotificationSettings';
 import TramitesCatalog from '@/pages/TramitesCatalog';
@@ -106,9 +103,9 @@ const routes: RouteConfig[] = [
   { path: '/municipal/integrations', element: <MunicipalSystems />, roles: ['admin', 'super_admin'] },
   { path: '/municipal/surveys', element: <SatisfactionSurveys /> },
   { path: '/municipal/message-metrics', element: <MunicipalMessageMetrics />, roles: ['admin', 'super_admin'] },
-  { path: '/municipal/analytics', element: <MunicipalAnalytics />, roles: ['admin', 'super_admin'] },
-  { path: '/municipal/stats', element: <MunicipalStats />, roles: ['admin', 'super_admin'] },
-  { path: '/municipal/incidents', element: <IncidentsMap />, roles: ['admin', 'super_admin'] },
+  { path: '/municipal/analytics', element: <EstadisticasPage />, roles: ['admin', 'super_admin'] },
+  { path: '/municipal/stats', element: <EstadisticasPage />, roles: ['admin', 'super_admin'] },
+  { path: '/municipal/incidents', element: <EstadisticasPage />, roles: ['admin', 'super_admin'] },
   { path: '/estadisticas', element: <EstadisticasPage />, roles: ['admin', 'super_admin'] },
   { path: '/perfil/plantillas-respuesta', element: <GestionPlantillasPage />, roles: ['admin', 'empleado', 'super_admin'] },
   // Rutas para la gestión de mapeo de catálogos por PYME
