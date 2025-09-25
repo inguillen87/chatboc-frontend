@@ -11,6 +11,7 @@ interface HeatmapProps {
   availableCategories: string[];
   availableBarrios: string[];
   availableTipos: string[];
+  onSelect?: (lat: number, lon: number, address?: string) => void;
 }
 
 export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({
@@ -19,6 +20,7 @@ export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({
   availableCategories,
   availableBarrios,
   availableTipos,
+  onSelect,
 }) => {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedBarrios, setSelectedBarrios] = useState<string[]>([]);
@@ -94,7 +96,7 @@ export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({
     <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm">
       <CardHeader>
         <CardTitle className="text-xl font-semibold text-primary">
-          Mapa de Calor de Actividad
+          Ubicación y Mapa de Calor de Actividad
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -109,6 +111,7 @@ export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({
             center={mapCenter}
             heatmapData={heatmapData}
             adminLocation={adminLocation}
+            onSelect={onSelect}
             className="h-[600px] rounded-lg"
             fitToBounds={boundsCoordinates.length > 0 ? boundsCoordinates : undefined}
             fallbackEnabled={false}

@@ -1222,50 +1222,22 @@ export default function Perfil() {
                     <XCircle className="w-4 h-4" /> {error}
                   </div>
                 )}
-              </form>
-            </CardContent>
-          </Card>
-          {showLocationCard && (
-            <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm">
-              <CardHeader>
-                <CardTitle className="text-xl font-semibold text-primary">
-                  Ubicación en el mapa
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
                 {geocodingError && (
-                  <div className="text-sm text-destructive-foreground bg-destructive/10 p-3 rounded-md">
+                  <div className="mt-4 text-sm text-destructive-foreground bg-destructive/10 p-3 rounded-md">
                     {geocodingError}
                   </div>
                 )}
-                <div className="relative">
-                  <MapLibreMap
-                    center={locationMarker ?? undefined}
-                    marker={locationMarker}
-                    initialZoom={locationMarker ? 15 : 11}
-                    onSelect={handleMapSelect}
-                    className="h-[320px] rounded-xl"
-                  />
-                  {geocodingStatus === "loading" && (
-                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-background/70 backdrop-blur">
-                      <Loader2 className="w-5 h-5 animate-spin text-primary" />
-                      <span className="text-sm text-muted-foreground">Localizando dirección...</span>
-                    </div>
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Hacé clic en el mapa para ajustar el marcador. Los cambios se guardan con el botón "Guardar Cambios".
-                </p>
-              </CardContent>
-            </Card>
-          )}
-          {heatmapData.length > 0 && (
+              </form>
+            </CardContent>
+          </Card>
+          {isStaff && (
             <AnalyticsHeatmap
               initialHeatmapData={heatmapData}
               adminLocation={municipalityCoords}
               availableCategories={availableCategories}
               availableBarrios={availableBarrios}
               availableTipos={availableTipos}
+              onSelect={handleMapSelect}
             />
           )}
         </div>
