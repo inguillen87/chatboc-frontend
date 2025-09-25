@@ -106,23 +106,15 @@ export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({
             <FilterGroup title="Barrios" items={availableBarrios} selected={selectedBarrios} onSelectedChange={setSelectedBarrios} />
         </div>
 
-        {heatmapData.length > 0 || adminLocation ? (
-          <MapLibreMap
-            center={mapCenter}
-            heatmapData={heatmapData}
-            adminLocation={adminLocation}
-            onSelect={onSelect}
-            className="h-[600px] rounded-lg"
-            fitToBounds={boundsCoordinates.length > 0 ? boundsCoordinates : undefined}
-            fallbackEnabled={false}
-          />
-        ) : (
-          <div className="h-[600px] flex items-center justify-center bg-muted/30 rounded-lg">
-            <p className="text-sm text-muted-foreground">
-              No hay datos de ubicación para mostrar en el mapa.
-            </p>
-          </div>
-        )}
+        <MapLibreMap
+          center={mapCenter}
+          heatmapData={heatmapData}
+          adminLocation={adminLocation}
+          onSelect={onSelect}
+          className="h-[600px] rounded-lg"
+          fitToBounds={boundsCoordinates.length > 0 ? boundsCoordinates : undefined}
+          fallbackEnabled={false}
+        />
       </CardContent>
     </Card>
   );
