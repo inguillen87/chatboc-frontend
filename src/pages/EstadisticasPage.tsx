@@ -33,74 +33,123 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, icon, color }) => (
   </Card>
 );
 
+import { Button } from '@/components/ui/button';
+import { Link } from 'react-router-dom';
+
 export default function EstadisticasPage() {
   const [ticketCounts, setTicketCounts] = useState<TicketCounts | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const fetchStats = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const stats = await getTicketStats({ tipo: 'municipio' });
+      const heatmapData = stats.heatmap || [];
+
+      const counts = heatmapData.reduce(
+        (acc, point) => {
+          const status = point.estado?.toLowerCase() || 'abierto';
+          if (status.includes('resuelto') || status.includes('finalizado')) {
+            acc.resueltos++;
+          } else if (status.includes('proceso')) {
+            acc.en_proceso++;
+          } else {
+            acc.abiertos++;
+          }
+          return acc;
+        },
+        { abiertos: 0, en_proceso: 0, resueltos: 0 },
+      );
+
+      setTicketCounts(counts);
+    } catch (err) {
+      setError(getErrorMessage(err, 'No se pudieron cargar las estadísticas.'));
+      console.error('Error loading ticket stats:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    (async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const stats = await getTicketStats({ tipo: 'municipio' });
-        const heatmapData = stats.heatmap || [];
-
-        const counts = heatmapData.reduce((acc, point) => {
-            const status = point.estado?.toLowerCase() || 'abierto';
-            if (status.includes('resuelto') || status.includes('finalizado')) {
-                acc.resueltos++;
-            } else if (status.includes('proceso')) {
-                acc.en_proceso++;
-            } else {
-                acc.abiertos++;
-            }
-            return acc;
-        }, { abiertos: 0, en_proceso: 0, resueltos: 0 });
-
-        setTicketCounts(counts);
-
-      } catch (err) {
-        setError(getErrorMessage(err, 'No se pudieron cargar las estadísticas.'));
-        console.error('Error loading ticket stats:', err);
-      } finally {
-        setLoading(false);
-      }
-    })();
+    fetchStats();
   }, []);
 
-  if (loading) {
-    return <div className="p-4 text-center">Cargando estadísticas...</div>;
-  }
+  const renderContent = () => {
+    if (loading) {
+      return <div className="p-4 text-center">Cargando estadísticas...</div>;
+    }
 
-  if (error) {
-    return <div className="p-4 text-destructive bg-destructive/10 p-3 rounded-md text-center">{error}</div>;
-  }
+    if (error) {
+      return (
+        <div className="p-4 text-destructive bg-destructive/10 p-3 rounded-md text-center space-y-4">
+          <p>{error}</p>
+          <Button onClick={fetchStats}>Reintentar</Button>
+        </div>
+      );
+    }
 
-  if (!ticketCounts) {
-    return <div className="p-4 text-center text-muted-foreground">No hay datos de estadísticas disponibles.</div>;
-  }
+    if (!ticketCounts) {
+      return (
+        <div className="p-4 text-center text-muted-foreground">
+          No hay datos de estadísticas disponibles.
+        </div>
+      );
+    }
+
+    return (
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <StatCard
+          title="Reclamos Abiertos"
+          value={ticketCounts.abiertos}
+          icon={<AlertCircle className="h-4 w-4 text-muted-foreground" />}
+          color="hsl(var(--destructive))"
+        />
+        <StatCard
+          title="Reclamos en Proceso"
+          value={ticketCounts.en_proceso}
+          icon={<Loader className="h-4 w-4 text-muted-foreground" />}
+          color="hsl(var(--primary))"
+        />
+        <StatCard
+          title="Reclamos Resueltos"
+          value={ticketCounts.resueltos}
+          icon={<CheckCircle2 className="h-4 w-4 text-muted-foreground" />}
+          color="hsl(var(--success))"
+        />
+      </div>
+    );
+  };
 
   return (
     <div className="p-4 md:p-8 space-y-8">
-      <h1 className="text-3xl font-extrabold text-primary">Estadísticas de Reclamos</h1>
+      <h1 className="text-3xl font-extrabold text-primary">
+        Estadísticas de Reclamos
+      </h1>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <StatCard title="Reclamos Abiertos" value={ticketCounts.abiertos} icon={<AlertCircle className="h-4 w-4 text-muted-foreground" />} color="hsl(var(--destructive))" />
-        <StatCard title="Reclamos en Proceso" value={ticketCounts.en_proceso} icon={<Loader className="h-4 w-4 text-muted-foreground" />} color="hsl(var(--primary))" />
-        <StatCard title="Reclamos Resueltos" value={ticketCounts.resueltos} icon={<CheckCircle2 className="h-4 w-4 text-muted-foreground" />} color="hsl(var(--success))" />
-      </div>
+      {renderContent()}
 
-       <Card className="bg-card shadow-lg rounded-xl border border-border backdrop-blur-sm">
+      <Card className="bg-card shadow-lg rounded-xl border border-border backdrop-blur-sm">
         <CardHeader>
-            <CardTitle>Nota sobre Estadísticas</CardTitle>
+          <CardTitle>Nota sobre Estadísticas</CardTitle>
         </CardHeader>
-        <CardContent>
-            <p className="text-muted-foreground">
-                Estas estadísticas se derivan de los datos de ubicación de los reclamos. Para obtener analíticas más detalladas, como tendencias por fecha o métricas de satisfacción del usuario, se requieren actualizaciones en el backend.
-            </p>
+        <CardContent className="space-y-4">
+          <p className="text-muted-foreground">
+            Las estadísticas de esta página muestran un resumen general basado en
+            los reclamos registrados. Para un análisis más profundo y reportes
+            detallados, visite nuestras dashboards de analíticas.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4">
+            <Button asChild variant="outline">
+              <Link to="/municipal/stats">Estadísticas Detalladas</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link to="/municipal/analytics">Analíticas Profesionales</Link>
+            </Button>
+          </div>
         </CardContent>
-       </Card>
+      </Card>
     </div>
   );
 }

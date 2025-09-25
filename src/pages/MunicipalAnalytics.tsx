@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { apiFetch, ApiError } from '@/utils/api';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { apiFetch, ApiError, getErrorMessage } from '@/utils/api';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -20,8 +20,6 @@ import ChartTooltip from '@/components/analytics/ChartTooltip';
 import TicketStatsCharts from '@/components/TicketStatsCharts';
 import { AnalyticsHeatmap } from '@/components/analytics/Heatmap';
 import {
-  getHeatmapPoints,
-  getTicketStats,
   getMunicipalTicketStates,
   HeatPoint,
   TicketStatsResponse,
@@ -49,13 +47,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle, FileDown } from 'lucide-react';
-import {
-  clearEndpointUnavailable,
-  isEndpointMarkedUnavailable,
-  markEndpointUnavailable,
-} from '@/utils/endpointAvailability';
 import {
   exportMunicipalAnalyticsExcel,
   exportMunicipalAnalyticsPdf,
@@ -76,14 +68,14 @@ interface AnalyticsResponse {
   genderTotals?: Record<string, number>;
   ageRanges?: Record<string, number>;
   statusTotals?: Record<string, number>;
+  charts?: TicketStatsResponse['charts'];
+  heatmap?: HeatPoint[];
 }
 
 type SortOption = 'tickets_desc' | 'response_asc' | 'response_desc';
 
 const STATUS_COLOR_PALETTE = Array.from({ length: 12 }, (_, idx) => `var(--chart-${idx + 1})`);
 const MUNICIPAL_ANALYTICS_PATH = '/municipal/analytics';
-const ANALYTICS_WARNING_MESSAGE =
-  'Las métricas profesionales no están disponibles en este momento. Mostramos los indicadores básicos con las estadísticas generales.';
 
 const formatLabel = (value: string) =>
   value
@@ -100,91 +92,6 @@ const safeNumber = (value: unknown): number => {
 const getResponseHours = (value: unknown): number | null =>
   typeof value === 'number' && Number.isFinite(value) ? value : null;
 
-const STATUS_KEYWORDS = ['estado', 'status', 'situacion', 'situación'];
-const GENDER_KEYWORDS = ['género', 'genero', 'gender'];
-const AGE_KEYWORDS = ['edad', 'age'];
-
-const extractChartData = (
-  charts: TicketStatsResponse['charts'],
-  keywords: string[],
-): Record<string, number> => {
-  if (!Array.isArray(charts)) return {};
-  const chart = charts.find((item) => {
-    const title = (item?.title ?? '').toString().toLowerCase();
-    return keywords.some((keyword) => title.includes(keyword));
-  });
-  if (!chart || !chart.data) return {};
-  return Object.entries(chart.data).reduce((acc, [key, value]) => {
-    const normalizedKey = typeof key === 'string' ? key.trim() : '';
-    const normalizedValue = typeof value === 'number' ? value : Number(value);
-    if (normalizedKey.length > 0 && Number.isFinite(normalizedValue)) {
-      acc[normalizedKey] = normalizedValue;
-    }
-    return acc;
-  }, {} as Record<string, number>);
-};
-
-const buildMunicipalityFallback = (points: HeatPoint[]): Municipality[] => {
-  const map = new Map<string, Municipality>();
-  points.forEach((point) => {
-    const rawName =
-      (typeof point.distrito === 'string' && point.distrito.trim()) ||
-      (typeof point.barrio === 'string' && point.barrio.trim()) ||
-      (typeof point.tipo_ticket === 'string' && point.tipo_ticket.trim()) ||
-      '';
-    const name = rawName.length > 0 ? rawName : 'General';
-    const existing = map.get(name) ?? {
-      name,
-      totalTickets: 0,
-      categories: {},
-      averageResponseHours: null,
-      statuses: {},
-    };
-
-    existing.totalTickets += 1;
-    if (typeof point.categoria === 'string' && point.categoria.trim().length > 0) {
-      const category = point.categoria.trim();
-      existing.categories[category] = (existing.categories[category] ?? 0) + 1;
-    }
-    if (typeof point.estado === 'string' && point.estado.trim().length > 0) {
-      const status = point.estado.trim();
-      if (!existing.statuses) existing.statuses = {};
-      existing.statuses[status] = (existing.statuses[status] ?? 0) + 1;
-    }
-
-    map.set(name, existing);
-  });
-  return Array.from(map.values());
-};
-
-const buildFallbackAnalytics = (
-  stats: TicketStatsResponse | null,
-  heatmap: HeatPoint[],
-): AnalyticsResponse => {
-  const charts = stats?.charts;
-  const statusFromCharts = extractChartData(charts, STATUS_KEYWORDS);
-  const statusFromHeatmap = heatmap.reduce((acc, point) => {
-    const status = typeof point.estado === 'string' ? point.estado.trim() : '';
-    if (status.length > 0) {
-      acc[status] = (acc[status] ?? 0) + 1;
-    }
-    return acc;
-  }, {} as Record<string, number>);
-
-  const genderTotals = extractChartData(charts, GENDER_KEYWORDS);
-  const ageRanges = extractChartData(charts, AGE_KEYWORDS);
-
-  const municipalities = buildMunicipalityFallback(heatmap);
-
-  return {
-    municipalities,
-    statusTotals:
-      Object.keys(statusFromCharts).length > 0 ? statusFromCharts : statusFromHeatmap,
-    genderTotals: Object.keys(genderTotals).length > 0 ? genderTotals : undefined,
-    ageRanges: Object.keys(ageRanges).length > 0 ? ageRanges : undefined,
-  };
-};
-
 export default function MunicipalAnalytics() {
   useRequireRole(['admin', 'super_admin'] as Role[]);
   const [data, setData] = useState<AnalyticsResponse | null>(null);
@@ -196,30 +103,7 @@ export default function MunicipalAnalytics() {
   const [ageMax, setAgeMax] = useState('');
   const [statusFilters, setStatusFilters] = useState<string[]>([]);
   const [sortOption, setSortOption] = useState<SortOption>('tickets_desc');
-  const [heatmapData, setHeatmapData] = useState<HeatPoint[]>([]);
-  const [charts, setCharts] = useState<TicketStatsResponse['charts']>([]);
   const [allowedStatuses, setAllowedStatuses] = useState<string[]>([]);
-  const analyticsInitialDisabled = useMemo(
-    () => isEndpointMarkedUnavailable(MUNICIPAL_ANALYTICS_PATH),
-    [],
-  );
-  const [analyticsWarning, setAnalyticsWarning] = useState<string | null>(
-    analyticsInitialDisabled ? ANALYTICS_WARNING_MESSAGE : null,
-  );
-  const [analyticsDisabled, setAnalyticsDisabled] = useState<boolean>(analyticsInitialDisabled);
-  const analyticsDisabledRef = useRef<boolean>(analyticsDisabled);
-
-  useEffect(() => {
-    analyticsDisabledRef.current = analyticsDisabled;
-  }, [analyticsDisabled]);
-
-  const markAnalyticsDisabled = useCallback(() => {
-    if (analyticsDisabledRef.current) return;
-    analyticsDisabledRef.current = true;
-    setAnalyticsDisabled(true);
-    setAnalyticsWarning(ANALYTICS_WARNING_MESSAGE);
-    markEndpointUnavailable(MUNICIPAL_ANALYTICS_PATH);
-  }, []);
 
   useEffect(() => {
     let active = true;
@@ -241,13 +125,7 @@ export default function MunicipalAnalytics() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
-
-    const disableAnalytics = analyticsDisabledRef.current;
-    if (disableAnalytics) {
-      setAnalyticsWarning((prev) => prev ?? ANALYTICS_WARNING_MESSAGE);
-    } else {
-      setAnalyticsWarning(null);
-    }
+    setData(null);
 
     const qs = new URLSearchParams();
     if (categoryFilter !== 'all') qs.append('categoria', categoryFilter);
@@ -258,143 +136,40 @@ export default function MunicipalAnalytics() {
       .filter((status) => status)
       .forEach((status) => qs.append('estado', status));
 
-    const statsParams = {
-      tipo: 'municipio',
-      categoria: categoryFilter !== 'all' ? categoryFilter : undefined,
-      genero: genderFilter || undefined,
-      edad_min: ageMin || undefined,
-      edad_max: ageMax || undefined,
-      estado: statusFilters.length > 0 ? statusFilters : undefined,
-    };
-
     try {
-      const analyticsPromise = disableAnalytics
-        ? Promise.resolve<AnalyticsResponse | null>(null)
-        : apiFetch<AnalyticsResponse>(
-            `${MUNICIPAL_ANALYTICS_PATH}${qs.toString() ? `?${qs.toString()}` : ''}`,
-          );
-
-      const [analyticsResult, statsResult, heatmapResult] = await Promise.allSettled([
-        analyticsPromise,
-        getTicketStats(statsParams),
-        getHeatmapPoints({
-          tipo_ticket: 'municipio',
-          categoria: categoryFilter !== 'all' ? categoryFilter : undefined,
-          genero: genderFilter || undefined,
-          edad_min: ageMin || undefined,
-          edad_max: ageMax || undefined,
-          estado: statusFilters.length > 0 ? statusFilters : undefined,
-        }),
-      ]);
-
-      const analyticsValue =
-        analyticsResult.status === 'fulfilled' ? analyticsResult.value : null;
-      if (analyticsResult.status === 'rejected') {
-        console.warn('Municipal analytics endpoint unavailable:', analyticsResult.reason);
-        setAnalyticsWarning(ANALYTICS_WARNING_MESSAGE);
-        const reason = analyticsResult.reason;
-        if (
-          reason instanceof ApiError &&
-          (reason.status === 404 || reason.status === 403 || reason.status === 401 || reason.status >= 500)
-        ) {
-          markAnalyticsDisabled();
-        }
-      }
-
-      const statsValue =
-        statsResult.status === 'fulfilled' ? statsResult.value : null;
-      if (statsResult.status === 'rejected') {
-        console.error('Error fetching ticket stats:', statsResult.reason);
-      }
-
-      const heatmapValue =
-        heatmapResult.status === 'fulfilled' && Array.isArray(heatmapResult.value)
-          ? heatmapResult.value
-          : [];
-      if (heatmapResult.status === 'rejected') {
-        console.error('Error fetching heatmap data:', heatmapResult.reason);
-      }
-
-      const fallbackAnalytics = buildFallbackAnalytics(statsValue, heatmapValue);
-      const resolvedAnalytics = analyticsValue && Array.isArray(analyticsValue.municipalities)
-        ? {
-            ...analyticsValue,
-            statusTotals:
-              analyticsValue.statusTotals ?? fallbackAnalytics.statusTotals,
-            genderTotals:
-              analyticsValue.genderTotals ?? fallbackAnalytics.genderTotals,
-            ageRanges: analyticsValue.ageRanges ?? fallbackAnalytics.ageRanges,
-          }
-        : fallbackAnalytics;
-
-      setData(resolvedAnalytics);
-      setCharts(statsValue?.charts || []);
-      setHeatmapData(heatmapValue);
-
-      const hasAnyData =
-        resolvedAnalytics.municipalities.length > 0 ||
-        (resolvedAnalytics.statusTotals &&
-          Object.keys(resolvedAnalytics.statusTotals).length > 0) ||
-        (resolvedAnalytics.genderTotals &&
-          Object.keys(resolvedAnalytics.genderTotals).length > 0) ||
-        (resolvedAnalytics.ageRanges &&
-          Object.keys(resolvedAnalytics.ageRanges).length > 0) ||
-        (statsValue?.charts && statsValue.charts.length > 0) ||
-        heatmapValue.length > 0;
-
-      if (!hasAnyData) {
-        setError('No hay datos disponibles con los filtros actuales.');
-      }
+      const response = await apiFetch<AnalyticsResponse>(
+        `${MUNICIPAL_ANALYTICS_PATH}${qs.toString() ? `?${qs.toString()}` : ''}`,
+      );
+      setData(response);
     } catch (err: any) {
-      const message =
-        err instanceof ApiError ? err.message : 'Error al cargar analíticas.';
+      const message = getErrorMessage(err, 'No se pudieron cargar las analíticas.');
       setError(message);
-      setData(null);
-      setHeatmapData([]);
-      setCharts([]);
     } finally {
       setLoading(false);
     }
-  }, [categoryFilter, genderFilter, ageMin, ageMax, statusFilters, markAnalyticsDisabled]);
+  }, [categoryFilter, genderFilter, ageMin, ageMax, statusFilters]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  const handleRetryAnalytics = useCallback(() => {
-    analyticsDisabledRef.current = false;
-    setAnalyticsDisabled(false);
-    clearEndpointUnavailable(MUNICIPAL_ANALYTICS_PATH);
-    setAnalyticsWarning(null);
-    fetchData();
-  }, [fetchData]);
-
-  const statusTotals = useMemo(() => {
-    if (data?.statusTotals && Object.keys(data.statusTotals).length > 0) {
-      return data.statusTotals;
-    }
-    const aggregated: Record<string, number> = {};
-    data?.municipalities.forEach((m) => {
-      Object.entries(m.statuses || {}).forEach(([status, value]) => {
-        if (!status) return;
-        aggregated[status] = (aggregated[status] ?? 0) + safeNumber(value);
-      });
-    });
-    return aggregated;
-  }, [data]);
+  const statusTotals = useMemo(
+    () => data?.statusTotals ?? {},
+    [data?.statusTotals],
+  );
 
   const statusKeys = useMemo(() => {
     const set = new Set<string>(allowedStatuses.filter(Boolean));
-    Object.keys(statusTotals || {}).forEach((status) => {
+    Object.keys(statusTotals).forEach((status) => {
       if (status) set.add(status);
     });
-    data?.municipalities.forEach((m) => {
+    data?.municipalities?.forEach((m) => {
       Object.keys(m.statuses || {}).forEach((status) => {
         if (status) set.add(status);
       });
     });
     return Array.from(set);
-  }, [allowedStatuses, data, statusTotals]);
+  }, [allowedStatuses, data?.municipalities, statusTotals]);
 
   useEffect(() => {
     setStatusFilters((prev) => {
@@ -408,20 +183,20 @@ export default function MunicipalAnalytics() {
     () =>
       Array.from(
         new Set(
-          data?.municipalities.flatMap((m) => Object.keys(m.categories || {})) || [],
+          data?.municipalities?.flatMap((m) => Object.keys(m.categories || {})) || [],
         ),
       ),
-    [data],
+    [data?.municipalities],
   );
 
   const filteredMunicipalities = useMemo(() => {
-    if (!data) return [] as Municipality[];
+    if (!data?.municipalities) return [] as Municipality[];
     if (statusFilters.length === 0) return data.municipalities;
     return data.municipalities.filter((m) => {
       if (!m.statuses) return true;
       return statusFilters.some((status) => safeNumber(m.statuses?.[status]) > 0);
     });
-  }, [data, statusFilters]);
+  }, [data?.municipalities, statusFilters]);
 
   const hasResponseMetrics = useMemo(
     () => filteredMunicipalities.some((m) => getResponseHours(m.averageResponseHours) !== null),
@@ -511,13 +286,13 @@ export default function MunicipalAnalytics() {
 
   const categoryTotals = useMemo(
     () =>
-      allCategories.map((category) => ({
-        name: category,
-        value: filteredMunicipalities.reduce(
+      allCategories.map((category) => {
+        const value = filteredMunicipalities.reduce(
           (sum, m) => sum + safeNumber(m.categories?.[category]),
           0,
-        ),
-      })),
+        );
+        return { name: category, value };
+      }),
     [allCategories, filteredMunicipalities],
   );
 
@@ -551,7 +326,7 @@ export default function MunicipalAnalytics() {
             value: safeNumber(value),
           }))
         : [],
-    [data],
+    [data?.genderTotals],
   );
 
   const ageData = useMemo(
@@ -562,7 +337,7 @@ export default function MunicipalAnalytics() {
             value: safeNumber(value),
           }))
         : [],
-    [data],
+    [data?.ageRanges],
   );
 
   const statusColors = useMemo(
@@ -608,8 +383,8 @@ export default function MunicipalAnalytics() {
     [statusSummary],
   );
 
-  const hasGenderData = genderData.length > 0;
-  const hasAgeData = ageData.length > 0;
+  const hasGenderData = useMemo(() => genderData.some((item) => item.value > 0), [genderData]);
+  const hasAgeData = useMemo(() => ageData.some((item) => item.value > 0), [ageData]);
 
   const chartCards = useMemo(() => {
     const cards: React.ReactNode[] = [];
@@ -764,6 +539,8 @@ export default function MunicipalAnalytics() {
     ageData,
   ]);
 
+  const heatmapData = useMemo(() => data?.heatmap ?? [], [data?.heatmap]);
+
   const heatmapCategories = useMemo(
     () =>
       Array.from(
@@ -833,7 +610,7 @@ export default function MunicipalAnalytics() {
       },
       genderTotals: data.genderTotals,
       ageRanges: data.ageRanges,
-      charts,
+      charts: data.charts ?? [],
       heatmap: heatmapData,
       categoryKey: categoryFilter,
     };
@@ -850,7 +627,6 @@ export default function MunicipalAnalytics() {
     ageMin,
     ageMax,
     statusFilters,
-    charts,
     heatmapData,
   ]);
 
@@ -876,12 +652,28 @@ export default function MunicipalAnalytics() {
     });
   }, []);
 
-  const hasMunicipalityRows = filteredMunicipalities.length > 0;
-  const hasChartsData = charts && charts.length > 0;
-  const hasHeatmapPoints = heatmapData.length > 0;
+  const hasMunicipalityRows = useMemo(
+    () => filteredMunicipalities.length > 0,
+    [filteredMunicipalities],
+  );
+  const hasChartsData = useMemo(() => (data?.charts ?? []).length > 0, [data?.charts]);
+  const hasHeatmapPoints = useMemo(() => heatmapData.length > 0, [heatmapData]);
 
   if (loading) return <p className="p-4 text-center">Cargando analíticas...</p>;
-  if (error) return <p className="p-4 text-destructive text-center">Error: {error}</p>;
+
+  if (error)
+    return (
+      <div className="p-4 max-w-6xl mx-auto space-y-4">
+        <h1 className="text-3xl font-extrabold text-primary">Analíticas Profesionales</h1>
+        <p className="p-4 text-destructive bg-destructive/10 rounded-md text-center">
+          {error}
+        </p>
+        <Button onClick={fetchData} className="w-full">
+          Reintentar
+        </Button>
+      </div>
+    );
+
   if (
     !hasMunicipalityRows &&
     !hasStatusData &&
@@ -923,24 +715,6 @@ export default function MunicipalAnalytics() {
         </DropdownMenu>
       </div>
 
-      {analyticsWarning && (
-        <Alert variant="destructive" className="bg-destructive/10 text-destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Analíticas limitadas</AlertTitle>
-          <AlertDescription className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <span>{analyticsWarning}</span>
-            {analyticsDisabled && (
-              <Button
-                variant="outline"
-                className="w-full sm:w-auto border-destructive text-destructive hover:bg-destructive/10"
-                onClick={handleRetryAnalytics}
-              >
-                Reintentar analíticas
-              </Button>
-            )}
-          </AlertDescription>
-        </Alert>
-      )}
 
       <div className="space-y-4">
         <div className="flex flex-wrap items-end gap-4">
@@ -1152,13 +926,13 @@ export default function MunicipalAnalytics() {
         </CardContent>
       </Card>
 
-      {charts && charts.length > 0 && (
+      {hasChartsData && (
         <Card className="shadow-lg">
           <CardHeader>
             <CardTitle className="text-xl">Indicadores adicionales</CardTitle>
           </CardHeader>
           <CardContent>
-            <TicketStatsCharts charts={charts} />
+            <TicketStatsCharts charts={data?.charts ?? []} />
           </CardContent>
         </Card>
       )}
