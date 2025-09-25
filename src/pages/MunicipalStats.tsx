@@ -180,24 +180,9 @@ interface TicketRecord {
 }
 
 const FALLBACK_FILTERS: FallbackFilters = {
-  rubros: [
-    'Atención ciudadana',
-    'Servicios públicos',
-    'Obras urbanas',
-    'Ambiente',
-    'Seguridad',
-  ],
-  barrios: [
-    'Centro',
-    'Norte',
-    'Sur',
-    'Este',
-    'Oeste',
-    'Ribera',
-    'Universidad',
-    'Industrial',
-  ],
-  tipos: ['Reclamo', 'Sugerencia', 'Incidente', 'Consulta', 'Seguimiento'],
+  rubros: [],
+  barrios: [],
+  tipos: [],
   rangos: [
     'Últimos 7 días',
     'Últimos 30 días',
@@ -240,89 +225,7 @@ const FALLBACK_PIE_COLORS = [
   '#10b981',
 ];
 
-const FALLBACK_CATEGORIES_BY_RUBRO: Record<string, string[]> = {
-  'Atención ciudadana': [
-    'Documentación',
-    'Turnos virtuales',
-    'Asistencia social',
-    'Gestiones online',
-  ],
-  'Servicios públicos': [
-    'Alumbrado',
-    'Recolección',
-    'Transporte',
-    'Agua y saneamiento',
-    'Espacios verdes',
-  ],
-  'Obras urbanas': [
-    'Bacheo',
-    'Cloacas',
-    'Cordón cuneta',
-    'Veredas',
-    'Planificación urbana',
-  ],
-  Ambiente: [
-    'Arbolado',
-    'Residuos especiales',
-    'Control animal',
-    'Limpieza de arroyos',
-    'Educación ambiental',
-  ],
-  Seguridad: [
-    'Prevención',
-    'Tránsito',
-    'Emergencias',
-    'Monitoreo urbano',
-    'Seguridad vial',
-  ],
-};
-
-const FALLBACK_STATUSES = [
-  'Nuevo',
-  'Asignado',
-  'En progreso',
-  'Derivado',
-  'En espera',
-  'Resuelto',
-  'Cerrado',
-  'Vencido',
-  'Reabierto',
-];
-
-const FALLBACK_PRIORITIES = ['Alta', 'Media', 'Baja'];
-
-const FALLBACK_CHANNELS = [
-  'Web',
-  'App móvil',
-  'Oficina',
-  'Teléfono',
-  'Redes sociales',
-  'Email',
-];
-
-const FALLBACK_AGENTS = [
-  'Equipo Centro',
-  'Equipo Norte',
-  'Equipo Sur',
-  'Mesa Digital',
-  'Gestión Integral',
-  'Supervisión',
-];
-
 const RESOLVED_STATUSES = new Set(['Resuelto', 'Cerrado']);
-
-const FALLBACK_TICKETS = generateSyntheticTickets();
-
-function createRandom(seed: number) {
-  let value = seed % 2147483647;
-  if (value <= 0) {
-    value += 2147483646;
-  }
-  return () => {
-    value = (value * 16807) % 2147483647;
-    return (value - 1) / 2147483646;
-  };
-}
 
 function determineTimeSlot(hour: number) {
   if (hour < 11) return 'Mañana';
@@ -356,108 +259,6 @@ function createEmptyHeatmap(): HeatmapRow[] {
   }));
 }
 
-function generateSyntheticTickets(count = 360): TicketRecord[] {
-  const random = createRandom(20240830);
-  const now = new Date();
-  const tickets: TicketRecord[] = [];
-
-  for (let i = 0; i < count; i += 1) {
-    const rubro = FALLBACK_FILTERS.rubros[i % FALLBACK_FILTERS.rubros.length];
-    const barrios = FALLBACK_FILTERS.barrios;
-    const barrio = barrios[(i * 5 + 3) % barrios.length];
-    const tipos = FALLBACK_FILTERS.tipos;
-    const tipo = tipos[(i * 7 + 1) % tipos.length];
-
-    const statusRoll = random();
-    let status = 'Nuevo';
-    if (statusRoll < 0.32) status = 'Resuelto';
-    else if (statusRoll < 0.57) status = 'Cerrado';
-    else if (statusRoll < 0.72) status = 'En progreso';
-    else if (statusRoll < 0.82) status = 'Asignado';
-    else if (statusRoll < 0.9) status = 'Derivado';
-    else if (statusRoll < 0.95) status = 'Vencido';
-    else status = 'Reabierto';
-
-    const categoryList = FALLBACK_CATEGORIES_BY_RUBRO[rubro] || ['General'];
-    const category =
-      categoryList[(i * 13 + 5) % categoryList.length];
-    const priority =
-      FALLBACK_PRIORITIES[(i * 17 + 4) % FALLBACK_PRIORITIES.length];
-    const channel = FALLBACK_CHANNELS[(i * 19 + 6) % FALLBACK_CHANNELS.length];
-    const agent = FALLBACK_AGENTS[(i * 23 + 1) % FALLBACK_AGENTS.length];
-
-    const daysAgo = Math.floor(random() * 365);
-    const createdAt = new Date(now.getTime() - daysAgo * 86400000);
-    const hour = Math.floor(random() * 24);
-    createdAt.setHours(hour, Math.floor(random() * 60), 0, 0);
-
-    let resolutionTimeHours = Math.round(24 + random() * 60);
-    let resolvedAt: Date | undefined;
-    if (RESOLVED_STATUSES.has(status) || status === 'Reabierto') {
-      const priorityFactor =
-        priority === 'Alta' ? 0.75 : priority === 'Media' ? 0.95 : 1.2;
-      resolutionTimeHours = Math.max(
-        4,
-        Math.round((18 + random() * 72) * priorityFactor),
-      );
-      resolvedAt = new Date(
-        createdAt.getTime() + resolutionTimeHours * 3600000,
-      );
-      if (resolvedAt.getTime() > now.getTime()) {
-        resolvedAt = new Date(
-          now.getTime() - Math.round(random() * 72) * 3600000,
-        );
-        resolutionTimeHours = Math.max(
-          3,
-          Math.round(
-            (resolvedAt.getTime() - createdAt.getTime()) / 3600000,
-          ),
-        );
-      }
-    } else if (status === 'Vencido') {
-      resolutionTimeHours = Math.round(80 + random() * 120);
-    }
-
-    const reopened = status === 'Reabierto' || random() < 0.07;
-    const surveyResponded = random() < 0.7;
-
-    const firstResponseHours = Math.max(
-      1,
-      Math.round(
-        (1.5 + random() * 6) *
-          (priority === 'Alta' ? 0.6 : priority === 'Baja' ? 1.3 : 1),
-      ),
-    );
-
-    const satisfactionBase = resolvedAt
-      ? 3.4 + random() * 1.5 - (priority === 'Baja' ? 0.2 : 0) - (reopened ? 0.4 : 0)
-      : 2.6 + random() * 0.8;
-    const satisfaction = Number(
-      Math.min(5, Math.max(1.5, satisfactionBase)).toFixed(2),
-    );
-
-    tickets.push({
-      id: `T-${createdAt.getFullYear()}-${String(i + 1).padStart(4, '0')}`,
-      rubro,
-      barrio,
-      tipo,
-      status,
-      category,
-      priority,
-      channel,
-      createdAt,
-      resolvedAt,
-      resolutionTimeHours,
-      satisfaction,
-      firstResponseHours,
-      reopened,
-      surveyResponded,
-      agent,
-    });
-  }
-
-  return tickets;
-}
 
 function normalizeKeyName(key: unknown): string {
   if (typeof key !== 'string') return '';
@@ -1259,6 +1060,24 @@ function normalizeTicketRecord(raw: unknown, index: number): TicketRecord | null
   };
 }
 
+function createEmptyStats(): StatsResponse {
+  return {
+    stats: [],
+    categoryBreakdown: [],
+    statusBreakdown: [],
+    priorityBreakdown: [],
+    channelBreakdown: [],
+    barrioBreakdown: [],
+    monthlyTrend: [],
+    satisfactionTrend: [],
+    satisfactionDistribution: [],
+    heatmap: [],
+    backlogAging: [],
+    categoryResolution: [],
+    agentPerformance: [],
+  };
+}
+
 function buildFallbackStats(
   filters: FilterState,
   sourceTickets?: TicketRecord[],
@@ -1277,7 +1096,7 @@ function buildFallbackStats(
   const ticketsSource =
     Array.isArray(sourceTickets) && sourceTickets.length > 0
       ? sourceTickets
-      : FALLBACK_TICKETS;
+      : [];
 
   const filteredTickets = ticketsSource.filter((ticket) => {
     if (filters.rubro && ticket.rubro !== filters.rubro) return false;
@@ -1288,43 +1107,7 @@ function buildFallbackStats(
   });
 
   if (filteredTickets.length === 0) {
-    return {
-      stats: [
-        { label: 'Tickets registrados', value: 0 },
-        { label: 'Tickets resueltos', value: 0 },
-        { label: 'Tickets cerrados', value: 0 },
-        { label: 'Tickets vencidos', value: 0 },
-        { label: 'Tickets pendientes', value: 0 },
-        { label: 'Satisfacción promedio', value: 0 },
-      ],
-      heatmap: createEmptyHeatmap(),
-      backlogAging: [
-        '0-3 días',
-        '4-7 días',
-        '8-15 días',
-        '16-30 días',
-        '31-60 días',
-        '+60 días',
-      ].map((range) => ({ range, count: 0 })),
-      agentPerformance: [],
-      categoryBreakdown: [],
-      statusBreakdown: [],
-      priorityBreakdown: [],
-      channelBreakdown: [],
-      barrioBreakdown: [],
-      satisfactionDistribution: [],
-      satisfactionTrend: [],
-      monthlyTrend: [],
-      categoryResolution: [],
-      satisfactionSummary: {
-        average: 0,
-        detractors: 0,
-        passives: 0,
-        promoters: 0,
-        nps: 0,
-        responseRate: 0,
-      },
-    };
+    return createEmptyStats();
   }
 
   const resolvedTickets = filteredTickets.filter((ticket) =>
@@ -1428,18 +1211,12 @@ function buildFallbackStats(
     filteredTickets,
     (ticket) => ticket.category,
   ).slice(0, 12);
-  const statusCounts = new Map<string, number>();
-  FALLBACK_STATUSES.forEach((status) => statusCounts.set(status, 0));
-  filteredTickets.forEach((ticket) => {
-    statusCounts.set(
-      ticket.status,
-      (statusCounts.get(ticket.status) ?? 0) + 1,
-    );
-  });
-  const statusBreakdown: ValueMetric[] = Array.from(statusCounts.entries())
-    .map(([name, value]) => ({ name, value }))
-    .filter((entry) => entry.value > 0)
-    .sort((a, b) => b.value - a.value);
+  const statusBreakdown: ValueMetric[] = countBy(
+    filteredTickets,
+    (ticket) => ticket.status,
+  )
+    .map(({ name, count }) => ({ name, value: count }))
+    .filter((entry) => entry.value > 0);
 
   const priorityBreakdown = countBy(
     filteredTickets,
@@ -1809,60 +1586,12 @@ function resolveStatsPayload(
     );
     if (agentPerformance.length > 0) response.agentPerformance = agentPerformance;
 
-    if (response.stats.length > 0) {
-      return { response, usedFallback: false };
-    }
-
-    const fallback = buildFallbackStats(filters);
-    const merged: StatsResponse = { ...fallback };
-
-    if (response.categoryBreakdown?.length) {
-      merged.categoryBreakdown = response.categoryBreakdown;
-    }
-    if (response.statusBreakdown?.length) {
-      merged.statusBreakdown = response.statusBreakdown;
-    }
-    if (response.priorityBreakdown?.length) {
-      merged.priorityBreakdown = response.priorityBreakdown;
-    }
-    if (response.channelBreakdown?.length) {
-      merged.channelBreakdown = response.channelBreakdown;
-    }
-    if (response.barrioBreakdown?.length) {
-      merged.barrioBreakdown = response.barrioBreakdown;
-    }
-    if (response.monthlyTrend?.length) {
-      merged.monthlyTrend = response.monthlyTrend;
-    }
-    if (response.satisfactionTrend?.length) {
-      merged.satisfactionTrend = response.satisfactionTrend;
-    }
-    if (response.satisfactionSummary) {
-      merged.satisfactionSummary = response.satisfactionSummary;
-    }
-    if (response.satisfactionDistribution?.length) {
-      merged.satisfactionDistribution = response.satisfactionDistribution;
-    }
-    if (response.heatmap?.length) {
-      merged.heatmap = response.heatmap;
-    }
-    if (response.backlogAging?.length) {
-      merged.backlogAging = response.backlogAging;
-    }
-    if (response.categoryResolution?.length) {
-      merged.categoryResolution = response.categoryResolution;
-    }
-    if (response.agentPerformance?.length) {
-      merged.agentPerformance = response.agentPerformance;
-    }
-
-    return { response: merged, usedFallback: true };
+    return { response, usedFallback: false };
   }
 
-  const fallback = buildFallbackStats(filters);
   return {
-    response: fallback,
-    usedFallback: true,
+    response: buildFallbackStats(filters),
+    usedFallback: false,
   };
 }
 
@@ -1933,16 +1662,10 @@ export default function MunicipalStats() {
       setData(normalized.response);
       setUsingFallback(normalized.usedFallback);
     } catch (err) {
-      console.warn('Using synthetic municipal stats fallback', err);
-      const fallbackData = buildFallbackStats({
-        rubro: filtroRubro || undefined,
-        barrio: filtroBarrio || undefined,
-        tipo: filtroTipo || undefined,
-        rango: filtroRango || undefined,
-      });
-      setData(fallbackData);
-      setUsingFallback(true);
-      setError(null);
+      console.error('Error fetching municipal stats', err);
+      setError('No se pudieron cargar las estadísticas.');
+      setData(null);
+      setUsingFallback(false);
     } finally {
       setLoading(false);
     }
