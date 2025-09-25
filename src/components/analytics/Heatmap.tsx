@@ -36,15 +36,19 @@ export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({
   }, [initialHeatmapData, selectedTipos, selectedCategories, selectedBarrios]);
 
   const mapCenter = useMemo(() => {
+    if (adminLocation) return adminLocation;
+
     if (initialHeatmapData.length > 0) {
       const totalWeight = initialHeatmapData.reduce((sum, t) => sum + (t.weight || 1), 0);
       if (totalWeight > 0) {
         const avgLat = initialHeatmapData.reduce((sum, t) => sum + t.lat * (t.weight || 1), 0) / totalWeight;
         const avgLng = initialHeatmapData.reduce((sum, t) => sum + t.lng * (t.weight || 1), 0) / totalWeight;
-        return [avgLng, avgLat] as [number, number];
+        if (Number.isFinite(avgLat) && Number.isFinite(avgLng)) {
+            return [avgLng, avgLat] as [number, number];
+        }
       }
     }
-    return adminLocation;
+    return [-64.5, -34.5] as [number, number]; // Default to center of Argentina
   }, [initialHeatmapData, adminLocation]);
 
   const boundsCoordinates = useMemo(() => {
@@ -63,6 +67,7 @@ export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({
     return coords;
   }, [heatmapData, adminLocation]);
 
+  const initialZoom = adminLocation || heatmapData.length > 0 ? 12 : 4;
 
   const FilterGroup: React.FC<{ title: string; items: string[]; selected: string[]; onSelectedChange: (selected: string[]) => void }> = ({ title, items, selected, onSelectedChange }) => {
     if (items.length === 0) return null;
@@ -108,6 +113,7 @@ export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({
 
         <MapLibreMap
           center={mapCenter}
+          initialZoom={initialZoom}
           heatmapData={heatmapData}
           adminLocation={adminLocation}
           onSelect={onSelect}
