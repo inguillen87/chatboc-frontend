@@ -419,14 +419,9 @@ export default function Perfil() {
       await refreshUser();
 
     } catch (err) {
-      if (err instanceof ApiError && err.status === 401) {
-        // Si el token es inválido o expiró, forzar logout
-        safeLocalStorage.removeItem("user");
-        safeLocalStorage.removeItem("authToken");
-        navigate("/login"); // Usar navigate para la redirección
-      } else {
-        setError(getErrorMessage(err, "Error al cargar el perfil."));
-      }
+      // El manejo de 401 es global en apiFetch, que redirigirá la página.
+      // Solo necesitamos manejar otros errores que no sean de autenticación.
+      setError(getErrorMessage(err, "Error al cargar el perfil."));
     } finally {
       setLoadingGuardar(false);
     }

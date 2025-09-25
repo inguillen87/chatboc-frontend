@@ -233,14 +233,32 @@ export async function apiFetch<T>(
       data,
     });
 
-    if (response.status === 401) {
-      // Sólo limpia sesión si no es skipAuth
-      if (!skipAuth) {
-        if (tokenSource === "authToken") {
-          safeLocalStorage.removeItem("authToken");
+    if (response.status === 401 && !skipAuth) {
+      // Para peticiones del panel/admin, un 401 significa sesión expirada.
+      // Debemos limpiar todo y forzar el re-login.
+      if (!treatAsWidget) {
+        console.warn("Received 401 Unauthorized for a panel request. Redirecting to login.");
+        safeLocalStorage.removeItem("authToken");
+        safeLocalStorage.removeItem("user");
+        safeLocalStorage.removeItem("chatAuthToken");
+
+        // Forzar redirección para limpiar el estado de la aplicación.
+        if (typeof window !== 'undefined') {
+          window.location.href = '/login';
         }
-        // El widget maneja la autenticación sin salir del chat
+
+        // Devolvemos una promesa que nunca se resuelve para evitar que el código subsiguiente se ejecute.
+        return new Promise(() => {});
       }
+
+      // Para el widget, el manejo es diferente, no queremos redirigir toda la página.
+      // Simplemente lanzamos el error para que el componente que hizo la llamada lo maneje.
+      if (tokenSource === "authToken") {
+        safeLocalStorage.removeItem("authToken");
+      } else if (tokenSource === "chatAuthToken") {
+        safeLocalStorage.removeItem("chatAuthToken");
+      }
+
       throw new ApiError(
         data?.error || data?.message || "No autorizado",
         response.status,
