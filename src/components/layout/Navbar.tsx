@@ -1,8 +1,17 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import ChatbocLogoAnimated from "../chat/ChatbocLogoAnimated";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { Link as RouterLink, useLocation } from "react-router-dom";
-import { Menu, X, Moon, Sun } from "lucide-react";
+import { Menu, X, Moon, Sun, User, LogOut, MessageCircle, BarChart3 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 const Navbar: React.FC = () => {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -11,6 +20,28 @@ const Navbar: React.FC = () => {
 
   const isLanding = location.pathname === "/";
   const isLoggedIn = !!safeLocalStorage.getItem("user");
+  const storedUserRaw = useMemo(
+    () => (isLoggedIn ? safeLocalStorage.getItem("user") : null),
+    [isLoggedIn],
+  );
+  const userInitials = useMemo(() => {
+    if (!storedUserRaw) return "TU";
+    try {
+      const parsed = JSON.parse(storedUserRaw);
+      const source = parsed?.nombre || parsed?.name || parsed?.email || "";
+      if (!source) return "TU";
+      const letters = source
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((part: string) => part[0])
+        .slice(0, 2)
+        .join("")
+        .toUpperCase();
+      return letters || "TU";
+    } catch {
+      return "TU";
+    }
+  }, [storedUserRaw]);
 
   useEffect(() => {
     const currentTheme = safeLocalStorage.getItem("theme");
@@ -84,12 +115,50 @@ const Navbar: React.FC = () => {
         {/* Botones lado derecho */}
         <div className="hidden md:flex gap-3 items-center">
           {isLoggedIn ? (
-            <>
-              <RouterLink to="/perfil" className="text-sm text-foreground/80 hover:text-primary dark:hover:text-primary transition-colors hover:underline">Mi perfil</RouterLink>
-              <RouterLink to="/chat" className="text-sm text-foreground/80 hover:text-primary dark:hover:text-primary transition-colors hover:underline">Chat</RouterLink>
-              <RouterLink to="/estadisticas" className="text-sm text-foreground/80 hover:text-primary dark:hover:text-primary transition-colors hover:underline">Estadísticas</RouterLink>
-              <RouterLink to="/" onClick={() => safeLocalStorage.removeItem("user")} className="text-sm text-red-500 hover:underline">Cerrar sesión</RouterLink>
-            </>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  className="flex items-center gap-2 rounded-full border border-border/60 bg-card px-3 py-1.5 text-sm shadow-sm transition-colors hover:bg-accent"
+                >
+                  <Avatar className="h-8 w-8">
+                    <AvatarFallback>{userInitials}</AvatarFallback>
+                  </Avatar>
+                  <span className="hidden font-medium text-foreground md:inline">Mi cuenta</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem asChild>
+                  <RouterLink to="/perfil" className="flex items-center gap-2 text-sm">
+                    <User className="h-4 w-4" />
+                    Mi perfil
+                  </RouterLink>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <RouterLink to="/chat" className="flex items-center gap-2 text-sm">
+                    <MessageCircle className="h-4 w-4" />
+                    Chat en vivo
+                  </RouterLink>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <RouterLink to="/estadisticas" className="flex items-center gap-2 text-sm">
+                    <BarChart3 className="h-4 w-4" />
+                    Analíticas 360
+                  </RouterLink>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="flex items-center gap-2 text-destructive focus:text-destructive"
+                  onSelect={() => {
+                    safeLocalStorage.removeItem('user');
+                    window.location.href = '/';
+                  }}
+                >
+                  <LogOut className="h-4 w-4" />
+                  Cerrar sesión
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           ) : (
             <>
               <RouterLink to="/login" className="px-3 py-1 border border-primary text-primary rounded hover:bg-primary/10 text-sm dark:text-primary-foreground dark:border-primary-foreground dark:hover:bg-primary-foreground/10 transition-colors">Iniciar Sesión</RouterLink>

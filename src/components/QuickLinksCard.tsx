@@ -32,10 +32,8 @@ const ITEMS: LinkItem[] = [
   { label: "Métricas", path: "/pyme/metrics", icon: TrendingUp, roles: ["admin", "super_admin"], tipo: "pyme" },
   { label: "Catálogo", path: "/pyme/catalog", icon: Boxes, roles: ["admin", "super_admin"], tipo: "pyme" },
   { label: "Usuarios", path: "/usuarios", icon: Users, roles: ["admin", "empleado", "super_admin"] },
-  { label: "Estadísticas", path: "/municipal/stats", icon: BarChart2, roles: ["admin", "super_admin"], tipo: "municipio" },
-  { label: "Analíticas", path: "/municipal/analytics", icon: TrendingUp, roles: ["admin", "super_admin"], tipo: "municipio" },
+  { label: "Analíticas 360", path: "/estadisticas", icon: BarChart2, roles: ["admin", "super_admin"], tipo: "municipio" },
   { label: "Empleados", path: "/municipal/usuarios", icon: UserCog, roles: ["admin", "super_admin"], tipo: "municipio" },
-  { label: "Mapa", path: "/municipal/incidents", icon: MapPin, roles: ["admin", "super_admin"], tipo: "municipio" },
 ];
 
 export default function QuickLinksCard() {
@@ -64,10 +62,14 @@ export default function QuickLinksCard() {
   const role = normalizeRole(user.rol);
   const tipo = user.tipo_chat as "pyme" | "municipio";
 
-  const items = ITEMS.filter((it) => {
+  let items = ITEMS.filter((it) => {
     if (it.path === '/pedidos' && pedidosAvailable === false) return false;
     return (!it.roles || it.roles.includes(role)) && (!it.tipo || it.tipo === tipo);
   });
+
+  if (tipo === 'municipio') {
+    items = items.filter((item) => item.path === '/estadisticas');
+  }
 
   if (!items.length) return null;
 
