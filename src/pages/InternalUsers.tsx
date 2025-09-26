@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { apiFetch, ApiError, getErrorMessage } from '@/utils/api';
 import useRequireRole from '@/hooks/useRequireRole';
+import { useUser } from '@/hooks/useUser';
 import type { Role } from '@/utils/roles';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -21,7 +22,8 @@ interface Category {
 }
 
 export default function InternalUsers() {
-useRequireRole(['admin', 'super_admin'] as Role[]);
+  useRequireRole(['admin', 'super_admin'] as Role[]);
+  const { user } = useUser();
   const [users, setUsers] = useState<InternalUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -32,45 +34,42 @@ useRequireRole(['admin', 'super_admin'] as Role[]);
   const [rol, setRol] = useState('empleado');
   const [categoriaId, setCategoriaId] = useState<number | ''>('');
 
+  const entityType = useMemo(() => (user?.tipo_chat === 'pyme' ? 'pyme' : 'municipal'), [user]);
+
   useEffect(() => {
-    apiFetch<InternalUser[]>('/municipal/usuarios')
-      .then((data) => {
-        setUsers(data);
-        setLoading(false);
+    const usersUrl = entityType === 'pyme' ? '/pyme/usuarios' : '/municipal/usuarios';
+    const categoriesUrl = entityType === 'pyme' ? '/pyme/categorias' : '/municipal/categorias';
+
+    Promise.all([
+      apiFetch<InternalUser[]>(usersUrl).catch(err => {
+        if (err instanceof ApiError && err.status === 404) return [];
+        throw err;
+      }),
+      apiFetch<{ categorias: Category[] }>(categoriesUrl, { sendEntityToken: true }).catch(err => {
+        if (err instanceof ApiError && err.status === 404) return { categorias: [] };
+        throw err;
       })
-      .catch((err: any) => {
-        if (err instanceof ApiError && err.status === 404) {
-          setError('Funcionalidad no disponible');
-        } else {
-          setError(getErrorMessage(err, 'Error'));
-        }
-        setLoading(false);
-      });
-    apiFetch<{ categorias: Category[] }>('/municipal/categorias', { sendEntityToken: true })
-      .then((data) => {
-        if (Array.isArray(data.categorias)) {
-          setCategories(data.categorias);
-        } else {
-          setCategories([]);
-        }
-      })
-      .catch((err: any) => {
-        if (err instanceof ApiError && err.status === 404) {
-          setError('Funcionalidad no disponible');
-        }
-        setCategories([]);
-      });
-  }, []);
+    ]).then(([usersData, categoriesData]) => {
+      setUsers(usersData || []);
+      setCategories(categoriesData?.categorias || []);
+      setLoading(false);
+    }).catch(err => {
+      setError(getErrorMessage(err, 'Error al cargar los datos'));
+      setLoading(false);
+    });
+
+  }, [entityType]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nombre.trim() || !email.trim() || !password.trim() || !categoriaId) return;
+    const usersUrl = entityType === 'pyme' ? '/pyme/usuarios' : '/municipal/usuarios';
     try {
-      await apiFetch('/municipal/usuarios', {
+      await apiFetch(usersUrl, {
         method: 'POST',
         body: { nombre, email, password, rol, categoria_id: categoriaId },
       });
-      const data = await apiFetch<InternalUser[]>('/municipal/usuarios');
+      const data = await apiFetch<InternalUser[]>(usersUrl);
       setUsers(data);
       setNombre('');
       setEmail('');
@@ -83,9 +82,11 @@ useRequireRole(['admin', 'super_admin'] as Role[]);
   };
 
   const handleDelete = async (id: number) => {
+    const usersUrl = entityType === 'pyme' ? `/pyme/usuarios/${id}` : `/municipal/usuarios/${id}`;
+    const listUrl = entityType === 'pyme' ? '/pyme/usuarios' : '/municipal/usuarios';
     try {
-      await apiFetch(`/municipal/usuarios/${id}`, { method: 'DELETE' });
-      const data = await apiFetch<InternalUser[]>('/municipal/usuarios');
+      await apiFetch(usersUrl, { method: 'DELETE' });
+      const data = await apiFetch<InternalUser[]>(listUrl);
       setUsers(data);
     } catch (err: any) {
       setError(getErrorMessage(err, 'Error al eliminar el usuario'));

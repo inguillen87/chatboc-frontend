@@ -67,6 +67,7 @@ import { cn } from "@/lib/utils";
 import TicketsPanel from '@/pages/TicketsPanel';
 import EstadisticasPage from '@/pages/EstadisticasPage';
 import UsuariosPage from '@/pages/UsuariosPage';
+import PedidosPage from '@/pages/PedidosPage';
 import InternalUsers from '@/pages/InternalUsers';
 import IncidentsMap from '@/pages/IncidentsMap';
 import { getTicketStats } from "@/services/statsService";
@@ -974,13 +975,14 @@ export default function Perfil() {
       </div>
 
       <Tabs defaultValue="perfil" className="w-full max-w-6xl mx-auto">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-5 sm:grid-cols-7">
           <TabsTrigger value="perfil">Perfil</TabsTrigger>
           <TabsTrigger value="tickets">Tickets</TabsTrigger>
+          <TabsTrigger value="pedidos">Pedidos</TabsTrigger>
           <TabsTrigger value="estadisticas">Estadísticas</TabsTrigger>
           <TabsTrigger value="usuarios">Usuarios</TabsTrigger>
-          {esMunicipio && <TabsTrigger value="empleados">Empleados</TabsTrigger>}
-          {esMunicipio && <TabsTrigger value="mapas">Mapas</TabsTrigger>}
+          {isStaff && <TabsTrigger value="empleados">Empleados</TabsTrigger>}
+          {isStaff && <TabsTrigger value="mapas">Mapas</TabsTrigger>}
         </TabsList>
         <TabsContent value="perfil">
           <div className="w-full mx-auto flex flex-col md:flex-row gap-6 md:gap-8 px-2 items-stretch mt-6">
@@ -1660,15 +1662,18 @@ export default function Perfil() {
         <TabsContent value="estadisticas">
           <EstadisticasPage />
         </TabsContent>
+        <TabsContent value="pedidos">
+          <PedidosPage />
+        </TabsContent>
         <TabsContent value="usuarios">
           <UsuariosPage />
         </TabsContent>
-        {esMunicipio && (
+        {isStaff && (
           <TabsContent value="empleados">
             <InternalUsers />
           </TabsContent>
         )}
-        {esMunicipio && (
+        {isStaff && (
           <TabsContent value="mapas">
             <IncidentsMap />
           </TabsContent>
