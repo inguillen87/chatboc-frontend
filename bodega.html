@@ -11,8 +11,8 @@
 
   <style>
     :root {
-      --prim:#007aff; /* Blue from widget */
-      --acento:#007aff; /* Blue from widget */
+      --prim:#007aff;
+      --acento:#007aff;
       --txt:#2c3e50;
       --txt-2:#5a6a7a;
       --fondo:#f5f8f7;
@@ -156,7 +156,7 @@
       padding:12px 24px;border-radius:999px;background:var(--acento);
       color:#fff;font-weight:600;box-shadow:0 8px 22px rgba(0,122,255,.35);
       transition:transform .3s ease, box-shadow .3s ease, filter .3s ease;
-      text-decoration: none;
+      text-decoration:none;
     }
     .cta:hover {
       transform: translateY(-3px);
@@ -529,40 +529,112 @@
     <span class="help-text">¿Necesitas ayuda?</span>
   </div>
 
-<script async src="https://chatboc.ar/widget.js"
-  data-api-base="https://chatboc.ar"
-  data-owner-token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoyMiwiZXhwIjoxNzU5NTA2ODQxfQ.cRByDN2t7sA220yPk40AJ9k0iqkrS3BgzsedHZDMsPA"
-  data-default-open="false"
-  data-width="460px"
-  data-height="680px"
-  data-closed-width="112px"
-  data-closed-height="112px"
-  data-bottom="20px"
-  data-right="20px"
-  data-endpoint="pyme"
-  data-primary-color="#007aff"
-  data-accent-color="#007aff"
-  data-logo-url="https://chatboc-demo-widget-oigs.vercel.app/cuatrofincas/CFlogo.png"
-  data-header-logo-url="https://chatboc-demo-widget-oigs.vercel.app/cuatrofincas/CFlogo.png"
-  data-welcome-title="Cuatro Fincas"
-  data-welcome-subtitle="Bodega"
-></script>
+  <!-- WIDGET SCRIPT -->
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+  window.__FALLBACK_LOGO =
+    'data:image/svg+xml;utf8,' +
+    encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256">
+      <circle cx="128" cy="128" r="120" fill="#007aff"/>
+      <text x="50%" y="55%" text-anchor="middle" font-family="Arial" font-size="140" fill="#fff" font-weight="700">CF</text>
+    </svg>`);
+
+  const OWNER_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoyMiwiZXhwIjoxNzU5NTA2ODQxfQ.cRByDN2t7sA220yPk40AJ9k0iqkrS3BgzsedHZDMsPA';
+  let currentScript = null;
+
   const toggle = document.querySelector('.menu-toggle');
   const nav = document.querySelector('nav');
+  const themeBtn = document.getElementById('themeToggle');
   if(toggle && nav){
     toggle.addEventListener('click', () => nav.classList.toggle('show'));
   }
-
-  const themeBtn = document.getElementById('themeToggle');
   if(themeBtn){
     themeBtn.addEventListener('click', () => {
       document.body.classList.toggle('dark-mode');
       themeBtn.textContent = document.body.classList.contains('dark-mode') ? '☀' : '☾';
+      injectWidget();
     });
   }
 
+  async function clearCaches(){
+    try{
+      Object.keys(localStorage).forEach(k => { if(k.includes('chatboc')) localStorage.removeItem(k); });
+      Object.keys(sessionStorage).forEach(k => { if(k.includes('chatboc')) sessionStorage.removeItem(k); });
+      if(indexedDB && indexedDB.databases){
+        const dbs = await indexedDB.databases();
+        dbs.forEach(db => { if(db.name && db.name.includes('chatboc')) indexedDB.deleteDatabase(db.name); });
+      }
+      if(navigator.serviceWorker && navigator.serviceWorker.getRegistrations){
+        const regs = await navigator.serviceWorker.getRegistrations();
+        regs.forEach(r => r.unregister());
+      }
+    }catch(e){
+      console.warn('Cache cleanup failed', e);
+    }
+  }
+
+  async function injectWidget() {
+    if (currentScript) currentScript.remove();
+    if (window.chatbocDestroyWidget) {
+      window.chatbocDestroyWidget(OWNER_TOKEN);
+    }
+
+    await clearCaches();
+
+    const isMobile = window.matchMedia('(max-width:768px)').matches;
+    const size = isMobile ? '90px' : '120px';
+    const isDark = document.body.classList.contains('dark-mode');
+
+    var s = document.createElement('script');
+    s.src = 'https://www.chatboc.ar/widget.js?v=' + Date.now();
+    s.async = true;
+    s.setAttribute('data-owner-token', OWNER_TOKEN);
+    s.setAttribute('data-default-open', 'false');
+    s.setAttribute('data-width', '460px');
+    s.setAttribute('data-height', '680px');
+    s.setAttribute('data-closed-width', size);
+    s.setAttribute('data-closed-height', size);
+    s.setAttribute('data-bottom', '20px');
+    s.setAttribute('data-right', '20px');
+    s.setAttribute('data-endpoint', 'pyme');
+    s.setAttribute('data-z-index', '100000');
+    s.setAttribute('data-primary-color', '#007aff');
+    s.setAttribute('data-accent-color', '#007aff');
+    s.setAttribute('data-theme', isDark ? 'dark' : 'light');
+    s.setAttribute('data-logo-url', 'https://chatboc-demo-widget-oigs.vercel.app/cuatrofincas/CFlogo.png');
+    s.setAttribute('data-logo-animation', 'logo-bounce 2s infinite, pulse 4s ease-in-out infinite');
+    s.setAttribute('data-welcome-title', 'Hola, soy tu Asistente');
+    s.setAttribute('data-welcome-subtitle', '¿Listo para descubrir nuestros vinos?');
+    s.setAttribute('data-allow-attachments', 'true');
+    s.setAttribute('data-allow-location', 'true');
+    s.setAttribute('data-allow-audio', 'true');
+    s.setAttribute('data-header-logo-url', 'https://chatboc-demo-widget-oigs.vercel.app/cuatrofincas/CFlogo.png');
+
+
+    document.body.appendChild(s);
+    currentScript = s;
+
+    s.onload = function() {
+      console.log('Chatboc Widget cargado y listo.');
+      enhanceLauncher();
+    };
+    s.onerror = function() {
+      console.error('Error al cargar Chatboc Widget.');
+    };
+  }
+
+  function enhanceLauncher(){
+    const launcher = document.querySelector('[id^="chatboc-launcher"],[class*="chatboc-launcher"]');
+    if(!launcher){ setTimeout(enhanceLauncher, 500); return; }
+    launcher.classList.add('chat-launcher');
+    launcher.style.transition = 'transform .3s';
+    launcher.addEventListener('mouseenter', () => launcher.style.transform = 'scale(1.1) rotate(3deg)');
+    launcher.addEventListener('mouseleave', () => launcher.style.transform = 'scale(1) rotate(0)');
+    launcher.addEventListener('mousedown', () => launcher.style.transform = 'scale(0.95) rotate(-3deg)');
+    launcher.addEventListener('mouseup', () => launcher.style.transform = 'scale(1.1) rotate(3deg)');
+  }
+
+  window.APP_TARGET = 'pyme';
   const tag = document.getElementById('helpTag');
   const phrases = [
     '¿Necesitas ayuda?',
@@ -583,6 +655,8 @@ document.addEventListener('DOMContentLoaded', function () {
       }, 300);
     }, 4000);
   }
+
+  injectWidget();
 });
 </script>
 </body>
