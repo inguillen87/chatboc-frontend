@@ -945,10 +945,10 @@ export default function Perfil() {
 
   return (
     <div className="flex flex-col min-h-screen bg-background dark:bg-gradient-to-tr dark:from-slate-950 dark:to-slate-900 text-foreground py-8 px-2 sm:px-4 md:px-6 lg:px-8">
-      <div className="w-full max-w-6xl mx-auto mb-6 relative px-2">
+      <div className="w-full max-w-6xl mx-auto mb-6 relative px-2 pt-16 sm:pt-0">
         <Button
           variant="outline"
-          className="absolute right-0 top-0 h-10 px-5 text-sm rounded-lg border-destructive text-destructive hover:bg-destructive/10"
+          className="absolute right-2 top-2 h-10 px-5 text-sm rounded-lg border-destructive text-destructive hover:bg-destructive/10"
           onClick={() => {
             safeLocalStorage.clear();
             navigate("/login"); // Usa navigate para la redirección
