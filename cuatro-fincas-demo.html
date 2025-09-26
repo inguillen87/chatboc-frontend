@@ -158,33 +158,97 @@
     }
     .cta.secondary:hover { background:var(--bosque);color:#fff; }
 
-    .hero-visual {
+    .hero-widget {
       position:relative;
       border-radius:28px;
       overflow:hidden;
       box-shadow:var(--shadow);
-      background:linear-gradient(135deg, rgba(15,60,51,.82), rgba(12,37,30,.9)), url('https://images.unsplash.com/photo-1508979822048-3d08be11f86d?auto=format&fit=crop&w=900&q=80') center/cover;
-      min-height:500px;
+      background:var(--surface);
+      padding:24px 24px 28px;
+      display:flex;
+      flex-direction:column;
+      gap:18px;
+      max-width:420px;
+      margin-left:auto;
+      margin-right:auto;
     }
-    .hero-visual::after {
-      content:"";
-      position:absolute;inset:24px;
-      border:1px solid rgba(255,255,255,.25);
+    .widget-header {
+      display:flex;align-items:center;gap:14px;
+      background:linear-gradient(135deg, rgba(15,60,51,.9), rgba(26,77,64,.92));
+      color:#fff;
+      padding:16px;
       border-radius:22px;
+      box-shadow:0 14px 28px rgba(15,60,51,.32);
     }
-    .hero-visual .badge {
-      position:absolute;bottom:30px;left:30px;
-      background:rgba(255,255,255,.92);
+    .widget-header img {
+      width:48px;height:48px;border-radius:50%;object-fit:cover;border:2px solid rgba(255,255,255,.6);
+    }
+    .widget-header div { display:flex;flex-direction:column;gap:4px; }
+    .widget-header span { font-weight:600;letter-spacing:.4px; }
+    .widget-header small { font-size:.85rem;opacity:.85; }
+    .widget-body {
+      background:var(--surface);
+      border-radius:22px;
+      padding:24px 22px;
+      display:flex;
+      flex-direction:column;
+      gap:14px;
+      min-height:320px;
+    }
+    .widget-body .bubble {
+      padding:12px 16px;
+      border-radius:18px;
+      max-width:80%;
+      line-height:1.45;
+      font-size:.95rem;
+      animation:bubble-in .4s ease-out forwards;
+      opacity:0;
+    }
+    .widget-body .bubble.bot {
+      background:var(--bot-bg);
+      color:var(--txt);
+      align-self:flex-start;
+      border-bottom-left-radius:6px;
+    }
+    .widget-body .bubble.user {
+      background:var(--bosque);
+      color:#fff;
+      align-self:flex-end;
+      border-bottom-right-radius:6px;
+    }
+    .widget-body .bubble:nth-child(1){animation-delay:.4s;}
+    .widget-body .bubble:nth-child(2){animation-delay:1.3s;}
+    .widget-body .bubble:nth-child(3){animation-delay:2.2s;}
+    .widget-body .bubble:nth-child(4){animation-delay:3.1s;}
+    .widget-footer {
+      margin-top:auto;
+      display:flex;
+      justify-content:center;
+    }
+    .widget-footer button {
+      padding:10px 20px;
+      border-radius:999px;
+      border:none;
+      background:var(--acento);
       color:var(--bosque);
-      padding:16px 22px;
-      border-radius:16px;
       font-weight:600;
-      box-shadow:0 12px 24px rgba(0,0,0,.18);
+      cursor:pointer;
+      box-shadow:0 12px 24px rgba(215,184,102,.35);
+      transition:transform .3s ease;
     }
+    .widget-footer button:hover { transform:translateY(-3px); }
+    @keyframes bubble-in {
+      from { opacity:0; transform:translateY(8px) scale(.96); }
+      to { opacity:1; transform:translateY(0) scale(1); }
+    }
+    body.dark-mode .widget-header { background:linear-gradient(135deg, rgba(157,212,190,.85), rgba(84,151,126,.9));color:#0f3c33; }
+    body.dark-mode .widget-body { background:var(--surface); }
+    body.dark-mode .widget-body .bubble.bot { background:rgba(31,50,44,.85);color:var(--txt); }
+    body.dark-mode .widget-body .bubble.user { background:var(--acento);color:var(--bosque); }
 
     @media(max-width:960px){
       .hero{grid-template-columns:1fr;}
-      .hero-visual{order:-1;min-height:420px;}
+      .hero-widget{order:-1;max-width:100%;}
     }
 
     .section { padding:60px 20px; }
@@ -329,7 +393,7 @@
 
   <section class="hero">
     <div class="hero-copy">
-      <h1>Tu sommelier digital para cada cosecha</h1>
+      <h1>Tradición y terruño en cada copa</h1>
       <p>El asistente <strong>Winrey</strong> conecta a enoturistas y distribuidores con Cuatro Fincas. Gestiona reservas, responde consultas sobre varietales y acompaña el recorrido de la bodega en segundos.</p>
       <div class="cta-group">
         <a class="cta" onclick="window.postMessage({type:'chatboc:open'}, '*')">Descubrir el asistente</a>
@@ -337,8 +401,23 @@
         <a class="cta secondary" href="#reservas">Agendar visita</a>
       </div>
     </div>
-    <div class="hero-visual">
-      <div class="badge">Maridajes, reservas y boutique en un solo canal</div>
+    <div class="hero-widget" aria-label="Vista previa del asistente de Cuatro Fincas">
+      <div class="widget-header">
+        <img src="https://chatboc-demo-widget-oigs.vercel.app/cuatrofincas/CFlogo.png" alt="Asistente Cuatro Fincas" onerror="this.src=window.__FALLBACK_LOGO" />
+        <div>
+          <span>Asistente virtual de la bodega</span>
+          <small>Siempre listo para ayudarte</small>
+        </div>
+      </div>
+      <div class="widget-body">
+        <div class="bubble bot">¡Hola! Bienvenido a Bodega Cuatro Fincas. ¿En qué puedo ayudarte?</div>
+        <div class="bubble user">Quisiera saber sobre sus vinos Malbec.</div>
+        <div class="bubble bot">Nuestro Malbec destaca por su cuerpo y notas frutales. ¿Te gustaría conocer nuestras etiquetas?</div>
+        <div class="bubble user">Sí, por favor.</div>
+      </div>
+      <div class="widget-footer">
+        <button type="button" onclick="window.postMessage({type:'chatboc:open'}, '*')">Probar el demo</button>
+      </div>
     </div>
   </section>
 
