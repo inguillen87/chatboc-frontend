@@ -70,6 +70,7 @@ import UsuariosPage from '@/pages/UsuariosPage';
 import InternalUsers from '@/pages/InternalUsers';
 import IncidentsMap from '@/pages/IncidentsMap';
 import { getTicketStats } from "@/services/statsService";
+import AnalyticsHeatmap from "@/components/analytics/Heatmap";
 import { useNavigate } from "react-router-dom";
 import MiniChatWidgetPreview from "@/components/ui/MiniChatWidgetPreview"; // Importar el nuevo componente
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
@@ -1234,6 +1235,16 @@ export default function Perfil() {
                   </form>
                 </CardContent>
               </Card>
+              {isStaff && (
+                <AnalyticsHeatmap
+                  initialHeatmapData={heatmapData}
+                  adminLocation={municipalityCoords}
+                  availableCategories={availableCategories}
+                  availableBarrios={availableBarrios}
+                  availableTipos={availableTipos}
+                  onSelect={handleMapSelect}
+                />
+              )}
             </div>
 
             {/* Columna Derecha: Plan, Catálogo, Integración */}
