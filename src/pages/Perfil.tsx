@@ -181,6 +181,7 @@ export default function Perfil() {
   const [geocodingStatus, setGeocodingStatus] = useState<"idle" | "loading">("idle");
   const [geocodingError, setGeocodingError] = useState<string | null>(null);
   const geocodeAbortRef = useRef<AbortController | null>(null);
+  const [isMapLoading, setIsMapLoading] = useState(true);
   const isStaff = ['admin', 'empleado', 'super_admin'].includes(user?.rol ?? '');
   const maptilerKey = import.meta.env.VITE_MAPTILER_KEY || "";
 
@@ -432,6 +433,7 @@ export default function Perfil() {
   }, [navigate, refreshUser]); // Añadir navigate y refreshUser a las dependencias
 
   const fetchMapData = useCallback(async () => {
+    setIsMapLoading(true);
     try {
       const tipo = getCurrentTipoChat();
       const stats = await getTicketStats({ tipo });
@@ -456,6 +458,8 @@ export default function Perfil() {
         title: "Error al cargar datos del mapa",
         description: getErrorMessage(error),
       });
+    } finally {
+      setIsMapLoading(false);
     }
   }, []);
 
@@ -1236,14 +1240,20 @@ export default function Perfil() {
                 </CardContent>
               </Card>
               {isStaff && (
-                <AnalyticsHeatmap
-                  initialHeatmapData={heatmapData}
-                  adminLocation={municipalityCoords}
-                  availableCategories={availableCategories}
-                  availableBarrios={availableBarrios}
-                  availableTipos={availableTipos}
-                  onSelect={handleMapSelect}
-                />
+                isMapLoading ? (
+                  <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm flex items-center justify-center h-[600px]">
+                    <p className="text-muted-foreground">Cargando mapa de calor...</p>
+                  </Card>
+                ) : (
+                  <AnalyticsHeatmap
+                    initialHeatmapData={heatmapData}
+                    adminLocation={municipalityCoords}
+                    availableCategories={availableCategories}
+                    availableBarrios={availableBarrios}
+                    availableTipos={availableTipos}
+                    onSelect={handleMapSelect}
+                  />
+                )
               )}
             </div>
 
