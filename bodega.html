@@ -12,7 +12,7 @@
   <style>
     :root {
       --prim:#007aff; /* Blue from widget */
-      --acento:#D4AF37; /* Gold */
+      --acento:#007aff; /* Blue from widget */
       --txt:#2c3e50;
       --txt-2:#5a6a7a;
       --fondo:#f5f8f7;
@@ -91,9 +91,9 @@
       50%{transform:translateY(-8px);}
     }
     @keyframes pulse{
-      0%{box-shadow:0 0 0 0 rgba(212,175,55,.6);}
-      70%{box-shadow:0 0 0 10px rgba(212,175,55,0);}
-      100%{box-shadow:0 0 0 0 rgba(212,175,55,0);}
+      0%{box-shadow:0 0 0 0 rgba(0,122,255,.6);}
+      70%{box-shadow:0 0 0 10px rgba(0,122,255,0);}
+      100%{box-shadow:0 0 0 0 rgba(0,122,255,0);}
     }
 
     .menu-toggle{
@@ -154,13 +154,13 @@
     .cta-group { display:flex;gap:16px;flex-wrap:wrap;justify-content:center; }
     .cta {
       padding:12px 24px;border-radius:999px;background:var(--acento);
-      color:#fff;font-weight:600;box-shadow:0 8px 22px rgba(212,175,55,.35);
+      color:#fff;font-weight:600;box-shadow:0 8px 22px rgba(0,122,255,.35);
       transition:transform .3s ease, box-shadow .3s ease, filter .3s ease;
       text-decoration: none;
     }
     .cta:hover {
       transform: translateY(-3px);
-      box-shadow: 0 12px 28px rgba(212,175,55,.45);
+      box-shadow: 0 12px 28px rgba(0,122,255,.45);
       filter: brightness(1.05);
     }
 
@@ -544,6 +544,8 @@
   data-accent-color="#007aff"
   data-logo-url="https://chatboc-demo-widget-oigs.vercel.app/cuatrofincas/CFlogo.png"
   data-header-logo-url="https://chatboc-demo-widget-oigs.vercel.app/cuatrofincas/CFlogo.png"
+  data-welcome-title="Cuatro Fincas"
+  data-welcome-subtitle="Bodega"
 ></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
