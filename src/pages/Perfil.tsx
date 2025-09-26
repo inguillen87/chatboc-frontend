@@ -68,9 +68,9 @@ import TicketsPanel from '@/pages/TicketsPanel';
 import EstadisticasPage from '@/pages/EstadisticasPage';
 import UsuariosPage from '@/pages/UsuariosPage';
 import InternalUsers from '@/pages/InternalUsers';
+import IncidentsMap from '@/pages/IncidentsMap';
 import { getTicketStats } from "@/services/statsService";
 import { useNavigate } from "react-router-dom";
-import QuickLinksCard from "@/components/QuickLinksCard";
 import MiniChatWidgetPreview from "@/components/ui/MiniChatWidgetPreview"; // Importar el nuevo componente
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import { useUser } from "@/hooks/useUser";
@@ -968,17 +968,14 @@ export default function Perfil() {
         </div>
       </div>
 
-      <div className="w-full max-w-6xl mx-auto mb-8 px-2">
-        <QuickLinksCard/>
-      </div>
-
       <Tabs defaultValue="perfil" className="w-full max-w-6xl mx-auto">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="perfil">Perfil</TabsTrigger>
           <TabsTrigger value="tickets">Tickets</TabsTrigger>
           <TabsTrigger value="estadisticas">Estadísticas</TabsTrigger>
           <TabsTrigger value="usuarios">Usuarios</TabsTrigger>
           {esMunicipio && <TabsTrigger value="empleados">Empleados</TabsTrigger>}
+          {esMunicipio && <TabsTrigger value="mapas">Mapas</TabsTrigger>}
         </TabsList>
         <TabsContent value="perfil">
           <div className="w-full mx-auto flex flex-col md:flex-row gap-6 md:gap-8 px-2 items-stretch mt-6">
@@ -1648,6 +1645,11 @@ export default function Perfil() {
         {esMunicipio && (
           <TabsContent value="empleados">
             <InternalUsers />
+          </TabsContent>
+        )}
+        {esMunicipio && (
+          <TabsContent value="mapas">
+            <IncidentsMap />
           </TabsContent>
         )}
       </Tabs>
