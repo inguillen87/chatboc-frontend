@@ -64,8 +64,11 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
+import TicketsPanel from '@/pages/TicketsPanel';
+import EstadisticasPage from '@/pages/EstadisticasPage';
+import UsuariosPage from '@/pages/UsuariosPage';
+import InternalUsers from '@/pages/InternalUsers';
 import { getTicketStats } from "@/services/statsService";
-import AnalyticsHeatmap from "@/components/analytics/Heatmap";
 import { useNavigate } from "react-router-dom";
 import QuickLinksCard from "@/components/QuickLinksCard";
 import MiniChatWidgetPreview from "@/components/ui/MiniChatWidgetPreview"; // Importar el nuevo componente
@@ -969,670 +972,685 @@ export default function Perfil() {
         <QuickLinksCard/>
       </div>
 
-      <div className="w-full max-w-6xl mx-auto flex flex-col md:flex-row gap-6 md:gap-8 px-2 items-stretch">
-        {/* Columna Izquierda: Datos de la Empresa y Mapa */}
-        <div className="md:w-2/3 flex flex-col gap-6 md:gap-8">
-          <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm flex flex-col flex-grow">
-            <CardHeader>
-              <CardTitle className="text-xl font-semibold text-primary">
-                Datos de tu Empresa
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col flex-grow"> {/* Removed space-y-6 */}
-              <form onSubmit={handleGuardar} className="flex flex-col flex-grow space-y-6"> {/* Added flex flex-col flex-grow */}
-                <div>
-                  <Label
-                    htmlFor="nombre_empresa"
-                    className="text-muted-foreground text-sm mb-1 block"
-                  >
-                    Nombre de la empresa*
-                  </Label>
-                  <Input
-                    id="nombre_empresa"
-                    value={perfil.nombre_empresa}
-                    onChange={handleInputChange}
-                    required
-                    className="bg-input border-input text-foreground"
-                  />
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <Label
-                      htmlFor="telefono"
-                      className="text-muted-foreground text-sm mb-1 block"
-                    >
-                      Teléfono* (con cód. país y área)
-                    </Label>
-                    <Input
-                      id="telefono"
-                      placeholder="+5492611234567"
-                      value={perfil.telefono}
-                      onChange={handleInputChange}
-                      required
-                      className="bg-input border-input text-foreground"
-                    />
-                  </div>
-                  <div>
-                    <Label
-                      htmlFor="link_web"
-                      className="text-muted-foreground text-sm mb-1 block"
-                    >
-                      Sitio Web / Tienda Online*
-                    </Label>
-                    <Input
-                      id="link_web"
-                      type="url"
-                      placeholder="https://ejemplo.com"
-                      value={perfil.link_web}
-                      onChange={handleInputChange}
-                      required
-                      className="bg-input border-input text-foreground"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <Label
-                    htmlFor="direccion"
-                    className="text-muted-foreground text-sm mb-1 block"
-                  >
-                    Dirección Completa*
-                  </Label>
-                  <AddressAutocomplete
-                    id="direccion"
-                    value={
-                      perfil.direccion
-                        ? { label: perfil.direccion, value: perfil.direccion }
-                        : null
-                    }
-                    onChange={handleAddressOptionChange}
-                    onSelect={handleAddressSelect}
-                    placeholder="Ej: Av. Principal 123"
-                    className="bg-input border-input text-foreground"
-                    persistKey="perfil_direccion"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <Label
-                      htmlFor="ciudad"
-                      className="text-muted-foreground text-sm mb-1 block"
-                    >
-                      Ciudad
-                    </Label>
-                    <Input
-                      id="ciudad"
-                      value={perfil.ciudad}
-                      onChange={handleInputChange}
-                      className="bg-input border-input text-foreground"
-                    />
-                  </div>
-                  <div>
-                    <Label
-                      htmlFor="provincia"
-                      className="text-muted-foreground text-sm mb-1 block"
-                    >
-                      Provincia*
-                    </Label>
-                    <select
-                      id="provincia"
-                      value={perfil.provincia}
-                      onChange={handleInputChange}
-                      required
-                      className="w-full h-10 rounded-lg border border-input bg-input px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary shadow-sm"
-                    >
-                      <option value="">Selecciona una provincia</option>
-                      {PROVINCIAS.map((p) => (
-                        <option key={p} value={p}>
-                          {p}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-
-                <div>
-                  <Label className="text-muted-foreground text-sm block mb-2">
-                    Horarios de Atención
-                  </Label>
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    <Button
-                      type="button"
-                      variant={
-                        modoHorario === "comercial" ? "secondary" : "outline"
-                      }
-                      size="sm"
-                      onClick={setHorarioComercial}
-                      className="border-border hover:bg-accent"
-                    >
-                      Automático (Lun-V 9-20)
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={
-                        modoHorario === "personalizado"
-                          ? "secondary"
-                          : "outline"
-                      }
-                      size="sm"
-                      onClick={setHorarioPersonalizado}
-                      className="border-border hover:bg-accent flex items-center"
-                    >
-                      {horariosOpen ? (
-                        <ChevronUp className="w-4 h-4 mr-1" />
-                      ) : (
-                        <ChevronDown className="w-4 h-4 mr-1" />
-                      )}
-                      Personalizar
-                    </Button>
-                  </div>
-                  {modoHorario === "comercial" && (
-                    <div className="text-primary bg-primary/10 rounded-md border border-primary/50 p-3 flex items-center gap-2 text-xs">
-                      <Info className="w-3 h-3 inline mr-1" /> L-V: 09-20. Sáb y Dom: Cerrado.
+      <Tabs defaultValue="perfil" className="w-full max-w-6xl mx-auto">
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="perfil">Perfil</TabsTrigger>
+          <TabsTrigger value="tickets">Tickets</TabsTrigger>
+          <TabsTrigger value="estadisticas">Estadísticas</TabsTrigger>
+          <TabsTrigger value="usuarios">Usuarios</TabsTrigger>
+          {esMunicipio && <TabsTrigger value="empleados">Empleados</TabsTrigger>}
+        </TabsList>
+        <TabsContent value="perfil">
+          <div className="w-full mx-auto flex flex-col md:flex-row gap-6 md:gap-8 px-2 items-stretch mt-6">
+            {/* Columna Izquierda: Datos de la Empresa y Mapa */}
+            <div className="md:w-2/3 flex flex-col gap-6 md:gap-8">
+              <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm flex flex-col flex-grow">
+                <CardHeader>
+                  <CardTitle className="text-xl font-semibold text-primary">
+                    Datos de tu Empresa
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-col flex-grow"> {/* Removed space-y-6 */}
+                  <form onSubmit={handleGuardar} className="flex flex-col flex-grow space-y-6"> {/* Added flex flex-col flex-grow */}
+                    <div>
+                      <Label
+                        htmlFor="nombre_empresa"
+                        className="text-muted-foreground text-sm mb-1 block"
+                      >
+                        Nombre de la empresa*
+                      </Label>
+                      <Input
+                        id="nombre_empresa"
+                        value={perfil.nombre_empresa}
+                        onChange={handleInputChange}
+                        required
+                        className="bg-input border-input text-foreground"
+                      />
                     </div>
-                  )}
-                  {modoHorario === "personalizado" && horariosOpen && (
-                    <div className="border border-border rounded-lg p-4 mt-2 bg-card/60 space-y-3">
-                      {DIAS.map((dia, idx) => (
-                        <div
-                          key={dia}
-                          className="grid grid-cols-[auto_1fr_auto] sm:grid-cols-[100px_auto_1fr] items-center gap-x-2 gap-y-1 text-sm"
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <Label
+                          htmlFor="telefono"
+                          className="text-muted-foreground text-sm mb-1 block"
                         >
-                          <span className="font-medium text-foreground col-span-3 sm:col-span-1">
-                            {dia}
-                          </span>
-                          <div className="flex items-center gap-2 col-span-3 sm:col-span-1 sm:justify-self-end">
-                            <Label
-                              htmlFor={`cerrado-${idx}`}
-                              className="text-xs text-muted-foreground flex items-center gap-1 cursor-pointer select-none"
-                            >
-                              <input
-                                type="checkbox"
-                                id={`cerrado-${idx}`}
-                                checked={perfil.horarios_ui[idx].cerrado}
-                                onChange={(e) =>
-                                  handleHorarioChange(
-                                    idx,
-                                    "cerrado",
-                                    e.target.checked,
-                                  )
-                                }
-                                className="form-checkbox h-4 w-4 text-primary bg-input border-border rounded focus:ring-primary cursor-pointer"
-                              />{" "}
-                              Cerrado
-                            </Label>
-                          </div>
-                          {!perfil.horarios_ui[idx].cerrado && (
-                            <div className="flex items-center gap-1 col-span-3 sm:col-span-1 sm:justify-self-start">
-                              <Input
-                                type="time"
-                                value={perfil.horarios_ui[idx].abre}
-                                className="w-full sm:w-28 bg-input border-input text-foreground h-9 text-xs rounded-md shadow-sm"
-                                onChange={(e) =>
-                                  handleHorarioChange(
-                                    idx,
-                                    "abre",
-                                    e.target.value,
-                                  )
-                                }
-                              />
-                              <span className="text-muted-foreground mx-1">-</span>
-                              <Input
-                                type="time"
-                                value={perfil.horarios_ui[idx].cierra}
-                                className="w-full sm:w-28 bg-input border-input text-foreground h-9 text-xs rounded-md shadow-sm"
-                                onChange={(e) =>
-                                  handleHorarioChange(
-                                    idx,
-                                    "cierra",
-                                    e.target.value,
-                                  )
-                                }
-                              />
-                            </div>
-                          )}
-                          {perfil.horarios_ui[idx].cerrado && (
-                            <div className="hidden sm:block sm:col-span-1"></div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <Button
-                  disabled={loadingGuardar}
-                  type="submit"
-                  className="w-full mt-auto bg-primary hover:bg-primary/90 text-primary-foreground py-2.5 text-base rounded-lg shadow"
-                >
-                  {loadingGuardar ? "Guardando Cambios..." : "Guardar Cambios"}
-                </Button>
-                {mensaje && (
-                  <div className="mt-3 text-sm text-green-700 bg-green-100 p-3 rounded-md flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4" /> {mensaje}
-                  </div>
-                )}
-                {error && (
-                  <div className="mt-3 text-sm text-destructive-foreground bg-destructive p-3 rounded-md flex items-center gap-2">
-                    <XCircle className="w-4 h-4" /> {error}
-                  </div>
-                )}
-                {geocodingError && (
-                  <div className="mt-4 text-sm text-destructive-foreground bg-destructive/10 p-3 rounded-md">
-                    {geocodingError}
-                  </div>
-                )}
-              </form>
-            </CardContent>
-          </Card>
-          {isStaff && (
-            <AnalyticsHeatmap
-              initialHeatmapData={heatmapData}
-              adminLocation={municipalityCoords}
-              availableCategories={availableCategories}
-              availableBarrios={availableBarrios}
-              availableTipos={availableTipos}
-              onSelect={handleMapSelect}
-            />
-          )}
-        </div>
-
-        {/* Columna Derecha: Plan, Catálogo, Integración */}
-        <div className="md:w-1/3 flex flex-col gap-6 md:gap-8">
-          {/* Versión colapsable para mobile (Plan y Uso) */}
-          <div className="md:hidden">
-            <Accordion type="single" collapsible defaultValue="plan">
-              <AccordionItem value="plan" className="border-b border-border">
-                <AccordionTrigger className="px-4 py-3 text-base font-semibold text-primary">
-                  Plan y Uso
-                </AccordionTrigger>
-                <AccordionContent>
-                  <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm">
-                    <CardContent className="space-y-3">
-                      <div className="text-sm text-muted-foreground flex items-center gap-2">
-                        <span>Plan actual:</span>
-                        <Badge
-                          variant="secondary"
-                          className={cn(
-                            "bg-primary text-primary-foreground capitalize",
-                          )}
-                        >
-                          {perfil?.plan || "N/A"}
-                        </Badge>
+                          Teléfono* (con cód. país y área)
+                        </Label>
+                        <Input
+                          id="telefono"
+                          placeholder="+5492611234567"
+                          value={perfil.telefono}
+                          onChange={handleInputChange}
+                          required
+                          className="bg-input border-input text-foreground"
+                        />
                       </div>
                       <div>
-                        <p className="text-sm text-muted-foreground mb-1">
-                          Consultas usadas este mes:
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <Progress
-                            value={porcentaje}
-                            className="h-3 bg-muted [&>div]:bg-primary"
-                            aria-label={`${porcentaje.toFixed(0)}% de consultas usadas`}
-                          />
-                          <span className="text-xs text-muted-foreground min-w-[70px] text-right">
-                            {perfil?.preguntas_usadas} /
-                            {limitePlan === Infinity ? '∞' : limitePlan}
-                          </span>
-                        </div>
+                        <Label
+                          htmlFor="link_web"
+                          className="text-muted-foreground text-sm mb-1 block"
+                        >
+                          Sitio Web / Tienda Online*
+                        </Label>
+                        <Input
+                          id="link_web"
+                          type="url"
+                          placeholder="https://ejemplo.com"
+                          value={perfil.link_web}
+                          onChange={handleInputChange}
+                          required
+                          className="bg-input border-input text-foreground"
+                        />
                       </div>
-                      {perfil.plan !== "full" && perfil.plan !== "pro" && (
-                        <div className="space-y-2 mt-3">
-                          <Button
-                            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
-                            onClick={() =>
-                              window.open(
-                                "https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=2c9380849764e81a01976585767f0040",
-                                "_blank",
-                              )
-                            }
-                          >
-                            Mejorar a PRO ($35.000/mes)
-                          </Button>
-                          <Button
-                            className="w-full bg-accent hover:bg-accent/90 text-accent-foreground font-semibold"
-                            onClick={() =>
-                              window.open(
-                                "https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=2c9380849763daeb0197658791ee00b1",
-                                "_blank",
-                              )
-                            }
-                          >
-                            Mejorar a FULL ($60.000/mes)
-                          </Button>
-                        </div>
-                      )}
-                      {(perfil.plan === "pro" || perfil.plan === "full") && (
-                        <div className="text-primary bg-primary/10 rounded p-3 font-medium text-sm mt-3">
-                          ¡Tu plan está activo! <br />
-                          <span className="text-muted-foreground">
-                            La renovación se realiza cada mes. Si vence el pago, vas a
-                            ver los links aquí para renovarlo.
-                          </span>
-                        </div>
-                      )}
-                      <div className="text-xs text-muted-foreground mt-2">
-                        Una vez realizado el pago, tu cuenta se actualiza
-                        automáticamente.
-                        <br />
-                        Si no ves el cambio en unos minutos, comunicate con soporte..
+                    </div>
+                    <div>
+                      <Label
+                        htmlFor="direccion"
+                        className="text-muted-foreground text-sm mb-1 block"
+                      >
+                        Dirección Completa*
+                      </Label>
+                      <AddressAutocomplete
+                        id="direccion"
+                        value={
+                          perfil.direccion
+                            ? { label: perfil.direccion, value: perfil.direccion }
+                            : null
+                        }
+                        onChange={handleAddressOptionChange}
+                        onSelect={handleAddressSelect}
+                        placeholder="Ej: Av. Principal 123"
+                        className="bg-input border-input text-foreground"
+                        persistKey="perfil_direccion"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <Label
+                          htmlFor="ciudad"
+                          className="text-muted-foreground text-sm mb-1 block"
+                        >
+                          Ciudad
+                        </Label>
+                        <Input
+                          id="ciudad"
+                          value={perfil.ciudad}
+                          onChange={handleInputChange}
+                          className="bg-input border-input text-foreground"
+                        />
                       </div>
-                    </CardContent>
-                  </Card>
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
-          </div>
-
-          {/* Versión desktop (Plan y Uso) */}
-          <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm hidden md:block">
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold text-primary">
-                Plan y Uso
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="text-sm text-muted-foreground flex items-center gap-2">
-                <span>Plan actual:</span>
-                <Badge
-                  variant="secondary"
-                  className={cn(
-                    "bg-primary text-primary-foreground capitalize",
-                  )}
-                >
-                  {perfil?.plan || "N/A"}
-                </Badge>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">
-                  Consultas usadas este mes:
-                </p>
-                <div className="flex items-center gap-2">
-                  <Progress
-                    value={porcentaje}
-                    className="h-3 bg-muted [&>div]:bg-primary"
-                    aria-label={`${porcentaje.toFixed(0)}% de consultas usadas`}
-                  />
-                  <span className="text-xs text-muted-foreground min-w-[70px] text-right">
-                    {perfil?.preguntas_usadas} /
-                    {limitePlan === Infinity ? '∞' : limitePlan}
-                  </span>
-                </div>
-              </div>
-              {perfil.plan !== "full" && perfil.plan !== "pro" && (
-                <div className="space-y-2 mt-3">
-                  <Button
-                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
-                    onClick={() =>
-                      window.open(
-                        "https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=2c9380849764e81a01976585767f0040",
-                        "_blank",
-                      )
-                    }
-                  >
-                    Mejorar a PRO ($35.000/mes)
-                  </Button>
-                  <Button
-                    className="w-full bg-accent hover:bg-accent/90 text-accent-foreground font-semibold"
-                    onClick={() =>
-                      window.open(
-                        "https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=2c9380849763daeb0197658791ee00b1",
-                        "_blank",
-                      )
-                    }
-                  >
-                    Mejorar a FULL ($60.000/mes)
-                  </Button>
-                </div>
-              )}
-              {(perfil.plan === "pro" || perfil.plan === "full") && (
-                <div className="text-primary bg-primary/10 rounded p-3 font-medium text-sm mt-3">
-                  ¡Tu plan está activo! <br />
-                  <span className="text-muted-foreground">
-                    La renovación se realiza cada mes. Si vence el pago, vas a
-                    ver los links aquí para renovarlo.
-                  </span>
-                </div>
-              )}
-              <div className="text-xs text-muted-foreground mt-2">
-                Una vez realizado el pago, tu cuenta se actualiza
-                automáticamente.
-                <br />
-                Si no ves el cambio en unos minutos, comunicate con soporte..
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Cargar Catálogo Card */}
-          <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm flex flex-col flex-grow">
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold text-primary">
-                {esMunicipio
-                  ? "Cargar Catálogo de Trámites"
-                  : "Cargar Catálogo de Productos"}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 flex flex-col flex-grow">
-              <div>
-                <Label
-                  htmlFor="catalogoFile"
-                  className="text-sm text-muted-foreground mb-1 block"
-                >
-                  Subir nuevo o actualizar (PDF, Excel, CSV)
-                </Label>
-                <Input
-                  id="catalogoFile"
-                  type="file"
-                  accept=".xlsx,.xls,.csv,.pdf"
-                  onChange={handleArchivoChange}
-                  className="text-muted-foreground file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 cursor-pointer"
-                />
-                <p className="text-xs text-muted-foreground mt-1.5">
-                  Tip: Para mayor precisión, usá Excel/CSV con columnas claras
-                  (ej: Nombre, Precio, Descripción).
-                </p>
-              </div>
-
-              {/* Gestión de Mapeos */}
-              <div className="mt-3 pt-3 border-t border-border/60">
-                <Dialog open={showManageMappingsDialog} onOpenChange={setShowManageMappingsDialog}>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" size="sm" className="w-full text-sm">
-                      <Settings2 className="w-4 h-4 mr-2" />
-                      Configurar Formatos de Archivo...
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-[625px]">
-                    <DialogHeader>
-                      <DialogTitle className="text-xl flex items-center">
-                        <FileCog className="w-5 h-5 mr-2 text-primary"/>
-                        Mis Formatos de Archivo de Catálogo
-                      </DialogTitle>
-                      <DialogDescription>
-                        Gestiona cómo se leen las columnas de tus archivos de catálogo. Puedes tener múltiples formatos.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="py-2 max-h-[60vh] overflow-y-auto">
-                      {loadingMappings && <p className="text-muted-foreground text-sm p-4 text-center">Cargando formatos...</p>}
-                      {!loadingMappings && mappingConfigs.length === 0 && (
-                        <p className="text-muted-foreground text-sm p-4 text-center">
-                          Aún no has guardado ninguna configuración de formato.
-                          Se intentará detectar las columnas automáticamente al subir un archivo.
-                        </p>
-                      )}
-                      {!loadingMappings && mappingConfigs.length > 0 && (
-                        <ul className="space-y-2">
-                          {mappingConfigs.map((config) => (
-                            <li key={config.id} className="flex items-center justify-between p-3 bg-muted/30 hover:bg-muted/60 rounded-md border border-border">
-                              <span className="text-sm font-medium text-foreground">{config.name}</span>
-                              <div className="space-x-2">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => navigate(`/admin/pyme/${user?.id}/catalog-mappings/${config.id}`)}
-                                  title="Editar"
-                                >
-                                  <Edit3 className="w-4 h-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                  onClick={() => setMappingToDelete(config)}
-                                  title="Eliminar"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </div>
-                            </li>
+                      <div>
+                        <Label
+                          htmlFor="provincia"
+                          className="text-muted-foreground text-sm mb-1 block"
+                        >
+                          Provincia*
+                        </Label>
+                        <select
+                          id="provincia"
+                          value={perfil.provincia}
+                          onChange={handleInputChange}
+                          required
+                          className="w-full h-10 rounded-lg border border-input bg-input px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary shadow-sm"
+                        >
+                          <option value="">Selecciona una provincia</option>
+                          {PROVINCIAS.map((p) => (
+                            <option key={p} value={p}>
+                              {p}
+                            </option>
                           ))}
-                        </ul>
+                        </select>
+                      </div>
+                    </div>
+
+
+                    <div>
+                      <Label className="text-muted-foreground text-sm block mb-2">
+                        Horarios de Atención
+                      </Label>
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        <Button
+                          type="button"
+                          variant={
+                            modoHorario === "comercial" ? "secondary" : "outline"
+                          }
+                          size="sm"
+                          onClick={setHorarioComercial}
+                          className="border-border hover:bg-accent"
+                        >
+                          Automático (Lun-V 9-20)
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={
+                            modoHorario === "personalizado"
+                              ? "secondary"
+                              : "outline"
+                          }
+                          size="sm"
+                          onClick={setHorarioPersonalizado}
+                          className="border-border hover:bg-accent flex items-center"
+                        >
+                          {horariosOpen ? (
+                            <ChevronUp className="w-4 h-4 mr-1" />
+                          ) : (
+                            <ChevronDown className="w-4 h-4 mr-1" />
+                          )}
+                          Personalizar
+                        </Button>
+                      </div>
+                      {modoHorario === "comercial" && (
+                        <div className="text-primary bg-primary/10 rounded-md border border-primary/50 p-3 flex items-center gap-2 text-xs">
+                          <Info className="w-3 h-3 inline mr-1" /> L-V: 09-20. Sáb y Dom: Cerrado.
+                        </div>
+                      )}
+                      {modoHorario === "personalizado" && horariosOpen && (
+                        <div className="border border-border rounded-lg p-4 mt-2 bg-card/60 space-y-3">
+                          {DIAS.map((dia, idx) => (
+                            <div
+                              key={dia}
+                              className="grid grid-cols-[auto_1fr_auto] sm:grid-cols-[100px_auto_1fr] items-center gap-x-2 gap-y-1 text-sm"
+                            >
+                              <span className="font-medium text-foreground col-span-3 sm:col-span-1">
+                                {dia}
+                              </span>
+                              <div className="flex items-center gap-2 col-span-3 sm:col-span-1 sm:justify-self-end">
+                                <Label
+                                  htmlFor={`cerrado-${idx}`}
+                                  className="text-xs text-muted-foreground flex items-center gap-1 cursor-pointer select-none"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    id={`cerrado-${idx}`}
+                                    checked={perfil.horarios_ui[idx].cerrado}
+                                    onChange={(e) =>
+                                      handleHorarioChange(
+                                        idx,
+                                        "cerrado",
+                                        e.target.checked,
+                                      )
+                                    }
+                                    className="form-checkbox h-4 w-4 text-primary bg-input border-border rounded focus:ring-primary cursor-pointer"
+                                  />{" "}
+                                  Cerrado
+                                </Label>
+                              </div>
+                              {!perfil.horarios_ui[idx].cerrado && (
+                                <div className="flex items-center gap-1 col-span-3 sm:col-span-1 sm:justify-self-start">
+                                  <Input
+                                    type="time"
+                                    value={perfil.horarios_ui[idx].abre}
+                                    className="w-full sm:w-28 bg-input border-input text-foreground h-9 text-xs rounded-md shadow-sm"
+                                    onChange={(e) =>
+                                      handleHorarioChange(
+                                        idx,
+                                        "abre",
+                                        e.target.value,
+                                      )
+                                    }
+                                  />
+                                  <span className="text-muted-foreground mx-1">-</span>
+                                  <Input
+                                    type="time"
+                                    value={perfil.horarios_ui[idx].cierra}
+                                    className="w-full sm:w-28 bg-input border-input text-foreground h-9 text-xs rounded-md shadow-sm"
+                                    onChange={(e) =>
+                                      handleHorarioChange(
+                                        idx,
+                                        "cierra",
+                                        e.target.value,
+                                      )
+                                    }
+                                  />
+                                </div>
+                              )}
+                              {perfil.horarios_ui[idx].cerrado && (
+                                <div className="hidden sm:block sm:col-span-1"></div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
                       )}
                     </div>
-                    <DialogFooter className="mt-4 sm:justify-between gap-2">
-                       <DialogClose asChild>
-                         <Button variant="outline" className="w-full sm:w-auto">Cerrar</Button>
-                       </DialogClose>
-                       <Button
-                         className="w-full sm:w-auto"
-                         onClick={() => navigate(`/admin/pyme/${user?.id}/catalog-mappings/new`)}
-                       >
-                         <PlusCircle className="w-4 h-4 mr-2" />
-                         Crear Nuevo Formato
-                       </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
+                    <Button
+                      disabled={loadingGuardar}
+                      type="submit"
+                      className="w-full mt-auto bg-primary hover:bg-primary/90 text-primary-foreground py-2.5 text-base rounded-lg shadow"
+                    >
+                      {loadingGuardar ? "Guardando Cambios..." : "Guardar Cambios"}
+                    </Button>
+                    {mensaje && (
+                      <div className="mt-3 text-sm text-green-700 bg-green-100 p-3 rounded-md flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4" /> {mensaje}
+                      </div>
+                    )}
+                    {error && (
+                      <div className="mt-3 text-sm text-destructive-foreground bg-destructive p-3 rounded-md flex items-center gap-2">
+                        <XCircle className="w-4 h-4" /> {error}
+                      </div>
+                    )}
+                    {geocodingError && (
+                      <div className="mt-4 text-sm text-destructive-foreground bg-destructive/10 p-3 rounded-md">
+                        {geocodingError}
+                      </div>
+                    )}
+                  </form>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Columna Derecha: Plan, Catálogo, Integración */}
+            <div className="md:w-1/3 flex flex-col gap-6 md:gap-8">
+              {/* Versión colapsable para mobile (Plan y Uso) */}
+              <div className="md:hidden">
+                <Accordion type="single" collapsible defaultValue="plan">
+                  <AccordionItem value="plan" className="border-b border-border">
+                    <AccordionTrigger className="px-4 py-3 text-base font-semibold text-primary">
+                      Plan y Uso
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm">
+                        <CardContent className="space-y-3">
+                          <div className="text-sm text-muted-foreground flex items-center gap-2">
+                            <span>Plan actual:</span>
+                            <Badge
+                              variant="secondary"
+                              className={cn(
+                                "bg-primary text-primary-foreground capitalize",
+                              )}
+                            >
+                              {perfil?.plan || "N/A"}
+                            </Badge>
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground mb-1">
+                              Consultas usadas este mes:
+                            </p>
+                            <div className="flex items-center gap-2">
+                              <Progress
+                                value={porcentaje}
+                                className="h-3 bg-muted [&>div]:bg-primary"
+                                aria-label={`${porcentaje.toFixed(0)}% de consultas usadas`}
+                              />
+                              <span className="text-xs text-muted-foreground min-w-[70px] text-right">
+                                {perfil?.preguntas_usadas} /
+                                {limitePlan === Infinity ? '∞' : limitePlan}
+                              </span>
+                            </div>
+                          </div>
+                          {perfil.plan !== "full" && perfil.plan !== "pro" && (
+                            <div className="space-y-2 mt-3">
+                              <Button
+                                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
+                                onClick={() =>
+                                  window.open(
+                                    "https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=2c9380849764e81a01976585767f0040",
+                                    "_blank",
+                                  )
+                                }
+                              >
+                                Mejorar a PRO ($35.000/mes)
+                              </Button>
+                              <Button
+                                className="w-full bg-accent hover:bg-accent/90 text-accent-foreground font-semibold"
+                                onClick={() =>
+                                  window.open(
+                                    "https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=2c9380849763daeb0197658791ee00b1",
+                                    "_blank",
+                                  )
+                                }
+                              >
+                                Mejorar a FULL ($60.000/mes)
+                              </Button>
+                            </div>
+                          )}
+                          {(perfil.plan === "pro" || perfil.plan === "full") && (
+                            <div className="text-primary bg-primary/10 rounded p-3 font-medium text-sm mt-3">
+                              ¡Tu plan está activo! <br />
+                              <span className="text-muted-foreground">
+                                La renovación se realiza cada mes. Si vence el pago, vas a
+                                ver los links aquí para renovarlo.
+                              </span>
+                            </div>
+                          )}
+                          <div className="text-xs text-muted-foreground mt-2">
+                            Una vez realizado el pago, tu cuenta se actualiza
+                            automáticamente.
+                            <br />
+                            Si no ves el cambio en unos minutos, comunicate con soporte..
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
               </div>
-              {/* Fin Gestión de Mapeos */}
 
-              <div className="flex-grow"></div> {/* Spacer element */}
-              <Button
-                onClick={handleSubirArchivo}
-                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-2.5 mt-auto"
-                disabled={loadingCatalogo || !archivo}
-              >
-                <UploadCloud className="w-4 h-4 mr-2" />{" "}
-                {loadingCatalogo
-                  ? "Procesando Catálogo..."
-                  : "Subir y Procesar Catálogo"}
-              </Button>
-              {resultadoCatalogo && (
-                <div
-                  className={`text-sm p-3 rounded-md flex items-center gap-2 ${resultadoCatalogo.type === "error" ? "bg-destructive text-destructive-foreground" : "bg-green-100 text-green-800"}`}
-                >
-                  {resultadoCatalogo.type === "error" ? (
-                    <XCircle className="w-5 h-5" />
-                  ) : (
-                    <CheckCircle className="w-5 h-5" />
-                  )}{" "}
-                  {resultadoCatalogo.message}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Gestión de Eventos y Noticias Card */}
-          {isStaff && (
-            <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm flex flex-col flex-grow">
-              <CardHeader>
-                <CardTitle className="text-lg font-semibold text-primary">
-                  Gestión de Eventos y Noticias
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4 flex flex-col flex-grow">
-                <p className="text-sm text-muted-foreground">
-                  Crea y gestiona los eventos, anuncios y noticias que se mostrarán a tus usuarios en el chat.
-                </p>
-                <div className="flex-grow" />
-                <div className="flex flex-col gap-2 mt-auto">
-                  <Button
-                    onClick={() => {
-                      setActiveEventTab("event");
-                      setIsEventModalOpen(true);
-                    }}
-                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-2.5"
-                  >
-                    <PlusCircle className="w-4 h-4 mr-2" />
-                    Crear Nuevo Evento / Noticia
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setActiveEventTab("paste");
-                      setIsEventModalOpen(true);
-                    }}
-                    className="w-full py-2.5"
-                  >
-                    <UploadCloud className="w-4 h-4 mr-2" />
-                    Subir Información
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      setActiveEventTab("promotion");
-                      setIsEventModalOpen(true);
-                    }}
-                    disabled={hasSentPromotionToday}
-                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-2.5"
-                  >
-                    <Megaphone className="w-4 h-4 mr-2" />
-                    Promocionar en WhatsApp
-                  </Button>
-                  {hasSentPromotionToday && (
-                    <p className="text-xs text-muted-foreground text-center">
-                      Ya enviaste una promoción hoy. Podrás enviar otra mañana.
+              {/* Versión desktop (Plan y Uso) */}
+              <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm hidden md:block">
+                <CardHeader>
+                  <CardTitle className="text-lg font-semibold text-primary">
+                    Plan y Uso
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="text-sm text-muted-foreground flex items-center gap-2">
+                    <span>Plan actual:</span>
+                    <Badge
+                      variant="secondary"
+                      className={cn(
+                        "bg-primary text-primary-foreground capitalize",
+                      )}
+                    >
+                      {perfil?.plan || "N/A"}
+                    </Badge>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-1">
+                      Consultas usadas este mes:
                     </p>
+                    <div className="flex items-center gap-2">
+                      <Progress
+                        value={porcentaje}
+                        className="h-3 bg-muted [&>div]:bg-primary"
+                        aria-label={`${porcentaje.toFixed(0)}% de consultas usadas`}
+                      />
+                      <span className="text-xs text-muted-foreground min-w-[70px] text-right">
+                        {perfil?.preguntas_usadas} /
+                        {limitePlan === Infinity ? '∞' : limitePlan}
+                      </span>
+                    </div>
+                  </div>
+                  {perfil.plan !== "full" && perfil.plan !== "pro" && (
+                    <div className="space-y-2 mt-3">
+                      <Button
+                        className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
+                        onClick={() =>
+                          window.open(
+                            "https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=2c9380849764e81a01976585767f0040",
+                            "_blank",
+                          )
+                        }
+                      >
+                        Mejorar a PRO ($35.000/mes)
+                      </Button>
+                      <Button
+                        className="w-full bg-accent hover:bg-accent/90 text-accent-foreground font-semibold"
+                        onClick={() =>
+                          window.open(
+                            "https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=2c9380849763daeb0197658791ee00b1",
+                            "_blank",
+                          )
+                        }
+                      >
+                        Mejorar a FULL ($60.000/mes)
+                      </Button>
+                    </div>
                   )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
+                  {(perfil.plan === "pro" || perfil.plan === "full") && (
+                    <div className="text-primary bg-primary/10 rounded p-3 font-medium text-sm mt-3">
+                      ¡Tu plan está activo! <br />
+                      <span className="text-muted-foreground">
+                        La renovación se realiza cada mes. Si vence el pago, vas a
+                        ver los links aquí para renovarlo.
+                      </span>
+                    </div>
+                  )}
+                  <div className="text-xs text-muted-foreground mt-2">
+                    Una vez realizado el pago, tu cuenta se actualiza
+                    automáticamente.
+                    <br />
+                    Si no ves el cambio en unos minutos, comunicate con soporte..
+                  </div>
+                </CardContent>
+              </Card>
 
-          {/* Tarjeta de Integración */}
-          <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm flex flex-col flex-grow">
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold text-primary">
-                Integrá Chatboc a tu web
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 flex flex-col flex-grow">
-              {perfil.plan === "pro" || perfil.plan === "full" ? (
-                <Button
-                  className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
-                  onClick={() => navigate("/integracion")}
-                >
-                  Ir a la guía de integración
-                </Button>
-              ) : (
-                <Button
-                  className="w-full bg-muted text-muted-foreground cursor-not-allowed"
-                  disabled
-                  title="Solo para clientes con Plan PRO o FULL"
-                  style={{ pointerEvents: "none" }}
-                >
-                  Plan PRO requerido para activar integración
-                </Button>
+              {/* Cargar Catálogo Card */}
+              <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm flex flex-col flex-grow">
+                <CardHeader>
+                  <CardTitle className="text-lg font-semibold text-primary">
+                    {esMunicipio
+                      ? "Cargar Catálogo de Trámites"
+                      : "Cargar Catálogo de Productos"}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4 flex flex-col flex-grow">
+                  <div>
+                    <Label
+                      htmlFor="catalogoFile"
+                      className="text-sm text-muted-foreground mb-1 block"
+                    >
+                      Subir nuevo o actualizar (PDF, Excel, CSV)
+                    </Label>
+                    <Input
+                      id="catalogoFile"
+                      type="file"
+                      accept=".xlsx,.xls,.csv,.pdf"
+                      onChange={handleArchivoChange}
+                      className="text-muted-foreground file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 cursor-pointer"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1.5">
+                      Tip: Para mayor precisión, usá Excel/CSV con columnas claras
+                      (ej: Nombre, Precio, Descripción).
+                    </p>
+                  </div>
+
+                  {/* Gestión de Mapeos */}
+                  <div className="mt-3 pt-3 border-t border-border/60">
+                    <Dialog open={showManageMappingsDialog} onOpenChange={setShowManageMappingsDialog}>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" size="sm" className="w-full text-sm">
+                          <Settings2 className="w-4 h-4 mr-2" />
+                          Configurar Formatos de Archivo...
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="sm:max-w-[625px]">
+                        <DialogHeader>
+                          <DialogTitle className="text-xl flex items-center">
+                            <FileCog className="w-5 h-5 mr-2 text-primary"/>
+                            Mis Formatos de Archivo de Catálogo
+                          </DialogTitle>
+                          <DialogDescription>
+                            Gestiona cómo se leen las columnas de tus archivos de catálogo. Puedes tener múltiples formatos.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="py-2 max-h-[60vh] overflow-y-auto">
+                          {loadingMappings && <p className="text-muted-foreground text-sm p-4 text-center">Cargando formatos...</p>}
+                          {!loadingMappings && mappingConfigs.length === 0 && (
+                            <p className="text-muted-foreground text-sm p-4 text-center">
+                              Aún no has guardado ninguna configuración de formato.
+                              Se intentará detectar las columnas automáticamente al subir un archivo.
+                            </p>
+                          )}
+                          {!loadingMappings && mappingConfigs.length > 0 && (
+                            <ul className="space-y-2">
+                              {mappingConfigs.map((config) => (
+                                <li key={config.id} className="flex items-center justify-between p-3 bg-muted/30 hover:bg-muted/60 rounded-md border border-border">
+                                  <span className="text-sm font-medium text-foreground">{config.name}</span>
+                                  <div className="space-x-2">
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8"
+                                      onClick={() => navigate(`/admin/pyme/${user?.id}/catalog-mappings/${config.id}`)}
+                                      title="Editar"
+                                    >
+                                      <Edit3 className="w-4 h-4" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                      onClick={() => setMappingToDelete(config)}
+                                      title="Eliminar"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </Button>
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                        <DialogFooter className="mt-4 sm:justify-between gap-2">
+                           <DialogClose asChild>
+                             <Button variant="outline" className="w-full sm:w-auto">Cerrar</Button>
+                           </DialogClose>
+                           <Button
+                             className="w-full sm:w-auto"
+                             onClick={() => navigate(`/admin/pyme/${user?.id}/catalog-mappings/new`)}
+                           >
+                             <PlusCircle className="w-4 h-4 mr-2" />
+                             Crear Nuevo Formato
+                           </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                  {/* Fin Gestión de Mapeos */}
+
+                  <div className="flex-grow"></div> {/* Spacer element */}
+                  <Button
+                    onClick={handleSubirArchivo}
+                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-2.5 mt-auto"
+                    disabled={loadingCatalogo || !archivo}
+                  >
+                    <UploadCloud className="w-4 h-4 mr-2" />{" "}
+                    {loadingCatalogo
+                      ? "Procesando Catálogo..."
+                      : "Subir y Procesar Catálogo"}
+                  </Button>
+                  {resultadoCatalogo && (
+                    <div
+                      className={`text-sm p-3 rounded-md flex items-center gap-2 ${resultadoCatalogo.type === "error" ? "bg-destructive text-destructive-foreground" : "bg-green-100 text-green-800"}`}
+                    >
+                      {resultadoCatalogo.type === "error" ? (
+                        <XCircle className="w-5 h-5" />
+                      ) : (
+                        <CheckCircle className="w-5 h-5" />
+                      )}{" "}
+                      {resultadoCatalogo.message}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Gestión de Eventos y Noticias Card */}
+              {isStaff && (
+                <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm flex flex-col flex-grow">
+                  <CardHeader>
+                    <CardTitle className="text-lg font-semibold text-primary">
+                      Gestión de Eventos y Noticias
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4 flex flex-col flex-grow">
+                    <p className="text-sm text-muted-foreground">
+                      Crea y gestiona los eventos, anuncios y noticias que se mostrarán a tus usuarios en el chat.
+                    </p>
+                    <div className="flex-grow" />
+                    <div className="flex flex-col gap-2 mt-auto">
+                      <Button
+                        onClick={() => {
+                          setActiveEventTab("event");
+                          setIsEventModalOpen(true);
+                        }}
+                        className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-2.5"
+                      >
+                        <PlusCircle className="w-4 h-4 mr-2" />
+                        Crear Nuevo Evento / Noticia
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setActiveEventTab("paste");
+                          setIsEventModalOpen(true);
+                        }}
+                        className="w-full py-2.5"
+                      >
+                        <UploadCloud className="w-4 h-4 mr-2" />
+                        Subir Información
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setActiveEventTab("promotion");
+                          setIsEventModalOpen(true);
+                        }}
+                        disabled={hasSentPromotionToday}
+                        className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-2.5"
+                      >
+                        <Megaphone className="w-4 h-4 mr-2" />
+                        Promocionar en WhatsApp
+                      </Button>
+                      {hasSentPromotionToday && (
+                        <p className="text-xs text-muted-foreground text-center">
+                          Ya enviaste una promoción hoy. Podrás enviar otra mañana.
+                        </p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
               )}
-              <div className="flex-grow flex items-center justify-center p-4">
-                <MiniChatWidgetPreview />
-              </div>
-              <div className="text-xs text-muted-foreground mt-auto pt-2">
-                Accedé a los códigos e instrucciones para pegar el widget de
-                Chatboc en tu web solo si tu plan es PRO o superior.
-                <br />
-                Cualquier duda, escribinos a{" "}
-                <a
-                  href="mailto:info@chatboc.ar"
-                  className="underline text-primary"
-                >
-                  Info@chatboc.ar
-                </a>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div> {/* Fin del contenedor principal flex-col md:flex-row */}
+
+              {/* Tarjeta de Integración */}
+              <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm flex flex-col flex-grow">
+                <CardHeader>
+                  <CardTitle className="text-lg font-semibold text-primary">
+                    Integrá Chatboc a tu web
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 flex flex-col flex-grow">
+                  {perfil.plan === "pro" || perfil.plan === "full" ? (
+                    <Button
+                      className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
+                      onClick={() => navigate("/integracion")}
+                    >
+                      Ir a la guía de integración
+                    </Button>
+                  ) : (
+                    <Button
+                      className="w-full bg-muted text-muted-foreground cursor-not-allowed"
+                      disabled
+                      title="Solo para clientes con Plan PRO o FULL"
+                      style={{ pointerEvents: "none" }}
+                    >
+                      Plan PRO requerido para activar integración
+                    </Button>
+                  )}
+                  <div className="flex-grow flex items-center justify-center p-4">
+                    <MiniChatWidgetPreview />
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-auto pt-2">
+                    Accedé a los códigos e instrucciones para pegar el widget de
+                    Chatboc en tu web solo si tu plan es PRO o superior.
+                    <br />
+                    Cualquier duda, escribinos a{" "}
+                    <a
+                      href="mailto:info@chatboc.ar"
+                      className="underline text-primary"
+                    >
+                      Info@chatboc.ar
+                    </a>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </TabsContent>
+        <TabsContent value="tickets">
+          <TicketsPanel />
+        </TabsContent>
+        <TabsContent value="estadisticas">
+          <EstadisticasPage />
+        </TabsContent>
+        <TabsContent value="usuarios">
+          <UsuariosPage />
+        </TabsContent>
+        {esMunicipio && (
+          <TabsContent value="empleados">
+            <InternalUsers />
+          </TabsContent>
+        )}
+      </Tabs>
 
       {/* AlertDialog para confirmar eliminación de mapeo */}
       <AlertDialog open={!!mappingToDelete} onOpenChange={(open) => !open && setMappingToDelete(null)}>
