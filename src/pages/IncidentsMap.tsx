@@ -98,7 +98,7 @@ export default function IncidentsMap() {
   const ageMinRef = useRef<HTMLInputElement>(null);
   const ageMaxRef = useRef<HTMLInputElement>(null);
 
-  const ticketType = 'municipio';
+  const ticketType = useMemo(() => (user?.tipo_chat === 'pyme' ? 'pyme' : 'municipio'), [user]);
 
   const fetchData = useCallback(async (forceRefresh = false) => {
     setIsLoading(true);
@@ -173,7 +173,8 @@ export default function IncidentsMap() {
   }, [fetchData]);
 
   useEffect(() => {
-    apiFetch<{ categorias: { nombre: string }[] }>('/municipal/categorias', {
+    const categoriesUrl = ticketType === 'pyme' ? '/pyme/categorias' : '/municipal/categorias';
+    apiFetch<{ categorias: { nombre: string }[] }>(categoriesUrl, {
       sendEntityToken: true,
     })
       .then((data) => {
@@ -183,10 +184,11 @@ export default function IncidentsMap() {
         setCategories(names);
       })
       .catch((err) => console.error('Error fetching categories:', err));
-  }, []);
+  }, [ticketType]);
 
   useEffect(() => {
-    apiFetch<{ estados: { nombre: string }[] | string[] }>('/municipal/estados', {
+    const statesUrl = ticketType === 'pyme' ? '/pyme/estados' : '/municipal/estados';
+    apiFetch<{ estados: { nombre: string }[] | string[] }>(statesUrl, {
       sendEntityToken: true,
     })
       .then((data) => {
@@ -197,7 +199,7 @@ export default function IncidentsMap() {
         setStates(names);
       })
       .catch((err) => console.error('Error fetching states:', err));
-  }, []);
+  }, [ticketType]);
 
   useEffect(() => {
     if (!center && adminCoords) {
