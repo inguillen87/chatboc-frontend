@@ -10,26 +10,26 @@
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet" />
   <style>
     :root {
-      --bosque:#0f2d4b;
-      --acento:#f4c46c;
-      --txt:#1c2733;
-      --txt-2:#4f5d6a;
-      --fondo:#f5f7fb;
+      --bosque:#0f6c3f;
+      --acento:#d4a01a;
+      --txt:#1f3328;
+      --txt-2:#4a6354;
+      --fondo:#f4f7f2;
       --surface:#ffffff;
-      --bot-bg:#e6edf6;
+      --bot-bg:#e4efe7;
       --radius:18px;
-      --shadow:0 14px 34px rgba(15,45,75,.18);
+      --shadow:0 14px 34px rgba(15,108,63,.18);
     }
 
     body.dark-mode {
-      --bosque:#9fc0f2;
-      --acento:#ffe3a8;
-      --txt:#e8eff9;
-      --txt-2:#b5c6d9;
-      --fondo:#0b1420;
-      --surface:#121e2c;
-      --bot-bg:#1b2c40;
-      --shadow:0 20px 40px rgba(0,0,0,.55);
+      --bosque:#7bd0a1;
+      --acento:#f8d37a;
+      --txt:#e8f5ee;
+      --txt-2:#b2d3c0;
+      --fondo:#0a1a12;
+      --surface:#13241a;
+      --bot-bg:#1b3525;
+      --shadow:0 20px 40px rgba(0,0,0,.6);
     }
 
     * { box-sizing:border-box; margin:0; padding:0; }
@@ -50,7 +50,7 @@
       position:relative;
     }
 
-    body.dark-mode header{background:rgba(11,20,32,.9);}
+    body.dark-mode header{background:rgba(10,26,18,.9);}
 
     .logo-wrap {
       position:absolute;left:22px;
@@ -126,7 +126,7 @@
         box-shadow:var(--shadow);
       }
       nav.show{display:flex;}
-      body.dark-mode nav{background:rgba(11,20,32,.96);}
+      body.dark-mode nav{background:rgba(10,26,18,.96);}
       nav a{padding:6px 0;}
       .menu-toggle{display:flex;}
       .logo-wrap{position:static;justify-content:center;}
@@ -142,7 +142,7 @@
       position:absolute;
       inset:-40px auto auto -120px;
       width:320px;height:320px;
-      background:radial-gradient(circle at top, rgba(15,45,75,.16), transparent 65%);
+      background:radial-gradient(circle at top, rgba(15,108,63,.16), transparent 65%);
       z-index:-1;
     }
     .hero-copy .eyebrow {
@@ -171,13 +171,13 @@
       font-weight:600;
       letter-spacing:.5px;
       text-decoration:none;
-      box-shadow:0 16px 32px rgba(15,45,75,.25);
+      box-shadow:0 16px 32px rgba(15,108,63,.25);
       transition:transform .3s ease, box-shadow .3s ease;
     }
     .cta.secondary { background:transparent;border:2px solid var(--bosque);color:var(--bosque); }
     .cta:hover {
       transform:translateY(-4px);
-      box-shadow:0 20px 40px rgba(15,45,75,.32);
+      box-shadow:0 20px 40px rgba(15,108,63,.32);
     }
     .cta.secondary:hover { background:var(--bosque);color:#fff; }
 
@@ -197,11 +197,11 @@
     }
     .widget-header {
       display:flex;align-items:center;gap:14px;
-      background:linear-gradient(135deg, rgba(12,45,91,.92), rgba(16,63,117,.95));
+      background:linear-gradient(135deg, rgba(0,108,63,.92), rgba(27,133,88,.95));
       color:#fff;
       padding:16px;
       border-radius:22px;
-      box-shadow:0 14px 28px rgba(15,45,75,.32);
+      box-shadow:0 14px 28px rgba(15,108,63,.32);
     }
     .widget-header img {
       width:48px;height:48px;border-radius:50%;object-fit:cover;border:2px solid rgba(255,255,255,.6);
@@ -256,7 +256,7 @@
       color:var(--bosque);
       font-weight:600;
       cursor:pointer;
-      box-shadow:0 12px 24px rgba(244,196,108,.35);
+      box-shadow:0 12px 24px rgba(212,160,26,.35);
       transition:transform .3s ease;
     }
     .widget-footer button:hover { transform:translateY(-3px); }
@@ -264,10 +264,10 @@
       from { opacity:0; transform:translateY(8px) scale(.96); }
       to { opacity:1; transform:translateY(0) scale(1); }
     }
-    body.dark-mode .widget-header { background:linear-gradient(135deg, rgba(159,192,242,.85), rgba(103,149,214,.88));color:#0f2d4b; }
+    body.dark-mode .widget-header { background:linear-gradient(135deg, rgba(123,208,161,.85), rgba(91,172,128,.88));color:#0f301f; }
     body.dark-mode .widget-body { background:var(--surface); }
-    body.dark-mode .widget-body .bubble.bot { background:rgba(27,44,64,.85);color:var(--txt); }
-    body.dark-mode .widget-body .bubble.user { background:var(--acento);color:var(--bosque); }
+    body.dark-mode .widget-body .bubble.bot { background:rgba(23,52,35,.85);color:var(--txt); }
+    body.dark-mode .widget-body .bubble.user { background:var(--acento);color:#0f301f; }
 
     @media(max-width:960px){
       .hero{grid-template-columns:1fr;}
@@ -310,7 +310,7 @@
     .highlight-card p { color:var(--txt-2); font-size:.97rem; }
 
     .experience {
-      background:linear-gradient(130deg, rgba(15,45,75,.12), rgba(244,196,108,.24));
+      background:linear-gradient(130deg, rgba(15,108,63,.12), rgba(212,160,26,.24));
     }
     .experience-grid {
       max-width:1100px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit, minmax(300px, 1fr));gap:24px;
@@ -326,18 +326,18 @@
     .experience-icon {
       width:52px;height:52px;border-radius:14px;
       display:grid;place-items:center;
-      background:rgba(15,45,75,.12);
+      background:rgba(15,108,63,.12);
       color:var(--bosque);
       font-size:1.5rem;
       transition:transform .3s ease;
     }
-    body.dark-mode .experience-icon { background:rgba(244,196,108,.2);color:var(--bosque); }
+    body.dark-mode .experience-icon { background:rgba(248,211,122,.2);color:var(--bosque); }
     .experience-card:hover .experience-icon { transform:scale(1.1); }
     .experience-card h3 { font-size:1.15rem;margin-bottom:6px;color:var(--bosque); }
     .experience-card p { color:var(--txt-2);font-size:.96rem; }
 
     .terroir {
-      background:linear-gradient(140deg, rgba(244,196,108,.18), rgba(15,45,75,.08));
+      background:linear-gradient(140deg, rgba(212,160,26,.18), rgba(15,108,63,.08));
     }
     .terroir-inner {
       max-width:1100px;
@@ -379,10 +379,10 @@
       border-radius:50%;
       background:var(--acento);
       left:18px;top:50%;transform:translateY(-50%);
-      box-shadow:0 0 0 4px rgba(244,196,108,.25);
+      box-shadow:0 0 0 4px rgba(212,160,26,.25);
     }
     body.dark-mode .terroir-list li {
-      background:rgba(18,30,44,.9);
+      background:rgba(19,36,27,.9);
       color:var(--txt);
       box-shadow:0 20px 40px rgba(0,0,0,.55);
     }
@@ -430,7 +430,7 @@
       color:var(--txt-2);
       box-shadow:var(--shadow);
     }
-    body.dark-mode .cellar-highlights li { background:rgba(18,30,44,.92);box-shadow:0 16px 32px rgba(0,0,0,.5);color:var(--txt); }
+    body.dark-mode .cellar-highlights li { background:rgba(19,36,27,.92);box-shadow:0 16px 32px rgba(0,0,0,.5);color:var(--txt); }
     .cellar-visual {
       position:relative;
       border-radius:26px;
@@ -449,11 +449,11 @@
     .cellar-visual::after {
       content:"";
       position:absolute;inset:18px;
-      border:1px solid rgba(244,196,108,.55);
+      border:1px solid rgba(212,160,26,.55);
       border-radius:22px;
       pointer-events:none;
     }
-    body.dark-mode .cellar-visual::after { border-color:rgba(244,196,108,.35); }
+    body.dark-mode .cellar-visual::after { border-color:rgba(212,160,26,.35); }
     .cellar-visual:hover img { transform:scale(1.05); }
     .cellar .cta-group { margin-top:22px; }
 
@@ -468,16 +468,16 @@
       padding:14px 26px;
       border-radius:var(--radius);
       font-weight:600;
-      box-shadow:0 18px 36px rgba(15,45,75,.32);
+      box-shadow:0 18px 36px rgba(15,108,63,.32);
       cursor:pointer;
       display:flex;align-items:center;gap:10px;
       transition:transform .3s ease, box-shadow .3s ease;
       animation:float 4s ease-in-out infinite;
       z-index:9999;
     }
-    body.dark-mode .widget-helper{background:var(--acento);color:#0f2d4b;}
+    body.dark-mode .widget-helper{background:var(--acento);color:#0f301f;}
     .widget-helper svg { width:22px;height:22px; }
-    .widget-helper:hover { transform:translateY(-4px) scale(1.03);box-shadow:0 24px 46px rgba(15,45,75,.4); }
+    .widget-helper:hover { transform:translateY(-4px) scale(1.03);box-shadow:0 24px 46px rgba(15,108,63,.4); }
 
     @media(max-width:640px){
       .hero{padding:56px 16px 28px;}
@@ -598,7 +598,7 @@
   </section>
 
   <section class="section terroir" id="visitas">
-    <h2>Visitas guiadas al estilo Salvador Patti</h2>
+    <h2>Visitas guiadas en Cuatro Fincas</h2>
     <div class="terroir-inner">
       <div class="terroir-copy">
         <p>La puesta en escena de Salvador Patti —con viñedos en Montecaseros, sala de barricas subterránea y terraza gastronómica— sirvió de inspiración para este demo. Winrey integra esa hospitalidad mendocina con automatizaciones que responden consultas al instante.</p>
@@ -608,9 +608,9 @@
           <li>Coordinación de traslados, compras en tienda y beneficios para miembros del club de vinos.</li>
         </ul>
       </div>
-      <div class="terroir-gallery" aria-label="Galería de Bodega Salvador Patti">
-        <img src="https://salvadorpatti.com.ar/wp-content/uploads/2023/09/visita-guiada-salvador-patti-1024x683.jpg" alt="Recorrido por los viñedos de Salvador Patti" loading="lazy" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1497551060073-4c5ab6435f12?auto=format&fit=crop&w=1000&q=80';" />
-        <img src="https://salvadorpatti.com.ar/wp-content/uploads/2023/09/sala-de-barricas-salvador-patti-768x512.jpg" alt="Sala de barricas en Salvador Patti" loading="lazy" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1514361892635-6e122620e698?auto=format&fit=crop&w=1000&q=80';" />
+      <div class="terroir-gallery" aria-label="Galería inspirada en Bodega Salvador Patti">
+        <img src="https://salvadorpatti.com.ar/wp-content/uploads/2023/09/visita-guiada-salvador-patti-1024x683.jpg" alt="Recorrido por los viñedos de Salvador Patti" loading="lazy" onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20viewBox%3D%270%200%20600%20400%27%3E%20%20%3Cdefs%3E%20%20%20%3ClinearGradient%20id%3D%27g%27%20x1%3D%270%25%27%20y1%3D%270%25%27%20x2%3D%27100%25%27%20y2%3D%27100%25%27%3E%20%20%20%20%3Cstop%20offset%3D%270%25%27%20stop-color%3D%27%23006C3F%27/%3E%20%20%20%20%3Cstop%20offset%3D%27100%25%27%20stop-color%3D%27%23d4a01a%27/%3E%20%20%3C/linearGradient%3E%20%20%3C/defs%3E%20%20%3Crect%20width%3D%27600%27%20height%3D%27400%27%20fill%3D%27url(%23g)%27/%3E%20%20%3Ctext%20x%3D%2750%25%27%20y%3D%2752%25%27%20fill%3D%27%23ffffff%27%20font-family%3D%27Poppins%2CArial%2Csans-serif%27%20font-size%3D%2764%27%20text-anchor%3D%27middle%27%3ECuatro%20Fincas%3C/text%3E%3C/svg%3E';" />
+        <img src="https://salvadorpatti.com.ar/wp-content/uploads/2023/09/sala-de-barricas-salvador-patti-768x512.jpg" alt="Sala de barricas en Salvador Patti" loading="lazy" onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20viewBox%3D%270%200%20600%20400%27%3E%20%20%3Cdefs%3E%20%20%20%3ClinearGradient%20id%3D%27g%27%20x1%3D%270%25%27%20y1%3D%270%25%27%20x2%3D%27100%25%27%20y2%3D%27100%25%27%3E%20%20%20%20%3Cstop%20offset%3D%270%25%27%20stop-color%3D%27%23006C3F%27/%3E%20%20%20%20%3Cstop%20offset%3D%27100%25%27%20stop-color%3D%27%23d4a01a%27/%3E%20%20%3C/linearGradient%3E%20%20%3C/defs%3E%20%20%3Crect%20width%3D%27600%27%20height%3D%27400%27%20fill%3D%27url(%23g)%27/%3E%20%20%3Ctext%20x%3D%2750%25%27%20y%3D%2752%25%27%20fill%3D%27%23ffffff%27%20font-family%3D%27Poppins%2CArial%2Csans-serif%27%20font-size%3D%2764%27%20text-anchor%3D%27middle%27%3ECuatro%20Fincas%3C/text%3E%3C/svg%3E';" />
       </div>
     </div>
   </section>
@@ -632,7 +632,7 @@
         </div>
       </div>
       <figure class="cellar-visual" aria-label="Sala de barricas de Cuatro Fincas">
-        <img src="https://salvadorpatti.com.ar/wp-content/uploads/2023/09/mirador-salvador-patti-1024x684.jpg" alt="Mirador en Bodega Salvador Patti" loading="lazy" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1528825871115-3581a5387919?auto=format&fit=crop&w=900&q=80';" />
+        <img src="https://salvadorpatti.com.ar/wp-content/uploads/2023/09/mirador-salvador-patti-1024x684.jpg" alt="Mirador en Bodega Salvador Patti" loading="lazy" onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20viewBox%3D%270%200%20600%20400%27%3E%20%20%3Cdefs%3E%20%20%20%3ClinearGradient%20id%3D%27g%27%20x1%3D%270%25%27%20y1%3D%270%25%27%20x2%3D%27100%25%27%20y2%3D%27100%25%27%3E%20%20%20%20%3Cstop%20offset%3D%270%25%27%20stop-color%3D%27%23006C3F%27/%3E%20%20%20%20%3Cstop%20offset%3D%27100%25%27%20stop-color%3D%27%23d4a01a%27/%3E%20%20%3C/linearGradient%3E%20%20%3C/defs%3E%20%20%3Crect%20width%3D%27600%27%20height%3D%27400%27%20fill%3D%27url(%23g)%27/%3E%20%20%3Ctext%20x%3D%2750%25%27%20y%3D%2752%25%27%20fill%3D%27%23ffffff%27%20font-family%3D%27Poppins%2CArial%2Csans-serif%27%20font-size%3D%2764%27%20text-anchor%3D%27middle%27%3ECuatro%20Fincas%3C/text%3E%3C/svg%3E';" />
       </figure>
     </div>
   </section>
@@ -648,7 +648,7 @@
 
   <script>
     document.addEventListener('DOMContentLoaded', () => {
-      window.__FALLBACK_LOGO = 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="220" height="220"><rect width="220" height="220" rx="24" fill="#0f2d4b"/><text x="50%" y="55%" text-anchor="middle" font-family="Playfair Display" font-size="96" fill="#f4c46c" font-weight="700">CF</text></svg>`);
+      window.__FALLBACK_LOGO = 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="220" height="220"><rect width="220" height="220" rx="24" fill="#0f6c3f"/><text x="50%" y="55%" text-anchor="middle" font-family="Playfair Display" font-size="96" fill="#d4a01a" font-weight="700">CF</text></svg>`);
 
       const menuToggle = document.querySelector('.menu-toggle');
       const nav = document.querySelector('nav');
@@ -711,8 +711,8 @@
         script.setAttribute('data-bottom', '20px');
         script.setAttribute('data-right', '20px');
         script.setAttribute('data-endpoint', 'pyme');
-        script.setAttribute('data-primary-color', '#0f2d4b');
-        script.setAttribute('data-accent-color', '#f4c46c');
+        script.setAttribute('data-primary-color', '#0f6c3f');
+        script.setAttribute('data-accent-color', '#d4a01a');
         script.setAttribute('data-theme', theme);
         script.setAttribute('data-logo-url', 'https://chatboc-demo-widget-oigs.vercel.app/cuatrofincas/CFlogo.png');
         script.setAttribute('data-header-logo-url', 'https://chatboc-demo-widget-oigs.vercel.app/cuatrofincas/CFlogo.png');
@@ -736,7 +736,7 @@
           return;
         }
         launcher.style.transition = 'transform .35s ease, box-shadow .35s ease';
-        launcher.style.boxShadow = '0 0 0 3px rgba(244,196,108,.55)';
+        launcher.style.boxShadow = '0 0 0 3px rgba(212,160,26,.55)';
         launcher.addEventListener('mouseenter', () => launcher.style.transform = 'scale(1.1) rotate(3deg)');
         launcher.addEventListener('mouseleave', () => launcher.style.transform = 'scale(1) rotate(0deg)');
         launcher.addEventListener('mousedown', () => launcher.style.transform = 'scale(0.94) rotate(-3deg)');
