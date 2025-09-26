@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Bodega Cuatro Fincas - Vinos de Autor</title>
+  <link rel="icon" href="https://chatboc-demo-widget-oigs.vercel.app/cuatrofincas/CFlogo.png" type="image/x-icon" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --prim:#007aff; /* Blue from widget */
+      --acento:#D4AF37; /* Gold */
+      --txt:#2c3e50;
+      --txt-2:#5a6a7a;
+      --fondo:#f5f8f7;
+      --surface:#fff;
+      --bot-bg:#e5e5ea;
+      --radius:16px;
+      --shadow:0 10px 30px rgba(0,0,0,.08);
+    }
+
+    body.dark-mode {
+      --txt:#e0e0e0;
+      --txt-2:#b0b0b0;
+      --fondo:#121212;
+      --surface:#1e1e1e;
+      --bot-bg:#333;
+      --shadow:0 10px 30px rgba(0,0,0,.6);
+    }
+
+    * { box-sizing:border-box; margin:0; padding:0 }
+    body {
+      font-family:Poppins, Arial, sans-serif;
+      background: var(--fondo);
+      color: var(--txt);
+    }
+
+    header {
+      position:sticky;top:0;z-index:1000;
+      background:rgba(240, 240, 240, 0.85);
+      backdrop-filter:blur(12px);
+      padding:24px 40px;
+      display:flex;align-items:center;justify-content:center;
+      box-shadow:var(--shadow);
+      position:relative;
+    }
+
+    .logo-container{
+      position:absolute;left:20px;
+      width:70px;height:70px;
+      display:flex;align-items:center;justify-content:center;
+      background-color: #f0f0f0;
+      border-radius: 50%;
+    }
+    .logo-container img{
+      width:100%;height:100%;
+      border-radius:50%;border:2px solid var(--prim);object-fit:cover;
+      transition:transform .3s;
+    }
+    .logo-container:hover img{ transform:scale(1.1) rotate(-5deg); }
+    .logo-container:active img{ transform:scale(0.95) rotate(5deg); }
+    .logo-container::after{
+      content:"";
+      position:absolute;top:-6px;right:-6px;
+      width:14px;height:14px;background:var(--acento);border-radius:50%;
+      transition:transform .3s;
+    }
+    .logo-container:hover::after{ animation:flower-hop .8s ease-in-out; }
+    @keyframes flower-hop{
+      0%,100%{transform:translateY(0);}
+      50%{transform:translateY(-6px);}
+    }
+
+    .chat-launcher{position:relative;}
+    .chat-launcher::after{
+      content:"";position:absolute;top:-6px;right:-6px;
+      width:14px;height:14px;background:var(--acento);border-radius:50%;
+      animation:widget-pulse 1.5s infinite;
+      z-index:1;
+    }
+    @keyframes widget-pulse{
+      0%,100%{transform:scale(1);opacity:1;}
+      50%{transform:scale(1.4);opacity:.6;}
+    }
+
+    @keyframes logo-bounce{
+      0%,100%{transform:translateY(0);}
+      50%{transform:translateY(-8px);}
+    }
+    @keyframes pulse{
+      0%{box-shadow:0 0 0 0 rgba(212,175,55,.6);}
+      70%{box-shadow:0 0 0 10px rgba(212,175,55,0);}
+      100%{box-shadow:0 0 0 0 rgba(212,175,55,0);}
+    }
+
+    .menu-toggle{
+      position:absolute;left:20px;
+      display:none;flex-direction:column;gap:4px;
+      background:transparent;border:none;cursor:pointer;
+    }
+    .menu-toggle span{
+      width:26px;height:3px;background:var(--prim);border-radius:2px;
+      transition:background .3s;
+    }
+
+    nav { display:flex; gap:12px; flex-wrap:wrap; justify-content:center; }
+    nav a {
+      padding:8px 20px;
+      border:1px solid var(--prim);
+      border-radius:999px;
+      color:var(--prim);
+      font-weight:500;
+      background:var(--surface);
+      text-decoration:none;
+      transition:background-color .2s,color .2s;
+    }
+    nav a:hover { background:var(--prim); color:#fff; }
+
+    @media(max-width:768px){
+      .logo-container{position:static;}
+      nav{
+        display:none;
+        flex-direction:column;
+        align-items:center;
+        position:absolute;
+        top:100%;
+        left:0;
+        width:100%;
+        background:rgba(255,255,255,.95);
+        padding:10px 0;
+        box-shadow:var(--shadow);
+      }
+      body.dark-mode nav{background:rgba(0,0,0,.95);}
+      nav.show{display:flex;}
+      nav a{margin:8px 0;}
+      .menu-toggle{display:flex;}
+    }
+
+    /* Hero */
+    .hero {
+      display:grid;grid-template-columns:1fr 1fr;gap:30px;
+      padding:50px 20px;max-width:1200px;margin:0 auto;align-items:center;
+    }
+    .hero-text { text-align:center; }
+    .hero-text h1 {
+      font-size:2.4rem;line-height:1.2;color:var(--prim);margin-bottom:12px;
+    }
+    .hero-text p {
+      font-size:1.1rem;color:var(--txt-2);margin-bottom:24px;
+    }
+    .cta-group { display:flex;gap:16px;flex-wrap:wrap;justify-content:center; }
+    .cta {
+      padding:12px 24px;border-radius:999px;background:var(--acento);
+      color:#fff;font-weight:600;box-shadow:0 8px 22px rgba(212,175,55,.35);
+      transition:transform .3s ease, box-shadow .3s ease, filter .3s ease;
+      text-decoration: none;
+    }
+    .cta:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 12px 28px rgba(212,175,55,.45);
+      filter: brightness(1.05);
+    }
+
+    /* ChatWidget embebido */
+    .chat-preview {
+      position: relative;
+      border-radius: 20px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      height: 480px;
+      max-width: 420px;
+      margin-left: auto;
+      margin-right: auto;
+      display: flex;
+      flex-direction: column;
+    }
+    .chat-preview::after{
+      content:"";
+      position:absolute;
+      top:-6px;right:-6px;
+      width:14px;height:14px;
+      background:var(--acento);
+      border-radius:50%;
+      animation:flower-hop 1.5s ease-in-out infinite;
+    }
+    .chat-header {
+      background:var(--prim);color:white;padding:12px;
+      font-weight:600;display:flex;align-items:center;gap:12px;
+    }
+    .chat-header img {
+      width:40px;height:40px;border-radius:50%;object-fit:cover;
+    }
+    iframe {
+      border:none;
+      flex-grow:1;
+    }
+
+    .chat-body {
+      background: var(--surface);
+      padding: 20px;
+      flex-grow: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    @keyframes bubble-in {
+      from {
+        opacity: 0;
+        transform: translateY(10px) scale(0.95);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+    .chat-bubble {
+      padding: 10px 15px;
+      border-radius: 18px;
+      max-width: 80%;
+      font-size: .95rem;
+      line-height: 1.4;
+      opacity: 0;
+      animation: bubble-in 0.4s ease-out forwards;
+    }
+    .chat-bubble:nth-child(1) { animation-delay: 0.5s; }
+    .chat-bubble:nth-child(2) { animation-delay: 1.5s; }
+    .chat-bubble:nth-child(3) { animation-delay: 2.5s; }
+    .chat-bubble:nth-child(4) { animation-delay: 3.5s; }
+    .chat-bubble.user {
+      background-color: var(--acento);
+      color: white;
+      align-self: flex-end;
+      border-bottom-right-radius: 4px;
+    }
+    .chat-bubble.bot {
+      background: var(--bot-bg);
+      color: var(--txt);
+      align-self: flex-start;
+      border-bottom-left-radius: 4px;
+    }
+
+    .help-tag {
+      position: fixed;
+      right: 140px;
+      bottom: 60px;
+      background: var(--prim);
+      color: #fff;
+      padding: 12px 24px;
+      border-radius: var(--radius);
+      font-weight: 600;
+      box-shadow: var(--shadow);
+      font-size: 1.1rem;
+      cursor: pointer;
+      animation: float 3s ease-in-out infinite, pulse-shadow 3s ease-in-out infinite;
+      transition: transform .3s, opacity .3s;
+    }
+    .help-tag .help-text{ display:block; }
+    .help-tag:hover{ transform:scale(1.08) rotate(2deg); }
+    .help-tag:active{ transform:scale(0.95); }
+    .help-tag::after {
+      content: "";
+      position: absolute;
+      right: -16px;
+      top: 50%;
+      transform: translateY(-50%);
+      border-left: 16px solid var(--prim);
+      border-top: 10px solid transparent;
+      border-bottom: 10px solid transparent;
+    }
+    @keyframes float {
+      0%,100% { transform: translateY(0); }
+      50% { transform: translateY(-6px); }
+    }
+    @keyframes pulse-shadow {
+      0%,100% { box-shadow: var(--shadow); }
+      50% { box-shadow: 0 0 20px rgba(0,122,255,.4); }
+    }
+
+    @keyframes logo-bounce {
+      0%,100%{transform:translateY(0);}50%{transform:translateY(-6px);} }
+    @keyframes pulse {0%,100%{transform:scale(1);}50%{transform:scale(1.15);} }
+
+    /* Why Us */
+    .why { padding:40px 20px; background:var(--surface); }
+    .why h2 { text-align:center; margin-bottom:24px; font-size:2rem; color:var(--prim); }
+    .why-grid {
+      display:grid;
+      grid-template-columns:repeat(auto-fit, minmax(260px,1fr));
+      gap:20px;
+      max-width:1200px;
+      margin:0 auto;
+    }
+    .why-card {
+      background:var(--fondo);
+      border-radius:var(--radius);
+      padding:24px;
+      text-align:center;
+      box-shadow:var(--shadow);
+    }
+    .why-card svg { width:40px;height:40px;color:var(--prim);margin-bottom:12px; }
+    .why-card p { font-weight:500;color:var(--txt-2); }
+
+    footer {
+      margin-top:40px;padding:20px;text-align:center;
+      color:var(--txt-2);font-size:.95rem;
+    }
+
+    /* Services */
+    .services { padding: 40px 20px; }
+    .services h2 { text-align: center; margin-bottom: 24px; font-size: 2rem; color: var(--prim); }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      box-shadow: var(--shadow);
+      transition: transform .3s ease, box-shadow .3s ease;
+    }
+    .card:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 18px 40px rgba(0,0,0,.12);
+    }
+    .icon {
+      width: 48px;
+      height: 48px;
+      display: grid;
+      place-items: center;
+      border-radius: 12px;
+      background: rgba(0,122,255,.08);
+      flex-shrink: 0;
+      transition: background-color .3s ease, transform .3s ease;
+    }
+    .card:hover .icon {
+      background-color: var(--prim);
+      transform: scale(1.1);
+    }
+    .card:hover .icon svg {
+      color: white;
+    }
+    .icon svg {
+      width: 28px;
+      height: 28px;
+      color: var(--prim);
+    }
+    .card span {
+      font-weight: 600;
+      font-size: 1.05rem;
+    }
+
+    /* Widget launcher */
+    #chatboc-launcher {
+      transition: transform .3s ease, box-shadow .3s ease;
+      z-index: 100000;
+      border-radius:50%;
+      box-shadow:0 0 0 3px #f0f0f0 !important;
+    }
+    #chatboc-launcher:hover {
+      transform: scale(1.1);
+      box-shadow:0 0 0 4px #f0f0f0,0 8px 20px rgba(0,0,0,.25) !important;
+    }
+    #chatboc-launcher:active {
+      transform: scale(0.95);
+      box-shadow:0 0 0 4px #f0f0f0,0 4px 12px rgba(0,0,0,.3) !important;
+    }
+    #chatboc-launcher img {
+      width: 100%;
+      height: 100%;
+      border-radius:50%;
+    }
+
+    .theme-toggle{
+      position:absolute;right:20px;
+      background:transparent;border:none;cursor:pointer;
+      font-size:1.4rem;color:var(--prim);
+    }
+
+    body.dark-mode header{ background:rgba(0,0,0,.7); }
+    body.dark-mode .logo-container { background-color: transparent; }
+
+    @media(max-width:900px){
+      .hero{grid-template-columns:1fr;text-align:center;}
+      .cta-group{justify-content:center;}
+    }
+
+    @media(max-width:600px){
+      header{padding:16px 20px;}
+      nav a{padding:8px 14px;font-size:.95rem;margin:4px 0;}
+      .hero{padding:40px 10px;}
+      .hero-text h1{font-size:2rem;}
+      .chat-preview{height:420px;max-width:100%;}
+      .help-tag{right:100px;bottom:90px;font-size:1rem;padding:10px 20px;}
+      .help-tag::after{display:none;}
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <button class="menu-toggle" aria-label="Menú"><span></span><span></span><span></span></button>
+    <div class="logo-container">
+      <img id="logoHeader" src="https://chatboc-demo-widget-oigs.vercel.app/cuatrofincas/CFlogo.png" alt="Logo Bodega Cuatro Fincas" onerror="this.src=window.__FALLBACK_LOGO" />
+    </div>
+    <nav>
+      <a href="#">Nuestra Historia</a>
+      <a href="#">Vinos</a>
+      <a href="#">Viñedos</a>
+      <a href="#">Enoturismo</a>
+      <a href="#">Contacto</a>
+    </nav>
+    <button id="themeToggle" class="theme-toggle" aria-label="Cambiar tema">☾</button>
+  </header>
+
+  <section class="hero">
+    <!-- Texto -->
+    <div class="hero-text">
+      <h1>Tradición y Terruño en cada Copa</h1>
+      <p>Descubrí la excelencia en nuestros vinos, una tradición familiar que combina la última tecnología con el cuidado artesanal de nuestros viñedos.</p>
+      <div class="cta-group">
+        <a class="cta" onclick="window.postMessage({type:'chatboc:open'}, '*')">Conocé nuestros vinos</a>
+        <a class="cta" style="background:#007aff;">Comprar Online</a>
+        <a class="cta" style="background:#5856d6;">Reservar Visita</a>
+      </div>
+    </div>
+
+    <!-- Vista previa del chat -->
+    <div class="chat-preview">
+      <div class="chat-header">
+        <img src="https://chatboc-demo-widget-oigs.vercel.app/cuatrofincas/CFlogo.png" alt="Asistente" onerror="this.src=window.__FALLBACK_LOGO">
+        <span>Asistente Virtual de la Bodega</span>
+      </div>
+      <div class="chat-body">
+        <div class="chat-bubble bot">
+            ¡Hola! Bienvenido a Bodega Cuatro Fincas. ¿En qué puedo ayudarte?
+        </div>
+        <div class="chat-bubble user">
+            Quisiera saber sobre sus vinos Malbec.
+        </div>
+        <div class="chat-bubble bot">
+            ¡Excelente elección! Nuestro Malbec es reconocido por su cuerpo y notas frutales. ¿Te gustaría conocer nuestras etiquetas disponibles?
+        </div>
+        <div class="chat-bubble user">
+            Sí, por favor.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="why">
+    <h2>¿Por qué elegir Cuatro Fincas?</h2>
+    <div class="why-grid">
+      <div class="why-card">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2l7 4v6c0 5-3 9-7 10-4-1-7-5-7-10V6l7-4z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4"/></svg>
+        <p>Más de 100 años de tradición vitivinícola.</p>
+      </div>
+      <div class="why-card">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        <p>Vinos premiados internacionalmente.</p>
+      </div>
+      <div class="why-card">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="9" stroke-width="2"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 7v5l3 3"/></svg>
+        <p>Experiencias de enoturismo inolvidables.</p>
+      </div>
+      <div class="why-card">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 002.828 2.828l6.586-6.586a4 4 0 10-5.657-5.657L6.343 10.657a6 6 0 008.485 8.485L21 13"/></svg>
+        <p>Compromiso con la sustentabilidad y el medio ambiente.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="services">
+    <h2>Nuestros Servicios</h2>
+    <div class="grid">
+      <div class="card">
+        <div class="icon">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+        </div>
+        <span>Asesoramiento Personalizado</span>
+      </div>
+      <div class="card">
+        <div class="icon">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
+        </div>
+        <span>Catas y Degustaciones</span>
+      </div>
+      <div class="card">
+        <div class="icon">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        </div>
+        <span>Visitas Guiadas</span>
+      </div>
+      <div class="card">
+        <div class="icon">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="5" width="20" height="14" rx="2" ry="2" stroke-width="2"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2 10h20m-6 5h2m-4 0h1"/></svg>
+        </div>
+        <span>Tienda Online</span>
+      </div>
+      <div class="card">
+        <div class="icon">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+        </div>
+        <span>Eventos Corporativos</span>
+      </div>
+      <div class="card">
+        <div class="icon">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 20l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11v2m0-6h.01"/></svg>
+        </div>
+        <span>Consultas y Soporte</span>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    Bodega Cuatro Fincas · Todos los derechos reservados
+  </footer>
+
+  <div id="helpTag" class="help-tag" onclick="window.postMessage({type:'chatboc:open'}, '*')">
+    <span class="help-text">¿Necesitas ayuda?</span>
+  </div>
+
+<script async src="https://chatboc.ar/widget.js"
+  data-api-base="https://chatboc.ar"
+  data-owner-token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoyMiwiZXhwIjoxNzU5NTA2ODQxfQ.cRByDN2t7sA220yPk40AJ9k0iqkrS3BgzsedHZDMsPA"
+  data-default-open="false"
+  data-width="460px"
+  data-height="680px"
+  data-closed-width="112px"
+  data-closed-height="112px"
+  data-bottom="20px"
+  data-right="20px"
+  data-endpoint="pyme"
+  data-primary-color="#007aff"
+  data-accent-color="#007aff"
+  data-logo-url="https://chatboc-demo-widget-oigs.vercel.app/cuatrofincas/CFlogo.png"
+  data-header-logo-url="https://chatboc-demo-widget-oigs.vercel.app/cuatrofincas/CFlogo.png"
+></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const toggle = document.querySelector('.menu-toggle');
+  const nav = document.querySelector('nav');
+  if(toggle && nav){
+    toggle.addEventListener('click', () => nav.classList.toggle('show'));
+  }
+
+  const themeBtn = document.getElementById('themeToggle');
+  if(themeBtn){
+    themeBtn.addEventListener('click', () => {
+      document.body.classList.toggle('dark-mode');
+      themeBtn.textContent = document.body.classList.contains('dark-mode') ? '☀' : '☾';
+    });
+  }
+
+  const tag = document.getElementById('helpTag');
+  const phrases = [
+    '¿Necesitas ayuda?',
+    '¿Querés hacer una consulta?',
+    '¿Tenés un reclamo?',
+    '¿Listo para una cata?'
+  ];
+  if(tag){
+    const textEl = tag.querySelector('.help-text');
+    textEl.style.transition = 'opacity .3s';
+    let i = 0;
+    setInterval(() => {
+      textEl.style.opacity = 0;
+      setTimeout(() => {
+        i = (i + 1) % phrases.length;
+        textEl.textContent = phrases[i];
+        textEl.style.opacity = 1;
+      }, 300);
+    }, 4000);
+  }
+});
+</script>
+</body>
+</html>
