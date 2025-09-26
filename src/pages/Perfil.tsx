@@ -1235,7 +1235,7 @@ export default function Perfil() {
                   </form>
                 </CardContent>
               </Card>
-              {isStaff && (
+              {isStaff && !!municipalityCoords && (
                 <AnalyticsHeatmap
                   initialHeatmapData={heatmapData}
                   adminLocation={municipalityCoords}
