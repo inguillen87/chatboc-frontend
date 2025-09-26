@@ -336,6 +336,73 @@
     .experience-card h3 { font-size:1.15rem;margin-bottom:6px;color:var(--bosque); }
     .experience-card p { color:var(--txt-2);font-size:.96rem; }
 
+    .terroir {
+      background:linear-gradient(140deg, rgba(244,196,108,.18), rgba(15,45,75,.08));
+    }
+    .terroir-inner {
+      max-width:1100px;
+      margin:0 auto;
+      display:grid;
+      grid-template-columns:repeat(auto-fit, minmax(300px, 1fr));
+      gap:32px;
+      align-items:center;
+    }
+    .terroir-copy {
+      display:flex;
+      flex-direction:column;
+      gap:18px;
+    }
+    .terroir-copy p {
+      color:var(--txt-2);
+      font-size:1rem;
+      line-height:1.6;
+    }
+    .terroir-list {
+      list-style:none;
+      display:grid;
+      gap:12px;
+      padding:0;
+      margin:0;
+    }
+    .terroir-list li {
+      background:rgba(255,255,255,.9);
+      border-radius:var(--radius);
+      padding:14px 18px 14px 46px;
+      position:relative;
+      box-shadow:var(--shadow);
+      color:var(--txt-2);
+    }
+    .terroir-list li::before {
+      content:"";
+      position:absolute;
+      width:14px;height:14px;
+      border-radius:50%;
+      background:var(--acento);
+      left:18px;top:50%;transform:translateY(-50%);
+      box-shadow:0 0 0 4px rgba(244,196,108,.25);
+    }
+    body.dark-mode .terroir-list li {
+      background:rgba(18,30,44,.9);
+      color:var(--txt);
+      box-shadow:0 20px 40px rgba(0,0,0,.55);
+    }
+    .terroir-gallery {
+      display:grid;
+      gap:18px;
+    }
+    .terroir-gallery img {
+      width:100%;
+      border-radius:24px;
+      object-fit:cover;
+      height:220px;
+      box-shadow:var(--shadow);
+    }
+    body.dark-mode .terroir-gallery img { box-shadow:0 18px 36px rgba(0,0,0,.55); }
+
+    @media(max-width:720px){
+      .terroir-gallery img{height:200px;}
+    }
+
     .cellar {
       background:var(--surface);
     }
@@ -447,7 +514,7 @@
     <div class="hero-copy">
       <span class="eyebrow">Bodega Cuatro Fincas · Winrey</span>
       <h1>Tu sommelier digital para cada cosecha</h1>
-      <p><strong>Winrey</strong> guía a visitantes y distribuidores a través del portafolio de Cuatro Fincas. Agenda degustaciones, responde sobre varietales y recomienda maridajes sin esperas.</p>
+      <p><strong>Winrey</strong> guía a visitantes y distribuidores a través del portafolio de Cuatro Fincas. Inspirado en la experiencia enoturística de <strong>Bodega Salvador Patti</strong>, agenda degustaciones, responde sobre varietales y recomienda maridajes sin esperas.</p>
       <div class="cta-group">
         <a class="cta" onclick="window.postMessage({type:'chatboc:open'}, '*')">Descubrir el asistente</a>
         <a class="cta secondary" href="#experiencia">Experiencias</a>
@@ -482,16 +549,16 @@
         <p>Consultas sobre tours, degustaciones y disponibilidad de forma inmediata, desde cualquier dispositivo.</p>
       </div>
       <div class="highlight-card">
-        <span>Seguimiento integral</span>
-        <p>Respuestas personalizadas sobre pedidos, envíos y club de vinos con historial en tiempo real.</p>
+        <span>Experiencia Montecaseros</span>
+        <p>Describe recorridos por viñedos, miradores y sala de barricas tal como se vive en Salvador Patti.</p>
       </div>
       <div class="highlight-card">
         <span>Integraciones fluidas</span>
-        <p>Disponible en la web, WhatsApp empresarial y puntos de venta para brindar soporte sin fricciones.</p>
+        <p>Disponible en la web, WhatsApp empresarial y kioscos de visitas para brindar soporte sin fricciones.</p>
       </div>
       <div class="highlight-card">
         <span>Contenido multimedia</span>
-        <p>Compartí fichas técnicas, videos del viñedo o sugerencias de maridajes para cada varietal.</p>
+        <p>Compartí fichas técnicas, videos del viñedo y cocina de fuegos inspirada en la terraza gourmet de la bodega.</p>
       </div>
     </div>
   </section>
@@ -530,11 +597,29 @@
     </div>
   </section>
 
+  <section class="section terroir" id="visitas">
+    <h2>Visitas guiadas al estilo Salvador Patti</h2>
+    <div class="terroir-inner">
+      <div class="terroir-copy">
+        <p>La puesta en escena de Salvador Patti —con viñedos en Montecaseros, sala de barricas subterránea y terraza gastronómica— sirvió de inspiración para este demo. Winrey integra esa hospitalidad mendocina con automatizaciones que responden consultas al instante.</p>
+        <ul class="terroir-list">
+          <li>Recorridos que combinan viñedos, Mirador 360° y espacios gastronómicos de fuego abierto.</li>
+          <li>Degustaciones dirigidas con maridajes regionales y fichas técnicas listas para compartir.</li>
+          <li>Coordinación de traslados, compras en tienda y beneficios para miembros del club de vinos.</li>
+        </ul>
+      </div>
+      <div class="terroir-gallery" aria-label="Galería de Bodega Salvador Patti">
+        <img src="https://salvadorpatti.com.ar/wp-content/uploads/2023/09/visita-guiada-salvador-patti-1024x683.jpg" alt="Recorrido por los viñedos de Salvador Patti" loading="lazy" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1497551060073-4c5ab6435f12?auto=format&fit=crop&w=1000&q=80';" />
+        <img src="https://salvadorpatti.com.ar/wp-content/uploads/2023/09/sala-de-barricas-salvador-patti-768x512.jpg" alt="Sala de barricas en Salvador Patti" loading="lazy" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1514361892635-6e122620e698?auto=format&fit=crop&w=1000&q=80';" />
+      </div>
+    </div>
+  </section>
+
   <section class="section cellar" id="reservas">
     <h2>Reservas personalizadas para cada visita</h2>
     <div class="cellar-content">
       <div class="cellar-info">
-        <h3 id="visitas">Visitas guiadas y club de vinos</h3>
+        <h3>Visitas guiadas y club de vinos</h3>
         <p>Coordiná degustaciones privadas, recorridos entre viñedos o eventos corporativos con confirmación inmediata. Winrey reúne disponibilidad, preferencias y recordatorios en un mismo canal.</p>
         <ul class="cellar-highlights">
           <li>Gestión automática de horarios y cupos según cada sala de degustación.</li>
@@ -547,7 +632,7 @@
         </div>
       </div>
       <figure class="cellar-visual" aria-label="Sala de barricas de Cuatro Fincas">
-        <img src="https://images.unsplash.com/photo-1528825871115-3581a5387919?auto=format&fit=crop&w=900&q=80" alt="Barricas de madera en la bodega Cuatro Fincas" loading="lazy" />
+        <img src="https://salvadorpatti.com.ar/wp-content/uploads/2023/09/mirador-salvador-patti-1024x684.jpg" alt="Mirador en Bodega Salvador Patti" loading="lazy" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1528825871115-3581a5387919?auto=format&fit=crop&w=900&q=80';" />
       </figure>
     </div>
   </section>
