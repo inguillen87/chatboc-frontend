@@ -45,12 +45,12 @@ const PLAN_DEFINITIONS = {
     name: 'Plan Pro',
     price: 65000,
     currency: 'ARS',
-    messageLimit: 1000,
+    messageLimit: 250,
     technologies: [
       'Chatbot IA avanzado y entrenamiento personalizado',
       'CRM integrado para seguimiento de clientes',
       'Integraciones esenciales (email, formularios, catálogos)',
-      'Paneles analíticos con métricas de interacción',
+      'Paneles analíticos con métricas de interacción (hasta 250 mensajes/mes)',
     ],
   },
   full: {
@@ -59,7 +59,7 @@ const PLAN_DEFINITIONS = {
     currency: 'ARS',
     messageLimit: Infinity,
     technologies: [
-      'Automatización end-to-end de campañas y workflows',
+      'Interacciones ilimitadas con automatización end-to-end de campañas y workflows',
       'Integraciones avanzadas con sistemas externos (ERP, GovTech, BI)',
       'Envío automático de catálogos, promociones y formularios',
       'Soporte dedicado, onboarding y consultoría especializada',
