@@ -13,7 +13,7 @@ const Checkout = () => {
       title: "Plan Pro",
       price: "$65.000 / mes",
       benefits: [
-        "Hasta 1000 preguntas e interacciones personalizadas por mes",
+        "Hasta 250 preguntas e interacciones personalizadas por mes",
         "Entrenamiento optimizado para el rubro de tu empresa",
         "Panel de control con métricas e historial de uso",
         "Asistente inteligente con aprendizaje y mejoras continuas",
@@ -27,7 +27,7 @@ const Checkout = () => {
       title: "Plan Full",
       price: "$95.000 / mes",
       benefits: [
-        "Consultas ilimitadas",
+        "Consultas ilimitadas sin tope de mensajes",
         "Automatización completa de respuestas, seguimientos y derivaciones",
         "Envío automático de catálogos, promociones o formularios por email",
         "Integración avanzada con herramientas externas (ERP, CRM, GovTech, BI)",

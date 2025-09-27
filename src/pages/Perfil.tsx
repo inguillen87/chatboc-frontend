@@ -937,7 +937,7 @@ export default function Perfil() {
     plan === 'full'
       ? Infinity
       : plan === 'pro'
-      ? perfil.limite_preguntas || 1000
+      ? perfil.limite_preguntas || 250
       : perfil.limite_preguntas;
 
   const porcentaje =

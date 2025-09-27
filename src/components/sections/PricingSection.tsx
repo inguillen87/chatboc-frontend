@@ -34,7 +34,7 @@ const pricingOptions = [
       'Chatbot IA avanzado con entrenamiento personalizado',
       'CRM integrado para gestión de perfiles',
       'Carga de hasta 10 documentos',
-      'Hasta 1000 interacciones/mes',
+      'Hasta 250 interacciones/mes',
       'Paneles analíticos con métricas de interacción',
       'Integraciones esenciales (formularios, email, catálogos)',
       'Soporte prioritario',
@@ -51,7 +51,7 @@ const pricingOptions = [
     description: 'Automatización total con integraciones avanzadas y soporte dedicado para equipos exigentes.',
     features: [
       'Todo en Profesional Conectado, y además:',
-      'Interacciones ilimitadas por mes',
+      'Interacciones totalmente ilimitadas por mes',
       'Automatización end-to-end de campañas y seguimientos',
       'Integraciones avanzadas con ERP, GovTech y BI',
       'Orquestación omnicanal (email, WhatsApp, formularios)',
@@ -73,8 +73,8 @@ const pricingOptions = [
         'Seguridad y cumplimiento normativo avanzado',
         'Capacitación y soporte dedicado',
     ],
-    cta: 'Contactar para Solución a Medida',
-    ctaLink: '/contacto', // O un mailto: o link a agendar reunión
+    cta: 'Consultar precio por WhatsApp',
+    ctaLink: 'https://wa.me/5492613168608?text=Hola!%20Quiero%20una%20propuesta%20empresarial%20o%20gubernamental%20de%20Chatboc',
     highlight: false, // Podría tener un estilo visual diferente
   }
 ];
