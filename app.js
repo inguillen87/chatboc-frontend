@@ -19,6 +19,140 @@ const sessionMiddleware = require('./session');
 const cartRoutes = require('./cartRoutes');
 const preferences = require('./preferences');
 
+const DEFAULT_WEEK_DAYS = [
+  'Lunes',
+  'Martes',
+  'Miércoles',
+  'Jueves',
+  'Viernes',
+  'Sábado',
+  'Domingo',
+];
+
+const PLAN_DEFINITIONS = {
+  gratis: {
+    name: 'Inicia con IA',
+    price: 0,
+    currency: 'ARS',
+    messageLimit: 100,
+    technologies: [
+      'Chatbot IA básico',
+      'Widget web personalizable',
+      'Carga de hasta 2 documentos (PDF/Excel)',
+    ],
+  },
+  pro: {
+    name: 'Plan Pro',
+    price: 65000,
+    currency: 'ARS',
+    messageLimit: 1000,
+    technologies: [
+      'Chatbot IA avanzado y entrenamiento personalizado',
+      'CRM integrado para seguimiento de clientes',
+      'Integraciones esenciales (email, formularios, catálogos)',
+      'Paneles analíticos con métricas de interacción',
+    ],
+  },
+  full: {
+    name: 'Plan Full',
+    price: 95000,
+    currency: 'ARS',
+    messageLimit: Infinity,
+    technologies: [
+      'Automatización end-to-end de campañas y workflows',
+      'Integraciones avanzadas con sistemas externos (ERP, GovTech, BI)',
+      'Envío automático de catálogos, promociones y formularios',
+      'Soporte dedicado, onboarding y consultoría especializada',
+    ],
+  },
+};
+
+const MERCADO_PAGO_PLAN_MAP = {
+  '2c9380849764e81a01976585767f0040': 'pro',
+  '2c9380849763daeb0197658791ee00b1': 'full',
+};
+
+function ensureUserProfile(session) {
+  if (!session.userProfile) {
+    session.userProfile = {
+      id: 1,
+      nombre_empresa: 'Demo Chatboc',
+      telefono: '',
+      direccion: '',
+      ciudad: '',
+      provincia: '',
+      pais: 'Argentina',
+      latitud: null,
+      longitud: null,
+      link_web: '',
+      plan: 'gratis',
+      preguntas_usadas: 0,
+      limite_preguntas: PLAN_DEFINITIONS.gratis.messageLimit,
+      rubro: 'pyme',
+      logo_url: '',
+      horario_json: DEFAULT_WEEK_DAYS.map((dia, idx) => ({
+        dia,
+        abre: idx >= 5 ? '' : '09:00',
+        cierra: idx >= 5 ? '' : '20:00',
+        cerrado: idx >= 5,
+      })),
+      tecnologias_plan: PLAN_DEFINITIONS.gratis.technologies,
+      plan_precio: PLAN_DEFINITIONS.gratis.price,
+      plan_moneda: PLAN_DEFINITIONS.gratis.currency,
+      plan_actualizado_en: new Date().toISOString(),
+    };
+  }
+  return session.userProfile;
+}
+
+function normalizeLimit(limit) {
+  return limit === Infinity ? Number.MAX_SAFE_INTEGER : limit;
+}
+
+function applyPlanToProfile(profile, planKey) {
+  const definition = PLAN_DEFINITIONS[planKey];
+  if (!definition) {
+    throw new Error('Plan inválido');
+  }
+
+  profile.plan = planKey;
+  profile.limite_preguntas = normalizeLimit(definition.messageLimit);
+  profile.tecnologias_plan = definition.technologies;
+  profile.plan_precio = definition.price;
+  profile.plan_moneda = definition.currency;
+  profile.plan_actualizado_en = new Date().toISOString();
+  const usedQuestions = Number(profile.preguntas_usadas) || 0;
+  profile.preguntas_usadas = Math.min(usedQuestions, profile.limite_preguntas);
+  return profile;
+}
+
+function buildPlanPayload(planKey) {
+  const definition = PLAN_DEFINITIONS[planKey];
+  if (!definition) {
+    return null;
+  }
+  return {
+    slug: planKey,
+    name: definition.name,
+    price: definition.price,
+    currency: definition.currency,
+    message_limit: definition.messageLimit === Infinity ? null : definition.messageLimit,
+    unlimited: definition.messageLimit === Infinity,
+    technologies: definition.technologies,
+  };
+}
+
+function buildProfileResponse(profile) {
+  const definition = PLAN_DEFINITIONS[profile.plan] || PLAN_DEFINITIONS.gratis;
+  return {
+    ...profile,
+    limite_preguntas: normalizeLimit(definition.messageLimit),
+    plan_precio: definition.price,
+    plan_moneda: definition.currency,
+    tecnologias_plan: definition.technologies,
+  };
+}
+
 const app = express();
 app.use(express.json());
 
@@ -43,6 +177,82 @@ app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 
 app.use(sessionMiddleware);
+
+app.get('/plans', (req, res) => {
+  const plans = Object.keys(PLAN_DEFINITIONS).map((key) => buildPlanPayload(key));
+  res.json({ plans });
+});
+
+app.get('/me', (req, res) => {
+  const profile = buildProfileResponse(ensureUserProfile(req.session));
+  res.json(profile);
+});
+
+app.get('/perfil', (req, res) => {
+  const profile = buildProfileResponse(ensureUserProfile(req.session));
+  res.json(profile);
+});
+
+app.put('/perfil', (req, res) => {
+  const profile = ensureUserProfile(req.session);
+  const editableFields = [
+    'nombre_empresa',
+    'telefono',
+    'direccion',
+    'ciudad',
+    'provincia',
+    'pais',
+    'latitud',
+    'longitud',
+    'link_web',
+    'logo_url',
+  ];
+
+  editableFields.forEach((field) => {
+    if (Object.prototype.hasOwnProperty.call(req.body, field)) {
+      profile[field] = req.body[field];
+    }
+  });
+
+  if (typeof req.body.horario_json === 'string') {
+    try {
+      const parsed = JSON.parse(req.body.horario_json);
+      if (Array.isArray(parsed)) {
+        profile.horario_json = parsed;
+      }
+    } catch (error) {
+      console.warn('No se pudo parsear horario_json', error);
+    }
+  }
+
+  const response = buildProfileResponse(profile);
+  res.json({ mensaje: 'Perfil actualizado correctamente.', perfil: response });
+});
+
+app.post('/plan/activate', (req, res) => {
+  const { plan, preapproval_plan_id: preapprovalPlanId } = req.body || {};
+  let planKey = typeof plan === 'string' ? plan.toLowerCase() : null;
+  if (!planKey && typeof preapprovalPlanId === 'string') {
+    planKey = MERCADO_PAGO_PLAN_MAP[preapprovalPlanId] || null;
+  }
+
+  if (!planKey || !PLAN_DEFINITIONS[planKey]) {
+    return res.status(400).json({ error: 'Plan inválido.' });
+  }
+
+  const profile = ensureUserProfile(req.session);
+  try {
+    applyPlanToProfile(profile, planKey);
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
+
+  res.json({
+    mensaje: `Plan ${PLAN_DEFINITIONS[planKey].name} activado correctamente.`,
+    perfil: buildProfileResponse(profile),
+    plan: buildPlanPayload(planKey),
+  });
+});
 
 const FILES_DIR = path.join(__dirname, 'files');
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
