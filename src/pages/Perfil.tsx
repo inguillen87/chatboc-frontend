@@ -152,7 +152,7 @@ export default function Perfil() {
     link_web: "",
     plan: "gratis",
     preguntas_usadas: 0,
-    limite_preguntas: 50,
+    limite_preguntas: 100,
     rubro: "",
     horarios_ui: DIAS.map((_, idx) => ({
       abre: "09:00",
@@ -404,7 +404,7 @@ export default function Perfil() {
         link_web: data.link_web || "",
         plan: data.plan || "gratis",
         preguntas_usadas: data.preguntas_usadas ?? 0,
-        limite_preguntas: data.limite_preguntas ?? 50,
+        limite_preguntas: data.limite_preguntas ?? 100,
         rubro: data.rubro?.toLowerCase() || "",
         logo_url: data.logo_url || "",
         horarios_ui: horariosUi,
@@ -937,7 +937,7 @@ export default function Perfil() {
     plan === 'full'
       ? Infinity
       : plan === 'pro'
-      ? 200
+      ? perfil.limite_preguntas || 250
       : perfil.limite_preguntas;
 
   const porcentaje =
@@ -1309,7 +1309,7 @@ export default function Perfil() {
                                   )
                                 }
                               >
-                                Mejorar a PRO ($35.000/mes)
+                                Mejorar a PRO ($65.000/mes)
                               </Button>
                               <Button
                                 className="w-full bg-accent hover:bg-accent/90 text-accent-foreground font-semibold"
@@ -1320,7 +1320,7 @@ export default function Perfil() {
                                   )
                                 }
                               >
-                                Mejorar a FULL ($60.000/mes)
+                                Mejorar a FULL ($95.000/mes)
                               </Button>
                             </div>
                           )}
@@ -1392,7 +1392,7 @@ export default function Perfil() {
                           )
                         }
                       >
-                        Mejorar a PRO ($35.000/mes)
+                        Mejorar a PRO ($65.000/mes)
                       </Button>
                       <Button
                         className="w-full bg-accent hover:bg-accent/90 text-accent-foreground font-semibold"
@@ -1403,7 +1403,7 @@ export default function Perfil() {
                           )
                         }
                       >
-                        Mejorar a FULL ($60.000/mes)
+                        Mejorar a FULL ($95.000/mes)
                       </Button>
                     </div>
                   )}

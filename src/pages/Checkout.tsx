@@ -11,29 +11,30 @@ const Checkout = () => {
   const planInfo = {
     pro: {
       title: "Plan Pro",
-      price: "$ / mes",
+      price: "$65.000 / mes",
       benefits: [
-        "Hasta 200 preguntas y respuestas personalizadas por mes",
+        "Hasta 250 preguntas e interacciones personalizadas por mes",
         "Entrenamiento optimizado para el rubro de tu empresa",
         "Panel de control con métricas e historial de uso",
         "Asistente inteligente con aprendizaje y mejoras continuas",
         "Alertas automáticas por palabra clave (ej: reclamos, urgencias)",
-        "Registro automático de conversaciones (planilla o sistema)",
+        "CRM integrado y registro automático de conversaciones",
+        "Integraciones esenciales con formularios, catálogos y email",
         "Soporte técnico prioritario y acceso anticipado a nuevas funcionalidades"
       ],
     },
     full: {
       title: "Plan Full",
-      price: "$ / mes",
+      price: "$95.000 / mes",
       benefits: [
-        "Consultas ilimitadas",
+        "Consultas ilimitadas sin tope de mensajes",
         "Automatización completa de respuestas, seguimientos y derivaciones",
         "Envío automático de catálogos, promociones o formularios por email",
-        "Integración con herramientas externas (CRM, planillas, formularios, etc.)",
+        "Integración avanzada con herramientas externas (ERP, CRM, GovTech, BI)",
         "Acceso a panel administrativo completo con historial y métricas",
         "Dashboard mensual con indicadores de rendimiento del chatbot",
         "Soporte para empresas con múltiples unidades de negocio o servicios diferenciados",
-        "Soporte técnico dedicado y configuración avanzada incluida"
+        "Soporte técnico dedicado, onboarding y consultoría especializada"
       ],
     },
   };

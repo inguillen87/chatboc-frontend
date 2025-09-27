@@ -26,22 +26,40 @@ const pricingOptions = [
   {
     type: 'plan',
     name: 'Profesional Conectado',
-    price: 'Consultar precios', // Aquí iría el precio real o "Desde $XX"
+    price: '$65.000 / mes',
     duration: '',
-    description: 'Solución completa con Chatbot IA y CRM para optimizar la comunicación y gestión de usuarios.',
+    description: 'Solución completa con Chatbot IA avanzado y CRM para optimizar la comunicación y gestión de usuarios.',
     features: [
       'Todo en Inicia con IA, y además:',
-      'Chatbot IA Avanzado (más personalización)',
+      'Chatbot IA avanzado con entrenamiento personalizado',
       'CRM integrado para gestión de perfiles',
       'Carga de hasta 10 documentos',
-      'Hasta 1000 interacciones/mes',
-      'Paneles analíticos básicos',
-      'Integraciones esenciales (ej. email)',
-      'Soporte estándar',
+      'Hasta 250 interacciones/mes',
+      'Paneles analíticos con métricas de interacción',
+      'Integraciones esenciales (formularios, email, catálogos)',
+      'Soporte prioritario',
     ],
     cta: 'Elige Profesional',
     ctaLink: '/register?plan=profesional', // Ejemplo de link con plan
     highlight: true,
+  },
+  {
+    type: 'plan',
+    name: 'Full Automatizado',
+    price: '$95.000 / mes',
+    duration: '',
+    description: 'Automatización total con integraciones avanzadas y soporte dedicado para equipos exigentes.',
+    features: [
+      'Todo en Profesional Conectado, y además:',
+      'Interacciones totalmente ilimitadas por mes',
+      'Automatización end-to-end de campañas y seguimientos',
+      'Integraciones avanzadas con ERP, GovTech y BI',
+      'Orquestación omnicanal (email, WhatsApp, formularios)',
+      'Onboarding personalizado y soporte dedicado',
+    ],
+    cta: 'Escalar con Full',
+    ctaLink: '/register?plan=full',
+    highlight: false,
   },
   {
     type: 'contact', // Tarjeta especial
@@ -55,8 +73,8 @@ const pricingOptions = [
         'Seguridad y cumplimiento normativo avanzado',
         'Capacitación y soporte dedicado',
     ],
-    cta: 'Contactar para Solución a Medida',
-    ctaLink: '/contacto', // O un mailto: o link a agendar reunión
+    cta: 'Consultar precio por WhatsApp',
+    ctaLink: 'https://wa.me/5492613168608?text=Hola!%20Quiero%20una%20propuesta%20empresarial%20o%20gubernamental%20de%20Chatboc',
     highlight: false, // Podría tener un estilo visual diferente
   }
 ];
