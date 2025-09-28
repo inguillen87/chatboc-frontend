@@ -178,6 +178,14 @@ app.options('*', cors(corsOptions));
 
 app.use(sessionMiddleware);
 
+import('./analytics/index.js')
+  .then((module) => {
+    app.use('/analytics', module.router);
+  })
+  .catch((error) => {
+    console.error('Analytics module failed to load', error);
+  });
+
 app.get('/plans', (req, res) => {
   const plans = Object.keys(PLAN_DEFINITIONS).map((key) => buildPlanPayload(key));
   res.json({ plans });
