@@ -16,23 +16,25 @@ type DashboardData = {
   templates: Awaited<ReturnType<typeof analyticsService.templates>> | null;
 };
 
+const EMPTY_DATA: DashboardData = {
+  summary: null,
+  timeseries: null,
+  breakdownCategoria: null,
+  breakdownCanal: null,
+  breakdownEstado: null,
+  heatmap: null,
+  points: null,
+  topZonas: null,
+  operations: null,
+  cohorts: null,
+  templates: null,
+};
+
 export function useAnalyticsDashboard(view: AnalyticsContext) {
   const { filters } = useAnalyticsFilters();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<DashboardData>({
-    summary: null,
-    timeseries: null,
-    breakdownCategoria: null,
-    breakdownCanal: null,
-    breakdownEstado: null,
-    heatmap: null,
-    points: null,
-    topZonas: null,
-    operations: null,
-    cohorts: null,
-    templates: null,
-  });
+  const [data, setData] = useState<DashboardData>(() => ({ ...EMPTY_DATA }));
 
   const payload = useMemo(() => ({
     tenantId: filters.tenantId,
@@ -53,6 +55,13 @@ export function useAnalyticsDashboard(view: AnalyticsContext) {
     const controller = new AbortController();
     setLoading(true);
     setError(null);
+
+    if (!payload.tenantId) {
+      setData({ ...EMPTY_DATA });
+      setError('Seleccioná una entidad para ver métricas');
+      setLoading(false);
+      return () => controller.abort();
+    }
 
     async function run() {
       try {

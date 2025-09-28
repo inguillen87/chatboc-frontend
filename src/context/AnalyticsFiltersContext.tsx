@@ -40,14 +40,18 @@ function parseBbox(value: string | null): [number, number, number, number] | nul
   return [parts[0], parts[1], parts[2], parts[3]];
 }
 
-function buildFilters(params: URLSearchParams, defaults: { tenantId: string; context: AnalyticsContext }) {
+function buildFilters(
+  params: URLSearchParams,
+  defaults: { tenantId?: string; context?: AnalyticsContext },
+) {
   const now = new Date();
   const fromParam = params.get('from');
   const toParam = params.get('to');
   const from = fromParam ? new Date(fromParam) : new Date(now.getTime() - DEFAULT_RANGE_DAYS * 24 * 60 * 60 * 1000);
   const to = toParam ? new Date(toParam) : now;
+  const contextParam = params.get('context') as AnalyticsContext | null;
   return {
-    tenantId: params.get('tenant_id') || defaults.tenantId,
+    tenantId: params.get('tenant_id') || defaults.tenantId || '',
     from: formatDate(from),
     to: formatDate(to),
     canal: parseArray(params.get('canal')),
@@ -61,7 +65,7 @@ function buildFilters(params: URLSearchParams, defaults: { tenantId: string; con
     dimension: params.get('dimension') || 'categoria',
     subject: params.get('subject') || 'zonas',
     bbox: parseBbox(params.get('bbox')),
-    context: (params.get('context') as AnalyticsContext) || defaults.context,
+    context: contextParam || defaults.context || 'municipio',
     search: params.get('search'),
   } satisfies FiltersState;
 }
@@ -72,8 +76,8 @@ export function AnalyticsFiltersProvider({
   defaultContext,
 }: {
   children: React.ReactNode;
-  defaultTenantId: string;
-  defaultContext: AnalyticsContext;
+  defaultTenantId?: string;
+  defaultContext?: AnalyticsContext;
 }) {
   const [params, setParams] = useSearchParams();
   const filters = useMemo(
@@ -103,10 +107,22 @@ export function AnalyticsFiltersProvider({
         }
         next.set(key, String(value));
       });
-      next.set('tenant_id', updates.tenantId ?? filters.tenantId);
-      next.set('from', updates.from ?? filters.from);
-      next.set('to', updates.to ?? filters.to);
-      next.set('context', updates.context ?? filters.context);
+      const tenantValue = updates.tenantId ?? filters.tenantId;
+      if (tenantValue) {
+        next.set('tenant_id', tenantValue);
+      } else {
+        next.delete('tenant_id');
+      }
+      const fromValue = updates.from ?? filters.from;
+      if (fromValue) {
+        next.set('from', fromValue);
+      }
+      const toValue = updates.to ?? filters.to;
+      if (toValue) {
+        next.set('to', toValue);
+      }
+      const contextValue = updates.context ?? filters.context;
+      next.set('context', contextValue || 'municipio');
       setParams(next, { replace: true });
     },
     [params, setParams, filters],

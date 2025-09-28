@@ -7,9 +7,11 @@ import { OperationsTable } from '@/components/analytics/OperationsTable';
 import { WidgetFrame } from '@/components/analytics/WidgetFrame';
 import { useAnalyticsDashboard } from '@/hooks/useAnalyticsDashboard';
 import { useAnalyticsFilters } from '@/context/AnalyticsFiltersContext';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AlertCircle } from 'lucide-react';
 
 export function OperationsDashboard() {
-  const { data, loading } = useAnalyticsDashboard('operaciones');
+  const { data, loading, error } = useAnalyticsDashboard('operaciones');
   const { setBoundingBox } = useAnalyticsFilters();
 
   const operations = data.operations;
@@ -20,9 +22,19 @@ export function OperationsDashboard() {
       items: Object.entries(operations.agingBuckets).map(([label, value]) => ({ label, value })),
     };
   }, [operations]);
+  const isSelectionError = error?.toLowerCase().includes('seleccioná');
 
   return (
     <div className="space-y-6">
+      {error ? (
+        <Alert variant={isSelectionError ? 'default' : 'destructive'}>
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>
+            {isSelectionError ? 'Seleccioná una entidad' : 'No se pudieron cargar los datos'}
+          </AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <KpiTile title="Tickets abiertos" value={operations?.abiertos ?? 0} loading={loading} />
         <KpiTile title="SLA vencidos" value={operations?.slaBreaches ?? 0} loading={loading} />

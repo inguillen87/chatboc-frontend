@@ -167,6 +167,10 @@ export interface FilterCatalogResponse {
   agentes: string[];
   zonas: string[];
   etiquetas: string[];
+  tenants?: string[];
+  defaultTenantId?: string;
+  defaultContext?: AnalyticsContext;
+  contexts?: AnalyticsContext[];
 }
 
 async function fetcher<T>(endpoint: string, filters: AnalyticsFiltersPayload): Promise<T> {

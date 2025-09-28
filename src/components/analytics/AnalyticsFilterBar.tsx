@@ -21,6 +21,7 @@ import { useAnalyticsFilters } from '@/context/AnalyticsFiltersContext';
 interface AnalyticsFilterBarProps {
   filters?: FilterCatalogResponse;
   loading?: boolean;
+  tenantOptions?: string[];
 }
 
 interface MultiFilterProps {
@@ -84,12 +85,17 @@ function MultiSelectFilter({ label, placeholder, values, options, onChange }: Mu
   );
 }
 
-export function AnalyticsFilterBar({ filters, loading }: AnalyticsFilterBarProps) {
+export function AnalyticsFilterBar({ filters, loading, tenantOptions }: AnalyticsFilterBarProps) {
   const { filters: state, setDateRange, setFilters } = useAnalyticsFilters();
   const { toast } = useToast();
 
   const from = useMemo(() => new Date(state.from), [state.from]);
   const to = useMemo(() => new Date(state.to), [state.to]);
+  const tenantValues = useMemo(() => {
+    const fromProps = tenantOptions ?? [];
+    const fromCatalog = filters?.tenants ?? [];
+    return Array.from(new Set([...fromProps, ...fromCatalog].filter((tenant) => tenant && tenant.length)));
+  }, [tenantOptions, filters?.tenants]);
 
   const handleShare = async () => {
     try {
@@ -104,17 +110,25 @@ export function AnalyticsFilterBar({ filters, loading }: AnalyticsFilterBarProps
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-background/60 p-3">
       <Select
-        value={state.tenantId}
+        value={state.tenantId || ''}
         onValueChange={(value) => setFilters({ tenantId: value })}
+        disabled={!tenantValues.length || loading}
       >
         <SelectTrigger className="w-[200px]">
           <SelectValue placeholder="Entidad" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="tenant-municipio-1">tenant-municipio-1</SelectItem>
-          <SelectItem value="tenant-municipio-2">tenant-municipio-2</SelectItem>
-          <SelectItem value="tenant-pyme-1">tenant-pyme-1</SelectItem>
-          <SelectItem value="tenant-pyme-2">tenant-pyme-2</SelectItem>
+          {tenantValues.length === 0 ? (
+            <SelectItem value="" disabled>
+              Sin entidades disponibles
+            </SelectItem>
+          ) : (
+            tenantValues.map((tenant) => (
+              <SelectItem key={tenant} value={tenant}>
+                {tenant}
+              </SelectItem>
+            ))
+          )}
         </SelectContent>
       </Select>
       <Popover>

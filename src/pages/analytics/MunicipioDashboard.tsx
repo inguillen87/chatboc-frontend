@@ -9,9 +9,11 @@ import { WidgetFrame } from '@/components/analytics/WidgetFrame';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useAnalyticsDashboard } from '@/hooks/useAnalyticsDashboard';
 import { useAnalyticsFilters } from '@/context/AnalyticsFiltersContext';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AlertCircle } from 'lucide-react';
 
 export function MunicipioDashboard() {
-  const { data, loading } = useAnalyticsDashboard('municipio');
+  const { data, loading, error } = useAnalyticsDashboard('municipio');
   const { setBoundingBox } = useAnalyticsFilters();
 
   const summary = data.summary;
@@ -37,9 +39,19 @@ export function MunicipioDashboard() {
   const reopenRate = summary?.efficiency?.reopenRate ?? 0;
   const ack = summary?.sla?.ack;
   const resolve = summary?.sla?.resolve;
+  const isSelectionError = error?.toLowerCase().includes('seleccioná');
 
   return (
     <div className="space-y-6">
+      {error ? (
+        <Alert variant={isSelectionError ? 'default' : 'destructive'}>
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>
+            {isSelectionError ? 'Seleccioná una entidad' : 'No se pudieron cargar los datos'}
+          </AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <KpiTile title="Tickets totales" value={summary?.totals.tickets ?? 0} loading={loading} />
         <KpiTile title="Tickets abiertos" value={summary?.totals.abiertos ?? 0} loading={loading} />
