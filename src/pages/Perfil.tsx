@@ -11,6 +11,14 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
   LogOut,
   UploadCloud,
   CheckCircle,
@@ -76,10 +84,12 @@ import { useNavigate } from "react-router-dom";
 import MiniChatWidgetPreview from "@/components/ui/MiniChatWidgetPreview"; // Importar el nuevo componente
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import { useUser } from "@/hooks/useUser";
+import { useMunicipalPosts } from "@/hooks/useMunicipalPosts";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
 import { apiFetch, getErrorMessage, ApiError } from "@/utils/api"; // Importa apiFetch y getErrorMessage
 import { toLocalISOString } from "@/utils/fecha";
+import { fmtAR } from "@/utils/date";
 import { suggestMappings, SystemField, DEFAULT_SYSTEM_FIELDS } from "@/utils/columnMatcher";
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
@@ -184,6 +194,88 @@ export default function Perfil() {
   const geocodeAbortRef = useRef<AbortController | null>(null);
   const [isMapLoading, setIsMapLoading] = useState(true);
   const isStaff = ['admin', 'empleado', 'super_admin'].includes(user?.rol ?? '');
+  const {
+    posts: municipalPosts,
+    isLoading: isLoadingMunicipalPosts,
+    error: municipalPostsError,
+    filters: municipalPostsFilters,
+    meta: municipalPostsMeta,
+    setFilters: updateMunicipalPostFilters,
+    loadMore: loadMoreMunicipalPosts,
+    refresh: refreshMunicipalPosts,
+  } = useMunicipalPosts({ limit: 10 });
+
+  const handleTipoPostFilterChange = useCallback(
+    (value: string) => {
+      const normalized = value === "all" ? undefined : (value as "evento" | "noticia");
+      void updateMunicipalPostFilters({ tipoPost: normalized });
+    },
+    [updateMunicipalPostFilters],
+  );
+
+  const handleMonthFilterChange = useCallback(
+    (value: string) => {
+      const nextValue = value?.trim();
+      if (nextValue) {
+        void updateMunicipalPostFilters({
+          month: nextValue,
+          fromDate: undefined,
+          toDate: undefined,
+        });
+      } else {
+        void updateMunicipalPostFilters({ month: undefined });
+      }
+    },
+    [updateMunicipalPostFilters],
+  );
+
+  const handleFromDateChange = useCallback(
+    (value: string) => {
+      const nextValue = value?.trim();
+      if (nextValue) {
+        void updateMunicipalPostFilters({
+          fromDate: nextValue,
+          month: undefined,
+        });
+      } else {
+        void updateMunicipalPostFilters({ fromDate: undefined });
+      }
+    },
+    [updateMunicipalPostFilters],
+  );
+
+  const handleToDateChange = useCallback(
+    (value: string) => {
+      const nextValue = value?.trim();
+      if (nextValue) {
+        void updateMunicipalPostFilters({
+          toDate: nextValue,
+          month: undefined,
+        });
+      } else {
+        void updateMunicipalPostFilters({ toDate: undefined });
+      }
+    },
+    [updateMunicipalPostFilters],
+  );
+
+  const handleResetPostFilters = useCallback(() => {
+    void updateMunicipalPostFilters({
+      month: undefined,
+      fromDate: undefined,
+      toDate: undefined,
+      tipoPost: undefined,
+      offset: 0,
+    });
+  }, [updateMunicipalPostFilters]);
+
+  const hasActiveMunicipalPostFilters =
+    Boolean(
+      municipalPostsFilters.month ||
+        municipalPostsFilters.fromDate ||
+        municipalPostsFilters.toDate ||
+        municipalPostsFilters.tipoPost,
+    );
   const maptilerKey = import.meta.env.VITE_MAPTILER_KEY || "";
 
   useEffect(() => {
@@ -1557,58 +1649,271 @@ export default function Perfil() {
 
               {/* Gestión de Eventos y Noticias Card */}
               {isStaff && (
-                <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm flex flex-col flex-grow">
-                  <CardHeader>
-                    <CardTitle className="text-lg font-semibold text-primary">
-                      Gestión de Eventos y Noticias
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4 flex flex-col flex-grow">
-                    <p className="text-sm text-muted-foreground">
-                      Crea y gestiona los eventos, anuncios y noticias que se mostrarán a tus usuarios en el chat.
-                    </p>
-                    <div className="flex-grow" />
-                    <div className="flex flex-col gap-2 mt-auto">
-                      <Button
-                        onClick={() => {
-                          setActiveEventTab("event");
-                          setIsEventModalOpen(true);
-                        }}
-                        className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-2.5"
-                      >
-                        <PlusCircle className="w-4 h-4 mr-2" />
-                        Crear Nuevo Evento / Noticia
-                      </Button>
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          setActiveEventTab("paste");
-                          setIsEventModalOpen(true);
-                        }}
-                        className="w-full py-2.5"
-                      >
-                        <UploadCloud className="w-4 h-4 mr-2" />
-                        Subir Información
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          setActiveEventTab("promotion");
-                          setIsEventModalOpen(true);
-                        }}
-                        disabled={hasSentPromotionToday}
-                        className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-2.5"
-                      >
-                        <Megaphone className="w-4 h-4 mr-2" />
-                        Promocionar en WhatsApp
-                      </Button>
-                      {hasSentPromotionToday && (
-                        <p className="text-xs text-muted-foreground text-center">
-                          Ya enviaste una promoción hoy. Podrás enviar otra mañana.
-                        </p>
+                <>
+                  <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm flex flex-col flex-grow">
+                    <CardHeader>
+                      <CardTitle className="text-lg font-semibold text-primary">
+                        Gestión de Eventos y Noticias
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4 flex flex-col flex-grow">
+                      <p className="text-sm text-muted-foreground">
+                        Crea y gestiona los eventos, anuncios y noticias que se mostrarán a tus usuarios en el chat.
+                      </p>
+                      <div className="flex-grow" />
+                      <div className="flex flex-col gap-2 mt-auto">
+                        <Button
+                          onClick={() => {
+                            setActiveEventTab("event");
+                            setIsEventModalOpen(true);
+                          }}
+                          className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-2.5"
+                        >
+                          <PlusCircle className="w-4 h-4 mr-2" />
+                          Crear Nuevo Evento / Noticia
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setActiveEventTab("paste");
+                            setIsEventModalOpen(true);
+                          }}
+                          className="w-full py-2.5"
+                        >
+                          <UploadCloud className="w-4 h-4 mr-2" />
+                          Subir Información
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            setActiveEventTab("promotion");
+                            setIsEventModalOpen(true);
+                          }}
+                          disabled={hasSentPromotionToday}
+                          className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-2.5"
+                        >
+                          <Megaphone className="w-4 h-4 mr-2" />
+                          Promocionar en WhatsApp
+                        </Button>
+                        {hasSentPromotionToday && (
+                          <p className="text-xs text-muted-foreground text-center">
+                            Ya enviaste una promoción hoy. Podrás enviar otra mañana.
+                          </p>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm flex flex-col flex-grow">
+                    <CardHeader className="space-y-2">
+                      <CardTitle className="text-lg font-semibold text-primary">
+                        Publicaciones recientes
+                      </CardTitle>
+                      <p className="text-sm text-muted-foreground">
+                        Consulta las noticias y eventos almacenados en la base de datos, aplicando filtros por fecha o tipo.
+                      </p>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="municipal-posts-month">Mes</Label>
+                          <Input
+                            id="municipal-posts-month"
+                            type="month"
+                            value={municipalPostsFilters.month ?? ""}
+                            onChange={(event) => handleMonthFilterChange(event.target.value)}
+                          />
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="municipal-posts-from">Desde</Label>
+                          <Input
+                            id="municipal-posts-from"
+                            type="date"
+                            value={municipalPostsFilters.fromDate ?? ""}
+                            onChange={(event) => handleFromDateChange(event.target.value)}
+                          />
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="municipal-posts-to">Hasta</Label>
+                          <Input
+                            id="municipal-posts-to"
+                            type="date"
+                            value={municipalPostsFilters.toDate ?? ""}
+                            onChange={(event) => handleToDateChange(event.target.value)}
+                          />
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="municipal-posts-type">Tipo</Label>
+                          <Select
+                            value={municipalPostsFilters.tipoPost ?? "all"}
+                            onValueChange={handleTipoPostFilterChange}
+                          >
+                            <SelectTrigger id="municipal-posts-type">
+                              <SelectValue placeholder="Todos los tipos" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">Todos</SelectItem>
+                              <SelectItem value="evento">Eventos</SelectItem>
+                              <SelectItem value="noticia">Noticias</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => void refreshMunicipalPosts()}
+                          disabled={isLoadingMunicipalPosts}
+                        >
+                          {isLoadingMunicipalPosts && municipalPosts.length === 0 ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Actualizando...
+                            </>
+                          ) : (
+                            "Actualizar"
+                          )}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleResetPostFilters}
+                          disabled={!hasActiveMunicipalPostFilters || isLoadingMunicipalPosts}
+                        >
+                          Limpiar filtros
+                        </Button>
+                        <div className="ml-auto flex flex-col text-right text-xs text-muted-foreground">
+                          <span>
+                            Total: {municipalPostsMeta.totalCount} · Límite: {municipalPostsMeta.limit} · Offset: {municipalPostsMeta.offset}
+                          </span>
+                          <span>
+                            {municipalPostsMeta.hasMore ? "Hay más resultados disponibles" : "Mostrando todos los resultados cargados"}
+                          </span>
+                        </div>
+                      </div>
+
+                      {municipalPostsError && (
+                        <Alert variant="destructive">
+                          <AlertTitle>Error al cargar las publicaciones</AlertTitle>
+                          <AlertDescription>{municipalPostsError}</AlertDescription>
+                        </Alert>
                       )}
-                    </div>
-                  </CardContent>
-                </Card>
+
+                      {isLoadingMunicipalPosts && municipalPosts.length === 0 && !municipalPostsError && (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <span>Cargando publicaciones...</span>
+                        </div>
+                      )}
+
+                      <div className="space-y-3">
+                        {municipalPosts.length === 0 && !isLoadingMunicipalPosts && !municipalPostsError ? (
+                          <p className="text-sm text-muted-foreground">
+                            No hay publicaciones para los filtros seleccionados.
+                          </p>
+                        ) : (
+                          municipalPosts.map((post) => {
+                            const mainLink = post.url || post.enlace || post.link;
+                            const rawContent =
+                              typeof post.contenido === "string"
+                                ? post.contenido.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()
+                                : "";
+                            const summary =
+                              rawContent.length > 220 ? `${rawContent.slice(0, 220)}…` : rawContent;
+                            const creationDate =
+                              (post.tipo_post === "evento" && post.fecha_evento_inicio) ||
+                              (post.tipo_post === "evento" && !post.fecha_evento_inicio ? post.fecha_evento_fin : undefined) ||
+                              (post as any)?.created_at ||
+                              (post as any)?.createdAt ||
+                              (post as any)?.updated_at ||
+                              (post as any)?.updatedAt;
+
+                            let dateLabel = "Sin fecha definida";
+                            if (post.tipo_post === "evento") {
+                              if (post.fecha_evento_inicio && post.fecha_evento_fin) {
+                                const startLabel = fmtAR(post.fecha_evento_inicio);
+                                const endLabel = fmtAR(post.fecha_evento_fin);
+                                dateLabel = `Del ${startLabel} al ${endLabel}`;
+                              } else if (post.fecha_evento_inicio) {
+                                const startLabel = fmtAR(post.fecha_evento_inicio);
+                                dateLabel = `Inicio: ${startLabel}`;
+                              } else if (post.fecha_evento_fin) {
+                                const endLabel = fmtAR(post.fecha_evento_fin);
+                                dateLabel = `Fin: ${endLabel}`;
+                              } else if (creationDate) {
+                                const createdLabel = fmtAR(creationDate);
+                                dateLabel = `Publicado: ${createdLabel}`;
+                              }
+                            } else if (creationDate) {
+                              const createdLabel = fmtAR(creationDate);
+                              dateLabel = `Publicado: ${createdLabel}`;
+                            }
+
+                            return (
+                              <div
+                                key={post.id}
+                                className="rounded-lg border border-border/70 bg-muted/10 p-4 transition hover:bg-muted/20"
+                              >
+                                <div className="flex flex-wrap items-start justify-between gap-2">
+                                  <div className="min-w-0">
+                                    <p className="font-semibold text-foreground">
+                                      {post.titulo || "Publicación sin título"}
+                                    </p>
+                                    {post.subtitulo && (
+                                      <p className="text-sm text-muted-foreground">{post.subtitulo}</p>
+                                    )}
+                                  </div>
+                                  <Badge
+                                    variant={post.tipo_post === "evento" ? "default" : "secondary"}
+                                    className="capitalize"
+                                  >
+                                    {post.tipo_post}
+                                  </Badge>
+                                </div>
+                                <p className="mt-1 text-xs text-muted-foreground">{dateLabel}</p>
+                                {summary && (
+                                  <p className="mt-2 text-sm text-muted-foreground">{summary}</p>
+                                )}
+                                {mainLink && (
+                                  <a
+                                    href={mainLink}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="mt-3 inline-flex items-center text-sm font-medium text-primary hover:underline"
+                                  >
+                                    Ver detalle
+                                  </a>
+                                )}
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+
+                      {municipalPostsMeta.hasMore && (
+                        <div className="flex justify-end">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => void loadMoreMunicipalPosts()}
+                            disabled={isLoadingMunicipalPosts}
+                          >
+                            {isLoadingMunicipalPosts ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cargando...
+                              </>
+                            ) : (
+                              "Cargar más"
+                            )}
+                          </Button>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </>
               )}
 
               {/* Tarjeta de Integración */}
