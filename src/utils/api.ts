@@ -25,6 +25,7 @@ interface ApiFetchOptions {
   sendAnonId?: boolean;
   entityToken?: string | null;
   cache?: RequestCache;
+  onResponse?: (response: Response) => void;
   /**
    * When true, avoids sending browser cookies with the request.
    * Useful for widget requests where the visitor should remain anonymous.
@@ -53,6 +54,7 @@ export async function apiFetch<T>(
     sendAnonId,
     entityToken,
     cache,
+    onResponse,
     omitCredentials,
     isWidgetRequest,
   } = options;
@@ -178,6 +180,14 @@ export async function apiFetch<T>(
       }
     } else {
       throw primaryErr;
+    }
+  }
+
+  if (typeof onResponse === "function") {
+    try {
+      onResponse(response.clone());
+    } catch (callbackError) {
+      console.warn("[apiFetch] onResponse callback failed", callbackError);
     }
   }
 
