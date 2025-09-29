@@ -40,8 +40,17 @@ function sanitizeForRole(role, payload) {
 function canAccessTenant(req, tenantId) {
   if (!tenantId) return false;
   if (req.analyticsRole === 'admin') return true;
-  if (!req.allowedTenants || req.allowedTenants.length === 0) return true;
-  return req.allowedTenants.includes(tenantId);
+
+  const allowedTenants = Array.isArray(req.allowedTenants) ? req.allowedTenants : [];
+  if (allowedTenants.length > 0) {
+    return allowedTenants.includes(tenantId);
+  }
+
+  if (req.defaultTenant) {
+    return req.defaultTenant === tenantId;
+  }
+
+  return false;
 }
 
 function createHandler({ requiredRole = 'visor', resolver }) {

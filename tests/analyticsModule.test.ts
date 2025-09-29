@@ -4,8 +4,14 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { dispatch, refreshDataset } = require('../server/analytics/index.cjs');
 
-function buildRequest(path: string, query: Record<string, string>, context?: Partial<{ role: string; tenants: string[] }>) {
-  const { role = 'admin', tenants = ['muni-centro'] } = context ?? {};
+type RequestContext = Partial<{
+  role: string;
+  tenants: string[];
+  defaultTenant: string | null;
+}>;
+
+function buildRequest(path: string, query: Record<string, string>, context?: RequestContext) {
+  const { role = 'admin', tenants = ['muni-centro'], defaultTenant } = context ?? {};
   return {
     method: 'GET',
     path,
@@ -13,7 +19,7 @@ function buildRequest(path: string, query: Record<string, string>, context?: Par
     headers: {},
     analyticsRole: role,
     allowedTenants: tenants,
-    defaultTenant: tenants[0] || null,
+    defaultTenant: defaultTenant ?? tenants[0] ?? null,
   };
 }
 
@@ -48,6 +54,40 @@ describe('analytics dispatch', () => {
     );
     expect(response.status).toBe(403);
     expect(response.body.message).toContain('tenant');
+  });
+
+  it('allows default tenant when no explicit list provided', async () => {
+    const now = new Date();
+    const query = {
+      tenant_id: 'muni-centro',
+      from: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+      to: now.toISOString().slice(0, 10),
+    };
+    const response = await dispatch(
+      buildRequest('/summary', query, {
+        role: 'visor',
+        tenants: [],
+        defaultTenant: 'muni-centro',
+      }),
+    );
+    expect(response.status).toBe(200);
+  });
+
+  it('denies access when tenant not in default or allowed list', async () => {
+    const now = new Date();
+    const query = {
+      tenant_id: 'muni-centro',
+      from: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+      to: now.toISOString().slice(0, 10),
+    };
+    const response = await dispatch(
+      buildRequest('/summary', query, {
+        role: 'visor',
+        tenants: [],
+        defaultTenant: 'pyme-tienda',
+      }),
+    );
+    expect(response.status).toBe(403);
   });
 
   it('requires operador role for operations endpoint', async () => {
