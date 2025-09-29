@@ -28,7 +28,7 @@ El panel de analítica vive en el frontend y consume un backend externo bajo `/a
 
 ## Filtros globales
 
-- **Entidad (tenant)**: selector de `tenant_id` (demo: `tenant-municipio-1`, `tenant-municipio-2`, `tenant-pyme-1`, `tenant-pyme-2`).
+- **Entidad (tenant)**: selector de `tenant_id` (demo: `muni-centro`, `muni-sur`, `pyme-tienda`).
 - **Rango de fechas**: selector con presets 7/30 días.
 - **Canal, categoría, estado, agente, zona**: multiselección con búsqueda.
 - **Selección en mapa**: arrastre para definir bounding box y filtrar todos los widgets.
@@ -36,9 +36,38 @@ El panel de analítica vive en el frontend y consume un backend externo bajo `/a
 
 Los filtros se mantienen vía query params para soportar “Compartir vista”. Se usa cache HTTP de 10 min por combinación de filtros.
 
-## Backend esperado
+## Backend incluido en este repo
 
-El frontend consulta estos endpoints (solo `GET`). Todos reciben `tenant_id`, `from`, `to` y filtros opcionales (`canal`, `categoria`, `estado`, `agente`, `zona`, `etiquetas`, `bbox`, `context`, `search`). Las respuestas deben incluir únicamente datos agregados o anonimizados.
+El repositorio ahora incorpora un microservicio Node bajo `server/app.cjs` que expone los endpoints `/analytics/*` consumidos por el frontend. No requiere dependencias externas (solo módulos built-in) y genera un dataset sintético de ~6.000 tickets, pedidos y encuestas por los tres tenants demo (`muni-centro`, `muni-sur`, `pyme-tienda`).
+
+### Cómo levantarlo en desarrollo
+
+```bash
+npm run build   # opcional, solo si necesitás empaquetar el frontend
+node server/app.cjs
+```
+
+Por defecto escucha en `http://localhost:4000`. Ajustá `VITE_BACKEND_URL` (por ejemplo `http://localhost:4000`) para que el frontend enrute las peticiones a este backend. El servidor soporta CORS básico (`GET` + `OPTIONS`).
+
+### Seguridad y contexto
+
+- Valida roles (`admin` > `operador` > `visor`) antes de resolver cada endpoint.
+- Verifica que `tenant_id` pertenezca a la lista permitida (`X-Analytics-Tenant-Ids` / `X-Tenant-Ids`), salvo usuarios `admin`.
+- Cachea cada combinación de filtros 10 minutos en memoria.
+- Registra tiempos de respuesta y errores en consola (`[analytics] Request/Error`).
+
+### Dataset y jobs simulados
+
+- Tickets generados con severidad, canal, categoría, adjuntos, SLA y flags de automatización/reapertura.
+- Pedidos PyME con items, totales, zonas, clientes y plantillas WhatsApp asociadas.
+- Encuestas CSAT/NPS vinculadas a tickets y pedidos.
+- Métricas derivadas para cohortes, geo heatmap, hotspots y detección de “problemas crónicos”.
+
+Podés regenerar el dataset borrando `server/analytics/data/seed.json` o llamando a `refreshDataset()` (exportado en `server/analytics`).
+
+## Endpoints disponibles
+
+El frontend consulta estos endpoints (solo `GET`). Todos reciben `tenant_id`, `from`, `to` y filtros opcionales (`canal`, `categoria`, `estado`, `agente`, `zona`, `etiquetas`, `bbox`, `context`, `search`). Las respuestas incluyen únicamente datos agregados o anonimizados.
 
 - `GET /analytics/summary`
 - `GET /analytics/timeseries`
@@ -51,12 +80,12 @@ El frontend consulta estos endpoints (solo `GET`). Todos reciben `tenant_id`, `f
 - `GET /analytics/whatsapp/templates`
 - `GET /analytics/filters` → catálogo para llenar selects (canales, categorías, estados, agentes, zonas, etiquetas, tenants, contextos disponibles).
 
-### Recomendaciones para backend
+### Recomendaciones si migrás a un backend productivo
 
-1. **Cache**: TTL sugerido 5-15 minutos por combinación de filtros. El frontend envía cabeceras estándar; pueden aprovechar ETag/Last-Modified.
-2. **Multitenancy y seguridad**: resolver `tenant_id` a partir del token y validar que el usuario tenga permisos (admin, operador, visor). No devolver datos sensibles.
-3. **Pre-cómputos**: materiales diarios/semanales para percentiles SLA, cohortes PyME y agregados geo. El frontend asume que los endpoints responden en <3 s (1.5 s si cacheado).
-4. **Geo**: `heatmap` espera celdas `{ cellId, count, centroid_lat, centroid_lon, breakdown }`. `points` puede devolver una muestra anonimizada para zoom alto.
+1. **Cache**: mantené TTL 5-15 minutos por combinación de filtros. Se puede reemplazar el cache in-memory por Redis/KeyDB.
+2. **Multitenancy y seguridad**: replicar la validación de tenant basada en el token de sesión y tu sistema RBAC. Este módulo asume cabeceras `X-Analytics-Role` y `X-Analytics-Tenant-Ids`.
+3. **Pre-cómputos**: migrá los agregados (SLA percentiles, cohortes, geo) a jobs nocturnos/materialized views para datasets reales.
+4. **Geo**: `heatmap` entrega celdas `{ cellId, count, centroid_lat, centroid_lon, breakdown }`. `points` devuelve una muestra anonimizada (máx. 250 puntos).
 5. **Filtros globales**: `GET /analytics/filters` debe devolver listas de valores válidos y opcionalmente la lista de `tenants` disponibles para el usuario.
 
 ## Frontend
