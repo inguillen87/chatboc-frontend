@@ -17,6 +17,7 @@ type Props = {
   fitToBounds?: [number, number][];
   boundsPadding?: number | { top?: number; bottom?: number; left?: number; right?: number };
   fallbackEnabled?: boolean;
+  onBoundingBoxChange?: (bbox: [number, number, number, number] | null) => void;
 };
 
 const addLayer = (map: Map, layer: any) => {
@@ -115,6 +116,7 @@ export default function MapLibreMap({
   fitToBounds,
   boundsPadding,
   fallbackEnabled = true,
+  onBoundingBoxChange,
 }: Props) {
   const [mapError, setMapError] = useState<string | null>(null);
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
@@ -123,6 +125,7 @@ export default function MapLibreMap({
   const markerRef = useRef<any>(null);
   const adminMarkerRef = useRef<any>(null);
   const latestHeatmap = useRef<HeatPoint[]>(heatmapData);
+  const boundingBoxCallbackRef = useRef<Props['onBoundingBoxChange']>(onBoundingBoxChange);
 
   const apiKey = import.meta.env.VITE_MAPTILER_KEY;
   const apiKeyRef = useRef(apiKey);
@@ -154,6 +157,10 @@ export default function MapLibreMap({
   useEffect(() => {
     latestHeatmap.current = heatmapData;
   }, [heatmapData]);
+
+  useEffect(() => {
+    boundingBoxCallbackRef.current = onBoundingBoxChange;
+  }, [onBoundingBoxChange]);
 
   const shouldRenderGoogle = useMemo(
     () =>
@@ -338,6 +345,19 @@ export default function MapLibreMap({
           }
         };
 
+        const emitBoundingBox = () => {
+          const callback = boundingBoxCallbackRef.current;
+          if (!callback || typeof mapInstance.getBounds !== "function") return;
+          const bounds = mapInstance.getBounds();
+          if (!bounds) return;
+          callback([
+            bounds.getWest(),
+            bounds.getSouth(),
+            bounds.getEast(),
+            bounds.getNorth(),
+          ]);
+        };
+
         const handleCircleClick = (e: any) => {
           if (!e.features?.length) return;
           const feature = e.features[0];
@@ -374,11 +394,17 @@ export default function MapLibreMap({
         mapInstance.on("click", handleClick);
         mapInstance.on("click", "tickets-circles", handleCircleClick);
         mapInstance.on("styleimagemissing", handleMissingImage);
+        if (boundingBoxCallbackRef.current) {
+          mapInstance.on("boxzoomend", emitBoundingBox);
+        }
 
         return () => {
           mapInstance.off("click", handleClick);
           mapInstance.off("click", "tickets-circles", handleCircleClick);
           mapInstance.off("styleimagemissing", handleMissingImage);
+          if (boundingBoxCallbackRef.current) {
+            mapInstance.off("boxzoomend", emitBoundingBox);
+          }
         };
       } catch (error) {
         console.error("Failed to initialize map:", error);

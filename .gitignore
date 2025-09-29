@@ -57,6 +57,7 @@ Thumbs.db
 *.njsproj
 *.sln
 *.sw?
+server/analytics/data/seed.json
 
 # Others
 *.local
