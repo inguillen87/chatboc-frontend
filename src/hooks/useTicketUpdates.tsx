@@ -1,9 +1,11 @@
 import { useEffect, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
+import type { ManagerOptions, SocketOptions } from 'socket.io-client';
 import { toast } from '@/components/ui/use-toast';
 import { useUser } from './useUser';
 import { apiFetch } from '@/utils/api';
 import { safeOn, assertEventSource } from '@/utils/safeOn';
+import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 interface TicketUpdate {
   ticket_id: number;
@@ -16,8 +18,11 @@ interface UseTicketUpdatesOptions {
   onNewComment?: (data: any) => void;
 }
 
-// Asegúrate de que esta URL coincida con tu servidor de Socket.io
-const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const rawSocketUrl =
+  import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_URL || '';
+const SOCKET_URL = /^https?:\/\//i.test(rawSocketUrl)
+  ? rawSocketUrl
+  : undefined;
 
 export default function useTicketUpdates(options: UseTicketUpdatesOptions = {}) {
   const { onNewTicket, onNewComment } = options;
@@ -66,28 +71,46 @@ export default function useTicketUpdates(options: UseTicketUpdatesOptions = {}) 
     };
 
     const initSocket = async () => {
+      let shouldConnect = true;
+
       try {
-        // Opcional: Verifica si el usuario tiene activadas las notificaciones
-        const settings = await apiFetch<{ ticket: boolean }>('/notifications');
-        if (!active || !settings || !settings.ticket) return;
+        const settings = await apiFetch<{ ticket?: boolean }>('/notifications');
+        if (!active) return;
 
-        // Inicializa la conexión de Socket.io
-        socket = io(SOCKET_URL, {
-          transports: ['websocket'], // Forzar websockets
-          withCredentials: true, // Para enviar cookies si es necesario
-        });
-
-        assertEventSource(socket, 'ticket-socket');
-
-        safeOn(socket, 'connect', handleConnect);
-        safeOn(socket, 'disconnect', handleDisconnect);
-        safeOn(socket, 'new_ticket', handleNewTicket);
-        safeOn(socket, 'new_comment', handleNewComment);
-        safeOn(socket, 'connect_error', handleConnectError);
-
+        if (settings && typeof settings.ticket === 'boolean') {
+          shouldConnect = settings.ticket !== false;
+        }
       } catch (err) {
-        console.error('Failed to initialize ticket notifications', err);
+        console.warn('Falling back to realtime tickets without notification settings', err);
+        shouldConnect = true;
       }
+
+      if (!active || !shouldConnect) {
+        return;
+      }
+
+      const token =
+        safeLocalStorage.getItem('authToken') ||
+        safeLocalStorage.getItem('chatAuthToken');
+
+      const socketOptions: Partial<ManagerOptions & SocketOptions> = {
+        transports: ['websocket'],
+        withCredentials: true,
+      };
+
+      if (token) {
+        socketOptions.auth = { token };
+      }
+
+      socket = io(SOCKET_URL ?? undefined, socketOptions);
+
+      assertEventSource(socket, 'ticket-socket');
+
+      safeOn(socket, 'connect', handleConnect);
+      safeOn(socket, 'disconnect', handleDisconnect);
+      safeOn(socket, 'new_ticket', handleNewTicket);
+      safeOn(socket, 'new_comment', handleNewComment);
+      safeOn(socket, 'connect_error', handleConnectError);
     };
 
     initSocket();
