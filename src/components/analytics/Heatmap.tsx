@@ -4,6 +4,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import MapLibreMap from '@/components/MapLibreMap';
 import { HeatPoint } from '@/services/statsService';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 interface HeatmapProps {
   initialHeatmapData: HeatPoint[];
@@ -121,6 +122,15 @@ export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({
           fitToBounds={boundsCoordinates.length > 0 ? boundsCoordinates : undefined}
           fallbackEnabled={false}
         />
+        {heatmapData.length === 0 && (
+          <Alert variant="default" className="border-border/60 border-dashed bg-muted/40">
+            <AlertTitle>No hay datos georreferenciados</AlertTitle>
+            <AlertDescription>
+              El backend no devolvió puntos para el mapa de calor con los filtros actuales. Revisá los filtros o consultá al equipo
+              responsable de los datos para confirmar que se estén enviando ubicaciones.
+            </AlertDescription>
+          </Alert>
+        )}
       </CardContent>
     </Card>
   );

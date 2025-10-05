@@ -629,6 +629,7 @@ export default function EstadisticasPage() {
         getTicketStats(params),
         getHeatmapPoints({
           tipo_ticket: segment,
+          tipo: segment,
           fecha_inicio: start,
           fecha_fin: end,
           estado: statusFilter !== 'all' ? statusFilter : undefined,
