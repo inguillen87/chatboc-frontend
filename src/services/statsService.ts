@@ -905,6 +905,7 @@ export const getTicketStats = async (
 
 export interface HeatmapParams {
   tipo_ticket?: string;
+  tipo?: string;
   municipio_id?: number;
   rubro_id?: number;
   fecha_inicio?: string;
@@ -923,8 +924,16 @@ export const getHeatmapPoints = async (
   params?: HeatmapParams,
 ): Promise<HeatPoint[]> => {
   try {
+    const normalizedParams: HeatmapParams = {
+      ...params,
+    };
+
+    if (normalizedParams.tipo_ticket && !normalizedParams.tipo) {
+      normalizedParams.tipo = normalizedParams.tipo_ticket;
+    }
+
     const qs = new URLSearchParams();
-    Object.entries(params || {}).forEach(([k, v]) => {
+    Object.entries(normalizedParams).forEach(([k, v]) => {
       if (Array.isArray(v)) {
         v.filter((val) => val !== undefined && val !== null && String(val) !== '')
           .forEach((val) => qs.append(k, String(val)));
