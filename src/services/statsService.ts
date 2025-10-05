@@ -140,7 +140,32 @@ const NESTED_CONTAINER_KEYS = [
   'meta',
 ];
 
-const LOOSE_JSON_GUARD = /(^|[^A-Za-z])(function|=>|while|for|process|require|global|import|export)/;
+const sanitizeLooseJson = (raw: string): string => {
+  let sanitized = raw
+    .replace(/\bNone\b/g, 'null')
+    .replace(/\bTrue\b/g, 'true')
+    .replace(/\bFalse\b/g, 'false');
+
+  // Remove trailing commas before closing braces/brackets.
+  sanitized = sanitized.replace(/,\s*([}\]])/g, '$1');
+
+  // Normalize keys written with single quotes.
+  sanitized = sanitized.replace(/'([A-Za-z0-9_\-]+)'\s*:/g, (_, key) => `"${key}":`);
+
+  // Normalize string values enclosed in single quotes.
+  sanitized = sanitized.replace(/:\s*'([^'\\]*(?:\\.[^'\\]*)*)'/g, (_, value) => {
+    const escaped = value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    return `: "${escaped}"`;
+  });
+
+  // Normalize any remaining single-quoted strings (e.g. array items).
+  sanitized = sanitized.replace(/'([^'\\]*(?:\\.[^'\\]*)*)'/g, (_, value) => {
+    const escaped = value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    return `"${escaped}"`;
+  });
+
+  return sanitized;
+};
 
 const tryParseLooseJson = (raw: string): unknown => {
   const trimmed = raw.trim();
@@ -152,22 +177,16 @@ const tryParseLooseJson = (raw: string): unknown => {
     try {
       return JSON.parse(trimmed);
     } catch (jsonError) {
-      const sanitized = trimmed
-        .replace(/\bNone\b/g, 'null')
-        .replace(/\bTrue\b/g, 'true')
-        .replace(/\bFalse\b/g, 'false');
-
-      if (LOOSE_JSON_GUARD.test(sanitized)) {
-        return raw;
+      const sanitized = sanitizeLooseJson(trimmed);
+      if (sanitized !== trimmed) {
+        try {
+          return JSON.parse(sanitized);
+        } catch (sanitizedError) {
+          console.warn('[statsService] Unable to parse sanitized payload', sanitizedError);
+        }
       }
-
-      try {
-        // eslint-disable-next-line no-new-func
-        return Function('"use strict";return (' + sanitized + ')')();
-      } catch (evalError) {
-        console.warn('[statsService] Unable to loosely parse payload', evalError);
-        return raw;
-      }
+      console.warn('[statsService] Unable to parse loose payload', jsonError);
+      return raw;
     }
   }
 
