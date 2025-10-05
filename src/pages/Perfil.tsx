@@ -78,7 +78,7 @@ import UsuariosPage from '@/pages/UsuariosPage';
 import PedidosPage from '@/pages/PedidosPage';
 import InternalUsers from '@/pages/InternalUsers';
 import IncidentsMap from '@/pages/IncidentsMap';
-import { getTicketStats } from "@/services/statsService";
+import { getTicketStats, getHeatmapPoints } from "@/services/statsService";
 import AnalyticsHeatmap from "@/components/analytics/Heatmap";
 import { useNavigate } from "react-router-dom";
 import MiniChatWidgetPreview from "@/components/ui/MiniChatWidgetPreview"; // Importar el nuevo componente
