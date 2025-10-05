@@ -149,8 +149,11 @@ const sanitizeLooseJson = (raw: string): string => {
   // Remove trailing commas before closing braces/brackets.
   sanitized = sanitized.replace(/,\s*([}\]])/g, '$1');
 
-  // Normalize keys written with single quotes.
-  sanitized = sanitized.replace(/'([A-Za-z0-9_\-]+)'\s*:/g, (_, key) => `"${key}":`);
+  // Normalize keys written with single quotes (including accented characters).
+  sanitized = sanitized.replace(/'([\p{L}\p{N}_-]+)'(\s*:)/gu, (_, key, suffix) => {
+    const escapedKey = key.replace(/"/g, '\\"');
+    return `"${escapedKey}"${suffix}`;
+  });
 
   // Normalize string values enclosed in single quotes.
   sanitized = sanitized.replace(/:\s*'([^'\\]*(?:\\.[^'\\]*)*)'/g, (_, value) => {
@@ -178,15 +181,15 @@ const tryParseLooseJson = (raw: string): unknown => {
       return JSON.parse(trimmed);
     } catch (jsonError) {
       const sanitized = sanitizeLooseJson(trimmed);
-      if (sanitized !== trimmed) {
-        try {
-          return JSON.parse(sanitized);
-        } catch (sanitizedError) {
+      try {
+        return JSON.parse(sanitized);
+      } catch (sanitizedError) {
+        if (sanitized !== trimmed) {
           console.warn('[statsService] Unable to parse sanitized payload', sanitizedError);
         }
+        console.warn('[statsService] Unable to parse loose payload', jsonError);
+        return raw;
       }
-      console.warn('[statsService] Unable to parse loose payload', jsonError);
-      return raw;
     }
   }
 
