@@ -16,6 +16,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const HEATMAP_CACHE_LIMIT = 20;
 
@@ -451,6 +452,15 @@ export default function IncidentsMap() {
           </div>
         )}
       </div>
+      {!isLoading && heatmapData.length === 0 && (
+        <Alert variant="default" className="mb-6 border-border/60 border-dashed bg-muted/40">
+          <AlertTitle>No hay puntos para mostrar</AlertTitle>
+          <AlertDescription>
+            No recibimos ubicaciones con los filtros seleccionados. Probá ampliar el rango de fechas o quitar filtros.
+            Si el problema persiste, avisá al equipo de backend para revisar los datos enviados.
+          </AlertDescription>
+        </Alert>
+      )}
       <TicketStatsCharts charts={charts} />
     </div>
   );
