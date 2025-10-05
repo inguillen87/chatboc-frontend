@@ -528,7 +528,7 @@ export default function Perfil() {
   const fetchMapData = useCallback(async () => {
     setIsMapLoading(true);
     try {
-      const tipo = getCurrentTipoChat();
+      const tipo = user?.tipo_chat ?? getCurrentTipoChat();
 
       const [stats, heatmapPoints, categoryData] = await Promise.all([
         getTicketStats({ tipo }),
@@ -574,7 +574,7 @@ export default function Perfil() {
     } finally {
       setIsMapLoading(false);
     }
-  }, []);
+  }, [user?.tipo_chat]);
 
 
   useEffect(() => {
