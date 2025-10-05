@@ -894,6 +894,8 @@ const shouldTryMunicipalAliases = (value?: string | null): boolean => {
   return MUNICIPAL_TIPO_ALIASES.includes(normalized as (typeof MUNICIPAL_TIPO_ALIASES)[number]);
 };
 
+const RECOVERABLE_STATUSES = new Set([400, 404, 409, 422, 500, 502, 503]);
+
 const tryMunicipalAliases = async <T>(
   attempt: (tipo?: string) => Promise<T>,
   tipo?: string,
@@ -926,11 +928,17 @@ const tryMunicipalAliases = async <T>(
     } catch (error) {
       lastError = error;
       if (error instanceof ApiError) {
-        const recoverable =
-          error.status === 400 || error.status === 404 || error.status === 422;
-        if (!recoverable) {
+        if (!RECOVERABLE_STATUSES.has(error.status)) {
           throw error;
         }
+        console.warn(
+          '[statsService] Municipal alias attempt failed, trying next alias',
+          {
+            alias,
+            status: error.status,
+            message: error.message,
+          },
+        );
       } else {
         throw error;
       }
@@ -1008,30 +1016,139 @@ export const getHeatmapPoints = async (
   params?: HeatmapParams,
 ): Promise<HeatPoint[]> => {
   const requestHeatmap = async (overrideTipo?: string): Promise<HeatPoint[]> => {
-    const normalizedParams: HeatmapParams = {
-      ...params,
+    const baseParams: HeatmapParams = {
+      ...(params || {}),
     };
 
-    if (normalizedParams.tipo_ticket && !normalizedParams.tipo) {
-      normalizedParams.tipo = normalizedParams.tipo_ticket;
+    const sanitizeTipoValue = (value?: string | null) => {
+      if (typeof value !== 'string') return value ?? undefined;
+      const trimmed = value.trim();
+      return trimmed.length > 0 ? trimmed : undefined;
+    };
+
+    const normalizedBase: HeatmapParams = { ...baseParams };
+    if (typeof normalizedBase.tipo_ticket === 'string') {
+      normalizedBase.tipo_ticket = sanitizeTipoValue(normalizedBase.tipo_ticket);
+    }
+    if (typeof normalizedBase.tipo === 'string') {
+      normalizedBase.tipo = sanitizeTipoValue(normalizedBase.tipo);
     }
 
-    if (overrideTipo) {
-      normalizedParams.tipo = overrideTipo;
-      if (
-        normalizedParams.tipo_ticket &&
-        shouldTryMunicipalAliases(normalizedParams.tipo_ticket)
-      ) {
-        normalizedParams.tipo_ticket = overrideTipo;
+    const overrideValue = sanitizeTipoValue(overrideTipo);
+
+    const variants: HeatmapParams[] = [];
+    const seen = new Set<string>();
+
+    const pushVariant = (variant: HeatmapParams) => {
+      const entries = Object.entries(variant)
+        .filter(([, value]) => {
+          if (value === undefined || value === null) return false;
+          if (typeof value === 'string') return value.trim().length > 0;
+          if (Array.isArray(value)) return value.length > 0;
+          return true;
+        })
+        .map(([key, value]) => [key, Array.isArray(value) ? [...value] : value]);
+
+      entries.sort(([a], [b]) => a.localeCompare(b));
+      const key = JSON.stringify(entries);
+      if (!seen.has(key)) {
+        seen.add(key);
+        variants.push(variant);
+      }
+    };
+
+    pushVariant(normalizedBase);
+
+    const withOverride: HeatmapParams = { ...normalizedBase };
+
+    if (overrideValue) {
+      withOverride.tipo = overrideValue;
+      withOverride.tipo_ticket = overrideValue;
+    } else {
+      const baseTipo = sanitizeTipoValue(normalizedBase.tipo);
+      const baseTipoTicket = sanitizeTipoValue(
+        typeof normalizedBase.tipo_ticket === 'string'
+          ? normalizedBase.tipo_ticket
+          : undefined,
+      );
+
+      if (baseTipo && !baseTipoTicket) {
+        withOverride.tipo = baseTipo;
+        withOverride.tipo_ticket = baseTipo;
+      } else if (!baseTipo && baseTipoTicket) {
+        withOverride.tipo = baseTipoTicket;
+        withOverride.tipo_ticket = baseTipoTicket;
       }
     }
 
-    const query = buildSearchParams(normalizedParams).toString();
-    const payload = await apiFetch<unknown>(
-      `/estadisticas/mapa_calor/datos${query ? `?${query}` : ''}`,
-    );
+    pushVariant(withOverride);
 
-    return extractHeatmapFromPayload(payload);
+    if ('tipo' in withOverride) {
+      const withoutTipo = { ...withOverride };
+      delete withoutTipo.tipo;
+      pushVariant(withoutTipo);
+    }
+
+    if ('tipo_ticket' in withOverride) {
+      const withoutTipoTicket = { ...withOverride };
+      delete withoutTipoTicket.tipo_ticket;
+      pushVariant(withoutTipoTicket);
+    }
+
+    if (overrideValue) {
+      const ticketOnlyOverride = { ...normalizedBase };
+      delete ticketOnlyOverride.tipo;
+      ticketOnlyOverride.tipo_ticket = overrideValue;
+      pushVariant(ticketOnlyOverride);
+
+      const tipoOnlyOverride = { ...normalizedBase };
+      delete tipoOnlyOverride.tipo_ticket;
+      tipoOnlyOverride.tipo = overrideValue;
+      pushVariant(tipoOnlyOverride);
+    }
+
+    let fallbackResult: HeatPoint[] | null = null;
+    let lastError: unknown = null;
+
+    for (const variant of variants) {
+      const query = buildSearchParams(variant).toString();
+      try {
+        const payload = await apiFetch<unknown>(
+          `/estadisticas/mapa_calor/datos${query ? `?${query}` : ''}`,
+        );
+        const points = extractHeatmapFromPayload(payload);
+        if (points && points.length > 0) {
+          return points;
+        }
+        if (fallbackResult === null) {
+          fallbackResult = points ?? [];
+        }
+      } catch (error) {
+        lastError = error;
+        if (error instanceof ApiError) {
+          if (!RECOVERABLE_STATUSES.has(error.status)) {
+            throw error;
+          }
+          console.warn('[statsService] Heatmap request failed, retrying with variant', {
+            params: variant,
+            status: error.status,
+            message: error.message,
+          });
+        } else {
+          throw error;
+        }
+      }
+    }
+
+    if (fallbackResult !== null) {
+      return fallbackResult;
+    }
+
+    if (lastError) {
+      throw lastError;
+    }
+
+    return [];
   };
 
   try {
