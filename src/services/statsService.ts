@@ -140,6 +140,47 @@ const NESTED_CONTAINER_KEYS = [
   'meta',
 ];
 
+const LOOSE_JSON_GUARD = /(^|[^A-Za-z])(function|=>|while|for|process|require|global|import|export)/;
+
+const tryParseLooseJson = (raw: string): unknown => {
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return raw;
+  }
+
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    try {
+      return JSON.parse(trimmed);
+    } catch (jsonError) {
+      const sanitized = trimmed
+        .replace(/\bNone\b/g, 'null')
+        .replace(/\bTrue\b/g, 'true')
+        .replace(/\bFalse\b/g, 'false');
+
+      if (LOOSE_JSON_GUARD.test(sanitized)) {
+        return raw;
+      }
+
+      try {
+        // eslint-disable-next-line no-new-func
+        return Function('"use strict";return (' + sanitized + ')')();
+      } catch (evalError) {
+        console.warn('[statsService] Unable to loosely parse payload', evalError);
+        return raw;
+      }
+    }
+  }
+
+  return raw;
+};
+
+const normalizeApiPayload = (payload: unknown): unknown => {
+  if (typeof payload === 'string') {
+    return tryParseLooseJson(payload);
+  }
+  return payload;
+};
+
 const normalizeKey = (key: string): string =>
   key
     .normalize('NFD')
@@ -973,12 +1014,14 @@ export const getTicketStats = async (
       `/estadisticas/tickets${query ? `?${query}` : ''}`,
     );
 
-    const charts = extractChartsFromPayload(resp).map((chart) => ({
+    const normalizedPayload = normalizeApiPayload(resp);
+
+    const charts = extractChartsFromPayload(normalizedPayload).map((chart) => ({
       title: chart.title,
       data: chart.data,
     }));
 
-    const heatmap = extractHeatmapFromPayload(resp);
+    const heatmap = extractHeatmapFromPayload(normalizedPayload);
 
     return { charts, heatmap };
   };
@@ -1116,7 +1159,8 @@ export const getHeatmapPoints = async (
         const payload = await apiFetch<unknown>(
           `/estadisticas/mapa_calor/datos${query ? `?${query}` : ''}`,
         );
-        const points = extractHeatmapFromPayload(payload);
+        const normalizedPayload = normalizeApiPayload(payload);
+        const points = extractHeatmapFromPayload(normalizedPayload);
         if (points && points.length > 0) {
           return points;
         }
