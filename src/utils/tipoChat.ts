@@ -35,11 +35,24 @@ export function getCurrentRubro(): string | null {
  * Si no hay usuario o no se puede determinar, usa 'pyme' como default para demos.
  */
 export function getCurrentTipoChat(): 'pyme' | 'municipio' {
+  try {
+    const storedUser = safeLocalStorage.getItem('user');
+    if (storedUser) {
+      const parsed = JSON.parse(storedUser);
+      const storedTipo = parsed?.tipo_chat;
+      if (storedTipo === 'pyme' || storedTipo === 'municipio') {
+        return storedTipo;
+      }
+    }
+  } catch {
+    /* ignore malformed stored user */
+  }
+
   const rubro = getCurrentRubro();
   if (rubro) {
     return esRubroPublico(rubro) ? 'municipio' : 'pyme';
   }
-  
+
   // Si no hay rubro (ej. demo anónima sin rubro pre-seleccionado),
   // por defecto debería ser 'pyme' para las demos generales.
   // Tu APP_TARGET en src/config.ts debería ser 'pyme' si esa es la configuración por defecto de la app.

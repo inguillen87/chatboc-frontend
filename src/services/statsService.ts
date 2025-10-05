@@ -1,4 +1,4 @@
-import { apiFetch } from '@/utils/api';
+import { ApiError, apiFetch } from '@/utils/api';
 
 export interface HeatPoint {
   lat: number;
@@ -33,6 +33,8 @@ export interface TicketStatsParams {
   sugerencia?: string | string[];
   prioridad?: string | string[];
 }
+
+const MUNICIPAL_TIPO_ALIASES = ['municipio', 'municipal', 'municipalidad'] as const;
 
 const LATITUDE_KEYWORDS = ['lat', 'latitude', 'latitud'];
 const LONGITUDE_KEYWORDS = ['lng', 'lon', 'longitud', 'long'];
@@ -137,6 +139,69 @@ const NESTED_CONTAINER_KEYS = [
   'attributesdata',
   'meta',
 ];
+
+const sanitizeLooseJson = (raw: string): string => {
+  let sanitized = raw
+    .replace(/\bNone\b/g, 'null')
+    .replace(/\bTrue\b/g, 'true')
+    .replace(/\bFalse\b/g, 'false');
+
+  // Remove trailing commas before closing braces/brackets.
+  sanitized = sanitized.replace(/,\s*([}\]])/g, '$1');
+
+  // Normalize keys written with single quotes (including accented characters).
+  sanitized = sanitized.replace(/'([\p{L}\p{N}_-]+)'(\s*:)/gu, (_, key, suffix) => {
+    const escapedKey = key.replace(/"/g, '\\"');
+    return `"${escapedKey}"${suffix}`;
+  });
+
+  // Normalize string values enclosed in single quotes.
+  sanitized = sanitized.replace(/:\s*'([^'\\]*(?:\\.[^'\\]*)*)'/g, (_, value) => {
+    const escaped = value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    return `: "${escaped}"`;
+  });
+
+  // Normalize any remaining single-quoted strings (e.g. array items).
+  sanitized = sanitized.replace(/'([^'\\]*(?:\\.[^'\\]*)*)'/g, (_, value) => {
+    const escaped = value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    return `"${escaped}"`;
+  });
+
+  return sanitized;
+};
+
+const tryParseLooseJson = (raw: string): unknown => {
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return raw;
+  }
+
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    try {
+      return JSON.parse(trimmed);
+    } catch (jsonError) {
+      const sanitized = sanitizeLooseJson(trimmed);
+      try {
+        return JSON.parse(sanitized);
+      } catch (sanitizedError) {
+        if (sanitized !== trimmed) {
+          console.warn('[statsService] Unable to parse sanitized payload', sanitizedError);
+        }
+        console.warn('[statsService] Unable to parse loose payload', jsonError);
+        return raw;
+      }
+    }
+  }
+
+  return raw;
+};
+
+const normalizeApiPayload = (payload: unknown): unknown => {
+  if (typeof payload === 'string') {
+    return tryParseLooseJson(payload);
+  }
+  return payload;
+};
 
 const normalizeKey = (key: string): string =>
   key
@@ -872,31 +937,123 @@ const normalizeHeatPoint = (raw: unknown): HeatPoint | null => {
   return point;
 };
 
+const buildSearchParams = (params?: Record<string, unknown>) => {
+  const qs = new URLSearchParams();
+  Object.entries(params || {}).forEach(([k, v]) => {
+    if (Array.isArray(v)) {
+      v
+        .filter((val) => val !== undefined && val !== null && String(val) !== '')
+        .forEach((val) => qs.append(k, String(val)));
+    } else if (v !== undefined && v !== null && String(v) !== '') {
+      qs.append(k, String(v));
+    }
+  });
+  return qs;
+};
+
+const shouldTryMunicipalAliases = (value?: string | null): boolean => {
+  if (!value) return false;
+  const normalized = value.trim().toLowerCase();
+  return MUNICIPAL_TIPO_ALIASES.includes(normalized as (typeof MUNICIPAL_TIPO_ALIASES)[number]);
+};
+
+const RECOVERABLE_STATUSES = new Set([400, 404, 409, 422, 500, 502, 503]);
+
+const tryMunicipalAliases = async <T>(
+  attempt: (tipo?: string) => Promise<T>,
+  tipo?: string,
+  shouldRetry?: (result: T) => boolean,
+): Promise<T> => {
+  if (!shouldTryMunicipalAliases(tipo)) {
+    return attempt(tipo);
+  }
+
+  const normalizedTipo = tipo?.trim().toLowerCase() ?? '';
+  const aliases = (
+    [
+      ...MUNICIPAL_TIPO_ALIASES.filter((alias) => alias === normalizedTipo),
+      ...MUNICIPAL_TIPO_ALIASES.filter((alias) => alias !== normalizedTipo),
+    ]
+  ).filter((alias, index, arr) => arr.indexOf(alias) === index);
+
+  let lastError: unknown = null;
+  let fallbackResult: T | null = null;
+
+  for (const alias of aliases) {
+    try {
+      const result = await attempt(alias);
+      if (!shouldRetry || !shouldRetry(result)) {
+        return result;
+      }
+      if (fallbackResult === null) {
+        fallbackResult = result;
+      }
+    } catch (error) {
+      lastError = error;
+      if (error instanceof ApiError) {
+        if (!RECOVERABLE_STATUSES.has(error.status)) {
+          throw error;
+        }
+        console.warn(
+          '[statsService] Municipal alias attempt failed, trying next alias',
+          {
+            alias,
+            status: error.status,
+            message: error.message,
+          },
+        );
+      } else {
+        throw error;
+      }
+    }
+  }
+
+  if (fallbackResult !== null) {
+    return fallbackResult;
+  }
+
+  if (lastError) {
+    throw lastError;
+  }
+
+  throw new Error('No municipal alias produced a successful response');
+};
+
 export const getTicketStats = async (
   params?: TicketStatsParams,
 ): Promise<TicketStatsResponse> => {
-  try {
-    const qs = new URLSearchParams();
-    Object.entries(params || {}).forEach(([k, v]) => {
-      if (Array.isArray(v)) {
-        v.filter(Boolean).forEach((val) => qs.append(k, String(val)));
-      } else if (v) {
-        qs.append(k, String(v));
-      }
-    });
-    const query = qs.toString();
+  const fetchStats = async (overrideTipo?: string): Promise<TicketStatsResponse> => {
+    const normalizedParams: TicketStatsParams = {
+      ...(params || {}),
+    };
+
+    if (overrideTipo) {
+      normalizedParams.tipo = overrideTipo;
+    }
+
+    const query = buildSearchParams(normalizedParams).toString();
     const resp = await apiFetch<unknown>(
       `/estadisticas/tickets${query ? `?${query}` : ''}`,
     );
 
-    const charts = extractChartsFromPayload(resp).map((chart) => ({
+    const normalizedPayload = normalizeApiPayload(resp);
+
+    const charts = extractChartsFromPayload(normalizedPayload).map((chart) => ({
       title: chart.title,
       data: chart.data,
     }));
 
-    const heatmap = extractHeatmapFromPayload(resp);
+    const heatmap = extractHeatmapFromPayload(normalizedPayload);
 
     return { charts, heatmap };
+  };
+
+  try {
+    return await tryMunicipalAliases(fetchStats, params?.tipo, (result) => {
+      const chartsEmpty = !result?.charts || result.charts.length === 0;
+      const heatmapEmpty = !result?.heatmap || result.heatmap.length === 0;
+      return chartsEmpty && heatmapEmpty;
+    });
   } catch (err) {
     console.error('Error fetching ticket stats:', err);
     throw err;
@@ -905,6 +1062,7 @@ export const getTicketStats = async (
 
 export interface HeatmapParams {
   tipo_ticket?: string;
+  tipo?: string;
   municipio_id?: number;
   rubro_id?: number;
   fecha_inicio?: string;
@@ -922,22 +1080,159 @@ export interface HeatmapParams {
 export const getHeatmapPoints = async (
   params?: HeatmapParams,
 ): Promise<HeatPoint[]> => {
-  try {
-    const qs = new URLSearchParams();
-    Object.entries(params || {}).forEach(([k, v]) => {
-      if (Array.isArray(v)) {
-        v.filter((val) => val !== undefined && val !== null && String(val) !== '')
-          .forEach((val) => qs.append(k, String(val)));
-      } else if (v !== undefined && v !== null && String(v) !== '') {
-        qs.append(k, String(v));
+  const requestHeatmap = async (overrideTipo?: string): Promise<HeatPoint[]> => {
+    const baseParams: HeatmapParams = {
+      ...(params || {}),
+    };
+
+    const sanitizeTipoValue = (value?: string | null) => {
+      if (typeof value !== 'string') return value ?? undefined;
+      const trimmed = value.trim();
+      return trimmed.length > 0 ? trimmed : undefined;
+    };
+
+    const normalizedBase: HeatmapParams = { ...baseParams };
+    if (typeof normalizedBase.tipo_ticket === 'string') {
+      normalizedBase.tipo_ticket = sanitizeTipoValue(normalizedBase.tipo_ticket);
+    }
+    if (typeof normalizedBase.tipo === 'string') {
+      normalizedBase.tipo = sanitizeTipoValue(normalizedBase.tipo);
+    }
+
+    const overrideValue = sanitizeTipoValue(overrideTipo);
+
+    const variants: HeatmapParams[] = [];
+    const seen = new Set<string>();
+
+    const pushVariant = (variant: HeatmapParams) => {
+      const entries = Object.entries(variant)
+        .filter(([, value]) => {
+          if (value === undefined || value === null) return false;
+          if (typeof value === 'string') return value.trim().length > 0;
+          if (Array.isArray(value)) return value.length > 0;
+          return true;
+        })
+        .map(([key, value]) => [key, Array.isArray(value) ? [...value] : value]);
+
+      entries.sort(([a], [b]) => a.localeCompare(b));
+      const key = JSON.stringify(entries);
+      if (!seen.has(key)) {
+        seen.add(key);
+        variants.push(variant);
       }
-    });
-    const query = qs.toString();
-    const payload = await apiFetch<unknown>(
-      `/estadisticas/mapa_calor/datos${query ? `?${query}` : ''}`,
+    };
+
+    pushVariant(normalizedBase);
+
+    const withOverride: HeatmapParams = { ...normalizedBase };
+
+    if (overrideValue) {
+      withOverride.tipo = overrideValue;
+      withOverride.tipo_ticket = overrideValue;
+    } else {
+      const baseTipo = sanitizeTipoValue(normalizedBase.tipo);
+      const baseTipoTicket = sanitizeTipoValue(
+        typeof normalizedBase.tipo_ticket === 'string'
+          ? normalizedBase.tipo_ticket
+          : undefined,
+      );
+
+      if (baseTipo && !baseTipoTicket) {
+        withOverride.tipo = baseTipo;
+        withOverride.tipo_ticket = baseTipo;
+      } else if (!baseTipo && baseTipoTicket) {
+        withOverride.tipo = baseTipoTicket;
+        withOverride.tipo_ticket = baseTipoTicket;
+      }
+    }
+
+    pushVariant(withOverride);
+
+    if ('tipo' in withOverride) {
+      const withoutTipo = { ...withOverride };
+      delete withoutTipo.tipo;
+      pushVariant(withoutTipo);
+    }
+
+    if ('tipo_ticket' in withOverride) {
+      const withoutTipoTicket = { ...withOverride };
+      delete withoutTipoTicket.tipo_ticket;
+      pushVariant(withoutTipoTicket);
+    }
+
+    if (overrideValue) {
+      const ticketOnlyOverride = { ...normalizedBase };
+      delete ticketOnlyOverride.tipo;
+      ticketOnlyOverride.tipo_ticket = overrideValue;
+      pushVariant(ticketOnlyOverride);
+
+      const tipoOnlyOverride = { ...normalizedBase };
+      delete tipoOnlyOverride.tipo_ticket;
+      tipoOnlyOverride.tipo = overrideValue;
+      pushVariant(tipoOnlyOverride);
+    }
+
+    let fallbackResult: HeatPoint[] | null = null;
+    let lastError: unknown = null;
+
+    for (const variant of variants) {
+      const query = buildSearchParams(variant).toString();
+      try {
+        const payload = await apiFetch<unknown>(
+          `/estadisticas/mapa_calor/datos${query ? `?${query}` : ''}`,
+        );
+        const normalizedPayload = normalizeApiPayload(payload);
+        const points = extractHeatmapFromPayload(normalizedPayload);
+        if (points && points.length > 0) {
+          return points;
+        }
+        if (fallbackResult === null) {
+          fallbackResult = points ?? [];
+        }
+      } catch (error) {
+        lastError = error;
+        if (error instanceof ApiError) {
+          if (!RECOVERABLE_STATUSES.has(error.status)) {
+            throw error;
+          }
+          console.warn('[statsService] Heatmap request failed, retrying with variant', {
+            params: variant,
+            status: error.status,
+            message: error.message,
+          });
+        } else {
+          throw error;
+        }
+      }
+    }
+
+    if (fallbackResult !== null) {
+      return fallbackResult;
+    }
+
+    if (lastError) {
+      throw lastError;
+    }
+
+    return [];
+  };
+
+  try {
+    const result = await tryMunicipalAliases(
+      requestHeatmap,
+      params?.tipo ?? params?.tipo_ticket,
+      (points) => !points || points.length === 0,
     );
 
-    return extractHeatmapFromPayload(payload);
+    if (
+      (!result || result.length === 0) &&
+      shouldTryMunicipalAliases(params?.tipo_ticket) &&
+      !shouldTryMunicipalAliases(params?.tipo)
+    ) {
+      return await tryMunicipalAliases(requestHeatmap, params?.tipo_ticket, (points) => !points || points.length === 0);
+    }
+
+    return result;
   } catch (err) {
     console.error('Error fetching heatmap points:', err);
     throw err;
