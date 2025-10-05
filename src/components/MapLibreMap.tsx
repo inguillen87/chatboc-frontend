@@ -163,10 +163,8 @@ export default function MapLibreMap({
   }, [onBoundingBoxChange]);
 
   const shouldRenderGoogle = useMemo(
-    () =>
-      fallbackEnabled !== false &&
-      (provider === "google" || (provider === "maplibre" && mapError !== null)),
-    [provider, mapError, fallbackEnabled],
+    () => fallbackEnabled !== false && provider === "google",
+    [provider, fallbackEnabled],
   );
 
   const fallbackQuery = useMemo(() => {
