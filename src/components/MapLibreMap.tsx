@@ -258,13 +258,21 @@ export default function MapLibreMap({
         if (!isMounted || !mapContainerRef.current) return;
 
         const key = apiKeyRef.current;
-        const styleUrl = key
-          ? `https://api.maptiler.com/maps/streets-v2/style.json?key=${key}`
-          : "https://demotiles.maplibre.org/style.json";
+        const styleCandidates = [
+          key ? `https://api.maptiler.com/maps/streets-v2/style.json?key=${key}` : null,
+          "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
+          "https://tiles.stadiamaps.com/styles/alidade_smooth.json",
+          "https://demotiles.maplibre.org/style.json",
+        ].filter((value): value is string => typeof value === "string" && value.length > 0);
+
+        let currentStyleIndex = 0;
+        let exhaustedStyles = false;
+
+        const initialStyle = styleCandidates[0] ?? "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
 
         const mapInstance = new maplibre.Map({
           container: mapContainerRef.current,
-          style: styleUrl,
+          style: initialStyle,
           center: centerRef.current ?? [0, 0],
           zoom: initialZoomRef.current,
         });
@@ -275,13 +283,22 @@ export default function MapLibreMap({
           mapInstance.addControl(new maplibre.NavigationControl(), "top-right");
         }
 
-        const handleLoad = () => {
-          mapInstance.addSource("points", {
-            type: "geojson",
-            data: { type: "FeatureCollection", features: [] },
-          });
+        const ensureSourcesAndLayers = () => {
+          if (!mapRef.current) {
+            return;
+          }
 
-          addLayer(mapInstance, {
+          const map = mapRef.current;
+          setMapError(null);
+
+          if (!map.getSource("points")) {
+            map.addSource("points", {
+              type: "geojson",
+              data: { type: "FeatureCollection", features: [] },
+            });
+          }
+
+          addLayer(map, {
             id: "tickets-heat",
             type: "heatmap",
             source: "points",
@@ -307,7 +324,7 @@ export default function MapLibreMap({
             },
           });
 
-          addLayer(mapInstance, {
+          addLayer(map, {
             id: "tickets-circles",
             type: "circle",
             source: "points",
@@ -327,14 +344,57 @@ export default function MapLibreMap({
             },
           });
 
-          toggleLayers(mapInstance, showHeatmapRef.current);
-          updateHeatmapSource(mapInstance, latestHeatmap.current);
+          toggleLayers(map, showHeatmapRef.current);
+          updateHeatmapSource(map, latestHeatmap.current);
         };
 
+        const cycleStyle = (reason?: string) => {
+          if (exhaustedStyles || styleCandidates.length === 0) {
+            return;
+          }
+
+          if (currentStyleIndex < styleCandidates.length - 1) {
+            currentStyleIndex += 1;
+            const nextStyle = styleCandidates[currentStyleIndex];
+            console.warn("[MapLibreMap] Falling back to alternate style", {
+              nextStyle,
+              reason,
+            });
+            mapInstance.setStyle(nextStyle);
+          } else {
+            exhaustedStyles = true;
+            setMapError(
+              "No se pudieron cargar los estilos del mapa. Verificá la clave de MapTiler o la conexión de red.",
+            );
+          }
+        };
+
+        const handleStyleError = (event: any) => {
+          if (exhaustedStyles) return;
+          const resourceType = event?.resourceType;
+          const status = event?.error?.status ?? event?.error?.code;
+          const message = event?.error?.message;
+          const shouldFallback =
+            resourceType === "style" ||
+            resourceType === "source" ||
+            resourceType === "sprite" ||
+            resourceType === "tile" ||
+            status === 401 ||
+            status === 403 ||
+            status === 404 ||
+            status === 0;
+
+          if (shouldFallback) {
+            cycleStyle(typeof message === "string" ? message : String(status ?? "unknown"));
+          }
+        };
+
+        mapInstance.on("load", ensureSourcesAndLayers);
+        mapInstance.on("style.load", ensureSourcesAndLayers);
+        mapInstance.on("error", handleStyleError);
+
         if (mapInstance.isStyleLoaded()) {
-          handleLoad();
-        } else {
-          mapInstance.once("load", handleLoad);
+          ensureSourcesAndLayers();
         }
 
         const handleClick = (event: { lngLat: { lat: number; lng: number } }) => {
@@ -405,6 +465,9 @@ export default function MapLibreMap({
           if (boundingBoxCallbackRef.current) {
             mapInstance.off("boxzoomend", emitBoundingBox);
           }
+          mapInstance.off("load", ensureSourcesAndLayers);
+          mapInstance.off("style.load", ensureSourcesAndLayers);
+          mapInstance.off("error", handleStyleError);
         };
       } catch (error) {
         console.error("Failed to initialize map:", error);
