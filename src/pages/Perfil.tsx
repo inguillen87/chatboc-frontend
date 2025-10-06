@@ -78,7 +78,7 @@ import UsuariosPage from '@/pages/UsuariosPage';
 import PedidosPage from '@/pages/PedidosPage';
 import InternalUsers from '@/pages/InternalUsers';
 import IncidentsMap from '@/pages/IncidentsMap';
-import { getTicketStats } from "@/services/statsService";
+import { getTicketStats, getHeatmapPoints } from "@/services/statsService";
 import AnalyticsHeatmap from "@/components/analytics/Heatmap";
 import { useNavigate } from "react-router-dom";
 import MiniChatWidgetPreview from "@/components/ui/MiniChatWidgetPreview"; // Importar el nuevo componente
@@ -528,21 +528,41 @@ export default function Perfil() {
   const fetchMapData = useCallback(async () => {
     setIsMapLoading(true);
     try {
-      const tipo = getCurrentTipoChat();
-      const stats = await getTicketStats({ tipo });
-      const points = stats.heatmap || [];
-      setHeatmapData(points);
+      const tipo = user?.tipo_chat ?? getCurrentTipoChat();
 
-      const barrios = Array.from(new Set(points.map((d) => d.barrio).filter(Boolean))) as string[];
-      setAvailableBarrios(barrios);
+      const [stats, heatmapPoints, categoryData] = await Promise.all([
+        getTicketStats({ tipo }),
+        getHeatmapPoints({ tipo_ticket: tipo, tipo }),
+        apiFetch<{ categorias: { id: number; nombre: string }[] }>(
+          '/municipal/categorias',
+        ).catch((err) => {
+          console.warn('Error fetching categories for heatmap filters:', err);
+          return null;
+        }),
+      ]);
 
-      const tipos = Array.from(new Set(points.map((d) => d.tipo_ticket).filter(Boolean))) as string[];
-      setAvailableTipos(tipos);
+      const combinedHeatmap = (heatmapPoints?.length ? heatmapPoints : stats.heatmap) ?? [];
+      setHeatmapData(combinedHeatmap);
 
-      const categoryData = await apiFetch<{ categorias: { id: number; nombre: string }[] }>('/municipal/categorias');
-      setAvailableCategories(
-        Array.isArray(categoryData.categorias) ? categoryData.categorias.map((c) => c.nombre) : []
+      const barrios = Array.from(new Set(combinedHeatmap.map((d) => d.barrio).filter(Boolean))) as string[];
+      setAvailableBarrios(barrios.sort((a, b) => a.localeCompare(b)));
+
+      const tipos = Array.from(new Set(combinedHeatmap.map((d) => d.tipo_ticket).filter(Boolean))) as string[];
+      setAvailableTipos(tipos.sort((a, b) => a.localeCompare(b)));
+
+      const categoriasFromHeatmap = Array.from(
+        new Set(combinedHeatmap.map((d) => d.categoria).filter(Boolean)),
+      ) as string[];
+
+      const categoriasFromApi =
+        categoryData && Array.isArray(categoryData.categorias)
+          ? categoryData.categorias.map((c) => c.nombre)
+          : [];
+
+      const mergedCategorias = Array.from(
+        new Set([...categoriasFromApi, ...categoriasFromHeatmap]),
       );
+      setAvailableCategories(mergedCategorias.sort((a, b) => a.localeCompare(b)));
 
     } catch (error) {
       console.error("Error fetching map data:", error);
@@ -554,7 +574,7 @@ export default function Perfil() {
     } finally {
       setIsMapLoading(false);
     }
-  }, []);
+  }, [user?.tipo_chat]);
 
 
   useEffect(() => {

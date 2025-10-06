@@ -16,6 +16,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const HEATMAP_CACHE_LIMIT = 20;
 
@@ -120,12 +121,13 @@ export default function IncidentsMap() {
       const heatmapKey = buildHeatmapCacheKey({
         ...filters,
         tipo_ticket: ticketType,
+        tipo: ticketType,
       });
 
       const cache = heatmapCache.current;
       const heatmapPromise = !forceRefresh && cache.has(heatmapKey)
         ? Promise.resolve(cache.get(heatmapKey) ?? [])
-        : getHeatmapPoints({ tipo_ticket: ticketType, ...filters }).then((data) => {
+        : getHeatmapPoints({ tipo_ticket: ticketType, tipo: ticketType, ...filters }).then((data) => {
             cache.set(heatmapKey, data);
             if (cache.size > HEATMAP_CACHE_LIMIT) {
               const firstKey = cache.keys().next().value;
@@ -141,15 +143,18 @@ export default function IncidentsMap() {
         getTicketStats({ tipo: ticketType, ...filters }),
       ]);
       setCharts(stats.charts || []);
-      setHeatmapData(heatmapPoints);
 
-      const barrios = Array.from(new Set(heatmapPoints.map((d) => d.barrio).filter(Boolean))) as string[];
-      setAvailableBarrios(barrios);
+      const combinedHeatmap = heatmapPoints.length > 0 ? heatmapPoints : stats.heatmap ?? [];
+      setHeatmapData(combinedHeatmap);
 
-      if (heatmapPoints.length > 0) {
-        const total = heatmapPoints.length;
-        const avgLat = heatmapPoints.reduce((sum, p) => sum + p.lat, 0) / total;
-        const avgLng = heatmapPoints.reduce((sum, p) => sum + p.lng, 0) / total;
+      const barrios = Array.from(new Set(combinedHeatmap.map((d) => d.barrio).filter(Boolean))) as string[];
+      setAvailableBarrios(barrios.sort((a, b) => a.localeCompare(b)));
+
+      if (combinedHeatmap.length > 0) {
+        const totalWeight = combinedHeatmap.reduce((sum, p) => sum + (p.weight ?? 1), 0);
+        const divisor = totalWeight > 0 ? totalWeight : combinedHeatmap.length;
+        const avgLat = combinedHeatmap.reduce((sum, p) => sum + p.lat * (p.weight ?? 1), 0) / divisor;
+        const avgLng = combinedHeatmap.reduce((sum, p) => sum + p.lng * (p.weight ?? 1), 0) / divisor;
         if (!Number.isNaN(avgLat) && !Number.isNaN(avgLng)) {
           setCenter({ lat: avgLat, lng: avgLng });
         }
@@ -437,6 +442,7 @@ export default function IncidentsMap() {
           heatmapData={heatmapData}
           showHeatmap={showHeatmap}
           className="h-[600px]"
+          fallbackEnabled={false}
         />
         <div className="absolute bottom-2 left-2 bg-background/80 text-foreground px-2 py-1 rounded shadow text-xs">
           {legendText}
@@ -447,6 +453,15 @@ export default function IncidentsMap() {
           </div>
         )}
       </div>
+      {!isLoading && heatmapData.length === 0 && (
+        <Alert variant="default" className="mb-6 border-border/60 border-dashed bg-muted/40">
+          <AlertTitle>No hay puntos para mostrar</AlertTitle>
+          <AlertDescription>
+            No recibimos ubicaciones con los filtros seleccionados. Probá ampliar el rango de fechas o quitar filtros.
+            Si el problema persiste, avisá al equipo de backend para revisar los datos enviados.
+          </AlertDescription>
+        </Alert>
+      )}
       <TicketStatsCharts charts={charts} />
     </div>
   );
