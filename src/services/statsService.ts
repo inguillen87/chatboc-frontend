@@ -196,10 +196,46 @@ const tryParseLooseJson = (raw: string): unknown => {
   return raw;
 };
 
-const normalizeApiPayload = (payload: unknown): unknown => {
+const normalizeApiPayload = (
+  payload: unknown,
+  visited: WeakMap<object, unknown> = new WeakMap(),
+): unknown => {
   if (typeof payload === 'string') {
-    return tryParseLooseJson(payload);
+    const parsed = tryParseLooseJson(payload);
+    if (parsed !== payload) {
+      return normalizeApiPayload(parsed, visited);
+    }
+    return payload;
   }
+
+  if (Array.isArray(payload)) {
+    if (visited.has(payload)) {
+      return visited.get(payload) ?? payload;
+    }
+    const normalizedArray: unknown[] = [];
+    visited.set(payload, normalizedArray);
+    for (let index = 0; index < payload.length; index += 1) {
+      normalizedArray[index] = normalizeApiPayload(payload[index], visited);
+    }
+    return normalizedArray;
+  }
+
+  if (payload && typeof payload === 'object') {
+    const existing = visited.get(payload);
+    if (existing) {
+      return existing;
+    }
+
+    const normalizedObject: Record<string, unknown> = {};
+    visited.set(payload, normalizedObject);
+
+    Object.entries(payload as Record<string, unknown>).forEach(([key, value]) => {
+      normalizedObject[key] = normalizeApiPayload(value, visited);
+    });
+
+    return normalizedObject;
+  }
+
   return payload;
 };
 
