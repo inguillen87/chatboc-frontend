@@ -17,71 +17,189 @@ export interface Agenda {
   days: AgendaDay[];
 }
 
+const DAY_NAMES = new Set([
+  "lunes",
+  "martes",
+  "miercoles",
+  "miércoles",
+  "jueves",
+  "viernes",
+  "sabado",
+  "sábado",
+  "domingo",
+]);
+
+const TIME_PREFIXES = [
+  "🕐",
+  "🕑",
+  "🕒",
+  "🕓",
+  "🕔",
+  "🕕",
+  "🕖",
+  "🕗",
+  "🕘",
+  "🕙",
+  "🕚",
+  "🕛",
+  "🕜",
+  "🕝",
+  "🕞",
+  "🕟",
+  "🕠",
+  "🕡",
+  "🕢",
+  "🕣",
+  "🕤",
+  "🕥",
+  "🕦",
+  "🕧",
+  "🕰️",
+  "⏰",
+  "⌚",
+  "⏱️",
+];
+
+const TITLE_PREFIXES = ["✅", "✔️", "☑️", "•", "-"];
+const LOCATION_PREFIXES = ["📍", "📌", "🏛️", "🏟️", "Lugar:", "Lugar -", "Lugar →"];
+const LINK_PREFIXES = ["🔗", "➡️", "👉"];
+const IMAGE_PREFIXES = ["🖼", "🖼️", "📸"];
+
+const removeDiacritics = (value: string): string =>
+  value.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+const stripWrapping = (value: string): string => value.replace(/^\*+|\*+$/g, "").trim();
+
+const stripFromPrefixes = (value: string, prefixes: string[]): string => {
+  const trimmed = value.trim();
+  for (const prefix of prefixes) {
+    if (trimmed.toLowerCase().startsWith(prefix.toLowerCase())) {
+      return trimmed.slice(prefix.length).trim();
+    }
+  }
+  return trimmed;
+};
+
+const cleanDayLabel = (value: string): string =>
+  stripWrapping(value)
+    .replace(/^[\-–—•·]+/, "")
+    .replace(/[:：]+$/, "")
+    .trim();
+
+const isDayLine = (value: string): boolean => {
+  const cleaned = cleanDayLabel(value);
+  if (!cleaned) return false;
+  const normalized = removeDiacritics(cleaned.toLowerCase());
+  const firstWord = normalized.split(/\s+/, 1)[0];
+  return firstWord ? DAY_NAMES.has(firstWord) : false;
+};
+
+const isTimeLine = (value: string): boolean => {
+  if (!value) return false;
+  if (TIME_PREFIXES.some((prefix) => value.startsWith(prefix))) return true;
+  return /^(?:[0-2]?\d[:.]\d{2}|[0-2]?\d(?:[:.]\d{2})?)/.test(value);
+};
+
+const parseTimeRange = (raw: string): { start: string; end?: string } => {
+  const normalized = raw.replace(/hs?\.?$/i, "").replace(/horas?$/i, "").trim();
+  const parts = normalized.split(/\s*(?:a|hasta|al|\-|–|—)\s*/i);
+  const start = parts[0]?.trim() ?? normalized;
+  const end = parts.length > 1 ? parts[1]?.trim() || undefined : undefined;
+  return { start, end };
+};
+
 // Parse agenda text pasted from WhatsApp style messages
 export function parseAgendaText(raw: string): Agenda {
   const lines = raw
     .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0);
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
 
-  let title = "";
   const days: AgendaDay[] = [];
+  const headerCandidates: string[] = [];
+  let title = "";
   let currentDay: AgendaDay | null = null;
-
-  const isDayLine = (line: string) => line.startsWith("*") && line.endsWith("*");
-
-  const stripEmojis = (line: string, emoji: string) =>
-    line.startsWith(emoji) ? line.slice(emoji.length).trim() : line.trim();
-
-  const stripStars = (line: string) => line.replace(/^\*+|\*+$/g, "").trim();
 
   for (let i = 0; i < lines.length; ) {
     const line = lines[i];
 
     if (!title) {
-      title = stripStars(line);
-      i++;
-      continue;
+      if (isDayLine(line) || isTimeLine(line)) {
+        if (headerCandidates.length > 0) {
+          title = headerCandidates[headerCandidates.length - 1];
+        } else {
+          title = cleanDayLabel(line);
+        }
+      } else {
+        const candidate = stripWrapping(line);
+        if (candidate) {
+          headerCandidates.push(candidate);
+        }
+        i++;
+        continue;
+      }
     }
 
     if (isDayLine(line)) {
-      currentDay = { day: stripStars(line), events: [] };
+      currentDay = { day: cleanDayLabel(line), events: [] };
       days.push(currentDay);
       i++;
       continue;
     }
 
-    if (line.startsWith("🕑")) {
-      const rawTime = stripEmojis(line, "🕑").replace(/hs?\.?$/, "").trim();
-      let startTime = rawTime;
-      let endTime: string | undefined;
-      const range = rawTime.split(/\s+a\s+/i);
-      if (range.length === 2) {
-        startTime = range[0].trim();
-        endTime = range[1].trim();
-      }
-      const titleLine = lines[i + 1] ? stripEmojis(lines[i + 1], "✅") : "";
-      const locationLine = lines[i + 2] ? stripEmojis(lines[i + 2], "📍") : "";
-      let nextIndex = i + 3;
-      let link = "";
-      let image = "";
-      if (lines[nextIndex] && lines[nextIndex].startsWith("🔗")) {
-        link = stripEmojis(lines[nextIndex], "🔗");
-        nextIndex++;
-      }
-      if (lines[nextIndex] && lines[nextIndex].startsWith("🖼")) {
-        image = stripEmojis(lines[nextIndex], "🖼");
+    if (isTimeLine(line)) {
+      const rawTime = stripFromPrefixes(line, TIME_PREFIXES);
+      const { start: startTime, end: endTime } = parseTimeRange(rawTime);
+      const titleLine = lines[i + 1] ? stripFromPrefixes(lines[i + 1], TITLE_PREFIXES) : "";
+
+      let nextIndex = i + 2;
+      let location = "";
+      if (
+        lines[nextIndex] &&
+        !isDayLine(lines[nextIndex]) &&
+        !isTimeLine(lines[nextIndex]) &&
+        !LINK_PREFIXES.some((prefix) => lines[nextIndex].startsWith(prefix)) &&
+        !IMAGE_PREFIXES.some((prefix) => lines[nextIndex].startsWith(prefix))
+      ) {
+        location = stripFromPrefixes(lines[nextIndex], LOCATION_PREFIXES);
         nextIndex++;
       }
 
-      if (currentDay) {
-        currentDay.events.push({ startTime, endTime, title: titleLine, location: locationLine, link, image });
+      let link = "";
+      let image = "";
+      while (lines[nextIndex]) {
+        if (LINK_PREFIXES.some((prefix) => lines[nextIndex].startsWith(prefix))) {
+          link = stripFromPrefixes(lines[nextIndex], LINK_PREFIXES);
+          nextIndex++;
+          continue;
+        }
+        if (IMAGE_PREFIXES.some((prefix) => lines[nextIndex].startsWith(prefix))) {
+          image = stripFromPrefixes(lines[nextIndex], IMAGE_PREFIXES);
+          nextIndex++;
+          continue;
+        }
+        break;
       }
-      i = nextIndex;
+
+      if (currentDay && titleLine) {
+        currentDay.events.push({
+          startTime,
+          endTime,
+          title: titleLine,
+          location,
+          link,
+          image,
+        });
+      }
+      i = Math.max(nextIndex, i + 1);
       continue;
     }
 
     i++;
+  }
+
+  if (!title && headerCandidates.length > 0) {
+    title = headerCandidates[headerCandidates.length - 1];
   }
 
   return { title, days };

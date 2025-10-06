@@ -4,9 +4,10 @@ import { render, fireEvent, screen } from '@testing-library/react';
 import { describe, it, expect } from 'vitest';
 import { AgendaPasteForm } from '../src/components/admin/AgendaPasteForm';
 
-const sample = `*AGENDA MUNICIPAL*
+const sample = `¡Buenas noches!
+AGENDA MUNICIPAL
 
-*Domingo 31*
+Domingo 31
 
 🕑9.00 a 16.00 hs.
 ✅Encuentro Femenino de Vóley
