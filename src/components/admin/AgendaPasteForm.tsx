@@ -6,6 +6,13 @@ import { Loader2 } from 'lucide-react';
 import { parseAgendaText, type Agenda } from '@/utils/agendaParser';
 import { apiFetch, getErrorMessage } from '@/utils/api';
 import { toast } from '@/components/ui/use-toast';
+import {
+  buildAgendaEventContent,
+  createAgendaDateContext,
+  parseDateTimeValue,
+  resolveDayDate,
+} from '@/utils/agendaDateUtils';
+import { toLocalISOString } from '@/utils/fecha';
 
 interface AgendaPasteFormProps {
   onCancel: () => void;
@@ -52,17 +59,39 @@ export const AgendaPasteForm: React.FC<AgendaPasteFormProps> = ({ onCancel }) =>
     setIsSubmitting(true);
     try {
       const agenda = parseAgendaText(text);
-      const events = agenda.days.flatMap((day) =>
-        day.events.map((ev) => ({
-          title: ev.title,
-          day: day.day,
-          start_time: ev.startTime,
-          end_time: ev.endTime,
-          location: ev.location,
-          link: ev.link,
-          image: ev.image,
-        }))
-      );
+      const dateContext = createAgendaDateContext(agenda.title);
+      const events = agenda.days.flatMap((day) => {
+        const baseDate = resolveDayDate(day.day, dateContext);
+
+        return day.events
+          .map((ev) => {
+            const startDate = parseDateTimeValue(ev.startTime, baseDate, dateContext);
+            const endDate = parseDateTimeValue(ev.endTime, startDate ?? baseDate, dateContext);
+            const contenido = buildAgendaEventContent(day.day, ev, startDate, endDate);
+
+            return {
+              title: ev.title,
+              titulo: ev.title,
+              day: day.day,
+              start_time: ev.startTime,
+              end_time: ev.endTime,
+              location: ev.location,
+              direccion: ev.location || undefined,
+              link: ev.link,
+              image: ev.image,
+              imagen_url: ev.image || undefined,
+              tipo_post: 'evento',
+              contenido,
+              fecha_evento_inicio: startDate ? toLocalISOString(startDate) : undefined,
+              fecha_evento_fin: endDate ? toLocalISOString(endDate) : undefined,
+            };
+          })
+          .filter((event) => event.title.trim().length > 0);
+      });
+
+      if (events.length === 0) {
+        throw new Error('No se encontraron eventos válidos para publicar.');
+      }
       await apiFetch('/municipal/posts/bulk', {
         method: 'POST',
         body: { events },
