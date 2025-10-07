@@ -96,6 +96,11 @@ import Papa from 'papaparse';
 import { TicketStatsResponse, HeatPoint } from "@/services/statsService";
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import MapLibreMap from "@/components/MapLibreMap";
+import {
+  CatalogVectorSyncStatus,
+  fetchCatalogVectorSyncStatus,
+  triggerCatalogVectorSync,
+} from '@/services/catalogService';
 
 
 // Durante el desarrollo usamos "/api" para evitar problemas de CORS.
@@ -450,6 +455,20 @@ export default function Perfil() {
   const [loadingMappings, setLoadingMappings] = useState(false);
   const [showManageMappingsDialog, setShowManageMappingsDialog] = useState(false);
   const [mappingToDelete, setMappingToDelete] = useState<MappingConfig | null>(null);
+  const [vectorSyncStatus, setVectorSyncStatus] = useState<CatalogVectorSyncStatus | null>(null);
+  const [loadingVectorSync, setLoadingVectorSync] = useState(false);
+
+  const formatVectorSyncDate = (value: string | null) => {
+    if (!value) return null;
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      return value;
+    }
+    return parsed.toLocaleString('es-AR', {
+      dateStyle: 'short',
+      timeStyle: 'short',
+    });
+  };
 
 
 
@@ -608,12 +627,35 @@ export default function Perfil() {
     }
   }, [user?.id]);
 
+  const refreshVectorSyncStatus = useCallback(async () => {
+    if (!user?.id) return;
+    setLoadingVectorSync(true);
+    try {
+      const status = await fetchCatalogVectorSyncStatus(user.id);
+      setVectorSyncStatus(status);
+    } catch (err) {
+      toast({
+        variant: 'destructive',
+        title: 'No se pudo obtener el estado del catálogo',
+        description: getErrorMessage(err),
+      });
+    } finally {
+      setLoadingVectorSync(false);
+    }
+  }, [user?.id]);
+
   // Cargar mapeos cuando el diálogo se va a mostrar
   useEffect(() => {
     if (showManageMappingsDialog && user?.id) {
       fetchMappingConfigs();
     }
   }, [showManageMappingsDialog, user?.id, fetchMappingConfigs]);
+
+  useEffect(() => {
+    if (user?.id) {
+      refreshVectorSyncStatus();
+    }
+  }, [user?.id, refreshVectorSyncStatus]);
 
   useEffect(() => {
     if (!pendingGeocode) {
@@ -1003,12 +1045,32 @@ export default function Perfil() {
         body: formData,
       });
 
+      try {
+        const vectorResult = await triggerCatalogVectorSync({
+          pymeId: user.id,
+          mappingId: savedMapping.id,
+          sourceFileName: archivo.name,
+          metadata: {
+            fileSize: archivo.size,
+            mimeType: archivo.type,
+          },
+        });
+        setVectorSyncStatus(vectorResult);
+      } catch (vectorErr) {
+        toast({
+          variant: 'destructive',
+          title: 'Catálogo procesado con advertencias',
+          description: getErrorMessage(vectorErr, 'Se subió el archivo pero no se pudo sincronizar con Qdrant.'),
+        });
+      }
+
       setResultadoCatalogo({
-        message: processingResult.mensaje || "¡Catálogo subido y procesado con éxito!",
+        message: processingResult.mensaje || "¡Catálogo subido, procesado y enviado al vector store!",
         type: "success",
       });
       setArchivo(null);
       setIsMappingModalOpen(false);
+      refreshVectorSyncStatus();
 
     } catch (err) {
       const errorMessage = getErrorMessage(err, "Ocurrió un error en el proceso.");
@@ -1642,6 +1704,67 @@ export default function Perfil() {
                   {/* Fin Gestión de Mapeos */}
 
                   <div className="flex-grow"></div> {/* Spacer element */}
+                  <div className="rounded-lg border border-border/60 bg-muted/30 p-3 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-foreground">Estado en Qdrant</span>
+                      <Badge
+                        variant={
+                          loadingVectorSync
+                            ? 'secondary'
+                            : vectorSyncStatus?.status === 'ready'
+                              ? 'success'
+                              : vectorSyncStatus?.status === 'error'
+                                ? 'destructive'
+                                : 'outline'
+                        }
+                      >
+                        {loadingVectorSync
+                          ? 'Sincronizando...'
+                          : vectorSyncStatus?.status === 'ready'
+                            ? 'Listo'
+                            : vectorSyncStatus?.status === 'processing'
+                              ? 'Procesando'
+                              : vectorSyncStatus?.status === 'pending'
+                                ? 'Pendiente'
+                                : vectorSyncStatus?.status === 'error'
+                                  ? 'Error'
+                                  : 'Sin datos'}
+                      </Badge>
+                    </div>
+                    {loadingVectorSync ? (
+                      <p className="text-xs text-muted-foreground">Consultando sincronización...</p>
+                    ) : (
+                      <>
+                        <p className="text-xs text-muted-foreground">
+                          {vectorSyncStatus?.message || 'Tus catálogos se indexan para búsquedas de precios y promociones.'}
+                        </p>
+                        {vectorSyncStatus?.lastSyncedAt && (
+                          <p className="text-xs text-muted-foreground">
+                            Última actualización: {formatVectorSyncDate(vectorSyncStatus.lastSyncedAt)}
+                          </p>
+                        )}
+                        {typeof vectorSyncStatus?.documentCount === 'number' && (
+                          <p className="text-xs text-muted-foreground">
+                            Documentos indexados: {vectorSyncStatus.documentCount}
+                          </p>
+                        )}
+                        {vectorSyncStatus?.lastSourceFileName && (
+                          <p className="text-xs text-muted-foreground truncate">
+                            Archivo más reciente: {vectorSyncStatus.lastSourceFileName}
+                          </p>
+                        )}
+                      </>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full"
+                      onClick={refreshVectorSyncStatus}
+                      disabled={loadingVectorSync || !user?.id}
+                    >
+                      Actualizar estado
+                    </Button>
+                  </div>
                   <Button
                     onClick={handleSubirArchivo}
                     className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-2.5 mt-auto"

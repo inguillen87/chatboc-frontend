@@ -43,6 +43,22 @@ export default function CartPage() {
           ...p,
           // Asegurar que precio_unitario es un número
           precio_unitario: Number(p.precio_unitario) || 0,
+          precio_por_caja:
+            p.precio_por_caja === null || p.precio_por_caja === undefined
+              ? null
+              : Number(p.precio_por_caja) || null,
+          unidades_por_caja:
+            p.unidades_por_caja === null || p.unidades_por_caja === undefined
+              ? null
+              : Number(p.unidades_por_caja) || null,
+          precio_mayorista:
+            p.precio_mayorista === null || p.precio_mayorista === undefined
+              ? null
+              : Number(p.precio_mayorista) || null,
+          cantidad_minima_mayorista:
+            p.cantidad_minima_mayorista === null || p.cantidad_minima_mayorista === undefined
+              ? null
+              : Number(p.cantidad_minima_mayorista) || null,
         };
         return acc;
       }, {} as ProductMap);
@@ -106,8 +122,17 @@ export default function CartPage() {
     }
   };
 
+  const calculateItemSubtotal = (item: CartItem) => {
+    if (item.unidades_por_caja && item.unidades_por_caja > 0 && item.precio_por_caja) {
+      const cajas = Math.floor(item.cantidad / item.unidades_por_caja);
+      const sobrantes = item.cantidad % item.unidades_por_caja;
+      return cajas * item.precio_por_caja + sobrantes * item.precio_unitario;
+    }
+    return item.precio_unitario * item.cantidad;
+  };
+
   const subtotal = useMemo(() => {
-    return cartItems.reduce((sum, item) => sum + (item.precio_unitario * item.cantidad), 0);
+    return cartItems.reduce((sum, item) => sum + calculateItemSubtotal(item), 0);
   }, [cartItems]);
 
   if (loading) {
@@ -170,6 +195,24 @@ export default function CartPage() {
                       <p className="text-sm text-muted-foreground">{item.presentacion}</p>
                     )}
                     <p className="text-md font-medium text-primary mt-1">{formatCurrency(item.precio_unitario)} c/u</p>
+                    {item.precio_por_caja && item.unidades_por_caja && (
+                      <p className="text-sm text-muted-foreground">
+                        {formatCurrency(item.precio_por_caja)} por {item.unidades_por_caja} unidades
+                      </p>
+                    )}
+                    {item.precio_mayorista && item.cantidad_minima_mayorista && (
+                      <p className="text-sm text-muted-foreground">
+                        Mayorista desde {item.cantidad_minima_mayorista} cajas: {formatCurrency(item.precio_mayorista)}
+                      </p>
+                    )}
+                    {item.promocion_activa && (
+                      <p className="text-sm text-green-600">Promo: {item.promocion_activa}</p>
+                    )}
+                    {item.unidades_por_caja && item.unidades_por_caja > 0 && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {Math.floor(item.cantidad / item.unidades_por_caja)} caja(s) + {item.cantidad % item.unidades_por_caja} unidad(es)
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 w-full sm:w-auto">
                     <Button variant="outline" size="icon" onClick={() => handleUpdateQuantity(item.nombre, item.cantidad - 1)} disabled={item.cantidad <= 1}>
@@ -203,6 +246,27 @@ export default function CartPage() {
                     </Button>
                   </div>
                 </CardContent>
+                <CardFooter className="w-full flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-muted/30 border-t">
+                  <span className="text-lg font-semibold text-foreground">Subtotal: {formatCurrency(calculateItemSubtotal(item))}</span>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleUpdateQuantity(item.nombre, item.cantidad + 1)}
+                    >
+                      Añadir 1 unidad
+                    </Button>
+                    {item.unidades_por_caja && item.unidades_por_caja > 0 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleUpdateQuantity(item.nombre, item.cantidad + item.unidades_por_caja)}
+                      >
+                        Añadir 1 caja
+                      </Button>
+                    )}
+                  </div>
+                </CardFooter>
               </Card>
             ))}
           </div>

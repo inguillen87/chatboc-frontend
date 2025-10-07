@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { apiFetch, getErrorMessage } from '@/utils/api';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
-import ProductCard, { ProductDetails } from '@/components/product/ProductCard'; // Importar ProductCard y su interfaz
+import ProductCard, { AddToCartOptions, ProductDetails } from '@/components/product/ProductCard'; // Importar ProductCard y su interfaz
 import { toast } from '@/components/ui/use-toast';
 import { Input } from '@/components/ui/input';
 import { Loader2, ShoppingCart, AlertTriangle, Search } from 'lucide-react'; // Icons
@@ -22,6 +22,22 @@ export default function ProductCatalog() {
         const sanitizedData = data.map(p => ({
           ...p,
           precio_unitario: Number(p.precio_unitario) || 0, // Default to 0 if NaN or not present
+          precio_por_caja:
+            p.precio_por_caja === null || p.precio_por_caja === undefined
+              ? null
+              : Number(p.precio_por_caja) || null,
+          unidades_por_caja:
+            p.unidades_por_caja === null || p.unidades_por_caja === undefined
+              ? null
+              : Number(p.unidades_por_caja) || null,
+          precio_mayorista:
+            p.precio_mayorista === null || p.precio_mayorista === undefined
+              ? null
+              : Number(p.precio_mayorista) || null,
+          cantidad_minima_mayorista:
+            p.cantidad_minima_mayorista === null || p.cantidad_minima_mayorista === undefined
+              ? null
+              : Number(p.cantidad_minima_mayorista) || null,
         }));
         setAllProducts(sanitizedData);
         setFilteredProducts(sanitizedData);
@@ -46,17 +62,43 @@ export default function ProductCatalog() {
     setFilteredProducts(filtered);
   }, [searchTerm, allProducts]);
 
-  const handleAddToCart = async (product: ProductDetails) => {
+  const handleAddToCart = async (product: ProductDetails, options: AddToCartOptions) => {
     try {
+      const unitsPerCase = product.unidades_por_caja && product.unidades_por_caja > 0
+        ? product.unidades_por_caja
+        : 1;
+
+      const quantity = Math.max(1, Math.floor(options.quantity));
+      const mode = options.mode === 'case' && product.precio_por_caja && product.unidades_por_caja
+        ? 'case'
+        : 'unit';
+
+      const totalUnits = mode === 'case' ? quantity * unitsPerCase : quantity;
+
+      const payload: Record<string, unknown> = {
+        nombre: product.nombre,
+        cantidad: totalUnits,
+        modo_compra: mode,
+        precio_unitario: Number(product.precio_unitario) || 0,
+      };
+
+      if (mode === 'case') {
+        payload['cantidad_cajas'] = quantity;
+        payload['unidades_por_caja'] = unitsPerCase;
+        if (product.precio_por_caja) {
+          payload['precio_por_caja'] = Number(product.precio_por_caja) || undefined;
+        }
+      }
+
       // El backend actual espera 'nombre' y 'cantidad'.
       // Si los nombres no son únicos, esto debería cambiar a product.id o product.sku
       await apiFetch('/carrito', {
         method: 'POST',
-        body: { nombre: product.nombre, cantidad: 1 }
+        body: payload,
       });
       toast({
         title: "¡Agregado!",
-        description: `${product.nombre} se agregó a tu carrito.`,
+        description: `${product.nombre} se agregó a tu carrito (${quantity} ${mode === 'case' ? 'caja(s)' : 'unidad(es)'}).`,
         className: "bg-green-500 text-white",
       });
     } catch (err) {
