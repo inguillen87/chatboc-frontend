@@ -9,8 +9,7 @@ const pricingOptions = [
   {
     type: 'plan', // Para diferenciar de la tarjeta de contacto
     name: 'Inicia con IA',
-    price: 'GRATIS',
-    duration: 'por 14 días',
+    contactLabel: 'Hablar con un especialista',
     description: 'Experimenta el poder de nuestra IA. Ideal para individuos o equipos pequeños que quieren empezar a automatizar.',
     features: [
       'Chatbot IA básico',
@@ -19,15 +18,14 @@ const pricingOptions = [
       'Configuración inicial simple',
       'Widget web personalizable',
     ],
-    cta: 'Comienza Gratis',
-    ctaLink: '/register',
+    cta: 'Solicitar asesoría',
+    ctaLink: 'https://wa.me/5492613168608?text=Hola!%20Quiero%20hablar%20con%20un%20especialista%20sobre%20los%20planes%20de%20Chatboc',
     highlight: false,
   },
   {
     type: 'plan',
     name: 'Profesional Conectado',
-    price: '$65.000 / mes',
-    duration: '',
+    contactLabel: 'Consulta personalizada de precios',
     description: 'Solución completa con Chatbot IA avanzado y CRM para optimizar la comunicación y gestión de usuarios.',
     features: [
       'Todo en Inicia con IA, y además:',
@@ -39,15 +37,14 @@ const pricingOptions = [
       'Integraciones esenciales (formularios, email, catálogos)',
       'Soporte prioritario',
     ],
-    cta: 'Elige Profesional',
-    ctaLink: '/register?plan=profesional', // Ejemplo de link con plan
+    cta: 'Coordinar llamada con un asesor',
+    ctaLink: 'https://wa.me/5492613168608?text=Hola!%20Necesito%20informaci%C3%B3n%20sobre%20el%20plan%20Profesional%20Conectado%20de%20Chatboc',
     highlight: true,
   },
   {
     type: 'plan',
     name: 'Full Automatizado',
-    price: '$95.000 / mes',
-    duration: '',
+    contactLabel: 'Habla con un especialista dedicado',
     description: 'Automatización total con integraciones avanzadas y soporte dedicado para equipos exigentes.',
     features: [
       'Todo en Profesional Conectado, y además:',
@@ -57,8 +54,8 @@ const pricingOptions = [
       'Orquestación omnicanal (email, WhatsApp, formularios)',
       'Onboarding personalizado y soporte dedicado',
     ],
-    cta: 'Escalar con Full',
-    ctaLink: '/register?plan=full',
+    cta: 'Agendar una reunión especializada',
+    ctaLink: 'https://wa.me/5492613168608?text=Hola!%20Me%20gustar%C3%ADa%20una%20reuni%C3%B3n%20para%20el%20plan%20Full%20Automatizado%20de%20Chatboc',
     highlight: false,
   },
   {
@@ -115,8 +112,9 @@ const PricingSection = () => {
 
               {option.type === 'plan' && (
                 <div className="text-center mb-4">
-                  <span className="text-4xl font-extrabold text-primary">{option.price}</span>
-                  {option.duration && <span className="text-sm font-medium text-muted-foreground ml-1">{option.duration}</span>}
+                  <span className="text-xl font-semibold text-primary">
+                    {'contactLabel' in option ? option.contactLabel : 'Consultar con un especialista'}
+                  </span>
                 </div>
               )}
 
