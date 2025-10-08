@@ -239,6 +239,9 @@ const normalizeApiPayload = (
   return payload;
 };
 
+const isHtmlPayload = (payload: unknown): payload is string =>
+  typeof payload === 'string' && /<\s*(?:!doctype|html|head|body)\b/i.test(payload);
+
 const normalizeKey = (key: string): string =>
   key
     .normalize('NFD')
@@ -1074,6 +1077,13 @@ export const getTicketStats = async (
 
     const normalizedPayload = normalizeApiPayload(resp);
 
+    if (isHtmlPayload(normalizedPayload)) {
+      console.warn('[statsService] Received HTML payload for /estadisticas/tickets, aborting further alias attempts.');
+      const error = new Error('HTML payload returned from /estadisticas/tickets');
+      (error as Error & { code?: string }).code = 'HTML_PAYLOAD';
+      throw error;
+    }
+
     const charts = extractChartsFromPayload(normalizedPayload).map((chart) => ({
       title: chart.title,
       data: chart.data,
@@ -1218,6 +1228,12 @@ export const getHeatmapPoints = async (
           `/estadisticas/mapa_calor/datos${query ? `?${query}` : ''}`,
         );
         const normalizedPayload = normalizeApiPayload(payload);
+        if (isHtmlPayload(normalizedPayload)) {
+          console.warn('[statsService] Received HTML payload for /estadisticas/mapa_calor/datos, aborting further alias attempts.');
+          const error = new Error('HTML payload returned from /estadisticas/mapa_calor/datos');
+          (error as Error & { code?: string }).code = 'HTML_PAYLOAD';
+          throw error;
+        }
         const points = extractHeatmapFromPayload(normalizedPayload);
         if (points && points.length > 0) {
           return points;
