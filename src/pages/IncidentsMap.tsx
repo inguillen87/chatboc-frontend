@@ -17,6 +17,12 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import {
+  JUNIN_DEMO_CENTER,
+  JUNIN_DEMO_NOTICE,
+  generateJuninDemoHeatmap,
+  mergeAndSortStrings,
+} from '@/utils/demoHeatmap';
 
 const HEATMAP_CACHE_LIMIT = 20;
 
@@ -91,6 +97,48 @@ export default function IncidentsMap() {
 
   const heatmapCache = useRef<Map<string, HeatPoint[]>>(new Map());
 
+  const applyHeatmapPoints = useCallback(
+    (points: HeatPoint[], options?: { mergeFilters?: boolean; fallback?: boolean }) => {
+      setHeatmapData(points);
+
+      const barrios = Array.from(
+        new Set(points.map((d) => d.barrio).filter((b): b is string => Boolean(b))),
+      ).sort((a, b) => a.localeCompare(b));
+      setAvailableBarrios(barrios);
+
+      if (options?.mergeFilters) {
+        const categoriesFromPoints = Array.from(
+          new Set(points.map((d) => d.categoria).filter((c): c is string => Boolean(c))),
+        );
+        if (categoriesFromPoints.length > 0) {
+          setCategories((prev) => mergeAndSortStrings(prev, categoriesFromPoints));
+        }
+
+        const statesFromPoints = Array.from(
+          new Set(points.map((d) => d.estado).filter((s): s is string => Boolean(s))),
+        );
+        if (statesFromPoints.length > 0) {
+          setStates((prev) => mergeAndSortStrings(prev, statesFromPoints));
+        }
+      }
+
+      if (points.length > 0) {
+        const totalWeight = points.reduce((sum, p) => sum + (p.weight ?? 1), 0);
+        const divisor = totalWeight > 0 ? totalWeight : points.length;
+        const avgLat = points.reduce((sum, p) => sum + p.lat * (p.weight ?? 1), 0) / divisor;
+        const avgLng = points.reduce((sum, p) => sum + p.lng * (p.weight ?? 1), 0) / divisor;
+        if (!Number.isNaN(avgLat) && !Number.isNaN(avgLng)) {
+          setCenter({ lat: avgLat, lng: avgLng });
+        }
+      } else if (options?.fallback) {
+        setCenter({ lat: JUNIN_DEMO_CENTER[1], lng: JUNIN_DEMO_CENTER[0] });
+      } else if (adminCoords) {
+        setCenter({ lat: adminCoords[1], lng: adminCoords[0] });
+      }
+    },
+    [adminCoords],
+  );
+
   const startDateRef = useRef<HTMLInputElement>(null);
   const endDateRef = useRef<HTMLInputElement>(null);
   const districtRef = useRef<HTMLInputElement>(null);
@@ -144,34 +192,30 @@ export default function IncidentsMap() {
       ]);
       setCharts(stats.charts || []);
 
-      const combinedHeatmap = heatmapPoints.length > 0 ? heatmapPoints : stats.heatmap ?? [];
-      setHeatmapData(combinedHeatmap);
+      let combinedHeatmap = heatmapPoints.length > 0 ? heatmapPoints : stats.heatmap ?? [];
+      const usedFallback = combinedHeatmap.length === 0;
 
-      const barrios = Array.from(new Set(combinedHeatmap.map((d) => d.barrio).filter(Boolean))) as string[];
-      setAvailableBarrios(barrios.sort((a, b) => a.localeCompare(b)));
-
-      if (combinedHeatmap.length > 0) {
-        const totalWeight = combinedHeatmap.reduce((sum, p) => sum + (p.weight ?? 1), 0);
-        const divisor = totalWeight > 0 ? totalWeight : combinedHeatmap.length;
-        const avgLat = combinedHeatmap.reduce((sum, p) => sum + p.lat * (p.weight ?? 1), 0) / divisor;
-        const avgLng = combinedHeatmap.reduce((sum, p) => sum + p.lng * (p.weight ?? 1), 0) / divisor;
-        if (!Number.isNaN(avgLat) && !Number.isNaN(avgLng)) {
-          setCenter({ lat: avgLat, lng: avgLng });
-        }
-      } else if (adminCoords) {
-        setCenter({ lat: adminCoords[1], lng: adminCoords[0] });
+      if (usedFallback) {
+        combinedHeatmap = generateJuninDemoHeatmap();
+        setError(JUNIN_DEMO_NOTICE);
       }
+
+      applyHeatmapPoints(combinedHeatmap, {
+        mergeFilters: usedFallback,
+        fallback: usedFallback,
+      });
     } catch (err) {
       const message =
         err instanceof ApiError ? err.message : 'Error al cargar datos del mapa';
-      setError(message);
+      setError(`${message}. ${JUNIN_DEMO_NOTICE}`);
       setCharts([]);
-      setHeatmapData([]);
+      const fallbackPoints = generateJuninDemoHeatmap();
+      applyHeatmapPoints(fallbackPoints, { mergeFilters: true, fallback: true });
       console.error('Error fetching map data:', err);
     } finally {
       setIsLoading(false);
     }
-  }, [ticketType, adminCoords, selectedCategories, selectedStates]);
+  }, [ticketType, adminCoords, selectedCategories, selectedStates, applyHeatmapPoints]);
 
   useEffect(() => {
     fetchData();
@@ -442,7 +486,6 @@ export default function IncidentsMap() {
           heatmapData={heatmapData}
           showHeatmap={showHeatmap}
           className="h-[600px]"
-          fallbackEnabled={false}
         />
         <div className="absolute bottom-2 left-2 bg-background/80 text-foreground px-2 py-1 rounded shadow text-xs">
           {legendText}

@@ -120,7 +120,6 @@ export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({
           onSelect={onSelect}
           className="h-[600px] rounded-lg"
           fitToBounds={boundsCoordinates.length > 0 ? boundsCoordinates : undefined}
-          fallbackEnabled={false}
         />
         {heatmapData.length === 0 && (
           <Alert variant="default" className="border-border/60 border-dashed bg-muted/40">

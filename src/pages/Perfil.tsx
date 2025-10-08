@@ -101,6 +101,14 @@ import {
   fetchCatalogVectorSyncStatus,
   triggerCatalogVectorSync,
 } from '@/services/catalogService';
+import {
+  JUNIN_DEMO_BARRIOS,
+  JUNIN_DEMO_CATEGORIES,
+  JUNIN_DEMO_NOTICE,
+  JUNIN_DEMO_TICKET_TYPES,
+  generateJuninDemoHeatmap,
+  mergeAndSortStrings,
+} from '@/utils/demoHeatmap';
 
 
 // Durante el desarrollo usamos "/api" para evitar problemas de CORS.
@@ -560,28 +568,45 @@ export default function Perfil() {
         }),
       ]);
 
-      const combinedHeatmap = (heatmapPoints?.length ? heatmapPoints : stats.heatmap) ?? [];
+      let combinedHeatmap = (heatmapPoints?.length ? heatmapPoints : stats.heatmap) ?? [];
+      const usedFallback = combinedHeatmap.length === 0;
+
+      if (usedFallback) {
+        combinedHeatmap = generateJuninDemoHeatmap();
+        toast({
+          title: 'Datos de demostración',
+          description: JUNIN_DEMO_NOTICE,
+        });
+      }
+
       setHeatmapData(combinedHeatmap);
 
-      const barrios = Array.from(new Set(combinedHeatmap.map((d) => d.barrio).filter(Boolean))) as string[];
-      setAvailableBarrios(barrios.sort((a, b) => a.localeCompare(b)));
+      const barriosFromHeatmap = Array.from(
+        new Set(combinedHeatmap.map((d) => d.barrio).filter((b): b is string => Boolean(b))),
+      );
+      const barrios = mergeAndSortStrings(barriosFromHeatmap, usedFallback ? [...JUNIN_DEMO_BARRIOS] : []);
+      setAvailableBarrios(barrios);
 
-      const tipos = Array.from(new Set(combinedHeatmap.map((d) => d.tipo_ticket).filter(Boolean))) as string[];
-      setAvailableTipos(tipos.sort((a, b) => a.localeCompare(b)));
+      const tiposFromHeatmap = Array.from(
+        new Set(combinedHeatmap.map((d) => d.tipo_ticket).filter((t): t is string => Boolean(t))),
+      );
+      const tipos = mergeAndSortStrings(tiposFromHeatmap, usedFallback ? [...JUNIN_DEMO_TICKET_TYPES] : []);
+      setAvailableTipos(tipos);
 
       const categoriasFromHeatmap = Array.from(
-        new Set(combinedHeatmap.map((d) => d.categoria).filter(Boolean)),
-      ) as string[];
+        new Set(combinedHeatmap.map((d) => d.categoria).filter((c): c is string => Boolean(c))),
+      );
 
       const categoriasFromApi =
         categoryData && Array.isArray(categoryData.categorias)
           ? categoryData.categorias.map((c) => c.nombre)
           : [];
 
-      const mergedCategorias = Array.from(
-        new Set([...categoriasFromApi, ...categoriasFromHeatmap]),
-      );
-      setAvailableCategories(mergedCategorias.sort((a, b) => a.localeCompare(b)));
+      const mergedCategorias = mergeAndSortStrings(categoriasFromApi, categoriasFromHeatmap);
+      const finalCategorias = usedFallback
+        ? mergeAndSortStrings(mergedCategorias, [...JUNIN_DEMO_CATEGORIES])
+        : mergedCategorias;
+      setAvailableCategories(finalCategorias);
 
     } catch (error) {
       console.error("Error fetching map data:", error);
@@ -589,6 +614,27 @@ export default function Perfil() {
         variant: "destructive",
         title: "Error al cargar datos del mapa",
         description: getErrorMessage(error),
+      });
+      const fallbackPoints = generateJuninDemoHeatmap();
+      setHeatmapData(fallbackPoints);
+      const barrios = mergeAndSortStrings(
+        Array.from(new Set(fallbackPoints.map((d) => d.barrio).filter((b): b is string => Boolean(b)))),
+        [...JUNIN_DEMO_BARRIOS],
+      );
+      setAvailableBarrios(barrios);
+      const tipos = mergeAndSortStrings(
+        Array.from(new Set(fallbackPoints.map((d) => d.tipo_ticket).filter((t): t is string => Boolean(t)))),
+        [...JUNIN_DEMO_TICKET_TYPES],
+      );
+      setAvailableTipos(tipos);
+      const categorias = mergeAndSortStrings(
+        Array.from(new Set(fallbackPoints.map((d) => d.categoria).filter((c): c is string => Boolean(c)))),
+        [...JUNIN_DEMO_CATEGORIES],
+      );
+      setAvailableCategories(categorias);
+      toast({
+        title: 'Datos de demostración',
+        description: JUNIN_DEMO_NOTICE,
       });
     } finally {
       setIsMapLoading(false);
