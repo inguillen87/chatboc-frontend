@@ -120,6 +120,14 @@ const Navbar: React.FC = () => {
 
         {/* Botones lado derecho */}
         <div className="hidden md:flex gap-3 items-center">
+          {FEATURE_ENCUESTAS && isLoggedIn && (
+            <RouterLink
+              to="/admin/encuestas"
+              className="px-3 py-1 text-sm rounded border border-border/60 hover:bg-accent transition-colors"
+            >
+              Encuestas
+            </RouterLink>
+          )}
           {isLoggedIn ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
