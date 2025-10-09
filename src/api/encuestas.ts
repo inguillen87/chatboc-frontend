@@ -1,4 +1,4 @@
-import { apiFetch } from '@/utils/api';
+import { ApiError, apiFetch } from '@/utils/api';
 import {
   PublicResponsePayload,
   SurveyAdmin,
@@ -25,18 +25,56 @@ const buildQueryString = (params?: QueryParams) => {
   return query ? `?${query}` : '';
 };
 
-export const listPublicSurveys = async (): Promise<SurveyPublic[]> => {
-  const response = await apiFetch<unknown>('/public/encuestas', {
-    skipAuth: true,
-    omitCredentials: true,
-    isWidgetRequest: true,
-  });
-
-  if (!Array.isArray(response)) {
-    throw new Error('El servidor devolvió un formato inesperado para las encuestas públicas.');
+const serializeUnknown = (value: unknown) => {
+  if (typeof value === 'string') {
+    return value;
   }
 
-  return response as SurveyPublic[];
+  try {
+    return JSON.stringify(value);
+  } catch (error) {
+    console.warn('[encuestas] No se pudo serializar la respuesta inesperada', error);
+    return '';
+  }
+};
+
+export type PublicSurveyListResult = SurveyPublic[] & {
+  __badPayload?: true;
+  __raw?: string;
+  __status?: number;
+};
+
+const asFlaggedEmptyList = (
+  payload: { raw?: string; status?: number },
+): PublicSurveyListResult =>
+  Object.assign([], {
+    __badPayload: true as const,
+    __raw: payload.raw,
+    __status: payload.status,
+  });
+
+export const listPublicSurveys = async (): Promise<PublicSurveyListResult> => {
+  try {
+    const response = await apiFetch<unknown>('/public/encuestas', {
+      skipAuth: true,
+      omitCredentials: true,
+      isWidgetRequest: true,
+    });
+
+    if (Array.isArray(response)) {
+      return response as SurveyPublic[];
+    }
+
+    const raw = serializeUnknown(response);
+    return asFlaggedEmptyList({ raw });
+  } catch (error) {
+    if (error instanceof ApiError) {
+      const raw = serializeUnknown(error.body);
+      return asFlaggedEmptyList({ raw, status: error.status });
+    }
+
+    throw error;
+  }
 };
 
 export const getPublicSurvey = async (slug: string): Promise<SurveyPublic> => {
