@@ -25,6 +25,66 @@ const buildQueryString = (params?: QueryParams) => {
   return query ? `?${query}` : '';
 };
 
+type ApiFetchOptions = Parameters<typeof apiFetch>[1];
+
+const ADMIN_SURVEY_BASE_PATHS = [
+  '/admin/encuestas',
+  '/municipal/encuestas',
+  '/admin/surveys',
+  '/municipal/surveys/admin',
+] as const;
+
+const joinAdminPath = (base: string, suffix?: string) => {
+  if (!suffix) return base;
+  if (suffix.startsWith('?')) {
+    return `${base}${suffix}`;
+  }
+  const normalizedBase = base.replace(/\/$/, '');
+  const normalizedSuffix = suffix.replace(/^\/+/, '');
+  return `${normalizedBase}/${normalizedSuffix}`;
+};
+
+const shouldRetryAdminRequest = (error: unknown) => {
+  if (error instanceof ApiError) {
+    return [0, 400, 401, 402, 403].every((code) => error.status !== code);
+  }
+
+  if (error instanceof Error) {
+    const normalized = error.message.toLowerCase();
+    return normalized.includes('conexión') || normalized.includes('cors');
+  }
+
+  return false;
+};
+
+async function callAdminSurveyEndpoint<T>(pathSuffix = '', options?: ApiFetchOptions): Promise<T> {
+  let lastError: unknown = null;
+
+  for (const basePath of ADMIN_SURVEY_BASE_PATHS) {
+    try {
+      const targetPath = joinAdminPath(basePath, pathSuffix);
+      const result = await apiFetch<T>(targetPath, options ?? {});
+
+      if (basePath !== ADMIN_SURVEY_BASE_PATHS[0]) {
+        console.warn(
+          '[encuestas] Falling back to alternate admin endpoint',
+          { preferred: ADMIN_SURVEY_BASE_PATHS[0], used: basePath },
+        );
+      }
+
+      return result;
+    } catch (error) {
+      lastError = error;
+
+      if (!shouldRetryAdminRequest(error)) {
+        break;
+      }
+    }
+  }
+
+  throw lastError ?? new Error('No fue posible contactar al módulo de encuestas.');
+}
+
 const serializeUnknown = (value: unknown) => {
   if (typeof value === 'string') {
     return value;
@@ -104,49 +164,49 @@ export const postPublicResponse = (
   });
 
 export const adminListSurveys = (params?: QueryParams): Promise<SurveyListResponse> =>
-  apiFetch(`/admin/encuestas${buildQueryString(params)}`);
+  callAdminSurveyEndpoint(buildQueryString(params));
 
 export const adminCreateSurvey = (payload: SurveyDraftPayload): Promise<SurveyAdmin> =>
-  apiFetch('/admin/encuestas', {
+  callAdminSurveyEndpoint('', {
     method: 'POST',
     body: payload,
   });
 
 export const adminUpdateSurvey = (id: number, payload: SurveyDraftPayload): Promise<SurveyAdmin> =>
-  apiFetch(`/admin/encuestas/${id}`, {
+  callAdminSurveyEndpoint(`${id}`, {
     method: 'PUT',
     body: payload,
   });
 
 export const adminGetSurvey = (id: number): Promise<SurveyAdmin> =>
-  apiFetch(`/admin/encuestas/${id}`);
+  callAdminSurveyEndpoint(`${id}`);
 
 export const adminPublishSurvey = (id: number): Promise<SurveyAdmin> =>
-  apiFetch(`/admin/encuestas/${id}/publicar`, {
+  callAdminSurveyEndpoint(`${id}/publicar`, {
     method: 'POST',
   });
 
 export const getSummary = (id: number, filtros?: SurveyAnalyticsFilters): Promise<SurveySummary> =>
-  apiFetch(`/admin/encuestas/${id}/analytics/resumen${buildQueryString(filtros)}`);
+  callAdminSurveyEndpoint(`${id}/analytics/resumen${buildQueryString(filtros)}`);
 
 export const getTimeseries = (
   id: number,
   filtros?: SurveyAnalyticsFilters,
 ): Promise<SurveyTimeseriesPoint[]> =>
-  apiFetch(`/admin/encuestas/${id}/analytics/series${buildQueryString(filtros)}`);
+  callAdminSurveyEndpoint(`${id}/analytics/series${buildQueryString(filtros)}`);
 
 export const getHeatmap = (
   id: number,
   filtros?: SurveyAnalyticsFilters,
 ): Promise<SurveyHeatmapPoint[]> =>
-  apiFetch(`/admin/encuestas/${id}/analytics/heatmap${buildQueryString(filtros)}`);
+  callAdminSurveyEndpoint(`${id}/analytics/heatmap${buildQueryString(filtros)}`);
 
 export const downloadExportCsv = async (
   id: number,
   filtros?: SurveyAnalyticsFilters,
 ): Promise<Blob> => {
-  const responseText = await apiFetch<string>(
-    `/admin/encuestas/${id}/analytics/export${buildQueryString(filtros)}`,
+  const responseText = await callAdminSurveyEndpoint<string>(
+    `${id}/analytics/export${buildQueryString(filtros)}`,
     {
       method: 'GET',
       headers: { Accept: 'text/csv' },
@@ -159,7 +219,7 @@ export const createSnapshot = (
   id: number,
   payload?: { rango?: string },
 ): Promise<SurveySnapshot> =>
-  apiFetch(`/admin/encuestas/${id}/snapshots`, {
+  callAdminSurveyEndpoint(`${id}/snapshots`, {
     method: 'POST',
     body: payload ?? {},
   });
@@ -168,7 +228,7 @@ export const publishSnapshot = (
   id: number,
   snapshotId: number,
 ): Promise<SurveySnapshot> =>
-  apiFetch(`/admin/encuestas/${id}/snapshots/${snapshotId}/publicar`, {
+  callAdminSurveyEndpoint(`${id}/snapshots/${snapshotId}/publicar`, {
     method: 'POST',
   });
 
@@ -177,10 +237,10 @@ export const verifyResponse = (
   snapshotId: number,
   respuestaId: number,
 ): Promise<{ ok: boolean; valido: boolean }> =>
-  apiFetch(`/admin/encuestas/${id}/snapshots/${snapshotId}/verificar`, {
+  callAdminSurveyEndpoint(`${id}/snapshots/${snapshotId}/verificar`, {
     method: 'POST',
     body: { respuesta_id: respuestaId },
   });
 
 export const listSnapshots = (id: number): Promise<SurveySnapshot[]> =>
-  apiFetch(`/admin/encuestas/${id}/snapshots`);
+  callAdminSurveyEndpoint(`${id}/snapshots`);
