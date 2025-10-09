@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiFetch } from '@/utils/api';
+import type { HeatPoint } from '@/services/statsService';
+import { generateJuninDemoHeatmap, JUNIN_DEMO_NOTICE } from '@/utils/demoHeatmap';
 import {
   Select,
   SelectContent,
@@ -1078,6 +1080,81 @@ function createEmptyStats(): StatsResponse {
   };
 }
 
+const DEMO_CHANNELS = ['WhatsApp', 'App móvil', 'Web', 'Línea 147'];
+const DEMO_PRIORITIES = ['Alta', 'Media', 'Baja'];
+
+const seededRandom = (seed: number) => {
+  const x = Math.sin(seed) * 10000;
+  return x - Math.floor(x);
+};
+
+const buildDemoTicketRecords = (points: HeatPoint[]): TicketRecord[] => {
+  const now = Date.now();
+
+  return points.map((point, index) => {
+    const baseId = typeof point.id === 'number' ? point.id : index + 1;
+    const seed = baseId * 9301;
+    const createdDays = Math.floor(seededRandom(seed) * 90);
+    const createdHours = Math.floor(seededRandom(seed + 1) * 24);
+    const createdAt = new Date(now - createdDays * 86400000 - createdHours * 3600000);
+
+    const resolutionHours = Math.max(4, Math.round(seededRandom(seed + 2) * 120));
+    const resolvedProbability = seededRandom(seed + 3);
+    const resolvedAt =
+      resolvedProbability > 0.35
+        ? new Date(createdAt.getTime() + resolutionHours * 3600000)
+        : undefined;
+
+    const satisfactionBase = 3 + seededRandom(seed + 4) * 2;
+    const firstResponse = Math.max(1, Math.round(seededRandom(seed + 5) * 12));
+    const reopened = seededRandom(seed + 6) > 0.82;
+
+    const rawStatus = typeof point.estado === 'string' && point.estado.trim().length > 0
+      ? point.estado
+      : resolvedAt
+        ? 'Resuelto'
+        : 'En proceso';
+
+    const priorityIndex = Math.floor(seededRandom(seed + 7) * DEMO_PRIORITIES.length);
+    const channelIndex = Math.floor(seededRandom(seed + 8) * DEMO_CHANNELS.length);
+
+    const rubro = typeof point.categoria === 'string' && point.categoria.trim().length > 0
+      ? point.categoria.trim()
+      : 'General';
+
+    const barrio = typeof point.barrio === 'string' && point.barrio.trim().length > 0
+      ? point.barrio.trim()
+      : 'Sin barrio';
+
+    const tipo =
+      (typeof point.tipo_ticket === 'string' && point.tipo_ticket.trim().length > 0
+        ? point.tipo_ticket.trim()
+        : rubro) || 'General';
+
+    return {
+      id:
+        (typeof point.ticket === 'string' && point.ticket.trim().length > 0
+          ? point.ticket.trim()
+          : `DEMO-${String(baseId).padStart(4, '0')}`) ?? `DEMO-${String(baseId).padStart(4, '0')}`,
+      rubro,
+      barrio,
+      tipo,
+      status: normalizeStatusValue(rawStatus),
+      category: rubro,
+      priority: normalizePriorityValue(DEMO_PRIORITIES[priorityIndex] ?? 'Media'),
+      channel: normalizeChannelValue(DEMO_CHANNELS[channelIndex] ?? 'Web'),
+      createdAt,
+      resolvedAt,
+      resolutionTimeHours: resolvedAt ? Math.max(1, resolutionHours) : Math.max(1, createdDays * 24 + createdHours),
+      satisfaction: Number(Math.min(5, Math.max(2.5, satisfactionBase)).toFixed(2)),
+      firstResponseHours: firstResponse,
+      reopened,
+      surveyResponded: seededRandom(seed + 9) > 0.45,
+      agent: 'Equipo Municipal',
+    } satisfies TicketRecord;
+  });
+};
+
 function buildFallbackStats(
   filters: FilterState,
   sourceTickets?: TicketRecord[],
@@ -1649,23 +1726,35 @@ export default function MunicipalStats() {
     if (filtroTipo) params.append('tipo', filtroTipo);
     if (filtroRango) params.append('rango', filtroRango);
 
+    const filterState: FilterState = {
+      rubro: filtroRubro || undefined,
+      barrio: filtroBarrio || undefined,
+      tipo: filtroTipo || undefined,
+      rango: filtroRango || undefined,
+    };
+
     try {
       const resp = await apiFetch<unknown>(
         `/municipal/stats?${params.toString()}`,
       );
-      const normalized = resolveStatsPayload(resp, {
-        rubro: filtroRubro || undefined,
-        barrio: filtroBarrio || undefined,
-        tipo: filtroTipo || undefined,
-        rango: filtroRango || undefined,
-      });
+      const normalized = resolveStatsPayload(resp, filterState);
       setData(normalized.response);
       setUsingFallback(normalized.usedFallback);
     } catch (err) {
       console.error('Error fetching municipal stats', err);
-      setError('No se pudieron cargar las estadísticas.');
-      setData(null);
-      setUsingFallback(false);
+      try {
+        const demoTickets = buildDemoTicketRecords(generateJuninDemoHeatmap(120));
+        const fallbackStats = buildFallbackStats(filterState, demoTickets);
+        setData(fallbackStats);
+        setUsingFallback(true);
+        setError(null);
+        console.warn('Municipal stats falling back to demo dataset due to API error.');
+      } catch (fallbackError) {
+        console.error('Failed to build demo stats fallback', fallbackError);
+        setError('No se pudieron cargar las estadísticas.');
+        setData(null);
+        setUsingFallback(false);
+      }
     } finally {
       setLoading(false);
     }
@@ -1738,7 +1827,7 @@ export default function MunicipalStats() {
           {usingFallback ? (
             <p className="text-sm text-muted-foreground bg-muted/60 border border-dashed border-border rounded-md p-3">
               Mostrando analíticas simuladas mientras se restablece la conexión
-              con el servidor.
+              con el servidor. {JUNIN_DEMO_NOTICE}
             </p>
           ) : null}
         </div>
