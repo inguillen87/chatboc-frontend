@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { useSurveyAdmin } from '@/hooks/useSurveyAdmin';
 import type { SurveyAdmin } from '@/types/encuestas';
 import { toast } from '@/components/ui/use-toast';
+import { getAbsolutePublicSurveyUrl } from '@/utils/publicSurveyUrl';
 
 const AdminSurveysIndex = () => {
   const navigate = useNavigate();
@@ -27,9 +28,15 @@ const AdminSurveysIndex = () => {
   };
 
   const handleCopyLink = async (survey: SurveyAdmin) => {
-    const publicUrl = typeof window !== 'undefined'
-      ? `${window.location.origin.replace(/\/$/, '')}/e/${survey.slug}`
-      : `/e/${survey.slug}`;
+    const publicUrl = getAbsolutePublicSurveyUrl(survey.slug);
+    if (!publicUrl) {
+      toast({
+        title: 'No se pudo generar el enlace público',
+        description: 'Verificá que la encuesta tenga un slug configurado.',
+        variant: 'destructive',
+      });
+      return;
+    }
     try {
       await navigator.clipboard.writeText(publicUrl);
       toast({ title: 'Link copiado', description: 'Compartilo en redes, mailings o un QR impreso.' });

@@ -27,6 +27,12 @@ interface ApiFetchOptions {
   cache?: RequestCache;
   onResponse?: (response: Response) => void;
   /**
+   * Avoid sending the chat session identifier header.
+   * Useful for public endpoints (e.g. encuestas) that don't expect custom headers
+   * and may not declare them in their CORS configuration.
+   */
+  omitChatSessionId?: boolean;
+  /**
    * When true, avoids sending browser cookies with the request.
    * Useful for widget requests where the visitor should remain anonymous.
    */
@@ -57,6 +63,7 @@ export async function apiFetch<T>(
     onResponse,
     omitCredentials,
     isWidgetRequest,
+    omitChatSessionId,
   } = options;
 
   const rawIframeToken = getIframeToken();
@@ -115,7 +122,8 @@ export async function apiFetch<T>(
     }
   }
   const anonId = safeLocalStorage.getItem("anon_id");
-  const chatSessionId = getOrCreateChatSessionId(); // Get or create the chat session ID
+  const shouldAttachChatSession = !omitChatSessionId;
+  const chatSessionId = shouldAttachChatSession ? getOrCreateChatSessionId() : null; // Get or create the chat session ID
 
   // Normalize URL to prevent double slashes
   const url = `${BASE_API_URL.replace(/\/$/, "")}/${path.replace(/^\//, "")}`;
@@ -134,8 +142,10 @@ export async function apiFetch<T>(
   const isForm = body instanceof FormData;
   if (!isForm && body) headers["Content-Type"] = "application/json";
 
-  // Add the chat session ID header to all requests
-  headers["X-Chat-Session-Id"] = chatSessionId;
+  // Add the chat session ID header to requests that expect it
+  if (chatSessionId) {
+    headers["X-Chat-Session-Id"] = chatSessionId;
+  }
 
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
@@ -162,6 +172,7 @@ export async function apiFetch<T>(
     widgetRequest: treatAsWidget,
     storedRole: normalizedRole,
     headers,
+    chatSessionIdAttached: Boolean(chatSessionId),
   });
 
   const shouldOmitCredentials =

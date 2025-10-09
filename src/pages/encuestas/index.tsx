@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { getErrorMessage } from '@/utils/api';
 import type { PublicSurveyListResult } from '@/api/encuestas';
 import type { SurveyPublic, SurveyTipo } from '@/types/encuestas';
+import { getPublicSurveyUrl } from '@/utils/publicSurveyUrl';
 
 const TIPO_LABELS: Record<SurveyTipo, string> = {
   opinion: 'Opinión',
@@ -166,6 +167,8 @@ const SurveysPublicIndex = () => {
           const fin = formatDate(survey.fin_at);
           const rango = inicio && fin ? `${inicio} – ${fin}` : inicio || fin || null;
 
+          const participationPath = getPublicSurveyUrl(survey.slug, { absolute: false }) || '#';
+
           return (
             <Card key={`${survey.slug}-${survey.id ?? survey.slug}`} className="overflow-hidden">
               <CardHeader className="space-y-4">
@@ -195,7 +198,7 @@ const SurveysPublicIndex = () => {
                   Compartí esta encuesta para ampliar la participación.
                 </span>
                 <Button asChild>
-                  <Link to={`/e/${survey.slug}`} className="inline-flex items-center gap-2">
+                  <Link to={participationPath} className="inline-flex items-center gap-2">
                     Participar
                     <ArrowRight className="h-4 w-4" />
                   </Link>

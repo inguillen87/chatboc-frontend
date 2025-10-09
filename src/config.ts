@@ -5,6 +5,14 @@
 const VITE_BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 const IS_DEV = import.meta.env.DEV;
 const VITE_DEFAULT_ENTITY_TOKEN = import.meta.env.VITE_DEFAULT_ENTITY_TOKEN;
+const VITE_PUBLIC_SURVEY_BASE_URL = import.meta.env.VITE_PUBLIC_SURVEY_BASE_URL;
+
+const sanitizeBaseUrl = (value?: string) => {
+  if (typeof value !== 'string') return '';
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  return trimmed.replace(/\/$/, '');
+};
 
 /**
  * The base URL for all HTTP API requests.
@@ -56,3 +64,4 @@ export const DEFAULT_ENTITY_TOKEN =
   typeof VITE_DEFAULT_ENTITY_TOKEN === 'string' && VITE_DEFAULT_ENTITY_TOKEN.trim()
     ? VITE_DEFAULT_ENTITY_TOKEN.trim()
     : '';
+export const PUBLIC_SURVEY_BASE_URL = sanitizeBaseUrl(VITE_PUBLIC_SURVEY_BASE_URL);
