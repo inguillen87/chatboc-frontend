@@ -51,6 +51,7 @@ import {
 } from '@/components/ui/table';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle, FileDown } from 'lucide-react';
+import { generateJuninDemoHeatmap, JUNIN_DEMO_NOTICE } from '@/utils/demoHeatmap';
 import {
   clearEndpointUnavailable,
   isEndpointMarkedUnavailable,
@@ -347,12 +348,20 @@ export default function MunicipalAnalytics() {
         setError('No hay datos disponibles con los filtros actuales.');
       }
     } catch (err: any) {
-      const message =
-        err instanceof ApiError ? err.message : 'Error al cargar analíticas.';
-      setError(message);
-      setData(null);
-      setHeatmapData([]);
+      console.error('Error fetching municipal analytics data:', err);
+      const demoHeatmap = generateJuninDemoHeatmap(120);
+      const fallback = buildFallbackAnalytics(null, demoHeatmap);
+      setData(fallback);
+      setHeatmapData(demoHeatmap);
       setCharts([]);
+      setAnalyticsDisabled(true);
+      analyticsDisabledRef.current = true;
+      setAnalyticsWarning((prev) => {
+        const combined = `${ANALYTICS_WARNING_MESSAGE} ${JUNIN_DEMO_NOTICE}`;
+        if (!prev) return combined;
+        return prev.includes(JUNIN_DEMO_NOTICE) ? prev : `${prev} ${JUNIN_DEMO_NOTICE}`;
+      });
+      setError(null);
     } finally {
       setLoading(false);
     }
