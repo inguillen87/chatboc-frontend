@@ -102,16 +102,85 @@ export type PublicSurveyListResult = SurveyPublic[] & {
   __badPayload?: true;
   __raw?: string;
   __status?: number;
+  __fallbackNotice?: string;
 };
 
 const asFlaggedEmptyList = (
-  payload: { raw?: string; status?: number },
+  payload: { raw?: string; status?: number; fallbackNotice?: string },
 ): PublicSurveyListResult =>
   Object.assign([], {
     __badPayload: true as const,
     __raw: payload.raw,
     __status: payload.status,
+    __fallbackNotice: payload.fallbackNotice,
   });
+
+export const getPublicSurvey = async (slug: string): Promise<SurveyPublic> => {
+  const response = await apiFetch<unknown>(`/public/encuestas/${slug}`, {
+    skipAuth: true,
+    omitCredentials: true,
+    isWidgetRequest: true,
+    omitChatSessionId: true,
+  });
+
+  if (!response || typeof response !== 'object' || Array.isArray(response)) {
+    throw new Error('El servidor devolvió un formato inesperado para la encuesta solicitada.');
+  }
+
+  return response as SurveyPublic;
+};
+
+const FALLBACK_SURVEY_URL_REGEX = /https?:\/\/[\S]+\/e\/([a-z0-9-]+)/gi;
+
+const extractSlugsFromRawPayload = (raw?: string | null): string[] => {
+  if (!raw) return [];
+  const slugs = new Set<string>();
+  let match: RegExpExecArray | null = null;
+  while ((match = FALLBACK_SURVEY_URL_REGEX.exec(raw)) !== null) {
+    const [, slug] = match;
+    if (slug) {
+      slugs.add(slug.trim());
+    }
+  }
+  return Array.from(slugs);
+};
+
+const attemptRecoveryFromRawPayload = async (
+  raw: string,
+  status?: number,
+): Promise<PublicSurveyListResult | null> => {
+  const slugs = extractSlugsFromRawPayload(raw);
+  if (!slugs.length) {
+    return null;
+  }
+
+  const recovered = await Promise.all(
+    slugs.map(async (slug) => {
+      try {
+        return await getPublicSurvey(slug);
+      } catch (fetchError) {
+        console.warn('[encuestas] No se pudo recuperar la encuesta pública a partir del enlace', {
+          slug,
+          error: fetchError,
+        });
+        return null;
+      }
+    }),
+  );
+
+  const surveys = recovered.filter((item): item is SurveyPublic => Boolean(item));
+  if (!surveys.length) {
+    return null;
+  }
+
+  return Object.assign(surveys, {
+    __badPayload: true as const,
+    __raw: raw,
+    __status: status,
+    __fallbackNotice:
+      'Mostramos las encuestas detectadas desde los enlaces publicados porque la lista principal devolvió un formato inesperado.',
+  });
+};
 
 export const listPublicSurveys = async (): Promise<PublicSurveyListResult> => {
   try {
@@ -127,30 +196,35 @@ export const listPublicSurveys = async (): Promise<PublicSurveyListResult> => {
     }
 
     const raw = serializeUnknown(response);
+    if (raw) {
+      const recovered = await attemptRecoveryFromRawPayload(raw);
+      if (recovered) {
+        return recovered;
+      }
+    }
+
     return asFlaggedEmptyList({ raw });
   } catch (error) {
     if (error instanceof ApiError) {
-      const raw = serializeUnknown(error.body);
-      return asFlaggedEmptyList({ raw, status: error.status });
+      const rawBody =
+        typeof error.body?.raw === 'string'
+          ? error.body.raw
+          : typeof error.body === 'string'
+            ? error.body
+            : serializeUnknown(error.body);
+
+      if (rawBody) {
+        const recovered = await attemptRecoveryFromRawPayload(rawBody, error.status);
+        if (recovered) {
+          return recovered;
+        }
+      }
+
+      return asFlaggedEmptyList({ raw: rawBody, status: error.status });
     }
 
     throw error;
   }
-};
-
-export const getPublicSurvey = async (slug: string): Promise<SurveyPublic> => {
-  const response = await apiFetch<unknown>(`/public/encuestas/${slug}`, {
-    skipAuth: true,
-    omitCredentials: true,
-    isWidgetRequest: true,
-    omitChatSessionId: true,
-  });
-
-  if (!response || typeof response !== 'object' || Array.isArray(response)) {
-    throw new Error('El servidor devolvió un formato inesperado para la encuesta solicitada.');
-  }
-
-  return response as SurveyPublic;
 };
 
 export const postPublicResponse = (
