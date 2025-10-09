@@ -1,8 +1,20 @@
-import { CalendarDays, BarChart3, Edit, LinkIcon, Send } from 'lucide-react';
+import { useState } from 'react';
+import { CalendarDays, BarChart3, Edit, LinkIcon, Send, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import type { SurveyAdmin } from '@/types/encuestas';
 
 interface SurveyCardProps {
@@ -12,6 +24,8 @@ interface SurveyCardProps {
   onPublish?: () => void;
   publishing?: boolean;
   onCopyLink?: () => void;
+  onDelete?: () => Promise<void> | void;
+  deleting?: boolean;
 }
 
 const formatDate = (value?: string) =>
@@ -24,43 +38,91 @@ const statusVariants: Record<SurveyAdmin['estado'], 'default' | 'secondary' | 'o
   archivada: 'destructive',
 };
 
-export const SurveyCard = ({ survey, onEdit, onAnalytics, onPublish, publishing, onCopyLink }: SurveyCardProps) => (
-  <Card className="border border-border/70 shadow-sm hover:shadow-md transition-shadow">
-    <CardHeader className="flex flex-col gap-2">
-      <div className="flex items-center justify-between gap-3">
-        <CardTitle className="text-xl font-semibold">{survey.titulo}</CardTitle>
-        <Badge variant={statusVariants[survey.estado]} className="uppercase tracking-wide">
-          {survey.estado}
-        </Badge>
-      </div>
-      <p className="text-sm text-muted-foreground line-clamp-2">{survey.descripcion || 'Sin descripción'}</p>
-      <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-        <span className="inline-flex items-center gap-1"><CalendarDays className="h-4 w-4" /> {formatDate(survey.inicio_at)} – {formatDate(survey.fin_at)}</span>
-        <span className="inline-flex items-center gap-1">Tipo: {survey.tipo}</span>
-        <span className="inline-flex items-center gap-1">Slug: {survey.slug}</span>
-      </div>
-    </CardHeader>
-    <CardContent className="text-sm text-muted-foreground space-y-1">
-      <p>Preguntas: {survey.preguntas.length}</p>
-      <p>Política de unicidad: {survey.politica_unicidad}</p>
-    </CardContent>
-    <CardFooter className="flex flex-wrap gap-2">
-      <Button variant="outline" size="sm" onClick={onEdit} className="inline-flex items-center gap-2">
-        <Edit className="h-4 w-4" /> Editar
-      </Button>
-      <Button variant="outline" size="sm" onClick={onAnalytics} className="inline-flex items-center gap-2">
-        <BarChart3 className="h-4 w-4" /> Analytics
-      </Button>
-      {survey.estado !== 'publicada' && onPublish && (
-        <Button size="sm" onClick={onPublish} disabled={publishing} className="inline-flex items-center gap-2">
-          <Send className="h-4 w-4" /> {publishing ? 'Publicando…' : 'Publicar'}
+export const SurveyCard = ({
+  survey,
+  onEdit,
+  onAnalytics,
+  onPublish,
+  publishing,
+  onCopyLink,
+  onDelete,
+  deleting,
+}: SurveyCardProps) => {
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
+  const handleConfirmDelete = async () => {
+    if (!onDelete) return;
+    try {
+      await onDelete();
+      setDeleteDialogOpen(false);
+    } catch (error) {
+      console.error('No se pudo eliminar la encuesta', error);
+    }
+  };
+
+  return (
+    <Card className="border border-border/70 shadow-sm transition-shadow hover:shadow-md">
+      <CardHeader className="flex flex-col gap-2">
+        <div className="flex items-center justify-between gap-3">
+          <CardTitle className="text-xl font-semibold">{survey.titulo}</CardTitle>
+          <Badge variant={statusVariants[survey.estado]} className="uppercase tracking-wide">
+            {survey.estado}
+          </Badge>
+        </div>
+        <p className="line-clamp-2 text-sm text-muted-foreground">{survey.descripcion || 'Sin descripción'}</p>
+        <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+          <span className="inline-flex items-center gap-1">
+            <CalendarDays className="h-4 w-4" /> {formatDate(survey.inicio_at)} – {formatDate(survey.fin_at)}
+          </span>
+          <span className="inline-flex items-center gap-1">Tipo: {survey.tipo}</span>
+          <span className="inline-flex items-center gap-1">Slug: {survey.slug}</span>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-1 text-sm text-muted-foreground">
+        <p>Preguntas: {survey.preguntas.length}</p>
+        <p>Política de unicidad: {survey.politica_unicidad}</p>
+      </CardContent>
+      <CardFooter className="flex flex-wrap gap-2">
+        <Button variant="outline" size="sm" onClick={onEdit} className="inline-flex items-center gap-2">
+          <Edit className="h-4 w-4" /> Editar
         </Button>
-      )}
-      {survey.estado === 'publicada' && onCopyLink && (
-        <Button variant="ghost" size="sm" onClick={onCopyLink} className="inline-flex items-center gap-2">
-          <LinkIcon className="h-4 w-4" /> Copiar link
+        <Button variant="outline" size="sm" onClick={onAnalytics} className="inline-flex items-center gap-2">
+          <BarChart3 className="h-4 w-4" /> Analytics
         </Button>
-      )}
-    </CardFooter>
-  </Card>
-);
+        {survey.estado !== 'publicada' && onPublish && (
+          <Button size="sm" onClick={onPublish} disabled={publishing} className="inline-flex items-center gap-2">
+            <Send className="h-4 w-4" /> {publishing ? 'Publicando…' : 'Publicar'}
+          </Button>
+        )}
+        {survey.estado === 'publicada' && onCopyLink && (
+          <Button variant="ghost" size="sm" onClick={onCopyLink} className="inline-flex items-center gap-2">
+            <LinkIcon className="h-4 w-4" /> Copiar link
+          </Button>
+        )}
+        {onDelete ? (
+          <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" size="sm" className="inline-flex items-center gap-2">
+                <Trash2 className="h-4 w-4" /> Borrar
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>¿Eliminar encuesta?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Esta acción es permanente y eliminará la encuesta {survey.titulo} y sus respuestas de prueba.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={Boolean(deleting)}>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={handleConfirmDelete} disabled={Boolean(deleting)}>
+                  {deleting ? 'Borrando…' : 'Eliminar'}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        ) : null}
+      </CardFooter>
+    </Card>
+  );
+};

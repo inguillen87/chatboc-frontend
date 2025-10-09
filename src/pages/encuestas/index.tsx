@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { AlertCircle, ArrowRight, Bot, CalendarDays, Copy, Download, Loader2, MessageCircle } from 'lucide-react';
+import { AlertCircle, ArrowRight, Bot, CalendarDays, Copy, Download, Loader2, MessageCircle, Share2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -14,7 +14,7 @@ import { toast } from '@/components/ui/use-toast';
 import { getErrorMessage } from '@/utils/api';
 import type { PublicSurveyListResult } from '@/api/encuestas';
 import type { SurveyPublic, SurveyTipo } from '@/types/encuestas';
-import { getPublicSurveyUrl } from '@/utils/publicSurveyUrl';
+import { getPublicSurveyQrUrl, getPublicSurveyUrl } from '@/utils/publicSurveyUrl';
 
 const TIPO_LABELS: Record<SurveyTipo, string> = {
   opinion: 'Opinión',
@@ -50,6 +50,24 @@ const getStatus = (survey: SurveyPublic) => {
   }
 
   return { label: 'En curso', variant: 'default' as const };
+};
+
+const POSITION_EMOJIS = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
+
+const buildWidgetUrl = (url: string): string => {
+  try {
+    const target = new URL(url);
+    target.searchParams.set('canal', 'widget_chat');
+    return target.toString();
+  } catch (error) {
+    const separator = url.includes('?') ? '&' : '?';
+    return `${url}${separator}canal=widget_chat`;
+  }
+};
+
+const buildShareLink = (title: string, url: string): string => {
+  const message = `Participá en '${title}' ingresando a ${url}`;
+  return `https://wa.me/?text=${encodeURIComponent(message)}`;
 };
 
 const SurveysPublicIndex = () => {
@@ -93,6 +111,67 @@ const SurveysPublicIndex = () => {
       { active: 0, upcoming: 0, finished: 0 },
     );
   }, [surveys]);
+
+  const latestSurveys = useMemo(() => surveys.slice(0, 10), [surveys]);
+
+  const aggregatedShareMessage = useMemo(() => {
+    if (!latestSurveys.length) {
+      return null;
+    }
+
+    const lines: string[] = ['Participá en estas encuestas ciudadanas y compartilas con tu comunidad:', ''];
+
+    latestSurveys.forEach((survey, index) => {
+      const participationUrl = getPublicSurveyUrl(survey.slug);
+      if (!participationUrl) {
+        return;
+      }
+
+      const position = POSITION_EMOJIS[index] ?? `${index + 1}.`;
+      lines.push(`${position} ${survey.titulo}`);
+      if (survey.descripcion) {
+        lines.push(`   ${survey.descripcion}`);
+      }
+      lines.push(`   👉 ${participationUrl}`);
+
+      const widgetUrl = buildWidgetUrl(participationUrl);
+      lines.push(`   💬 Widget chat: ${widgetUrl}`);
+
+      const qrUrl = getPublicSurveyQrUrl(survey.slug, { size: 512 });
+      if (qrUrl) {
+        lines.push(`   🧾 QR: ${qrUrl}`);
+      }
+
+      const whatsappShare = buildShareLink(survey.titulo, participationUrl);
+      lines.push(`   📲 Reenviar por WhatsApp: ${whatsappShare}`);
+      lines.push('');
+    });
+
+    return lines.join('\n').trimEnd();
+  }, [latestSurveys]);
+
+  const handleShareDigestOnWhatsApp = () => {
+    if (!aggregatedShareMessage) return;
+    const url = `https://wa.me/?text=${encodeURIComponent(aggregatedShareMessage)}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleCopyDigest = async () => {
+    if (!aggregatedShareMessage) return;
+    try {
+      await navigator.clipboard.writeText(aggregatedShareMessage);
+      toast({
+        title: 'Resumen copiado',
+        description: 'Pegalo en WhatsApp, email o redes para difundir las últimas encuestas.',
+      });
+    } catch (copyError) {
+      toast({
+        title: 'No se pudo copiar el resumen',
+        description: String((copyError as Error)?.message ?? copyError),
+        variant: 'destructive',
+      });
+    }
+  };
 
   if (isLoading) {
     return (
@@ -218,6 +297,27 @@ const SurveysPublicIndex = () => {
         </div>
       </header>
 
+      {aggregatedShareMessage ? (
+        <Card className="border-dashed border-primary/40 bg-primary/5 dark:bg-primary/10">
+          <CardContent className="flex flex-col gap-3 py-4 md:flex-row md:items-center md:justify-between">
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-foreground">Compartir las últimas encuestas</p>
+              <p className="text-xs text-muted-foreground">
+                Generá un mensaje compacto con hasta 10 encuestas recientes listo para enviar por WhatsApp.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button className="inline-flex items-center gap-2" onClick={handleShareDigestOnWhatsApp}>
+                <Share2 className="h-4 w-4" /> Enviar por WhatsApp
+              </Button>
+              <Button variant="outline" className="inline-flex items-center gap-2" onClick={handleCopyDigest}>
+                <Copy className="h-4 w-4" /> Copiar resumen
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
       <div className="grid gap-4">
         {surveys.map((survey) => {
           const status = getStatus(survey);
@@ -227,7 +327,9 @@ const SurveysPublicIndex = () => {
 
           const participationPath = getPublicSurveyUrl(survey.slug, { absolute: false }) || '#';
           const participationUrl = getPublicSurveyUrl(survey.slug) || '';
-          const qrUrl = survey.slug ? `/api/public/encuestas/${survey.slug}/qr?size=512` : null;
+          const qrUrl = getPublicSurveyQrUrl(survey.slug, { size: 512 });
+          const widgetUrl = participationUrl ? buildWidgetUrl(participationUrl) : '';
+          const whatsappShareUrl = participationUrl ? buildShareLink(survey.titulo, participationUrl) : '';
 
           const handleCopyLink = async () => {
             if (!participationUrl) return;
@@ -246,37 +348,9 @@ const SurveysPublicIndex = () => {
             }
           };
 
-          const handleShareWidget = async () => {
-            if (!participationUrl) return;
-            const shareMessage = `Participá en "${survey.titulo}" acá: ${participationUrl}`;
-            let copied = false;
-            try {
-              await navigator.clipboard.writeText(shareMessage);
-              copied = true;
-            } catch (error) {
-              console.warn('No se pudo copiar el mensaje para el widget', error);
-            }
-
-            const chatboc = typeof window !== 'undefined' ? (window as any).Chatboc : null;
-            if (chatboc?.open) {
-              chatboc.open();
-              if (typeof chatboc.setView === 'function') {
-                chatboc.setView('chat');
-              }
-            }
-
-            toast({
-              title: copied ? 'Mensaje listo para compartir' : 'Abrí el widget de chat',
-              description: copied
-                ? 'Pegalo en el widget para invitar a más personas.'
-                : 'Copiá el enlace manualmente y compartilo desde el widget.',
-            });
-          };
-
           const handleShareWhatsApp = () => {
             if (!participationUrl) return;
-            const whatsappText = encodeURIComponent(`${survey.titulo}\n${participationUrl}`);
-            const whatsappUrl = `https://wa.me/?text=${whatsappText}`;
+            const whatsappUrl = buildShareLink(survey.titulo, participationUrl);
             window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
           };
 
@@ -314,12 +388,58 @@ const SurveysPublicIndex = () => {
                       <Button variant="outline" className="inline-flex items-center gap-2" onClick={handleCopyLink}>
                         <Copy className="h-4 w-4" /> Copiar enlace
                       </Button>
-                      <Button variant="outline" className="inline-flex items-center gap-2" onClick={handleShareWidget}>
-                        <Bot className="h-4 w-4" /> Compartir en el widget
+                      <Button
+                        variant="outline"
+                        className="inline-flex items-center gap-2"
+                        onClick={() => {
+                          if (!widgetUrl) return;
+                          navigator.clipboard
+                            .writeText(widgetUrl)
+                            .then(() => {
+                              toast({
+                                title: 'Widget listo para compartir',
+                                description: 'Pegalo donde necesites para abrir el chat directo.',
+                              });
+                            })
+                            .catch((widgetError) => {
+                              console.warn('No se pudo copiar el enlace del widget', widgetError);
+                              toast({
+                                title: 'No se pudo copiar el enlace del widget',
+                                description: String((widgetError as Error)?.message ?? widgetError),
+                                variant: 'destructive',
+                              });
+                            });
+                        }}
+                      >
+                        <Bot className="h-4 w-4" /> Link del widget
                       </Button>
                       <Button variant="outline" className="inline-flex items-center gap-2" onClick={handleShareWhatsApp}>
                         <MessageCircle className="h-4 w-4" /> Enviar por WhatsApp
                       </Button>
+                    </div>
+                    <div className="grid max-w-md gap-1 text-xs text-muted-foreground">
+                      {widgetUrl ? (
+                        <a
+                          href={widgetUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex max-w-full items-center gap-1 text-primary hover:underline"
+                        >
+                          <Bot className="h-3.5 w-3.5" />
+                          <span className="truncate">{widgetUrl}</span>
+                        </a>
+                      ) : null}
+                      {whatsappShareUrl ? (
+                        <a
+                          href={whatsappShareUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex max-w-full items-center gap-1 text-primary hover:underline"
+                        >
+                          <MessageCircle className="h-3.5 w-3.5" />
+                          <span className="truncate">Compartir directo en WhatsApp</span>
+                        </a>
+                      ) : null}
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
