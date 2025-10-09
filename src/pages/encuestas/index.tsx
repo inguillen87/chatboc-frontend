@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, CalendarDays, Loader2 } from 'lucide-react';
+import { AlertCircle, ArrowRight, CalendarDays, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -9,6 +9,7 @@ import { listPublicSurveys } from '@/api/encuestas';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { getErrorMessage } from '@/utils/api';
 import type { PublicSurveyListResult } from '@/api/encuestas';
 import type { SurveyPublic, SurveyTipo } from '@/types/encuestas';
@@ -58,7 +59,14 @@ const SurveysPublicIndex = () => {
   });
 
   const hasBadPayload = Boolean(data && (data as any).__badPayload);
+  const fallbackNotice =
+    data && typeof (data as any).__fallbackNotice === 'string'
+      ? (data as any).__fallbackNotice
+      : null;
   const surveys = Array.isArray(data) ? data : [];
+  const rawPayload = hasBadPayload && typeof (data as any).__raw === 'string' ? (data as any).__raw : null;
+  const statusCode = hasBadPayload && typeof (data as any).__status === 'number' ? (data as any).__status : null;
+  const showRawFallback = hasBadPayload && !surveys.length;
 
   const summary = useMemo(() => {
     const now = new Date();
@@ -111,7 +119,7 @@ const SurveysPublicIndex = () => {
     );
   }
 
-  if (hasBadPayload) {
+  if (showRawFallback) {
     return (
       <div className="mx-auto flex min-h-[50vh] w-full max-w-2xl items-center justify-center">
         <Card className="w-full">
@@ -119,9 +127,38 @@ const SurveysPublicIndex = () => {
             <CardTitle className="text-center text-lg">No pudimos cargar las encuestas</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col items-center gap-4 text-center">
-            <p className="text-sm text-muted-foreground">
-              El servidor devolvió un formato inesperado. Intentá nuevamente en unos minutos.
-            </p>
+            <div className="space-y-2 text-sm text-muted-foreground">
+              <p>
+                El servidor devolvió un formato inesperado{statusCode ? ` (código ${statusCode})` : ''}. Intentá nuevamente en unos
+                minutos.
+              </p>
+              {rawPayload ? (
+                <div className="max-h-64 w-full overflow-auto rounded-md border bg-muted/40 p-3 text-left font-mono text-xs">
+                  {rawPayload.split('\n').map((line, index) => {
+                    const trimmed = line.trim();
+                    if (trimmed.startsWith('http')) {
+                      return (
+                        <div key={`${line}-${index}`} className="py-0.5">
+                          <a
+                            href={trimmed}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="break-all text-primary underline"
+                          >
+                            {trimmed}
+                          </a>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div key={`${line}-${index}`} className="whitespace-pre-wrap py-0.5">
+                        {line}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
             <Button onClick={() => refetch()} disabled={isFetching}>
               Reintentar
             </Button>
@@ -148,6 +185,26 @@ const SurveysPublicIndex = () => {
 
   return (
     <div className="space-y-6 py-6">
+      {fallbackNotice ? (
+        <Alert className="border-amber-500/40 bg-amber-50 text-amber-900 dark:border-amber-400/50 dark:bg-amber-950/30 dark:text-amber-100">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Mostrando enlaces recuperados</AlertTitle>
+          <AlertDescription className="space-y-2">
+            <p>{fallbackNotice}</p>
+            {statusCode ? (
+              <p className="text-xs opacity-80">Código devuelto por el servidor: {statusCode}</p>
+            ) : null}
+            {rawPayload ? (
+              <details className="text-xs">
+                <summary className="cursor-pointer font-medium">Ver respuesta original</summary>
+                <pre className="mt-2 max-h-32 overflow-auto rounded border bg-background/60 p-2 text-foreground/90">
+                  {rawPayload}
+                </pre>
+              </details>
+            ) : null}
+          </AlertDescription>
+        </Alert>
+      ) : null}
       <header className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight">Encuestas ciudadanas</h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
