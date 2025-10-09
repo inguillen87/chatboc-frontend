@@ -4,6 +4,7 @@
 
 const VITE_BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 const IS_DEV = import.meta.env.DEV;
+const VITE_DEFAULT_ENTITY_TOKEN = import.meta.env.VITE_DEFAULT_ENTITY_TOKEN;
 
 /**
  * The base URL for all HTTP API requests.
@@ -51,3 +52,7 @@ export const COOKIE_DOMAIN = import.meta.env.VITE_COOKIE_DOMAIN;
 export const TIMEZONE = import.meta.env.VITE_TIMEZONE || 'America/Argentina/Buenos_Aires';
 export const LOCALE = import.meta.env.VITE_LOCALE || 'es-AR';
 export const APP_TARGET = (import.meta.env.VITE_APP_TARGET || 'pyme') as 'pyme' | 'municipio';
+export const DEFAULT_ENTITY_TOKEN =
+  typeof VITE_DEFAULT_ENTITY_TOKEN === 'string' && VITE_DEFAULT_ENTITY_TOKEN.trim()
+    ? VITE_DEFAULT_ENTITY_TOKEN.trim()
+    : '';

@@ -300,6 +300,22 @@ Note: after closing the Google login popup you may see a console message like
 `Cross-Origin-Opener-Policy policy would block the window.closed call`. This
 warning comes from the Google library and does not affect the login flow.
 
+### Default entity token for public embeds
+
+Some public pages (for example `/encuestas`) need to call the widget endpoints
+with a valid tenant token. When the site is served outside of an embedded
+widget there is no `window.CHATBOC_CONFIG` available, so set
+`VITE_DEFAULT_ENTITY_TOKEN` in the frontend build to provide a fallback token.
+The value is injected automatically in widget requests and cached in
+`localStorage` when present.
+
+```bash
+VITE_DEFAULT_ENTITY_TOKEN=tu-token-publico
+```
+
+If the variable is not defined the requests will be sent without the header,
+which typically results in `400` responses from `/public/encuestas`.
+
 ### Troubleshooting common console errors
 
 When the API requests fail with messages like `Failed to load resource: the
