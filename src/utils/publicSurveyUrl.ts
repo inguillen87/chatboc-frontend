@@ -85,6 +85,11 @@ const getQrPath = (slug: string, size?: number): string => {
   return `/api/public/encuestas/${normalized}/qr${query}`;
 };
 
+const getQrPagePath = (slug: string): string => {
+  const normalized = normalizeSlug(slug);
+  return normalized ? `/encuestas/${normalized}/qr` : '';
+};
+
 export const getPublicSurveyQrUrl = (
   slug: string,
   options: PublicSurveyAssetOptions = {},
@@ -98,4 +103,27 @@ export const getPublicSurveyQrUrl = (
 
   const base = resolveBaseUrl();
   return base ? `${base}${path}` : path;
+};
+
+export const getPublicSurveyQrPageUrl = (
+  slug: string,
+  options: PublicSurveyUrlOptions = {},
+): string => {
+  const path = getQrPagePath(slug);
+  if (!path) return '';
+
+  if (options.absolute === false) {
+    return path;
+  }
+
+  const base = PUBLIC_SURVEY_BASE_URL;
+  if (base) {
+    return `${base}${path}`;
+  }
+
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return `${window.location.origin.replace(/\/$/, '')}${path}`;
+  }
+
+  return path;
 };
