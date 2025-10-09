@@ -119,6 +119,7 @@ export const listPublicSurveys = async (): Promise<PublicSurveyListResult> => {
       skipAuth: true,
       omitCredentials: true,
       isWidgetRequest: true,
+      omitChatSessionId: true,
     });
 
     if (Array.isArray(response)) {
@@ -142,6 +143,7 @@ export const getPublicSurvey = async (slug: string): Promise<SurveyPublic> => {
     skipAuth: true,
     omitCredentials: true,
     isWidgetRequest: true,
+    omitChatSessionId: true,
   });
 
   if (!response || typeof response !== 'object' || Array.isArray(response)) {
@@ -161,6 +163,7 @@ export const postPublicResponse = (
     omitCredentials: true,
     isWidgetRequest: true,
     skipAuth: true,
+    omitChatSessionId: true,
   });
 
 export const adminListSurveys = (params?: QueryParams): Promise<SurveyListResponse> =>

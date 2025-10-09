@@ -16,6 +16,7 @@ import type {
   SurveyDraftPayload,
   SurveyTipo,
 } from '@/types/encuestas';
+import { getAbsolutePublicSurveyUrl } from '@/utils/publicSurveyUrl';
 
 interface SurveyEditorProps {
   survey?: SurveyAdmin;
@@ -258,11 +259,10 @@ export const SurveyEditor = ({ survey, onSave, onPublish, isSaving, isPublishing
     }
   };
 
-  const publicUrl = useMemo(() => {
-    if (!survey?.slug) return '';
-    if (typeof window === 'undefined') return `/e/${survey.slug}`;
-    return `${window.location.origin.replace(/\/$/, '')}/e/${survey.slug}`;
-  }, [survey?.slug]);
+  const publicUrl = useMemo(
+    () => getAbsolutePublicSurveyUrl(survey?.slug ?? ''),
+    [survey?.slug],
+  );
 
   const qrUrl = survey?.slug ? `/api/public/encuestas/${survey.slug}/qr?size=512` : '';
 
