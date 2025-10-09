@@ -9,12 +9,21 @@ import { useSurveyPublic } from '@/hooks/useSurveyPublic';
 import type { PublicResponsePayload } from '@/types/encuestas';
 import { toast } from '@/components/ui/use-toast';
 import { ApiError } from '@/utils/api';
+import { usePageMetadata } from '@/hooks/usePageMetadata';
 
 const PublicSurveyPage = () => {
   const { slug } = useParams();
   const [searchParams] = useSearchParams();
   const [submitted, setSubmitted] = useState(false);
   const { survey, isLoading, error, submit, isSubmitting, submitError } = useSurveyPublic(slug);
+
+  usePageMetadata({
+    title: survey?.titulo ? `${survey.titulo} · Encuesta ciudadana` : 'Encuesta ciudadana',
+    description:
+      survey?.descripcion ??
+      'Respondé la encuesta y ayudá a tomar decisiones basadas en la voz de la comunidad.',
+    image: '/images/og-encuestas.svg',
+  });
 
   const metadata = useMemo(() => {
     const canalParam = searchParams.get('canal') || searchParams.get('source');

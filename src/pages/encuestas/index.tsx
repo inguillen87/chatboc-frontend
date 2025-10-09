@@ -14,7 +14,9 @@ import { toast } from '@/components/ui/use-toast';
 import { getErrorMessage } from '@/utils/api';
 import type { PublicSurveyListResult } from '@/api/encuestas';
 import type { SurveyPublic, SurveyTipo } from '@/types/encuestas';
-import { getPublicSurveyQrUrl, getPublicSurveyUrl } from '@/utils/publicSurveyUrl';
+import { getPublicSurveyQrPageUrl, getPublicSurveyQrUrl, getPublicSurveyUrl } from '@/utils/publicSurveyUrl';
+import { SurveyQrPreview } from '@/components/surveys/SurveyQrPreview';
+import { usePageMetadata } from '@/hooks/usePageMetadata';
 
 const TIPO_LABELS: Record<SurveyTipo, string> = {
   opinion: 'Opinión',
@@ -52,8 +54,6 @@ const getStatus = (survey: SurveyPublic) => {
   return { label: 'En curso', variant: 'default' as const };
 };
 
-const POSITION_EMOJIS = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
-
 const buildWidgetUrl = (url: string): string => {
   try {
     const target = new URL(url);
@@ -75,6 +75,12 @@ const SurveysPublicIndex = () => {
     queryKey: ['public-surveys'],
     queryFn: () => listPublicSurveys(),
     staleTime: 1000 * 60,
+  });
+
+  usePageMetadata({
+    title: 'Encuestas ciudadanas | Chatboc',
+    description: 'Respondé, compartí y descargá recursos para sumar más voces a los procesos participativos.',
+    image: '/images/og-encuestas.svg',
   });
 
   const hasBadPayload = Boolean(data && (data as any).__badPayload);
@@ -119,7 +125,12 @@ const SurveysPublicIndex = () => {
       return null;
     }
 
-    const lines: string[] = ['Participá en estas encuestas ciudadanas y compartilas con tu comunidad:', ''];
+    const lines: string[] = [
+      'Participá en estas encuestas ciudadanas y compartilas con tu comunidad:',
+      '',
+      'Cada enlace incluye una breve descripción para que sea más fácil entender qué hace.',
+      '',
+    ];
 
     latestSurveys.forEach((survey, index) => {
       const participationUrl = getPublicSurveyUrl(survey.slug);
@@ -127,23 +138,29 @@ const SurveysPublicIndex = () => {
         return;
       }
 
-      const position = POSITION_EMOJIS[index] ?? `${index + 1}.`;
+      const position = `${index + 1}.`;
       lines.push(`${position} ${survey.titulo}`);
       if (survey.descripcion) {
         lines.push(`   ${survey.descripcion}`);
       }
-      lines.push(`   👉 ${participationUrl}`);
+      lines.push(`   - Participar en línea: ${participationUrl}`);
 
       const widgetUrl = buildWidgetUrl(participationUrl);
-      lines.push(`   💬 Widget chat: ${widgetUrl}`);
+      lines.push(`   - Abrir el asistente virtual (chat): ${widgetUrl}`);
 
       const qrUrl = getPublicSurveyQrUrl(survey.slug, { size: 512 });
-      if (qrUrl) {
-        lines.push(`   🧾 QR: ${qrUrl}`);
+      const qrDisplayUrl = getPublicSurveyQrPageUrl(survey.slug);
+      if (qrDisplayUrl) {
+        lines.push(`   - Ver o descargar el código QR: ${qrDisplayUrl}`);
+        if (qrUrl) {
+          lines.push(`      (Enlace directo al archivo QR: ${qrUrl})`);
+        }
+      } else if (qrUrl) {
+        lines.push(`   - Descargar el código QR: ${qrUrl}`);
       }
 
       const whatsappShare = buildShareLink(survey.titulo, participationUrl);
-      lines.push(`   📲 Reenviar por WhatsApp: ${whatsappShare}`);
+      lines.push(`   - Reenviar por WhatsApp: ${whatsappShare}`);
       lines.push('');
     });
 
@@ -264,7 +281,7 @@ const SurveysPublicIndex = () => {
   }
 
   return (
-    <div className="space-y-6 py-6">
+    <div className="space-y-8 py-6">
       {fallbackNotice ? (
         <Alert className="border-amber-500/40 bg-amber-50 text-amber-900 dark:border-amber-400/50 dark:bg-amber-950/30 dark:text-amber-100">
           <AlertCircle className="h-4 w-4" />
@@ -285,8 +302,50 @@ const SurveysPublicIndex = () => {
           </AlertDescription>
         </Alert>
       ) : null}
+      <section className="overflow-hidden rounded-3xl border border-primary/10 bg-gradient-to-br from-white via-slate-50 to-blue-50 shadow-lg shadow-primary/5 dark:from-slate-950 dark:via-slate-900 dark:to-blue-950/30">
+        <div className="grid gap-8 px-8 py-10 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
+          <div className="space-y-4">
+            <p className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium uppercase tracking-wide text-primary">
+              Participación ciudadana inclusiva
+            </p>
+            <h1 className="text-3xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">
+              Encuestas ciudadanas
+            </h1>
+            <p className="text-base text-slate-600 dark:text-slate-300">
+              Compartí encuestas, generá códigos QR accesibles y sumá canales de difusión para que más vecinas y vecinos puedan opinar.
+            </p>
+            <ul className="grid gap-3 text-sm text-slate-600 dark:text-slate-300 sm:grid-cols-2">
+              <li className="flex items-start gap-2">
+                <span className="mt-1 h-5 w-5 rounded-full bg-primary/20 text-center text-xs font-semibold text-primary">1</span>
+                <span>Copiá el enlace oficial para responder desde cualquier dispositivo.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="mt-1 h-5 w-5 rounded-full bg-primary/20 text-center text-xs font-semibold text-primary">2</span>
+                <span>Descargá o imprimí el código QR para espacios públicos o eventos.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="mt-1 h-5 w-5 rounded-full bg-primary/20 text-center text-xs font-semibold text-primary">3</span>
+                <span>Compartí el chat asistente para responder dudas en tiempo real.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="mt-1 h-5 w-5 rounded-full bg-primary/20 text-center text-xs font-semibold text-primary">4</span>
+                <span>Reenviá un resumen listo para WhatsApp o redes comunitarias.</span>
+              </li>
+            </ul>
+          </div>
+          <div className="relative flex items-center justify-center">
+            <div className="relative flex w-full max-w-sm items-center justify-center">
+              <img
+                src="/images/og-encuestas.svg"
+                alt="Ilustración con tarjetas y gráficos sobre participación ciudadana"
+                className="w-full rounded-2xl border border-white/60 shadow-xl shadow-primary/20"
+                loading="lazy"
+              />
+            </div>
+          </div>
+        </div>
+      </section>
       <header className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight">Encuestas ciudadanas</h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
           Conocé los procesos abiertos, respondé y compartí el enlace para sumar más voces.
         </p>
@@ -330,6 +389,8 @@ const SurveysPublicIndex = () => {
           const qrUrl = getPublicSurveyQrUrl(survey.slug, { size: 512 });
           const widgetUrl = participationUrl ? buildWidgetUrl(participationUrl) : '';
           const whatsappShareUrl = participationUrl ? buildShareLink(survey.titulo, participationUrl) : '';
+          const qrPagePath = getPublicSurveyQrPageUrl(survey.slug, { absolute: false }) || '#';
+          const qrPageUrl = getPublicSurveyQrPageUrl(survey.slug);
 
           const handleCopyLink = async () => {
             if (!participationUrl) return;
@@ -378,9 +439,9 @@ const SurveysPublicIndex = () => {
                   )}
                 </div>
               </CardHeader>
-              <CardContent className="space-y-4 border-t bg-muted/30 px-6 py-4">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="space-y-3">
+              <CardContent className="space-y-6 border-t bg-muted/30 px-6 py-4">
+                <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="space-y-4">
                     <p className="text-sm text-muted-foreground">
                       Compartí esta encuesta para ampliar la participación ciudadana.
                     </p>
@@ -397,69 +458,133 @@ const SurveysPublicIndex = () => {
                             .writeText(widgetUrl)
                             .then(() => {
                               toast({
-                                title: 'Widget listo para compartir',
+                                title: 'Enlace del asistente copiado',
                                 description: 'Pegalo donde necesites para abrir el chat directo.',
                               });
                             })
                             .catch((widgetError) => {
                               console.warn('No se pudo copiar el enlace del widget', widgetError);
                               toast({
-                                title: 'No se pudo copiar el enlace del widget',
+                                title: 'No se pudo copiar el enlace del asistente',
                                 description: String((widgetError as Error)?.message ?? widgetError),
                                 variant: 'destructive',
                               });
                             });
                         }}
+                        disabled={!widgetUrl}
                       >
-                        <Bot className="h-4 w-4" /> Link del widget
+                        <Bot className="h-4 w-4" /> Copiar enlace del asistente
                       </Button>
                       <Button variant="outline" className="inline-flex items-center gap-2" onClick={handleShareWhatsApp}>
                         <MessageCircle className="h-4 w-4" /> Enviar por WhatsApp
                       </Button>
+                      {qrPagePath !== '#' ? (
+                        <Button variant="outline" className="inline-flex items-center gap-2" asChild>
+                          <Link to={qrPagePath}>
+                            <Download className="h-4 w-4" /> Ver QR ampliado
+                          </Link>
+                        </Button>
+                      ) : null}
                     </div>
-                    <div className="grid max-w-md gap-1 text-xs text-muted-foreground">
+                    <div className="grid max-w-2xl gap-3 text-sm text-muted-foreground">
+                      {participationUrl ? (
+                        <div className="rounded-lg border border-border/60 bg-background/60 p-3">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+                            Enlace para responder
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Abrí este enlace para completar la encuesta desde cualquier dispositivo.
+                          </p>
+                          <a
+                            href={participationUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mt-2 inline-flex max-w-full items-center gap-2 text-primary hover:underline"
+                          >
+                            <ArrowRight className="h-3.5 w-3.5" />
+                            <span className="truncate">{participationUrl}</span>
+                          </a>
+                        </div>
+                      ) : null}
                       {widgetUrl ? (
-                        <a
-                          href={widgetUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex max-w-full items-center gap-1 text-primary hover:underline"
-                        >
-                          <Bot className="h-3.5 w-3.5" />
-                          <span className="truncate">{widgetUrl}</span>
-                        </a>
+                        <div className="rounded-lg border border-border/60 bg-background/60 p-3">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+                            Asistente virtual
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Accedé al chat automatizado que acompaña la difusión de la encuesta.
+                          </p>
+                          <a
+                            href={widgetUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mt-2 inline-flex max-w-full items-center gap-2 text-primary hover:underline"
+                          >
+                            <Bot className="h-3.5 w-3.5" />
+                            <span className="truncate">Abrir asistente virtual</span>
+                          </a>
+                          <p className="mt-1 truncate text-[11px] text-muted-foreground/70">{widgetUrl}</p>
+                        </div>
                       ) : null}
                       {whatsappShareUrl ? (
-                        <a
-                          href={whatsappShareUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex max-w-full items-center gap-1 text-primary hover:underline"
-                        >
-                          <MessageCircle className="h-3.5 w-3.5" />
-                          <span className="truncate">Compartir directo en WhatsApp</span>
-                        </a>
+                        <div className="rounded-lg border border-border/60 bg-background/60 p-3">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+                            Reenviar por WhatsApp
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Abrí un mensaje prearmado para compartir con grupos o contactos.
+                          </p>
+                          <a
+                            href={whatsappShareUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mt-2 inline-flex max-w-full items-center gap-2 text-primary hover:underline"
+                          >
+                            <MessageCircle className="h-3.5 w-3.5" />
+                            <span className="truncate">Abrir WhatsApp con el mensaje</span>
+                          </a>
+                        </div>
+                      ) : null}
+                      {qrPageUrl ? (
+                        <div className="rounded-lg border border-border/60 bg-background/60 p-3">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+                            Código QR
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Ideal para afiches, tótems o pantallas en espacios públicos.
+                          </p>
+                          <Link
+                            to={qrPagePath}
+                            className="mt-2 inline-flex max-w-full items-center gap-2 text-primary hover:underline"
+                          >
+                            <Download className="h-3.5 w-3.5" />
+                            <span className="truncate">Ver QR listo para descargar</span>
+                          </Link>
+                          {qrUrl ? (
+                            <p className="mt-1 break-all text-[11px] text-muted-foreground/70">{qrUrl}</p>
+                          ) : null}
+                        </div>
                       ) : null}
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
-                    {qrUrl ? (
-                      <div className="flex flex-col items-center gap-2">
-                        <img
-                          src={qrUrl}
-                          alt={`Código QR de ${survey.titulo}`}
-                          className="h-28 w-28 rounded-md border border-border bg-background p-2"
-                          loading="lazy"
-                        />
-                        <Button variant="ghost" size="sm" asChild>
-                          <a href={qrUrl} download>
-                            <Download className="h-4 w-4" /> Descargar QR
-                          </a>
-                        </Button>
-                      </div>
+                  <div className="flex flex-col items-center gap-3 lg:w-56">
+                    <SurveyQrPreview slug={survey.slug} title={survey.titulo} remoteUrl={qrUrl} />
+                    {qrPagePath !== '#' ? (
+                      <Button variant="secondary" size="sm" asChild className="w-full">
+                        <Link to={qrPagePath} className="inline-flex items-center justify-center gap-2">
+                          <Download className="h-4 w-4" /> Abrir QR en pantalla completa
+                        </Link>
+                      </Button>
                     ) : null}
-                    <Button asChild>
-                      <Link to={participationPath} className="inline-flex items-center gap-2">
+                    {qrUrl ? (
+                      <Button variant="ghost" size="sm" asChild className="w-full">
+                        <a href={qrUrl} download>
+                          <Download className="h-4 w-4" /> Descargar imagen QR
+                        </a>
+                      </Button>
+                    ) : null}
+                    <Button asChild className="w-full">
+                      <Link to={participationPath} className="inline-flex items-center justify-center gap-2">
                         Participar
                         <ArrowRight className="h-4 w-4" />
                       </Link>
