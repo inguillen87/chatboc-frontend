@@ -66,7 +66,7 @@ const buildWidgetUrl = (url: string): string => {
 };
 
 const buildShareLink = (title: string, url: string): string => {
-  const message = `Participá en '${title}' ingresando a ${url}`;
+  const message = `${title}\n${url}`;
   return `https://wa.me/?text=${encodeURIComponent(message)}`;
 };
 
