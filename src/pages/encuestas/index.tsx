@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { AlertCircle, ArrowRight, CalendarDays, Loader2 } from 'lucide-react';
+import { AlertCircle, ArrowRight, Bot, CalendarDays, Copy, Download, Loader2, MessageCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { toast } from '@/components/ui/use-toast';
 import { getErrorMessage } from '@/utils/api';
 import type { PublicSurveyListResult } from '@/api/encuestas';
 import type { SurveyPublic, SurveyTipo } from '@/types/encuestas';
@@ -225,6 +226,59 @@ const SurveysPublicIndex = () => {
           const rango = inicio && fin ? `${inicio} – ${fin}` : inicio || fin || null;
 
           const participationPath = getPublicSurveyUrl(survey.slug, { absolute: false }) || '#';
+          const participationUrl = getPublicSurveyUrl(survey.slug) || '';
+          const qrUrl = survey.slug ? `/api/public/encuestas/${survey.slug}/qr?size=512` : null;
+
+          const handleCopyLink = async () => {
+            if (!participationUrl) return;
+            try {
+              await navigator.clipboard.writeText(participationUrl);
+              toast({
+                title: 'Enlace copiado',
+                description: 'Pegalo en redes, mails o el chat para sumar más respuestas.',
+              });
+            } catch (error) {
+              toast({
+                title: 'No se pudo copiar',
+                description: String((error as Error)?.message ?? error),
+                variant: 'destructive',
+              });
+            }
+          };
+
+          const handleShareWidget = async () => {
+            if (!participationUrl) return;
+            const shareMessage = `Participá en "${survey.titulo}" acá: ${participationUrl}`;
+            let copied = false;
+            try {
+              await navigator.clipboard.writeText(shareMessage);
+              copied = true;
+            } catch (error) {
+              console.warn('No se pudo copiar el mensaje para el widget', error);
+            }
+
+            const chatboc = typeof window !== 'undefined' ? (window as any).Chatboc : null;
+            if (chatboc?.open) {
+              chatboc.open();
+              if (typeof chatboc.setView === 'function') {
+                chatboc.setView('chat');
+              }
+            }
+
+            toast({
+              title: copied ? 'Mensaje listo para compartir' : 'Abrí el widget de chat',
+              description: copied
+                ? 'Pegalo en el widget para invitar a más personas.'
+                : 'Copiá el enlace manualmente y compartilo desde el widget.',
+            });
+          };
+
+          const handleShareWhatsApp = () => {
+            if (!participationUrl) return;
+            const whatsappText = encodeURIComponent(`${survey.titulo}\n${participationUrl}`);
+            const whatsappUrl = `https://wa.me/?text=${whatsappText}`;
+            window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+          };
 
           return (
             <Card key={`${survey.slug}-${survey.id ?? survey.slug}`} className="overflow-hidden">
@@ -250,16 +304,48 @@ const SurveysPublicIndex = () => {
                   )}
                 </div>
               </CardHeader>
-              <CardContent className="flex flex-wrap items-center justify-between gap-4 border-t bg-muted/30 px-6 py-4">
-                <span className="text-sm text-muted-foreground">
-                  Compartí esta encuesta para ampliar la participación.
-                </span>
-                <Button asChild>
-                  <Link to={participationPath} className="inline-flex items-center gap-2">
-                    Participar
-                    <ArrowRight className="h-4 w-4" />
-                  </Link>
-                </Button>
+              <CardContent className="space-y-4 border-t bg-muted/30 px-6 py-4">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="space-y-3">
+                    <p className="text-sm text-muted-foreground">
+                      Compartí esta encuesta para ampliar la participación ciudadana.
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant="outline" className="inline-flex items-center gap-2" onClick={handleCopyLink}>
+                        <Copy className="h-4 w-4" /> Copiar enlace
+                      </Button>
+                      <Button variant="outline" className="inline-flex items-center gap-2" onClick={handleShareWidget}>
+                        <Bot className="h-4 w-4" /> Compartir en el widget
+                      </Button>
+                      <Button variant="outline" className="inline-flex items-center gap-2" onClick={handleShareWhatsApp}>
+                        <MessageCircle className="h-4 w-4" /> Enviar por WhatsApp
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    {qrUrl ? (
+                      <div className="flex flex-col items-center gap-2">
+                        <img
+                          src={qrUrl}
+                          alt={`Código QR de ${survey.titulo}`}
+                          className="h-28 w-28 rounded-md border border-border bg-background p-2"
+                          loading="lazy"
+                        />
+                        <Button variant="ghost" size="sm" asChild>
+                          <a href={qrUrl} download>
+                            <Download className="h-4 w-4" /> Descargar QR
+                          </a>
+                        </Button>
+                      </div>
+                    ) : null}
+                    <Button asChild>
+                      <Link to={participationPath} className="inline-flex items-center gap-2">
+                        Participar
+                        <ArrowRight className="h-4 w-4" />
+                      </Link>
+                    </Button>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           );
