@@ -7,6 +7,8 @@ import {
   SurveyHeatmapPoint,
   SurveyListResponse,
   SurveyPublic,
+  SurveyResponseFilters,
+  SurveyResponseList,
   SurveySnapshot,
   SurveySummary,
   SurveyTimeseriesPoint,
@@ -321,3 +323,9 @@ export const verifyResponse = (
 
 export const listSnapshots = (id: number): Promise<SurveySnapshot[]> =>
   callAdminSurveyEndpoint(`${id}/snapshots`);
+
+export const listSurveyResponses = (
+  id: number,
+  params?: SurveyResponseFilters,
+): Promise<SurveyResponseList> =>
+  callAdminSurveyEndpoint(`${id}/respuestas${buildQueryString(params as QueryParams)}`);

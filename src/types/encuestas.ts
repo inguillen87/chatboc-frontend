@@ -131,6 +131,50 @@ export interface SurveyAnalyticsFilters {
   utm_campaign?: string;
 }
 
+export interface SurveyResponseAnswer {
+  pregunta?: string;
+  opcion?: string;
+  opciones?: string[];
+  respuesta?: string;
+  texto?: string;
+  texto_libre?: string;
+  valor?: string;
+  resumen?: string;
+}
+
+export interface SurveyResponseRecord {
+  id?: number | string;
+  respuesta_id?: number | string;
+  respondido_at?: string | null;
+  creado_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  canal?: string | null;
+  utm_source?: string | null;
+  utm_campaign?: string | null;
+  origen?: string | null;
+  metadata?: Record<string, unknown> | null;
+  respuestas?: SurveyResponseAnswer[];
+  resumen?: Array<{ pregunta?: string; respuesta?: string }> | string | null;
+}
+
+export interface SurveyResponseList {
+  data: SurveyResponseRecord[];
+  meta?: {
+    total?: number;
+    limit?: number;
+    offset?: number;
+  };
+}
+
+export interface SurveyResponseFilters {
+  limit?: number;
+  offset?: number;
+  canal?: string;
+  utm_source?: string;
+  utm_campaign?: string;
+}
+
 export interface SurveySnapshot {
   id: number;
   etiqueta: string;
