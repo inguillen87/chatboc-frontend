@@ -20,7 +20,7 @@ const WidgetEmbed = ({ token }: { token: string }) => {
     }
   }, []);
 
-    const apiBase = (import.meta.env.VITE_WIDGET_API_BASE || "https://chatboc.ar").replace(/\/+$/, "");
+    const apiBase = (import.meta.env.VITE_WIDGET_API_BASE || "https://api.chatboc.ar").replace(/\/+$/, "");
     const defaultWidgetScriptUrl = `${apiBase}/widget.js`;
     const widgetScriptUrl = import.meta.env.VITE_WIDGET_SCRIPT_URL || defaultWidgetScriptUrl;
   const embedCode = `<script async src="${widgetScriptUrl}" data-api-base="${apiBase}" data-owner-token="${token}" data-endpoint="${tipoChat}" data-default-open="false" data-width="460px" data-height="680px" data-closed-width="112px" data-closed-height="112px" data-bottom="20px" data-right="20px"></script>`;

@@ -212,7 +212,7 @@
       DEFAULT_CLOSED_HEIGHT: "56px",
       MOBILE_BREAKPOINT_PX: 640,
       LOADER_TIMEOUT_MS: 10000,
-      DEFAULT_CHATBOC_DOMAIN: "https://chatboc.ar",
+      DEFAULT_CHATBOC_DOMAIN: "https://api.chatboc.ar",
     };
 
     const script =

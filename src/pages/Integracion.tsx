@@ -117,7 +117,7 @@ const Integracion = () => {
   const WIDGET_STD_CLOSED_HEIGHT = "112px"; // Increased from 96px
   const WIDGET_STD_BOTTOM = "20px";
   const WIDGET_STD_RIGHT = "20px";
-  const apiBase = (import.meta.env.VITE_WIDGET_API_BASE || "https://chatboc.ar").replace(/\/+$/, "");
+  const apiBase = (import.meta.env.VITE_WIDGET_API_BASE || "https://api.chatboc.ar").replace(/\/+$/, "");
   const defaultWidgetScriptUrl = `${apiBase}/widget.js`;
   const widgetScriptUrl = import.meta.env.VITE_WIDGET_SCRIPT_URL || defaultWidgetScriptUrl;
   const iframeBase = window.location.origin;

@@ -25,17 +25,42 @@ const buildQueryString = (params?: QueryParams) => {
   return query ? `?${query}` : '';
 };
 
-export const listPublicSurveys = (): Promise<SurveyPublic[]> =>
-  apiFetch('/public/encuestas');
+const ensureSurveyPublic = (payload: unknown): SurveyPublic => {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Formato inválido: la encuesta no tiene el formato esperado.');
+  }
+  const survey = payload as Record<string, unknown>;
+  if (typeof survey.slug !== 'string' || !survey.slug.trim()) {
+    throw new Error('Formato inválido: falta el identificador de la encuesta.');
+  }
+  if (typeof survey.titulo !== 'string' || !survey.titulo.trim()) {
+    throw new Error('Formato inválido: falta el título de la encuesta.');
+  }
+  return payload as SurveyPublic;
+};
 
-export const getPublicSurvey = (slug: string): Promise<SurveyPublic> =>
-  apiFetch(`/public/encuestas/${slug}`);
+const ensureSurveyPublicList = (payload: unknown): SurveyPublic[] => {
+  if (!Array.isArray(payload)) {
+    throw new Error('Formato inválido: esperábamos una lista de encuestas.');
+  }
+  return payload.map(ensureSurveyPublic);
+};
+
+export const listPublicSurveys = async (): Promise<SurveyPublic[]> => {
+  const payload = await apiFetch<unknown>('/api/public/encuestas');
+  return ensureSurveyPublicList(payload);
+};
+
+export const getPublicSurvey = async (slug: string): Promise<SurveyPublic> => {
+  const payload = await apiFetch<unknown>(`/api/public/encuestas/${slug}`);
+  return ensureSurveyPublic(payload);
+};
 
 export const postPublicResponse = (
   slug: string,
   payload: PublicResponsePayload,
 ): Promise<{ ok: boolean; id?: number }> =>
-  apiFetch(`/public/encuestas/${slug}/respuestas`, {
+  apiFetch(`/api/public/encuestas/${slug}/respuestas`, {
     method: 'POST',
     body: payload,
     omitCredentials: true,

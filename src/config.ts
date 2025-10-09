@@ -4,6 +4,7 @@
 
 const VITE_BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 const IS_DEV = import.meta.env.DEV;
+const DEFAULT_PROD_API_BASE = 'https://api.chatboc.ar';
 
 /**
  * The base URL for all HTTP API requests.
@@ -11,7 +12,11 @@ const IS_DEV = import.meta.env.DEV;
  * resulting in relative paths (e.g., /api/login).
  * In production, it will be the full backend URL.
  */
-export const BASE_API_URL = VITE_BACKEND_URL ? VITE_BACKEND_URL : (IS_DEV ? '/api' : window.location.origin);
+export const BASE_API_URL = VITE_BACKEND_URL
+  ? VITE_BACKEND_URL
+  : IS_DEV
+    ? '/api'
+    : DEFAULT_PROD_API_BASE;
 
 /**
  * Derives the WebSocket URL from the current environment.
