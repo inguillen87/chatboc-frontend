@@ -13,7 +13,7 @@ import { useSurveyAnalytics } from '@/hooks/useSurveyAnalytics';
 import { useAnchor } from '@/hooks/useAnchor';
 import { useSurveyResponses } from '@/hooks/useSurveyResponses';
 import { toast } from '@/components/ui/use-toast';
-import { getAbsolutePublicSurveyUrl } from '@/utils/publicSurveyUrl';
+import { getAbsolutePublicSurveyUrl, getPublicSurveyQrUrl } from '@/utils/publicSurveyUrl';
 
 const formatDateLabel = (value?: string | null) => {
   if (!value) return null;
@@ -41,7 +41,7 @@ const SurveyAnalyticsPage = () => {
     () => (survey?.slug ? getAbsolutePublicSurveyUrl(survey.slug) : null),
     [survey?.slug],
   );
-  const qrUrl = survey?.slug ? `/api/public/encuestas/${survey.slug}/qr?size=512` : null;
+  const qrUrl = survey?.slug ? getPublicSurveyQrUrl(survey.slug, { size: 512 }) : null;
   const rangeLabel = useMemo(() => {
     const start = formatDateLabel(survey?.inicio_at);
     const end = formatDateLabel(survey?.fin_at);

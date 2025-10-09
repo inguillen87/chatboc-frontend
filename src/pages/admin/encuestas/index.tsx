@@ -11,8 +11,10 @@ import { getAbsolutePublicSurveyUrl } from '@/utils/publicSurveyUrl';
 
 const AdminSurveysIndex = () => {
   const navigate = useNavigate();
-  const { surveys, isLoadingList, listError, publishSurvey, isPublishing, refetchList } = useSurveyAdmin();
+  const { surveys, isLoadingList, listError, publishSurvey, deleteSurvey, isPublishing, isDeleting, refetchList } =
+    useSurveyAdmin();
   const [publishingId, setPublishingId] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const handlePublish = async (survey: SurveyAdmin) => {
     try {
@@ -42,6 +44,23 @@ const AdminSurveysIndex = () => {
       toast({ title: 'Link copiado', description: 'Compartilo en redes, mailings o un QR impreso.' });
     } catch (error) {
       toast({ title: 'No se pudo copiar el enlace', description: String((error as Error)?.message ?? error), variant: 'destructive' });
+    }
+  };
+
+  const handleDelete = async (survey: SurveyAdmin) => {
+    try {
+      setDeletingId(survey.id);
+      await deleteSurvey(survey.id);
+      toast({ title: 'Encuesta eliminada', description: 'La encuesta se borró correctamente.' });
+      await refetchList();
+    } catch (error) {
+      toast({
+        title: 'No pudimos borrar la encuesta',
+        description: String((error as Error)?.message ?? error),
+        variant: 'destructive',
+      });
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -76,6 +95,8 @@ const AdminSurveysIndex = () => {
               onPublish={survey.estado !== 'publicada' ? () => handlePublish(survey) : undefined}
               publishing={isPublishing && publishingId === survey.id}
               onCopyLink={survey.estado === 'publicada' ? () => handleCopyLink(survey) : undefined}
+              onDelete={() => handleDelete(survey)}
+              deleting={isDeleting && deletingId === survey.id}
             />
           ))}
           {!items.length && (

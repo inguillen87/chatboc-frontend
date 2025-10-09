@@ -80,6 +80,19 @@ export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExpo
     [heatmapData],
   );
 
+  const completionRateLabel = useMemo(() => {
+    if (typeof summary?.tasa_completitud !== 'number') {
+      return '—';
+    }
+    const normalized = Number.isFinite(summary.tasa_completitud)
+      ? summary.tasa_completitud
+      : Number(summary.tasa_completitud);
+    if (!Number.isFinite(normalized)) {
+      return '—';
+    }
+    return `${(normalized * 100).toFixed(1)}%`;
+  }, [summary?.tasa_completitud]);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -117,7 +130,7 @@ export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExpo
             <CardDescription>Porcentaje de formularios finalizados.</CardDescription>
           </CardHeader>
           <CardContent className="text-3xl font-semibold">
-            {summary ? `${(summary.tasa_completitud * 100).toFixed(1)}%` : '—'}
+            {completionRateLabel}
           </CardContent>
         </Card>
       </div>

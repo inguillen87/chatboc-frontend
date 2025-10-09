@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 
 import {
   adminCreateSurvey,
+  adminDeleteSurvey,
   adminGetSurvey,
   adminListSurveys,
   adminPublishSurvey,
@@ -26,8 +27,10 @@ interface UseSurveyAdminResult {
   saveSurvey: (payload: SurveyDraftPayload) => Promise<SurveyAdmin>;
   createSurvey: (payload: SurveyDraftPayload) => Promise<SurveyAdmin>;
   publishSurvey: (id?: number) => Promise<SurveyAdmin>;
+  deleteSurvey: (id: number) => Promise<void>;
   isSaving: boolean;
   isPublishing: boolean;
+  isDeleting: boolean;
   refetchSurvey: () => Promise<SurveyAdmin | undefined>;
   refetchList: () => Promise<SurveyListResponse | undefined>;
 }
@@ -79,6 +82,14 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await adminDeleteSurvey(id);
+      await queryClient.invalidateQueries({ queryKey: ['survey-admin', id] });
+      await queryClient.invalidateQueries({ queryKey: ['survey-admin-list'] });
+    },
+  });
+
   return {
     survey: surveyQuery.data,
     surveys: listQuery.data,
@@ -89,8 +100,10 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
     saveSurvey: async (payload: SurveyDraftPayload) => saveMutation.mutateAsync(payload),
     createSurvey: async (payload: SurveyDraftPayload) => createMutation.mutateAsync(payload),
     publishSurvey: async (id?: number) => publishMutation.mutateAsync({ id }),
+    deleteSurvey: async (id: number) => deleteMutation.mutateAsync(id),
     isSaving: saveMutation.isPending || createMutation.isPending,
     isPublishing: publishMutation.isPending,
+    isDeleting: deleteMutation.isPending,
     refetchSurvey: async () => {
       const result = await surveyQuery.refetch();
       return result.data;

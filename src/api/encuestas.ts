@@ -334,6 +334,11 @@ export const adminUpdateSurvey = (id: number, payload: SurveyDraftPayload): Prom
     body: payload,
   });
 
+export const adminDeleteSurvey = (id: number): Promise<void> =>
+  callAdminSurveyEndpoint(`${id}`, {
+    method: 'DELETE',
+  });
+
 export const adminGetSurvey = (id: number): Promise<SurveyAdmin> =>
   callAdminSurveyEndpoint(`${id}`);
 
