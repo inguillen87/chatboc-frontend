@@ -14,6 +14,31 @@ const sanitizeBaseUrl = (value?: string) => {
   return trimmed.replace(/\/$/, '');
 };
 
+const CANONICAL_PUBLIC_SURVEY_HOST = 'www.chatboc.ar';
+
+const normalizeSurveyBaseUrl = (value?: string): string => {
+  const sanitized = sanitizeBaseUrl(value);
+  if (!sanitized) return '';
+
+  try {
+    const url = new URL(sanitized);
+
+    if (url.hostname === 'api.chatboc.ar') {
+      url.hostname = CANONICAL_PUBLIC_SURVEY_HOST;
+      url.port = '';
+      return url.origin;
+    }
+
+    if (url.hostname.includes('chatbot-backend')) {
+      return `https://${CANONICAL_PUBLIC_SURVEY_HOST}`;
+    }
+
+    return url.origin.replace(/\/$/, '');
+  } catch (error) {
+    return sanitized;
+  }
+};
+
 /**
  * The base URL for all HTTP API requests.
  * In development, with a proxy, this will be an empty string,
@@ -64,4 +89,12 @@ export const DEFAULT_ENTITY_TOKEN =
   typeof VITE_DEFAULT_ENTITY_TOKEN === 'string' && VITE_DEFAULT_ENTITY_TOKEN.trim()
     ? VITE_DEFAULT_ENTITY_TOKEN.trim()
     : '';
-export const PUBLIC_SURVEY_BASE_URL = sanitizeBaseUrl(VITE_PUBLIC_SURVEY_BASE_URL);
+const FALLBACK_PUBLIC_SURVEY_BASE_URL = (() => {
+  if (typeof window === 'undefined' || !window.location?.origin) {
+    return '';
+  }
+  return normalizeSurveyBaseUrl(window.location.origin);
+})();
+
+export const PUBLIC_SURVEY_BASE_URL =
+  normalizeSurveyBaseUrl(VITE_PUBLIC_SURVEY_BASE_URL) || FALLBACK_PUBLIC_SURVEY_BASE_URL;
