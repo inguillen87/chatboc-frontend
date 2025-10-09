@@ -13,6 +13,7 @@ import {
   SurveySummary,
   SurveyTimeseriesPoint,
 } from '@/types/encuestas';
+import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 type QueryParams = Record<string, string | number | boolean | undefined | null>;
 
@@ -117,6 +118,46 @@ const asFlaggedEmptyList = (
     __fallbackNotice: payload.fallbackNotice,
   });
 
+const hasPanelToken = () => {
+  try {
+    const token = safeLocalStorage.getItem('authToken');
+    return Boolean(token && token.trim());
+  } catch (error) {
+    console.warn('[encuestas] No se pudo acceder al token del panel para el fallback público', error);
+    return false;
+  }
+};
+
+const sanitizeAdminSurveys = (items: SurveyAdmin[]): SurveyPublic[] =>
+  items.map(({ estado: _estado, created_at: _createdAt, updated_at: _updatedAt, anonimato: _anonimato, unica_por_persona: _unica, ...rest }) => rest);
+
+const attemptRecoveryFromAdminList = async (): Promise<PublicSurveyListResult | null> => {
+  if (!hasPanelToken()) {
+    return null;
+  }
+
+  try {
+    const adminResponse = await callAdminSurveyEndpoint<SurveyListResponse>(buildQueryString({ estado: 'publicada' }));
+    const published = Array.isArray(adminResponse?.data)
+      ? adminResponse.data.filter((survey) => survey.estado === 'publicada')
+      : [];
+
+    if (!published.length) {
+      return null;
+    }
+
+    const sanitized = sanitizeAdminSurveys(published);
+    return Object.assign(sanitized, {
+      __badPayload: true as const,
+      __fallbackNotice:
+        'Mostramos las encuestas publicadas recuperadas desde el panel porque el listado público devolvió un resultado vacío.',
+    });
+  } catch (error) {
+    console.warn('[encuestas] No se pudo recuperar el listado público desde el panel como fallback', error);
+    return null;
+  }
+};
+
 export const getPublicSurvey = async (slug: string): Promise<SurveyPublic> => {
   const response = await apiFetch<unknown>(`/public/encuestas/${slug}`, {
     skipAuth: true,
@@ -194,6 +235,15 @@ export const listPublicSurveys = async (): Promise<PublicSurveyListResult> => {
     });
 
     if (Array.isArray(response)) {
+      if (response.length > 0) {
+        return response as SurveyPublic[];
+      }
+
+      const recoveredFromAdmin = await attemptRecoveryFromAdminList();
+      if (recoveredFromAdmin) {
+        return recoveredFromAdmin;
+      }
+
       return response as SurveyPublic[];
     }
 
