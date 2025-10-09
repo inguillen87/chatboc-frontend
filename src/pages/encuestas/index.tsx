@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { getErrorMessage } from '@/utils/api';
+import type { PublicSurveyListResult } from '@/api/encuestas';
 import type { SurveyPublic, SurveyTipo } from '@/types/encuestas';
 
 const TIPO_LABELS: Record<SurveyTipo, string> = {
@@ -49,13 +50,14 @@ const getStatus = (survey: SurveyPublic) => {
 };
 
 const SurveysPublicIndex = () => {
-  const { data, isLoading, error, refetch, isFetching } = useQuery({
+  const { data, isLoading, error, refetch, isFetching } = useQuery<PublicSurveyListResult>({
     queryKey: ['public-surveys'],
     queryFn: () => listPublicSurveys(),
     staleTime: 1000 * 60,
   });
 
-  const surveys = data ?? [];
+  const hasBadPayload = Boolean(data && (data as any).__badPayload);
+  const surveys = Array.isArray(data) ? data : [];
 
   const summary = useMemo(() => {
     const now = new Date();
@@ -99,6 +101,26 @@ const SurveysPublicIndex = () => {
           </CardHeader>
           <CardContent className="flex flex-col items-center gap-4 text-center">
             <p className="text-sm text-muted-foreground">{getErrorMessage(error)}</p>
+            <Button onClick={() => refetch()} disabled={isFetching}>
+              Reintentar
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (hasBadPayload) {
+    return (
+      <div className="mx-auto flex min-h-[50vh] w-full max-w-2xl items-center justify-center">
+        <Card className="w-full">
+          <CardHeader>
+            <CardTitle className="text-center text-lg">No pudimos cargar las encuestas</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col items-center gap-4 text-center">
+            <p className="text-sm text-muted-foreground">
+              El servidor devolvió un formato inesperado. Intentá nuevamente en unos minutos.
+            </p>
             <Button onClick={() => refetch()} disabled={isFetching}>
               Reintentar
             </Button>
