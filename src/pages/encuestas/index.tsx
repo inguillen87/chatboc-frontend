@@ -154,9 +154,9 @@ const SurveysPublicIndex = () => {
         lines.push(`   - Ver o descargar el código QR: ${qrDisplayUrl}`);
         if (qrUrl) {
           lines.push(`      (Enlace directo al archivo QR: ${qrUrl})`);
+        }
       } else if (qrUrl) {
-        lines.push(`   🧾 Descargar el código QR: ${qrUrl}`);
->>>>>>> main
+        lines.push(`   - Descargar el código QR: ${qrUrl}`);
       }
 
       const whatsappShare = buildShareLink(survey.titulo, participationUrl);

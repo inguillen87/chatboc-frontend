@@ -49,6 +49,7 @@ import Iframe from '@/pages/iframe';
 import AnalyticsPage from '@/pages/analytics/AnalyticsPage';
 import PublicSurveysIndex from '@/pages/encuestas';
 import PublicSurveyPage from '@/pages/e/[slug]';
+import SurveyQrPage from '@/pages/encuestas/QrPage';
 import AdminSurveysIndex from '@/pages/admin/encuestas/index';
 import NewSurveyPage from '@/pages/admin/encuestas/new';
 import SurveyDetailPage from '@/pages/admin/encuestas/[id]';
@@ -74,6 +75,7 @@ const routes: RouteConfig[] = [
   ...(FEATURE_ENCUESTAS
     ? [
         { path: '/encuestas', element: <PublicSurveysIndex /> },
+        { path: '/encuestas/:slug/qr', element: <SurveyQrPage /> },
         { path: '/e/:slug', element: <PublicSurveyPage /> },
       ]
     : []),
