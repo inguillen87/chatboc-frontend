@@ -25,6 +25,9 @@ const buildQueryString = (params?: QueryParams) => {
   return query ? `?${query}` : '';
 };
 
+export const listPublicSurveys = (): Promise<SurveyPublic[]> =>
+  apiFetch('/public/encuestas');
+
 export const getPublicSurvey = (slug: string): Promise<SurveyPublic> =>
   apiFetch(`/public/encuestas/${slug}`);
 

@@ -1,6 +1,7 @@
 import React from 'react';
 
 // ... (importaciones existentes) ...
+import { FEATURE_ENCUESTAS } from '@/config/featureFlags';
 import Index from '@/pages/Index';
 import Login from '@/pages/Login';
 import Register from '@/pages/Register';
@@ -46,6 +47,7 @@ import OpinarArPage from '@/pages/OpinarArPage';
 import EstadisticasPage from '@/pages/EstadisticasPage';
 import Iframe from '@/pages/iframe';
 import AnalyticsPage from '@/pages/analytics/AnalyticsPage';
+import PublicSurveysIndex from '@/pages/encuestas';
 import PublicSurveyPage from '@/pages/e/[slug]';
 import AdminSurveysIndex from '@/pages/admin/encuestas/index';
 import NewSurveyPage from '@/pages/admin/encuestas/new';
@@ -69,7 +71,12 @@ export interface RouteConfig {
 const routes: RouteConfig[] = [
   { path: '/', element: <Index /> },
   { path: '/login', element: <Login /> },
-  { path: '/e/:slug', element: <PublicSurveyPage /> },
+  ...(FEATURE_ENCUESTAS
+    ? [
+        { path: '/encuestas', element: <PublicSurveysIndex /> },
+        { path: '/e/:slug', element: <PublicSurveyPage /> },
+      ]
+    : []),
   { path: '/register', element: <Register /> },
   { path: '/user/login', element: <UserLogin /> },
   { path: '/user/register', element: <UserRegister /> },
@@ -103,10 +110,14 @@ const routes: RouteConfig[] = [
   { path: '/crm/integrations', element: <CrmIntegrations /> },
   { path: '/consultas', element: <PredefinedQueries /> },
   { path: '/403', element: <PermissionDenied /> },
-  { path: '/admin/encuestas', element: <AdminSurveysIndex />, roles: ['admin', 'empleado', 'super_admin'] },
-  { path: '/admin/encuestas/new', element: <NewSurveyPage />, roles: ['admin', 'empleado', 'super_admin'] },
-  { path: '/admin/encuestas/:id', element: <SurveyDetailPage />, roles: ['admin', 'empleado', 'super_admin'] },
-  { path: '/admin/encuestas/:id/analytics', element: <SurveyAnalyticsPage />, roles: ['admin', 'empleado', 'super_admin'] },
+  ...(FEATURE_ENCUESTAS
+    ? [
+        { path: '/admin/encuestas', element: <AdminSurveysIndex />, roles: ['admin', 'empleado', 'super_admin'] },
+        { path: '/admin/encuestas/new', element: <NewSurveyPage />, roles: ['admin', 'empleado', 'super_admin'] },
+        { path: '/admin/encuestas/:id', element: <SurveyDetailPage />, roles: ['admin', 'empleado', 'super_admin'] },
+        { path: '/admin/encuestas/:id/analytics', element: <SurveyAnalyticsPage />, roles: ['admin', 'empleado', 'super_admin'] },
+      ]
+    : []),
   { path: '/pyme/catalog', element: <ProductCatalog />, roles: ['admin', 'super_admin'] },
   { path: '/municipal/tramites', element: <TramitesCatalog />, roles: ['admin', 'super_admin'] },
   { path: '/municipal/usuarios', element: <InternalUsers />, roles: ['admin', 'super_admin'] },

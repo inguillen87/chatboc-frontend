@@ -109,8 +109,11 @@ const Navbar: React.FC = () => {
             <button onClick={() => scrollToSection("precios")} className="text-sm text-foreground/80 hover:text-primary dark:hover:text-primary transition-colors">Precios</button>
             <button onClick={() => scrollToSection("publico-objetivo")} className="text-sm text-foreground/80 hover:text-primary dark:hover:text-primary transition-colors">Público Objetivo</button>
             <RouterLink to="/opinar" className="text-sm text-foreground/80 hover:text-primary dark:hover:text-primary transition-colors">Próximamente</RouterLink>
-            {FEATURE_ENCUESTAS && isLoggedIn && (
-              <RouterLink to="/admin/encuestas" className="text-sm text-foreground/80 hover:text-primary dark:hover:text-primary transition-colors">
+            {FEATURE_ENCUESTAS && (
+              <RouterLink
+                to="/encuestas"
+                className="text-sm text-foreground/80 hover:text-primary dark:hover:text-primary transition-colors"
+              >
                 Encuestas
               </RouterLink>
             )}
@@ -120,6 +123,14 @@ const Navbar: React.FC = () => {
 
         {/* Botones lado derecho */}
         <div className="hidden md:flex gap-3 items-center">
+          {FEATURE_ENCUESTAS && (
+            <RouterLink
+              to="/encuestas"
+              className="px-3 py-1 text-sm rounded border border-border/60 hover:bg-accent transition-colors"
+            >
+              Encuestas
+            </RouterLink>
+          )}
           {isLoggedIn ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -150,7 +161,7 @@ const Navbar: React.FC = () => {
                   <DropdownMenuItem asChild>
                     <RouterLink to="/admin/encuestas" className="flex items-center gap-2 text-sm">
                       <BarChart3 className="h-4 w-4" />
-                      Encuestas
+                      Panel de encuestas
                     </RouterLink>
                   </DropdownMenuItem>
                 )}
@@ -206,8 +217,12 @@ const Navbar: React.FC = () => {
             <button onClick={() => scrollToSection("precios")} className="hover:text-primary transition-colors">Precios</button>
             <button onClick={() => scrollToSection("publico-objetivo")} className="hover:text-primary transition-colors">Público Objetivo</button>
             <RouterLink to="/opinar" onClick={() => setMenuOpen(false)} className="hover:text-primary transition-colors">Próximamente</RouterLink>
-            {FEATURE_ENCUESTAS && isLoggedIn && (
-              <RouterLink to="/admin/encuestas" onClick={() => setMenuOpen(false)} className="hover:text-primary transition-colors">
+            {FEATURE_ENCUESTAS && (
+              <RouterLink
+                to="/encuestas"
+                onClick={() => setMenuOpen(false)}
+                className="hover:text-primary transition-colors"
+              >
                 Encuestas
               </RouterLink>
             )}
@@ -221,7 +236,7 @@ const Navbar: React.FC = () => {
                 <RouterLink to="/chat" onClick={() => setMenuOpen(false)} className="hover:text-primary transition-colors">Chat</RouterLink>
                 {FEATURE_ENCUESTAS && (
                   <RouterLink
-                    to="/admin/encuestas"
+                    to="/encuestas"
                     onClick={() => setMenuOpen(false)}
                     className="hover:text-primary transition-colors"
                   >
