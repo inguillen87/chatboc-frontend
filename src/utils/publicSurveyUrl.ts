@@ -1,4 +1,4 @@
-import { PUBLIC_SURVEY_BASE_URL } from '@/config';
+import { BASE_API_URL, PUBLIC_SURVEY_BASE_URL } from '@/config';
 
 interface PublicSurveyUrlOptions {
   absolute?: boolean;
@@ -13,9 +13,30 @@ const normalizeSlug = (value: string): string => {
   return value.trim().replace(/^\/+/, '');
 };
 
+const extractOrigin = (value?: string): string => {
+  if (typeof value !== 'string') return '';
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+
+  try {
+    const url = new URL(trimmed);
+    return url.origin.replace(/\/$/, '');
+  } catch (error) {
+    return '';
+  }
+};
+
 const resolveBaseUrl = (): string => {
+  const apiOrigin = extractOrigin(BASE_API_URL);
+  if (apiOrigin) {
+    return apiOrigin;
+  }
+
   if (PUBLIC_SURVEY_BASE_URL) {
-    return PUBLIC_SURVEY_BASE_URL;
+    const publicOrigin = extractOrigin(PUBLIC_SURVEY_BASE_URL);
+    if (publicOrigin) {
+      return publicOrigin;
+    }
   }
 
   if (typeof window !== 'undefined' && window.location?.origin) {
