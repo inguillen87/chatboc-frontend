@@ -1,4 +1,9 @@
-export const FEATURE_ENCUESTAS = import.meta.env.VITE_FEATURE_ENCUESTAS === 'true';
+const rawEncuestasFlag = import.meta.env.VITE_FEATURE_ENCUESTAS;
+
+export const FEATURE_ENCUESTAS =
+  rawEncuestasFlag === undefined || rawEncuestasFlag === ''
+    ? true
+    : rawEncuestasFlag === 'true' || rawEncuestasFlag === '1';
 
 export type FeatureFlag = 'encuestas';
 
