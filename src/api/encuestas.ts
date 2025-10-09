@@ -292,8 +292,35 @@ export const postPublicResponse = (
     omitChatSessionId: true,
   });
 
-export const adminListSurveys = (params?: QueryParams): Promise<SurveyListResponse> =>
-  callAdminSurveyEndpoint(buildQueryString(params));
+const normalizeSurveyListResponse = (payload: unknown): SurveyListResponse => {
+  if (Array.isArray(payload)) {
+    return { data: payload };
+  }
+
+  if (payload && typeof payload === 'object') {
+    const { data, meta, results } = payload as {
+      data?: unknown;
+      results?: unknown;
+      meta?: unknown;
+    };
+
+    if (Array.isArray(data)) {
+      return { data, meta: typeof meta === 'object' && meta ? (meta as SurveyListResponse['meta']) : undefined };
+    }
+
+    if (Array.isArray(results)) {
+      return { data: results, meta: typeof meta === 'object' && meta ? (meta as SurveyListResponse['meta']) : undefined };
+    }
+  }
+
+  console.warn('[encuestas] Respuesta inesperada para el listado de encuestas del panel', payload);
+  return { data: [] };
+};
+
+export const adminListSurveys = async (params?: QueryParams): Promise<SurveyListResponse> => {
+  const rawResponse = await callAdminSurveyEndpoint<SurveyListResponse | SurveyAdmin[]>(buildQueryString(params));
+  return normalizeSurveyListResponse(rawResponse);
+};
 
 export const adminCreateSurvey = (payload: SurveyDraftPayload): Promise<SurveyAdmin> =>
   callAdminSurveyEndpoint('', {
