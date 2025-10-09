@@ -120,7 +120,16 @@ export async function apiFetch<T>(
   // Normalize URL to prevent double slashes
   const url = `${BASE_API_URL.replace(/\/$/, "")}/${path.replace(/^\//, "")}`;
   const fallbackUrl = `/${path.replace(/^\//, "")}`;
-  const headers: Record<string, string> = { ...(options.headers || {}) };
+  const headers: Record<string, string> = options.headers
+    ? { ...options.headers }
+    : {};
+  const acceptPreferenceRaw =
+    typeof headers["Accept"] === "string"
+      ? headers["Accept"]
+      : typeof headers["accept"] === "string"
+        ? headers["accept"]
+        : "";
+  const acceptPreference = acceptPreferenceRaw.toLowerCase();
 
   const isForm = body instanceof FormData;
   if (!isForm && body) headers["Content-Type"] = "application/json";
@@ -213,6 +222,12 @@ export async function apiFetch<T>(
     const trimmedText = text.trim();
     let data: any = null;
     let parsedAsJson = false;
+    const responseContentType =
+      response.headers.get("content-type")?.toLowerCase() ?? "";
+    const expectsJsonResponse =
+      !acceptPreference ||
+      acceptPreference.includes("json") ||
+      acceptPreference.includes("*/*");
 
     if (trimmedText) {
       try {
@@ -234,6 +249,24 @@ export async function apiFetch<T>(
 
     if (!parsedAsJson && !trimmedText) {
       data = null;
+    }
+
+    if (
+      response.ok &&
+      expectsJsonResponse &&
+      trimmedText &&
+      !parsedAsJson
+    ) {
+      const snippet = trimmedText.slice(0, 200);
+      const humanReadableType = responseContentType || 'texto';
+      throw new ApiError(
+        `Respuesta inesperada del servidor (tipo: ${humanReadableType}). Verificá la configuración del endpoint '${path}' y sus encabezados CORS.`,
+        response.status || 502,
+        {
+          raw: snippet,
+          contentType: responseContentType,
+        },
+      );
     }
 
     console.log("[apiFetch] Response", {

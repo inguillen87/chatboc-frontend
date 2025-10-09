@@ -25,11 +25,33 @@ const buildQueryString = (params?: QueryParams) => {
   return query ? `?${query}` : '';
 };
 
-export const listPublicSurveys = (): Promise<SurveyPublic[]> =>
-  apiFetch('/public/encuestas');
+export const listPublicSurveys = async (): Promise<SurveyPublic[]> => {
+  const response = await apiFetch<unknown>('/public/encuestas', {
+    skipAuth: true,
+    omitCredentials: true,
+    isWidgetRequest: true,
+  });
 
-export const getPublicSurvey = (slug: string): Promise<SurveyPublic> =>
-  apiFetch(`/public/encuestas/${slug}`);
+  if (!Array.isArray(response)) {
+    throw new Error('El servidor devolvió un formato inesperado para las encuestas públicas.');
+  }
+
+  return response as SurveyPublic[];
+};
+
+export const getPublicSurvey = async (slug: string): Promise<SurveyPublic> => {
+  const response = await apiFetch<unknown>(`/public/encuestas/${slug}`, {
+    skipAuth: true,
+    omitCredentials: true,
+    isWidgetRequest: true,
+  });
+
+  if (!response || typeof response !== 'object' || Array.isArray(response)) {
+    throw new Error('El servidor devolvió un formato inesperado para la encuesta solicitada.');
+  }
+
+  return response as SurveyPublic;
+};
 
 export const postPublicResponse = (
   slug: string,
@@ -40,6 +62,7 @@ export const postPublicResponse = (
     body: payload,
     omitCredentials: true,
     isWidgetRequest: true,
+    skipAuth: true,
   });
 
 export const adminListSurveys = (params?: QueryParams): Promise<SurveyListResponse> =>
