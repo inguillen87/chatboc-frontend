@@ -1,12 +1,17 @@
+import { DEFAULT_ENTITY_TOKEN } from '@/config';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 export function getChatbocConfig() {
   const g = (window as any).CHATBOC_CONFIG || {};
   const storedToken = safeLocalStorage.getItem('entityToken') || '';
+  const fallbackToken =
+    typeof DEFAULT_ENTITY_TOKEN === 'string' && DEFAULT_ENTITY_TOKEN.trim()
+      ? DEFAULT_ENTITY_TOKEN.trim()
+      : '';
   const effectiveEntityToken =
     typeof g.entityToken === 'string' && g.entityToken.trim()
       ? g.entityToken
-      : storedToken;
+      : storedToken || fallbackToken;
   return {
     endpoint: g.endpoint || 'municipio',
     entityToken: effectiveEntityToken,
@@ -67,8 +72,26 @@ export function getIframeToken(): string {
   }
 
   try {
-    return safeLocalStorage.getItem('entityToken') || '';
+    const stored = safeLocalStorage.getItem('entityToken');
+    if (stored && stored.trim()) {
+      return stored;
+    }
   } catch {
-    return '';
+    // ignore storage access issues and fallback to env token
   }
+
+  if (typeof DEFAULT_ENTITY_TOKEN === 'string' && DEFAULT_ENTITY_TOKEN.trim()) {
+    const trimmed = DEFAULT_ENTITY_TOKEN.trim();
+    try {
+      const existing = safeLocalStorage.getItem('entityToken');
+      if (!existing) {
+        safeLocalStorage.setItem('entityToken', trimmed);
+      }
+    } catch {
+      // Ignore storage errors; still return the fallback token.
+    }
+    return trimmed;
+  }
+
+  return '';
 }
