@@ -1,0 +1,60 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMemo } from 'react';
+
+import { getPublicSurvey, postPublicResponse } from '@/api/encuestas';
+import type { PublicResponsePayload, SurveyPublic } from '@/types/encuestas';
+import { ApiError, getErrorMessage } from '@/utils/api';
+
+interface UseSurveyPublicResult {
+  survey?: SurveyPublic;
+  isLoading: boolean;
+  error: string | null;
+  submit: (payload: PublicResponsePayload) => Promise<void>;
+  isSubmitting: boolean;
+  lastResponseId?: number;
+  duplicateDetected: boolean;
+  submitError: string | null;
+}
+
+export function useSurveyPublic(slug?: string | null): UseSurveyPublicResult {
+  const queryClient = useQueryClient();
+  const normalizedSlug = useMemo(() => slug?.trim() || '', [slug]);
+
+  const {
+    data,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ['survey-public', normalizedSlug],
+    enabled: Boolean(normalizedSlug),
+    queryFn: () => getPublicSurvey(normalizedSlug),
+    staleTime: 1000 * 60,
+  });
+
+  const mutation = useMutation({
+    mutationKey: ['survey-public-submit', normalizedSlug],
+    mutationFn: async (payload: PublicResponsePayload) => {
+      if (!normalizedSlug) throw new Error('Encuesta no disponible.');
+      const response = await postPublicResponse(normalizedSlug, payload);
+      await queryClient.invalidateQueries({ queryKey: ['survey-public', normalizedSlug] });
+      return response;
+    },
+  });
+
+  return {
+    survey: data,
+    isLoading,
+    error: error ? getErrorMessage(error) : null,
+    submit: async (payload: PublicResponsePayload) => {
+      try {
+        await mutation.mutateAsync(payload);
+      } catch (err) {
+        throw err;
+      }
+    },
+    isSubmitting: mutation.isPending,
+    lastResponseId: mutation.data?.id,
+    duplicateDetected: mutation.error instanceof ApiError && mutation.error.status === 409,
+    submitError: mutation.error ? getErrorMessage(mutation.error) : null,
+  };
+}
