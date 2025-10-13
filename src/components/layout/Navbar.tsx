@@ -101,7 +101,7 @@ const Navbar: React.FC = () => {
         </button>
 
         {/* Links centrales - solo landing - desktop */}
-       {isLanding && (
+        {isLanding && (
           <nav className="hidden md:flex gap-6 items-center flex-1 justify-center">
             <button onClick={() => scrollToSection("problemas")} className="text-sm text-foreground/80 hover:text-primary dark:hover:text-primary transition-colors">Problemas</button>
             <button onClick={() => scrollToSection("solucion")} className="text-sm text-foreground/80 hover:text-primary dark:hover:text-primary transition-colors">Solución</button>
@@ -109,28 +109,12 @@ const Navbar: React.FC = () => {
             <button onClick={() => scrollToSection("precios")} className="text-sm text-foreground/80 hover:text-primary dark:hover:text-primary transition-colors">Precios</button>
             <button onClick={() => scrollToSection("publico-objetivo")} className="text-sm text-foreground/80 hover:text-primary dark:hover:text-primary transition-colors">Público Objetivo</button>
             <RouterLink to="/opinar" className="text-sm text-foreground/80 hover:text-primary dark:hover:text-primary transition-colors">Próximamente</RouterLink>
-            {FEATURE_ENCUESTAS && (
-              <RouterLink
-                to="/encuestas"
-                className="text-sm text-foreground/80 hover:text-primary dark:hover:text-primary transition-colors"
-              >
-                Encuestas
-              </RouterLink>
-            )}
             <button onClick={() => scrollToSection("cta")} className="text-sm text-foreground/80 hover:text-primary dark:hover:text-primary transition-colors">Empezar</button>
           </nav>
         )}
 
         {/* Botones lado derecho */}
         <div className="hidden md:flex gap-3 items-center">
-          {FEATURE_ENCUESTAS && (
-            <RouterLink
-              to="/encuestas"
-              className="px-3 py-1 text-sm rounded border border-border/60 hover:bg-accent transition-colors"
-            >
-              Encuestas
-            </RouterLink>
-          )}
           {isLoggedIn ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -210,39 +194,21 @@ const Navbar: React.FC = () => {
         <div className="md:hidden bg-card shadow-md mt-2 rounded-b-xl animate-fade-in-down">
           <div className="flex flex-col items-center gap-3 py-4 text-foreground">
             {isLanding && (
-            <>
-            <button onClick={() => scrollToSection("problemas")} className="hover:text-primary transition-colors">Problemas</button>
-            <button onClick={() => scrollToSection("solucion")} className="hover:text-primary transition-colors">Solución</button>
-            <button onClick={() => scrollToSection("como-funciona")} className="hover:text-primary transition-colors">Cómo Funciona</button>
-            <button onClick={() => scrollToSection("precios")} className="hover:text-primary transition-colors">Precios</button>
-            <button onClick={() => scrollToSection("publico-objetivo")} className="hover:text-primary transition-colors">Público Objetivo</button>
-            <RouterLink to="/opinar" onClick={() => setMenuOpen(false)} className="hover:text-primary transition-colors">Próximamente</RouterLink>
-            {FEATURE_ENCUESTAS && (
-              <RouterLink
-                to="/encuestas"
-                onClick={() => setMenuOpen(false)}
-                className="hover:text-primary transition-colors"
-              >
-                Encuestas
-              </RouterLink>
+              <>
+                <button onClick={() => scrollToSection("problemas")} className="hover:text-primary transition-colors">Problemas</button>
+                <button onClick={() => scrollToSection("solucion")} className="hover:text-primary transition-colors">Solución</button>
+                <button onClick={() => scrollToSection("como-funciona")} className="hover:text-primary transition-colors">Cómo Funciona</button>
+                <button onClick={() => scrollToSection("precios")} className="hover:text-primary transition-colors">Precios</button>
+                <button onClick={() => scrollToSection("publico-objetivo")} className="hover:text-primary transition-colors">Público Objetivo</button>
+                <RouterLink to="/opinar" onClick={() => setMenuOpen(false)} className="hover:text-primary transition-colors">Próximamente</RouterLink>
+                <button onClick={() => scrollToSection("cta")} className="hover:text-primary transition-colors">Empezar</button>
+              </>
             )}
-            <button onClick={() => scrollToSection("cta")} className="hover:text-primary transition-colors">Empezar</button>
-            </>
-          )}
 
-              {isLoggedIn ? (
+            {isLoggedIn ? (
               <>
                 <RouterLink to="/perfil" onClick={() => setMenuOpen(false)} className="hover:text-primary transition-colors">Mi Perfil</RouterLink>
                 <RouterLink to="/chat" onClick={() => setMenuOpen(false)} className="hover:text-primary transition-colors">Chat</RouterLink>
-                {FEATURE_ENCUESTAS && (
-                  <RouterLink
-                    to="/encuestas"
-                    onClick={() => setMenuOpen(false)}
-                    className="hover:text-primary transition-colors"
-                  >
-                    Encuestas
-                  </RouterLink>
-                )}
                 <RouterLink to="/" onClick={() => { safeLocalStorage.removeItem("user"); setMenuOpen(false); }} className="text-red-500">
                   Cerrar sesión
                 </RouterLink>
