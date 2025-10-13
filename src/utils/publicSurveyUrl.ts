@@ -82,7 +82,7 @@ const getQrPath = (slug: string, size?: number): string => {
   const normalized = normalizeSlug(slug);
   if (!normalized) return '';
   const query = typeof size === 'number' && Number.isFinite(size) ? `?size=${Math.max(16, Math.round(size))}` : '';
-  return `/api/public/encuestas/${normalized}/qr${query}`;
+  return `/public/encuestas/${normalized}/qr${query}`;
 };
 
 const getQrPagePath = (slug: string): string => {
