@@ -292,25 +292,98 @@ export const postPublicResponse = (
     omitChatSessionId: true,
   });
 
-const normalizeSurveyListResponse = (payload: unknown): SurveyListResponse => {
-  if (Array.isArray(payload)) {
-    return { data: payload };
+const isSurveyListMeta = (value: unknown): SurveyListResponse['meta'] | undefined => {
+  if (!value || typeof value !== 'object') {
+    return undefined;
   }
 
-  if (payload && typeof payload === 'object') {
-    const { data, meta, results } = payload as {
-      data?: unknown;
-      results?: unknown;
-      meta?: unknown;
-    };
+  const candidate = value as SurveyListResponse['meta'];
+  const knownKeys = ['total', 'draftCount', 'activeCount'] as const;
+  if (knownKeys.some((key) => Object.prototype.hasOwnProperty.call(candidate, key))) {
+    return candidate;
+  }
 
-    if (Array.isArray(data)) {
-      return { data, meta: typeof meta === 'object' && meta ? (meta as SurveyListResponse['meta']) : undefined };
-    }
+  return undefined;
+};
 
-    if (Array.isArray(results)) {
-      return { data: results, meta: typeof meta === 'object' && meta ? (meta as SurveyListResponse['meta']) : undefined };
+const SURVEY_ARRAY_KEYS = [
+  'data',
+  'results',
+  'items',
+  'records',
+  'encuestas',
+  'surveys',
+  'docs',
+  'rows',
+] as const;
+
+const looksLikeSurveyRecord = (value: unknown) => {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Record<string, unknown>;
+  return (
+    Object.prototype.hasOwnProperty.call(candidate, 'titulo') ||
+    Object.prototype.hasOwnProperty.call(candidate, 'slug') ||
+    Object.prototype.hasOwnProperty.call(candidate, 'id')
+  );
+};
+
+const extractSurveyArray = (
+  payload: unknown,
+  parentMeta?: SurveyListResponse['meta'],
+  depth = 0,
+  visited: Set<unknown> = new Set(),
+): SurveyListResponse | null => {
+  if (depth > 6 || payload === null || payload === undefined) {
+    return null;
+  }
+
+  if (visited.has(payload)) {
+    return null;
+  }
+
+  if (Array.isArray(payload)) {
+    if (!payload.length || looksLikeSurveyRecord(payload[0])) {
+      return { data: payload, meta: parentMeta };
     }
+    return null;
+  }
+
+  if (typeof payload !== 'object') {
+    return null;
+  }
+
+  visited.add(payload);
+
+  const container = payload as Record<string, unknown>;
+  const metaFromCurrent = isSurveyListMeta(container.meta) ?? parentMeta;
+
+  for (const key of SURVEY_ARRAY_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(container, key)) {
+      const extracted = extractSurveyArray(container[key], metaFromCurrent, depth + 1, visited);
+      if (extracted) {
+        return {
+          data: extracted.data,
+          meta: extracted.meta ?? metaFromCurrent,
+        };
+      }
+    }
+  }
+
+  for (const value of Object.values(container)) {
+    const extracted = extractSurveyArray(value, metaFromCurrent, depth + 1, visited);
+    if (extracted) {
+      return extracted;
+    }
+  }
+
+  return null;
+};
+
+const normalizeSurveyListResponse = (payload: unknown): SurveyListResponse => {
+  const extracted = extractSurveyArray(payload);
+
+  if (extracted) {
+    return extracted;
   }
 
   console.warn('[encuestas] Respuesta inesperada para el listado de encuestas del panel', payload);
