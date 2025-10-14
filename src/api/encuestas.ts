@@ -49,7 +49,19 @@ const joinAdminPath = (base: string, suffix?: string) => {
 
 const shouldRetryAdminRequest = (error: unknown) => {
   if (error instanceof ApiError) {
-    return [0, 400, 401, 402, 403].every((code) => error.status !== code);
+    if (error.status === 0) {
+      return true;
+    }
+
+    if (error.status === 404 || error.status === 405) {
+      return true;
+    }
+
+    if (error.status >= 500) {
+      return true;
+    }
+
+    return false;
   }
 
   if (error instanceof Error) {
