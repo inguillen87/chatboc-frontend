@@ -292,25 +292,57 @@ export const postPublicResponse = (
     omitChatSessionId: true,
   });
 
-const normalizeSurveyListResponse = (payload: unknown): SurveyListResponse => {
-  if (Array.isArray(payload)) {
-    return { data: payload };
+const isSurveyListMeta = (value: unknown): SurveyListResponse['meta'] | undefined => {
+  if (!value || typeof value !== 'object') {
+    return undefined;
   }
 
-  if (payload && typeof payload === 'object') {
-    const { data, meta, results } = payload as {
-      data?: unknown;
-      results?: unknown;
-      meta?: unknown;
-    };
+  const candidate = value as SurveyListResponse['meta'];
+  const knownKeys = ['total', 'draftCount', 'activeCount'] as const;
+  if (knownKeys.some((key) => Object.prototype.hasOwnProperty.call(candidate, key))) {
+    return candidate;
+  }
 
-    if (Array.isArray(data)) {
-      return { data, meta: typeof meta === 'object' && meta ? (meta as SurveyListResponse['meta']) : undefined };
-    }
+  return undefined;
+};
 
-    if (Array.isArray(results)) {
-      return { data: results, meta: typeof meta === 'object' && meta ? (meta as SurveyListResponse['meta']) : undefined };
+const extractSurveyArray = (
+  payload: unknown,
+  parentMeta?: SurveyListResponse['meta'],
+  depth = 0,
+): SurveyListResponse | null => {
+  if (Array.isArray(payload)) {
+    return { data: payload, meta: parentMeta };
+  }
+
+  if (!payload || typeof payload !== 'object' || depth > 3) {
+    return null;
+  }
+
+  const container = payload as Record<string, unknown>;
+  const metaFromCurrent = isSurveyListMeta(container.meta) ?? parentMeta;
+  const candidateKeys = ['data', 'results', 'items', 'records', 'encuestas'];
+
+  for (const key of candidateKeys) {
+    if (Object.prototype.hasOwnProperty.call(container, key)) {
+      const extracted = extractSurveyArray(container[key], metaFromCurrent, depth + 1);
+      if (extracted) {
+        return {
+          data: extracted.data,
+          meta: extracted.meta ?? metaFromCurrent,
+        };
+      }
     }
+  }
+
+  return null;
+};
+
+const normalizeSurveyListResponse = (payload: unknown): SurveyListResponse => {
+  const extracted = extractSurveyArray(payload);
+
+  if (extracted) {
+    return extracted;
   }
 
   console.warn('[encuestas] Respuesta inesperada para el listado de encuestas del panel', payload);
