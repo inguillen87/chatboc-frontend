@@ -5,6 +5,16 @@ import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateChatSessionId from "@/utils/chatSessionId"; // Import the new function
 import { getIframeToken } from "@/utils/config";
 
+export class NetworkError extends Error {
+  public readonly cause?: unknown;
+
+  constructor(message: string, cause?: unknown) {
+    super(message);
+    this.name = "NetworkError";
+    this.cause = cause;
+  }
+}
+
 export class ApiError extends Error {
   public readonly status: number;
   public readonly body: any;
@@ -348,10 +358,17 @@ export async function apiFetch<T>(
         `❌ Network Error or CORS issue. Ensure the backend is running and reachable at ${BASE_API_URL}, and that its CORS policy is configured correctly.`,
         error
       );
-    } else {
-      console.error("❌ API Fetch Error:", error);
+      throw new NetworkError(
+        "No fue posible establecer la conexión con el servidor. Verificá tu conexión o la configuración de CORS del backend.",
+        error,
+      );
     }
-    throw new Error("Error de conexión con el servidor.");
+
+    console.error("❌ API Fetch Error:", error);
+    throw new NetworkError(
+      "No fue posible establecer la conexión con el servidor. Verificá tu conexión o la configuración de CORS del backend.",
+      error,
+    );
   }
 }
 
@@ -376,6 +393,10 @@ export function getErrorMessage(error: unknown, fallback = "Ocurrió un error in
         return error.message || `Ocurrió un error (código: ${error.status})`;
     }
   }
+  if (error instanceof NetworkError) {
+    return error.message;
+  }
+
   if (error && typeof (error as any).message === "string") {
     // Para errores que no son de la API pero tienen un mensaje (ej. errores de red)
     return (error as any).message;
