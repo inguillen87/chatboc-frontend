@@ -45,9 +45,9 @@ const resolveBaseUrl = (): string => {
     return PUBLIC_SURVEY_BASE_URL.replace(/\/$/, '');
   }
 
-  const apiOrigin = extractOrigin(BASE_API_URL);
-  if (apiOrigin) {
-    return normalizePublicOrigin(apiOrigin);
+  const baseApiOrigin = extractOrigin(BASE_API_URL);
+  if (baseApiOrigin) {
+    return normalizePublicOrigin(baseApiOrigin);
   }
 
   if (typeof window !== 'undefined' && window.location?.origin) {
