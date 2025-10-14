@@ -386,16 +386,6 @@ const normalizeSurveyListResponse = (payload: unknown): SurveyListResponse => {
     return extracted;
   }
 
-  return null;
-};
-
-const normalizeSurveyListResponse = (payload: unknown): SurveyListResponse => {
-  const extracted = extractSurveyArray(payload);
-
-  if (extracted) {
-    return extracted;
-  }
-
   console.warn('[encuestas] Respuesta inesperada para el listado de encuestas del panel', payload);
   return { data: [] };
 };
