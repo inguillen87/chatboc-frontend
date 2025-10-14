@@ -1,0 +1,174 @@
+[
+  {
+    "slug": "servicios-publicos",
+    "titulo": "Encuesta sobre servicios públicos en {{municipality}}",
+    "descripcion": "Queremos conocer la experiencia de los vecinos y vecinas con los servicios urbanos para planificar mejoras.",
+    "tipo": "opinion",
+    "politica_unicidad": "por_dni",
+    "anonimato": false,
+    "requiere_datos_contacto": true,
+    "preguntas": [
+      {
+        "orden": 1,
+        "tipo": "opcion_unica",
+        "texto": "¿Cómo calificás la limpieza urbana en {{municipality}}?",
+        "obligatoria": true,
+        "opciones": [
+          { "orden": 1, "texto": "Muy buena" },
+          { "orden": 2, "texto": "Buena" },
+          { "orden": 3, "texto": "Regular" },
+          { "orden": 4, "texto": "Mala" }
+        ]
+      },
+      {
+        "orden": 2,
+        "tipo": "multiple",
+        "texto": "¿Qué aspectos deberían reforzarse prioritariamente?",
+        "obligatoria": true,
+        "min_selecciones": 1,
+        "max_selecciones": 3,
+        "opciones": [
+          { "orden": 1, "texto": "Recolección de residuos" },
+          { "orden": 2, "texto": "Iluminación pública" },
+          { "orden": 3, "texto": "Mantenimiento de calles" },
+          { "orden": 4, "texto": "Espacios verdes" }
+        ]
+      },
+      {
+        "orden": 3,
+        "tipo": "abierta",
+        "texto": "¿Qué propuesta concreta sugerís para mejorar los servicios públicos?",
+        "obligatoria": false
+      }
+    ]
+  },
+  {
+    "slug": "seguridad-ciudadana",
+    "titulo": "Sondeo de seguridad ciudadana en {{municipality}}",
+    "descripcion": "Medimos la percepción de seguridad barrial para coordinar acciones con fuerzas locales.",
+    "tipo": "sondeo",
+    "politica_unicidad": "por_phone",
+    "anonimato": false,
+    "requiere_datos_contacto": true,
+    "preguntas": [
+      {
+        "orden": 1,
+        "tipo": "opcion_unica",
+        "texto": "¿Con qué frecuencia ves patrullajes o controles preventivos?",
+        "obligatoria": true,
+        "opciones": [
+          { "orden": 1, "texto": "Todos los días" },
+          { "orden": 2, "texto": "Varias veces por semana" },
+          { "orden": 3, "texto": "Pocas veces al mes" },
+          { "orden": 4, "texto": "Nunca" }
+        ]
+      },
+      {
+        "orden": 2,
+        "tipo": "opcion_unica",
+        "texto": "¿Cómo evaluás la iluminación nocturna en tu cuadra?",
+        "obligatoria": true,
+        "opciones": [
+          { "orden": 1, "texto": "Muy adecuada" },
+          { "orden": 2, "texto": "Adecuada" },
+          { "orden": 3, "texto": "Insuficiente" },
+          { "orden": 4, "texto": "Muy insuficiente" }
+        ]
+      },
+      {
+        "orden": 3,
+        "tipo": "abierta",
+        "texto": "Comentá situaciones o zonas específicas donde te gustaría ver más presencia preventiva.",
+        "obligatoria": false
+      }
+    ]
+  },
+  {
+    "slug": "movilidad-y-transporte",
+    "titulo": "Consulta sobre movilidad y transporte en {{municipality}}",
+    "descripcion": "Identificamos necesidades de infraestructura vial y transporte público para priorizar inversiones.",
+    "tipo": "opinion",
+    "politica_unicidad": "por_ip",
+    "anonimato": true,
+    "requiere_datos_contacto": false,
+    "preguntas": [
+      {
+        "orden": 1,
+        "tipo": "multiple",
+        "texto": "¿Qué medios de transporte utilizás semanalmente?",
+        "obligatoria": true,
+        "min_selecciones": 1,
+        "max_selecciones": 4,
+        "opciones": [
+          { "orden": 1, "texto": "Colectivo" },
+          { "orden": 2, "texto": "Bicicleta" },
+          { "orden": 3, "texto": "Motocicleta" },
+          { "orden": 4, "texto": "Auto particular" },
+          { "orden": 5, "texto": "Caminata" }
+        ]
+      },
+      {
+        "orden": 2,
+        "tipo": "opcion_unica",
+        "texto": "¿Cuál es la principal dificultad para moverte por {{municipality}}?",
+        "obligatoria": true,
+        "opciones": [
+          { "orden": 1, "texto": "Frecuencia del transporte público" },
+          { "orden": 2, "texto": "Estado de las calles" },
+          { "orden": 3, "texto": "Falta de ciclovías" },
+          { "orden": 4, "texto": "Congestión vehicular" },
+          { "orden": 5, "texto": "Inseguridad vial" }
+        ]
+      },
+      {
+        "orden": 3,
+        "tipo": "abierta",
+        "texto": "¿Qué obra o mejora puntual priorizarías para facilitar la movilidad?",
+        "obligatoria": false
+      }
+    ]
+  },
+  {
+    "slug": "agenda-cultural",
+    "titulo": "Encuesta de agenda cultural para {{municipality}}",
+    "descripcion": "Definimos programación cultural y turística en base a los intereses de la comunidad.",
+    "tipo": "opinion",
+    "politica_unicidad": "por_cookie",
+    "anonimato": true,
+    "requiere_datos_contacto": false,
+    "preguntas": [
+      {
+        "orden": 1,
+        "tipo": "multiple",
+        "texto": "¿Qué actividades culturales te gustaría ver con más frecuencia?",
+        "obligatoria": true,
+        "min_selecciones": 1,
+        "max_selecciones": 3,
+        "opciones": [
+          { "orden": 1, "texto": "Festivales musicales" },
+          { "orden": 2, "texto": "Ferias gastronómicas" },
+          { "orden": 3, "texto": "Talleres para familias" },
+          { "orden": 4, "texto": "Cine al aire libre" },
+          { "orden": 5, "texto": "Muestras de artes visuales" }
+        ]
+      },
+      {
+        "orden": 2,
+        "tipo": "opcion_unica",
+        "texto": "¿Qué franja horaria preferís para participar de actividades culturales municipales?",
+        "obligatoria": true,
+        "opciones": [
+          { "orden": 1, "texto": "Mañana" },
+          { "orden": 2, "texto": "Tarde" },
+          { "orden": 3, "texto": "Noche" }
+        ]
+      },
+      {
+        "orden": 3,
+        "tipo": "abierta",
+        "texto": "Sugerí un evento o iniciativa cultural que te gustaría sumar a la agenda local.",
+        "obligatoria": false
+      }
+    ]
+  }
+]
