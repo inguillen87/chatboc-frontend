@@ -11,7 +11,8 @@
     "postinstall": "npm run setup-env",
     "test": "vitest run",
     "test:watch": "vitest",
-    "start": "node server/app.cjs"
+    "start": "node server/app.cjs",
+    "seed:surveys": "node scripts/seedMunicipalSurveys.mjs"
   },
   "dependencies": {
     "@headlessui/react": "^1.7.18",
