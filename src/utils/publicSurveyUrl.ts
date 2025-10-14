@@ -26,21 +26,32 @@ const extractOrigin = (value?: string): string => {
   }
 };
 
-const resolveBaseUrl = (): string => {
-  const apiOrigin = extractOrigin(BASE_API_URL);
-  if (apiOrigin) {
-    return apiOrigin;
-  }
-
-  if (PUBLIC_SURVEY_BASE_URL) {
-    const publicOrigin = extractOrigin(PUBLIC_SURVEY_BASE_URL);
-    if (publicOrigin) {
-      return publicOrigin;
+const normalizePublicOrigin = (value: string): string => {
+  try {
+    const url = new URL(value);
+    if (url.hostname === 'api.chatboc.ar') {
+      url.hostname = 'www.chatboc.ar';
+      url.port = '';
+      return url.origin;
     }
+    return url.origin.replace(/\/$/, '');
+  } catch (error) {
+    return value.replace(/\/$/, '');
+  }
+};
+
+const resolveBaseUrl = (): string => {
+  if (PUBLIC_SURVEY_BASE_URL) {
+    return PUBLIC_SURVEY_BASE_URL;
   }
 
   if (typeof window !== 'undefined' && window.location?.origin) {
     return window.location.origin.replace(/\/$/, '');
+  }
+
+  const apiOrigin = extractOrigin(BASE_API_URL);
+  if (apiOrigin) {
+    return normalizePublicOrigin(apiOrigin);
   }
 
   return '';
