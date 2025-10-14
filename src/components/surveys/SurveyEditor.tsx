@@ -16,7 +16,7 @@ import type {
   SurveyDraftPayload,
   SurveyTipo,
 } from '@/types/encuestas';
-import { getAbsolutePublicSurveyUrl } from '@/utils/publicSurveyUrl';
+import { getAbsolutePublicSurveyUrl, getPublicSurveyQrUrl } from '@/utils/publicSurveyUrl';
 
 interface SurveyEditorProps {
   survey?: SurveyAdmin;
@@ -264,7 +264,7 @@ export const SurveyEditor = ({ survey, onSave, onPublish, isSaving, isPublishing
     [survey?.slug],
   );
 
-  const qrUrl = survey?.slug ? `/api/public/encuestas/${survey.slug}/qr?size=512` : '';
+  const qrUrl = survey?.slug ? getPublicSurveyQrUrl(survey.slug, { size: 512 }) : '';
 
   return (
     <div className="space-y-6">
