@@ -42,7 +42,12 @@ const normalizePublicOrigin = (value: string): string => {
 
 const resolveBaseUrl = (): string => {
   if (PUBLIC_SURVEY_BASE_URL) {
-    return PUBLIC_SURVEY_BASE_URL;
+    return PUBLIC_SURVEY_BASE_URL.replace(/\/$/, '');
+  }
+
+  const apiOrigin = extractOrigin(BASE_API_URL);
+  if (apiOrigin) {
+    return normalizePublicOrigin(apiOrigin);
   }
 
   if (typeof window !== 'undefined' && window.location?.origin) {
