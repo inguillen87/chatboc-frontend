@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { CalendarDays, Copy, Download, Loader2 } from 'lucide-react';
 
 import { SurveyAnalytics } from '@/components/surveys/SurveyAnalytics';
+import { SurveyQrPreview } from '@/components/surveys/SurveyQrPreview';
 import { SurveyRecentResponses } from '@/components/surveys/SurveyRecentResponses';
 import { TransparencyTab } from '@/components/surveys/TransparencyTab';
 import { Badge } from '@/components/ui/badge';
@@ -180,7 +181,13 @@ const SurveyAnalyticsPage = () => {
             </div>
             {qrUrl ? (
               <div className="flex flex-col items-center gap-2">
-                <img src={qrUrl} alt={`Código QR de ${survey.titulo}`} className="h-40 w-40 rounded-md border border-border" />
+                <SurveyQrPreview
+                  slug={survey.slug}
+                  title={survey.titulo}
+                  remoteUrl={qrUrl}
+                  size={160}
+                  imageClassName="bg-white p-4"
+                />
                 <span className="text-xs text-muted-foreground">Escaneá para probar el recorrido público.</span>
               </div>
             ) : null}

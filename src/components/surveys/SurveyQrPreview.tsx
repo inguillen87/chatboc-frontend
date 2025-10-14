@@ -9,9 +9,17 @@ interface SurveyQrPreviewProps {
   remoteUrl?: string | null;
   size?: number;
   className?: string;
+  imageClassName?: string;
 }
 
-export const SurveyQrPreview = ({ slug, title, remoteUrl, size = 168, className }: SurveyQrPreviewProps) => {
+export const SurveyQrPreview = ({
+  slug,
+  title,
+  remoteUrl,
+  size = 168,
+  className,
+  imageClassName,
+}: SurveyQrPreviewProps) => {
   const [src, setSrc] = useState<string | null>(remoteUrl ?? null);
   const [error, setError] = useState<string | null>(null);
   const [usedFallback, setUsedFallback] = useState(false);
@@ -22,6 +30,13 @@ export const SurveyQrPreview = ({ slug, title, remoteUrl, size = 168, className 
     const normalizedSize = Math.min(1024, Math.max(120, Math.round(size * 3)));
     return `https://quickchart.io/qr?size=${normalizedSize}&text=${encodeURIComponent(targetUrl)}`;
   }, [targetUrl, size]);
+
+  const displaySize = useMemo(() => Math.max(96, Math.round(size)), [size]);
+  const sharedStyle = useMemo(() => ({ width: displaySize, height: displaySize }), [displaySize]);
+  const imageClasses = useMemo(
+    () => cn('rounded-md border border-border bg-background p-2 object-contain', imageClassName),
+    [imageClassName],
+  );
 
   useEffect(() => {
     setUsedFallback(false);
@@ -77,12 +92,16 @@ export const SurveyQrPreview = ({ slug, title, remoteUrl, size = 168, className 
         <img
           src={src}
           alt={`Código QR para participar de ${title}`}
-          className="h-28 w-28 rounded-md border border-border bg-background p-2"
+          className={imageClasses}
+          style={sharedStyle}
           loading="lazy"
           onError={handleError}
         />
       ) : (
-        <div className="flex h-28 w-28 items-center justify-center rounded-md border border-dashed border-border bg-muted/30 text-[10px] text-muted-foreground">
+        <div
+          className="flex items-center justify-center rounded-md border border-dashed border-border bg-muted/30 text-[10px] text-muted-foreground"
+          style={sharedStyle}
+        >
           No disponible
         </div>
       )}
