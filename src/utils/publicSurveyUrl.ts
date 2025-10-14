@@ -54,11 +54,6 @@ const resolveBaseUrl = (): string => {
     return window.location.origin.replace(/\/$/, '');
   }
 
-  const apiOrigin = extractOrigin(BASE_API_URL);
-  if (apiOrigin) {
-    return normalizePublicOrigin(apiOrigin);
-  }
-
   return '';
 };
 
