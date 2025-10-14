@@ -415,6 +415,23 @@ const SurveysPublicIndex = () => {
             window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
           };
 
+          const handleCopyQrLink = async () => {
+            if (!qrUrl) return;
+            try {
+              await navigator.clipboard.writeText(qrUrl);
+              toast({
+                title: 'Enlace del QR copiado',
+                description: 'Pegalo donde quieras compartir la imagen del código.',
+              });
+            } catch (error) {
+              toast({
+                title: 'No se pudo copiar el enlace del QR',
+                description: String((error as Error)?.message ?? error),
+                variant: 'destructive',
+              });
+            }
+          };
+
           return (
             <Card key={`${survey.slug}-${survey.id ?? survey.slug}`} className="overflow-hidden">
               <CardHeader className="space-y-4">
@@ -478,6 +495,15 @@ const SurveysPublicIndex = () => {
                       <Button variant="outline" className="inline-flex items-center gap-2" onClick={handleShareWhatsApp}>
                         <MessageCircle className="h-4 w-4" /> Enviar por WhatsApp
                       </Button>
+                      {qrUrl ? (
+                        <Button
+                          variant="outline"
+                          className="inline-flex items-center gap-2"
+                          onClick={handleCopyQrLink}
+                        >
+                          <Share2 className="h-4 w-4" /> Copiar enlace del QR
+                        </Button>
+                      ) : null}
                       {qrPagePath !== '#' ? (
                         <Button variant="outline" className="inline-flex items-center gap-2" asChild>
                           <Link to={qrPagePath}>
