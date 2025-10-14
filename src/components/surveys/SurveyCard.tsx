@@ -65,8 +65,8 @@ export const SurveyCard = ({
       <CardHeader className="flex flex-col gap-2">
         <div className="flex items-center justify-between gap-3">
           <CardTitle className="text-xl font-semibold">{survey.titulo}</CardTitle>
-          <Badge variant={statusVariants[survey.estado]} className="uppercase tracking-wide">
-            {survey.estado}
+          <Badge variant={statusVariants[survey.estado] ?? 'outline'} className="uppercase tracking-wide">
+            {survey.estado || 'sin estado'}
           </Badge>
         </div>
         <p className="line-clamp-2 text-sm text-muted-foreground">{survey.descripcion || 'Sin descripción'}</p>
@@ -74,13 +74,13 @@ export const SurveyCard = ({
           <span className="inline-flex items-center gap-1">
             <CalendarDays className="h-4 w-4" /> {formatDate(survey.inicio_at)} – {formatDate(survey.fin_at)}
           </span>
-          <span className="inline-flex items-center gap-1">Tipo: {survey.tipo}</span>
-          <span className="inline-flex items-center gap-1">Slug: {survey.slug}</span>
+          <span className="inline-flex items-center gap-1">Tipo: {survey.tipo || '—'}</span>
+          <span className="inline-flex items-center gap-1">Slug: {survey.slug || '—'}</span>
         </div>
       </CardHeader>
       <CardContent className="space-y-1 text-sm text-muted-foreground">
-        <p>Preguntas: {survey.preguntas.length}</p>
-        <p>Política de unicidad: {survey.politica_unicidad}</p>
+        <p>Preguntas: {Array.isArray(survey.preguntas) ? survey.preguntas.length : 0}</p>
+        <p>Política de unicidad: {survey.politica_unicidad || '—'}</p>
       </CardContent>
       <CardFooter className="flex flex-wrap gap-2">
         <Button variant="outline" size="sm" onClick={onEdit} className="inline-flex items-center gap-2">
