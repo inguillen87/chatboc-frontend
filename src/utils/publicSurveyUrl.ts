@@ -101,6 +101,57 @@ const getQrPagePath = (slug: string): string => {
   return normalized ? `/encuestas/${normalized}/qr` : '';
 };
 
+const buildQuickchartQrUrl = (slug: string, size?: number): string => {
+  const targetUrl = getPublicSurveyUrl(slug);
+  if (!targetUrl) return '';
+
+  const normalizedSize = Math.max(16, Math.min(2048, Math.round(typeof size === 'number' ? size : 512)));
+  return `https://quickchart.io/qr?size=${normalizedSize}&margin=12&text=${encodeURIComponent(targetUrl)}`;
+};
+
+export const isQuickchartQrUrl = (value?: string | null): boolean => {
+  if (!value) {
+    return false;
+  }
+
+  try {
+    const parsed = new URL(value);
+    return parsed.hostname === 'quickchart.io';
+  } catch (error) {
+    return value.startsWith('https://quickchart.io/qr');
+  }
+};
+
+const shouldUseQuickchartQr = (base?: string | null): boolean => {
+  if (!base) {
+    return true;
+  }
+
+  try {
+    const normalizedBase = base.replace(/\/$/, '');
+    if (!normalizedBase) {
+      return true;
+    }
+
+    const parsedBase = new URL(normalizedBase);
+
+    if (parsedBase.hostname === 'www.chatboc.ar') {
+      return true;
+    }
+
+    if (typeof window !== 'undefined' && window.location?.origin) {
+      const currentOrigin = window.location.origin.replace(/\/$/, '');
+      if (currentOrigin && currentOrigin === normalizedBase) {
+        return true;
+      }
+    }
+
+    return false;
+  } catch (error) {
+    return true;
+  }
+};
+
 export const getPublicSurveyQrUrl = (
   slug: string,
   options: PublicSurveyAssetOptions = {},
@@ -113,7 +164,12 @@ export const getPublicSurveyQrUrl = (
   }
 
   const base = resolveBaseUrl();
-  return base ? `${base}${path}` : path;
+
+  if (!shouldUseQuickchartQr(base)) {
+    return `${base}${path}`;
+  }
+
+  return buildQuickchartQrUrl(slug, options.size);
 };
 
 export const getPublicSurveyQrPageUrl = (

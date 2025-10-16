@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useSurveyPublic } from '@/hooks/useSurveyPublic';
 import { usePageMetadata } from '@/hooks/usePageMetadata';
-import { getPublicSurveyQrUrl, getPublicSurveyUrl } from '@/utils/publicSurveyUrl';
+import { getPublicSurveyQrUrl, getPublicSurveyUrl, isQuickchartQrUrl } from '@/utils/publicSurveyUrl';
 
 const SurveyQrPage = () => {
   const { slug = '' } = useParams<{ slug: string }>();
@@ -18,10 +18,11 @@ const SurveyQrPage = () => {
 
   const participationUrl = useMemo(() => getPublicSurveyUrl(slug) || '', [slug]);
   const directQrUrl = useMemo(() => getPublicSurveyQrUrl(slug, { size: 768 }), [slug]);
+  const isDirectQuickchart = useMemo(() => isQuickchartQrUrl(directQrUrl), [directQrUrl]);
   const fallbackQrUrl = useMemo(() => {
-    if (!participationUrl) return '';
+    if (!participationUrl || isDirectQuickchart) return '';
     return `https://quickchart.io/qr?size=720&margin=12&text=${encodeURIComponent(participationUrl)}`;
-  }, [participationUrl]);
+  }, [participationUrl, isDirectQuickchart]);
   const normalizedTitle = survey?.titulo ?? 'Encuesta ciudadana';
 
   usePageMetadata({
@@ -152,7 +153,7 @@ const SurveyQrPage = () => {
               <p className="text-sm text-muted-foreground">{imageError}</p>
             ) : null}
           </div>
-          {directQrUrl ? (
+          {directQrUrl && !isDirectQuickchart ? (
             <Alert className="border-primary/40 bg-primary/5 text-primary">
               <AlertTitle>¿Preferís el archivo original?</AlertTitle>
               <AlertDescription className="space-y-2 text-sm">
