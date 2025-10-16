@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { CheckCircle2, Clock, FilePlus2, ShieldCheck } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,35 @@ interface TransparencyTabProps {
   isVerifying?: boolean;
 }
 
+const isSnapshotRecord = (value: unknown): value is SurveySnapshot => {
+  if (!value || typeof value !== 'object') return false;
+  const record = value as Record<string, unknown>;
+  return typeof record.id === 'number' && typeof record.creado_at === 'string';
+};
+
+const collectSnapshotCandidates = (value: unknown, target: SurveySnapshot[]) => {
+  if (!value) return;
+  if (Array.isArray(value)) {
+    value.forEach((item) => collectSnapshotCandidates(item, target));
+    return;
+  }
+  if (isSnapshotRecord(value)) {
+    target.push(value);
+    return;
+  }
+  if (typeof value === 'object') {
+    for (const nested of Object.values(value)) {
+      collectSnapshotCandidates(nested, target);
+    }
+  }
+};
+
+const normalizeSnapshots = (value: unknown): SurveySnapshot[] => {
+  const normalized: SurveySnapshot[] = [];
+  collectSnapshotCandidates(value, normalized);
+  return normalized;
+};
+
 export const TransparencyTab = ({
   snapshots,
   onCreateSnapshot,
@@ -29,6 +58,8 @@ export const TransparencyTab = ({
   const [snapshotId, setSnapshotId] = useState<number | null>(null);
   const [responseId, setResponseId] = useState('');
   const [verificationResult, setVerificationResult] = useState<string | null>(null);
+
+  const normalizedSnapshots = useMemo(() => normalizeSnapshots(snapshots), [snapshots]);
 
   const handleCreateSnapshot = async () => {
     await onCreateSnapshot(range ? { rango: range } : undefined);
@@ -79,7 +110,7 @@ export const TransparencyTab = ({
                 </tr>
               </thead>
               <tbody>
-                {(snapshots ?? []).map((snapshot) => (
+                {normalizedSnapshots.map((snapshot) => (
                   <tr key={snapshot.id} className="border-b border-border/40">
                     <td className="py-2 pr-4">
                       <div className="flex flex-col">
@@ -118,7 +149,7 @@ export const TransparencyTab = ({
                     </td>
                   </tr>
                 ))}
-                {!snapshots?.length && (
+                {!normalizedSnapshots.length && (
                   <tr>
                     <td colSpan={4} className="py-4 text-center text-muted-foreground">
                       Aún no creaste snapshots. Generá uno para fijar un estado verificable de la encuesta.
