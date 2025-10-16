@@ -166,9 +166,14 @@ const normalizeChannelBreakdown = (raw: unknown): ChannelBreakdownItem[] => {
     if (parsed) normalized.push(parsed);
   }
   if (!normalized.length && isRecord(raw)) {
-    for (const [key, value] of Object.entries(raw)) {
-      const parsed = extractChannelItem(value, key);
-      if (parsed) normalized.push(parsed);
+    const singleItem = extractChannelItem(raw);
+    if (singleItem) {
+      normalized.push(singleItem);
+    } else {
+      for (const [key, value] of Object.entries(raw)) {
+        const parsed = extractChannelItem(value, key);
+        if (parsed) normalized.push(parsed);
+      }
     }
   }
   return normalized;
@@ -194,9 +199,14 @@ const normalizeUtmBreakdown = (raw: unknown): UtmBreakdownItem[] => {
     if (parsed) normalized.push(parsed);
   }
   if (!normalized.length && isRecord(raw)) {
-    for (const [key, value] of Object.entries(raw)) {
-      const parsed = extractUtmItem(value, key);
-      if (parsed) normalized.push(parsed);
+    const singleItem = extractUtmItem(raw);
+    if (singleItem) {
+      normalized.push(singleItem);
+    } else {
+      for (const [key, value] of Object.entries(raw)) {
+        const parsed = extractUtmItem(value, key);
+        if (parsed) normalized.push(parsed);
+      }
     }
   }
   return normalized;
