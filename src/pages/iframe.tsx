@@ -8,6 +8,9 @@ import { MemoryRouter } from "react-router-dom";
 import { getChatbocConfig } from "@/utils/config";
 import { hexToHsl } from "@/utils/color";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
+import { registerExtensionNoiseFilters } from "@/utils/registerExtensionNoiseFilters";
+
+registerExtensionNoiseFilters();
 
 const DEFAULTS = {
   openWidth: "460px",
