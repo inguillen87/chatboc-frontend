@@ -20,6 +20,7 @@ import { getAbsolutePublicSurveyUrl, getPublicSurveyQrUrl } from '@/utils/public
 
 interface SurveyEditorProps {
   survey?: SurveyAdmin;
+  initialDraft?: SurveyDraftPayload;
   onSave: (payload: SurveyDraftPayload) => Promise<void>;
   onPublish?: () => Promise<void>;
   isSaving?: boolean;
@@ -68,10 +69,12 @@ const createLocalQuestion = (index: number, partial?: Partial<LocalQuestion>): L
   ...partial,
 });
 
-const mapSurveyToLocal = (survey?: SurveyAdmin): LocalQuestion[] =>
-  survey?.preguntas?.map((pregunta) => ({
+const mapQuestionsToLocal = (
+  preguntas?: SurveyDraftPayload['preguntas'] | SurveyAdmin['preguntas'],
+): LocalQuestion[] =>
+  preguntas?.map((pregunta) => ({
     localId: generateId(),
-    id: pregunta.id,
+    id: 'id' in pregunta ? pregunta.id : undefined,
     orden: pregunta.orden,
     tipo: pregunta.tipo,
     texto: pregunta.texto,
@@ -80,17 +83,54 @@ const mapSurveyToLocal = (survey?: SurveyAdmin): LocalQuestion[] =>
     max_selecciones: pregunta.max_selecciones ?? null,
     opciones: pregunta.opciones?.map((opcion) => ({
       localId: generateId(),
-      id: opcion.id,
+      id: 'id' in opcion ? opcion.id : undefined,
       orden: opcion.orden,
       texto: opcion.texto,
       valor: opcion.valor,
     })),
   })) ?? [];
 
+const cloneDraft = (draft: SurveyDraftPayload): SurveyDraftPayload => ({
+  ...draft,
+  preguntas: draft.preguntas.map((pregunta) => ({
+    ...pregunta,
+    opciones: pregunta.opciones?.map((opcion) => ({ ...opcion })),
+  })),
+});
+
+const buildDraftFromSurvey = (survey?: SurveyAdmin): SurveyDraftPayload => ({
+  titulo: survey?.titulo ?? '',
+  slug: survey?.slug ?? '',
+  descripcion: survey?.descripcion ?? '',
+  tipo: survey?.tipo ?? 'opinion',
+  inicio_at: survey?.inicio_at ?? '',
+  fin_at: survey?.fin_at ?? '',
+  politica_unicidad: survey?.politica_unicidad ?? 'libre',
+  anonimato: survey?.anonimato ?? false,
+  requiere_datos_contacto: !(survey?.anonimato ?? false),
+  preguntas:
+    survey?.preguntas?.map((pregunta, index) => ({
+      id: pregunta.id,
+      orden: typeof pregunta.orden === 'number' ? pregunta.orden : index + 1,
+      tipo: pregunta.tipo,
+      texto: pregunta.texto,
+      obligatoria: pregunta.obligatoria,
+      min_selecciones: pregunta.min_selecciones ?? null,
+      max_selecciones: pregunta.max_selecciones ?? null,
+      opciones: pregunta.opciones?.map((opcion, optIndex) => ({
+        id: opcion.id,
+        orden: typeof opcion.orden === 'number' ? opcion.orden : optIndex + 1,
+        texto: opcion.texto,
+        valor: opcion.valor,
+      })),
+    })) ?? [],
+});
+
 const tipoOptions: Array<{ value: SurveyTipo; label: string }> = [
   { value: 'opinion', label: 'Opinión' },
   { value: 'votacion', label: 'Votación' },
   { value: 'sondeo', label: 'Sondeo' },
+  { value: 'planificacion', label: 'Planificación' },
 ];
 
 const preguntaTipoOptions: Array<{ value: PreguntaTipo; label: string }> = [
@@ -120,42 +160,61 @@ const fallbackDraft: SurveyDraftPayload = {
   preguntas: [],
 };
 
-export const SurveyEditor = ({ survey, onSave, onPublish, isSaving, isPublishing }: SurveyEditorProps) => {
-  const [formValues, setFormValues] = useState<SurveyDraftPayload>(fallbackDraft);
-  const [questions, setQuestions] = useState<LocalQuestion[]>(mapSurveyToLocal(survey));
+const buildInitialDraft = (survey?: SurveyAdmin, initialDraft?: SurveyDraftPayload) => {
+  if (survey) {
+    return buildDraftFromSurvey(survey);
+  }
+  if (initialDraft) {
+    return cloneDraft(initialDraft);
+  }
+  return { ...fallbackDraft };
+};
+
+const buildInitialQuestions = (survey?: SurveyAdmin, initialDraft?: SurveyDraftPayload) => {
+  if (survey) {
+    const mapped = mapQuestionsToLocal(survey.preguntas);
+    return mapped.length ? mapped : [createLocalQuestion(1)];
+  }
+  if (initialDraft) {
+    const mapped = mapQuestionsToLocal(initialDraft.preguntas);
+    return mapped.length ? mapped : [createLocalQuestion(1)];
+  }
+  return [createLocalQuestion(1)];
+};
+
+export const SurveyEditor = ({
+  survey,
+  initialDraft,
+  onSave,
+  onPublish,
+  isSaving,
+  isPublishing,
+}: SurveyEditorProps) => {
+  const [formValues, setFormValues] = useState<SurveyDraftPayload>(() => buildInitialDraft(survey, initialDraft));
+  const [questions, setQuestions] = useState<LocalQuestion[]>(() => buildInitialQuestions(survey, initialDraft));
 
   useEffect(() => {
-    setFormValues({
-      titulo: survey?.titulo ?? '',
-      slug: survey?.slug ?? '',
-      descripcion: survey?.descripcion ?? '',
-      tipo: survey?.tipo ?? 'opinion',
-      inicio_at: survey?.inicio_at ?? '',
-      fin_at: survey?.fin_at ?? '',
-      politica_unicidad: survey?.politica_unicidad ?? 'libre',
-      anonimato: survey?.anonimato ?? false,
-      requiere_datos_contacto: !(survey?.anonimato ?? false),
-      preguntas: survey?.preguntas?.map((pregunta, index) => ({
-        id: pregunta.id,
-        orden: index + 1,
-        tipo: pregunta.tipo,
-        texto: pregunta.texto,
-        obligatoria: pregunta.obligatoria,
-        min_selecciones: pregunta.min_selecciones ?? null,
-        max_selecciones: pregunta.max_selecciones ?? null,
-        opciones: pregunta.opciones?.map((opcion, optIndex) => ({
-          id: opcion.id,
-          orden: optIndex + 1,
-          texto: opcion.texto,
-          valor: opcion.valor,
-        })),
-      })) ?? [],
-    });
-    setQuestions((prev) => {
-      const next = mapSurveyToLocal(survey);
-      return next.length ? next : prev.length ? prev : [createLocalQuestion(1)];
-    });
-  }, [survey]);
+    if (survey) {
+      setFormValues(buildDraftFromSurvey(survey));
+      setQuestions(() => {
+        const next = mapQuestionsToLocal(survey.preguntas);
+        return next.length ? next : [createLocalQuestion(1)];
+      });
+      return;
+    }
+
+    if (initialDraft) {
+      setFormValues(cloneDraft(initialDraft));
+      setQuestions(() => {
+        const next = mapQuestionsToLocal(initialDraft.preguntas);
+        return next.length ? next : [createLocalQuestion(1)];
+      });
+      return;
+    }
+
+    setFormValues({ ...fallbackDraft });
+    setQuestions((prev) => (prev.length ? prev : [createLocalQuestion(1)]));
+  }, [survey, initialDraft]);
 
   useEffect(() => {
     if (!questions.length) {
