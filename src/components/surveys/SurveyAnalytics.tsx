@@ -68,46 +68,276 @@ const buildDemographicData = (items: SurveyDemographicBreakdownItem[]) =>
       };
     });
 
-const buildTimeseriesData = (points?: SurveyTimeseriesPoint[]) =>
-  (points ?? []).map((point) => ({
-    fecha: new Date(point.fecha).toLocaleDateString(),
-    respuestas: point.respuestas,
-  }));
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const getArray = <T = unknown>(value: unknown): T[] => {
+  if (Array.isArray(value)) return value as T[];
+  if (isRecord(value)) {
+    const { data, items, results, values, entries, list } = value as {
+      data?: unknown;
+      items?: unknown;
+      results?: unknown;
+      values?: unknown;
+      entries?: unknown;
+      list?: unknown;
+    };
+    if (Array.isArray(data)) return data as T[];
+    if (Array.isArray(items)) return items as T[];
+    if (Array.isArray(results)) return results as T[];
+    if (Array.isArray(values)) return values as T[];
+    if (Array.isArray(entries)) return entries as T[];
+    if (Array.isArray(list)) return list as T[];
+    const numericKeys = Object.keys(value).every((key) => /^\d+$/.test(key));
+    if (numericKeys) return Object.values(value) as T[];
+  }
+  return [];
+};
+
+const getArrayOrObjectValues = <T = unknown>(value: unknown): T[] => {
+  const directArray = getArray<T>(value);
+  if (directArray.length) return directArray;
+  if (isRecord(value)) {
+    const objectValues = Object.values(value);
+    const hasCollectionValues = objectValues.some((item) => Array.isArray(item) || isRecord(item));
+    if (hasCollectionValues) return objectValues as T[];
+    return [value as T];
+  }
+  return [];
+};
+
+const toFiniteNumber = (value: unknown): number | null => {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+};
+
+const toNonEmptyString = (value: unknown): string | null => {
+  if (typeof value === 'string' && value.trim()) return value;
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return null;
+};
+
+const extractTimeseriesPoint = (value: unknown): SurveyTimeseriesPoint | null => {
+  if (!isRecord(value)) return null;
+  const rawDate =
+    toNonEmptyString(value.fecha ?? value.date ?? value.dia ?? value.day ?? value.periodo ?? value.period) ?? null;
+  const respuestas =
+    toFiniteNumber(value.respuestas ?? value.total ?? value.count ?? value.valor ?? value.value) ?? null;
+  if (!rawDate || respuestas === null) return null;
+  return { fecha: rawDate, respuestas } satisfies SurveyTimeseriesPoint;
+};
+
+const buildTimeseriesData = (points?: SurveyTimeseriesPoint[] | unknown) => {
+  const candidates = getArray(points);
+  const source = candidates.length ? candidates : isRecord(points) ? [points] : [];
+  return source
+    .map((point) => extractTimeseriesPoint(point))
+    .filter((point): point is SurveyTimeseriesPoint => Boolean(point))
+    .map((point) => ({
+      fecha: new Date(point.fecha).toLocaleDateString(),
+      respuestas: point.respuestas,
+    }));
+};
+
+type OptionCandidate = { value: unknown; fallbackLabel?: string };
+
+const collectOptionCandidates = (raw: unknown): OptionCandidate[] => {
+  const arrayCandidates = getArray(raw);
+  if (arrayCandidates.length) {
+    return arrayCandidates.map((value) => ({ value }));
+  }
+  if (isRecord(raw)) {
+    const looksLikeSingleItem =
+      'texto' in raw ||
+      'opcion' in raw ||
+      'label' in raw ||
+      'nombre' in raw ||
+      'name' in raw ||
+      'respuestas' in raw ||
+      'total' in raw ||
+      'count' in raw ||
+      'valor' in raw ||
+      'value' in raw;
+    if (looksLikeSingleItem) {
+      return [{ value: raw }];
+    }
+    return Object.entries(raw).map(([key, value]) => ({ value, fallbackLabel: key }));
+  }
+  if (raw !== null && raw !== undefined) {
+    return [{ value: raw }];
+  }
+  return [];
+};
+
+const extractOptionItem = (
+  candidate: OptionCandidate,
+  preguntaLabel: string,
+  index: number,
+): { pregunta: string; opcion: string; respuestas: number; porcentaje?: number } | null => {
+  const { value, fallbackLabel } = candidate;
+  const container = isRecord(value) ? value : {};
+  const opcion =
+    toNonEmptyString(
+      container.texto ??
+        container.opcion ??
+        container.label ??
+        container.nombre ??
+        container.name ??
+        (typeof value === 'string' ? value : undefined) ??
+        fallbackLabel,
+    ) ?? `Opción ${index + 1}`;
+  const respuestas =
+    toFiniteNumber(
+      container.respuestas ??
+        container.total ??
+        container.count ??
+        container.valor ??
+        container.value ??
+        (typeof value === 'number' ? value : null),
+    );
+  if (respuestas === null) return null;
+  const porcentaje =
+    toFiniteNumber(container.porcentaje ?? container.percent ?? container.pct ?? container.percentage) ?? undefined;
+  return {
+    pregunta: preguntaLabel,
+    opcion,
+    respuestas,
+    porcentaje: porcentaje ?? undefined,
+  };
+};
 
 const buildOptionBreakdown = (summary?: SurveySummary) => {
-  if (!summary?.preguntas || !Array.isArray(summary.preguntas)) {
-    return [];
-  }
+  const preguntas = getArrayOrObjectValues(summary?.preguntas);
+  if (!preguntas.length) return [];
 
-  return summary.preguntas.flatMap((pregunta) => {
-    if (!pregunta || !Array.isArray(pregunta.opciones) || !pregunta.opciones.length) {
-      return [];
-    }
+  return preguntas.flatMap((pregunta, preguntaIndex) => {
+    if (!pregunta) return [];
+    const preguntaContainer = isRecord(pregunta) ? pregunta : {};
+    const preguntaLabel =
+      toNonEmptyString(
+        preguntaContainer.texto ??
+          preguntaContainer.pregunta ??
+          preguntaContainer.titulo ??
+          preguntaContainer.title ??
+          preguntaContainer.nombre ??
+          preguntaContainer.name,
+      ) ?? `Pregunta ${preguntaIndex + 1}`;
+    const optionCandidates = collectOptionCandidates(preguntaContainer.opciones);
+    if (!optionCandidates.length) return [];
 
-    return pregunta.opciones
-      .filter((opcion): opcion is NonNullable<typeof opcion> => Boolean(opcion))
-      .map((opcion) => ({
-        pregunta: pregunta.texto ?? 'Pregunta',
-        opcion: opcion.texto,
-        respuestas: opcion.respuestas,
-        porcentaje: opcion.porcentaje,
-      }));
+    return optionCandidates
+      .map((candidate, optionIndex) => extractOptionItem(candidate, preguntaLabel, optionIndex))
+      .filter(
+        (item): item is { pregunta: string; opcion: string; respuestas: number; porcentaje?: number } => Boolean(item),
+      );
   });
+};
+
+const normalizeHeatmapPoints = (points?: SurveyHeatmapPoint[] | unknown): SurveyHeatmapPoint[] =>
+  ((): unknown[] => {
+    const rawPoints = getArray(points);
+    if (rawPoints.length) return rawPoints;
+    if (isRecord(points)) return [points];
+    return [];
+  })()
+    .map((rawPoint) => {
+      if (!isRecord(rawPoint)) return null;
+      const lat = toFiniteNumber(rawPoint.lat);
+      const lng = toFiniteNumber(rawPoint.lng ?? rawPoint.lon ?? rawPoint.longitud ?? rawPoint.long);
+      const respuestas =
+        toFiniteNumber(rawPoint.respuestas ?? rawPoint.weight ?? rawPoint.total ?? rawPoint.count) ?? 0;
+      if (lat === null || lng === null) return null;
+      return {
+        lat,
+        lng,
+        respuestas,
+      } satisfies SurveyHeatmapPoint;
+    })
+    .filter((point): point is SurveyHeatmapPoint => Boolean(point));
+
+type ChannelBreakdownItem = { canal: string; respuestas: number };
+
+const extractChannelItem = (value: unknown, fallbackCanal?: string | null): ChannelBreakdownItem | null => {
+  if (!value && !fallbackCanal) return null;
+  const container = isRecord(value) ? value : {};
+  const canal = toNonEmptyString(container.canal ?? fallbackCanal);
+  const respuestas =
+    toFiniteNumber(container.respuestas ?? container.total ?? container.count ?? value) ?? undefined;
+  if (!canal || respuestas === undefined) return null;
+  return { canal, respuestas };
+};
+
+const normalizeChannelBreakdown = (raw: unknown): ChannelBreakdownItem[] => {
+  const normalized: ChannelBreakdownItem[] = [];
+  for (const item of getArray(raw)) {
+    const parsed = extractChannelItem(item);
+    if (parsed) normalized.push(parsed);
+  }
+  if (!normalized.length && isRecord(raw)) {
+    const singleItem = extractChannelItem(raw);
+    if (singleItem) {
+      normalized.push(singleItem);
+    } else {
+      for (const [key, value] of Object.entries(raw)) {
+        const parsed = extractChannelItem(value, key);
+        if (parsed) normalized.push(parsed);
+      }
+    }
+  }
+  return normalized;
+};
+
+type UtmBreakdownItem = { fuente: string; campania?: string; respuestas: number };
+
+const extractUtmItem = (value: unknown, fallbackFuente?: string | null): UtmBreakdownItem | null => {
+  if (!value && !fallbackFuente) return null;
+  const container = isRecord(value) ? value : {};
+  const fuente = toNonEmptyString(container.fuente ?? container.source ?? fallbackFuente);
+  const campania = toNonEmptyString(container.campania ?? container.campaign ?? container.nombre ?? container.name);
+  const respuestas =
+    toFiniteNumber(container.respuestas ?? container.total ?? container.count ?? value) ?? undefined;
+  if (!fuente || respuestas === undefined) return null;
+  return { fuente, campania: campania ?? undefined, respuestas };
+};
+
+const normalizeUtmBreakdown = (raw: unknown): UtmBreakdownItem[] => {
+  const normalized: UtmBreakdownItem[] = [];
+  for (const item of getArray(raw)) {
+    const parsed = extractUtmItem(item);
+    if (parsed) normalized.push(parsed);
+  }
+  if (!normalized.length && isRecord(raw)) {
+    const singleItem = extractUtmItem(raw);
+    if (singleItem) {
+      normalized.push(singleItem);
+    } else {
+      for (const [key, value] of Object.entries(raw)) {
+        const parsed = extractUtmItem(value, key);
+        if (parsed) normalized.push(parsed);
+      }
+    }
+  }
+  return normalized;
 };
 
 export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExporting }: SurveyAnalyticsProps) => {
   const timeseriesData = useMemo(() => buildTimeseriesData(timeseries), [timeseries]);
   const optionData = useMemo(() => buildOptionBreakdown(summary), [summary]);
+  const heatmapPoints = useMemo(() => normalizeHeatmapPoints(heatmap), [heatmap]);
   const heatmapData = useMemo(
     () =>
-      (heatmap ?? [])
-        .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng))
-        .map((point) => ({
-          lat: point.lat,
-          lng: point.lng,
-          weight: point.respuestas,
-        })),
-    [heatmap],
+      heatmapPoints.map((point) => ({
+        lat: point.lat,
+        lng: point.lng,
+        weight: point.respuestas,
+      })),
+    [heatmapPoints],
   );
   const heatmapCenter = useMemo(() => {
     if (!heatmapData.length) return undefined;
@@ -127,6 +357,8 @@ export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExpo
         .filter(([lng, lat]) => Number.isFinite(lng) && Number.isFinite(lat)),
     [heatmapData],
   );
+  const channelBreakdown = useMemo(() => normalizeChannelBreakdown(summary?.canales), [summary?.canales]);
+  const utmBreakdown = useMemo(() => normalizeUtmBreakdown(summary?.utms), [summary?.utms]);
 
   const completionRateLabel = useMemo(() => {
     if (typeof summary?.tasa_completitud !== 'number') {
@@ -150,8 +382,9 @@ export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExpo
 
     return Object.entries(summary.demografia)
       .map(([id, items]) => {
-        if (!Array.isArray(items) || !items.length) return null;
-        const data = buildDemographicData(items);
+        const normalizedItems = getArrayOrObjectValues<SurveyDemographicBreakdownItem>(items);
+        if (!normalizedItems.length) return null;
+        const data = buildDemographicData(normalizedItems);
         if (!data.length) return null;
         return {
           id,
@@ -291,13 +524,13 @@ export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExpo
             <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Por canal</h3>
             <Separator className="my-2" />
             <ul className="space-y-2 text-sm">
-              {(summary?.canales ?? []).map((item, index) => (
+              {channelBreakdown.map((item, index) => (
                 <li key={`${item.canal}-${index}`} className="flex items-center justify-between">
                   <span className="font-medium capitalize">{item.canal}</span>
                   <span>{item.respuestas}</span>
                 </li>
               ))}
-              {!summary?.canales?.length && (
+              {!channelBreakdown.length && (
                 <li className="text-muted-foreground">Sin datos de canales todavía.</li>
               )}
             </ul>
@@ -306,7 +539,7 @@ export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExpo
             <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Por UTM</h3>
             <Separator className="my-2" />
             <ul className="space-y-2 text-sm">
-              {(summary?.utms ?? []).map((item, index) => (
+              {utmBreakdown.map((item, index) => (
                 <li key={`${item.fuente}-${item.campania ?? 'n/a'}-${index}`} className="flex items-center justify-between">
                   <span>
                     <span className="font-medium">{item.fuente}</span>
@@ -315,7 +548,7 @@ export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExpo
                   <span>{item.respuestas}</span>
                 </li>
               ))}
-              {!summary?.utms?.length && (
+              {!utmBreakdown.length && (
                 <li className="text-muted-foreground">Aún no se registraron campañas etiquetadas.</li>
               )}
             </ul>
@@ -329,7 +562,7 @@ export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExpo
           <CardDescription>Ubicaciones aproximadas de participación (si están disponibles).</CardDescription>
         </CardHeader>
         <CardContent>
-          {heatmap?.length ? (
+          {heatmapPoints.length ? (
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-border text-sm">
                 <thead>
@@ -340,7 +573,7 @@ export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExpo
                   </tr>
                 </thead>
                 <tbody>
-                  {heatmap.map((point, index) => (
+                  {heatmapPoints.map((point, index) => (
                     <tr key={`${point.lat}-${point.lng}-${index}`} className="border-b border-border/40">
                       <td className="py-2 pr-4">{point.lat.toFixed(4)}</td>
                       <td className="py-2 pr-4">{point.lng.toFixed(4)}</td>
