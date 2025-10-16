@@ -74,15 +74,26 @@ const buildTimeseriesData = (points?: SurveyTimeseriesPoint[]) =>
     respuestas: point.respuestas,
   }));
 
-const buildOptionBreakdown = (summary?: SurveySummary) =>
-  summary?.preguntas.flatMap((pregunta) =>
-    pregunta.opciones.map((opcion) => ({
-      pregunta: pregunta.texto,
-      opcion: opcion.texto,
-      respuestas: opcion.respuestas,
-      porcentaje: opcion.porcentaje,
-    })),
-  ) ?? [];
+const buildOptionBreakdown = (summary?: SurveySummary) => {
+  if (!summary?.preguntas || !Array.isArray(summary.preguntas)) {
+    return [];
+  }
+
+  return summary.preguntas.flatMap((pregunta) => {
+    if (!pregunta || !Array.isArray(pregunta.opciones) || !pregunta.opciones.length) {
+      return [];
+    }
+
+    return pregunta.opciones
+      .filter((opcion): opcion is NonNullable<typeof opcion> => Boolean(opcion))
+      .map((opcion) => ({
+        pregunta: pregunta.texto ?? 'Pregunta',
+        opcion: opcion.texto,
+        respuestas: opcion.respuestas,
+        porcentaje: opcion.porcentaje,
+      }));
+  });
+};
 
 export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExporting }: SurveyAnalyticsProps) => {
   const timeseriesData = useMemo(() => buildTimeseriesData(timeseries), [timeseries]);
