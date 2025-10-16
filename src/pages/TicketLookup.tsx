@@ -233,7 +233,7 @@ export default function TicketLookup() {
         normalizeStatus(currentStatus) === 'resuelto') &&
       !completionSent
     ) {
-      sendTicketHistory(ticket).catch((err) =>
+      sendTicketHistory(ticket, { reason: 'manual', actor: 'user' }).catch((err) =>
         console.error('Error sending completion email:', err),
       );
       setCompletionSent(true);

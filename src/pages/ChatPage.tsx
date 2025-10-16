@@ -18,7 +18,7 @@ import { toast } from "@/components/ui/use-toast";
 import { requestLocation } from "@/utils/geolocation";
 import { fmtAR } from "@/utils/date";
 import { getContactPhone } from "@/utils/ticket";
-import { getTicketTimeline } from "@/services/ticketService";
+import { getTicketTimeline, requestTicketHistoryEmail } from "@/services/ticketService";
 import { TicketHistoryEvent, Message as TicketMessage } from "@/types/tickets";
 import { extractButtonsFromResponse } from "@/utils/chatButtons";
 // Importar AttachmentInfo y SendPayload desde @/types/chat o un lugar centralizado
@@ -296,6 +296,16 @@ const ChatPage = () => {
             sendAnonId: isAnonimo,
             sendEntityToken: true,
           });
+          requestTicketHistoryEmail({
+            tipo: tipoChat,
+            ticketId: activeTicketId,
+            options: {
+              reason: 'message_update',
+              actor: 'user',
+            },
+          }).catch((error) => {
+            console.error('Error triggering ticket email after citizen response:', error);
+          });
         } else {
           const requestPayload: Record<string, any> = { 
             pregunta: userMessageText, 
@@ -348,8 +358,21 @@ const ChatPage = () => {
           lastQueryRef.current = null;
 
           if (data.ticket_id) {
+            const wasNewTicket = !activeTicketId;
             setActiveTicketId(data.ticket_id);
             ultimoMensajeIdRef.current = 0;
+            if (wasNewTicket) {
+              requestTicketHistoryEmail({
+                tipo: tipoChat,
+                ticketId: data.ticket_id,
+                options: {
+                  reason: 'ticket_created',
+                  actor: 'user',
+                },
+              }).catch((error) => {
+                console.error('Error triggering ticket creation email:', error);
+              });
+            }
           }
           if (!isAnonimo) await refreshUser();
         }
