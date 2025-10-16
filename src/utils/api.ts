@@ -27,6 +27,44 @@ export class ApiError extends Error {
   }
 }
 
+const parseDebugFlag = (value?: string | null): boolean => {
+  if (typeof value !== "string") return false;
+  const normalized = value.trim().toLowerCase();
+  return ["1", "true", "yes", "on"].includes(normalized);
+};
+
+const shouldLogVerboseApi = (): boolean => {
+  const metaEnv =
+    typeof import.meta !== "undefined" && (import.meta as any)?.env
+      ? (import.meta as any).env
+      : undefined;
+
+  if (metaEnv?.DEV || metaEnv?.MODE === "development") {
+    return true;
+  }
+
+  if (
+    typeof process !== "undefined" &&
+    typeof process.env?.CHATBOC_DEBUG_API === "string" &&
+    parseDebugFlag(process.env.CHATBOC_DEBUG_API)
+  ) {
+    return true;
+  }
+
+  if (typeof window !== "undefined") {
+    try {
+      const flag = window.localStorage?.getItem("CHATBOC_DEBUG_API");
+      if (parseDebugFlag(flag)) {
+        return true;
+      }
+    } catch {
+      // Access to localStorage can fail in private browsing contexts. Ignore.
+    }
+  }
+
+  return false;
+};
+
 interface ApiFetchOptions {
   method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
   headers?: Record<string, string>;
@@ -170,20 +208,23 @@ export async function apiFetch<T>(
   }
   // Log request details without exposing full tokens
   const mask = (t: string | null) => (t ? `${t.slice(0, 8)}...` : null);
-  console.log("[apiFetch] Request", {
-    method,
-    url,
-    hasBody: !!body,
-    authToken: mask(panelToken),
-    chatAuthToken: mask(chatToken),
-    anonId: mask(anonId),
-    entityToken: mask(effectiveEntityToken || null),
-    sendAnonId,
-    widgetRequest: treatAsWidget,
-    storedRole: normalizedRole,
-    headers,
-    chatSessionIdAttached: Boolean(chatSessionId),
-  });
+  const verboseLogging = shouldLogVerboseApi();
+  if (verboseLogging) {
+    console.log("[apiFetch] Request", {
+      method,
+      url,
+      hasBody: !!body,
+      authToken: mask(panelToken),
+      chatAuthToken: mask(chatToken),
+      anonId: mask(anonId),
+      entityToken: mask(effectiveEntityToken || null),
+      sendAnonId,
+      widgetRequest: treatAsWidget,
+      storedRole: normalizedRole,
+      headers,
+      chatSessionIdAttached: Boolean(chatSessionId),
+    });
+  }
 
   const shouldOmitCredentials =
     omitCredentials !== undefined
@@ -290,12 +331,14 @@ export async function apiFetch<T>(
       );
     }
 
-    console.log("[apiFetch] Response", {
-      method,
-      url,
-      status: response.status,
-      data,
-    });
+    if (verboseLogging) {
+      console.log("[apiFetch] Response", {
+        method,
+        url,
+        status: response.status,
+        data,
+      });
+    }
 
     if (response.status === 401 && !skipAuth) {
       // Para peticiones del panel/admin, un 401 significa sesión expirada.
