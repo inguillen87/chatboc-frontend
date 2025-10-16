@@ -74,14 +74,34 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const getArray = <T = unknown>(value: unknown): T[] => {
   if (Array.isArray(value)) return value as T[];
   if (isRecord(value)) {
-    const { data, items, results } = value as {
+    const { data, items, results, values, entries, list } = value as {
       data?: unknown;
       items?: unknown;
       results?: unknown;
+      values?: unknown;
+      entries?: unknown;
+      list?: unknown;
     };
     if (Array.isArray(data)) return data as T[];
     if (Array.isArray(items)) return items as T[];
     if (Array.isArray(results)) return results as T[];
+    if (Array.isArray(values)) return values as T[];
+    if (Array.isArray(entries)) return entries as T[];
+    if (Array.isArray(list)) return list as T[];
+    const numericKeys = Object.keys(value).every((key) => /^\d+$/.test(key));
+    if (numericKeys) return Object.values(value) as T[];
+  }
+  return [];
+};
+
+const getArrayOrObjectValues = <T = unknown>(value: unknown): T[] => {
+  const directArray = getArray<T>(value);
+  if (directArray.length) return directArray;
+  if (isRecord(value)) {
+    const objectValues = Object.values(value);
+    const hasCollectionValues = objectValues.some((item) => Array.isArray(item) || isRecord(item));
+    if (hasCollectionValues) return objectValues as T[];
+    return [value as T];
   }
   return [];
 };
@@ -103,35 +123,129 @@ const toNonEmptyString = (value: unknown): string | null => {
   return null;
 };
 
-const buildTimeseriesData = (points?: SurveyTimeseriesPoint[] | unknown) =>
-  getArray<SurveyTimeseriesPoint>(points).map((point) => ({
-    fecha: new Date(point.fecha).toLocaleDateString(),
-    respuestas: point.respuestas,
-  }));
+const extractTimeseriesPoint = (value: unknown): SurveyTimeseriesPoint | null => {
+  if (!isRecord(value)) return null;
+  const rawDate =
+    toNonEmptyString(value.fecha ?? value.date ?? value.dia ?? value.day ?? value.periodo ?? value.period) ?? null;
+  const respuestas =
+    toFiniteNumber(value.respuestas ?? value.total ?? value.count ?? value.valor ?? value.value) ?? null;
+  if (!rawDate || respuestas === null) return null;
+  return { fecha: rawDate, respuestas } satisfies SurveyTimeseriesPoint;
+};
+
+const buildTimeseriesData = (points?: SurveyTimeseriesPoint[] | unknown) => {
+  const candidates = getArray(points);
+  const source = candidates.length ? candidates : isRecord(points) ? [points] : [];
+  return source
+    .map((point) => extractTimeseriesPoint(point))
+    .filter((point): point is SurveyTimeseriesPoint => Boolean(point))
+    .map((point) => ({
+      fecha: new Date(point.fecha).toLocaleDateString(),
+      respuestas: point.respuestas,
+    }));
+};
+
+type OptionCandidate = { value: unknown; fallbackLabel?: string };
+
+const collectOptionCandidates = (raw: unknown): OptionCandidate[] => {
+  const arrayCandidates = getArray(raw);
+  if (arrayCandidates.length) {
+    return arrayCandidates.map((value) => ({ value }));
+  }
+  if (isRecord(raw)) {
+    const looksLikeSingleItem =
+      'texto' in raw ||
+      'opcion' in raw ||
+      'label' in raw ||
+      'nombre' in raw ||
+      'name' in raw ||
+      'respuestas' in raw ||
+      'total' in raw ||
+      'count' in raw ||
+      'valor' in raw ||
+      'value' in raw;
+    if (looksLikeSingleItem) {
+      return [{ value: raw }];
+    }
+    return Object.entries(raw).map(([key, value]) => ({ value, fallbackLabel: key }));
+  }
+  if (raw !== null && raw !== undefined) {
+    return [{ value: raw }];
+  }
+  return [];
+};
+
+const extractOptionItem = (
+  candidate: OptionCandidate,
+  preguntaLabel: string,
+  index: number,
+): { pregunta: string; opcion: string; respuestas: number; porcentaje?: number } | null => {
+  const { value, fallbackLabel } = candidate;
+  const container = isRecord(value) ? value : {};
+  const opcion =
+    toNonEmptyString(
+      container.texto ??
+        container.opcion ??
+        container.label ??
+        container.nombre ??
+        container.name ??
+        (typeof value === 'string' ? value : undefined) ??
+        fallbackLabel,
+    ) ?? `Opción ${index + 1}`;
+  const respuestas =
+    toFiniteNumber(
+      container.respuestas ??
+        container.total ??
+        container.count ??
+        container.valor ??
+        container.value ??
+        (typeof value === 'number' ? value : null),
+    );
+  if (respuestas === null) return null;
+  const porcentaje =
+    toFiniteNumber(container.porcentaje ?? container.percent ?? container.pct ?? container.percentage) ?? undefined;
+  return {
+    pregunta: preguntaLabel,
+    opcion,
+    respuestas,
+    porcentaje: porcentaje ?? undefined,
+  };
+};
 
 const buildOptionBreakdown = (summary?: SurveySummary) => {
-  if (!summary?.preguntas || !Array.isArray(summary.preguntas)) {
-    return [];
-  }
+  const preguntas = getArrayOrObjectValues(summary?.preguntas);
+  if (!preguntas.length) return [];
 
-  return summary.preguntas.flatMap((pregunta) => {
-    if (!pregunta || !Array.isArray(pregunta.opciones) || !pregunta.opciones.length) {
-      return [];
-    }
+  return preguntas.flatMap((pregunta, preguntaIndex) => {
+    if (!pregunta) return [];
+    const preguntaContainer = isRecord(pregunta) ? pregunta : {};
+    const preguntaLabel =
+      toNonEmptyString(
+        preguntaContainer.texto ??
+          preguntaContainer.pregunta ??
+          preguntaContainer.titulo ??
+          preguntaContainer.title ??
+          preguntaContainer.nombre ??
+          preguntaContainer.name,
+      ) ?? `Pregunta ${preguntaIndex + 1}`;
+    const optionCandidates = collectOptionCandidates(preguntaContainer.opciones);
+    if (!optionCandidates.length) return [];
 
-    return pregunta.opciones
-      .filter((opcion): opcion is NonNullable<typeof opcion> => Boolean(opcion))
-      .map((opcion) => ({
-        pregunta: pregunta.texto ?? 'Pregunta',
-        opcion: opcion.texto,
-        respuestas: opcion.respuestas,
-        porcentaje: opcion.porcentaje,
-      }));
+    return optionCandidates
+      .map((candidate, optionIndex) => extractOptionItem(candidate, preguntaLabel, optionIndex))
+      .filter(
+        (item): item is { pregunta: string; opcion: string; respuestas: number; porcentaje?: number } => Boolean(item),
+      );
   });
 };
 
 const normalizeHeatmapPoints = (points?: SurveyHeatmapPoint[] | unknown): SurveyHeatmapPoint[] =>
-  getArray(points)
+  ((): unknown[] => {
+    const rawPoints = getArray(points);
+    if (rawPoints.length) return rawPoints;
+    if (isRecord(points)) return [points];
+    return [];
+  })()
     .map((rawPoint) => {
       if (!isRecord(rawPoint)) return null;
       const lat = toFiniteNumber(rawPoint.lat);
@@ -268,8 +382,9 @@ export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExpo
 
     return Object.entries(summary.demografia)
       .map(([id, items]) => {
-        if (!Array.isArray(items) || !items.length) return null;
-        const data = buildDemographicData(items);
+        const normalizedItems = getArrayOrObjectValues<SurveyDemographicBreakdownItem>(items);
+        if (!normalizedItems.length) return null;
+        const data = buildDemographicData(normalizedItems);
         if (!data.length) return null;
         return {
           id,
