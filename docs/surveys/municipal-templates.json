@@ -170,5 +170,173 @@
         "obligatoria": false
       }
     ]
+  },
+  {
+    "slug": "participacion-digital-2025",
+    "titulo": "Consulta 2025 sobre participación digital en {{municipality}}",
+    "descripcion": "Relevamos preferencias sobre chatbots, encuestas y herramientas de IA para mejorar la atención ciudadana.",
+    "tipo": "opinion",
+    "politica_unicidad": "por_email",
+    "anonimato": false,
+    "requiere_datos_contacto": true,
+    "preguntas": [
+      {
+        "orden": 1,
+        "tipo": "multiple",
+        "texto": "¿Qué canales digitales te gustaría sumar o fortalecer para interactuar con {{municipality}}?",
+        "obligatoria": true,
+        "min_selecciones": 1,
+        "max_selecciones": 3,
+        "opciones": [
+          { "orden": 1, "texto": "Chatbots con IA para consultas rápidas" },
+          { "orden": 2, "texto": "Encuestas y sondeos en línea" },
+          { "orden": 3, "texto": "Panel ciudadano con estadísticas en tiempo real" },
+          { "orden": 4, "texto": "Aplicación móvil con trámites y reportes" },
+          { "orden": 5, "texto": "Terminales digitales en espacios públicos" }
+        ]
+      },
+      {
+        "orden": 2,
+        "tipo": "opcion_unica",
+        "texto": "¿Cuál es el canal principal por el que preferís recibir novedades y participar en decisiones?",
+        "obligatoria": true,
+        "opciones": [
+          { "orden": 1, "texto": "WhatsApp o mensajería instantánea" },
+          { "orden": 2, "texto": "Portal web de {{municipality}}" },
+          { "orden": 3, "texto": "Aplicación móvil" },
+          { "orden": 4, "texto": "Correo electrónico" }
+        ]
+      },
+      {
+        "orden": 3,
+        "tipo": "opcion_unica",
+        "texto": "¿Qué tan cómodo te resulta que la atención ciudadana incorpore asistentes de IA para guiar trámites?",
+        "obligatoria": true,
+        "opciones": [
+          { "orden": 1, "texto": "Muy cómodo, agiliza la experiencia" },
+          { "orden": 2, "texto": "Algo cómodo, siempre que haya supervisión humana" },
+          { "orden": 3, "texto": "Poco cómodo, prefiero asistencia humana" },
+          { "orden": 4, "texto": "Nada cómodo" }
+        ]
+      },
+      {
+        "orden": 4,
+        "tipo": "abierta",
+        "texto": "¿Qué funcionalidades digitales sumarías para mejorar la participación vecinal en 2025?",
+        "obligatoria": false
+      }
+    ]
+  },
+  {
+    "slug": "ciudad-sustentable-2025",
+    "titulo": "Encuesta 2025 de ciudad sustentable para {{municipality}}",
+    "descripcion": "Priorizamos acciones sobre energía, agua, residuos y economía circular con foco educativo.",
+    "tipo": "planificacion",
+    "politica_unicidad": "por_dni",
+    "anonimato": false,
+    "requiere_datos_contacto": true,
+    "preguntas": [
+      {
+        "orden": 1,
+        "tipo": "multiple",
+        "texto": "¿Qué iniciativas sustentables debería impulsar primero {{municipality}}?",
+        "obligatoria": true,
+        "min_selecciones": 1,
+        "max_selecciones": 3,
+        "opciones": [
+          { "orden": 1, "texto": "Programas para reducir el consumo de agua" },
+          { "orden": 2, "texto": "Eficiencia energética y luminarias LED" },
+          { "orden": 3, "texto": "Capacitaciones sobre uso responsable de gas" },
+          { "orden": 4, "texto": "Fortalecer puntos limpios y reciclaje" },
+          { "orden": 5, "texto": "Huertas urbanas y compostaje comunitario" }
+        ]
+      },
+      {
+        "orden": 2,
+        "tipo": "opcion_unica",
+        "texto": "¿Qué tan útil sería que el punto limpio produzca materiales educativos con IA y reciclados para escuelas y jardines?",
+        "obligatoria": true,
+        "opciones": [
+          { "orden": 1, "texto": "Muy útil, debería ser una prioridad" },
+          { "orden": 2, "texto": "Útil como complemento de otras acciones" },
+          { "orden": 3, "texto": "Poco útil frente a otras necesidades" },
+          { "orden": 4, "texto": "No es necesario" }
+        ]
+      },
+      {
+        "orden": 3,
+        "tipo": "opcion_unica",
+        "texto": "¿Preferís materiales educativos reciclados en formato libros, historietas o recursos digitales?",
+        "obligatoria": true,
+        "opciones": [
+          { "orden": 1, "texto": "Libros y cuadernos impresos" },
+          { "orden": 2, "texto": "Historietas y cuentos ilustrados" },
+          { "orden": 3, "texto": "Recursos digitales interactivos" },
+          { "orden": 4, "texto": "Combinación de formatos" }
+        ]
+      },
+      {
+        "orden": 4,
+        "tipo": "abierta",
+        "texto": "Compartí ideas para reutilizar materiales reciclados en proyectos educativos o comunitarios.",
+        "obligatoria": false
+      }
+    ]
+  },
+  {
+    "slug": "obras-publicas-2025",
+    "titulo": "Prioridades 2025 de obras públicas en {{municipality}}",
+    "descripcion": "Identificamos intervenciones clave en pavimentación, plazas y seguridad vial.",
+    "tipo": "planificacion",
+    "politica_unicidad": "por_phone",
+    "anonimato": false,
+    "requiere_datos_contacto": true,
+    "preguntas": [
+      {
+        "orden": 1,
+        "tipo": "multiple",
+        "texto": "¿Qué proyectos de obra pública deberían priorizarse en tu barrio?",
+        "obligatoria": true,
+        "min_selecciones": 1,
+        "max_selecciones": 3,
+        "opciones": [
+          { "orden": 1, "texto": "Pavimentación y bacheo de calles" },
+          { "orden": 2, "texto": "Renovación y mantenimiento de plazas" },
+          { "orden": 3, "texto": "Modernización de semáforos" },
+          { "orden": 4, "texto": "Construcción de lomas de burro" },
+          { "orden": 5, "texto": "Mejoras en desagües pluviales" }
+        ]
+      },
+      {
+        "orden": 2,
+        "tipo": "opcion_unica",
+        "texto": "¿Cómo evaluás el estado actual de las veredas y accesos peatonales en tu zona?",
+        "obligatoria": true,
+        "opciones": [
+          { "orden": 1, "texto": "Muy bueno" },
+          { "orden": 2, "texto": "Aceptable" },
+          { "orden": 3, "texto": "Deficiente" },
+          { "orden": 4, "texto": "Muy deficiente" }
+        ]
+      },
+      {
+        "orden": 3,
+        "tipo": "opcion_unica",
+        "texto": "¿Cuál debería ser el principal criterio para definir el cronograma de obras?",
+        "obligatoria": true,
+        "opciones": [
+          { "orden": 1, "texto": "Cantidad de reclamos registrados" },
+          { "orden": 2, "texto": "Impacto en la seguridad vial" },
+          { "orden": 3, "texto": "Beneficio para escuelas y espacios comunitarios" },
+          { "orden": 4, "texto": "Sincronización con otras obras de infraestructura" }
+        ]
+      },
+      {
+        "orden": 4,
+        "tipo": "abierta",
+        "texto": "Indicá calles, plazas o cruces específicos donde debería focalizarse la próxima etapa de obras.",
+        "obligatoria": false
+      }
+    ]
   }
 ]
