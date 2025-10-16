@@ -19,7 +19,12 @@ import MapLibreMap from '@/components/MapLibreMap';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import type { SurveyHeatmapPoint, SurveySummary, SurveyTimeseriesPoint } from '@/types/encuestas';
+import type {
+  SurveyDemographicBreakdownItem,
+  SurveyHeatmapPoint,
+  SurveySummary,
+  SurveyTimeseriesPoint,
+} from '@/types/encuestas';
 
 interface SurveyAnalyticsProps {
   summary?: SurveySummary;
@@ -30,6 +35,38 @@ interface SurveyAnalyticsProps {
 }
 
 const palette = ['#2563eb', '#7c3aed', '#059669', '#ea580c', '#f59e0b', '#db2777'];
+const DEMOGRAPHIC_LABELS: Record<string, string> = {
+  genero: 'Género',
+  generos: 'Género',
+  rango_etario: 'Rango etario',
+  rangos_etarios: 'Rangos etarios',
+  rangoEtario: 'Rango etario',
+  rangosEtarios: 'Rangos etarios',
+  pais: 'País',
+  paises: 'País',
+  provincia: 'Provincia',
+  provincias: 'Provincia',
+  ciudad: 'Ciudad',
+  ciudades: 'Ciudad',
+  barrio: 'Barrio',
+  barrios: 'Barrio',
+};
+
+const normalizeDemographicLabel = (key: string) =>
+  DEMOGRAPHIC_LABELS[key] ?? key.replace(/[_-]+/g, ' ').replace(/\b\w/g, (match) => match.toUpperCase());
+
+const buildDemographicData = (items: SurveyDemographicBreakdownItem[]) =>
+  items
+    .filter((item) => typeof item?.respuestas === 'number')
+    .map((item, index) => {
+      const label = item.etiqueta ?? item.clave ?? 'Sin dato';
+      return {
+        label,
+        value: item.respuestas,
+        percentage: typeof item.porcentaje === 'number' ? item.porcentaje : undefined,
+        key: `${item.clave ?? label}-${index}`,
+      };
+    });
 
 const buildTimeseriesData = (points?: SurveyTimeseriesPoint[]) =>
   (points ?? []).map((point) => ({
@@ -92,6 +129,27 @@ export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExpo
     }
     return `${(normalized * 100).toFixed(1)}%`;
   }, [summary?.tasa_completitud]);
+
+  const demographicSections = useMemo(() => {
+    if (!summary?.demografia) return [] as Array<{
+      id: string;
+      title: string;
+      data: ReturnType<typeof buildDemographicData>;
+    }>;
+
+    return Object.entries(summary.demografia)
+      .map(([id, items]) => {
+        if (!Array.isArray(items) || !items.length) return null;
+        const data = buildDemographicData(items);
+        if (!data.length) return null;
+        return {
+          id,
+          title: normalizeDemographicLabel(id),
+          data,
+        };
+      })
+      .filter((section): section is { id: string; title: string; data: ReturnType<typeof buildDemographicData> } => Boolean(section));
+  }, [summary?.demografia]);
 
   return (
     <div className="space-y-6">
@@ -310,6 +368,60 @@ export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExpo
           )}
         </CardContent>
       </Card>
+      {demographicSections.length ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Segmentación demográfica</CardTitle>
+            <CardDescription>Distribución de respuestas según género, edad y territorio declarado.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-8">
+            {demographicSections.map((section, sectionIndex) => (
+              <div key={section.id} className="space-y-3">
+                <div className="space-y-1">
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                    {section.title}
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Participación segmentada para este atributo.
+                  </p>
+                </div>
+                <div className="h-64 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={section.data}
+                      layout="vertical"
+                      margin={{ left: 0, right: 16, top: 16, bottom: 16 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                      <XAxis type="number" allowDecimals={false} />
+                      <YAxis
+                        type="category"
+                        dataKey="label"
+                        width={160}
+                        tick={{ fontSize: 12 }}
+                        interval={0}
+                      />
+                      <Tooltip
+                        formatter={(value: number, _name, payload) => {
+                          const percentage = payload?.payload?.percentage;
+                          return percentage
+                            ? [`${value} respuestas (${percentage.toFixed(1)}%)`, '']
+                            : [`${value} respuestas`, ''];
+                        }}
+                      />
+                      <Bar dataKey="value" fill={palette[sectionIndex % palette.length]}>
+                        {section.data.map((item, index) => (
+                          <Cell key={item.key} fill={palette[(sectionIndex + index) % palette.length]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 };

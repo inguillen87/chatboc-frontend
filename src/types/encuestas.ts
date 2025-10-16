@@ -137,6 +137,31 @@ export interface SurveySummaryPregunta {
   opciones: SurveySummaryOptionBreakdown[];
 }
 
+export interface SurveyDemographicBreakdownItem {
+  clave?: string | null;
+  etiqueta?: string | null;
+  respuestas: number;
+  porcentaje?: number;
+}
+
+export type SurveyDemographicBreakdowns = {
+  [key: string]: SurveyDemographicBreakdownItem[] | undefined;
+  genero?: SurveyDemographicBreakdownItem[];
+  generos?: SurveyDemographicBreakdownItem[];
+  rango_etario?: SurveyDemographicBreakdownItem[];
+  rangos_etarios?: SurveyDemographicBreakdownItem[];
+  rangoEtario?: SurveyDemographicBreakdownItem[];
+  rangosEtarios?: SurveyDemographicBreakdownItem[];
+  pais?: SurveyDemographicBreakdownItem[];
+  paises?: SurveyDemographicBreakdownItem[];
+  provincia?: SurveyDemographicBreakdownItem[];
+  provincias?: SurveyDemographicBreakdownItem[];
+  ciudad?: SurveyDemographicBreakdownItem[];
+  ciudades?: SurveyDemographicBreakdownItem[];
+  barrio?: SurveyDemographicBreakdownItem[];
+  barrios?: SurveyDemographicBreakdownItem[];
+};
+
 export interface SurveySummary {
   total_respuestas: number;
   participantes_unicos: number;
@@ -144,6 +169,7 @@ export interface SurveySummary {
   preguntas: SurveySummaryPregunta[];
   canales?: Array<{ canal: string; respuestas: number }>;
   utms?: Array<{ fuente: string; campania?: string; respuestas: number }>;
+  demografia?: SurveyDemographicBreakdowns;
 }
 
 export interface SurveyTimeseriesPoint {
@@ -163,6 +189,12 @@ export interface SurveyAnalyticsFilters {
   canal?: string;
   utm_source?: string;
   utm_campaign?: string;
+  genero?: string;
+  rango_etario?: string;
+  pais?: string;
+  provincia?: string;
+  ciudad?: string;
+  barrio?: string;
 }
 
 export interface SurveyResponseAnswer {

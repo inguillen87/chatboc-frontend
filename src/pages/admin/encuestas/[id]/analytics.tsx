@@ -15,6 +15,14 @@ import { useAnchor } from '@/hooks/useAnchor';
 import { useSurveyResponses } from '@/hooks/useSurveyResponses';
 import { toast } from '@/components/ui/use-toast';
 import { getAbsolutePublicSurveyUrl, getPublicSurveyQrUrl } from '@/utils/publicSurveyUrl';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 const formatDateLabel = (value?: string | null) => {
   if (!value) return null;
@@ -27,7 +35,8 @@ const SurveyAnalyticsPage = () => {
   const params = useParams();
   const surveyId = useMemo(() => (params.id ? Number(params.id) : null), [params.id]);
   const { survey, isLoadingSurvey, surveyError } = useSurveyAdmin({ id: surveyId ?? undefined });
-  const { summary, timeseries, heatmap, isLoading, exportCsv, isExporting } = useSurveyAnalytics(surveyId ?? undefined);
+  const { summary, timeseries, heatmap, isLoading, exportCsv, isExporting, filters, setFilters } =
+    useSurveyAnalytics(surveyId ?? undefined);
   const { snapshots, isLoading: loadingSnapshots, create, publish, verify, isCreating, isPublishing, isVerifying } =
     useAnchor(surveyId ?? undefined);
   const {
@@ -49,6 +58,123 @@ const SurveyAnalyticsPage = () => {
     if (start && end) return `${start} – ${end}`;
     return start || end || 'Sin rango definido';
   }, [survey?.fin_at, survey?.inicio_at]);
+
+  const demographicFilterOptions = useMemo(() => {
+    const breakdowns = summary?.demografia ?? {};
+    const buildOptions = (keys: string[]) => {
+      for (const key of keys) {
+        const items = breakdowns[key];
+        if (!Array.isArray(items) || !items.length) continue;
+        const normalized = items
+          .map((item) => {
+            const rawValue = item?.clave ?? item?.etiqueta;
+            if (rawValue === undefined || rawValue === null || rawValue === '') {
+              return null;
+            }
+            const value = String(rawValue);
+            const label = String(item?.etiqueta ?? rawValue);
+            return { value, label };
+          })
+          .filter((option): option is { value: string; label: string } => Boolean(option));
+        if (!normalized.length) continue;
+        const unique = normalized.filter(
+          (option, index, array) => array.findIndex((candidate) => candidate.value === option.value) === index,
+        );
+        if (unique.length) {
+          return unique;
+        }
+      }
+      return [] as Array<{ value: string; label: string }>;
+    };
+
+    return {
+      genero: buildOptions(['genero', 'generos']),
+      rango_etario: buildOptions(['rango_etario', 'rangos_etarios', 'rangoEtario', 'rangosEtarios']),
+      pais: buildOptions(['pais', 'paises']),
+      provincia: buildOptions(['provincia', 'provincias']),
+      ciudad: buildOptions(['ciudad', 'ciudades']),
+      barrio: buildOptions(['barrio', 'barrios']),
+    };
+  }, [summary?.demografia]);
+
+  const SELECT_ALL = '__all__';
+
+  const demographicFilterConfig: Array<{
+    key: 'genero' | 'rango_etario' | 'pais' | 'provincia' | 'ciudad' | 'barrio';
+    label: string;
+    placeholder: string;
+    options: Array<{ value: string; label: string }>;
+  }> = [
+    {
+      key: 'genero',
+      label: 'Género',
+      placeholder: 'Todos los géneros',
+      options: demographicFilterOptions.genero,
+    },
+    {
+      key: 'rango_etario',
+      label: 'Rango etario',
+      placeholder: 'Todos los rangos',
+      options: demographicFilterOptions.rango_etario,
+    },
+    {
+      key: 'pais',
+      label: 'País',
+      placeholder: 'Todos los países',
+      options: demographicFilterOptions.pais,
+    },
+    {
+      key: 'provincia',
+      label: 'Provincia',
+      placeholder: 'Todas las provincias',
+      options: demographicFilterOptions.provincia,
+    },
+    {
+      key: 'ciudad',
+      label: 'Ciudad',
+      placeholder: 'Todas las ciudades',
+      options: demographicFilterOptions.ciudad,
+    },
+    {
+      key: 'barrio',
+      label: 'Barrio',
+      placeholder: 'Todos los barrios',
+      options: demographicFilterOptions.barrio,
+    },
+  ];
+
+  const hasDemographicOptions = demographicFilterConfig.some((config) => config.options.length > 0);
+  const hasActiveDemographicFilters = Boolean(
+    filters.genero ||
+      filters.rango_etario ||
+      filters.pais ||
+      filters.provincia ||
+      filters.ciudad ||
+      filters.barrio,
+  );
+
+  const handleDemographicFilterChange = (
+    field: 'genero' | 'rango_etario' | 'pais' | 'provincia' | 'ciudad' | 'barrio',
+    value: string,
+  ) => {
+    const normalizedValue = value === SELECT_ALL ? undefined : value;
+    setFilters({
+      ...filters,
+      [field]: normalizedValue,
+    });
+  };
+
+  const clearDemographicFilters = () => {
+    setFilters({
+      ...filters,
+      genero: undefined,
+      rango_etario: undefined,
+      pais: undefined,
+      provincia: undefined,
+      ciudad: undefined,
+      barrio: undefined,
+    });
+  };
 
   const handleExport = async () => {
     try {
@@ -192,6 +318,51 @@ const SurveyAnalyticsPage = () => {
               </div>
             ) : null}
           </div>
+      </CardContent>
+    </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Filtros demográficos y territoriales</CardTitle>
+          <CardDescription>Segmentá los tableros por género, edad o ubicación declarada.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {hasDemographicOptions ? (
+            <div className="grid gap-4 md:grid-cols-3">
+              {demographicFilterConfig.map((config) => (
+                <div key={config.key} className="space-y-2">
+                  <Label htmlFor={`analytics-filter-${config.key}`}>{config.label}</Label>
+                  <Select
+                    value={(filters[config.key] as string | undefined) ?? SELECT_ALL}
+                    onValueChange={(value) => handleDemographicFilterChange(config.key, value)}
+                    disabled={!config.options.length}
+                  >
+                    <SelectTrigger id={`analytics-filter-${config.key}`}>
+                      <SelectValue placeholder={config.placeholder} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={SELECT_ALL}>{config.placeholder}</SelectItem>
+                      {config.options.map((option) => (
+                        <SelectItem key={`${config.key}-${option.value}`} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Los filtros aparecerán automáticamente cuando se registren respuestas con datos demográficos o territoriales.
+            </p>
+          )}
+          {hasActiveDemographicFilters ? (
+            <div className="flex justify-end">
+              <Button variant="ghost" size="sm" onClick={clearDemographicFilters}>
+                Limpiar filtros
+              </Button>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
       <Card>
