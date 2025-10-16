@@ -17,6 +17,15 @@ import type { SurveyPublic, SurveyTipo } from '@/types/encuestas';
 import { getPublicSurveyQrPageUrl, getPublicSurveyQrUrl, getPublicSurveyUrl } from '@/utils/publicSurveyUrl';
 import { SurveyQrPreview } from '@/components/surveys/SurveyQrPreview';
 import { usePageMetadata } from '@/hooks/usePageMetadata';
+import {
+  buildSurveyDigestMessage,
+  buildSurveyShareMessage,
+  buildWidgetUrlWithChannel,
+  getSurveyChannelAssets,
+  getSurveyGeneralImage,
+  shortenUrlForDisplay,
+  sortAndFilterActiveSurveys,
+} from '@/utils/surveyDigest';
 
 const TIPO_LABELS: Record<SurveyTipo, string> = {
   opinion: 'Opinión',
@@ -52,22 +61,6 @@ const getStatus = (survey: SurveyPublic) => {
   }
 
   return { label: 'En curso', variant: 'default' as const };
-};
-
-const buildWidgetUrl = (url: string): string => {
-  try {
-    const target = new URL(url);
-    target.searchParams.set('canal', 'widget_chat');
-    return target.toString();
-  } catch (error) {
-    const separator = url.includes('?') ? '&' : '?';
-    return `${url}${separator}canal=widget_chat`;
-  }
-};
-
-const buildShareLink = (title: string, url: string): string => {
-  const message = `${title}\n${url}`;
-  return `https://wa.me/?text=${encodeURIComponent(message)}`;
 };
 
 const SurveysPublicIndex = () => {
@@ -118,54 +111,44 @@ const SurveysPublicIndex = () => {
     );
   }, [surveys]);
 
-  const latestSurveys = useMemo(() => surveys.slice(0, 10), [surveys]);
+  const activeSurveys = useMemo(() => sortAndFilterActiveSurveys(surveys), [surveys]);
+  const latestSurveys = useMemo(() => activeSurveys.slice(0, 10), [activeSurveys]);
 
-  const aggregatedShareMessage = useMemo(() => {
-    if (!latestSurveys.length) {
-      return null;
-    }
+  const primarySurvey = latestSurveys[0];
+  const widgetAssets = useMemo(() => getSurveyChannelAssets(primarySurvey, 'widget_chat'), [primarySurvey]);
+  const whatsappAssets = useMemo(() => getSurveyChannelAssets(primarySurvey, 'whatsapp'), [primarySurvey]);
+  const heroImage = useMemo(
+    () => getSurveyGeneralImage(primarySurvey, 'widget_chat') ?? getSurveyGeneralImage(primarySurvey, 'whatsapp'),
+    [primarySurvey],
+  );
 
-    const lines: string[] = [
-      'Participá en estas encuestas ciudadanas y compartilas con tu comunidad:',
-      '',
-      'Cada enlace incluye una breve descripción para que sea más fácil entender qué hace.',
-      '',
-    ];
+  const digestHeaderTitle = whatsappAssets.title ?? widgetAssets.title ?? 'Participación Ciudadana';
+  const digestHeaderDescription =
+    whatsappAssets.description ?? widgetAssets.description ?? 'Últimas encuestas disponibles (máximo 10).';
 
-    latestSurveys.forEach((survey, index) => {
-      const participationUrl = getPublicSurveyUrl(survey.slug);
-      if (!participationUrl) {
-        return;
-      }
+  const aggregatedDigest = useMemo(
+    () =>
+      buildSurveyDigestMessage({
+        surveys: latestSurveys,
+        channel: 'whatsapp',
+        headerTitle: digestHeaderTitle,
+        headerDescription: digestHeaderDescription,
+        includeHeaderImage: true,
+        fallbackImageUrl: heroImage ?? null,
+      }),
+    [latestSurveys, digestHeaderTitle, digestHeaderDescription, heroImage],
+  );
 
-      const position = `${index + 1}.`;
-      lines.push(`${position} ${survey.titulo}`);
-      if (survey.descripcion) {
-        lines.push(`   ${survey.descripcion}`);
-      }
-      lines.push(`   - Participar en línea: ${participationUrl}`);
+  const aggregatedShareMessage = latestSurveys.length ? aggregatedDigest.message : null;
+  const aggregatedImageUrl = latestSurveys.length ? aggregatedDigest.imageUrl : null;
 
-      const widgetUrl = buildWidgetUrl(participationUrl);
-      lines.push(`   - Abrir el asistente virtual (chat): ${widgetUrl}`);
-
-      const qrUrl = getPublicSurveyQrUrl(survey.slug, { size: 512 });
-      const qrDisplayUrl = getPublicSurveyQrPageUrl(survey.slug);
-      if (qrDisplayUrl) {
-        lines.push(`   - Ver o descargar el código QR: ${qrDisplayUrl}`);
-        if (qrUrl) {
-          lines.push(`      (Enlace directo al archivo QR: ${qrUrl})`);
-        }
-      } else if (qrUrl) {
-        lines.push(`   - Descargar el código QR: ${qrUrl}`);
-      }
-
-      const whatsappShare = buildShareLink(survey.titulo, participationUrl);
-      lines.push(`   - Reenviar por WhatsApp: ${whatsappShare}`);
-      lines.push('');
-    });
-
-    return lines.join('\n').trimEnd();
-  }, [latestSurveys]);
+  const heroVisual = useMemo(
+    () => heroImage ?? aggregatedImageUrl ?? '/images/og-encuestas.svg',
+    [aggregatedImageUrl, heroImage],
+  );
+  const heroAlt = heroImage || aggregatedImageUrl
+    ? 'Imagen destacada de la campaña de participación ciudadana'
+    : 'Ilustración con tarjetas y gráficos sobre participación ciudadana';
 
   const handleShareDigestOnWhatsApp = () => {
     if (!aggregatedShareMessage) return;
@@ -336,9 +319,9 @@ const SurveysPublicIndex = () => {
           <div className="relative flex items-center justify-center">
             <div className="relative flex w-full max-w-sm items-center justify-center">
               <img
-                src="/images/og-encuestas.svg"
-                alt="Ilustración con tarjetas y gráficos sobre participación ciudadana"
-                className="w-full rounded-2xl border border-white/60 shadow-xl shadow-primary/20"
+                src={heroVisual}
+                alt={heroAlt}
+                className="w-full rounded-2xl border border-white/60 shadow-xl shadow-primary/20 object-cover"
                 loading="lazy"
               />
             </div>
@@ -387,8 +370,19 @@ const SurveysPublicIndex = () => {
           const participationPath = getPublicSurveyUrl(survey.slug, { absolute: false }) || '#';
           const participationUrl = getPublicSurveyUrl(survey.slug) || '';
           const qrUrl = getPublicSurveyQrUrl(survey.slug, { size: 512 });
-          const widgetUrl = participationUrl ? buildWidgetUrl(participationUrl) : '';
-          const whatsappShareUrl = participationUrl ? buildShareLink(survey.titulo, participationUrl) : '';
+          const widgetUrl = participationUrl ? buildWidgetUrlWithChannel(participationUrl) : '';
+          const whatsappShareMessage = participationUrl
+            ? buildSurveyShareMessage(
+                survey,
+                {
+                  participationUrl,
+                  widgetUrl,
+                  qrPageUrl,
+                  qrUrl,
+                },
+                getSurveyChannelAssets(survey, 'whatsapp'),
+              )
+            : '';
           const qrPagePath = getPublicSurveyQrPageUrl(survey.slug, { absolute: false }) || '#';
           const qrPageUrl = getPublicSurveyQrPageUrl(survey.slug);
 
@@ -411,7 +405,17 @@ const SurveysPublicIndex = () => {
 
           const handleShareWhatsApp = () => {
             if (!participationUrl) return;
-            const whatsappUrl = buildShareLink(survey.titulo, participationUrl);
+            const whatsappMessage = buildSurveyShareMessage(
+              survey,
+              {
+                participationUrl,
+                widgetUrl,
+                qrPageUrl,
+                qrUrl,
+              },
+              getSurveyChannelAssets(survey, 'whatsapp'),
+            );
+            const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(whatsappMessage)}`;
             window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
           };
 
@@ -528,7 +532,7 @@ const SurveysPublicIndex = () => {
                             className="mt-2 inline-flex max-w-full items-center gap-2 text-primary hover:underline"
                           >
                             <ArrowRight className="h-3.5 w-3.5" />
-                            <span className="truncate">{participationUrl}</span>
+                            <span className="truncate">{shortenUrlForDisplay(participationUrl)}</span>
                           </a>
                         </div>
                       ) : null}
@@ -549,10 +553,12 @@ const SurveysPublicIndex = () => {
                             <Bot className="h-3.5 w-3.5" />
                             <span className="truncate">Abrir asistente virtual</span>
                           </a>
-                          <p className="mt-1 truncate text-[11px] text-muted-foreground/70">{widgetUrl}</p>
+                          <p className="mt-1 truncate text-[11px] text-muted-foreground/70">
+                            {widgetUrl ? shortenUrlForDisplay(widgetUrl) : null}
+                          </p>
                         </div>
                       ) : null}
-                      {whatsappShareUrl ? (
+                      {whatsappShareMessage ? (
                         <div className="rounded-lg border border-border/60 bg-background/60 p-3">
                           <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">
                             Reenviar por WhatsApp
@@ -560,15 +566,14 @@ const SurveysPublicIndex = () => {
                           <p className="text-xs text-muted-foreground">
                             Abrí un mensaje prearmado para compartir con grupos o contactos.
                           </p>
-                          <a
-                            href={whatsappShareUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="mt-2 inline-flex max-w-full items-center gap-2 text-primary hover:underline"
+                          <button
+                            type="button"
+                            onClick={handleShareWhatsApp}
+                            className="mt-2 inline-flex max-w-full items-center gap-2 text-left text-primary hover:underline"
                           >
                             <MessageCircle className="h-3.5 w-3.5" />
                             <span className="truncate">Abrir WhatsApp con el mensaje</span>
-                          </a>
+                          </button>
                         </div>
                       ) : null}
                       {qrPageUrl ? (
@@ -587,7 +592,9 @@ const SurveysPublicIndex = () => {
                             <span className="truncate">Ver QR listo para descargar</span>
                           </Link>
                           {qrUrl ? (
-                            <p className="mt-1 break-all text-[11px] text-muted-foreground/70">{qrUrl}</p>
+                            <p className="mt-1 break-all text-[11px] text-muted-foreground/70">
+                              {shortenUrlForDisplay(qrUrl)}
+                            </p>
                           ) : null}
                         </div>
                       ) : null}

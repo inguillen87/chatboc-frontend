@@ -19,6 +19,23 @@ export interface SurveyPregunta {
   opciones?: SurveyPreguntaOpcion[];
 }
 
+export interface SurveyChannelAsset {
+  canal?: string;
+  titulo?: string | null;
+  descripcion?: string | null;
+  imagen?: string | null;
+  imagen_url?: string | null;
+  image?: string | null;
+  image_url?: string | null;
+  header?: string | null;
+  header_image_url?: string | null;
+  portada_url?: string | null;
+  footer?: string | null;
+  nota?: string | null;
+  texto?: string | null;
+  [key: string]: unknown;
+}
+
 export interface SurveyPublic {
   id?: number;
   slug: string;
@@ -29,6 +46,20 @@ export interface SurveyPublic {
   fin_at: string;
   politica_unicidad: 'por_dni' | 'por_phone' | 'por_ip' | 'por_cookie' | 'libre';
   preguntas: SurveyPregunta[];
+  portada_url?: string | null;
+  imagen_portada?: string | null;
+  header_image_url?: string | null;
+  cover_image_url?: string | null;
+  banner_url?: string | null;
+  municipio_id?: number | string | null;
+  municipio_nombre?: string | null;
+  municipio_slug?: string | null;
+  canales?: SurveyChannelAsset[] | Record<string, SurveyChannelAsset | undefined>;
+  recursos?: Record<string, unknown>;
+  difusion?: Record<string, unknown>;
+  assets?: Record<string, unknown>;
+  branding?: Record<string, unknown>;
+  [key: string]: unknown;
 }
 
 export type SurveyLocationPrecision = 'gps' | 'manual' | 'estimada';
