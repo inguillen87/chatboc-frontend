@@ -338,5 +338,141 @@
         "obligatoria": false
       }
     ]
+  },
+  {
+    "slug": "intencion-voto-municipal-2025",
+    "titulo": "Sondeo 2025 de intención de voto municipal en {{municipality}}",
+    "descripcion": "Evaluamos preferencias electorales, firmeza de decisión y temas prioritarios para la agenda local.",
+    "tipo": "votacion",
+    "politica_unicidad": "por_dni",
+    "anonimato": false,
+    "requiere_datos_contacto": true,
+    "preguntas": [
+      {
+        "orden": 1,
+        "tipo": "opcion_unica",
+        "texto": "Si las elecciones municipales fueran hoy, ¿a qué espacio votarías?",
+        "obligatoria": true,
+        "opciones": [
+          { "orden": 1, "texto": "Frente Desarrollo Local" },
+          { "orden": 2, "texto": "Alianza Futuro Verde" },
+          { "orden": 3, "texto": "Coalición Seguridad y Familia" },
+          { "orden": 4, "texto": "Todavía no lo decidí" }
+        ]
+      },
+      {
+        "orden": 2,
+        "tipo": "opcion_unica",
+        "texto": "¿Qué tan firme es tu decisión actual?",
+        "obligatoria": true,
+        "opciones": [
+          { "orden": 1, "texto": "Totalmente definida" },
+          { "orden": 2, "texto": "Casi definida pero podría cambiar" },
+          { "orden": 3, "texto": "Estoy evaluando opciones" },
+          { "orden": 4, "texto": "Necesito más información" }
+        ]
+      },
+      {
+        "orden": 3,
+        "tipo": "multiple",
+        "texto": "¿Cuáles son los temas clave que te ayudan a definir tu voto?",
+        "obligatoria": true,
+        "min_selecciones": 1,
+        "max_selecciones": 3,
+        "opciones": [
+          { "orden": 1, "texto": "Trabajo y producción" },
+          { "orden": 2, "texto": "Seguridad ciudadana" },
+          { "orden": 3, "texto": "Servicios públicos y urbanismo" },
+          { "orden": 4, "texto": "Educación y primera infancia" },
+          { "orden": 5, "texto": "Ambiente y cambio climático" }
+        ]
+      }
+    ]
+  },
+  {
+    "slug": "inflacion-hogar-2025",
+    "titulo": "Termómetro 2025 del costo de vida en {{municipality}}",
+    "descripcion": "Medimos cómo impactan los precios en los hogares y qué apoyos permitirían equilibrar el presupuesto familiar.",
+    "tipo": "opinion",
+    "politica_unicidad": "por_phone",
+    "anonimato": false,
+    "requiere_datos_contacto": true,
+    "preguntas": [
+      {
+        "orden": 1,
+        "tipo": "opcion_unica",
+        "texto": "¿Cómo afectó la inflación de los últimos meses a tu hogar?",
+        "obligatoria": true,
+        "opciones": [
+          { "orden": 1, "texto": "Impacto muy fuerte: tuviste que endeudarte" },
+          { "orden": 2, "texto": "Impacto importante: ajustaste varios gastos" },
+          { "orden": 3, "texto": "Impacto moderado: ajustaste algunos hábitos" },
+          { "orden": 4, "texto": "Impacto bajo: pudiste mantener tu presupuesto" }
+        ]
+      },
+      {
+        "orden": 2,
+        "tipo": "multiple",
+        "texto": "¿Qué medidas te ayudarían a equilibrar el presupuesto mensual?",
+        "obligatoria": true,
+        "min_selecciones": 1,
+        "max_selecciones": 3,
+        "opciones": [
+          { "orden": 1, "texto": "Mayor oferta de precios cuidados locales" },
+          { "orden": 2, "texto": "Capacitaciones financieras y planificación" },
+          { "orden": 3, "texto": "Ferias populares y compras comunitarias" },
+          { "orden": 4, "texto": "Créditos a tasa subsidiada para emprender" }
+        ]
+      },
+      {
+        "orden": 3,
+        "tipo": "abierta",
+        "texto": "Compartí una idea o programa municipal que aliviaría tu economía familiar.",
+        "obligatoria": false
+      }
+    ]
+  },
+  {
+    "slug": "agenda-hidrica-2026",
+    "titulo": "Consulta 2026 sobre agua y sequía en {{municipality}}",
+    "descripcion": "Definimos acciones prioritarias frente a la escasez hídrica y el uso eficiente del recurso.",
+    "tipo": "sondeo",
+    "politica_unicidad": "por_ip",
+    "anonimato": true,
+    "requiere_datos_contacto": false,
+    "preguntas": [
+      {
+        "orden": 1,
+        "tipo": "opcion_unica",
+        "texto": "¿Qué tan preocupado estás por el impacto de la sequía en tu zona?",
+        "obligatoria": true,
+        "opciones": [
+          { "orden": 1, "texto": "Muy preocupado: la sequía impacta en mi actividad" },
+          { "orden": 2, "texto": "Preocupación media: se necesitan más medidas" },
+          { "orden": 3, "texto": "Preocupación baja: por ahora estamos cubiertos" },
+          { "orden": 4, "texto": "No tengo información suficiente" }
+        ]
+      },
+      {
+        "orden": 2,
+        "tipo": "multiple",
+        "texto": "¿Qué acciones debería priorizar {{municipality}} para asegurar el agua?",
+        "obligatoria": true,
+        "min_selecciones": 1,
+        "max_selecciones": 3,
+        "opciones": [
+          { "orden": 1, "texto": "Obras de riego y mejora de canales" },
+          { "orden": 2, "texto": "Programas de uso eficiente y reutilización" },
+          { "orden": 3, "texto": "Monitoreo con sensores y alertas en tiempo real" },
+          { "orden": 4, "texto": "Educación comunitaria y capacitaciones" }
+        ]
+      },
+      {
+        "orden": 3,
+        "tipo": "abierta",
+        "texto": "Comentá proyectos o alianzas que podrían fortalecer la agenda hídrica local.",
+        "obligatoria": false
+      }
+    ]
   }
 ]
