@@ -1,4 +1,4 @@
-export type SurveyTipo = 'opinion' | 'votacion' | 'sondeo';
+export type SurveyTipo = 'opinion' | 'votacion' | 'sondeo' | 'planificacion';
 export type PreguntaTipo = 'opcion_unica' | 'multiple' | 'abierta';
 
 export interface SurveyPreguntaOpcion {

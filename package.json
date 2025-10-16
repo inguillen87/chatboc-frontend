@@ -12,7 +12,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "start": "node server/app.cjs",
-    "seed:surveys": "node scripts/seedMunicipalSurveys.mjs"
+    "seed:surveys": "node scripts/seedMunicipalSurveys.mjs",
+    "seed:survey-responses": "node scripts/seedSurveyResponses.mjs"
   },
   "dependencies": {
     "@headlessui/react": "^1.7.18",
