@@ -14,6 +14,7 @@ interface UseSurveyPublicResult {
   lastResponseId?: number;
   duplicateDetected: boolean;
   submitError: string | null;
+  submitStatus: number | null;
 }
 
 export function useSurveyPublic(slug?: string | null): UseSurveyPublicResult {
@@ -56,5 +57,6 @@ export function useSurveyPublic(slug?: string | null): UseSurveyPublicResult {
     lastResponseId: mutation.data?.id,
     duplicateDetected: mutation.error instanceof ApiError && mutation.error.status === 409,
     submitError: mutation.error ? getErrorMessage(mutation.error) : null,
+    submitStatus: mutation.error instanceof ApiError ? mutation.error.status : null,
   };
 }
