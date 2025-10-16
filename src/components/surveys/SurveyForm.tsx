@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -35,6 +36,9 @@ interface SurveyFormProps {
   onSubmit: (payload: PublicResponsePayload) => Promise<void>;
   loading?: boolean;
   defaultMetadata?: Pick<PublicResponsePayload, 'utm_campaign' | 'utm_source' | 'canal'>;
+  submitErrorMessage?: string | null;
+  submitErrorStatus?: number | null;
+  duplicateDetected?: boolean;
 }
 
 interface AnswerState {
@@ -42,7 +46,15 @@ interface AnswerState {
   texto?: string;
 }
 
-export const SurveyForm = ({ survey, onSubmit, loading, defaultMetadata }: SurveyFormProps) => {
+export const SurveyForm = ({
+  survey,
+  onSubmit,
+  loading,
+  defaultMetadata,
+  submitErrorMessage,
+  submitErrorStatus,
+  duplicateDetected,
+}: SurveyFormProps) => {
   const initialState = useMemo(() => {
     const state: Record<number, AnswerState> = {};
     survey.preguntas.forEach((pregunta) => {
@@ -61,6 +73,13 @@ export const SurveyForm = ({ survey, onSubmit, loading, defaultMetadata }: Surve
   const [customGender, setCustomGender] = useState('');
   const [geoStatus, setGeoStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [geoMessage, setGeoMessage] = useState<string | null>(null);
+  const [submissionErrorTitle, setSubmissionErrorTitle] = useState<string | null>(null);
+  const [submissionErrorDetails, setSubmissionErrorDetails] = useState<string | null>(null);
+  const [dismissedErrorKey, setDismissedErrorKey] = useState<string | null>(null);
+  const currentErrorKey = useMemo(
+    () => (submitErrorMessage ? `${submitErrorStatus ?? 'na'}::${submitErrorMessage}` : null),
+    [submitErrorMessage, submitErrorStatus],
+  );
 
   type LocationStringField = 'pais' | 'provincia' | 'ciudad' | 'barrio' | 'codigoPostal';
 
@@ -86,6 +105,45 @@ export const SurveyForm = ({ survey, onSubmit, loading, defaultMetadata }: Surve
       setPhone('');
     }
   }, [requireDni, requirePhone]);
+
+  useEffect(() => {
+    if (!submitErrorMessage || !currentErrorKey) {
+      if (!submitting) {
+        setSubmissionErrorTitle(null);
+        setSubmissionErrorDetails(null);
+      }
+      return;
+    }
+
+    if (dismissedErrorKey && currentErrorKey === dismissedErrorKey) {
+      return;
+    }
+
+    const normalized = submitErrorMessage.toLowerCase();
+    const baseTitle =
+      duplicateDetected || submitErrorStatus === 409
+        ? 'Ya registramos tu opinión'
+        : 'No pudimos enviar tu respuesta';
+
+    let extraHint: string | null = null;
+    if (duplicateDetected || submitErrorStatus === 409) {
+      extraHint = 'La política de unicidad impide enviar más de una respuesta.';
+    } else if (normalized.includes('cors') || normalized.includes('conexión')) {
+      extraHint =
+        'Revisá tu conexión o intentá nuevamente. Si el error persiste, compartí este mensaje con el equipo de soporte.';
+    }
+
+    const detail = extraHint ? `${submitErrorMessage} ${extraHint}` : submitErrorMessage;
+    setSubmissionErrorTitle(baseTitle);
+    setSubmissionErrorDetails(detail.trim());
+  }, [
+    submitErrorMessage,
+    submitErrorStatus,
+    duplicateDetected,
+    submitting,
+    currentErrorKey,
+    dismissedErrorKey,
+  ]);
 
   const normalizeString = (value?: string | null): string | undefined => {
     if (typeof value !== 'string') return undefined;
@@ -351,6 +409,9 @@ export const SurveyForm = ({ survey, onSubmit, loading, defaultMetadata }: Surve
     if (submitting) return;
     if (!validate()) return;
 
+    setSubmissionErrorTitle(null);
+    setSubmissionErrorDetails(null);
+    setDismissedErrorKey(null);
     setSubmitting(true);
     try {
       const sanitizedDemographics = sanitizeDemographics();
@@ -431,7 +492,41 @@ export const SurveyForm = ({ survey, onSubmit, loading, defaultMetadata }: Surve
           <span>Tipo: {survey.tipo}</span>
         </div>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-10">
+        {submissionErrorTitle && (
+          <Alert variant="destructive" className="border-destructive/40 bg-destructive/10 text-left">
+            <div className="flex flex-col gap-3">
+              <div>
+                <AlertTitle>{submissionErrorTitle}</AlertTitle>
+                {submissionErrorDetails && (
+                  <AlertDescription>
+                    <p>{submissionErrorDetails}</p>
+                    {submitErrorStatus && submitErrorStatus >= 500 && (
+                      <p className="mt-2 text-xs text-destructive/80">
+                        El servidor devolvió un error inesperado. Intentá nuevamente en unos minutos o compartí este mensaje con
+                        soporte.
+                      </p>
+                    )}
+                  </AlertDescription>
+                )}
+              </div>
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setSubmissionErrorTitle(null);
+                    setSubmissionErrorDetails(null);
+                    setDismissedErrorKey(currentErrorKey);
+                  }}
+                >
+                  Entendido
+                </Button>
+              </div>
+            </div>
+          </Alert>
+        )}
         {(requireDni || requirePhone) && (
           <div className="rounded-lg border border-border bg-card/40 p-4 space-y-2">
             <p className="text-sm font-medium">

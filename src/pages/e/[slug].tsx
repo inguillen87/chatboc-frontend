@@ -18,7 +18,16 @@ const PublicSurveyPage = () => {
   const [searchParams] = useSearchParams();
   const [submitted, setSubmitted] = useState(false);
   const [lastSubmission, setLastSubmission] = useState<PublicResponsePayload | null>(null);
-  const { survey, isLoading, error, submit, isSubmitting, submitError } = useSurveyPublic(slug);
+  const {
+    survey,
+    isLoading,
+    error,
+    submit,
+    isSubmitting,
+    submitError,
+    duplicateDetected,
+    submitStatus,
+  } = useSurveyPublic(slug);
 
   usePageMetadata({
     title: survey?.titulo ? `${survey.titulo} · Encuesta ciudadana` : 'Encuesta ciudadana',
@@ -128,7 +137,15 @@ const PublicSurveyPage = () => {
 
   return (
     <div className="mx-auto w-full max-w-3xl py-10">
-      <SurveyForm survey={survey} onSubmit={handleSubmit} loading={isSubmitting} defaultMetadata={metadata} />
+      <SurveyForm
+        survey={survey}
+        onSubmit={handleSubmit}
+        loading={isSubmitting}
+        defaultMetadata={metadata}
+        submitErrorMessage={submitError}
+        submitErrorStatus={submitStatus}
+        duplicateDetected={duplicateDetected}
+      />
     </div>
   );
 };
