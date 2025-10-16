@@ -12,7 +12,12 @@ import { AnimatePresence, motion } from 'framer-motion';
 import PredefinedMessagesModal from './PredefinedMessagesModal';
 import useSpeechRecognition from '@/hooks/useSpeechRecognition';
 import { usePusher } from '@/hooks/usePusher';
-import { getTicketMessages, sendMessage, updateTicketStatus } from '@/services/ticketService';
+import {
+  getTicketMessages,
+  requestTicketHistoryEmail,
+  sendMessage,
+  updateTicketStatus,
+} from '@/services/ticketService';
 import { toast } from 'sonner';
 import { useUser } from '@/hooks/useUser';
 import { useTickets } from '@/context/TicketContext';
@@ -445,6 +450,16 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
             attachmentData,
             payload?.action ? [{ type: 'reply', reply: { id: payload.action, title: payload.action } }] : undefined
         );
+        requestTicketHistoryEmail({
+          tipo: selectedTicket.tipo,
+          ticketId: selectedTicket.id,
+          options: {
+            reason: 'message_update',
+            actor: 'agent',
+          },
+        }).catch((error) => {
+          console.error('Error triggering ticket update email after message:', error);
+        });
         // Message will be updated via Pusher with the real ID
     } catch (error) {
         toast.error("No se pudo enviar el mensaje.");
@@ -478,6 +493,17 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
       await updateTicketStatus(selectedTicket.id, selectedTicket.tipo, newStatus);
       updateTicket(selectedTicket.id, { estado: newStatus });
       toast.success(`Estado actualizado a ${formatTicketStatusLabel(newStatus)}`);
+      requestTicketHistoryEmail({
+        tipo: selectedTicket.tipo,
+        ticketId: selectedTicket.id,
+        options: {
+          reason: 'status_change',
+          estado: newStatus,
+          actor: 'agent',
+        },
+      }).catch((error) => {
+        console.error('Error triggering ticket update email after status change:', error);
+      });
     } catch (error) {
       console.error('Error updating ticket status:', error);
       toast.error('No se pudo actualizar el estado.');

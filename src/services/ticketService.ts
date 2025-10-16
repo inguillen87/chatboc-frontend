@@ -114,15 +114,46 @@ export const getTicketByNumber = async (
     throw lastError;
 };
 
-export const sendTicketHistory = async (ticket: Ticket): Promise<void> => {
+export type TicketHistoryEmailReason =
+    | 'manual'
+    | 'ticket_created'
+    | 'status_change'
+    | 'message_update'
+    | 'auto_completion';
+
+export interface TicketHistoryEmailOptions {
+    reason?: TicketHistoryEmailReason;
+    estado?: string;
+    actor?: 'agent' | 'user';
+}
+
+export interface TicketHistoryEmailParams {
+    tipo: 'municipio' | 'pyme';
+    ticketId: number;
+    options?: TicketHistoryEmailOptions;
+}
+
+export const requestTicketHistoryEmail = async ({
+    tipo,
+    ticketId,
+    options,
+}: TicketHistoryEmailParams): Promise<void> => {
     try {
-        await apiFetch(`/tickets/${ticket.tipo}/${ticket.id}/send-history`, {
+        await apiFetch(`/tickets/${tipo}/${ticketId}/send-history`, {
             method: 'POST',
+            ...(options ? { body: options } : {}),
         });
     } catch (error) {
-        console.error(`Error sending ticket history for ticket ${ticket.id}:`, error);
+        console.error(`Error sending ticket history for ticket ${ticketId}:`, error);
         throw error;
     }
+};
+
+export const sendTicketHistory = async (
+    ticket: Ticket,
+    options?: TicketHistoryEmailOptions
+): Promise<void> => {
+    return requestTicketHistoryEmail({ tipo: ticket.tipo, ticketId: ticket.id, options });
 };
 
 export const updateTicketStatus = async (
