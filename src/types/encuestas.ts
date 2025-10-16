@@ -31,6 +31,39 @@ export interface SurveyPublic {
   preguntas: SurveyPregunta[];
 }
 
+export type SurveyLocationPrecision = 'gps' | 'manual' | 'estimada';
+
+export interface SurveyLocationMetadata {
+  pais?: string;
+  provincia?: string;
+  ciudad?: string;
+  barrio?: string;
+  codigoPostal?: string;
+  lat?: number;
+  lng?: number;
+  precision?: SurveyLocationPrecision;
+  origen?: 'gps' | 'usuario' | 'ip' | 'backend';
+}
+
+export interface SurveyDemographicMetadata {
+  genero?: string;
+  generoDescripcion?: string;
+  rangoEtario?: string;
+  nivelEducativo?: string;
+  situacionLaboral?: string;
+  ocupacion?: string;
+  tiempoResidencia?: string;
+  ubicacion?: SurveyLocationMetadata;
+}
+
+export interface SurveyAnalyticsMetadata {
+  demographics?: SurveyDemographicMetadata;
+  answeredQuestions?: number;
+  totalQuestions?: number;
+  submittedAt?: string;
+  canal?: string;
+}
+
 export interface PublicResponsePayload {
   dni?: string | null;
   phone?: string | null;
@@ -42,6 +75,7 @@ export interface PublicResponsePayload {
   utm_source?: string;
   utm_campaign?: string;
   canal?: 'qr' | 'web' | 'whatsapp' | 'email';
+  metadata?: SurveyAnalyticsMetadata;
 }
 
 export interface SurveyAdmin extends SurveyPublic {
@@ -103,6 +137,31 @@ export interface SurveySummaryPregunta {
   opciones: SurveySummaryOptionBreakdown[];
 }
 
+export interface SurveyDemographicBreakdownItem {
+  clave?: string | null;
+  etiqueta?: string | null;
+  respuestas: number;
+  porcentaje?: number;
+}
+
+export type SurveyDemographicBreakdowns = {
+  [key: string]: SurveyDemographicBreakdownItem[] | undefined;
+  genero?: SurveyDemographicBreakdownItem[];
+  generos?: SurveyDemographicBreakdownItem[];
+  rango_etario?: SurveyDemographicBreakdownItem[];
+  rangos_etarios?: SurveyDemographicBreakdownItem[];
+  rangoEtario?: SurveyDemographicBreakdownItem[];
+  rangosEtarios?: SurveyDemographicBreakdownItem[];
+  pais?: SurveyDemographicBreakdownItem[];
+  paises?: SurveyDemographicBreakdownItem[];
+  provincia?: SurveyDemographicBreakdownItem[];
+  provincias?: SurveyDemographicBreakdownItem[];
+  ciudad?: SurveyDemographicBreakdownItem[];
+  ciudades?: SurveyDemographicBreakdownItem[];
+  barrio?: SurveyDemographicBreakdownItem[];
+  barrios?: SurveyDemographicBreakdownItem[];
+};
+
 export interface SurveySummary {
   total_respuestas: number;
   participantes_unicos: number;
@@ -110,6 +169,7 @@ export interface SurveySummary {
   preguntas: SurveySummaryPregunta[];
   canales?: Array<{ canal: string; respuestas: number }>;
   utms?: Array<{ fuente: string; campania?: string; respuestas: number }>;
+  demografia?: SurveyDemographicBreakdowns;
 }
 
 export interface SurveyTimeseriesPoint {
@@ -129,6 +189,12 @@ export interface SurveyAnalyticsFilters {
   canal?: string;
   utm_source?: string;
   utm_campaign?: string;
+  genero?: string;
+  rango_etario?: string;
+  pais?: string;
+  provincia?: string;
+  ciudad?: string;
+  barrio?: string;
 }
 
 export interface SurveyResponseAnswer {
