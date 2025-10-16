@@ -20,19 +20,23 @@ export function MunicipioDashboard() {
   const qualityRows = useMemo(() => {
     const quality = summary?.quality;
     if (!quality) return [];
+
+    const byType = Array.isArray(quality.byType) ? quality.byType : [];
+    const byAgent = Array.isArray(quality.byAgent) ? quality.byAgent : [];
+
     return [
-      ...quality.byType.map((item) => ({
+      ...byType.map((item) => ({
         scope: item.label,
         average: item.average,
         responses: item.responses,
       })),
-      ...quality.byAgent.map((item) => ({
+      ...byAgent.map((item) => ({
         scope: item.label,
         average: item.average,
         responses: item.responses,
       })),
     ];
-  }, [data.summary]);
+  }, [summary]);
 
   const automationRate = summary?.efficiency?.automationRate ?? 0;
   const firstContact = summary?.efficiency?.firstContact ?? 0;
