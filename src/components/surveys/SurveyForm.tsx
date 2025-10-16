@@ -3,11 +3,32 @@ import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Input } from '@/components/ui/input';
-import type { PublicResponsePayload, SurveyPublic, SurveyPregunta } from '@/types/encuestas';
+import {
+  type PublicResponsePayload,
+  type SurveyAnalyticsMetadata,
+  type SurveyDemographicMetadata,
+  type SurveyLocationMetadata,
+  type SurveyPublic,
+  type SurveyPregunta,
+} from '@/types/encuestas';
+import { requestLocation, type PositionCoords } from '@/utils/geolocation';
+import {
+  AGE_RANGE_OPTIONS,
+  EDUCATION_LEVEL_OPTIONS,
+  EMPLOYMENT_STATUS_OPTIONS,
+  GENDER_OPTIONS,
+} from '@/components/surveys/demographicOptions';
 
 interface SurveyFormProps {
   survey: SurveyPublic;
@@ -36,6 +57,12 @@ export const SurveyForm = ({ survey, onSubmit, loading, defaultMetadata }: Surve
   const [dni, setDni] = useState('');
   const [phone, setPhone] = useState('');
   const [identityError, setIdentityError] = useState<string | null>(null);
+  const [demographics, setDemographics] = useState<SurveyDemographicMetadata>({});
+  const [customGender, setCustomGender] = useState('');
+  const [geoStatus, setGeoStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [geoMessage, setGeoMessage] = useState<string | null>(null);
+
+  type LocationStringField = 'pais' | 'provincia' | 'ciudad' | 'barrio' | 'codigoPostal';
 
   const requireDni = survey.politica_unicidad === 'por_dni';
   const requirePhone = survey.politica_unicidad === 'por_phone';
@@ -44,6 +71,10 @@ export const SurveyForm = ({ survey, onSubmit, loading, defaultMetadata }: Surve
     setAnswers(initialState);
     setErrors({});
     setIdentityError(null);
+    setDemographics({});
+    setCustomGender('');
+    setGeoStatus('idle');
+    setGeoMessage(null);
   }, [initialState]);
 
   useEffect(() => {
@@ -55,6 +86,198 @@ export const SurveyForm = ({ survey, onSubmit, loading, defaultMetadata }: Surve
       setPhone('');
     }
   }, [requireDni, requirePhone]);
+
+  const normalizeString = (value?: string | null): string | undefined => {
+    if (typeof value !== 'string') return undefined;
+    const trimmed = value.trim();
+    return trimmed ? trimmed : undefined;
+  };
+
+  const hasLocationData = (location?: SurveyLocationMetadata | null): boolean => {
+    if (!location) return false;
+    return (
+      Boolean(normalizeString(location.pais)) ||
+      Boolean(normalizeString(location.provincia)) ||
+      Boolean(normalizeString(location.ciudad)) ||
+      Boolean(normalizeString(location.barrio)) ||
+      Boolean(normalizeString(location.codigoPostal)) ||
+      (typeof location.lat === 'number' && Number.isFinite(location.lat)) ||
+      (typeof location.lng === 'number' && Number.isFinite(location.lng))
+    );
+  };
+
+  const handleDemographicsChange = (
+    field: keyof SurveyDemographicMetadata,
+    rawValue?: string | null,
+  ) => {
+    const nextValue = normalizeString(rawValue ?? undefined);
+    setDemographics((prev) => {
+      const next: SurveyDemographicMetadata = { ...prev };
+      if (nextValue) {
+        (next as Record<string, unknown>)[field as string] = nextValue;
+      } else {
+        delete (next as Record<string, unknown>)[field as string];
+      }
+
+      if (field === 'genero' && nextValue !== 'self-described') {
+        delete (next as Record<string, unknown>)['generoDescripcion'];
+      }
+
+      return next;
+    });
+
+    if (field === 'genero' && rawValue !== 'self-described') {
+      setCustomGender('');
+    }
+  };
+
+  const handleLocationFieldChange = (field: LocationStringField, rawValue: string) => {
+    const normalized = normalizeString(rawValue);
+    let hasData = false;
+
+    setDemographics((prev) => {
+      const currentLocation = prev.ubicacion ?? {};
+      const nextLocation: SurveyLocationMetadata = { ...currentLocation };
+
+      if (normalized) {
+        nextLocation[field] = normalized;
+        if (field !== 'codigoPostal' && nextLocation.precision !== 'gps') {
+          nextLocation.precision = 'manual';
+          nextLocation.origen = 'usuario';
+        }
+      } else {
+        delete (nextLocation as Record<string, unknown>)[field as string];
+        if (!hasLocationData(nextLocation)) {
+          delete (nextLocation as Record<string, unknown>).precision;
+          delete (nextLocation as Record<string, unknown>).origen;
+        }
+      }
+
+      hasData = hasLocationData(nextLocation);
+
+      return {
+        ...prev,
+        ubicacion: hasData ? nextLocation : undefined,
+      };
+    });
+
+    if (hasData) {
+      setGeoStatus((status) => (status === 'loading' ? status : 'success'));
+      setGeoMessage('Registramos la ubicación que ingresaste manualmente.');
+    } else {
+      setGeoStatus((status) => (status === 'loading' ? status : 'idle'));
+      setGeoMessage(null);
+    }
+  };
+
+  const handleRequestLocation = async () => {
+    setGeoStatus('loading');
+    setGeoMessage('Solicitando tu ubicación para las métricas territoriales…');
+
+    try {
+      const coords: PositionCoords | null = await requestLocation({
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 60_000,
+      });
+
+      if (!coords) {
+        setGeoStatus('error');
+        setGeoMessage('No pudimos obtener tu ubicación automáticamente. Podés ingresarla manualmente.');
+        return;
+      }
+
+      setGeoStatus('success');
+      setGeoMessage('Registramos tu ubicación GPS para mapas de calor y distribución barrial.');
+      setDemographics((prev) => ({
+        ...prev,
+        ubicacion: {
+          ...(prev.ubicacion ?? {}),
+          lat: coords.latitud,
+          lng: coords.longitud,
+          precision: 'gps',
+          origen: 'gps',
+        },
+      }));
+    } catch (error) {
+      console.warn('[SurveyForm] No pudimos obtener la ubicación del dispositivo', error);
+      setGeoStatus('error');
+      setGeoMessage('No pudimos obtener tu ubicación automáticamente. Podés ingresarla manualmente.');
+    }
+  };
+
+  const sanitizeDemographics = (): SurveyDemographicMetadata | undefined => {
+    const sanitized: SurveyDemographicMetadata = {};
+
+    const genero = normalizeString(demographics.genero);
+    if (genero) {
+      sanitized.genero = genero;
+      if (genero === 'self-described') {
+        const generoDescripcion = normalizeString(demographics.generoDescripcion ?? customGender);
+        if (generoDescripcion) {
+          sanitized.generoDescripcion = generoDescripcion;
+        }
+      }
+    }
+
+    const rangoEtario = normalizeString(demographics.rangoEtario);
+    if (rangoEtario) {
+      sanitized.rangoEtario = rangoEtario;
+    }
+
+    const nivelEducativo = normalizeString(demographics.nivelEducativo);
+    if (nivelEducativo) {
+      sanitized.nivelEducativo = nivelEducativo;
+    }
+
+    const situacionLaboral = normalizeString(demographics.situacionLaboral);
+    if (situacionLaboral) {
+      sanitized.situacionLaboral = situacionLaboral;
+    }
+
+    const ocupacion = normalizeString(demographics.ocupacion);
+    if (ocupacion) {
+      sanitized.ocupacion = ocupacion;
+    }
+
+    const tiempoResidencia = normalizeString(demographics.tiempoResidencia);
+    if (tiempoResidencia) {
+      sanitized.tiempoResidencia = tiempoResidencia;
+    }
+
+    const location = demographics.ubicacion;
+    if (location) {
+      const sanitizedLocation: SurveyLocationMetadata = {};
+      const pais = normalizeString(location.pais);
+      if (pais) sanitizedLocation.pais = pais;
+      const provincia = normalizeString(location.provincia);
+      if (provincia) sanitizedLocation.provincia = provincia;
+      const ciudad = normalizeString(location.ciudad);
+      if (ciudad) sanitizedLocation.ciudad = ciudad;
+      const barrio = normalizeString(location.barrio);
+      if (barrio) sanitizedLocation.barrio = barrio;
+      const codigoPostal = normalizeString(location.codigoPostal);
+      if (codigoPostal) sanitizedLocation.codigoPostal = codigoPostal;
+      if (typeof location.lat === 'number' && Number.isFinite(location.lat)) {
+        sanitizedLocation.lat = Number(location.lat);
+      }
+      if (typeof location.lng === 'number' && Number.isFinite(location.lng)) {
+        sanitizedLocation.lng = Number(location.lng);
+      }
+      if (location.precision) {
+        sanitizedLocation.precision = location.precision;
+      }
+      if (location.origen) {
+        sanitizedLocation.origen = location.origen;
+      }
+
+      if (hasLocationData(sanitizedLocation)) {
+        sanitized.ubicacion = sanitizedLocation;
+      }
+    }
+
+    return Object.keys(sanitized).length ? sanitized : undefined;
+  };
 
   const handleRadioChange = (pregunta: SurveyPregunta, value: string) => {
     const optionId = Number(value);
@@ -130,6 +353,30 @@ export const SurveyForm = ({ survey, onSubmit, loading, defaultMetadata }: Surve
 
     setSubmitting(true);
     try {
+      const sanitizedDemographics = sanitizeDemographics();
+      const answeredQuestions = survey.preguntas.reduce((count, pregunta) => {
+        const answer = answers[pregunta.id] ?? { opcionIds: [], texto: '' };
+        if (pregunta.tipo === 'abierta') {
+          return answer.texto?.trim() ? count + 1 : count;
+        }
+        const selected = answer.opcionIds ?? [];
+        return selected.length > 0 ? count + 1 : count;
+      }, 0);
+
+      const metadataPayload: SurveyAnalyticsMetadata = {
+        answeredQuestions,
+        totalQuestions: survey.preguntas.length,
+        submittedAt: new Date().toISOString(),
+      };
+
+      if (defaultMetadata?.canal) {
+        metadataPayload.canal = defaultMetadata.canal;
+      }
+
+      if (sanitizedDemographics) {
+        metadataPayload.demographics = sanitizedDemographics;
+      }
+
       const payload: PublicResponsePayload = {
         respuestas: survey.preguntas.map((pregunta) => {
           const answer = answers[pregunta.id] ?? { opcionIds: [], texto: '' };
@@ -146,6 +393,7 @@ export const SurveyForm = ({ survey, onSubmit, loading, defaultMetadata }: Surve
         dni: requireDni ? dni.trim() : undefined,
         phone: requirePhone ? phone.trim() : undefined,
         ...defaultMetadata,
+        metadata: metadataPayload,
       };
       await onSubmit(payload);
       setErrors({});
@@ -156,6 +404,11 @@ export const SurveyForm = ({ survey, onSubmit, loading, defaultMetadata }: Surve
       if (requirePhone) {
         setPhone('');
       }
+      setDemographics({});
+      setCustomGender('');
+      setGeoStatus('idle');
+      setGeoMessage(null);
+      setAnswers(initialState);
     } finally {
       setSubmitting(false);
     }
@@ -214,6 +467,197 @@ export const SurveyForm = ({ survey, onSubmit, loading, defaultMetadata }: Surve
             {identityError && <p className="text-sm text-destructive">{identityError}</p>}
           </div>
         )}
+        <div className="rounded-lg border border-border bg-card/40 p-4 space-y-4">
+          <div className="flex flex-col gap-1">
+            <p className="text-sm font-medium">Datos demográficos y territoriales (opcional)</p>
+            <p className="text-xs text-muted-foreground">
+              Esta información complementaria permite construir métricas segmentadas, mapas de calor y tableros en tiempo real.
+            </p>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="survey-age-range">Rango etario</Label>
+              <Select
+                value={demographics.rangoEtario}
+                onValueChange={(value) => handleDemographicsChange('rangoEtario', value)}
+              >
+                <SelectTrigger id="survey-age-range">
+                  <SelectValue placeholder="Seleccioná tu rango etario" />
+                </SelectTrigger>
+                <SelectContent>
+                  {AGE_RANGE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="survey-gender">Sexo / género</Label>
+              <Select
+                value={demographics.genero}
+                onValueChange={(value) => handleDemographicsChange('genero', value)}
+              >
+                <SelectTrigger id="survey-gender">
+                  <SelectValue placeholder="Seleccioná una opción" />
+                </SelectTrigger>
+                <SelectContent>
+                  {GENDER_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          {demographics.genero === 'self-described' ? (
+            <div className="space-y-2">
+              <Label htmlFor="survey-gender-detail">Autodescripción</Label>
+              <Input
+                id="survey-gender-detail"
+                value={customGender}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setCustomGender(value);
+                  handleDemographicsChange('generoDescripcion', value);
+                }}
+                placeholder="Ingresá cómo te identificás"
+              />
+            </div>
+          ) : null}
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="survey-education">Nivel educativo</Label>
+              <Select
+                value={demographics.nivelEducativo}
+                onValueChange={(value) => handleDemographicsChange('nivelEducativo', value)}
+              >
+                <SelectTrigger id="survey-education">
+                  <SelectValue placeholder="Seleccioná una opción" />
+                </SelectTrigger>
+                <SelectContent>
+                  {EDUCATION_LEVEL_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="survey-employment">Situación laboral</Label>
+              <Select
+                value={demographics.situacionLaboral}
+                onValueChange={(value) => handleDemographicsChange('situacionLaboral', value)}
+              >
+                <SelectTrigger id="survey-employment">
+                  <SelectValue placeholder="Seleccioná una opción" />
+                </SelectTrigger>
+                <SelectContent>
+                  {EMPLOYMENT_STATUS_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="survey-occupation">Ocupación / rubro (opcional)</Label>
+            <Input
+              id="survey-occupation"
+              value={demographics.ocupacion ?? ''}
+              onChange={(event) => handleDemographicsChange('ocupacion', event.target.value)}
+              placeholder="Ej: Comercio minorista, educación, salud"
+            />
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="survey-country">País o región</Label>
+              <Input
+                id="survey-country"
+                value={demographics.ubicacion?.pais ?? ''}
+                onChange={(event) => handleLocationFieldChange('pais', event.target.value)}
+                placeholder="Ej: Argentina"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="survey-province">Provincia / estado</Label>
+              <Input
+                id="survey-province"
+                value={demographics.ubicacion?.provincia ?? ''}
+                onChange={(event) => handleLocationFieldChange('provincia', event.target.value)}
+                placeholder="Ej: Santa Fe"
+              />
+            </div>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="survey-city">Ciudad o localidad</Label>
+              <Input
+                id="survey-city"
+                value={demographics.ubicacion?.ciudad ?? ''}
+                onChange={(event) => handleLocationFieldChange('ciudad', event.target.value)}
+                placeholder="Ej: Rosario"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="survey-neighborhood">Barrio o zona</Label>
+              <Input
+                id="survey-neighborhood"
+                value={demographics.ubicacion?.barrio ?? ''}
+                onChange={(event) => handleLocationFieldChange('barrio', event.target.value)}
+                placeholder="Ej: Barrio Centro"
+              />
+            </div>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="survey-postal-code">Código postal</Label>
+              <Input
+                id="survey-postal-code"
+                value={demographics.ubicacion?.codigoPostal ?? ''}
+                onChange={(event) => handleLocationFieldChange('codigoPostal', event.target.value)}
+                placeholder="Ej: 2000"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="survey-residency">Tiempo de residencia en la zona</Label>
+              <Input
+                id="survey-residency"
+                value={demographics.tiempoResidencia ?? ''}
+                onChange={(event) => handleDemographicsChange('tiempoResidencia', event.target.value)}
+                placeholder="Ej: 5 años"
+              />
+            </div>
+          </div>
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <p className="text-xs text-muted-foreground">
+              Podés compartir tu ubicación para fortalecer las métricas territoriales y la segmentación por barrios.
+            </p>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={handleRequestLocation}
+              disabled={geoStatus === 'loading'}
+            >
+              {geoStatus === 'loading' ? 'Obteniendo ubicación…' : 'Usar mi ubicación actual'}
+            </Button>
+          </div>
+          {geoMessage ? (
+            <p className={`text-xs ${geoStatus === 'error' ? 'text-destructive' : 'text-muted-foreground'}`}>
+              {geoMessage}
+            </p>
+          ) : null}
+          {typeof demographics.ubicacion?.lat === 'number' && typeof demographics.ubicacion?.lng === 'number' ? (
+            <p className="text-xs text-muted-foreground">
+              Coordenadas registradas: {demographics.ubicacion.lat.toFixed(4)}, {demographics.ubicacion.lng.toFixed(4)}
+            </p>
+          ) : null}
+        </div>
         {survey.preguntas.map((pregunta) => (
           <div key={pregunta.id} className="space-y-3 border border-border rounded-lg p-4 bg-card/40">
             <div className="flex flex-col gap-1">
