@@ -153,6 +153,7 @@ const DIAS = [
 export default function Perfil() {
   const navigate = useNavigate();
   const { user, refreshUser } = useUser(); // Usa refreshUser del hook
+  const isPyme = user?.tipo_chat === "pyme";
   const parseCoordinate = (value: unknown): number | null => {
     if (typeof value === "number" && !Number.isNaN(value)) {
       return value;
@@ -674,7 +675,10 @@ export default function Perfil() {
   }, [user?.id]);
 
   const refreshVectorSyncStatus = useCallback(async () => {
-    if (!user?.id) return;
+    if (!user?.id || !isPyme) {
+      setVectorSyncStatus(null);
+      return;
+    }
     setLoadingVectorSync(true);
     try {
       const status = await fetchCatalogVectorSyncStatus(user.id);
@@ -688,7 +692,7 @@ export default function Perfil() {
     } finally {
       setLoadingVectorSync(false);
     }
-  }, [user?.id]);
+  }, [user?.id, isPyme]);
 
   // Cargar mapeos cuando el diálogo se va a mostrar
   useEffect(() => {
@@ -698,10 +702,14 @@ export default function Perfil() {
   }, [showManageMappingsDialog, user?.id, fetchMappingConfigs]);
 
   useEffect(() => {
+    if (!isPyme) {
+      setVectorSyncStatus(null);
+      return;
+    }
     if (user?.id) {
       refreshVectorSyncStatus();
     }
-  }, [user?.id, refreshVectorSyncStatus]);
+  }, [user?.id, isPyme, refreshVectorSyncStatus]);
 
   useEffect(() => {
     if (!pendingGeocode) {
@@ -1750,67 +1758,69 @@ export default function Perfil() {
                   {/* Fin Gestión de Mapeos */}
 
                   <div className="flex-grow"></div> {/* Spacer element */}
-                  <div className="rounded-lg border border-border/60 bg-muted/30 p-3 space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-foreground">Estado en Qdrant</span>
-                      <Badge
-                        variant={
-                          loadingVectorSync
-                            ? 'secondary'
-                            : vectorSyncStatus?.status === 'ready'
-                              ? 'success'
-                              : vectorSyncStatus?.status === 'error'
-                                ? 'destructive'
-                                : 'outline'
-                        }
-                      >
-                        {loadingVectorSync
-                          ? 'Sincronizando...'
-                          : vectorSyncStatus?.status === 'ready'
-                            ? 'Listo'
-                            : vectorSyncStatus?.status === 'processing'
-                              ? 'Procesando'
-                              : vectorSyncStatus?.status === 'pending'
-                                ? 'Pendiente'
+                  {isPyme && (
+                    <div className="rounded-lg border border-border/60 bg-muted/30 p-3 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-foreground">Estado en Qdrant</span>
+                        <Badge
+                          variant={
+                            loadingVectorSync
+                              ? 'secondary'
+                              : vectorSyncStatus?.status === 'ready'
+                                ? 'success'
                                 : vectorSyncStatus?.status === 'error'
-                                  ? 'Error'
-                                  : 'Sin datos'}
-                      </Badge>
+                                  ? 'destructive'
+                                  : 'outline'
+                          }
+                        >
+                          {loadingVectorSync
+                            ? 'Sincronizando...'
+                            : vectorSyncStatus?.status === 'ready'
+                              ? 'Listo'
+                              : vectorSyncStatus?.status === 'processing'
+                                ? 'Procesando'
+                                : vectorSyncStatus?.status === 'pending'
+                                  ? 'Pendiente'
+                                  : vectorSyncStatus?.status === 'error'
+                                    ? 'Error'
+                                    : 'Sin datos'}
+                        </Badge>
+                      </div>
+                      {loadingVectorSync ? (
+                        <p className="text-xs text-muted-foreground">Consultando sincronización...</p>
+                      ) : (
+                        <>
+                          <p className="text-xs text-muted-foreground">
+                            {vectorSyncStatus?.message || 'Tus catálogos se indexan para búsquedas de precios y promociones.'}
+                          </p>
+                          {vectorSyncStatus?.lastSyncedAt && (
+                            <p className="text-xs text-muted-foreground">
+                              Última actualización: {formatVectorSyncDate(vectorSyncStatus.lastSyncedAt)}
+                            </p>
+                          )}
+                          {typeof vectorSyncStatus?.documentCount === 'number' && (
+                            <p className="text-xs text-muted-foreground">
+                              Documentos indexados: {vectorSyncStatus.documentCount}
+                            </p>
+                          )}
+                          {vectorSyncStatus?.lastSourceFileName && (
+                            <p className="text-xs text-muted-foreground truncate">
+                              Archivo más reciente: {vectorSyncStatus.lastSourceFileName}
+                            </p>
+                          )}
+                        </>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full"
+                        onClick={refreshVectorSyncStatus}
+                        disabled={loadingVectorSync || !user?.id}
+                      >
+                        Actualizar estado
+                      </Button>
                     </div>
-                    {loadingVectorSync ? (
-                      <p className="text-xs text-muted-foreground">Consultando sincronización...</p>
-                    ) : (
-                      <>
-                        <p className="text-xs text-muted-foreground">
-                          {vectorSyncStatus?.message || 'Tus catálogos se indexan para búsquedas de precios y promociones.'}
-                        </p>
-                        {vectorSyncStatus?.lastSyncedAt && (
-                          <p className="text-xs text-muted-foreground">
-                            Última actualización: {formatVectorSyncDate(vectorSyncStatus.lastSyncedAt)}
-                          </p>
-                        )}
-                        {typeof vectorSyncStatus?.documentCount === 'number' && (
-                          <p className="text-xs text-muted-foreground">
-                            Documentos indexados: {vectorSyncStatus.documentCount}
-                          </p>
-                        )}
-                        {vectorSyncStatus?.lastSourceFileName && (
-                          <p className="text-xs text-muted-foreground truncate">
-                            Archivo más reciente: {vectorSyncStatus.lastSourceFileName}
-                          </p>
-                        )}
-                      </>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="w-full"
-                      onClick={refreshVectorSyncStatus}
-                      disabled={loadingVectorSync || !user?.id}
-                    >
-                      Actualizar estado
-                    </Button>
-                  </div>
+                  )}
                   <Button
                     onClick={handleSubirArchivo}
                     className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-2.5 mt-auto"
