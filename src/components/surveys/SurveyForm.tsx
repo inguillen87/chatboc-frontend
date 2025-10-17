@@ -85,6 +85,10 @@ export const SurveyForm = ({
 
   const requireDni = survey.politica_unicidad === 'por_dni';
   const requirePhone = survey.politica_unicidad === 'por_phone';
+  const contactRequired = Boolean(survey.requiere_datos_contacto);
+  const showDniField = requireDni || contactRequired;
+  const showPhoneField = requirePhone || contactRequired;
+  const showContactBlock = showDniField || showPhoneField;
 
   useEffect(() => {
     setAnswers(initialState);
@@ -98,13 +102,13 @@ export const SurveyForm = ({
 
   useEffect(() => {
     setIdentityError(null);
-    if (!requireDni) {
+    if (!showDniField) {
       setDni('');
     }
-    if (!requirePhone) {
+    if (!showPhoneField) {
       setPhone('');
     }
-  }, [requireDni, requirePhone]);
+  }, [showDniField, showPhoneField]);
 
   useEffect(() => {
     if (!submitErrorMessage || !currentErrorKey) {
@@ -394,10 +398,15 @@ export const SurveyForm = ({
       }
     });
 
-    if (requireDni && !dni.trim()) {
+    const trimmedDni = dni.trim();
+    const trimmedPhone = phone.trim();
+
+    if (requireDni && !trimmedDni) {
       newIdentityError = 'Ingresá tu DNI para validar tu participación.';
-    } else if (requirePhone && !phone.trim()) {
+    } else if (requirePhone && !trimmedPhone) {
       newIdentityError = 'Ingresá tu teléfono para validar tu participación.';
+    } else if (contactRequired && !trimmedDni && !trimmedPhone) {
+      newIdentityError = 'Ingresá tu DNI o teléfono para validar tu participación.';
     }
 
     setErrors(newErrors);
@@ -438,6 +447,9 @@ export const SurveyForm = ({
         metadataPayload.demographics = sanitizedDemographics;
       }
 
+      const trimmedDni = dni.trim();
+      const trimmedPhone = phone.trim();
+
       const payload: PublicResponsePayload = {
         respuestas: survey.preguntas.map((pregunta) => {
           const answer = answers[pregunta.id] ?? { opcionIds: [], texto: '' };
@@ -451,18 +463,18 @@ export const SurveyForm = ({
           }
           return base;
         }),
-        dni: requireDni ? dni.trim() : undefined,
-        phone: requirePhone ? phone.trim() : undefined,
+        dni: trimmedDni ? trimmedDni : undefined,
+        phone: trimmedPhone ? trimmedPhone : undefined,
         ...defaultMetadata,
         metadata: metadataPayload,
       };
       await onSubmit(payload);
       setErrors({});
       setIdentityError(null);
-      if (requireDni) {
+      if (showDniField) {
         setDni('');
       }
-      if (requirePhone) {
+      if (showPhoneField) {
         setPhone('');
       }
       setDemographics({});
@@ -527,15 +539,19 @@ export const SurveyForm = ({
             </div>
           </Alert>
         )}
-        {(requireDni || requirePhone) && (
+        {showContactBlock && (
           <div className="rounded-lg border border-border bg-card/40 p-4 space-y-2">
             <p className="text-sm font-medium">
               Validación de participación
             </p>
             <p className="text-xs text-muted-foreground">
-              Esta encuesta requiere un dato de contacto para evitar respuestas duplicadas.
+              {requireDni
+                ? 'Ingresá tu número de documento para validar tu participación.'
+                : requirePhone
+                  ? 'Ingresá tu número de teléfono para validar tu participación.'
+                  : 'Ingresá tu número de documento o teléfono para validar tu participación.'}
             </p>
-            {requireDni && (
+            {showDniField && (
               <div className="space-y-2">
                 <Label htmlFor="survey-dni">Documento</Label>
                 <Input
@@ -547,7 +563,7 @@ export const SurveyForm = ({
                 />
               </div>
             )}
-            {requirePhone && (
+            {showPhoneField && (
               <div className="space-y-2">
                 <Label htmlFor="survey-phone">Teléfono</Label>
                 <Input

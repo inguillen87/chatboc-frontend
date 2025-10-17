@@ -107,7 +107,10 @@ const buildDraftFromSurvey = (survey?: SurveyAdmin): SurveyDraftPayload => ({
   fin_at: survey?.fin_at ?? '',
   politica_unicidad: survey?.politica_unicidad ?? 'libre',
   anonimato: survey?.anonimato ?? false,
-  requiere_datos_contacto: !(survey?.anonimato ?? false),
+  requiere_datos_contacto:
+    typeof survey?.requiere_datos_contacto === 'boolean'
+      ? survey.requiere_datos_contacto
+      : !(survey?.anonimato ?? false),
   preguntas:
     survey?.preguntas?.map((pregunta, index) => ({
       id: pregunta.id,
