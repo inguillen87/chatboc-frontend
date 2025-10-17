@@ -1,5 +1,6 @@
 import { ApiError, apiFetch } from '@/utils/api';
 import {
+  PreguntaTipo,
   PublicResponsePayload,
   SurveyAdmin,
   SurveyAnalyticsFilters,
@@ -113,6 +114,68 @@ const serializeUnknown = (value: unknown) => {
   }
 };
 
+const normalizePreguntaTipo = (value: unknown): PreguntaTipo => {
+  if (typeof value !== 'string') {
+    return 'opcion_unica';
+  }
+
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\s-]+/g, '_')
+    .replace(/[^a-z_]/g, '');
+
+  switch (normalized) {
+    case 'opcion_unica':
+    case 'opcion_simple':
+    case 'opcion':
+    case 'single':
+    case 'single_choice':
+    case 'radio':
+      return 'opcion_unica';
+    case 'multiple':
+    case 'seleccion_multiple':
+    case 'seleccionmultiple':
+    case 'multiple_choice':
+    case 'multiplechoice':
+    case 'checkbox':
+    case 'checkboxes':
+      return 'multiple';
+    case 'abierta':
+    case 'respuesta_abierta':
+    case 'texto':
+    case 'text':
+    case 'open':
+    case 'open_text':
+    case 'open_texto':
+      return 'abierta';
+    default:
+      return 'opcion_unica';
+  }
+};
+
+const normalizeSurveyPreguntas = <T extends { preguntas?: Array<{ tipo?: unknown }> }>(survey: T): T => {
+  if (!survey || !Array.isArray(survey.preguntas)) {
+    return survey;
+  }
+
+  return {
+    ...survey,
+    preguntas: survey.preguntas.map((pregunta) => {
+      if (!pregunta || typeof pregunta !== 'object') {
+        return pregunta;
+      }
+
+      return {
+        ...pregunta,
+        tipo: normalizePreguntaTipo((pregunta as { tipo?: unknown }).tipo),
+      };
+    }) as T['preguntas'],
+  };
+};
+
 export type PublicSurveyListResult = SurveyPublic[] & {
   __badPayload?: true;
   __raw?: string;
@@ -182,7 +245,7 @@ export const getPublicSurvey = async (slug: string): Promise<SurveyPublic> => {
     throw new Error('El servidor devolvió un formato inesperado para la encuesta solicitada.');
   }
 
-  return response as SurveyPublic;
+  return normalizeSurveyPreguntas(response as SurveyPublic);
 };
 
 const FALLBACK_SURVEY_URL_REGEX = /https?:\/\/[\S]+\/e\/([a-z0-9-]+)/gi;
@@ -404,33 +467,49 @@ const normalizeSurveyListResponse = (payload: unknown): SurveyListResponse => {
 
 export const adminListSurveys = async (params?: QueryParams): Promise<SurveyListResponse> => {
   const rawResponse = await callAdminSurveyEndpoint<SurveyListResponse | SurveyAdmin[]>(buildQueryString(params));
-  return normalizeSurveyListResponse(rawResponse);
+  const normalized = normalizeSurveyListResponse(rawResponse);
+  if (!Array.isArray(normalized.data)) {
+    return normalized;
+  }
+
+  return {
+    ...normalized,
+    data: normalized.data.map((survey) => normalizeSurveyPreguntas(survey)),
+  };
 };
 
-export const adminCreateSurvey = (payload: SurveyDraftPayload): Promise<SurveyAdmin> =>
-  callAdminSurveyEndpoint('', {
+export const adminCreateSurvey = async (payload: SurveyDraftPayload): Promise<SurveyAdmin> => {
+  const survey = await callAdminSurveyEndpoint<SurveyAdmin>('', {
     method: 'POST',
     body: payload,
   });
+  return normalizeSurveyPreguntas(survey);
+};
 
-export const adminUpdateSurvey = (id: number, payload: SurveyDraftPayload): Promise<SurveyAdmin> =>
-  callAdminSurveyEndpoint(`${id}`, {
+export const adminUpdateSurvey = async (id: number, payload: SurveyDraftPayload): Promise<SurveyAdmin> => {
+  const survey = await callAdminSurveyEndpoint<SurveyAdmin>(`${id}`, {
     method: 'PUT',
     body: payload,
   });
+  return normalizeSurveyPreguntas(survey);
+};
 
 export const adminDeleteSurvey = (id: number): Promise<void> =>
   callAdminSurveyEndpoint(`${id}`, {
     method: 'DELETE',
   });
 
-export const adminGetSurvey = (id: number): Promise<SurveyAdmin> =>
-  callAdminSurveyEndpoint(`${id}`);
+export const adminGetSurvey = async (id: number): Promise<SurveyAdmin> => {
+  const survey = await callAdminSurveyEndpoint<SurveyAdmin>(`${id}`);
+  return normalizeSurveyPreguntas(survey);
+};
 
-export const adminPublishSurvey = (id: number): Promise<SurveyAdmin> =>
-  callAdminSurveyEndpoint(`${id}/publicar`, {
+export const adminPublishSurvey = async (id: number): Promise<SurveyAdmin> => {
+  const survey = await callAdminSurveyEndpoint<SurveyAdmin>(`${id}/publicar`, {
     method: 'POST',
   });
+  return normalizeSurveyPreguntas(survey);
+};
 
 export const getSummary = (id: number, filtros?: SurveyAnalyticsFilters): Promise<SurveySummary> =>
   callAdminSurveyEndpoint(`${id}/analytics/resumen${buildQueryString(filtros)}`);
