@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
 import { CalendarDays, Copy, Download, Loader2 } from 'lucide-react';
 
@@ -13,6 +14,7 @@ import { useSurveyAdmin } from '@/hooks/useSurveyAdmin';
 import { useSurveyAnalytics } from '@/hooks/useSurveyAnalytics';
 import { useAnchor } from '@/hooks/useAnchor';
 import { useSurveyResponses } from '@/hooks/useSurveyResponses';
+import { useSurveySeedResponses } from '@/hooks/useSurveySeedResponses';
 import { toast } from '@/components/ui/use-toast';
 import { getAbsolutePublicSurveyUrl, getPublicSurveyQrUrl } from '@/utils/publicSurveyUrl';
 import { Label } from '@/components/ui/label';
@@ -23,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { getErrorMessage } from '@/utils/api';
 
 const formatDateLabel = (value?: string | null) => {
   if (!value) return null;
@@ -46,6 +49,8 @@ const SurveyAnalyticsPage = () => {
     error: responsesError,
     refetch: refetchResponses,
   } = useSurveyResponses(surveyId ?? undefined);
+  const queryClient = useQueryClient();
+  const { seed: seedSurveyResponses, isSeeding } = useSurveySeedResponses();
 
   const publicUrl = useMemo(
     () => (survey?.slug ? getAbsolutePublicSurveyUrl(survey.slug) : null),
@@ -226,6 +231,36 @@ const SurveyAnalyticsPage = () => {
     }
   };
 
+  const handleSeedDemoResponses = async () => {
+    if (!survey) return;
+    try {
+      const result = await seedSurveyResponses({ survey, count: 100 });
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['survey-analytics-summary', survey.id] }),
+        queryClient.invalidateQueries({ queryKey: ['survey-analytics-timeseries', survey.id] }),
+        queryClient.invalidateQueries({ queryKey: ['survey-analytics-heatmap', survey.id] }),
+        queryClient.invalidateQueries({ queryKey: ['survey-responses', survey.id] }),
+      ]);
+
+      void refetchResponses();
+
+      toast({
+        title: 'Respuestas demo generadas',
+        description:
+          result.failures > 0
+            ? `Registramos ${result.success} de ${result.total} respuestas. ${result.failures} intentos fallaron.`
+            : `Registramos ${result.success} respuestas de demostración.`,
+      });
+    } catch (error) {
+      toast({
+        title: 'No se pudieron generar respuestas demo',
+        description: getErrorMessage(error, 'Intentá nuevamente en unos minutos.'),
+        variant: 'destructive',
+      });
+    }
+  };
+
   if (isLoadingSurvey || isLoading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
@@ -367,8 +402,30 @@ const SurveyAnalyticsPage = () => {
       </Card>
       <Card>
         <CardHeader>
-          <CardTitle>Analítica de {survey.titulo}</CardTitle>
-          <CardDescription>Explorá la evolución de las respuestas, canales de difusión y trazabilidad pública.</CardDescription>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="space-y-1">
+              <CardTitle>Analítica de {survey.titulo}</CardTitle>
+              <CardDescription>
+                Explorá la evolución de las respuestas, canales de difusión y trazabilidad pública.
+              </CardDescription>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => {
+                void handleSeedDemoResponses();
+              }}
+              disabled={isSeeding || !survey.slug}
+              className="inline-flex items-center gap-2"
+            >
+              {isSeeding ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" /> Generando respuestas…
+                </>
+              ) : (
+                'Inyectar 100 respuestas demo'
+              )}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <SurveyAnalytics
