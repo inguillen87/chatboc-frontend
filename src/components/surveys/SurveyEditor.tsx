@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import { Reorder } from 'framer-motion';
 import { CalendarDays, Copy, GripVertical, Plus, Trash2, UploadCloud } from 'lucide-react';
 
@@ -103,8 +103,8 @@ const buildDraftFromSurvey = (survey?: SurveyAdmin): SurveyDraftPayload => ({
   slug: survey?.slug ?? '',
   descripcion: survey?.descripcion ?? '',
   tipo: survey?.tipo ?? 'opinion',
-  inicio_at: survey?.inicio_at ?? '',
-  fin_at: survey?.fin_at ?? '',
+  inicio_at: survey?.inicio_at ?? null,
+  fin_at: survey?.fin_at ?? null,
   politica_unicidad: survey?.politica_unicidad ?? 'libre',
   anonimato: survey?.anonimato ?? false,
   requiere_datos_contacto:
@@ -155,8 +155,8 @@ const fallbackDraft: SurveyDraftPayload = {
   slug: '',
   descripcion: '',
   tipo: 'opinion',
-  inicio_at: '',
-  fin_at: '',
+  inicio_at: null,
+  fin_at: null,
   politica_unicidad: 'libre',
   anonimato: false,
   requiere_datos_contacto: false,
@@ -272,8 +272,44 @@ export const SurveyEditor = ({
     );
   };
 
+  const normalizeDateValue = (value?: string | null) => {
+    if (!value) return null;
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const parsed = new Date(trimmed);
+    if (Number.isNaN(parsed.getTime())) {
+      return trimmed;
+    }
+    return parsed.toISOString();
+  };
+
+  const formatDateInputValue = (value?: string | null) => {
+    if (!value) return '';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      return '';
+    }
+    const year = parsed.getFullYear();
+    const month = String(parsed.getMonth() + 1).padStart(2, '0');
+    const day = String(parsed.getDate()).padStart(2, '0');
+    const hours = String(parsed.getHours()).padStart(2, '0');
+    const minutes = String(parsed.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
+
+  const handleDateChange = (key: 'inicio_at' | 'fin_at') => (event: ChangeEvent<HTMLInputElement>) => {
+    const { value } = event.target;
+    setFormValues((prev) => ({
+      ...prev,
+      [key]: value ? new Date(value).toISOString() : null,
+    }));
+  };
+
   const preparedPayload = useMemo<SurveyDraftPayload>(() => ({
     ...formValues,
+    slug: formValues.slug?.trim() || undefined,
+    inicio_at: normalizeDateValue(formValues.inicio_at),
+    fin_at: normalizeDateValue(formValues.fin_at),
     preguntas: questions.map((question, index) => ({
       id: question.id,
       orden: index + 1,
@@ -407,8 +443,8 @@ export const SurveyEditor = ({
             <Input
               id="inicio-at"
               type="datetime-local"
-              value={formValues.inicio_at?.slice(0, 16) ?? ''}
-              onChange={(event) => setFormValues((prev) => ({ ...prev, inicio_at: event.target.value }))}
+              value={formatDateInputValue(formValues.inicio_at)}
+              onChange={handleDateChange('inicio_at')}
             />
           </div>
           <div className="space-y-2">
@@ -416,8 +452,8 @@ export const SurveyEditor = ({
             <Input
               id="fin-at"
               type="datetime-local"
-              value={formValues.fin_at?.slice(0, 16) ?? ''}
-              onChange={(event) => setFormValues((prev) => ({ ...prev, fin_at: event.target.value }))}
+              value={formatDateInputValue(formValues.fin_at)}
+              onChange={handleDateChange('fin_at')}
             />
           </div>
           <div className="space-y-2">

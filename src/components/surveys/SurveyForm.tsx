@@ -400,12 +400,14 @@ export const SurveyForm = ({
 
     const trimmedDni = dni.trim();
     const trimmedPhone = phone.trim();
+    const normalizedDni = trimmedDni.replace(/\D+/g, '');
+    const normalizedPhone = trimmedPhone.replace(/\D+/g, '');
 
-    if (requireDni && !trimmedDni) {
+    if (requireDni && !normalizedDni) {
       newIdentityError = 'Ingresá tu DNI para validar tu participación.';
-    } else if (requirePhone && !trimmedPhone) {
+    } else if (requirePhone && !normalizedPhone) {
       newIdentityError = 'Ingresá tu teléfono para validar tu participación.';
-    } else if (contactRequired && !trimmedDni && !trimmedPhone) {
+    } else if (contactRequired && !normalizedDni && !normalizedPhone) {
       newIdentityError = 'Ingresá tu DNI o teléfono para validar tu participación.';
     }
 
@@ -449,6 +451,8 @@ export const SurveyForm = ({
 
       const trimmedDni = dni.trim();
       const trimmedPhone = phone.trim();
+      const normalizedDni = trimmedDni.replace(/\D+/g, '');
+      const normalizedPhone = trimmedPhone.replace(/\D+/g, '');
 
       const respuestas = survey.preguntas.reduce<PublicResponsePayload['respuestas']>((acc, pregunta) => {
         const answer = answers[pregunta.id] ?? { opcionIds: [], texto: '' };
@@ -498,8 +502,8 @@ export const SurveyForm = ({
 
       const payload: PublicResponsePayload = {
         respuestas,
-        dni: trimmedDni ? trimmedDni : undefined,
-        phone: trimmedPhone ? trimmedPhone : undefined,
+        dni: normalizedDni ? normalizedDni : undefined,
+        phone: normalizedPhone ? normalizedPhone : undefined,
         ...defaultMetadata,
         metadata: metadataPayload,
       };
