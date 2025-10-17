@@ -450,19 +450,54 @@ export const SurveyForm = ({
       const trimmedDni = dni.trim();
       const trimmedPhone = phone.trim();
 
-      const payload: PublicResponsePayload = {
-        respuestas: survey.preguntas.map((pregunta) => {
-          const answer = answers[pregunta.id] ?? { opcionIds: [], texto: '' };
-          const base = { pregunta_id: pregunta.id } as PublicResponsePayload['respuestas'][number];
-          if (pregunta.tipo === 'abierta') {
-            base.texto_libre = answer.texto?.trim() || '';
-          } else if (pregunta.tipo === 'multiple') {
-            base.opcion_ids = answer.opcionIds ?? [];
-          } else {
-            base.opcion_ids = answer.opcionIds.slice(0, 1);
+      const respuestas = survey.preguntas.reduce<PublicResponsePayload['respuestas']>((acc, pregunta) => {
+        const answer = answers[pregunta.id] ?? { opcionIds: [], texto: '' };
+        const base = { pregunta_id: pregunta.id } as PublicResponsePayload['respuestas'][number];
+
+        if (pregunta.tipo === 'abierta') {
+          const textoLibre = answer.texto?.trim();
+
+          if (!textoLibre) {
+            if (pregunta.obligatoria) {
+              base.texto_libre = '';
+              acc.push(base);
+            }
+            return acc;
           }
-          return base;
-        }),
+
+          base.texto_libre = textoLibre;
+          acc.push(base);
+          return acc;
+        }
+
+        const selectedIds = Array.isArray(answer.opcionIds)
+          ? Array.from(new Set(answer.opcionIds.filter((id) => typeof id === 'number')))
+          : [];
+
+        if (!selectedIds.length) {
+          if (pregunta.obligatoria) {
+            base.opcion_ids = [];
+            acc.push(base);
+          }
+          return acc;
+        }
+
+        base.opcion_ids = pregunta.tipo === 'multiple' ? selectedIds : selectedIds.slice(0, 1);
+        acc.push(base);
+        return acc;
+      }, []);
+
+      if (!respuestas.length) {
+        setSubmitting(false);
+        setSubmissionErrorTitle('No pudimos enviar tu respuesta');
+        setSubmissionErrorDetails('Seleccioná al menos una opción o completá una respuesta antes de enviar.');
+        return;
+      }
+
+      metadataPayload.answeredQuestions = respuestas.length;
+
+      const payload: PublicResponsePayload = {
+        respuestas,
         dni: trimmedDni ? trimmedDni : undefined,
         phone: trimmedPhone ? trimmedPhone : undefined,
         ...defaultMetadata,
