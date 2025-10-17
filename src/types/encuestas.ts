@@ -45,6 +45,7 @@ export interface SurveyPublic {
   inicio_at: string;
   fin_at: string;
   politica_unicidad: 'por_dni' | 'por_phone' | 'por_ip' | 'por_cookie' | 'libre';
+  requiere_datos_contacto?: boolean;
   preguntas: SurveyPregunta[];
   portada_url?: string | null;
   imagen_portada?: string | null;
