@@ -117,7 +117,8 @@ const BASE_SCENARIO: SurveySeedScenario = {
   ],
   ageRanges: [
     { value: '18-29', weight: 2.2 },
-    { value: '30-44', weight: 3 },\n    { value: '45-59', weight: 2.4 },
+    { value: '30-44', weight: 3 },
+    { value: '45-59', weight: 2.4 },
     { value: '60+', weight: 1.6 },
   ],
   education: [
