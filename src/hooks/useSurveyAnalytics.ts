@@ -10,10 +10,20 @@ import {
 import type {
   SurveyAnalyticsFilters,
   SurveyHeatmapPoint,
+  SurveyPublic,
+  SurveyAdmin,
   SurveySummary,
   SurveyTimeseriesPoint,
 } from '@/types/encuestas';
 import { getErrorMessage } from '@/utils/api';
+import {
+  buildSurveyDemoAnalyticsFromDataset,
+  generateSurveyDemoDataset,
+  mergeSurveyAnalytics,
+  pickHeatmap,
+  pickTimeseries,
+  type SurveyDemoDataset,
+} from '@/utils/surveyAnalyticsFallback';
 
 interface UseSurveyAnalyticsResult {
   summary?: SurveySummary;
@@ -31,14 +41,24 @@ const normalizeFilters = (filters: SurveyAnalyticsFilters): SurveyAnalyticsFilte
   ...filters,
 });
 
+interface UseSurveyAnalyticsOptions {
+  fallbackSurvey?: SurveyPublic | SurveyAdmin | null;
+  fallbackCount?: number;
+  fallbackScenario?: string | null;
+}
+
 export function useSurveyAnalytics(
   id?: number | null,
   initialFilters: SurveyAnalyticsFilters = {},
+  options: UseSurveyAnalyticsOptions = {},
 ): UseSurveyAnalyticsResult {
   const [filters, setFiltersState] = useState<SurveyAnalyticsFilters>(normalizeFilters(initialFilters));
   const queryClient = useQueryClient();
   const normalizedId = useMemo(() => (typeof id === 'number' ? id : null), [id]);
   const normalizedFilters = useMemo(() => normalizeFilters(filters), [filters]);
+  const fallbackSurvey = options.fallbackSurvey ?? null;
+  const fallbackCount = options.fallbackCount;
+  const fallbackScenario = options.fallbackScenario ?? null;
 
   const [summaryQuery, timeseriesQuery, heatmapQuery] = useQueries({
     queries: [
@@ -73,19 +93,66 @@ export function useSurveyAnalytics(
     },
   });
 
+  const fallbackDataset = useMemo<SurveyDemoDataset | null>(() => {
+    if (!fallbackSurvey) return null;
+    try {
+      return generateSurveyDemoDataset(fallbackSurvey, {
+        count: fallbackCount,
+        scenario: fallbackScenario,
+      });
+    } catch (error) {
+      console.error('[surveyAnalytics] No se pudo generar el dataset demo', error);
+      return null;
+    }
+  }, [fallbackSurvey, fallbackCount, fallbackScenario]);
+
+  const fallbackAnalytics = useMemo(() => {
+    if (!fallbackSurvey || !fallbackDataset) return null;
+    try {
+      return buildSurveyDemoAnalyticsFromDataset(fallbackSurvey, fallbackDataset, normalizedFilters);
+    } catch (error) {
+      console.error('[surveyAnalytics] No se pudo construir la analítica demo', error);
+      return null;
+    }
+  }, [fallbackSurvey, fallbackDataset, normalizedFilters]);
+
+  const summaryData = useMemo(
+    () => mergeSurveyAnalytics(summaryQuery.data, fallbackAnalytics?.summary),
+    [summaryQuery.data, fallbackAnalytics?.summary],
+  );
+
+  const timeseriesData = useMemo(
+    () => pickTimeseries(timeseriesQuery.data, fallbackAnalytics?.timeseries),
+    [timeseriesQuery.data, fallbackAnalytics?.timeseries],
+  );
+
+  const heatmapData = useMemo(
+    () => pickHeatmap(heatmapQuery.data, fallbackAnalytics?.heatmap),
+    [heatmapQuery.data, fallbackAnalytics?.heatmap],
+  );
+
+  const baseError = summaryQuery.error
+    ? getErrorMessage(summaryQuery.error)
+    : timeseriesQuery.error
+      ? getErrorMessage(timeseriesQuery.error)
+      : heatmapQuery.error
+        ? getErrorMessage(heatmapQuery.error)
+        : null;
+
+  const effectiveError = useMemo(() => {
+    if (!baseError) return null;
+    if (summaryData && summaryData.total_respuestas > 0) return null;
+    if (timeseriesData && timeseriesData.length > 0) return null;
+    if (heatmapData && heatmapData.length > 0) return null;
+    return baseError;
+  }, [baseError, summaryData, timeseriesData, heatmapData]);
+
   return {
-    summary: summaryQuery.data,
-    timeseries: timeseriesQuery.data,
-    heatmap: heatmapQuery.data,
+    summary: summaryData ?? undefined,
+    timeseries: timeseriesData,
+    heatmap: heatmapData,
     isLoading: summaryQuery.isLoading || timeseriesQuery.isLoading || heatmapQuery.isLoading,
-    error:
-      summaryQuery.error
-        ? getErrorMessage(summaryQuery.error)
-        : timeseriesQuery.error
-          ? getErrorMessage(timeseriesQuery.error)
-          : heatmapQuery.error
-            ? getErrorMessage(heatmapQuery.error)
-            : null,
+    error: effectiveError,
     filters: normalizedFilters,
     setFilters: (next: SurveyAnalyticsFilters) => setFiltersState(normalizeFilters(next)),
     exportCsv: async () => exportMutation.mutateAsync(),
