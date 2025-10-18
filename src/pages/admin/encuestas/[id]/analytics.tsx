@@ -38,8 +38,17 @@ const SurveyAnalyticsPage = () => {
   const params = useParams();
   const surveyId = useMemo(() => (params.id ? Number(params.id) : null), [params.id]);
   const { survey, isLoadingSurvey, surveyError } = useSurveyAdmin({ id: surveyId ?? undefined });
-  const { summary, timeseries, heatmap, isLoading, exportCsv, isExporting, filters, setFilters } =
-    useSurveyAnalytics(surveyId ?? undefined, {}, { fallbackSurvey: survey ?? null, fallbackCount: 100 });
+  const {
+    summary,
+    timeseries,
+    heatmap,
+    isLoading,
+    exportCsv,
+    isExporting,
+    filters,
+    setFilters,
+    error: analyticsError,
+  } = useSurveyAnalytics(surveyId ?? undefined, {}, { fallbackSurvey: survey ?? null, fallbackCount: 100 });
   const { snapshots, isLoading: loadingSnapshots, create, publish, verify, isCreating, isPublishing, isVerifying } =
     useAnchor(surveyId ?? undefined);
   const {
@@ -428,6 +437,11 @@ const SurveyAnalyticsPage = () => {
           </div>
         </CardHeader>
         <CardContent>
+          {analyticsError && !isLoading ? (
+            <p className="mb-4 text-sm text-destructive">
+              {analyticsError}
+            </p>
+          ) : null}
           <SurveyAnalytics
             summary={summary}
             timeseries={timeseries}

@@ -7,6 +7,7 @@ import {
   getSummary,
   getTimeseries,
 } from '@/api/encuestas';
+import { ENABLE_SURVEY_ANALYTICS_FALLBACK } from '@/config';
 import type {
   SurveyAnalyticsFilters,
   SurveyHeatmapPoint,
@@ -56,9 +57,10 @@ export function useSurveyAnalytics(
   const queryClient = useQueryClient();
   const normalizedId = useMemo(() => (typeof id === 'number' ? id : null), [id]);
   const normalizedFilters = useMemo(() => normalizeFilters(filters), [filters]);
-  const fallbackSurvey = options.fallbackSurvey ?? null;
-  const fallbackCount = options.fallbackCount;
-  const fallbackScenario = options.fallbackScenario ?? null;
+  const allowFallback = ENABLE_SURVEY_ANALYTICS_FALLBACK;
+  const fallbackSurvey = allowFallback ? options.fallbackSurvey ?? null : null;
+  const fallbackCount = allowFallback ? options.fallbackCount : undefined;
+  const fallbackScenario = allowFallback ? options.fallbackScenario ?? null : null;
 
   const [summaryQuery, timeseriesQuery, heatmapQuery] = useQueries({
     queries: [

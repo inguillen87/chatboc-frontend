@@ -361,15 +361,30 @@ export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExpo
   const utmBreakdown = useMemo(() => normalizeUtmBreakdown(summary?.utms), [summary?.utms]);
 
   const completionRateLabel = useMemo(() => {
-    if (typeof summary?.tasa_completitud !== 'number') {
+    if (summary?.tasa_completitud === undefined || summary?.tasa_completitud === null) {
       return '—';
     }
-    const normalized = Number.isFinite(summary.tasa_completitud)
+
+    let normalized = Number.isFinite(summary.tasa_completitud)
       ? summary.tasa_completitud
       : Number(summary.tasa_completitud);
+
     if (!Number.isFinite(normalized)) {
       return '—';
     }
+
+    if (normalized > 1 && normalized <= 100) {
+      normalized /= 100;
+    }
+
+    if (normalized > 100) {
+      normalized = 1;
+    }
+
+    if (normalized < 0) {
+      normalized = 0;
+    }
+
     return `${(normalized * 100).toFixed(1)}%`;
   }, [summary?.tasa_completitud]);
 

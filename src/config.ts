@@ -6,12 +6,28 @@ const VITE_BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 const IS_DEV = import.meta.env.DEV;
 const VITE_DEFAULT_ENTITY_TOKEN = import.meta.env.VITE_DEFAULT_ENTITY_TOKEN;
 const VITE_PUBLIC_SURVEY_BASE_URL = import.meta.env.VITE_PUBLIC_SURVEY_BASE_URL;
+const VITE_ENABLE_SURVEY_ANALYTICS_FALLBACK = import.meta.env.VITE_ENABLE_SURVEY_ANALYTICS_FALLBACK;
 
 const sanitizeBaseUrl = (value?: string) => {
   if (typeof value !== 'string') return '';
   const trimmed = value.trim();
   if (!trimmed) return '';
   return trimmed.replace(/\/$/, '');
+};
+
+const parseBooleanFlag = (value?: string | boolean | null | undefined): boolean | null => {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) return null;
+    if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
+    if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
+  }
+
+  return null;
 };
 
 const CANONICAL_PUBLIC_SURVEY_HOST = 'www.chatboc.ar';
@@ -98,3 +114,31 @@ const FALLBACK_PUBLIC_SURVEY_BASE_URL = (() => {
 
 export const PUBLIC_SURVEY_BASE_URL =
   normalizeSurveyBaseUrl(VITE_PUBLIC_SURVEY_BASE_URL) || FALLBACK_PUBLIC_SURVEY_BASE_URL;
+
+const analyticsFallbackPreference = (() => {
+  const fromEnv = parseBooleanFlag(VITE_ENABLE_SURVEY_ANALYTICS_FALLBACK);
+  if (fromEnv !== null) {
+    return fromEnv;
+  }
+
+  if (typeof window !== 'undefined') {
+    try {
+      const fromStorage = parseBooleanFlag(window.localStorage?.getItem('CHATBOC_ENABLE_SURVEY_ANALYTICS_FALLBACK'));
+      if (fromStorage !== null) {
+        return fromStorage;
+      }
+    } catch {
+      // Access to localStorage can fail in private contexts. Ignore and fallback to defaults.
+    }
+
+    const fromGlobal = parseBooleanFlag((window as any)?.CHATBOC_ENABLE_SURVEY_ANALYTICS_FALLBACK);
+    if (fromGlobal !== null) {
+      return fromGlobal;
+    }
+  }
+
+  return null;
+})();
+
+export const ENABLE_SURVEY_ANALYTICS_FALLBACK =
+  analyticsFallbackPreference !== null ? analyticsFallbackPreference : IS_DEV;
