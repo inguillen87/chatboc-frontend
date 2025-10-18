@@ -39,7 +39,7 @@ const SurveyAnalyticsPage = () => {
   const surveyId = useMemo(() => (params.id ? Number(params.id) : null), [params.id]);
   const { survey, isLoadingSurvey, surveyError } = useSurveyAdmin({ id: surveyId ?? undefined });
   const { summary, timeseries, heatmap, isLoading, exportCsv, isExporting, filters, setFilters } =
-    useSurveyAnalytics(surveyId ?? undefined);
+    useSurveyAnalytics(surveyId ?? undefined, {}, { fallbackSurvey: survey ?? null, fallbackCount: 100 });
   const { snapshots, isLoading: loadingSnapshots, create, publish, verify, isCreating, isPublishing, isVerifying } =
     useAnchor(surveyId ?? undefined);
   const {
