@@ -458,7 +458,7 @@ export const pickTimeseries = (
   primary: SurveyTimeseriesPoint[] | undefined,
   fallback: SurveyTimeseriesPoint[] | undefined,
 ): SurveyTimeseriesPoint[] | undefined => {
-  if (primary && primary.length) return primary;
+  if (primary) return primary;
   return fallback;
 };
 
@@ -466,6 +466,6 @@ export const pickHeatmap = (
   primary: SurveyHeatmapPoint[] | undefined,
   fallback: SurveyHeatmapPoint[] | undefined,
 ): SurveyHeatmapPoint[] | undefined => {
-  if (primary && primary.length) return primary;
+  if (primary) return primary;
   return fallback;
 };
