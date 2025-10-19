@@ -8,6 +8,8 @@ import type {
   PointsResponse,
 } from '@/services/analyticsService';
 import { WidgetFrame } from './WidgetFrame';
+import { useMapProvider } from '@/hooks/useMapProvider';
+import { MapProviderToggle } from '@/components/MapProviderToggle';
 
 interface MapWidgetProps {
   title: string;
@@ -32,6 +34,7 @@ export function MapWidget({
 }: MapWidgetProps) {
   const [mode, setMode] = useState<Mode>('heatmap');
   const [lastBbox, setLastBbox] = useState<[number, number, number, number] | null>(null);
+  const { provider, setProvider } = useMapProvider();
 
   const dataset = useMemo(() => {
     if (!heatmap) return [];
@@ -105,21 +108,29 @@ export function MapWidget({
       csvData={csv}
       exportFilename={exportName}
       actions={
-        <div className="flex items-center gap-2">
-          <Button
-            variant={mode === 'heatmap' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setMode('heatmap')}
-          >
-            Calor
-          </Button>
-          <Button
-            variant={mode === 'puntos' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setMode('puntos')}
-          >
-            Puntos
-          </Button>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-col items-start gap-1">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Mapa
+            </span>
+            <MapProviderToggle value={provider} onChange={setProvider} size="sm" />
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant={mode === 'heatmap' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setMode('heatmap')}
+            >
+              Calor
+            </Button>
+            <Button
+              variant={mode === 'puntos' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setMode('puntos')}
+            >
+              Puntos
+            </Button>
+          </div>
         </div>
       }
     >
@@ -134,6 +145,7 @@ export function MapWidget({
             heatmapData={dataset}
             showHeatmap={mode === 'heatmap'}
             onBoundingBoxChange={handleBbox}
+            provider={provider}
           />
         )}
         <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">

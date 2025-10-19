@@ -19,6 +19,8 @@ import MapLibreMap from '@/components/MapLibreMap';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { MapProviderToggle } from '@/components/MapProviderToggle';
+import { useMapProvider } from '@/hooks/useMapProvider';
 import type {
   SurveyDemographicBreakdownItem,
   SurveyHeatmapPoint,
@@ -422,6 +424,7 @@ export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExpo
       })),
     [heatmapPoints],
   );
+  const { provider, setProvider } = useMapProvider();
   const heatmapCenter = useMemo(() => {
     if (!heatmapData.length) return undefined;
     const totalWeight = heatmapData.reduce((sum, point) => sum + (point.weight ?? 1), 0);
@@ -802,9 +805,17 @@ export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExpo
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Mapa de participación</CardTitle>
-          <CardDescription>Ubicaciones aproximadas de las respuestas recibidas.</CardDescription>
+        <CardHeader className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+          <div>
+            <CardTitle>Mapa de participación</CardTitle>
+            <CardDescription>Ubicaciones aproximadas de las respuestas recibidas.</CardDescription>
+          </div>
+          <div className="flex flex-col items-start gap-1 md:items-end">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Proveedor de mapa
+            </span>
+            <MapProviderToggle value={provider} onChange={setProvider} size="sm" />
+          </div>
         </CardHeader>
         <CardContent className="h-[420px]">
           {heatmapData.length ? (
@@ -814,6 +825,7 @@ export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExpo
               heatmapData={heatmapData}
               fitToBounds={heatmapBounds.length ? heatmapBounds : undefined}
               initialZoom={heatmapBounds.length ? 12 : 4}
+              provider={provider}
             />
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">

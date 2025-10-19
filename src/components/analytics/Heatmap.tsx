@@ -5,6 +5,8 @@ import { Label } from '@/components/ui/label';
 import MapLibreMap from '@/components/MapLibreMap';
 import { HeatPoint } from '@/services/statsService';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { useMapProvider } from '@/hooks/useMapProvider';
+import { MapProviderToggle } from '@/components/MapProviderToggle';
 
 interface HeatmapProps {
   initialHeatmapData: HeatPoint[];
@@ -26,6 +28,7 @@ export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedBarrios, setSelectedBarrios] = useState<string[]>([]);
   const [selectedTipos, setSelectedTipos] = useState<string[]>([]);
+  const { provider, setProvider } = useMapProvider();
 
   const heatmapData = useMemo(() => {
     return initialHeatmapData.filter(
@@ -198,10 +201,16 @@ export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({
 
   return (
     <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm">
-      <CardHeader>
+      <CardHeader className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
         <CardTitle className="text-xl font-semibold text-primary">
           Ubicación y Mapa de Calor de Actividad
         </CardTitle>
+        <div className="flex flex-col items-start gap-1 md:items-end">
+          <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Proveedor de mapa
+          </span>
+          <MapProviderToggle value={provider} onChange={setProvider} size="sm" />
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border-b border-border">
@@ -259,6 +268,7 @@ export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({
           onSelect={onSelect}
           className="h-[600px] rounded-lg"
           fitToBounds={boundsCoordinates.length > 0 ? boundsCoordinates : undefined}
+          provider={provider}
         />
         {heatmapData.length === 0 && (
           <Alert variant="default" className="border-border/60 border-dashed bg-muted/40">

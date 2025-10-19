@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { HeatPoint } from "@/services/statsService";
 import type { Map, LngLatLike } from "maplibre-gl";
+import { GoogleHeatmapMap } from "@/components/GoogleHeatmapMap";
 
 type Props = {
   center?: [number, number]; // [lon, lat]
@@ -16,7 +17,6 @@ type Props = {
   adminLocation?: [number, number];
   fitToBounds?: [number, number][];
   boundsPadding?: number | { top?: number; bottom?: number; left?: number; right?: number };
-  fallbackEnabled?: boolean;
   onBoundingBoxChange?: (bbox: [number, number, number, number] | null) => void;
 };
 
@@ -115,9 +115,26 @@ export default function MapLibreMap({
   adminLocation,
   fitToBounds,
   boundsPadding,
-  fallbackEnabled = true,
   onBoundingBoxChange,
 }: Props) {
+  if (provider === "google") {
+    return (
+      <GoogleHeatmapMap
+        center={center}
+        initialZoom={initialZoom}
+        onSelect={onSelect}
+        heatmapData={heatmapData}
+        showHeatmap={showHeatmap}
+        marker={marker}
+        className={className}
+        adminLocation={adminLocation}
+        fitToBounds={fitToBounds}
+        boundsPadding={boundsPadding}
+        onBoundingBoxChange={onBoundingBoxChange}
+      />
+    );
+  }
+
   const [mapError, setMapError] = useState<string | null>(null);
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<Map | null>(null);
@@ -162,78 +179,8 @@ export default function MapLibreMap({
     boundingBoxCallbackRef.current = onBoundingBoxChange;
   }, [onBoundingBoxChange]);
 
-  const shouldRenderGoogle = useMemo(
-    () => fallbackEnabled !== false && provider === "google",
-    [provider, fallbackEnabled],
-  );
-
-  const fallbackQuery = useMemo(() => {
-    if (center && !Number.isNaN(center[0]) && !Number.isNaN(center[1])) {
-      return `${center[1]},${center[0]}`;
-    }
-    if (marker && !Number.isNaN(marker[0]) && !Number.isNaN(marker[1])) {
-      return `${marker[1]},${marker[0]}`;
-    }
-    if (adminLocation && !Number.isNaN(adminLocation[0]) && !Number.isNaN(adminLocation[1])) {
-      return `${adminLocation[1]},${adminLocation[0]}`;
-    }
-    if (heatmapData.length > 0) {
-      const totalWeight = heatmapData.reduce((sum, p) => sum + (p.weight ?? 1), 0);
-      const divisor = totalWeight > 0 ? totalWeight : heatmapData.length;
-      const avgLat = heatmapData.reduce((sum, p) => sum + p.lat * (p.weight ?? 1), 0) / divisor;
-      const avgLng = heatmapData.reduce((sum, p) => sum + p.lng * (p.weight ?? 1), 0) / divisor;
-      if (!Number.isNaN(avgLat) && !Number.isNaN(avgLng)) {
-        return `${avgLat},${avgLng}`;
-      }
-    }
-    if (fitToBounds?.length) {
-      const [lng, lat] = fitToBounds[0];
-      if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
-        return `${lat},${lng}`;
-      }
-    }
-    return "Argentina";
-  }, [adminLocation, center, heatmapData, marker, fitToBounds]);
-
   useEffect(() => {
-    if (!shouldRenderGoogle) {
-      return;
-    }
-
-    if (mapRef.current) {
-      mapRef.current.remove();
-      mapRef.current = null;
-    }
-
-    if (markerRef.current) {
-      markerRef.current.remove();
-      markerRef.current = null;
-    }
-
-    if (adminMarkerRef.current) {
-      adminMarkerRef.current.remove();
-      adminMarkerRef.current = null;
-    }
-  }, [shouldRenderGoogle]);
-
-  useEffect(() => {
-    if (provider === "maplibre") {
-      return;
-    }
-
     setMapError(null);
-    if (mapRef.current) {
-      mapRef.current.remove();
-      mapRef.current = null;
-    }
-    if (markerRef.current) {
-      markerRef.current.remove();
-      markerRef.current = null;
-    }
-    if (adminMarkerRef.current) {
-      adminMarkerRef.current.remove();
-      adminMarkerRef.current = null;
-    }
   }, [provider]);
 
   useEffect(() => {
@@ -694,35 +641,10 @@ export default function MapLibreMap({
     !className && "h-[500px]",
   );
 
-  const mapContainerClass = cn(
-    "absolute inset-0",
-    shouldRenderGoogle && "hidden",
-  );
-
-  const googleUrl = `https://maps.google.com/maps?q=${encodeURIComponent(
-    fallbackQuery,
-  )}&z=${initialZoom}&output=embed`;
-
   return (
     <div className={containerClassName}>
-      <div ref={mapContainerRef} className={mapContainerClass} />
-      {shouldRenderGoogle && (
-        <>
-          <iframe
-            src={googleUrl}
-            className="absolute inset-0 h-full w-full border-0"
-            loading="lazy"
-            title="Mapa interactivo"
-            referrerPolicy="no-referrer-when-downgrade"
-          />
-          {mapError && provider === "maplibre" && (
-            <div className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-md bg-background/90 px-3 py-2 text-xs text-foreground shadow">
-              No se pudo cargar MapLibre. Se muestra Google Maps como alternativa.
-            </div>
-          )}
-        </>
-      )}
-      {!shouldRenderGoogle && mapError && provider === "maplibre" && (
+      <div ref={mapContainerRef} className="absolute inset-0" />
+      {mapError && (
         <div className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-md bg-background/90 px-3 py-2 text-xs text-foreground shadow">
           No se pudo cargar el mapa: {mapError}
         </div>
