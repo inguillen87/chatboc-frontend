@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import MapLibreMap from '@/components/MapLibreMap';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -9,6 +9,7 @@ import type {
 } from '@/services/analyticsService';
 import { WidgetFrame } from './WidgetFrame';
 import { useMapProvider } from '@/hooks/useMapProvider';
+import type { MapProvider, MapProviderUnavailableReason } from '@/hooks/useMapProvider';
 import { MapProviderToggle } from '@/components/MapProviderToggle';
 
 interface MapWidgetProps {
@@ -35,6 +36,18 @@ export function MapWidget({
   const [mode, setMode] = useState<Mode>('heatmap');
   const [lastBbox, setLastBbox] = useState<[number, number, number, number] | null>(null);
   const { provider, setProvider } = useMapProvider();
+
+  const handleProviderUnavailable = useCallback(
+    (currentProvider: MapProvider, reason: MapProviderUnavailableReason, details?: unknown) => {
+      console.warn('[MapWidget] Map provider unavailable, falling back to MapLibre', {
+        provider: currentProvider,
+        reason,
+        details,
+      });
+      setProvider('maplibre');
+    },
+    [setProvider],
+  );
 
   const dataset = useMemo(() => {
     if (!heatmap) return [];
@@ -146,6 +159,7 @@ export function MapWidget({
             showHeatmap={mode === 'heatmap'}
             onBoundingBoxChange={handleBbox}
             provider={provider}
+            onProviderUnavailable={handleProviderUnavailable}
           />
         )}
         <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
