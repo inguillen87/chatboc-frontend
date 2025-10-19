@@ -414,41 +414,180 @@ function getBreakdown(filters) {
 function getHeatmap(filters) {
   const { tickets } = filterTickets(filters);
   const cells = new Map();
-  const breakdownByZone = new Map();
   const weeklyByZone = new Map();
 
+  const severityWeights = {
+    baja: 1,
+    media: 1.5,
+    alta: 2.25,
+  };
+
+  const totals = {
+    tickets: tickets.length,
+    geocoded: 0,
+    missing: 0,
+  };
+
+  const severityBreakdown = new Map();
+  const statusBreakdown = new Map();
+  const categoryBreakdown = new Map();
+  const responseMinutes = [];
+  const resolutionMinutes = [];
+  const recencyBuckets = {
+    last24h: 0,
+    last7d: 0,
+    last30d: 0,
+    older: 0,
+  };
+
+  let totalWeight = 0;
+
+  const now = Date.now();
+  const halfLifeDays = 21;
+
   tickets.forEach((ticket) => {
+    const createdAt = new Date(ticket.createdAt).getTime();
+    const location = ticket.location;
+    const hasLocation =
+      location &&
+      Number.isFinite(location.lat) &&
+      Number.isFinite(location.lon);
+
+    if (!hasLocation) {
+      totals.missing += 1;
+      return;
+    }
+
+    totals.geocoded += 1;
+
+    const ageDays = Math.max(0, (now - createdAt) / (1000 * 60 * 60 * 24));
+    if (ageDays <= 1) recencyBuckets.last24h += 1;
+    else if (ageDays <= 7) recencyBuckets.last7d += 1;
+    else if (ageDays <= 30) recencyBuckets.last30d += 1;
+    else recencyBuckets.older += 1;
+
+    if (ticket.firstResponseAt) {
+      const minutes = (new Date(ticket.firstResponseAt).getTime() - createdAt) / (1000 * 60);
+      if (Number.isFinite(minutes) && minutes >= 0) {
+        responseMinutes.push(minutes);
+      }
+    }
+
+    if (ticket.closedAt) {
+      const minutes = (new Date(ticket.closedAt).getTime() - createdAt) / (1000 * 60);
+      if (Number.isFinite(minutes) && minutes >= 0) {
+        resolutionMinutes.push(minutes);
+      }
+    }
+
+    const severity = ticket.severidad || 'sin_dato';
+    severityBreakdown.set(severity, (severityBreakdown.get(severity) || 0) + 1);
+
+    const status = ticket.estado || 'sin_dato';
+    statusBreakdown.set(status, (statusBreakdown.get(status) || 0) + 1);
+
+    const category = ticket.categoria || 'Sin categoria';
+    categoryBreakdown.set(category, (categoryBreakdown.get(category) || 0) + 1);
+
+    const recencyMultiplier = Math.exp(-ageDays / halfLifeDays);
+    const severityMultiplier = severityWeights[severity] || 1;
+    const weight = severityMultiplier * (0.4 + 0.6 * recencyMultiplier);
+    totalWeight += weight;
+
     const cellId = ticket.location?.cellId || 'cell-desconocido';
     if (!cells.has(cellId)) {
       cells.set(cellId, {
         cellId,
         tenant_id: ticket.tenantId,
         count: 0,
-        centroid_lat: ticket.location?.lat || 0,
-        centroid_lon: ticket.location?.lon || 0,
+        weight: 0,
+        centroid_lat: 0,
+        centroid_lon: 0,
+        latSum: 0,
+        lonSum: 0,
         breakdown: {},
+        severities: {},
+        statuses: {},
+        responseMinutes: [],
+        resolutionMinutes: [],
+        lastTicketAt: null,
       });
     }
+
     const cell = cells.get(cellId);
     cell.count += 1;
-    const category = ticket.categoria || 'Sin categoria';
+    cell.weight += weight;
+    cell.latSum += location.lat;
+    cell.lonSum += location.lon;
+    cell.centroid_lat = cell.latSum / cell.count;
+    cell.centroid_lon = cell.lonSum / cell.count;
     cell.breakdown[category] = (cell.breakdown[category] || 0) + 1;
+    cell.severities[severity] = (cell.severities[severity] || 0) + 1;
+    cell.statuses[status] = (cell.statuses[status] || 0) + 1;
+
+    const cellResponseMinutes = ticket.firstResponseAt
+      ? (new Date(ticket.firstResponseAt).getTime() - createdAt) / (1000 * 60)
+      : null;
+    if (Number.isFinite(cellResponseMinutes) && cellResponseMinutes !== null && cellResponseMinutes >= 0) {
+      cell.responseMinutes.push(cellResponseMinutes);
+    }
+
+    const cellResolutionMinutes = ticket.closedAt
+      ? (new Date(ticket.closedAt).getTime() - createdAt) / (1000 * 60)
+      : null;
+    if (Number.isFinite(cellResolutionMinutes) && cellResolutionMinutes !== null && cellResolutionMinutes >= 0) {
+      cell.resolutionMinutes.push(cellResolutionMinutes);
+    }
+
+    if (!cell.lastTicketAt || createdAt > cell.lastTicketAt) {
+      cell.lastTicketAt = createdAt;
+    }
 
     const zone = ticket.location?.zona || 'Sin zona';
-    breakdownByZone.set(zone, (breakdownByZone.get(zone) || 0) + 1);
-
     const weekKey = `${zone}-${formatDate(new Date(ticket.createdAt))}`;
     weeklyByZone.set(weekKey, (weeklyByZone.get(weekKey) || 0) + 1);
   });
 
-  const hotspots = Array.from(cells.values())
-    .sort((a, b) => b.count - a.count)
+  const buildServiceStats = (values) => {
+    if (!values.length) {
+      return { average: 0, p50: 0, p90: 0, p95: 0 };
+    }
+    return {
+      average: Number(average(values).toFixed(2)),
+      p50: Number(percentile(values, 50).toFixed(2)),
+      p90: Number(percentile(values, 90).toFixed(2)),
+      p95: Number(percentile(values, 95).toFixed(2)),
+    };
+  };
+
+  const cellsArray = Array.from(cells.values()).map((cell) => ({
+    cellId: cell.cellId,
+    tenant_id: cell.tenant_id,
+    count: cell.count,
+    weight: Number(cell.weight.toFixed(2)),
+    centroid_lat: Number(cell.centroid_lat.toFixed(6)),
+    centroid_lon: Number(cell.centroid_lon.toFixed(6)),
+    breakdown: cell.breakdown,
+    severity_breakdown: cell.severities,
+    status_breakdown: cell.statuses,
+    last_ticket_at: cell.lastTicketAt ? new Date(cell.lastTicketAt).toISOString() : null,
+    response_minutes: buildServiceStats(cell.responseMinutes),
+    resolution_minutes: buildServiceStats(cell.resolutionMinutes),
+  }));
+
+  const hotspots = cellsArray
+    .slice()
+    .sort((a, b) => (b.weight - a.weight !== 0 ? b.weight - a.weight : b.count - a.count))
     .slice(0, 10)
     .map((cell) => ({
       cellId: cell.cellId,
       count: cell.count,
+      weight: cell.weight,
       centroid: [cell.centroid_lat, cell.centroid_lon],
       breakdown: cell.breakdown,
+      severity_breakdown: cell.severity_breakdown,
+      status_breakdown: cell.status_breakdown,
+      last_ticket_at: cell.last_ticket_at,
     }));
 
   const chronic = [];
@@ -463,10 +602,54 @@ function getHeatmap(filters) {
     }
   });
 
+  const coverage = totals.tickets ? Number(((totals.geocoded / totals.tickets) * 100).toFixed(2)) : 0;
+
+  const buildShare = (entries, denominator) =>
+    Array.from(entries)
+      .map(([label, count]) => ({
+        label,
+        count,
+        percentage: denominator ? Number(((count / denominator) * 100).toFixed(2)) : 0,
+      }))
+      .sort((a, b) => b.count - a.count);
+
+  const categories = buildShare(categoryBreakdown.entries(), totals.geocoded);
+  const severities = buildShare(severityBreakdown.entries(), totals.geocoded);
+  const statuses = buildShare(statusBreakdown.entries(), totals.geocoded);
+
+  const recencyTotal = Object.values(recencyBuckets).reduce((acc, value) => acc + value, 0) || 0;
+  const recency = Object.entries(recencyBuckets).map(([label, value]) => ({
+    label,
+    count: value,
+    percentage: recencyTotal ? Number(((value / recencyTotal) * 100).toFixed(2)) : 0,
+  }));
+
+  const metadata = {
+    totals: {
+      tickets: totals.tickets,
+      geocoded: totals.geocoded,
+      missing: totals.missing,
+      coverage,
+    },
+    intensity: {
+      totalWeight: Number(totalWeight.toFixed(2)),
+      averageWeight: totals.geocoded ? Number((totalWeight / totals.geocoded).toFixed(2)) : 0,
+    },
+    categories: categories.slice(0, 10),
+    severity: severities,
+    status: statuses,
+    recency,
+    serviceLevels: {
+      responseMinutes: buildServiceStats(responseMinutes),
+      resolutionMinutes: buildServiceStats(resolutionMinutes),
+    },
+  };
+
   return {
-    cells: Array.from(cells.values()),
+    cells: cellsArray,
     hotspots,
     chronic,
+    metadata,
   };
 }
 
