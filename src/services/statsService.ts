@@ -12,6 +12,8 @@ export interface HeatPoint {
   barrio?: string;
   tipo_ticket?: string;
   estado?: string;
+  severidad?: string;
+  last_ticket_at?: string | null;
 }
 
 export interface TicketStatsResponse {

@@ -111,22 +111,71 @@ export interface BreakdownResponse {
   items: { label: string; value: number }[];
 }
 
+export interface HeatmapServiceStats {
+  average: number;
+  p50: number;
+  p90: number;
+  p95: number;
+}
+
+export interface HeatmapCell {
+  cellId: string;
+  tenant_id: string;
+  count: number;
+  weight: number;
+  centroid_lat: number;
+  centroid_lon: number;
+  breakdown: Record<string, number>;
+  severity_breakdown?: Record<string, number>;
+  status_breakdown?: Record<string, number>;
+  last_ticket_at?: string | null;
+  response_minutes?: HeatmapServiceStats;
+  resolution_minutes?: HeatmapServiceStats;
+}
+
+export interface HeatmapHotspot {
+  cellId: string;
+  count: number;
+  weight: number;
+  centroid: [number, number];
+  breakdown: Record<string, number>;
+  severity_breakdown?: Record<string, number>;
+  status_breakdown?: Record<string, number>;
+  last_ticket_at?: string | null;
+}
+
+export interface HeatmapMetadataItem {
+  label: string;
+  count: number;
+  percentage: number;
+}
+
+export interface HeatmapMetadata {
+  totals: {
+    tickets: number;
+    geocoded: number;
+    missing: number;
+    coverage: number;
+  };
+  intensity: {
+    totalWeight: number;
+    averageWeight: number;
+  };
+  categories: HeatmapMetadataItem[];
+  severity: HeatmapMetadataItem[];
+  status: HeatmapMetadataItem[];
+  recency: HeatmapMetadataItem[];
+  serviceLevels: {
+    responseMinutes: HeatmapServiceStats;
+    resolutionMinutes: HeatmapServiceStats;
+  };
+}
+
 export interface HeatmapResponse {
-  cells: {
-    cellId: string;
-    tenant_id: string;
-    count: number;
-    centroid_lat: number;
-    centroid_lon: number;
-    breakdown: Record<string, number>;
-  }[];
-  hotspots: {
-    cellId: string;
-    count: number;
-    centroid: [number, number];
-    breakdown: Record<string, number>;
-  }[];
+  cells: HeatmapCell[];
+  hotspots: HeatmapHotspot[];
   chronic: { zone: string; weeks: { week: string; count: number }[] }[];
+  metadata?: HeatmapMetadata;
 }
 
 export interface PointsResponse {

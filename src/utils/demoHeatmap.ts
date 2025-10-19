@@ -38,6 +38,8 @@ const DEMO_TICKET_TYPES = [
   'Reporte de Servicio',
 ] as const;
 
+const DEMO_SEVERITIES = ['baja', 'media', 'alta'] as const;
+
 const DEMO_STREETS = [
   'San Martín',
   '9 de Julio',
@@ -86,7 +88,11 @@ export const generateJuninDemoHeatmap = (count = 60): HeatPoint[] => {
     const estado = randomFromArray(DEMO_STATES);
     const barrio = randomFromArray(DEMO_BARRIOS);
     const tipo_ticket = randomFromArray(DEMO_TICKET_TYPES);
-    const weight = Math.max(1, Math.round(Math.random() * 4 + 1));
+    const severidad = randomFromArray(DEMO_SEVERITIES);
+    const baseWeight = severidad === 'alta' ? 4 : severidad === 'media' ? 3 : 2;
+    const weight = Math.max(1, Math.round(baseWeight + Math.random() * 2));
+    const recencyDays = Math.floor(Math.random() * 45);
+    const last_ticket_at = new Date(Date.now() - recencyDays * 24 * 60 * 60 * 1000).toISOString();
 
     return {
       id: index + 1,
@@ -100,6 +106,8 @@ export const generateJuninDemoHeatmap = (count = 60): HeatPoint[] => {
       direccion: buildDemoAddress(barrio),
       ticket: `DEMO-${String(index + 1).padStart(4, '0')}`,
       tipo_ticket,
+      severidad,
+      last_ticket_at,
     } satisfies HeatPoint;
   });
 };
@@ -109,6 +117,7 @@ export const JUNIN_DEMO_CATEGORIES = [...DEMO_CATEGORIES];
 export const JUNIN_DEMO_STATES = [...DEMO_STATES];
 export const JUNIN_DEMO_BARRIOS = [...DEMO_BARRIOS];
 export const JUNIN_DEMO_TICKET_TYPES = [...DEMO_TICKET_TYPES];
+export const JUNIN_DEMO_SEVERITIES = [...DEMO_SEVERITIES];
 export const JUNIN_DEMO_NOTICE = DEMO_NOTICE;
 
 export const mergeAndSortStrings = (base: string[], extras: string[]): string[] => {
