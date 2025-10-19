@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useCallback } from 'react';
 import {
   Bar,
   BarChart,
@@ -21,6 +21,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Separator } from '@/components/ui/separator';
 import { MapProviderToggle } from '@/components/MapProviderToggle';
 import { useMapProvider } from '@/hooks/useMapProvider';
+import type { MapProvider, MapProviderUnavailableReason } from '@/hooks/useMapProvider';
 import type {
   SurveyDemographicBreakdownItem,
   SurveyHeatmapPoint,
@@ -425,6 +426,18 @@ export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExpo
     [heatmapPoints],
   );
   const { provider, setProvider } = useMapProvider();
+
+  const handleProviderUnavailable = useCallback(
+    (currentProvider: MapProvider, reason: MapProviderUnavailableReason, details?: unknown) => {
+      console.warn('[SurveyAnalytics] Map provider unavailable, falling back to MapLibre', {
+        provider: currentProvider,
+        reason,
+        details,
+      });
+      setProvider('maplibre');
+    },
+    [setProvider],
+  );
   const heatmapCenter = useMemo(() => {
     if (!heatmapData.length) return undefined;
     const totalWeight = heatmapData.reduce((sum, point) => sum + (point.weight ?? 1), 0);
@@ -826,6 +839,7 @@ export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExpo
               fitToBounds={heatmapBounds.length ? heatmapBounds : undefined}
               initialZoom={heatmapBounds.length ? 12 : 4}
               provider={provider}
+              onProviderUnavailable={handleProviderUnavailable}
             />
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
