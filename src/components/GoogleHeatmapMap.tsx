@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { GoogleMap, HeatmapLayerF, MarkerF, useJsApiLoader } from "@react-google-maps/api";
 import { cn } from "@/lib/utils";
 import type { HeatPoint } from "@/services/statsService";
@@ -106,6 +106,7 @@ export function GoogleHeatmapMap({
 }: GoogleHeatmapMapProps) {
   const mapRef = useRef<google.maps.Map | null>(null);
   const unavailableReportedRef = useRef(false);
+  const [heatmapLayerAvailable, setHeatmapLayerAvailable] = useState(false);
 
   const { isLoaded, loadError } = useJsApiLoader({
     id: "chatboc-google-maps",
@@ -152,11 +153,16 @@ export function GoogleHeatmapMap({
 
   useEffect(() => {
     if (!isLoaded) {
+      setHeatmapLayerAvailable(false);
       return;
     }
 
     const visualization = window.google?.maps?.visualization;
-    if (!visualization?.HeatmapLayer) {
+    const available = Boolean(visualization?.HeatmapLayer);
+
+    setHeatmapLayerAvailable(available);
+
+    if (!available) {
       reportUnavailable("heatmap-unavailable");
     }
   }, [isLoaded, reportUnavailable]);
@@ -325,6 +331,8 @@ export function GoogleHeatmapMap({
     );
   }
 
+  const shouldRenderHeatmap = showHeatmap && heatmapPoints && heatmapLayerAvailable;
+
   return (
     <GoogleMap
       onLoad={handleMapLoad}
@@ -343,7 +351,7 @@ export function GoogleHeatmapMap({
         gestureHandling: "greedy",
       }}
     >
-      {showHeatmap && heatmapPoints ? (
+      {shouldRenderHeatmap ? (
         <HeatmapLayerF
           data={heatmapPoints}
           options={{ radius: 24, opacity: 0.6 }}
