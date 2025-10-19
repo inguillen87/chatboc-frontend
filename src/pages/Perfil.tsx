@@ -84,6 +84,7 @@ import { useNavigate } from "react-router-dom";
 import MiniChatWidgetPreview from "@/components/ui/MiniChatWidgetPreview"; // Importar el nuevo componente
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import { useUser } from "@/hooks/useUser";
+import { normalizeRole } from "@/utils/roles";
 import { useMunicipalPosts } from "@/hooks/useMunicipalPosts";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
@@ -207,7 +208,10 @@ export default function Perfil() {
   const [geocodingError, setGeocodingError] = useState<string | null>(null);
   const geocodeAbortRef = useRef<AbortController | null>(null);
   const [isMapLoading, setIsMapLoading] = useState(true);
-  const isStaff = ['admin', 'empleado', 'super_admin'].includes(user?.rol ?? '');
+  const normalizedRole = normalizeRole(user?.rol);
+  const isStaff = normalizedRole === 'admin' || normalizedRole === 'empleado';
+  const canViewAnalytics =
+    isStaff || user?.tipo_chat === 'pyme' || user?.tipo_chat === 'municipio';
   const {
     posts: municipalPosts,
     isLoading: isLoadingMunicipalPosts,
@@ -649,11 +653,23 @@ export default function Perfil() {
       navigate("/login"); // Usar navigate para la redirección
       return;
     }
-    (async () => {
+    void (async () => {
       await fetchPerfil();
-      await fetchMapData();
     })();
-  }, [fetchPerfil, fetchMapData, navigate]);
+  }, [fetchPerfil, navigate]);
+
+  useEffect(() => {
+    if (!canViewAnalytics) {
+      return;
+    }
+
+    const token = safeLocalStorage.getItem("authToken");
+    if (!token) {
+      return;
+    }
+
+    void fetchMapData();
+  }, [canViewAnalytics, fetchMapData]);
 
   // Función para cargar las configuraciones de mapeo
   const fetchMappingConfigs = useCallback(async () => {
@@ -1469,7 +1485,7 @@ export default function Perfil() {
                   </form>
                 </CardContent>
               </Card>
-              {isStaff && (
+              {canViewAnalytics && (
                 isMapLoading ? (
                   <Card className="bg-card shadow-xl rounded-xl border border-border backdrop-blur-sm flex items-center justify-center h-[600px]">
                     <p className="text-muted-foreground">Cargando mapa de calor...</p>
