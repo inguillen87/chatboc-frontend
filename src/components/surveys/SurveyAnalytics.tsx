@@ -71,6 +71,35 @@ const buildDemographicData = (items: SurveyDemographicBreakdownItem[]) =>
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
+const getNestedValue = (value: unknown, path: string[]): unknown => {
+  let current: unknown = value;
+  for (const segment of path) {
+    if (!isRecord(current)) {
+      return undefined;
+    }
+    current = current[segment];
+  }
+  return current;
+};
+
+const extractNumberFromRecord = (
+  record: Record<string, unknown> | null,
+  keys: Array<string | string[]>,
+): number | null => {
+  if (!record) return null;
+
+  for (const key of keys) {
+    const path = Array.isArray(key) ? key : [key];
+    const raw = getNestedValue(record, path);
+    const normalized = toFiniteNumber(raw);
+    if (normalized !== null) {
+      return normalized;
+    }
+  }
+
+  return null;
+};
+
 const getArray = <T = unknown>(value: unknown): T[] => {
   if (Array.isArray(value)) return value as T[];
   if (isRecord(value)) {
@@ -212,8 +241,51 @@ const extractOptionItem = (
   };
 };
 
-const buildOptionBreakdown = (summary?: SurveySummary) => {
-  const preguntas = getArrayOrObjectValues(summary?.preguntas);
+const buildOptionBreakdown = (
+  summary?: SurveySummary,
+  summaryRecord: Record<string, unknown> | null = null,
+) => {
+  const record =
+    summaryRecord ?? (summary && typeof summary === 'object'
+      ? (summary as unknown as Record<string, unknown>)
+      : null);
+
+  const candidates: unknown[] = [];
+
+  if (record) {
+    const questionPaths: Array<string | string[]> = [
+      'preguntas',
+      'questions',
+      ['data', 'preguntas'],
+      ['data', 'questions'],
+      ['preguntas', 'data'],
+      'items',
+      'results',
+      'questionBreakdown',
+      'question_breakdown',
+      'questionStats',
+      'preguntas_resumen',
+    ];
+
+    for (const path of questionPaths) {
+      const value = Array.isArray(path) ? getNestedValue(record, path) : record[path];
+      if (value !== undefined && value !== null) {
+        candidates.push(value);
+      }
+    }
+  }
+
+  candidates.push(summary?.preguntas);
+
+  let preguntas: unknown[] = [];
+  for (const candidate of candidates) {
+    const normalized = getArrayOrObjectValues(candidate);
+    if (normalized.length) {
+      preguntas = normalized;
+      break;
+    }
+  }
+
   if (!preguntas.length) return [];
 
   return preguntas.flatMap((pregunta, preguntaIndex) => {
@@ -228,7 +300,14 @@ const buildOptionBreakdown = (summary?: SurveySummary) => {
           preguntaContainer.nombre ??
           preguntaContainer.name,
       ) ?? `Pregunta ${preguntaIndex + 1}`;
-    const optionCandidates = collectOptionCandidates(preguntaContainer.opciones);
+    const optionCandidates = collectOptionCandidates(
+      preguntaContainer.opciones ??
+        preguntaContainer.options ??
+        preguntaContainer.choices ??
+        preguntaContainer.respuestas ??
+        preguntaContainer.answers ??
+        preguntaContainer.data,
+    );
     if (!optionCandidates.length) return [];
 
     return optionCandidates
@@ -328,7 +407,11 @@ const normalizeUtmBreakdown = (raw: unknown): UtmBreakdownItem[] => {
 
 export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExporting }: SurveyAnalyticsProps) => {
   const timeseriesData = useMemo(() => buildTimeseriesData(timeseries), [timeseries]);
-  const optionData = useMemo(() => buildOptionBreakdown(summary), [summary]);
+  const summaryRecord = useMemo(
+    () => (summary && typeof summary === 'object' ? (summary as unknown as Record<string, unknown>) : null),
+    [summary],
+  );
+  const optionData = useMemo(() => buildOptionBreakdown(summary, summaryRecord), [summary, summaryRecord]);
   const heatmapPoints = useMemo(() => normalizeHeatmapPoints(heatmap), [heatmap]);
   const heatmapData = useMemo(
     () =>
@@ -357,17 +440,110 @@ export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExpo
         .filter(([lng, lat]) => Number.isFinite(lng) && Number.isFinite(lat)),
     [heatmapData],
   );
-  const channelBreakdown = useMemo(() => normalizeChannelBreakdown(summary?.canales), [summary?.canales]);
-  const utmBreakdown = useMemo(() => normalizeUtmBreakdown(summary?.utms), [summary?.utms]);
+  const totalResponsesValue = useMemo(
+    () =>
+      extractNumberFromRecord(summaryRecord, [
+        'total_respuestas',
+        'totalResponses',
+        'total_responses',
+        'total',
+        'responses',
+        ['totals', 'responses'],
+        ['totals', 'total'],
+        ['overview', 'responses'],
+        ['overview', 'total'],
+      ]),
+    [summaryRecord],
+  );
+
+  const uniqueParticipantsValue = useMemo(
+    () =>
+      extractNumberFromRecord(summaryRecord, [
+        'participantes_unicos',
+        'participantesUnicos',
+        'unique_participants',
+        'uniqueParticipants',
+        'participantsUnique',
+        'uniqueRespondents',
+        ['totals', 'participants'],
+        ['totals', 'unique'],
+        ['overview', 'participants'],
+      ]),
+    [summaryRecord],
+  );
+
+  const completionRateValue = useMemo(
+    () =>
+      extractNumberFromRecord(summaryRecord, [
+        'tasa_completitud',
+        'tasaCompletitud',
+        'completion_rate',
+        'completionRate',
+        'completion',
+        'completionPercentage',
+        ['totals', 'completionRate'],
+        ['totals', 'completion'],
+      ]),
+    [summaryRecord],
+  );
+
+  const channelBreakdown = useMemo(() => {
+    const candidates = summaryRecord
+      ? [
+          summaryRecord['canales'],
+          summaryRecord['channels'],
+          summaryRecord['channelBreakdown'],
+          summaryRecord['channelsBreakdown'],
+          summaryRecord['porCanal'],
+          summaryRecord['por_canal'],
+          getNestedValue(summaryRecord, ['totals', 'channels']),
+        ]
+      : [];
+
+    candidates.push(summary?.canales);
+
+    for (const candidate of candidates) {
+      const normalized = normalizeChannelBreakdown(candidate);
+      if (normalized.length) {
+        return normalized;
+      }
+    }
+
+    return [];
+  }, [summary, summaryRecord]);
+
+  const utmBreakdown = useMemo(() => {
+    const candidates = summaryRecord
+      ? [
+          summaryRecord['utms'],
+          summaryRecord['utm'],
+          summaryRecord['utmBreakdown'],
+          summaryRecord['porUtm'],
+          summaryRecord['por_utm'],
+          summaryRecord['campaigns'],
+          summaryRecord['campaignBreakdown'],
+          getNestedValue(summaryRecord, ['totals', 'utms']),
+        ]
+      : [];
+
+    candidates.push(summary?.utms);
+
+    for (const candidate of candidates) {
+      const normalized = normalizeUtmBreakdown(candidate);
+      if (normalized.length) {
+        return normalized;
+      }
+    }
+
+    return [];
+  }, [summary, summaryRecord]);
 
   const completionRateLabel = useMemo(() => {
-    if (summary?.tasa_completitud === undefined || summary?.tasa_completitud === null) {
+    if (completionRateValue === null) {
       return '—';
     }
 
-    let normalized = Number.isFinite(summary.tasa_completitud)
-      ? summary.tasa_completitud
-      : Number(summary.tasa_completitud);
+    let normalized = completionRateValue;
 
     if (!Number.isFinite(normalized)) {
       return '—';
@@ -386,16 +562,35 @@ export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExpo
     }
 
     return `${(normalized * 100).toFixed(1)}%`;
-  }, [summary?.tasa_completitud]);
+  }, [completionRateValue]);
 
   const demographicSections = useMemo(() => {
-    if (!summary?.demografia) return [] as Array<{
-      id: string;
-      title: string;
-      data: ReturnType<typeof buildDemographicData>;
-    }>;
+    const candidates = summaryRecord
+      ? [
+          summaryRecord['demografia'],
+          summaryRecord['demographics'],
+          summaryRecord['demographicBreakdown'],
+          summaryRecord['demografia_resumen'],
+        ]
+      : [];
 
-    return Object.entries(summary.demografia)
+    let demographics: Record<string, unknown> | null = null;
+    for (const candidate of candidates) {
+      if (isRecord(candidate) && Object.keys(candidate).length) {
+        demographics = candidate;
+        break;
+      }
+    }
+
+    if (!demographics) {
+      return [] as Array<{
+        id: string;
+        title: string;
+        data: ReturnType<typeof buildDemographicData>;
+      }>;
+    }
+
+    return Object.entries(demographics)
       .map(([id, items]) => {
         const normalizedItems = getArrayOrObjectValues<SurveyDemographicBreakdownItem>(items);
         if (!normalizedItems.length) return null;
@@ -408,7 +603,7 @@ export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExpo
         };
       })
       .filter((section): section is { id: string; title: string; data: ReturnType<typeof buildDemographicData> } => Boolean(section));
-  }, [summary?.demografia]);
+  }, [summaryRecord]);
 
   return (
     <div className="space-y-6">
@@ -429,7 +624,7 @@ export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExpo
             <CardDescription>Incluye formularios completos recibidos.</CardDescription>
           </CardHeader>
           <CardContent className="text-3xl font-semibold">
-            {summary?.total_respuestas ?? '—'}
+            {totalResponsesValue ?? '—'}
           </CardContent>
         </Card>
         <Card>
@@ -438,7 +633,7 @@ export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExpo
             <CardDescription>Personas distintas, según la política de unicidad.</CardDescription>
           </CardHeader>
           <CardContent className="text-3xl font-semibold">
-            {summary?.participantes_unicos ?? '—'}
+            {uniqueParticipantsValue ?? '—'}
           </CardContent>
         </Card>
         <Card>
