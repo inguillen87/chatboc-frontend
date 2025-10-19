@@ -15,7 +15,6 @@ import {
 } from '@/services/statsService';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   JUNIN_DEMO_CENTER,
@@ -23,6 +22,8 @@ import {
   generateJuninDemoHeatmap,
   mergeAndSortStrings,
 } from '@/utils/demoHeatmap';
+import { useMapProvider } from '@/hooks/useMapProvider';
+import { MapProviderToggle } from '@/components/MapProviderToggle';
 
 const HEATMAP_CACHE_LIMIT = 20;
 
@@ -93,7 +94,7 @@ export default function IncidentsMap() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedStates, setSelectedStates] = useState<string[]>([]);
   const [availableBarrios, setAvailableBarrios] = useState<string[]>([]);
-  const [provider, setProvider] = useState<'maplibre' | 'google'>('maplibre');
+  const { provider, setProvider } = useMapProvider();
 
   const heatmapCache = useRef<Map<string, HeatPoint[]>>(new Map());
 
@@ -297,24 +298,7 @@ export default function IncidentsMap() {
                 <Label className="block text-sm font-medium text-muted-foreground mb-1">
                   Proveedor de Mapa
                 </Label>
-                <RadioGroup
-                  value={provider}
-                  onValueChange={(v) => setProvider(v as 'maplibre' | 'google')}
-                  className="flex space-x-4"
-                >
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="maplibre" id="provider-maplibre" />
-                    <Label htmlFor="provider-maplibre" className="text-sm text-muted-foreground">
-                      MapLibre
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="google" id="provider-google" />
-                    <Label htmlFor="provider-google" className="text-sm text-muted-foreground">
-                      Google
-                    </Label>
-                  </div>
-                </RadioGroup>
+                <MapProviderToggle value={provider} onChange={setProvider} />
               </div>
               <div>
                 <label htmlFor="startDate" className="block text-sm font-medium text-muted-foreground mb-1">
