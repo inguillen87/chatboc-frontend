@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
@@ -6,6 +6,7 @@ import MapLibreMap from '@/components/MapLibreMap';
 import { HeatPoint } from '@/services/statsService';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useMapProvider } from '@/hooks/useMapProvider';
+import type { MapProvider, MapProviderUnavailableReason } from '@/hooks/useMapProvider';
 import { MapProviderToggle } from '@/components/MapProviderToggle';
 
 interface HeatmapProps {
@@ -29,6 +30,18 @@ export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({
   const [selectedBarrios, setSelectedBarrios] = useState<string[]>([]);
   const [selectedTipos, setSelectedTipos] = useState<string[]>([]);
   const { provider, setProvider } = useMapProvider();
+
+  const handleProviderUnavailable = useCallback(
+    (currentProvider: MapProvider, reason: MapProviderUnavailableReason, details?: unknown) => {
+      console.warn('[AnalyticsHeatmap] Map provider unavailable, falling back to MapLibre', {
+        provider: currentProvider,
+        reason,
+        details,
+      });
+      setProvider('maplibre');
+    },
+    [setProvider],
+  );
 
   const heatmapData = useMemo(() => {
     return initialHeatmapData.filter(
@@ -269,6 +282,7 @@ export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({
           className="h-[600px] rounded-lg"
           fitToBounds={boundsCoordinates.length > 0 ? boundsCoordinates : undefined}
           provider={provider}
+          onProviderUnavailable={handleProviderUnavailable}
         />
         {heatmapData.length === 0 && (
           <Alert variant="default" className="border-border/60 border-dashed bg-muted/40">

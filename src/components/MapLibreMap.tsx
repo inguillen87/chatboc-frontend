@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { HeatPoint } from "@/services/statsService";
 import type { Map, LngLatLike } from "maplibre-gl";
 import { GoogleHeatmapMap } from "@/components/GoogleHeatmapMap";
+import type { MapProvider, MapProviderUnavailableReason } from "@/hooks/useMapProvider";
 
 type Props = {
   center?: [number, number]; // [lon, lat]
@@ -13,17 +14,28 @@ type Props = {
   showHeatmap?: boolean;
   marker?: [number, number];
   className?: string;
-  provider?: "maplibre" | "google";
+  provider?: MapProvider;
   adminLocation?: [number, number];
   fitToBounds?: [number, number][];
   boundsPadding?: number | { top?: number; bottom?: number; left?: number; right?: number };
   onBoundingBoxChange?: (bbox: [number, number, number, number] | null) => void;
+  onProviderUnavailable?: (
+    provider: MapProvider,
+    reason: MapProviderUnavailableReason,
+    details?: unknown,
+  ) => void;
 };
 
 const addLayer = (map: Map, layer: any) => {
   if (!map.getLayer(layer.id)) {
     map.addLayer(layer);
   }
+};
+
+const FALLBACK_MESSAGES: Record<MapProviderUnavailableReason, string> = {
+  "missing-api-key": "Google Maps no está configurado. Cambiamos automáticamente a MapLibre.",
+  "load-error": "No se pudo cargar Google Maps. Cambiamos automáticamente a MapLibre.",
+  "heatmap-unavailable": "Google Maps dejó de ofrecer mapas de calor. Cambiamos automáticamente a MapLibre.",
 };
 
 type MapLibreModule = typeof import("maplibre-gl");
@@ -116,8 +128,37 @@ export default function MapLibreMap({
   fitToBounds,
   boundsPadding,
   onBoundingBoxChange,
+  onProviderUnavailable,
 }: Props) {
-  if (provider === "google") {
+  const [mapError, setMapError] = useState<string | null>(null);
+  const [fallbackMessage, setFallbackMessage] = useState<string | null>(null);
+  const [providerOverride, setProviderOverride] = useState<MapProvider | null>(null);
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<Map | null>(null);
+  const libRef = useRef<MapLibreModule | null>(null);
+  const markerRef = useRef<any>(null);
+  const adminMarkerRef = useRef<any>(null);
+  const latestHeatmap = useRef<HeatPoint[]>(heatmapData);
+  const boundingBoxCallbackRef = useRef<Props['onBoundingBoxChange']>(onBoundingBoxChange);
+
+  const effectiveProvider = providerOverride ?? provider;
+
+  useEffect(() => {
+    setProviderOverride(null);
+    setFallbackMessage(null);
+  }, [provider]);
+
+  const handleProviderUnavailable = useCallback(
+    (reason: MapProviderUnavailableReason, details?: unknown) => {
+      setProviderOverride("maplibre");
+      setFallbackMessage(FALLBACK_MESSAGES[reason] ?? FALLBACK_MESSAGES["load-error"]);
+      setMapError(null);
+      onProviderUnavailable?.("google", reason, details);
+    },
+    [onProviderUnavailable],
+  );
+
+  if (effectiveProvider === "google") {
     return (
       <GoogleHeatmapMap
         center={center}
@@ -131,18 +172,10 @@ export default function MapLibreMap({
         fitToBounds={fitToBounds}
         boundsPadding={boundsPadding}
         onBoundingBoxChange={onBoundingBoxChange}
+        onProviderUnavailable={handleProviderUnavailable}
       />
     );
   }
-
-  const [mapError, setMapError] = useState<string | null>(null);
-  const mapContainerRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<Map | null>(null);
-  const libRef = useRef<MapLibreModule | null>(null);
-  const markerRef = useRef<any>(null);
-  const adminMarkerRef = useRef<any>(null);
-  const latestHeatmap = useRef<HeatPoint[]>(heatmapData);
-  const boundingBoxCallbackRef = useRef<Props['onBoundingBoxChange']>(onBoundingBoxChange);
 
   const apiKey = import.meta.env.VITE_MAPTILER_KEY;
   const apiKeyRef = useRef(apiKey);
@@ -181,10 +214,10 @@ export default function MapLibreMap({
 
   useEffect(() => {
     setMapError(null);
-  }, [provider]);
+  }, [provider, effectiveProvider]);
 
   useEffect(() => {
-    if (provider !== "maplibre") {
+    if (effectiveProvider !== "maplibre") {
       return;
     }
 
@@ -448,20 +481,20 @@ export default function MapLibreMap({
         adminMarkerRef.current = null;
       }
     };
-  }, [provider]);
+  }, [effectiveProvider, provider]);
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || provider !== "maplibre") return;
+    if (!map || effectiveProvider !== "maplibre") return;
 
     if (center && !Number.isNaN(center[0]) && !Number.isNaN(center[1])) {
       map.flyTo({ center, zoom: initialZoomRef.current });
     }
-  }, [center, provider]);
+  }, [center, effectiveProvider]);
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || provider !== "maplibre") return;
+    if (!map || effectiveProvider !== "maplibre") return;
 
     const applyData = () => updateHeatmapSource(map, heatmapData);
     const source = map.getSource("points");
@@ -474,11 +507,11 @@ export default function MapLibreMap({
     return () => {
       map.off("load", applyData);
     };
-  }, [heatmapData, provider]);
+  }, [heatmapData, effectiveProvider]);
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || provider !== "maplibre") return;
+    if (!map || effectiveProvider !== "maplibre") return;
 
     if (!map.getLayer("tickets-heat") || !map.getLayer("tickets-circles")) {
       const handler = () => toggleLayers(map, showHeatmap);
@@ -489,11 +522,11 @@ export default function MapLibreMap({
     }
 
     toggleLayers(map, showHeatmap);
-  }, [showHeatmap, provider]);
+  }, [showHeatmap, effectiveProvider]);
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !showHeatmap || provider !== "maplibre") return;
+    if (!map || !showHeatmap || effectiveProvider !== "maplibre") return;
     let frame: number;
 
     const animate = () => {
@@ -505,12 +538,12 @@ export default function MapLibreMap({
 
     animate();
     return () => cancelAnimationFrame(frame);
-  }, [showHeatmap, provider]);
+  }, [showHeatmap, effectiveProvider]);
 
   useEffect(() => {
     const map = mapRef.current;
     const maplibre = libRef.current;
-    if (!map || provider !== "maplibre") return;
+    if (!map || effectiveProvider !== "maplibre") return;
     if (marker) {
       if (markerRef.current) {
         markerRef.current.setLngLat(marker);
@@ -531,12 +564,12 @@ export default function MapLibreMap({
       markerRef.current.remove();
       markerRef.current = null;
     }
-  }, [marker, provider]);
+  }, [marker, effectiveProvider]);
 
   useEffect(() => {
     const map = mapRef.current;
     const maplibre = libRef.current;
-    if (!map || provider !== "maplibre") {
+    if (!map || effectiveProvider !== "maplibre") {
       if (adminMarkerRef.current) {
         adminMarkerRef.current.remove();
         adminMarkerRef.current = null;
@@ -570,12 +603,12 @@ export default function MapLibreMap({
       adminMarkerRef.current.remove();
       adminMarkerRef.current = null;
     }
-  }, [adminLocation, provider]);
+  }, [adminLocation, effectiveProvider]);
 
   useEffect(() => {
     const map = mapRef.current;
     const maplibre = libRef.current;
-    if (!map || provider !== "maplibre") return;
+    if (!map || effectiveProvider !== "maplibre") return;
 
     const coords = (fitToBounds ?? []).filter(
       (value): value is [number, number] =>
@@ -633,7 +666,7 @@ export default function MapLibreMap({
         map.off("load", applyBounds);
       };
     }
-  }, [fitToBounds, boundsPadding, provider]);
+  }, [fitToBounds, boundsPadding, effectiveProvider]);
 
   const containerClassName = cn(
     "relative w-full rounded-2xl overflow-hidden",
@@ -644,6 +677,11 @@ export default function MapLibreMap({
   return (
     <div className={containerClassName}>
       <div ref={mapContainerRef} className="absolute inset-0" />
+      {fallbackMessage && (
+        <div className="absolute top-3 left-1/2 z-10 -translate-x-1/2 rounded-md bg-background/90 px-3 py-2 text-xs text-foreground shadow">
+          {fallbackMessage}
+        </div>
+      )}
       {mapError && (
         <div className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-md bg-background/90 px-3 py-2 text-xs text-foreground shadow">
           No se pudo cargar el mapa: {mapError}

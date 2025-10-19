@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { GoogleMap, HeatmapLayerF, MarkerF, useJsApiLoader } from "@react-google-maps/api";
 import { cn } from "@/lib/utils";
 import type { HeatPoint } from "@/services/statsService";
+import type { MapProviderUnavailableReason } from "@/hooks/useMapProvider";
 
 type GoogleHeatmapMapProps = {
   center?: [number, number];
@@ -15,7 +16,14 @@ type GoogleHeatmapMapProps = {
   fitToBounds?: [number, number][];
   boundsPadding?: number | { top?: number; bottom?: number; left?: number; right?: number };
   onBoundingBoxChange?: (bbox: [number, number, number, number] | null) => void;
+  onProviderUnavailable?: (reason: MapProviderUnavailableReason, details?: unknown) => void;
 };
+
+declare global {
+  interface Window {
+    gm_authFailure?: () => void;
+  }
+}
 
 const GOOGLE_LIBRARIES: ("visualization")[] = ["visualization"];
 
@@ -94,8 +102,10 @@ export function GoogleHeatmapMap({
   fitToBounds,
   boundsPadding,
   onBoundingBoxChange,
+  onProviderUnavailable,
 }: GoogleHeatmapMapProps) {
   const mapRef = useRef<google.maps.Map | null>(null);
+  const unavailableReportedRef = useRef(false);
 
   const { isLoaded, loadError } = useJsApiLoader({
     id: "chatboc-google-maps",
@@ -104,6 +114,52 @@ export function GoogleHeatmapMap({
     language: "es",
     region: "AR",
   });
+
+  const reportUnavailable = useCallback(
+    (reason: MapProviderUnavailableReason, details?: unknown) => {
+      if (unavailableReportedRef.current) {
+        return;
+      }
+      unavailableReportedRef.current = true;
+      onProviderUnavailable?.(reason, details);
+    },
+    [onProviderUnavailable],
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const previous = window.gm_authFailure;
+    const handler = () => {
+      reportUnavailable("load-error", new Error("gm_authFailure"));
+      if (typeof previous === "function") {
+        try {
+          previous();
+        } catch (error) {
+          console.warn("[GoogleHeatmapMap] Previous gm_authFailure handler threw", error);
+        }
+      }
+    };
+
+    window.gm_authFailure = handler;
+
+    return () => {
+      window.gm_authFailure = previous;
+    };
+  }, [reportUnavailable]);
+
+  useEffect(() => {
+    if (!isLoaded) {
+      return;
+    }
+
+    const visualization = window.google?.maps?.visualization;
+    if (!visualization?.HeatmapLayer) {
+      reportUnavailable("heatmap-unavailable");
+    }
+  }, [isLoaded, reportUnavailable]);
 
   const circleSymbolPath =
     typeof window !== "undefined" && window.google?.maps?.SymbolPath?.CIRCLE !== undefined
@@ -238,6 +294,7 @@ export function GoogleHeatmapMap({
   }, [center, initialZoom, isLoaded]);
 
   if (!googleMapsApiKey) {
+    reportUnavailable("missing-api-key");
     return (
       <div className={mapContainerClassName}>
         <div className="flex h-full w-full items-center justify-center rounded-2xl border border-dashed border-border px-6 text-center text-sm text-muted-foreground">
@@ -248,6 +305,7 @@ export function GoogleHeatmapMap({
   }
 
   if (loadError) {
+    reportUnavailable("load-error", loadError);
     return (
       <div className={mapContainerClassName}>
         <div className="flex h-full w-full items-center justify-center rounded-2xl border border-dashed border-border px-6 text-center text-sm text-muted-foreground">

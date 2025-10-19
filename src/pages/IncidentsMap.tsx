@@ -23,6 +23,7 @@ import {
   mergeAndSortStrings,
 } from '@/utils/demoHeatmap';
 import { useMapProvider } from '@/hooks/useMapProvider';
+import type { MapProvider, MapProviderUnavailableReason } from '@/hooks/useMapProvider';
 import { MapProviderToggle } from '@/components/MapProviderToggle';
 
 const HEATMAP_CACHE_LIMIT = 20;
@@ -95,6 +96,17 @@ export default function IncidentsMap() {
   const [selectedStates, setSelectedStates] = useState<string[]>([]);
   const [availableBarrios, setAvailableBarrios] = useState<string[]>([]);
   const { provider, setProvider } = useMapProvider();
+  const handleProviderUnavailable = useCallback(
+    (currentProvider: MapProvider, reason: MapProviderUnavailableReason, details?: unknown) => {
+      console.warn('[IncidentsMap] Map provider unavailable, falling back to MapLibre', {
+        provider: currentProvider,
+        reason,
+        details,
+      });
+      setProvider('maplibre');
+    },
+    [setProvider],
+  );
 
   const heatmapCache = useRef<Map<string, HeatPoint[]>>(new Map());
 
@@ -470,6 +482,7 @@ export default function IncidentsMap() {
           heatmapData={heatmapData}
           showHeatmap={showHeatmap}
           className="h-[600px]"
+          onProviderUnavailable={handleProviderUnavailable}
         />
         <div className="absolute bottom-2 left-2 bg-background/80 text-foreground px-2 py-1 rounded shadow text-xs">
           {legendText}

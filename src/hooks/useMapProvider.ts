@@ -2,6 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 export type MapProvider = "maplibre" | "google";
 
+export type MapProviderUnavailableReason =
+  | "missing-api-key"
+  | "load-error"
+  | "heatmap-unavailable";
+
 const STORAGE_KEY = "chatboc-map-provider";
 const EVENT_NAME = "chatboc-map-provider-change";
 
