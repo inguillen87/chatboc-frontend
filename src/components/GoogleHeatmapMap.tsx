@@ -257,6 +257,16 @@ export function GoogleHeatmapMap({
     );
   }
 
+  if (!isLoaded) {
+    return (
+      <div className={mapContainerClassName}>
+        <div className="flex h-full w-full items-center justify-center rounded-2xl border border-dashed border-border px-6 text-center text-sm text-muted-foreground">
+          Cargando mapa de Google Maps...
+        </div>
+      </div>
+    );
+  }
+
   return (
     <GoogleMap
       onLoad={handleMapLoad}
