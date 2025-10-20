@@ -8,13 +8,6 @@ export interface HeatmapBreakdownItem {
   percentage: number;
 }
 
-export interface HeatmapBreakdownItem {
-  label: string;
-  count: number;
-  weight: number;
-  percentage: number;
-}
-
 export interface HeatPoint {
   lat: number;
   lng: number;
