@@ -78,7 +78,7 @@ import UsuariosPage from '@/pages/UsuariosPage';
 import PedidosPage from '@/pages/PedidosPage';
 import InternalUsers from '@/pages/InternalUsers';
 import IncidentsMap from '@/pages/IncidentsMap';
-import { getTicketStats, getHeatmapPoints } from "@/services/statsService";
+import { getTicketStats, getHeatmapPoints, HeatmapDataset } from "@/services/statsService";
 import AnalyticsHeatmap from "@/components/analytics/Heatmap";
 import { useNavigate } from "react-router-dom";
 import MiniChatWidgetPreview from "@/components/ui/MiniChatWidgetPreview"; // Importar el nuevo componente
@@ -428,6 +428,7 @@ export default function Perfil() {
   };
 
   const [heatmapData, setHeatmapData] = useState<HeatPoint[]>([]);
+  const [heatmapDetails, setHeatmapDetails] = useState<HeatmapDataset | null>(null);
   const [availableCategories, setAvailableCategories] = useState<string[]>([]);
   const [availableBarrios, setAvailableBarrios] = useState<string[]>([]);
   const [availableTipos, setAvailableTipos] = useState<string[]>([]);
@@ -562,7 +563,7 @@ export default function Perfil() {
     try {
       const tipo = user?.tipo_chat ?? getCurrentTipoChat();
 
-      const [stats, heatmapPoints, categoryData] = await Promise.all([
+      const [stats, heatmapDataset, categoryData] = await Promise.all([
         getTicketStats({ tipo }),
         getHeatmapPoints({ tipo_ticket: tipo, tipo }),
         apiFetch<{ categorias: { id: number; nombre: string }[] }>(
@@ -573,7 +574,11 @@ export default function Perfil() {
         }),
       ]);
 
-      let combinedHeatmap = (heatmapPoints?.length ? heatmapPoints : stats.heatmap) ?? [];
+      const statsHeatmapDataset = stats.heatmapDataset;
+      const statsHeatmap = statsHeatmapDataset?.points ?? stats.heatmap ?? [];
+      const heatmapPoints = heatmapDataset?.points ?? [];
+
+      let combinedHeatmap = heatmapPoints.length > 0 ? heatmapPoints : statsHeatmap;
       const usedFallback = combinedHeatmap.length === 0;
 
       if (usedFallback) {
@@ -585,6 +590,11 @@ export default function Perfil() {
       }
 
       setHeatmapData(combinedHeatmap);
+      setHeatmapDetails(
+        heatmapPoints.length > 0
+          ? heatmapDataset ?? { points: combinedHeatmap }
+          : statsHeatmapDataset ?? { points: combinedHeatmap },
+      );
 
       const barriosFromHeatmap = Array.from(
         new Set(combinedHeatmap.map((d) => d.barrio).filter((b): b is string => Boolean(b))),
@@ -622,6 +632,7 @@ export default function Perfil() {
       });
       const fallbackPoints = generateJuninDemoHeatmap();
       setHeatmapData(fallbackPoints);
+      setHeatmapDetails({ points: fallbackPoints });
       const barrios = mergeAndSortStrings(
         Array.from(new Set(fallbackPoints.map((d) => d.barrio).filter((b): b is string => Boolean(b)))),
         [...JUNIN_DEMO_BARRIOS],
@@ -1497,6 +1508,7 @@ export default function Perfil() {
                     availableCategories={availableCategories}
                     availableBarrios={availableBarrios}
                     availableTipos={availableTipos}
+                    metadata={heatmapDetails?.metadata?.map?.heatmap}
                     onSelect={handleMapSelect}
                   />
                 )
