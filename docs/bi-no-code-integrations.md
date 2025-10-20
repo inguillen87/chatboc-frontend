@@ -42,3 +42,7 @@ Este documento sintetiza herramientas y stacks tecnológicos que integran analí
 
 - **Privacidad**: pseudoanonimización mediante hash + salt, agregación espacial con hexágonos H3, políticas de consentimiento y retención de datos.
 - **Accesibilidad**: cumplir WCAG AA, asegurar contrastes adecuados, etiquetas `aria-*`, navegación por teclado y descripciones alternativas para mapas.
+
+## Implementación en la plataforma
+
+La ruta interna `/municipal/playbook` del panel administrativo expone este plan en formato interactivo. El frontend consume el endpoint `GET /municipal/bi-playbook` y, en caso de no estar disponible, utiliza el mismo contenido de fallback definido en este documento para que los equipos puedan avanzar sin bloqueo.
