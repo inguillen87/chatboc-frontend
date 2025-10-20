@@ -24,6 +24,7 @@ import {
   getTicketStats,
   getMunicipalTicketStates,
   HeatPoint,
+  HeatmapDataset,
   TicketStatsResponse,
 } from '@/services/statsService';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -198,6 +199,7 @@ export default function MunicipalAnalytics() {
   const [statusFilters, setStatusFilters] = useState<string[]>([]);
   const [sortOption, setSortOption] = useState<SortOption>('tickets_desc');
   const [heatmapData, setHeatmapData] = useState<HeatPoint[]>([]);
+  const [heatmapDetails, setHeatmapDetails] = useState<HeatmapDataset | null>(null);
   const [charts, setCharts] = useState<TicketStatsResponse['charts']>([]);
   const [allowedStatuses, setAllowedStatuses] = useState<string[]>([]);
   const analyticsInitialDisabled = useMemo(
@@ -309,10 +311,9 @@ export default function MunicipalAnalytics() {
         console.error('Error fetching ticket stats:', statsResult.reason);
       }
 
-      const heatmapValue =
-        heatmapResult.status === 'fulfilled' && Array.isArray(heatmapResult.value)
-          ? heatmapResult.value
-          : [];
+      const heatmapDataset: HeatmapDataset =
+        heatmapResult.status === 'fulfilled' ? heatmapResult.value : { points: [] };
+      const heatmapValue = heatmapDataset.points ?? [];
       if (heatmapResult.status === 'rejected') {
         console.error('Error fetching heatmap data:', heatmapResult.reason);
       }
@@ -332,6 +333,7 @@ export default function MunicipalAnalytics() {
       setData(resolvedAnalytics);
       setCharts(statsValue?.charts || []);
       setHeatmapData(heatmapValue);
+      setHeatmapDetails(heatmapDataset);
 
       const hasAnyData =
         resolvedAnalytics.municipalities.length > 0 ||
@@ -353,6 +355,7 @@ export default function MunicipalAnalytics() {
       const fallback = buildFallbackAnalytics(null, demoHeatmap);
       setData(fallback);
       setHeatmapData(demoHeatmap);
+      setHeatmapDetails({ points: demoHeatmap });
       setCharts([]);
       setAnalyticsDisabled(true);
       analyticsDisabledRef.current = true;
@@ -1179,6 +1182,7 @@ export default function MunicipalAnalytics() {
           availableCategories={heatmapCategories}
           availableBarrios={heatmapBarrios}
           availableTipos={heatmapTipos}
+          metadata={heatmapDetails?.metadata?.map?.heatmap}
         />
       ) : (
         <Card className="shadow-lg">

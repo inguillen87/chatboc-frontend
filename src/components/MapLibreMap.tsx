@@ -5,6 +5,7 @@ import type { HeatPoint } from "@/services/statsService";
 import type { Map, LngLatLike } from "maplibre-gl";
 import { GoogleHeatmapMap } from "@/components/GoogleHeatmapMap";
 import type { MapProvider, MapProviderUnavailableReason } from "@/hooks/useMapProvider";
+import { clusterHeatmapPoints } from "@/utils/heatmap";
 
 type Props = {
   center?: [number, number]; // [lon, lat]
@@ -24,6 +25,7 @@ type Props = {
     reason: MapProviderUnavailableReason,
     details?: unknown,
   ) => void;
+  disableClientClustering?: boolean;
 };
 
 const addLayer = (map: Map, layer: any) => {
@@ -88,12 +90,29 @@ const buildGeoJson = (points: HeatPoint[]) => ({
   features: points.map((p) => ({
     type: "Feature",
     properties: {
-      weight: p.weight ?? 1,
+      weight: p.totalWeight ?? p.weight ?? 1,
       id: p.id,
       ticket: p.ticket,
       categoria: p.categoria,
       direccion: p.direccion,
       distrito: p.distrito,
+      barrio: p.barrio,
+      estado: p.estado,
+      tipo_ticket: p.tipo_ticket,
+      severidad: p.severidad,
+      last_ticket_at: p.last_ticket_at ?? null,
+      clusterId: p.clusterId ?? null,
+      clusterSize: p.clusterSize ?? 1,
+      averageWeight: p.averageWeight ?? p.weight ?? 1,
+      totalWeight: p.totalWeight ?? p.weight ?? 1,
+      radiusMeters: p.radiusMeters ?? null,
+      maxDistanceMeters: p.maxDistanceMeters ?? null,
+      sampleTickets: p.sampleTickets ?? [],
+      aggregatedCategorias: p.aggregatedCategorias ?? [],
+      aggregatedBarrios: p.aggregatedBarrios ?? [],
+      aggregatedEstados: p.aggregatedEstados ?? [],
+      aggregatedTipos: p.aggregatedTipos ?? [],
+      aggregatedSeveridades: p.aggregatedSeveridades ?? [],
     },
     geometry: { type: "Point", coordinates: [p.lng, p.lat] },
   })),
@@ -129,16 +148,48 @@ export default function MapLibreMap({
   boundsPadding,
   onBoundingBoxChange,
   onProviderUnavailable,
+  disableClientClustering = false,
 }: Props) {
   const [mapError, setMapError] = useState<string | null>(null);
   const [fallbackMessage, setFallbackMessage] = useState<string | null>(null);
   const [providerOverride, setProviderOverride] = useState<MapProvider | null>(null);
+  const normalizedHeatmap = useMemo(
+    () =>
+      (heatmapData ?? []).filter(
+        (point): point is HeatPoint & { lat: number; lng: number } =>
+          Boolean(point) && Number.isFinite(point.lat) && Number.isFinite(point.lng),
+      ),
+    [heatmapData],
+  );
+  const aggregatedHint = useMemo(
+    () =>
+      normalizedHeatmap.some(
+        (point) =>
+          (typeof point.clusterSize === "number" && point.clusterSize > 1) ||
+          Boolean(point.clusterId) ||
+          (Array.isArray(point.sampleTickets) && point.sampleTickets.length > 0) ||
+          (Array.isArray(point.aggregatedCategorias) && point.aggregatedCategorias.length > 0) ||
+          (Array.isArray(point.aggregatedEstados) && point.aggregatedEstados.length > 0) ||
+          (Array.isArray(point.aggregatedTipos) && point.aggregatedTipos.length > 0) ||
+          (Array.isArray(point.aggregatedBarrios) && point.aggregatedBarrios.length > 0) ||
+          (Array.isArray(point.aggregatedSeveridades) && point.aggregatedSeveridades.length > 0),
+      ),
+    [normalizedHeatmap],
+  );
+  const shouldCluster = useMemo(
+    () => !disableClientClustering && !aggregatedHint,
+    [disableClientClustering, aggregatedHint],
+  );
+  const processedHeatmap = useMemo(
+    () => (shouldCluster ? clusterHeatmapPoints(normalizedHeatmap) : normalizedHeatmap),
+    [normalizedHeatmap, shouldCluster],
+  );
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<Map | null>(null);
   const libRef = useRef<MapLibreModule | null>(null);
   const markerRef = useRef<any>(null);
   const adminMarkerRef = useRef<any>(null);
-  const latestHeatmap = useRef<HeatPoint[]>(heatmapData);
+  const latestHeatmap = useRef<HeatPoint[]>(processedHeatmap);
   const boundingBoxCallbackRef = useRef<Props['onBoundingBoxChange']>(onBoundingBoxChange);
 
   const effectiveProvider = providerOverride ?? provider;
@@ -164,7 +215,7 @@ export default function MapLibreMap({
         center={center}
         initialZoom={initialZoom}
         onSelect={onSelect}
-        heatmapData={heatmapData}
+        heatmapData={normalizedHeatmap}
         showHeatmap={showHeatmap}
         marker={marker}
         className={className}
@@ -173,6 +224,7 @@ export default function MapLibreMap({
         boundsPadding={boundsPadding}
         onBoundingBoxChange={onBoundingBoxChange}
         onProviderUnavailable={handleProviderUnavailable}
+        disableClustering={!shouldCluster}
       />
     );
   }
@@ -205,8 +257,8 @@ export default function MapLibreMap({
   }, [initialZoom]);
 
   useEffect(() => {
-    latestHeatmap.current = heatmapData;
-  }, [heatmapData]);
+    latestHeatmap.current = processedHeatmap;
+  }, [processedHeatmap]);
 
   useEffect(() => {
     boundingBoxCallbackRef.current = onBoundingBoxChange;
@@ -257,6 +309,10 @@ export default function MapLibreMap({
 
         mapRef.current = mapInstance;
 
+        const numberFormatter = new Intl.NumberFormat("es-AR", {
+          maximumFractionDigits: 2,
+        });
+
         if (typeof maplibre.NavigationControl === "function") {
           mapInstance.addControl(new maplibre.NavigationControl(), "top-right");
         }
@@ -284,7 +340,31 @@ export default function MapLibreMap({
             paint: {
               "heatmap-weight": ["get", "weight"],
               "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 0, 1, 15, 3],
-              "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 0, 2, 9, 24],
+              "heatmap-radius": [
+                "interpolate",
+                ["linear"],
+                ["zoom"],
+                0,
+                [
+                  "max",
+                  3,
+                  [
+                    "*",
+                    ["sqrt", ["coalesce", ["get", "clusterSize"], 1]],
+                    2,
+                  ],
+                ],
+                9,
+                [
+                  "max",
+                  16,
+                  [
+                    "*",
+                    ["sqrt", ["coalesce", ["get", "clusterSize"], 1]],
+                    4,
+                  ],
+                ],
+              ],
               "heatmap-opacity": 0.65,
               "heatmap-color": [
                 "interpolate",
@@ -306,19 +386,63 @@ export default function MapLibreMap({
             id: "tickets-circles",
             type: "circle",
             source: "points",
-            minzoom: 11,
+            minzoom: 9,
             paint: {
               "circle-radius": [
                 "interpolate",
                 ["linear"],
                 ["zoom"],
-                11,
-                4,
+                9,
+                [
+                  "max",
+                  [
+                    "+",
+                    4,
+                    [
+                      "*",
+                      ["sqrt", ["coalesce", ["get", "clusterSize"], 1]],
+                      1.2,
+                    ],
+                  ],
+                  6,
+                ],
                 16,
-                12,
+                [
+                  "max",
+                  [
+                    "+",
+                    6,
+                    [
+                      "*",
+                      ["sqrt", ["coalesce", ["get", "clusterSize"], 1]],
+                      2.4,
+                    ],
+                  ],
+                  14,
+                ],
               ],
-              "circle-color": "#2563eb",
-              "circle-opacity": 0.9,
+              "circle-color": [
+                "interpolate",
+                ["linear"],
+                ["coalesce", ["get", "averageWeight"], 1],
+                0,
+                "#38bdf8",
+                10,
+                "#2563eb",
+                20,
+                "#1d4ed8",
+                35,
+                "#ef4444",
+              ],
+              "circle-stroke-color": [
+                "case",
+                [">", ["coalesce", ["get", "clusterSize"], 1], 12],
+                "rgba(15, 23, 42, 0.35)",
+                "rgba(255, 255, 255, 0.95)",
+              ],
+              "circle-stroke-width": 1.5,
+              "circle-opacity": 0.88,
+              "circle-blur": 0.12,
             },
           });
 
@@ -396,28 +520,148 @@ export default function MapLibreMap({
           ]);
         };
 
+        const formatBreakdown = (
+          title: string,
+          items?: HeatPoint["aggregatedCategorias"],
+        ): string => {
+          if (!items?.length) return "";
+          const rows = items.slice(0, 3).map(
+            (item) =>
+              `<li><span class="font-medium text-slate-700">${item.label}</span> · ${numberFormatter.format(
+                item.weight,
+              )} (${item.percentage.toFixed(1)}%)</li>`,
+          );
+
+          return `
+            <div class="mt-3 text-xs leading-relaxed">
+              <p class="font-semibold uppercase tracking-wide text-slate-500">${title}</p>
+              <ul class="mt-1 space-y-0.5">${rows.join("")}</ul>
+            </div>
+          `;
+        };
+
         const handleCircleClick = (e: any) => {
           if (!e.features?.length) return;
           const feature = e.features[0];
           const coords = (feature.geometry as any).coordinates.slice();
-          const { id, ticket, categoria, direccion, distrito } = feature.properties || {};
+          const properties = feature.properties ?? {};
+          const clusterId = typeof properties.clusterId === "string" ? properties.clusterId : null;
+          const cluster = clusterId
+            ? latestHeatmap.current.find((point) => point.clusterId === clusterId)
+            : undefined;
 
           while (Math.abs(e.lngLat.lng - coords[0]) > 180) {
             coords[0] += e.lngLat.lng > coords[0] ? 360 : -360;
           }
 
-          const lines = [
-            `<p>Ticket #${ticket ?? id}</p>`,
-            categoria ? `<p>Categoría: ${categoria}</p>` : "",
-            distrito ? `<p>Distrito: ${distrito}</p>` : "",
-            direccion ? `<p>Dirección: ${direccion}</p>` : "",
-            `<a href="/chat/${id}" class="text-blue-600 underline" target="_blank" rel="noopener noreferrer">Ver ticket</a>`,
-          ].filter(Boolean);
+          const sections: string[] = [];
+
+          if (cluster) {
+            const clusterSize = Number.isFinite(cluster.clusterSize)
+              ? Number(cluster.clusterSize)
+              : 1;
+            const totalWeight = Number.isFinite(cluster.totalWeight)
+              ? Number(cluster.totalWeight)
+              : Number(cluster.weight ?? 0);
+
+            sections.push(
+              `<p class="text-sm font-semibold text-slate-800">Reportes en la zona: ${clusterSize.toLocaleString(
+                "es-AR",
+              )}</p>`,
+            );
+
+            if (totalWeight > 0) {
+              sections.push(
+                `<p class="text-xs text-slate-600">Peso agregado: <span class="font-medium">${numberFormatter.format(
+                  totalWeight,
+                )}</span></p>`,
+              );
+            }
+
+            if (Number.isFinite(cluster.averageWeight) && clusterSize > 1) {
+              sections.push(
+                `<p class="text-xs text-slate-600">Peso promedio por reporte: ${numberFormatter.format(
+                  Number(cluster.averageWeight),
+                )}</p>`,
+              );
+            }
+
+            const topBarrio = cluster.aggregatedBarrios?.[0];
+            if (topBarrio) {
+              sections.push(
+                `<p class="text-xs text-slate-600">Zona destacada: <span class="font-medium">${topBarrio.label}</span> (${topBarrio.percentage.toFixed(1)}%)</p>`,
+              );
+            } else if (cluster.barrio || cluster.distrito) {
+              sections.push(
+                `<p class="text-xs text-slate-600">Zona: ${cluster.barrio ?? cluster.distrito}</p>`,
+              );
+            }
+
+            if (cluster.last_ticket_at) {
+              const parsed = Date.parse(cluster.last_ticket_at);
+              if (Number.isFinite(parsed)) {
+                sections.push(
+                  `<p class="text-xs text-slate-600">Último ticket: ${new Date(parsed).toLocaleString("es-AR")}</p>`,
+                );
+              }
+            }
+
+            const categoriasBlock = formatBreakdown(
+              "Categorías principales",
+              cluster.aggregatedCategorias,
+            );
+            if (categoriasBlock) sections.push(categoriasBlock);
+
+            const estadosBlock = formatBreakdown("Estados", cluster.aggregatedEstados);
+            if (estadosBlock) sections.push(estadosBlock);
+
+            const severidadesBlock = formatBreakdown(
+              "Severidad",
+              cluster.aggregatedSeveridades,
+            );
+            if (severidadesBlock) sections.push(severidadesBlock);
+
+            const tiposBlock = formatBreakdown(
+              "Tipos de ticket",
+              cluster.aggregatedTipos,
+            );
+            if (tiposBlock) sections.push(tiposBlock);
+
+            const samples = cluster.sampleTickets ?? [];
+            if (samples.length) {
+              const links = samples.slice(0, 3).map((ticketId) => {
+                const safeId = `${ticketId}`;
+                return `<a href="/chat/${safeId}" class="text-blue-600 underline hover:text-blue-500" target="_blank" rel="noopener noreferrer">#${safeId}</a>`;
+              });
+              sections.push(
+                `<p class="mt-3 text-xs text-slate-600">Tickets relacionados: ${links.join(
+                  " · ",
+                )}</p>`,
+              );
+            } else if (cluster.ticket || cluster.id) {
+              const fallbackId = `${cluster.ticket ?? cluster.id}`;
+              sections.push(
+                `<p class="mt-3 text-xs"><a href="/chat/${fallbackId}" class="text-blue-600 underline hover:text-blue-500" target="_blank" rel="noopener noreferrer">Ver ticket de referencia</a></p>`,
+              );
+            }
+          } else {
+            const { id, ticket, categoria, direccion, distrito } = properties;
+            const fallbackLines = [
+              ticket || id ? `<p class="text-sm font-semibold">Ticket #${ticket ?? id}</p>` : "",
+              categoria ? `<p class="text-xs text-slate-600">Categoría: ${categoria}</p>` : "",
+              distrito ? `<p class="text-xs text-slate-600">Distrito: ${distrito}</p>` : "",
+              direccion ? `<p class="text-xs text-slate-600">Dirección: ${direccion}</p>` : "",
+              id
+                ? `<p class="mt-3 text-xs"><a href="/chat/${id}" class="text-blue-600 underline hover:text-blue-500" target="_blank" rel="noopener noreferrer">Ver ticket</a></p>`
+                : "",
+            ].filter(Boolean);
+            sections.push(...fallbackLines);
+          }
 
           const popup = new maplibre.Popup();
           popup
             .setLngLat(coords as LngLatLike)
-            .setHTML(`<div class="text-sm">${lines.join("")}</div>`)
+            .setHTML(`<div class="max-w-xs space-y-1">${sections.join("")}</div>`)
             .addTo(mapInstance);
         };
 
@@ -496,7 +740,7 @@ export default function MapLibreMap({
     const map = mapRef.current;
     if (!map || effectiveProvider !== "maplibre") return;
 
-    const applyData = () => updateHeatmapSource(map, heatmapData);
+    const applyData = () => updateHeatmapSource(map, processedHeatmap);
     const source = map.getSource("points");
     if (source && typeof (source as any).setData === "function") {
       applyData();
@@ -507,7 +751,7 @@ export default function MapLibreMap({
     return () => {
       map.off("load", applyData);
     };
-  }, [heatmapData, effectiveProvider]);
+  }, [processedHeatmap, effectiveProvider]);
 
   useEffect(() => {
     const map = mapRef.current;

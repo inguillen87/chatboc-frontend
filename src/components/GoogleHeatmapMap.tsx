@@ -3,6 +3,7 @@ import { GoogleMap, HeatmapLayerF, MarkerF, useJsApiLoader } from "@react-google
 import { cn } from "@/lib/utils";
 import type { HeatPoint } from "@/services/statsService";
 import type { MapProviderUnavailableReason } from "@/hooks/useMapProvider";
+import { clusterHeatmapPoints } from "@/utils/heatmap";
 
 type GoogleHeatmapMapProps = {
   center?: [number, number];
@@ -17,6 +18,7 @@ type GoogleHeatmapMapProps = {
   boundsPadding?: number | { top?: number; bottom?: number; left?: number; right?: number };
   onBoundingBoxChange?: (bbox: [number, number, number, number] | null) => void;
   onProviderUnavailable?: (reason: MapProviderUnavailableReason, details?: unknown) => void;
+  disableClustering?: boolean;
 };
 
 declare global {
@@ -68,10 +70,21 @@ const computeFallbackCenter = (
   }
 
   if (heatmapData.length > 0) {
-    const totalWeight = heatmapData.reduce((sum, point) => sum + (point.weight ?? 1), 0);
+    const totalWeight = heatmapData.reduce(
+      (sum, point) => sum + (point.totalWeight ?? point.weight ?? 1),
+      0,
+    );
     const divisor = totalWeight > 0 ? totalWeight : heatmapData.length;
-    const avgLat = heatmapData.reduce((sum, point) => sum + point.lat * (point.weight ?? 1), 0) / divisor;
-    const avgLng = heatmapData.reduce((sum, point) => sum + point.lng * (point.weight ?? 1), 0) / divisor;
+    const avgLat =
+      heatmapData.reduce(
+        (sum, point) => sum + point.lat * (point.totalWeight ?? point.weight ?? 1),
+        0,
+      ) / divisor;
+    const avgLng =
+      heatmapData.reduce(
+        (sum, point) => sum + point.lng * (point.totalWeight ?? point.weight ?? 1),
+        0,
+      ) / divisor;
 
     if (Number.isFinite(avgLat) && Number.isFinite(avgLng)) {
       return { lat: avgLat, lng: avgLng } as const;
@@ -103,10 +116,62 @@ export function GoogleHeatmapMap({
   boundsPadding,
   onBoundingBoxChange,
   onProviderUnavailable,
+  disableClustering,
 }: GoogleHeatmapMapProps) {
   const mapRef = useRef<google.maps.Map | null>(null);
   const unavailableReportedRef = useRef(false);
   const [heatmapLayerAvailable, setHeatmapLayerAvailable] = useState(false);
+  const normalizedHeatmap = useMemo(
+    () =>
+      (heatmapData ?? []).filter(
+        (point): point is HeatPoint & { lat: number; lng: number } =>
+          Boolean(point) && Number.isFinite(point.lat) && Number.isFinite(point.lng),
+      ),
+    [heatmapData],
+  );
+  const aggregatedHint = useMemo(
+    () =>
+      normalizedHeatmap.some(
+        (point) =>
+          (typeof point.clusterSize === "number" && point.clusterSize > 1) ||
+          Boolean(point.clusterId) ||
+          (Array.isArray(point.sampleTickets) && point.sampleTickets.length > 0) ||
+          (Array.isArray(point.aggregatedCategorias) && point.aggregatedCategorias.length > 0) ||
+          (Array.isArray(point.aggregatedEstados) && point.aggregatedEstados.length > 0) ||
+          (Array.isArray(point.aggregatedTipos) && point.aggregatedTipos.length > 0) ||
+          (Array.isArray(point.aggregatedBarrios) && point.aggregatedBarrios.length > 0) ||
+          (Array.isArray(point.aggregatedSeveridades) && point.aggregatedSeveridades.length > 0),
+      ),
+    [normalizedHeatmap],
+  );
+  const shouldCluster = useMemo(
+    () => !disableClustering && !aggregatedHint,
+    [disableClustering, aggregatedHint],
+  );
+  const aggregatedHeatmap = useMemo(
+    () => (shouldCluster ? clusterHeatmapPoints(normalizedHeatmap) : normalizedHeatmap),
+    [normalizedHeatmap, shouldCluster],
+  );
+  const heatmapRadius = useMemo(() => {
+    if (!aggregatedHeatmap.length) {
+      return 28;
+    }
+
+    const totalRadius = aggregatedHeatmap.reduce(
+      (sum, point) => sum + (Number.isFinite(point.radiusMeters) ? Number(point.radiusMeters) : 0),
+      0,
+    );
+    const averageMeters = totalRadius / aggregatedHeatmap.length;
+    if (!Number.isFinite(averageMeters) || averageMeters <= 0) {
+      return 28;
+    }
+
+    return Math.max(20, Math.min(64, averageMeters / 10));
+  }, [aggregatedHeatmap]);
+  const titleNumberFormatter = useMemo(
+    () => new Intl.NumberFormat("es-AR", { maximumFractionDigits: 2 }),
+    [],
+  );
 
   const { isLoaded, loadError } = useJsApiLoader({
     id: "chatboc-google-maps",
@@ -165,6 +230,10 @@ export function GoogleHeatmapMap({
     if (!available) {
       reportUnavailable("heatmap-unavailable");
     }
+
+    if (!window.google?.maps?.Map) {
+      reportUnavailable("load-error", new Error("google.maps.Map unavailable"));
+    }
   }, [isLoaded, reportUnavailable]);
 
   const circleSymbolPath =
@@ -179,8 +248,8 @@ export function GoogleHeatmapMap({
   );
 
   const fallbackCenter = useMemo(
-    () => computeFallbackCenter(center, marker, adminLocation, heatmapData, fitToBounds),
-    [center, marker, adminLocation, heatmapData, fitToBounds],
+    () => computeFallbackCenter(center, marker, adminLocation, aggregatedHeatmap, fitToBounds),
+    [center, marker, adminLocation, aggregatedHeatmap, fitToBounds],
   );
 
   const heatmapPoints = useMemo(() => {
@@ -189,11 +258,11 @@ export function GoogleHeatmapMap({
     }
 
     const googleMaps = window.google.maps;
-    const points = heatmapData
+    const points = aggregatedHeatmap
       .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng))
       .map((point) => ({
         location: new googleMaps.LatLng(point.lat, point.lng),
-        weight: point.weight ?? 1,
+        weight: point.totalWeight ?? point.weight ?? 1,
       }));
 
     if (!points.length) {
@@ -201,7 +270,7 @@ export function GoogleHeatmapMap({
     }
 
     return new googleMaps.MVCArray(points);
-  }, [heatmapData, isLoaded]);
+  }, [aggregatedHeatmap, isLoaded]);
 
   const handleMapLoad = useCallback((map: google.maps.Map) => {
     mapRef.current = map;
@@ -331,7 +400,19 @@ export function GoogleHeatmapMap({
     );
   }
 
-  const shouldRenderHeatmap = showHeatmap && heatmapPoints && heatmapLayerAvailable;
+  if (!window.google?.maps?.Map) {
+    reportUnavailable("load-error", new Error("google.maps.Map unavailable"));
+    return (
+      <div className={mapContainerClassName}>
+        <div className="flex h-full w-full items-center justify-center rounded-2xl border border-dashed border-border px-6 text-center text-sm text-muted-foreground">
+          No se pudo inicializar Google Maps. Verificá la clave (`VITE_Maps_API_KEY`) y la configuración de facturación.
+        </div>
+      </div>
+    );
+  }
+
+  const shouldRenderHeatmap =
+    showHeatmap && heatmapPoints && heatmapLayerAvailable && aggregatedHeatmap.length > 0;
 
   return (
     <GoogleMap
@@ -354,28 +435,70 @@ export function GoogleHeatmapMap({
       {shouldRenderHeatmap ? (
         <HeatmapLayerF
           data={heatmapPoints}
-          options={{ radius: 24, opacity: 0.6 }}
+          options={{ radius: heatmapRadius, opacity: 0.6 }}
         />
       ) : (
-        heatmapData
+        aggregatedHeatmap
           .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng))
-          .map((point) => (
-            <MarkerF
-              key={`${point.lat}-${point.lng}-${point.id ?? point.ticket ?? "point"}`}
-              position={{ lat: point.lat, lng: point.lng }}
-              options={{
-                icon: {
-                  path: circleSymbolPath,
-                  scale: 6,
-                  fillColor: "#2563eb",
-                  fillOpacity: 0.85,
-                  strokeColor: "#1d4ed8",
-                  strokeOpacity: 0.9,
-                  strokeWeight: 1,
-                },
-              }}
-            />
-          ))
+          .map((point) => {
+            const clusterSize = Number.isFinite(point.clusterSize)
+              ? Number(point.clusterSize)
+              : 1;
+            const scale = Math.max(6, Math.min(18, 4 + Math.sqrt(clusterSize) * 2));
+            const labelText = clusterSize > 1 ? clusterSize.toLocaleString("es-AR") : undefined;
+            const titleParts: string[] = [];
+            if (clusterSize > 1) {
+              titleParts.push(`Reportes: ${clusterSize}`);
+            }
+            if (Number.isFinite(point.totalWeight)) {
+              titleParts.push(
+                `Peso total: ${titleNumberFormatter.format(Number(point.totalWeight))}`,
+              );
+            }
+            if (Number.isFinite(point.averageWeight) && clusterSize > 1) {
+              titleParts.push(
+                `Promedio: ${titleNumberFormatter.format(Number(point.averageWeight))}`,
+              );
+            }
+            if (point.aggregatedCategorias?.length) {
+              titleParts.push(`Categoría principal: ${point.aggregatedCategorias[0].label}`);
+            }
+            if (point.last_ticket_at) {
+              const parsed = Date.parse(point.last_ticket_at);
+              if (Number.isFinite(parsed)) {
+                titleParts.push(`Último ticket: ${new Date(parsed).toLocaleString("es-AR")}`);
+              }
+            }
+
+            return (
+              <MarkerF
+                key={`${point.clusterId ?? `${point.lat}-${point.lng}`}`}
+                position={{ lat: point.lat, lng: point.lng }}
+                label={
+                  labelText
+                    ? {
+                        text: labelText,
+                        color: "#1f2937",
+                        fontSize: "12px",
+                        fontWeight: "600",
+                      }
+                    : undefined
+                }
+                title={titleParts.join(" · ") || undefined}
+                options={{
+                  icon: {
+                    path: circleSymbolPath,
+                    scale,
+                    fillColor: "#2563eb",
+                    fillOpacity: 0.82,
+                    strokeColor: "#1d4ed8",
+                    strokeOpacity: 0.95,
+                    strokeWeight: 1.6,
+                  },
+                }}
+              />
+            );
+          })
       )}
 
       {marker ? (

@@ -11,6 +11,7 @@ import {
   getTicketStats,
   getHeatmapPoints,
   HeatPoint,
+  HeatmapDataset,
   TicketStatsResponse,
 } from '@/services/statsService';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -95,6 +96,7 @@ export default function IncidentsMap() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedStates, setSelectedStates] = useState<string[]>([]);
   const [availableBarrios, setAvailableBarrios] = useState<string[]>([]);
+  const [disableClustering, setDisableClustering] = useState(false);
   const { provider, setProvider } = useMapProvider();
   const handleProviderUnavailable = useCallback(
     (currentProvider: MapProvider, reason: MapProviderUnavailableReason, details?: unknown) => {
@@ -108,11 +110,56 @@ export default function IncidentsMap() {
     [setProvider],
   );
 
-  const heatmapCache = useRef<Map<string, HeatPoint[]>>(new Map());
+  const [heatmapBounds, setHeatmapBounds] = useState<[number, number][]>([]);
 
-  const applyHeatmapPoints = useCallback(
-    (points: HeatPoint[], options?: { mergeFilters?: boolean; fallback?: boolean }) => {
+  const heatmapCache = useRef<Map<string, HeatmapDataset>>(new Map());
+
+  const computeDisableClustering = useCallback((dataset: HeatmapDataset | null | undefined) => {
+    if (!dataset) {
+      return false;
+    }
+
+    const points = Array.isArray(dataset.points) ? dataset.points : [];
+    if (!points.length) {
+      return false;
+    }
+
+    if (Array.isArray(dataset.cells) && dataset.cells.length > 0) {
+      return true;
+    }
+
+    const metadata = dataset.metadata?.map?.heatmap;
+    if (metadata) {
+      if (typeof metadata.cellCount === 'number' && metadata.cellCount > 0) {
+        return true;
+      }
+      if (
+        typeof metadata.pointCount === 'number' &&
+        metadata.pointCount > points.length &&
+        points.length > 0
+      ) {
+        return true;
+      }
+    }
+
+    return points.some(
+      (point) =>
+        (typeof point.clusterSize === 'number' && point.clusterSize > 1) ||
+        Boolean(point.clusterId) ||
+        (Array.isArray(point.sampleTickets) && point.sampleTickets.length > 0) ||
+        (Array.isArray(point.aggregatedCategorias) && point.aggregatedCategorias.length > 0) ||
+        (Array.isArray(point.aggregatedEstados) && point.aggregatedEstados.length > 0) ||
+        (Array.isArray(point.aggregatedTipos) && point.aggregatedTipos.length > 0) ||
+        (Array.isArray(point.aggregatedBarrios) && point.aggregatedBarrios.length > 0) ||
+        (Array.isArray(point.aggregatedSeveridades) && point.aggregatedSeveridades.length > 0),
+    );
+  }, []);
+
+  const applyHeatmapDataset = useCallback(
+    (dataset: HeatmapDataset, options?: { mergeFilters?: boolean; fallback?: boolean }) => {
+      const points = dataset.points ?? [];
       setHeatmapData(points);
+      setDisableClustering(computeDisableClustering(dataset));
 
       const barrios = Array.from(
         new Set(points.map((d) => d.barrio).filter((b): b is string => Boolean(b))),
@@ -135,6 +182,25 @@ export default function IncidentsMap() {
         }
       }
 
+      const mapMetadata = dataset.metadata?.map?.heatmap;
+      if (mapMetadata?.bounds && mapMetadata.bounds.length === 4) {
+        const [west, south, east, north] = mapMetadata.bounds;
+        if (
+          [west, south, east, north].every(
+            (value) => typeof value === 'number' && Number.isFinite(value),
+          )
+        ) {
+          setHeatmapBounds([
+            [west, south],
+            [east, north],
+          ]);
+        } else {
+          setHeatmapBounds([]);
+        }
+      } else {
+        setHeatmapBounds([]);
+      }
+
       if (points.length > 0) {
         const totalWeight = points.reduce((sum, p) => sum + (p.weight ?? 1), 0);
         const divisor = totalWeight > 0 ? totalWeight : points.length;
@@ -142,14 +208,30 @@ export default function IncidentsMap() {
         const avgLng = points.reduce((sum, p) => sum + p.lng * (p.weight ?? 1), 0) / divisor;
         if (!Number.isNaN(avgLat) && !Number.isNaN(avgLng)) {
           setCenter({ lat: avgLat, lng: avgLng });
+          return;
         }
-      } else if (options?.fallback) {
+      }
+
+      if (mapMetadata?.centroid) {
+        const [centroidLng, centroidLat] = mapMetadata.centroid;
+        if (
+          typeof centroidLat === 'number' &&
+          typeof centroidLng === 'number' &&
+          Number.isFinite(centroidLat) &&
+          Number.isFinite(centroidLng)
+        ) {
+          setCenter({ lat: centroidLat, lng: centroidLng });
+          return;
+        }
+      }
+
+      if (options?.fallback) {
         setCenter({ lat: JUNIN_DEMO_CENTER[1], lng: JUNIN_DEMO_CENTER[0] });
       } else if (adminCoords) {
         setCenter({ lat: adminCoords[1], lng: adminCoords[0] });
       }
     },
-    [adminCoords],
+    [adminCoords, computeDisableClustering],
   );
 
   const startDateRef = useRef<HTMLInputElement>(null);
@@ -187,7 +269,7 @@ export default function IncidentsMap() {
 
       const cache = heatmapCache.current;
       const heatmapPromise = !forceRefresh && cache.has(heatmapKey)
-        ? Promise.resolve(cache.get(heatmapKey) ?? [])
+        ? Promise.resolve(cache.get(heatmapKey) ?? { points: [] })
         : getHeatmapPoints({ tipo_ticket: ticketType, tipo: ticketType, ...filters }).then((data) => {
             cache.set(heatmapKey, data);
             if (cache.size > HEATMAP_CACHE_LIMIT) {
@@ -199,12 +281,13 @@ export default function IncidentsMap() {
             return data;
           });
 
-      const [heatmapPoints, stats] = await Promise.all([
+      const [heatmapDatasetResult, stats] = await Promise.all([
         heatmapPromise,
         getTicketStats({ tipo: ticketType, ...filters }),
       ]);
       setCharts(stats.charts || []);
 
+      const heatmapPoints = heatmapDatasetResult.points ?? [];
       let combinedHeatmap = heatmapPoints.length > 0 ? heatmapPoints : stats.heatmap ?? [];
       const usedFallback = combinedHeatmap.length === 0;
 
@@ -213,22 +296,27 @@ export default function IncidentsMap() {
         setError(JUNIN_DEMO_NOTICE);
       }
 
-      applyHeatmapPoints(combinedHeatmap, {
-        mergeFilters: usedFallback,
-        fallback: usedFallback,
-      });
+      applyHeatmapDataset(
+        heatmapPoints.length > 0
+          ? heatmapDatasetResult
+          : { points: combinedHeatmap, metadata: undefined },
+        {
+          mergeFilters: usedFallback,
+          fallback: usedFallback,
+        },
+      );
     } catch (err) {
       const message =
         err instanceof ApiError ? err.message : 'Error al cargar datos del mapa';
       setError(`${message}. ${JUNIN_DEMO_NOTICE}`);
       setCharts([]);
       const fallbackPoints = generateJuninDemoHeatmap();
-      applyHeatmapPoints(fallbackPoints, { mergeFilters: true, fallback: true });
+      applyHeatmapDataset({ points: fallbackPoints }, { mergeFilters: true, fallback: true });
       console.error('Error fetching map data:', err);
     } finally {
       setIsLoading(false);
     }
-  }, [ticketType, adminCoords, selectedCategories, selectedStates, applyHeatmapPoints]);
+  }, [ticketType, adminCoords, selectedCategories, selectedStates, applyHeatmapDataset]);
 
   useEffect(() => {
     fetchData();
@@ -482,7 +570,9 @@ export default function IncidentsMap() {
           heatmapData={heatmapData}
           showHeatmap={showHeatmap}
           className="h-[600px]"
+          fitToBounds={heatmapBounds.length === 2 ? heatmapBounds : undefined}
           onProviderUnavailable={handleProviderUnavailable}
+          disableClientClustering={disableClustering}
         />
         <div className="absolute bottom-2 left-2 bg-background/80 text-foreground px-2 py-1 rounded shadow text-xs">
           {legendText}
