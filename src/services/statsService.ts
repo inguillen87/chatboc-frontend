@@ -1,5 +1,12 @@
 import { ApiError, apiFetch } from '@/utils/api';
 
+export interface HeatmapBreakdownItem {
+  label: string;
+  count: number;
+  weight: number;
+  percentage: number;
+}
+
 export interface HeatPoint {
   lat: number;
   lng: number;
@@ -14,6 +21,18 @@ export interface HeatPoint {
   estado?: string;
   severidad?: string;
   last_ticket_at?: string | null;
+  clusterId?: string;
+  clusterSize?: number;
+  totalWeight?: number;
+  averageWeight?: number;
+  radiusMeters?: number;
+  maxDistanceMeters?: number;
+  sampleTickets?: string[];
+  aggregatedCategorias?: HeatmapBreakdownItem[];
+  aggregatedBarrios?: HeatmapBreakdownItem[];
+  aggregatedEstados?: HeatmapBreakdownItem[];
+  aggregatedTipos?: HeatmapBreakdownItem[];
+  aggregatedSeveridades?: HeatmapBreakdownItem[];
 }
 
 export interface TicketStatsResponse {
