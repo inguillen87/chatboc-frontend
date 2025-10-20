@@ -1863,7 +1863,7 @@ const normalizeHeatPoint = (raw: unknown): HeatPoint | null => {
   return point;
 };
 
-const normalizeHeatmapCells = (value: unknown): HeatmapCell[] | undefined => {
+const normalizeHeatmapCellList = (value: unknown): HeatmapCell[] | undefined => {
   if (!Array.isArray(value)) {
     return undefined;
   }
@@ -2075,7 +2075,7 @@ const extractHeatmapDataset = (payload: unknown): HeatmapDataset => {
       }
 
       if (!dataset.cells && normalizedKey.includes('heatmap') && normalizedKey.endsWith('cells')) {
-        const cells = normalizeHeatmapCells(value);
+        const cells = normalizeHeatmapCellList(value);
         if (cells) {
           dataset.cells = cells;
         }
