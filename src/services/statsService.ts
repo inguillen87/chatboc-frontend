@@ -1,5 +1,12 @@
 import { ApiError, apiFetch } from '@/utils/api';
 
+export interface HeatmapBreakdownItem {
+  label: string;
+  count: number;
+  weight: number;
+  percentage: number;
+}
+
 export interface HeatPoint {
   lat: number;
   lng: number;
@@ -14,11 +21,54 @@ export interface HeatPoint {
   estado?: string;
   severidad?: string;
   last_ticket_at?: string | null;
+  clusterId?: string;
+  clusterSize?: number;
+  totalWeight?: number;
+  averageWeight?: number;
+  radiusMeters?: number;
+  maxDistanceMeters?: number;
+  sampleTickets?: string[];
+  aggregatedCategorias?: HeatmapBreakdownItem[];
+  aggregatedBarrios?: HeatmapBreakdownItem[];
+  aggregatedEstados?: HeatmapBreakdownItem[];
+  aggregatedTipos?: HeatmapBreakdownItem[];
+  aggregatedSeveridades?: HeatmapBreakdownItem[];
+  aggregatedCanales?: HeatmapBreakdownItem[];
+  aggregatedFuentes?: HeatmapBreakdownItem[];
+  dominantValues?: Record<string, string | null | undefined>;
+  source?: "raw" | "cluster" | "cell";
+  cellId?: string;
+  pointCount?: number;
+}
+
+export interface HeatmapMetadata {
+  pointCount?: number;
+  cellCount?: number;
+  totalWeight?: number;
+  maxPointWeight?: number;
+  maxCellCount?: number;
+  resolution?: number;
+  bounds?: [number, number, number, number];
+  centroid?: [number, number];
+}
+
+export interface HeatmapDataset {
+  points: HeatPoint[];
+  rawPoints?: HeatPoint[];
+  cells?: HeatPoint[];
+  rawCells?: unknown[];
+  geojson?: unknown;
+  cellsGeojson?: unknown;
+  providerHint?: string;
+  mapConfig?: Record<string, unknown> | null;
+  metadata?: HeatmapMetadata;
+  raw?: unknown;
 }
 
 export interface TicketStatsResponse {
   charts?: { title: string; data: Record<string, number> }[];
   heatmap?: HeatPoint[];
+  heatmapDataset?: HeatmapDataset;
 }
 
 export interface TicketStatsParams {
@@ -829,6 +879,439 @@ const extractHeatmapFromPayload = (payload: unknown): HeatPoint[] => {
   return points;
 };
 
+const asRecord = (value: unknown): Record<string, unknown> | null =>
+  value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
+
+const getFromRecord = (record: Record<string, unknown>, ...keys: string[]): unknown => {
+  if (!record) return undefined;
+  if (keys.length === 0) return undefined;
+  const normalizedTargets = keys.map(normalizeKey);
+  for (const [key, value] of Object.entries(record)) {
+    if (normalizedTargets.includes(normalizeKey(key))) {
+      return value;
+    }
+  }
+  return undefined;
+};
+
+const gatherCandidateContainers = (root: Record<string, unknown>): Record<string, unknown>[] => {
+  const seen = new Set<unknown>();
+  const containers: Record<string, unknown>[] = [];
+  const queue: Record<string, unknown>[] = [root];
+
+  const nestedKeys = [
+    'data',
+    'datos',
+    'payload',
+    'result',
+    'results',
+    'response',
+    'contenido',
+    'content',
+    'body',
+    'attributes',
+    'attributesdata',
+    'meta',
+    'metadata',
+    'stats',
+    'estadisticas',
+    'statistics',
+    'map',
+    'mapa',
+  ];
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current || seen.has(current)) {
+      continue;
+    }
+    seen.add(current);
+    containers.push(current);
+
+    nestedKeys.forEach((key) => {
+      const nested = getFromRecord(current, key);
+      const nestedRecord = asRecord(nested);
+      if (nestedRecord && !seen.has(nestedRecord)) {
+        queue.push(nestedRecord);
+      }
+    });
+  }
+
+  return containers;
+};
+
+const pickFirstValue = <T>(
+  containers: Record<string, unknown>[],
+  candidateKeys: string[],
+  predicate: (value: unknown) => value is T,
+): T | undefined => {
+  for (const container of containers) {
+    const value = getFromRecord(container, ...candidateKeys);
+    if (predicate(value)) {
+      return value;
+    }
+  }
+  return undefined;
+};
+
+const toBreakdownItems = (
+  value: unknown,
+  totalWeight: number,
+): HeatmapBreakdownItem[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry) => {
+      const record = asRecord(entry);
+      if (!record) {
+        return null;
+      }
+
+      const label = coerceString(
+        getFromRecord(record, 'label', 'value', 'name', 'categoria', 'category', 'estado', 'status', 'barrio', 'distrito', 'tipo', 'type', 'canal', 'fuente'),
+      );
+      if (!label) {
+        return null;
+      }
+
+      const countValue =
+        coerceNumber(getFromRecord(record, 'count', 'cantidad', 'total', 'tickets', 'value')) ?? 0;
+      const weightValue =
+        coerceNumber(getFromRecord(record, 'weight', 'valor', 'value', 'total', 'tickets', 'count')) ?? countValue;
+
+      const percentageValue =
+        coerceNumber(getFromRecord(record, 'percentage', 'percent', 'porcentaje', 'ratio')) ??
+        (totalWeight > 0 ? (weightValue / totalWeight) * 100 : 0);
+
+      return {
+        label,
+        count: Math.round(countValue),
+        weight: Number(weightValue.toFixed(2)),
+        percentage: Number(percentageValue.toFixed(2)),
+      } satisfies HeatmapBreakdownItem;
+    })
+    .filter((item): item is HeatmapBreakdownItem => Boolean(item));
+};
+
+type NormalizeCellsResult = {
+  points: HeatPoint[];
+  raw: Record<string, unknown>[];
+};
+
+const normalizeHeatmapCells = (rawCells: unknown): NormalizeCellsResult => {
+  const rawList: Record<string, unknown>[] = [];
+  if (!Array.isArray(rawCells)) {
+    return { points: [], raw: rawList };
+  }
+
+  const points: HeatPoint[] = [];
+
+  rawCells.forEach((item, index) => {
+    const cellRecord = asRecord(item);
+    if (!cellRecord) {
+      return;
+    }
+    rawList.push(cellRecord);
+
+    const feature = asRecord(getFromRecord(cellRecord, 'feature'));
+    const featureProps = feature ? asRecord(getFromRecord(feature, 'properties')) : null;
+    const locationRecord =
+      asRecord(getFromRecord(cellRecord, 'location', 'centroid', 'center')) ||
+      (featureProps ? asRecord(getFromRecord(featureProps, 'location')) : null);
+
+    let lat =
+      parseNumberValue(getFromRecord(cellRecord, 'centroid_lat', 'centroidlat', 'lat')) ??
+      parseNumberValue(getFromRecord(locationRecord ?? {}, 'lat', 'latitude')) ??
+      parseNumberValue(getFromRecord(featureProps ?? {}, 'lat', 'latitude')) ?? undefined;
+    let lng =
+      parseNumberValue(getFromRecord(cellRecord, 'centroid_lon', 'centroidlng', 'lng', 'lon', 'longitud')) ??
+      parseNumberValue(getFromRecord(locationRecord ?? {}, 'lng', 'lon', 'longitud')) ??
+      parseNumberValue(getFromRecord(featureProps ?? {}, 'lng', 'lon', 'longitud')) ?? undefined;
+
+    if (lat === undefined || lng === undefined) {
+      const fallbackPair = parseCoordinatePair(cellRecord, 'auto');
+      if (fallbackPair.lat !== undefined && fallbackPair.lng !== undefined) {
+        lat = fallbackPair.lat;
+        lng = fallbackPair.lng;
+      }
+    }
+
+    if (lat === undefined || lng === undefined) {
+      return;
+    }
+
+    const count =
+      parseNumberValue(getFromRecord(cellRecord, 'count', 'weight', 'intensity', 'total')) ??
+      parseNumberValue(getFromRecord(featureProps ?? {}, 'count', 'weight', 'intensity', 'total')) ??
+      0;
+    const pointCount =
+      parseNumberValue(getFromRecord(cellRecord, 'point_count', 'pointcount', 'samples')) ??
+      parseNumberValue(getFromRecord(featureProps ?? {}, 'point_count', 'pointcount', 'samples')) ??
+      undefined;
+
+    const clusterId =
+      coerceString(getFromRecord(cellRecord, 'cell_id', 'cellid', 'cluster_id', 'clusterid', 'id')) ||
+      coerceString(getFromRecord(featureProps ?? {}, 'cell_id', 'cellid', 'cluster_id', 'clusterid', 'id')) ||
+      undefined;
+
+    const radiusMeters =
+      parseNumberValue(getFromRecord(cellRecord, 'radius_meters', 'radiusmeters')) ??
+      parseNumberValue(getFromRecord(featureProps ?? {}, 'radius_meters', 'radiusmeters')) ??
+      undefined;
+
+    const maxDistanceMeters =
+      parseNumberValue(getFromRecord(cellRecord, 'max_distance_meters', 'maxdistancemeters')) ??
+      parseNumberValue(getFromRecord(featureProps ?? {}, 'max_distance_meters', 'maxdistancemeters')) ??
+      undefined;
+
+    const topValuesRecord =
+      asRecord(getFromRecord(cellRecord, 'top_values', 'topvalues')) ||
+      (featureProps ? asRecord(getFromRecord(featureProps, 'top_values', 'topvalues')) : null);
+
+    const totalWeight = count ?? 0;
+    const aggregatedCategorias = toBreakdownItems(
+      getFromRecord(topValuesRecord ?? {}, 'categoria', 'categorias', 'category', 'categories'),
+      totalWeight,
+    );
+    const aggregatedBarrios = toBreakdownItems(
+      getFromRecord(topValuesRecord ?? {}, 'barrio', 'barrios', 'distrito', 'distritos'),
+      totalWeight,
+    );
+    const aggregatedEstados = toBreakdownItems(
+      getFromRecord(topValuesRecord ?? {}, 'estado', 'estados', 'status', 'statuses'),
+      totalWeight,
+    );
+    const aggregatedTipos = toBreakdownItems(
+      getFromRecord(topValuesRecord ?? {}, 'tipo', 'tipos', 'tipo_ticket', 'tipos_ticket'),
+      totalWeight,
+    );
+    const aggregatedSeveridades = toBreakdownItems(
+      getFromRecord(topValuesRecord ?? {}, 'severidad', 'severidades', 'severity', 'severities'),
+      totalWeight,
+    );
+    const aggregatedCanales = toBreakdownItems(
+      getFromRecord(topValuesRecord ?? {}, 'canal', 'canales'),
+      totalWeight,
+    );
+    const aggregatedFuentes = toBreakdownItems(
+      getFromRecord(topValuesRecord ?? {}, 'fuente', 'fuentes', 'source', 'sources'),
+      totalWeight,
+    );
+
+    const dominantValuesRecord =
+      asRecord(getFromRecord(cellRecord, 'dominant_values', 'dominantvalues')) ||
+      (featureProps ? asRecord(getFromRecord(featureProps, 'dominant_values', 'dominantvalues')) : null);
+
+    const dominantValues: Record<string, string | null | undefined> | undefined = dominantValuesRecord
+      ? Object.fromEntries(
+          Object.entries(dominantValuesRecord).map(([key, value]) => [key, coerceString(value)]),
+        )
+      : undefined;
+
+    const sampleTickets =
+      (getFromRecord(cellRecord, 'sample_tickets', 'sampletickets') as unknown[]) ??
+      (featureProps ? (getFromRecord(featureProps, 'sample_tickets', 'sampletickets') as unknown[]) : undefined);
+
+    const normalizedTickets = Array.isArray(sampleTickets)
+      ? sampleTickets
+          .map((ticket) => coerceString(ticket))
+          .filter((ticket): ticket is string => Boolean(ticket))
+      : undefined;
+
+    const lastTicketAt =
+      coerceString(getFromRecord(cellRecord, 'last_ticket_at', 'lastticketat', 'last_seen_at')) ??
+      coerceString(getFromRecord(featureProps ?? {}, 'last_ticket_at', 'lastticketat', 'last_seen_at')) ??
+      null;
+
+    const clusterSize =
+      pointCount !== undefined && pointCount > 0
+        ? Math.round(pointCount)
+        : Math.max(1, Math.round(totalWeight || 1));
+    const averageWeight = clusterSize > 0 ? Number((totalWeight / clusterSize).toFixed(2)) : totalWeight;
+
+    points.push({
+      lat,
+      lng,
+      weight: totalWeight,
+      totalWeight,
+      averageWeight,
+      clusterId: clusterId ?? `cell-${index + 1}`,
+      clusterSize,
+      radiusMeters,
+      maxDistanceMeters,
+      aggregatedCategorias,
+      aggregatedBarrios,
+      aggregatedEstados,
+      aggregatedTipos,
+      aggregatedSeveridades,
+      aggregatedCanales,
+      aggregatedFuentes,
+      dominantValues,
+      sampleTickets: normalizedTickets,
+      last_ticket_at: lastTicketAt,
+      source: 'cell',
+      cellId: clusterId ?? undefined,
+      pointCount: pointCount !== undefined ? Math.round(pointCount) : undefined,
+    });
+  });
+
+  return { points, raw: rawList };
+};
+
+const normalizeHeatmapDataset = (payload: unknown): HeatmapDataset => {
+  const dataset: HeatmapDataset = { points: [], raw: payload };
+  const rootRecord = asRecord(payload);
+
+  if (!rootRecord) {
+    dataset.points = extractHeatmapFromPayload(payload);
+    return dataset;
+  }
+
+  const containers = gatherCandidateContainers(rootRecord);
+
+  const rawHeatmap = pickFirstValue(containers, ['heatmap', 'heatmap_points', 'heatmapdata', 'geo_heatmap'], Array.isArray);
+  if (rawHeatmap) {
+    dataset.rawPoints = rawHeatmap
+      .map((item) => normalizeHeatPoint(item))
+      .filter((point): point is HeatPoint => Boolean(point));
+  }
+
+  const rawCells = pickFirstValue(containers, ['heatmap_cells', 'heatmapcells', 'heatmap_grid', 'grid_cells'], Array.isArray);
+  if (rawCells) {
+    const normalizedCells = normalizeHeatmapCells(rawCells);
+    dataset.cells = normalizedCells.points;
+    dataset.rawCells = normalizedCells.raw;
+  }
+
+  const mapConfig = pickFirstValue(
+    containers,
+    ['map_config', 'mapconfig'],
+    (value): value is Record<string, unknown> => Boolean(asRecord(value)),
+  );
+  if (mapConfig) {
+    dataset.mapConfig = mapConfig;
+  }
+
+  const heatmapGeojson = pickFirstValue(
+    containers,
+    ['heatmap_geojson', 'heatmapgeojson'],
+    (value): value is unknown => value !== undefined,
+  );
+  if (heatmapGeojson !== undefined) {
+    dataset.geojson = heatmapGeojson;
+  }
+
+  const cellsGeojson = pickFirstValue(
+    containers,
+    ['heatmap_cells_geojson', 'heatmapcellsgeojson'],
+    (value): value is unknown => value !== undefined,
+  );
+  if (cellsGeojson !== undefined) {
+    dataset.cellsGeojson = cellsGeojson;
+  }
+
+  const mapLayers = pickFirstValue(
+    containers,
+    ['map_layers', 'maplayers'],
+    (value): value is Record<string, unknown> => Boolean(asRecord(value)),
+  );
+  if (mapLayers) {
+    const layersRecord = asRecord(mapLayers);
+    if (layersRecord) {
+      dataset.providerHint =
+        coerceString(getFromRecord(layersRecord, 'provider_hint', 'provider', 'preferred_provider')) ??
+        dataset.providerHint;
+
+      const heatmapLayer = asRecord(getFromRecord(layersRecord, 'heatmap'));
+      if (heatmapLayer) {
+        dataset.providerHint =
+          coerceString(getFromRecord(heatmapLayer, 'provider_hint', 'provider', 'preferred_provider')) ??
+          dataset.providerHint;
+      }
+    }
+  }
+
+  const metadataRecord = pickFirstValue(
+    containers,
+    ['metadata'],
+    (value): value is Record<string, unknown> => Boolean(asRecord(value)),
+  );
+  if (metadataRecord) {
+    const metadataMap = asRecord(getFromRecord(metadataRecord, 'map', 'mapa')) ?? metadataRecord;
+    const heatmapMetadata = asRecord(getFromRecord(metadataMap, 'heatmap', 'geo_heatmap'));
+    if (heatmapMetadata) {
+      const meta: HeatmapMetadata = {};
+
+      const pointCount = parseNumberValue(getFromRecord(heatmapMetadata, 'point_count', 'pointcount', 'points'));
+      if (pointCount !== undefined) meta.pointCount = pointCount;
+
+      const cellCount = parseNumberValue(getFromRecord(heatmapMetadata, 'cell_count', 'cellcount', 'cells'));
+      if (cellCount !== undefined) meta.cellCount = cellCount;
+
+      const totalWeight = parseNumberValue(
+        getFromRecord(heatmapMetadata, 'total_weight', 'weight_total', 'totalweight'),
+      );
+      if (totalWeight !== undefined) meta.totalWeight = totalWeight;
+
+      const maxPointWeight = parseNumberValue(
+        getFromRecord(heatmapMetadata, 'max_point_weight', 'maxpointweight', 'max_weight'),
+      );
+      if (maxPointWeight !== undefined) meta.maxPointWeight = maxPointWeight;
+
+      const maxCellCount = parseNumberValue(
+        getFromRecord(heatmapMetadata, 'max_cell_count', 'maxcellcount', 'max_cells'),
+      );
+      if (maxCellCount !== undefined) meta.maxCellCount = maxCellCount;
+
+      const resolution = parseNumberValue(getFromRecord(heatmapMetadata, 'resolution', 'resolucion'));
+      if (resolution !== undefined) meta.resolution = resolution;
+
+      const centroidValue = getFromRecord(heatmapMetadata, 'centroid', 'centro');
+      const centroidPair = parseCoordinatePair(centroidValue, 'auto');
+      if (centroidPair.lat !== undefined && centroidPair.lng !== undefined) {
+        meta.centroid = [centroidPair.lng, centroidPair.lat];
+      }
+
+      const boundsValue = getFromRecord(heatmapMetadata, 'bounds', 'limites', 'bounding_box');
+      if (Array.isArray(boundsValue) && boundsValue.length >= 4) {
+        const [west, south, east, north] = boundsValue;
+        const normalizedBounds = [west, south, east, north]
+          .map((coord) => parseNumberValue(coord))
+          .filter((coord): coord is number => coord !== undefined);
+        if (normalizedBounds.length === 4) {
+          meta.bounds = normalizedBounds as [number, number, number, number];
+        }
+      }
+
+      if (!dataset.providerHint) {
+        dataset.providerHint = coerceString(
+          getFromRecord(heatmapMetadata, 'provider_hint', 'provider', 'preferred_provider'),
+        ) ?? dataset.providerHint;
+      }
+
+      if (Object.keys(meta).length > 0) {
+        dataset.metadata = meta;
+      }
+    }
+  }
+
+  if (!dataset.providerHint) {
+    dataset.providerHint = 'maplibre';
+  }
+
+  if (dataset.cells && dataset.cells.length > 0) {
+    dataset.points = dataset.cells;
+  } else if (dataset.rawPoints && dataset.rawPoints.length > 0) {
+    dataset.points = dataset.rawPoints;
+  } else {
+    dataset.points = extractHeatmapFromPayload(payload);
+  }
+
+  return dataset;
+};
+
 const extractValueByKeywords = <T>(
   source: unknown,
   keywords: string[],
@@ -1091,15 +1574,17 @@ export const getTicketStats = async (
       data: chart.data,
     }));
 
-    const heatmap = extractHeatmapFromPayload(normalizedPayload);
+    const heatmapDataset = normalizeHeatmapDataset(normalizedPayload);
 
-    return { charts, heatmap };
+    return { charts, heatmap: heatmapDataset.points, heatmapDataset };
   };
 
   try {
     return await tryMunicipalAliases(fetchStats, params?.tipo, (result) => {
       const chartsEmpty = !result?.charts || result.charts.length === 0;
-      const heatmapEmpty = !result?.heatmap || result.heatmap.length === 0;
+      const heatmapEmpty =
+        (!result?.heatmap || result.heatmap.length === 0) &&
+        (!result?.heatmapDataset?.points || result.heatmapDataset.points.length === 0);
       return chartsEmpty && heatmapEmpty;
     });
   } catch (err) {
@@ -1125,10 +1610,10 @@ export interface HeatmapParams {
   sugerencia?: string | string[];
 }
 
-export const getHeatmapPoints = async (
+export const getHeatmapDataset = async (
   params?: HeatmapParams,
-): Promise<HeatPoint[]> => {
-  const requestHeatmap = async (overrideTipo?: string): Promise<HeatPoint[]> => {
+): Promise<HeatmapDataset> => {
+  const requestHeatmap = async (overrideTipo?: string): Promise<HeatmapDataset> => {
     const baseParams: HeatmapParams = {
       ...(params || {}),
     };
@@ -1220,7 +1705,7 @@ export const getHeatmapPoints = async (
       pushVariant(tipoOnlyOverride);
     }
 
-    let fallbackResult: HeatPoint[] | null = null;
+    let fallbackResult: HeatmapDataset | null = null;
     let lastError: unknown = null;
 
     for (const variant of variants) {
@@ -1236,12 +1721,12 @@ export const getHeatmapPoints = async (
           (error as Error & { code?: string }).code = 'HTML_PAYLOAD';
           throw error;
         }
-        const points = extractHeatmapFromPayload(normalizedPayload);
-        if (points && points.length > 0) {
-          return points;
+        const dataset = normalizeHeatmapDataset(normalizedPayload);
+        if (dataset.points.length > 0) {
+          return dataset;
         }
         if (fallbackResult === null) {
-          fallbackResult = points ?? [];
+          fallbackResult = dataset;
         }
       } catch (error) {
         lastError = error;
@@ -1268,22 +1753,26 @@ export const getHeatmapPoints = async (
       throw lastError;
     }
 
-    return [];
+    return { points: [] };
   };
 
   try {
     const result = await tryMunicipalAliases(
       requestHeatmap,
       params?.tipo ?? params?.tipo_ticket,
-      (points) => !points || points.length === 0,
+      (dataset) => !dataset || dataset.points.length === 0,
     );
 
     if (
-      (!result || result.length === 0) &&
+      (!result || result.points.length === 0) &&
       shouldTryMunicipalAliases(params?.tipo_ticket) &&
       !shouldTryMunicipalAliases(params?.tipo)
     ) {
-      return await tryMunicipalAliases(requestHeatmap, params?.tipo_ticket, (points) => !points || points.length === 0);
+      return await tryMunicipalAliases(
+        requestHeatmap,
+        params?.tipo_ticket,
+        (dataset) => !dataset || dataset.points.length === 0,
+      );
     }
 
     return result;
@@ -1291,6 +1780,11 @@ export const getHeatmapPoints = async (
     console.error('Error fetching heatmap points:', err);
     throw err;
   }
+};
+
+export const getHeatmapPoints = async (params?: HeatmapParams): Promise<HeatPoint[]> => {
+  const dataset = await getHeatmapDataset(params);
+  return dataset.points;
 };
 
 type MunicipalStatesPayload =
