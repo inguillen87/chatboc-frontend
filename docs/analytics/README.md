@@ -85,7 +85,18 @@ El frontend consulta estos endpoints (solo `GET`). Todos reciben `tenant_id`, `f
 1. **Cache**: mantené TTL 5-15 minutos por combinación de filtros. Se puede reemplazar el cache in-memory por Redis/KeyDB.
 2. **Multitenancy y seguridad**: replicar la validación de tenant basada en el token de sesión y tu sistema RBAC. Este módulo asume cabeceras `X-Analytics-Role` y `X-Analytics-Tenant-Ids`.
 3. **Pre-cómputos**: migrá los agregados (SLA percentiles, cohortes, geo) a jobs nocturnos/materialized views para datasets reales.
-4. **Geo**: `heatmap` entrega celdas `{ cellId, count, centroid_lat, centroid_lon, breakdown }`. `points` devuelve una muestra anonimizada (máx. 250 puntos).
+4. **Geo**: `heatmap` debe enviar puntos `{ lat, lng, weight }` y, cuando esté disponible, metadatos asociados (`ticket`, `categoria`, `barrio`, `distrito`, `estado`, `severidad`, `tipo_ticket`, `last_ticket_at`). El frontend agrupa automáticamente por proximidad (MapLibre/Google) y usa esos campos para calcular breakdowns y popups enriquecidos. `points` devuelve una muestra anonimizada (máx. 250 puntos).
+
+### Payload geo recomendado
+
+- `lat`, `lng`: coordenadas en grados decimales (obligatorio).
+- `weight`: intensidad del punto (tickets, respuestas, pedidos, etc.). Si no viene, se asume `1`.
+- `ticket`/`id`: identificador para vincular popups con `/chat/:id`.
+- `categoria`, `barrio`, `distrito`, `estado`, `tipo_ticket`, `severidad`: strings libres que la UI usa para rankings y leyendas.
+- `last_ticket_at`: ISO8601 del evento más reciente en esa ubicación (para ordenar recencia).
+- `sampleTickets`: lista opcional de IDs relacionados si ya agregaste en backend.
+
+Con esa información, el frontend genera heatmaps densos, agrupa por barrio y arma tooltips con conteos, promedios, categorías principales y enlaces directos.
 5. **Filtros globales**: `GET /analytics/filters` debe devolver listas de valores válidos y opcionalmente la lista de `tenants` disponibles para el usuario.
 
 ## Frontend
@@ -105,6 +116,10 @@ El frontend consulta estos endpoints (solo `GET`). Todos reciben `tenant_id`, `f
 - Tablas con máximo 20 filas (top-N) y scroll.
 - Mapas y gráficas se actualizan al cambiar filtros con memoización básica.
 - Para datasets grandes se recomienda sustituir el store in-memory por API paginada + React Query.
+
+### Recursos complementarios
+
+- [Integraciones BI y stacks sugeridos](../bi-no-code-integrations.md): resumen de herramientas “no-code”, combinaciones de backend/frontend y buenas prácticas de privacidad y accesibilidad para gobiernos.
 
 ## Feature flag
 
