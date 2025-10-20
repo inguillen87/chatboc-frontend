@@ -117,6 +117,10 @@ Con esa información, el frontend genera heatmaps densos, agrupa por barrio y ar
 - Mapas y gráficas se actualizan al cambiar filtros con memoización básica.
 - Para datasets grandes se recomienda sustituir el store in-memory por API paginada + React Query.
 
+### Recursos complementarios
+
+- [Integraciones BI y stacks sugeridos](./bi-stacks.md): resumen de herramientas “no-code”, combinaciones de backend/frontend y buenas prácticas de privacidad y accesibilidad para gobiernos.
+
 ## Feature flag
 
 El frontend chequea `window.CHATBOC_CONFIG.analytics`. Si `enabled === false`, esconder la ruta en el enrutador o evitar montar la página. También se puede forzar el tenant o la vista inicial con `defaultTenantId` y `defaultContext`.
