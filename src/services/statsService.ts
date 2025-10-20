@@ -1,4 +1,12 @@
 import { ApiError, apiFetch } from '@/utils/api';
+import type { MapProvider } from '@/hooks/useMapProvider';
+
+export interface HeatmapBreakdownItem {
+  label: string;
+  count: number;
+  weight: number;
+  percentage: number;
+}
 
 export interface HeatmapBreakdownItem {
   label: string;
@@ -20,6 +28,12 @@ export interface HeatPoint {
   tipo_ticket?: string;
   estado?: string;
   severidad?: string;
+  canal?: string;
+  fuente?: string;
+  ciudad?: string;
+  provincia?: string;
+  pais?: string;
+  total?: number;
   last_ticket_at?: string | null;
   clusterId?: string;
   clusterSize?: number;
@@ -33,34 +47,81 @@ export interface HeatPoint {
   aggregatedEstados?: HeatmapBreakdownItem[];
   aggregatedTipos?: HeatmapBreakdownItem[];
   aggregatedSeveridades?: HeatmapBreakdownItem[];
-  aggregatedCanales?: HeatmapBreakdownItem[];
-  aggregatedFuentes?: HeatmapBreakdownItem[];
-  dominantValues?: Record<string, string | null | undefined>;
-  source?: "raw" | "cluster" | "cell";
-  cellId?: string;
-  pointCount?: number;
+  intensity?: number;
+  coordinates?: [number, number];
+  location?: { lat: number; lng: number };
+  feature?: Record<string, unknown>;
 }
 
-export interface HeatmapMetadata {
+type FeatureCollectionLike = {
+  type: 'FeatureCollection';
+  features: unknown[];
+  [key: string]: unknown;
+};
+
+type FeatureLike = {
+  type: 'Feature';
+  [key: string]: unknown;
+};
+
+export interface HeatmapCellValue {
+  value: string;
+  count?: number;
+  weight?: number;
+}
+
+export interface HeatmapCell {
+  id: string;
+  count: number;
+  centroidLat?: number;
+  centroidLng?: number;
+  pointCount?: number;
+  topValues?: Record<string, HeatmapCellValue[]>;
+  dominantValues?: Record<string, string | null>;
+  intensity?: number;
+  location?: { lat: number; lng: number };
+  coordinates?: [number, number];
+  feature?: FeatureLike;
+}
+
+export interface MapLayerSource {
+  kind?: string;
+  supportedFormats?: string[];
+  preferredFormat?: string;
+  providerHint?: string;
+  sourceKeys?: Record<string, string>;
+  raw?: Record<string, unknown>;
+}
+
+export interface MapConfig {
+  provider?: MapProvider | 'none' | string;
+  [key: string]: unknown;
+}
+
+export interface HeatmapMapMetadata {
   pointCount?: number;
   cellCount?: number;
-  totalWeight?: number;
   maxPointWeight?: number;
   maxCellCount?: number;
+  totalWeight?: number;
   resolution?: number;
   bounds?: [number, number, number, number];
   centroid?: [number, number];
 }
 
+export interface HeatmapMetadata {
+  map?: Record<string, HeatmapMapMetadata>;
+  raw?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
 export interface HeatmapDataset {
   points: HeatPoint[];
-  rawPoints?: HeatPoint[];
-  cells?: HeatPoint[];
-  rawCells?: unknown[];
-  geojson?: unknown;
-  cellsGeojson?: unknown;
-  providerHint?: string;
-  mapConfig?: Record<string, unknown> | null;
+  geojson?: FeatureCollectionLike;
+  cells?: HeatmapCell[];
+  cellsGeojson?: FeatureCollectionLike;
+  mapConfig?: MapConfig;
+  mapLayers?: Record<string, MapLayerSource>;
   metadata?: HeatmapMetadata;
   raw?: unknown;
 }
@@ -116,11 +177,19 @@ const NORMALIZED_STRING_FIELDS = {
   tipoTicket: ['tipo_ticket', 'tipo', 'ticket_type', 'type'],
   estado: ['estado', 'status', 'situacion', 'situacion', 'situation'],
   ticket: ['ticket', 'ticket_id', 'ticketid', 'numero', 'nro', 'expediente'],
+  severidad: ['severidad', 'severity'],
+  canal: ['canal', 'channel'],
+  fuente: ['fuente', 'source', 'origen'],
+  ciudad: ['ciudad', 'city'],
+  provincia: ['provincia', 'province', 'estado_provincial'],
+  pais: ['pais', 'país', 'country'],
+  lastTicketAt: ['last_ticket_at', 'last_ticket', 'last_at', 'last_seen', 'ultimo_ticket', 'ultima_actualizacion'],
 };
 
 const NORMALIZED_NUMBER_FIELDS = {
   weight: ['weight', 'peso', 'count', 'cantidad', 'total', 'value', 'tickets', 'intensity', 'intensidad'],
   id: ['id', 'ticket_id', 'ticketid'],
+  total: ['total', 'total_weight', 'weight_total', 'totalTickets'],
 };
 
 const STRING_FIELD_KEYWORDS = Object.values(NORMALIZED_STRING_FIELDS).flat();
@@ -191,6 +260,9 @@ const NESTED_CONTAINER_KEYS = [
   'attributesdata',
   'meta',
 ];
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
 const sanitizeLooseJson = (raw: string): string => {
   let sanitized = raw
@@ -1410,6 +1482,213 @@ const pickNumberValue = (source: unknown, keywords: string[]): number | undefine
   return extractValueByKeywords(source, keywords, numberTransformer, 'includes');
 };
 
+const normalizeHeatmapBreakdown = (value: unknown): HeatmapBreakdownItem[] | undefined => {
+  if (!value) return undefined;
+
+  const items: HeatmapBreakdownItem[] = [];
+
+  const pushItem = (label: string, count: number, weight: number, percentage: number) => {
+    const normalizedWeight = Number.isFinite(weight) ? Number(weight.toFixed(2)) : count;
+    const normalizedPercentage = Number.isFinite(percentage)
+      ? Number(percentage.toFixed(2))
+      : 0;
+    items.push({
+      label,
+      count: Math.round(count),
+      weight: normalizedWeight,
+      percentage: normalizedPercentage,
+    });
+  };
+
+  const processRecord = (record: Record<string, unknown>, fallbackLabel?: string) => {
+    const label =
+      coerceString(record.label) ||
+      coerceString(record.name) ||
+      coerceString(record.categoria) ||
+      coerceString(record.category) ||
+      coerceString(record.estado) ||
+      coerceString(record.type) ||
+      coerceString(record.value) ||
+      fallbackLabel;
+
+    if (!label) return;
+
+    const count =
+      parseNumberValue(record.count) ??
+      parseNumberValue(record.total) ??
+      parseNumberValue(record.weight) ??
+      parseNumberValue(record.value) ??
+      0;
+    const weight =
+      parseNumberValue(record.weight) ??
+      parseNumberValue(record.total) ??
+      parseNumberValue(record.count) ??
+      count;
+    const percentage =
+      parseNumberValue(record.percentage) ??
+      parseNumberValue(record.percent) ??
+      parseNumberValue(record.porcentaje) ??
+      0;
+
+    pushItem(label, count, weight, percentage);
+  };
+
+  if (Array.isArray(value)) {
+    value.forEach((entry) => {
+      if (isPlainObject(entry)) {
+        processRecord(entry);
+      } else {
+        const label = coerceString(entry);
+        if (label) {
+          pushItem(label, 1, 1, 0);
+        }
+      }
+    });
+  } else if (isPlainObject(value)) {
+    Object.entries(value).forEach(([key, entry]) => {
+      if (isPlainObject(entry)) {
+        processRecord(entry, coerceString(key) ?? undefined);
+      } else {
+        const label = coerceString(key);
+        const numeric = parseNumberValue(entry);
+        if (label && numeric !== undefined) {
+          pushItem(label, numeric, numeric, 0);
+        }
+      }
+    });
+  }
+
+  if (items.length === 0) {
+    return undefined;
+  }
+
+  return items;
+};
+
+const normalizeHeatmapCellValues = (value: unknown): HeatmapCellValue[] | undefined => {
+  const breakdown = normalizeHeatmapBreakdown(value);
+  if (!breakdown || breakdown.length === 0) {
+    return undefined;
+  }
+  return breakdown.map((item) => ({
+    value: item.label,
+    count: item.count,
+    weight: item.weight,
+  }));
+};
+
+const normalizeHeatmapCell = (value: unknown): HeatmapCell | null => {
+  if (!isPlainObject(value)) {
+    return null;
+  }
+
+  const cellId =
+    coerceString(value.cell_id) ||
+    coerceString(value.cellId) ||
+    coerceString(value.id);
+  if (!cellId) {
+    return null;
+  }
+
+  const count =
+    parseNumberValue(value.count) ??
+    parseNumberValue(value.total) ??
+    parseNumberValue(value.weight);
+  if (count === undefined) {
+    return null;
+  }
+
+  const centroidLat =
+    parseNumberValue(value.centroid_lat) ??
+    parseNumberValue(value.centroidLat) ??
+    parseNumberValue(value.lat) ??
+    parseNumberValue(value.latitude);
+  const centroidLng =
+    parseNumberValue(value.centroid_lon) ??
+    parseNumberValue(value.centroidLon) ??
+    parseNumberValue(value.lng) ??
+    parseNumberValue(value.lon) ??
+    parseNumberValue(value.longitude) ??
+    parseNumberValue(value.longitud);
+
+  const pointCount =
+    parseNumberValue(value.point_count) ??
+    parseNumberValue(value.pointCount) ??
+    parseNumberValue(value.points);
+
+  const intensity = parseNumberValue(value.intensity);
+
+  let location: { lat: number; lng: number } | undefined;
+  if (isPlainObject(value.location)) {
+    const lat =
+      parseNumberValue(value.location.lat) ??
+      parseNumberValue(value.location.latitude) ??
+      parseNumberValue((value.location as Record<string, unknown>).latitud);
+    const lng =
+      parseNumberValue(value.location.lng) ??
+      parseNumberValue(value.location.lon) ??
+      parseNumberValue(value.location.longitude) ??
+      parseNumberValue((value.location as Record<string, unknown>).longitud);
+    if (lat !== undefined && lng !== undefined) {
+      location = { lat, lng };
+    }
+  }
+
+  let coordinates: [number, number] | undefined;
+  if (Array.isArray(value.coordinates) && value.coordinates.length >= 2) {
+    const lng = parseNumberValue(value.coordinates[0]);
+    const lat = parseNumberValue(value.coordinates[1]);
+    if (lng !== undefined && lat !== undefined) {
+      coordinates = [lng, lat];
+    }
+  }
+
+  let feature: FeatureLike | undefined;
+  if (isPlainObject(value.feature) && value.feature.type === 'Feature') {
+    feature = value.feature as FeatureLike;
+  }
+
+  const topValuesRaw = value.top_values ?? value.topValues;
+  let topValues: Record<string, HeatmapCellValue[]> | undefined;
+  if (isPlainObject(topValuesRaw)) {
+    const mapped: Record<string, HeatmapCellValue[]> = {};
+    Object.entries(topValuesRaw).forEach(([key, rawItems]) => {
+      const list = normalizeHeatmapCellValues(rawItems);
+      if (list && list.length > 0) {
+        mapped[key] = list;
+      }
+    });
+    if (Object.keys(mapped).length > 0) {
+      topValues = mapped;
+    }
+  }
+
+  const dominantRaw = value.dominant_values ?? value.dominantValues;
+  let dominantValues: Record<string, string | null> | undefined;
+  if (isPlainObject(dominantRaw)) {
+    const mapped: Record<string, string | null> = {};
+    Object.entries(dominantRaw).forEach(([key, rawValue]) => {
+      const dominant = coerceString(rawValue);
+      mapped[key] = dominant ?? null;
+    });
+    dominantValues = mapped;
+  }
+
+  return {
+    id: cellId,
+    count: Number(count.toFixed(4)),
+    centroidLat: centroidLat !== undefined ? Number(centroidLat.toFixed(6)) : undefined,
+    centroidLng: centroidLng !== undefined ? Number(centroidLng.toFixed(6)) : undefined,
+    pointCount: pointCount !== undefined ? Math.round(pointCount) : undefined,
+    topValues,
+    dominantValues,
+    intensity: intensity !== undefined ? Number(intensity.toFixed(4)) : undefined,
+    location,
+    coordinates,
+    feature,
+  };
+};
+
 const normalizeHeatPoint = (raw: unknown): HeatPoint | null => {
   if (Array.isArray(raw)) {
     const pair = parseCoordinatePair(raw, 'auto');
@@ -1435,12 +1714,20 @@ const normalizeHeatPoint = (raw: unknown): HeatPoint | null => {
 
   const weight = pickNumberValue(raw, NORMALIZED_NUMBER_FIELDS.weight);
   const id = pickNumberValue(raw, NORMALIZED_NUMBER_FIELDS.id);
+  const total = pickNumberValue(raw, NORMALIZED_NUMBER_FIELDS.total);
   const ticket = pickStringValue(raw, NORMALIZED_STRING_FIELDS.ticket);
   const categoria = pickStringValue(raw, NORMALIZED_STRING_FIELDS.categoria);
   const direccion = pickStringValue(raw, NORMALIZED_STRING_FIELDS.direccion);
   const distrito = pickStringValue(raw, NORMALIZED_STRING_FIELDS.distrito);
   const tipoTicket = pickStringValue(raw, NORMALIZED_STRING_FIELDS.tipoTicket);
   const estado = pickStringValue(raw, NORMALIZED_STRING_FIELDS.estado);
+  const severidad = pickStringValue(raw, NORMALIZED_STRING_FIELDS.severidad);
+  const canal = pickStringValue(raw, NORMALIZED_STRING_FIELDS.canal);
+  const fuente = pickStringValue(raw, NORMALIZED_STRING_FIELDS.fuente);
+  const ciudad = pickStringValue(raw, NORMALIZED_STRING_FIELDS.ciudad);
+  const provincia = pickStringValue(raw, NORMALIZED_STRING_FIELDS.provincia);
+  const pais = pickStringValue(raw, NORMALIZED_STRING_FIELDS.pais);
+  const lastTicketAt = pickStringValue(raw, NORMALIZED_STRING_FIELDS.lastTicketAt);
 
   let barrio = pickStringValue(raw, NORMALIZED_STRING_FIELDS.barrio);
   if (!barrio && distrito) {
@@ -1450,6 +1737,7 @@ const normalizeHeatPoint = (raw: unknown): HeatPoint | null => {
   const point: HeatPoint = { lat, lng };
   if (weight !== undefined) point.weight = weight;
   if (id !== undefined) point.id = id;
+  if (total !== undefined) point.total = total;
   if (ticket) point.ticket = ticket;
   if (categoria) point.categoria = categoria;
   if (direccion) point.direccion = direccion;
@@ -1457,8 +1745,370 @@ const normalizeHeatPoint = (raw: unknown): HeatPoint | null => {
   if (barrio) point.barrio = barrio;
   if (tipoTicket) point.tipo_ticket = tipoTicket;
   if (estado) point.estado = estado;
+  if (severidad) point.severidad = severidad;
+  if (canal) point.canal = canal;
+  if (fuente) point.fuente = fuente;
+  if (ciudad) point.ciudad = ciudad;
+  if (provincia) point.provincia = provincia;
+  if (pais) point.pais = pais;
+  if (lastTicketAt) point.last_ticket_at = lastTicketAt;
+
+  const record = raw as Record<string, unknown>;
+
+  if (!point.last_ticket_at) {
+    const submittedAt = coerceString(record.submitted_at ?? record.last_update);
+    if (submittedAt) {
+      point.last_ticket_at = submittedAt;
+    }
+  }
+
+  const coordinates = Array.isArray(record.coordinates) ? record.coordinates : undefined;
+  if (coordinates && coordinates.length >= 2) {
+    const lngCoord = parseNumberValue(coordinates[0]);
+    const latCoord = parseNumberValue(coordinates[1]);
+    if (lngCoord !== undefined && latCoord !== undefined) {
+      point.coordinates = [lngCoord, latCoord];
+    }
+  }
+
+  if (isPlainObject(record.location)) {
+    const locLat =
+      parseNumberValue(record.location.lat) ??
+      parseNumberValue(record.location.latitude) ??
+      parseNumberValue(record.location.latitud);
+    const locLng =
+      parseNumberValue(record.location.lng) ??
+      parseNumberValue(record.location.lon) ??
+      parseNumberValue(record.location.longitude) ??
+      parseNumberValue(record.location.longitud);
+    if (locLat !== undefined && locLng !== undefined) {
+      point.location = { lat: locLat, lng: locLng };
+    }
+  }
+
+  const feature = record.feature;
+  if (isPlainObject(feature) && feature.type === 'Feature') {
+    point.feature = feature as Record<string, unknown>;
+  }
+
+  const intensity = parseNumberValue(record.intensity);
+  if (intensity !== undefined) {
+    point.intensity = Number(intensity.toFixed(4));
+  }
+
+  const totalWeight =
+    parseNumberValue(record.totalWeight) ?? parseNumberValue(record.total_weight) ?? total;
+  if (totalWeight !== undefined) {
+    point.totalWeight = Number(totalWeight.toFixed(2));
+  }
+
+  const averageWeight =
+    parseNumberValue(record.averageWeight) ?? parseNumberValue(record.avg_weight) ??
+    (point.totalWeight !== undefined && point.clusterSize
+      ? point.totalWeight / Math.max(point.clusterSize, 1)
+      : undefined);
+  if (averageWeight !== undefined) {
+    point.averageWeight = Number(averageWeight.toFixed(2));
+  }
+
+  const clusterId = coerceString(record.clusterId ?? record.cluster_id);
+  if (clusterId) {
+    point.clusterId = clusterId;
+  }
+
+  const clusterSize =
+    parseNumberValue(record.clusterSize) ?? parseNumberValue(record.cluster_size);
+  if (clusterSize !== undefined) {
+    point.clusterSize = Math.max(1, Math.round(clusterSize));
+  }
+
+  const radiusMeters =
+    parseNumberValue(record.radiusMeters) ?? parseNumberValue(record.radius_meters);
+  if (radiusMeters !== undefined) {
+    point.radiusMeters = Number(radiusMeters.toFixed(2));
+  }
+
+  const maxDistanceMeters =
+    parseNumberValue(record.maxDistanceMeters) ??
+    parseNumberValue(record.max_distance) ??
+    parseNumberValue(record.maxDistance);
+  if (maxDistanceMeters !== undefined) {
+    point.maxDistanceMeters = Number(maxDistanceMeters.toFixed(2));
+  }
+
+  const sampleTicketsRaw = record.sampleTickets ?? record.sample_tickets;
+  if (Array.isArray(sampleTicketsRaw)) {
+    const samples = sampleTicketsRaw
+      .map((ticket) => coerceString(ticket))
+      .filter((ticket): ticket is string => Boolean(ticket));
+    if (samples.length > 0) {
+      point.sampleTickets = samples;
+    }
+  }
+
+  const aggregatedCategorias = normalizeHeatmapBreakdown(record.aggregatedCategorias);
+  if (aggregatedCategorias) {
+    point.aggregatedCategorias = aggregatedCategorias;
+  }
+  const aggregatedBarrios = normalizeHeatmapBreakdown(record.aggregatedBarrios);
+  if (aggregatedBarrios) {
+    point.aggregatedBarrios = aggregatedBarrios;
+  }
+  const aggregatedEstados = normalizeHeatmapBreakdown(record.aggregatedEstados);
+  if (aggregatedEstados) {
+    point.aggregatedEstados = aggregatedEstados;
+  }
+  const aggregatedTipos = normalizeHeatmapBreakdown(record.aggregatedTipos);
+  if (aggregatedTipos) {
+    point.aggregatedTipos = aggregatedTipos;
+  }
+  const aggregatedSeveridades = normalizeHeatmapBreakdown(record.aggregatedSeveridades);
+  if (aggregatedSeveridades) {
+    point.aggregatedSeveridades = aggregatedSeveridades;
+  }
 
   return point;
+};
+
+const normalizeHeatmapCells = (value: unknown): HeatmapCell[] | undefined => {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  const cells = value
+    .map((cell) => normalizeHeatmapCell(cell))
+    .filter((cell): cell is HeatmapCell => Boolean(cell));
+  return cells.length > 0 ? cells : undefined;
+};
+
+const normalizeMapConfig = (value: unknown): MapConfig | undefined => {
+  if (!isPlainObject(value)) {
+    return undefined;
+  }
+
+  const provider =
+    (coerceString(value.provider) as MapProvider | 'none' | string | null) ??
+    (coerceString(value.preferred_provider) as MapProvider | 'none' | string | null) ??
+    (coerceString(value.default_provider) as MapProvider | 'none' | string | null) ??
+    undefined;
+
+  const config: MapConfig = { ...value } as MapConfig;
+  if (provider) {
+    config.provider = provider;
+  }
+  return config;
+};
+
+const normalizeMapLayers = (value: unknown): Record<string, MapLayerSource> | undefined => {
+  if (!isPlainObject(value)) {
+    return undefined;
+  }
+
+  const layers: Record<string, MapLayerSource> = {};
+  Object.entries(value).forEach(([key, rawLayer]) => {
+    if (!isPlainObject(rawLayer)) {
+      return;
+    }
+
+    const supportedFormatsRaw =
+      (rawLayer.supported_formats ?? rawLayer.supportedFormats) as unknown;
+    const supportedFormats = Array.isArray(supportedFormatsRaw)
+      ? supportedFormatsRaw
+          .map((item) => coerceString(item))
+          .filter((item): item is string => Boolean(item))
+      : undefined;
+
+    const sourceKeysRaw = rawLayer.source_keys ?? rawLayer.sourceKeys;
+    const sourceKeys = isPlainObject(sourceKeysRaw)
+      ? Object.fromEntries(
+          Object.entries(sourceKeysRaw)
+            .map(([sourceKey, sourceValue]) => {
+              const normalizedKey = coerceString(sourceKey);
+              const normalizedValue = coerceString(sourceValue);
+              return normalizedKey && normalizedValue ? [normalizedKey, normalizedValue] : null;
+            })
+            .filter((entry): entry is [string, string] => Array.isArray(entry)),
+        )
+      : undefined;
+
+    layers[key] = {
+      kind: coerceString(rawLayer.kind ?? rawLayer.type ?? rawLayer.layer),
+      supportedFormats,
+      preferredFormat: coerceString(rawLayer.preferred_format ?? rawLayer.preferredFormat),
+      providerHint: coerceString(rawLayer.provider_hint ?? rawLayer.providerHint),
+      sourceKeys,
+      raw: rawLayer as Record<string, unknown>,
+    };
+  });
+
+  return Object.keys(layers).length > 0 ? layers : undefined;
+};
+
+const normalizeHeatmapMapMetadata = (value: unknown): HeatmapMapMetadata | undefined => {
+  if (!isPlainObject(value)) {
+    return undefined;
+  }
+
+  const metadata: HeatmapMapMetadata = {};
+  const pointCount = parseNumberValue(value.point_count ?? value.pointCount);
+  if (pointCount !== undefined) {
+    metadata.pointCount = Math.round(pointCount);
+  }
+
+  const cellCount = parseNumberValue(value.cell_count ?? value.cellCount);
+  if (cellCount !== undefined) {
+    metadata.cellCount = Math.round(cellCount);
+  }
+
+  const maxPointWeight = parseNumberValue(value.max_point_weight ?? value.maxPointWeight);
+  if (maxPointWeight !== undefined) {
+    metadata.maxPointWeight = Number(maxPointWeight.toFixed(2));
+  }
+
+  const maxCellCount = parseNumberValue(value.max_cell_count ?? value.maxCellCount);
+  if (maxCellCount !== undefined) {
+    metadata.maxCellCount = Number(maxCellCount.toFixed(2));
+  }
+
+  const totalWeight = parseNumberValue(value.total_weight ?? value.totalWeight);
+  if (totalWeight !== undefined) {
+    metadata.totalWeight = Number(totalWeight.toFixed(2));
+  }
+
+  const resolution = parseNumberValue(value.resolution);
+  if (resolution !== undefined) {
+    metadata.resolution = Math.round(resolution);
+  }
+
+  const boundsRaw = value.bounds;
+  if (Array.isArray(boundsRaw) && boundsRaw.length >= 4) {
+    const west = parseNumberValue(boundsRaw[0]);
+    const south = parseNumberValue(boundsRaw[1]);
+    const east = parseNumberValue(boundsRaw[2]);
+    const north = parseNumberValue(boundsRaw[3]);
+    if ([west, south, east, north].every((val) => val !== undefined)) {
+      metadata.bounds = [
+        Number((west as number).toFixed(6)),
+        Number((south as number).toFixed(6)),
+        Number((east as number).toFixed(6)),
+        Number((north as number).toFixed(6)),
+      ];
+    }
+  }
+
+  const centroidRaw = value.centroid;
+  if (Array.isArray(centroidRaw) && centroidRaw.length >= 2) {
+    const lng = parseNumberValue(centroidRaw[0]);
+    const lat = parseNumberValue(centroidRaw[1]);
+    if (lng !== undefined && lat !== undefined) {
+      metadata.centroid = [Number(lng.toFixed(6)), Number(lat.toFixed(6))];
+    }
+  }
+
+  return Object.keys(metadata).length > 0 ? metadata : undefined;
+};
+
+const normalizeHeatmapMetadata = (value: unknown): HeatmapMetadata | undefined => {
+  if (!isPlainObject(value)) {
+    return undefined;
+  }
+
+  const metadata: HeatmapMetadata = { raw: value };
+  const mapRaw = value.map ?? value.maps ?? value.layers;
+  if (isPlainObject(mapRaw)) {
+    const mapMetadata: Record<string, HeatmapMapMetadata> = {};
+    Object.entries(mapRaw).forEach(([key, rawMetadata]) => {
+      const normalized = normalizeHeatmapMapMetadata(rawMetadata);
+      if (normalized) {
+        mapMetadata[key] = normalized;
+      }
+    });
+    if (Object.keys(mapMetadata).length > 0) {
+      metadata.map = mapMetadata;
+    }
+  }
+
+  return metadata.map ? metadata : undefined;
+};
+
+const isFeatureCollection = (value: unknown): value is FeatureCollectionLike =>
+  isPlainObject(value) && value.type === 'FeatureCollection' && Array.isArray(value.features);
+
+const extractHeatmapDataset = (payload: unknown): HeatmapDataset => {
+  const dataset: HeatmapDataset = { points: extractHeatmapFromPayload(payload) };
+  const visited = new Set<unknown>();
+  const queue: unknown[] = [payload];
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (current === undefined || current === null || visited.has(current)) {
+      continue;
+    }
+    visited.add(current);
+
+    if (Array.isArray(current)) {
+      current.forEach((item) => {
+        if (item && typeof item === 'object' && !visited.has(item)) {
+          queue.push(item);
+        }
+      });
+      continue;
+    }
+
+    if (!isPlainObject(current)) {
+      continue;
+    }
+
+    for (const [rawKey, value] of Object.entries(current)) {
+      const normalizedKey = normalizeKey(rawKey);
+
+      if (!dataset.mapConfig && (normalizedKey === 'map_config' || normalizedKey === 'mapconfig')) {
+        const config = normalizeMapConfig(value);
+        if (config) {
+          dataset.mapConfig = config;
+        }
+      }
+
+      if (!dataset.mapLayers && normalizedKey === 'map_layers') {
+        const layers = normalizeMapLayers(value);
+        if (layers) {
+          dataset.mapLayers = layers;
+        }
+      }
+
+      if (!dataset.geojson && normalizedKey.includes('heatmap') && normalizedKey.endsWith('geojson')) {
+        if (isFeatureCollection(value)) {
+          dataset.geojson = value as FeatureCollectionLike;
+        }
+      }
+
+      if (!dataset.cells && normalizedKey.includes('heatmap') && normalizedKey.endsWith('cells')) {
+        const cells = normalizeHeatmapCells(value);
+        if (cells) {
+          dataset.cells = cells;
+        }
+      }
+
+      if (!dataset.cellsGeojson && normalizedKey.includes('cells') && normalizedKey.endsWith('geojson')) {
+        if (isFeatureCollection(value)) {
+          dataset.cellsGeojson = value as FeatureCollectionLike;
+        }
+      }
+
+      if (!dataset.metadata && normalizedKey === 'metadata') {
+        const metadata = normalizeHeatmapMetadata(value);
+        if (metadata) {
+          dataset.metadata = metadata;
+        }
+      }
+
+      if (value && typeof value === 'object' && !visited.has(value)) {
+        queue.push(value);
+      }
+    }
+  }
+
+  dataset.raw = payload;
+  return dataset;
 };
 
 const buildSearchParams = (params?: Record<string, unknown>) => {
@@ -1574,9 +2224,10 @@ export const getTicketStats = async (
       data: chart.data,
     }));
 
-    const heatmapDataset = normalizeHeatmapDataset(normalizedPayload);
+    const heatmapDataset = extractHeatmapDataset(normalizedPayload);
+    const heatmap = heatmapDataset.points;
 
-    return { charts, heatmap: heatmapDataset.points, heatmapDataset };
+    return { charts, heatmap, heatmapDataset };
   };
 
   try {
@@ -1721,7 +2372,7 @@ export const getHeatmapDataset = async (
           (error as Error & { code?: string }).code = 'HTML_PAYLOAD';
           throw error;
         }
-        const dataset = normalizeHeatmapDataset(normalizedPayload);
+        const dataset = extractHeatmapDataset(normalizedPayload);
         if (dataset.points.length > 0) {
           return dataset;
         }

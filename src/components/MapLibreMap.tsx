@@ -25,6 +25,7 @@ type Props = {
     reason: MapProviderUnavailableReason,
     details?: unknown,
   ) => void;
+  disableClientClustering?: boolean;
 };
 
 const addLayer = (map: Map, layer: any) => {
@@ -147,11 +148,42 @@ export default function MapLibreMap({
   boundsPadding,
   onBoundingBoxChange,
   onProviderUnavailable,
+  disableClientClustering = false,
 }: Props) {
   const [mapError, setMapError] = useState<string | null>(null);
   const [fallbackMessage, setFallbackMessage] = useState<string | null>(null);
   const [providerOverride, setProviderOverride] = useState<MapProvider | null>(null);
-  const processedHeatmap = useMemo(() => clusterHeatmapPoints(heatmapData), [heatmapData]);
+  const normalizedHeatmap = useMemo(
+    () =>
+      (heatmapData ?? []).filter(
+        (point): point is HeatPoint & { lat: number; lng: number } =>
+          Boolean(point) && Number.isFinite(point.lat) && Number.isFinite(point.lng),
+      ),
+    [heatmapData],
+  );
+  const aggregatedHint = useMemo(
+    () =>
+      normalizedHeatmap.some(
+        (point) =>
+          (typeof point.clusterSize === "number" && point.clusterSize > 1) ||
+          Boolean(point.clusterId) ||
+          (Array.isArray(point.sampleTickets) && point.sampleTickets.length > 0) ||
+          (Array.isArray(point.aggregatedCategorias) && point.aggregatedCategorias.length > 0) ||
+          (Array.isArray(point.aggregatedEstados) && point.aggregatedEstados.length > 0) ||
+          (Array.isArray(point.aggregatedTipos) && point.aggregatedTipos.length > 0) ||
+          (Array.isArray(point.aggregatedBarrios) && point.aggregatedBarrios.length > 0) ||
+          (Array.isArray(point.aggregatedSeveridades) && point.aggregatedSeveridades.length > 0),
+      ),
+    [normalizedHeatmap],
+  );
+  const shouldCluster = useMemo(
+    () => !disableClientClustering && !aggregatedHint,
+    [disableClientClustering, aggregatedHint],
+  );
+  const processedHeatmap = useMemo(
+    () => (shouldCluster ? clusterHeatmapPoints(normalizedHeatmap) : normalizedHeatmap),
+    [normalizedHeatmap, shouldCluster],
+  );
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<Map | null>(null);
   const libRef = useRef<MapLibreModule | null>(null);
@@ -183,7 +215,7 @@ export default function MapLibreMap({
         center={center}
         initialZoom={initialZoom}
         onSelect={onSelect}
-        heatmapData={heatmapData}
+        heatmapData={normalizedHeatmap}
         showHeatmap={showHeatmap}
         marker={marker}
         className={className}
@@ -192,6 +224,7 @@ export default function MapLibreMap({
         boundsPadding={boundsPadding}
         onBoundingBoxChange={onBoundingBoxChange}
         onProviderUnavailable={handleProviderUnavailable}
+        disableClustering={!shouldCluster}
       />
     );
   }
