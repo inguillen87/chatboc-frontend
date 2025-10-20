@@ -57,6 +57,7 @@ import {
   getHeatmapPoints,
   getTicketStats,
   HeatPoint,
+  HeatmapDataset,
   TicketStatsParams,
   TicketStatsResponse,
 } from '@/services/statsService';
@@ -593,6 +594,7 @@ export default function EstadisticasPage() {
   const [channelBreakdown, setChannelBreakdown] = useState<CountItem[]>([]);
   const [timeline, setTimeline] = useState<TimelinePoint[]>([]);
   const [heatmap, setHeatmap] = useState<HeatPoint[]>([]);
+  const [heatmapDetails, setHeatmapDetails] = useState<HeatmapDataset | null>(null);
   const [topLocations, setTopLocations] = useState<CountItem[]>([]);
   const [statusOptions, setStatusOptions] = useState<string[]>([]);
   const [categoryOptions, setCategoryOptions] = useState<string[]>([]);
@@ -640,10 +642,14 @@ export default function EstadisticasPage() {
 
       const statsData: TicketStatsResponse['charts'] =
         statsResult.status === 'fulfilled' ? statsResult.value.charts ?? [] : [];
+      const statsHeatmapDataset =
+        statsResult.status === 'fulfilled' ? statsResult.value.heatmapDataset : undefined;
       const statsHeatmap: HeatPoint[] =
-        statsResult.status === 'fulfilled' ? statsResult.value.heatmap ?? [] : [];
-      const heatmapData: HeatPoint[] =
-        heatmapResult.status === 'fulfilled' ? heatmapResult.value : [];
+        statsHeatmapDataset?.points ??
+        (statsResult.status === 'fulfilled' ? statsResult.value.heatmap ?? [] : []);
+      const heatmapDataset: HeatmapDataset =
+        heatmapResult.status === 'fulfilled' ? heatmapResult.value : { points: [] };
+      const heatmapData: HeatPoint[] = heatmapDataset.points ?? [];
 
       const tickets: Ticket[] =
         ticketsResult.status === 'fulfilled'
@@ -709,8 +715,14 @@ export default function EstadisticasPage() {
         chartChannels.sort((a, b) => b.value - a.value || a.label.localeCompare(b.label)),
       );
       setTimeline(timelineFromTickets);
-      setHeatmap(heatmapData.length > 0 ? heatmapData : statsHeatmap ?? []);
-      setTopLocations(computeTopLocations(heatmapData.length > 0 ? heatmapData : statsHeatmap ?? []));
+      const combinedDataset: HeatmapDataset =
+        heatmapData.length > 0
+          ? heatmapDataset
+          : statsHeatmapDataset ?? { points: statsHeatmap ?? [] };
+      setHeatmapDetails(combinedDataset);
+      const combinedPoints = combinedDataset.points ?? [];
+      setHeatmap(combinedPoints);
+      setTopLocations(computeTopLocations(combinedPoints));
       setStatusOptions(deriveUnique(mergedStatuses));
       setCategoryOptions(deriveUnique(mergedCategories));
 
@@ -735,6 +747,7 @@ export default function EstadisticasPage() {
       setChannelBreakdown([]);
       setTimeline([]);
       setHeatmap([]);
+      setHeatmapDetails(null);
       setTopLocations([]);
       setStatusOptions([]);
       setCategoryOptions([]);
@@ -759,6 +772,11 @@ export default function EstadisticasPage() {
     if (total === 0) return 0;
     return Math.round((ticketCounts.resueltos / total) * 100);
   }, [ticketCounts]);
+
+  const displayedHeatmapCount = useMemo(() => {
+    const metadataCount = heatmapDetails?.metadata?.map?.heatmap?.pointCount;
+    return metadataCount !== undefined ? metadataCount : heatmap.length;
+  }, [heatmapDetails, heatmap.length]);
 
   const topCategory = categoryBreakdown[0];
   const trendDelta = useMemo(() => {
@@ -1107,7 +1125,7 @@ export default function EstadisticasPage() {
               </div>
               <Badge variant="outline" className="flex items-center gap-1 text-xs">
                 <MapPin className="h-3.5 w-3.5" />
-                {heatmap.length} puntos
+                {displayedHeatmapCount.toLocaleString('es-AR')} puntos
               </Badge>
             </div>
           </CardHeader>
@@ -1118,6 +1136,7 @@ export default function EstadisticasPage() {
                 availableCategories={availableCategories}
                 availableBarrios={availableBarrios}
                 availableTipos={availableTipos}
+                metadata={heatmapDetails?.metadata?.map?.heatmap}
               />
             ) : (
               <div className="flex h-[520px] items-center justify-center rounded-xl border border-dashed border-border text-sm text-muted-foreground">
