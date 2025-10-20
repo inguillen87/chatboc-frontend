@@ -126,6 +126,38 @@ export function clusterHeatmapPoints(
     return [];
   }
 
+  const alreadyClustered = points.every(
+    (point) => point.source === "cell" || typeof point.clusterId === "string" || typeof (point as any).cellId === "string",
+  );
+
+  if (alreadyClustered) {
+    return points.map((point, index) => {
+      const totalWeight = Number.isFinite(point.totalWeight)
+        ? Number(point.totalWeight)
+        : Number.isFinite(point.weight)
+        ? Number(point.weight)
+        : 1;
+      const inferredSize =
+        point.clusterSize ??
+        point.pointCount ??
+        (Number.isFinite(point.weight) ? Math.max(1, Math.round(Number(point.weight))) : 1);
+      const clusterSize = inferredSize > 0 ? inferredSize : 1;
+      const averageWeight =
+        point.averageWeight ?? Number((totalWeight / (clusterSize || 1)).toFixed(2));
+      const radiusMeters = point.radiusMeters ?? clamp(Math.sqrt(clusterSize || 1) * 85, 80, 2000);
+
+      return {
+        ...point,
+        clusterId: point.clusterId ?? point.cellId ?? `cluster-${index + 1}`,
+        clusterSize,
+        totalWeight,
+        averageWeight,
+        radiusMeters,
+        source: point.source ?? "cell",
+      } satisfies HeatPoint;
+    });
+  }
+
   const radiusMeters = clamp(
     options.radiusMeters ?? estimateClusterRadius(points),
     80,
