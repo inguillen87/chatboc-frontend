@@ -18,6 +18,7 @@ type GoogleHeatmapMapProps = {
   boundsPadding?: number | { top?: number; bottom?: number; left?: number; right?: number };
   onBoundingBoxChange?: (bbox: [number, number, number, number] | null) => void;
   onProviderUnavailable?: (reason: MapProviderUnavailableReason, details?: unknown) => void;
+  disableClustering?: boolean;
 };
 
 declare global {
@@ -115,11 +116,42 @@ export function GoogleHeatmapMap({
   boundsPadding,
   onBoundingBoxChange,
   onProviderUnavailable,
+  disableClustering,
 }: GoogleHeatmapMapProps) {
   const mapRef = useRef<google.maps.Map | null>(null);
   const unavailableReportedRef = useRef(false);
   const [heatmapLayerAvailable, setHeatmapLayerAvailable] = useState(false);
-  const aggregatedHeatmap = useMemo(() => clusterHeatmapPoints(heatmapData), [heatmapData]);
+  const normalizedHeatmap = useMemo(
+    () =>
+      (heatmapData ?? []).filter(
+        (point): point is HeatPoint & { lat: number; lng: number } =>
+          Boolean(point) && Number.isFinite(point.lat) && Number.isFinite(point.lng),
+      ),
+    [heatmapData],
+  );
+  const aggregatedHint = useMemo(
+    () =>
+      normalizedHeatmap.some(
+        (point) =>
+          (typeof point.clusterSize === "number" && point.clusterSize > 1) ||
+          Boolean(point.clusterId) ||
+          (Array.isArray(point.sampleTickets) && point.sampleTickets.length > 0) ||
+          (Array.isArray(point.aggregatedCategorias) && point.aggregatedCategorias.length > 0) ||
+          (Array.isArray(point.aggregatedEstados) && point.aggregatedEstados.length > 0) ||
+          (Array.isArray(point.aggregatedTipos) && point.aggregatedTipos.length > 0) ||
+          (Array.isArray(point.aggregatedBarrios) && point.aggregatedBarrios.length > 0) ||
+          (Array.isArray(point.aggregatedSeveridades) && point.aggregatedSeveridades.length > 0),
+      ),
+    [normalizedHeatmap],
+  );
+  const shouldCluster = useMemo(
+    () => !disableClustering && !aggregatedHint,
+    [disableClustering, aggregatedHint],
+  );
+  const aggregatedHeatmap = useMemo(
+    () => (shouldCluster ? clusterHeatmapPoints(normalizedHeatmap) : normalizedHeatmap),
+    [normalizedHeatmap, shouldCluster],
+  );
   const heatmapRadius = useMemo(() => {
     if (!aggregatedHeatmap.length) {
       return 28;
@@ -197,6 +229,10 @@ export function GoogleHeatmapMap({
 
     if (!available) {
       reportUnavailable("heatmap-unavailable");
+    }
+
+    if (!window.google?.maps?.Map) {
+      reportUnavailable("load-error", new Error("google.maps.Map unavailable"));
     }
   }, [isLoaded, reportUnavailable]);
 
@@ -359,6 +395,17 @@ export function GoogleHeatmapMap({
       <div className={mapContainerClassName}>
         <div className="flex h-full w-full items-center justify-center rounded-2xl border border-dashed border-border px-6 text-center text-sm text-muted-foreground">
           Cargando mapa de Google Maps...
+        </div>
+      </div>
+    );
+  }
+
+  if (!window.google?.maps?.Map) {
+    reportUnavailable("load-error", new Error("google.maps.Map unavailable"));
+    return (
+      <div className={mapContainerClassName}>
+        <div className="flex h-full w-full items-center justify-center rounded-2xl border border-dashed border-border px-6 text-center text-sm text-muted-foreground">
+          No se pudo inicializar Google Maps. Verificá la clave (`VITE_Maps_API_KEY`) y la configuración de facturación.
         </div>
       </div>
     );
