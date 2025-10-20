@@ -30,6 +30,7 @@ import TramitesCatalog from '@/pages/TramitesCatalog';
 import InternalUsers from '@/pages/InternalUsers';
 import WhatsappIntegration from '@/pages/WhatsappIntegration';
 import MunicipalSystems from '@/pages/MunicipalSystems';
+import MunicipalPlaybookPage from '@/pages/MunicipalPlaybook';
 import SatisfactionSurveys from '@/pages/SatisfactionSurveys';
 import TicketLookup from '@/pages/TicketLookup';
 import CustomerHistory from '@/pages/CustomerHistory';
@@ -126,6 +127,7 @@ const routes: RouteConfig[] = [
   { path: '/municipal/whatsapp', element: <WhatsappIntegration />, roles: ['admin', 'super_admin'] },
   { path: '/municipal/integrations', element: <MunicipalSystems />, roles: ['admin', 'super_admin'] },
   { path: '/municipal/surveys', element: <SatisfactionSurveys /> },
+  { path: '/municipal/playbook', element: <MunicipalPlaybookPage />, roles: ['admin', 'super_admin'] },
   { path: '/municipal/message-metrics', element: <MunicipalMessageMetrics />, roles: ['admin', 'super_admin'] },
   { path: '/municipal/analytics', element: <EstadisticasPage />, roles: ['admin', 'super_admin'] },
   { path: '/municipal/stats', element: <EstadisticasPage />, roles: ['admin', 'super_admin'] },
