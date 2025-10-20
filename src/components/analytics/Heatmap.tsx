@@ -125,43 +125,6 @@ export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({
     return false;
   }, [heatmapData, metadata]);
 
-  const disableClustering = useMemo(() => {
-    if (heatmapData.length === 0) {
-      return false;
-    }
-
-    const aggregated = heatmapData.some(
-      (point) =>
-        (typeof point.clusterSize === 'number' && point.clusterSize > 1) ||
-        Boolean(point.clusterId) ||
-        (Array.isArray(point.sampleTickets) && point.sampleTickets.length > 0) ||
-        (Array.isArray(point.aggregatedCategorias) && point.aggregatedCategorias.length > 0) ||
-        (Array.isArray(point.aggregatedEstados) && point.aggregatedEstados.length > 0) ||
-        (Array.isArray(point.aggregatedTipos) && point.aggregatedTipos.length > 0) ||
-        (Array.isArray(point.aggregatedBarrios) && point.aggregatedBarrios.length > 0) ||
-        (Array.isArray(point.aggregatedSeveridades) && point.aggregatedSeveridades.length > 0),
-    );
-
-    if (aggregated) {
-      return true;
-    }
-
-    if (metadata) {
-      if (typeof metadata.cellCount === 'number' && metadata.cellCount > 0) {
-        return true;
-      }
-      if (
-        typeof metadata.pointCount === 'number' &&
-        metadata.pointCount > heatmapData.length &&
-        heatmapData.length > 0
-      ) {
-        return true;
-      }
-    }
-
-    return false;
-  }, [heatmapData, metadata]);
-
   type InsightItem = { label: string; count: number; weight: number; percentage: number };
   type HeatmapInsights = {
     totalPoints: number;
