@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import MapLibreMap from '@/components/MapLibreMap';
-import { HeatPoint, HeatmapMapMetadata } from '@/services/statsService';
+import { HeatPoint, HeatmapBreakdownItem, HeatmapMapMetadata } from '@/services/statsService';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useMapProvider } from '@/hooks/useMapProvider';
 import type { MapProvider, MapProviderUnavailableReason } from '@/hooks/useMapProvider';
@@ -45,14 +45,85 @@ export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({
     [setProvider],
   );
 
+  const matchesWithAggregated = useCallback(
+    (
+      selected: string[],
+      directValue: string | undefined | null,
+      aggregated?: HeatmapBreakdownItem[] | null,
+    ) => {
+      if (selected.length === 0) {
+        return true;
+      }
+
+      if (directValue && selected.includes(directValue)) {
+        return true;
+      }
+
+      if (Array.isArray(aggregated)) {
+        return aggregated.some((item) => item?.label && selected.includes(item.label));
+      }
+
+      return false;
+    },
+    [],
+  );
+
   const heatmapData = useMemo(() => {
-    return initialHeatmapData.filter(
-      (t) =>
-        (selectedTipos.length === 0 || (t.tipo_ticket && selectedTipos.includes(t.tipo_ticket))) &&
-        (selectedCategories.length === 0 || (t.categoria && selectedCategories.includes(t.categoria))) &&
-        (selectedBarrios.length === 0 || (t.barrio && selectedBarrios.includes(t.barrio)))
+    return initialHeatmapData.filter((t) => {
+      const matchesTipo = matchesWithAggregated(selectedTipos, t.tipo_ticket, t.aggregatedTipos);
+      const matchesCategoria = matchesWithAggregated(
+        selectedCategories,
+        t.categoria,
+        t.aggregatedCategorias,
+      );
+      const matchesBarrio = matchesWithAggregated(selectedBarrios, t.barrio, t.aggregatedBarrios);
+
+      return matchesTipo && matchesCategoria && matchesBarrio;
+    });
+  }, [
+    initialHeatmapData,
+    matchesWithAggregated,
+    selectedTipos,
+    selectedCategories,
+    selectedBarrios,
+  ]);
+
+  const disableClustering = useMemo(() => {
+    if (heatmapData.length === 0) {
+      return false;
+    }
+
+    const aggregated = heatmapData.some(
+      (point) =>
+        (typeof point.clusterSize === 'number' && point.clusterSize > 1) ||
+        Boolean(point.clusterId) ||
+        (Array.isArray(point.sampleTickets) && point.sampleTickets.length > 0) ||
+        (Array.isArray(point.aggregatedCategorias) && point.aggregatedCategorias.length > 0) ||
+        (Array.isArray(point.aggregatedEstados) && point.aggregatedEstados.length > 0) ||
+        (Array.isArray(point.aggregatedTipos) && point.aggregatedTipos.length > 0) ||
+        (Array.isArray(point.aggregatedBarrios) && point.aggregatedBarrios.length > 0) ||
+        (Array.isArray(point.aggregatedSeveridades) && point.aggregatedSeveridades.length > 0),
     );
-  }, [initialHeatmapData, selectedTipos, selectedCategories, selectedBarrios]);
+
+    if (aggregated) {
+      return true;
+    }
+
+    if (metadata) {
+      if (typeof metadata.cellCount === 'number' && metadata.cellCount > 0) {
+        return true;
+      }
+      if (
+        typeof metadata.pointCount === 'number' &&
+        metadata.pointCount > heatmapData.length &&
+        heatmapData.length > 0
+      ) {
+        return true;
+      }
+    }
+
+    return false;
+  }, [heatmapData, metadata]);
 
   const disableClustering = useMemo(() => {
     if (heatmapData.length === 0) {
