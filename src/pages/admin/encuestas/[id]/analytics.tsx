@@ -448,6 +448,8 @@ const SurveyAnalyticsPage = () => {
             heatmap={heatmap}
             onExport={handleExport}
             isExporting={isExporting}
+            filters={filters}
+            onFiltersChange={setFilters}
           />
         </CardContent>
       </Card>

@@ -1,9 +1,16 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Clock, FilePlus2, ShieldCheck } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import type { SurveySnapshot } from '@/types/encuestas';
 
 interface TransparencyTabProps {
@@ -60,6 +67,11 @@ export const TransparencyTab = ({
   const [verificationResult, setVerificationResult] = useState<string | null>(null);
 
   const normalizedSnapshots = useMemo(() => normalizeSnapshots(snapshots), [snapshots]);
+  const snapshotSelectValue = snapshotId ? String(snapshotId) : undefined;
+
+  useEffect(() => {
+    setVerificationResult(null);
+  }, [snapshotId, responseId]);
 
   const handleCreateSnapshot = async () => {
     await onCreateSnapshot(range ? { rango: range } : undefined);
@@ -70,12 +82,17 @@ export const TransparencyTab = ({
     await onPublishSnapshot(id);
   };
 
-  const handleVerify = async () => {
+  const handleVerify = () => {
     if (!snapshotId || !responseId) return;
     const numericResponse = Number(responseId);
     if (!Number.isFinite(numericResponse)) return;
-    const result = await onVerifyResponse(snapshotId, numericResponse);
-    setVerificationResult(result.valido ? 'válida' : 'no válida');
+    void onVerifyResponse(snapshotId, numericResponse)
+      .then((result) => {
+        setVerificationResult(result.valido ? 'válida' : 'no válida');
+      })
+      .catch(() => {
+        setVerificationResult(null);
+      });
   };
 
   return (
@@ -106,6 +123,7 @@ export const TransparencyTab = ({
                   <th className="py-2 pr-4">Etiqueta</th>
                   <th className="py-2 pr-4">Creado</th>
                   <th className="py-2 pr-4">Publicado</th>
+                  <th className="py-2 pr-4 text-right">Respuestas</th>
                   <th className="py-2 pr-4 text-right">Acciones</th>
                 </tr>
               </thead>
@@ -135,6 +153,11 @@ export const TransparencyTab = ({
                       )}
                     </td>
                     <td className="py-2 pr-4 text-right">
+                      {typeof snapshot.resumen?.total_respuestas === 'number'
+                        ? snapshot.resumen.total_respuestas.toLocaleString('es-AR')
+                        : '—'}
+                    </td>
+                    <td className="py-2 pr-4 text-right">
                       {!snapshot.publicado_at && (
                         <Button
                           size="sm"
@@ -151,7 +174,7 @@ export const TransparencyTab = ({
                 ))}
                 {!normalizedSnapshots.length && (
                   <tr>
-                    <td colSpan={4} className="py-4 text-center text-muted-foreground">
+                    <td colSpan={5} className="py-4 text-center text-muted-foreground">
                       Aún no creaste snapshots. Generá uno para fijar un estado verificable de la encuesta.
                     </td>
                   </tr>
@@ -171,13 +194,29 @@ export const TransparencyTab = ({
           <div className="grid gap-3 md:grid-cols-2">
             <div className="space-y-2">
               <label className="text-sm font-medium">Snapshot</label>
-              <Input
-                type="number"
-                min={1}
-                value={snapshotId ?? ''}
-                onChange={(event) => setSnapshotId(event.target.value ? Number(event.target.value) : null)}
-                placeholder="ID de snapshot"
-              />
+              {normalizedSnapshots.length ? (
+                <Select
+                  value={snapshotSelectValue}
+                  onValueChange={(value) => setSnapshotId(value ? Number(value) : null)}
+                  disabled={isVerifying}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Elegí un snapshot" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {normalizedSnapshots.map((snapshot) => (
+                      <SelectItem key={snapshot.id} value={String(snapshot.id)}>
+                        {snapshot.etiqueta || `Snapshot #${snapshot.id}`}
+                        {typeof snapshot.resumen?.total_respuestas === 'number'
+                          ? ` · ${snapshot.resumen.total_respuestas} resp.`
+                          : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input disabled placeholder="Creá un snapshot para habilitar la verificación" />
+              )}
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Respuesta</label>
@@ -195,7 +234,15 @@ export const TransparencyTab = ({
           </Button>
           {verificationResult && (
             <p className="text-sm text-muted-foreground">
-              La respuesta #{responseId} es <span className="font-semibold">{verificationResult}</span> en el snapshot seleccionado.
+              La respuesta #{responseId} es{' '}
+              <span
+                className={`font-semibold ${
+                  verificationResult === 'válida' ? 'text-emerald-600' : 'text-destructive'
+                }`}
+              >
+                {verificationResult}
+              </span>{' '}
+              en el snapshot seleccionado.
             </p>
           )}
         </CardContent>

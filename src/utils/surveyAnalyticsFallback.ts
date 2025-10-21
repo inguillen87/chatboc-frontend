@@ -76,10 +76,37 @@ const matchesLocationFilter = (
   return matchesFilterValue((location as Record<string, unknown>)[key], filter);
 };
 
+const parseBoundingBox = (
+  bbox: SurveyAnalyticsFilters['bbox'],
+): [number, number, number, number] | null => {
+  if (!bbox) {
+    return null;
+  }
+
+  if (typeof bbox === 'string') {
+    const parts = bbox.split(',').map((segment) => Number(segment.trim()));
+    if (parts.length !== 4 || parts.some((segment) => Number.isNaN(segment))) {
+      return null;
+    }
+    return [parts[0], parts[1], parts[2], parts[3]];
+  }
+
+  if (Array.isArray(bbox) && bbox.length === 4) {
+    const parts = bbox.map((segment) => Number(segment));
+    if (parts.some((segment) => !Number.isFinite(segment))) {
+      return null;
+    }
+    return [parts[0], parts[1], parts[2], parts[3]];
+  }
+
+  return null;
+};
+
 const applyFilters = (payloads: PublicResponsePayload[], filters: SurveyAnalyticsFilters): PublicResponsePayload[] => {
   if (!payloads.length) return payloads;
   const desde = toDate(filters.desde);
   const hasta = toDate(filters.hasta);
+  const boundingBox = parseBoundingBox(filters.bbox);
 
   return payloads.filter((payload) => {
     if (filters.canal && !matchesFilterValue(payload.canal, filters.canal)) {
@@ -105,6 +132,30 @@ const applyFilters = (payloads: PublicResponsePayload[], filters: SurveyAnalytic
     if (!matchesLocationFilter(location, 'provincia', filters.provincia)) return false;
     if (!matchesLocationFilter(location, 'ciudad', filters.ciudad)) return false;
     if (!matchesLocationFilter(location, 'barrio', filters.barrio)) return false;
+
+    if (boundingBox) {
+      const lat = typeof (location as { lat?: unknown; latitude?: unknown } | undefined)?.lat === 'number'
+        ? (location as { lat?: number }).lat
+        : typeof (location as { latitude?: unknown } | undefined)?.latitude === 'number'
+          ? (location as { latitude?: number }).latitude
+          : null;
+      const lng = typeof (location as { lng?: unknown; lon?: unknown; longitude?: unknown } | undefined)?.lng === 'number'
+        ? (location as { lng?: number }).lng
+        : typeof (location as { lon?: unknown } | undefined)?.lon === 'number'
+          ? (location as { lon?: number }).lon
+          : typeof (location as { longitude?: unknown } | undefined)?.longitude === 'number'
+            ? (location as { longitude?: number }).longitude
+            : null;
+
+      if (lat === null || lng === null) {
+        return false;
+      }
+
+      const [west, south, east, north] = boundingBox;
+      if (lng < west || lng > east || lat < south || lat > north) {
+        return false;
+      }
+    }
 
     if (desde || hasta) {
       const submittedAt = toDate(payload.metadata?.submittedAt);

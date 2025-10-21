@@ -676,16 +676,30 @@ export default function MapLibreMap({
         mapInstance.on("click", handleClick);
         mapInstance.on("click", "tickets-circles", handleCircleClick);
         mapInstance.on("styleimagemissing", handleMissingImage);
-        if (boundingBoxCallbackRef.current) {
-          mapInstance.on("boxzoomend", emitBoundingBox);
+        const bboxEvents = [
+          "boxzoomend",
+          "moveend",
+          "zoomend",
+          "dragend",
+          "rotateend",
+          "pitchend",
+        ] as const;
+        const shouldEmitBoundingBox = Boolean(boundingBoxCallbackRef.current);
+        if (shouldEmitBoundingBox) {
+          bboxEvents.forEach((eventName) => mapInstance.on(eventName, emitBoundingBox));
+          if (mapInstance.isStyleLoaded()) {
+            emitBoundingBox();
+          } else {
+            mapInstance.once("load", emitBoundingBox);
+          }
         }
 
         return () => {
           mapInstance.off("click", handleClick);
           mapInstance.off("click", "tickets-circles", handleCircleClick);
           mapInstance.off("styleimagemissing", handleMissingImage);
-          if (boundingBoxCallbackRef.current) {
-            mapInstance.off("boxzoomend", emitBoundingBox);
+          if (shouldEmitBoundingBox) {
+            bboxEvents.forEach((eventName) => mapInstance.off(eventName, emitBoundingBox));
           }
           mapInstance.off("load", ensureSourcesAndLayers);
           mapInstance.off("style.load", ensureSourcesAndLayers);

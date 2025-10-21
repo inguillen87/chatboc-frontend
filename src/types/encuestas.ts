@@ -227,6 +227,7 @@ export interface SurveyAnalyticsFilters {
   provincia?: string;
   ciudad?: string;
   barrio?: string;
+  bbox?: string | [number, number, number, number] | null;
 }
 
 export interface SurveyResponseAnswer {
