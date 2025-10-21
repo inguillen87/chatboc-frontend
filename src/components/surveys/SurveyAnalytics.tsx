@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useRef } from 'react';
 import {
   Bar,
   BarChart,
@@ -23,6 +23,7 @@ import { MapProviderToggle } from '@/components/MapProviderToggle';
 import { useMapProvider } from '@/hooks/useMapProvider';
 import type { MapProvider, MapProviderUnavailableReason } from '@/hooks/useMapProvider';
 import type {
+  SurveyAnalyticsFilters,
   SurveyDemographicBreakdownItem,
   SurveyHeatmapPoint,
   SurveySummary,
@@ -35,6 +36,8 @@ interface SurveyAnalyticsProps {
   heatmap?: SurveyHeatmapPoint[];
   onExport: () => Promise<void>;
   isExporting?: boolean;
+  filters?: SurveyAnalyticsFilters;
+  onFiltersChange?: (next: SurveyAnalyticsFilters) => void;
 }
 
 const palette = ['#2563eb', '#7c3aed', '#059669', '#ea580c', '#f59e0b', '#db2777'];
@@ -408,7 +411,15 @@ const normalizeUtmBreakdown = (raw: unknown): UtmBreakdownItem[] => {
   return normalized;
 };
 
-export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExporting }: SurveyAnalyticsProps) => {
+export const SurveyAnalytics = ({
+  summary,
+  timeseries,
+  heatmap,
+  onExport,
+  isExporting,
+  filters,
+  onFiltersChange,
+}: SurveyAnalyticsProps) => {
   const timeseriesData = useMemo(() => buildTimeseriesData(timeseries), [timeseries]);
   const summaryRecord = useMemo(
     () => (summary && typeof summary === 'object' ? (summary as unknown as Record<string, unknown>) : null),
@@ -426,6 +437,18 @@ export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExpo
     [heatmapPoints],
   );
   const { provider, setProvider } = useMapProvider();
+  const normalizedFilters: SurveyAnalyticsFilters = filters ?? {};
+  const boundingBoxValue = useMemo(() => {
+    const bbox = normalizedFilters.bbox;
+    if (!bbox) return undefined;
+    if (typeof bbox === 'string') {
+      return bbox;
+    }
+    if (Array.isArray(bbox) && bbox.length === 4 && bbox.every((value) => Number.isFinite(value))) {
+      return bbox.map((value) => Number(value).toFixed(6)).join(',');
+    }
+    return undefined;
+  }, [normalizedFilters]);
 
   const handleProviderUnavailable = useCallback(
     (currentProvider: MapProvider, reason: MapProviderUnavailableReason, details?: unknown) => {
@@ -438,6 +461,44 @@ export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExpo
     },
     [setProvider],
   );
+  const skipNextBoundingUpdateRef = useRef(false);
+  const handleBoundingBoxChange = useCallback(
+    (bbox: [number, number, number, number] | null) => {
+      if (!onFiltersChange) return;
+      if (skipNextBoundingUpdateRef.current) {
+        skipNextBoundingUpdateRef.current = false;
+        return;
+      }
+      const current = filters ?? {};
+      if (!bbox) {
+        if (!boundingBoxValue) return;
+        const nextFilters = { ...current };
+        delete nextFilters.bbox;
+        onFiltersChange(nextFilters);
+        return;
+      }
+
+      if (bbox.length !== 4 || bbox.some((value) => !Number.isFinite(value))) {
+        return;
+      }
+
+      const formatted = bbox.map((value) => Number(value).toFixed(6)).join(',');
+      if (formatted === boundingBoxValue) {
+        return;
+      }
+
+      onFiltersChange({ ...current, bbox: formatted });
+    },
+    [filters, onFiltersChange, boundingBoxValue, skipNextBoundingUpdateRef],
+  );
+  const handleClearBoundingBox = useCallback(() => {
+    if (!onFiltersChange || !boundingBoxValue) return;
+    const current = filters ?? {};
+    const nextFilters = { ...current };
+    delete nextFilters.bbox;
+    skipNextBoundingUpdateRef.current = true;
+    onFiltersChange(nextFilters);
+  }, [filters, onFiltersChange, boundingBoxValue, skipNextBoundingUpdateRef]);
   const heatmapCenter = useMemo(() => {
     if (!heatmapData.length) return undefined;
     const totalWeight = heatmapData.reduce((sum, point) => sum + (point.weight ?? 1), 0);
@@ -831,6 +892,21 @@ export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExpo
           </div>
         </CardHeader>
         <CardContent className="h-[420px]">
+          {boundingBoxValue ? (
+            <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-primary">
+              Filtrando resultados por la zona visible del mapa.
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                className="h-auto px-0 text-primary"
+                onClick={handleClearBoundingBox}
+                disabled={!onFiltersChange}
+              >
+                Quitar filtro
+              </Button>
+            </div>
+          ) : null}
           {heatmapData.length ? (
             <MapLibreMap
               className="h-full rounded-lg"
@@ -840,6 +916,7 @@ export const SurveyAnalytics = ({ summary, timeseries, heatmap, onExport, isExpo
               initialZoom={heatmapBounds.length ? 12 : 4}
               provider={provider}
               onProviderUnavailable={handleProviderUnavailable}
+              onBoundingBoxChange={handleBoundingBoxChange}
             />
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">

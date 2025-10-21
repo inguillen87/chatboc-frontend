@@ -16,14 +16,46 @@ import {
 } from '@/types/encuestas';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
-type QueryParams = Record<string, string | number | boolean | undefined | null>;
+type PrimitiveParam = string | number | boolean | undefined | null;
+type QueryParams = Record<string, PrimitiveParam | PrimitiveParam[]>;
 
 const buildQueryString = (params?: QueryParams) => {
   if (!params) return '';
   const search = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
     if (value === undefined || value === null || value === '') return;
-    search.set(key, String(value));
+
+    const appendValue = (input: PrimitiveParam) => {
+      if (input === undefined || input === null || input === '') return;
+      if (typeof input === 'number' && !Number.isFinite(input)) return;
+      if (typeof input === 'boolean') {
+        search.set(key, input ? '1' : '0');
+        return;
+      }
+      search.set(key, String(input));
+    };
+
+    if (Array.isArray(value)) {
+      const normalized = value
+        .map((item) => {
+          if (item === undefined || item === null || item === '') return null;
+          if (typeof item === 'number') {
+            return Number.isFinite(item) ? String(item) : null;
+          }
+          if (typeof item === 'boolean') {
+            return item ? '1' : '0';
+          }
+          return String(item);
+        })
+        .filter((item): item is string => item !== null);
+
+      if (normalized.length) {
+        search.set(key, normalized.join(','));
+      }
+      return;
+    }
+
+    appendValue(value);
   });
   const query = search.toString();
   return query ? `?${query}` : '';

@@ -38,9 +38,51 @@ interface UseSurveyAnalyticsResult {
   isExporting: boolean;
 }
 
-const normalizeFilters = (filters: SurveyAnalyticsFilters): SurveyAnalyticsFilters => ({
-  ...filters,
-});
+const sanitizeBoundingBox = (value: SurveyAnalyticsFilters['bbox']): string | undefined => {
+  if (!value) {
+    return undefined;
+  }
+
+  if (typeof value === 'string') {
+    const segments = value.split(',').map((segment) => Number(segment.trim()));
+    if (segments.length !== 4 || segments.some((segment) => Number.isNaN(segment))) {
+      return undefined;
+    }
+    return segments.map((segment) => segment.toFixed(6)).join(',');
+  }
+
+  if (Array.isArray(value) && value.length === 4) {
+    const segments = value.map((segment) => Number(segment));
+    if (segments.some((segment) => !Number.isFinite(segment))) {
+      return undefined;
+    }
+    return segments.map((segment) => segment.toFixed(6)).join(',');
+  }
+
+  return undefined;
+};
+
+const normalizeFilters = (filters: SurveyAnalyticsFilters): SurveyAnalyticsFilters => {
+  const normalized: Partial<SurveyAnalyticsFilters> = {};
+
+  (Object.entries(filters) as Array<[keyof SurveyAnalyticsFilters, unknown]>).forEach(([key, rawValue]) => {
+    if (rawValue === undefined || rawValue === null || rawValue === '') {
+      return;
+    }
+
+    if (key === 'bbox') {
+      const bboxValue = sanitizeBoundingBox(rawValue as SurveyAnalyticsFilters['bbox']);
+      if (bboxValue) {
+        normalized.bbox = bboxValue;
+      }
+      return;
+    }
+
+    normalized[key] = rawValue as never;
+  });
+
+  return normalized as SurveyAnalyticsFilters;
+};
 
 interface UseSurveyAnalyticsOptions {
   fallbackSurvey?: SurveyPublic | SurveyAdmin | null;
