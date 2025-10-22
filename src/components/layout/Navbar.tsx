@@ -2,7 +2,19 @@ import React, { useEffect, useMemo, useState } from "react";
 import ChatbocLogoAnimated from "../chat/ChatbocLogoAnimated";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { Link as RouterLink, useLocation } from "react-router-dom";
-import { Menu, X, Moon, Sun, User, LogOut, MessageCircle, BarChart3 } from "lucide-react";
+import {
+  Menu,
+  X,
+  Moon,
+  Sun,
+  User,
+  LogOut,
+  MessageCircle,
+  BarChart3,
+  Ticket as TicketIcon,
+  ClipboardList,
+  Users,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -13,14 +25,43 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { FEATURE_ENCUESTAS } from "@/config/featureFlags";
+import { useUser } from "@/hooks/useUser";
+import type { LucideIcon } from "lucide-react";
 
 const Navbar: React.FC = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [isDark, setIsDark] = useState(false);
   const location = useLocation();
+  const { user } = useUser();
 
   const isLanding = location.pathname === "/";
   const isLoggedIn = !!safeLocalStorage.getItem("user");
+  const userRole = user?.rol;
+  const isAdminLike = useMemo(
+    () => Boolean(userRole && ["admin", "empleado", "super_admin"].includes(userRole)),
+    [userRole],
+  );
+  const isMunicipal = user?.tipo_chat === "municipio";
+  const analyticsPath = isMunicipal ? "/estadisticas" : "/analytics";
+  const adminLinks = useMemo(() => {
+    if (!isAdminLike) {
+      return [] as Array<{ to: string; label: string; icon: LucideIcon }>;
+    }
+
+    const links: Array<{ to: string; label: string; icon: LucideIcon }> = [
+      { to: "/tickets", label: "Tickets", icon: TicketIcon },
+      { to: "/pedidos", label: "Pedidos", icon: ClipboardList },
+      { to: "/usuarios", label: "Usuarios", icon: Users },
+    ];
+
+    links.push({
+      to: analyticsPath,
+      label: isMunicipal ? "Estadísticas" : "Analytics",
+      icon: BarChart3,
+    });
+
+    return links;
+  }, [analyticsPath, isAdminLike, isMunicipal]);
   const storedUserRaw = useMemo(
     () => (isLoggedIn ? safeLocalStorage.getItem("user") : null),
     [isLoggedIn],
@@ -141,6 +182,19 @@ const Navbar: React.FC = () => {
                     Chat en vivo
                   </RouterLink>
                 </DropdownMenuItem>
+                {adminLinks.length > 0 && (
+                  <>
+                    <DropdownMenuSeparator />
+                    {adminLinks.map(({ to, label, icon: Icon }) => (
+                      <DropdownMenuItem asChild key={to}>
+                        <RouterLink to={to} className="flex items-center gap-2 text-sm">
+                          <Icon className="h-4 w-4" />
+                          {label}
+                        </RouterLink>
+                      </DropdownMenuItem>
+                    ))}
+                  </>
+                )}
                 {FEATURE_ENCUESTAS && (
                   <DropdownMenuItem asChild>
                     <RouterLink to="/admin/encuestas" className="flex items-center gap-2 text-sm">
@@ -149,13 +203,6 @@ const Navbar: React.FC = () => {
                     </RouterLink>
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuItem asChild>
-                  <RouterLink to="/estadisticas" className="flex items-center gap-2 text-sm">
-                    <BarChart3 className="h-4 w-4" />
-                    Analíticas 360
-                  </RouterLink>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
                 <DropdownMenuItem
                   className="flex items-center gap-2 text-destructive focus:text-destructive"
                   onSelect={() => {
@@ -209,6 +256,24 @@ const Navbar: React.FC = () => {
               <>
                 <RouterLink to="/perfil" onClick={() => setMenuOpen(false)} className="hover:text-primary transition-colors">Mi Perfil</RouterLink>
                 <RouterLink to="/chat" onClick={() => setMenuOpen(false)} className="hover:text-primary transition-colors">Chat</RouterLink>
+                {adminLinks.length > 0 && (
+                  <div className="w-full space-y-2 border-t border-border/40 pt-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/80">Panel admin</p>
+                    <div className="flex flex-col gap-2">
+                      {adminLinks.map(({ to, label, icon: Icon }) => (
+                        <RouterLink
+                          key={to}
+                          to={to}
+                          onClick={() => setMenuOpen(false)}
+                          className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm transition-colors hover:border-primary hover:text-primary"
+                        >
+                          <Icon className="h-4 w-4" />
+                          {label}
+                        </RouterLink>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <RouterLink to="/" onClick={() => { safeLocalStorage.removeItem("user"); setMenuOpen(false); }} className="text-red-500">
                   Cerrar sesión
                 </RouterLink>
