@@ -99,14 +99,26 @@ const NewTicketsPanel: React.FC = () => {
 
   // Sync mobile view with ticket selection
   React.useEffect(() => {
-    if (isMobile) {
-      if (selectedTicket && selectedTicket.id !== lastMobileTicketId.current) {
-        setActiveMobileView('chat');
-        lastMobileTicketId.current = selectedTicket.id;
-      } else if (!selectedTicket) {
-        setActiveMobileView('tickets');
-        lastMobileTicketId.current = null;
-      }
+    if (!isMobile) {
+      return;
+    }
+
+    if (!selectedTicket) {
+      lastMobileTicketId.current = null;
+      setActiveMobileView('tickets');
+      return;
+    }
+
+    const currentTicketId = selectedTicket.id;
+
+    if (lastMobileTicketId.current === null) {
+      lastMobileTicketId.current = currentTicketId;
+      return;
+    }
+
+    if (currentTicketId !== lastMobileTicketId.current) {
+      lastMobileTicketId.current = currentTicketId;
+      setActiveMobileView('chat');
     }
   }, [selectedTicket, isMobile, setActiveMobileView]);
 
