@@ -55,6 +55,12 @@ import AdminSurveysIndex from '@/pages/admin/encuestas/index';
 import NewSurveyPage from '@/pages/admin/encuestas/new';
 import SurveyDetailPage from '@/pages/admin/encuestas/[id]';
 import SurveyAnalyticsPage from '@/pages/admin/encuestas/[id]/analytics';
+import TenantHomePage from '@/pages/tenant/TenantHomePage';
+import TenantNewsPage from '@/pages/tenant/TenantNewsPage';
+import TenantEventsPage from '@/pages/tenant/TenantEventsPage';
+import TenantSurveyListPage from '@/pages/tenant/TenantSurveyListPage';
+import TenantSurveyDetailPage from '@/pages/tenant/TenantSurveyDetailPage';
+import TenantTicketFormPage from '@/pages/tenant/TenantTicketFormPage';
 
 // NUEVAS IMPORTACIONES PARA EL PORTAL DE USUARIO
 // UserPortalLayout no se importa aquí si se usa como Layout Route en App.tsx
@@ -72,12 +78,18 @@ export interface RouteConfig {
 
 const routes: RouteConfig[] = [
   { path: '/', element: <Index /> },
+  { path: '/t/:tenant', element: <TenantHomePage /> },
+  { path: '/t/:tenant/noticias', element: <TenantNewsPage /> },
+  { path: '/t/:tenant/eventos', element: <TenantEventsPage /> },
+  { path: '/t/:tenant/reclamos/nuevo', element: <TenantTicketFormPage /> },
   { path: '/login', element: <Login /> },
   ...(FEATURE_ENCUESTAS
     ? [
         { path: '/encuestas', element: <PublicSurveysIndex /> },
         { path: '/encuestas/:slug/qr', element: <SurveyQrPage /> },
         { path: '/e/:slug', element: <PublicSurveyPage /> },
+        { path: '/t/:tenant/encuestas', element: <TenantSurveyListPage /> },
+        { path: '/t/:tenant/encuestas/:slug', element: <TenantSurveyDetailPage /> },
       ]
     : []),
   { path: '/register', element: <Register /> },

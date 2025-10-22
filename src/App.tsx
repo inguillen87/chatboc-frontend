@@ -16,6 +16,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import { DateSettingsProvider } from "./hooks/useDateSettings";
 import { UserProvider } from "./hooks/useUser";
 import useTicketUpdates from "./hooks/useTicketUpdates";
+import { TenantProvider } from "./context/TenantContext";
 
 const queryClient = new QueryClient();
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
@@ -50,7 +51,7 @@ function AppRoutes() {
   );
 
   return (
-    <>
+    <TenantProvider>
       <Routes>
         <Route element={<Layout />}>
           {routes.map(({ path, element, roles }) => (
@@ -74,7 +75,7 @@ function AppRoutes() {
       {!ocultarWidgetGlobalEnApp && (
         <ChatWidget mode="standalone" defaultOpen={false} />
       )}
-    </>
+    </TenantProvider>
   );
 }
 

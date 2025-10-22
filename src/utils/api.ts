@@ -90,6 +90,10 @@ interface ApiFetchOptions {
    * Prevents leaking panel credentials while still allowing chat auth tokens.
    */
   isWidgetRequest?: boolean;
+  /**
+   * When provided, attaches the tenant slug so the backend can scope the request.
+   */
+  tenantSlug?: string | null;
 }
 
 /**
@@ -112,6 +116,7 @@ export async function apiFetch<T>(
     omitCredentials,
     isWidgetRequest,
     omitChatSessionId,
+    tenantSlug,
   } = options;
 
   const rawIframeToken = getIframeToken();
@@ -198,6 +203,10 @@ export async function apiFetch<T>(
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
+
+  if (tenantSlug && typeof tenantSlug === "string" && tenantSlug.trim()) {
+    headers["X-Tenant"] = tenantSlug.trim();
+  }
   // Si el endpoint necesita identificar usuario anónimo, mandá siempre el header "Anon-Id"
   if (((!token && anonId) || sendAnonId) && anonId) {
     headers["Anon-Id"] = anonId;
@@ -223,6 +232,7 @@ export async function apiFetch<T>(
       storedRole: normalizedRole,
       headers,
       chatSessionIdAttached: Boolean(chatSessionId),
+      tenantSlug: tenantSlug || null,
     });
   }
 

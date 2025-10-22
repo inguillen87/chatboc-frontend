@@ -5,6 +5,10 @@ import { getPublicSurvey, postPublicResponse } from '@/api/encuestas';
 import type { PublicResponsePayload, SurveyPublic } from '@/types/encuestas';
 import { ApiError, getErrorMessage } from '@/utils/api';
 
+export interface UseSurveyPublicOptions {
+  tenantSlug?: string | null;
+}
+
 interface UseSurveyPublicResult {
   survey?: SurveyPublic;
   isLoading: boolean;
@@ -17,27 +21,40 @@ interface UseSurveyPublicResult {
   submitStatus: number | null;
 }
 
-export function useSurveyPublic(slug?: string | null): UseSurveyPublicResult {
+export function useSurveyPublic(
+  slug?: string | null,
+  options?: UseSurveyPublicOptions,
+): UseSurveyPublicResult {
   const queryClient = useQueryClient();
   const normalizedSlug = useMemo(() => slug?.trim() || '', [slug]);
+  const normalizedTenantSlug = useMemo(
+    () => options?.tenantSlug?.trim() || '',
+    [options?.tenantSlug],
+  );
 
   const {
     data,
     isLoading,
     error,
   } = useQuery({
-    queryKey: ['survey-public', normalizedSlug],
+    queryKey: ['survey-public', normalizedSlug, normalizedTenantSlug],
     enabled: Boolean(normalizedSlug),
-    queryFn: () => getPublicSurvey(normalizedSlug),
+    queryFn: () => getPublicSurvey(normalizedSlug, normalizedTenantSlug || undefined),
     staleTime: 1000 * 60,
   });
 
   const mutation = useMutation({
-    mutationKey: ['survey-public-submit', normalizedSlug],
+    mutationKey: ['survey-public-submit', normalizedSlug, normalizedTenantSlug],
     mutationFn: async (payload: PublicResponsePayload) => {
       if (!normalizedSlug) throw new Error('Encuesta no disponible.');
-      const response = await postPublicResponse(normalizedSlug, payload);
-      await queryClient.invalidateQueries({ queryKey: ['survey-public', normalizedSlug] });
+      const response = await postPublicResponse(
+        normalizedSlug,
+        payload,
+        normalizedTenantSlug || undefined,
+      );
+      await queryClient.invalidateQueries({
+        queryKey: ['survey-public', normalizedSlug, normalizedTenantSlug],
+      });
       return response;
     },
   });

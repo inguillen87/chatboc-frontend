@@ -16,6 +16,7 @@ import { trackSurveySubmission } from '@/utils/surveyAnalytics';
 const PublicSurveyPage = () => {
   const { slug } = useParams();
   const [searchParams] = useSearchParams();
+  const tenantSlug = searchParams.get('tenant');
   const [submitted, setSubmitted] = useState(false);
   const [lastSubmission, setLastSubmission] = useState<PublicResponsePayload | null>(null);
   const {
@@ -27,7 +28,7 @@ const PublicSurveyPage = () => {
     submitError,
     duplicateDetected,
     submitStatus,
-  } = useSurveyPublic(slug);
+  } = useSurveyPublic(slug, { tenantSlug });
 
   usePageMetadata({
     title: survey?.titulo ? `${survey.titulo} · Encuesta ciudadana` : 'Encuesta ciudadana',

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Download, Loader2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,9 @@ import { getPublicSurveyQrUrl, getPublicSurveyUrl, isQuickchartQrUrl } from '@/u
 
 const SurveyQrPage = () => {
   const { slug = '' } = useParams<{ slug: string }>();
-  const { survey, isLoading, error } = useSurveyPublic(slug);
+  const [searchParams] = useSearchParams();
+  const tenantSlug = searchParams.get('tenant');
+  const { survey, isLoading, error } = useSurveyPublic(slug, { tenantSlug });
   const [displayUrl, setDisplayUrl] = useState<string | null>(null);
   const [usingFallback, setUsingFallback] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);

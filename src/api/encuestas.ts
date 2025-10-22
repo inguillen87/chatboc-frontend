@@ -265,12 +265,13 @@ const attemptRecoveryFromAdminList = async (): Promise<PublicSurveyListResult | 
   }
 };
 
-export const getPublicSurvey = async (slug: string): Promise<SurveyPublic> => {
+export const getPublicSurvey = async (slug: string, tenantSlug?: string): Promise<SurveyPublic> => {
   const response = await apiFetch<unknown>(`/public/encuestas/${slug}`, {
     skipAuth: true,
     omitCredentials: true,
     isWidgetRequest: true,
     omitChatSessionId: true,
+    tenantSlug,
   });
 
   if (!response || typeof response !== 'object' || Array.isArray(response)) {
@@ -298,6 +299,7 @@ const extractSlugsFromRawPayload = (raw?: string | null): string[] => {
 const attemptRecoveryFromRawPayload = async (
   raw: string,
   status?: number,
+  tenantSlug?: string,
 ): Promise<PublicSurveyListResult | null> => {
   const slugs = extractSlugsFromRawPayload(raw);
   if (!slugs.length) {
@@ -307,7 +309,7 @@ const attemptRecoveryFromRawPayload = async (
   const recovered = await Promise.all(
     slugs.map(async (slug) => {
       try {
-        return await getPublicSurvey(slug);
+        return await getPublicSurvey(slug, tenantSlug);
       } catch (fetchError) {
         console.warn('[encuestas] No se pudo recuperar la encuesta pública a partir del enlace', {
           slug,
@@ -332,13 +334,14 @@ const attemptRecoveryFromRawPayload = async (
   });
 };
 
-export const listPublicSurveys = async (): Promise<PublicSurveyListResult> => {
+export const listPublicSurveys = async (tenantSlug?: string): Promise<PublicSurveyListResult> => {
   try {
     const response = await apiFetch<unknown>('/public/encuestas', {
       skipAuth: true,
       omitCredentials: true,
       isWidgetRequest: true,
       omitChatSessionId: true,
+      tenantSlug,
     });
 
     if (Array.isArray(response)) {
@@ -346,9 +349,11 @@ export const listPublicSurveys = async (): Promise<PublicSurveyListResult> => {
         return response as SurveyPublic[];
       }
 
-      const recoveredFromAdmin = await attemptRecoveryFromAdminList();
-      if (recoveredFromAdmin) {
-        return recoveredFromAdmin;
+      if (!tenantSlug) {
+        const recoveredFromAdmin = await attemptRecoveryFromAdminList();
+        if (recoveredFromAdmin) {
+          return recoveredFromAdmin;
+        }
       }
 
       return response as SurveyPublic[];
@@ -356,7 +361,7 @@ export const listPublicSurveys = async (): Promise<PublicSurveyListResult> => {
 
     const raw = serializeUnknown(response);
     if (raw) {
-      const recovered = await attemptRecoveryFromRawPayload(raw);
+      const recovered = await attemptRecoveryFromRawPayload(raw, undefined, tenantSlug);
       if (recovered) {
         return recovered;
       }
@@ -373,7 +378,7 @@ export const listPublicSurveys = async (): Promise<PublicSurveyListResult> => {
             : serializeUnknown(error.body);
 
       if (rawBody) {
-        const recovered = await attemptRecoveryFromRawPayload(rawBody, error.status);
+        const recovered = await attemptRecoveryFromRawPayload(rawBody, error.status, tenantSlug);
         if (recovered) {
           return recovered;
         }
@@ -389,6 +394,7 @@ export const listPublicSurveys = async (): Promise<PublicSurveyListResult> => {
 export const postPublicResponse = (
   slug: string,
   payload: PublicResponsePayload,
+  tenantSlug?: string,
 ): Promise<{ ok: boolean; id?: number }> =>
   apiFetch(`/public/encuestas/${slug}/respuestas`, {
     method: 'POST',
@@ -397,6 +403,7 @@ export const postPublicResponse = (
     isWidgetRequest: true,
     skipAuth: true,
     omitChatSessionId: true,
+    tenantSlug,
   });
 
 const isSurveyListMeta = (value: unknown): SurveyListResponse['meta'] | undefined => {
