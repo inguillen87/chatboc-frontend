@@ -14,30 +14,76 @@ export default defineConfig(({ mode }) => {
         // unintentionally registering it inside the embeddable iframe.
         injectRegister: null,
         registerType: 'autoUpdate',
-        includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
+        includeAssets: [
+          'favicon.ico',
+          'apple-touch-icon.png',
+          'masked-icon.svg',
+          'favicon/favicon-192x192.png',
+          'favicon/favicon-512x512.png',
+        ],
         manifest: {
           name: 'Chatboc',
           short_name: 'Chatboc',
           description: 'Chatboc - IA para Gobiernos y Empresas',
-          theme_color: '#ffffff',
+          start_url: '/?pwa=1',
+          scope: '/',
+          display: 'standalone',
+          background_color: '#ffffff',
+          theme_color: '#0f62fe',
           icons: [
             {
-              src: 'pwa-192x192.png',
+              src: 'favicon/favicon-192x192.png',
               sizes: '192x192',
-              type: 'image/png'
+              type: 'image/png',
             },
             {
-              src: 'pwa-512x512.png',
+              src: 'favicon/favicon-512x512.png',
               sizes: '512x512',
-              type: 'image/png'
-            }
-          ]
+              type: 'image/png',
+            },
+            {
+              src: 'favicon/favicon-512x512.png',
+              sizes: '512x512',
+              type: 'image/png',
+              purpose: 'any maskable',
+            },
+          ],
         },
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
           // Allow larger chunks like MapLibre (~3MB) to be precached
           maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
           runtimeCaching: [
+            {
+              urlPattern: ({ url }) => url.pathname.startsWith('/api/public/'),
+              handler: 'NetworkFirst',
+              options: {
+                cacheName: 'public-api',
+                networkTimeoutSeconds: 4,
+                cacheableResponse: {
+                  statuses: [0, 200, 201, 202, 204],
+                },
+                expiration: {
+                  maxEntries: 60,
+                  maxAgeSeconds: 60 * 10,
+                },
+              },
+            },
+            {
+              urlPattern: ({ url }) => url.pathname.startsWith('/api/app/'),
+              handler: 'NetworkFirst',
+              options: {
+                cacheName: 'app-api',
+                networkTimeoutSeconds: 4,
+                cacheableResponse: {
+                  statuses: [0, 200, 201, 202, 204],
+                },
+                expiration: {
+                  maxEntries: 60,
+                  maxAgeSeconds: 60 * 10,
+                },
+              },
+            },
             {
               urlPattern: /^https:\/\/maps\.googleapis\.com\/.*/,
               handler: 'NetworkFirst',
