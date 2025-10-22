@@ -1,4 +1,9 @@
-import { startAuthentication, startRegistration } from '@simplewebauthn/browser';
+import {
+  startAuthentication,
+  startRegistration,
+  AuthenticationOptionsJSON,
+  RegistrationOptionsJSON,
+} from '@/services/webauthnClient';
 
 import { BASE_API_URL } from '@/config';
 import getOrCreateAnonId from '@/utils/anonId';
@@ -89,7 +94,7 @@ export const registerPasskey = async (
   getOrCreateAnonId();
 
   const query = displayName ? `?display_name=${encodeURIComponent(displayName)}` : '';
-  const options = await passkeyFetch<Parameters<typeof startRegistration>[0]>(
+  const options = await passkeyFetch<RegistrationOptionsJSON>(
     `/register/options${query}`,
   );
 
@@ -109,9 +114,7 @@ export const loginPasskey = async (): Promise<PasskeyLoginResult> => {
 
   getOrCreateAnonId();
 
-  const options = await passkeyFetch<Parameters<typeof startAuthentication>[0]>(
-    '/login/options',
-  );
+  const options = await passkeyFetch<AuthenticationOptionsJSON>('/login/options');
   const authenticationResponse = await startAuthentication(options);
 
   return passkeyFetch<PasskeyLoginResult>('/login/verify', {
