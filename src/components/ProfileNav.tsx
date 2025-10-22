@@ -79,12 +79,12 @@ export default function ProfileNav() {
     <div className="w-full">
       <div className="hidden sm:block">
         <Tabs value={location.pathname} onValueChange={(v) => navigate(v)}>
-          <TabsList className="rounded-xl border border-border bg-muted/50 shadow-sm p-1">
+          <TabsList className="flex w-full flex-wrap items-stretch gap-2 overflow-x-auto rounded-xl border border-border bg-muted/50 p-1 shadow-sm">
             {items.map((it) => (
               <TabsTrigger
                 key={it.path}
                 value={it.path}
-                className="rounded-lg px-5 py-3 text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg hover:bg-accent/70 hover:shadow-md transition-all duration-200"
+                className="rounded-lg px-4 py-2 text-sm font-semibold leading-snug text-center transition-all duration-200 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg hover:bg-accent/70 hover:shadow-md whitespace-normal"
               >
                 {it.label}
               </TabsTrigger>
