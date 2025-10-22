@@ -130,7 +130,36 @@ export async function apiFetch<T>(
       ? globalEntityToken.trim()
       : "";
   const isWidgetContext = Boolean(normalizedGlobalToken || entityToken);
-  const treatAsWidget = isWidgetRequest ?? isWidgetContext;
+
+  const isLikelyWidgetEnvironment = (() => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+
+    try {
+      const { self, top, location } = window;
+      const isEmbedded = self !== top;
+      if (isEmbedded) {
+        return true;
+      }
+
+      const hostname = location.hostname.toLowerCase();
+      if (hostname.startsWith("widget.")) {
+        return true;
+      }
+
+      const pathname = location.pathname.toLowerCase();
+      if (pathname.startsWith("/widget") || pathname.startsWith("/embedded-widget")) {
+        return true;
+      }
+    } catch (err) {
+      console.warn("[apiFetch] Unable to determine widget environment", err);
+    }
+
+    return false;
+  })();
+
+  const treatAsWidget = isWidgetRequest ?? (isWidgetContext && isLikelyWidgetEnvironment);
   const panelToken = safeLocalStorage.getItem("authToken");
   const chatToken = safeLocalStorage.getItem("chatAuthToken");
   let storedRole: string | null = null;
