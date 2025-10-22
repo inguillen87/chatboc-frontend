@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { useUser } from '@/hooks/useUser';
 import GoogleLoginButton from '@/components/auth/GoogleLoginButton';
+import { isPasskeySupported, registerPasskey } from '@/services/passkeys';
 
 interface Rubro { id: number; nombre: string; }
 interface RegisterResponse {
@@ -28,6 +29,8 @@ const Register = () => {
   const [accepted, setAccepted] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isPasskeyAvailable, setIsPasskeyAvailable] = useState(false);
+  const [isPasskeyLoading, setIsPasskeyLoading] = useState(false);
 
   useEffect(() => {
     const fetchRubros = async () => {
@@ -37,6 +40,17 @@ const Register = () => {
       } catch (err) { setError("No se pudieron cargar los rubros."); }
     };
     fetchRubros();
+    let mounted = true;
+    isPasskeySupported()
+      .then((supported) => {
+        if (mounted) setIsPasskeyAvailable(supported);
+      })
+      .catch(() => {
+        if (mounted) setIsPasskeyAvailable(false);
+      });
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -92,6 +106,35 @@ const Register = () => {
     }
   };
 
+  const handlePasskeyRegistration = async () => {
+    if (!accepted) {
+      setError('Debés aceptar los Términos y Condiciones.');
+      return;
+    }
+    setError('');
+    setIsPasskeyLoading(true);
+    try {
+      const displayName = name || nombreEmpresa || 'Ciudadano';
+      const result = await registerPasskey(displayName);
+      if (result?.token) {
+        safeLocalStorage.setItem('authToken', result.token);
+      }
+      if (result?.entityToken) {
+        safeLocalStorage.setItem('entityToken', result.entityToken);
+      }
+      await refreshUser();
+      navigate('/perfil');
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'No se pudo completar el registro con Passkey.';
+      setError(message);
+    } finally {
+      setIsPasskeyLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-[calc(100vh-80px)] flex items-center justify-center px-4 bg-gradient-to-br from-background via-card to-muted text-foreground">
       <div className="w-full max-w-md bg-card p-8 rounded-xl shadow-xl border border-border">
@@ -99,33 +142,46 @@ const Register = () => {
           Registrarse
         </h2>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <Input type="text" placeholder="Tu nombre" value={name} onChange={(e) => setName(e.target.value)} required disabled={isLoading} className="bg-input border-input text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/50" />
-          <Input type="email" placeholder="Correo electrónico" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={isLoading} className="bg-input border-input text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/50" />
-          <Input type="password" placeholder="Contraseña" value={password} onChange={(e) => setPassword(e.target.value)} required disabled={isLoading} className="bg-input border-input text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/50" />
-          <Input type="text" placeholder="Nombre de la empresa" value={nombreEmpresa} onChange={(e) => setNombreEmpresa(e.target.value)} required disabled={isLoading} className="bg-input border-input text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/50" />
+          <Input type="text" placeholder="Tu nombre" value={name} onChange={(e) => setName(e.target.value)} required disabled={isLoading || isPasskeyLoading} className="bg-input border-input text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/50" />
+          <Input type="email" placeholder="Correo electrónico" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={isLoading || isPasskeyLoading} className="bg-input border-input text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/50" />
+          <Input type="password" placeholder="Contraseña" value={password} onChange={(e) => setPassword(e.target.value)} required disabled={isLoading || isPasskeyLoading} className="bg-input border-input text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/50" />
+          <Input type="text" placeholder="Nombre de la empresa" value={nombreEmpresa} onChange={(e) => setNombreEmpresa(e.target.value)} required disabled={isLoading || isPasskeyLoading} className="bg-input border-input text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/50" />
           <select
             value={rubro}
             onChange={(e) => setRubro(e.target.value)}
             required
-            disabled={isLoading}
+            disabled={isLoading || isPasskeyLoading}
             className="w-full p-2 border rounded text-sm bg-input border-input text-foreground"
           >
             <option value="">Seleccioná tu rubro</option>
             {rubrosDisponibles.map((r) => (<option key={r.id} value={r.nombre}>{r.nombre}</option>))}
           </select>
           <div className="flex items-center space-x-2">
-            <input type="checkbox" id="terms" checked={accepted} onChange={() => setAccepted(!accepted)} required disabled={isLoading} className="form-checkbox h-4 w-4 text-primary bg-input border-border rounded focus:ring-primary cursor-pointer" />
+            <input type="checkbox" id="terms" checked={accepted} onChange={() => setAccepted(!accepted)} required disabled={isLoading || isPasskeyLoading} className="form-checkbox h-4 w-4 text-primary bg-input border-border rounded focus:ring-primary cursor-pointer" />
             <label htmlFor="terms" className="text-xs text-muted-foreground">Acepto los <a href="/legal/terms" target="_blank" className="underline text-primary hover:text-primary/80">Términos</a> y <a href="/legal/privacy" target="_blank" className="underline text-primary hover:text-primary/80">Política de Privacidad</a>.</label>
           </div>
           {error && <p className="text-destructive text-sm">{error}</p>}
           <Button
             type="submit"
             className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-2.5 text-base"
-            disabled={!accepted || isLoading}
+            disabled={!accepted || isLoading || isPasskeyLoading}
           >
             {isLoading ? "Registrando..." : "Registrarse"}
           </Button>
-          <GoogleLoginButton className="mt-2" onLoggedIn={() => navigate('/perfil')} />
+          <div className="space-y-2">
+            {isPasskeyAvailable && (
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={handlePasskeyRegistration}
+                disabled={isPasskeyLoading || isLoading}
+              >
+                {isPasskeyLoading ? 'Creando cuenta...' : 'Crear cuenta con Passkey'}
+              </Button>
+            )}
+            <GoogleLoginButton className="w-full" onLoggedIn={() => navigate('/perfil')} />
+          </div>
         </form>
         <div className="text-center text-sm mt-4 text-muted-foreground">
           ¿Ya tenés cuenta?{' '}
