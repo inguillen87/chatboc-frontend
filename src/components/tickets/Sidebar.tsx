@@ -175,7 +175,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
   return (
     <aside
       className={cn(
-        'flex h-full min-w-0 shrink-0 flex-col border-r border-border bg-muted/20',
+        'flex h-full min-h-0 min-w-0 shrink-0 flex-col border-r border-border bg-muted/20',
         className,
       )}
     >
@@ -212,7 +212,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className, onTicketSelected }) => {
           />
         </div>
       </div>
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 min-h-0">
         <Accordion
           type="multiple"
           className="w-full"

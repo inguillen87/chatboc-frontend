@@ -236,9 +236,9 @@ const NewTicketsPanel: React.FC = () => {
   }
 
   return (
-    <Card className="relative flex h-full w-full flex-col overflow-hidden rounded-3xl border border-border/70 bg-card/90 shadow-2xl backdrop-blur-md">
+    <Card className="relative flex h-full min-h-0 w-full flex-col overflow-hidden rounded-3xl border border-border/70 bg-card/90 shadow-2xl backdrop-blur-md">
       {isMobile ? (
-        <div className="flex h-full flex-col">
+        <div className="flex h-full min-h-0 flex-col">
           <div className="border-b border-border/70 bg-card/80 px-3 py-2 shadow-sm">
             <div className="grid grid-cols-3 gap-2">
               <button
@@ -272,7 +272,7 @@ const NewTicketsPanel: React.FC = () => {
               </button>
             </div>
           </div>
-          <div className="relative flex-1 overflow-hidden">
+          <div className="relative flex-1 overflow-hidden min-h-0">
             <AnimatePresence
               initial={false}
               custom={mobileTransitionDirection}
@@ -287,10 +287,10 @@ const NewTicketsPanel: React.FC = () => {
                   exit="exit"
                   custom={mobileTransitionDirection}
                   transition={mobileViewTransition}
-                  className="absolute inset-0"
+                  className="absolute inset-0 flex min-h-0"
                 >
                   <Sidebar
-                    className="h-full w-full min-w-full"
+                    className="h-full min-h-0 w-full min-w-full"
                     onTicketSelected={handleMobileTicketSelection}
                   />
                 </motion.div>
@@ -304,7 +304,7 @@ const NewTicketsPanel: React.FC = () => {
                   exit="exit"
                   custom={mobileTransitionDirection}
                   transition={mobileViewTransition}
-                  className="absolute inset-0"
+                  className="absolute inset-0 flex min-h-0"
                 >
                   <ConversationPanel
                     isMobile={true}
@@ -326,7 +326,7 @@ const NewTicketsPanel: React.FC = () => {
                   exit="exit"
                   custom={mobileTransitionDirection}
                   transition={mobileViewTransition}
-                  className="absolute inset-0"
+                  className="absolute inset-0 flex min-h-0"
                 >
                   <DetailsPanel onClose={() => setActiveMobileView('chat')} />
                 </motion.div>
