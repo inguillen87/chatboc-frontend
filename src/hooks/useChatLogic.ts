@@ -22,6 +22,7 @@ import { useUser } from './useUser';
 import { safeOn, assertEventSource } from "@/utils/safeOn";
 import { getVisitorName, setVisitorName } from "@/utils/visitorName";
 import { ensureAbsoluteUrl, mergeButtons, pickFirstString } from "@/utils/chatButtons";
+import { deriveAttachmentInfo } from "@/utils/attachment";
 
 interface UseChatLogicOptions {
   tipoChat: 'pyme' | 'municipio';
@@ -572,19 +573,127 @@ export function useChatLogic({
     return categories;
   };
 
+  const pickFirstNumber = (...values: any[]): number | undefined => {
+    for (const value of values) {
+      if (typeof value === "number" && Number.isFinite(value)) {
+        return value;
+      }
+      if (typeof value === "string") {
+        const trimmed = value.trim();
+        if (!trimmed) continue;
+        const normalized = trimmed
+          .replace(/[^0-9,.-]/g, "")
+          .replace(/,(?=\d{3}(?:\D|$))/g, "")
+          .replace(/,/g, ".");
+        const parsed = Number.parseFloat(normalized);
+        if (Number.isFinite(parsed)) {
+          return parsed;
+        }
+      }
+    }
+    return undefined;
+  };
+
   const normalizeAttachmentInfo = (raw: any) => {
     if (!raw || typeof raw !== "object") return undefined;
-    const normalized = { ...raw } as Message["attachmentInfo"];
-    const normalizedUrl = ensureAbsoluteUrl(pickFirstString(raw.url));
-    if (normalizedUrl) {
-      normalized.url = normalizedUrl;
+
+    const urlCandidate = pickFirstString(
+      raw.url,
+      raw.secure_url,
+      raw.secureUrl,
+      raw.attachment_url,
+      raw.attachmentUrl,
+      raw.file_url,
+      raw.fileUrl,
+      raw.archivo_url,
+      raw.archivoUrl,
+      raw.public_url,
+      raw.publicUrl,
+      raw.direct_url,
+      raw.directUrl,
+      raw.media_url,
+      raw.mediaUrl,
+      raw.download_url,
+      raw.downloadUrl,
+      raw.href,
+      raw.link,
+      raw.path,
+      raw.local_url,
+      raw.localUrl,
+    );
+
+    const resolvedUrl = urlCandidate ? ensureAbsoluteUrl(urlCandidate) ?? urlCandidate : undefined;
+    if (!resolvedUrl) {
+      return undefined;
     }
-    (['thumbUrl', 'thumb_url', 'thumbnail_url', 'thumbnailUrl'] as const).forEach((key) => {
-      const absolute = ensureAbsoluteUrl(pickFirstString(raw[key]));
-      if (absolute) {
-        normalized[key] = absolute;
-      }
-    });
+
+    const nameCandidate =
+      pickFirstString(
+        raw.name,
+        raw.filename,
+        raw.file_name,
+        raw.display_name,
+        raw.title,
+        raw.label,
+        raw.original_filename,
+        raw.originalFilename,
+        raw.document_name,
+        raw.documentName,
+      ) || resolvedUrl.split("/").pop()?.split(/[?#]/)[0] || "archivo";
+
+    const mimeCandidate = pickFirstString(
+      raw.mimeType,
+      raw.mime_type,
+      raw.content_type,
+      raw.contentType,
+      raw.type,
+    );
+
+    const sizeCandidate = pickFirstNumber(
+      raw.size,
+      raw.file_size,
+      raw.fileSize,
+      raw.bytes,
+      raw.length,
+    );
+
+    const thumbCandidate = pickFirstString(
+      raw.thumbUrl,
+      raw.thumb_url,
+      raw.thumbnail_url,
+      raw.thumbnailUrl,
+      raw.preview_url,
+      raw.previewUrl,
+      raw.thumb,
+      raw.miniatura_url,
+      raw.miniaturaUrl,
+    );
+    const resolvedThumb = thumbCandidate ? ensureAbsoluteUrl(thumbCandidate) ?? thumbCandidate : undefined;
+
+    const derived = deriveAttachmentInfo(
+      resolvedUrl,
+      nameCandidate,
+      mimeCandidate,
+      typeof sizeCandidate === "number" ? sizeCandidate : undefined,
+      resolvedThumb,
+    );
+
+    const normalized = {
+      ...raw,
+      ...derived,
+      ...(mimeCandidate ? { mimeType: mimeCandidate } : {}),
+      ...(typeof sizeCandidate === "number" ? { size: sizeCandidate } : {}),
+    } as Message["attachmentInfo"];
+
+    normalized.url = derived.url;
+
+    if (derived.thumbUrl) {
+      normalized.thumbUrl = derived.thumbUrl;
+      (['thumb_url', 'thumbnail_url', 'thumbnailUrl'] as const).forEach((key) => {
+        (normalized as Record<string, unknown>)[key] = derived.thumbUrl;
+      });
+    }
+
     return normalized;
   };
 

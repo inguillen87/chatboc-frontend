@@ -80,6 +80,7 @@ export interface Message {
     address?: string; // Dirección formateada
   };
   attachmentInfo?: { // Información detallada de un archivo adjunto
+    id?: string | number;
     name: string; // Nombre del archivo (ej. "documento.pdf")
     url: string; // URL para descargar/visualizar el archivo
     thumbUrl?: string; // URL a una miniatura de la imagen/PDF
@@ -88,6 +89,8 @@ export interface Message {
     thumbnailUrl?: string;
     mimeType?: string; // Tipo MIME del archivo (ej. "application/pdf", "image/jpeg")
     size?: number; // Tamaño del archivo en bytes (opcional)
+    type?: string; // Tipo de adjunto derivado (image, pdf, audio, etc.)
+    extension?: string; // Extensión de archivo normalizada
     isUploading?: boolean; // Marca si el adjunto está en proceso de subida
   };
 
