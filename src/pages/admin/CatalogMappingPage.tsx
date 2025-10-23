@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/components/ui/use-toast';
-import { ArrowLeft, Loader2, UploadCloud, AlertTriangle, Save, Wand2 } from 'lucide-react';
+import { ArrowLeft, Loader2, AlertTriangle, Save, Wand2 } from 'lucide-react';
 import { apiFetch, getErrorMessage } from '@/utils/api';
 import { DEFAULT_SYSTEM_FIELDS, SystemField, MatchedMapping, suggestMappings } from '@/utils/columnMatcher';
 import ColumnMappingRow from '@/components/admin/ColumnMappingRow'; // New component
@@ -11,6 +11,8 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import Papa from 'papaparse'; // For CSV parsing
 import * as XLSX from 'xlsx'; // For Excel parsing
+import { Badge } from '@/components/ui/badge';
+import { requestDocumentPreview } from '@/services/documentIntelligenceService';
 
 // Define the structure for a saved mapping configuration
 interface SavedMappingConfig {
@@ -27,6 +29,61 @@ interface SavedMappingConfig {
 }
 
 import { useLocation } from 'react-router-dom'; // Import useLocation
+
+const MAX_PREVIEW_ROWS = 8;
+
+const buildRecordsFromMatrix = (columns: string[], rows: any[]): Record<string, string>[] => {
+  if (!Array.isArray(columns) || columns.length === 0 || !Array.isArray(rows)) {
+    return [];
+  }
+
+  return rows.map((row) => {
+    const normalizedRow: Record<string, string> = {};
+
+    columns.forEach((columnName, columnIndex) => {
+      if (!columnName) {
+        return;
+      }
+
+      let value: unknown = '';
+      if (Array.isArray(row)) {
+        value = row[columnIndex];
+      } else if (row && typeof row === 'object' && columnName in row) {
+        value = (row as Record<string, unknown>)[columnName];
+      }
+
+      normalizedRow[columnName] =
+        value === null || value === undefined || value === ''
+          ? ''
+          : String(value);
+    });
+
+    return normalizedRow;
+  });
+};
+
+const humanizeSourceType = (value?: string | null): string => {
+  if (!value) return 'documento';
+  const normalized = value.toLowerCase();
+  switch (normalized) {
+    case 'pdf':
+      return 'PDF';
+    case 'excel':
+    case 'xls':
+    case 'xlsx':
+      return 'Excel';
+    case 'csv':
+      return 'CSV';
+    case 'image':
+      return 'Imagen';
+    case 'audio':
+      return 'Audio';
+    case 'text':
+      return 'Texto';
+    default:
+      return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+  }
+};
 
 const CatalogMappingPage: React.FC = () => {
   const { pymeId, mappingId } = useParams<{ pymeId: string; mappingId?: string }>();
@@ -48,6 +105,14 @@ const CatalogMappingPage: React.FC = () => {
   const [csvDelimiter, setCsvDelimiter] = useState<string>(',');
   const [excelSheetName, setExcelSheetName] = useState<string>('');
   const [availableSheetNames, setAvailableSheetNames] = useState<string[]>([]);
+
+  const [useAiAssistance, setUseAiAssistance] = useState<boolean>(false);
+  const [previewRecords, setPreviewRecords] = useState<Record<string, string>[]>([]);
+  const [analysisSummary, setAnalysisSummary] = useState<string | null>(null);
+  const [analysisWarnings, setAnalysisWarnings] = useState<string[]>([]);
+  const [analysisSourceType, setAnalysisSourceType] = useState<string | null>(null);
+  const [analysisConfidence, setAnalysisConfidence] = useState<number | null>(null);
+  const [analysisEngine, setAnalysisEngine] = useState<string | null>(null);
 
   const [mappingName, setMappingName] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
@@ -93,6 +158,16 @@ const CatalogMappingPage: React.FC = () => {
       setSuggestedMappingsCache({});
       setExcelSheetName('');
       setAvailableSheetNames([]);
+      setPreviewRecords([]);
+      setAnalysisSummary(null);
+      setAnalysisWarnings([]);
+      setAnalysisSourceType(null);
+      setAnalysisConfidence(null);
+      setAnalysisEngine(null);
+      const extension = file.name.split('.').pop()?.toLowerCase();
+      if (extension && !['csv', 'txt', 'xls', 'xlsx'].includes(extension)) {
+        setUseAiAssistance(true);
+      }
       // Default parsing options, can be adjusted by user later
       parseFileHeaders(file, true, 0, undefined, undefined);
     }
@@ -108,6 +183,17 @@ const CatalogMappingPage: React.FC = () => {
       setUserColumns([]); // Reset columns until parsed
       setCurrentMappings({}); // Reset mappings
       setSuggestedMappingsCache({});
+      setPreviewRecords([]);
+      setAnalysisSummary(null);
+      setAnalysisWarnings([]);
+      setAnalysisSourceType(null);
+      setAnalysisConfidence(null);
+      setAnalysisEngine(null);
+
+      const extension = selectedFile.name.split('.').pop()?.toLowerCase();
+      if (extension === 'pdf') {
+        setUseAiAssistance(true);
+      }
       // The main parsing logic will be triggered by the useEffect watching `file`
     }
   };
@@ -122,12 +208,82 @@ const CatalogMappingPage: React.FC = () => {
     if (!currentFile) return;
     setIsParsing(true);
     setError(null);
+    setPreviewRecords([]);
+    setAnalysisSummary(null);
+    setAnalysisWarnings([]);
+    setAnalysisSourceType(null);
+    setAnalysisConfidence(null);
+    setAnalysisEngine(null);
 
     try {
       let headers: string[] = [];
-      const fileType = currentFile.name.split('.').pop()?.toLowerCase();
+      const fileType = currentFile.name.split('.').pop()?.toLowerCase() || '';
+      const isStructuredFile = ['csv', 'txt', 'xls', 'xlsx'].includes(fileType);
+      const shouldUseAi = useAiAssistance || !isStructuredFile;
 
-      if (fileType === 'csv' || fileType === 'txt') {
+      if (shouldUseAi) {
+        if (!pymeId) {
+          throw new Error('No se encontró la PYME para ejecutar el análisis inteligente. Volvé a abrir este asistente desde el panel.');
+        }
+
+        const preview = await requestDocumentPreview({
+          pymeId,
+          file: currentFile,
+          options: {
+            hasHeaders: usesHeaders,
+            skipRows: rowsToSkip,
+            sheetName: selectedSheet,
+            delimiter,
+            useAi: true,
+          },
+        });
+
+        const normalizedHeaders = (preview.columns ?? []).map((header, index) =>
+          typeof header === 'string' && header.trim()
+            ? header.trim()
+            : `Columna ${index + 1}`,
+        );
+
+        headers = normalizedHeaders.length > 0
+          ? normalizedHeaders
+          : Array.from(
+              { length: Object.keys(preview.records?.[0] ?? {}).length || 0 },
+              (_, index) => `Columna ${index + 1}`,
+            );
+
+        if (preview.metadata?.detectedDelimiter && !delimiter) {
+          setCsvDelimiter(preview.metadata.detectedDelimiter);
+        }
+
+        if (Array.isArray(preview.metadata?.sheetNames) && preview.metadata.sheetNames.length > 0) {
+          setAvailableSheetNames(preview.metadata.sheetNames);
+          const candidateSheet = selectedSheet || excelSheetName;
+          if (!candidateSheet || !preview.metadata.sheetNames.includes(candidateSheet)) {
+            setExcelSheetName(preview.metadata.sheetNames[0]);
+          }
+        }
+
+        const normalizedRecords = buildRecordsFromMatrix(
+          headers,
+          (preview.records ?? []).slice(0, MAX_PREVIEW_ROWS),
+        );
+        setPreviewRecords(normalizedRecords);
+
+        const combinedWarnings = [
+          ...(preview.warnings ?? []),
+          ...(preview.metadata?.warnings ?? []),
+        ].filter((warning): warning is string => Boolean(warning && warning.trim()));
+
+        setAnalysisWarnings(combinedWarnings);
+        setAnalysisSummary(preview.summary ?? preview.metadata?.summary ?? null);
+        setAnalysisSourceType((preview.metadata?.sourceType ?? fileType) || 'documento');
+        setAnalysisConfidence(
+          typeof preview.metadata?.confidence === 'number'
+            ? preview.metadata.confidence
+            : null,
+        );
+        setAnalysisEngine(preview.metadata?.engine ?? 'OpenAI');
+      } else if (fileType === 'csv' || fileType === 'txt') {
         const text = await currentFile.text();
         const result = Papa.parse(text, {
           preview: rowsToSkip + (usesHeaders ? 1 : 5), // Preview enough rows
@@ -150,6 +306,11 @@ const CatalogMappingPage: React.FC = () => {
           headers = dataRows[rowsToSkip]?.map((_, index) => `Columna ${index + 1}`) || [];
         }
         if(!delimiter && result.meta.delimiter) setCsvDelimiter(result.meta.delimiter);
+
+        const previewStart = rowsToSkip + (usesHeaders ? 1 : 0);
+        const previewRows = dataRows.slice(previewStart, previewStart + MAX_PREVIEW_ROWS);
+        setPreviewRecords(buildRecordsFromMatrix(headers, previewRows));
+        setAnalysisSourceType(fileType);
 
 
       } else if (fileType === 'xlsx' || fileType === 'xls') {
@@ -181,8 +342,13 @@ const CatalogMappingPage: React.FC = () => {
         } else {
            headers = jsonData[0]?.map((_, index) => `Columna ${index + 1}`) || [];
         }
+
+        const previewStart = usesHeaders ? 1 : 0;
+        const previewRows = jsonData.slice(previewStart, previewStart + MAX_PREVIEW_ROWS);
+        setPreviewRecords(buildRecordsFromMatrix(headers, previewRows));
+        setAnalysisSourceType('excel');
       } else {
-        throw new Error("Tipo de archivo no soportado. Por favor, sube un CSV o Excel.");
+        throw new Error("Tipo de archivo no soportado o vacío. Probá activar el análisis inteligente para que la IA lo interprete.");
       }
 
       setUserColumns(headers);
@@ -209,11 +375,11 @@ const CatalogMappingPage: React.FC = () => {
       setUserColumns([]);
       setCurrentMappings({});
       setSuggestedMappingsCache({});
-      toast({ variant: "destructive", title: "Error de Parseo", description: getErrorMessage(e) });
+        toast({ variant: "destructive", title: "Error de Parseo", description: getErrorMessage(e) });
     } finally {
       setIsParsing(false);
     }
-  }, [systemFields]); // Added systemFields dependency
+  }, [systemFields, useAiAssistance, pymeId, excelSheetName]); // Added dependencies for AI and sheet tracking
 
   const handleMappingChange = (systemFieldKey: string, userColumn: string | null) => {
     setCurrentMappings(prev => ({ ...prev, [systemFieldKey]: userColumn }));
@@ -296,7 +462,7 @@ const CatalogMappingPage: React.FC = () => {
       return () => clearTimeout(timer);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasHeaders, skipRows, csvDelimiter, excelSheetName, file]); // We don't include parseFileHeaders here to avoid loop, its own deps are managed.
+  }, [hasHeaders, skipRows, csvDelimiter, excelSheetName, file, useAiAssistance]); // We don't include parseFileHeaders here to avoid loop, its own deps are managed.
 
   return (
     <div className="container mx-auto p-4 md:p-8">
@@ -335,12 +501,12 @@ const CatalogMappingPage: React.FC = () => {
               />
             </div>
             <div>
-              <Label htmlFor="fileUpload" className="text-sm font-medium">Archivo de Ejemplo (CSV, Excel)</Label>
+              <Label htmlFor="fileUpload" className="text-sm font-medium">Archivo de Ejemplo (CSV, Excel, PDF)</Label>
               <div className="mt-1 flex items-center space-x-3">
                 <Input
                   id="fileUpload"
                   type="file"
-                  accept=".csv,.xls,.xlsx,.txt"
+                  accept=".csv,.xls,.xlsx,.txt,.pdf"
                   onChange={handleFileChange}
                   className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
                 />
@@ -364,6 +530,21 @@ const CatalogMappingPage: React.FC = () => {
           <div className="bg-card p-6 rounded-lg shadow">
             <h2 className="text-xl font-semibold mb-4 text-foreground">2. Opciones de Lectura del Archivo</h2>
             <div className="space-y-4">
+              <div className="flex items-start space-x-3">
+                <Switch
+                  id="useAiAssistance"
+                  checked={useAiAssistance}
+                  onCheckedChange={setUseAiAssistance}
+                />
+                <div className="space-y-1">
+                  <Label htmlFor="useAiAssistance" className="text-sm font-medium">
+                    Activar lectura inteligente (OpenAI)
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Usa IA para detectar tablas en PDFs, notas de pedido o archivos con columnas irregulares. El archivo se envía de forma segura al backend para su interpretación.
+                  </p>
+                </div>
+              </div>
               <div className="flex items-center space-x-2">
                 <Switch
                   id="hasHeaders"
@@ -415,7 +596,91 @@ const CatalogMappingPage: React.FC = () => {
           </div>
         )}
 
-        {/* Sección 3: Mapeo de Columnas */}
+        {(analysisSummary || analysisWarnings.length > 0 || (previewRecords.length > 0 && userColumns.length > 0)) && (
+          <div className="bg-muted/30 border border-border/60 rounded-lg p-6 shadow-inner">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-foreground">3. Vista previa inteligente del archivo</h2>
+                {analysisSourceType && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Origen detectado: <span className="font-medium text-foreground">{humanizeSourceType(analysisSourceType)}</span>
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {analysisEngine && (
+                  <Badge variant="outline" className="uppercase text-[11px] tracking-wide">
+                    {analysisEngine}
+                  </Badge>
+                )}
+                {typeof analysisConfidence === 'number' && (
+                  <Badge variant="secondary" className="text-xs">
+                    Confianza {(analysisConfidence * 100).toFixed(0)}%
+                  </Badge>
+                )}
+              </div>
+            </div>
+
+            {analysisSummary && (
+              <p className="text-sm text-muted-foreground mt-3">{analysisSummary}</p>
+            )}
+
+            {analysisWarnings.length > 0 && (
+              <ul className="mt-3 space-y-1 text-xs text-amber-600 dark:text-amber-400">
+                {analysisWarnings.map((warning, index) => (
+                  <li key={`analysis-warning-${index}`} className="flex items-start gap-2">
+                    <AlertTriangle className="h-3.5 w-3.5 mt-0.5" />
+                    <span>{warning}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {previewRecords.length > 0 && userColumns.length > 0 && (
+              <div className="mt-4 overflow-auto max-h-64 rounded-md border border-border/60 bg-background/60">
+                <table className="min-w-full text-xs">
+                  <thead className="bg-muted/60">
+                    <tr>
+                      {userColumns.map((column) => (
+                        <th
+                          key={`preview-column-${column}`}
+                          className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap border-b border-border/60"
+                        >
+                          {column}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {previewRecords.map((record, rowIndex) => (
+                      <tr
+                        key={`preview-row-${rowIndex}`}
+                        className={rowIndex % 2 === 0 ? 'bg-background' : 'bg-muted/40'}
+                      >
+                        {userColumns.map((column) => (
+                          <td
+                            key={`${column}-${rowIndex}`}
+                            className="px-3 py-2 text-foreground border-b border-border/60 whitespace-nowrap"
+                          >
+                            {record[column] && record[column]?.length !== 0 ? record[column] : <span className="text-muted-foreground/70">—</span>}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {previewRecords.length === 0 && !analysisSummary && analysisWarnings.length === 0 && (
+              <p className="text-xs text-muted-foreground mt-3">
+                No pudimos generar una vista previa con la configuración actual. Ajustá las opciones o reintentá el análisis inteligente.
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Sección 4: Mapeo de Columnas */}
         {isParsing && (
             <div className="flex items-center justify-center p-8 bg-card rounded-lg shadow">
                 <Loader2 className="h-8 w-8 animate-spin text-primary mr-3" />
@@ -426,7 +691,7 @@ const CatalogMappingPage: React.FC = () => {
         {!isParsing && userColumns.length > 0 && (
           <div className="bg-card p-6 rounded-lg shadow">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold text-foreground">3. Mapeo de Columnas</h2>
+              <h2 className="text-xl font-semibold text-foreground">4. Mapeo de Columnas</h2>
               {/* <Button onClick={handleAutoSuggest} variant="outline" size="sm" disabled={isParsing}>
                 <Wand2 className="mr-2 h-4 w-4" /> Re-Sugerir Mapeos
               </Button> */}

@@ -102,6 +102,7 @@ import {
   fetchCatalogVectorSyncStatus,
   triggerCatalogVectorSync,
 } from '@/services/catalogService';
+import { requestDocumentPreview } from '@/services/documentIntelligenceService';
 import {
   JUNIN_DEMO_BARRIOS,
   JUNIN_DEMO_CATEGORIES,
@@ -140,6 +141,61 @@ const PROVINCIAS = [
   "Tierra del Fuego",
   "Tucumán",
 ];
+
+const MODAL_PREVIEW_ROWS = 6;
+
+const humanizeDocumentSource = (value?: string | null): string => {
+  if (!value) return 'documento';
+  const normalized = value.toLowerCase();
+  switch (normalized) {
+    case 'pdf':
+      return 'PDF';
+    case 'excel':
+    case 'xls':
+    case 'xlsx':
+      return 'Excel';
+    case 'csv':
+      return 'CSV';
+    case 'image':
+      return 'Imagen';
+    case 'audio':
+      return 'Audio';
+    case 'text':
+      return 'Texto';
+    default:
+      return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+  }
+};
+
+const buildPreviewRecords = (columns: string[], rows: any[]): Record<string, string>[] => {
+  if (!Array.isArray(columns) || columns.length === 0 || !Array.isArray(rows)) {
+    return [];
+  }
+
+  return rows.map((row) => {
+    const normalizedRow: Record<string, string> = {};
+
+    columns.forEach((columnName, columnIndex) => {
+      if (!columnName) {
+        return;
+      }
+
+      let value: unknown = '';
+      if (Array.isArray(row)) {
+        value = row[columnIndex];
+      } else if (row && typeof row === 'object' && columnName in row) {
+        value = (row as Record<string, unknown>)[columnName];
+      }
+
+      normalizedRow[columnName] =
+        value === null || value === undefined || value === ''
+          ? ''
+          : String(value);
+    });
+
+    return normalizedRow;
+  });
+};
 const DIAS = [
   "Lunes",
   "Martes",
@@ -456,7 +512,19 @@ export default function Perfil() {
   const [suggestedMappings, setSuggestedMappings] = useState<Record<string, string | null>>({});
   const [fileProcessingError, setFileProcessingError] = useState<string | null>(null);
   const [systemFields] = useState<SystemField[]>(DEFAULT_SYSTEM_FIELDS);
+  const [previewRecords, setPreviewRecords] = useState<Record<string, string>[]>([]);
+  const [analysisSummary, setAnalysisSummary] = useState<string | null>(null);
+  const [analysisWarnings, setAnalysisWarnings] = useState<string[]>([]);
+  const [analysisSource, setAnalysisSource] = useState<string | null>(null);
+  const [analysisConfidence, setAnalysisConfidence] = useState<number | null>(null);
+  const [analysisEngine, setAnalysisEngine] = useState<string | null>(null);
   // --- Fin de estados para el modal ---
+
+  const previewColumnNames = parsedColumns.length > 0
+    ? parsedColumns
+    : previewRecords.length > 0
+      ? Object.keys(previewRecords[0])
+      : [];
 
 
   // Estados para la gestión de mapeos
@@ -986,6 +1054,14 @@ export default function Perfil() {
       setArchivo(null);
     }
     setResultadoCatalogo(null);
+    setParsedColumns([]);
+    setSuggestedMappings({});
+    setPreviewRecords([]);
+    setAnalysisSummary(null);
+    setAnalysisWarnings([]);
+    setAnalysisSource(null);
+    setAnalysisConfidence(null);
+    setAnalysisEngine(null);
   };
 
   const handleSubirArchivo = async () => {
@@ -1036,51 +1112,120 @@ export default function Perfil() {
   };
 
   // Lógica de parseo y guardado para el nuevo flujo del modal
-  const parseFileAndSuggest = useCallback(async (fileToParse: File) => {
-    if (!fileToParse) return;
-    setIsParsing(true);
-    setFileProcessingError(null);
-    setParsedColumns([]);
-    setSuggestedMappings({});
+  const parseFileAndSuggest = useCallback(
+    async (fileToParse: File, options: { forceAi?: boolean } = {}) => {
+      if (!fileToParse) return;
+      setIsParsing(true);
+      setFileProcessingError(null);
+      setParsedColumns([]);
+      setSuggestedMappings({});
+      setPreviewRecords([]);
+      setAnalysisSummary(null);
+      setAnalysisWarnings([]);
+      setAnalysisSource(null);
+      setAnalysisConfidence(null);
+      setAnalysisEngine(null);
 
-    try {
-      let headers: string[] = [];
-      const fileType = fileToParse.name.split('.').pop()?.toLowerCase();
+      try {
+        let headers: string[] = [];
+        const fileType = fileToParse.name.split('.').pop()?.toLowerCase() || '';
+        const isStructured = ['csv', 'txt', 'xls', 'xlsx'].includes(fileType);
+        const shouldUseAi = options.forceAi || !isStructured;
 
-      if (fileType === 'csv' || fileType === 'txt') {
-        const text = await fileToParse.text();
-        const result = Papa.parse(text, { preview: 1, skipEmptyLines: true });
-        if (result.errors.length > 0) throw new Error(`Error al parsear CSV: ${result.errors[0].message}`);
-        headers = result.data[0] as string[];
-      } else if (fileType === 'xlsx' || fileType === 'xls') {
-        const arrayBuffer = await fileToParse.arrayBuffer();
-        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' }) as string[][];
-        if (jsonData.length > 0) headers = jsonData[0].map(String);
-      } else {
-        throw new Error("Tipo de archivo no soportado. Por favor, sube un CSV o Excel.");
+        if (shouldUseAi) {
+          if (!user?.id) {
+            throw new Error('Necesitamos el identificador de tu cuenta para ejecutar el análisis inteligente.');
+          }
+
+          const preview = await requestDocumentPreview({
+            pymeId: user.id,
+            file: fileToParse,
+            options: {
+              hasHeaders: true,
+              skipRows: 0,
+              useAi: true,
+            },
+          });
+
+          const normalizedHeaders = (preview.columns ?? []).map((header, index) =>
+            typeof header === 'string' && header.trim()
+              ? header.trim()
+              : `Columna ${index + 1}`,
+          );
+
+          headers = normalizedHeaders.length > 0
+            ? normalizedHeaders
+            : Array.from(
+                { length: Object.keys(preview.records?.[0] ?? {}).length || 0 },
+                (_, index) => `Columna ${index + 1}`,
+              );
+
+          setPreviewRecords(
+            buildPreviewRecords(headers, (preview.records ?? []).slice(0, MODAL_PREVIEW_ROWS)),
+          );
+
+          const combinedWarnings = [
+            ...(preview.warnings ?? []),
+            ...(preview.metadata?.warnings ?? []),
+          ].filter((warning): warning is string => Boolean(warning && warning.trim()));
+
+          setAnalysisWarnings(combinedWarnings);
+          setAnalysisSummary(preview.summary ?? preview.metadata?.summary ?? null);
+          setAnalysisSource((preview.metadata?.sourceType ?? fileType) || 'documento');
+          setAnalysisConfidence(
+            typeof preview.metadata?.confidence === 'number'
+              ? preview.metadata.confidence
+              : null,
+          );
+          setAnalysisEngine(preview.metadata?.engine ?? 'OpenAI');
+        } else if (fileType === 'csv' || fileType === 'txt') {
+          const text = await fileToParse.text();
+          const result = Papa.parse<string[]>(text, { preview: MODAL_PREVIEW_ROWS + 1, skipEmptyLines: true });
+          if (result.errors.length > 0) {
+            throw new Error(`Error al parsear CSV: ${result.errors[0].message}`);
+          }
+
+          const rows = result.data as string[][];
+          headers = (rows[0] || []).map((value, index) => value?.trim() || `Columna ${index + 1}`);
+          const previewRows = rows.slice(1, MODAL_PREVIEW_ROWS + 1);
+          setPreviewRecords(buildPreviewRecords(headers, previewRows));
+          setAnalysisSource(fileType);
+        } else if (fileType === 'xlsx' || fileType === 'xls') {
+          const arrayBuffer = await fileToParse.arrayBuffer();
+          const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+          const sheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' }) as string[][];
+
+          if (jsonData.length > 0) {
+            headers = jsonData[0].map((value, index) => String(value || '').trim() || `Columna ${index + 1}`);
+            const previewRows = jsonData.slice(1, MODAL_PREVIEW_ROWS + 1);
+            setPreviewRecords(buildPreviewRecords(headers, previewRows));
+          }
+          setAnalysisSource('excel');
+        } else {
+          throw new Error('Tipo de archivo no soportado. Activá el análisis inteligente para procesar PDFs u otros formatos.');
+        }
+
+        if (headers.length === 0) {
+          throw new Error('No se encontraron columnas/encabezados en el archivo.');
+        }
+
+        setParsedColumns(headers);
+        const suggestions = suggestMappings(headers, systemFields);
+        const newMappings: Record<string, string | null> = {};
+        suggestions.forEach((s) => {
+          newMappings[s.systemFieldKey] = s.userColumn;
+        });
+        setSuggestedMappings(newMappings);
+      } catch (e) {
+        setFileProcessingError(getErrorMessage(e, 'Error al procesar el archivo.'));
+      } finally {
+        setIsParsing(false);
       }
-
-      if (headers.length === 0) {
-        throw new Error("No se encontraron columnas/encabezados en el archivo.");
-      }
-
-      setParsedColumns(headers);
-      const suggestions = suggestMappings(headers, systemFields);
-      const newMappings: Record<string, string | null> = {};
-      suggestions.forEach(s => {
-        newMappings[s.systemFieldKey] = s.userColumn;
-      });
-      setSuggestedMappings(newMappings);
-
-    } catch (e) {
-      setFileProcessingError(getErrorMessage(e, "Error al procesar el archivo."));
-    } finally {
-      setIsParsing(false);
-    }
-  }, [systemFields]);
+    },
+    [systemFields, user?.id],
+  );
 
   useEffect(() => {
     if (isMappingModalOpen && archivo) {
@@ -1126,15 +1271,39 @@ export default function Perfil() {
         body: formData,
       });
 
+      const vectorMetadata: Record<string, unknown> = {
+        fileSize: archivo.size,
+        mimeType: archivo.type,
+      };
+
+      if (analysisEngine) {
+        vectorMetadata.aiEngine = analysisEngine;
+      }
+      if (typeof analysisConfidence === 'number') {
+        vectorMetadata.aiConfidence = analysisConfidence;
+      }
+      if (analysisSource) {
+        vectorMetadata.aiSource = analysisSource;
+      }
+      if (analysisSummary) {
+        vectorMetadata.aiSummary = analysisSummary;
+      }
+      if (analysisWarnings.length > 0) {
+        vectorMetadata.aiWarnings = analysisWarnings;
+      }
+      if (parsedColumns.length > 0) {
+        vectorMetadata.detectedColumns = parsedColumns;
+      }
+      if (previewRecords.length > 0) {
+        vectorMetadata.previewRows = previewRecords.slice(0, 3);
+      }
+
       try {
         const vectorResult = await triggerCatalogVectorSync({
           pymeId: user.id,
           mappingId: savedMapping.id,
           sourceFileName: archivo.name,
-          metadata: {
-            fileSize: archivo.size,
-            mimeType: archivo.type,
-          },
+          metadata: vectorMetadata,
         });
         setVectorSyncStatus(vectorResult);
       } catch (vectorErr) {
@@ -2250,6 +2419,25 @@ export default function Perfil() {
             </DialogDescription>
           </DialogHeader>
 
+          {archivo && (
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mt-3">
+              <p className="text-xs text-muted-foreground">
+                Ajustá las columnas sugeridas o vuelve a analizar el archivo con IA para detectar listas complejas.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => parseFileAndSuggest(archivo, { forceAi: true })}
+                disabled={isParsing}
+              >
+                <Wand2 className="w-4 h-4" />
+                Analizar con IA
+              </Button>
+            </div>
+          )}
+
           {isParsing && (
             <div className="flex items-center justify-center p-8">
               <Loader2 className="h-8 w-8 animate-spin text-primary mr-3" />
@@ -2263,25 +2451,104 @@ export default function Perfil() {
               </div>
           )}
 
-          {!isParsing && !fileProcessingError && parsedColumns.length > 0 && (
-            <div className="py-2 max-h-[50vh] overflow-y-auto">
-                <ul className="space-y-2 text-sm">
-                  {systemFields.map(field => {
-                    const mappedColumn = suggestedMappings[field.key];
-                    if (mappedColumn) {
-                      return (
-                        <li key={field.key} className="flex items-center justify-between p-2 bg-muted/30 rounded-md">
-                          <span className="font-semibold text-foreground">{field.label}</span>
-                          <span className="text-primary font-mono text-xs p-1 bg-primary/10 rounded">{mappedColumn}</span>
-                        </li>
-                      );
-                    }
-                    return null;
-                  })}
-                </ul>
-                <p className="text-xs text-muted-foreground mt-3">
-                  Campos no encontrados en el archivo serán ignorados.
-                </p>
+          {!isParsing && !fileProcessingError && (
+            <div className="py-2 space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+              {(analysisSummary || analysisWarnings.length > 0 || (previewRecords.length > 0 && previewColumnNames.length > 0)) && (
+                <div className="bg-muted/30 border border-border/60 rounded-md p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">Vista previa inteligente</p>
+                      {analysisSource && (
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          Origen detectado: <span className="font-medium text-foreground">{humanizeDocumentSource(analysisSource)}</span>
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {analysisEngine && (
+                        <Badge variant="outline" className="uppercase text-[10px] tracking-wide">
+                          {analysisEngine}
+                        </Badge>
+                      )}
+                      {typeof analysisConfidence === 'number' && (
+                        <Badge variant="secondary" className="text-[10px]">
+                          Confianza {(analysisConfidence * 100).toFixed(0)}%
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+
+                  {analysisSummary && (
+                    <p className="text-[12px] text-muted-foreground mt-2">{analysisSummary}</p>
+                  )}
+
+                  {analysisWarnings.length > 0 && (
+                    <ul className="mt-2 space-y-1 text-[11px] text-amber-600 dark:text-amber-400 list-disc list-inside">
+                      {analysisWarnings.map((warning, index) => (
+                        <li key={`modal-analysis-warning-${index}`}>{warning}</li>
+                      ))}
+                    </ul>
+                  )}
+
+                  {previewRecords.length > 0 && previewColumnNames.length > 0 && (
+                    <div className="mt-3 overflow-auto max-h-48 border border-border/60 rounded-sm">
+                      <table className="min-w-full text-[11px]">
+                        <thead className="bg-muted/50">
+                          <tr>
+                            {previewColumnNames.map((column) => (
+                              <th
+                                key={`modal-preview-column-${column}`}
+                                className="px-2 py-1 text-left font-medium text-muted-foreground whitespace-nowrap border-b border-border/60"
+                              >
+                                {column}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {previewRecords.map((record, rowIndex) => (
+                            <tr
+                              key={`modal-preview-row-${rowIndex}`}
+                              className={rowIndex % 2 === 0 ? 'bg-background' : 'bg-muted/40'}
+                            >
+                              {previewColumnNames.map((column) => (
+                                <td
+                                  key={`${column}-${rowIndex}`}
+                                  className="px-2 py-1 border-b border-border/60 whitespace-nowrap text-[11px]"
+                                >
+                                  {record[column] && record[column]?.length !== 0 ? record[column] : <span className="text-muted-foreground/70">—</span>}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {parsedColumns.length > 0 && (
+                <div className="space-y-2 text-sm">
+                  <ul className="space-y-2">
+                    {systemFields.map((field) => {
+                      const mappedColumn = suggestedMappings[field.key];
+                      if (mappedColumn) {
+                        return (
+                          <li key={field.key} className="flex items-center justify-between p-2 bg-muted/30 rounded-md">
+                            <span className="font-semibold text-foreground">{field.label}</span>
+                            <span className="text-primary font-mono text-xs p-1 bg-primary/10 rounded">{mappedColumn}</span>
+                          </li>
+                        );
+                      }
+                      return null;
+                    })}
+                  </ul>
+                  <p className="text-xs text-muted-foreground">
+                    Campos no encontrados en el archivo serán ignorados.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
