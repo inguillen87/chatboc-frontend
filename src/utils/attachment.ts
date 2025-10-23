@@ -13,6 +13,7 @@ export type AttachmentType =
   | 'other';       // Tipo por defecto o desconocido
 
 export interface AttachmentInfo {
+  id?: string | number;
   url: string;
   type: AttachmentType;
   extension: string;
@@ -52,6 +53,7 @@ const ALLOWED_MIME_TYPES: Record<string, AttachmentType> = {
   'audio/ogg': 'audio',
   'audio/aac': 'audio',
   'audio/mp4': 'audio', // m4a es audio/mp4
+  'audio/webm': 'audio',
   // Video (considerar límites de tamaño/duración en otro lado)
   'video/mp4': 'video',
   'video/quicktime': 'video', // .mov

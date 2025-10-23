@@ -6,7 +6,7 @@ import { apiFetch, getErrorMessage } from "@/utils/api";
 import { requestLocation } from "@/utils/geolocation";
 import { toast } from "@/components/ui/use-toast";
 import useAudioRecorder from "@/hooks/useAudioRecorder";
-import { AttachmentInfo } from "@/utils/attachment";
+import { AttachmentInfo, deriveAttachmentInfo } from "@/utils/attachment";
 import { SendPayload } from "@/types/chat";
 import { Button } from "@/components/ui/button";
 import {
@@ -180,17 +180,20 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
             ? ensureAbsoluteUrl(uploadedThumbCandidate) ?? uploadedThumbCandidate
             : undefined;
 
+        const derivedAttachment = deriveAttachmentInfo(
+          absoluteUploadedUrl,
+          uploadedName,
+          uploadedMime,
+          uploadedSize,
+          resolvedThumb,
+        );
+
         attachmentData = {
-          id: normalized.id,
-          url: absoluteUploadedUrl,
-          name: uploadedName,
-          mimeType: uploadedMime,
-          size: uploadedSize,
-          ...(resolvedThumb ? { thumbUrl: resolvedThumb } : {}),
+          ...derivedAttachment,
+          ...(normalized.id ? { id: normalized.id } : {}),
         };
         legacyArchivoUrl = absoluteUploadedUrl;
-        const mimeForPhotoCheck = (uploadedMime || originalFile.type || '').toLowerCase();
-        legacyEsFoto = mimeForPhotoCheck.startsWith('image/');
+        legacyEsFoto = derivedAttachment.type === 'image';
       } catch (error) {
         console.error("Error uploading file:", error);
         toast({ title: "Error de subida", description: "No se pudo subir el archivo.", variant: "destructive" });
@@ -354,15 +357,19 @@ const ChatInput = forwardRef<ChatInputHandle, Props>(({ onSendMessage, isTyping,
           ? ensureAbsoluteUrl(uploadedThumbCandidate) ?? uploadedThumbCandidate
           : undefined;
 
+      const derivedAttachment = deriveAttachmentInfo(
+        absoluteUploadedUrl,
+        uploadedName,
+        uploadedMime,
+        uploadedSize,
+        resolvedThumb,
+      );
+
       onSendMessage({
         text: '',
         attachmentInfo: {
-          id: normalized.id,
-          name: uploadedName,
-          url: absoluteUploadedUrl,
-          mimeType: uploadedMime,
-          size: uploadedSize,
-          ...(resolvedThumb ? { thumbUrl: resolvedThumb } : {}),
+          ...derivedAttachment,
+          ...(normalized.id ? { id: normalized.id } : {}),
         },
         archivo_url: absoluteUploadedUrl,
         source: 'input',
