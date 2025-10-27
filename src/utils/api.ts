@@ -70,6 +70,11 @@ interface ApiFetchOptions {
   headers?: Record<string, string>;
   body?: any;
   skipAuth?: boolean;
+  /**
+   * When true, prevents automatic redirects to /login on 401 responses for panel requests.
+   * Useful for optional data fetches that should gracefully handle an unauthenticated state.
+   */
+  suppressPanel401Redirect?: boolean;
   sendAnonId?: boolean;
   entityToken?: string | null;
   cache?: RequestCache;
@@ -109,6 +114,7 @@ export async function apiFetch<T>(
     method = "GET",
     body,
     skipAuth,
+    suppressPanel401Redirect,
     sendAnonId,
     entityToken,
     cache,
@@ -382,7 +388,7 @@ export async function apiFetch<T>(
     if (response.status === 401 && !skipAuth) {
       // Para peticiones del panel/admin, un 401 significa sesión expirada.
       // Debemos limpiar todo y forzar el re-login.
-      if (!treatAsWidget) {
+      if (!treatAsWidget && !suppressPanel401Redirect) {
         console.warn("Received 401 Unauthorized for a panel request. Redirecting to login.");
         safeLocalStorage.removeItem("authToken");
         safeLocalStorage.removeItem("user");
