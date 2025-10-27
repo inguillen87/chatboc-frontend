@@ -215,6 +215,7 @@ export async function listFollowedTenants(): Promise<TenantSummary[]> {
   try {
     const response = await apiFetch<unknown>('/app/me/tenants', {
       omitChatSessionId: true,
+      suppressPanel401Redirect: true,
     });
 
     return extractTenantArray(response)
