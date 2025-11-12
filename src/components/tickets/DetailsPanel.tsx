@@ -464,6 +464,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
         reason: 'auto_completion',
         estado: normalizedCurrentStatus,
         actor: 'agent',
+        notifyChannels: ['email', 'sms'],
       }).catch((err) =>
         console.error('Error sending completion email:', err),
       );

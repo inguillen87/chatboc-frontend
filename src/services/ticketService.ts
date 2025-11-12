@@ -121,12 +121,16 @@ export type TicketHistoryEmailReason =
     | 'message_update'
     | 'auto_completion';
 
+export type TicketHistoryNotificationChannel = 'email' | 'sms';
+
 export interface TicketHistoryEmailOptions {
     reason?: TicketHistoryEmailReason;
     estado?: string;
     actor?: 'agent' | 'user';
     [key: string]: unknown;
 }
+
+const DEFAULT_TICKET_NOTIFICATION_CHANNELS: TicketHistoryNotificationChannel[] = ['email', 'sms'];
 
 export interface TicketHistoryEmailParams {
     tipo: 'municipio' | 'pyme';
@@ -139,10 +143,118 @@ export const requestTicketHistoryEmail = async ({
     ticketId,
     options,
 }: TicketHistoryEmailParams): Promise<void> => {
+    const normalizeChannel = (value: unknown): TicketHistoryNotificationChannel | null => {
+        if (!value) return null;
+        const text = String(value).trim().toLowerCase();
+        if (!text) return null;
+        if (['email', 'mail', 'correo', 'correo_electronico'].includes(text)) return 'email';
+        if (['sms', 'texto', 'mensaje', 'mensaje_de_texto', 'text'].includes(text)) return 'sms';
+        return null;
+    };
+
+    const buildNotificationPayload = (
+        rawOptions?: TicketHistoryEmailOptions,
+    ): Record<string, unknown> => {
+        if (!rawOptions) {
+            return {
+                channels: [...DEFAULT_TICKET_NOTIFICATION_CHANNELS],
+                notify: { email: true, sms: true },
+            };
+        }
+
+        const {
+            channels,
+            notifyChannels,
+            sendEmail,
+            sendSms,
+            notify,
+            ...rest
+        } = rawOptions;
+
+        const channelSet = new Set<TicketHistoryNotificationChannel>();
+
+        const registerChannels = (values?: Iterable<unknown>) => {
+            if (!values) return;
+            for (const value of values) {
+                const normalized = normalizeChannel(value);
+                if (normalized) {
+                    channelSet.add(normalized);
+                }
+            }
+        };
+
+        registerChannels(channels);
+        registerChannels(notifyChannels);
+
+        let explicitPreference = channelSet.size > 0;
+
+        if (sendEmail === true) {
+            channelSet.add('email');
+            explicitPreference = true;
+        }
+        if (sendSms === true) {
+            channelSet.add('sms');
+            explicitPreference = true;
+        }
+
+        if (sendEmail === false) {
+            channelSet.delete('email');
+            explicitPreference = true;
+        }
+        if (sendSms === false) {
+            channelSet.delete('sms');
+            explicitPreference = true;
+        }
+
+        if (notify?.email === true) {
+            channelSet.add('email');
+            explicitPreference = true;
+        }
+        if (notify?.sms === true) {
+            channelSet.add('sms');
+            explicitPreference = true;
+        }
+        if (notify?.email === false) {
+            channelSet.delete('email');
+            explicitPreference = true;
+        }
+        if (notify?.sms === false) {
+            channelSet.delete('sms');
+            explicitPreference = true;
+        }
+
+        if (!explicitPreference) {
+            DEFAULT_TICKET_NOTIFICATION_CHANNELS.forEach((channel) => channelSet.add(channel));
+        }
+
+        const normalizedChannels = Array.from(channelSet);
+
+        if (!normalizedChannels.length) {
+            normalizedChannels.push(...DEFAULT_TICKET_NOTIFICATION_CHANNELS);
+        }
+
+        const notifyPayload: Record<string, unknown> = {
+            ...(typeof notify === 'object' && notify !== null ? notify : {}),
+        };
+
+        if (!('email' in notifyPayload)) {
+            notifyPayload.email = normalizedChannels.includes('email');
+        }
+        if (!('sms' in notifyPayload)) {
+            notifyPayload.sms = normalizedChannels.includes('sms');
+        }
+
+        return {
+            ...rest,
+            channels: normalizedChannels,
+            notify: notifyPayload,
+        };
+    };
+
     try {
         await apiFetch(`/tickets/${tipo}/${ticketId}/send-history`, {
             method: 'POST',
-            ...(options ? { body: options } : {}),
+            body: buildNotificationPayload(options),
         });
     } catch (error) {
         console.error(`Error sending ticket history for ticket ${ticketId}:`, error);
