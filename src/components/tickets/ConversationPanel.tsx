@@ -458,7 +458,6 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         options: {
           reason: 'message_update',
           actor: 'agent',
-          notifyChannels: ['email', 'sms'],
         },
       }).catch((error) => {
         console.error('Error triggering ticket update email after message:', error);

@@ -448,7 +448,6 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
         await sendTicketHistory(ticket, {
           reason: 'manual',
           actor: 'agent',
-          notifyChannels: ['email', 'sms'],
         });
         toast.success('Historial enviado por correo con éxito.');
     } catch (error) {

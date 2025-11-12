@@ -241,7 +241,6 @@ export default function TicketLookup() {
       sendTicketHistory(ticket, {
         reason: 'manual',
         actor: 'user',
-        notifyChannels: ['email', 'sms'],
       }).catch((err) =>
         console.error('Error sending completion notification:', err),
       );

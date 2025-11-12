@@ -127,15 +127,6 @@ export interface TicketHistoryEmailOptions {
     reason?: TicketHistoryEmailReason;
     estado?: string;
     actor?: 'agent' | 'user';
-    channels?: TicketHistoryNotificationChannel[];
-    notifyChannels?: TicketHistoryNotificationChannel[];
-    sendEmail?: boolean;
-    sendSms?: boolean;
-    notify?: {
-        email?: boolean;
-        sms?: boolean;
-        [key: string]: unknown;
-    };
     [key: string]: unknown;
 }
 
