@@ -125,6 +125,7 @@ export interface TicketHistoryEmailOptions {
     reason?: TicketHistoryEmailReason;
     estado?: string;
     actor?: 'agent' | 'user';
+    [key: string]: unknown;
 }
 
 export interface TicketHistoryEmailParams {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -26,7 +26,7 @@ export default function TicketLookup() {
   const [timelineMessages, setTimelineMessages] = useState<Message[]>([]);
   const [estadoChat, setEstadoChat] = useState('');
   const [specialContact, setSpecialContact] = useState<SpecializedContact | null>(null);
-  const [completionSent, setCompletionSent] = useState(false);
+  const completionNotifiedRef = useRef<Record<number, string>>({});
   const attachments = React.useMemo(
     () => collectAttachmentsFromTicket(ticket, timelineMessages),
     [ticket, timelineMessages],
@@ -125,7 +125,6 @@ export default function TicketLookup() {
     setTimelineHistory([]);
     setTimelineMessages([]);
     setEstadoChat('');
-    setCompletionSent(false);
     try {
       const data = await getTicketByNumber(id, pinVal);
       setTicket({ ...data, history: data.history || [] });
@@ -175,7 +174,7 @@ export default function TicketLookup() {
     if (!ticket) return;
     const interval = setInterval(() => {
       performSearch(ticket.nro_ticket, pin);
-    }, 30000);
+    }, 5000);
     return () => clearInterval(interval);
   }, [ticket, pin, performSearch]);
 
@@ -225,20 +224,35 @@ export default function TicketLookup() {
   }, [ticket]);
 
   useEffect(() => {
+    if (!ticket) return;
+
     const normalizeStatus = (s?: string | null) =>
       s ? s.toLowerCase().replace(/\s+/g, '_') : '';
-    if (!ticket) return;
-    if (
-      (normalizeStatus(currentStatus) === 'completado' ||
-        normalizeStatus(currentStatus) === 'resuelto') &&
-      !completionSent
-    ) {
-      sendTicketHistory(ticket, { reason: 'manual', actor: 'user' }).catch((err) =>
-        console.error('Error sending completion email:', err),
+
+    const normalizedStatus = normalizeStatus(currentStatus);
+
+    const ref = completionNotifiedRef.current;
+
+    if (normalizedStatus === 'resuelto' || normalizedStatus === 'completado') {
+      if (ref[ticket.id] === normalizedStatus) {
+        return;
+      }
+
+      sendTicketHistory(ticket, {
+        reason: 'manual',
+        actor: 'user',
+      }).catch((err) =>
+        console.error('Error sending completion notification:', err),
       );
-      setCompletionSent(true);
+
+      ref[ticket.id] = normalizedStatus;
+      return;
     }
-  }, [ticket, currentStatus, completionSent]);
+
+    if (ref[ticket.id]) {
+      delete ref[ticket.id];
+    }
+  }, [ticket, currentStatus, sendTicketHistory]);
 
   return (
     <div className="p-4 max-w-2xl mx-auto space-y-6">
