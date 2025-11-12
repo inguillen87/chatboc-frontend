@@ -445,7 +445,11 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
     setIsSendingEmail(true);
     toast.info('Enviando historial por correo...');
     try {
-        await sendTicketHistory(ticket, { reason: 'manual', actor: 'agent' });
+        await sendTicketHistory(ticket, {
+          reason: 'manual',
+          actor: 'agent',
+          notifyChannels: ['email', 'sms'],
+        });
         toast.success('Historial enviado por correo con éxito.');
     } catch (error) {
         toast.error('Error al enviar el historial por correo.');
@@ -461,6 +465,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
         reason: 'auto_completion',
         estado: normalizedCurrentStatus,
         actor: 'agent',
+        notifyChannels: ['email', 'sms'],
       }).catch((err) =>
         console.error('Error sending completion email:', err),
       );

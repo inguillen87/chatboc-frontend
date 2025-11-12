@@ -443,29 +443,32 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
 
 
     try {
-        await sendMessage(
-            selectedTicket.id,
-            selectedTicket.tipo,
-            text,
-            attachmentData,
-            payload?.action ? [{ type: 'reply', reply: { id: payload.action, title: payload.action } }] : undefined
-        );
-        requestTicketHistoryEmail({
-          tipo: selectedTicket.tipo,
-          ticketId: selectedTicket.id,
-          options: {
-            reason: 'message_update',
-            actor: 'agent',
-          },
-        }).catch((error) => {
-          console.error('Error triggering ticket update email after message:', error);
-        });
-        // Message will be updated via Pusher with the real ID
+      await sendMessage(
+        selectedTicket.id,
+        selectedTicket.tipo,
+        text,
+        attachmentData,
+        payload?.action
+          ? [{ type: 'reply', reply: { id: payload.action, title: payload.action } }]
+          : undefined,
+      );
+      requestTicketHistoryEmail({
+        tipo: selectedTicket.tipo,
+        ticketId: selectedTicket.id,
+        options: {
+          reason: 'message_update',
+          actor: 'agent',
+          notifyChannels: ['email', 'sms'],
+        },
+      }).catch((error) => {
+        console.error('Error triggering ticket update email after message:', error);
+      });
+      // Message will be updated via Pusher with the real ID
     } catch (error) {
-        toast.error("No se pudo enviar el mensaje.");
-        setMessages(prev => prev.filter(m => m.id !== optimisticMessage.id)); // Rollback on error
+      toast.error("No se pudo enviar el mensaje.");
+      setMessages(prev => prev.filter(m => m.id !== optimisticMessage.id)); // Rollback on error
     } finally {
-        setIsSending(false);
+      setIsSending(false);
     }
   };
 
@@ -500,6 +503,7 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
           reason: 'status_change',
           estado: newStatus,
           actor: 'agent',
+          notifyChannels: ['email', 'sms'],
         },
       }).catch((error) => {
         console.error('Error triggering ticket update email after status change:', error);
