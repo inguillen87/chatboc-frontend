@@ -15,12 +15,110 @@ interface CartItem extends ProductDetails {
   cantidad: number;
 }
 
-// El API de /carrito devuelve un objeto donde las claves son nombres de producto y los valores son cantidades
-interface CartApiItems { [productName: string]: number }
-
 // El API de /productos devuelve un array de ProductDetails (o una estructura similar)
 // Necesitamos mapearlos a un objeto para fácil acceso por nombre, similar a como estaba antes.
 interface ProductMap { [productName: string]: ProductDetails }
+
+type CartEntryTuple = [productName: string, quantity: number];
+
+const PRODUCT_LIST_KEYS = ['items', 'productos', 'data', 'results'];
+const CART_LIST_KEYS = ['items', 'cart', 'data', 'productos'];
+
+const normalizeProductsPayload = (raw: unknown): ProductDetails[] => {
+  if (Array.isArray(raw)) {
+    return raw as ProductDetails[];
+  }
+
+  if (raw && typeof raw === 'object') {
+    for (const key of PRODUCT_LIST_KEYS) {
+      const candidate = (raw as Record<string, unknown>)[key];
+      if (Array.isArray(candidate)) {
+        return candidate as ProductDetails[];
+      }
+    }
+  }
+
+  console.warn('[CartPage] Formato inesperado en /productos. Se utilizará un arreglo vacío.', raw);
+  return [];
+};
+
+const mapRecordEntries = (record: Record<string, unknown>): CartEntryTuple[] => {
+  return Object.entries(record)
+    .map(([productName, quantity]) => {
+      const normalizedQuantity = Number(quantity);
+      if (!Number.isFinite(normalizedQuantity) || normalizedQuantity <= 0) {
+        return null;
+      }
+      return [productName, normalizedQuantity] as CartEntryTuple;
+    })
+    .filter((entry): entry is CartEntryTuple => entry !== null);
+};
+
+const normalizeCartPayload = (raw: unknown): CartEntryTuple[] => {
+  if (!raw) {
+    return [];
+  }
+
+  if (Array.isArray(raw)) {
+    return raw
+      .map((entry) => {
+        if (!entry) {
+          return null;
+        }
+
+        if (typeof entry === 'string') {
+          return [entry, 1] as CartEntryTuple;
+        }
+
+        if (typeof entry === 'object') {
+          const nombre =
+            (entry as Record<string, unknown>).nombre ??
+            (entry as Record<string, unknown>).name ??
+            (entry as Record<string, unknown>).producto ??
+            null;
+          const cantidadRaw =
+            (entry as Record<string, unknown>).cantidad ??
+            (entry as Record<string, unknown>).quantity ??
+            (entry as Record<string, unknown>).cantidad_total ??
+            (entry as Record<string, unknown>).qty ??
+            1;
+
+          if (typeof nombre === 'string') {
+            const normalizedQuantity = Number(cantidadRaw);
+            const safeQuantity = Number.isFinite(normalizedQuantity) && normalizedQuantity > 0
+              ? normalizedQuantity
+              : 1;
+            return [nombre, safeQuantity] as CartEntryTuple;
+          }
+        }
+
+        return null;
+      })
+      .filter((entry): entry is CartEntryTuple => entry !== null);
+  }
+
+  if (typeof raw === 'object') {
+    for (const key of CART_LIST_KEYS) {
+      if (key in (raw as Record<string, unknown>)) {
+        const candidate = (raw as Record<string, unknown>)[key];
+        if (!candidate || candidate === raw) {
+          continue;
+        }
+        if (Array.isArray(candidate)) {
+          return normalizeCartPayload(candidate);
+        }
+        if (candidate && typeof candidate === 'object') {
+          return normalizeCartPayload(candidate);
+        }
+      }
+    }
+
+    return mapRecordEntries(raw as Record<string, unknown>);
+  }
+
+  console.warn('[CartPage] Formato inesperado en /carrito. Se utilizará un arreglo vacío.', raw);
+  return [];
+};
 
 
 export default function CartPage() {
@@ -34,11 +132,13 @@ export default function CartPage() {
     setError(null);
     try {
       const [cartApiData, productsApiData] = await Promise.all([
-        apiFetch<CartApiItems>('/carrito'),
-        apiFetch<ProductDetails[]>('/productos'),
+        apiFetch<unknown>('/carrito'),
+        apiFetch<unknown>('/productos'),
       ]);
 
-      const productMap: ProductMap = productsApiData.reduce((acc, p) => {
+      const normalizedProducts = normalizeProductsPayload(productsApiData);
+
+      const productMap: ProductMap = normalizedProducts.reduce((acc, p) => {
         acc[p.nombre] = {
           ...p,
           // Asegurar que precio_unitario es un número
@@ -63,16 +163,24 @@ export default function CartPage() {
         return acc;
       }, {} as ProductMap);
 
-      const populatedCartItems: CartItem[] = Object.entries(cartApiData)
+      const cartEntries = normalizeCartPayload(cartApiData);
+
+      const populatedCartItems: CartItem[] = cartEntries
         .map(([productName, cantidad]) => {
-          const productDetail = productMap[productName];
-          if (productDetail) {
-            return {
-              ...productDetail,
-              cantidad: cantidad,
-            };
+          if (cantidad <= 0) {
+            return null;
           }
-          return null; // O manejar el caso de un item en carrito sin detalle de producto
+
+          const productDetail = productMap[productName] ?? {
+            id: productName,
+            nombre: productName,
+            precio_unitario: 0,
+          };
+
+          return {
+            ...productDetail,
+            cantidad,
+          };
         })
         .filter((item): item is CartItem => item !== null);
 
