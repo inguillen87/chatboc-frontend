@@ -1,3 +1,4 @@
+import { PUBLIC_SURVEY_BASE_URL } from '@/config';
 import { ApiError, apiFetch } from '@/utils/api';
 import {
   PreguntaTipo,
@@ -18,6 +19,11 @@ import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 type PrimitiveParam = string | number | boolean | undefined | null;
 type QueryParams = Record<string, PrimitiveParam | PrimitiveParam[]>;
+
+const PUBLIC_SURVEY_API_BASE =
+  typeof PUBLIC_SURVEY_BASE_URL === 'string' && PUBLIC_SURVEY_BASE_URL.trim()
+    ? PUBLIC_SURVEY_BASE_URL.trim().replace(/\/$/, '')
+    : undefined;
 
 const buildQueryString = (params?: QueryParams) => {
   if (!params) return '';
@@ -272,6 +278,8 @@ export const getPublicSurvey = async (slug: string, tenantSlug?: string): Promis
     isWidgetRequest: true,
     omitChatSessionId: true,
     tenantSlug,
+    baseUrlOverride: PUBLIC_SURVEY_API_BASE,
+    omitEntityToken: true,
   });
 
   if (!response || typeof response !== 'object' || Array.isArray(response)) {
@@ -342,6 +350,8 @@ export const listPublicSurveys = async (tenantSlug?: string): Promise<PublicSurv
       isWidgetRequest: true,
       omitChatSessionId: true,
       tenantSlug,
+      baseUrlOverride: PUBLIC_SURVEY_API_BASE,
+      omitEntityToken: true,
     });
 
     if (Array.isArray(response)) {
@@ -404,6 +414,8 @@ export const postPublicResponse = (
     skipAuth: true,
     omitChatSessionId: true,
     tenantSlug,
+    baseUrlOverride: PUBLIC_SURVEY_API_BASE,
+    omitEntityToken: true,
   });
 
 const isSurveyListMeta = (value: unknown): SurveyListResponse['meta'] | undefined => {

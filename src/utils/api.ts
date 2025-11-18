@@ -99,6 +99,18 @@ interface ApiFetchOptions {
    * When provided, attaches the tenant slug so the backend can scope the request.
    */
   tenantSlug?: string | null;
+  /**
+   * When provided, overrides the base URL used to resolve the request path.
+   * Useful for public modules (e.g. encuestas) that must hit a canonical host
+   * different from the panel/API origin.
+   */
+  baseUrlOverride?: string | null;
+  /**
+   * Avoid sending the entity token header even if one is available globally.
+   * Public endpoints should not depend on tenant secrets to serve content,
+   * otherwise shared links will break for vecinos sin credenciales.
+   */
+  omitEntityToken?: boolean;
 }
 
 /**
@@ -123,6 +135,8 @@ export async function apiFetch<T>(
     isWidgetRequest,
     omitChatSessionId,
     tenantSlug,
+    baseUrlOverride,
+    omitEntityToken,
   } = options;
 
   const rawIframeToken = getIframeToken();
@@ -213,9 +227,21 @@ export async function apiFetch<T>(
   const shouldAttachChatSession = !omitChatSessionId;
   const chatSessionId = shouldAttachChatSession ? getOrCreateChatSessionId() : null; // Get or create the chat session ID
 
+  const normalizedPath = path.replace(/^\/+/, "");
+  const preferredBase =
+    typeof baseUrlOverride === "string" && baseUrlOverride.trim()
+      ? baseUrlOverride.trim()
+      : "";
+  const resolvedBase = (preferredBase || BASE_API_URL || "").replace(/\/$/, "");
   // Normalize URL to prevent double slashes
-  const url = `${BASE_API_URL.replace(/\/$/, "")}/${path.replace(/^\//, "")}`;
-  const fallbackUrl = `/${path.replace(/^\//, "")}`;
+  const url = resolvedBase ? `${resolvedBase}/${normalizedPath}` : `/${normalizedPath}`;
+  const currentOrigin =
+    typeof window !== "undefined" && window.location?.origin
+      ? window.location.origin.replace(/\/$/, "")
+      : "";
+  const shouldAttemptRelativeFallback =
+    !baseUrlOverride && !!currentOrigin && resolvedBase !== currentOrigin;
+  const fallbackUrl = shouldAttemptRelativeFallback ? `/${normalizedPath}` : url;
   const headers: Record<string, string> = options.headers
     ? { ...options.headers }
     : {};
@@ -247,7 +273,7 @@ export async function apiFetch<T>(
     headers["Anon-Id"] = anonId;
     headers["X-Anon-Id"] = anonId;
   }
-  if (effectiveEntityToken) {
+  if (effectiveEntityToken && !omitEntityToken) {
     headers["X-Entity-Token"] = effectiveEntityToken;
   }
   // Log request details without exposing full tokens
@@ -288,7 +314,7 @@ export async function apiFetch<T>(
   try {
     response = await fetch(url, requestInit);
   } catch (primaryErr) {
-    if (BASE_API_URL !== window.location.origin) {
+    if (shouldAttemptRelativeFallback) {
       try {
         response = await fetch(fallbackUrl, requestInit);
       } catch {
