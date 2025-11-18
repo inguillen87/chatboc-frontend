@@ -105,6 +105,12 @@ interface ApiFetchOptions {
    * different from the panel/API origin.
    */
   baseUrlOverride?: string | null;
+  /**
+   * Avoid sending the entity token header even if one is available globally.
+   * Public endpoints should not depend on tenant secrets to serve content,
+   * otherwise shared links will break for vecinos sin credenciales.
+   */
+  omitEntityToken?: boolean;
 }
 
 /**
@@ -130,6 +136,7 @@ export async function apiFetch<T>(
     omitChatSessionId,
     tenantSlug,
     baseUrlOverride,
+    omitEntityToken,
   } = options;
 
   const rawIframeToken = getIframeToken();
@@ -266,7 +273,7 @@ export async function apiFetch<T>(
     headers["Anon-Id"] = anonId;
     headers["X-Anon-Id"] = anonId;
   }
-  if (effectiveEntityToken) {
+  if (effectiveEntityToken && !omitEntityToken) {
     headers["X-Entity-Token"] = effectiveEntityToken;
   }
   // Log request details without exposing full tokens

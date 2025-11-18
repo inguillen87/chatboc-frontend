@@ -279,6 +279,7 @@ export const getPublicSurvey = async (slug: string, tenantSlug?: string): Promis
     omitChatSessionId: true,
     tenantSlug,
     baseUrlOverride: PUBLIC_SURVEY_API_BASE,
+    omitEntityToken: true,
   });
 
   if (!response || typeof response !== 'object' || Array.isArray(response)) {
@@ -350,6 +351,7 @@ export const listPublicSurveys = async (tenantSlug?: string): Promise<PublicSurv
       omitChatSessionId: true,
       tenantSlug,
       baseUrlOverride: PUBLIC_SURVEY_API_BASE,
+      omitEntityToken: true,
     });
 
     if (Array.isArray(response)) {
@@ -413,6 +415,7 @@ export const postPublicResponse = (
     omitChatSessionId: true,
     tenantSlug,
     baseUrlOverride: PUBLIC_SURVEY_API_BASE,
+    omitEntityToken: true,
   });
 
 const isSurveyListMeta = (value: unknown): SurveyListResponse['meta'] | undefined => {
