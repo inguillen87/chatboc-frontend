@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiFetch, getErrorMessage } from '@/utils/api';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,116 +9,18 @@ import { toast } from '@/components/ui/use-toast';
 import { formatCurrency } from '@/utils/currency';
 import { Loader2, ShoppingCart, AlertTriangle, Trash2, PlusCircle, MinusCircle, ArrowLeft } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
+import { useTenant } from '@/context/TenantContext';
+import { safeLocalStorage } from '@/utils/safeLocalStorage';
+import {
+  buildProductMap,
+  normalizeCartPayload,
+  normalizeProductsPayload,
+} from '@/utils/cartPayload';
 
 // Interfaz para el producto en el carrito, extendiendo ProductDetails y añadiendo cantidad
 interface CartItem extends ProductDetails {
   cantidad: number;
 }
-
-// El API de /productos devuelve un array de ProductDetails (o una estructura similar)
-// Necesitamos mapearlos a un objeto para fácil acceso por nombre, similar a como estaba antes.
-interface ProductMap { [productName: string]: ProductDetails }
-
-type CartEntryTuple = [productName: string, quantity: number];
-
-const PRODUCT_LIST_KEYS = ['items', 'productos', 'data', 'results'];
-const CART_LIST_KEYS = ['items', 'cart', 'data', 'productos'];
-
-const normalizeProductsPayload = (raw: unknown): ProductDetails[] => {
-  if (Array.isArray(raw)) {
-    return raw as ProductDetails[];
-  }
-
-  if (raw && typeof raw === 'object') {
-    for (const key of PRODUCT_LIST_KEYS) {
-      const candidate = (raw as Record<string, unknown>)[key];
-      if (Array.isArray(candidate)) {
-        return candidate as ProductDetails[];
-      }
-    }
-  }
-
-  console.warn('[CartPage] Formato inesperado en /productos. Se utilizará un arreglo vacío.', raw);
-  return [];
-};
-
-const mapRecordEntries = (record: Record<string, unknown>): CartEntryTuple[] => {
-  return Object.entries(record)
-    .map(([productName, quantity]) => {
-      const normalizedQuantity = Number(quantity);
-      if (!Number.isFinite(normalizedQuantity) || normalizedQuantity <= 0) {
-        return null;
-      }
-      return [productName, normalizedQuantity] as CartEntryTuple;
-    })
-    .filter((entry): entry is CartEntryTuple => entry !== null);
-};
-
-const normalizeCartPayload = (raw: unknown): CartEntryTuple[] => {
-  if (!raw) {
-    return [];
-  }
-
-  if (Array.isArray(raw)) {
-    return raw
-      .map((entry) => {
-        if (!entry) {
-          return null;
-        }
-
-        if (typeof entry === 'string') {
-          return [entry, 1] as CartEntryTuple;
-        }
-
-        if (typeof entry === 'object') {
-          const nombre =
-            (entry as Record<string, unknown>).nombre ??
-            (entry as Record<string, unknown>).name ??
-            (entry as Record<string, unknown>).producto ??
-            null;
-          const cantidadRaw =
-            (entry as Record<string, unknown>).cantidad ??
-            (entry as Record<string, unknown>).quantity ??
-            (entry as Record<string, unknown>).cantidad_total ??
-            (entry as Record<string, unknown>).qty ??
-            1;
-
-          if (typeof nombre === 'string') {
-            const normalizedQuantity = Number(cantidadRaw);
-            const safeQuantity = Number.isFinite(normalizedQuantity) && normalizedQuantity > 0
-              ? normalizedQuantity
-              : 1;
-            return [nombre, safeQuantity] as CartEntryTuple;
-          }
-        }
-
-        return null;
-      })
-      .filter((entry): entry is CartEntryTuple => entry !== null);
-  }
-
-  if (typeof raw === 'object') {
-    for (const key of CART_LIST_KEYS) {
-      if (key in (raw as Record<string, unknown>)) {
-        const candidate = (raw as Record<string, unknown>)[key];
-        if (!candidate || candidate === raw) {
-          continue;
-        }
-        if (Array.isArray(candidate)) {
-          return normalizeCartPayload(candidate);
-        }
-        if (candidate && typeof candidate === 'object') {
-          return normalizeCartPayload(candidate);
-        }
-      }
-    }
-
-    return mapRecordEntries(raw as Record<string, unknown>);
-  }
-
-  console.warn('[CartPage] Formato inesperado en /carrito. Se utilizará un arreglo vacío.', raw);
-  return [];
-};
 
 
 export default function CartPage() {
@@ -126,44 +28,37 @@ export default function CartPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+  const { currentSlug } = useTenant();
 
-  const loadCartData = async () => {
+  const tenantQuerySuffix = currentSlug ? `?tenant=${encodeURIComponent(currentSlug)}` : '';
+
+  const sharedRequestOptions = useMemo(() => {
+    const hasPanelSession = Boolean(
+      safeLocalStorage.getItem('authToken') || safeLocalStorage.getItem('chatAuthToken')
+    );
+
+    return {
+      suppressPanel401Redirect: true,
+      tenantSlug: currentSlug ?? undefined,
+      sendAnonId: true,
+      isWidgetRequest: !hasPanelSession,
+    } as const;
+  }, [currentSlug]);
+
+  const loadCartData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const [cartApiData, productsApiData] = await Promise.all([
-        apiFetch<unknown>('/carrito'),
-        apiFetch<unknown>('/productos'),
+        apiFetch<unknown>('/carrito', sharedRequestOptions),
+        apiFetch<unknown>('/productos', sharedRequestOptions),
       ]);
 
-      const normalizedProducts = normalizeProductsPayload(productsApiData);
+      const normalizedProducts = normalizeProductsPayload(productsApiData, 'CartPage');
 
-      const productMap: ProductMap = normalizedProducts.reduce((acc, p) => {
-        acc[p.nombre] = {
-          ...p,
-          // Asegurar que precio_unitario es un número
-          precio_unitario: Number(p.precio_unitario) || 0,
-          precio_por_caja:
-            p.precio_por_caja === null || p.precio_por_caja === undefined
-              ? null
-              : Number(p.precio_por_caja) || null,
-          unidades_por_caja:
-            p.unidades_por_caja === null || p.unidades_por_caja === undefined
-              ? null
-              : Number(p.unidades_por_caja) || null,
-          precio_mayorista:
-            p.precio_mayorista === null || p.precio_mayorista === undefined
-              ? null
-              : Number(p.precio_mayorista) || null,
-          cantidad_minima_mayorista:
-            p.cantidad_minima_mayorista === null || p.cantidad_minima_mayorista === undefined
-              ? null
-              : Number(p.cantidad_minima_mayorista) || null,
-        };
-        return acc;
-      }, {} as ProductMap);
+      const productMap = buildProductMap(normalizedProducts);
 
-      const cartEntries = normalizeCartPayload(cartApiData);
+      const cartEntries = normalizeCartPayload(cartApiData, 'CartPage');
 
       const populatedCartItems: CartItem[] = cartEntries
         .map(([productName, cantidad]) => {
@@ -192,11 +87,11 @@ export default function CartPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [sharedRequestOptions]);
 
   useEffect(() => {
     loadCartData();
-  }, []);
+  }, [loadCartData]);
 
   const handleUpdateQuantity = async (productName: string, newQuantity: number) => {
     const originalItems = [...cartItems];
@@ -216,9 +111,9 @@ export default function CartPage() {
 
     try {
       if (newQuantity <= 0) {
-        await apiFetch('/carrito', { method: 'DELETE', body: { nombre: productName } });
+        await apiFetch('/carrito', { ...sharedRequestOptions, method: 'DELETE', body: { nombre: productName } });
       } else {
-        await apiFetch('/carrito', { method: 'PUT', body: { nombre: productName, cantidad: newQuantity } });
+        await apiFetch('/carrito', { ...sharedRequestOptions, method: 'PUT', body: { nombre: productName, cantidad: newQuantity } });
       }
       // No es necesario llamar a loadCartData() aquí si el backend confirma la acción,
       // la UI ya está actualizada optimisticamente. Si se quiere re-sincronizar:
@@ -276,7 +171,7 @@ export default function CartPage() {
           <p className="text-xl text-muted-foreground mb-2">Tu carrito está vacío.</p>
           <p className="text-sm text-muted-foreground mb-6">Parece que no has agregado nada aún.</p>
           <Button asChild>
-            <Link to="/productos">Explorar Catálogo</Link>
+            <Link to={`/productos${tenantQuerySuffix}`}>Explorar Catálogo</Link>
           </Button>
         </div>
       ) : (
@@ -400,12 +295,12 @@ export default function CartPage() {
                 <Button
                   size="lg"
                   className="w-full bg-primary hover:bg-primary/90"
-                  onClick={() => navigate('/checkout-productos')} // Redirigir a la nueva página de checkout de productos
+                  onClick={() => navigate(`/checkout-productos${tenantQuerySuffix}`)} // Redirigir a la nueva página de checkout de productos
                 >
                   Continuar Compra
                 </Button>
                 <Button variant="link" asChild className="text-sm text-muted-foreground">
-                  <Link to="/productos">Seguir comprando</Link>
+                  <Link to={`/productos${tenantQuerySuffix}`}>Seguir comprando</Link>
                 </Button>
               </CardFooter>
             </Card>

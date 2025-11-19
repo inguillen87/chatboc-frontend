@@ -17,6 +17,13 @@ import { apiFetch, getErrorMessage } from '@/utils/api';
 import { useUser } from '@/hooks/useUser'; // Para pre-rellenar datos
 import { ProductDetails } from '@/components/product/ProductCard'; // Para tipo de producto
 import { formatCurrency } from '@/utils/currency';
+import { useTenant } from '@/context/TenantContext';
+import { safeLocalStorage } from '@/utils/safeLocalStorage';
+import {
+  buildProductMap,
+  normalizeCartPayload,
+  normalizeProductsPayload,
+} from '@/utils/cartPayload';
 
 // Esquema de validación para el formulario de checkout
 const checkoutSchema = z.object({
@@ -32,18 +39,32 @@ type CheckoutFormData = z.infer<typeof checkoutSchema>;
 interface CartItem extends ProductDetails {
   cantidad: number;
 }
-interface CartApiItems { [productName: string]: number }
-interface ProductMap { [productName: string]: ProductDetails }
 
 export default function ProductCheckoutPage() {
   const navigate = useNavigate();
   const { user } = useUser(); // Hook para obtener datos del usuario logueado
+  const { currentSlug } = useTenant();
 
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isLoadingCart, setIsLoadingCart] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [orderPlaced, setOrderPlaced] = useState(false);
+
+  const tenantQuerySuffix = currentSlug ? `?tenant=${encodeURIComponent(currentSlug)}` : '';
+
+  const sharedRequestOptions = useMemo(() => {
+    const hasPanelSession = Boolean(
+      safeLocalStorage.getItem('authToken') || safeLocalStorage.getItem('chatAuthToken')
+    );
+
+    return {
+      suppressPanel401Redirect: true,
+      tenantSlug: currentSlug ?? undefined,
+      sendAnonId: true,
+      isWidgetRequest: !hasPanelSession,
+    } as const;
+  }, [currentSlug]);
 
   const { control, handleSubmit, setValue, formState: { errors } } = useForm<CheckoutFormData>({
     resolver: zodResolver(checkoutSchema),
@@ -71,16 +92,13 @@ export default function ProductCheckoutPage() {
       setIsLoadingCart(true);
       try {
         const [cartApiData, productsApiData] = await Promise.all([
-          apiFetch<CartApiItems>('/carrito'),
-          apiFetch<ProductDetails[]>('/productos'),
+          apiFetch<unknown>('/carrito', sharedRequestOptions),
+          apiFetch<unknown>('/productos', sharedRequestOptions),
         ]);
 
-        const productMap: ProductMap = productsApiData.reduce((acc, p) => {
-          acc[p.nombre] = { ...p, precio_unitario: Number(p.precio_unitario) || 0 };
-          return acc;
-        }, {} as ProductMap);
+        const productMap = buildProductMap(normalizeProductsPayload(productsApiData, 'CheckoutPage'));
 
-        const populatedCartItems: CartItem[] = Object.entries(cartApiData)
+        const populatedCartItems: CartItem[] = normalizeCartPayload(cartApiData, 'CheckoutPage')
           .map(([productName, cantidad]) => {
             const productDetail = productMap[productName];
             return productDetail ? { ...productDetail, cantidad } : null;
@@ -89,7 +107,7 @@ export default function ProductCheckoutPage() {
 
         if (populatedCartItems.length === 0) {
           toast({ title: "Carrito vacío", description: "No hay productos para finalizar la compra.", variant: "destructive" });
-          navigate('/productos'); // Redirigir si el carrito está vacío
+          navigate(`/productos${tenantQuerySuffix}`); // Redirigir si el carrito está vacío
         } else {
           setCartItems(populatedCartItems);
         }
@@ -100,7 +118,7 @@ export default function ProductCheckoutPage() {
       }
     };
     loadCart();
-  }, [navigate]);
+  }, [navigate, sharedRequestOptions, tenantQuerySuffix]);
 
   const subtotal = useMemo(() => {
     return cartItems.reduce((sum, item) => sum + (item.precio_unitario * item.cantidad), 0);
@@ -131,6 +149,7 @@ export default function ProductCheckoutPage() {
     try {
       // TODO: Reemplazar '/pedidos/crear' con el endpoint real del backend
       await apiFetch('/pedidos/crear', {
+        ...sharedRequestOptions,
         method: 'POST',
         body: pedidoData,
       });
@@ -163,7 +182,7 @@ export default function ProductCheckoutPage() {
         <h1 className="text-3xl font-bold text-foreground mb-3">¡Gracias por tu compra!</h1>
         <p className="text-lg text-muted-foreground mb-8">Tu pedido ha sido realizado con éxito y está siendo procesado.</p>
         <div className="flex gap-4">
-          <Button onClick={() => navigate('/productos')}>Seguir Comprando</Button>
+          <Button onClick={() => navigate(`/productos${tenantQuerySuffix}`)}>Seguir Comprando</Button>
           <Button variant="outline" onClick={() => navigate('/perfil/pedidos')}>Ver Mis Pedidos</Button>
           {/* Asumiendo que /perfil/pedidos es donde el usuario ve sus pedidos */}
         </div>
@@ -195,7 +214,7 @@ export default function ProductCheckoutPage() {
 
   return (
     <div className="container mx-auto p-4 md:p-8">
-      <Button variant="outline" onClick={() => navigate('/carrito')} className="mb-6">
+      <Button variant="outline" onClick={() => navigate(`/cart${tenantQuerySuffix}`)} className="mb-6">
         <ArrowLeft className="mr-2 h-4 w-4" /> Volver al Carrito
       </Button>
       <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-8">Finalizar Compra</h1>

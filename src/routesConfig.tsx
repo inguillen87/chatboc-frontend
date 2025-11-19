@@ -107,6 +107,7 @@ const routes: RouteConfig[] = [
   { path: '/integracion', element: <Integracion /> },
   { path: '/documentacion', element: <Documentacion /> },
   { path: '/faqs', element: <Faqs /> },
+  { path: '/productos', element: <ProductCatalog /> },
   { path: '/cart', element: <CartPage /> },
   { path: '/checkout-productos', element: <ProductCheckoutPage /> },
   { path: '/legal/privacy', element: <Privacy /> },

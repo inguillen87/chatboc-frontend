@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { apiFetch, getErrorMessage } from '@/utils/api';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
@@ -6,6 +6,12 @@ import ProductCard, { AddToCartOptions, ProductDetails } from '@/components/prod
 import { toast } from '@/components/ui/use-toast';
 import { Input } from '@/components/ui/input';
 import { Loader2, ShoppingCart, AlertTriangle, Search } from 'lucide-react'; // Icons
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
+import { useTenant } from '@/context/TenantContext';
+import { safeLocalStorage } from '@/utils/safeLocalStorage';
+import { DEFAULT_PUBLIC_PRODUCTS } from '@/data/defaultProducts';
+import { normalizeProductsPayload, sanitizeProductPricing } from '@/utils/cartPayload';
 
 export default function ProductCatalog() {
   const [allProducts, setAllProducts] = useState<ProductDetails[]>([]);
@@ -13,54 +19,80 @@ export default function ProductCatalog() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('todos');
+  const [catalogSource, setCatalogSource] = useState<'api' | 'fallback'>('api');
+  const { currentSlug } = useTenant();
+
+  const tenantQuerySuffix = currentSlug ? `?tenant=${encodeURIComponent(currentSlug)}` : '';
+
+  const sharedRequestOptions = useMemo(() => {
+    const hasPanelSession = Boolean(
+      safeLocalStorage.getItem('authToken') || safeLocalStorage.getItem('chatAuthToken')
+    );
+
+    return {
+      suppressPanel401Redirect: true,
+      tenantSlug: currentSlug ?? undefined,
+      sendAnonId: true,
+      isWidgetRequest: !hasPanelSession,
+    } as const;
+  }, [currentSlug]);
 
   useEffect(() => {
     setLoading(true);
-    apiFetch<ProductDetails[]>('/productos') // Asumimos que el API devuelve ProductDetails
+    apiFetch<unknown>('/productos', sharedRequestOptions)
       .then((data) => {
-        // Asegurarse que precio_unitario sea siempre un número
-        const sanitizedData = data.map(p => ({
-          ...p,
-          precio_unitario: Number(p.precio_unitario) || 0, // Default to 0 if NaN or not present
-          precio_por_caja:
-            p.precio_por_caja === null || p.precio_por_caja === undefined
-              ? null
-              : Number(p.precio_por_caja) || null,
-          unidades_por_caja:
-            p.unidades_por_caja === null || p.unidades_por_caja === undefined
-              ? null
-              : Number(p.unidades_por_caja) || null,
-          precio_mayorista:
-            p.precio_mayorista === null || p.precio_mayorista === undefined
-              ? null
-              : Number(p.precio_mayorista) || null,
-          cantidad_minima_mayorista:
-            p.cantidad_minima_mayorista === null || p.cantidad_minima_mayorista === undefined
-              ? null
-              : Number(p.cantidad_minima_mayorista) || null,
-        }));
-        setAllProducts(sanitizedData);
-        setFilteredProducts(sanitizedData);
-        setLoading(false);
+        const normalized = normalizeProductsPayload(data, 'ProductCatalog').map(sanitizeProductPricing);
+        if (normalized.length === 0) {
+          setCatalogSource('fallback');
+          setAllProducts(DEFAULT_PUBLIC_PRODUCTS);
+          setFilteredProducts(DEFAULT_PUBLIC_PRODUCTS);
+        } else {
+          setCatalogSource('api');
+          setAllProducts(normalized);
+          setFilteredProducts(normalized);
+        }
       })
       .catch((err: any) => {
         setError(getErrorMessage(err, 'No se pudieron cargar los productos. Intenta de nuevo más tarde.'));
-        setLoading(false);
-      });
-  }, []);
+      })
+      .finally(() => setLoading(false));
+  }, [sharedRequestOptions]);
 
   useEffect(() => {
     const lowercasedFilter = searchTerm.toLowerCase();
+    const normalizedCategory = selectedCategory.trim().toLowerCase();
     const filtered = allProducts.filter(product => {
-      return (
+      const matchesSearch =
         product.nombre.toLowerCase().includes(lowercasedFilter) ||
         (product.descripcion && product.descripcion.toLowerCase().includes(lowercasedFilter)) ||
         (product.categoria && product.categoria.toLowerCase().includes(lowercasedFilter)) ||
-        (product.marca && product.marca.toLowerCase().includes(lowercasedFilter))
-      );
+        (product.marca && product.marca.toLowerCase().includes(lowercasedFilter));
+
+      const matchesCategory =
+        normalizedCategory === 'todos' ||
+        (!!product.categoria && product.categoria.toLowerCase() === normalizedCategory);
+
+      return matchesSearch && matchesCategory;
     });
     setFilteredProducts(filtered);
-  }, [searchTerm, allProducts]);
+  }, [searchTerm, allProducts, selectedCategory]);
+
+  const categories = useMemo(() => {
+    const unique = new Map<string, string>();
+    allProducts.forEach((product) => {
+      if (product.categoria) {
+        const normalized = product.categoria.trim().toLowerCase();
+        if (normalized && !unique.has(normalized)) {
+          unique.set(normalized, product.categoria.trim());
+        }
+      }
+    });
+    return [
+      { value: 'todos', label: 'Todos' },
+      ...Array.from(unique.entries()).map(([value, label]) => ({ value, label })),
+    ];
+  }, [allProducts]);
 
   const handleAddToCart = async (product: ProductDetails, options: AddToCartOptions) => {
     try {
@@ -93,6 +125,7 @@ export default function ProductCatalog() {
       // El backend actual espera 'nombre' y 'cantidad'.
       // Si los nombres no son únicos, esto debería cambiar a product.id o product.sku
       await apiFetch('/carrito', {
+        ...sharedRequestOptions,
         method: 'POST',
         body: payload,
       });
@@ -137,12 +170,15 @@ export default function ProductCatalog() {
         <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
           <h1 className="text-3xl md:text-4xl font-bold text-foreground">Nuestro Catálogo</h1>
           <Button asChild variant="outline" className="w-full sm:w-auto">
-            <Link to="/cart">
+            <Link to={`/cart${tenantQuerySuffix}`}>
               <ShoppingCart className="mr-2 h-4 w-4" />
               Ver Carrito
             </Link>
           </Button>
         </div>
+        {catalogSource === 'fallback' && (
+          <Badge variant="secondary" className="mb-4">Catálogo demo para visitantes</Badge>
+        )}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
           <Input
@@ -153,6 +189,21 @@ export default function ProductCatalog() {
             className="w-full pl-10 pr-4 py-2 text-base rounded-md border-border focus:ring-primary focus:border-primary"
           />
         </div>
+        {categories.length > 1 && (
+          <Tabs value={selectedCategory} onValueChange={setSelectedCategory} className="mt-4">
+            <TabsList className="flex flex-wrap justify-start gap-2 bg-transparent p-0">
+              {categories.map((category) => (
+                <TabsTrigger
+                  key={category.value}
+                  value={category.value}
+                  className="px-4 py-2 rounded-full border border-border data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                >
+                  {category.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+        )}
       </header>
 
       {filteredProducts.length > 0 ? (
