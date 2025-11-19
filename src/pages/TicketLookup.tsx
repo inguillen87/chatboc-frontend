@@ -241,9 +241,15 @@ export default function TicketLookup() {
       sendTicketHistory(ticket, {
         reason: 'manual',
         actor: 'user',
-      }).catch((err) =>
-        console.error('Error sending completion notification:', err),
-      );
+      })
+        .then((result) => {
+          if (result.status === 'delivery_error') {
+            console.warn('Citizen completion notification delivery failed:', result);
+          }
+        })
+        .catch((err) =>
+          console.error('Error sending completion notification:', err),
+        );
 
       ref[ticket.id] = normalizedStatus;
       return;

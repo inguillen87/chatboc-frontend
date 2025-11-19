@@ -138,11 +138,77 @@ export interface TicketHistoryEmailParams {
     options?: TicketHistoryEmailOptions;
 }
 
+export interface TicketHistoryDeliverySuccessResult {
+    status: 'sent';
+    message?: string;
+}
+
+export interface TicketHistoryDeliveryErrorResult {
+    status: 'delivery_error';
+    message?: string;
+    retriable?: boolean;
+    error?: unknown;
+    code?: string | number;
+}
+
+export type TicketHistoryDeliveryResult =
+    | TicketHistoryDeliverySuccessResult
+    | TicketHistoryDeliveryErrorResult;
+
+const shouldBubbleTicketHistoryError = (error: unknown): boolean => {
+    if (error instanceof ApiError) {
+        if (error.status === 401 || error.status === 403) {
+            return true;
+        }
+    }
+    return false;
+};
+
+const buildTicketHistoryDeliveryError = (
+    error: unknown,
+): TicketHistoryDeliveryErrorResult => {
+    if (error instanceof ApiError) {
+        const bodyMessage =
+            (typeof error.body === 'object' && error.body !== null &&
+                (error.body.message || error.body.detail || error.body.error)) ||
+            undefined;
+        const inferredMessage =
+            bodyMessage ||
+            (error.status >= 500
+                ? 'El servidor de correo no respondió correctamente.'
+                : error.message);
+        const code =
+            typeof (error.body as any)?.code === 'string' ||
+            typeof (error.body as any)?.code === 'number'
+                ? (error.body as any).code
+                : undefined;
+        return {
+            status: 'delivery_error',
+            message: inferredMessage,
+            retriable: error.status >= 500 || error.status === 429,
+            error,
+            code,
+        };
+    }
+
+    const fallbackMessage =
+        error instanceof Error
+            ? error.message
+            : 'Error inesperado al enviar el historial.';
+
+    return {
+        status: 'delivery_error',
+        message: fallbackMessage,
+        retriable: true,
+        error,
+    };
+};
+
 export const requestTicketHistoryEmail = async ({
     tipo,
     ticketId,
     options,
-}: TicketHistoryEmailParams): Promise<void> => {
+}: TicketHistoryEmailParams): Promise<TicketHistoryDeliveryResult> => {
     const normalizeChannel = (value: unknown): TicketHistoryNotificationChannel | null => {
         if (!value) return null;
         const text = String(value).trim().toLowerCase();
@@ -256,16 +322,29 @@ export const requestTicketHistoryEmail = async ({
             method: 'POST',
             body: buildNotificationPayload(options),
         });
+        return { status: 'sent' };
     } catch (error) {
-        console.error(`Error sending ticket history for ticket ${ticketId}:`, error);
-        throw error;
+        if (shouldBubbleTicketHistoryError(error)) {
+            console.error(
+                `Auth error sending ticket history for ticket ${ticketId}:`,
+                error,
+            );
+            throw error;
+        }
+
+        const normalizedError = buildTicketHistoryDeliveryError(error);
+        console.error(
+            `Delivery error sending ticket history for ticket ${ticketId}:`,
+            normalizedError,
+        );
+        return normalizedError;
     }
 };
 
 export const sendTicketHistory = async (
     ticket: Ticket,
     options?: TicketHistoryEmailOptions
-): Promise<void> => {
+): Promise<TicketHistoryDeliveryResult> => {
     return requestTicketHistoryEmail({ tipo: ticket.tipo, ticketId: ticket.id, options });
 };
 

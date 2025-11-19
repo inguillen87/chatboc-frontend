@@ -303,9 +303,15 @@ const ChatPage = () => {
               reason: 'message_update',
               actor: 'user',
             },
-          }).catch((error) => {
-            console.error('Error triggering ticket email after citizen response:', error);
-          });
+          })
+            .then((result) => {
+              if (result.status === 'delivery_error') {
+                console.warn('Citizen reply email delivery error:', result);
+              }
+            })
+            .catch((error) => {
+              console.error('Error triggering ticket email after citizen response:', error);
+            });
         } else {
           const requestPayload: Record<string, any> = { 
             pregunta: userMessageText, 
@@ -369,9 +375,15 @@ const ChatPage = () => {
                   reason: 'ticket_created',
                   actor: 'user',
                 },
-              }).catch((error) => {
-                console.error('Error triggering ticket creation email:', error);
-              });
+              })
+                .then((result) => {
+                  if (result.status === 'delivery_error') {
+                    console.warn('Citizen ticket creation email delivery error:', result);
+                  }
+                })
+                .catch((error) => {
+                  console.error('Error triggering ticket creation email:', error);
+                });
             }
           }
           if (!isAnonimo) await refreshUser();
