@@ -459,9 +459,15 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
           reason: 'message_update',
           actor: 'agent',
         },
-      }).catch((error) => {
-        console.error('Error triggering ticket update email after message:', error);
-      });
+      })
+        .then((result) => {
+          if (result.status === 'delivery_error') {
+            console.warn('Ticket message email delivery error:', result);
+          }
+        })
+        .catch((error) => {
+          console.error('Error triggering ticket update email after message:', error);
+        });
       // Message will be updated via Pusher with the real ID
     } catch (error) {
       toast.error("No se pudo enviar el mensaje.");
@@ -504,9 +510,15 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
           actor: 'agent',
           notifyChannels: ['email', 'sms'],
         },
-      }).catch((error) => {
-        console.error('Error triggering ticket update email after status change:', error);
-      });
+      })
+        .then((result) => {
+          if (result.status === 'delivery_error') {
+            console.warn('Ticket status email delivery error:', result);
+          }
+        })
+        .catch((error) => {
+          console.error('Error triggering ticket update email after status change:', error);
+        });
     } catch (error) {
       console.error('Error updating ticket status:', error);
       toast.error('No se pudo actualizar el estado.');

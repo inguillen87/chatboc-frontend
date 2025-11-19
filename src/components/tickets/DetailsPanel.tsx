@@ -445,13 +445,21 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
     setIsSendingEmail(true);
     toast.info('Enviando historial por correo...');
     try {
-        await sendTicketHistory(ticket, {
+        const result = await sendTicketHistory(ticket, {
           reason: 'manual',
           actor: 'agent',
         });
-        toast.success('Historial enviado por correo con éxito.');
+        if (result.status === 'sent') {
+          toast.success('Historial enviado por correo con éxito.');
+        } else {
+          const detail = result.message ? ` Detalle: ${result.message}` : '';
+          toast.error(
+            `No se pudo enviar el historial por correo. Se registró un error de entrega.${detail}`,
+          );
+          console.warn('Ticket history email delivery error:', result);
+        }
     } catch (error) {
-        toast.error('Error al enviar el historial por correo.');
+        toast.error('No tienes permisos para enviar el historial en este momento.');
         console.error('Error sending ticket history:', error);
     } finally {
         setIsSendingEmail(false);
@@ -465,9 +473,15 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
         estado: normalizedCurrentStatus,
         actor: 'agent',
         notifyChannels: ['email', 'sms'],
-      }).catch((err) =>
-        console.error('Error sending completion email:', err),
-      );
+      })
+        .then((result) => {
+          if (result.status === 'delivery_error') {
+            console.warn('Completion email delivery failed:', result);
+          }
+        })
+        .catch((err) =>
+          console.error('Error sending completion email:', err),
+        );
       setCompletionSent(true);
     }
   }, [normalizedCurrentStatus, completionSent, ticket]);
