@@ -22,7 +22,13 @@ import TicketAttachments from './TicketAttachments';
 import TicketLogisticsSummary from './TicketLogisticsSummary';
 import { useTickets } from '@/context/TicketContext';
 import { exportToPdf, exportToXlsx } from '@/services/exportService';
-import { sendTicketHistory, getTicketById, getTicketMessages } from '@/services/ticketService';
+import {
+  sendTicketHistory,
+  getTicketById,
+  getTicketMessages,
+  isTicketHistoryDeliveryErrorResult,
+  formatTicketHistoryDeliveryErrorMessage,
+} from '@/services/ticketService';
 import { Ticket, Message, TicketHistoryEvent, Attachment } from '@/types/tickets';
 import {
   DropdownMenu,
@@ -451,10 +457,12 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
         });
         if (result.status === 'sent') {
           toast.success('Historial enviado por correo con éxito.');
-        } else {
-          const detail = result.message ? ` Detalle: ${result.message}` : '';
+        } else if (isTicketHistoryDeliveryErrorResult(result)) {
           toast.error(
-            `No se pudo enviar el historial por correo. Se registró un error de entrega.${detail}`,
+            formatTicketHistoryDeliveryErrorMessage(
+              result,
+              'No se pudo enviar el historial por correo. Se registró un error de entrega.',
+            ),
           );
           console.warn('Ticket history email delivery error:', result);
         }
@@ -475,7 +483,13 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
         notifyChannels: ['email', 'sms'],
       })
         .then((result) => {
-          if (result.status === 'delivery_error') {
+          if (isTicketHistoryDeliveryErrorResult(result)) {
+            toast.warning(
+              formatTicketHistoryDeliveryErrorMessage(
+                result,
+                'El ticket se completó, pero no se pudo enviar el correo automático al ciudadano.',
+              ),
+            );
             console.warn('Completion email delivery failed:', result);
           }
         })

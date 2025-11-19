@@ -155,6 +155,21 @@ export type TicketHistoryDeliveryResult =
     | TicketHistoryDeliverySuccessResult
     | TicketHistoryDeliveryErrorResult;
 
+export const isTicketHistoryDeliveryErrorResult = (
+    result: TicketHistoryDeliveryResult,
+): result is TicketHistoryDeliveryErrorResult => result.status === 'delivery_error';
+
+export const formatTicketHistoryDeliveryErrorMessage = (
+    result: TicketHistoryDeliveryErrorResult,
+    contextMessage?: string,
+): string => {
+    const prefix = contextMessage?.trim()
+        ? contextMessage.trim()
+        : 'No se pudo completar la notificación por correo.';
+    const detail = result.message?.trim();
+    return detail ? `${prefix} Detalle: ${detail}` : prefix;
+};
+
 const shouldBubbleTicketHistoryError = (error: unknown): boolean => {
     if (error instanceof ApiError) {
         if (error.status === 401 || error.status === 403) {

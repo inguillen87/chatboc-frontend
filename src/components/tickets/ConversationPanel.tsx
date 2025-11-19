@@ -17,6 +17,9 @@ import {
   requestTicketHistoryEmail,
   sendMessage,
   updateTicketStatus,
+  type TicketHistoryDeliveryResult,
+  isTicketHistoryDeliveryErrorResult,
+  formatTicketHistoryDeliveryErrorMessage,
 } from '@/services/ticketService';
 import { toast } from 'sonner';
 import { useUser } from '@/hooks/useUser';
@@ -461,9 +464,10 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         },
       })
         .then((result) => {
-          if (result.status === 'delivery_error') {
-            console.warn('Ticket message email delivery error:', result);
-          }
+          notifyDeliveryIssue(
+            result,
+            'El mensaje fue enviado, pero el correo automático de seguimiento falló.',
+          );
         })
         .catch((error) => {
           console.error('Error triggering ticket update email after message:', error);
@@ -491,6 +495,17 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     );
   }
 
+  const notifyDeliveryIssue = useCallback(
+    (result: TicketHistoryDeliveryResult, contextMessage: string) => {
+      if (isTicketHistoryDeliveryErrorResult(result)) {
+        toast.warning(
+          formatTicketHistoryDeliveryErrorMessage(result, contextMessage),
+        );
+      }
+    },
+    [],
+  );
+
   const handleSelectPredefinedMessage = (predefinedMessage: string) => {
     setMessage(prev => prev ? `${prev}\n${predefinedMessage}` : predefinedMessage);
   };
@@ -512,9 +527,10 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
         },
       })
         .then((result) => {
-          if (result.status === 'delivery_error') {
-            console.warn('Ticket status email delivery error:', result);
-          }
+          notifyDeliveryIssue(
+            result,
+            'El estado se actualizó, pero el aviso por correo no se pudo entregar.',
+          );
         })
         .catch((error) => {
           console.error('Error triggering ticket update email after status change:', error);
