@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { apiFetch, getErrorMessage } from '@/utils/api';
+import { ApiError, NetworkError, apiFetch, getErrorMessage } from '@/utils/api';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,10 +16,13 @@ import {
   normalizeCartPayload,
   normalizeProductsPayload,
 } from '@/utils/cartPayload';
+import { getLocalCartProducts, setLocalCartItemQuantity } from '@/utils/localCart';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 // Interfaz para el producto en el carrito, extendiendo ProductDetails y añadiendo cantidad
 interface CartItem extends ProductDetails {
   cantidad: number;
+  localCartKey?: string;
 }
 
 
@@ -27,6 +30,7 @@ export default function CartPage() {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [cartMode, setCartMode] = useState<'api' | 'local'>('api');
   const navigate = useNavigate();
   const { currentSlug } = useTenant();
 
@@ -45,9 +49,27 @@ export default function CartPage() {
     } as const;
   }, [currentSlug]);
 
+  const refreshLocalCart = useCallback(() => {
+    setCartItems(getLocalCartProducts());
+  }, []);
+
+  const shouldUseLocalCart = (err: unknown) => {
+    return (
+      (err instanceof ApiError && [401, 403, 405].includes(err.status)) ||
+      err instanceof NetworkError
+    );
+  };
+
   const loadCartData = useCallback(async () => {
     setLoading(true);
     setError(null);
+
+    if (cartMode === 'local') {
+      refreshLocalCart();
+      setLoading(false);
+      return;
+    }
+
     try {
       const [cartApiData, productsApiData] = await Promise.all([
         apiFetch<unknown>('/carrito', sharedRequestOptions),
@@ -82,12 +104,17 @@ export default function CartPage() {
       setCartItems(populatedCartItems);
 
     } catch (err) {
+      if (shouldUseLocalCart(err)) {
+        setCartMode('local');
+        refreshLocalCart();
+        return;
+      }
       setError(getErrorMessage(err, 'No se pudo cargar el carrito. Intenta de nuevo.'));
       console.error("Error cargando datos del carrito:", err);
     } finally {
       setLoading(false);
     }
-  }, [sharedRequestOptions]);
+  }, [cartMode, refreshLocalCart, sharedRequestOptions]);
 
   useEffect(() => {
     loadCartData();
@@ -110,6 +137,14 @@ export default function CartPage() {
     }
 
     try {
+      if (cartMode === 'local') {
+        const targetKey = itemToUpdate.localCartKey ?? itemToUpdate.id?.toString() ?? productName;
+        const updated = setLocalCartItemQuantity(targetKey || productName, newQuantity);
+        setCartItems(updated);
+        toast({ description: `Cantidad de ${productName} actualizada en el carrito demo.` });
+        return;
+      }
+
       if (newQuantity <= 0) {
         await apiFetch('/carrito', { ...sharedRequestOptions, method: 'DELETE', body: { nombre: productName } });
       } else {
@@ -163,7 +198,16 @@ export default function CartPage() {
       <Button variant="outline" onClick={() => navigate(-1)} className="mb-6">
         <ArrowLeft className="mr-2 h-4 w-4" /> Volver
       </Button>
-      <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-8">Tu Carrito de Compras</h1>
+      <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-4">Tu Carrito de Compras</h1>
+
+      {cartMode === 'local' && (
+        <Alert className="mb-6">
+          <AlertTitle>Carrito demo activo</AlertTitle>
+          <AlertDescription>
+            Tus productos se guardan únicamente en este navegador para que puedas simular la experiencia completa.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {cartItems.length === 0 ? (
         <div className="text-center py-12 bg-card border border-border rounded-lg shadow-sm">

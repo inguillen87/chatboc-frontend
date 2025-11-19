@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -13,7 +13,7 @@ import AddressAutocomplete from '@/components/ui/AddressAutocomplete'; // Reutil
 import { Loader2, AlertTriangle, ArrowLeft, CheckCircle } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 
-import { apiFetch, getErrorMessage } from '@/utils/api';
+import { ApiError, NetworkError, apiFetch, getErrorMessage } from '@/utils/api';
 import { useUser } from '@/hooks/useUser'; // Para pre-rellenar datos
 import { ProductDetails } from '@/components/product/ProductCard'; // Para tipo de producto
 import { formatCurrency } from '@/utils/currency';
@@ -24,6 +24,8 @@ import {
   normalizeCartPayload,
   normalizeProductsPayload,
 } from '@/utils/cartPayload';
+import { getLocalCartProducts, clearLocalCart } from '@/utils/localCart';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 // Esquema de validación para el formulario de checkout
 const checkoutSchema = z.object({
@@ -38,7 +40,25 @@ type CheckoutFormData = z.infer<typeof checkoutSchema>;
 
 interface CartItem extends ProductDetails {
   cantidad: number;
+  localCartKey?: string;
 }
+
+interface DemoOrderSnapshot {
+  createdAt: string;
+  payload: unknown;
+}
+
+const persistDemoOrder = (snapshot: DemoOrderSnapshot) => {
+  try {
+    const raw = safeLocalStorage.getItem('chatboc_demo_orders');
+    const parsed = raw ? JSON.parse(raw) : [];
+    const existing = Array.isArray(parsed) ? parsed : [];
+    const next = [snapshot, ...existing].slice(0, 20);
+    safeLocalStorage.setItem('chatboc_demo_orders', JSON.stringify(next));
+  } catch (err) {
+    console.warn('[ProductCheckoutPage] No se pudo guardar el pedido demo', err);
+  }
+};
 
 export default function ProductCheckoutPage() {
   const navigate = useNavigate();
@@ -50,6 +70,7 @@ export default function ProductCheckoutPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [orderPlaced, setOrderPlaced] = useState(false);
+  const [checkoutMode, setCheckoutMode] = useState<'api' | 'local'>('api');
 
   const tenantQuerySuffix = currentSlug ? `?tenant=${encodeURIComponent(currentSlug)}` : '';
 
@@ -86,10 +107,40 @@ export default function ProductCheckoutPage() {
     }
   }, [user, setValue]);
 
+  const shouldUseLocalCart = (err: unknown) => {
+    return (
+      (err instanceof ApiError && [401, 403, 405].includes(err.status)) ||
+      err instanceof NetworkError
+    );
+  };
+
+  const loadLocalCart = useCallback(() => {
+    const localItems = getLocalCartProducts();
+    if (!localItems.length) {
+      toast({
+        title: 'Carrito demo vacío',
+        description: 'Agregá productos para finalizar la simulación.',
+        variant: 'destructive',
+      });
+      navigate(`/productos${tenantQuerySuffix}`);
+      return false;
+    }
+    setCartItems(localItems);
+    return true;
+  }, [navigate, tenantQuerySuffix]);
+
   // Cargar ítems del carrito
   useEffect(() => {
     const loadCart = async () => {
       setIsLoadingCart(true);
+      setError(null);
+
+      if (checkoutMode === 'local') {
+        loadLocalCart();
+        setIsLoadingCart(false);
+        return;
+      }
+
       try {
         const [cartApiData, productsApiData] = await Promise.all([
           apiFetch<unknown>('/carrito', sharedRequestOptions),
@@ -112,13 +163,18 @@ export default function ProductCheckoutPage() {
           setCartItems(populatedCartItems);
         }
       } catch (err) {
+        if (shouldUseLocalCart(err)) {
+          setCheckoutMode('local');
+          loadLocalCart();
+          return;
+        }
         setError(getErrorMessage(err, 'No se pudo cargar tu carrito.'));
       } finally {
         setIsLoadingCart(false);
       }
     };
     loadCart();
-  }, [navigate, sharedRequestOptions, tenantQuerySuffix]);
+  }, [checkoutMode, loadLocalCart, navigate, sharedRequestOptions, tenantQuerySuffix]);
 
   const subtotal = useMemo(() => {
     return cartItems.reduce((sum, item) => sum + (item.precio_unitario * item.cantidad), 0);
@@ -147,6 +203,19 @@ export default function ProductCheckoutPage() {
     };
 
     try {
+      if (checkoutMode === 'local') {
+        persistDemoOrder({ payload: { ...pedidoData, modo: 'demo' }, createdAt: new Date().toISOString() });
+        clearLocalCart();
+        setCartItems([]);
+        setOrderPlaced(true);
+        toast({
+          title: 'Simulación registrada',
+          description: 'Guardamos tu pedido demo en este navegador.',
+          className: 'bg-green-600 text-white',
+        });
+        return;
+      }
+
       // TODO: Reemplazar '/pedidos/crear' con el endpoint real del backend
       await apiFetch('/pedidos/crear', {
         ...sharedRequestOptions,
@@ -176,11 +245,18 @@ export default function ProductCheckoutPage() {
   };
 
   if (orderPlaced) {
+    const demoSuccess = checkoutMode === 'local';
     return (
       <div className="container mx-auto p-4 md:p-8 flex flex-col items-center justify-center min-h-[calc(100vh-200px)] text-center">
         <CheckCircle className="h-16 w-16 text-green-500 mb-6" />
-        <h1 className="text-3xl font-bold text-foreground mb-3">¡Gracias por tu compra!</h1>
-        <p className="text-lg text-muted-foreground mb-8">Tu pedido ha sido realizado con éxito y está siendo procesado.</p>
+        <h1 className="text-3xl font-bold text-foreground mb-3">
+          {demoSuccess ? '¡Pedido demo guardado!' : '¡Gracias por tu compra!'}
+        </h1>
+        <p className="text-lg text-muted-foreground mb-8">
+          {demoSuccess
+            ? 'Tu simulación quedó registrada en este navegador para mostrar el flujo completo.'
+            : 'Tu pedido ha sido realizado con éxito y está siendo procesado.'}
+        </p>
         <div className="flex gap-4">
           <Button onClick={() => navigate(`/productos${tenantQuerySuffix}`)}>Seguir Comprando</Button>
           <Button variant="outline" onClick={() => navigate('/perfil/pedidos')}>Ver Mis Pedidos</Button>
@@ -190,6 +266,8 @@ export default function ProductCheckoutPage() {
     );
   }
 
+
+  const isDemoMode = checkoutMode === 'local';
 
   if (isLoadingCart) {
     return (
@@ -217,7 +295,16 @@ export default function ProductCheckoutPage() {
       <Button variant="outline" onClick={() => navigate(`/cart${tenantQuerySuffix}`)} className="mb-6">
         <ArrowLeft className="mr-2 h-4 w-4" /> Volver al Carrito
       </Button>
-      <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-8">Finalizar Compra</h1>
+      <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-4">Finalizar Compra</h1>
+
+      {isDemoMode && (
+        <Alert className="mb-8">
+          <AlertTitle>Checkout en modo demo</AlertTitle>
+          <AlertDescription>
+            Los pedidos se guardan localmente para mostrar el flujo completo sin requerir credenciales del backend.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
