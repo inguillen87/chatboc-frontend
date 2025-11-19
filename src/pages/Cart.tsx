@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiFetch, getErrorMessage } from '@/utils/api';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,18 +9,18 @@ import { toast } from '@/components/ui/use-toast';
 import { formatCurrency } from '@/utils/currency';
 import { Loader2, ShoppingCart, AlertTriangle, Trash2, PlusCircle, MinusCircle, ArrowLeft } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
+import { useTenant } from '@/context/TenantContext';
+import { safeLocalStorage } from '@/utils/safeLocalStorage';
+import {
+  buildProductMap,
+  normalizeCartPayload,
+  normalizeProductsPayload,
+} from '@/utils/cartPayload';
 
 // Interfaz para el producto en el carrito, extendiendo ProductDetails y añadiendo cantidad
 interface CartItem extends ProductDetails {
   cantidad: number;
 }
-
-// El API de /carrito devuelve un objeto donde las claves son nombres de producto y los valores son cantidades
-interface CartApiItems { [productName: string]: number }
-
-// El API de /productos devuelve un array de ProductDetails (o una estructura similar)
-// Necesitamos mapearlos a un objeto para fácil acceso por nombre, similar a como estaba antes.
-interface ProductMap { [productName: string]: ProductDetails }
 
 
 export default function CartPage() {
@@ -28,51 +28,54 @@ export default function CartPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+  const { currentSlug } = useTenant();
 
-  const loadCartData = async () => {
+  const tenantQuerySuffix = currentSlug ? `?tenant=${encodeURIComponent(currentSlug)}` : '';
+
+  const sharedRequestOptions = useMemo(() => {
+    const hasPanelSession = Boolean(
+      safeLocalStorage.getItem('authToken') || safeLocalStorage.getItem('chatAuthToken')
+    );
+
+    return {
+      suppressPanel401Redirect: true,
+      tenantSlug: currentSlug ?? undefined,
+      sendAnonId: true,
+      isWidgetRequest: !hasPanelSession,
+    } as const;
+  }, [currentSlug]);
+
+  const loadCartData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const [cartApiData, productsApiData] = await Promise.all([
-        apiFetch<CartApiItems>('/carrito'),
-        apiFetch<ProductDetails[]>('/productos'),
+        apiFetch<unknown>('/carrito', sharedRequestOptions),
+        apiFetch<unknown>('/productos', sharedRequestOptions),
       ]);
 
-      const productMap: ProductMap = productsApiData.reduce((acc, p) => {
-        acc[p.nombre] = {
-          ...p,
-          // Asegurar que precio_unitario es un número
-          precio_unitario: Number(p.precio_unitario) || 0,
-          precio_por_caja:
-            p.precio_por_caja === null || p.precio_por_caja === undefined
-              ? null
-              : Number(p.precio_por_caja) || null,
-          unidades_por_caja:
-            p.unidades_por_caja === null || p.unidades_por_caja === undefined
-              ? null
-              : Number(p.unidades_por_caja) || null,
-          precio_mayorista:
-            p.precio_mayorista === null || p.precio_mayorista === undefined
-              ? null
-              : Number(p.precio_mayorista) || null,
-          cantidad_minima_mayorista:
-            p.cantidad_minima_mayorista === null || p.cantidad_minima_mayorista === undefined
-              ? null
-              : Number(p.cantidad_minima_mayorista) || null,
-        };
-        return acc;
-      }, {} as ProductMap);
+      const normalizedProducts = normalizeProductsPayload(productsApiData, 'CartPage');
 
-      const populatedCartItems: CartItem[] = Object.entries(cartApiData)
+      const productMap = buildProductMap(normalizedProducts);
+
+      const cartEntries = normalizeCartPayload(cartApiData, 'CartPage');
+
+      const populatedCartItems: CartItem[] = cartEntries
         .map(([productName, cantidad]) => {
-          const productDetail = productMap[productName];
-          if (productDetail) {
-            return {
-              ...productDetail,
-              cantidad: cantidad,
-            };
+          if (cantidad <= 0) {
+            return null;
           }
-          return null; // O manejar el caso de un item en carrito sin detalle de producto
+
+          const productDetail = productMap[productName] ?? {
+            id: productName,
+            nombre: productName,
+            precio_unitario: 0,
+          };
+
+          return {
+            ...productDetail,
+            cantidad,
+          };
         })
         .filter((item): item is CartItem => item !== null);
 
@@ -84,11 +87,11 @@ export default function CartPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [sharedRequestOptions]);
 
   useEffect(() => {
     loadCartData();
-  }, []);
+  }, [loadCartData]);
 
   const handleUpdateQuantity = async (productName: string, newQuantity: number) => {
     const originalItems = [...cartItems];
@@ -108,9 +111,9 @@ export default function CartPage() {
 
     try {
       if (newQuantity <= 0) {
-        await apiFetch('/carrito', { method: 'DELETE', body: { nombre: productName } });
+        await apiFetch('/carrito', { ...sharedRequestOptions, method: 'DELETE', body: { nombre: productName } });
       } else {
-        await apiFetch('/carrito', { method: 'PUT', body: { nombre: productName, cantidad: newQuantity } });
+        await apiFetch('/carrito', { ...sharedRequestOptions, method: 'PUT', body: { nombre: productName, cantidad: newQuantity } });
       }
       // No es necesario llamar a loadCartData() aquí si el backend confirma la acción,
       // la UI ya está actualizada optimisticamente. Si se quiere re-sincronizar:
@@ -168,7 +171,7 @@ export default function CartPage() {
           <p className="text-xl text-muted-foreground mb-2">Tu carrito está vacío.</p>
           <p className="text-sm text-muted-foreground mb-6">Parece que no has agregado nada aún.</p>
           <Button asChild>
-            <Link to="/productos">Explorar Catálogo</Link>
+            <Link to={`/productos${tenantQuerySuffix}`}>Explorar Catálogo</Link>
           </Button>
         </div>
       ) : (
@@ -292,12 +295,12 @@ export default function CartPage() {
                 <Button
                   size="lg"
                   className="w-full bg-primary hover:bg-primary/90"
-                  onClick={() => navigate('/checkout-productos')} // Redirigir a la nueva página de checkout de productos
+                  onClick={() => navigate(`/checkout-productos${tenantQuerySuffix}`)} // Redirigir a la nueva página de checkout de productos
                 >
                   Continuar Compra
                 </Button>
                 <Button variant="link" asChild className="text-sm text-muted-foreground">
-                  <Link to="/productos">Seguir comprando</Link>
+                  <Link to={`/productos${tenantQuerySuffix}`}>Seguir comprando</Link>
                 </Button>
               </CardFooter>
             </Card>

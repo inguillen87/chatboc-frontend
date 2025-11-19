@@ -124,6 +124,26 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const headerTitle = isEmbedded ? derivedEntityTitle : welcomeTitle;
   const headerSubtitle = isEmbedded ? derivedEntitySubtitle : welcomeSubtitle;
 
+  const tenantSlugFromEntity = useMemo(() => {
+    const candidates = [
+      entityInfo?.slug,
+      entityInfo?.slug_publico,
+      entityInfo?.slugPublico,
+      entityInfo?.tenant_slug,
+      entityInfo?.tenantSlug,
+      entityInfo?.municipio_slug,
+      entityInfo?.municipioSlug,
+    ];
+
+    for (const candidate of candidates) {
+      if (typeof candidate === 'string' && candidate.trim()) {
+        return candidate.trim();
+      }
+    }
+
+    return null;
+  }, [entityInfo]);
+
   useEffect(() => {
     const checkMobile = () => {
       if (typeof window !== "undefined") {
@@ -242,8 +262,16 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   }, [user, entityInfo]);
 
   const openCart = useCallback(() => {
-    window.open('/cart', '_blank');
-  }, []);
+    const hasSession = Boolean(
+      safeLocalStorage.getItem('authToken') ||
+      safeLocalStorage.getItem('chatAuthToken') ||
+      user
+    );
+
+    const tenantSuffix = tenantSlugFromEntity ? `?tenant=${encodeURIComponent(tenantSlugFromEntity)}` : '';
+    const targetBase = hasSession ? '/cart' : '/productos';
+    window.open(`${targetBase}${tenantSuffix}`, '_blank', 'noopener,noreferrer');
+  }, [tenantSlugFromEntity, user]);
 
   const toggleMuted = useCallback(() => {
     setMuted((m) => {
