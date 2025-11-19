@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { apiFetch, getErrorMessage } from '@/utils/api';
+import { ApiError, NetworkError, apiFetch, getErrorMessage } from '@/utils/api';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import ProductCard, { AddToCartOptions, ProductDetails } from '@/components/product/ProductCard'; // Importar ProductCard y su interfaz
@@ -12,6 +12,7 @@ import { useTenant } from '@/context/TenantContext';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { DEFAULT_PUBLIC_PRODUCTS } from '@/data/defaultProducts';
 import { normalizeProductsPayload, sanitizeProductPricing } from '@/utils/cartPayload';
+import { addProductToLocalCart } from '@/utils/localCart';
 
 export default function ProductCatalog() {
   const [allProducts, setAllProducts] = useState<ProductDetails[]>([]);
@@ -21,6 +22,7 @@ export default function ProductCatalog() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('todos');
   const [catalogSource, setCatalogSource] = useState<'api' | 'fallback'>('api');
+  const [cartMode, setCartMode] = useState<'api' | 'local'>('api');
   const { currentSlug } = useTenant();
 
   const tenantQuerySuffix = currentSlug ? `?tenant=${encodeURIComponent(currentSlug)}` : '';
@@ -38,22 +40,41 @@ export default function ProductCatalog() {
     } as const;
   }, [currentSlug]);
 
+  const shouldUseDemoCatalog = (err: unknown) => {
+    return (
+      (err instanceof ApiError && [401, 403, 405].includes(err.status)) ||
+      err instanceof NetworkError
+    );
+  };
+
+  const activateDemoCatalog = () => {
+    setCatalogSource('fallback');
+    setCartMode('local');
+    setAllProducts(DEFAULT_PUBLIC_PRODUCTS);
+    setFilteredProducts(DEFAULT_PUBLIC_PRODUCTS);
+    setError(null);
+  };
+
   useEffect(() => {
     setLoading(true);
+    setError(null);
     apiFetch<unknown>('/productos', sharedRequestOptions)
       .then((data) => {
         const normalized = normalizeProductsPayload(data, 'ProductCatalog').map(sanitizeProductPricing);
         if (normalized.length === 0) {
-          setCatalogSource('fallback');
-          setAllProducts(DEFAULT_PUBLIC_PRODUCTS);
-          setFilteredProducts(DEFAULT_PUBLIC_PRODUCTS);
+          activateDemoCatalog();
         } else {
           setCatalogSource('api');
+          setCartMode('api');
           setAllProducts(normalized);
           setFilteredProducts(normalized);
         }
       })
       .catch((err: any) => {
+        if (shouldUseDemoCatalog(err)) {
+          activateDemoCatalog();
+          return;
+        }
         setError(getErrorMessage(err, 'No se pudieron cargar los productos. Intenta de nuevo más tarde.'));
       })
       .finally(() => setLoading(false));
@@ -107,6 +128,16 @@ export default function ProductCatalog() {
 
       const totalUnits = mode === 'case' ? quantity * unitsPerCase : quantity;
 
+      const quantityLabel = `${quantity} ${mode === 'case' ? 'caja(s)' : 'unidad(es)'}`;
+
+      const addToLocalCart = () => {
+        addProductToLocalCart(product, totalUnits);
+        toast({
+          title: 'Modo demo activo',
+          description: `${product.nombre} se guardó en tu carrito (${quantityLabel}).`,
+        });
+      };
+
       const payload: Record<string, unknown> = {
         nombre: product.nombre,
         cantidad: totalUnits,
@@ -122,6 +153,11 @@ export default function ProductCatalog() {
         }
       }
 
+      if (cartMode === 'local') {
+        addToLocalCart();
+        return;
+      }
+
       // El backend actual espera 'nombre' y 'cantidad'.
       // Si los nombres no son únicos, esto debería cambiar a product.id o product.sku
       await apiFetch('/carrito', {
@@ -131,10 +167,15 @@ export default function ProductCatalog() {
       });
       toast({
         title: "¡Agregado!",
-        description: `${product.nombre} se agregó a tu carrito (${quantity} ${mode === 'case' ? 'caja(s)' : 'unidad(es)'}).`,
+        description: `${product.nombre} se agregó a tu carrito (${quantityLabel}).`,
         className: "bg-green-500 text-white",
       });
     } catch (err) {
+      if (shouldUseDemoCatalog(err)) {
+        setCartMode('local');
+        addToLocalCart();
+        return;
+      }
       toast({
         title: "Error",
         description: `No se pudo agregar ${product.nombre} al carrito.`,
@@ -176,8 +217,15 @@ export default function ProductCatalog() {
             </Link>
           </Button>
         </div>
-        {catalogSource === 'fallback' && (
-          <Badge variant="secondary" className="mb-4">Catálogo demo para visitantes</Badge>
+        {(catalogSource === 'fallback' || cartMode === 'local') && (
+          <div className="flex flex-wrap gap-2 mb-4">
+            {catalogSource === 'fallback' && (
+              <Badge variant="secondary">Catálogo demo para visitantes</Badge>
+            )}
+            {cartMode === 'local' && (
+              <Badge variant="outline">Carrito demo guardado en este dispositivo</Badge>
+            )}
+          </div>
         )}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
