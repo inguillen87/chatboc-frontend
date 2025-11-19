@@ -2,7 +2,13 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { getTicketByNumber, getTicketTimeline, sendTicketHistory } from '@/services/ticketService';
+import {
+  getTicketByNumber,
+  getTicketTimeline,
+  sendTicketHistory,
+  isTicketHistoryDeliveryErrorResult,
+  formatTicketHistoryDeliveryErrorMessage,
+} from '@/services/ticketService';
 import { Ticket, Message, TicketHistoryEvent } from '@/types/tickets';
 import { fmtAR } from '@/utils/date';
 import TicketTimeline from '@/components/tickets/TicketTimeline';
@@ -13,6 +19,7 @@ import { getContactPhone, getCitizenDni, getTicketChannel } from '@/utils/ticket
 import { getSpecializedContact, SpecializedContact } from '@/utils/contacts';
 import { collectAttachmentsFromTicket, getPrimaryImageUrl } from '@/components/tickets/DetailsPanel';
 import { Maximize2, X } from 'lucide-react';
+import { toast } from 'sonner';
 export default function TicketLookup() {
   const { ticketId } = useParams<{ ticketId: string }>();
   const navigate = useNavigate();
@@ -241,9 +248,21 @@ export default function TicketLookup() {
       sendTicketHistory(ticket, {
         reason: 'manual',
         actor: 'user',
-      }).catch((err) =>
-        console.error('Error sending completion notification:', err),
-      );
+      })
+        .then((result) => {
+          if (isTicketHistoryDeliveryErrorResult(result)) {
+            toast.warning(
+              formatTicketHistoryDeliveryErrorMessage(
+                result,
+                'El reclamo fue resuelto, pero el correo automático no se pudo enviar.',
+              ),
+            );
+            console.warn('Citizen completion notification delivery failed:', result);
+          }
+        })
+        .catch((err) =>
+          console.error('Error sending completion notification:', err),
+        );
 
       ref[ticket.id] = normalizedStatus;
       return;

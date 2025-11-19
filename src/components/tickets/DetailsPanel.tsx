@@ -22,7 +22,13 @@ import TicketAttachments from './TicketAttachments';
 import TicketLogisticsSummary from './TicketLogisticsSummary';
 import { useTickets } from '@/context/TicketContext';
 import { exportToPdf, exportToXlsx } from '@/services/exportService';
-import { sendTicketHistory, getTicketById, getTicketMessages } from '@/services/ticketService';
+import {
+  sendTicketHistory,
+  getTicketById,
+  getTicketMessages,
+  isTicketHistoryDeliveryErrorResult,
+  formatTicketHistoryDeliveryErrorMessage,
+} from '@/services/ticketService';
 import { Ticket, Message, TicketHistoryEvent, Attachment } from '@/types/tickets';
 import {
   DropdownMenu,
@@ -445,13 +451,23 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
     setIsSendingEmail(true);
     toast.info('Enviando historial por correo...');
     try {
-        await sendTicketHistory(ticket, {
+        const result = await sendTicketHistory(ticket, {
           reason: 'manual',
           actor: 'agent',
         });
-        toast.success('Historial enviado por correo con éxito.');
+        if (result.status === 'sent') {
+          toast.success('Historial enviado por correo con éxito.');
+        } else if (isTicketHistoryDeliveryErrorResult(result)) {
+          toast.error(
+            formatTicketHistoryDeliveryErrorMessage(
+              result,
+              'No se pudo enviar el historial por correo. Se registró un error de entrega.',
+            ),
+          );
+          console.warn('Ticket history email delivery error:', result);
+        }
     } catch (error) {
-        toast.error('Error al enviar el historial por correo.');
+        toast.error('No tienes permisos para enviar el historial en este momento.');
         console.error('Error sending ticket history:', error);
     } finally {
         setIsSendingEmail(false);
@@ -465,9 +481,21 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
         estado: normalizedCurrentStatus,
         actor: 'agent',
         notifyChannels: ['email', 'sms'],
-      }).catch((err) =>
-        console.error('Error sending completion email:', err),
-      );
+      })
+        .then((result) => {
+          if (isTicketHistoryDeliveryErrorResult(result)) {
+            toast.warning(
+              formatTicketHistoryDeliveryErrorMessage(
+                result,
+                'El ticket se completó, pero no se pudo enviar el correo automático al ciudadano.',
+              ),
+            );
+            console.warn('Completion email delivery failed:', result);
+          }
+        })
+        .catch((err) =>
+          console.error('Error sending completion email:', err),
+        );
       setCompletionSent(true);
     }
   }, [normalizedCurrentStatus, completionSent, ticket]);
