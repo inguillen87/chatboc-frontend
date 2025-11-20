@@ -13,6 +13,7 @@ import { useTenant } from '@/context/TenantContext';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import {
   buildProductMap,
+  getProductPlaceholderImage,
   normalizeCartPayload,
   normalizeProductsPayload,
 } from '@/utils/cartPayload';
@@ -233,18 +234,18 @@ export default function CartPage() {
           <div className="lg:col-span-2 space-y-4">
             {cartItems.map((item) => (
               <Card key={item.id || item.nombre} className="flex flex-col sm:flex-row items-center overflow-hidden shadow-sm border-border">
-                {item.imagen_url && (
-                  <img
-                    src={item.imagen_url}
-                    alt={item.nombre}
-                    className="w-full sm:w-32 h-32 sm:h-full object-cover"
-                  />
-                )}
-                {!item.imagen_url && (
-                   <div className="w-full sm:w-32 h-32 sm:h-full bg-muted flex items-center justify-center">
-                     <ShoppingCart className="w-12 h-12 text-muted-foreground" />
-                   </div>
-                )}
+                <img
+                  src={item.imagen_url || getProductPlaceholderImage(item)}
+                  alt={item.nombre}
+                  loading="lazy"
+                  onError={(event) => {
+                    const fallback = getProductPlaceholderImage(item);
+                    if (event.currentTarget.src !== fallback) {
+                      event.currentTarget.src = fallback;
+                    }
+                  }}
+                  className="w-full sm:w-32 h-32 sm:h-full object-cover"
+                />
                 <CardContent className="p-4 flex-1 flex flex-col sm:flex-row justify-between items-start sm:items-center">
                   <div className="flex-1 mb-4 sm:mb-0">
                     <h3 className="font-semibold text-lg text-foreground">{item.nombre}</h3>

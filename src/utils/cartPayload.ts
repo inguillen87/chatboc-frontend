@@ -26,43 +26,106 @@ export const sanitizeProductPricing = (product: ProductDetails): ProductDetails 
   cantidad_minima_mayorista: toNullableNumber(product.cantidad_minima_mayorista),
 });
 
-const DEFAULT_PRODUCT_IMAGE =
-  'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=600&q=80';
+type PlaceholderTheme = {
+  keywords: string[];
+  label: string;
+  emoji: string;
+  colors: { bg: string; accent: string; text: string };
+};
 
-const PRODUCT_IMAGE_FALLBACKS: { keywords: string[]; url: string }[] = [
+const PRODUCT_IMAGE_FALLBACKS: PlaceholderTheme[] = [
   {
     keywords: ['kit', 'escolar', 'útiles', 'utiles', 'cuaderno', 'mochila'],
-    url: 'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?auto=format&fit=crop&w=600&q=80',
+    label: 'Educación',
+    emoji: '🎒',
+    colors: { bg: '#0ea5e9', accent: '#0f172a', text: '#e0f2fe' },
   },
   {
     keywords: ['árbol', 'arbol', 'forestal', 'nativo', 'plantar', 'plantación', 'plantacion'],
-    url: 'https://images.unsplash.com/photo-1455218873509-8097305ee378?auto=format&fit=crop&w=600&q=80',
+    label: 'Sustentabilidad',
+    emoji: '🌳',
+    colors: { bg: '#22c55e', accent: '#052e16', text: '#dcfce7' },
   },
   {
     keywords: ['hospital', 'salud', 'donación', 'donacion', 'bono', 'turno'],
-    url: 'https://images.unsplash.com/photo-1586773860418-d37222d8fce3?auto=format&fit=crop&w=600&q=80',
+    label: 'Salud',
+    emoji: '🏥',
+    colors: { bg: '#f97316', accent: '#311302', text: '#ffedd5' },
   },
   {
     keywords: ['bolson', 'bolsón', 'alimento', 'fruta', 'verdura', 'saludable'],
-    url: 'https://images.unsplash.com/photo-1505253758473-96b7015fcd40?auto=format&fit=crop&w=600&q=80',
+    label: 'Alimentación',
+    emoji: '🥕',
+    colors: { bg: '#f59e0b', accent: '#422006', text: '#fffbeb' },
   },
   {
     keywords: ['canje', 'reciclaje', 'electrónico', 'electronico', 'residuos', 'puntos'],
-    url: 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=600&q=80',
+    label: 'Reciclaje',
+    emoji: '♻️',
+    colors: { bg: '#10b981', accent: '#022c22', text: '#d1fae5' },
   },
   {
     keywords: ['bicicleta', 'movilidad', 'transporte'],
-    url: 'https://images.unsplash.com/photo-1508979827776-5b7eb0f58c01?auto=format&fit=crop&w=600&q=80',
+    label: 'Movilidad',
+    emoji: '🚲',
+    colors: { bg: '#6366f1', accent: '#1e1b4b', text: '#e0e7ff' },
   },
   {
     keywords: ['tour', 'turismo', 'cultural', 'paseo'],
-    url: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=600&q=80',
+    label: 'Turismo',
+    emoji: '🏛️',
+    colors: { bg: '#8b5cf6', accent: '#2e1065', text: '#ede9fe' },
   },
   {
     keywords: ['donación', 'donacion', 'solidaria', 'alimentos', 'alimento'],
-    url: 'https://images.unsplash.com/photo-1504753793650-d4a2b783c15e?auto=format&fit=crop&w=600&q=80',
+    label: 'Solidaridad',
+    emoji: '🤝',
+    colors: { bg: '#f43f5e', accent: '#3f0b1b', text: '#ffe4e6' },
   },
 ];
+
+const DEFAULT_PLACEHOLDER_THEME: PlaceholderTheme = {
+  keywords: [],
+  label: 'Catálogo',
+  emoji: '🛒',
+  colors: { bg: '#0f172a', accent: '#020617', text: '#e2e8f0' },
+};
+
+const escapeSvgText = (text: string) =>
+  text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+const buildSvgPlaceholder = (theme: PlaceholderTheme, product: ProductDetails): string => {
+  const title = escapeSvgText(product.categoria?.trim() || theme.label);
+  const subtitle = escapeSvgText(product.nombre?.trim() || 'Producto');
+
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="800" height="480" viewBox="0 0 800 480" role="img" aria-label="${title}">
+      <defs>
+        <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="${theme.colors.bg}" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="${theme.colors.accent}" stop-opacity="0.95" />
+        </linearGradient>
+      </defs>
+      <rect width="800" height="480" fill="url(#grad)" rx="24"/>
+      <text x="50%" y="48%" text-anchor="middle" font-family="'Inter', system-ui" font-size="96" fill="${theme.colors.text}">
+        ${theme.emoji}
+      </text>
+      <text x="50%" y="60%" text-anchor="middle" font-family="'Inter', system-ui" font-size="34" fill="${theme.colors.text}" font-weight="700">
+        ${title}
+      </text>
+      <text x="50%" y="70%" text-anchor="middle" font-family="'Inter', system-ui" font-size="20" fill="${theme.colors.text}" opacity="0.85">
+        ${subtitle}
+      </text>
+    </svg>
+  `;
+
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+};
 
 const normalizeText = (value: string): string =>
   value
@@ -77,12 +140,15 @@ const resolveImageFallback = (product: ProductDetails): string => {
       .join(' ')
   );
 
-  const fallback = PRODUCT_IMAGE_FALLBACKS.find((candidate) =>
+  const fallbackTheme = PRODUCT_IMAGE_FALLBACKS.find((candidate) =>
     candidate.keywords.some((keyword) => haystack.includes(normalizeText(keyword)))
   );
 
-  return fallback?.url ?? DEFAULT_PRODUCT_IMAGE;
+  return buildSvgPlaceholder(fallbackTheme ?? DEFAULT_PLACEHOLDER_THEME, product);
 };
+
+export const getProductPlaceholderImage = (product: ProductDetails): string =>
+  resolveImageFallback(product);
 
 const normalizeImageUrl = (candidate?: string | null): string | null => {
   if (!candidate) return null;
@@ -99,6 +165,10 @@ const normalizeImageUrl = (candidate?: string | null): string | null => {
 
   if (trimmed.startsWith('//')) {
     return `https:${trimmed}`;
+  }
+
+  if (trimmed.startsWith('/')) {
+    return trimmed;
   }
 
   return null;
