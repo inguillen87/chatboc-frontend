@@ -42,6 +42,7 @@ import PredefinedQueries from '@/pages/PredefinedQueries';
 import PermissionDenied from '@/pages/PermissionDenied';
 import CartPage from '@/pages/Cart';
 import ProductCheckoutPage from '@/pages/ProductCheckoutPage';
+import OrderConfirmationPage from '@/pages/OrderConfirmation';
 import GestionPlantillasPage from '@/pages/GestionPlantillasPage';
 import CatalogMappingPage from '@/pages/admin/CatalogMappingPage';
 import OpinarArPage from '@/pages/OpinarArPage';
@@ -82,6 +83,7 @@ const routes: RouteConfig[] = [
   { path: '/t/:tenant/noticias', element: <TenantNewsPage /> },
   { path: '/t/:tenant/eventos', element: <TenantEventsPage /> },
   { path: '/t/:tenant/reclamos/nuevo', element: <TenantTicketFormPage /> },
+  { path: '/t/:tenant/pedido/confirmado', element: <OrderConfirmationPage /> },
   { path: '/login', element: <Login /> },
   ...(FEATURE_ENCUESTAS
     ? [
@@ -110,6 +112,7 @@ const routes: RouteConfig[] = [
   { path: '/productos', element: <ProductCatalog /> },
   { path: '/cart', element: <CartPage /> },
   { path: '/checkout-productos', element: <ProductCheckoutPage /> },
+  { path: '/pedido/confirmado', element: <OrderConfirmationPage /> },
   { path: '/legal/privacy', element: <Privacy /> },
   { path: '/legal/terms', element: <Terms /> },
   { path: '/legal/cookies', element: <Cookies /> },

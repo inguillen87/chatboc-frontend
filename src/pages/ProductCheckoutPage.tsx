@@ -26,6 +26,7 @@ import {
 } from '@/utils/cartPayload';
 import { getLocalCartProducts, clearLocalCart } from '@/utils/localCart';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import usePointsBalance from '@/hooks/usePointsBalance';
 
 // Esquema de validación para el formulario de checkout
 const checkoutSchema = z.object({
@@ -64,6 +65,7 @@ export default function ProductCheckoutPage() {
   const navigate = useNavigate();
   const { user } = useUser(); // Hook para obtener datos del usuario logueado
   const { currentSlug } = useTenant();
+  const { points: pointsBalance, isLoading: isLoadingPoints } = usePointsBalance();
 
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isLoadingCart, setIsLoadingCart] = useState(true);
@@ -71,6 +73,7 @@ export default function ProductCheckoutPage() {
   const [error, setError] = useState<string | null>(null);
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [checkoutMode, setCheckoutMode] = useState<'api' | 'local'>('api');
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
   const tenantQuerySuffix = currentSlug ? `?tenant=${encodeURIComponent(currentSlug)}` : '';
 
@@ -177,12 +180,26 @@ export default function ProductCheckoutPage() {
   }, [checkoutMode, loadLocalCart, navigate, sharedRequestOptions, tenantQuerySuffix]);
 
   const subtotal = useMemo(() => {
-    return cartItems.reduce((sum, item) => sum + (item.precio_unitario * item.cantidad), 0);
+    return cartItems.reduce((sum, item) => sum + (item.modalidad === 'puntos' || item.modalidad === 'donacion' ? 0 : item.precio_unitario * item.cantidad), 0);
   }, [cartItems]);
+
+  const pointsTotal = useMemo(() => {
+    return cartItems.reduce((sum, item) => {
+      if (item.modalidad === 'puntos') {
+        const unitPoints = item.precio_puntos ?? item.precio_unitario ?? 0;
+        return sum + unitPoints * item.cantidad;
+      }
+      return sum;
+    }, 0);
+  }, [cartItems]);
+
+  const hasDonations = useMemo(() => cartItems.some((item) => item.modalidad === 'donacion'), [cartItems]);
+  const hasPointsDeficit = checkoutMode !== 'local' && pointsTotal > pointsBalance;
 
   const onSubmit = async (data: CheckoutFormData) => {
     setIsSubmitting(true);
     setError(null);
+    setCheckoutError(null);
 
     const pedidoData = {
       cliente: {
@@ -196,13 +213,25 @@ export default function ProductCheckoutPage() {
         nombre_producto: item.nombre, // Enviar nombre por si ID no está en backend aún
         cantidad: item.cantidad,
         precio_unitario: item.precio_unitario,
+        modalidad: item.modalidad ?? 'venta',
+        precio_puntos: item.precio_puntos ?? undefined,
       })),
-      total_pedido: subtotal,
+      totales: {
+        dinero: subtotal,
+        puntos: pointsTotal,
+      },
       // En el futuro: metodo_pago, metodo_envio, notas, etc.
       estado: 'pendiente_confirmacion', // Estado inicial del pedido
     };
 
     try {
+      if (hasPointsDeficit) {
+        const warning = 'No tienes puntos suficientes para completar el canje.';
+        setCheckoutError(warning);
+        setIsSubmitting(false);
+        return;
+      }
+
       if (checkoutMode === 'local') {
         persistDemoOrder({ payload: { ...pedidoData, modo: 'demo' }, createdAt: new Date().toISOString() });
         clearLocalCart();
@@ -216,29 +245,54 @@ export default function ProductCheckoutPage() {
         return;
       }
 
-      // TODO: Reemplazar '/pedidos/crear' con el endpoint real del backend
-      await apiFetch('/pedidos/crear', {
-        ...sharedRequestOptions,
-        method: 'POST',
-        body: pedidoData,
+      if (subtotal === 0) {
+        await apiFetch('/api/checkout/confirmar', {
+          ...sharedRequestOptions,
+          method: 'POST',
+          body: pedidoData,
+        });
+        setOrderPlaced(true);
+        toast({
+          title: 'Pedido confirmado',
+          description: hasDonations
+            ? 'Registramos tus donaciones. Recibirás instrucciones de entrega.'
+            : 'Registramos tu canje de puntos.',
+          className: 'bg-green-600 text-white',
+        });
+        return;
+      }
+
+      const preference = await apiFetch<{ init_point?: string; sandbox_init_point?: string; pedido_id?: string | number }>(
+        '/api/checkout/crear-preferencia',
+        {
+          ...sharedRequestOptions,
+          method: 'POST',
+          body: pedidoData,
+        },
+      );
+
+      const initPoint = preference?.init_point || preference?.sandbox_init_point;
+      if (initPoint) {
+        window.location.href = initPoint;
+        return;
+      }
+
+      setOrderPlaced(true); // fallback si no hay redirección
+      toast({
+        title: 'Pedido registrado',
+        description: 'Redireccionaremos al proveedor de pago o te avisaremos por email.',
+        className: 'bg-green-600 text-white',
       });
 
       // await apiFetch('/carrito/vaciar', { method: 'DELETE' }); // Endpoint para vaciar carrito en backend (opcional)
       // O el backend podría vaciar el carrito al crear el pedido.
       // Por ahora, el usuario puede volver al carrito y verlo vacío o la página de catálogo.
 
-      setOrderPlaced(true); // Mostrar mensaje de éxito
-      toast({
-        title: "¡Pedido Realizado!",
-        description: "Hemos recibido tu pedido. Nos pondremos en contacto pronto.",
-        className: "bg-green-600 text-white",
-        duration: 7000,
-      });
-      // No limpiar el carrito localmente aquí, esperar a que el backend lo confirme o la próxima carga de /carrito lo muestre vacío.
-
     } catch (err) {
-      setError(getErrorMessage(err, "No se pudo procesar tu pedido. Intenta nuevamente."));
-      toast({ title: "Error al procesar pedido", description: getErrorMessage(err), variant: "destructive" });
+      const message = getErrorMessage(err, "No se pudo procesar tu pedido. Intenta nuevamente.");
+      setError(message);
+      setCheckoutError(message);
+      toast({ title: "Error al procesar pedido", description: message, variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
@@ -302,6 +356,15 @@ export default function ProductCheckoutPage() {
           <AlertTitle>Checkout en modo demo</AlertTitle>
           <AlertDescription>
             Los pedidos se guardan localmente para mostrar el flujo completo sin requerir credenciales del backend.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {hasPointsDeficit && (
+        <Alert variant="destructive" className="mb-6">
+          <AlertTitle>Saldo de puntos insuficiente</AlertTitle>
+          <AlertDescription>
+            Necesitas {pointsTotal} pts pero tu saldo actual es {pointsBalance} pts. Reduce los canjes o participa en más actividades para sumar puntos.
           </AlertDescription>
         </Alert>
       )}
@@ -373,18 +436,30 @@ export default function ProductCheckoutPage() {
                     <p className="font-medium text-foreground">{item.nombre} <span className="text-xs text-muted-foreground">x{item.cantidad}</span></p>
                     {item.presentacion && <p className="text-xs text-muted-foreground">{item.presentacion}</p>}
                   </div>
-                  <span className="font-medium text-foreground">{formatCurrency(item.precio_unitario * item.cantidad)}</span>
+                  <span className="font-medium text-foreground">
+                    {item.modalidad === 'puntos'
+                      ? `${(item.precio_puntos ?? item.precio_unitario ?? 0) * item.cantidad} pts`
+                      : item.modalidad === 'donacion'
+                        ? 'Donación'
+                        : formatCurrency(item.precio_unitario * item.cantidad)}
+                  </span>
                 </div>
               ))}
               <Separator />
-              <div className="flex justify-between text-xl font-bold text-foreground">
-                <span>Total</span>
+              <div className="flex justify-between text-sm text-muted-foreground">
+                <span>Total en puntos</span>
+                <span>{pointsTotal} pts</span>
+              </div>
+              <div className="flex justify-between text-sm text-muted-foreground">
+                <span>Total en dinero</span>
                 <span>{formatCurrency(subtotal)}</span>
               </div>
+              {hasDonations && <p className="text-sm text-muted-foreground">Incluye donaciones sin costo monetario.</p>}
+              {checkoutError && <p className="text-sm text-destructive mt-2">{checkoutError}</p>}
               {error && <p className="text-sm text-destructive mt-2">{error}</p>}
             </CardContent>
             <CardFooter>
-              <Button type="submit" size="lg" className="w-full" disabled={isSubmitting || isLoadingCart || cartItems.length === 0}>
+              <Button type="submit" size="lg" className="w-full" disabled={isSubmitting || isLoadingCart || cartItems.length === 0 || hasPointsDeficit}>
                 {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 {isSubmitting ? 'Procesando Pedido...' : 'Confirmar Pedido'}
               </Button>
