@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { formatCurrency } from '@/utils/currency';
+import { getProductPlaceholderImage } from '@/utils/cartPayload';
 import { ShoppingCart } from 'lucide-react';
 
 // Interfaz detallada del producto
@@ -79,6 +80,13 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
     return `Mayorista: ${formatCurrency(precio_mayorista)} (mín. ${cantidad_minima_mayorista} ${cantidad_minima_mayorista === 1 ? 'caja' : 'cajas'})`;
   }, [precio_mayorista, cantidad_minima_mayorista]);
 
+  const placeholderImage = useMemo(() => getProductPlaceholderImage(product), [product]);
+  const [imageSrc, setImageSrc] = useState<string | null>(product.imagen_url ?? placeholderImage);
+
+  useEffect(() => {
+    setImageSrc(product.imagen_url ?? placeholderImage);
+  }, [product, placeholderImage]);
+
   const handleAddToCartClick = () => {
     if (quantity <= 0) return;
     onAddToCart(product, { quantity, mode });
@@ -88,10 +96,17 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
   return (
     <Card className="flex flex-col justify-between w-full max-w-sm bg-card rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300 overflow-hidden">
       <CardHeader className="p-0 relative">
-        {imagen_url ? (
+        {imageSrc ? (
           <img
-            src={imagen_url}
+            src={imageSrc}
             alt={nombre}
+            loading="lazy"
+            onError={(event) => {
+              const fallback = placeholderImage;
+              if (event.currentTarget.src !== fallback) {
+                setImageSrc(fallback);
+              }
+            }}
             className="w-full h-48 object-cover" // Ajustar altura de imagen
           />
         ) : (
