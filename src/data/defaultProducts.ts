@@ -1,5 +1,5 @@
 import type { ProductDetails } from '@/components/product/ProductCard';
-import { sanitizeProductPricing } from '@/utils/cartPayload';
+import { enhanceProductDetails } from '@/utils/cartPayload';
 
 const BASE_PLACEHOLDER = 'https://images.unsplash.com';
 
@@ -79,5 +79,5 @@ const RAW_DEFAULT_PRODUCTS: ProductDetails[] = [
 ];
 
 export const DEFAULT_PUBLIC_PRODUCTS: ProductDetails[] = RAW_DEFAULT_PRODUCTS.map((item, index) =>
-  sanitizeProductPricing({ ...item, id: item.id ?? `demo-${index}` })
+  enhanceProductDetails({ ...item, id: item.id ?? `demo-${index}` })
 );
