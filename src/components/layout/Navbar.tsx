@@ -14,6 +14,7 @@ import {
   Ticket as TicketIcon,
   ClipboardList,
   Users,
+  ShoppingCart,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,12 +28,14 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { FEATURE_ENCUESTAS } from "@/config/featureFlags";
 import { useUser } from "@/hooks/useUser";
 import type { LucideIcon } from "lucide-react";
+import useCartCount from "@/hooks/useCartCount";
 
 const Navbar: React.FC = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [isDark, setIsDark] = useState(false);
   const location = useLocation();
   const { user } = useUser();
+  const cartCount = useCartCount();
 
   const isLanding = location.pathname === "/";
   const isLoggedIn = !!safeLocalStorage.getItem("user");
@@ -156,6 +159,18 @@ const Navbar: React.FC = () => {
 
         {/* Botones lado derecho */}
         <div className="hidden md:flex gap-3 items-center">
+          <RouterLink
+            to="/cart"
+            className="relative inline-flex items-center rounded-full border border-border/60 bg-card px-3 py-1.5 text-sm shadow-sm transition-colors hover:border-primary hover:text-primary"
+            aria-label="Ver carrito"
+          >
+            <ShoppingCart className="h-4 w-4" />
+            {cartCount > 0 && (
+              <span className="ml-2 inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-primary text-primary-foreground text-xs px-2">
+                {cartCount}
+              </span>
+            )}
+          </RouterLink>
           {isLoggedIn ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -254,6 +269,15 @@ const Navbar: React.FC = () => {
 
             {isLoggedIn ? (
               <>
+                <RouterLink to="/cart" onClick={() => setMenuOpen(false)} className="hover:text-primary transition-colors flex items-center gap-2">
+                  <ShoppingCart className="h-4 w-4" />
+                  Carrito
+                  {cartCount > 0 && (
+                    <span className="ml-auto inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-primary text-primary-foreground text-xs px-2">
+                      {cartCount}
+                    </span>
+                  )}
+                </RouterLink>
                 <RouterLink to="/perfil" onClick={() => setMenuOpen(false)} className="hover:text-primary transition-colors">Mi Perfil</RouterLink>
                 <RouterLink to="/chat" onClick={() => setMenuOpen(false)} className="hover:text-primary transition-colors">Chat</RouterLink>
                 {adminLinks.length > 0 && (
@@ -280,6 +304,15 @@ const Navbar: React.FC = () => {
               </>
             ) : (
               <>
+                <RouterLink to="/cart" onClick={() => setMenuOpen(false)} className="hover:text-primary transition-colors flex items-center gap-2">
+                  <ShoppingCart className="h-4 w-4" />
+                  Carrito
+                  {cartCount > 0 && (
+                    <span className="ml-auto inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-primary text-primary-foreground text-xs px-2">
+                      {cartCount}
+                    </span>
+                  )}
+                </RouterLink>
                 <RouterLink to="/login" onClick={() => setMenuOpen(false)} className="hover:text-primary transition-colors">Iniciar Sesión</RouterLink>
                 <RouterLink to="/demo" onClick={() => setMenuOpen(false)} className="bg-primary text-primary-foreground px-4 py-2 rounded hover:bg-primary/90 transition-colors">
                   Prueba Gratuita

@@ -1,8 +1,9 @@
 import type { ProductDetails } from '@/components/product/ProductCard';
-import { sanitizeProductPricing } from '@/utils/cartPayload';
+import { enhanceProductDetails } from '@/utils/cartPayload';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 const LOCAL_CART_KEY = 'chatboc_demo_cart';
+export const CART_EVENT_NAME = 'chatboc:cart-updated';
 
 interface StoredCartEntry {
   key: string;
@@ -53,7 +54,7 @@ const normalizeEntry = (candidate: unknown): StoredCartEntry | null => {
     return null;
   }
 
-  const sanitizedProduct = sanitizeProductPricing(product as ProductDetails);
+  const sanitizedProduct = enhanceProductDetails(product as ProductDetails);
 
   const key = typeof anyCandidate.key === 'string' && anyCandidate.key.trim()
     ? anyCandidate.key.trim()
@@ -85,13 +86,30 @@ const readEntries = (): StoredCartEntry[] => {
   }
 };
 
+const emitCartEvent = (entries: StoredCartEntry[]): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    const total = entries.reduce((sum, entry) => sum + entry.quantity, 0);
+    window.dispatchEvent(new CustomEvent(CART_EVENT_NAME, {
+      detail: {
+        count: total,
+        updatedAt: Date.now(),
+      },
+    }));
+  } catch {
+    // No-op: event emission is best-effort only
+  }
+};
+
 const persistEntries = (entries: StoredCartEntry[]): void => {
   try {
     if (!entries.length) {
       safeLocalStorage.removeItem(LOCAL_CART_KEY);
+      emitCartEvent([]);
       return;
     }
     safeLocalStorage.setItem(LOCAL_CART_KEY, JSON.stringify(entries));
+    emitCartEvent(entries);
   } catch {
     // Ignored on purpose
   }
@@ -99,7 +117,7 @@ const persistEntries = (entries: StoredCartEntry[]): void => {
 
 const mapEntriesToProducts = (entries: StoredCartEntry[]): LocalCartProduct[] => {
   return entries.map((entry) => ({
-    ...sanitizeProductPricing(entry.product),
+    ...enhanceProductDetails(entry.product),
     cantidad: entry.quantity,
     localCartKey: entry.key,
   }));
@@ -117,7 +135,7 @@ export const addProductToLocalCart = (
     return getLocalCartProducts();
   }
 
-  const sanitizedProduct = sanitizeProductPricing(product);
+  const sanitizedProduct = enhanceProductDetails(product);
   const entries = readEntries();
   const key = getProductKey(product);
   const existingIndex = entries.findIndex((entry) => entry.key === key || entry.product.nombre === sanitizedProduct.nombre);
@@ -178,4 +196,21 @@ export const clearLocalCart = (): void => {
   } catch {
     // Ignore removal errors
   }
+};
+
+export const setLocalCartSnapshot = (
+  items: { product: ProductDetails; quantity: number }[],
+): LocalCartProduct[] => {
+  const entries = items
+    .map(({ product, quantity }) => ({ product: enhanceProductDetails(product), quantity }))
+    .map((entry) => normalizeEntry({
+      product: entry.product,
+      quantity: entry.quantity,
+      key: getProductKey(entry.product),
+      updatedAt: Date.now(),
+    }))
+    .filter((entry): entry is StoredCartEntry => Boolean(entry));
+
+  persistEntries(entries);
+  return mapEntriesToProducts(entries);
 };

@@ -11,8 +11,10 @@ import { Badge } from '@/components/ui/badge';
 import { useTenant } from '@/context/TenantContext';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { DEFAULT_PUBLIC_PRODUCTS } from '@/data/defaultProducts';
-import { normalizeProductsPayload, sanitizeProductPricing } from '@/utils/cartPayload';
+import { enhanceProductDetails, normalizeProductsPayload } from '@/utils/cartPayload';
 import { addProductToLocalCart } from '@/utils/localCart';
+import useCartCount from '@/hooks/useCartCount';
+import { getDemoLoyaltySummary } from '@/utils/demoLoyalty';
 
 export default function ProductCatalog() {
   const [allProducts, setAllProducts] = useState<ProductDetails[]>([]);
@@ -23,9 +25,13 @@ export default function ProductCatalog() {
   const [selectedCategory, setSelectedCategory] = useState('todos');
   const [catalogSource, setCatalogSource] = useState<'api' | 'fallback'>('api');
   const [cartMode, setCartMode] = useState<'api' | 'local'>('api');
+  const [loyaltySummary] = useState(() => getDemoLoyaltySummary());
   const { currentSlug } = useTenant();
+  const cartCount = useCartCount();
 
   const tenantQuerySuffix = currentSlug ? `?tenant=${encodeURIComponent(currentSlug)}` : '';
+  const numberFormatter = useMemo(() => new Intl.NumberFormat('es-AR'), []);
+  const shouldShowDemoLoyalty = catalogSource === 'fallback' || cartMode === 'local';
 
   const sharedRequestOptions = useMemo(() => {
     const hasPanelSession = Boolean(
@@ -60,7 +66,7 @@ export default function ProductCatalog() {
     setError(null);
     apiFetch<unknown>('/productos', sharedRequestOptions)
       .then((data) => {
-        const normalized = normalizeProductsPayload(data, 'ProductCatalog').map(sanitizeProductPricing);
+        const normalized = normalizeProductsPayload(data, 'ProductCatalog').map(enhanceProductDetails);
         if (normalized.length === 0) {
           activateDemoCatalog();
         } else {
@@ -130,13 +136,7 @@ export default function ProductCatalog() {
 
       const quantityLabel = `${quantity} ${mode === 'case' ? 'caja(s)' : 'unidad(es)'}`;
 
-      const addToLocalCart = () => {
-        addProductToLocalCart(product, totalUnits);
-        toast({
-          title: 'Modo demo activo',
-          description: `${product.nombre} se guardó en tu carrito (${quantityLabel}).`,
-        });
-      };
+      const persistLocalCart = () => addProductToLocalCart(product, totalUnits);
 
       const payload: Record<string, unknown> = {
         nombre: product.nombre,
@@ -154,9 +154,15 @@ export default function ProductCatalog() {
       }
 
       if (cartMode === 'local') {
-        addToLocalCart();
+        persistLocalCart();
+        toast({
+          title: 'Modo demo activo',
+          description: `${product.nombre} se guardó en tu carrito (${quantityLabel}).`,
+        });
         return;
       }
+
+      persistLocalCart();
 
       // El backend actual espera 'nombre' y 'cantidad'.
       // Si los nombres no son únicos, esto debería cambiar a product.id o product.sku
@@ -173,7 +179,17 @@ export default function ProductCatalog() {
     } catch (err) {
       if (shouldUseDemoCatalog(err)) {
         setCartMode('local');
-        addToLocalCart();
+        if (cartMode === 'api') {
+          toast({
+            title: 'Modo demo activo',
+            description: `${product.nombre} se guardó en tu carrito local (${quantityLabel}).`,
+          });
+        } else {
+          toast({
+            title: 'Modo demo activo',
+            description: `${product.nombre} se guardó en tu carrito (${quantityLabel}).`,
+          });
+        }
         return;
       }
       toast({
@@ -210,10 +226,15 @@ export default function ProductCatalog() {
       <header className="mb-8">
         <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
           <h1 className="text-3xl md:text-4xl font-bold text-foreground">Nuestro Catálogo</h1>
-          <Button asChild variant="outline" className="w-full sm:w-auto">
-            <Link to={`/cart${tenantQuerySuffix}`}>
+          <Button asChild variant="outline" className="w-full sm:w-auto relative">
+            <Link to={`/cart${tenantQuerySuffix}`} className="inline-flex items-center">
               <ShoppingCart className="mr-2 h-4 w-4" />
               Ver Carrito
+              {cartCount > 0 && (
+                <span className="ml-2 inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-primary text-primary-foreground text-xs px-2">
+                  {cartCount}
+                </span>
+              )}
             </Link>
           </Button>
         </div>
@@ -225,6 +246,25 @@ export default function ProductCatalog() {
             {cartMode === 'local' && (
               <Badge variant="outline">Carrito demo guardado en este dispositivo</Badge>
             )}
+          </div>
+        )}
+        {shouldShowDemoLoyalty && (
+          <div className="w-full mb-4 rounded-xl border border-primary/20 bg-gradient-to-r from-primary/5 via-primary/10 to-transparent p-4 shadow-sm">
+            <p className="text-sm uppercase tracking-wide text-primary/80 font-semibold mb-2">Puntos en modo demo</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <p className="text-sm text-muted-foreground">Saldo disponible</p>
+                <p className="text-xl font-bold text-primary">{numberFormatter.format(loyaltySummary.points)} pts</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Encuestas y sondeos respondidos</p>
+                <p className="text-lg font-semibold">{loyaltySummary.surveysCompleted}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Ideas y reclamos registrados</p>
+                <p className="text-lg font-semibold">{loyaltySummary.suggestionsShared + loyaltySummary.claimsFiled}</p>
+              </div>
+            </div>
           </div>
         )}
         <div className="relative">
