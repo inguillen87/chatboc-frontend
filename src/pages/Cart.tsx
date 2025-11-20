@@ -19,6 +19,7 @@ import {
 } from '@/utils/cartPayload';
 import { getLocalCartProducts, setLocalCartItemQuantity, setLocalCartSnapshot } from '@/utils/localCart';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { getDemoLoyaltySummary } from '@/utils/demoLoyalty';
 
 // Interfaz para el producto en el carrito, extendiendo ProductDetails y añadiendo cantidad
 interface CartItem extends ProductDetails {
@@ -32,6 +33,7 @@ export default function CartPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [cartMode, setCartMode] = useState<'api' | 'local'>('api');
+  const [loyaltySummary] = useState(() => getDemoLoyaltySummary());
   const navigate = useNavigate();
   const { currentSlug } = useTenant();
 
@@ -53,6 +55,8 @@ export default function CartPage() {
   const refreshLocalCart = useCallback(() => {
     setCartItems(getLocalCartProducts());
   }, []);
+
+  const numberFormatter = useMemo(() => new Intl.NumberFormat('es-AR'), []);
 
   const shouldUseLocalCart = (err: unknown) => {
     return (
@@ -184,6 +188,14 @@ export default function CartPage() {
     return cartItems.reduce((sum, item) => sum + calculateItemSubtotal(item), 0);
   }, [cartItems]);
 
+  const pointsAfterSubtotal = useMemo(() => {
+    return Math.max(loyaltySummary.points - subtotal, 0);
+  }, [loyaltySummary.points, subtotal]);
+
+  const pointsUsed = useMemo(() => {
+    return Math.min(loyaltySummary.points, subtotal);
+  }, [loyaltySummary.points, subtotal]);
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] p-4 text-muted-foreground">
@@ -219,6 +231,24 @@ export default function CartPage() {
           </AlertDescription>
         </Alert>
       )}
+
+      <div className="mb-6 rounded-xl border border-primary/20 bg-gradient-to-r from-primary/5 via-primary/10 to-transparent p-4 shadow-sm">
+        <p className="text-sm uppercase tracking-wide text-primary/80 font-semibold mb-2">Puntos disponibles en modo demo</p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <p className="text-sm text-muted-foreground">Saldo actual</p>
+            <p className="text-xl font-bold text-primary">{numberFormatter.format(loyaltySummary.points)} pts</p>
+          </div>
+          <div>
+            <p className="text-sm text-muted-foreground">Participación</p>
+            <p className="text-lg font-semibold">{loyaltySummary.surveysCompleted} encuestas / sondeos</p>
+          </div>
+          <div>
+            <p className="text-sm text-muted-foreground">Ideas y reclamos</p>
+            <p className="text-lg font-semibold">{loyaltySummary.suggestionsShared + loyaltySummary.claimsFiled} registros</p>
+          </div>
+        </div>
+      </div>
 
       {cartItems.length === 0 ? (
         <div className="text-center py-12 bg-card border border-border rounded-lg shadow-sm">
@@ -340,6 +370,15 @@ export default function CartPage() {
                   <span>{formatCurrency(subtotal)}</span>
                 </div>
                 {/* Aquí podrían ir descuentos, costos de envío en el futuro */}
+                <Separator />
+                <div className="flex justify-between text-sm text-muted-foreground">
+                  <span>Simulación: canje de puntos</span>
+                  <span>{numberFormatter.format(pointsUsed)} pts</span>
+                </div>
+                <div className="flex justify-between text-sm text-muted-foreground">
+                  <span>Saldo estimado luego del canje</span>
+                  <span>{numberFormatter.format(pointsAfterSubtotal)} pts</span>
+                </div>
                 <Separator />
                 <div className="flex justify-between text-xl font-bold text-foreground">
                   <span>Total</span>

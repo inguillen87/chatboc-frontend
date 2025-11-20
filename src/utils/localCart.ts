@@ -3,6 +3,7 @@ import { enhanceProductDetails } from '@/utils/cartPayload';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 const LOCAL_CART_KEY = 'chatboc_demo_cart';
+export const CART_EVENT_NAME = 'chatboc:cart-updated';
 
 interface StoredCartEntry {
   key: string;
@@ -85,13 +86,30 @@ const readEntries = (): StoredCartEntry[] => {
   }
 };
 
+const emitCartEvent = (entries: StoredCartEntry[]): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    const total = entries.reduce((sum, entry) => sum + entry.quantity, 0);
+    window.dispatchEvent(new CustomEvent(CART_EVENT_NAME, {
+      detail: {
+        count: total,
+        updatedAt: Date.now(),
+      },
+    }));
+  } catch {
+    // No-op: event emission is best-effort only
+  }
+};
+
 const persistEntries = (entries: StoredCartEntry[]): void => {
   try {
     if (!entries.length) {
       safeLocalStorage.removeItem(LOCAL_CART_KEY);
+      emitCartEvent([]);
       return;
     }
     safeLocalStorage.setItem(LOCAL_CART_KEY, JSON.stringify(entries));
+    emitCartEvent(entries);
   } catch {
     // Ignored on purpose
   }

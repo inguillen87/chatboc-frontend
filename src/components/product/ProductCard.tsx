@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { formatCurrency } from '@/utils/currency';
 import { getProductPlaceholderImage } from '@/utils/cartPayload';
 import { ShoppingCart } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // Interfaz detallada del producto
 export interface ProductDetails {
@@ -40,6 +41,8 @@ interface ProductCardProps {
   onAddToCart: (product: ProductDetails, options: AddToCartOptions) => void; // Callback para añadir al carrito
 }
 
+const MotionButton = motion(Button);
+
 const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
   const {
     nombre,
@@ -69,6 +72,8 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
     precio_por_caja && unidades_por_caja ? 'case' : 'unit'
   );
   const [quantity, setQuantity] = useState<number>(1);
+  const [lastAddedQty, setLastAddedQty] = useState<number>(1);
+  const [addedFeedback, setAddedFeedback] = useState(false);
 
   const casePriceLabel = useMemo(() => {
     if (!precio_por_caja || !unidades_por_caja) return null;
@@ -89,12 +94,16 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
 
   const handleAddToCartClick = () => {
     if (quantity <= 0) return;
-    onAddToCart(product, { quantity, mode });
+    const added = quantity;
+    onAddToCart(product, { quantity: added, mode });
+    setLastAddedQty(added);
     setQuantity(1);
+    setAddedFeedback(true);
+    setTimeout(() => setAddedFeedback(false), 900);
   };
 
   return (
-    <Card className="flex flex-col justify-between w-full max-w-sm bg-card rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300 overflow-hidden">
+    <Card className="relative flex flex-col justify-between w-full max-w-sm bg-card rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300 overflow-hidden">
       <CardHeader className="p-0 relative">
         {imageSrc ? (
           <img
@@ -119,6 +128,19 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
             {badge}
           </Badge>
         )}
+        <AnimatePresence>
+          {addedFeedback && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8, y: -6 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.8, y: -6 }}
+              transition={{ duration: 0.18 }}
+              className="absolute top-3 left-3 rounded-full bg-primary text-primary-foreground text-xs px-3 py-1 shadow"
+            >
+              +{lastAddedQty} agregado
+            </motion.div>
+          )}
+        </AnimatePresence>
       </CardHeader>
 
       <CardContent className="p-4 flex-grow">
@@ -206,15 +228,18 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
             }}
             className="w-20"
           />
-          <Button
+          <MotionButton
             size="sm"
             onClick={handleAddToCartClick}
             disabled={stock_disponible === 0}
             className="flex-1"
+            whileTap={{ scale: 0.96 }}
+            whileHover={{ scale: 1.01 }}
+            animate={addedFeedback ? { scale: [1, 1.05, 1], transition: { duration: 0.3 } } : undefined}
           >
             <ShoppingCart className="mr-2 h-4 w-4" />
             {mode === 'case' ? 'Agregar cajas' : 'Agregar'}
-          </Button>
+          </MotionButton>
         </div>
       </CardFooter>
     </Card>
