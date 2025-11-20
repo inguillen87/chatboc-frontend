@@ -16,7 +16,7 @@ import {
   normalizeCartPayload,
   normalizeProductsPayload,
 } from '@/utils/cartPayload';
-import { getLocalCartProducts, setLocalCartItemQuantity } from '@/utils/localCart';
+import { getLocalCartProducts, setLocalCartItemQuantity, setLocalCartSnapshot } from '@/utils/localCart';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 // Interfaz para el producto en el carrito, extendiendo ProductDetails y añadiendo cantidad
@@ -102,6 +102,16 @@ export default function CartPage() {
         .filter((item): item is CartItem => item !== null);
 
       setCartItems(populatedCartItems);
+
+      if (populatedCartItems.length > 0) {
+        setLocalCartSnapshot(populatedCartItems.map((item) => ({ product: item, quantity: item.cantidad })));
+      } else {
+        const localSnapshot = getLocalCartProducts();
+        if (localSnapshot.length > 0) {
+          setCartMode('local');
+          setCartItems(localSnapshot);
+        }
+      }
 
     } catch (err) {
       if (shouldUseLocalCart(err)) {

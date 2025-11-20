@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { useTenant } from '@/context/TenantContext';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { DEFAULT_PUBLIC_PRODUCTS } from '@/data/defaultProducts';
-import { normalizeProductsPayload, sanitizeProductPricing } from '@/utils/cartPayload';
+import { enhanceProductDetails, normalizeProductsPayload } from '@/utils/cartPayload';
 import { addProductToLocalCart } from '@/utils/localCart';
 
 export default function ProductCatalog() {
@@ -60,7 +60,7 @@ export default function ProductCatalog() {
     setError(null);
     apiFetch<unknown>('/productos', sharedRequestOptions)
       .then((data) => {
-        const normalized = normalizeProductsPayload(data, 'ProductCatalog').map(sanitizeProductPricing);
+        const normalized = normalizeProductsPayload(data, 'ProductCatalog').map(enhanceProductDetails);
         if (normalized.length === 0) {
           activateDemoCatalog();
         } else {
@@ -130,13 +130,7 @@ export default function ProductCatalog() {
 
       const quantityLabel = `${quantity} ${mode === 'case' ? 'caja(s)' : 'unidad(es)'}`;
 
-      const addToLocalCart = () => {
-        addProductToLocalCart(product, totalUnits);
-        toast({
-          title: 'Modo demo activo',
-          description: `${product.nombre} se guardó en tu carrito (${quantityLabel}).`,
-        });
-      };
+      const persistLocalCart = () => addProductToLocalCart(product, totalUnits);
 
       const payload: Record<string, unknown> = {
         nombre: product.nombre,
@@ -154,9 +148,15 @@ export default function ProductCatalog() {
       }
 
       if (cartMode === 'local') {
-        addToLocalCart();
+        persistLocalCart();
+        toast({
+          title: 'Modo demo activo',
+          description: `${product.nombre} se guardó en tu carrito (${quantityLabel}).`,
+        });
         return;
       }
+
+      persistLocalCart();
 
       // El backend actual espera 'nombre' y 'cantidad'.
       // Si los nombres no son únicos, esto debería cambiar a product.id o product.sku
@@ -173,7 +173,17 @@ export default function ProductCatalog() {
     } catch (err) {
       if (shouldUseDemoCatalog(err)) {
         setCartMode('local');
-        addToLocalCart();
+        if (cartMode === 'api') {
+          toast({
+            title: 'Modo demo activo',
+            description: `${product.nombre} se guardó en tu carrito local (${quantityLabel}).`,
+          });
+        } else {
+          toast({
+            title: 'Modo demo activo',
+            description: `${product.nombre} se guardó en tu carrito (${quantityLabel}).`,
+          });
+        }
         return;
       }
       toast({
