@@ -9,6 +9,14 @@ const isRecord = (value: unknown): value is Record<string, unknown> => {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 };
 
+const normalizeModalidad = (value: unknown): ProductDetails['modalidad'] => {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase();
+  if (['puntos', 'punto', 'canje'].includes(normalized)) return 'puntos';
+  if (['donacion', 'donación', 'donar'].includes(normalized)) return 'donacion';
+  return 'venta';
+};
+
 const toNullableNumber = (value: unknown): number | null => {
   if (value === null || value === undefined) {
     return null;
@@ -17,14 +25,22 @@ const toNullableNumber = (value: unknown): number | null => {
   return Number.isFinite(numeric) ? numeric : null;
 };
 
-export const sanitizeProductPricing = (product: ProductDetails): ProductDetails => ({
-  ...product,
-  precio_unitario: Number(product.precio_unitario) || 0,
-  precio_por_caja: toNullableNumber(product.precio_por_caja),
-  unidades_por_caja: toNullableNumber(product.unidades_por_caja),
-  precio_mayorista: toNullableNumber(product.precio_mayorista),
-  cantidad_minima_mayorista: toNullableNumber(product.cantidad_minima_mayorista),
-});
+export const sanitizeProductPricing = (product: ProductDetails): ProductDetails => {
+  const modalidad = normalizeModalidad(product.modalidad);
+  const precio_unitario = modalidad === 'donacion' ? 0 : Number(product.precio_unitario) || 0;
+  const precio_puntos = modalidad === 'puntos' ? toNullableNumber(product.precio_puntos ?? product.precio_unitario) : null;
+
+  return {
+    ...product,
+    modalidad,
+    precio_unitario,
+    precio_puntos,
+    precio_por_caja: toNullableNumber(product.precio_por_caja),
+    unidades_por_caja: toNullableNumber(product.unidades_por_caja),
+    precio_mayorista: toNullableNumber(product.precio_mayorista),
+    cantidad_minima_mayorista: toNullableNumber(product.cantidad_minima_mayorista),
+  };
+};
 
 type DemoPriceRule = {
   keywords: string[];
@@ -93,6 +109,20 @@ const findDemoPrice = (product: ProductDetails): DemoPriceRule | typeof DEMO_PRI
 
 const applyDemoPricing = (product: ProductDetails): ProductDetails => {
   const candidate = sanitizeProductPricing(product);
+  if (candidate.modalidad === 'donacion') {
+    return { ...candidate, precio_unitario: 0, precio_anterior: null, precio_puntos: null };
+  }
+
+  if (candidate.modalidad === 'puntos') {
+    const pointsValue = candidate.precio_puntos && candidate.precio_puntos > 0
+      ? candidate.precio_puntos
+      : Math.max(Math.round(candidate.precio_unitario || 0), 0) || 120;
+    return {
+      ...candidate,
+      precio_unitario: 0,
+      precio_puntos: pointsValue,
+    };
+  }
   const needsPrice = !candidate.precio_unitario || candidate.precio_unitario <= 0;
 
   const demoPricing = findDemoPrice(candidate);
@@ -269,16 +299,76 @@ export const enhanceProductDetails = (product: ProductDetails): ProductDetails =
   };
 };
 
+const normalizeProductRecord = (raw: Record<string, unknown>, index: number): ProductDetails => {
+  const nombre = typeof raw.nombre === 'string' && raw.nombre.trim()
+    ? raw.nombre.trim()
+    : typeof raw.name === 'string' && raw.name.trim()
+      ? raw.name.trim()
+      : `producto-${index}`;
+
+  const descripcion = typeof raw.descripcion === 'string'
+    ? raw.descripcion
+    : typeof raw.description === 'string'
+      ? raw.description
+      : null;
+  const presentacion = typeof raw.presentacion === 'string'
+    ? raw.presentacion
+    : typeof raw.presentation === 'string'
+      ? raw.presentation
+      : null;
+  const categoria = typeof raw.categoria === 'string'
+    ? raw.categoria
+    : typeof raw.category === 'string'
+      ? raw.category
+      : null;
+  const modalidad = normalizeModalidad(raw.modalidad ?? raw.tipo ?? raw.mode ?? null);
+
+  const base: ProductDetails = {
+    id: raw.id ?? nombre ?? index,
+    nombre,
+    descripcion,
+    presentacion: presentacion ?? undefined,
+    categoria,
+    badge: typeof raw.badge === 'string' ? raw.badge : null,
+    badge_variant: (raw.badge_variant as ProductDetails['badge_variant']) ?? undefined,
+    precio_unitario: Number(raw.precio_unitario ?? raw.precio ?? raw.price ?? 0) || 0,
+    precio_puntos: toNullableNumber(raw.precio_puntos ?? raw.puntos ?? raw.points),
+    precio_anterior: toNullableNumber(raw.precio_anterior ?? raw.precioAnterior ?? raw.previous_price),
+    imagen_url: normalizeImageUrl(
+      (raw.imagen_url as string | null | undefined) ??
+      (raw.imagen as string | null | undefined) ??
+      (raw.image as string | null | undefined),
+    ),
+    stock_disponible: toNullableNumber(raw.stock_disponible ?? raw.stock ?? raw.inventory),
+    unidad_medida: typeof raw.unidad_medida === 'string' ? raw.unidad_medida : undefined,
+    sku: typeof raw.sku === 'string' ? raw.sku : undefined,
+    marca: typeof raw.marca === 'string' ? raw.marca : undefined,
+    precio_por_caja: toNullableNumber(raw.precio_por_caja ?? raw.precio_caja ?? raw.caja_precio),
+    unidades_por_caja: toNullableNumber(raw.unidades_por_caja ?? raw.caja_unidades ?? raw.units_per_case),
+    promocion_activa: typeof raw.promocion_activa === 'string' ? raw.promocion_activa : undefined,
+    precio_mayorista: toNullableNumber(raw.precio_mayorista ?? raw.wholesale_price),
+    cantidad_minima_mayorista: toNullableNumber(raw.cantidad_minima_mayorista ?? raw.wholesale_min_qty),
+    modalidad,
+  };
+
+  return sanitizeProductPricing(base);
+};
+
 export const normalizeProductsPayload = (raw: unknown, context: string = 'Catalog'): ProductDetails[] => {
+  const mapProducts = (list: unknown[]): ProductDetails[] =>
+    list.map((item, index) =>
+      isRecord(item) ? normalizeProductRecord(item, index) : sanitizeProductPricing(item as ProductDetails),
+    );
+
   if (Array.isArray(raw)) {
-    return raw as ProductDetails[];
+    return mapProducts(raw);
   }
 
   if (isRecord(raw)) {
     for (const key of PRODUCT_LIST_KEYS) {
       const candidate = raw[key];
       if (Array.isArray(candidate)) {
-        return candidate as ProductDetails[];
+        return mapProducts(candidate);
       }
     }
   }

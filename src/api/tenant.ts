@@ -151,6 +151,35 @@ export async function getTenantPublicInfo(slug: string): Promise<TenantPublicInf
   return normalizeTenantInfo(response, slug);
 }
 
+export async function getTenantPublicInfoFlexible(
+  slug?: string | null,
+  widgetToken?: string | null,
+): Promise<TenantPublicInfo> {
+  const params = new URLSearchParams();
+  if (slug) params.set('tenant', slug);
+  if (widgetToken) params.set('widget_token', widgetToken);
+
+  try {
+    const response = await apiFetch<unknown>(`/api/pwa/tenant-info${params.toString() ? `?${params.toString()}` : ''}`, {
+      tenantSlug: slug ?? undefined,
+      skipAuth: true,
+      omitCredentials: true,
+      isWidgetRequest: true,
+      omitChatSessionId: true,
+      sendAnonId: true,
+    });
+
+    return normalizeTenantInfo(response, slug ?? widgetToken ?? '');
+  } catch (primaryError) {
+    if (!slug) {
+      throw primaryError;
+    }
+
+    // Fallback al endpoint anterior si existe el slug
+    return getTenantPublicInfo(slug);
+  }
+}
+
 export async function listTenantNews(slug: string): Promise<TenantNewsItem[]> {
   const response = await apiFetch<unknown>('/public/news', {
     tenantSlug: slug,

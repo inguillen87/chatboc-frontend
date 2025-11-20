@@ -15,6 +15,8 @@ import { enhanceProductDetails, normalizeProductsPayload } from '@/utils/cartPay
 import { addProductToLocalCart } from '@/utils/localCart';
 import useCartCount from '@/hooks/useCartCount';
 import { getDemoLoyaltySummary } from '@/utils/demoLoyalty';
+import usePointsBalance from '@/hooks/usePointsBalance';
+import UploadOrderFromFile from '@/components/cart/UploadOrderFromFile';
 
 export default function ProductCatalog() {
   const [allProducts, setAllProducts] = useState<ProductDetails[]>([]);
@@ -23,11 +25,13 @@ export default function ProductCatalog() {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('todos');
+  const [selectedModality, setSelectedModality] = useState<'todos' | 'venta' | 'puntos' | 'donacion'>('todos');
   const [catalogSource, setCatalogSource] = useState<'api' | 'fallback'>('api');
   const [cartMode, setCartMode] = useState<'api' | 'local'>('api');
   const [loyaltySummary] = useState(() => getDemoLoyaltySummary());
   const { currentSlug } = useTenant();
   const cartCount = useCartCount();
+  const { points: pointsBalance } = usePointsBalance();
 
   const tenantQuerySuffix = currentSlug ? `?tenant=${encodeURIComponent(currentSlug)}` : '';
   const numberFormatter = useMemo(() => new Intl.NumberFormat('es-AR'), []);
@@ -100,10 +104,15 @@ export default function ProductCatalog() {
         normalizedCategory === 'todos' ||
         (!!product.categoria && product.categoria.toLowerCase() === normalizedCategory);
 
-      return matchesSearch && matchesCategory;
+      const modality = (product.modalidad ?? 'venta').toLowerCase();
+      const matchesModality =
+        selectedModality === 'todos' ||
+        modality === selectedModality;
+
+      return matchesSearch && matchesCategory && matchesModality;
     });
     setFilteredProducts(filtered);
-  }, [searchTerm, allProducts, selectedCategory]);
+  }, [searchTerm, allProducts, selectedCategory, selectedModality]);
 
   const categories = useMemo(() => {
     const unique = new Map<string, string>();
@@ -143,6 +152,8 @@ export default function ProductCatalog() {
         cantidad: totalUnits,
         modo_compra: mode,
         precio_unitario: Number(product.precio_unitario) || 0,
+        modalidad: product.modalidad ?? 'venta',
+        precio_puntos: product.precio_puntos ?? undefined,
       };
 
       if (mode === 'case') {
@@ -267,6 +278,18 @@ export default function ProductCatalog() {
             </div>
           </div>
         )}
+        {!shouldShowDemoLoyalty && (
+          <div className="w-full mb-4 rounded-lg border border-border bg-card p-4 shadow-sm grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <p className="text-sm text-muted-foreground">Saldo de puntos</p>
+              <p className="text-xl font-bold text-primary">{numberFormatter.format(pointsBalance)} pts</p>
+            </div>
+            <div className="md:col-span-2">
+              <p className="text-sm text-muted-foreground mb-2">Sube una nota de pedido para armar el carrito automáticamente.</p>
+              <UploadOrderFromFile onCartUpdated={() => toast({ title: 'Carrito actualizado', description: 'Revisa tu carrito para confirmar los ítems detectados.' })} />
+            </div>
+          </div>
+        )}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
           <Input
@@ -292,6 +315,23 @@ export default function ProductCatalog() {
             </TabsList>
           </Tabs>
         )}
+        <div className="flex flex-wrap gap-2 mt-4">
+          {[
+            { value: 'todos', label: 'Todas las modalidades' },
+            { value: 'venta', label: 'Compra' },
+            { value: 'puntos', label: 'Canje con puntos' },
+            { value: 'donacion', label: 'Donación' },
+          ].map((option) => (
+            <Button
+              key={option.value}
+              variant={selectedModality === option.value ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setSelectedModality(option.value as typeof selectedModality)}
+            >
+              {option.label}
+            </Button>
+          ))}
+        </div>
       </header>
 
       {filteredProducts.length > 0 ? (
