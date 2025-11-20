@@ -28,6 +28,7 @@ import {
   getTicketMessages,
   isTicketHistoryDeliveryErrorResult,
   formatTicketHistoryDeliveryErrorMessage,
+  normalizeTicketHistoryDeliveryError,
 } from '@/services/ticketService';
 import { Ticket, Message, TicketHistoryEvent, Attachment } from '@/types/tickets';
 import {
@@ -46,6 +47,7 @@ import { getSpecializedContact, SpecializedContact } from '@/utils/contacts';
 import { deriveAttachmentInfo } from '@/utils/attachment';
 import { formatTicketStatusLabel, normalizeTicketStatus } from '@/utils/ticketStatus';
 import { pickFirstCoordinate } from '@/utils/location';
+import { ApiError } from '@/utils/api';
 
 const sanitizeMediaUrl = (value?: string | null): string | undefined => {
   if (typeof value !== 'string') {
@@ -458,7 +460,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
         if (result.status === 'sent') {
           toast.success('Historial enviado por correo con éxito.');
         } else if (isTicketHistoryDeliveryErrorResult(result)) {
-          toast.error(
+          toast.warning(
             formatTicketHistoryDeliveryErrorMessage(
               result,
               'No se pudo enviar el historial por correo. Se registró un error de entrega.',
@@ -467,7 +469,19 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
           console.warn('Ticket history email delivery error:', result);
         }
     } catch (error) {
-        toast.error('No tienes permisos para enviar el historial en este momento.');
+        if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+          toast.error('No tienes permisos para enviar el historial en este momento.');
+          console.error('Error sending ticket history:', error);
+          return;
+        }
+
+        const deliveryError = normalizeTicketHistoryDeliveryError(error);
+        toast.warning(
+          formatTicketHistoryDeliveryErrorMessage(
+            deliveryError,
+            'El historial no pudo enviarse por correo por un problema con el servidor de email.',
+          ),
+        );
         console.error('Error sending ticket history:', error);
     } finally {
         setIsSendingEmail(false);

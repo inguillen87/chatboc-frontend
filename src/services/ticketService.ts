@@ -219,6 +219,10 @@ const buildTicketHistoryDeliveryError = (
     };
 };
 
+export const normalizeTicketHistoryDeliveryError = (
+    error: unknown,
+): TicketHistoryDeliveryErrorResult => buildTicketHistoryDeliveryError(error);
+
 export const requestTicketHistoryEmail = async ({
     tipo,
     ticketId,
