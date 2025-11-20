@@ -22,7 +22,14 @@ import TicketAttachments from './TicketAttachments';
 import TicketLogisticsSummary from './TicketLogisticsSummary';
 import { useTickets } from '@/context/TicketContext';
 import { exportToPdf, exportToXlsx } from '@/services/exportService';
-import { sendTicketHistory, getTicketById, getTicketMessages } from '@/services/ticketService';
+import {
+  sendTicketHistory,
+  getTicketById,
+  getTicketMessages,
+  isTicketHistoryDeliveryErrorResult,
+  formatTicketHistoryDeliveryErrorMessage,
+  normalizeTicketHistoryDeliveryError,
+} from '@/services/ticketService';
 import { Ticket, Message, TicketHistoryEvent, Attachment } from '@/types/tickets';
 import {
   DropdownMenu,
@@ -40,6 +47,7 @@ import { getSpecializedContact, SpecializedContact } from '@/utils/contacts';
 import { deriveAttachmentInfo } from '@/utils/attachment';
 import { formatTicketStatusLabel, normalizeTicketStatus } from '@/utils/ticketStatus';
 import { pickFirstCoordinate } from '@/utils/location';
+import { ApiError } from '@/utils/api';
 
 const sanitizeMediaUrl = (value?: string | null): string | undefined => {
   if (typeof value !== 'string') {
@@ -445,13 +453,35 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
     setIsSendingEmail(true);
     toast.info('Enviando historial por correo...');
     try {
-        await sendTicketHistory(ticket, {
+        const result = await sendTicketHistory(ticket, {
           reason: 'manual',
           actor: 'agent',
         });
-        toast.success('Historial enviado por correo con éxito.');
+        if (result.status === 'sent') {
+          toast.success('Historial enviado por correo con éxito.');
+        } else if (isTicketHistoryDeliveryErrorResult(result)) {
+          toast.warning(
+            formatTicketHistoryDeliveryErrorMessage(
+              result,
+              'No se pudo enviar el historial por correo. Se registró un error de entrega.',
+            ),
+          );
+          console.warn('Ticket history email delivery error:', result);
+        }
     } catch (error) {
-        toast.error('Error al enviar el historial por correo.');
+        if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+          toast.error('No tienes permisos para enviar el historial en este momento.');
+          console.error('Error sending ticket history:', error);
+          return;
+        }
+
+        const deliveryError = normalizeTicketHistoryDeliveryError(error);
+        toast.warning(
+          formatTicketHistoryDeliveryErrorMessage(
+            deliveryError,
+            'El historial no pudo enviarse por correo por un problema con el servidor de email.',
+          ),
+        );
         console.error('Error sending ticket history:', error);
     } finally {
         setIsSendingEmail(false);
@@ -465,9 +495,21 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
         estado: normalizedCurrentStatus,
         actor: 'agent',
         notifyChannels: ['email', 'sms'],
-      }).catch((err) =>
-        console.error('Error sending completion email:', err),
-      );
+      })
+        .then((result) => {
+          if (isTicketHistoryDeliveryErrorResult(result)) {
+            toast.warning(
+              formatTicketHistoryDeliveryErrorMessage(
+                result,
+                'El ticket se completó, pero no se pudo enviar el correo automático al ciudadano.',
+              ),
+            );
+            console.warn('Completion email delivery failed:', result);
+          }
+        })
+        .catch((err) =>
+          console.error('Error sending completion email:', err),
+        );
       setCompletionSent(true);
     }
   }, [normalizedCurrentStatus, completionSent, ticket]);

@@ -17,6 +17,9 @@ import {
   requestTicketHistoryEmail,
   sendMessage,
   updateTicketStatus,
+  type TicketHistoryDeliveryResult,
+  isTicketHistoryDeliveryErrorResult,
+  formatTicketHistoryDeliveryErrorMessage,
 } from '@/services/ticketService';
 import { toast } from 'sonner';
 import { useUser } from '@/hooks/useUser';
@@ -459,9 +462,16 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
           reason: 'message_update',
           actor: 'agent',
         },
-      }).catch((error) => {
-        console.error('Error triggering ticket update email after message:', error);
-      });
+      })
+        .then((result) => {
+          notifyDeliveryIssue(
+            result,
+            'El mensaje fue enviado, pero el correo automático de seguimiento falló.',
+          );
+        })
+        .catch((error) => {
+          console.error('Error triggering ticket update email after message:', error);
+        });
       // Message will be updated via Pusher with the real ID
     } catch (error) {
       toast.error("No se pudo enviar el mensaje.");
@@ -485,6 +495,17 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
     );
   }
 
+  const notifyDeliveryIssue = useCallback(
+    (result: TicketHistoryDeliveryResult, contextMessage: string) => {
+      if (isTicketHistoryDeliveryErrorResult(result)) {
+        toast.warning(
+          formatTicketHistoryDeliveryErrorMessage(result, contextMessage),
+        );
+      }
+    },
+    [],
+  );
+
   const handleSelectPredefinedMessage = (predefinedMessage: string) => {
     setMessage(prev => prev ? `${prev}\n${predefinedMessage}` : predefinedMessage);
   };
@@ -504,9 +525,16 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({
           actor: 'agent',
           notifyChannels: ['email', 'sms'],
         },
-      }).catch((error) => {
-        console.error('Error triggering ticket update email after status change:', error);
-      });
+      })
+        .then((result) => {
+          notifyDeliveryIssue(
+            result,
+            'El estado se actualizó, pero el aviso por correo no se pudo entregar.',
+          );
+        })
+        .catch((error) => {
+          console.error('Error triggering ticket update email after status change:', error);
+        });
     } catch (error) {
       console.error('Error updating ticket status:', error);
       toast.error('No se pudo actualizar el estado.');
