@@ -14,6 +14,7 @@ export interface ProductDetails {
   nombre: string;
   descripcion?: string | null;
   precio_unitario: number;
+  precio_puntos?: number | null;
   precio_anterior?: number | null;
   imagen_url?: string | null;
   presentacion?: string | null;
@@ -29,6 +30,8 @@ export interface ProductDetails {
   promocion_activa?: string | null;
   precio_mayorista?: number | null;
   cantidad_minima_mayorista?: number | null;
+  modalidad?: 'venta' | 'puntos' | 'donacion' | string | null;
+  instrucciones_entrega?: string | null;
 }
 
 export interface AddToCartOptions {
@@ -48,6 +51,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
     nombre,
     descripcion,
     precio_unitario,
+    precio_puntos,
     precio_anterior,
     imagen_url,
     presentacion,
@@ -61,7 +65,18 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
     promocion_activa,
     precio_mayorista,
     cantidad_minima_mayorista,
+    modalidad: modalidadRaw,
   } = product;
+
+  const modalidad = typeof modalidadRaw === 'string' ? modalidadRaw.toLowerCase() : 'venta';
+  const isDonation = modalidad === 'donacion';
+  const isPoints = modalidad === 'puntos';
+  const modalityBadgeLabel = isDonation ? 'Donación' : isPoints ? 'Canje' : 'Venta';
+  const pointsValue = isPoints
+    ? Number.isFinite(Number(precio_puntos)) && precio_puntos !== null
+      ? Number(precio_puntos)
+      : Math.max(Math.round(precio_unitario || 0), 0)
+    : null;
 
   const hasStock = typeof stock_disponible === 'number' && stock_disponible > 0;
   const stockText = typeof stock_disponible === 'number'
@@ -128,6 +143,9 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
             {badge}
           </Badge>
         )}
+        <Badge variant={isDonation ? 'success' : isPoints ? 'outline' : 'secondary'} className="absolute top-2 left-2">
+          {modalityBadgeLabel}
+        </Badge>
         <AnimatePresence>
           {addedFeedback && (
             <motion.div
@@ -181,37 +199,49 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
         )}
 
         <div className="mt-3">
-          <p className="text-xl font-bold text-primary">
-            {formatCurrency(precio_unitario)}
-          </p>
-          {precio_anterior && precio_anterior > precio_unitario && (
-            <span className="text-xs text-muted-foreground line-through">
-              {formatCurrency(precio_anterior)}
-            </span>
+          {isDonation ? (
+            <p className="text-lg font-semibold text-green-700">Donación</p>
+          ) : isPoints ? (
+            <p className="text-xl font-bold text-primary">{pointsValue ?? 0} pts</p>
+          ) : (
+            <>
+              <p className="text-xl font-bold text-primary">
+                {formatCurrency(precio_unitario)}
+              </p>
+              {precio_anterior && precio_anterior > precio_unitario && (
+                <span className="text-xs text-muted-foreground line-through">
+                  {formatCurrency(precio_anterior)}
+                </span>
+              )}
+            </>
           )}
         </div>
       </CardContent>
 
       <CardFooter className="p-4 flex flex-col gap-3 border-t">
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant={mode === 'unit' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setMode('unit')}
-            disabled={!precio_unitario}
-          >
-            {formatCurrency(precio_unitario)} c/u
-          </Button>
-          {precio_por_caja && unidades_por_caja && (
+        {!isDonation && (
+          <div className="flex flex-wrap gap-2">
             <Button
-              variant={mode === 'case' ? 'default' : 'outline'}
+              variant={mode === 'unit' ? 'default' : 'outline'}
               size="sm"
-              onClick={() => setMode('case')}
+              onClick={() => setMode('unit')}
+              disabled={!precio_unitario && !isPoints}
             >
-              {formatCurrency(precio_por_caja)} caja
+              {isPoints ? `${pointsValue ?? 0} pts` : `${formatCurrency(precio_unitario)} c/u`}
             </Button>
-          )}
-        </div>
+            {precio_por_caja && unidades_por_caja && (
+              <Button
+                variant={mode === 'case' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setMode('case')}
+              >
+                {isPoints && pointsValue
+                  ? `${pointsValue * (unidades_por_caja || 1)} pts caja`
+                  : `${formatCurrency(precio_por_caja)} caja`}
+              </Button>
+            )}
+          </div>
+        )}
 
         <div className="flex items-center gap-2">
           <Input
@@ -238,7 +268,13 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
             animate={addedFeedback ? { scale: [1, 1.05, 1], transition: { duration: 0.3 } } : undefined}
           >
             <ShoppingCart className="mr-2 h-4 w-4" />
-            {mode === 'case' ? 'Agregar cajas' : 'Agregar'}
+            {isDonation
+              ? 'Donar este ítem'
+              : isPoints
+                ? `Canjear${pointsValue ? ` (${pointsValue} pts)` : ''}`
+                : mode === 'case'
+                  ? 'Agregar cajas'
+                  : 'Agregar'}
           </MotionButton>
         </div>
       </CardFooter>

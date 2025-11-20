@@ -12,12 +12,13 @@ import { useLocation } from 'react-router-dom';
 
 import {
   followTenant as followTenantRequest,
-  getTenantPublicInfo,
+  getTenantPublicInfoFlexible,
   listFollowedTenants,
   unfollowTenant as unfollowTenantRequest,
 } from '@/api/tenant';
 import type { TenantPublicInfo, TenantSummary } from '@/types/tenant';
 import { getErrorMessage } from '@/utils/api';
+import { ensureRemoteAnonId } from '@/utils/anonId';
 
 interface TenantContextValue {
   currentSlug: string | null;
@@ -25,6 +26,7 @@ interface TenantContextValue {
   isLoadingTenant: boolean;
   tenantError: string | null;
   refreshTenant: () => Promise<void>;
+  widgetToken: string | null;
   followedTenants: TenantSummary[];
   isLoadingFollowedTenants: boolean;
   followedTenantsError: string | null;
@@ -62,10 +64,67 @@ const extractSlugFromLocation = (pathname: string, search: string): string | nul
   return null;
 };
 
+const readTenantFromScripts = (): { slug: string | null; widgetToken: string | null } => {
+  if (typeof document === 'undefined') return { slug: null, widgetToken: null };
+
+  const scripts = Array.from(document.querySelectorAll('script'));
+  for (const script of scripts) {
+    const dataset = (script as HTMLScriptElement).dataset;
+    if (!dataset) continue;
+
+    const slug = dataset.tenant?.trim() || dataset.tenantSlug?.trim() || null;
+    const widgetToken =
+      dataset.widgetToken?.trim() ||
+      dataset.widget_token?.trim() ||
+      dataset.ownerToken?.trim() ||
+      null;
+
+    if (slug || widgetToken) {
+      return { slug: slug ?? null, widgetToken };
+    }
+  }
+
+  return { slug: null, widgetToken: null };
+};
+
+const readTenantFromSubdomain = (): string | null => {
+  if (typeof window === 'undefined') return null;
+  const host = window.location.hostname;
+  if (!host || host === 'localhost') return null;
+
+  const segments = host.split('.');
+  if (segments.length < 2) return null;
+
+  const candidate = segments[0];
+  if (!candidate || ['www', 'app', 'panel'].includes(candidate.toLowerCase())) return null;
+  return candidate;
+};
+
+const resolveTenantBootstrap = (
+  pathname: string,
+  search: string,
+): { slug: string | null; widgetToken: string | null } => {
+  const slugFromUrl = extractSlugFromLocation(pathname, search);
+  const params = new URLSearchParams(search);
+  const widgetTokenFromQuery = params.get('widget_token');
+
+  if (slugFromUrl || widgetTokenFromQuery) {
+    return { slug: slugFromUrl, widgetToken: widgetTokenFromQuery };
+  }
+
+  const fromScripts = readTenantFromScripts();
+  if (fromScripts.slug || fromScripts.widgetToken) {
+    return fromScripts;
+  }
+
+  return { slug: readTenantFromSubdomain(), widgetToken: null };
+};
+
 export const TenantProvider = ({ children }: { children: ReactNode }) => {
   const location = useLocation();
   const [tenant, setTenant] = useState<TenantPublicInfo | null>(null);
   const [currentSlug, setCurrentSlug] = useState<string | null>(null);
+  const [widgetToken, setWidgetToken] = useState<string | null>(null);
   const [isLoadingTenant, setIsLoadingTenant] = useState(false);
   const [tenantError, setTenantError] = useState<string | null>(null);
   const [followedTenants, setFollowedTenants] = useState<TenantSummary[]>([]);
@@ -74,13 +133,13 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
   const activeTenantRequest = useRef(0);
   const currentSlugRef = useRef<string | null>(null);
 
-  const fetchTenant = useCallback(async (slug: string) => {
+  const fetchTenant = useCallback(async (slug: string | null, token: string | null) => {
     const requestId = ++activeTenantRequest.current;
     setIsLoadingTenant(true);
     setTenantError(null);
 
     try {
-      const info = await getTenantPublicInfo(slug);
+      const info = await getTenantPublicInfoFlexible(slug, token);
       if (activeTenantRequest.current === requestId) {
         setTenant(info);
       }
@@ -98,11 +157,12 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   useEffect(() => {
-    const slug = extractSlugFromLocation(location.pathname, location.search);
+    const { slug, widgetToken: token } = resolveTenantBootstrap(location.pathname, location.search);
     currentSlugRef.current = slug;
     setCurrentSlug(slug);
+    setWidgetToken(token ?? null);
 
-    if (!slug) {
+    if (!slug && !token) {
       activeTenantRequest.current += 1;
       setTenant(null);
       setTenantError(null);
@@ -110,19 +170,42 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    fetchTenant(slug).catch((error) => {
+    fetchTenant(slug, token ?? null).catch((error) => {
       console.warn('[TenantContext] No se pudo cargar la información pública del tenant', error);
     });
   }, [fetchTenant, location.pathname, location.search]);
 
   const refreshTenant = useCallback(async () => {
-    if (!currentSlugRef.current) return;
+    if (!currentSlugRef.current && !widgetToken) return;
     try {
-      await fetchTenant(currentSlugRef.current);
+      await fetchTenant(currentSlugRef.current, widgetToken);
     } catch {
       // el estado ya quedó manejado por fetchTenant
     }
-  }, [fetchTenant]);
+  }, [fetchTenant, widgetToken]);
+
+  useEffect(() => {
+    ensureRemoteAnonId({ tenantSlug: currentSlugRef.current, widgetToken }).catch((error) => {
+      console.warn('[TenantContext] No se pudo asegurar anon_id remoto', error);
+    });
+  }, [widgetToken]);
+
+  useEffect(() => {
+    if (!tenant?.tema || typeof document === 'undefined') return;
+
+    const theme = tenant.tema as Record<string, unknown>;
+    const root = document.documentElement;
+    const colorEntries = Object.entries(theme)
+      .filter(([key, value]) => typeof value === 'string' && key.toLowerCase().includes('color')) as [string, string][];
+
+    colorEntries.forEach(([key, value]) => {
+      root.style.setProperty(`--${key}`, value);
+    });
+
+    return () => {
+      colorEntries.forEach(([key]) => root.style.removeProperty(`--${key}`));
+    };
+  }, [tenant?.tema]);
 
   const refreshFollowedTenants = useCallback(async () => {
     setIsLoadingFollowedTenants(true);
@@ -173,6 +256,7 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
     isLoadingTenant,
     tenantError,
     refreshTenant,
+    widgetToken,
     followedTenants,
     isLoadingFollowedTenants,
     followedTenantsError,
@@ -186,6 +270,7 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
     isLoadingTenant,
     tenantError,
     refreshTenant,
+    widgetToken,
     followedTenants,
     isLoadingFollowedTenants,
     followedTenantsError,

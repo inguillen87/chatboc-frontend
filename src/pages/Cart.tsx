@@ -20,6 +20,8 @@ import {
 import { getLocalCartProducts, setLocalCartItemQuantity, setLocalCartSnapshot } from '@/utils/localCart';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { getDemoLoyaltySummary } from '@/utils/demoLoyalty';
+import usePointsBalance from '@/hooks/usePointsBalance';
+import UploadOrderFromFile from '@/components/cart/UploadOrderFromFile';
 
 // Interfaz para el producto en el carrito, extendiendo ProductDetails y añadiendo cantidad
 interface CartItem extends ProductDetails {
@@ -36,6 +38,7 @@ export default function CartPage() {
   const [loyaltySummary] = useState(() => getDemoLoyaltySummary());
   const navigate = useNavigate();
   const { currentSlug } = useTenant();
+  const { points: pointsBalance, isLoading: isLoadingPoints } = usePointsBalance();
 
   const tenantQuerySuffix = currentSlug ? `?tenant=${encodeURIComponent(currentSlug)}` : '';
 
@@ -176,6 +179,9 @@ export default function CartPage() {
   };
 
   const calculateItemSubtotal = (item: CartItem) => {
+    if (item.modalidad === 'puntos' || item.modalidad === 'donacion') {
+      return 0;
+    }
     if (item.unidades_por_caja && item.unidades_por_caja > 0 && item.precio_por_caja) {
       const cajas = Math.floor(item.cantidad / item.unidades_por_caja);
       const sobrantes = item.cantidad % item.unidades_por_caja;
@@ -188,13 +194,21 @@ export default function CartPage() {
     return cartItems.reduce((sum, item) => sum + calculateItemSubtotal(item), 0);
   }, [cartItems]);
 
-  const pointsAfterSubtotal = useMemo(() => {
-    return Math.max(loyaltySummary.points - subtotal, 0);
-  }, [loyaltySummary.points, subtotal]);
+  const pointsTotal = useMemo(() => {
+    return cartItems.reduce((sum, item) => {
+      if (item.modalidad === 'puntos') {
+        const unitPoints = item.precio_puntos ?? item.precio_unitario ?? 0;
+        return sum + unitPoints * item.cantidad;
+      }
+      return sum;
+    }, 0);
+  }, [cartItems]);
 
-  const pointsUsed = useMemo(() => {
-    return Math.min(loyaltySummary.points, subtotal);
-  }, [loyaltySummary.points, subtotal]);
+  const donationCount = useMemo(() => cartItems.filter((item) => item.modalidad === 'donacion').length, [cartItems]);
+
+  const effectivePointsBalance = cartMode === 'local' ? loyaltySummary.points : pointsBalance;
+  const pointsAfterSubtotal = Math.max(effectivePointsBalance - pointsTotal, 0);
+  const hasPointsDeficit = pointsTotal > effectivePointsBalance;
 
   if (loading) {
     return (
@@ -233,21 +247,32 @@ export default function CartPage() {
       )}
 
       <div className="mb-6 rounded-xl border border-primary/20 bg-gradient-to-r from-primary/5 via-primary/10 to-transparent p-4 shadow-sm">
-        <p className="text-sm uppercase tracking-wide text-primary/80 font-semibold mb-2">Puntos disponibles en modo demo</p>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <p className="text-sm uppercase tracking-wide text-primary/80 font-semibold mb-2">Saldo de puntos</p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
           <div>
-            <p className="text-sm text-muted-foreground">Saldo actual</p>
-            <p className="text-xl font-bold text-primary">{numberFormatter.format(loyaltySummary.points)} pts</p>
+            <p className="text-sm text-muted-foreground">Disponible</p>
+            <p className="text-xl font-bold text-primary">
+              {isLoadingPoints ? <Loader2 className="h-4 w-4 animate-spin" /> : `${numberFormatter.format(effectivePointsBalance)} pts`}
+            </p>
           </div>
           <div>
-            <p className="text-sm text-muted-foreground">Participación</p>
-            <p className="text-lg font-semibold">{loyaltySummary.surveysCompleted} encuestas / sondeos</p>
+            <p className="text-sm text-muted-foreground">Puntos a usar en este carrito</p>
+            <p className="text-lg font-semibold">{numberFormatter.format(pointsTotal)} pts</p>
           </div>
           <div>
-            <p className="text-sm text-muted-foreground">Ideas y reclamos</p>
-            <p className="text-lg font-semibold">{loyaltySummary.suggestionsShared + loyaltySummary.claimsFiled} registros</p>
+            <p className="text-sm text-muted-foreground">Saldo estimado luego del canje</p>
+            <p className={`text-lg font-semibold ${hasPointsDeficit ? 'text-destructive' : ''}`}>
+              {numberFormatter.format(pointsAfterSubtotal)} pts
+            </p>
           </div>
         </div>
+        {hasPointsDeficit && (
+          <p className="text-sm text-destructive mt-2">No tienes puntos suficientes para todos los canjes. Ajusta cantidades o participa en más actividades.</p>
+        )}
+      </div>
+
+      <div className="mb-6">
+        <UploadOrderFromFile onCartUpdated={loadCartData} />
       </div>
 
       {cartItems.length === 0 ? (
@@ -372,17 +397,25 @@ export default function CartPage() {
                 {/* Aquí podrían ir descuentos, costos de envío en el futuro */}
                 <Separator />
                 <div className="flex justify-between text-sm text-muted-foreground">
-                  <span>Simulación: canje de puntos</span>
-                  <span>{numberFormatter.format(pointsUsed)} pts</span>
+                  <span>Total en puntos</span>
+                  <span>{numberFormatter.format(pointsTotal)} pts</span>
                 </div>
                 <div className="flex justify-between text-sm text-muted-foreground">
-                  <span>Saldo estimado luego del canje</span>
-                  <span>{numberFormatter.format(pointsAfterSubtotal)} pts</span>
+                  <span>Saldo luego del canje</span>
+                  <span className={hasPointsDeficit ? 'text-destructive font-semibold' : ''}>{numberFormatter.format(pointsAfterSubtotal)} pts</span>
                 </div>
+                {donationCount > 0 && (
+                  <div className="text-sm text-muted-foreground">
+                    Incluye {donationCount} ítem(s) de donación sin costo monetario.
+                  </div>
+                )}
                 <Separator />
                 <div className="flex justify-between text-xl font-bold text-foreground">
-                  <span>Total</span>
-                  <span>{formatCurrency(subtotal)}</span>
+                  <span>Total estimado</span>
+                  <span>
+                    {formatCurrency(subtotal)}
+                    {pointsTotal > 0 ? ` + ${numberFormatter.format(pointsTotal)} pts` : ''}
+                  </span>
                 </div>
               </CardContent>
               <CardFooter className="flex-col gap-3">
@@ -390,6 +423,7 @@ export default function CartPage() {
                   size="lg"
                   className="w-full bg-primary hover:bg-primary/90"
                   onClick={() => navigate(`/checkout-productos${tenantQuerySuffix}`)} // Redirigir a la nueva página de checkout de productos
+                  disabled={hasPointsDeficit}
                 >
                   Continuar Compra
                 </Button>
