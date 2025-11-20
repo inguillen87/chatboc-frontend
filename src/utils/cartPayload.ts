@@ -26,6 +26,91 @@ export const sanitizeProductPricing = (product: ProductDetails): ProductDetails 
   cantidad_minima_mayorista: toNullableNumber(product.cantidad_minima_mayorista),
 });
 
+type DemoPriceRule = {
+  keywords: string[];
+  price: number;
+  previous?: number;
+};
+
+const DEMO_PRICE_RULES: DemoPriceRule[] = [
+  {
+    keywords: ['kit', 'escolar', 'mochila', 'útiles', 'utiles'],
+    price: 1800,
+    previous: 2200,
+  },
+  {
+    keywords: ['árbol', 'arbol', 'nativo', 'forestal', 'plantar'],
+    price: 1200,
+    previous: 1450,
+  },
+  {
+    keywords: ['bono', 'salud', 'hospital', 'turno'],
+    price: 4500,
+    previous: 5200,
+  },
+  {
+    keywords: ['bolson', 'bolsón', 'alimento', 'fruta', 'verdura'],
+    price: 3200,
+    previous: 3650,
+  },
+  {
+    keywords: ['canje', 'reciclaje', 'electrónico', 'electronico', 'residuos'],
+    price: 890,
+    previous: 1090,
+  },
+  {
+    keywords: ['bicicleta', 'movilidad', 'pase diario'],
+    price: 240,
+    previous: 320,
+  },
+  {
+    keywords: ['tour', 'turismo', 'cultural'],
+    price: 2750,
+    previous: 3100,
+  },
+  {
+    keywords: ['donación', 'donacion', 'solidaria', 'alimentos'],
+    price: 4500,
+    previous: 5200,
+  },
+];
+
+const DEMO_PRICE_FALLBACK = { price: 1990, previous: 2190 } as const;
+
+const findDemoPrice = (product: ProductDetails): DemoPriceRule | typeof DEMO_PRICE_FALLBACK => {
+  const haystack = normalizeText(
+    [product.categoria, product.nombre, product.descripcion, product.presentacion]
+      .filter(Boolean)
+      .join(' ')
+  );
+
+  const match = DEMO_PRICE_RULES.find((rule) =>
+    rule.keywords.some((keyword) => haystack.includes(normalizeText(keyword)))
+  );
+
+  return match ?? DEMO_PRICE_FALLBACK;
+};
+
+const applyDemoPricing = (product: ProductDetails): ProductDetails => {
+  const candidate = sanitizeProductPricing(product);
+  const needsPrice = !candidate.precio_unitario || candidate.precio_unitario <= 0;
+
+  const demoPricing = findDemoPrice(candidate);
+
+  const precio_unitario = needsPrice ? demoPricing.price : candidate.precio_unitario;
+  const precio_anterior = candidate.precio_anterior && candidate.precio_anterior > 0
+    ? candidate.precio_anterior
+    : demoPricing.previous && demoPricing.previous > precio_unitario
+      ? demoPricing.previous
+      : undefined;
+
+  return {
+    ...candidate,
+    precio_unitario,
+    precio_anterior,
+  };
+};
+
 type PlaceholderTheme = {
   keywords: string[];
   label: string;
@@ -175,7 +260,7 @@ const normalizeImageUrl = (candidate?: string | null): string | null => {
 };
 
 export const enhanceProductDetails = (product: ProductDetails): ProductDetails => {
-  const sanitized = sanitizeProductPricing(product);
+  const sanitized = applyDemoPricing(product);
   const normalizedImage = normalizeImageUrl(sanitized.imagen_url);
 
   return {
