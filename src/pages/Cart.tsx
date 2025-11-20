@@ -13,11 +13,13 @@ import { useTenant } from '@/context/TenantContext';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import {
   buildProductMap,
+  getProductPlaceholderImage,
   normalizeCartPayload,
   normalizeProductsPayload,
 } from '@/utils/cartPayload';
-import { getLocalCartProducts, setLocalCartItemQuantity } from '@/utils/localCart';
+import { getLocalCartProducts, setLocalCartItemQuantity, setLocalCartSnapshot } from '@/utils/localCart';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { getDemoLoyaltySummary } from '@/utils/demoLoyalty';
 
 // Interfaz para el producto en el carrito, extendiendo ProductDetails y añadiendo cantidad
 interface CartItem extends ProductDetails {
@@ -31,6 +33,7 @@ export default function CartPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [cartMode, setCartMode] = useState<'api' | 'local'>('api');
+  const [loyaltySummary] = useState(() => getDemoLoyaltySummary());
   const navigate = useNavigate();
   const { currentSlug } = useTenant();
 
@@ -52,6 +55,8 @@ export default function CartPage() {
   const refreshLocalCart = useCallback(() => {
     setCartItems(getLocalCartProducts());
   }, []);
+
+  const numberFormatter = useMemo(() => new Intl.NumberFormat('es-AR'), []);
 
   const shouldUseLocalCart = (err: unknown) => {
     return (
@@ -102,6 +107,16 @@ export default function CartPage() {
         .filter((item): item is CartItem => item !== null);
 
       setCartItems(populatedCartItems);
+
+      if (populatedCartItems.length > 0) {
+        setLocalCartSnapshot(populatedCartItems.map((item) => ({ product: item, quantity: item.cantidad })));
+      } else {
+        const localSnapshot = getLocalCartProducts();
+        if (localSnapshot.length > 0) {
+          setCartMode('local');
+          setCartItems(localSnapshot);
+        }
+      }
 
     } catch (err) {
       if (shouldUseLocalCart(err)) {
@@ -173,6 +188,14 @@ export default function CartPage() {
     return cartItems.reduce((sum, item) => sum + calculateItemSubtotal(item), 0);
   }, [cartItems]);
 
+  const pointsAfterSubtotal = useMemo(() => {
+    return Math.max(loyaltySummary.points - subtotal, 0);
+  }, [loyaltySummary.points, subtotal]);
+
+  const pointsUsed = useMemo(() => {
+    return Math.min(loyaltySummary.points, subtotal);
+  }, [loyaltySummary.points, subtotal]);
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] p-4 text-muted-foreground">
@@ -209,6 +232,24 @@ export default function CartPage() {
         </Alert>
       )}
 
+      <div className="mb-6 rounded-xl border border-primary/20 bg-gradient-to-r from-primary/5 via-primary/10 to-transparent p-4 shadow-sm">
+        <p className="text-sm uppercase tracking-wide text-primary/80 font-semibold mb-2">Puntos disponibles en modo demo</p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <p className="text-sm text-muted-foreground">Saldo actual</p>
+            <p className="text-xl font-bold text-primary">{numberFormatter.format(loyaltySummary.points)} pts</p>
+          </div>
+          <div>
+            <p className="text-sm text-muted-foreground">Participación</p>
+            <p className="text-lg font-semibold">{loyaltySummary.surveysCompleted} encuestas / sondeos</p>
+          </div>
+          <div>
+            <p className="text-sm text-muted-foreground">Ideas y reclamos</p>
+            <p className="text-lg font-semibold">{loyaltySummary.suggestionsShared + loyaltySummary.claimsFiled} registros</p>
+          </div>
+        </div>
+      </div>
+
       {cartItems.length === 0 ? (
         <div className="text-center py-12 bg-card border border-border rounded-lg shadow-sm">
           <ShoppingCart className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
@@ -223,18 +264,18 @@ export default function CartPage() {
           <div className="lg:col-span-2 space-y-4">
             {cartItems.map((item) => (
               <Card key={item.id || item.nombre} className="flex flex-col sm:flex-row items-center overflow-hidden shadow-sm border-border">
-                {item.imagen_url && (
-                  <img
-                    src={item.imagen_url}
-                    alt={item.nombre}
-                    className="w-full sm:w-32 h-32 sm:h-full object-cover"
-                  />
-                )}
-                {!item.imagen_url && (
-                   <div className="w-full sm:w-32 h-32 sm:h-full bg-muted flex items-center justify-center">
-                     <ShoppingCart className="w-12 h-12 text-muted-foreground" />
-                   </div>
-                )}
+                <img
+                  src={item.imagen_url || getProductPlaceholderImage(item)}
+                  alt={item.nombre}
+                  loading="lazy"
+                  onError={(event) => {
+                    const fallback = getProductPlaceholderImage(item);
+                    if (event.currentTarget.src !== fallback) {
+                      event.currentTarget.src = fallback;
+                    }
+                  }}
+                  className="w-full sm:w-32 h-32 sm:h-full object-cover"
+                />
                 <CardContent className="p-4 flex-1 flex flex-col sm:flex-row justify-between items-start sm:items-center">
                   <div className="flex-1 mb-4 sm:mb-0">
                     <h3 className="font-semibold text-lg text-foreground">{item.nombre}</h3>
@@ -329,6 +370,15 @@ export default function CartPage() {
                   <span>{formatCurrency(subtotal)}</span>
                 </div>
                 {/* Aquí podrían ir descuentos, costos de envío en el futuro */}
+                <Separator />
+                <div className="flex justify-between text-sm text-muted-foreground">
+                  <span>Simulación: canje de puntos</span>
+                  <span>{numberFormatter.format(pointsUsed)} pts</span>
+                </div>
+                <div className="flex justify-between text-sm text-muted-foreground">
+                  <span>Saldo estimado luego del canje</span>
+                  <span>{numberFormatter.format(pointsAfterSubtotal)} pts</span>
+                </div>
                 <Separator />
                 <div className="flex justify-between text-xl font-bold text-foreground">
                   <span>Total</span>
