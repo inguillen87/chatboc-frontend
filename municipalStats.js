@@ -1,113 +1,100 @@
-const { getTickets } = require('./db');
+import { getTickets } from './db.js';
 
-// Helper to convert MS to hours
-const msToHours = (ms) => (ms / (1000 * 60 * 60));
+const msToHours = (ms) => ms / (1000 * 60 * 60);
 
-function getMunicipalStats(filters = {}) {
-  let tickets = getTickets(); // Assuming getTickets() returns all tickets
-
-  // Apply filters
-  // Note: Ticket structure in db.js is { municipality, category, responseMs }
-  // It does NOT have barrio, tipo, or a creation timestamp for date-based rangos.
-  // Filters for barrio, tipo, and date-based rangos will not be effective with current db.js data.
-
-  if (filters.rubro) {
-    tickets = tickets.filter(t => t.category === filters.rubro);
+function formatAvgLabel({ rubro, rango }) {
+  let label = 'Avg. Response Time (h)';
+  if (rubro) {
+    label += ` for ${rubro}`;
   }
-  if (filters.barrio) {
-    // Assuming a 'barrio' field exists in ticket data, which it currently doesn't
-    // tickets = tickets.filter(t => t.barrio === filters.barrio);
+  if (rango && rango !== 'Todas') {
+    label += rubro ? ` (${rango})` : `  (${rango})`;
   }
-  if (filters.tipo) {
-    // Assuming a 'tipo' field exists in ticket data, which it currently doesn't
-    // tickets = tickets.filter(t => t.tipo === filters.tipo);
+  return label;
+}
+
+function buildTotalLabel({ rubro, rango }) {
+  if (rubro && rango && rango !== 'Todas') return `Tickets de ${rubro} (${rango})`;
+  if (rubro) return `Tickets de ${rubro}`;
+  if (rango && rango !== 'Todas') return `Total Tickets (${rango})`;
+  return 'Total Tickets';
+}
+
+export function getMunicipalStats(filters = {}) {
+  const { rubro, rango } = filters;
+  let tickets = getTickets();
+
+  if (rubro) {
+    tickets = tickets.filter((t) => t.category === rubro);
   }
 
-  // Handle 'rango' filter
-  // For rangos like 'Últimas 24hs', we'd need a ticket creation timestamp.
-  // For simplicity, only handling response time based rangos for now.
-  const now = Date.now();
-  if (filters.rango) {
-    switch (filters.rango) {
+  if (rango && rango !== 'Todas') {
+    switch (rango) {
       case 'Respondido < 4hs':
-        tickets = tickets.filter(t => t.responseMs !== undefined && msToHours(t.responseMs) < 4);
+        tickets = tickets.filter((t) => t.responseMs !== undefined && msToHours(t.responseMs) < 4);
         break;
       case 'Respondido > 24hs':
-        tickets = tickets.filter(t => t.responseMs !== undefined && msToHours(t.responseMs) > 24);
+        tickets = tickets.filter((t) => t.responseMs !== undefined && msToHours(t.responseMs) > 24);
         break;
-      // Cases for 'Últimas 24hs', 'Últimos 7 días', 'Últimos 30 días' would need a ticket.createdAt field
-      // e.g. case 'Últimas 24hs': tickets = tickets.filter(t => t.createdAt > now - (24 * 60 * 60 * 1000)); break;
-      default: // 'Todas' or unhandled time ranges
+      case 'Últimas 24hs':
+        tickets = tickets.filter((t) => t.createdAt && t.createdAt > Date.now() - 24 * 60 * 60 * 1000);
+        break;
+      case 'Últimos 7 días':
+        tickets = tickets.filter((t) => t.createdAt && t.createdAt > Date.now() - 7 * 24 * 60 * 60 * 1000);
+        break;
+      case 'Últimos 30 días':
+        tickets = tickets.filter((t) => t.createdAt && t.createdAt > Date.now() - 30 * 24 * 60 * 60 * 1000);
+        break;
+      default:
         break;
     }
   }
 
-  // If no tickets match filters, return empty stats
-  if (tickets.length === 0) {
-    return { stats: [] };
-  }
+  if (tickets.length === 0) return { stats: [] };
 
-  // --- Generate StatItem[] based on filters and remaining tickets ---
-  // This part needs to be dynamic based on what information is most relevant.
-  // The frontend expects a simple list of {label, value}.
+  const totalMs = tickets.reduce((acc, t) => acc + (t.responseMs ?? 0), 0);
+  const avgHours = Number((totalMs / tickets.length / (1000 * 60 * 60)).toFixed(1));
 
-  const stats = [];
-  let labelPrefix = "Total Tickets";
-  if (filters.rubro) labelPrefix = `Tickets de ${filters.rubro}`;
-  if (filters.rango && filters.rango !== 'Todas') {
-    labelPrefix = `${labelPrefix} (${filters.rango})`;
-  }
+  const stats = [
+    { label: buildTotalLabel({ rubro, rango }), value: tickets.length },
+    { label: formatAvgLabel({ rubro, rango }), value: avgHours },
+  ];
 
-  stats.push({ label: labelPrefix, value: tickets.length });
-
-  // Calculate average response time for the filtered tickets
-  const totalResponseMs = tickets.reduce((acc, t) => acc + (t.responseMs || 0), 0);
-  const ticketsWithResponseTime = tickets.filter(t => t.responseMs !== undefined).length;
-
-  if (ticketsWithResponseTime > 0) {
-    const avgResponseHours = msToHours(totalResponseMs / ticketsWithResponseTime);
-    stats.push({ label: `Avg. Response Time (h) ${filters.rubro ? 'for ' + filters.rubro : ''} ${filters.rango && filters.rango !== 'Todas' ? '('+filters.rango+')' : ''}`.trim(), value: parseFloat(avgResponseHours.toFixed(2)) });
-  }
-
-  // Example: Add count by municipality if no specific rubro is selected
-  if (!filters.rubro && tickets.length > 0) {
-    const byMunicipality = tickets.reduce((acc, t) => {
-      acc[t.municipality] = (acc[t.municipality] || 0) + 1;
+  if (!rubro) {
+    const byMuni = tickets.reduce((acc, ticket) => {
+      const key = ticket.municipality || 'Desconocido';
+      acc[key] = (acc[key] || 0) + 1;
       return acc;
     }, {});
-    for (const mun in byMunicipality) {
-      stats.push({label: `Tickets in ${mun}`, value: byMunicipality[mun]});
+    for (const [muni, count] of Object.entries(byMuni)) {
+      stats.push({ label: `Tickets in ${muni}`, value: count });
     }
   }
 
-  // Example: Add count by category if a specific municipality IS selected (or no municipality filter exists)
-  // and no specific category is selected
-  if (!filters.rubro && tickets.length > 0) { // let's show categories if no specific rubro is filtered
-      const byCategory = tickets.reduce((acc, t) => {
-          if(t.category) {
-            acc[t.category] = (acc[t.category] || 0) + 1;
-          }
-          return acc;
-      }, {});
-      for (const cat in byCategory) {
-          stats.push({label: `Category: ${cat}`, value: byCategory[cat]});
-      }
-  }
+  const byCategory = tickets.reduce((acc, ticket) => {
+    if (ticket.category) {
+      acc[ticket.category] = (acc[ticket.category] || 0) + 1;
+    }
+    return acc;
+  }, {});
 
+  for (const [cat, count] of Object.entries(byCategory)) {
+    const label = rubro && rubro === cat
+      ? `Tickets de ${cat}${rango && rango !== 'Todas' ? ` (${rango})` : ''}`
+      : `Category: ${cat}`;
+    if (!stats.find((s) => s.label === label)) {
+      stats.push({ label, value: count });
+    }
+  }
 
   return { stats };
 }
 
-function getMunicipalStatsFiltersData() {
+export function getMunicipalStatsFiltersData() {
   const tickets = getTickets();
-  const rubros = [...new Set(tickets.map(t => t.category).filter(Boolean))];
-
-  // Placeholder for barrios and tipos as they are not in the current ticket data structure
-  // These should ideally be derived from data or a more robust configuration
-  const barrios = ['Barrio Default 1', 'Barrio Default 2']; // Placeholder
-  const tipos = ['Tipo Default A', 'Tipo Default B']; // Placeholder
-
-  // Static list for rangos for now
+  const rubros = [...new Set(tickets.map((t) => t.category).filter(Boolean))];
+  const barrios = ['Barrio Default 1', 'Barrio Default 2'];
+  const tipos = ['Tipo Default A', 'Tipo Default B'];
   const rangos = [
     'Todas',
     'Últimas 24hs',
@@ -124,5 +111,3 @@ function getMunicipalStatsFiltersData() {
     rangos,
   };
 }
-
-module.exports = { getMunicipalStats, getMunicipalStatsFiltersData };

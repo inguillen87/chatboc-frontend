@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ApiError, NetworkError, apiFetch, getErrorMessage } from '@/utils/api';
 import { Button } from '@/components/ui/button';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import ProductCard, { AddToCartOptions, ProductDetails } from '@/components/product/ProductCard'; // Importar ProductCard y su interfaz
 import { toast } from '@/components/ui/use-toast';
 import { Input } from '@/components/ui/input';
@@ -17,6 +17,10 @@ import useCartCount from '@/hooks/useCartCount';
 import { getDemoLoyaltySummary } from '@/utils/demoLoyalty';
 import usePointsBalance from '@/hooks/usePointsBalance';
 import UploadOrderFromFile from '@/components/cart/UploadOrderFromFile';
+import { useUser } from '@/hooks/useUser';
+import { buildTenantPath } from '@/utils/tenantPaths';
+import GuestContactDialog, { GuestContactValues } from '@/components/cart/GuestContactDialog';
+import { loadGuestContact, saveGuestContact } from '@/utils/guestContact';
 
 export default function ProductCatalog() {
   const [allProducts, setAllProducts] = useState<ProductDetails[]>([]);
@@ -31,10 +35,16 @@ export default function ProductCatalog() {
   const [hasDemoModalities, setHasDemoModalities] = useState(false);
   const [loyaltySummary] = useState(() => getDemoLoyaltySummary());
   const { currentSlug } = useTenant();
+  const { user } = useUser();
+  const navigate = useNavigate();
   const cartCount = useCartCount();
   const { points: pointsBalance } = usePointsBalance();
+  const [showGuestDialog, setShowGuestDialog] = useState(false);
+  const [pendingGuestProduct, setPendingGuestProduct] = useState<ProductDetails | null>(null);
+  const [pendingGuestOptions, setPendingGuestOptions] = useState<AddToCartOptions | null>(null);
 
-  const tenantQuerySuffix = currentSlug ? `?tenant=${encodeURIComponent(currentSlug)}` : '';
+  const catalogPath = buildTenantPath('/productos', currentSlug);
+  const cartPath = buildTenantPath('/cart', currentSlug);
   const numberFormatter = useMemo(() => new Intl.NumberFormat('es-AR'), []);
   const shouldShowDemoLoyalty = catalogSource === 'fallback' || cartMode === 'local';
 
@@ -54,6 +64,22 @@ export default function ProductCatalog() {
       (err instanceof ApiError && [401, 403, 405].includes(err.status)) ||
       err instanceof NetworkError
     );
+  };
+
+  const addProductLocally = (product: ProductDetails, options: AddToCartOptions) => {
+    const unitsPerCase = product.unidades_por_caja && product.unidades_por_caja > 0
+      ? product.unidades_por_caja
+      : 1;
+    const quantity = Math.max(1, Math.floor(options.quantity));
+    const mode = options.mode === 'case' && product.precio_por_caja && product.unidades_por_caja
+      ? 'case'
+      : 'unit';
+    const totalUnits = mode === 'case' ? quantity * unitsPerCase : quantity;
+    addProductToLocalCart(product, totalUnits);
+    toast({
+      title: 'Guardamos tu selección',
+      description: `${product.nombre} se agregó al carrito en modo invitado (${quantity} ${mode === 'case' ? 'cajas' : 'unidades'}).`,
+    });
   };
 
   const activateDemoCatalog = () => {
@@ -114,6 +140,17 @@ export default function ProductCatalog() {
       .finally(() => setLoading(false));
   }, [sharedRequestOptions]);
 
+  const handleGuestContactSubmit = (values: GuestContactValues) => {
+    saveGuestContact(values);
+    setShowGuestDialog(false);
+    if (pendingGuestProduct && pendingGuestOptions) {
+      setCartMode('local');
+      addProductLocally(pendingGuestProduct, pendingGuestOptions);
+    }
+    setPendingGuestProduct(null);
+    setPendingGuestOptions(null);
+  };
+
   useEffect(() => {
     const lowercasedFilter = searchTerm.toLowerCase();
     const normalizedCategory = selectedCategory.trim().toLowerCase();
@@ -155,6 +192,15 @@ export default function ProductCatalog() {
   }, [allProducts]);
 
   const handleAddToCart = async (product: ProductDetails, options: AddToCartOptions) => {
+    const isPointsProduct = (product.modalidad ?? '').toString().toLowerCase() === 'puntos';
+
+    if (isPointsProduct && !user) {
+      setPendingGuestProduct(product);
+      setPendingGuestOptions(options);
+      setShowGuestDialog(true);
+      return;
+    }
+
     try {
       const unitsPerCase = product.unidades_por_caja && product.unidades_por_caja > 0
         ? product.unidades_por_caja
@@ -264,7 +310,7 @@ export default function ProductCatalog() {
         <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
           <h1 className="text-3xl md:text-4xl font-bold text-foreground">Nuestro Catálogo</h1>
           <Button asChild variant="outline" className="w-full sm:w-auto relative">
-            <Link to={`/cart${tenantQuerySuffix}`} className="inline-flex items-center">
+            <Link to={cartPath} className="inline-flex items-center">
               <ShoppingCart className="mr-2 h-4 w-4" />
               Ver Carrito
               {cartCount > 0 && (
@@ -384,6 +430,19 @@ export default function ProductCatalog() {
           )}
         </div>
       )}
+
+      <GuestContactDialog
+        open={showGuestDialog}
+        onClose={() => {
+          setShowGuestDialog(false);
+          setPendingGuestProduct(null);
+          setPendingGuestOptions(null);
+        }}
+        reason="points"
+        defaultValues={loadGuestContact()}
+        onLogin={() => navigate('/login')}
+        onSubmit={handleGuestContactSubmit}
+      />
     </div>
   );
 }
