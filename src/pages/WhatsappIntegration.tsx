@@ -17,6 +17,7 @@ export default function WhatsappIntegration() {
   const [info, setInfo] = useState<WhatsappInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notAvailable, setNotAvailable] = useState(false);
 
   useEffect(() => {
     apiFetch<WhatsappInfo>('/municipal/whatsapp')
@@ -25,8 +26,15 @@ export default function WhatsappIntegration() {
         setLoading(false);
       })
       .catch((err: any) => {
-        const message = err instanceof ApiError ? err.message : 'Error';
-        setError(message);
+        if (err instanceof ApiError && err.status === 404) {
+          setNotAvailable(true);
+          setError(
+            'Aún no hay una integración de WhatsApp configurada para esta entidad. Vuelve más tarde o consulta a tu administrador.',
+          );
+        } else {
+          const message = err instanceof ApiError ? err.message : 'Error';
+          setError(message);
+        }
         setLoading(false);
       });
   }, []);
@@ -38,13 +46,20 @@ export default function WhatsappIntegration() {
         <Skeleton className="h-10 w-40" />
       </div>
     );
+  if (notAvailable || !info)
+    return (
+      <Alert className="max-w-md mx-auto">
+        <AlertDescription>
+          {error || 'Aún no hay información disponible para la integración de WhatsApp.'}
+        </AlertDescription>
+      </Alert>
+    );
   if (error)
     return (
       <Alert variant="destructive" className="max-w-md mx-auto">
         <AlertDescription>{error}</AlertDescription>
       </Alert>
     );
-  if (!info) return <p className="p-4">Sin información</p>;
 
   return (
     <div className="p-4 max-w-md mx-auto space-y-4">
