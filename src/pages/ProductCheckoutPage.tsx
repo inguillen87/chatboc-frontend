@@ -65,7 +65,12 @@ export default function ProductCheckoutPage() {
   const navigate = useNavigate();
   const { user } = useUser(); // Hook para obtener datos del usuario logueado
   const { currentSlug } = useTenant();
-  const { points: pointsBalance, isLoading: isLoadingPoints } = usePointsBalance();
+  const {
+    points: pointsBalance,
+    isLoading: isLoadingPoints,
+    refresh: refreshPointsBalance,
+    adjustOptimistic: adjustPointsBalance,
+  } = usePointsBalance();
 
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isLoadingCart, setIsLoadingCart] = useState(true);
@@ -191,12 +196,25 @@ export default function ProductCheckoutPage() {
     }, 0);
   }, [cartItems]);
 
+  const missingPoints = useMemo(() => Math.max(pointsTotal - pointsBalance, 0), [pointsBalance, pointsTotal]);
+
   const hasDonations = useMemo(() => cartItems.some((item) => item.modalidad === 'donacion'), [cartItems]);
   const requiresAuthForPoints = useMemo(
     () => cartItems.some((item) => item.modalidad === 'puntos') && !user,
     [cartItems, user],
   );
-  const hasPointsDeficit = checkoutMode !== 'local' && pointsTotal > pointsBalance;
+  const hasPointsDeficit = checkoutMode !== 'local' && missingPoints > 0;
+
+  const applyPointsAdjustments = useCallback(async () => {
+    if (pointsTotal <= 0) return;
+
+    adjustPointsBalance(-pointsTotal);
+    try {
+      await refreshPointsBalance();
+    } catch (err) {
+      console.warn('[ProductCheckoutPage] No se pudo refrescar el saldo de puntos después de la operación', err);
+    }
+  }, [adjustPointsBalance, pointsTotal, refreshPointsBalance]);
 
   const onSubmit = async (data: CheckoutFormData) => {
     setIsSubmitting(true);
@@ -236,7 +254,9 @@ export default function ProductCheckoutPage() {
       }
 
       if (hasPointsDeficit) {
-        const warning = 'No tienes puntos suficientes para completar el canje.';
+        const warning = missingPoints
+          ? `Te faltan ${missingPoints} puntos para completar el canje.`
+          : 'No tienes puntos suficientes para completar el canje.';
         setCheckoutError(warning);
         setIsSubmitting(false);
         return;
@@ -247,6 +267,7 @@ export default function ProductCheckoutPage() {
         clearLocalCart();
         setCartItems([]);
         setOrderPlaced(true);
+        await applyPointsAdjustments();
         toast({
           title: 'Simulación registrada',
           description: 'Guardamos tu pedido demo en este navegador.',
@@ -262,6 +283,7 @@ export default function ProductCheckoutPage() {
           body: pedidoData,
         });
         setOrderPlaced(true);
+        await applyPointsAdjustments();
         toast({
           title: 'Pedido confirmado',
           description: hasDonations
@@ -374,7 +396,7 @@ export default function ProductCheckoutPage() {
         <Alert variant="destructive" className="mb-6">
           <AlertTitle>Saldo de puntos insuficiente</AlertTitle>
           <AlertDescription>
-            Necesitas {pointsTotal} pts pero tu saldo actual es {pointsBalance} pts. Reduce los canjes o participa en más actividades para sumar puntos.
+            Necesitas {pointsTotal} pts pero tu saldo actual es {pointsBalance} pts. Te faltan {missingPoints} pts para confirmar este pedido.
           </AlertDescription>
         </Alert>
       )}
