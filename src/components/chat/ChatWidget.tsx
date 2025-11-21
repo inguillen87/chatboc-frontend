@@ -262,16 +262,9 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   }, [user, entityInfo]);
 
   const openCart = useCallback(() => {
-    const hasSession = Boolean(
-      safeLocalStorage.getItem('authToken') ||
-      safeLocalStorage.getItem('chatAuthToken') ||
-      user
-    );
-
     const tenantSuffix = tenantSlugFromEntity ? `?tenant=${encodeURIComponent(tenantSlugFromEntity)}` : '';
-    const targetBase = hasSession ? '/cart' : '/productos';
-    window.open(`${targetBase}${tenantSuffix}`, '_blank', 'noopener,noreferrer');
-  }, [tenantSlugFromEntity, user]);
+    window.open(`/cart${tenantSuffix}`, '_blank', 'noopener,noreferrer');
+  }, [tenantSlugFromEntity]);
 
   const toggleMuted = useCallback(() => {
     setMuted((m) => {
