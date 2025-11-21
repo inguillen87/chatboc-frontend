@@ -60,26 +60,36 @@ const normalizeSurveyBaseUrl = (value?: string): string => {
 const RESOLVED_BACKEND_URL = normalizeBackendUrl(VITE_BACKEND_URL);
 
 const inferSameOriginProxy = (): string | null => {
-  if (typeof window === 'undefined' || !RESOLVED_BACKEND_URL) {
+  if (typeof window === 'undefined') {
     return null;
   }
 
   try {
-    const backendUrl = new URL(RESOLVED_BACKEND_URL);
     const currentUrl = new URL(window.location.href);
 
-    const normalizeHost = (host: string) => host.split('.').slice(-2).join('.');
-    const backendApex = normalizeHost(backendUrl.hostname);
-    const currentApex = normalizeHost(currentUrl.hostname);
-
-    const isApiSubdomain = backendUrl.hostname.startsWith('api.');
-    const sharesApexDomain = backendApex === currentApex;
-
-    // When the backend lives on an api.<domain> host matching the current apex
-    // (e.g., api.chatboc.ar from www.chatboc.ar), prefer the same-origin /api
-    // proxy to avoid CORS issues in the widget.
-    if (isApiSubdomain && sharesApexDomain) {
+    // If the frontend is served from the chatboc.ar domain family, always
+    // prefer the same-origin /api proxy to avoid CORS preflight issues when
+    // the backend sits on a different host.
+    if (currentUrl.hostname.endsWith('chatboc.ar')) {
       return '/api';
+    }
+
+    if (RESOLVED_BACKEND_URL) {
+      const backendUrl = new URL(RESOLVED_BACKEND_URL);
+
+      const normalizeHost = (host: string) => host.split('.').slice(-2).join('.');
+      const backendApex = normalizeHost(backendUrl.hostname);
+      const currentApex = normalizeHost(currentUrl.hostname);
+
+      const isApiSubdomain = backendUrl.hostname.startsWith('api.');
+      const sharesApexDomain = backendApex === currentApex;
+
+      // When the backend lives on an api.<domain> host matching the current apex
+      // (e.g., api.chatboc.ar from www.chatboc.ar), prefer the same-origin /api
+      // proxy to avoid CORS issues in the widget.
+      if (isApiSubdomain && sharesApexDomain) {
+        return '/api';
+      }
     }
   } catch (error) {
     console.warn('[config] Unable to infer same-origin proxy for backend URL', error);
