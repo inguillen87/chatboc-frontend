@@ -60,26 +60,36 @@ const normalizeSurveyBaseUrl = (value?: string): string => {
 const RESOLVED_BACKEND_URL = normalizeBackendUrl(VITE_BACKEND_URL);
 
 const inferSameOriginProxy = (): string | null => {
-  if (typeof window === 'undefined' || !RESOLVED_BACKEND_URL) {
+  if (typeof window === 'undefined') {
     return null;
   }
 
   try {
-    const backendUrl = new URL(RESOLVED_BACKEND_URL);
     const currentUrl = new URL(window.location.href);
 
-    const normalizeHost = (host: string) => host.split('.').slice(-2).join('.');
-    const backendApex = normalizeHost(backendUrl.hostname);
-    const currentApex = normalizeHost(currentUrl.hostname);
-
-    const isApiSubdomain = backendUrl.hostname.startsWith('api.');
-    const sharesApexDomain = backendApex === currentApex;
-
-    // When the backend lives on an api.<domain> host matching the current apex
-    // (e.g., api.chatboc.ar from www.chatboc.ar), prefer the same-origin /api
-    // proxy to avoid CORS issues in the widget.
-    if (isApiSubdomain && sharesApexDomain) {
+    // If the frontend is served from the chatboc.ar domain family, always
+    // prefer the same-origin /api proxy to avoid CORS preflight issues when
+    // the backend sits on a different host.
+    if (currentUrl.hostname.endsWith('chatboc.ar')) {
       return '/api';
+    }
+
+    if (RESOLVED_BACKEND_URL) {
+      const backendUrl = new URL(RESOLVED_BACKEND_URL);
+
+      const normalizeHost = (host: string) => host.split('.').slice(-2).join('.');
+      const backendApex = normalizeHost(backendUrl.hostname);
+      const currentApex = normalizeHost(currentUrl.hostname);
+
+      const isApiSubdomain = backendUrl.hostname.startsWith('api.');
+      const sharesApexDomain = backendApex === currentApex;
+
+      // When the backend lives on an api.<domain> host matching the current apex
+      // (e.g., api.chatboc.ar from www.chatboc.ar), prefer the same-origin /api
+      // proxy to avoid CORS issues in the widget.
+      if (isApiSubdomain && sharesApexDomain) {
+        return '/api';
+      }
     }
   } catch (error) {
     console.warn('[config] Unable to infer same-origin proxy for backend URL', error);
@@ -113,16 +123,16 @@ const FALLBACK_BACKEND_URL = sanitizeBaseUrl(inferBackendUrlFromOrigin());
 
 const preferSameOriginProxy = inferSameOriginProxy();
 
-// Prefer the relative /api proxy before falling back to absolute origins. This ensures
-// that when the widget is served from the same host that proxies to the backend
-// (e.g., www.chatboc.ar -> /api -> api.chatboc.ar), we avoid CORS and missing-path
-// errors such as /puntos/saldo resolving to the public host instead of the proxy.
-const fallbackRelativeProxy = typeof window !== 'undefined' ? '/api' : '';
+// When using a same-origin proxy (e.g., serving the widget from www.chatboc.ar which
+// proxies /api to api.chatboc.ar), avoid hardcoding the "/api" prefix as BASE_API_URL
+// because request paths already include it ("/api/..."). Using an empty base keeps
+// URLs relative without introducing "/api/api/..." errors. Otherwise, fall back to the
+// explicitly configured backend URL or the current origin.
+const resolvedPreferredBase = preferSameOriginProxy === '/api' ? '' : preferSameOriginProxy;
 
 export const BASE_API_URL = sanitizeBaseUrl(
-  preferSameOriginProxy ||
+  resolvedPreferredBase ||
     RESOLVED_BACKEND_URL ||
-    fallbackRelativeProxy ||
     FALLBACK_BACKEND_URL ||
     (typeof window !== 'undefined' ? window.location.origin : '')
 );
