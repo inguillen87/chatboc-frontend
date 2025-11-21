@@ -37,7 +37,7 @@ export const usePointsBalance = (): PointsBalance => {
     setError(null);
 
     try {
-      const response = await apiFetch<{ saldo?: number; points?: number; balance?: number }>('/puntos/saldo', {
+      const response = await apiFetch<{ saldo?: number; points?: number; balance?: number }>('/api/puntos/saldo', {
         method: 'GET',
         sendAnonId: true,
         suppressPanel401Redirect: true,
