@@ -113,10 +113,19 @@ const FALLBACK_BACKEND_URL = sanitizeBaseUrl(inferBackendUrlFromOrigin());
 
 const preferSameOriginProxy = inferSameOriginProxy();
 
-export const BASE_API_URL =
+// Prefer the relative /api proxy before falling back to absolute origins. This ensures
+// that when the widget is served from the same host that proxies to the backend
+// (e.g., www.chatboc.ar -> /api -> api.chatboc.ar), we avoid CORS and missing-path
+// errors such as /puntos/saldo resolving to the public host instead of the proxy.
+const fallbackRelativeProxy = typeof window !== 'undefined' ? '/api' : '';
+
+export const BASE_API_URL = sanitizeBaseUrl(
   preferSameOriginProxy ||
-  RESOLVED_BACKEND_URL ||
-  (IS_DEV ? '/api' : FALLBACK_BACKEND_URL || window.location.origin);
+    RESOLVED_BACKEND_URL ||
+    fallbackRelativeProxy ||
+    FALLBACK_BACKEND_URL ||
+    (typeof window !== 'undefined' ? window.location.origin : '')
+);
 
 /**
  * Derives the WebSocket URL from the current environment.
