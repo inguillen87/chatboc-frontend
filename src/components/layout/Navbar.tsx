@@ -16,6 +16,7 @@ import {
   Users,
   ShoppingCart,
   Tag,
+  ScrollText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -67,6 +68,8 @@ const Navbar: React.FC = () => {
       label: isMunicipal ? "Estadísticas" : "Analytics",
       icon: BarChart3,
     });
+
+    links.push({ to: "/logs", label: "Logs", icon: ScrollText });
 
     return links;
   }, [analyticsPath, isAdminLike, isMunicipal]);

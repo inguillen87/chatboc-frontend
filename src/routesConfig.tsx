@@ -40,6 +40,7 @@ import BusinessMetrics from '@/pages/BusinessMetrics';
 import CrmIntegrations from '@/pages/CrmIntegrations';
 import PredefinedQueries from '@/pages/PredefinedQueries';
 import PermissionDenied from '@/pages/PermissionDenied';
+import LogWorkbench from '@/pages/LogWorkbench';
 import CartPage from '@/pages/Cart';
 import ProductCheckoutPage from '@/pages/ProductCheckoutPage';
 import OrderConfirmationPage from '@/pages/OrderConfirmation';
@@ -126,6 +127,7 @@ const routes: RouteConfig[] = [
   { path: '/historial', element: <CustomerHistory /> },
   { path: '/presupuestos', element: <BudgetRequest /> },
   { path: '/recordatorios', element: <Reminders /> },
+  { path: '/logs', element: <LogWorkbench />, roles: ['admin', 'empleado', 'super_admin'] },
   { path: '/pyme/metrics', element: <BusinessMetrics /> },
   { path: '/crm/integrations', element: <CrmIntegrations /> },
   { path: '/consultas', element: <PredefinedQueries /> },
