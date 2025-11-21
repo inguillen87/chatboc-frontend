@@ -55,59 +55,16 @@ const normalizeSurveyBaseUrl = (value?: string): string => {
   }
 };
 
-const CANONICAL_FRONTEND_HOSTS = ['chatboc.ar', 'www.chatboc.ar'];
-
-const shouldUseSameOriginProxy = (backendUrl: string): boolean => {
-  if (typeof window === 'undefined') return false;
-
-  try {
-    const url = new URL(backendUrl);
-    return (
-      url.hostname.includes('chatbot-backend') &&
-      CANONICAL_FRONTEND_HOSTS.includes(window.location.hostname)
-    );
-  } catch (error) {
-    console.warn('Invalid VITE_BACKEND_URL provided, using same-origin proxy instead.', error);
-    return false;
-  }
-};
-
-const CANONICAL_BACKEND_ORIGIN = 'https://api.chatboc.ar';
-
-const resolveBackendUrl = (): string => {
-  const sanitized = sanitizeBaseUrl(VITE_BACKEND_URL);
-
-  if (sanitized) {
-    if (shouldUseSameOriginProxy(sanitized)) {
-      return '';
-    }
-    return sanitized;
-  }
-
-  if (typeof window !== 'undefined') {
-    const hostname = window.location.hostname.toLowerCase();
-    if (CANONICAL_FRONTEND_HOSTS.includes(hostname)) {
-      return CANONICAL_BACKEND_ORIGIN;
-    }
-  }
-
-  return '';
-};
-
-const RESOLVED_BACKEND_URL = resolveBackendUrl();
+const RESOLVED_BACKEND_URL = sanitizeBaseUrl(VITE_BACKEND_URL);
 
 /**
  * The base URL for all HTTP API requests.
  * In development, with a proxy, this will be an empty string,
  * resulting in relative paths (e.g., /api/login).
- * In production, it will be the full backend URL, unless we intentionally
- * fallback to the same-origin proxy for canonical chatboc hosts.
+ * In production, it will be the full backend URL when provided, otherwise
+ * it falls back to the current origin.
  */
-export const BASE_API_URL = RESOLVED_BACKEND_URL
-  ? RESOLVED_BACKEND_URL
-  : IS_DEV
-    ? '/api'
-    : window.location.origin;
+export const BASE_API_URL = RESOLVED_BACKEND_URL || (IS_DEV ? '/api' : window.location.origin);
 
 /**
  * Derives the WebSocket URL from the current environment.
