@@ -16,6 +16,9 @@ interface InternalUser {
   rol?: string | null;
   atendidos?: number | null;
   categoria_id?: number | null;
+  categoria_ids?: number[] | null;
+  categorias?: Category[] | null;
+  abiertos?: number | null;
 }
 
 interface Category {
@@ -34,13 +37,15 @@ export default function InternalUsers() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rol, setRol] = useState('empleado');
-  const [categoriaId, setCategoriaId] = useState<number | ''>('');
+  const [categoriaIds, setCategoriaIds] = useState<number[]>([]);
+  const [categorySearch, setCategorySearch] = useState('');
   const [editingUser, setEditingUser] = useState<InternalUser | null>(null);
   const [editNombre, setEditNombre] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editPassword, setEditPassword] = useState('');
   const [editRol, setEditRol] = useState('empleado');
-  const [editCategoriaId, setEditCategoriaId] = useState<number | ''>('');
+  const [editCategoriaIds, setEditCategoriaIds] = useState<number[]>([]);
+  const [editCategorySearch, setEditCategorySearch] = useState('');
 
   const entityType = useMemo(() => (user?.tipo_chat === 'pyme' ? 'pyme' : 'municipal'), [user]);
   const usersUrl = useMemo(() => (entityType === 'pyme' ? '/pyme/usuarios' : '/municipal/usuarios'), [entityType]);
@@ -80,29 +85,50 @@ export default function InternalUsers() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nombre.trim() || !email.trim() || !password.trim() || !categoriaId) return;
+    if (!nombre.trim() || !email.trim() || !password.trim()) return;
     if (!isValidEmail(email)) {
       setError('Ingresá un email válido.');
       return;
     }
+    if (categoriaIds.length === 0) {
+      setError('Seleccioná al menos una categoría.');
+      return;
+    }
     setError(null);
     try {
+      const payload: Record<string, any> = {
+        nombre,
+        email,
+        password,
+        rol,
+        categoria_ids: categoriaIds,
+      };
+
+      if (categoriaIds.length === 1) {
+        payload.categoria_id = categoriaIds[0];
+      }
+
       await apiFetch(usersUrl, {
         method: 'POST',
-        body: { nombre, email, password, rol, categoria_id: categoriaId },
+        body: payload,
       });
       await refreshUsers();
       setNombre('');
       setEmail('');
       setPassword('');
       setRol('empleado');
-      setCategoriaId('');
+      setCategoriaIds([]);
+      setCategorySearch('');
     } catch (err: any) {
       setError(getErrorMessage(err, 'Error al crear el usuario'));
     }
   };
 
   const handleDelete = async (id: number) => {
+    const wantsToDelete = window.confirm(
+      '¿Eliminar el empleado? Los tickets abiertos quedarán sin asignar hasta que los reasignes.'
+    );
+    if (!wantsToDelete) return;
     const deleteUrl = `${usersUrl}/${id}`;
     try {
       await apiFetch(deleteUrl, { method: 'DELETE' });
@@ -117,14 +143,19 @@ export default function InternalUsers() {
     setEditNombre(user.nombre || '');
     setEditEmail(user.email || '');
     setEditRol(user.rol || 'empleado');
-    setEditCategoriaId(user.categoria_id ?? '');
+    const userCategoryIds =
+      user.categoria_ids ||
+      user.categorias?.map((c) => c.id) ||
+      (user.categoria_id ? [user.categoria_id] : []);
+    setEditCategoriaIds(userCategoryIds);
     setEditPassword('');
+    setEditCategorySearch('');
   };
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingUser) return;
-    if (!editNombre.trim() || !editEmail.trim() || !editCategoriaId) {
+    if (!editNombre.trim() || !editEmail.trim()) {
       setError('Completa los campos obligatorios.');
       return;
     }
@@ -135,12 +166,21 @@ export default function InternalUsers() {
     }
 
     const updateUrl = `${usersUrl}/${editingUser.id}`;
+    if (editCategoriaIds.length === 0) {
+      setError('Seleccioná al menos una categoría.');
+      return;
+    }
+
     const payload: Record<string, any> = {
       nombre: editNombre.trim(),
       email: editEmail.trim(),
       rol: editRol,
-      categoria_id: editCategoriaId,
+      categoria_ids: editCategoriaIds,
     };
+
+    if (editCategoriaIds.length === 1) {
+      payload.categoria_id = editCategoriaIds[0];
+    }
     if (editPassword.trim()) {
       payload.password = editPassword.trim();
     }
@@ -151,6 +191,7 @@ export default function InternalUsers() {
       await refreshUsers();
       setEditingUser(null);
       setEditPassword('');
+      setEditCategoriaIds([]);
     } catch (err: any) {
       setError(getErrorMessage(err, 'Error al actualizar el usuario'));
     }
@@ -161,9 +202,33 @@ export default function InternalUsers() {
     setEditNombre('');
     setEditEmail('');
     setEditRol('empleado');
-    setEditCategoriaId('');
+    setEditCategoriaIds([]);
     setEditPassword('');
+    setEditCategorySearch('');
   };
+
+  const filteredCategories = useMemo(
+    () =>
+      categories.filter((c) => c.nombre.toLowerCase().includes(categorySearch.trim().toLowerCase())),
+    [categories, categorySearch]
+  );
+
+  const filteredEditCategories = useMemo(
+    () =>
+      categories.filter((c) => c.nombre.toLowerCase().includes(editCategorySearch.trim().toLowerCase())),
+    [categories, editCategorySearch]
+  );
+
+  const toggleCategory = (id: number) => {
+    setCategoriaIds((prev) => (prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]));
+  };
+
+  const toggleEditCategory = (id: number) => {
+    setEditCategoriaIds((prev) => (prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]));
+  };
+
+  const getUserCategoryIds = (user: InternalUser) =>
+    user.categoria_ids || user.categorias?.map((c) => c.id) || (user.categoria_id ? [user.categoria_id] : []);
 
   if (loading) return <p className="p-4">Cargando...</p>;
   if (error) return <p className="p-4 text-destructive">{error}</p>;
@@ -204,19 +269,29 @@ export default function InternalUsers() {
                 <option key="rol-empleado" value="empleado">Empleado</option>
                 <option key="rol-admin" value="admin">Admin</option>
               </select>
-              <select
-                value={categoriaId}
-                onChange={(e) => setCategoriaId(e.target.value ? Number(e.target.value) : '')}
-                required
-                className="w-full border rounded h-10 px-2 bg-input text-foreground"
-              >
-                <option key="cat-empty" value="">Selecciona categoría</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.nombre}
-                  </option>
-                ))}
-              </select>
+              <div className="space-y-1">
+                <Input
+                  placeholder="Buscar categoría"
+                  value={categorySearch}
+                  onChange={(e) => setCategorySearch(e.target.value)}
+                />
+                <div className="max-h-40 overflow-y-auto border rounded-md p-2 space-y-1 bg-background">
+                  {filteredCategories.map((c) => (
+                    <label key={c.id} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={categoriaIds.includes(c.id)}
+                        onChange={() => toggleCategory(c.id)}
+                      />
+                      <span>{c.nombre}</span>
+                    </label>
+                  ))}
+                  {filteredCategories.length === 0 && (
+                    <p className="text-sm text-muted-foreground">No hay categorías que coincidan.</p>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">Seleccioná al menos una categoría.</p>
+              </div>
               <Button type="submit" className="w-full">
                 Registrar empleado
               </Button>
@@ -243,7 +318,9 @@ export default function InternalUsers() {
               placeholder="Email"
               value={editEmail}
               onChange={(e) => setEditEmail(e.target.value)}
+              disabled
             />
+            <p className="text-xs text-muted-foreground">El email es la credencial de acceso y no puede modificarse.</p>
             <Input
               type="password"
               placeholder="Nueva contraseña (opcional)"
@@ -258,19 +335,29 @@ export default function InternalUsers() {
               <option key="edit-rol-empleado" value="empleado">Empleado</option>
               <option key="edit-rol-admin" value="admin">Admin</option>
             </select>
-            <select
-              value={editCategoriaId}
-              onChange={(e) => setEditCategoriaId(e.target.value ? Number(e.target.value) : '')}
-              required
-              className="w-full border rounded h-10 px-2 bg-input text-foreground"
-            >
-              <option key="edit-cat-empty" value="">Selecciona categoría</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.nombre}
-                </option>
-              ))}
-            </select>
+            <div className="space-y-1">
+              <Input
+                placeholder="Buscar categoría"
+                value={editCategorySearch}
+                onChange={(e) => setEditCategorySearch(e.target.value)}
+              />
+              <div className="max-h-40 overflow-y-auto border rounded-md p-2 space-y-1 bg-background">
+                {filteredEditCategories.map((c) => (
+                  <label key={c.id} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={editCategoriaIds.includes(c.id)}
+                      onChange={() => toggleEditCategory(c.id)}
+                    />
+                    <span>{c.nombre}</span>
+                  </label>
+                ))}
+                {filteredEditCategories.length === 0 && (
+                  <p className="text-sm text-muted-foreground">No hay categorías que coincidan.</p>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">Seleccioná al menos una categoría.</p>
+            </div>
             <Button type="submit" className="w-full">Actualizar</Button>
           </form>
         </div>
@@ -281,20 +368,26 @@ export default function InternalUsers() {
             <th className="p-2">Nombre</th>
             <th className="p-2">Email</th>
             <th className="p-2">Rol</th>
-            <th className="p-2">Categoría</th>
+            <th className="p-2">Categorías</th>
+            <th className="p-2">Tickets abiertos</th>
             <th className="p-2">Tickets atendidos</th>
             <th className="p-2">Acciones</th>
           </tr>
         </thead>
         <tbody>
           {users.map((u) => {
-            const categoriaNombre = categories.find((c) => c.id === u.categoria_id)?.nombre;
+            const categoryIds = getUserCategoryIds(u);
+            const categoriaNombre = categoryIds
+              .map((id) => categories.find((c) => c.id === id)?.nombre)
+              .filter(Boolean)
+              .join(', ');
             return (
               <tr key={u.id} className="border-t">
                 <td className="p-2">{u.nombre}</td>
                 <td className="p-2">{u.email}</td>
                 <td className="p-2">{u.rol || '-'}</td>
                 <td className="p-2">{categoriaNombre || '-'}</td>
+                <td className="p-2">{u.abiertos ?? 0}</td>
                 <td className="p-2">{u.atendidos || 0}</td>
                 <td className="p-2">
                   <Button variant="outline" size="sm" className="mr-2" onClick={() => startEdit(u)}>Editar</Button>
