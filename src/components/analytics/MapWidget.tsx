@@ -11,6 +11,8 @@ import { WidgetFrame } from './WidgetFrame';
 import { useMapProvider } from '@/hooks/useMapProvider';
 import type { MapProvider, MapProviderUnavailableReason } from '@/hooks/useMapProvider';
 import { MapProviderToggle } from '@/components/MapProviderToggle';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AnalyticsEmptyState } from './AnalyticsEmptyState';
 
 interface MapWidgetProps {
   title: string;
@@ -36,6 +38,7 @@ export function MapWidget({
   const [mode, setMode] = useState<Mode>('heatmap');
   const [lastBbox, setLastBbox] = useState<[number, number, number, number] | null>(null);
   const { provider, setProvider } = useMapProvider();
+  const [providerWarning, setProviderWarning] = useState<string | null>(null);
 
   const handleProviderUnavailable = useCallback(
     (currentProvider: MapProvider, reason: MapProviderUnavailableReason, details?: unknown) => {
@@ -45,6 +48,14 @@ export function MapWidget({
         details,
       });
       setProvider('maplibre');
+      const reasons: Record<MapProviderUnavailableReason, string> = {
+        'missing-api-key':
+          'Falta configurar VITE_Maps_API_KEY para mostrar el mapa de calor. Se cambió automáticamente a MapLibre.',
+        'load-error': 'No se pudo cargar Google Maps. Revisá la clave y la conexión. Se usará MapLibre por ahora.',
+        'heatmap-unavailable':
+          'Google Maps no ofrece el layer de calor en esta cuenta. Se cambió automáticamente a MapLibre.',
+      };
+      setProviderWarning(reasons[reason] ?? null);
     },
     [setProvider],
   );
@@ -86,6 +97,7 @@ export function MapWidget({
 
   const hotspots = heatmap?.hotspots ?? [];
   const metadata = heatmap?.metadata;
+  const hasDataset = dataset.length > 0;
 
   const formatPercent = (value: number) => `${value.toFixed(2)}%`;
 
@@ -148,10 +160,18 @@ export function MapWidget({
       }
     >
       <div className="space-y-3">
+        {providerWarning ? (
+          <Alert variant="default" className="border-dashed border-border/70 bg-muted/50 text-sm">
+            <AlertTitle>Mapa con proveedor alternativo</AlertTitle>
+            <AlertDescription>{providerWarning}</AlertDescription>
+          </Alert>
+        ) : null}
         {loading ? (
           <div className="flex h-80 items-center justify-center text-sm text-muted-foreground">
             Cargando mapa...
           </div>
+        ) : !hasDataset ? (
+          <AnalyticsEmptyState message="No hay puntos georreferenciados para este periodo." className="h-80" />
         ) : (
           <MapLibreMap
             className="h-80 w-full rounded-md"

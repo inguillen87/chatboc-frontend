@@ -604,9 +604,10 @@ export default function Perfil() {
       }));
 
       const trimmedAddress = direccion.trim();
+      const hasCoordinates = latitud !== null && longitud !== null;
       setLastGeocodedAddress(trimmedAddress ? trimmedAddress : null);
-      setIsManualLocation(Boolean(latitud !== null && longitud !== null));
-      setPendingGeocode(null);
+      setIsManualLocation(hasCoordinates);
+      setPendingGeocode(!hasCoordinates && trimmedAddress ? trimmedAddress : null);
       setGeocodingError(null);
       if (geocodeAbortRef.current) {
         geocodeAbortRef.current.abort();
