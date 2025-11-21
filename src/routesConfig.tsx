@@ -122,6 +122,7 @@ const routes: RouteConfig[] = [
   { path: '/legal/terms', element: <Terms /> },
   { path: '/legal/cookies', element: <Cookies /> },
   { path: '/tickets', element: <TicketsPanel />, roles: ['admin', 'empleado', 'super_admin'] },
+  { path: '/t/:tenant/pedidos', element: <PedidosPage />, roles: ['admin', 'empleado', 'super_admin'] },
   { path: '/pedidos', element: <PedidosPage />, roles: ['admin', 'empleado', 'super_admin'] },
   { path: '/usuarios', element: <UsuariosPage />, roles: ['admin', 'empleado', 'super_admin'] },
   { path: '/notifications', element: <NotificationSettings /> },
