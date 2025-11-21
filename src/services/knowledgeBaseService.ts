@@ -1,5 +1,4 @@
 import { apiFetch, ApiError } from '@/utils/api';
-import { findBestMatch } from './faqService';
 
 export interface KnowledgeBaseSuggestion {
   answer: string;
@@ -51,15 +50,3 @@ export async function fetchKnowledgeBaseSuggestions({
   }
 }
 
-export function buildFaqFallbackSuggestions(query: string): KnowledgeBaseSuggestion[] {
-  if (!query.trim()) return [];
-  const faqAnswer = findBestMatch(query);
-  if (!faqAnswer) return [];
-  return [
-    {
-      answer: faqAnswer,
-      source: 'FAQ interno',
-      confidence: 0.35,
-    },
-  ];
-}

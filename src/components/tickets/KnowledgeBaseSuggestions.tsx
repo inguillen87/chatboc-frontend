@@ -7,7 +7,6 @@ import { Separator } from '@/components/ui/separator';
 import { Ticket, Message } from '@/types/tickets';
 import {
   KnowledgeBaseSuggestion,
-  buildFaqFallbackSuggestions,
   fetchKnowledgeBaseSuggestions,
 } from '@/services/knowledgeBaseService';
 import { getTicketChannel } from '@/utils/ticket';
@@ -56,15 +55,11 @@ export default function KnowledgeBaseSuggestions({ ticket, messages, language }:
         tenantSlug: tenant?.slug || null,
         language: language || null,
       });
-      if (remote.length) {
-        setSuggestions(remote);
-        return;
-      }
-      setSuggestions(buildFaqFallbackSuggestions(query));
+      setSuggestions(remote);
     } catch (err) {
       console.error('Unable to load suggestions', err);
       setError('No se pudieron obtener sugerencias automáticas en este momento.');
-      setSuggestions(buildFaqFallbackSuggestions(query));
+      setSuggestions([]);
     } finally {
       setLoading(false);
     }
