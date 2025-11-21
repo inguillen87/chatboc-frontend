@@ -1,6 +1,6 @@
 // utils/api.ts
 
-import { BASE_API_URL } from '@/config';
+import { API_BASE_CANDIDATES, BASE_API_URL, SAME_ORIGIN_PROXY_BASE } from '@/config';
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateChatSessionId from "@/utils/chatSessionId"; // Import the new function
 import { getIframeToken } from "@/utils/config";
@@ -232,15 +232,37 @@ export async function apiFetch<T>(
     typeof baseUrlOverride === "string" && baseUrlOverride.trim()
       ? baseUrlOverride.trim()
       : "";
-  const resolvedBase = (preferredBase || BASE_API_URL || "").replace(/\/$/, "");
-  // Normalize URL to prevent double slashes
-  const url = resolvedBase ? `${resolvedBase}/${normalizedPath}` : `/${normalizedPath}`;
+
+  const buildUrl = (base: string) => {
+    const cleanBase = (base || "").replace(/\/$/, "");
+
+    if (!cleanBase) {
+      return `/${normalizedPath}`;
+    }
+
+    const isApiBase = cleanBase.endsWith("/api") || cleanBase === "/api";
+    const trimmedPath =
+      isApiBase && normalizedPath.startsWith("api/")
+        ? normalizedPath.replace(/^api\/+/, "")
+        : normalizedPath;
+
+    return `${cleanBase}/${trimmedPath}`;
+  };
+
+  const candidateBases = preferredBase
+    ? [preferredBase.replace(/\/$/, "")]
+    : API_BASE_CANDIDATES.length
+      ? API_BASE_CANDIDATES
+      : [BASE_API_URL].filter((value): value is string => !!value);
+
   const currentOrigin =
     typeof window !== "undefined" && window.location?.origin
       ? window.location.origin.replace(/\/$/, "")
       : "";
-  const shouldAttemptRelativeFallback = !baseUrlOverride && !resolvedBase && !!currentOrigin;
-  const fallbackUrl = shouldAttemptRelativeFallback ? `/${normalizedPath}` : url;
+  const fallbackUrl =
+    !preferredBase && !candidateBases.length && !!currentOrigin ? `/${normalizedPath}` : "";
+
+  let url = buildUrl(candidateBases[0] || "");
   const headers: Record<string, string> = options.headers
     ? { ...options.headers }
     : {};
@@ -309,19 +331,47 @@ export async function apiFetch<T>(
     cache,
   };
 
-  let response: Response;
-  try {
-    response = await fetch(url, requestInit);
-  } catch (primaryErr) {
-    if (shouldAttemptRelativeFallback) {
-      try {
-        response = await fetch(fallbackUrl, requestInit);
-      } catch {
-        throw primaryErr;
+  let response: Response | null = null;
+  let lastError: unknown = null;
+
+  for (const base of candidateBases) {
+    url = buildUrl(base);
+
+    try {
+      const candidateResponse = await fetch(url, requestInit);
+
+      const isMissingProxy =
+        candidateResponse.status === 404 &&
+        SAME_ORIGIN_PROXY_BASE &&
+        base.replace(/\/$/, "") === SAME_ORIGIN_PROXY_BASE &&
+        candidateBases.length > 1;
+
+      if (isMissingProxy) {
+        continue;
       }
-    } else {
-      throw primaryErr;
+
+      response = candidateResponse;
+      break;
+    } catch (err) {
+      lastError = err;
+      continue;
     }
+  }
+
+  if (!response && fallbackUrl) {
+    try {
+      url = fallbackUrl;
+      response = await fetch(fallbackUrl, requestInit);
+    } catch (fallbackErr) {
+      lastError = fallbackErr;
+    }
+  }
+
+  if (!response) {
+    if (lastError) {
+      throw lastError;
+    }
+    throw new NetworkError("No fue posible establecer la conexión con el servidor.");
   }
 
   if (typeof onResponse === "function") {
