@@ -15,6 +15,8 @@ const sanitizeBaseUrl = (value?: string) => {
   return trimmed.replace(/\/$/, '');
 };
 
+const normalizeBackendUrl = (value: string): string => sanitizeBaseUrl(value);
+
 const parseBooleanFlag = (value?: string | boolean | null | undefined): boolean | null => {
   if (typeof value === 'boolean') {
     return value;
@@ -55,7 +57,7 @@ const normalizeSurveyBaseUrl = (value?: string): string => {
   }
 };
 
-const RESOLVED_BACKEND_URL = sanitizeBaseUrl(VITE_BACKEND_URL);
+const RESOLVED_BACKEND_URL = normalizeBackendUrl(VITE_BACKEND_URL);
 
 const inferBackendUrlFromOrigin = (): string => {
   if (typeof window === 'undefined' || !window.location?.origin) {
@@ -64,13 +66,6 @@ const inferBackendUrlFromOrigin = (): string => {
 
   try {
     const url = new URL(window.location.href);
-    const hostname = url.hostname.toLowerCase();
-
-    // Ensure the frontend served from chatboc.ar uses the API host instead of the static site.
-    if (hostname.endsWith('chatboc.ar') && !hostname.startsWith('api.')) {
-      return `${url.protocol}//api.chatboc.ar`;
-    }
-
     return url.origin;
   } catch (error) {
     console.warn('[config] Unable to infer backend URL from origin', error);
