@@ -341,6 +341,9 @@ export async function apiFetch<T>(
     const base = candidateBases[baseIndex];
     const cleanBase = (base || "").replace(/\/$/, "");
     const isApiBase = cleanBase.endsWith("/api") || cleanBase === "/api";
+    const isSameOriginProxy =
+      Boolean(SAME_ORIGIN_PROXY_BASE) && cleanBase === SAME_ORIGIN_PROXY_BASE;
+    const allowAuthFallback = isSameOriginProxy && treatAsWidget;
     const urlsToTry = [buildUrl(base, isApiBase)];
 
     if (!isApiBase && hasApiPrefix) {
@@ -354,6 +357,18 @@ export async function apiFetch<T>(
       try {
         const candidateResponse = await fetch(candidateUrl, requestInit);
 
+        const shouldRetryForStatus = (status: number) => {
+          if (status === 404) {
+            return true;
+          }
+
+          if (allowAuthFallback && (status === 401 || status === 403)) {
+            return true;
+          }
+
+          return false;
+        };
+
         const isMissingProxy =
           candidateResponse.status === 404 &&
           SAME_ORIGIN_PROXY_BASE &&
@@ -362,9 +377,9 @@ export async function apiFetch<T>(
 
         const hasMoreCandidateUrls = urlIndex < urlsToTry.length - 1;
         const hasMoreBases = baseIndex < candidateBases.length - 1;
-        const shouldTryNextCandidate = candidateResponse.status === 404 && hasMoreCandidateUrls;
-        const shouldTryNextBase =
-          candidateResponse.status === 404 && !hasMoreCandidateUrls && hasMoreBases;
+        const isRetryableStatus = shouldRetryForStatus(candidateResponse.status);
+        const shouldTryNextCandidate = isRetryableStatus && hasMoreCandidateUrls;
+        const shouldTryNextBase = isRetryableStatus && !hasMoreCandidateUrls && hasMoreBases;
 
         if (isMissingProxy || shouldTryNextCandidate) {
           continue;
