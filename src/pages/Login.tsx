@@ -10,7 +10,7 @@ import { useUser } from "@/hooks/useUser";
 import GoogleLoginButton from "@/components/auth/GoogleLoginButton";
 import { isPasskeySupported, loginPasskey } from "@/services/passkeys";
 
-// Asegúrate de que esta interfaz refleje EXACTAMENTE lo que tu backend devuelve en /login
+// Asegúrate de que esta interfaz refleje EXACTAMENTE lo que tu backend devuelve en /auth/login
 interface LoginResponse {
   id: number;
   token: string;
@@ -51,7 +51,7 @@ const Login = () => {
     setIsLoading(true);
 
     try {
-      const data = await apiFetch<LoginResponse>("/login", {
+      const data = await apiFetch<LoginResponse>("/auth/login", {
         method: "POST",
         body: { email, password },
       });
@@ -66,7 +66,15 @@ const Login = () => {
 
     } catch (err) {
       if (err instanceof ApiError) {
-        setError(err.body?.error || "Credenciales inválidas.");
+        if (err.status === 401) {
+          setError(err.body?.error || "Credenciales inválidas.");
+        } else if (err.status === 404 || err.status === 405) {
+          setError(
+            "El servicio de autenticación no está disponible en este momento. Intentalo nuevamente más tarde.",
+          );
+        } else {
+          setError(err.body?.error || "No se pudo procesar la solicitud de inicio de sesión.");
+        }
       } else {
         setError("No se pudo conectar con el servidor.");
       }
