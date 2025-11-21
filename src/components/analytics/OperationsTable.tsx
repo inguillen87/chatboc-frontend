@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { OperationsResponse } from '@/services/analyticsService';
 import { WidgetFrame } from './WidgetFrame';
+import { AnalyticsEmptyState } from './AnalyticsEmptyState';
 
 interface OperationsTableProps {
   title: string;
@@ -19,6 +20,8 @@ export function OperationsTable({ title, data, exportName, loading }: Operations
           <div className="flex h-32 items-center justify-center text-sm text-muted-foreground">
             Calculando carga de agentes...
           </div>
+        ) : rows.length === 0 ? (
+          <AnalyticsEmptyState className="h-32" message="No hay agentes con actividad en este período." />
         ) : (
           <Table>
             <TableHeader>

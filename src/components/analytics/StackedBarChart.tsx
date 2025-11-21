@@ -3,6 +3,7 @@ import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAx
 import type { BreakdownResponse } from '@/services/analyticsService';
 import { WidgetFrame } from './WidgetFrame';
 import ChartTooltip from './ChartTooltip';
+import { AnalyticsEmptyState } from './AnalyticsEmptyState';
 
 interface StackedBarChartProps {
   title: string;
@@ -22,6 +23,8 @@ export function StackedBarChart({ title, description, data, loading, exportName 
 
   const csv = useMemo(() => formatted.map((item) => ({ ...item })), [formatted]);
 
+  const hasData = formatted.length > 0;
+
   return (
     <WidgetFrame title={title} description={description} csvData={csv} exportFilename={exportName}>
       <div className="h-72 w-full">
@@ -29,6 +32,8 @@ export function StackedBarChart({ title, description, data, loading, exportName 
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
             Generando gráfico...
           </div>
+        ) : !hasData ? (
+          <AnalyticsEmptyState />
         ) : (
           <ResponsiveContainer>
             <BarChart data={formatted} margin={{ left: 16, right: 16, top: 10, bottom: 0 }}>
