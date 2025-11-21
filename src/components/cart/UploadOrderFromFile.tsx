@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Upload, Loader2, FileWarning } from 'lucide-react';
-import { apiFetch, getErrorMessage } from '@/utils/api';
+import { ApiError, apiFetch, getErrorMessage } from '@/utils/api';
 import { useTenant } from '@/context/TenantContext';
 
 interface UploadOrderFromFileProps {
@@ -19,6 +19,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({ onCartUpdated
   const [error, setError] = useState<string | null>(null);
   const [missingItems, setMissingItems] = useState<string[]>([]);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -28,6 +29,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({ onCartUpdated
     setError(null);
     setMissingItems([]);
     setSuccessMessage(null);
+    setStatusMessage('Analizando archivo y extrayendo productos...');
     setProgress(10);
 
     try {
@@ -50,6 +52,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({ onCartUpdated
           const total = Number(res.headers.get('Content-Length'));
           if (Number.isFinite(total) && total > 0) {
             setProgress(70);
+            setStatusMessage('Procesando respuesta del servidor...');
           }
         },
       );
@@ -65,8 +68,20 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({ onCartUpdated
       }
 
       setSuccessMessage(response?.resumen ?? 'Hemos armado un carrito en base a tu nota de pedido.');
+      setStatusMessage('Archivo procesado correctamente.');
     } catch (uploadError) {
-      setError(getErrorMessage(uploadError, 'No pudimos interpretar el archivo. Intenta nuevamente.'));
+      if (uploadError instanceof ApiError) {
+        const contentType = String(uploadError.body?.contentType || '').toLowerCase();
+        if (contentType.includes('text/html')) {
+          console.warn('[UploadOrderFromFile] Respuesta inesperada al importar archivo', uploadError.body?.raw);
+          setError('El servidor devolvió una respuesta inesperada al interpretar el archivo. Intenta nuevamente o comunícate con el administrador si el problema persiste.');
+        } else {
+          setError(getErrorMessage(uploadError, 'No pudimos interpretar el archivo. Intenta nuevamente.'));
+        }
+      } else {
+        setError(getErrorMessage(uploadError, 'No pudimos interpretar el archivo. Intenta nuevamente.'));
+      }
+      setStatusMessage(null);
     } finally {
       setProgress(100);
       setUploading(false);
@@ -93,6 +108,12 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({ onCartUpdated
       </div>
 
       {uploading && <Progress value={progress} className="h-2" />}
+
+      {statusMessage && (
+        <p className="text-sm text-muted-foreground" role="status">
+          {statusMessage}
+        </p>
+      )}
 
       {successMessage && (
         <Alert className="border-green-200 bg-green-50 text-green-900">
