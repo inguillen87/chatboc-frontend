@@ -45,6 +45,7 @@ import ProductCheckoutPage from '@/pages/ProductCheckoutPage';
 import OrderConfirmationPage from '@/pages/OrderConfirmation';
 import GestionPlantillasPage from '@/pages/GestionPlantillasPage';
 import CatalogMappingPage from '@/pages/admin/CatalogMappingPage';
+import CategoryManagementPage from '@/pages/admin/CategoryManagementPage';
 import OpinarArPage from '@/pages/OpinarArPage';
 import EstadisticasPage from '@/pages/EstadisticasPage';
 import Iframe from '@/pages/iframe';
@@ -139,6 +140,7 @@ const routes: RouteConfig[] = [
     : []),
   { path: '/pyme/catalog', element: <ProductCatalog />, roles: ['admin', 'super_admin'] },
   { path: '/municipal/tramites', element: <TramitesCatalog />, roles: ['admin', 'super_admin'] },
+  { path: '/municipal/categorias', element: <CategoryManagementPage />, roles: ['admin', 'super_admin'] },
   { path: '/municipal/usuarios', element: <InternalUsers />, roles: ['admin', 'super_admin'] },
   { path: '/municipal/whatsapp', element: <WhatsappIntegration />, roles: ['admin', 'super_admin'] },
   { path: '/municipal/integrations', element: <MunicipalSystems />, roles: ['admin', 'super_admin'] },
