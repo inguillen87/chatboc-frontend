@@ -378,13 +378,17 @@ const ChatPanel = ({
         return;
       }
 
+      if (normalized === "subastas" || normalized === "subasta") {
+        // Subastas is not yet supported, so avoid dispatching an internal action for it.
+        return;
+      }
+
       const loyaltyActions: Record<string, { text: string; action: string }> = {
         donaciones: { text: "Donaciones", action: "donaciones" },
         donacion: { text: "Donaciones", action: "donaciones" },
         canje: { text: "Canje de puntos", action: "canje_puntos" },
         canjearpuntos: { text: "Canje de puntos", action: "canje_puntos" },
         puntos: { text: "Puntos", action: "saldo_puntos" },
-        subastas: { text: "Subastas", action: "subastas" },
         compras: { text: "Comprar productos", action: "compras" },
       };
       if (loyaltyActions[normalized]) {
