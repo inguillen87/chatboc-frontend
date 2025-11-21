@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ApiError, NetworkError, apiFetch, getErrorMessage } from '@/utils/api';
 import { Button } from '@/components/ui/button';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import ProductCard, { AddToCartOptions, ProductDetails } from '@/components/product/ProductCard'; // Importar ProductCard y su interfaz
 import { toast } from '@/components/ui/use-toast';
 import { Input } from '@/components/ui/input';
@@ -17,6 +17,8 @@ import useCartCount from '@/hooks/useCartCount';
 import { getDemoLoyaltySummary } from '@/utils/demoLoyalty';
 import usePointsBalance from '@/hooks/usePointsBalance';
 import UploadOrderFromFile from '@/components/cart/UploadOrderFromFile';
+import { useUser } from '@/hooks/useUser';
+import { buildTenantPath } from '@/utils/tenantPaths';
 
 export default function ProductCatalog() {
   const [allProducts, setAllProducts] = useState<ProductDetails[]>([]);
@@ -31,10 +33,13 @@ export default function ProductCatalog() {
   const [hasDemoModalities, setHasDemoModalities] = useState(false);
   const [loyaltySummary] = useState(() => getDemoLoyaltySummary());
   const { currentSlug } = useTenant();
+  const { user } = useUser();
+  const navigate = useNavigate();
   const cartCount = useCartCount();
   const { points: pointsBalance } = usePointsBalance();
 
-  const tenantQuerySuffix = currentSlug ? `?tenant=${encodeURIComponent(currentSlug)}` : '';
+  const catalogPath = buildTenantPath('/productos', currentSlug);
+  const cartPath = buildTenantPath('/cart', currentSlug);
   const numberFormatter = useMemo(() => new Intl.NumberFormat('es-AR'), []);
   const shouldShowDemoLoyalty = catalogSource === 'fallback' || cartMode === 'local';
 
@@ -155,6 +160,18 @@ export default function ProductCatalog() {
   }, [allProducts]);
 
   const handleAddToCart = async (product: ProductDetails, options: AddToCartOptions) => {
+    const isPointsProduct = (product.modalidad ?? '').toString().toLowerCase() === 'puntos';
+
+    if (isPointsProduct && !user) {
+      toast({
+        title: 'Necesitás iniciar sesión para usar tus puntos',
+        description: 'Ingresa o crea tu cuenta antes de canjear productos con puntos.',
+        variant: 'destructive',
+      });
+      navigate('/login');
+      return;
+    }
+
     try {
       const unitsPerCase = product.unidades_por_caja && product.unidades_por_caja > 0
         ? product.unidades_por_caja
@@ -264,7 +281,7 @@ export default function ProductCatalog() {
         <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
           <h1 className="text-3xl md:text-4xl font-bold text-foreground">Nuestro Catálogo</h1>
           <Button asChild variant="outline" className="w-full sm:w-auto relative">
-            <Link to={`/cart${tenantQuerySuffix}`} className="inline-flex items-center">
+            <Link to={cartPath} className="inline-flex items-center">
               <ShoppingCart className="mr-2 h-4 w-4" />
               Ver Carrito
               {cartCount > 0 && (

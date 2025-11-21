@@ -12,6 +12,7 @@ import { formatCurrency } from '@/utils/currency';
 import { useTenant } from '@/context/TenantContext';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { cn } from '@/lib/utils';
+import { buildTenantPath } from '@/utils/tenantPaths';
 
 interface OrderItem {
   nombre: string;
@@ -155,7 +156,9 @@ const OrderConfirmationPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const tenantQuerySuffix = currentSlug ? `?tenant=${encodeURIComponent(currentSlug)}` : '';
+  const catalogPath = buildTenantPath('/productos', currentSlug);
+  const cartPath = buildTenantPath('/cart', currentSlug);
+  const ordersPath = buildTenantPath('/pedidos', currentSlug);
 
   const sharedRequestOptions = useMemo(
     () => ({
@@ -232,8 +235,8 @@ const OrderConfirmationPage = () => {
             <CardDescription>Revisa el enlace de confirmación o vuelve al catálogo para generar un nuevo pedido.</CardDescription>
           </CardHeader>
           <CardFooter className="flex flex-col sm:flex-row gap-3">
-            <Button onClick={() => navigate(`/productos${tenantQuerySuffix}`)}>Volver al catálogo</Button>
-            <Button variant="outline" onClick={() => navigate(`/cart${tenantQuerySuffix}`)}>Ir al carrito</Button>
+            <Button onClick={() => navigate(catalogPath)}>Volver al catálogo</Button>
+            <Button variant="outline" onClick={() => navigate(cartPath)}>Ir al carrito</Button>
           </CardFooter>
         </Card>
       )}
@@ -341,10 +344,10 @@ const OrderConfirmationPage = () => {
               Si el estado no coincide con el de la pasarela, revisamos la última notificación del backend.
             </div>
             <div className="flex flex-col sm:flex-row gap-2">
-              <Button variant="outline" onClick={() => navigate(`/pedidos${tenantQuerySuffix}`)}>
+              <Button variant="outline" onClick={() => navigate(ordersPath)}>
                 Ver mis pedidos
               </Button>
-              <Button onClick={() => navigate(`/productos${tenantQuerySuffix}`)}>
+              <Button onClick={() => navigate(catalogPath)}>
                 Seguir comprando
               </Button>
             </div>

@@ -23,6 +23,7 @@ import { getDemoLoyaltySummary } from '@/utils/demoLoyalty';
 import usePointsBalance from '@/hooks/usePointsBalance';
 import UploadOrderFromFile from '@/components/cart/UploadOrderFromFile';
 import { useUser } from '@/hooks/useUser';
+import { buildTenantPath } from '@/utils/tenantPaths';
 
 // Interfaz para el producto en el carrito, extendiendo ProductDetails y añadiendo cantidad
 interface CartItem extends ProductDetails {
@@ -42,7 +43,8 @@ export default function CartPage() {
   const { points: pointsBalance, isLoading: isLoadingPoints } = usePointsBalance();
   const { user } = useUser();
 
-  const tenantQuerySuffix = currentSlug ? `?tenant=${encodeURIComponent(currentSlug)}` : '';
+  const catalogPath = buildTenantPath('/productos', currentSlug);
+  const cartCheckoutPath = buildTenantPath('/checkout-productos', currentSlug);
 
   const sharedRequestOptions = useMemo(
     () => ({
@@ -222,7 +224,7 @@ export default function CartPage() {
       return;
     }
 
-    navigate(`/checkout-productos${tenantQuerySuffix}`);
+    navigate(cartCheckoutPath);
   };
 
   if (loading) {
@@ -251,6 +253,15 @@ export default function CartPage() {
         <ArrowLeft className="mr-2 h-4 w-4" /> Volver
       </Button>
       <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-4">Tu Carrito de Compras</h1>
+
+      {!user && (
+        <Alert className="mb-6">
+          <AlertTitle>Finaliza con tus datos de contacto</AlertTitle>
+          <AlertDescription>
+            Te pediremos nombre, email y teléfono en el siguiente paso para confirmar la compra o donación.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {cartMode === 'local' && (
         <Alert className="mb-6">
@@ -299,7 +310,7 @@ export default function CartPage() {
           <p className="text-xl text-muted-foreground mb-2">Tu carrito está vacío.</p>
           <p className="text-sm text-muted-foreground mb-6">Parece que no has agregado nada aún.</p>
           <Button asChild>
-            <Link to={`/productos${tenantQuerySuffix}`}>Explorar Catálogo</Link>
+            <Link to={catalogPath}>Explorar Catálogo</Link>
           </Button>
         </div>
       ) : (
@@ -454,7 +465,7 @@ export default function CartPage() {
                   Continuar Compra
                 </Button>
                 <Button variant="link" asChild className="text-sm text-muted-foreground">
-                  <Link to={`/productos${tenantQuerySuffix}`}>Seguir comprando</Link>
+                  <Link to={catalogPath}>Seguir comprando</Link>
                 </Button>
               </CardFooter>
             </Card>
