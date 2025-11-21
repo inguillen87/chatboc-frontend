@@ -15,32 +15,7 @@ const sanitizeBaseUrl = (value?: string) => {
   return trimmed.replace(/\/$/, '');
 };
 
-const maybeForceCanonicalBackendHost = (value: string): string => {
-  const sanitized = sanitizeBaseUrl(value);
-  if (!sanitized) return '';
-
-  try {
-    const url = new URL(sanitized);
-
-    const isChatbocPublicDomain =
-      typeof window !== 'undefined' &&
-      !!window.location?.hostname &&
-      window.location.hostname.toLowerCase().endsWith('chatboc.ar');
-
-    const hostname = url.hostname.toLowerCase();
-    const isRenderBackend = hostname.includes('chatbot-backend') || hostname.endsWith('onrender.com');
-
-    if (isChatbocPublicDomain && (isRenderBackend || hostname === 'www.chatboc.ar')) {
-      url.hostname = 'api.chatboc.ar';
-      url.port = '';
-      return url.origin;
-    }
-
-    return url.origin.replace(/\/$/, '');
-  } catch (error) {
-    return sanitized;
-  }
-};
+const normalizeBackendUrl = (value: string): string => sanitizeBaseUrl(value);
 
 const parseBooleanFlag = (value?: string | boolean | null | undefined): boolean | null => {
   if (typeof value === 'boolean') {
@@ -82,7 +57,7 @@ const normalizeSurveyBaseUrl = (value?: string): string => {
   }
 };
 
-const RESOLVED_BACKEND_URL = maybeForceCanonicalBackendHost(VITE_BACKEND_URL);
+const RESOLVED_BACKEND_URL = normalizeBackendUrl(VITE_BACKEND_URL);
 
 const inferBackendUrlFromOrigin = (): string => {
   if (typeof window === 'undefined' || !window.location?.origin) {
@@ -91,13 +66,6 @@ const inferBackendUrlFromOrigin = (): string => {
 
   try {
     const url = new URL(window.location.href);
-    const hostname = url.hostname.toLowerCase();
-
-    // Ensure the frontend served from chatboc.ar uses the API host instead of the static site.
-    if (hostname.endsWith('chatboc.ar') && !hostname.startsWith('api.')) {
-      return `${url.protocol}//api.chatboc.ar`;
-    }
-
     return url.origin;
   } catch (error) {
     console.warn('[config] Unable to infer backend URL from origin', error);
