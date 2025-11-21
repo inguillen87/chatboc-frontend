@@ -25,6 +25,30 @@ const toNullableNumber = (value: unknown): number | null => {
   return Number.isFinite(numeric) ? numeric : null;
 };
 
+const parseFlexiblePrice = (value: unknown): { unitPrice: number | null; rawLabel: string | null } => {
+  if (value === null || value === undefined) {
+    return { unitPrice: null, rawLabel: null };
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return { unitPrice: value, rawLabel: String(value) };
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return { unitPrice: null, rawLabel: null };
+
+    const numericCandidate = Number(trimmed.replace(/[^0-9.,-]/g, '').replace(',', '.'));
+    if (Number.isFinite(numericCandidate)) {
+      return { unitPrice: numericCandidate, rawLabel: trimmed };
+    }
+
+    return { unitPrice: null, rawLabel: trimmed };
+  }
+
+  return { unitPrice: null, rawLabel: null };
+};
+
 export const sanitizeProductPricing = (product: ProductDetails): ProductDetails => {
   const modalidad = normalizeModalidad(product.modalidad);
   const precio_unitario = modalidad === 'donacion' ? 0 : Number(product.precio_unitario) || 0;
@@ -322,6 +346,7 @@ const normalizeProductRecord = (raw: Record<string, unknown>, index: number): Pr
       ? raw.category
       : null;
   const modalidad = normalizeModalidad(raw.modalidad ?? raw.tipo ?? raw.mode ?? null);
+  const flexiblePrice = parseFlexiblePrice((raw as Record<string, any>).precio_flexible ?? (raw as Record<string, any>).precioFlexible ?? (raw as Record<string, any>).flexible_price);
 
   const base: ProductDetails = {
     id: raw.id ?? nombre ?? index,
@@ -331,8 +356,8 @@ const normalizeProductRecord = (raw: Record<string, unknown>, index: number): Pr
     categoria,
     badge: typeof raw.badge === 'string' ? raw.badge : null,
     badge_variant: (raw.badge_variant as ProductDetails['badge_variant']) ?? undefined,
-    precio_unitario: Number(raw.precio_unitario ?? raw.precio ?? raw.price ?? 0) || 0,
-    precio_puntos: toNullableNumber(raw.precio_puntos ?? raw.puntos ?? raw.points),
+    precio_unitario: Number(raw.precio_unitario ?? raw.precio ?? raw.price ?? flexiblePrice.unitPrice ?? 0) || 0,
+    precio_puntos: toNullableNumber(raw.precio_puntos ?? raw.puntos ?? raw.points ?? flexiblePrice.unitPrice),
     precio_anterior: toNullableNumber(raw.precio_anterior ?? raw.precioAnterior ?? raw.previous_price),
     imagen_url: normalizeImageUrl(
       (raw.imagen_url as string | null | undefined) ??
