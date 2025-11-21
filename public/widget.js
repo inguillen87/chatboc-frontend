@@ -8,10 +8,43 @@
     );
 
   const DEFAULT_DOMAIN = "https://chatboc.ar";
-  const chatbocDomain =
-    (script &&
-      (script.getAttribute("data-domain") || new URL(script.src).origin)) ||
-    DEFAULT_DOMAIN;
+  const scriptOrigin = (() => {
+    if (!script || !script.src) return DEFAULT_DOMAIN;
+    try {
+      return new URL(script.src).origin;
+    } catch (err) {
+      console.warn(
+        "[Chatboc] No pudimos leer el origen del script del widget. Usando el dominio por defecto.",
+        err,
+      );
+      return DEFAULT_DOMAIN;
+    }
+  })();
+
+  const providedDomain = script?.getAttribute("data-domain");
+
+  const chatbocDomain = (() => {
+    if (providedDomain) {
+      try {
+        return new URL(providedDomain).origin;
+      } catch (err) {
+        console.warn(
+          `[Chatboc] data-domain="${providedDomain}" no es una URL válida. Se usará ${DEFAULT_DOMAIN}.`,
+          err,
+        );
+        return DEFAULT_DOMAIN;
+      }
+    }
+
+    if (scriptOrigin !== DEFAULT_DOMAIN) {
+      console.warn(
+        `[Chatboc] data-domain no está definido. Como el script se carga desde ${scriptOrigin}, se usará ${DEFAULT_DOMAIN} para evitar errores de CORS.`,
+      );
+      return DEFAULT_DOMAIN;
+    }
+
+    return scriptOrigin;
+  })();
 
   // Ensure only one widget container exists
   const existingRoot = document.getElementById('chatboc-widget-root');
