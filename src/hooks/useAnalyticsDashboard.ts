@@ -1,20 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { analyticsService, type AnalyticsContext } from '@/services/analyticsService';
 import { useAnalyticsFilters } from '@/context/AnalyticsFiltersContext';
-
-type DashboardData = {
-  summary: Awaited<ReturnType<typeof analyticsService.summary>> | null;
-  timeseries: Awaited<ReturnType<typeof analyticsService.timeseries>> | null;
-  breakdownCategoria: Awaited<ReturnType<typeof analyticsService.breakdown>> | null;
-  breakdownCanal: Awaited<ReturnType<typeof analyticsService.breakdown>> | null;
-  breakdownEstado: Awaited<ReturnType<typeof analyticsService.breakdown>> | null;
-  heatmap: Awaited<ReturnType<typeof analyticsService.heatmap>> | null;
-  points: Awaited<ReturnType<typeof analyticsService.points>> | null;
-  topZonas: Awaited<ReturnType<typeof analyticsService.top>> | null;
-  operations: Awaited<ReturnType<typeof analyticsService.operations>> | null;
-  cohorts: Awaited<ReturnType<typeof analyticsService.cohorts>> | null;
-  templates: Awaited<ReturnType<typeof analyticsService.templates>> | null;
-};
+import { analyticsService, type AnalyticsContext } from '@/services/analyticsService';
+import type { DashboardData } from '@/types/analyticsDashboard';
+import { buildAnalyticsDemoDataset, hasDashboardData } from '@/utils/analyticsDemo';
 
 const EMPTY_DATA: DashboardData = {
   summary: null,
@@ -138,20 +126,22 @@ export function useAnalyticsDashboard(view: AnalyticsContext) {
           }
         }
 
-        const hasAnyData = Object.values(nextData).some(Boolean);
-        if (!hasAnyData) {
-          setError('Las métricas no están disponibles por ahora. Verificá la conexión y reintentá.');
-          setData({ ...EMPTY_DATA });
-          return;
-        }
-
-        setData(nextData);
-        setError(null);
-        setWarning(
+        const hasData = hasDashboardData(nextData);
+        const baseWarning =
           failedSections.length
             ? `Algunos widgets no se pudieron cargar (${failedSections.join(', ')}). Verificá la conexión del backend o reintentá más tarde.`
-            : null,
-        );
+            : null;
+
+        if (!hasData) {
+          const demo = buildAnalyticsDemoDataset(view);
+          setData(demo.data);
+          setError(null);
+          setWarning(baseWarning ? `${baseWarning} ${demo.message}` : demo.message);
+        } else {
+          setData(nextData);
+          setError(null);
+          setWarning(baseWarning);
+        }
       } catch (err) {
         if (controller.signal.aborted) return;
         setError(err instanceof Error ? err.message : 'Error cargando datos');
