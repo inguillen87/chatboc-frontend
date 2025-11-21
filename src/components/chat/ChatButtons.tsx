@@ -1,8 +1,10 @@
 // src/components/chat/ChatButtons.tsx
-import React from 'react';
+import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Boton, SendPayload } from '@/types/chat';
 import { openExternalLink } from '@/utils/openExternalLink';
+import { useTenant } from '@/context/TenantContext';
+import { buildTenantAwareUrl } from '@/utils/tenantUrls';
 
 interface ChatButtonsProps {
     botones: Boton[];
@@ -16,6 +18,13 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
     onButtonClick,
     onInternalAction,
 }) => {
+    const { currentSlug } = useTenant();
+
+    const resolveUrl = useMemo(
+        () => (url?: string) => (url ? buildTenantAwareUrl(url, currentSlug) : undefined),
+        [currentSlug],
+    );
+
     const normalize = (v: string) =>
         v.toLowerCase().replace(/[\s_-]+/g, "");
 
@@ -74,8 +83,10 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
         }
 
         // Priority 4: Handle URL navigation
-        if (boton.url) {
-            openExternalLink(boton.url);
+        const resolvedUrl = boton.url ? resolveUrl(boton.url) : undefined;
+
+        if (resolvedUrl) {
+            openExternalLink(resolvedUrl);
             return;
         }
 
@@ -97,13 +108,16 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
                 boton.url ? (
                     <a
                         key={index}
-                        href={boton.url}
+                        href={resolveUrl(boton.url)}
                         target="_blank"
                         rel="noopener noreferrer"
                         referrerPolicy="no-referrer"
                         onClick={(event) => {
                             event.preventDefault();
-                            openExternalLink(boton.url);
+                            const resolvedUrl = resolveUrl(boton.url);
+                            if (resolvedUrl) {
+                                openExternalLink(resolvedUrl);
+                            }
                         }}
                         className={baseClass + " no-underline inline-flex items-center justify-center"}
                         style={{ maxWidth: 180 }}

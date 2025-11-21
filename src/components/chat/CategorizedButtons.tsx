@@ -1,5 +1,5 @@
 // src/components/chat/CategorizedButtons.tsx
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Categoria, SendPayload, Boton } from '@/types/chat';
 import {
   Accordion,
@@ -9,6 +9,8 @@ import {
 } from '@/components/ui/accordion';
 import { motion } from 'framer-motion';
 import { openExternalLink } from '@/utils/openExternalLink';
+import { useTenant } from '@/context/TenantContext';
+import { buildTenantAwareUrl } from '@/utils/tenantUrls';
 
 interface CategorizedButtonsProps {
   categorias: Categoria[];
@@ -18,19 +20,22 @@ interface CategorizedButtonsProps {
 
 // We need a simplified button handler here since ChatButtons is complex.
 // Let's create a lean version for the accordion content.
-const SimpleButton: React.FC<{ boton: Boton, onClick: (boton: Boton) => void }> = ({ boton, onClick }) => {
+const SimpleButton: React.FC<{ boton: Boton, onClick: (boton: Boton) => void, resolveUrl: (url?: string) => string | undefined }> = ({ boton, onClick, resolveUrl }) => {
     const baseClass = "rounded-xl px-3 py-1 text-sm font-semibold bg-white text-blue-800 border border-blue-200 hover:bg-blue-50 hover:shadow transition-all text-left";
 
     if (boton.url) {
+        const resolvedUrl = resolveUrl(boton.url);
         return (
             <a
-                href={boton.url}
+                href={resolvedUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 referrerPolicy="no-referrer"
                 onClick={(event) => {
                     event.preventDefault();
-                    openExternalLink(boton.url);
+                    if (resolvedUrl) {
+                        openExternalLink(resolvedUrl);
+                    }
                 }}
                 className={`${baseClass} no-underline inline-block w-full`}
                 title={boton.texto}
@@ -57,6 +62,13 @@ const CategorizedButtons: React.FC<CategorizedButtonsProps> = ({
   onButtonClick,
   onInternalAction,
 }) => {
+  const { currentSlug } = useTenant();
+
+  const resolveUrl = useMemo(
+    () => (url?: string) => (url ? buildTenantAwareUrl(url, currentSlug) : undefined),
+    [currentSlug],
+  );
+
   if (!categorias || categorias.length === 0) {
     return null;
   }
@@ -81,7 +93,10 @@ const CategorizedButtons: React.FC<CategorizedButtonsProps> = ({
     }
 
     if (boton.url) {
-      openExternalLink(boton.url);
+      const resolvedUrl = resolveUrl(boton.url);
+      if (resolvedUrl) {
+        openExternalLink(resolvedUrl);
+      }
       return;
     }
 
@@ -108,6 +123,7 @@ const CategorizedButtons: React.FC<CategorizedButtonsProps> = ({
                             key={btnIndex}
                             boton={boton}
                             onClick={handleButtonClick}
+                            resolveUrl={resolveUrl}
                         />
                     ))}
                 </div>
