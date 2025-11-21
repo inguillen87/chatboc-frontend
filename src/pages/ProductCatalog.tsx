@@ -28,6 +28,7 @@ export default function ProductCatalog() {
   const [selectedModality, setSelectedModality] = useState<'todos' | 'venta' | 'puntos' | 'donacion'>('todos');
   const [catalogSource, setCatalogSource] = useState<'api' | 'fallback'>('api');
   const [cartMode, setCartMode] = useState<'api' | 'local'>('api');
+  const [hasDemoModalities, setHasDemoModalities] = useState(false);
   const [loyaltySummary] = useState(() => getDemoLoyaltySummary());
   const { currentSlug } = useTenant();
   const cartCount = useCartCount();
@@ -61,6 +62,27 @@ export default function ProductCatalog() {
     setAllProducts(DEFAULT_PUBLIC_PRODUCTS);
     setFilteredProducts(DEFAULT_PUBLIC_PRODUCTS);
     setError(null);
+    setHasDemoModalities(false);
+  };
+
+  const mergeWithDemoModalities = (products: ProductDetails[]) => {
+    const modalitySet = new Set(
+      products.map((product) => (product.modalidad ? product.modalidad.toLowerCase() : 'venta')),
+    );
+
+    const complementary = DEFAULT_PUBLIC_PRODUCTS.filter((product) => {
+      const modality = product.modalidad ? product.modalidad.toLowerCase() : 'venta';
+      return ['puntos', 'donacion'].includes(modality) && !modalitySet.has(modality);
+    }).map((product, index) => ({ ...product, id: `demo-${product.id ?? index}`, origen: 'demo' as const }));
+
+    if (complementary.length === 0) {
+      return { products, added: false };
+    }
+
+    const existingIds = new Set(products.map((product) => String(product.id)));
+    const uniqueComplements = complementary.filter((product) => !existingIds.has(String(product.id)));
+
+    return { products: [...products, ...uniqueComplements], added: uniqueComplements.length > 0 };
   };
 
   useEffect(() => {
@@ -68,14 +90,18 @@ export default function ProductCatalog() {
     setError(null);
     apiFetch<unknown>('/productos', sharedRequestOptions)
       .then((data) => {
-        const normalized = normalizeProductsPayload(data, 'ProductCatalog').map(enhanceProductDetails);
+        const normalized = normalizeProductsPayload(data, 'ProductCatalog').map((item) =>
+          enhanceProductDetails({ ...item, origen: 'api' as const }),
+        );
         if (normalized.length === 0) {
           activateDemoCatalog();
         } else {
+          const { products: withDemo, added } = mergeWithDemoModalities(normalized);
           setCatalogSource('api');
           setCartMode('api');
-          setAllProducts(normalized);
-          setFilteredProducts(normalized);
+          setHasDemoModalities(added);
+          setAllProducts(withDemo);
+          setFilteredProducts(withDemo);
         }
       })
       .catch((err: any) => {
@@ -144,6 +170,8 @@ export default function ProductCatalog() {
       const quantityLabel = `${quantity} ${mode === 'case' ? 'caja(s)' : 'unidad(es)'}`;
 
       const persistLocalCart = () => addProductToLocalCart(product, totalUnits);
+      const isDemoProduct = product.origen === 'demo';
+      const shouldUseLocalCart = cartMode === 'local' || isDemoProduct;
 
       const payload: Record<string, unknown> = {
         nombre: product.nombre,
@@ -162,7 +190,7 @@ export default function ProductCatalog() {
         }
       }
 
-      if (cartMode === 'local') {
+      if (shouldUseLocalCart) {
         persistLocalCart();
         toast({
           title: 'Modo demo activo',
@@ -247,13 +275,16 @@ export default function ProductCatalog() {
             </Link>
           </Button>
         </div>
-        {(catalogSource === 'fallback' || cartMode === 'local') && (
+        {(catalogSource === 'fallback' || cartMode === 'local' || hasDemoModalities) && (
           <div className="flex flex-wrap gap-2 mb-4">
             {catalogSource === 'fallback' && (
               <Badge variant="secondary">Catálogo demo para visitantes</Badge>
             )}
             {cartMode === 'local' && (
               <Badge variant="outline">Carrito demo guardado en este dispositivo</Badge>
+            )}
+            {hasDemoModalities && cartMode !== 'local' && (
+              <Badge variant="outline">Incluye opciones demo de canje y donación</Badge>
             )}
           </div>
         )}

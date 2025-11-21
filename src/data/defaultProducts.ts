@@ -90,5 +90,5 @@ const RAW_DEFAULT_PRODUCTS: ProductDetails[] = [
 ];
 
 export const DEFAULT_PUBLIC_PRODUCTS: ProductDetails[] = RAW_DEFAULT_PRODUCTS.map((item, index) =>
-  enhanceProductDetails({ ...item, id: item.id ?? `demo-${index}` })
+  enhanceProductDetails({ ...item, id: item.id ?? `demo-${index}`, origen: 'demo' })
 );

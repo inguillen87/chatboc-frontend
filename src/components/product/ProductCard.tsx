@@ -32,6 +32,7 @@ export interface ProductDetails {
   cantidad_minima_mayorista?: number | null;
   modalidad?: 'venta' | 'puntos' | 'donacion' | string | null;
   instrucciones_entrega?: string | null;
+  origen?: 'api' | 'demo';
 }
 
 export interface AddToCartOptions {
