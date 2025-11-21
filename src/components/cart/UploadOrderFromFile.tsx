@@ -116,7 +116,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({ onCartUpdated
       {uploading && <Progress value={progress} className="h-2" />}
 
       {statusMessage && (
-        <p className="text-sm text-muted-foreground" role="status">
+        <p className="text-sm text-muted-foreground" role="status" aria-live="polite">
           {statusMessage}
         </p>
       )}
@@ -131,7 +131,11 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({ onCartUpdated
       {error && (
         <Alert variant="destructive">
           <AlertTitle>Error al procesar</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>
+            {error}
+            <br />
+            Verifica que el archivo tenga el formato correcto y que tu sesión siga activa. Si el problema persiste, intenta nuevamente más tarde.
+          </AlertDescription>
         </Alert>
       )}
 

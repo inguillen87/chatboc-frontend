@@ -1,8 +1,5 @@
 import { describe, expect, it, beforeAll } from 'vitest';
-import { createRequire } from 'node:module';
-
-const require = createRequire(import.meta.url);
-const { dispatch, refreshDataset } = require('../server/analytics/index.cjs');
+import { dispatch, refreshDataset } from './mocks/analytics';
 
 type RequestContext = Partial<{
   role: string;
@@ -23,7 +20,7 @@ function buildRequest(path: string, query: Record<string, string>, context?: Req
   };
 }
 
-describe('analytics dispatch', () => {
+describe('analytics dispatch (frontend mock)', () => {
   beforeAll(() => {
     refreshDataset();
   });
