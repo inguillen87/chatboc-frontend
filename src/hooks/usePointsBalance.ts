@@ -16,11 +16,12 @@ export const usePointsBalance = (): PointsBalance => {
   useEffect(() => {
     let isMounted = true;
     setIsLoading(true);
-    apiFetch<{ saldo?: number; points?: number; balance?: number }>('/api/puntos/saldo', {
+    apiFetch<{ saldo?: number; points?: number; balance?: number }>('/puntos/saldo', {
       method: 'GET',
       sendAnonId: true,
       suppressPanel401Redirect: true,
       isWidgetRequest: true,
+      omitCredentials: true,
     })
       .then((response) => {
         if (!isMounted) return;

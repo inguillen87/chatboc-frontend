@@ -157,18 +157,16 @@ const OrderConfirmationPage = () => {
 
   const tenantQuerySuffix = currentSlug ? `?tenant=${encodeURIComponent(currentSlug)}` : '';
 
-  const sharedRequestOptions = useMemo(() => {
-    const hasPanelSession = Boolean(
-      safeLocalStorage.getItem('authToken') || safeLocalStorage.getItem('chatAuthToken'),
-    );
-
-    return {
+  const sharedRequestOptions = useMemo(
+    () => ({
       suppressPanel401Redirect: true,
       tenantSlug: currentSlug ?? undefined,
       sendAnonId: true,
-      isWidgetRequest: !hasPanelSession,
-    } as const;
-  }, [currentSlug]);
+      isWidgetRequest: true,
+      omitCredentials: true,
+    }) as const,
+    [currentSlug],
+  );
 
   const statusFromGateway = searchParams.get('status')?.toLowerCase() ?? null;
   const pedidoId =
