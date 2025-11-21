@@ -1,5 +1,8 @@
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 function loadCatalog() {
   const file = path.join(__dirname, 'catalog.json');
@@ -34,21 +37,40 @@ function normalize(p) {
   return out;
 }
 
-function getFormattedProducts() {
+export function getFormattedProducts() {
   const catalog = loadCatalog();
   const map = new Map();
-  for (const item of catalog) {
-    const n = normalize(item);
-    const key = `${n.nombre}|${n.marca}`;
-    if (map.has(key)) {
-      const entry = map.get(key);
-      if (!entry.variants) entry.variants = [];
-      entry.variants.push(n);
-    } else {
-      map.set(key, { ...n });
-    }
-  }
-  return Array.from(map.values());
-}
 
-module.exports = { getFormattedProducts };
+  for (const item of catalog) {
+    const normalized = normalize(item);
+    const key = normalized.nombre?.toLowerCase();
+    if (!key) continue;
+
+    const variant = {
+      talle: normalized.talle ?? normalized.talla ?? null,
+      color: normalized.color ?? null,
+      precio: normalized.precio_unitario ?? normalized.precio_str ?? null,
+    };
+
+    if (!map.has(key)) {
+      map.set(key, { ...normalized, variants: [] });
+    }
+
+    const entry = map.get(key);
+    entry.variants.push(variant);
+  }
+
+  return Array.from(map.values()).map((item) => {
+    const variantsList = item.variants ?? [];
+    const summarizedVariants = variantsList.length
+      ? [{ opciones: variantsList }]
+      : [];
+
+    const sanitized = { ...item };
+    delete sanitized.talle;
+    delete sanitized.talla;
+    delete sanitized.color;
+
+    return { ...sanitized, variants: summarizedVariants };
+  });
+}

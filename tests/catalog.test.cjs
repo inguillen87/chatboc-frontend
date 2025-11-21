@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getFormattedProducts } from '../server/catalog.cjs';
+import { getFormattedProducts } from '../catalog.js';
 
 describe('getFormattedProducts', () => {
   it('should return formatted products', () => {

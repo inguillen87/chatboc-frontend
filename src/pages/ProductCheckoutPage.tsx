@@ -27,6 +27,8 @@ import {
 import { getLocalCartProducts, clearLocalCart } from '@/utils/localCart';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import usePointsBalance from '@/hooks/usePointsBalance';
+import { buildTenantPath } from '@/utils/tenantPaths';
+import { loadGuestContact, saveGuestContact } from '@/utils/guestContact';
 
 // Esquema de validación para el formulario de checkout
 const checkoutSchema = z.object({
@@ -79,8 +81,10 @@ export default function ProductCheckoutPage() {
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [checkoutMode, setCheckoutMode] = useState<'api' | 'local'>('api');
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const guestDefaults = useMemo(() => loadGuestContact(), []);
 
-  const tenantQuerySuffix = currentSlug ? `?tenant=${encodeURIComponent(currentSlug)}` : '';
+  const catalogPath = buildTenantPath('/productos', currentSlug);
+  const cartPath = buildTenantPath('/cart', currentSlug);
 
   const sharedRequestOptions = useMemo(
     () => ({
@@ -96,9 +100,9 @@ export default function ProductCheckoutPage() {
   const { control, handleSubmit, setValue, formState: { errors } } = useForm<CheckoutFormData>({
     resolver: zodResolver(checkoutSchema),
     defaultValues: {
-      nombre: '',
-      email: '',
-      telefono: '',
+      nombre: guestDefaults.nombre || '',
+      email: guestDefaults.email || '',
+      telefono: guestDefaults.telefono || '',
       direccion: '',
     }
   });
@@ -128,12 +132,12 @@ export default function ProductCheckoutPage() {
         description: 'Agregá productos para finalizar la simulación.',
         variant: 'destructive',
       });
-      navigate(`/productos${tenantQuerySuffix}`);
+      navigate(catalogPath);
       return false;
     }
     setCartItems(localItems);
     return true;
-  }, [navigate, tenantQuerySuffix]);
+  }, [catalogPath, navigate]);
 
   // Cargar ítems del carrito
   useEffect(() => {
@@ -164,7 +168,7 @@ export default function ProductCheckoutPage() {
 
         if (populatedCartItems.length === 0) {
           toast({ title: "Carrito vacío", description: "No hay productos para finalizar la compra.", variant: "destructive" });
-          navigate(`/productos${tenantQuerySuffix}`); // Redirigir si el carrito está vacío
+          navigate(catalogPath); // Redirigir si el carrito está vacío
         } else {
           setCartItems(populatedCartItems);
         }
@@ -180,7 +184,7 @@ export default function ProductCheckoutPage() {
       }
     };
     loadCart();
-  }, [checkoutMode, loadLocalCart, navigate, sharedRequestOptions, tenantQuerySuffix]);
+  }, [catalogPath, checkoutMode, loadLocalCart, navigate, sharedRequestOptions]);
 
   const subtotal = useMemo(() => {
     return cartItems.reduce((sum, item) => sum + (item.modalidad === 'puntos' || item.modalidad === 'donacion' ? 0 : item.precio_unitario * item.cantidad), 0);
@@ -204,6 +208,10 @@ export default function ProductCheckoutPage() {
     [cartItems, user],
   );
   const hasPointsDeficit = checkoutMode !== 'local' && missingPoints > 0;
+  const completionLabel = useMemo(
+    () => (hasDonations ? 'donación' : pointsTotal > 0 ? 'canje' : 'compra'),
+    [hasDonations, pointsTotal],
+  );
 
   const applyPointsAdjustments = useCallback(async () => {
     if (pointsTotal <= 0) return;
@@ -220,6 +228,7 @@ export default function ProductCheckoutPage() {
     setIsSubmitting(true);
     setError(null);
     setCheckoutError(null);
+    saveGuestContact({ nombre: data.nombre, email: data.email, telefono: data.telefono });
 
     const pedidoData = {
       cliente: {
@@ -312,7 +321,7 @@ export default function ProductCheckoutPage() {
       setOrderPlaced(true); // fallback si no hay redirección
       toast({
         title: 'Pedido registrado',
-        description: 'Redireccionaremos al proveedor de pago o te avisaremos por email.',
+        description: `Guardamos tu ${completionLabel}. Te avisaremos por email si faltan pasos para el pago.`,
         className: 'bg-green-600 text-white',
       });
 
@@ -341,10 +350,10 @@ export default function ProductCheckoutPage() {
         <p className="text-lg text-muted-foreground mb-8">
           {demoSuccess
             ? 'Tu simulación quedó registrada en este navegador para mostrar el flujo completo.'
-            : 'Tu pedido ha sido realizado con éxito y está siendo procesado.'}
+            : `Tu ${completionLabel} fue recibido y está siendo procesado.`}
         </p>
         <div className="flex gap-4">
-          <Button onClick={() => navigate(`/productos${tenantQuerySuffix}`)}>Seguir Comprando</Button>
+          <Button onClick={() => navigate(catalogPath)}>Seguir Comprando</Button>
           <Button variant="outline" onClick={() => navigate('/perfil/pedidos')}>Ver Mis Pedidos</Button>
           {/* Asumiendo que /perfil/pedidos es donde el usuario ve sus pedidos */}
         </div>
@@ -378,10 +387,19 @@ export default function ProductCheckoutPage() {
 
   return (
     <div className="container mx-auto p-4 md:p-8">
-      <Button variant="outline" onClick={() => navigate(`/cart${tenantQuerySuffix}`)} className="mb-6">
+      <Button variant="outline" onClick={() => navigate(cartPath)} className="mb-6">
         <ArrowLeft className="mr-2 h-4 w-4" /> Volver al Carrito
       </Button>
       <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-4">Finalizar Compra</h1>
+
+      {!user && (
+        <Alert className="mb-6">
+          <AlertTitle>Completa tus datos</AlertTitle>
+          <AlertDescription>
+            Necesitamos nombre, email y teléfono para confirmar tu {completionLabel}. Si quieres sumar puntos más adelante, inicia sesión.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {isDemoMode && (
         <Alert className="mb-8">

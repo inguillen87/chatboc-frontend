@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import * as prefs from '../server/preferences.cjs';
+import * as prefs from '../preferences.js';
 
 describe('preferences', () => {
   let session;
