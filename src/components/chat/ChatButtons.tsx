@@ -19,6 +19,15 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
     const normalize = (v: string) =>
         v.toLowerCase().replace(/[\s_-]+/g, "");
 
+    // Filter out unsupported "subastas" actions so they are not rendered or dispatched.
+    const filteredButtons = botones.filter(boton => {
+        const actionToUse = boton.action || boton.action_id;
+        const normalizedAction = actionToUse ? normalize(actionToUse) : null;
+        const normalizedInternal = boton.accion_interna ? normalize(boton.accion_interna) : null;
+
+        return normalizedAction !== "subastas" && normalizedInternal !== "subastas";
+    });
+
     const loginActions = [
         "login",
         "loginpanel",
@@ -84,7 +93,7 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
             animate={{ opacity: 1 }}
             transition={{ delay: 0.2, duration: 0.3 }}
         >
-            {botones.map((boton, index) =>
+            {filteredButtons.map((boton, index) =>
                 boton.url ? (
                     <a
                         key={index}
