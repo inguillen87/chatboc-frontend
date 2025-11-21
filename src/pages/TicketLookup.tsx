@@ -20,6 +20,7 @@ import { getSpecializedContact, SpecializedContact } from '@/utils/contacts';
 import { collectAttachmentsFromTicket, getPrimaryImageUrl } from '@/components/tickets/DetailsPanel';
 import { Maximize2, X } from 'lucide-react';
 import { toast } from 'sonner';
+import KnowledgeBaseSuggestions from '@/components/tickets/KnowledgeBaseSuggestions';
 export default function TicketLookup() {
   const { ticketId } = useParams<{ ticketId: string }>();
   const navigate = useNavigate();
@@ -34,6 +35,12 @@ export default function TicketLookup() {
   const [estadoChat, setEstadoChat] = useState('');
   const [specialContact, setSpecialContact] = useState<SpecializedContact | null>(null);
   const completionNotifiedRef = useRef<Record<number, string>>({});
+  const languagePreference = React.useMemo(() => {
+    if (typeof navigator !== 'undefined' && navigator.language) {
+      return navigator.language;
+    }
+    return undefined;
+  }, []);
   const attachments = React.useMemo(
     () => collectAttachmentsFromTicket(ticket, timelineMessages),
     [ticket, timelineMessages],
@@ -454,6 +461,11 @@ export default function TicketLookup() {
                 </Card>
               </div>
             </div>
+            <KnowledgeBaseSuggestions
+              ticket={ticketForSummary}
+              messages={timelineMessages}
+              language={languagePreference}
+            />
             <Card className="overflow-hidden">
               <CardHeader>
                 <CardTitle className="text-xl font-semibold">Historial del reclamo</CardTitle>
