@@ -15,6 +15,7 @@ import {
   ClipboardList,
   Users,
   ShoppingCart,
+  Tag,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -56,6 +57,10 @@ const Navbar: React.FC = () => {
       { to: "/pedidos", label: "Pedidos", icon: ClipboardList },
       { to: "/usuarios", label: "Usuarios", icon: Users },
     ];
+
+    if (isMunicipal) {
+      links.push({ to: "/municipal/categorias", label: "Categorías", icon: Tag });
+    }
 
     links.push({
       to: analyticsPath,

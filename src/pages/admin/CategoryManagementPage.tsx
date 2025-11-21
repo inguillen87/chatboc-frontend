@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Loader2, PlusCircle, Edit, Trash2 } from 'lucide-react';
+import useRequireRole from '@/hooks/useRequireRole';
+import type { Role } from '@/utils/roles';
 import {
   Dialog,
   DialogContent,
@@ -20,6 +22,7 @@ interface Category {
 }
 
 const CategoryManagementPage: React.FC = () => {
+  useRequireRole(['admin', 'super_admin'] as Role[]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
