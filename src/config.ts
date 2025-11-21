@@ -57,6 +57,27 @@ const normalizeSurveyBaseUrl = (value?: string): string => {
 
 const RESOLVED_BACKEND_URL = sanitizeBaseUrl(VITE_BACKEND_URL);
 
+const inferBackendUrlFromOrigin = (): string => {
+  if (typeof window === 'undefined' || !window.location?.origin) {
+    return '';
+  }
+
+  try {
+    const url = new URL(window.location.href);
+    const hostname = url.hostname.toLowerCase();
+
+    // Ensure the frontend served from chatboc.ar uses the API host instead of the static site.
+    if (hostname.endsWith('chatboc.ar') && !hostname.startsWith('api.')) {
+      return `${url.protocol}//api.chatboc.ar`;
+    }
+
+    return url.origin;
+  } catch (error) {
+    console.warn('[config] Unable to infer backend URL from origin', error);
+    return '';
+  }
+};
+
 /**
  * The base URL for all HTTP API requests.
  * In development, with a proxy, this will be an empty string,
@@ -64,7 +85,10 @@ const RESOLVED_BACKEND_URL = sanitizeBaseUrl(VITE_BACKEND_URL);
  * In production, it will be the full backend URL when provided, otherwise
  * it falls back to the current origin.
  */
-export const BASE_API_URL = RESOLVED_BACKEND_URL || (IS_DEV ? '/api' : window.location.origin);
+const FALLBACK_BACKEND_URL = sanitizeBaseUrl(inferBackendUrlFromOrigin());
+
+export const BASE_API_URL =
+  RESOLVED_BACKEND_URL || (IS_DEV ? '/api' : FALLBACK_BACKEND_URL || window.location.origin);
 
 /**
  * Derives the WebSocket URL from the current environment.
