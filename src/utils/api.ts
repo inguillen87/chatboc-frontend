@@ -232,14 +232,26 @@ export async function apiFetch<T>(
     typeof baseUrlOverride === "string" && baseUrlOverride.trim()
       ? baseUrlOverride.trim()
       : "";
-  const resolvedBase = (preferredBase || BASE_API_URL || "").replace(/\/$/, "");
-  // Normalize URL to prevent double slashes
-  const url = resolvedBase ? `${resolvedBase}/${normalizedPath}` : `/${normalizedPath}`;
+
+  const cleanBase = (preferredBase || BASE_API_URL || "").replace(/\/$/, "");
+
+  const url = (() => {
+    if (!cleanBase) {
+      return `/${normalizedPath}`;
+    }
+
+    const isApiBase = cleanBase.endsWith("/api") || cleanBase === "/api";
+    const trimmedPath = isApiBase && normalizedPath.startsWith("api/")
+      ? normalizedPath.replace(/^api\/+/, "")
+      : normalizedPath;
+
+    return `${cleanBase}/${trimmedPath}`;
+  })();
   const currentOrigin =
     typeof window !== "undefined" && window.location?.origin
       ? window.location.origin.replace(/\/$/, "")
       : "";
-  const shouldAttemptRelativeFallback = !baseUrlOverride && !resolvedBase && !!currentOrigin;
+  const shouldAttemptRelativeFallback = !baseUrlOverride && !cleanBase && !!currentOrigin;
   const fallbackUrl = shouldAttemptRelativeFallback ? `/${normalizedPath}` : url;
   const headers: Record<string, string> = options.headers
     ? { ...options.headers }
