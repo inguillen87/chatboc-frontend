@@ -358,10 +358,39 @@ const ChatPanel = ({
         onShowRegister?.();
         return;
       }
-      if (["cart", "carrito"].includes(normalized)) {
+
+      const cartActions = [
+        "cart",
+        "carrito",
+        "catalogo",
+        "catalog",
+        "catalogue",
+        "tienda",
+        "store",
+        "catalogomenu",
+        "menucatalogo",
+      ];
+      if (cartActions.includes(normalized)) {
         onCart?.();
+        handleSend({ text: "Catálogo", action: "catalogo" });
         return;
       }
+
+      const loyaltyActions: Record<string, { text: string; action: string }> = {
+        donaciones: { text: "Donaciones", action: "donaciones" },
+        donacion: { text: "Donaciones", action: "donaciones" },
+        canje: { text: "Canje de puntos", action: "canje_puntos" },
+        canjearpuntos: { text: "Canje de puntos", action: "canje_puntos" },
+        puntos: { text: "Puntos", action: "saldo_puntos" },
+        subastas: { text: "Subastas", action: "subastas" },
+        compras: { text: "Comprar productos", action: "compras" },
+      };
+      if (loyaltyActions[normalized]) {
+        const entry = loyaltyActions[normalized];
+        handleSend({ text: entry.text, action: entry.action });
+        return;
+      }
+
       if (normalized === "requestuserlocation") {
         try {
           const position = await requestLocation();
