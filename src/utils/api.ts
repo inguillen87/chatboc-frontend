@@ -1,6 +1,6 @@
 // utils/api.ts
 
-import { BASE_API_URL } from '@/config';
+import { API_BASE_CANDIDATES, BASE_API_URL, SAME_ORIGIN_PROXY_BASE } from '@/config';
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateChatSessionId from "@/utils/chatSessionId"; // Import the new function
 import { getIframeToken } from "@/utils/config";
@@ -228,19 +228,44 @@ export async function apiFetch<T>(
   const chatSessionId = shouldAttachChatSession ? getOrCreateChatSessionId() : null; // Get or create the chat session ID
 
   const normalizedPath = path.replace(/^\/+/, "");
+  const hasApiPrefix = normalizedPath.startsWith("api/");
+  const pathWithoutApiPrefix = hasApiPrefix
+    ? normalizedPath.replace(/^api\/+/, "")
+    : normalizedPath;
   const preferredBase =
     typeof baseUrlOverride === "string" && baseUrlOverride.trim()
       ? baseUrlOverride.trim()
       : "";
-  const resolvedBase = (preferredBase || BASE_API_URL || "").replace(/\/$/, "");
-  // Normalize URL to prevent double slashes
-  const url = resolvedBase ? `${resolvedBase}/${normalizedPath}` : `/${normalizedPath}`;
+
+  const buildUrl = (base: string, trimApiPrefix = false) => {
+    const cleanBase = (base || "").replace(/\/$/, "");
+
+    if (!cleanBase) {
+      return `/${trimApiPrefix ? pathWithoutApiPrefix : normalizedPath}`;
+    }
+
+    const isApiBase = cleanBase.endsWith("/api") || cleanBase === "/api";
+    const pathForBase = trimApiPrefix || isApiBase
+      ? pathWithoutApiPrefix
+      : normalizedPath;
+
+    return `${cleanBase}/${pathForBase}`;
+  };
+
+  const candidateBases = preferredBase
+    ? [preferredBase.replace(/\/$/, "")]
+    : API_BASE_CANDIDATES.length
+      ? API_BASE_CANDIDATES
+      : [BASE_API_URL].filter((value): value is string => !!value);
+
   const currentOrigin =
     typeof window !== "undefined" && window.location?.origin
       ? window.location.origin.replace(/\/$/, "")
       : "";
-  const shouldAttemptRelativeFallback = !baseUrlOverride && !resolvedBase && !!currentOrigin;
-  const fallbackUrl = shouldAttemptRelativeFallback ? `/${normalizedPath}` : url;
+  const fallbackUrl =
+    !preferredBase && !candidateBases.length && !!currentOrigin ? `/${normalizedPath}` : "";
+
+  let url = buildUrl(candidateBases[0] || "");
   const headers: Record<string, string> = options.headers
     ? { ...options.headers }
     : {};
@@ -309,19 +334,88 @@ export async function apiFetch<T>(
     cache,
   };
 
-  let response: Response;
-  try {
-    response = await fetch(url, requestInit);
-  } catch (primaryErr) {
-    if (shouldAttemptRelativeFallback) {
-      try {
-        response = await fetch(fallbackUrl, requestInit);
-      } catch {
-        throw primaryErr;
-      }
-    } else {
-      throw primaryErr;
+  let response: Response | null = null;
+  let lastError: unknown = null;
+
+  for (let baseIndex = 0; baseIndex < candidateBases.length; baseIndex++) {
+    const base = candidateBases[baseIndex];
+    const cleanBase = (base || "").replace(/\/$/, "");
+    const isApiBase = cleanBase.endsWith("/api") || cleanBase === "/api";
+    const isSameOriginProxy =
+      Boolean(SAME_ORIGIN_PROXY_BASE) && cleanBase === SAME_ORIGIN_PROXY_BASE;
+    const allowAuthFallback = isSameOriginProxy && treatAsWidget;
+    const urlsToTry = [buildUrl(base, isApiBase)];
+
+    if (!isApiBase && hasApiPrefix) {
+      urlsToTry.push(buildUrl(base, true));
     }
+
+    for (let urlIndex = 0; urlIndex < urlsToTry.length; urlIndex++) {
+      const candidateUrl = urlsToTry[urlIndex];
+      url = candidateUrl;
+
+      try {
+        const candidateResponse = await fetch(candidateUrl, requestInit);
+
+        const shouldRetryForStatus = (status: number) => {
+          if (status === 404) {
+            return true;
+          }
+
+          if (allowAuthFallback && (status === 401 || status === 403)) {
+            return true;
+          }
+
+          return false;
+        };
+
+        const isMissingProxy =
+          candidateResponse.status === 404 &&
+          SAME_ORIGIN_PROXY_BASE &&
+          cleanBase === SAME_ORIGIN_PROXY_BASE &&
+          candidateBases.length > 1;
+
+        const hasMoreCandidateUrls = urlIndex < urlsToTry.length - 1;
+        const hasMoreBases = baseIndex < candidateBases.length - 1;
+        const isRetryableStatus = shouldRetryForStatus(candidateResponse.status);
+        const shouldTryNextCandidate = isRetryableStatus && hasMoreCandidateUrls;
+        const shouldTryNextBase = isRetryableStatus && !hasMoreCandidateUrls && hasMoreBases;
+
+        if (isMissingProxy || shouldTryNextCandidate) {
+          continue;
+        }
+
+        if (shouldTryNextBase) {
+          break;
+        }
+
+        response = candidateResponse;
+        break;
+      } catch (err) {
+        lastError = err;
+        continue;
+      }
+    }
+
+    if (response) {
+      break;
+    }
+  }
+
+  if (!response && fallbackUrl) {
+    try {
+      url = fallbackUrl;
+      response = await fetch(fallbackUrl, requestInit);
+    } catch (fallbackErr) {
+      lastError = fallbackErr;
+    }
+  }
+
+  if (!response) {
+    if (lastError) {
+      throw lastError;
+    }
+    throw new NetworkError("No fue posible establecer la conexión con el servidor.");
   }
 
   if (typeof onResponse === "function") {
