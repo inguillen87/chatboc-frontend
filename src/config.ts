@@ -59,6 +59,35 @@ const normalizeSurveyBaseUrl = (value?: string): string => {
 
 const RESOLVED_BACKEND_URL = normalizeBackendUrl(VITE_BACKEND_URL);
 
+const inferSameOriginProxy = (): string | null => {
+  if (typeof window === 'undefined' || !RESOLVED_BACKEND_URL) {
+    return null;
+  }
+
+  try {
+    const backendUrl = new URL(RESOLVED_BACKEND_URL);
+    const currentUrl = new URL(window.location.href);
+
+    const normalizeHost = (host: string) => host.split('.').slice(-2).join('.');
+    const backendApex = normalizeHost(backendUrl.hostname);
+    const currentApex = normalizeHost(currentUrl.hostname);
+
+    const isApiSubdomain = backendUrl.hostname.startsWith('api.');
+    const sharesApexDomain = backendApex === currentApex;
+
+    // When the backend lives on an api.<domain> host matching the current apex
+    // (e.g., api.chatboc.ar from www.chatboc.ar), prefer the same-origin /api
+    // proxy to avoid CORS issues in the widget.
+    if (isApiSubdomain && sharesApexDomain) {
+      return '/api';
+    }
+  } catch (error) {
+    console.warn('[config] Unable to infer same-origin proxy for backend URL', error);
+  }
+
+  return null;
+};
+
 const inferBackendUrlFromOrigin = (): string => {
   if (typeof window === 'undefined' || !window.location?.origin) {
     return '';
@@ -82,8 +111,12 @@ const inferBackendUrlFromOrigin = (): string => {
  */
 const FALLBACK_BACKEND_URL = sanitizeBaseUrl(inferBackendUrlFromOrigin());
 
+const preferSameOriginProxy = inferSameOriginProxy();
+
 export const BASE_API_URL =
-  RESOLVED_BACKEND_URL || (IS_DEV ? '/api' : FALLBACK_BACKEND_URL || window.location.origin);
+  preferSameOriginProxy ||
+  RESOLVED_BACKEND_URL ||
+  (IS_DEV ? '/api' : FALLBACK_BACKEND_URL || window.location.origin);
 
 /**
  * Derives the WebSocket URL from the current environment.
