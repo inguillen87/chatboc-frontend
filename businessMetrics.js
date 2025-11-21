@@ -1,7 +1,7 @@
-const cart = require('./cart');
-const preferences = require('./preferences');
+import * as cart from './cart.js';
+import * as preferences from './preferences.js';
 
-function getBusinessMetrics(session) {
+export function getBusinessMetrics(session) {
   const prefs = preferences.getPreferences(session);
   const totalConsultas = prefs.length;
 
@@ -24,5 +24,3 @@ function getBusinessMetrics(session) {
     { label: 'Producto más consultado', value: maxCount },
   ];
 }
-
-module.exports = { getBusinessMetrics };

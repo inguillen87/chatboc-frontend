@@ -1,6 +1,6 @@
-const { getMessages } = require('./db');
+import { getMessages } from './db.js';
 
-function getMunicipalMessageMetrics() {
+export function getMunicipalMessageMetrics() {
   const now = Date.now();
   const weekMs = 7 * 24 * 60 * 60 * 1000;
   const monthMs = 30 * 24 * 60 * 60 * 1000;
@@ -24,19 +24,13 @@ function getMunicipalMessageMetrics() {
   return metrics;
 }
 
-function generateCsvReport() {
+export function generateCsvReport() {
   const m = getMunicipalMessageMetrics();
   return `period,count\nweek,${m.week}\nmonth,${m.month}\nyear,${m.year}\n`;
 }
 
-function generatePdfReport() {
+export function generatePdfReport() {
   const m = getMunicipalMessageMetrics();
   const lines = `Week: ${m.week}\\nMonth: ${m.month}\\nYear: ${m.year}`;
   return Buffer.from(lines);
 }
-
-module.exports = {
-  getMunicipalMessageMetrics,
-  generateCsvReport,
-  generatePdfReport,
-};

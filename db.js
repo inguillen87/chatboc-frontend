@@ -43,31 +43,23 @@ let messages = [
   },
 ];
 
-function getTickets() {
+export function getTickets() {
   return tickets;
 }
 
-function __setTickets(newTickets) {
+export function __setTickets(newTickets) {
   tickets = newTickets;
 }
 
-function getMessages() {
+export function getMessages() {
   return messages;
 }
 
-function __setMessages(newMessages) {
+export function __setMessages(newMessages) {
   messages = newMessages;
 }
 
 // Devuelve el historial de mensajes para un ticket específico
-function getTicketMessagesById(ticketId) {
-  return messages.filter(m => m.ticketId === Number(ticketId));
+export function getTicketMessagesById(ticketId) {
+  return messages.filter((m) => m.ticketId === Number(ticketId));
 }
-
-module.exports = {
-  getTickets,
-  __setTickets,
-  getMessages,
-  __setMessages,
-  getTicketMessagesById,
-};
