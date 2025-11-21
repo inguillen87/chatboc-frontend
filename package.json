@@ -11,7 +11,7 @@
     "postinstall": "npm run setup-env",
     "test": "vitest run",
     "test:watch": "vitest",
-    "start": "node server/app.cjs",
+    "start": "vite preview --host",
     "seed:surveys": "node scripts/seedMunicipalSurveys.mjs",
     "seed:survey-responses": "node scripts/seedSurveyResponses.mjs"
   },
