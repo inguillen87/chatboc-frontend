@@ -55,13 +55,16 @@ const normalizeSurveyBaseUrl = (value?: string): string => {
   }
 };
 
+const RESOLVED_BACKEND_URL = sanitizeBaseUrl(VITE_BACKEND_URL);
+
 /**
  * The base URL for all HTTP API requests.
  * In development, with a proxy, this will be an empty string,
  * resulting in relative paths (e.g., /api/login).
- * In production, it will be the full backend URL.
+ * In production, it will be the full backend URL when provided, otherwise
+ * it falls back to the current origin.
  */
-export const BASE_API_URL = VITE_BACKEND_URL ? VITE_BACKEND_URL : (IS_DEV ? '/api' : window.location.origin);
+export const BASE_API_URL = RESOLVED_BACKEND_URL || (IS_DEV ? '/api' : window.location.origin);
 
 /**
  * Derives the WebSocket URL from the current environment.
@@ -70,14 +73,14 @@ export const BASE_API_URL = VITE_BACKEND_URL ? VITE_BACKEND_URL : (IS_DEV ? '/ap
  * @returns The full WebSocket URL.
  */
 export const getSocketUrl = (): string => {
-  if (VITE_BACKEND_URL) {
+  if (RESOLVED_BACKEND_URL) {
     // If a full backend URL is provided, derive the WebSocket URL from it.
     try {
-      const url = new URL(VITE_BACKEND_URL);
+      const url = new URL(RESOLVED_BACKEND_URL);
       url.protocol = url.protocol.replace('http', 'ws');
       return url.href;
     } catch (e) {
-      console.error("Invalid VITE_BACKEND_URL for WebSocket:", VITE_BACKEND_URL);
+      console.error("Invalid backend URL for WebSocket:", RESOLVED_BACKEND_URL);
       // Fallback to current location in case of invalid URL.
       const fallbackUrl = new URL(window.location.href);
       fallbackUrl.protocol = fallbackUrl.protocol.replace('http', 'ws');
