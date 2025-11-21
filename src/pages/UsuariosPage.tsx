@@ -26,6 +26,8 @@ export default function UsuariosPage() {
   const [search, setSearch] = useState('');
   const [marketingOnly, setMarketingOnly] = useState(false);
   const [sortConfig, setSortConfig] = useState<{ key: keyof Usuario; direction: 'asc' | 'desc' } | null>(null);
+  const [page, setPage] = useState(1);
+  const pageSize = 25;
 
   const sortedUsuarios = React.useMemo(() => {
     let sortableItems = [...usuarios];
@@ -42,6 +44,13 @@ export default function UsuariosPage() {
     }
     return sortableItems;
   }, [usuarios, sortConfig]);
+
+  const paginatedUsuarios = React.useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return sortedUsuarios.slice(start, start + pageSize);
+  }, [sortedUsuarios, page]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedUsuarios.length / pageSize));
 
   const requestSort = (key: keyof Usuario) => {
     let direction: 'asc' | 'desc' = 'asc';
@@ -74,6 +83,10 @@ export default function UsuariosPage() {
     };
     fetchData();
   }, [navigate, search, marketingOnly]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [sortedUsuarios.length]);
 
   if (loading) return <div className="p-8">Cargando...</div>;
   if (error) return <div className="p-8 text-destructive">{error}</div>;
@@ -117,7 +130,7 @@ export default function UsuariosPage() {
                 </tr>
               </thead>
               <tbody>
-                {sortedUsuarios.map(u => (
+                {paginatedUsuarios.map(u => (
                   <tr key={u.id} className="border-t">
                     <td className="p-2">{u.nombre}</td>
                     <td className="p-2">{u.email}</td>
@@ -127,6 +140,31 @@ export default function UsuariosPage() {
                 ))}
               </tbody>
             </table>
+            <div className="mt-4 flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+              <span>
+                Mostrando {(page - 1) * pageSize + 1}–
+                {Math.min(page * pageSize, sortedUsuarios.length)} de {sortedUsuarios.length}
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page === 1}
+                  onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                >
+                  Anterior
+                </Button>
+                <span className="text-xs font-semibold">Página {page} / {totalPages}</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                >
+                  Siguiente
+                </Button>
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}

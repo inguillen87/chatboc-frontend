@@ -3,6 +3,7 @@ import { Pie, PieChart, ResponsiveContainer, Tooltip, Cell, Legend } from 'recha
 import type { BreakdownResponse } from '@/services/analyticsService';
 import { WidgetFrame } from './WidgetFrame';
 import ChartTooltip from './ChartTooltip';
+import { AnalyticsEmptyState } from './AnalyticsEmptyState';
 
 interface DonutChartProps {
   title: string;
@@ -22,11 +23,15 @@ export function DonutChart({ title, description, data, exportName, loading }: Do
       .sort((a, b) => b.value - a.value);
   }, [data]);
 
+  const hasData = formatted.length > 0;
+
   return (
     <WidgetFrame title={title} description={description} csvData={formatted} exportFilename={exportName}>
       <div className="h-72 w-full">
         {loading ? (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Preparando datos...</div>
+        ) : !hasData ? (
+          <AnalyticsEmptyState />
         ) : (
           <ResponsiveContainer>
             <PieChart>

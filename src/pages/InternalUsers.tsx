@@ -7,6 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 
+const isValidEmail = (value: string) => /.+@.+\..+/.test(value.trim());
+
 interface InternalUser {
   id: number;
   nombre: string;
@@ -79,6 +81,10 @@ export default function InternalUsers() {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nombre.trim() || !email.trim() || !password.trim() || !categoriaId) return;
+    if (!isValidEmail(email)) {
+      setError('Ingresá un email válido.');
+      return;
+    }
     setError(null);
     try {
       await apiFetch(usersUrl, {
@@ -120,6 +126,11 @@ export default function InternalUsers() {
     if (!editingUser) return;
     if (!editNombre.trim() || !editEmail.trim() || !editCategoriaId) {
       setError('Completa los campos obligatorios.');
+      return;
+    }
+
+    if (!isValidEmail(editEmail)) {
+      setError('Ingresá un email válido.');
       return;
     }
 

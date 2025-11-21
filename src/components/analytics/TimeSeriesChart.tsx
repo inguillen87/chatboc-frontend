@@ -12,6 +12,7 @@ import {
 import type { TimeseriesResponse } from '@/services/analyticsService';
 import { WidgetFrame } from './WidgetFrame';
 import ChartTooltip from './ChartTooltip';
+import { AnalyticsEmptyState } from './AnalyticsEmptyState';
 
 interface TimeSeriesChartProps {
   title: string;
@@ -50,6 +51,8 @@ export function TimeSeriesChart({ title, description, data, loading, valueFormat
     return Array.from(keys);
   }, [data]);
 
+  const hasData = formatted.length > 0;
+
   return (
     <WidgetFrame title={title} description={description} csvData={csv} exportFilename={exportName}>
       <div className="h-72 w-full">
@@ -57,6 +60,8 @@ export function TimeSeriesChart({ title, description, data, loading, valueFormat
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
             Cargando serie...
           </div>
+        ) : !hasData ? (
+          <AnalyticsEmptyState />
         ) : (
           <ResponsiveContainer>
             <AreaChart data={formatted} margin={{ left: 16, right: 16, top: 10, bottom: 0 }}>
