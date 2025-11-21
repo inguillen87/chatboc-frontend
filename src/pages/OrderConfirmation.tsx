@@ -13,6 +13,7 @@ import { useTenant } from '@/context/TenantContext';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { cn } from '@/lib/utils';
 import { buildTenantPath } from '@/utils/tenantPaths';
+import { getProductPlaceholderImage } from '@/utils/cartPayload';
 
 interface OrderItem {
   nombre: string;
@@ -293,45 +294,58 @@ const OrderConfirmationPage = () => {
                     <p className="text-muted-foreground">No encontramos ítems asociados al pedido.</p>
                   ) : (
                     <div className="space-y-3">
-                      {order.items.map((item, index) => (
-                        <div
-                          key={`${item.nombre}-${index}`}
-                          className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border rounded-lg p-3 bg-card"
-                        >
-                          <div className="flex items-center gap-3">
-                            {item.imagen_url ? (
+                      {order.items.map((item, index) => {
+                        const modality = (item.modalidad ?? '').toLowerCase();
+                        const badgeVariant = modality === 'donacion' ? 'success' : modality === 'puntos' ? 'outline' : 'secondary';
+                        const badgeLabel =
+                          modality === 'donacion' ? 'Donación' : modality === 'puntos' ? 'Canje con puntos' : 'Compra';
+                        const placeholder = getProductPlaceholderImage({
+                          id: item.nombre,
+                          nombre: item.nombre,
+                          precio_unitario: item.precio_unitario ?? 0,
+                          modalidad: modality,
+                        } as any);
+
+                        return (
+                          <div
+                            key={`${item.nombre}-${index}`}
+                            className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border rounded-lg p-3 bg-card"
+                          >
+                            <div className="flex items-center gap-3">
                               <img
-                                src={item.imagen_url}
+                                src={item.imagen_url ?? placeholder}
                                 alt={item.nombre}
                                 className="h-14 w-14 rounded-md object-cover border"
                                 loading="lazy"
                                 onError={(event) => {
-                                  event.currentTarget.style.visibility = 'hidden';
+                                  if (event.currentTarget.src !== placeholder) {
+                                    event.currentTarget.src = placeholder;
+                                  }
                                 }}
                               />
-                            ) : null}
-                            <div>
-                              <p className="font-medium text-foreground">{item.nombre}</p>
-                              <p className="text-sm text-muted-foreground">Cantidad: {item.cantidad}</p>
-                              {item.modalidad && (
-                                <Badge variant="outline" className="mt-1 capitalize">{item.modalidad}</Badge>
+                              <div>
+                                <p className="font-medium text-foreground">{item.nombre}</p>
+                                <p className="text-sm text-muted-foreground">Cantidad: {item.cantidad}</p>
+                                {item.modalidad && (
+                                  <Badge variant={badgeVariant} className="mt-1 capitalize">{badgeLabel}</Badge>
+                                )}
+                              </div>
+                            </div>
+                            <div className="text-right space-y-1">
+                              {item.modalidad === 'puntos' ? (
+                                <p className="font-semibold text-primary">{(item.precio_puntos ?? 0) * item.cantidad} pts</p>
+                              ) : item.modalidad === 'donacion' ? (
+                                <p className="font-semibold text-foreground">Donación</p>
+                              ) : (
+                                <p className="font-semibold text-foreground">{formatCurrency((item.precio_unitario ?? 0) * item.cantidad)}</p>
+                              )}
+                              {item.subtotal_puntos && item.modalidad !== 'puntos' && (
+                                <p className="text-xs text-primary">{item.subtotal_puntos} pts</p>
                               )}
                             </div>
                           </div>
-                          <div className="text-right space-y-1">
-                            {item.modalidad === 'puntos' ? (
-                              <p className="font-semibold text-primary">{(item.precio_puntos ?? 0) * item.cantidad} pts</p>
-                            ) : item.modalidad === 'donacion' ? (
-                              <p className="font-semibold text-foreground">Donación</p>
-                            ) : (
-                              <p className="font-semibold text-foreground">{formatCurrency((item.precio_unitario ?? 0) * item.cantidad)}</p>
-                            )}
-                            {item.subtotal_puntos && item.modalidad !== 'puntos' && (
-                              <p className="text-xs text-primary">{item.subtotal_puntos} pts</p>
-                            )}
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>

@@ -124,12 +124,16 @@ export default function InternalUsers() {
     }
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (user: InternalUser) => {
+    const cargaAbiertos = typeof user.abiertos === 'number' ? user.abiertos : 0;
+    const cargaTexto = cargaAbiertos > 0
+      ? `Tiene ${cargaAbiertos} ticket(s) abiertos que deberás reasignar.`
+      : 'Los tickets previos quedarán registrados sin asignación.';
     const wantsToDelete = window.confirm(
-      '¿Eliminar el empleado? Los tickets abiertos quedarán sin asignar hasta que los reasignes.'
+      `¿Eliminar el empleado ${user.nombre}? ${cargaTexto}`
     );
     if (!wantsToDelete) return;
-    const deleteUrl = `${usersUrl}/${id}`;
+    const deleteUrl = `${usersUrl}/${user.id}`;
     try {
       await apiFetch(deleteUrl, { method: 'DELETE' });
       await refreshUsers();
@@ -391,7 +395,7 @@ export default function InternalUsers() {
                 <td className="p-2">{u.atendidos || 0}</td>
                 <td className="p-2">
                   <Button variant="outline" size="sm" className="mr-2" onClick={() => startEdit(u)}>Editar</Button>
-                  <Button variant="destructive" size="sm" onClick={() => handleDelete(u.id)}>Eliminar</Button>
+                  <Button variant="destructive" size="sm" onClick={() => handleDelete(u)}>Eliminar</Button>
                 </td>
               </tr>
             );

@@ -19,6 +19,8 @@ import usePointsBalance from '@/hooks/usePointsBalance';
 import UploadOrderFromFile from '@/components/cart/UploadOrderFromFile';
 import { useUser } from '@/hooks/useUser';
 import { buildTenantPath } from '@/utils/tenantPaths';
+import GuestContactDialog, { GuestContactValues } from '@/components/cart/GuestContactDialog';
+import { loadGuestContact, saveGuestContact } from '@/utils/guestContact';
 
 export default function ProductCatalog() {
   const [allProducts, setAllProducts] = useState<ProductDetails[]>([]);
@@ -37,6 +39,9 @@ export default function ProductCatalog() {
   const navigate = useNavigate();
   const cartCount = useCartCount();
   const { points: pointsBalance } = usePointsBalance();
+  const [showGuestDialog, setShowGuestDialog] = useState(false);
+  const [pendingGuestProduct, setPendingGuestProduct] = useState<ProductDetails | null>(null);
+  const [pendingGuestOptions, setPendingGuestOptions] = useState<AddToCartOptions | null>(null);
 
   const catalogPath = buildTenantPath('/productos', currentSlug);
   const cartPath = buildTenantPath('/cart', currentSlug);
@@ -59,6 +64,22 @@ export default function ProductCatalog() {
       (err instanceof ApiError && [401, 403, 405].includes(err.status)) ||
       err instanceof NetworkError
     );
+  };
+
+  const addProductLocally = (product: ProductDetails, options: AddToCartOptions) => {
+    const unitsPerCase = product.unidades_por_caja && product.unidades_por_caja > 0
+      ? product.unidades_por_caja
+      : 1;
+    const quantity = Math.max(1, Math.floor(options.quantity));
+    const mode = options.mode === 'case' && product.precio_por_caja && product.unidades_por_caja
+      ? 'case'
+      : 'unit';
+    const totalUnits = mode === 'case' ? quantity * unitsPerCase : quantity;
+    addProductToLocalCart(product, totalUnits);
+    toast({
+      title: 'Guardamos tu selección',
+      description: `${product.nombre} se agregó al carrito en modo invitado (${quantity} ${mode === 'case' ? 'cajas' : 'unidades'}).`,
+    });
   };
 
   const activateDemoCatalog = () => {
@@ -119,6 +140,17 @@ export default function ProductCatalog() {
       .finally(() => setLoading(false));
   }, [sharedRequestOptions]);
 
+  const handleGuestContactSubmit = (values: GuestContactValues) => {
+    saveGuestContact(values);
+    setShowGuestDialog(false);
+    if (pendingGuestProduct && pendingGuestOptions) {
+      setCartMode('local');
+      addProductLocally(pendingGuestProduct, pendingGuestOptions);
+    }
+    setPendingGuestProduct(null);
+    setPendingGuestOptions(null);
+  };
+
   useEffect(() => {
     const lowercasedFilter = searchTerm.toLowerCase();
     const normalizedCategory = selectedCategory.trim().toLowerCase();
@@ -163,12 +195,9 @@ export default function ProductCatalog() {
     const isPointsProduct = (product.modalidad ?? '').toString().toLowerCase() === 'puntos';
 
     if (isPointsProduct && !user) {
-      toast({
-        title: 'Necesitás iniciar sesión para usar tus puntos',
-        description: 'Ingresa o crea tu cuenta antes de canjear productos con puntos.',
-        variant: 'destructive',
-      });
-      navigate('/login');
+      setPendingGuestProduct(product);
+      setPendingGuestOptions(options);
+      setShowGuestDialog(true);
       return;
     }
 
@@ -401,6 +430,19 @@ export default function ProductCatalog() {
           )}
         </div>
       )}
+
+      <GuestContactDialog
+        open={showGuestDialog}
+        onClose={() => {
+          setShowGuestDialog(false);
+          setPendingGuestProduct(null);
+          setPendingGuestOptions(null);
+        }}
+        reason="points"
+        defaultValues={loadGuestContact()}
+        onLogin={() => navigate('/login')}
+        onSubmit={handleGuestContactSubmit}
+      />
     </div>
   );
 }

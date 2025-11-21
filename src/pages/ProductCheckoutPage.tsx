@@ -28,6 +28,7 @@ import { getLocalCartProducts, clearLocalCart } from '@/utils/localCart';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import usePointsBalance from '@/hooks/usePointsBalance';
 import { buildTenantPath } from '@/utils/tenantPaths';
+import { loadGuestContact, saveGuestContact } from '@/utils/guestContact';
 
 // Esquema de validación para el formulario de checkout
 const checkoutSchema = z.object({
@@ -80,6 +81,7 @@ export default function ProductCheckoutPage() {
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [checkoutMode, setCheckoutMode] = useState<'api' | 'local'>('api');
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const guestDefaults = useMemo(() => loadGuestContact(), []);
 
   const catalogPath = buildTenantPath('/productos', currentSlug);
   const cartPath = buildTenantPath('/cart', currentSlug);
@@ -98,9 +100,9 @@ export default function ProductCheckoutPage() {
   const { control, handleSubmit, setValue, formState: { errors } } = useForm<CheckoutFormData>({
     resolver: zodResolver(checkoutSchema),
     defaultValues: {
-      nombre: '',
-      email: '',
-      telefono: '',
+      nombre: guestDefaults.nombre || '',
+      email: guestDefaults.email || '',
+      telefono: guestDefaults.telefono || '',
       direccion: '',
     }
   });
@@ -226,6 +228,7 @@ export default function ProductCheckoutPage() {
     setIsSubmitting(true);
     setError(null);
     setCheckoutError(null);
+    saveGuestContact({ nombre: data.nombre, email: data.email, telefono: data.telefono });
 
     const pedidoData = {
       cliente: {

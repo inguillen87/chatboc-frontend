@@ -37,6 +37,31 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
         return normalizedAction !== "subastas" && normalizedInternal !== "subastas";
     });
 
+    const hasCatalogMenu = filteredButtons.some((boton) => {
+        const actionToUse = boton.action || boton.action_id;
+        const normalizedAction = actionToUse ? normalize(actionToUse) : null;
+        const normalizedInternal = boton.accion_interna ? normalize(boton.accion_interna) : null;
+        return normalizedAction === 'catalogomenu' || normalizedInternal === 'catalogomenu';
+    });
+
+    const catalogMenuButtons: Boton[] = hasCatalogMenu
+        ? [
+            { texto: 'Ver catálogo', accion_interna: 'catalogo' },
+            { texto: 'Ver carrito', accion_interna: 'carrito' },
+            { texto: 'Donaciones', accion_interna: 'donaciones' },
+            { texto: 'Canje de puntos', accion_interna: 'canje_puntos' },
+        ]
+        : [];
+
+    const buttonsToRender = filteredButtons
+        .filter((boton) => {
+            const actionToUse = boton.action || boton.action_id;
+            const normalizedAction = actionToUse ? normalize(actionToUse) : null;
+            const normalizedInternal = boton.accion_interna ? normalize(boton.accion_interna) : null;
+            return normalizedAction !== 'catalogomenu' && normalizedInternal !== 'catalogomenu';
+        })
+        .concat(catalogMenuButtons);
+
     const loginActions = [
         "login",
         "loginpanel",
@@ -104,7 +129,7 @@ const ChatButtons: React.FC<ChatButtonsProps> = ({
             animate={{ opacity: 1 }}
             transition={{ delay: 0.2, duration: 0.3 }}
         >
-            {filteredButtons.map((boton, index) =>
+            {buttonsToRender.map((boton, index) =>
                 boton.url ? (
                     <a
                         key={index}

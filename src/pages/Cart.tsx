@@ -24,6 +24,9 @@ import usePointsBalance from '@/hooks/usePointsBalance';
 import UploadOrderFromFile from '@/components/cart/UploadOrderFromFile';
 import { useUser } from '@/hooks/useUser';
 import { buildTenantPath } from '@/utils/tenantPaths';
+import { Badge } from '@/components/ui/badge';
+import GuestContactDialog, { GuestContactValues } from '@/components/cart/GuestContactDialog';
+import { loadGuestContact, saveGuestContact } from '@/utils/guestContact';
 
 // Interfaz para el producto en el carrito, extendiendo ProductDetails y añadiendo cantidad
 interface CartItem extends ProductDetails {
@@ -42,6 +45,7 @@ export default function CartPage() {
   const { currentSlug } = useTenant();
   const { points: pointsBalance, isLoading: isLoadingPoints } = usePointsBalance();
   const { user } = useUser();
+  const [showGuestDialog, setShowGuestDialog] = useState(false);
 
   const catalogPath = buildTenantPath('/productos', currentSlug);
   const cartCheckoutPath = buildTenantPath('/checkout-productos', currentSlug);
@@ -224,6 +228,17 @@ export default function CartPage() {
       return;
     }
 
+    if (!user) {
+      setShowGuestDialog(true);
+      return;
+    }
+
+    navigate(cartCheckoutPath);
+  };
+
+  const handleGuestContactSubmit = (values: GuestContactValues) => {
+    saveGuestContact(values);
+    setShowGuestDialog(false);
     navigate(cartCheckoutPath);
   };
 
@@ -333,6 +348,14 @@ export default function CartPage() {
                 <CardContent className="p-4 flex-1 flex flex-col sm:flex-row justify-between items-start sm:items-center">
                   <div className="flex-1 mb-4 sm:mb-0">
                     <h3 className="font-semibold text-lg text-foreground">{item.nombre}</h3>
+                    {item.modalidad && (
+                      <Badge
+                        variant={item.modalidad === 'donacion' ? 'success' : item.modalidad === 'puntos' ? 'outline' : 'secondary'}
+                        className="mt-1 capitalize"
+                      >
+                        {item.modalidad === 'donacion' ? 'Donación' : item.modalidad === 'puntos' ? 'Canje con puntos' : 'Compra'}
+                      </Badge>
+                    )}
                     {item.presentacion && item.presentacion !== 'NaN' && (
                       <p className="text-sm text-muted-foreground">{item.presentacion}</p>
                     )}
@@ -472,6 +495,15 @@ export default function CartPage() {
           </div>
         </div>
       )}
+
+      <GuestContactDialog
+        open={showGuestDialog}
+        onClose={() => setShowGuestDialog(false)}
+        defaultValues={loadGuestContact()}
+        reason="checkout"
+        onLogin={() => navigate('/login')}
+        onSubmit={handleGuestContactSubmit}
+      />
     </div>
   );
 }
