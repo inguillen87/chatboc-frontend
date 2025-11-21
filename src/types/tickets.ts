@@ -9,7 +9,7 @@ export interface Horario {
 }
 
 export interface User {
-  id: string;
+  id: string | number;
   nombre_usuario: string;
   email: string;
   email_usuario?: string;
@@ -17,6 +17,8 @@ export interface User {
   location?: string;
   phone?: string;
   horario?: Horario;
+  categoria_ids?: number[];
+  categorias?: { id: number; nombre: string }[];
 }
 
 export interface AttachmentAnalysisData {
@@ -144,6 +146,9 @@ export interface Ticket {
   archivos_adjuntos?: Attachment[];
   activityLog?: any[];
   hasUnreadMessages?: boolean;
+
+  assignedAgentId?: string | number;
+  assigned_agent_id?: string | number;
 
   // For backwards compatibility and flexibility
   user?: User;

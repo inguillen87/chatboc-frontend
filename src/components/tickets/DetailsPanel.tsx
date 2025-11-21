@@ -20,6 +20,7 @@ import { buildFullAddress } from '../TicketMap';
 import TicketTimeline from './TicketTimeline';
 import TicketAttachments from './TicketAttachments';
 import TicketLogisticsSummary from './TicketLogisticsSummary';
+import TicketAssignment from './TicketAssignment';
 import { useTickets } from '@/context/TicketContext';
 import { exportToPdf, exportToXlsx } from '@/services/exportService';
 import {
@@ -891,6 +892,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ onClose, className }) => {
                       ))}
                   </div>
                 )}
+                <TicketAssignment className="mt-2" />
                  {ticket.assignedAgent && (
                     <div className="space-y-2 pt-2">
                         <h4 className="font-semibold">Agente Asignado</h4>
