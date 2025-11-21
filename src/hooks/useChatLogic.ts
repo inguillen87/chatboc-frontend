@@ -950,21 +950,31 @@ export function useChatLogic({
 
     const originalText = actualPayload.text || "";
 
+    const { text: userMessageText, attachmentInfo, ubicacion_usuario, action, location } = actualPayload;
+    const actionPayload = 'payload' in actualPayload ? actualPayload.payload : undefined;
+
+    const emojiFallback =
+      (typeof actionPayload?.category === 'string' && actionPayload.category.trim()) ||
+      ({
+        "🌳": "arbolado",
+        "💧": "agua",
+        "🔥": "fuego",
+        "🐶": "animales",
+        "🚮": "limpieza",
+      }[originalText.trim()]);
+
     // Sanitize text by removing emojis to prevent issues with backend services like Google Search.
     const emojiRegex = /([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g;
     const sanitizedCandidate = originalText.replace(emojiRegex, '').trim();
     const sanitizedDiffers = sanitizedCandidate !== originalText;
-    const normalizedQuestionBase = sanitizedCandidate || originalText;
+    const normalizedQuestionBase = sanitizedCandidate || emojiFallback || originalText;
     const questionForBackend =
-      actualPayload.source === 'button' && sanitizedDiffers
+      actualPayload.source === 'button' && sanitizedDiffers && sanitizedCandidate
         ? originalText
         : normalizedQuestionBase;
 
     // Texto normalizado (sin emojis) para comparaciones locales
     const normalizedForMatching = (normalizedQuestionBase || '').toLowerCase();
-
-    const { text: userMessageText, attachmentInfo, ubicacion_usuario, action, location } = actualPayload;
-    const actionPayload = 'payload' in actualPayload ? actualPayload.payload : undefined;
 
     // Allow confirming/cancelling a claim with free text when awaiting confirmation
     let resolvedAction = action;
@@ -1106,9 +1116,9 @@ export function useChatLogic({
         ...(visitorName && { nombre_usuario: visitorName }),
       };
 
-      if (sanitizedDiffers) {
+      if (sanitizedDiffers || emojiFallback) {
         requestBody.pregunta_original = originalText;
-        requestBody.pregunta_sin_emojis = sanitizedCandidate;
+        requestBody.pregunta_sin_emojis = sanitizedCandidate || emojiFallback || originalText;
       }
 
       const legacyAttachmentUrl = attachmentInfo?.url || actualPayload.archivo_url;
