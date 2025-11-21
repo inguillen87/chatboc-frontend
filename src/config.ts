@@ -15,6 +15,33 @@ const sanitizeBaseUrl = (value?: string) => {
   return trimmed.replace(/\/$/, '');
 };
 
+const maybeForceCanonicalBackendHost = (value: string): string => {
+  const sanitized = sanitizeBaseUrl(value);
+  if (!sanitized) return '';
+
+  try {
+    const url = new URL(sanitized);
+
+    const isChatbocPublicDomain =
+      typeof window !== 'undefined' &&
+      !!window.location?.hostname &&
+      window.location.hostname.toLowerCase().endsWith('chatboc.ar');
+
+    const hostname = url.hostname.toLowerCase();
+    const isRenderBackend = hostname.includes('chatbot-backend') || hostname.endsWith('onrender.com');
+
+    if (isChatbocPublicDomain && (isRenderBackend || hostname === 'www.chatboc.ar')) {
+      url.hostname = 'api.chatboc.ar';
+      url.port = '';
+      return url.origin;
+    }
+
+    return url.origin.replace(/\/$/, '');
+  } catch (error) {
+    return sanitized;
+  }
+};
+
 const parseBooleanFlag = (value?: string | boolean | null | undefined): boolean | null => {
   if (typeof value === 'boolean') {
     return value;
@@ -55,7 +82,7 @@ const normalizeSurveyBaseUrl = (value?: string): string => {
   }
 };
 
-const RESOLVED_BACKEND_URL = sanitizeBaseUrl(VITE_BACKEND_URL);
+const RESOLVED_BACKEND_URL = maybeForceCanonicalBackendHost(VITE_BACKEND_URL);
 
 const inferBackendUrlFromOrigin = (): string => {
   if (typeof window === 'undefined' || !window.location?.origin) {
