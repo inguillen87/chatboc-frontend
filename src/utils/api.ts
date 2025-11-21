@@ -228,25 +228,28 @@ export async function apiFetch<T>(
   const chatSessionId = shouldAttachChatSession ? getOrCreateChatSessionId() : null; // Get or create the chat session ID
 
   const normalizedPath = path.replace(/^\/+/, "");
+  const hasApiPrefix = normalizedPath.startsWith("api/");
+  const pathWithoutApiPrefix = hasApiPrefix
+    ? normalizedPath.replace(/^api\/+/, "")
+    : normalizedPath;
   const preferredBase =
     typeof baseUrlOverride === "string" && baseUrlOverride.trim()
       ? baseUrlOverride.trim()
       : "";
 
-  const buildUrl = (base: string) => {
+  const buildUrl = (base: string, trimApiPrefix = false) => {
     const cleanBase = (base || "").replace(/\/$/, "");
 
     if (!cleanBase) {
-      return `/${normalizedPath}`;
+      return `/${trimApiPrefix ? pathWithoutApiPrefix : normalizedPath}`;
     }
 
     const isApiBase = cleanBase.endsWith("/api") || cleanBase === "/api";
-    const trimmedPath =
-      isApiBase && normalizedPath.startsWith("api/")
-        ? normalizedPath.replace(/^api\/+/, "")
-        : normalizedPath;
+    const pathForBase = trimApiPrefix || isApiBase
+      ? pathWithoutApiPrefix
+      : normalizedPath;
 
-    return `${cleanBase}/${trimmedPath}`;
+    return `${cleanBase}/${pathForBase}`;
   };
 
   const candidateBases = preferredBase
@@ -335,26 +338,40 @@ export async function apiFetch<T>(
   let lastError: unknown = null;
 
   for (const base of candidateBases) {
-    url = buildUrl(base);
+    const cleanBase = (base || "").replace(/\/$/, "");
+    const isApiBase = cleanBase.endsWith("/api") || cleanBase === "/api";
+    const urlsToTry = [buildUrl(base, isApiBase)];
 
-    try {
-      const candidateResponse = await fetch(url, requestInit);
+    if (!isApiBase && hasApiPrefix) {
+      urlsToTry.push(buildUrl(base, true));
+    }
 
-      const isMissingProxy =
-        candidateResponse.status === 404 &&
-        SAME_ORIGIN_PROXY_BASE &&
-        base.replace(/\/$/, "") === SAME_ORIGIN_PROXY_BASE &&
-        candidateBases.length > 1;
+    for (const candidateUrl of urlsToTry) {
+      url = candidateUrl;
 
-      if (isMissingProxy) {
+      try {
+        const candidateResponse = await fetch(candidateUrl, requestInit);
+
+        const isMissingProxy =
+          candidateResponse.status === 404 &&
+          SAME_ORIGIN_PROXY_BASE &&
+          cleanBase === SAME_ORIGIN_PROXY_BASE &&
+          candidateBases.length > 1;
+
+        if (isMissingProxy) {
+          break;
+        }
+
+        response = candidateResponse;
+        break;
+      } catch (err) {
+        lastError = err;
         continue;
       }
+    }
 
-      response = candidateResponse;
+    if (response) {
       break;
-    } catch (err) {
-      lastError = err;
-      continue;
     }
   }
 
