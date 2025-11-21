@@ -6,12 +6,44 @@ import {
   TicketTimelineResponse,
   TicketStatus,
   Attachment,
+  User,
 } from '@/types/tickets';
 import { AttachmentInfo } from '@/types/chat';
 
 const generateRandomAvatar = (seed: string) => {
     return `https://i.pravatar.cc/150?u=${seed}`;
 }
+
+export interface AssignableAgent extends User {
+    categoria_id?: number | null;
+    categoria_ids?: number[] | null;
+    categorias?: { id: number; nombre: string }[] | null;
+    abiertos?: number | null;
+    atendidos?: number | null;
+}
+
+const normalizeAssignableAgent = (raw: any): AssignableAgent | null => {
+    if (!raw || typeof raw !== 'object') return null;
+
+    const id = raw.id ?? raw.user_id ?? raw.usuario_id ?? raw.userId;
+    const nombre = raw.nombre_usuario || raw.nombre || raw.name;
+    const email = raw.email || raw.email_usuario || raw.emailUsuario;
+
+    if (id === undefined && !nombre && !email) return null;
+
+    return {
+        id: id ?? nombre ?? email ?? 'agente',
+        nombre_usuario: nombre || 'Agente',
+        email: email || 'desconocido@chatboc.local',
+        avatarUrl: raw.avatarUrl || raw.avatar_url || raw.avatar,
+        phone: raw.phone || raw.telefono,
+        categoria_id: raw.categoria_id ?? null,
+        categoria_ids: raw.categoria_ids ?? null,
+        categorias: raw.categorias ?? null,
+        abiertos: raw.abiertos ?? null,
+        atendidos: raw.atendidos ?? null,
+    };
+};
 
 export const getTickets = async (): Promise<{tickets: Ticket[]}> => {
   try {
@@ -29,6 +61,26 @@ export const getTickets = async (): Promise<{tickets: Ticket[]}> => {
     console.error('Error fetching tickets:', error);
     throw error;
   }
+};
+
+export const getAssignableAgents = async (
+    tipo: 'municipio' | 'pyme',
+): Promise<AssignableAgent[]> => {
+    const endpoint = tipo === 'municipio' ? '/municipal/usuarios' : '/pyme/usuarios';
+
+    try {
+        const response = await apiFetch<any>(endpoint);
+        const collection: any[] = Array.isArray(response)
+            ? response
+            : response?.usuarios || response?.users || response?.data || [];
+
+        return collection
+            .map(normalizeAssignableAgent)
+            .filter((agent): agent is AssignableAgent => Boolean(agent));
+    } catch (error) {
+        console.error('Error fetching assignable agents:', error);
+        throw error;
+    }
 };
 
 export const getTicketById = async (id: string): Promise<Ticket> => {
@@ -381,6 +433,46 @@ export const updateTicketStatus = async (
         console.error(`Error updating status for ticket ${ticketId}:`, error);
         throw error;
     }
+};
+
+export const assignTicketToAgent = async (
+    ticketId: number,
+    tipo: 'municipio' | 'pyme',
+    agent: AssignableAgent | string | number,
+): Promise<void> => {
+    const agentId = typeof agent === 'object' ? agent.id : agent;
+    const payload = {
+        user_id: agentId,
+        assigned_user_id: agentId,
+        assigned_to: agentId,
+    };
+
+    const endpoints = [
+        `/tickets/${tipo}/${ticketId}/assign`,
+        `/tickets/${tipo}/${ticketId}/asignar`,
+        `/tickets/${tipo}/${ticketId}/asignacion`,
+    ];
+
+    let lastError: unknown;
+
+    for (const endpoint of endpoints) {
+        try {
+            await apiFetch(endpoint, {
+                method: 'PUT',
+                body: payload,
+            });
+            return;
+        } catch (err: any) {
+            lastError = err;
+            const apiErr = err as ApiError;
+            if (apiErr?.status && ![404, 405].includes(apiErr.status)) {
+                throw err;
+            }
+        }
+    }
+
+    console.error(`No se pudo asignar el ticket ${ticketId}:`, lastError);
+    throw lastError || new Error('Error desconocido al asignar el ticket');
 };
 
 export const getTicketMessages = async (
