@@ -662,7 +662,7 @@ const CatalogMappingPage: React.FC = () => {
                             key={`${column}-${rowIndex}`}
                             className="px-3 py-2 text-foreground border-b border-border/60 whitespace-nowrap"
                           >
-                            {record[column] && record[column]?.length !== 0 ? record[column] : <span className="text-muted-foreground/70">—</span>}
+                            {record?.[column] && record?.[column]?.length !== 0 ? record[column] : <span className="text-muted-foreground/70">—</span>}
                           </td>
                         ))}
                       </tr>
