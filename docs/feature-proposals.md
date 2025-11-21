@@ -1,6 +1,16 @@
-# Propuestas de nuevas funcionalidades para Chatboc
+# Propuesta de funcionalidades avanzadas inspiradas en CRM y marketplaces líderes
 
-Este documento consolida líneas de evolución inspiradas en CRM y marketplaces líderes, enfocadas en escalar Chatboc con una experiencia omnicanal, inteligente y segura. Se incluyen ideas avanzadas agrupadas por temática y un plan de fases sugeridas para implementar de forma iterativa.
+Estas ideas extienden el roadmap de Chatboc para ofrecer una experiencia omnicanal, escalable y centrada en la eficiencia operativa. Se agrupan en líneas temáticas para facilitar su priorización e incluyen recomendaciones tácticas para una implementación iterativa.
+
+## Resumen ejecutivo
+- Omnicanalidad con nuevos canales (Messenger, Telegram, email, IVR con transcripción) consolidados en el CRM.
+- Base de conocimientos y respuestas asistidas para reducir tickets repetitivos y acelerar a los operadores.
+- Jerarquías de tenants con analítica consolidada para visibilidad global y autonomía local.
+- Marketplace conversacional avanzado con reseñas, recomendaciones, bundles y subastas en tiempo real.
+- Importaciones masivas asistidas por IA (OCR/visión) y funciones CRM avanzadas (SLA, encuestas, campañas proactivas).
+- Seguridad, cumplimiento y escalabilidad (observabilidad, SSO, sharding, serverless, rate limiting).
+
+## Detalle por línea temática
 
 ## 1. Omnicanalidad y soporte multilingüe
 - **Nuevos canales**: agregar Facebook Messenger, Telegram, email y atención telefónica vía IVR con transcripción automática a tickets (webhooks más función serverless de voz a texto).
