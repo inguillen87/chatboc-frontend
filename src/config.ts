@@ -121,8 +121,8 @@ const fallbackRelativeProxy = typeof window !== 'undefined' ? '/api' : '';
 
 export const BASE_API_URL = sanitizeBaseUrl(
   preferSameOriginProxy ||
-    RESOLVED_BACKEND_URL ||
     fallbackRelativeProxy ||
+    RESOLVED_BACKEND_URL ||
     FALLBACK_BACKEND_URL ||
     (typeof window !== 'undefined' ? window.location.origin : '')
 );
