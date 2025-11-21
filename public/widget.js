@@ -8,10 +8,43 @@
     );
 
   const DEFAULT_DOMAIN = "https://chatboc.ar";
-  const chatbocDomain =
-    (script &&
-      (script.getAttribute("data-domain") || new URL(script.src).origin)) ||
-    DEFAULT_DOMAIN;
+  const scriptOrigin = (() => {
+    if (!script || !script.src) return DEFAULT_DOMAIN;
+    try {
+      return new URL(script.src).origin;
+    } catch (err) {
+      console.warn(
+        "[Chatboc] No pudimos leer el origen del script del widget. Usando el dominio por defecto.",
+        err,
+      );
+      return DEFAULT_DOMAIN;
+    }
+  })();
+
+  const providedDomain = script?.getAttribute("data-domain");
+
+  const chatbocDomain = (() => {
+    if (providedDomain) {
+      try {
+        return new URL(providedDomain).origin;
+      } catch (err) {
+        console.warn(
+          `[Chatboc] data-domain="${providedDomain}" no es una URL válida. Se usará ${DEFAULT_DOMAIN}.`,
+          err,
+        );
+        return DEFAULT_DOMAIN;
+      }
+    }
+
+    if (scriptOrigin !== DEFAULT_DOMAIN) {
+      console.warn(
+        `[Chatboc] data-domain no está definido. Como el script se carga desde ${scriptOrigin}, se usará ${DEFAULT_DOMAIN} para evitar errores de CORS.`,
+      );
+      return DEFAULT_DOMAIN;
+    }
+
+    return scriptOrigin;
+  })();
 
   // Ensure only one widget container exists
   const existingRoot = document.getElementById('chatboc-widget-root');
@@ -23,25 +56,47 @@
 
   const ds = script ? script.dataset : {};
 
+  const normalizeLength = (value, fallback) => {
+    if (typeof value !== "string") return fallback;
+    const trimmed = value.trim();
+    if (!trimmed) return fallback;
+
+    // Accept values with CSS units or percentages as-is
+    const hasUnit = /[%a-zA-Z)]$/.test(trimmed);
+    if (hasUnit) return trimmed;
+
+    // Numeric values are coerced to px
+    const numeric = Number(trimmed);
+    if (Number.isFinite(numeric)) return `${numeric}px`;
+
+    return fallback;
+  };
+
+  const normalizeColor = (value, fallback) => {
+    if (typeof value !== "string") return fallback;
+    const trimmed = value.trim();
+    return trimmed ? trimmed : fallback;
+  };
+
   const cfg = {
     host: chatbocDomain,
     iframePath: ds.iframePath || "/iframe",
     endpoint: ds.endpoint || "municipio",
     entityToken: ds.token || ds.entityToken || "demo-anon",
     defaultOpen: ds.defaultOpen === "true",
-    width: ds.width || "460px",
-    height: ds.height || "680px",
-    closedWidth: ds.closedWidth || "72px",
-    closedHeight: ds.closedHeight || "72px",
-    bottom: ds.bottom || "20px",
-    right: ds.right || "20px",
-    primaryColor: ds.primaryColor || "#007aff",
-    accentColor: ds.accentColor || "",
-    logoUrl: ds.logoUrl || "",
-    headerLogoUrl: ds.headerLogoUrl || ds.logoUrl || "",
-    logoAnimation: ds.logoAnimation || "",
-    welcomeTitle: ds.welcomeTitle || "",
-    welcomeSubtitle: ds.welcomeSubtitle || "",
+    width: normalizeLength(ds.width, "460px"),
+    height: normalizeLength(ds.height, "680px"),
+    closedWidth: normalizeLength(ds.closedWidth, "72px"),
+    closedHeight: normalizeLength(ds.closedHeight, "72px"),
+    bottom: normalizeLength(ds.bottom, "20px"),
+    right: normalizeLength(ds.right, "20px"),
+    primaryColor: normalizeColor(ds.primaryColor, "#007aff"),
+    accentColor: normalizeColor(ds.accentColor, ""),
+    logoUrl: normalizeColor(ds.logoUrl, ""),
+    headerLogoUrl: normalizeColor(ds.headerLogoUrl || ds.logoUrl, ""),
+    logoAnimation: normalizeColor(ds.logoAnimation, ""),
+    welcomeTitle: normalizeColor(ds.welcomeTitle, ""),
+    welcomeSubtitle: normalizeColor(ds.welcomeSubtitle, ""),
   };
 
   const qs = new URLSearchParams({
@@ -116,18 +171,20 @@
   function applyDims(dims) {
     const host = shadow.host;
     const desiredWidth = parseInt(dims.width, 10);
-    const maxWidth = window.innerWidth - parseInt(cfg.right, 10);
+    const rightOffset = parseInt(cfg.right, 10);
+    const maxWidth = window.innerWidth - (isNaN(rightOffset) ? 20 : rightOffset);
     host.style.width =
       !isNaN(desiredWidth)
         ? Math.min(desiredWidth, maxWidth) + "px"
-        : dims.width;
+        : normalizeLength(dims.width, cfg.closedWidth);
 
     const desiredHeight = parseInt(dims.height, 10);
-    const maxHeight = window.innerHeight - parseInt(cfg.bottom, 10);
+    const bottomOffset = parseInt(cfg.bottom, 10);
+    const maxHeight = window.innerHeight - (isNaN(bottomOffset) ? 20 : bottomOffset);
     host.style.height =
       !isNaN(desiredHeight)
         ? Math.min(desiredHeight, maxHeight) + "px"
-        : dims.height;
+        : normalizeLength(dims.height, cfg.closedHeight);
   }
 
   window.addEventListener("message", (event) => {
