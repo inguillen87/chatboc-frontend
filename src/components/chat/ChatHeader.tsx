@@ -12,6 +12,7 @@ interface Props {
   muted?: boolean;
   onToggleSound?: () => void;
   onCart?: () => void;
+  cartCount?: number;
   logoUrl?: string;
   title?: string;
   subtitle?: string;
@@ -28,6 +29,7 @@ const ChatHeader: React.FC<Props> = ({
   muted = false,
   onToggleSound,
   onCart,
+  cartCount,
   logoUrl,
   title,
   subtitle,
@@ -94,10 +96,15 @@ const ChatHeader: React.FC<Props> = ({
         {onCart && (
           <button
             onClick={onCart}
-            className="text-primary-foreground/80 hover:text-primary-foreground transition"
+            className="relative text-primary-foreground/80 hover:text-primary-foreground transition"
             aria-label="Ver carrito"
           >
             <ShoppingCart size={20} />
+            {cartCount && cartCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[18px] px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-semibold leading-tight flex items-center justify-center shadow-sm">
+                {cartCount > 99 ? '99+' : cartCount}
+              </span>
+            )}
           </button>
         )}
         {onToggleSound && (
