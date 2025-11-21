@@ -72,6 +72,8 @@ const shouldUseSameOriginProxy = (backendUrl: string): boolean => {
   }
 };
 
+const CANONICAL_BACKEND_ORIGIN = 'https://api.chatboc.ar';
+
 const resolveBackendUrl = (): string => {
   const sanitized = sanitizeBaseUrl(VITE_BACKEND_URL);
 
@@ -80,6 +82,13 @@ const resolveBackendUrl = (): string => {
       return '';
     }
     return sanitized;
+  }
+
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname.toLowerCase();
+    if (CANONICAL_FRONTEND_HOSTS.includes(hostname)) {
+      return CANONICAL_BACKEND_ORIGIN;
+    }
   }
 
   return '';
