@@ -337,7 +337,8 @@ export async function apiFetch<T>(
   let response: Response | null = null;
   let lastError: unknown = null;
 
-  for (const base of candidateBases) {
+  for (let baseIndex = 0; baseIndex < candidateBases.length; baseIndex++) {
+    const base = candidateBases[baseIndex];
     const cleanBase = (base || "").replace(/\/$/, "");
     const isApiBase = cleanBase.endsWith("/api") || cleanBase === "/api";
     const urlsToTry = [buildUrl(base, isApiBase)];
@@ -346,7 +347,8 @@ export async function apiFetch<T>(
       urlsToTry.push(buildUrl(base, true));
     }
 
-    for (const candidateUrl of urlsToTry) {
+    for (let urlIndex = 0; urlIndex < urlsToTry.length; urlIndex++) {
+      const candidateUrl = urlsToTry[urlIndex];
       url = candidateUrl;
 
       try {
@@ -358,7 +360,17 @@ export async function apiFetch<T>(
           cleanBase === SAME_ORIGIN_PROXY_BASE &&
           candidateBases.length > 1;
 
-        if (isMissingProxy) {
+        const hasMoreCandidateUrls = urlIndex < urlsToTry.length - 1;
+        const hasMoreBases = baseIndex < candidateBases.length - 1;
+        const shouldTryNextCandidate = candidateResponse.status === 404 && hasMoreCandidateUrls;
+        const shouldTryNextBase =
+          candidateResponse.status === 404 && !hasMoreCandidateUrls && hasMoreBases;
+
+        if (isMissingProxy || shouldTryNextCandidate) {
+          continue;
+        }
+
+        if (shouldTryNextBase) {
           break;
         }
 
