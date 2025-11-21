@@ -123,18 +123,16 @@ const FALLBACK_BACKEND_URL = sanitizeBaseUrl(inferBackendUrlFromOrigin());
 
 const preferSameOriginProxy = inferSameOriginProxy();
 
-// When using a same-origin proxy (e.g., serving the widget from www.chatboc.ar which
-// proxies /api to api.chatboc.ar), avoid hardcoding the "/api" prefix as BASE_API_URL
-// because request paths already include it ("/api/..."). Using an empty base keeps
-// URLs relative without introducing "/api/api/..." errors. Otherwise, fall back to the
-// explicitly configured backend URL or the current origin.
-const resolvedPreferredBase = preferSameOriginProxy === '/api' ? '' : preferSameOriginProxy;
-
+// When the widget is served from a host that proxies /api (e.g., www.chatboc.ar), keep
+// API calls relative even if VITE_BACKEND_URL is set, so that requests stay on the
+// same origin and avoid CORS-preflight failures due to custom headers.
 export const BASE_API_URL = sanitizeBaseUrl(
-  resolvedPreferredBase ||
-    RESOLVED_BACKEND_URL ||
-    FALLBACK_BACKEND_URL ||
-    (typeof window !== 'undefined' ? window.location.origin : '')
+  preferSameOriginProxy === '/api'
+    ? ''
+    : preferSameOriginProxy ||
+        RESOLVED_BACKEND_URL ||
+        FALLBACK_BACKEND_URL ||
+        (typeof window !== 'undefined' ? window.location.origin : '')
 );
 
 /**
