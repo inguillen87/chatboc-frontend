@@ -19,6 +19,7 @@ import EntityInfoPanel from "./EntityInfoPanel";
 import ChatPanel from "./ChatPanel";
 import ReadingRuler from "./ReadingRuler";
 import type { Prefs } from "./AccessibilityToggle";
+import { useCartCount } from "@/hooks/useCartCount";
 
 interface ChatWidgetProps {
   mode?: "standalone" | "iframe" | "script";
@@ -164,6 +165,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const [showProactiveBubble, setShowProactiveBubble] = useState(false);
   const [proactiveCycle, setProactiveCycle] = useState(0);
   const [selectedRubro, setSelectedRubro] = useState<string | null>(() => extractRubroKey(initialRubro) ?? null);
+  const cartCount = useCartCount();
   const entityDefaultRubro = useMemo(() => {
     if (!entityInfo) return null;
 
@@ -598,6 +600,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                   muted={muted}
                   onToggleSound={toggleMuted}
                   onCart={openCart}
+                  cartCount={cartCount}
                   logoUrl={headerLogoUrl || customLauncherLogoUrl || entityInfo?.logo_url || (isDarkMode ? '/chatbocar.png' : '/chatbocar2.png')}
                   title={headerTitle}
                   subtitle={headerSubtitle}
@@ -624,6 +627,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                     muted={muted}
                     onToggleSound={toggleMuted}
                     onCart={openCart}
+                    cartCount={cartCount}
                     selectedRubro={selectedRubro ?? entityDefaultRubro}
                     onRubroSelect={handleRubroSelect}
                     headerLogoUrl={headerLogoUrl || customLauncherLogoUrl || entityInfo?.logo_url || (isDarkMode ? '/chatbocar.png' : '/chatbocar2.png')}

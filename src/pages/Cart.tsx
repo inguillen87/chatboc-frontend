@@ -22,6 +22,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { getDemoLoyaltySummary } from '@/utils/demoLoyalty';
 import usePointsBalance from '@/hooks/usePointsBalance';
 import UploadOrderFromFile from '@/components/cart/UploadOrderFromFile';
+import { useUser } from '@/hooks/useUser';
 
 // Interfaz para el producto en el carrito, extendiendo ProductDetails y añadiendo cantidad
 interface CartItem extends ProductDetails {
@@ -39,6 +40,7 @@ export default function CartPage() {
   const navigate = useNavigate();
   const { currentSlug } = useTenant();
   const { points: pointsBalance, isLoading: isLoadingPoints } = usePointsBalance();
+  const { user } = useUser();
 
   const tenantQuerySuffix = currentSlug ? `?tenant=${encodeURIComponent(currentSlug)}` : '';
 
@@ -207,6 +209,21 @@ export default function CartPage() {
   const effectivePointsBalance = cartMode === 'local' ? loyaltySummary.points : pointsBalance;
   const pointsAfterSubtotal = Math.max(effectivePointsBalance - pointsTotal, 0);
   const hasPointsDeficit = pointsTotal > effectivePointsBalance;
+  const requiresAuthForPoints = cartItems.some((item) => item.modalidad === 'puntos') && !user;
+
+  const handleNavigateToCheckout = () => {
+    if (requiresAuthForPoints) {
+      toast({
+        title: 'Iniciá sesión para usar tus puntos',
+        description: 'Identifícate para aplicar tus puntos antes de finalizar el pedido.',
+        variant: 'destructive',
+      });
+      navigate('/login');
+      return;
+    }
+
+    navigate(`/checkout-productos${tenantQuerySuffix}`);
+  };
 
   if (loading) {
     return (
@@ -266,6 +283,9 @@ export default function CartPage() {
         </div>
         {hasPointsDeficit && (
           <p className="text-sm text-destructive mt-2">No tienes puntos suficientes para todos los canjes. Ajusta cantidades o participa en más actividades.</p>
+        )}
+        {!hasPointsDeficit && requiresAuthForPoints && (
+          <p className="text-sm text-destructive mt-2">Inicia sesión para canjear tus puntos antes de finalizar el pedido.</p>
         )}
       </div>
 
@@ -407,6 +427,14 @@ export default function CartPage() {
                     Incluye {donationCount} ítem(s) de donación sin costo monetario.
                   </div>
                 )}
+                {requiresAuthForPoints && (
+                  <Alert variant="destructive" className="mt-2">
+                    <AlertTitle>Necesitas iniciar sesión</AlertTitle>
+                    <AlertDescription>
+                      Ingresa con tu cuenta para canjear los productos que usan puntos.
+                    </AlertDescription>
+                  </Alert>
+                )}
                 <Separator />
                 <div className="flex justify-between text-xl font-bold text-foreground">
                   <span>Total estimado</span>
@@ -420,8 +448,8 @@ export default function CartPage() {
                 <Button
                   size="lg"
                   className="w-full bg-primary hover:bg-primary/90"
-                  onClick={() => navigate(`/checkout-productos${tenantQuerySuffix}`)} // Redirigir a la nueva página de checkout de productos
-                  disabled={hasPointsDeficit}
+                  onClick={handleNavigateToCheckout} // Redirigir a la nueva página de checkout de productos
+                  disabled={hasPointsDeficit || requiresAuthForPoints}
                 >
                   Continuar Compra
                 </Button>

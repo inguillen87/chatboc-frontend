@@ -61,6 +61,7 @@ interface ChatPanelProps {
   muted?: boolean;
   onToggleSound?: () => void;
   onCart?: () => void;
+  cartCount?: number;
   headerLogoUrl?: string;
   welcomeTitle?: string;
   welcomeSubtitle?: string;
@@ -83,6 +84,7 @@ const ChatPanel = ({
   onRubroSelect,
   mode,
   entityToken: propEntityToken,
+  cartCount,
   headerLogoUrl,
   welcomeTitle,
   welcomeSubtitle,
@@ -479,6 +481,7 @@ const ChatPanel = ({
           muted={muted}
           onToggleSound={onToggleSound}
           onCart={onCart}
+          cartCount={cartCount}
           logoUrl={headerLogoUrl}
           title={welcomeTitle}
           subtitle={welcomeSubtitle}
@@ -529,6 +532,7 @@ const ChatPanel = ({
         muted={muted}
         onToggleSound={onToggleSound}
         onCart={onCart}
+        cartCount={cartCount}
         logoUrl={headerLogoUrl}
         title={welcomeTitle}
         subtitle={welcomeSubtitle}

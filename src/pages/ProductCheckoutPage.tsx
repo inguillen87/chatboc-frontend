@@ -192,6 +192,10 @@ export default function ProductCheckoutPage() {
   }, [cartItems]);
 
   const hasDonations = useMemo(() => cartItems.some((item) => item.modalidad === 'donacion'), [cartItems]);
+  const requiresAuthForPoints = useMemo(
+    () => cartItems.some((item) => item.modalidad === 'puntos') && !user,
+    [cartItems, user],
+  );
   const hasPointsDeficit = checkoutMode !== 'local' && pointsTotal > pointsBalance;
 
   const onSubmit = async (data: CheckoutFormData) => {
@@ -223,6 +227,14 @@ export default function ProductCheckoutPage() {
     };
 
     try {
+      if (requiresAuthForPoints) {
+        const warning = 'Inicia sesión para canjear tus puntos.';
+        setCheckoutError(warning);
+        toast({ title: 'Necesitas iniciar sesión', description: warning, variant: 'destructive' });
+        setIsSubmitting(false);
+        return;
+      }
+
       if (hasPointsDeficit) {
         const warning = 'No tienes puntos suficientes para completar el canje.';
         setCheckoutError(warning);
@@ -366,6 +378,14 @@ export default function ProductCheckoutPage() {
           </AlertDescription>
         </Alert>
       )}
+      {requiresAuthForPoints && !hasPointsDeficit && (
+        <Alert variant="destructive" className="mb-6">
+          <AlertTitle>Inicia sesión para canjear puntos</AlertTitle>
+          <AlertDescription>
+            Necesitamos asociar tus puntos a tu cuenta antes de confirmar este pedido. Inicia sesión y vuelve a intentar.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
@@ -457,7 +477,7 @@ export default function ProductCheckoutPage() {
               {error && <p className="text-sm text-destructive mt-2">{error}</p>}
             </CardContent>
             <CardFooter>
-              <Button type="submit" size="lg" className="w-full" disabled={isSubmitting || isLoadingCart || cartItems.length === 0 || hasPointsDeficit}>
+              <Button type="submit" size="lg" className="w-full" disabled={isSubmitting || isLoadingCart || cartItems.length === 0 || hasPointsDeficit || requiresAuthForPoints}>
                 {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 {isSubmitting ? 'Procesando Pedido...' : 'Confirmar Pedido'}
               </Button>
