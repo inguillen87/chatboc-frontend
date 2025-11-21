@@ -239,8 +239,7 @@ export async function apiFetch<T>(
     typeof window !== "undefined" && window.location?.origin
       ? window.location.origin.replace(/\/$/, "")
       : "";
-  const shouldAttemptRelativeFallback =
-    !baseUrlOverride && !!currentOrigin && resolvedBase !== currentOrigin;
+  const shouldAttemptRelativeFallback = !baseUrlOverride && !resolvedBase && !!currentOrigin;
   const fallbackUrl = shouldAttemptRelativeFallback ? `/${normalizedPath}` : url;
   const headers: Record<string, string> = options.headers
     ? { ...options.headers }
