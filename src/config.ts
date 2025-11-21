@@ -128,12 +128,23 @@ const preferSameOriginProxy = inferSameOriginProxy();
 // CORS-preflight failures due to custom headers. Using "/api" as the base ensures that
 // endpoints are routed through the proxy while still allowing backend URLs as a
 // fallback for environments without one.
+export const SAME_ORIGIN_PROXY_BASE = sanitizeBaseUrl(preferSameOriginProxy || '');
+
 export const BASE_API_URL = sanitizeBaseUrl(
-  preferSameOriginProxy ||
+  SAME_ORIGIN_PROXY_BASE ||
     RESOLVED_BACKEND_URL ||
     FALLBACK_BACKEND_URL ||
     (typeof window !== 'undefined' ? window.location.origin : '')
 );
+
+export const API_BASE_CANDIDATES = [
+  SAME_ORIGIN_PROXY_BASE,
+  RESOLVED_BACKEND_URL,
+  FALLBACK_BACKEND_URL,
+  typeof window !== 'undefined' ? sanitizeBaseUrl(window.location.origin) : '',
+]
+  .filter((value): value is string => typeof value === 'string' && !!value)
+  .filter((value, index, self) => self.indexOf(value) === index);
 
 /**
  * Derives the WebSocket URL from the current environment.
