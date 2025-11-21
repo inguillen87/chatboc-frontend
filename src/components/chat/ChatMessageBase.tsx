@@ -14,6 +14,9 @@ import { deriveAttachmentInfo, AttachmentInfo } from "@/utils/attachment";
 import MessageBubble from "./MessageBubble";
 import EventCard from './EventCard';
 import SocialLinks from './SocialLinks';
+import { useTenant } from "@/context/TenantContext";
+import { buildTenantAwareUrl } from "@/utils/tenantUrls";
+import openExternalLink from "@/utils/openExternalLink";
 
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useUser } from "@/hooks/useUser";
@@ -61,6 +64,7 @@ function normalizeAttachment(msg: any): RawAttachment | null {
 
 const LINK_LABEL_MAX_LENGTH = 48;
 const FALLBACK_URL_BASE = "https://chatboc.local";
+const URL_TEXT_REGEX = /((?:https?:\/\/|www\.)[^\s<>"]+)/gi;
 
 const createDomParser = () => {
   if (typeof window !== "undefined" && typeof window.DOMParser !== "undefined") {
@@ -133,6 +137,94 @@ const stableSerialize = (value: unknown): string => {
     return JSON.stringify(normalise(value));
   } catch {
     return String(value);
+  }
+};
+
+const normalizeUrlFromText = (raw: string): string => {
+  const trimmed = raw.trim();
+  if (!trimmed) return trimmed;
+  const cleaned = trimmed.replace(/[),.]+$/, "");
+
+  if (/^https?:\/\//i.test(cleaned)) return cleaned;
+  if (/^www\./i.test(cleaned)) return `https://${cleaned}`;
+
+  return cleaned;
+};
+
+const autoLinkifyHtml = (html: string): string => {
+  if (!html) return html;
+
+  URL_TEXT_REGEX.lastIndex = 0;
+
+  const parser = createDomParser();
+  if (!parser) {
+    return html.replace(URL_TEXT_REGEX, (match) => {
+      const normalized = normalizeUrlFromText(match);
+      return `<a href="${normalized}">${match}</a>`;
+    });
+  }
+
+  try {
+    const doc = parser.parseFromString(`<div>${html}</div>`, "text/html");
+    const container = doc.body.firstElementChild as HTMLElement | null;
+    if (!container) return html;
+
+    const walker = doc.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+    const nodesToProcess: Text[] = [];
+
+    while (walker.nextNode()) {
+      const node = walker.currentNode as Text;
+      URL_TEXT_REGEX.lastIndex = 0;
+      if (node?.nodeValue && URL_TEXT_REGEX.test(node.nodeValue)) {
+        nodesToProcess.push(node);
+      }
+    }
+
+    nodesToProcess.forEach((textNode) => {
+      const original = textNode.nodeValue || "";
+      const fragment = doc.createDocumentFragment();
+      let lastIndex = 0;
+
+      URL_TEXT_REGEX.lastIndex = 0;
+      original.replace(URL_TEXT_REGEX, (match, _group, offset) => {
+        if (offset > lastIndex) {
+          fragment.appendChild(doc.createTextNode(original.slice(lastIndex, offset)));
+        }
+
+        const anchor = doc.createElement("a");
+        const normalized = normalizeUrlFromText(match);
+        anchor.setAttribute("href", normalized);
+        anchor.setAttribute("target", "_blank");
+        anchor.setAttribute("rel", "noopener noreferrer");
+        anchor.textContent = match;
+        fragment.appendChild(anchor);
+
+        lastIndex = offset + match.length;
+        return match;
+      });
+
+      if (lastIndex < original.length) {
+        fragment.appendChild(doc.createTextNode(original.slice(lastIndex)));
+      }
+
+      textNode.replaceWith(fragment);
+    });
+
+    return container.innerHTML;
+  } catch {
+    return html;
+  }
+};
+
+const describeUrl = (href?: string | null) => {
+  if (!href) return { hostname: "", path: "" };
+  try {
+    const parsed = new URL(href, href.startsWith("http") ? undefined : FALLBACK_URL_BASE);
+    const hostname = parsed.hostname.replace(/^www\./i, "");
+    const path = parsed.pathname === "/" ? "" : parsed.pathname;
+    return { hostname, path };
+  } catch {
+    return { hostname: href, path: "" };
   }
 };
 
@@ -388,12 +480,20 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
 
   const safeText = typeof message.text === "string" && message.text !== "NaN" ? message.text : "";
   const sanitizedHtml = sanitizeMessageHtml(safeText);
+  const linkifiedHtml = useMemo(() => (isBot ? autoLinkifyHtml(sanitizedHtml) : sanitizedHtml), [isBot, sanitizedHtml]);
   const { cleanedHtml, linkButtons } = useMemo(() => {
     if (!isBot) {
       return { cleanedHtml: sanitizedHtml, linkButtons: [] as Boton[] };
     }
-    return extractLinkButtons(sanitizedHtml);
-  }, [isBot, sanitizedHtml]);
+    return extractLinkButtons(linkifiedHtml);
+  }, [isBot, sanitizedHtml, linkifiedHtml]);
+
+  const { currentSlug } = useTenant();
+
+  const resolveUrl = useMemo(
+    () => (url?: string | null) => (url ? buildTenantAwareUrl(url, currentSlug) : undefined),
+    [currentSlug],
+  );
 
   const { combinedButtons, derivedLinkButtons } = useMemo(() => {
     const existing = Array.isArray(message.botones) ? message.botones : [];
@@ -424,6 +524,22 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
 
     return { combinedButtons: combined, derivedLinkButtons: derivedOnly };
   }, [message.botones, linkButtons]);
+
+  const linkPreviews = useMemo(() => {
+    if (!isBot || derivedLinkButtons.length === 0) return [] as Array<Boton & {
+      resolvedUrl?: string;
+      prettyLabel: string;
+      meta: { hostname: string; path: string };
+    }>;
+
+    return derivedLinkButtons.map((btn) => {
+      const resolvedUrl = resolveUrl(btn.url);
+      const prettyLabel = formatLinkLabel(btn.texto, resolvedUrl || btn.url || "");
+      const meta = describeUrl(resolvedUrl || btn.url);
+
+      return { ...btn, resolvedUrl, prettyLabel, meta };
+    });
+  }, [isBot, derivedLinkButtons, resolveUrl]);
 
   const plainText = useMemo(() => safeText.replace(/<[^>]+>/g, ""), [safeText]);
   const simplified = useMemo(() => simplify(plainText), [plainText]);
@@ -481,6 +597,13 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
         {listBlock}
       </>
     ) : null;
+
+  const handleOpenLink = (url?: string | null) => {
+    const resolved = resolveUrl(url || undefined);
+    if (resolved) {
+      openExternalLink(resolved);
+    }
+  };
 
   let processedAttachmentInfo: AttachmentInfo | null = null;
 
@@ -604,6 +727,29 @@ const ChatMessageBase = React.forwardRef<HTMLDivElement, ChatMessageBaseProps>( 
             <div className="flex flex-col gap-3 mt-2">
               {postsToShow.map((post) => (
                 <EventCard key={post.id} post={post} />
+              ))}
+            </div>
+          )}
+
+          {linkPreviews.length > 0 && (
+            <div className="mt-3 space-y-2">
+              {linkPreviews.map((preview) => (
+                <button
+                  key={`${buttonKey(preview)}-preview`}
+                  onClick={() => handleOpenLink(preview.resolvedUrl || preview.url)}
+                  className="w-full text-left rounded-xl border border-white/15 bg-white/5 hover:bg-white/10 transition-all px-3 py-2 shadow-sm"
+                >
+                  <div className="flex items-center justify-between gap-2 text-sm font-semibold text-white">
+                    <span className="line-clamp-1">{preview.prettyLabel}</span>
+                    <ExternalLink size={14} className="shrink-0 text-blue-100" />
+                  </div>
+                  {(preview.meta.hostname || preview.meta.path) && (
+                    <p className="mt-1 text-xs text-white/70 break-all">
+                      {preview.meta.hostname}
+                      {preview.meta.path && ` · ${preview.meta.path}`}
+                    </p>
+                  )}
+                </button>
               ))}
             </div>
           )}
