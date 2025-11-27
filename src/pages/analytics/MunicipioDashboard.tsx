@@ -131,10 +131,10 @@ export function MunicipioDashboard() {
           exportName="municipio-canales"
         />
         <StackedBarChart
-          title="Estados"
-          data={data.breakdownEstado ?? undefined}
+          title="Tickets por barrio"
+          data={data.breakdownZona ?? undefined}
           loading={loading}
-          exportName="municipio-estados"
+          exportName="municipio-barrios"
         />
       </section>
 

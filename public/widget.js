@@ -36,14 +36,16 @@
       }
     }
 
-    if (scriptOrigin !== DEFAULT_DOMAIN) {
-      console.warn(
-        `[Chatboc] data-domain no está definido. Como el script se carga desde ${scriptOrigin}, se usará ${DEFAULT_DOMAIN} para evitar errores de CORS.`,
-      );
-      return DEFAULT_DOMAIN;
+    if (scriptOrigin) {
+      if (scriptOrigin !== DEFAULT_DOMAIN) {
+        console.warn(
+          `[Chatboc] data-domain no está definido. Se usará el origen del script (${scriptOrigin}) para mantener coherencia de dominio.`,
+        );
+      }
+      return scriptOrigin;
     }
 
-    return scriptOrigin;
+    return DEFAULT_DOMAIN;
   })();
 
   // Ensure only one widget container exists
