@@ -31,6 +31,8 @@ import { FEATURE_ENCUESTAS } from "@/config/featureFlags";
 import { useUser } from "@/hooks/useUser";
 import type { LucideIcon } from "lucide-react";
 import useCartCount from "@/hooks/useCartCount";
+import { useTenant } from "@/context/TenantContext";
+import { buildTenantPath } from "@/utils/tenantPaths";
 
 const Navbar: React.FC = () => {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -38,6 +40,7 @@ const Navbar: React.FC = () => {
   const location = useLocation();
   const { user } = useUser();
   const cartCount = useCartCount();
+  const { currentSlug } = useTenant();
 
   const isLanding = location.pathname === "/";
   const isLoggedIn = !!safeLocalStorage.getItem("user");
@@ -122,6 +125,8 @@ const Navbar: React.FC = () => {
     }
   };
 
+  const cartPath = useMemo(() => buildTenantPath("/cart", currentSlug), [currentSlug]);
+
   const scrollToSection = (id: string) => {
     const el = document.getElementById(id);
     if (el && isLanding) {
@@ -168,7 +173,7 @@ const Navbar: React.FC = () => {
         {/* Botones lado derecho */}
         <div className="hidden md:flex gap-3 items-center">
           <RouterLink
-            to="/cart"
+            to={cartPath}
             className="relative inline-flex items-center rounded-full border border-border/60 bg-card px-3 py-1.5 text-sm shadow-sm transition-colors hover:border-primary hover:text-primary"
             aria-label="Ver carrito"
           >
@@ -277,7 +282,7 @@ const Navbar: React.FC = () => {
 
             {isLoggedIn ? (
               <>
-                <RouterLink to="/cart" onClick={() => setMenuOpen(false)} className="hover:text-primary transition-colors flex items-center gap-2">
+                <RouterLink to={cartPath} onClick={() => setMenuOpen(false)} className="hover:text-primary transition-colors flex items-center gap-2">
                   <ShoppingCart className="h-4 w-4" />
                   Carrito
                   {cartCount > 0 && (
@@ -312,7 +317,7 @@ const Navbar: React.FC = () => {
               </>
             ) : (
               <>
-                <RouterLink to="/cart" onClick={() => setMenuOpen(false)} className="hover:text-primary transition-colors flex items-center gap-2">
+                <RouterLink to={cartPath} onClick={() => setMenuOpen(false)} className="hover:text-primary transition-colors flex items-center gap-2">
                   <ShoppingCart className="h-4 w-4" />
                   Carrito
                   {cartCount > 0 && (
