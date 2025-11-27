@@ -169,6 +169,7 @@ const resolveTenantBootstrap = (
   const params = new URLSearchParams(search);
   const widgetTokenFromQuery = normalizeEntityToken(
     params.get('widget_token') ||
+      params.get('token') ||
       params.get('entityToken') ||
       params.get('entity_token') ||
       params.get('ownerToken') ||
