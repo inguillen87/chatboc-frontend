@@ -5,6 +5,7 @@ import ChatWidget from "../components/chat/ChatWidget";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import ErrorBoundary from '../components/ErrorBoundary';
 import { MemoryRouter } from "react-router-dom";
+import { TenantProvider } from "@/context/TenantContext";
 import { getChatbocConfig } from "@/utils/config";
 import { hexToHsl } from "@/utils/color";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
@@ -168,6 +169,11 @@ const Iframe = () => {
     return null; // O un componente de carga más explícito
   }
 
+  const initialEntry =
+    typeof window !== 'undefined'
+      ? `${window.location.pathname}${window.location.search}`
+      : '/';
+
   const ChatWidgetComponent = () => (
     <ChatWidget
       mode="iframe"
@@ -194,16 +200,20 @@ const Iframe = () => {
   // Si no hay Google Client ID, no renderizar el Provider para evitar que crashee.
   if (!GOOGLE_CLIENT_ID) {
     return (
-      <MemoryRouter>
-        <ChatWidgetComponent />
+      <MemoryRouter initialEntries={[initialEntry]}>
+        <TenantProvider>
+          <ChatWidgetComponent />
+        </TenantProvider>
       </MemoryRouter>
     );
   }
 
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-      <MemoryRouter>
-        <ChatWidgetComponent />
+      <MemoryRouter initialEntries={[initialEntry]}>
+        <TenantProvider>
+          <ChatWidgetComponent />
+        </TenantProvider>
       </MemoryRouter>
     </GoogleOAuthProvider>
   );
