@@ -1,6 +1,6 @@
 // src/pages/Integracion.tsx
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -68,6 +68,7 @@ const Integracion = () => {
   const [welcomeTitle, setWelcomeTitle] = useState("");
   const [welcomeSubtitle, setWelcomeSubtitle] = useState("");
   const [ownerToken, setOwnerToken] = useState<string | null>(() => getStoredEntityToken());
+  const tokenAlertShown = useRef(false);
 
   const validarAcceso = (currentUser: User | null) => {
     if (!currentUser) {
@@ -130,12 +131,13 @@ const Integracion = () => {
   useEffect(() => {
     if (!user) return;
 
-    const storedToken = getStoredEntityToken();
+    const storedToken = normalizeEntityToken(getStoredEntityToken());
     const tokenFromUser = normalizeEntityToken(
-      (user as any)?.entityToken || (user as any)?.entity_token || user.entityToken,
+      (user as any)?.entityToken || (user as any)?.entity_token || (user as any)?.token_integracion,
     );
-    const extracted = extractEntityToken(user);
-    const finalToken = normalizeEntityToken(storedToken || tokenFromUser || extracted);
+    const extracted = normalizeEntityToken(extractEntityToken(user));
+
+    const finalToken = storedToken || tokenFromUser || extracted;
 
     if (finalToken) {
       persistEntityToken(finalToken);
@@ -143,8 +145,12 @@ const Integracion = () => {
       return;
     }
 
-    if (user.token) {
-      setOwnerToken(user.token);
+    setOwnerToken(null);
+    if (!tokenAlertShown.current) {
+      tokenAlertShown.current = true;
+      toast.error("No encontramos tu token de integración. Reingresá o solicitá uno a soporte.", {
+        icon: <AlertTriangle className="text-destructive" />,
+      });
     }
   }, [user]);
 
