@@ -2353,13 +2353,17 @@ export default function Perfil() {
                   {perfil.plan === "pro" || perfil.plan === "full" ? (
                     <Button
                       className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
-                      onClick={() =>
-                        navigate(
-                          derivedTenantSlug
-                            ? `/t/${derivedTenantSlug}/integracion`
-                            : "/integracion",
-                        )
-                      }
+                      onClick={() => {
+                        if (!derivedTenantSlug) {
+                          toast({
+                            variant: "destructive",
+                            title: "No encontramos tu tenant",
+                            description: "Actualizá tu slug o volvé a iniciar sesión e intentá nuevamente.",
+                          });
+                          return;
+                        }
+                        navigate(`/t/${derivedTenantSlug}/integracion`);
+                      }}
                     >
                       Ir a la guía de integración
                     </Button>
