@@ -23,6 +23,52 @@ import { useCartCount } from "@/hooks/useCartCount";
 import { buildTenantAwareNavigatePath } from "@/utils/tenantPaths";
 import { useTenant } from "@/context/TenantContext";
 
+const PLACEHOLDER_SLUGS = new Set(["iframe", "embed", "widget"]);
+
+const sanitizeTenantSlug = (slug?: string | null) => {
+  if (!slug) return null;
+  const trimmed = slug.trim();
+  if (!trimmed) return null;
+
+  const lowered = trimmed.toLowerCase();
+  if (PLACEHOLDER_SLUGS.has(lowered)) return null;
+
+  return trimmed;
+};
+
+const readTenantFromScripts = (): string | null => {
+  if (typeof document === "undefined") return null;
+
+  const scripts = Array.from(document.querySelectorAll("script"));
+  for (const script of scripts) {
+    const dataset = (script as HTMLScriptElement).dataset;
+    if (!dataset) continue;
+
+    const slug =
+      dataset.tenant?.trim() ||
+      dataset.tenantSlug?.trim() ||
+      dataset.tenant_slug?.trim() ||
+      null;
+
+    if (slug) return slug;
+  }
+
+  return null;
+};
+
+const readTenantFromSubdomain = (): string | null => {
+  if (typeof window === "undefined") return null;
+  const host = window.location.hostname;
+  if (!host || host === "localhost") return null;
+
+  const segments = host.split(".");
+  if (segments.length < 2) return null;
+
+  const candidate = segments[0];
+  if (!candidate || ["www", "app", "panel"].includes(candidate.toLowerCase())) return null;
+  return candidate;
+};
+
 interface ChatWidgetProps {
   mode?: "standalone" | "iframe" | "script";
   initialPosition?: { bottom: number; right: number };
@@ -155,13 +201,14 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     try {
       const params = new URLSearchParams(window.location.search);
       const fromQuery = params.get('tenant_slug') || params.get('tenant');
-      if (fromQuery && fromQuery.trim()) {
-        return fromQuery.trim();
+      const sanitizedFromQuery = sanitizeTenantSlug(fromQuery);
+      if (sanitizedFromQuery) {
+        return sanitizedFromQuery;
       }
 
       const segments = window.location.pathname.split('/').filter(Boolean);
       if (segments[0] === 't' && segments[1]) {
-        return decodeURIComponent(segments[1]);
+        return sanitizeTenantSlug(decodeURIComponent(segments[1]));
       }
 
       if (segments[0]) {
@@ -176,10 +223,12 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
           'portal',
           'widget',
           'admin',
+          'iframe',
+          'embed',
         ]);
 
         if (!reserved.has(maybeSlug)) {
-          return maybeSlug;
+          return sanitizeTenantSlug(maybeSlug);
         }
       }
     } catch (error) {
@@ -189,12 +238,33 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     return null;
   }, []);
 
-  const resolvedTenantSlug =
-    tenant?.slug?.trim() ||
-    tenantSlugFromEntity?.trim() ||
-    tenantSlugFromLocation?.trim() ||
-    currentSlug?.trim() ||
-    null;
+  const tenantSlugFromScripts = useMemo(() => sanitizeTenantSlug(readTenantFromScripts()), []);
+  const tenantSlugFromSubdomain = useMemo(() => sanitizeTenantSlug(readTenantFromSubdomain()), []);
+
+  const resolvedTenantSlug = useMemo(() => {
+    const candidates = [
+      tenant?.slug,
+      tenantSlugFromEntity,
+      tenantSlugFromLocation,
+      tenantSlugFromScripts,
+      tenantSlugFromSubdomain,
+      currentSlug,
+    ];
+
+    for (const candidate of candidates) {
+      const sanitized = sanitizeTenantSlug(candidate);
+      if (sanitized) return sanitized;
+    }
+
+    return null;
+  }, [
+    currentSlug,
+    tenant?.slug,
+    tenantSlugFromEntity,
+    tenantSlugFromLocation,
+    tenantSlugFromScripts,
+    tenantSlugFromSubdomain,
+  ]);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -318,11 +388,16 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     (target: "cart" | "catalog" = "cart") => {
       const slug = resolvedTenantSlug;
       const basePath = target === "catalog" ? "/productos" : "/cart";
-      const tenantPath = buildTenantAwareNavigatePath(basePath, slug, "tenant_slug");
+      const tenantPath = slug
+        ? buildTenantAwareNavigatePath(basePath, slug, "tenant_slug")
+        : basePath;
       const url = new URL(tenantPath, window.location.origin);
 
-      if (!slug && !tenantPath.includes("tenant_slug")) {
-        url.searchParams.set("tenant_slug", "");
+      if (!slug) {
+        console.warn("[ChatWidget] No tenant slug available, redirecting to generic path", {
+          target,
+          basePath,
+        });
       }
 
       window.location.assign(url.toString());
