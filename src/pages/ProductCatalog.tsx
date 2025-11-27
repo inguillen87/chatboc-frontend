@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ApiError, NetworkError, apiFetch, getErrorMessage } from '@/utils/api';
 import { Button } from '@/components/ui/button';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import ProductCard, { AddToCartOptions, ProductDetails } from '@/components/product/ProductCard'; // Importar ProductCard y su interfaz
 import { toast } from '@/components/ui/use-toast';
 import { Input } from '@/components/ui/input';
@@ -9,7 +9,6 @@ import { Loader2, ShoppingCart, AlertTriangle, Search } from 'lucide-react'; // 
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { useTenant } from '@/context/TenantContext';
-import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { DEFAULT_PUBLIC_PRODUCTS } from '@/data/defaultProducts';
 import { enhanceProductDetails, normalizeProductsPayload } from '@/utils/cartPayload';
 import { addProductToLocalCart } from '@/utils/localCart';
@@ -19,8 +18,7 @@ import usePointsBalance from '@/hooks/usePointsBalance';
 import UploadOrderFromFile from '@/components/cart/UploadOrderFromFile';
 import { useUser } from '@/hooks/useUser';
 import { buildTenantPath } from '@/utils/tenantPaths';
-import GuestContactDialog, { GuestContactValues } from '@/components/cart/GuestContactDialog';
-import { loadGuestContact, saveGuestContact } from '@/utils/guestContact';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 export default function ProductCatalog() {
   const [allProducts, setAllProducts] = useState<ProductDetails[]>([]);
@@ -36,17 +34,21 @@ export default function ProductCatalog() {
   const [loyaltySummary] = useState(() => getDemoLoyaltySummary());
   const { currentSlug } = useTenant();
   const { user } = useUser();
-  const navigate = useNavigate();
   const cartCount = useCartCount();
-  const { points: pointsBalance } = usePointsBalance();
-  const [showGuestDialog, setShowGuestDialog] = useState(false);
-  const [pendingGuestProduct, setPendingGuestProduct] = useState<ProductDetails | null>(null);
-  const [pendingGuestOptions, setPendingGuestOptions] = useState<AddToCartOptions | null>(null);
+  const { points: pointsBalance, requiresAuth: pointsRequireAuth, error: pointsError } = usePointsBalance({
+    enabled: !!user,
+    tenantSlug: currentSlug,
+  });
+  const [showPointsAuthPrompt, setShowPointsAuthPrompt] = useState(false);
+  const [pointsAuthMessage, setPointsAuthMessage] = useState<string>('Para usar tus puntos tenés que iniciar sesión o registrarte.');
 
   const catalogPath = buildTenantPath('/productos', currentSlug);
   const cartPath = buildTenantPath('/cart', currentSlug);
+  const loginPath = buildTenantPath('/login', currentSlug);
+  const registerPath = buildTenantPath('/register', currentSlug);
   const numberFormatter = useMemo(() => new Intl.NumberFormat('es-AR'), []);
   const shouldShowDemoLoyalty = catalogSource === 'fallback' || cartMode === 'local';
+  const shouldShowLiveLoyalty = !shouldShowDemoLoyalty && !!user;
 
   const sharedRequestOptions = useMemo(
     () => ({
@@ -77,7 +79,7 @@ export default function ProductCatalog() {
     const totalUnits = mode === 'case' ? quantity * unitsPerCase : quantity;
     addProductToLocalCart(product, totalUnits);
     toast({
-      title: 'Guardamos tu selección',
+      title: '✅ Producto agregado',
       description: `${product.nombre} se agregó al carrito en modo invitado (${quantity} ${mode === 'case' ? 'cajas' : 'unidades'}).`,
     });
   };
@@ -140,17 +142,6 @@ export default function ProductCatalog() {
       .finally(() => setLoading(false));
   }, [sharedRequestOptions]);
 
-  const handleGuestContactSubmit = (values: GuestContactValues) => {
-    saveGuestContact(values);
-    setShowGuestDialog(false);
-    if (pendingGuestProduct && pendingGuestOptions) {
-      setCartMode('local');
-      addProductLocally(pendingGuestProduct, pendingGuestOptions);
-    }
-    setPendingGuestProduct(null);
-    setPendingGuestOptions(null);
-  };
-
   useEffect(() => {
     const lowercasedFilter = searchTerm.toLowerCase();
     const normalizedCategory = selectedCategory.trim().toLowerCase();
@@ -195,9 +186,8 @@ export default function ProductCatalog() {
     const isPointsProduct = (product.modalidad ?? '').toString().toLowerCase() === 'puntos';
 
     if (isPointsProduct && !user) {
-      setPendingGuestProduct(product);
-      setPendingGuestOptions(options);
-      setShowGuestDialog(true);
+      setPointsAuthMessage('Para usar tus puntos tenés que iniciar sesión o registrarte.');
+      setShowPointsAuthPrompt(true);
       return;
     }
 
@@ -239,7 +229,7 @@ export default function ProductCatalog() {
       if (shouldUseLocalCart) {
         persistLocalCart();
         toast({
-          title: 'Modo demo activo',
+          title: '✅ Producto agregado',
           description: `${product.nombre} se guardó en tu carrito (${quantityLabel}).`,
         });
         return;
@@ -255,8 +245,8 @@ export default function ProductCatalog() {
         body: payload,
       });
       toast({
-        title: "¡Agregado!",
-        description: `${product.nombre} se agregó a tu carrito (${quantityLabel}).`,
+        title: "✅ Producto agregado",
+        description: `${product.nombre} agregado al carrito.`,
         className: "bg-green-500 text-white",
       });
     } catch (err) {
@@ -275,6 +265,15 @@ export default function ProductCatalog() {
         }
         return;
       }
+
+      if (err instanceof ApiError && err.status === 401) {
+        const code = err.body?.code || err.body?.error_code || err.body?.errorCode;
+        if (code === 'REQUIERE_LOGIN_PUNTOS') {
+          setPointsAuthMessage('Para usar tus puntos tenés que iniciar sesión o registrarte.');
+          setShowPointsAuthPrompt(true);
+          return;
+        }
+      }
       toast({
         title: "Error",
         description: `No se pudo agregar ${product.nombre} al carrito.`,
@@ -283,6 +282,12 @@ export default function ProductCatalog() {
       console.error("Error agregando al carrito:", err);
     }
   };
+
+  useEffect(() => {
+    if (pointsRequireAuth) {
+      setShowPointsAuthPrompt(true);
+    }
+  }, [pointsRequireAuth]);
 
   if (loading) {
     return (
@@ -353,7 +358,7 @@ export default function ProductCatalog() {
             </div>
           </div>
         )}
-        {!shouldShowDemoLoyalty && (
+        {shouldShowLiveLoyalty && (
           <div className="w-full mb-4 rounded-lg border border-border bg-card p-4 shadow-sm grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <p className="text-sm text-muted-foreground">Saldo de puntos</p>
@@ -363,6 +368,29 @@ export default function ProductCatalog() {
               <p className="text-sm text-muted-foreground mb-2">Sube una nota de pedido para armar el carrito automáticamente.</p>
               <UploadOrderFromFile onCartUpdated={() => toast({ title: 'Carrito actualizado', description: 'Revisa tu carrito para confirmar los ítems detectados.' })} />
             </div>
+          </div>
+        )}
+        {!shouldShowDemoLoyalty && !user && (
+          <div className="w-full mb-4 rounded-lg border border-dashed border-primary/30 bg-card p-4 shadow-sm grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="md:col-span-2">
+              <p className="text-sm text-muted-foreground mb-2">Inicia sesión para ver tu saldo de puntos y canjear productos.</p>
+              <div className="flex gap-2 flex-wrap">
+                <Button asChild variant="default" size="sm">
+                  <Link to={loginPath}>Iniciar sesión</Link>
+                </Button>
+                <Button asChild variant="outline" size="sm">
+                  <Link to={registerPath}>Crear cuenta</Link>
+                </Button>
+              </div>
+            </div>
+            <div className="flex items-center justify-end">
+              <Badge variant="outline">Puntos</Badge>
+            </div>
+          </div>
+        )}
+        {pointsError && shouldShowLiveLoyalty && (
+          <div className="w-full mb-4 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-destructive text-sm shadow-sm">
+            {pointsError}
           </div>
         )}
         <div className="relative">
@@ -431,18 +459,22 @@ export default function ProductCatalog() {
         </div>
       )}
 
-      <GuestContactDialog
-        open={showGuestDialog}
-        onClose={() => {
-          setShowGuestDialog(false);
-          setPendingGuestProduct(null);
-          setPendingGuestOptions(null);
-        }}
-        reason="points"
-        defaultValues={loadGuestContact()}
-        onLogin={() => navigate('/login')}
-        onSubmit={handleGuestContactSubmit}
-      />
+      <Dialog open={showPointsAuthPrompt} onOpenChange={setShowPointsAuthPrompt}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Inicia sesión para usar tus puntos</DialogTitle>
+            <DialogDescription>{pointsAuthMessage}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex flex-col sm:flex-row sm:justify-end gap-2">
+            <Button asChild variant="default">
+              <Link to={loginPath}>Iniciar sesión</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link to={registerPath}>Crear cuenta</Link>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

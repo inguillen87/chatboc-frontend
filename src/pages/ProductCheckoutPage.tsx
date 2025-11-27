@@ -29,6 +29,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import usePointsBalance from '@/hooks/usePointsBalance';
 import { buildTenantPath } from '@/utils/tenantPaths';
 import { loadGuestContact, saveGuestContact } from '@/utils/guestContact';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 // Esquema de validación para el formulario de checkout
 const checkoutSchema = z.object({
@@ -72,19 +73,22 @@ export default function ProductCheckoutPage() {
     isLoading: isLoadingPoints,
     refresh: refreshPointsBalance,
     adjustOptimistic: adjustPointsBalance,
-  } = usePointsBalance();
+  } = usePointsBalance({ enabled: !!user, tenantSlug: currentSlug });
 
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isLoadingCart, setIsLoadingCart] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [orderPlaced, setOrderPlaced] = useState(false);
+  const [showPointsAuthPrompt, setShowPointsAuthPrompt] = useState(false);
   const [checkoutMode, setCheckoutMode] = useState<'api' | 'local'>('api');
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const guestDefaults = useMemo(() => loadGuestContact(), []);
 
   const catalogPath = buildTenantPath('/productos', currentSlug);
   const cartPath = buildTenantPath('/cart', currentSlug);
+  const loginPath = buildTenantPath('/login', currentSlug);
+  const registerPath = buildTenantPath('/register', currentSlug);
 
   const sharedRequestOptions = useMemo(
     () => ({
@@ -312,6 +316,19 @@ export default function ProductCheckoutPage() {
         },
       );
 
+      const estado = typeof preference === 'object' ? (preference as any)?.estado : undefined;
+      if (estado && String(estado).toLowerCase() === 'confirmado') {
+        setOrderPlaced(true);
+        toast({
+          title: 'Pedido confirmado',
+          description: hasDonations
+            ? 'Registramos tus donaciones sin necesidad de pago adicional.'
+            : 'Registramos tu canje de puntos. No necesitas pasar por Mercado Pago.',
+          className: 'bg-green-600 text-white',
+        });
+        return;
+      }
+
       const initPoint = preference?.init_point || preference?.sandbox_init_point;
       if (initPoint) {
         window.location.href = initPoint;
@@ -330,6 +347,18 @@ export default function ProductCheckoutPage() {
       // Por ahora, el usuario puede volver al carrito y verlo vacío o la página de catálogo.
 
     } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        const code = err.body?.code || err.body?.error_code || err.body?.errorCode;
+        if (code === 'REQUIERE_LOGIN_PUNTOS') {
+          const message = 'Para usar tus puntos tenés que iniciar sesión o registrarte.';
+          setCheckoutError(message);
+          toast({ title: 'Inicia sesión para usar puntos', description: message, variant: 'destructive' });
+          setShowPointsAuthPrompt(true);
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
       const message = getErrorMessage(err, "No se pudo procesar tu pedido. Intenta nuevamente.");
       setError(message);
       setCheckoutError(message);
@@ -384,9 +413,28 @@ export default function ProductCheckoutPage() {
     );
   }
 
+  const pointsAuthDialog = (
+    <Dialog open={showPointsAuthPrompt} onOpenChange={setShowPointsAuthPrompt}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Para usar tus puntos tenés que iniciar sesión</DialogTitle>
+          <DialogDescription>
+            Inicia sesión o regístrate para aplicar tus puntos al pedido. Te llevaremos a la pantalla correspondiente y
+            podrás volver para finalizar el checkout.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="flex flex-col sm:flex-row sm:justify-end gap-2">
+          <Button variant="outline" onClick={() => navigate(registerPath)}>Registrarme</Button>
+          <Button onClick={() => navigate(loginPath)}>Iniciar sesión</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+
 
   return (
     <div className="container mx-auto p-4 md:p-8">
+      {pointsAuthDialog}
       <Button variant="outline" onClick={() => navigate(cartPath)} className="mb-6">
         <ArrowLeft className="mr-2 h-4 w-4" /> Volver al Carrito
       </Button>

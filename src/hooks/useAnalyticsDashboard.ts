@@ -10,6 +10,8 @@ const EMPTY_DATA: DashboardData = {
   breakdownCategoria: null,
   breakdownCanal: null,
   breakdownEstado: null,
+  breakdownZona: null,
+  breakdownModalidad: null,
   heatmap: null,
   points: null,
   topZonas: null,
@@ -62,6 +64,8 @@ export function useAnalyticsDashboard(view: AnalyticsContext) {
           analyticsService.breakdown({ ...basePayload, dimension: 'categoria' }),
           analyticsService.breakdown({ ...basePayload, dimension: 'canal' }),
           analyticsService.breakdown({ ...basePayload, dimension: 'estado' }),
+          analyticsService.breakdown({ ...basePayload, dimension: 'zona' }),
+          analyticsService.breakdown({ ...basePayload, dimension: 'modalidad' }),
           analyticsService.heatmap(basePayload),
           analyticsService.points(basePayload),
           analyticsService.top({ ...basePayload, subject: 'zonas' }),
@@ -91,9 +95,11 @@ export function useAnalyticsDashboard(view: AnalyticsContext) {
         assignResult('breakdownCategoria', 2, 'categorías');
         assignResult('breakdownCanal', 3, 'canales');
         assignResult('breakdownEstado', 4, 'estados');
-        assignResult('heatmap', 5, 'mapa de calor');
-        assignResult('points', 6, 'puntos georreferenciados');
-        assignResult('topZonas', 7, 'zonas');
+        assignResult('breakdownZona', 5, 'zonas (gráfico)');
+        assignResult('breakdownModalidad', 6, 'modalidades');
+        assignResult('heatmap', 7, 'mapa de calor');
+        assignResult('points', 8, 'puntos georreferenciados');
+        assignResult('topZonas', 9, 'zonas');
 
         if (view === 'operaciones' || view === 'municipio') {
           const operationsResult = await Promise.allSettled([
