@@ -73,7 +73,7 @@ export default function ProductCheckoutPage() {
     isLoading: isLoadingPoints,
     refresh: refreshPointsBalance,
     adjustOptimistic: adjustPointsBalance,
-  } = usePointsBalance();
+  } = usePointsBalance({ enabled: !!user, tenantSlug: currentSlug });
 
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isLoadingCart, setIsLoadingCart] = useState(true);
