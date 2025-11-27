@@ -1,6 +1,6 @@
 // src/pages/Integracion.tsx
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -30,7 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Copy, Check, Code, HelpCircle, AlertTriangle, Settings, Info, Eye } from "lucide-react";
+import { Copy, Check, Code, HelpCircle, AlertTriangle, Settings, Info, Eye, RefreshCw } from "lucide-react";
 
 const slugify = (value?: string | null) => {
   if (!value) return null;
@@ -60,6 +60,7 @@ const Integracion = () => {
   const [user, setUser] = useState<User | null>(null);
   const [copiado, setCopiado] = useState<"iframe" | "script" | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isGeneratingToken, setIsGeneratingToken] = useState(false);
   const [primaryColor, setPrimaryColor] = useState("#007aff");
   const [accentColor, setAccentColor] = useState("#007aff");
   const [logoUrl, setLogoUrl] = useState("");
@@ -154,6 +155,26 @@ const Integracion = () => {
     }
   }, [user]);
 
+  const handleGenerateIntegrationToken = useCallback(() => {
+    setIsGeneratingToken(true);
+    try {
+      const newToken = buildNewEntityToken();
+      persistEntityToken(newToken);
+      setOwnerToken(newToken);
+      toast.success("Token de integración generado", {
+        icon: <Check className="text-green-500" />,
+        description: "Guardamos un token estable para tu widget.",
+      });
+    } catch (err) {
+      console.error("No se pudo generar el token de integración", err);
+      toast.error("No pudimos generar el token", {
+        icon: <AlertTriangle className="text-destructive" />,
+      });
+    } finally {
+      setIsGeneratingToken(false);
+    }
+  }, [buildNewEntityToken]);
+
   const effectiveOwnerToken = ownerToken || "";
   const tenantSlug = useMemo(() => {
     const base =
@@ -171,6 +192,14 @@ const Integracion = () => {
     return user?.id ? `entidad-${user.id}` : null;
   }, [user]);
   const isFullPlan = (user?.plan || "").toLowerCase() === "full";
+
+  const buildNewEntityToken = useCallback(() => {
+    const randomSegment =
+      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `ent-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    return tenantSlug ? `${tenantSlug}-${randomSegment}` : randomSegment;
+  }, [tenantSlug]);
 
   const WIDGET_STD_WIDTH = "460px";
   const WIDGET_STD_HEIGHT = "680px";
@@ -462,13 +491,41 @@ document.addEventListener('DOMContentLoaded', function () {
             <p>
               <strong>Token del Widget:</strong>{" "}
               {effectiveOwnerToken ? (
-                <>Tu token de integración es <code>{effectiveOwnerToken.substring(0, 8)}...</code>. Ya está incluido en los códigos de abajo.</>
+                <>
+                  Tu token de integración es <code>{effectiveOwnerToken.substring(0, 8)}...</code>. Ya está incluido en los códigos de abajo.
+                  <div className="mt-3 flex flex-wrap gap-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleGenerateIntegrationToken}
+                      disabled={isGeneratingToken}
+                      className="flex items-center gap-2"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                      {isGeneratingToken ? "Actualizando token..." : "Regenerar token"}
+                    </Button>
+                  </div>
+                </>
               ) : (
                 <span className="text-yellow-700 dark:text-yellow-300">
-                  No pudimos localizar el token de integración. Reingresá a tu cuenta o solicita uno desde soporte.
+                  No pudimos localizar el token de integración. Reingresá a tu cuenta o genera uno nuevo.
                 </span>
               )}
             </p>
+            {!effectiveOwnerToken && (
+              <div className="mt-3 flex flex-wrap gap-3">
+                <Button
+                  type="button"
+                  onClick={handleGenerateIntegrationToken}
+                  disabled={isGeneratingToken}
+                  className="flex items-center gap-2"
+                >
+                  <Check className="h-4 w-4" />
+                  {isGeneratingToken ? "Creando token..." : "Generar token de integración"}
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
 
