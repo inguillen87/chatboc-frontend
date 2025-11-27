@@ -77,7 +77,7 @@ export default function ProductCatalog() {
     const totalUnits = mode === 'case' ? quantity * unitsPerCase : quantity;
     addProductToLocalCart(product, totalUnits);
     toast({
-      title: 'Guardamos tu selección',
+      title: '✅ Producto agregado',
       description: `${product.nombre} se agregó al carrito en modo invitado (${quantity} ${mode === 'case' ? 'cajas' : 'unidades'}).`,
     });
   };
@@ -239,7 +239,7 @@ export default function ProductCatalog() {
       if (shouldUseLocalCart) {
         persistLocalCart();
         toast({
-          title: 'Modo demo activo',
+          title: '✅ Producto agregado',
           description: `${product.nombre} se guardó en tu carrito (${quantityLabel}).`,
         });
         return;
@@ -255,8 +255,8 @@ export default function ProductCatalog() {
         body: payload,
       });
       toast({
-        title: "¡Agregado!",
-        description: `${product.nombre} se agregó a tu carrito (${quantityLabel}).`,
+        title: "✅ Producto agregado",
+        description: `${product.nombre} agregado al carrito.`,
         className: "bg-green-500 text-white",
       });
     } catch (err) {

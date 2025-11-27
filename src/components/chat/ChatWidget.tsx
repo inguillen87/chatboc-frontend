@@ -20,6 +20,7 @@ import ChatPanel from "./ChatPanel";
 import ReadingRuler from "./ReadingRuler";
 import type { Prefs } from "./AccessibilityToggle";
 import { useCartCount } from "@/hooks/useCartCount";
+import { buildTenantAwareNavigatePath } from "@/utils/tenantPaths";
 
 interface ChatWidgetProps {
   mode?: "standalone" | "iframe" | "script";
@@ -267,7 +268,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     (target: "cart" | "catalog" = "cart") => {
       const slug = tenantSlugFromEntity?.trim();
       const basePath = target === "catalog" ? "/productos" : "/cart";
-      const url = new URL(basePath, window.location.origin);
+      const tenantPath = buildTenantAwareNavigatePath(basePath, slug, "tenant_slug");
+      const url = new URL(tenantPath, window.location.origin);
 
       if (slug) {
         url.searchParams.set("tenant_slug", slug);
