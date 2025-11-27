@@ -347,13 +347,24 @@ export default function ProductCheckoutPage() {
       // Por ahora, el usuario puede volver al carrito y verlo vacío o la página de catálogo.
 
     } catch (err) {
-      if (err instanceof ApiError && err.status === 401) {
+      if (err instanceof ApiError) {
         const code = err.body?.code || err.body?.error_code || err.body?.errorCode;
-        if (code === 'REQUIERE_LOGIN_PUNTOS') {
+        if (err.status === 401 && code === 'REQUIERE_LOGIN_PUNTOS') {
           const message = 'Para usar tus puntos tenés que iniciar sesión o registrarte.';
           setCheckoutError(message);
           toast({ title: 'Inicia sesión para usar puntos', description: message, variant: 'destructive' });
           setShowPointsAuthPrompt(true);
+          setIsSubmitting(false);
+          return;
+        }
+        if (err.status === 400 && code === 'SALDO_INSUFICIENTE') {
+          const faltan = err.body?.faltan ?? missingPoints;
+          const message = faltan
+            ? `Te faltan ${faltan} puntos para completar este canje.`
+            : 'No tienes puntos suficientes para completar este canje.';
+          setCheckoutError(message);
+          setError(message);
+          toast({ title: 'Saldo insuficiente', description: message, variant: 'destructive' });
           setIsSubmitting(false);
           return;
         }

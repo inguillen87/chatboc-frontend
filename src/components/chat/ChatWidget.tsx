@@ -271,12 +271,11 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       const tenantPath = buildTenantAwareNavigatePath(basePath, slug, "tenant_slug");
       const url = new URL(tenantPath, window.location.origin);
 
-      if (slug) {
-        url.searchParams.set("tenant_slug", slug);
-        url.searchParams.set("tenant", slug);
+      if (!slug && !tenantPath.includes("tenant_slug")) {
+        url.searchParams.set("tenant_slug", "");
       }
 
-      window.open(url.toString(), "_blank", "noopener,noreferrer");
+      window.location.assign(url.toString());
     },
     [tenantSlugFromEntity]
   );

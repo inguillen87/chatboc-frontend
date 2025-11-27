@@ -80,7 +80,7 @@ export default function ProductCatalog() {
     addProductToLocalCart(product, totalUnits);
     toast({
       title: '✅ Producto agregado',
-      description: `${product.nombre} se agregó al carrito en modo invitado (${quantity} ${mode === 'case' ? 'cajas' : 'unidades'}).`,
+      description: `${product.nombre} se agregó al carrito en modo invitado (${quantity} ${mode === 'case' ? 'cajas' : 'unidades'}). Escribe “Ver carrito” para revisarlo.`,
     });
   };
 
@@ -230,7 +230,7 @@ export default function ProductCatalog() {
         persistLocalCart();
         toast({
           title: '✅ Producto agregado',
-          description: `${product.nombre} se guardó en tu carrito (${quantityLabel}).`,
+          description: `${product.nombre} se guardó en tu carrito (${quantityLabel}). Escribe “Ver carrito” o usa el botón para continuar.`,
         });
         return;
       }
@@ -246,7 +246,7 @@ export default function ProductCatalog() {
       });
       toast({
         title: "✅ Producto agregado",
-        description: `${product.nombre} agregado al carrito.`,
+        description: `${product.nombre} agregado al carrito. Escribe “Ver carrito” para continuar o toca el ícono de carrito.`,
         className: "bg-green-500 text-white",
       });
     } catch (err) {
