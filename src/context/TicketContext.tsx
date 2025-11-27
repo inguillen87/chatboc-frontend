@@ -3,6 +3,7 @@ import { Ticket, User } from '@/types/tickets';
 import { getTickets } from '@/services/ticketService';
 import useTicketUpdates from '@/hooks/useTicketUpdates';
 import { mapToKnownCategory } from '@/utils/category';
+import { useUser } from '@/hooks/useUser';
 
 interface TicketContextType {
   tickets: Ticket[];
@@ -116,6 +117,94 @@ export const TicketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { user } = useUser();
+
+  const filterTicketsForUser = useCallback(
+    (list: Ticket[]): Ticket[] => {
+      const role = (user?.rol || '').toString().toLowerCase();
+      const isSuperAdmin = role.includes('super_admin');
+      const shouldRestrict = !isSuperAdmin && (role.includes('empleado') || role.includes('admin'));
+
+      if (!shouldRestrict) return list;
+
+      const userId = user?.id;
+      const normalizeId = (value: unknown) =>
+        value === undefined || value === null ? null : String(value);
+
+      const allowedCategoryIds = new Set<number>();
+      const allowedCategoryNames = new Set<string>();
+
+      const collectUserCategory = (value: unknown) => {
+        if (value === undefined || value === null) return;
+        const numeric = Number(value);
+        if (Number.isFinite(numeric)) {
+          allowedCategoryIds.add(Number(numeric));
+        }
+        const label = String(value).trim().toLowerCase();
+        if (label) {
+          allowedCategoryNames.add(label);
+        }
+      };
+
+      collectUserCategory(user?.categoria_id);
+      (user?.categoria_ids || []).forEach(collectUserCategory);
+      (user?.categorias || []).forEach((cat) => {
+        collectUserCategory(cat?.id);
+        if (cat?.nombre) {
+          allowedCategoryNames.add(cat.nombre.toLowerCase().trim());
+        }
+      });
+
+      return list.filter((ticket) => {
+        const matchesAssignee =
+          userId !== undefined && userId !== null &&
+          [ticket.assignedAgentId, ticket.assigned_agent_id, ticket.assignedAgent?.id]
+            .map(normalizeId)
+            .some((id) => id !== null && id === normalizeId(userId));
+
+        const ticketCategoryIds = new Set<number>();
+        const ticketCategoryNames = new Set<string>();
+
+        const collectTicketCategory = (value: unknown) => {
+          if (value === undefined || value === null) return;
+          const numeric = Number(value);
+          if (Number.isFinite(numeric)) {
+            ticketCategoryIds.add(Number(numeric));
+          }
+          const label = String(value).trim().toLowerCase();
+          if (label) {
+            ticketCategoryNames.add(label);
+          }
+        };
+
+        [
+          ticket.categoria_principal,
+          ticket.categoria_secundaria,
+          ticket.categoria_simple,
+          ticket.categoria,
+          ticket.categoria_id,
+        ].forEach(collectTicketCategory);
+        (ticket.categories || []).forEach(collectTicketCategory);
+        (ticket.categoria_ids || []).forEach(collectTicketCategory);
+        (ticket.categorias || []).forEach((cat) => {
+          collectTicketCategory(cat?.id);
+          collectTicketCategory(cat?.nombre);
+        });
+
+        const matchesCategoryById =
+          allowedCategoryIds.size > 0 &&
+          Array.from(ticketCategoryIds).some((id) => allowedCategoryIds.has(id));
+        const matchesCategoryByName =
+          allowedCategoryNames.size > 0 &&
+          Array.from(ticketCategoryNames).some((name) => allowedCategoryNames.has(name));
+
+        const matchesCategory = matchesCategoryById || matchesCategoryByName;
+
+        return matchesAssignee || matchesCategory;
+      });
+    },
+    [user]
+  );
 
   const fetchTickets = useCallback(async () => {
     try {
@@ -136,8 +225,14 @@ export const TicketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
               (assignedAgent ? assignedAgent.id : undefined),
           } as Ticket;
         });
-        setTickets(normalizedTickets);
-        setSelectedTicket((prev) => prev ?? (normalizedTickets[0] || null));
+        const filteredTickets = filterTicketsForUser(normalizedTickets);
+        setTickets(filteredTickets);
+        setSelectedTicket((prev) => {
+          if (prev && filteredTickets.some((ticket) => ticket.id === prev.id)) {
+            return prev;
+          }
+          return filteredTickets[0] || null;
+        });
       } else {
         console.warn("La respuesta de la API no contiene un array de tickets:", apiResponse);
         setTickets([]);
@@ -149,7 +244,7 @@ export const TicketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [filterTicketsForUser]);
 
   useEffect(() => {
     setLoading(true);

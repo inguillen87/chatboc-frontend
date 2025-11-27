@@ -129,6 +129,10 @@ export interface Ticket {
   avatarUrl?: string;
   history?: TicketHistoryEvent[];
 
+  categoria_id?: number;
+  categoria_ids?: number[];
+  categorias?: { id: number; nombre?: string }[];
+
   // Pyme specific fields
   telefono?: string;
   email?: string;

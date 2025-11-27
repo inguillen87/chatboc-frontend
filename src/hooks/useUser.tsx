@@ -16,6 +16,9 @@ interface UserData {
   picture?: string;
   tipo_chat?: 'pyme' | 'municipio';
   rol?: string;
+  categoria_id?: number;
+  categoria_ids?: number[];
+  categorias?: { id: number; nombre?: string }[];
   widget_icon_url?: string;
   widget_animation?: string;
   latitud?: number;
@@ -73,6 +76,28 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const finalTipo = data.tipo_chat
         ? enforceTipoChatForRubro(data.tipo_chat as 'pyme' | 'municipio', rubroNorm)
         : undefined;
+      const normalizeCategoryIds = (value: any): number[] | undefined => {
+        const values = Array.isArray(value) ? value : value === undefined ? [] : [value];
+        const normalized = values
+          .map((val) => {
+            const parsed = typeof val === 'number' ? val : Number(val);
+            return Number.isFinite(parsed) ? Number(parsed) : null;
+          })
+          .filter((val): val is number => val !== null);
+        return normalized.length > 0 ? normalized : undefined;
+      };
+
+      const normalizedCategories = Array.isArray(data.categorias)
+        ? data.categorias
+            .map((cat: any) => {
+              if (!cat || typeof cat !== 'object') return null;
+              const id = Number(cat.id);
+              if (!Number.isFinite(id)) return null;
+              return { id, nombre: cat.nombre };
+            })
+            .filter((cat): cat is { id: number; nombre?: string } => Boolean(cat))
+        : undefined;
+
       const updated: UserData = {
         id: data.id,
         name: data.name,
@@ -85,6 +110,9 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         tipo_chat: finalTipo,
         rol: data.rol,
         token: activeToken,
+        categoria_id: Number.isFinite(data.categoria_id) ? Number(data.categoria_id) : undefined,
+        categoria_ids: normalizeCategoryIds(data.categoria_ids),
+        categorias: normalizedCategories,
         widget_icon_url: data.widget_icon_url,
         widget_animation: data.widget_animation,
         latitud: typeof data.latitud === 'number' ? data.latitud : Number(data.latitud),
