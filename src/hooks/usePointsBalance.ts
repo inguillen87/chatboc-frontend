@@ -2,18 +2,26 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, apiFetch, getErrorMessage } from '@/utils/api';
 import { getDemoLoyaltySummary } from '@/utils/demoLoyalty';
 
+interface UsePointsBalanceOptions {
+  enabled?: boolean;
+  tenantSlug?: string | null;
+}
+
 export interface PointsBalance {
   points: number;
   isLoading: boolean;
   error: string | null;
   refresh: () => Promise<number | null>;
   adjustOptimistic: (delta: number) => void;
+  requiresAuth: boolean;
 }
 
-export const usePointsBalance = (): PointsBalance => {
+export const usePointsBalance = (options: UsePointsBalanceOptions = {}): PointsBalance => {
+  const { enabled = true, tenantSlug = null } = options;
   const [points, setPoints] = useState<number>(getDemoLoyaltySummary().points);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [requiresAuth, setRequiresAuth] = useState(false);
   const isMountedRef = useRef(true);
 
   const balanceEndpointCandidates = useRef<string[]>([
@@ -42,8 +50,15 @@ export const usePointsBalance = (): PointsBalance => {
   };
 
   const fetchBalance = useCallback(async (): Promise<number | null> => {
+    if (!enabled) {
+      setRequiresAuth(false);
+      setIsLoading(false);
+      return null;
+    }
+
     setIsLoading(true);
     setError(null);
+    setRequiresAuth(false);
 
     let lastError: unknown = null;
 
@@ -56,6 +71,7 @@ export const usePointsBalance = (): PointsBalance => {
             suppressPanel401Redirect: true,
             isWidgetRequest: true,
             omitCredentials: true,
+            tenantSlug: tenantSlug ?? undefined,
           });
 
           const saldo = normalizeSaldo(response);
@@ -66,8 +82,18 @@ export const usePointsBalance = (): PointsBalance => {
         } catch (err) {
           lastError = err;
 
-          if (err instanceof ApiError && err.status === 404) {
-            continue;
+          if (err instanceof ApiError) {
+            if (err.status === 401) {
+              const code = err.body?.code || err.body?.error_code || err.body?.errorCode;
+              if (code === 'REQUIERE_LOGIN_PUNTOS') {
+                setRequiresAuth(true);
+                return null;
+              }
+            }
+
+            if (err.status === 404) {
+              continue;
+            }
           }
 
           throw err;
@@ -86,7 +112,7 @@ export const usePointsBalance = (): PointsBalance => {
     }
 
     return null;
-  }, []);
+  }, [enabled, tenantSlug]);
 
   useEffect(() => {
     fetchBalance();
@@ -99,7 +125,7 @@ export const usePointsBalance = (): PointsBalance => {
     });
   }, []);
 
-  return { points, isLoading, error, refresh: fetchBalance, adjustOptimistic };
+  return { points, isLoading, error, refresh: fetchBalance, adjustOptimistic, requiresAuth };
 };
 
 export default usePointsBalance;

@@ -1,7 +1,8 @@
 export const buildTenantPath = (basePath: string, tenantSlug?: string | null) => {
-  if (tenantSlug && !basePath.startsWith('/t/')) {
+  const normalizedSlug = tenantSlug?.trim();
+  if (normalizedSlug && !['iframe', 'embed', 'widget'].includes(normalizedSlug.toLowerCase()) && !basePath.startsWith('/t/')) {
     const normalized = basePath.startsWith('/') ? basePath.slice(1) : basePath;
-    return `/t/${encodeURIComponent(tenantSlug)}/${normalized}`;
+    return `/t/${encodeURIComponent(normalizedSlug)}/${normalized}`;
   }
   return basePath;
 };
@@ -9,7 +10,7 @@ export const buildTenantPath = (basePath: string, tenantSlug?: string | null) =>
 export const buildTenantAwareNavigatePath = (
   basePath: string,
   tenantSlug?: string | null,
-  fallbackQueryParam = 'tenant',
+  fallbackQueryParam = 'tenant_slug',
 ) => {
   if (tenantSlug) {
     return buildTenantPath(basePath, tenantSlug);

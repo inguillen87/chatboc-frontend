@@ -20,6 +20,8 @@ import ChatPanel from "./ChatPanel";
 import ReadingRuler from "./ReadingRuler";
 import type { Prefs } from "./AccessibilityToggle";
 import { useCartCount } from "@/hooks/useCartCount";
+import { buildTenantAwareNavigatePath } from "@/utils/tenantPaths";
+import { useTenant } from "@/context/TenantContext";
 
 interface ChatWidgetProps {
   mode?: "standalone" | "iframe" | "script";
@@ -96,6 +98,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     typeof window !== "undefined" && window.innerWidth < 640
   );
 
+  const { tenant, currentSlug } = useTenant();
+
   const isEmbedded = mode !== "standalone";
 
   const derivedEntityTitle =
@@ -144,6 +148,53 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
     return null;
   }, [entityInfo]);
+
+  const tenantSlugFromLocation = useMemo(() => {
+    if (typeof window === 'undefined') return null;
+
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const fromQuery = params.get('tenant_slug') || params.get('tenant');
+      if (fromQuery && fromQuery.trim()) {
+        return fromQuery.trim();
+      }
+
+      const segments = window.location.pathname.split('/').filter(Boolean);
+      if (segments[0] === 't' && segments[1]) {
+        return decodeURIComponent(segments[1]);
+      }
+
+      if (segments[0]) {
+        const maybeSlug = decodeURIComponent(segments[0]);
+        const reserved = new Set([
+          'login',
+          'register',
+          'productos',
+          'cart',
+          'checkout-productos',
+          'checkout',
+          'portal',
+          'widget',
+          'admin',
+        ]);
+
+        if (!reserved.has(maybeSlug)) {
+          return maybeSlug;
+        }
+      }
+    } catch (error) {
+      console.warn('No se pudo resolver tenant_slug desde la URL', error);
+    }
+
+    return null;
+  }, []);
+
+  const resolvedTenantSlug =
+    tenant?.slug?.trim() ||
+    tenantSlugFromEntity?.trim() ||
+    tenantSlugFromLocation?.trim() ||
+    currentSlug?.trim() ||
+    null;
 
   useEffect(() => {
     const checkMobile = () => {
@@ -263,10 +314,21 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     }
   }, [user, entityInfo]);
 
-  const openCart = useCallback(() => {
-    const tenantSuffix = tenantSlugFromEntity ? `?tenant=${encodeURIComponent(tenantSlugFromEntity)}` : '';
-    window.open(`/cart${tenantSuffix}`, '_blank', 'noopener,noreferrer');
-  }, [tenantSlugFromEntity]);
+  const openCart = useCallback(
+    (target: "cart" | "catalog" = "cart") => {
+      const slug = resolvedTenantSlug;
+      const basePath = target === "catalog" ? "/productos" : "/cart";
+      const tenantPath = buildTenantAwareNavigatePath(basePath, slug, "tenant_slug");
+      const url = new URL(tenantPath, window.location.origin);
+
+      if (!slug && !tenantPath.includes("tenant_slug")) {
+        url.searchParams.set("tenant_slug", "");
+      }
+
+      window.location.assign(url.toString());
+    },
+    [resolvedTenantSlug]
+  );
 
   const toggleMuted = useCallback(() => {
     setMuted((m) => {
