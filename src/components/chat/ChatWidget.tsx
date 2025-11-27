@@ -21,6 +21,7 @@ import ReadingRuler from "./ReadingRuler";
 import type { Prefs } from "./AccessibilityToggle";
 import { useCartCount } from "@/hooks/useCartCount";
 import { buildTenantAwareNavigatePath } from "@/utils/tenantPaths";
+import { useTenant } from "@/context/TenantContext";
 
 interface ChatWidgetProps {
   mode?: "standalone" | "iframe" | "script";
@@ -96,6 +97,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const [isMobileView, setIsMobileView] = useState(
     typeof window !== "undefined" && window.innerWidth < 640
   );
+
+  const { tenant, currentSlug } = useTenant();
 
   const isEmbedded = mode !== "standalone";
 
@@ -186,7 +189,12 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     return null;
   }, []);
 
-  const resolvedTenantSlug = tenantSlugFromEntity?.trim() || tenantSlugFromLocation?.trim() || null;
+  const resolvedTenantSlug =
+    tenant?.slug?.trim() ||
+    tenantSlugFromEntity?.trim() ||
+    tenantSlugFromLocation?.trim() ||
+    currentSlug?.trim() ||
+    null;
 
   useEffect(() => {
     const checkMobile = () => {

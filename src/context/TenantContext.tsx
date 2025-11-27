@@ -64,12 +64,17 @@ const DEFAULT_TENANT_CONTEXT: TenantContextValue = {
 };
 
 const TENANT_PATH_REGEX = /^\/t\/([^/]+)/i;
+const PLACEHOLDER_SLUGS = new Set(['iframe', 'embed', 'widget']);
 
 const extractSlugFromLocation = (pathname: string, search: string): string | null => {
   const match = pathname.match(TENANT_PATH_REGEX);
   if (match && match[1]) {
     try {
-      return decodeURIComponent(match[1]);
+      const decoded = decodeURIComponent(match[1]);
+      if (PLACEHOLDER_SLUGS.has(decoded.toLowerCase())) {
+        return null;
+      }
+      return decoded;
     } catch (error) {
       console.warn('[TenantContext] No se pudo decodificar el slug de la URL', error);
       return match[1];
@@ -167,6 +172,10 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
       const info = await getTenantPublicInfoFlexible(slug, token);
       if (activeTenantRequest.current === requestId) {
         setTenant(info);
+        if (!currentSlugRef.current && info.slug) {
+          setCurrentSlug(info.slug);
+          currentSlugRef.current = info.slug;
+        }
       }
     } catch (error) {
       if (activeTenantRequest.current === requestId) {
