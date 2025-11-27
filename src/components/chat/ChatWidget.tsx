@@ -807,7 +807,7 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
                   }
                 >
                   {view === "register" ? <ChatUserRegisterPanel onSuccess={handleAuthSuccess} onShowLogin={() => setView("login")} entityToken={ownerToken} />
-                    : view === "login" ? <ChatUserLoginPanel onSuccess={handleAuthSuccess} onShowRegister={() => setView("register")} />
+                    : view === "login" ? <ChatUserLoginPanel onSuccess={handleAuthSuccess} onShowRegister={() => setView("register")} entityToken={ownerToken} />
                     : view === "user" ? <ChatUserPanel onClose={() => setView("chat")} />
                     : <EntityInfoPanel info={entityInfo} onClose={() => setView("chat")} />}
                 </Suspense>

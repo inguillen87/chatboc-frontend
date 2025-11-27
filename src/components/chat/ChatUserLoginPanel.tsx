@@ -27,9 +27,10 @@ interface LoginResponse {
 interface Props {
   onSuccess: (rol?: string) => void;
   onShowRegister: () => void;
+  entityToken?: string;
 }
 
-const ChatUserLoginPanel: React.FC<Props> = ({ onSuccess, onShowRegister }) => {
+const ChatUserLoginPanel: React.FC<Props> = ({ onSuccess, onShowRegister, entityToken }) => {
   const { refreshUser } = useUser();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -57,12 +58,26 @@ const ChatUserLoginPanel: React.FC<Props> = ({ onSuccess, onShowRegister }) => {
     setLoading(true);
     try {
       const payload: Record<string, any> = { email, password };
+      let currentEntityToken = entityToken || safeLocalStorage.getItem("entityToken");
+
+      if (!currentEntityToken && typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        currentEntityToken = params.get('token');
+        if (currentEntityToken) {
+          safeLocalStorage.setItem('entityToken', currentEntityToken);
+        }
+      }
+
+      if (currentEntityToken) {
+        payload.empresa_token = currentEntityToken;
+      }
       const anon = safeLocalStorage.getItem("anon_id");
       if (anon) payload.anon_id = anon;
       const data = await apiFetch<LoginResponse | { token: string; user?: LoginResponse }>("/auth/login", {
         method: "POST",
         body: payload,
         sendAnonId: true,
+        sendEntityToken: true,
         isWidgetRequest: true,
       });
 
