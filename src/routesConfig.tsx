@@ -23,6 +23,7 @@ import Cookies from '@/pages/legal/Cookies';
 import TicketsPanel from '@/pages/TicketsPanel';
 import PedidosPage from '@/pages/PedidosPage';
 import UsuariosPage from '@/pages/UsuariosPage';
+import { TENANT_ROUTE_PREFIXES } from '@/utils/tenantPaths';
 import ProductCatalog from '@/pages/ProductCatalog';
 import MunicipalMessageMetrics from '@/pages/MunicipalMessageMetrics';
 import NotificationSettings from '@/pages/NotificationSettings';
@@ -79,21 +80,30 @@ export interface RouteConfig {
   userPortal?: boolean; // Flag para rutas del portal de usuario final (cliente/vecino)
 }
 
+const withTenantPrefixes = (
+  pathSuffix: string,
+  config: Omit<RouteConfig, 'path'>,
+): RouteConfig[] =>
+  TENANT_ROUTE_PREFIXES.map((prefix) => ({
+    ...config,
+    path: `/${prefix}${pathSuffix}`,
+  }));
+
 const routes: RouteConfig[] = [
   { path: '/', element: <Index /> },
-  { path: '/t/:tenant', element: <TenantHomePage /> },
-  { path: '/t/:tenant/noticias', element: <TenantNewsPage /> },
-  { path: '/t/:tenant/eventos', element: <TenantEventsPage /> },
-  { path: '/t/:tenant/reclamos/nuevo', element: <TenantTicketFormPage /> },
-  { path: '/t/:tenant/pedido/confirmado', element: <OrderConfirmationPage /> },
+  ...withTenantPrefixes('/:tenant', { element: <TenantHomePage /> }),
+  ...withTenantPrefixes('/:tenant/noticias', { element: <TenantNewsPage /> }),
+  ...withTenantPrefixes('/:tenant/eventos', { element: <TenantEventsPage /> }),
+  ...withTenantPrefixes('/:tenant/reclamos/nuevo', { element: <TenantTicketFormPage /> }),
+  ...withTenantPrefixes('/:tenant/pedido/confirmado', { element: <OrderConfirmationPage /> }),
   { path: '/login', element: <Login /> },
   ...(FEATURE_ENCUESTAS
     ? [
         { path: '/encuestas', element: <PublicSurveysIndex /> },
         { path: '/encuestas/:slug/qr', element: <SurveyQrPage /> },
         { path: '/e/:slug', element: <PublicSurveyPage /> },
-        { path: '/t/:tenant/encuestas', element: <TenantSurveyListPage /> },
-        { path: '/t/:tenant/encuestas/:slug', element: <TenantSurveyDetailPage /> },
+        ...withTenantPrefixes('/:tenant/encuestas', { element: <TenantSurveyListPage /> }),
+        ...withTenantPrefixes('/:tenant/encuestas/:slug', { element: <TenantSurveyDetailPage /> }),
       ]
     : []),
   { path: '/register', element: <Register /> },
@@ -108,22 +118,25 @@ const routes: RouteConfig[] = [
   { path: '/chatpos', element: <ChatPosPage /> },
   { path: '/chatcrm', element: <ChatCRMPage /> },
   { path: '/opinar', element: <OpinarArPage /> },
-  { path: '/t/:tenant/integracion', element: <Integracion />, roles: ['admin'] },
+  ...withTenantPrefixes('/:tenant/integracion', { element: <Integracion />, roles: ['admin'] }),
   { path: '/documentacion', element: <Documentacion /> },
   { path: '/faqs', element: <Faqs /> },
-  { path: '/t/:tenant/productos', element: <ProductCatalog /> },
   { path: '/productos', element: <ProductCatalog /> },
-  { path: '/t/:tenant/cart', element: <CartPage /> },
+  ...withTenantPrefixes('/:tenant/productos', { element: <ProductCatalog /> }),
   { path: '/cart', element: <CartPage /> },
-  { path: '/t/:tenant/checkout-productos', element: <ProductCheckoutPage /> },
+  ...withTenantPrefixes('/:tenant/cart', { element: <CartPage /> }),
   { path: '/checkout-productos', element: <ProductCheckoutPage /> },
-  { path: '/t/:tenant/pedido/confirmado', element: <OrderConfirmationPage /> },
+  ...withTenantPrefixes('/:tenant/checkout-productos', { element: <ProductCheckoutPage /> }),
+  ...withTenantPrefixes('/:tenant/pedido/confirmado', { element: <OrderConfirmationPage /> }),
   { path: '/pedido/confirmado', element: <OrderConfirmationPage /> },
   { path: '/legal/privacy', element: <Privacy /> },
   { path: '/legal/terms', element: <Terms /> },
   { path: '/legal/cookies', element: <Cookies /> },
   { path: '/tickets', element: <TicketsPanel />, roles: ['admin', 'empleado', 'super_admin'] },
-  { path: '/t/:tenant/pedidos', element: <PedidosPage />, roles: ['admin', 'empleado', 'super_admin'] },
+  ...withTenantPrefixes('/:tenant/pedidos', {
+    element: <PedidosPage />,
+    roles: ['admin', 'empleado', 'super_admin'],
+  }),
   { path: '/pedidos', element: <PedidosPage />, roles: ['admin', 'empleado', 'super_admin'] },
   { path: '/usuarios', element: <UsuariosPage />, roles: ['admin', 'empleado', 'super_admin'] },
   { path: '/notifications', element: <NotificationSettings /> },

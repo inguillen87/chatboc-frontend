@@ -20,6 +20,7 @@ import type { TenantPublicInfo, TenantSummary } from '@/types/tenant';
 import { getErrorMessage } from '@/utils/api';
 import { ensureRemoteAnonId } from '@/utils/anonId';
 import { normalizeEntityToken } from '@/utils/entityToken';
+import { TENANT_ROUTE_PREFIXES } from '@/utils/tenantPaths';
 
 interface TenantContextValue {
   currentSlug: string | null;
@@ -67,7 +68,7 @@ const DEFAULT_TENANT_CONTEXT: TenantContextValue = {
   unfollowCurrentTenant: async () => {},
 };
 
-const TENANT_PATH_REGEX = /^\/t\/([^/]+)/i;
+const TENANT_PATH_REGEX = new RegExp(`^/(?:${TENANT_ROUTE_PREFIXES.join('|')})/([^/]+)`, 'i');
 const PLACEHOLDER_SLUGS = new Set(['iframe', 'embed', 'widget']);
 
 const sanitizeTenantSlug = (slug?: string | null) => {
