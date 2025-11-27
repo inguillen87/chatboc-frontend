@@ -9,6 +9,8 @@ const TENANT_AWARE_PATHS = [
   '/portal/beneficios',
 ];
 
+const PLACEHOLDER_SLUGS = new Set(['iframe', 'embed', 'widget']);
+
 const getAppOrigin = (): string => {
   if (typeof window !== 'undefined' && window.location?.origin) {
     return window.location.origin;
@@ -34,6 +36,9 @@ const shouldAttachTenant = (pathname: string): boolean => {
 export const buildTenantAwareUrl = (rawUrl: string, tenantSlug?: string | null): string => {
   if (!rawUrl || typeof rawUrl !== 'string') return rawUrl;
   const slug = tenantSlug?.trim();
+  if (slug && PLACEHOLDER_SLUGS.has(slug.toLowerCase())) {
+    return rawUrl.trim();
+  }
   const trimmed = rawUrl.trim();
   if (!slug) return trimmed;
 
@@ -49,6 +54,10 @@ export const buildTenantAwareUrl = (rawUrl: string, tenantSlug?: string | null):
     const target = new URL(parsed.toString());
     target.protocol = new URL(appOrigin).protocol;
     target.host = new URL(appOrigin).host;
+
+    if (!target.searchParams.has('tenant_slug')) {
+      target.searchParams.set('tenant_slug', slug);
+    }
 
     if (!target.searchParams.has('tenant')) {
       target.searchParams.set('tenant', slug);

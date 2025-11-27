@@ -103,7 +103,7 @@ const UploadOrderFromFile: React.FC<UploadOrderFromFileProps> = ({ onCartUpdated
         <Input
           ref={fileInputRef}
           type="file"
-          accept=".pdf,.jpg,.jpeg,.png,.csv,.xls,.xlsx"
+          accept=".pdf,.jpg,.jpeg,.png,.csv,.xls,.xlsx,.doc,.docx"
           onChange={handleFileChange}
           disabled={uploading}
           className="max-w-xs"

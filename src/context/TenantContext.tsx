@@ -38,13 +38,47 @@ interface TenantContextValue {
 
 const TenantContext = createContext<TenantContextValue | undefined>(undefined);
 
+const DEFAULT_TENANT_INFO: TenantPublicInfo = {
+  slug: 'default',
+  nombre: 'Chatboc',
+  logo_url: null,
+  tema: null,
+  tipo: 'pyme',
+  descripcion: null,
+};
+
+const DEFAULT_TENANT_CONTEXT: TenantContextValue = {
+  currentSlug: null,
+  tenant: DEFAULT_TENANT_INFO,
+  isLoadingTenant: false,
+  tenantError: null,
+  refreshTenant: async () => {},
+  widgetToken: null,
+  followedTenants: [],
+  isLoadingFollowedTenants: false,
+  followedTenantsError: null,
+  refreshFollowedTenants: async () => {},
+  isCurrentTenantFollowed: false,
+  followCurrentTenant: async () => {},
+  unfollowCurrentTenant: async () => {},
+};
+
 const TENANT_PATH_REGEX = /^\/t\/([^/]+)/i;
+const PLACEHOLDER_SLUGS = new Set(['iframe', 'embed', 'widget']);
+
+const sanitizeTenantSlug = (slug?: string | null) => {
+  if (!slug) return null;
+  const normalized = slug.trim();
+  if (!normalized) return null;
+  return PLACEHOLDER_SLUGS.has(normalized.toLowerCase()) ? null : normalized;
+};
 
 const extractSlugFromLocation = (pathname: string, search: string): string | null => {
   const match = pathname.match(TENANT_PATH_REGEX);
   if (match && match[1]) {
     try {
-      return decodeURIComponent(match[1]);
+      const decoded = decodeURIComponent(match[1]);
+      return sanitizeTenantSlug(decoded);
     } catch (error) {
       console.warn('[TenantContext] No se pudo decodificar el slug de la URL', error);
       return match[1];
@@ -55,7 +89,7 @@ const extractSlugFromLocation = (pathname: string, search: string): string | nul
     try {
       const params = new URLSearchParams(search);
       const fromQuery = params.get('tenant');
-      return fromQuery && fromQuery.trim() ? fromQuery.trim() : null;
+      return sanitizeTenantSlug(fromQuery);
     } catch (error) {
       console.warn('[TenantContext] No se pudo leer la query string para tenant', error);
     }
@@ -106,10 +140,15 @@ const resolveTenantBootstrap = (
 ): { slug: string | null; widgetToken: string | null } => {
   const slugFromUrl = extractSlugFromLocation(pathname, search);
   const params = new URLSearchParams(search);
-  const widgetTokenFromQuery = params.get('widget_token');
+  const widgetTokenFromQuery =
+    params.get('widget_token') ||
+    params.get('entityToken') ||
+    params.get('entity_token') ||
+    params.get('ownerToken') ||
+    params.get('owner_token');
 
   if (slugFromUrl || widgetTokenFromQuery) {
-    return { slug: slugFromUrl, widgetToken: widgetTokenFromQuery };
+    return { slug: sanitizeTenantSlug(slugFromUrl), widgetToken: widgetTokenFromQuery };
   }
 
   const fromScripts = readTenantFromScripts();
@@ -117,7 +156,7 @@ const resolveTenantBootstrap = (
     return fromScripts;
   }
 
-  return { slug: readTenantFromSubdomain(), widgetToken: null };
+  return { slug: sanitizeTenantSlug(readTenantFromSubdomain()), widgetToken: null };
 };
 
 export const TenantProvider = ({ children }: { children: ReactNode }) => {
@@ -142,10 +181,14 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
       const info = await getTenantPublicInfoFlexible(slug, token);
       if (activeTenantRequest.current === requestId) {
         setTenant(info);
+        if (!currentSlugRef.current && info.slug) {
+          setCurrentSlug(info.slug);
+          currentSlugRef.current = info.slug;
+        }
       }
     } catch (error) {
       if (activeTenantRequest.current === requestId) {
-        setTenant(null);
+        setTenant(DEFAULT_TENANT_INFO);
         setTenantError(getErrorMessage(error));
       }
       throw error;
@@ -164,7 +207,7 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
 
     if (!slug && !token) {
       activeTenantRequest.current += 1;
-      setTenant(null);
+      setTenant(DEFAULT_TENANT_INFO);
       setTenantError(null);
       setIsLoadingTenant(false);
       return;
@@ -252,7 +295,7 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
 
   const value = useMemo<TenantContextValue>(() => ({
     currentSlug,
-    tenant,
+    tenant: tenant ?? DEFAULT_TENANT_INFO,
     isLoadingTenant,
     tenantError,
     refreshTenant,
@@ -286,7 +329,10 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
 export const useTenant = () => {
   const context = useContext(TenantContext);
   if (!context) {
-    throw new Error('useTenant debe utilizarse dentro de un TenantProvider.');
+    console.warn(
+      '[TenantContext] useTenant utilizado fuera de TenantProvider. Se devolverá un valor por defecto.',
+    );
+    return DEFAULT_TENANT_CONTEXT;
   }
   return context;
 };
