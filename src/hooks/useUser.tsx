@@ -18,6 +18,9 @@ interface UserData {
   tipo_chat?: 'pyme' | 'municipio';
   entityToken?: string;
   rol?: string;
+  tenantSlug?: string;
+  publicCartUrl?: string;
+  publicCatalogUrl?: string;
   categoria_id?: number;
   categoria_ids?: number[];
   categorias?: { id: number; nombre?: string }[];
@@ -103,6 +106,24 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const normalizedEntityToken = normalizeEntityToken(
         data.entityToken || data.entity_token || data.token_integracion,
       );
+      const normalizedTenantSlug =
+        typeof data.tenantSlug === 'string'
+          ? data.tenantSlug
+          : typeof data.tenant_slug === 'string'
+            ? data.tenant_slug
+            : undefined;
+      const normalizedPublicCartUrl =
+        typeof data.public_cart_url === 'string'
+          ? data.public_cart_url
+          : typeof data.publicCartUrl === 'string'
+            ? data.publicCartUrl
+            : undefined;
+      const normalizedPublicCatalogUrl =
+        typeof data.public_catalog_url === 'string'
+          ? data.public_catalog_url
+          : typeof data.publicCatalogUrl === 'string'
+            ? data.publicCatalogUrl
+            : undefined;
       const storedEntityToken = getStoredEntityToken();
 
       if (normalizedEntityToken) {
@@ -122,6 +143,9 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         rol: data.rol,
         token: activeToken,
         entityToken: normalizedEntityToken || storedEntityToken || undefined,
+        tenantSlug: normalizedTenantSlug,
+        publicCartUrl: normalizedPublicCartUrl,
+        publicCatalogUrl: normalizedPublicCatalogUrl,
         categoria_id: Number.isFinite(data.categoria_id) ? Number(data.categoria_id) : undefined,
         categoria_ids: normalizeCategoryIds(data.categoria_ids),
         categorias: normalizedCategories,
