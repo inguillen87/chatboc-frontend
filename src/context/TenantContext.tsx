@@ -45,6 +45,9 @@ const DEFAULT_TENANT_INFO: TenantPublicInfo = {
   tema: null,
   tipo: 'pyme',
   descripcion: null,
+  public_base_url: null,
+  public_cart_url: null,
+  public_catalog_url: null,
 };
 
 const DEFAULT_TENANT_CONTEXT: TenantContextValue = {
