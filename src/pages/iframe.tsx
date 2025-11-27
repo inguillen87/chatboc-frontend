@@ -10,6 +10,7 @@ import { getChatbocConfig } from "@/utils/config";
 import { hexToHsl } from "@/utils/color";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { registerExtensionNoiseFilters } from "@/utils/registerExtensionNoiseFilters";
+import { apiFetch } from "@/utils/api";
 
 registerExtensionNoiseFilters();
 
@@ -28,8 +29,6 @@ if (!GOOGLE_CLIENT_ID) {
     'VITE_GOOGLE_CLIENT_ID is missing. Google OAuth login will fail until this variable is set. See README.md for setup instructions.'
   );
 }
-
-import { apiFetch } from "@/services/apiService";
 
 const Iframe = () => {
   const [widgetParams, setWidgetParams] = useState<any | null>(null);
@@ -151,7 +150,14 @@ const Iframe = () => {
       const fetchTokenInfo = async () => {
         try {
           setIsLoading(true);
-          const info = await apiFetch<{ tipo_chat: 'pyme' | 'municipio' }>('/auth/token-info');
+          const info = await apiFetch<{ tipo_chat: 'pyme' | 'municipio' }>(
+            '/auth/token-info',
+            {
+              isWidgetRequest: true,
+              sendAnonId: true,
+              omitCredentials: true,
+            }
+          );
           setTipoChat(info.tipo_chat);
         } catch (error) {
           console.error("Error fetching token info:", error);
