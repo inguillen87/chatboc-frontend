@@ -23,6 +23,7 @@ import { safeOn, assertEventSource } from "@/utils/safeOn";
 import { getVisitorName, setVisitorName } from "@/utils/visitorName";
 import { ensureAbsoluteUrl, mergeButtons, pickFirstString } from "@/utils/chatButtons";
 import { deriveAttachmentInfo } from "@/utils/attachment";
+import { getValidStoredToken } from "@/utils/authTokens";
 
 interface UseChatLogicOptions {
   tipoChat: 'pyme' | 'municipio';
@@ -170,7 +171,7 @@ export function useChatLogic({
     initializeConversationRef.current = initializeConversation;
   }, [initializeConversation]);
 
-  const token = skipAuth ? null : safeLocalStorage.getItem(tokenKey);
+  const token = skipAuth ? null : getValidStoredToken(tokenKey);
   const isAnonimo = skipAuth || !token;
 
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);

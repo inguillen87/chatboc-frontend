@@ -4,6 +4,7 @@ import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { enforceTipoChatForRubro, parseRubro } from '@/utils/tipoChat';
 import { getIframeToken } from '@/utils/config';
 import { getStoredEntityToken, normalizeEntityToken, persistEntityToken } from '@/utils/entityToken';
+import { getValidStoredToken } from '@/utils/authTokens';
 
 interface UserData {
   id?: number;
@@ -48,9 +49,17 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<UserData | null>(() => {
     try {
       const hasEntity = safeLocalStorage.getItem('entityToken') || getIframeToken();
-      const chatToken = safeLocalStorage.getItem('chatAuthToken');
-      if (hasEntity && !chatToken) return null;
+      const authToken = getValidStoredToken('authToken');
+      const chatToken = getValidStoredToken('chatAuthToken');
+      const activeToken = authToken || chatToken;
       const stored = safeLocalStorage.getItem('user');
+
+      if (!activeToken && stored) {
+        safeLocalStorage.removeItem('user');
+        return null;
+      }
+
+      if (hasEntity && !activeToken) return null;
       return stored ? JSON.parse(stored) : null;
     } catch {
       return null;
@@ -59,8 +68,8 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(false);
 
   const refreshUser = useCallback(async () => {
-    const panelToken = safeLocalStorage.getItem('authToken');
-    const chatToken = safeLocalStorage.getItem('chatAuthToken');
+    const panelToken = getValidStoredToken('authToken');
+    const chatToken = getValidStoredToken('chatAuthToken');
     const activeToken = panelToken ?? chatToken;
     const tokenKey: 'authToken' | 'chatAuthToken' | null = panelToken
       ? 'authToken'
@@ -170,14 +179,14 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  useEffect(() => {
-    const token =
-      safeLocalStorage.getItem('authToken') ||
-      safeLocalStorage.getItem('chatAuthToken');
-    if (token && (!user || !user.rubro)) {
-      refreshUser();
-    }
-  }, [refreshUser, user]);
+    useEffect(() => {
+      const token =
+        getValidStoredToken('authToken') ||
+        getValidStoredToken('chatAuthToken');
+      if (token && (!user || !user.rubro)) {
+        refreshUser();
+      }
+    }, [refreshUser, user]);
 
   return (
     <UserContext.Provider value={{ user, setUser, refreshUser, loading }}>
