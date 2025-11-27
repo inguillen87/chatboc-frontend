@@ -76,7 +76,7 @@ const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin, entity
       const anon = safeLocalStorage.getItem("anon_id");
       if (anon) payload.anon_id = anon;
 
-      const data = await apiFetch<RegisterResponse>("/chatuserregisterpanel", {
+      const data = await apiFetch<RegisterResponse>("/api/chatuserregisterpanel", {
         method: "POST",
         body: payload,
         skipAuth: true,
