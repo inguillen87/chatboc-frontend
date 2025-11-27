@@ -14,6 +14,10 @@ interface RegisterResponse {
   email: string;
   tipo_chat?: 'pyme' | 'municipio';
   rol?: string;
+  entityToken?: string;
+  entity_token?: string;
+  tenantSlug?: string;
+  tenant_slug?: string;
 }
 
 interface Props {
@@ -76,18 +80,33 @@ const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin, entity
       const anon = safeLocalStorage.getItem("anon_id");
       if (anon) payload.anon_id = anon;
 
-      const data = await apiFetch<RegisterResponse>("/api/chatuserregisterpanel", {
+      const data = await apiFetch<RegisterResponse | { token: string; user?: RegisterResponse }>("/auth/register", {
         method: "POST",
         body: payload,
         skipAuth: true,
         sendAnonId: true,
         isWidgetRequest: true,
-        // sendEntityToken: true, // Removed: token is in body
       });
-      safeLocalStorage.setItem("authToken", data.token);
-      safeLocalStorage.setItem("chatAuthToken", data.token);
+
+      const token = (data as any)?.token;
+      const userData = (data as any)?.user ?? data;
+      const tenantSlug = (userData as any)?.tenantSlug || (userData as any)?.tenant_slug;
+      const resolvedEntityToken =
+        (userData as any)?.entityToken || (userData as any)?.entity_token || currentEntityToken;
+
+      if (token) {
+        safeLocalStorage.setItem("authToken", token);
+        safeLocalStorage.setItem("chatAuthToken", token);
+      }
+      if (tenantSlug) {
+        safeLocalStorage.setItem("tenantSlug", tenantSlug);
+      }
+      if (resolvedEntityToken) {
+        safeLocalStorage.setItem("entityToken", resolvedEntityToken);
+      }
+
       await refreshUser();
-      onSuccess(data.rol);
+      onSuccess((userData as any)?.rol);
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.body?.error || "Error de registro");
