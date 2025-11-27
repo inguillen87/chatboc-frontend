@@ -278,6 +278,10 @@ export default function Perfil() {
 
     return null;
   }, [perfil, storedTenantSlug, user]);
+  const buildMappingPath = useCallback(
+    (path: string) => (derivedTenantSlug ? `/t/${derivedTenantSlug}${path}` : path),
+    [derivedTenantSlug],
+  );
   const [modoHorario, setModoHorario] = useState("comercial");
   const [archivo, setArchivo] = useState<File | null>(null); // Tipado para archivo
   const [resultadoCatalogo, setResultadoCatalogo] = useState<{ message: string; type: "success" | "error" } | null>(null);
@@ -789,10 +793,11 @@ export default function Perfil() {
 
   // Función para cargar las configuraciones de mapeo
   const fetchMappingConfigs = useCallback(async () => {
-    if (!user?.id) return; // Asegurarse que tenemos el ID de la PYME (user.id)
+    if (!user?.id) return; // Asegurarse que tenemos el ID de la organización
     setLoadingMappings(true);
+    const entityType = isPyme ? 'pymes' : 'municipal';
     try {
-      const data = await apiFetch<MappingConfig[]>(`/pymes/${user.id}/catalog-mappings`);
+      const data = await apiFetch<MappingConfig[]>(`/${entityType}/${user.id}/catalog-mappings`);
       setMappingConfigs(data || []);
     } catch (err) {
       toast({
@@ -804,7 +809,7 @@ export default function Perfil() {
     } finally {
       setLoadingMappings(false);
     }
-  }, [user?.id]);
+  }, [isPyme, user?.id]);
 
   const refreshVectorSyncStatus = useCallback(async () => {
     if (!user?.id || !isPyme) {
@@ -1114,9 +1119,10 @@ export default function Perfil() {
     setResultadoCatalogo(null);
 
     // 1. Intentar obtener mapeos existentes para decidir el flujo
-    let pymeId = user?.id;
-    if (!pymeId) {
-      toast({ variant: "destructive", title: "Error", description: "No se pudo identificar la PYME." });
+    const entityId = user?.id;
+    const entityType = isPyme ? 'pymes' : 'municipal';
+    if (!entityId) {
+      toast({ variant: "destructive", title: "Error", description: "No se pudo identificar la entidad." });
       setLoadingCatalogo(false);
       return;
     }
@@ -1127,7 +1133,7 @@ export default function Perfil() {
     // Por simplicidad inicial, si no están en estado, las cargamos.
     if (configs.length === 0 && !loadingMappings) { // Evitar recargar si ya se están cargando
         try {
-            configs = await apiFetch<MappingConfig[]>(`/pymes/${pymeId}/catalog-mappings`) || [];
+            configs = await apiFetch<MappingConfig[]>(`/${entityType}/${entityId}/catalog-mappings`) || [];
             setMappingConfigs(configs); // Actualizar estado si se cargan aquí
         } catch (fetchErr) {
             // No bloquear la subida si esto falla, se procederá como si no hubiera mapeos
@@ -1169,20 +1175,22 @@ export default function Perfil() {
         const isStructured = ['csv', 'txt', 'xls', 'xlsx'].includes(fileType);
         const shouldUseAi = options.forceAi || !isStructured;
 
-        if (shouldUseAi) {
-          if (!user?.id) {
-            throw new Error('Necesitamos el identificador de tu cuenta para ejecutar el análisis inteligente.');
-          }
+          if (shouldUseAi) {
+            if (!user?.id) {
+              throw new Error('Necesitamos el identificador de tu cuenta para ejecutar el análisis inteligente.');
+            }
+            const entityType = isPyme ? 'pymes' : 'municipal';
 
-          const preview = await requestDocumentPreview({
-            pymeId: user.id,
-            file: fileToParse,
-            options: {
-              hasHeaders: true,
-              skipRows: 0,
-              useAi: true,
-            },
-          });
+            const preview = await requestDocumentPreview({
+              entityId: user.id,
+              entityType,
+              file: fileToParse,
+              options: {
+                hasHeaders: true,
+                skipRows: 0,
+                useAi: true,
+              },
+            });
 
           const normalizedHeaders = (preview.columns ?? []).map((header, index) =>
             typeof header === 'string' && header.trim()
@@ -1281,6 +1289,7 @@ export default function Perfil() {
 
     // 1. Guardar la configuración de mapeo generada automáticamente
     const mappingName = `Mapeo para ${archivo.name} (${new Date().toLocaleString()})`;
+    const entityType = isPyme ? 'pymes' : 'municipal';
     const configToSave = {
       pymeId: user.id,
       name: mappingName,
@@ -1290,7 +1299,7 @@ export default function Perfil() {
 
     try {
       // Asumimos que el backend está listo para recibir esto.
-      const savedMapping = await apiFetch<any>(`/pymes/${user.id}/catalog-mappings`, {
+      const savedMapping = await apiFetch<any>(`/${entityType}/${user.id}/catalog-mappings`, {
         method: 'POST',
         body: configToSave,
       });
@@ -1303,7 +1312,7 @@ export default function Perfil() {
       formData.append("file", archivo);
       formData.append("mappingId", savedMapping.id);
 
-      const processingResult = await apiFetch<any>(`/pymes/${user.id}/process-catalog-file`, {
+      const processingResult = await apiFetch<any>(`/${entityType}/${user.id}/process-catalog-file`, {
         method: "POST",
         body: formData,
       });
@@ -1371,8 +1380,9 @@ export default function Perfil() {
   const handleDeleteMapping = async () => {
     if (!mappingToDelete || !user?.id) return;
     setLoadingMappings(true); // Reutilizar loading para el diálogo
+    const entityType = isPyme ? 'pymes' : 'municipal';
     try {
-      await apiFetch<void>(`/pymes/${user.id}/catalog-mappings/${mappingToDelete.id}`, {
+      await apiFetch<void>(`/${entityType}/${user.id}/catalog-mappings/${mappingToDelete.id}`, {
         method: 'DELETE',
       });
       toast({
@@ -1954,7 +1964,7 @@ export default function Perfil() {
                                       variant="ghost"
                                       size="icon"
                                       className="h-8 w-8"
-                                      onClick={() => navigate(`/admin/pyme/${user?.id}/catalog-mappings/${config.id}`)}
+                                      onClick={() => navigate(buildMappingPath(`/catalog-mappings/${config.id}`))}
                                       title="Editar"
                                     >
                                       <Edit3 className="w-4 h-4" />
@@ -1980,7 +1990,7 @@ export default function Perfil() {
                            </DialogClose>
                            <Button
                              className="w-full sm:w-auto"
-                             onClick={() => navigate(`/admin/pyme/${user?.id}/catalog-mappings/new`)}
+                             onClick={() => navigate(buildMappingPath('/catalog-mappings/new'))}
                            >
                              <PlusCircle className="w-4 h-4 mr-2" />
                              Crear Nuevo Formato
@@ -2603,7 +2613,7 @@ export default function Perfil() {
             <Button
               variant="outline"
               className="w-full sm:col-span-1"
-              onClick={() => navigate(`/admin/pyme/${user?.id}/catalog-mappings/new`, { state: { preloadedFile: archivo }})}
+              onClick={() => navigate(buildMappingPath('/catalog-mappings/new'), { state: { preloadedFile: archivo }})}
             >
               Configuración Avanzada...
             </Button>

@@ -31,7 +31,8 @@ export interface DocumentPreviewResponse {
 }
 
 export interface DocumentPreviewRequest {
-  pymeId: string | number;
+  entityId: string | number;
+  entityType?: 'pymes' | 'municipal';
   file: File;
   options: DocumentPreviewOptions;
 }
@@ -41,11 +42,12 @@ export interface DocumentPreviewRequest {
  * and return a normalized preview that the UI can use to suggest column mappings.
  */
 export async function requestDocumentPreview({
-  pymeId,
+  entityId,
+  entityType = 'pymes',
   file,
   options,
 }: DocumentPreviewRequest): Promise<DocumentPreviewResponse> {
-  if (!pymeId) {
+  if (!entityId) {
     throw new Error('El identificador de la organización es obligatorio para analizar documentos.');
   }
 
@@ -53,7 +55,7 @@ export async function requestDocumentPreview({
   formData.append('file', file);
   formData.append('options', JSON.stringify(options));
 
-  return apiFetch<DocumentPreviewResponse>(`/pymes/${pymeId}/document-intelligence/preview`, {
+  return apiFetch<DocumentPreviewResponse>(`/${entityType}/${entityId}/document-intelligence/preview`, {
     method: 'POST',
     body: formData,
   });

@@ -118,6 +118,7 @@ const routes: RouteConfig[] = [
   { path: '/chatpos', element: <ChatPosPage /> },
   { path: '/chatcrm', element: <ChatCRMPage /> },
   { path: '/opinar', element: <OpinarArPage /> },
+  { path: '/integracion', element: <Integracion />, roles: ['admin'] },
   ...withTenantPrefixes('/:tenant/integracion', { element: <Integracion />, roles: ['admin'] }),
   { path: '/documentacion', element: <Documentacion /> },
   { path: '/faqs', element: <Faqs /> },
@@ -173,6 +174,10 @@ const routes: RouteConfig[] = [
   { path: '/estadisticas', element: <EstadisticasPage />, roles: ['admin', 'super_admin'] },
   { path: '/analytics', element: <AnalyticsPage />, roles: ['admin', 'empleado', 'super_admin'] },
   { path: '/perfil/plantillas-respuesta', element: <GestionPlantillasPage />, roles: ['admin', 'empleado', 'super_admin'] },
+  ...withTenantPrefixes('/:tenant/catalog-mappings/new', { element: <CatalogMappingPage />, roles: ['admin', 'super_admin'] }),
+  ...withTenantPrefixes('/:tenant/catalog-mappings/:mappingId', { element: <CatalogMappingPage />, roles: ['admin', 'super_admin'] }),
+  { path: '/catalog-mappings/new', element: <CatalogMappingPage />, roles: ['admin', 'super_admin'] },
+  { path: '/catalog-mappings/:mappingId', element: <CatalogMappingPage />, roles: ['admin', 'super_admin'] },
   // Rutas para la gestión de mapeo de catálogos por PYME
   { path: '/admin/pyme/:pymeId/catalog-mappings/new', element: <CatalogMappingPage />, roles: ['admin', 'super_admin'] },
   { path: '/admin/pyme/:pymeId/catalog-mappings/:mappingId', element: <CatalogMappingPage />, roles: ['admin', 'super_admin'] },

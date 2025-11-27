@@ -13,6 +13,7 @@ import Papa from 'papaparse'; // For CSV parsing
 import * as XLSX from 'xlsx'; // For Excel parsing
 import { Badge } from '@/components/ui/badge';
 import { requestDocumentPreview } from '@/services/documentIntelligenceService';
+import { useUser } from '@/hooks/useUser';
 
 // Define the structure for a saved mapping configuration
 interface SavedMappingConfig {
@@ -86,9 +87,13 @@ const humanizeSourceType = (value?: string | null): string => {
 };
 
 const CatalogMappingPage: React.FC = () => {
-  const { pymeId, mappingId } = useParams<{ pymeId: string; mappingId?: string }>();
+  const { pymeId: routePymeId, mappingId } = useParams<{ pymeId?: string; mappingId?: string }>();
   const navigate = useNavigate();
   const location = useLocation(); // Get location object
+  const { user } = useUser();
+
+  const entityId = routePymeId || (user?.id ? String(user.id) : null);
+  const entityType = user?.tipo_chat === 'municipio' ? 'municipal' : 'pymes';
 
   // Attempt to get preloadedFile from navigation state
   const preloadedFile = (location.state as { preloadedFile?: File })?.preloadedFile;
@@ -121,9 +126,9 @@ const CatalogMappingPage: React.FC = () => {
 
   // Load existing mapping configuration if mappingId is present
   useEffect(() => {
-    if (mappingId && pymeId) {
+    if (mappingId && entityId) {
       setIsLoading(true);
-      apiFetch<SavedMappingConfig>(`/pymes/${pymeId}/catalog-mappings/${mappingId}`)
+      apiFetch<SavedMappingConfig>(`/${entityType}/${entityId}/catalog-mappings/${mappingId}`)
         .then(config => {
           setMappingName(config.name);
           setCurrentMappings(config.mappings);
@@ -146,7 +151,7 @@ const CatalogMappingPage: React.FC = () => {
       // No need to call setFile again as it's initialized in useState
       // The parseFileHeaders will be called by the useEffect below that watches `file`
     }
-  }, [mappingId, pymeId, preloadedFile]); // Add preloadedFile to dependency array
+  }, [mappingId, entityId, entityType, preloadedFile]); // Add preloadedFile to dependency array
 
   // Effect to parse file when `file` state changes (either by upload or preload)
   useEffect(() => {
@@ -222,12 +227,13 @@ const CatalogMappingPage: React.FC = () => {
       const shouldUseAi = useAiAssistance || !isStructuredFile;
 
       if (shouldUseAi) {
-        if (!pymeId) {
-          throw new Error('No se encontró la PYME para ejecutar el análisis inteligente. Volvé a abrir este asistente desde el panel.');
+        if (!entityId) {
+          throw new Error('No se encontró la entidad para ejecutar el análisis inteligente. Volvé a abrir este asistente desde el panel.');
         }
 
         const preview = await requestDocumentPreview({
-          pymeId,
+          entityId,
+          entityType,
           file: currentFile,
           options: {
             hasHeaders: usesHeaders,
@@ -379,7 +385,7 @@ const CatalogMappingPage: React.FC = () => {
     } finally {
       setIsParsing(false);
     }
-  }, [systemFields, useAiAssistance, pymeId, excelSheetName]); // Added dependencies for AI and sheet tracking
+  }, [systemFields, useAiAssistance, entityId, excelSheetName]); // Added dependencies for AI and sheet tracking
 
   const handleMappingChange = (systemFieldKey: string, userColumn: string | null) => {
     setCurrentMappings(prev => ({ ...prev, [systemFieldKey]: userColumn }));
@@ -396,8 +402,8 @@ const CatalogMappingPage: React.FC = () => {
   };
 
   const handleSaveMapping = async () => {
-    if (!pymeId) {
-      toast({ variant: "destructive", title: "Error", description: "ID de PYME no encontrado." });
+    if (!entityId) {
+      toast({ variant: "destructive", title: "Error", description: "ID de la entidad no encontrado." });
       return;
     }
     if (!mappingName.trim()) {
@@ -417,8 +423,12 @@ const CatalogMappingPage: React.FC = () => {
 
 
     setIsLoading(true);
+    if (!entityId) {
+      throw new Error('No encontramos la entidad para guardar este formato.');
+    }
+
     const configToSave: SavedMappingConfig = {
-      pymeId,
+      pymeId: entityId,
       name: mappingName.trim(),
       mappings: currentMappings,
       fileSettings: {
@@ -430,22 +440,14 @@ const CatalogMappingPage: React.FC = () => {
     };
 
     const url = mappingId
-      ? `/pymes/${pymeId}/catalog-mappings/${mappingId}`
-      : `/pymes/${pymeId}/catalog-mappings`;
+      ? `/${entityType}/${entityId}/catalog-mappings/${mappingId}`
+      : `/${entityType}/${entityId}/catalog-mappings`;
     const method = mappingId ? 'PUT' : 'POST';
 
     try {
       const saved = await apiFetch<SavedMappingConfig>(url, { method, body: configToSave });
       toast({ title: "¡Guardado!", description: `Configuración de mapeo "${saved.name}" guardada.` });
-      if (!mappingId && saved.id) { // If new, redirect to edit page
-        navigate(`/admin/pyme/${pymeId}/catalog-mappings/${saved.id}`, { replace: true });
-      } else if (mappingId) {
-        // If updating, might want to refresh or confirm. For now, simple toast.
-      } else {
-         // If it was a new mapping but backend didn't return an ID in a standard way for some reason.
-         // Could navigate back to a list page or pyme detail page.
-         navigate(`/admin/pyme/${pymeId}`);
-      }
+      navigate('/perfil');
     } catch (err) {
       toast({ variant: "destructive", title: "Error al Guardar", description: getErrorMessage(err) });
     } finally {
@@ -466,7 +468,7 @@ const CatalogMappingPage: React.FC = () => {
 
   return (
     <div className="container mx-auto p-4 md:p-8">
-      <Button variant="outline" size="sm" onClick={() => navigate(`/admin/pyme/${pymeId}`)} className="mb-4">
+      <Button variant="outline" size="sm" onClick={() => navigate('/perfil')} className="mb-4">
         <ArrowLeft className="mr-2 h-4 w-4" /> Volver a PYME
       </Button>
 
@@ -725,7 +727,7 @@ const CatalogMappingPage: React.FC = () => {
 
         {/* Sección 4: Acciones */}
         <div className="flex justify-end space-x-3 mt-8">
-          <Button variant="outline" onClick={() => navigate(`/admin/pyme/${pymeId}`)} disabled={isLoading}>
+          <Button variant="outline" onClick={() => navigate('/perfil')} disabled={isLoading}>
             Cancelar
           </Button>
           <Button onClick={handleSaveMapping} disabled={isLoading || isParsing || userColumns.length === 0}>
