@@ -69,12 +69,14 @@ export function useChatLogic({
         return;
       }
 
+      const allowRubroInference = tipoChat !== 'municipio';
+
       let rawRubro = sanitizeRubroValue(options?.rubroOverride);
       if (!rawRubro) {
         rawRubro = sanitizeRubroValue(selectedRubro);
       }
 
-      if (!rawRubro) {
+      if (allowRubroInference && !rawRubro) {
         try {
           const storedUser = JSON.parse(safeLocalStorage.getItem('user') || 'null');
           rawRubro =
@@ -87,7 +89,7 @@ export function useChatLogic({
         }
       }
 
-      if (!rawRubro) {
+      if (allowRubroInference && !rawRubro) {
         rawRubro = sanitizeRubroValue(safeLocalStorage.getItem('rubroSeleccionado'));
       }
 
