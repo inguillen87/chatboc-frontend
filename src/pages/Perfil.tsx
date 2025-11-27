@@ -4,6 +4,7 @@ import React, {
   useCallback,
   FormEvent,
   useRef,
+  useMemo,
 } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -144,6 +145,17 @@ const PROVINCIAS = [
 
 const MODAL_PREVIEW_ROWS = 6;
 
+const slugify = (value?: string | null) => {
+  if (!value) return null;
+  const normalized = value
+    .toString()
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/gi, "-")
+    .replace(/^-+|-+$/g, "");
+  return normalized || null;
+};
+
 const humanizeDocumentSource = (value?: string | null): string => {
   if (!value) return 'documento';
   const normalized = value.toLowerCase();
@@ -242,6 +254,23 @@ export default function Perfil() {
     })),
     logo_url: "",
   });
+  const derivedTenantSlug = useMemo(() => {
+    const candidates = [
+      (user as any)?.tenantSlug,
+      (user as any)?.tenant_slug,
+      (perfil as any)?.tenant_slug,
+      (perfil as any)?.slug,
+      (perfil as any)?.endpoint,
+      (perfil as any)?.municipio,
+    ];
+
+    for (const candidate of candidates) {
+      const normalized = slugify(candidate);
+      if (normalized) return normalized;
+    }
+
+    return null;
+  }, [perfil, user]);
   const [modoHorario, setModoHorario] = useState("comercial");
   const [archivo, setArchivo] = useState<File | null>(null); // Tipado para archivo
   const [resultadoCatalogo, setResultadoCatalogo] = useState<{ message: string; type: "success" | "error" } | null>(null);
@@ -2324,7 +2353,13 @@ export default function Perfil() {
                   {perfil.plan === "pro" || perfil.plan === "full" ? (
                     <Button
                       className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
-                      onClick={() => navigate("/integracion")}
+                      onClick={() =>
+                        navigate(
+                          derivedTenantSlug
+                            ? `/t/${derivedTenantSlug}/integracion`
+                            : "/integracion",
+                        )
+                      }
                     >
                       Ir a la guía de integración
                     </Button>

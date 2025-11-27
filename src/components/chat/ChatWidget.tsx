@@ -20,6 +20,7 @@ import { useCartCount } from "@/hooks/useCartCount";
 import { buildTenantNavigationUrl } from "@/utils/tenantPaths";
 import { TenantProvider, useTenant, useTenantContextPresence } from "@/context/TenantContext";
 import { MemoryRouter, useInRouterContext } from "react-router-dom";
+import { toast } from "sonner";
 
 const PLACEHOLDER_SLUGS = new Set(["iframe", "embed", "widget", "default"]);
 
@@ -284,11 +285,21 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
     getOrCreateAnonId();
   }, []);
 
+  useEffect(() => {
+    setAuthTokenState(
+      safeLocalStorage.getItem("authToken") || safeLocalStorage.getItem("chatAuthToken"),
+    );
+  }, [user]);
+
   const [showCta, setShowCta] = useState(false);
   const [proactiveMessage, setProactiveMessage] = useState<string | null>(null);
   const [showProactiveBubble, setShowProactiveBubble] = useState(false);
   const [proactiveCycle, setProactiveCycle] = useState(0);
   const [selectedRubro, setSelectedRubro] = useState<string | null>(() => extractRubroKey(initialRubro) ?? null);
+  const [pendingRedirect, setPendingRedirect] = useState<"cart" | null>(null);
+  const [authTokenState, setAuthTokenState] = useState<string | null>(() =>
+    safeLocalStorage.getItem("authToken") || safeLocalStorage.getItem("chatAuthToken"),
+  );
   const cartCount = useCartCount();
   const entityDefaultRubro = useMemo(() => {
     if (!entityInfo) return null;
@@ -389,35 +400,55 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
 
   const openCart = useCallback(
     (target: "cart" | "catalog" = "cart") => {
-      const slug = resolvedTenantSlug;
+      const storedTenant = sanitizeTenantSlug(safeLocalStorage.getItem("tenantSlug"));
+      const slug = resolvedTenantSlug ?? storedTenant;
       const basePath = target === "catalog" ? "/productos" : "/cart";
 
       const preferredUrl =
         target === "catalog"
-          ? tenant?.public_catalog_url ?? null
-          : tenant?.public_cart_url ?? null;
+          ? tenant?.public_catalog_url ?? user?.publicCatalogUrl ?? null
+          : tenant?.public_cart_url ?? user?.publicCartUrl ?? null;
 
-      const destination = buildTenantNavigationUrl({
-        basePath,
-        tenantSlug: slug,
-        tenant,
-        preferredUrl,
-        fallbackQueryParam: "tenant_slug",
-      });
+      const authToken = authTokenState ?? safeLocalStorage.getItem("authToken") ?? safeLocalStorage.getItem("chatAuthToken");
 
-      if (!slug && destination.includes("tenant_slug=")) {
-        console.warn("[ChatWidget] No tenant slug available, showing login/info view instead of redirecting", {
-          target,
-          basePath,
-        });
-        setView((prev) => (prev === "login" || prev === "register" ? prev : "login"));
+      if (!authToken || !slug || !user) {
+        setPendingRedirect("cart");
+        setView("login");
+        setIsOpen(true);
         return;
       }
 
-      window.location.assign(destination);
+      const destination = preferredUrl
+        ? preferredUrl
+        : buildTenantNavigationUrl({
+            basePath,
+            tenantSlug: slug,
+            tenant,
+            preferredUrl,
+            fallbackQueryParam: "tenant_slug",
+          });
+
+      if (!slug) {
+        toast.error("No hay un tenant configurado para el carrito.");
+        return;
+      }
+
+      window.open(destination, "_blank");
     },
-    [resolvedTenantSlug, tenant]
+    [authTokenState, resolvedTenantSlug, tenant, user]
   );
+
+  const handleAuthSuccess = useCallback(() => {
+    setAuthTokenState(
+      safeLocalStorage.getItem("authToken") || safeLocalStorage.getItem("chatAuthToken") || null,
+    );
+    if (pendingRedirect === "cart") {
+      setPendingRedirect(null);
+      openCart();
+      return;
+    }
+    setView("chat");
+  }, [openCart, pendingRedirect]);
 
   const toggleMuted = useCallback(() => {
     setMuted((m) => {
@@ -775,8 +806,8 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
                     </div>
                   }
                 >
-                  {view === "register" ? <ChatUserRegisterPanel onSuccess={() => setView("chat")} onShowLogin={() => setView("login")} entityToken={ownerToken} />
-                    : view === "login" ? <ChatUserLoginPanel onSuccess={() => setView("chat")} onShowRegister={() => setView("register")} />
+                  {view === "register" ? <ChatUserRegisterPanel onSuccess={handleAuthSuccess} onShowLogin={() => setView("login")} entityToken={ownerToken} />
+                    : view === "login" ? <ChatUserLoginPanel onSuccess={handleAuthSuccess} onShowRegister={() => setView("register")} />
                     : view === "user" ? <ChatUserPanel onClose={() => setView("chat")} />
                     : <EntityInfoPanel info={entityInfo} onClose={() => setView("chat")} />}
                 </Suspense>
