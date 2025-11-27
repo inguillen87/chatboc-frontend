@@ -18,6 +18,14 @@ const { getTicketMessagesById } = require('./db');
 const sessionMiddleware = require('./session');
 const cartRoutes = require('./cartRoutes');
 const preferences = require('./preferences');
+const {
+  findUserByEmail,
+  createUser,
+  issueAuthToken,
+  findUserByAuthToken,
+  getOrCreateEntityToken,
+  updateUser,
+} = require('./authStore');
 
 const DEFAULT_WEEK_DAYS = [
   'Lunes',
@@ -178,17 +186,141 @@ app.options('*', cors(corsOptions));
 
 app.use(sessionMiddleware);
 
+function extractBearerToken(req) {
+  const header = req.headers['authorization'];
+  if (!header) return null;
+  const [scheme, token] = header.split(' ');
+  if (!scheme || scheme.toLowerCase() !== 'bearer') return null;
+  return token || null;
+}
+
+function attachCurrentUser(req, _res, next) {
+  const token = extractBearerToken(req) || req.headers['x-auth-token'];
+  if (typeof token === 'string' && token.trim()) {
+    const user = findUserByAuthToken(token.trim());
+    if (user) {
+      req.currentUser = user;
+      req.authToken = token;
+    }
+  }
+  next();
+}
+
+function requireAuth(req, res, next) {
+  if (req.currentUser) return next();
+  return res.status(401).json({ error: 'Autenticación requerida.' });
+}
+
+const widgetLogPaths = ['/ask', '/carrito', '/productos', '/municipal', '/cart', '/widget'];
+
+function widgetRequestLogger(req, res, next) {
+  const shouldLog = widgetLogPaths.some((prefix) => req.path.startsWith(prefix));
+  if (!shouldLog) return next();
+
+  const startedAt = Date.now();
+  res.on('finish', () => {
+    const tenantSlug =
+      req.headers['x-tenant-slug'] ||
+      req.query.tenantSlug ||
+      req.query.tenant ||
+      req.body?.tenantSlug ||
+      req.body?.tenant;
+    const entityToken =
+      req.headers['x-entity-token'] ||
+      req.headers['owner-token'] ||
+      req.body?.entityToken ||
+      req.query.entityToken;
+    const userId = req.currentUser?.id ?? null;
+    const duration = Date.now() - startedAt;
+    console.info(
+      'WIDGET_REQ path=%s user_id=%s tenant=%s entity_token=%s status=%s duration_ms=%s',
+      req.path,
+      userId ?? 'anon',
+      tenantSlug ?? 'unknown',
+      entityToken ?? 'n/a',
+      res.statusCode,
+      duration,
+    );
+  });
+
+  next();
+}
+
+app.use(attachCurrentUser);
+app.use(widgetRequestLogger);
+
+const buildUserPayload = (user) => {
+  if (!user) return null;
+  const entityToken = getOrCreateEntityToken(user);
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    rol: user.rol || 'admin',
+    plan: user.plan || 'full',
+    tipo_chat: user.tipo_chat || 'municipio',
+    tenantSlug: user.tenant_slug || user.tenantSlug || null,
+    entityToken,
+    publicCartUrl: user.public_cart_url || user.publicCartUrl,
+    publicCatalogUrl: user.public_catalog_url || user.publicCatalogUrl,
+  };
+};
+
+app.post('/auth/register', (req, res) => {
+  const { email, password, name, tenantSlug, rol, tipo_chat } = req.body || {};
+
+  try {
+    const user = createUser({
+      email,
+      password,
+      name,
+      tenantSlug,
+      rol: rol || 'admin',
+      tipo_chat,
+    });
+    const token = issueAuthToken(user);
+    return res.json({ token, user: buildUserPayload(user) });
+  } catch (error) {
+    return res.status(400).json({ error: error.message || 'No se pudo registrar el usuario.' });
+  }
+});
+
+app.post('/auth/login', (req, res) => {
+  const { email, password } = req.body || {};
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email y contraseña son obligatorios.' });
+  }
+
+  const user = findUserByEmail(email);
+  if (!user || user.password !== password) {
+    return res.status(401).json({ error: 'Credenciales inválidas.' });
+  }
+
+  const token = issueAuthToken(user);
+  return res.json({ token, user: buildUserPayload(user) });
+});
+
+app.get('/auth/me', requireAuth, (req, res) => {
+  return res.json(buildUserPayload(req.currentUser));
+});
+
 app.get('/plans', (req, res) => {
   const plans = Object.keys(PLAN_DEFINITIONS).map((key) => buildPlanPayload(key));
   res.json({ plans });
 });
 
 app.get('/me', (req, res) => {
+  if (req.currentUser) {
+    return res.json(buildUserPayload(req.currentUser));
+  }
   const profile = buildProfileResponse(ensureUserProfile(req.session));
   res.json(profile);
 });
 
 app.get('/perfil', (req, res) => {
+  if (req.currentUser) {
+    return res.json(buildUserPayload(req.currentUser));
+  }
   const profile = buildProfileResponse(ensureUserProfile(req.session));
   res.json(profile);
 });
@@ -227,6 +359,13 @@ app.put('/perfil', (req, res) => {
 
   const response = buildProfileResponse(profile);
   res.json({ mensaje: 'Perfil actualizado correctamente.', perfil: response });
+});
+
+app.post('/integracion/regenerar-token', requireAuth, (req, res) => {
+  req.currentUser.entity_token = null;
+  updateUser(req.currentUser);
+  const entityToken = getOrCreateEntityToken(req.currentUser);
+  res.json({ entityToken });
 });
 
 app.post('/plan/activate', (req, res) => {

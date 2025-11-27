@@ -66,6 +66,9 @@ server/analytics/data/seed.json
 *.tgz
 *.gz
 
+# Runtime persistence files
+data/
+
 *.njsproj
 *.sln
 *.sw?

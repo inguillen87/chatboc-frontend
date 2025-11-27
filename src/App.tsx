@@ -45,10 +45,11 @@ function AppRoutes() {
   ];
 
   // El .some() detecta si la ruta actual *empieza* igual que alguna de la lista
+  const isIntegrationRoute = location.pathname.includes("/integracion");
   const ocultarWidgetGlobalEnApp = rutasSinWidget.some(
     (ruta) =>
       location.pathname === ruta || location.pathname.startsWith(ruta + "/")
-  );
+  ) || isIntegrationRoute;
 
   return (
     <TenantProvider>

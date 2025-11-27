@@ -5,11 +5,11 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
+import { apiFetch } from "@/utils/api";
 import {
-  extractEntityToken,
   getStoredEntityToken,
-  normalizeEntityToken,
   persistEntityToken,
+  resolveOwnerToken,
 } from "@/utils/entityToken";
 import {
   Card,
@@ -132,36 +132,31 @@ const Integracion = () => {
   useEffect(() => {
     if (!user) return;
 
-    const storedToken = normalizeEntityToken(getStoredEntityToken());
-    const tokenFromUser = normalizeEntityToken(
-      (user as any)?.entityToken || (user as any)?.entity_token || (user as any)?.token_integracion,
-    );
-    const extracted = normalizeEntityToken(extractEntityToken(user));
+    const token = resolveOwnerToken(user);
 
-    const finalToken = storedToken || tokenFromUser || extracted;
-
-    if (finalToken) {
-      persistEntityToken(finalToken);
-      setOwnerToken(finalToken);
+    if (token) {
+      setOwnerToken(token);
       return;
     }
 
     setOwnerToken(null);
     if (!tokenAlertShown.current) {
       tokenAlertShown.current = true;
-      toast.error("No encontramos tu token de integración. Reingresá o solicitá uno a soporte.", {
+      toast.error("No encontramos tu token de integración. Reingresá o generá uno nuevo.", {
         icon: <AlertTriangle className="text-destructive" />,
       });
     }
   }, [user]);
 
-  const handleGenerateIntegrationToken = useCallback(() => {
+  const handleGenerateIntegrationToken = useCallback(async () => {
     setIsGeneratingToken(true);
     try {
-      const newToken = buildNewEntityToken();
-      persistEntityToken(newToken);
-      setOwnerToken(newToken);
-      toast.success("Token de integración generado", {
+      const response = await apiFetch<{ entityToken: string }>("/integracion/regenerar-token", {
+        method: "POST",
+      });
+      const normalized = persistEntityToken(response?.entityToken);
+      setOwnerToken(normalized);
+      toast.success("Token de integración actualizado", {
         icon: <Check className="text-green-500" />,
         description: "Guardamos un token estable para tu widget.",
       });
@@ -173,12 +168,13 @@ const Integracion = () => {
     } finally {
       setIsGeneratingToken(false);
     }
-  }, [buildNewEntityToken]);
+  }, []);
 
   const effectiveOwnerToken = ownerToken || "";
   const tenantSlug = useMemo(() => {
     const base =
       slugify((user as any)?.slug) ||
+      slugify((user as any)?.tenantSlug) ||
       slugify((user as any)?.endpoint) ||
       slugify((user as any)?.tenant) ||
       slugify((user as any)?.tenant_slug) ||
@@ -192,14 +188,6 @@ const Integracion = () => {
     return user?.id ? `entidad-${user.id}` : null;
   }, [user]);
   const isFullPlan = (user?.plan || "").toLowerCase() === "full";
-
-  const buildNewEntityToken = useCallback(() => {
-    const randomSegment =
-      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-        ? crypto.randomUUID()
-        : `ent-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-    return tenantSlug ? `${tenantSlug}-${randomSegment}` : randomSegment;
-  }, [tenantSlug]);
 
   const WIDGET_STD_WIDTH = "460px";
   const WIDGET_STD_HEIGHT = "680px";

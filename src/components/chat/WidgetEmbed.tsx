@@ -7,6 +7,45 @@ import { safeLocalStorage } from "@/utils/safeLocalStorage";
 
 const WidgetEmbed = ({ token }: { token: string }) => {
   const [tipoChat, setTipoChat] = useState('pyme');
+  const [tenantSlug, setTenantSlug] = useState<string | null>(null);
+
+  const slugify = (value?: string | null) => {
+    if (!value) return null;
+    const normalized = value
+      .toString()
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/gi, "-")
+      .replace(/^-+|-+$/g, "");
+    return normalized || null;
+  };
+
+  const resolveTenantSlug = () => {
+    try {
+      const storedUser = safeLocalStorage.getItem("user");
+      const parsedUser = storedUser ? JSON.parse(storedUser) : null;
+      const fromUser =
+        slugify(parsedUser?.tenant_slug) ||
+        slugify(parsedUser?.tenantSlug) ||
+        slugify(parsedUser?.slug) ||
+        slugify(parsedUser?.endpoint);
+
+      if (fromUser) return fromUser;
+
+      const fromStorage = slugify(safeLocalStorage.getItem("tenantSlug"));
+      if (fromStorage) return fromStorage;
+
+      if (typeof window !== "undefined") {
+        const segments = window.location.pathname.split("/").filter(Boolean);
+        if (segments[0] === "t" && segments[1]) {
+          return slugify(segments[1]);
+        }
+      }
+    } catch (error) {
+      console.warn("No se pudo determinar el tenant para el embed del widget", error);
+    }
+    return null;
+  };
 
   useEffect(() => {
     try {
@@ -15,15 +54,19 @@ const WidgetEmbed = ({ token }: { token: string }) => {
       if (user && user.tipo_chat === 'municipio') {
         setTipoChat('municipio');
       }
+      setTenantSlug(resolveTenantSlug());
     } catch (e) {
       console.error("Could not determine user type for widget, defaulting to pyme.", e);
     }
   }, []);
 
-    const apiBase = (import.meta.env.VITE_WIDGET_API_BASE || "https://chatboc.ar").replace(/\/+$/, "");
-    const defaultWidgetScriptUrl = `${apiBase}/widget.js`;
-    const widgetScriptUrl = import.meta.env.VITE_WIDGET_SCRIPT_URL || defaultWidgetScriptUrl;
-  const embedCode = `<script async src="${widgetScriptUrl}" data-api-base="${apiBase}" data-owner-token="${token}" data-endpoint="${tipoChat}" data-default-open="false" data-width="460px" data-height="680px" data-closed-width="112px" data-closed-height="112px" data-bottom="20px" data-right="20px"></script>`;
+  const apiBase = (import.meta.env.VITE_WIDGET_API_BASE || "https://chatboc.ar").replace(/\/+$/, "");
+  const defaultWidgetScriptUrl = `${apiBase}/widget.js`;
+  const widgetScriptUrl = import.meta.env.VITE_WIDGET_SCRIPT_URL || defaultWidgetScriptUrl;
+  const tenantAttrs = tenantSlug
+    ? ` data-tenant="${tenantSlug}" data-tenant-slug="${tenantSlug}"`
+    : "";
+  const embedCode = `<script async src="${widgetScriptUrl}" data-api-base="${apiBase}" data-owner-token="${token}" data-endpoint="${tipoChat}" data-default-open="false" data-width="460px" data-height="680px" data-closed-width="112px" data-closed-height="112px" data-bottom="20px" data-right="20px"${tenantAttrs}></script>`;
 
   const copiar = () => {
     navigator.clipboard.writeText(embedCode)
