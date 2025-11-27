@@ -11,8 +11,8 @@ import { useUser } from "@/hooks/useUser";
 import { apiFetch, getErrorMessage } from "@/utils/api";
 import { playOpenSound, playProactiveSound } from "@/utils/sounds";
 import ProactiveBubble from "./ProactiveBubble";
-import ChatHeader from "./ChatHeader";
-import ChatPanel from "./ChatPanel";
+const ChatHeader = React.lazy(() => import("./ChatHeader"));
+const ChatPanel = React.lazy(() => import("./ChatPanel"));
 import ReadingRuler from "./ReadingRuler";
 import type { Prefs } from "./AccessibilityToggle";
 import { useCartCount } from "@/hooks/useCartCount";
@@ -249,8 +249,8 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
       tenantSlugFromLocation,
       tenantSlugFromScripts,
       tenantSlugFromSubdomain,
-      tenant?.slug,
       currentSlug,
+      tenant?.slug,
     ];
 
     for (const candidate of candidates) {
@@ -732,20 +732,28 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
               {...panelAnimation}
             >
               {(view === "register" || view === "login" || view === "user" || view === "info") && (
-                <ChatHeader
-                  onClose={toggleChat}
-                  onBack={() => setView("chat")}
-                  showProfile={false}
-                  muted={muted}
-                  onToggleSound={toggleMuted}
-                  onCart={openCart}
-                  cartCount={cartCount}
-                  logoUrl={headerLogoUrl || customLauncherLogoUrl || entityInfo?.logo_url || (isDarkMode ? '/chatbocar.png' : '/chatbocar2.png')}
-                  title={headerTitle}
-                  subtitle={headerSubtitle}
-                  logoAnimation={logoAnimation}
-                  onA11yChange={setA11yPrefs}
-                />
+                <Suspense
+                  fallback={
+                    <div className="w-full h-14 flex items-center justify-center border-b border-border/40">
+                      <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  }
+                >
+                  <ChatHeader
+                    onClose={toggleChat}
+                    onBack={() => setView("chat")}
+                    showProfile={false}
+                    muted={muted}
+                    onToggleSound={toggleMuted}
+                    onCart={openCart}
+                    cartCount={cartCount}
+                    logoUrl={headerLogoUrl || customLauncherLogoUrl || entityInfo?.logo_url || (isDarkMode ? '/chatbocar.png' : '/chatbocar2.png')}
+                    title={headerTitle}
+                    subtitle={headerSubtitle}
+                    logoAnimation={logoAnimation}
+                    onA11yChange={setA11yPrefs}
+                  />
+                </Suspense>
               )}
               {view === "register" || view === "login" || view === "user" || view === "info" ? (
                 <Suspense
@@ -761,31 +769,39 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
                     : <EntityInfoPanel info={entityInfo} onClose={() => setView("chat")} />}
                 </Suspense>
               ) : (
-                <ChatPanel
-                  mode={mode}
-                  widgetId={widgetId}
-                  entityToken={ownerToken}
-                  openWidth={finalOpenWidth}
-                  openHeight={finalOpenHeight}
-                  onClose={toggleChat}
-                  tipoChat={resolvedTipoChat}
-                  onRequireAuth={() => setView("register")}
-                  onShowLogin={() => setView("login")}
-                  onShowRegister={() => setView("register")}
-                  onOpenUserPanel={openUserPanel}
-                  muted={muted}
-                  onToggleSound={toggleMuted}
-                  onCart={openCart}
-                  cartCount={cartCount}
-                  selectedRubro={selectedRubro ?? entityDefaultRubro}
-                  onRubroSelect={handleRubroSelect}
-                  headerLogoUrl={headerLogoUrl || customLauncherLogoUrl || entityInfo?.logo_url || (isDarkMode ? '/chatbocar.png' : '/chatbocar2.png')}
-                  welcomeTitle={headerTitle}
-                  welcomeSubtitle={headerSubtitle}
-                  logoAnimation={logoAnimation}
-                  onA11yChange={setA11yPrefs}
-                  a11yPrefs={a11yPrefs}
-                />
+                <Suspense
+                  fallback={
+                    <div className="w-full h-full flex items-center justify-center bg-card rounded-2xl">
+                      <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                  }
+                >
+                  <ChatPanel
+                    mode={mode}
+                    widgetId={widgetId}
+                    entityToken={ownerToken}
+                    openWidth={finalOpenWidth}
+                    openHeight={finalOpenHeight}
+                    onClose={toggleChat}
+                    tipoChat={resolvedTipoChat}
+                    onRequireAuth={() => setView("register")}
+                    onShowLogin={() => setView("login")}
+                    onShowRegister={() => setView("register")}
+                    onOpenUserPanel={openUserPanel}
+                    muted={muted}
+                    onToggleSound={toggleMuted}
+                    onCart={openCart}
+                    cartCount={cartCount}
+                    selectedRubro={selectedRubro ?? entityDefaultRubro}
+                    onRubroSelect={handleRubroSelect}
+                    headerLogoUrl={headerLogoUrl || customLauncherLogoUrl || entityInfo?.logo_url || (isDarkMode ? '/chatbocar.png' : '/chatbocar2.png')}
+                    welcomeTitle={headerTitle}
+                    welcomeSubtitle={headerSubtitle}
+                    logoAnimation={logoAnimation}
+                    onA11yChange={setA11yPrefs}
+                    a11yPrefs={a11yPrefs}
+                  />
+                </Suspense>
               )}
             </motion.div>
           ) : (
