@@ -1,9 +1,31 @@
+import { APP_TARGET } from '@/config';
+
+export const TENANT_ROUTE_PREFIXES = ['t', 'tenant', 'municipio', 'pyme'] as const;
+
+const hasTenantPrefix = (path: string) =>
+  TENANT_ROUTE_PREFIXES.some((prefix) => path.startsWith(`/${prefix}/`));
+
+const resolveTenantPrefix = () => {
+  if (APP_TARGET === 'municipio') return 'municipio';
+  if (APP_TARGET === 'pyme') return 'pyme';
+  return TENANT_ROUTE_PREFIXES[0];
+};
+
 export const buildTenantPath = (basePath: string, tenantSlug?: string | null) => {
   const normalizedSlug = tenantSlug?.trim();
-  if (normalizedSlug && !['iframe', 'embed', 'widget'].includes(normalizedSlug.toLowerCase()) && !basePath.startsWith('/t/')) {
+  const safeSlug = normalizedSlug?.toLowerCase();
+
+  if (
+    normalizedSlug &&
+    safeSlug &&
+    !['iframe', 'embed', 'widget'].includes(safeSlug) &&
+    !hasTenantPrefix(basePath)
+  ) {
     const normalized = basePath.startsWith('/') ? basePath.slice(1) : basePath;
-    return `/t/${encodeURIComponent(normalizedSlug)}/${normalized}`;
+    const prefix = resolveTenantPrefix();
+    return `/${prefix}/${encodeURIComponent(normalizedSlug)}/${normalized}`;
   }
+
   return basePath;
 };
 
