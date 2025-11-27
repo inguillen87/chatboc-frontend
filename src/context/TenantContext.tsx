@@ -38,9 +38,18 @@ interface TenantContextValue {
 
 const TenantContext = createContext<TenantContextValue | undefined>(undefined);
 
+const DEFAULT_TENANT_INFO: TenantPublicInfo = {
+  slug: 'default',
+  nombre: 'Chatboc',
+  logo_url: null,
+  tema: null,
+  tipo: 'pyme',
+  descripcion: null,
+};
+
 const DEFAULT_TENANT_CONTEXT: TenantContextValue = {
   currentSlug: null,
-  tenant: null,
+  tenant: DEFAULT_TENANT_INFO,
   isLoadingTenant: false,
   tenantError: null,
   refreshTenant: async () => {},
@@ -161,7 +170,7 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
       }
     } catch (error) {
       if (activeTenantRequest.current === requestId) {
-        setTenant(null);
+        setTenant(DEFAULT_TENANT_INFO);
         setTenantError(getErrorMessage(error));
       }
       throw error;
@@ -180,7 +189,7 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
 
     if (!slug && !token) {
       activeTenantRequest.current += 1;
-      setTenant(null);
+      setTenant(DEFAULT_TENANT_INFO);
       setTenantError(null);
       setIsLoadingTenant(false);
       return;
@@ -268,7 +277,7 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
 
   const value = useMemo<TenantContextValue>(() => ({
     currentSlug,
-    tenant,
+    tenant: tenant ?? DEFAULT_TENANT_INFO,
     isLoadingTenant,
     tenantError,
     refreshTenant,
