@@ -3,6 +3,7 @@ import { apiFetch } from '@/utils/api';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { enforceTipoChatForRubro, parseRubro } from '@/utils/tipoChat';
 import { getIframeToken } from '@/utils/config';
+import { getStoredEntityToken, normalizeEntityToken, persistEntityToken } from '@/utils/entityToken';
 
 interface UserData {
   id?: number;
@@ -15,6 +16,7 @@ interface UserData {
   logo_url?: string;
   picture?: string;
   tipo_chat?: 'pyme' | 'municipio';
+  entityToken?: string;
   rol?: string;
   categoria_id?: number;
   categoria_ids?: number[];
@@ -98,6 +100,15 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
             .filter((cat): cat is { id: number; nombre?: string } => Boolean(cat))
         : undefined;
 
+      const normalizedEntityToken = normalizeEntityToken(
+        data.entityToken || data.entity_token || data.token_integracion,
+      );
+      const storedEntityToken = getStoredEntityToken();
+
+      if (normalizedEntityToken) {
+        persistEntityToken(normalizedEntityToken);
+      }
+
       const updated: UserData = {
         id: data.id,
         name: data.name,
@@ -110,6 +121,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         tipo_chat: finalTipo,
         rol: data.rol,
         token: activeToken,
+        entityToken: normalizedEntityToken || storedEntityToken || undefined,
         categoria_id: Number.isFinite(data.categoria_id) ? Number(data.categoria_id) : undefined,
         categoria_ids: normalizeCategoryIds(data.categoria_ids),
         categorias: normalizedCategories,
