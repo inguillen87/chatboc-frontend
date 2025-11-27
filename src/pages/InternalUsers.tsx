@@ -211,16 +211,27 @@ export default function InternalUsers() {
     setEditCategorySearch('');
   };
 
+  const normalizedCategories = useMemo(
+    () => categories.filter((c): c is Category & { nombre: string } => typeof c?.nombre === 'string'),
+    [categories]
+  );
+
+  const normalizeSearch = (value: string) => value.trim().toLowerCase();
+
   const filteredCategories = useMemo(
     () =>
-      categories.filter((c) => c.nombre.toLowerCase().includes(categorySearch.trim().toLowerCase())),
-    [categories, categorySearch]
+      normalizedCategories.filter((c) =>
+        c.nombre.toLowerCase().includes(normalizeSearch(categorySearch))
+      ),
+    [normalizedCategories, categorySearch]
   );
 
   const filteredEditCategories = useMemo(
     () =>
-      categories.filter((c) => c.nombre.toLowerCase().includes(editCategorySearch.trim().toLowerCase())),
-    [categories, editCategorySearch]
+      normalizedCategories.filter((c) =>
+        c.nombre.toLowerCase().includes(normalizeSearch(editCategorySearch))
+      ),
+    [normalizedCategories, editCategorySearch]
   );
 
   const toggleCategory = (id: number) => {
