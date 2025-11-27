@@ -38,6 +38,22 @@ interface TenantContextValue {
 
 const TenantContext = createContext<TenantContextValue | undefined>(undefined);
 
+const DEFAULT_TENANT_CONTEXT: TenantContextValue = {
+  currentSlug: null,
+  tenant: null,
+  isLoadingTenant: false,
+  tenantError: null,
+  refreshTenant: async () => {},
+  widgetToken: null,
+  followedTenants: [],
+  isLoadingFollowedTenants: false,
+  followedTenantsError: null,
+  refreshFollowedTenants: async () => {},
+  isCurrentTenantFollowed: false,
+  followCurrentTenant: async () => {},
+  unfollowCurrentTenant: async () => {},
+};
+
 const TENANT_PATH_REGEX = /^\/t\/([^/]+)/i;
 
 const extractSlugFromLocation = (pathname: string, search: string): string | null => {
@@ -286,7 +302,10 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
 export const useTenant = () => {
   const context = useContext(TenantContext);
   if (!context) {
-    throw new Error('useTenant debe utilizarse dentro de un TenantProvider.');
+    console.warn(
+      '[TenantContext] useTenant utilizado fuera de TenantProvider. Se devolverá un valor por defecto.',
+    );
+    return DEFAULT_TENANT_CONTEXT;
   }
   return context;
 };
