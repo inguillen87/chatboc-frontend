@@ -254,6 +254,7 @@ export default function Perfil() {
     })),
     logo_url: "",
   });
+  const storedTenantSlug = useMemo(() => slugify(safeLocalStorage.getItem("tenantSlug")), []);
   const derivedTenantSlug = useMemo(() => {
     const candidates = [
       (user as any)?.tenantSlug,
@@ -262,6 +263,12 @@ export default function Perfil() {
       (perfil as any)?.slug,
       (perfil as any)?.endpoint,
       (perfil as any)?.municipio,
+      (user as any)?.tenant,
+      (user as any)?.empresa,
+      (user as any)?.nombre_empresa,
+      storedTenantSlug,
+      user?.name,
+      user?.email?.split("@")[0],
     ];
 
     for (const candidate of candidates) {
@@ -270,7 +277,7 @@ export default function Perfil() {
     }
 
     return null;
-  }, [perfil, user]);
+  }, [perfil, storedTenantSlug, user]);
   const [modoHorario, setModoHorario] = useState("comercial");
   const [archivo, setArchivo] = useState<File | null>(null); // Tipado para archivo
   const [resultadoCatalogo, setResultadoCatalogo] = useState<{ message: string; type: "success" | "error" } | null>(null);
