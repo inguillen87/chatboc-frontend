@@ -146,6 +146,48 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     return null;
   }, [entityInfo]);
 
+  const tenantSlugFromLocation = useMemo(() => {
+    if (typeof window === 'undefined') return null;
+
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const fromQuery = params.get('tenant_slug') || params.get('tenant');
+      if (fromQuery && fromQuery.trim()) {
+        return fromQuery.trim();
+      }
+
+      const segments = window.location.pathname.split('/').filter(Boolean);
+      if (segments[0] === 't' && segments[1]) {
+        return decodeURIComponent(segments[1]);
+      }
+
+      if (segments[0]) {
+        const maybeSlug = decodeURIComponent(segments[0]);
+        const reserved = new Set([
+          'login',
+          'register',
+          'productos',
+          'cart',
+          'checkout-productos',
+          'checkout',
+          'portal',
+          'widget',
+          'admin',
+        ]);
+
+        if (!reserved.has(maybeSlug)) {
+          return maybeSlug;
+        }
+      }
+    } catch (error) {
+      console.warn('No se pudo resolver tenant_slug desde la URL', error);
+    }
+
+    return null;
+  }, []);
+
+  const resolvedTenantSlug = tenantSlugFromEntity?.trim() || tenantSlugFromLocation?.trim() || null;
+
   useEffect(() => {
     const checkMobile = () => {
       if (typeof window !== "undefined") {
@@ -266,7 +308,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   const openCart = useCallback(
     (target: "cart" | "catalog" = "cart") => {
-      const slug = tenantSlugFromEntity?.trim();
+      const slug = resolvedTenantSlug;
       const basePath = target === "catalog" ? "/productos" : "/cart";
       const tenantPath = buildTenantAwareNavigatePath(basePath, slug, "tenant_slug");
       const url = new URL(tenantPath, window.location.origin);
@@ -277,7 +319,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
       window.location.assign(url.toString());
     },
-    [tenantSlugFromEntity]
+    [resolvedTenantSlug]
   );
 
   const toggleMuted = useCallback(() => {
