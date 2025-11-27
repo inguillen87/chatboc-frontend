@@ -263,10 +263,21 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     }
   }, [user, entityInfo]);
 
-  const openCart = useCallback(() => {
-    const tenantSuffix = tenantSlugFromEntity ? `?tenant=${encodeURIComponent(tenantSlugFromEntity)}` : '';
-    window.open(`/cart${tenantSuffix}`, '_blank', 'noopener,noreferrer');
-  }, [tenantSlugFromEntity]);
+  const openCart = useCallback(
+    (target: "cart" | "catalog" = "cart") => {
+      const slug = tenantSlugFromEntity?.trim();
+      const basePath = target === "catalog" ? "/productos" : "/cart";
+      const url = new URL(basePath, window.location.origin);
+
+      if (slug) {
+        url.searchParams.set("tenant_slug", slug);
+        url.searchParams.set("tenant", slug);
+      }
+
+      window.open(url.toString(), "_blank", "noopener,noreferrer");
+    },
+    [tenantSlugFromEntity]
+  );
 
   const toggleMuted = useCallback(() => {
     setMuted((m) => {
