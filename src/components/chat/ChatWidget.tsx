@@ -7,6 +7,7 @@ import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { extractRubroKey } from "@/utils/rubros";
 import getOrCreateAnonId from "@/utils/anonId";
 import { motion, AnimatePresence } from "framer-motion";
+import type { AnimatePresenceProps } from "framer-motion";
 import { useUser } from "@/hooks/useUser";
 import { apiFetch, getErrorMessage } from "@/utils/api";
 import { playOpenSound, playProactiveSound } from "@/utils/sounds";
@@ -734,7 +735,7 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
             <p className="text-sm text-muted-foreground">{profileError}</p>
           </div>
         ) : (
-          <AnimatePresence mode="wait" initial={false}>
+          <SafeAnimatePresence mode="wait" initial={false}>
             {isOpen ? (
             <motion.div
               key="chatboc-panel-open"
@@ -874,13 +875,18 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
               </motion.button>
             </motion.div>
             )}
-          </AnimatePresence>
+          </SafeAnimatePresence>
         )}
       </div>
     );
   }
 
   return null;
+};
+
+const SafeAnimatePresence: React.FC<AnimatePresenceProps> = (props) => {
+  const { children, ...rest } = props ?? { children: null };
+  return <AnimatePresence {...rest}>{children}</AnimatePresence>;
 };
 
 const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
