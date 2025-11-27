@@ -91,7 +91,8 @@ const extractSlugFromLocation = (pathname: string, search: string): string | nul
   if (search) {
     try {
       const params = new URLSearchParams(search);
-      const fromQuery = params.get('tenant');
+      const fromQuery =
+        params.get('tenant') || params.get('tenant_slug') || params.get('endpoint');
       return sanitizeTenantSlug(fromQuery);
     } catch (error) {
       console.warn('[TenantContext] No se pudo leer la query string para tenant', error);
