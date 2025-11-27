@@ -51,14 +51,72 @@ export default function InternalUsers() {
   const usersUrl = useMemo(() => (entityType === 'pyme' ? '/pyme/usuarios' : '/municipal/usuarios'), [entityType]);
   const categoriesUrl = useMemo(() => (entityType === 'pyme' ? '/pyme/categorias' : '/municipal/categorias'), [entityType]);
 
+  const filterStaffUsers = useCallback((list: InternalUser[] | null | undefined) => {
+    if (!Array.isArray(list)) return [];
+    return list.filter((user) => {
+      const role = (user.rol || '').toLowerCase();
+      return role === 'empleado' || role === 'admin' || role === 'super_admin';
+    });
+  }, []);
+
+  const normalizeCategory = useCallback((raw: any): Category | null => {
+    if (!raw || typeof raw !== 'object') return null;
+
+    const id = typeof raw.id === 'number' ? raw.id : Number(raw.id);
+    const nameCandidate = [
+      raw.nombre,
+      raw.name,
+      raw.titulo,
+      raw.title,
+      raw.label,
+      raw.categoria,
+    ].find((value) => typeof value === 'string' && value.trim().length > 0);
+
+    if (!Number.isFinite(id) || !nameCandidate) return null;
+
+    return { id, nombre: nameCandidate.trim() };
+  }, []);
+
+  const mergeCategories = useCallback(
+    (...categoryLists: (Category[] | null | undefined)[]): Category[] => {
+      const map = new Map<number, Category>();
+
+      categoryLists
+        .flat()
+        .forEach((category) => {
+          const normalized = normalizeCategory(category);
+          if (normalized && !map.has(normalized.id)) {
+            map.set(normalized.id, normalized);
+          }
+        });
+
+      return Array.from(map.values());
+    },
+    [normalizeCategory]
+  );
+
+  const extractCategories = useCallback(
+    (data: any): Category[] => {
+      const rawCategories = Array.isArray(data?.categorias)
+        ? data.categorias
+        : Array.isArray(data)
+          ? data
+          : [];
+      return rawCategories
+        .map(normalizeCategory)
+        .filter((c): c is Category => Boolean(c));
+    },
+    [normalizeCategory]
+  );
+
   const refreshUsers = useCallback(async () => {
     try {
       const data = await apiFetch<InternalUser[]>(usersUrl);
-      setUsers(data || []);
+      setUsers(filterStaffUsers(data));
     } catch (err: any) {
       setError(getErrorMessage(err, 'Error al cargar los usuarios'));
     }
-  }, [usersUrl]);
+  }, [filterStaffUsers, usersUrl]);
 
   useEffect(() => {
     setLoading(true);
@@ -68,20 +126,30 @@ export default function InternalUsers() {
         if (err instanceof ApiError && err.status === 404) return [];
         throw err;
       }),
-      apiFetch<{ categorias: Category[] }>(categoriesUrl, { sendEntityToken: true }).catch(err => {
-        if (err instanceof ApiError && err.status === 404) return { categorias: [] };
+      apiFetch(categoriesUrl, { sendEntityToken: true }).catch(err => {
+        if (err instanceof ApiError && err.status === 404) return null;
         throw err;
+      }),
+      apiFetch(`${entityType === 'pyme' ? '/pyme' : '/municipal'}/tickets/categorias`, { sendEntityToken: true }).catch(err => {
+        if (err instanceof ApiError && err.status === 404) return null;
+        return null;
+      }),
+    ])
+      .then(([usersData, categoriesData, ticketCategories]) => {
+        setUsers(filterStaffUsers(usersData));
+        const merged = mergeCategories(
+          extractCategories(categoriesData),
+          extractCategories(ticketCategories),
+        );
+        setCategories(merged);
+        setLoading(false);
       })
-    ]).then(([usersData, categoriesData]) => {
-      setUsers(usersData || []);
-      setCategories(categoriesData?.categorias || []);
-      setLoading(false);
-    }).catch(err => {
-      setError(getErrorMessage(err, 'Error al cargar los datos'));
-      setLoading(false);
-    });
+      .catch(err => {
+        setError(getErrorMessage(err, 'Error al cargar los datos'));
+        setLoading(false);
+      });
 
-  }, [categoriesUrl, usersUrl]);
+  }, [categoriesUrl, entityType, extractCategories, filterStaffUsers, mergeCategories, usersUrl]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
