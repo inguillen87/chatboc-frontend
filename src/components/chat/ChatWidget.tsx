@@ -884,8 +884,7 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
   return null;
 };
 
-const SafeAnimatePresence: React.FC<AnimatePresenceProps> = (props) => {
-  const { children, ...rest } = props ?? { children: null };
+const SafeAnimatePresence: React.FC<AnimatePresenceProps> = ({ children = null, ...rest } = { children: null }) => {
   return <AnimatePresence {...rest}>{children}</AnimatePresence>;
 };
 

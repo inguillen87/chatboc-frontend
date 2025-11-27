@@ -41,6 +41,54 @@ const memorySessionStorage: StorageLike = {
   },
 };
 
+const isValidStorage = (candidate: any): candidate is StorageLike => {
+  return (
+    candidate &&
+    typeof candidate.getItem === "function" &&
+    typeof candidate.setItem === "function" &&
+    typeof candidate.removeItem === "function" &&
+    typeof candidate.clear === "function"
+  );
+};
+
+const wrapWithFallback = (
+  candidate: StorageLike | null,
+  fallback: StorageLike
+): StorageLike => {
+  const storage = isValidStorage(candidate) ? candidate : fallback;
+
+  return {
+    getItem: (k: string) => {
+      try {
+        return storage.getItem(k);
+      } catch {
+        return null;
+      }
+    },
+    setItem: (k: string, v: string) => {
+      try {
+        storage.setItem(k, v);
+      } catch {
+        fallback.setItem(k, v);
+      }
+    },
+    removeItem: (k: string) => {
+      try {
+        storage.removeItem(k);
+      } catch {
+        fallback.removeItem(k);
+      }
+    },
+    clear: () => {
+      try {
+        storage.clear();
+      } catch {
+        fallback.clear();
+      }
+    },
+  };
+};
+
 /* ===== Storages reales, con try/catch ===== */
 function detectLocalStorage(): StorageLike | null {
   if (!isBrowser()) return null;
@@ -79,8 +127,14 @@ function detectSessionStorage(): StorageLike | null {
 }
 
 /* ===== Exports principales ===== */
-export const safeStorage: StorageLike = detectLocalStorage() ?? memoryLocalStorage;
-export const safeSessionStorage: StorageLike = detectSessionStorage() ?? memorySessionStorage;
+export const safeStorage: StorageLike = wrapWithFallback(
+  detectLocalStorage(),
+  memoryLocalStorage
+);
+export const safeSessionStorage: StorageLike = wrapWithFallback(
+  detectSessionStorage(),
+  memorySessionStorage
+);
 
 /* ===== Helpers (exports UNA sola vez) ===== */
 export const safeLocalStorageGetItem = (k: string) => safeStorage.getItem(k);
