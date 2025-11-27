@@ -5,6 +5,9 @@ export interface TenantPublicInfo {
   tema?: Record<string, unknown> | null;
   tipo?: string | null;
   descripcion?: string | null;
+  public_base_url?: string | null;
+  public_cart_url?: string | null;
+  public_catalog_url?: string | null;
 }
 
 export interface TenantSummary {

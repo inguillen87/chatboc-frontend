@@ -16,7 +16,7 @@ const ChatPanel = React.lazy(() => import("./ChatPanel"));
 import ReadingRuler from "./ReadingRuler";
 import type { Prefs } from "./AccessibilityToggle";
 import { useCartCount } from "@/hooks/useCartCount";
-import { buildTenantAwareNavigatePath } from "@/utils/tenantPaths";
+import { buildTenantNavigationUrl } from "@/utils/tenantPaths";
 import { TenantProvider, useTenant, useTenantContextPresence } from "@/context/TenantContext";
 import { MemoryRouter, useInRouterContext } from "react-router-dom";
 
@@ -390,7 +390,21 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
     (target: "cart" | "catalog" = "cart") => {
       const slug = resolvedTenantSlug;
       const basePath = target === "catalog" ? "/productos" : "/cart";
-      if (!slug) {
+
+      const preferredUrl =
+        target === "catalog"
+          ? tenant?.public_catalog_url ?? null
+          : tenant?.public_cart_url ?? null;
+
+      const destination = buildTenantNavigationUrl({
+        basePath,
+        tenantSlug: slug,
+        tenant,
+        preferredUrl,
+        fallbackQueryParam: "tenant_slug",
+      });
+
+      if (!slug && destination.includes("tenant_slug=")) {
         console.warn("[ChatWidget] No tenant slug available, showing login/info view instead of redirecting", {
           target,
           basePath,
@@ -399,12 +413,9 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
         return;
       }
 
-      const tenantPath = buildTenantAwareNavigatePath(basePath, slug, "tenant_slug");
-      const url = new URL(tenantPath, window.location.origin);
-
-      window.location.assign(url.toString());
+      window.location.assign(destination);
     },
-    [resolvedTenantSlug]
+    [resolvedTenantSlug, tenant]
   );
 
   const toggleMuted = useCallback(() => {

@@ -89,6 +89,26 @@ const normalizeTenantInfo = (
     tema: isRecord(payload.tema) ? (payload.tema as Record<string, unknown>) : null,
     tipo: coerceString(payload.tipo) ?? null,
     descripcion: coerceString(payload.descripcion) ?? null,
+    public_base_url:
+      coerceString(payload.public_base_url) ??
+      coerceString(payload.publicBaseUrl) ??
+      coerceString(payload.public_base) ??
+      coerceString(payload.publicBase) ??
+      coerceString(payload.public_url) ??
+      coerceString(payload.publicUrl) ??
+      null,
+    public_cart_url:
+      coerceString(payload.public_cart_url) ??
+      coerceString(payload.publicCartUrl) ??
+      coerceString(payload.cart_url) ??
+      coerceString(payload.cartUrl) ??
+      null,
+    public_catalog_url:
+      coerceString(payload.public_catalog_url) ??
+      coerceString(payload.publicCatalogUrl) ??
+      coerceString(payload.catalog_url) ??
+      coerceString(payload.catalogUrl) ??
+      null,
   };
 };
 
