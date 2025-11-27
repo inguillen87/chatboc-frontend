@@ -33,7 +33,7 @@
     return window[TOKEN_MANAGER_REGISTRY_KEY];
   }
 
-  function createTokenManager(ownerToken, apiBase) {
+  function createTokenManager(ownerToken, apiBase, tenantSlug) {
     let activeToken = null;
     let refreshTimer = null;
     let retryDelay = INITIAL_RETRY_DELAY_MS;
@@ -55,7 +55,7 @@
       return payload;
     }
 
-    async function mint() {
+    async function mintWithOwner() {
       const payload = await fetchJson(`${apiBase}/auth/widget-token`, {
         method: "POST",
         headers: {
@@ -68,6 +68,43 @@
         throw new Error("mint_missing_token");
       }
       return payload.token;
+    }
+
+    async function mintWithTenant() {
+      if (!tenantSlug) {
+        throw new Error("mint_missing_identifier");
+      }
+      const payload = await fetchJson(`${apiBase}/auth/widget-token`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ tenant: tenantSlug }),
+      });
+      if (!payload?.token) {
+        throw new Error("mint_missing_token");
+      }
+      return payload.token;
+    }
+
+    async function mint() {
+      if (ownerToken) {
+        try {
+          return await mintWithOwner();
+        } catch (err) {
+          if (!tenantSlug) throw err;
+          console.warn(
+            "Chatboc widget: owner token mint failed, retrying with tenant slug",
+            err
+          );
+        }
+      }
+
+      if (tenantSlug) {
+        return await mintWithTenant();
+      }
+
+      throw new Error("mint_missing_token");
     }
 
     async function refreshToken(current) {
@@ -189,12 +226,12 @@
     return { ensureToken, apiFetch, subscribe, destroy };
   }
 
-  function getTokenManager(ownerToken, apiBase) {
+  function getTokenManager(ownerToken, apiBase, tenantSlug) {
     const registry = getTokenRegistry();
     const normalizedBase = normalizeBase(apiBase);
-    const key = `${normalizedBase}::${ownerToken}`;
+    const key = `${normalizedBase}::${ownerToken || tenantSlug || "tenantless"}`;
     if (!registry[key]) {
-      registry[key] = createTokenManager(ownerToken, normalizedBase);
+      registry[key] = createTokenManager(ownerToken, normalizedBase, tenantSlug);
     }
     return registry[key];
   }
@@ -230,10 +267,16 @@
     const ownerTokenAttr =
       script.getAttribute("data-owner-token") || script.getAttribute("data-entity-token");
     const ownerToken = (ownerTokenAttr || "").trim();
+    const tenantSlug =
+      (script.getAttribute("data-tenant") ||
+        script.getAttribute("data-tenant-slug") ||
+        script.getAttribute("data-endpoint") ||
+        "")
+        .trim() || null;
 
-    if (!ownerToken) {
+    if (!ownerToken && !tenantSlug) {
       console.error(
-        "Chatboc widget: Missing required data-owner-token attribute. Aborting widget initialization."
+        "Chatboc widget: Missing required data-owner-token or data-tenant attribute. Aborting widget initialization."
       );
       return;
     }
@@ -248,16 +291,17 @@
     const entityToken = (entityTokenAttr || ownerToken).trim();
 
     const registry = (window.__chatbocWidgets = window.__chatbocWidgets || {});
+    const registryKey = ownerToken || tenantSlug || "tenantless";
 
-    if (registry[ownerToken]) {
+    if (registry[registryKey]) {
       if (script.getAttribute("data-force") === "true") {
-        if (typeof registry[ownerToken].destroy === "function") {
-          registry[ownerToken].destroy();
+        if (typeof registry[registryKey].destroy === "function") {
+          registry[registryKey].destroy();
         }
-        delete registry[ownerToken];
+        delete registry[registryKey];
       } else {
         console.warn(
-          `Chatboc widget already loaded for token ${ownerToken}. Skipping.`
+          `Chatboc widget already loaded for token ${registryKey}. Skipping.`
         );
         return;
       }
@@ -282,7 +326,7 @@
       script.getAttribute("data-api-base") || defaultApiBase
     );
 
-    const authManager = getTokenManager(ownerToken, apiBase);
+    const authManager = getTokenManager(ownerToken, apiBase, tenantSlug);
     window.chatbocAuth = authManager;
 
     let latestToken;
@@ -308,11 +352,11 @@
           : "";
 
       if (!incomingToken) return;
-      if (incomingOwner && incomingOwner !== ownerToken) return;
+      if (ownerToken && incomingOwner && incomingOwner !== ownerToken) return;
       if (incomingApiBase && incomingApiBase !== apiBase) return;
 
       latestToken = incomingToken;
-      const reg = registry[ownerToken];
+      const reg = registry[registryKey];
       if (reg && typeof reg.post === "function") {
         reg.post({ type: "AUTH", token: latestToken });
       }
@@ -647,12 +691,12 @@
         widgetContainer.removeEventListener("mousedown", dragStart);
         widgetContainer.removeEventListener("touchstart", dragStart);
         widgetContainer?.remove();
-        delete registry[ownerToken];
+        delete registry[registryKey];
         unsubscribeAuth?.();
         window.removeEventListener(TOKEN_EVENT_NAME, tokenEventHandler);
       }
 
-      registry[ownerToken] = { destroy, container: widgetContainer, post: postToIframe };
+      registry[registryKey] = { destroy, container: widgetContainer, post: postToIframe };
 
       unsubscribeAuth = authManager.subscribe((token) => {
         latestToken = token;

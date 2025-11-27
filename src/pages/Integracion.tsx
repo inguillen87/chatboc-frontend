@@ -26,6 +26,17 @@ import {
 } from "@/components/ui/select";
 import { Copy, Check, Code, HelpCircle, AlertTriangle, Settings, Info, Eye } from "lucide-react";
 
+const slugify = (value?: string | null) => {
+  if (!value) return null;
+  const normalized = value
+    .toString()
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/gi, "-")
+    .replace(/^-+|-+$/g, "");
+  return normalized || null;
+};
+
 interface User {
   id: number;
   name: string;
@@ -109,6 +120,21 @@ const Integracion = () => {
   }, [user?.tipo_chat]);
 
   const ownerToken = useMemo(() => user?.token || "OWNER_TOKEN_DEL_WIDGET", [user?.token]);
+  const tenantSlug = useMemo(() => {
+    const base =
+      slugify((user as any)?.slug) ||
+      slugify((user as any)?.endpoint) ||
+      slugify((user as any)?.tenant) ||
+      slugify((user as any)?.tenant_slug) ||
+      slugify((user as any)?.municipio) ||
+      slugify((user as any)?.empresa) ||
+      slugify((user as any)?.nombre_empresa) ||
+      slugify(user?.name || null) ||
+      slugify(user?.email?.split("@")[0] || null);
+
+    if (base) return base;
+    return user?.id ? `entidad-${user.id}` : null;
+  }, [user]);
   const isFullPlan = (user?.plan || "").toLowerCase() === "full";
 
   const WIDGET_STD_WIDTH = "460px";
@@ -131,6 +157,7 @@ const Integracion = () => {
       logoAnimation && `  data-logo-animation="${logoAnimation}"`,
       welcomeTitle && `  data-welcome-title="${welcomeTitle}"`,
       welcomeSubtitle && `  data-welcome-subtitle="${welcomeSubtitle}"`,
+      tenantSlug && `  data-tenant="${tenantSlug}"`,
     ]
       .filter(Boolean)
       .join("\n");
@@ -147,7 +174,7 @@ const Integracion = () => {
   data-right="${WIDGET_STD_RIGHT}"
   data-endpoint="${endpoint}"
 ${customAttrs ? customAttrs + "\n" : ""}></script>`;
-  }, [apiBase, widgetScriptUrl, ownerToken, endpoint, primaryColor, accentColor, logoUrl, headerLogoUrl, logoAnimation, welcomeTitle, welcomeSubtitle]);
+  }, [apiBase, widgetScriptUrl, ownerToken, endpoint, primaryColor, accentColor, logoUrl, headerLogoUrl, logoAnimation, welcomeTitle, welcomeSubtitle, tenantSlug]);
 
   const iframeSrcUrl = useMemo(() => {
     const url = new URL(`${apiBase}/iframe`);
@@ -231,6 +258,7 @@ document.addEventListener('DOMContentLoaded', function () {
       s.setAttribute('data-bottom', WIDGET_STD_BOTTOM);
       s.setAttribute('data-right', WIDGET_STD_RIGHT);
       s.setAttribute('data-endpoint', endpoint);
+      if (tenantSlug) s.setAttribute('data-tenant', tenantSlug);
       if (primaryColor) s.setAttribute('data-primary-color', primaryColor);
       if (accentColor) s.setAttribute('data-accent-color', accentColor);
       if (logoUrl) s.setAttribute('data-logo-url', logoUrl);
@@ -261,7 +289,7 @@ document.addEventListener('DOMContentLoaded', function () {
       if (scriptEl) scriptEl.remove();
       (window as any).chatbocDestroyWidget?.(ownerToken);
     };
-  }, [apiBase, widgetScriptUrl, defaultWidgetScriptUrl, ownerToken, endpoint, primaryColor, accentColor, logoUrl, headerLogoUrl, logoAnimation, welcomeTitle, welcomeSubtitle]);
+  }, [apiBase, widgetScriptUrl, defaultWidgetScriptUrl, ownerToken, endpoint, primaryColor, accentColor, logoUrl, headerLogoUrl, logoAnimation, welcomeTitle, welcomeSubtitle, tenantSlug]);
 
 
   const copiarCodigo = async (tipo: "iframe" | "script") => {
