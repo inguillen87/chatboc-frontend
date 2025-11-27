@@ -1,6 +1,6 @@
 import { APP_TARGET } from '@/config';
 
-export const TENANT_ROUTE_PREFIXES = ['t', 'tenant', 'municipio', 'pyme'] as const;
+export const TENANT_ROUTE_PREFIXES = ['m', 'market', 't', 'tenant', 'municipio', 'pyme'] as const;
 
 const hasTenantPrefix = (path: string) =>
   TENANT_ROUTE_PREFIXES.some((prefix) => path.startsWith(`/${prefix}/`));
