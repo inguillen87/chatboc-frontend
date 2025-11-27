@@ -84,7 +84,15 @@
     host: chatbocDomain,
     iframePath: ds.iframePath || "/iframe",
     endpoint: ds.endpoint || "municipio",
-    entityToken: ds.token || ds.entityToken || "demo-anon",
+    entityToken:
+      ds.token ||
+      ds.entityToken ||
+      ds.entity_token ||
+      ds.ownerToken ||
+      ds.owner_token ||
+      ds.widgetToken ||
+      ds.widget_token ||
+      "demo-anon",
     defaultOpen: ds.defaultOpen === "true",
     width: normalizeLength(ds.width, "460px"),
     height: normalizeLength(ds.height, "680px"),
