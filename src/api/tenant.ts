@@ -1,4 +1,5 @@
 import { apiFetch, ApiError } from '@/utils/api';
+import { normalizeEntityToken } from '@/utils/entityToken';
 import type {
   TenantEventItem,
   TenantNewsItem,
@@ -185,7 +186,7 @@ export async function getTenantPublicInfoFlexible(
   widgetToken?: string | null,
 ): Promise<TenantPublicInfo> {
   const safeSlug = sanitizeTenant(slug);
-  const safeWidgetToken = widgetToken?.trim() || null;
+  const safeWidgetToken = normalizeEntityToken(widgetToken) ?? null;
 
   const params = new URLSearchParams();
   if (safeSlug) params.set('tenant', safeSlug);

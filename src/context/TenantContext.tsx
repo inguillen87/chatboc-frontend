@@ -19,6 +19,7 @@ import {
 import type { TenantPublicInfo, TenantSummary } from '@/types/tenant';
 import { getErrorMessage } from '@/utils/api';
 import { ensureRemoteAnonId } from '@/utils/anonId';
+import { normalizeEntityToken } from '@/utils/entityToken';
 
 interface TenantContextValue {
   currentSlug: string | null;
@@ -76,6 +77,27 @@ const sanitizeTenantSlug = (slug?: string | null) => {
   return PLACEHOLDER_SLUGS.has(normalized.toLowerCase()) ? null : normalized;
 };
 
+const readTenantFromConfig = (): { slug: string | null; widgetToken: string | null } => {
+  if (typeof window === 'undefined') return { slug: null, widgetToken: null };
+
+  const cfg = (window as any).CHATBOC_CONFIG || {};
+  const slug =
+    cfg.tenant?.toString?.() ||
+    cfg.tenantSlug?.toString?.() ||
+    cfg.endpoint?.toString?.() ||
+    null;
+
+  const widgetToken = normalizeEntityToken(
+    cfg.entityToken?.toString?.() || cfg.ownerToken?.toString?.() || cfg.widgetToken?.toString?.(),
+  );
+
+  if (slug || widgetToken) {
+    return { slug: sanitizeTenantSlug(slug), widgetToken };
+  }
+
+  return { slug: null, widgetToken: null };
+};
+
 const extractSlugFromLocation = (pathname: string, search: string): string | null => {
   const match = pathname.match(TENANT_PATH_REGEX);
   if (match && match[1]) {
@@ -111,11 +133,12 @@ const readTenantFromScripts = (): { slug: string | null; widgetToken: string | n
     if (!dataset) continue;
 
     const slug = dataset.tenant?.trim() || dataset.tenantSlug?.trim() || null;
-    const widgetToken =
+    const widgetToken = normalizeEntityToken(
       dataset.widgetToken?.trim() ||
-      dataset.widget_token?.trim() ||
-      dataset.ownerToken?.trim() ||
-      null;
+        dataset.widget_token?.trim() ||
+        dataset.ownerToken?.trim() ||
+        null,
+    );
 
     if (slug || widgetToken) {
       return { slug: slug ?? null, widgetToken };
@@ -144,15 +167,21 @@ const resolveTenantBootstrap = (
 ): { slug: string | null; widgetToken: string | null } => {
   const slugFromUrl = extractSlugFromLocation(pathname, search);
   const params = new URLSearchParams(search);
-  const widgetTokenFromQuery =
+  const widgetTokenFromQuery = normalizeEntityToken(
     params.get('widget_token') ||
-    params.get('entityToken') ||
-    params.get('entity_token') ||
-    params.get('ownerToken') ||
-    params.get('owner_token');
+      params.get('entityToken') ||
+      params.get('entity_token') ||
+      params.get('ownerToken') ||
+      params.get('owner_token'),
+  );
 
   if (slugFromUrl || widgetTokenFromQuery) {
     return { slug: sanitizeTenantSlug(slugFromUrl), widgetToken: widgetTokenFromQuery };
+  }
+
+  const fromConfig = readTenantFromConfig();
+  if (fromConfig.slug || fromConfig.widgetToken) {
+    return fromConfig;
   }
 
   const fromScripts = readTenantFromScripts();
