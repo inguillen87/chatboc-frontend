@@ -19,6 +19,8 @@ export function PymeDashboard() {
   const pymeMetrics = summary?.pyme;
   const cohorts = data.cohorts?.cohorts ?? [];
   const templates = data.templates?.templates ?? [];
+  const modalidades = data.breakdownModalidad;
+  const funnel = pymeMetrics?.funnel ?? [];
 
   const horasPico = useMemo(() => pymeMetrics?.horasPico ?? [], [pymeMetrics]);
   const isSelectionError = error?.toLowerCase().includes('seleccioná');
@@ -95,13 +97,40 @@ export function PymeDashboard() {
           loading={loading}
           exportName="pyme-canales"
         />
-        <StackedBarChart
-          title="Estados de pedidos"
-          data={data.breakdownEstado ?? undefined}
+        <DonutChart
+          title="Modalidad de pedidos"
+          data={modalidades ?? undefined}
           loading={loading}
-          exportName="pyme-estados"
+          exportName="pyme-modalidades"
         />
       </section>
+
+      <WidgetFrame title="Funnel de checkout" exportFilename="pyme-funnel" csvData={funnel}>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Etapa</TableHead>
+              <TableHead className="text-right">Eventos</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {funnel.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={2} className="text-sm text-muted-foreground">
+                  No hay datos de funnel para el rango seleccionado.
+                </TableCell>
+              </TableRow>
+            ) : (
+              funnel.map((step) => (
+                <TableRow key={step.etapa}>
+                  <TableCell className="text-sm font-medium">{step.etapa}</TableCell>
+                  <TableCell className="text-right text-sm">{step.valor}</TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </WidgetFrame>
 
       <MapWidget
         title="Mapa de pedidos"

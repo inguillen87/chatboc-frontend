@@ -20,6 +20,7 @@ import ChatPanel from "./ChatPanel";
 import ReadingRuler from "./ReadingRuler";
 import type { Prefs } from "./AccessibilityToggle";
 import { useCartCount } from "@/hooks/useCartCount";
+import { buildTenantAwareNavigatePath } from "@/utils/tenantPaths";
 
 interface ChatWidgetProps {
   mode?: "standalone" | "iframe" | "script";
@@ -263,10 +264,22 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     }
   }, [user, entityInfo]);
 
-  const openCart = useCallback(() => {
-    const tenantSuffix = tenantSlugFromEntity ? `?tenant=${encodeURIComponent(tenantSlugFromEntity)}` : '';
-    window.open(`/cart${tenantSuffix}`, '_blank', 'noopener,noreferrer');
-  }, [tenantSlugFromEntity]);
+  const openCart = useCallback(
+    (target: "cart" | "catalog" = "cart") => {
+      const slug = tenantSlugFromEntity?.trim();
+      const basePath = target === "catalog" ? "/productos" : "/cart";
+      const tenantPath = buildTenantAwareNavigatePath(basePath, slug, "tenant_slug");
+      const url = new URL(tenantPath, window.location.origin);
+
+      if (slug) {
+        url.searchParams.set("tenant_slug", slug);
+        url.searchParams.set("tenant", slug);
+      }
+
+      window.open(url.toString(), "_blank", "noopener,noreferrer");
+    },
+    [tenantSlugFromEntity]
+  );
 
   const toggleMuted = useCallback(() => {
     setMuted((m) => {
