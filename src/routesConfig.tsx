@@ -117,6 +117,7 @@ const routes: RouteConfig[] = [
   { path: '/cart', element: <CartPage /> },
   { path: '/t/:tenant/checkout-productos', element: <ProductCheckoutPage /> },
   { path: '/checkout-productos', element: <ProductCheckoutPage /> },
+  { path: '/t/:tenant/pedido/confirmado', element: <OrderConfirmationPage /> },
   { path: '/pedido/confirmado', element: <OrderConfirmationPage /> },
   { path: '/legal/privacy', element: <Privacy /> },
   { path: '/legal/terms', element: <Terms /> },

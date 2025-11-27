@@ -66,15 +66,19 @@ const DEFAULT_TENANT_CONTEXT: TenantContextValue = {
 const TENANT_PATH_REGEX = /^\/t\/([^/]+)/i;
 const PLACEHOLDER_SLUGS = new Set(['iframe', 'embed', 'widget']);
 
+const sanitizeTenantSlug = (slug?: string | null) => {
+  if (!slug) return null;
+  const normalized = slug.trim();
+  if (!normalized) return null;
+  return PLACEHOLDER_SLUGS.has(normalized.toLowerCase()) ? null : normalized;
+};
+
 const extractSlugFromLocation = (pathname: string, search: string): string | null => {
   const match = pathname.match(TENANT_PATH_REGEX);
   if (match && match[1]) {
     try {
       const decoded = decodeURIComponent(match[1]);
-      if (PLACEHOLDER_SLUGS.has(decoded.toLowerCase())) {
-        return null;
-      }
-      return decoded;
+      return sanitizeTenantSlug(decoded);
     } catch (error) {
       console.warn('[TenantContext] No se pudo decodificar el slug de la URL', error);
       return match[1];
@@ -85,7 +89,7 @@ const extractSlugFromLocation = (pathname: string, search: string): string | nul
     try {
       const params = new URLSearchParams(search);
       const fromQuery = params.get('tenant');
-      return fromQuery && fromQuery.trim() ? fromQuery.trim() : null;
+      return sanitizeTenantSlug(fromQuery);
     } catch (error) {
       console.warn('[TenantContext] No se pudo leer la query string para tenant', error);
     }
@@ -136,10 +140,15 @@ const resolveTenantBootstrap = (
 ): { slug: string | null; widgetToken: string | null } => {
   const slugFromUrl = extractSlugFromLocation(pathname, search);
   const params = new URLSearchParams(search);
-  const widgetTokenFromQuery = params.get('widget_token');
+  const widgetTokenFromQuery =
+    params.get('widget_token') ||
+    params.get('entityToken') ||
+    params.get('entity_token') ||
+    params.get('ownerToken') ||
+    params.get('owner_token');
 
   if (slugFromUrl || widgetTokenFromQuery) {
-    return { slug: slugFromUrl, widgetToken: widgetTokenFromQuery };
+    return { slug: sanitizeTenantSlug(slugFromUrl), widgetToken: widgetTokenFromQuery };
   }
 
   const fromScripts = readTenantFromScripts();
@@ -147,7 +156,7 @@ const resolveTenantBootstrap = (
     return fromScripts;
   }
 
-  return { slug: readTenantFromSubdomain(), widgetToken: null };
+  return { slug: sanitizeTenantSlug(readTenantFromSubdomain()), widgetToken: null };
 };
 
 export const TenantProvider = ({ children }: { children: ReactNode }) => {

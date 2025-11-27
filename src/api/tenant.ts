@@ -151,17 +151,29 @@ export async function getTenantPublicInfo(slug: string): Promise<TenantPublicInf
   return normalizeTenantInfo(response, slug);
 }
 
+const PLACEHOLDER_SLUGS = new Set(['iframe', 'embed', 'widget']);
+
+const sanitizeTenant = (raw?: string | null) => {
+  if (!raw) return null;
+  const normalized = raw.trim();
+  if (!normalized) return null;
+  return PLACEHOLDER_SLUGS.has(normalized.toLowerCase()) ? null : normalized;
+};
+
 export async function getTenantPublicInfoFlexible(
   slug?: string | null,
   widgetToken?: string | null,
 ): Promise<TenantPublicInfo> {
+  const safeSlug = sanitizeTenant(slug);
+  const safeWidgetToken = widgetToken?.trim() || null;
+
   const params = new URLSearchParams();
-  if (slug) params.set('tenant', slug);
-  if (widgetToken) params.set('widget_token', widgetToken);
+  if (safeSlug) params.set('tenant', safeSlug);
+  if (safeWidgetToken) params.set('widget_token', safeWidgetToken);
 
   try {
     const response = await apiFetch<unknown>(`/api/pwa/tenant-info${params.toString() ? `?${params.toString()}` : ''}`, {
-      tenantSlug: slug ?? undefined,
+      tenantSlug: safeSlug ?? undefined,
       skipAuth: true,
       omitCredentials: true,
       isWidgetRequest: true,
@@ -169,14 +181,14 @@ export async function getTenantPublicInfoFlexible(
       sendAnonId: true,
     });
 
-    return normalizeTenantInfo(response, slug ?? widgetToken ?? '');
+    return normalizeTenantInfo(response, safeSlug ?? safeWidgetToken ?? '');
   } catch (primaryError) {
-    if (!slug) {
+    if (!safeSlug) {
       throw primaryError;
     }
 
     // Fallback al endpoint anterior si existe el slug
-    return getTenantPublicInfo(slug);
+    return getTenantPublicInfo(safeSlug);
   }
 }
 
