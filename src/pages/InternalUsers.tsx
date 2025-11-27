@@ -158,7 +158,7 @@ export default function InternalUsers() {
       setError('Ingresá un email válido.');
       return;
     }
-    if (categoriaIds.length === 0) {
+    if (hasAvailableCategories && categoriaIds.length === 0) {
       setError('Seleccioná al menos una categoría.');
       return;
     }
@@ -169,11 +169,14 @@ export default function InternalUsers() {
         email,
         password,
         rol,
-        categoria_ids: categoriaIds,
       };
 
-      if (categoriaIds.length === 1) {
-        payload.categoria_id = categoriaIds[0];
+      if (categoriaIds.length > 0) {
+        payload.categoria_ids = categoriaIds;
+
+        if (categoriaIds.length === 1) {
+          payload.categoria_id = categoriaIds[0];
+        }
       }
 
       await apiFetch(usersUrl, {
@@ -238,7 +241,7 @@ export default function InternalUsers() {
     }
 
     const updateUrl = `${usersUrl}/${editingUser.id}`;
-    if (editCategoriaIds.length === 0) {
+    if (hasAvailableCategories && editCategoriaIds.length === 0) {
       setError('Seleccioná al menos una categoría.');
       return;
     }
@@ -247,11 +250,14 @@ export default function InternalUsers() {
       nombre: editNombre.trim(),
       email: editEmail.trim(),
       rol: editRol,
-      categoria_ids: editCategoriaIds,
     };
 
-    if (editCategoriaIds.length === 1) {
-      payload.categoria_id = editCategoriaIds[0];
+    if (editCategoriaIds.length > 0) {
+      payload.categoria_ids = editCategoriaIds;
+
+      if (editCategoriaIds.length === 1) {
+        payload.categoria_id = editCategoriaIds[0];
+      }
     }
     if (editPassword.trim()) {
       payload.password = editPassword.trim();
@@ -283,6 +289,8 @@ export default function InternalUsers() {
     () => categories.filter((c): c is Category & { nombre: string } => typeof c?.nombre === 'string'),
     [categories]
   );
+
+  const hasAvailableCategories = normalizedCategories.length > 0;
 
   const normalizeSearch = (value: string) => value.trim().toLowerCase();
 
@@ -352,29 +360,35 @@ export default function InternalUsers() {
                 <option key="rol-empleado" value="empleado">Empleado</option>
                 <option key="rol-admin" value="admin">Admin</option>
               </select>
-              <div className="space-y-1">
-                <Input
-                  placeholder="Buscar categoría"
-                  value={categorySearch}
-                  onChange={(e) => setCategorySearch(e.target.value)}
-                />
-                <div className="max-h-40 overflow-y-auto border rounded-md p-2 space-y-1 bg-background">
-                  {filteredCategories.map((c) => (
-                    <label key={c.id} className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={categoriaIds.includes(c.id)}
-                        onChange={() => toggleCategory(c.id)}
-                      />
-                      <span>{c.nombre}</span>
-                    </label>
-                  ))}
-                  {filteredCategories.length === 0 && (
-                    <p className="text-sm text-muted-foreground">No hay categorías que coincidan.</p>
-                  )}
+              {hasAvailableCategories ? (
+                <div className="space-y-1">
+                  <Input
+                    placeholder="Buscar categoría"
+                    value={categorySearch}
+                    onChange={(e) => setCategorySearch(e.target.value)}
+                  />
+                  <div className="max-h-40 overflow-y-auto border rounded-md p-2 space-y-1 bg-background">
+                    {filteredCategories.map((c) => (
+                      <label key={c.id} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={categoriaIds.includes(c.id)}
+                          onChange={() => toggleCategory(c.id)}
+                        />
+                        <span>{c.nombre}</span>
+                      </label>
+                    ))}
+                    {filteredCategories.length === 0 && (
+                      <p className="text-sm text-muted-foreground">No hay categorías que coincidan.</p>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Seleccioná al menos una categoría.</p>
                 </div>
-                <p className="text-xs text-muted-foreground">Seleccioná al menos una categoría.</p>
-              </div>
+              ) : (
+                <div className="rounded-md border border-dashed p-3 text-sm text-muted-foreground bg-muted/40">
+                  No hay categorías disponibles en este momento. Podés registrar al empleado y asignarle sectores cuando estén configurados.
+                </div>
+              )}
               <Button type="submit" className="w-full">
                 Registrar empleado
               </Button>
@@ -418,29 +432,35 @@ export default function InternalUsers() {
               <option key="edit-rol-empleado" value="empleado">Empleado</option>
               <option key="edit-rol-admin" value="admin">Admin</option>
             </select>
-            <div className="space-y-1">
-              <Input
-                placeholder="Buscar categoría"
-                value={editCategorySearch}
-                onChange={(e) => setEditCategorySearch(e.target.value)}
-              />
-              <div className="max-h-40 overflow-y-auto border rounded-md p-2 space-y-1 bg-background">
-                {filteredEditCategories.map((c) => (
-                  <label key={c.id} className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={editCategoriaIds.includes(c.id)}
-                      onChange={() => toggleEditCategory(c.id)}
-                    />
-                    <span>{c.nombre}</span>
-                  </label>
-                ))}
-                {filteredEditCategories.length === 0 && (
-                  <p className="text-sm text-muted-foreground">No hay categorías que coincidan.</p>
-                )}
+            {hasAvailableCategories ? (
+              <div className="space-y-1">
+                <Input
+                  placeholder="Buscar categoría"
+                  value={editCategorySearch}
+                  onChange={(e) => setEditCategorySearch(e.target.value)}
+                />
+                <div className="max-h-40 overflow-y-auto border rounded-md p-2 space-y-1 bg-background">
+                  {filteredEditCategories.map((c) => (
+                    <label key={c.id} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={editCategoriaIds.includes(c.id)}
+                        onChange={() => toggleEditCategory(c.id)}
+                      />
+                      <span>{c.nombre}</span>
+                    </label>
+                  ))}
+                  {filteredEditCategories.length === 0 && (
+                    <p className="text-sm text-muted-foreground">No hay categorías que coincidan.</p>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">Seleccioná al menos una categoría.</p>
               </div>
-              <p className="text-xs text-muted-foreground">Seleccioná al menos una categoría.</p>
-            </div>
+            ) : (
+              <div className="rounded-md border border-dashed p-3 text-sm text-muted-foreground bg-muted/40">
+                No hay categorías disponibles en este momento. Podés editar al empleado y asignar sectores cuando estén configurados.
+              </div>
+            )}
             <Button type="submit" className="w-full">Actualizar</Button>
           </form>
         </div>
