@@ -109,6 +109,7 @@ const routes: RouteConfig[] = [
   { path: '/chatcrm', element: <ChatCRMPage /> },
   { path: '/opinar', element: <OpinarArPage /> },
   { path: '/integracion', element: <Integracion /> },
+  { path: '/t/:tenant/integracion', element: <Integracion /> },
   { path: '/documentacion', element: <Documentacion /> },
   { path: '/faqs', element: <Faqs /> },
   { path: '/t/:tenant/productos', element: <ProductCatalog /> },
