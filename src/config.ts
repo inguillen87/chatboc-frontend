@@ -67,13 +67,6 @@ const inferSameOriginProxy = (): string | null => {
   try {
     const currentUrl = new URL(window.location.href);
 
-    // If the frontend is served from the chatboc.ar domain family, always
-    // prefer the same-origin /api proxy to avoid CORS preflight issues when
-    // the backend sits on a different host.
-    if (currentUrl.hostname.endsWith('chatboc.ar')) {
-      return '/api';
-    }
-
     if (RESOLVED_BACKEND_URL) {
       const backendUrl = new URL(RESOLVED_BACKEND_URL);
 
