@@ -44,6 +44,10 @@ export default function CartPage() {
   const navigate = useNavigate();
   const { currentSlug, isLoadingTenant } = useTenant();
   const { user } = useUser();
+  const effectiveTenantSlug = useMemo(
+    () => currentSlug ?? user?.tenantSlug ?? null,
+    [currentSlug, user?.tenantSlug],
+  );
   const { points: pointsBalance, isLoading: isLoadingPoints, requiresAuth: pointsRequireAuth } = usePointsBalance({
     enabled: !!user,
     tenantSlug: currentSlug,
@@ -52,20 +56,20 @@ export default function CartPage() {
   const [showPointsAuthPrompt, setShowPointsAuthPrompt] = useState(false);
   const [showAuthCta, setShowAuthCta] = useState(false);
 
-  const catalogPath = buildTenantPath('/productos', currentSlug);
-  const cartCheckoutPath = buildTenantPath('/checkout-productos', currentSlug);
-  const loginPath = buildTenantPath('/login', currentSlug);
-  const registerPath = buildTenantPath('/register', currentSlug);
+  const catalogPath = buildTenantPath('/productos', effectiveTenantSlug);
+  const cartCheckoutPath = buildTenantPath('/checkout-productos', effectiveTenantSlug);
+  const loginPath = buildTenantPath('/login', effectiveTenantSlug);
+  const registerPath = buildTenantPath('/register', effectiveTenantSlug);
 
   const sharedRequestOptions = useMemo(
     () => ({
       suppressPanel401Redirect: true,
-      tenantSlug: currentSlug ?? undefined,
+      tenantSlug: effectiveTenantSlug ?? undefined,
       sendAnonId: true,
       isWidgetRequest: true,
       omitCredentials: true,
     }) as const,
-    [currentSlug],
+    [effectiveTenantSlug],
   );
 
   const refreshLocalCart = useCallback(() => {
@@ -98,7 +102,7 @@ export default function CartPage() {
       return;
     }
 
-    if (!currentSlug) {
+    if (!effectiveTenantSlug) {
       setError('Selecciona un municipio o inicia sesión para ver tu carrito.');
       setShowAuthCta(true);
       setLoading(false);
@@ -168,7 +172,7 @@ export default function CartPage() {
     } finally {
       setLoading(false);
     }
-  }, [cartMode, currentSlug, refreshLocalCart, sharedRequestOptions]);
+  }, [cartMode, effectiveTenantSlug, refreshLocalCart, sharedRequestOptions]);
 
   useEffect(() => {
     if (!isLoadingTenant) {
