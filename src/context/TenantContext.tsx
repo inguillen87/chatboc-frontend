@@ -77,6 +77,27 @@ const sanitizeTenantSlug = (slug?: string | null) => {
   return PLACEHOLDER_SLUGS.has(normalized.toLowerCase()) ? null : normalized;
 };
 
+const readTenantFromConfig = (): { slug: string | null; widgetToken: string | null } => {
+  if (typeof window === 'undefined') return { slug: null, widgetToken: null };
+
+  const cfg = (window as any).CHATBOC_CONFIG || {};
+  const slug =
+    cfg.tenant?.toString?.() ||
+    cfg.tenantSlug?.toString?.() ||
+    cfg.endpoint?.toString?.() ||
+    null;
+
+  const widgetToken = normalizeEntityToken(
+    cfg.entityToken?.toString?.() || cfg.ownerToken?.toString?.() || cfg.widgetToken?.toString?.(),
+  );
+
+  if (slug || widgetToken) {
+    return { slug: sanitizeTenantSlug(slug), widgetToken };
+  }
+
+  return { slug: null, widgetToken: null };
+};
+
 const extractSlugFromLocation = (pathname: string, search: string): string | null => {
   const match = pathname.match(TENANT_PATH_REGEX);
   if (match && match[1]) {
@@ -156,6 +177,11 @@ const resolveTenantBootstrap = (
 
   if (slugFromUrl || widgetTokenFromQuery) {
     return { slug: sanitizeTenantSlug(slugFromUrl), widgetToken: widgetTokenFromQuery };
+  }
+
+  const fromConfig = readTenantFromConfig();
+  if (fromConfig.slug || fromConfig.widgetToken) {
+    return fromConfig;
   }
 
   const fromScripts = readTenantFromScripts();
