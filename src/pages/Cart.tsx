@@ -10,7 +10,6 @@ import { formatCurrency } from '@/utils/currency';
 import { Loader2, ShoppingCart, AlertTriangle, Trash2, PlusCircle, MinusCircle, ArrowLeft } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { useTenant } from '@/context/TenantContext';
-import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import {
   buildProductMap,
   getProductPlaceholderImage,
@@ -27,6 +26,7 @@ import { buildTenantPath } from '@/utils/tenantPaths';
 import { Badge } from '@/components/ui/badge';
 import GuestContactDialog, { GuestContactValues } from '@/components/cart/GuestContactDialog';
 import { loadGuestContact, saveGuestContact } from '@/utils/guestContact';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 // Interfaz para el producto en el carrito, extendiendo ProductDetails y añadiendo cantidad
 interface CartItem extends ProductDetails {
@@ -43,12 +43,18 @@ export default function CartPage() {
   const [loyaltySummary] = useState(() => getDemoLoyaltySummary());
   const navigate = useNavigate();
   const { currentSlug } = useTenant();
-  const { points: pointsBalance, isLoading: isLoadingPoints } = usePointsBalance();
+  const { points: pointsBalance, isLoading: isLoadingPoints, requiresAuth: pointsRequireAuth } = usePointsBalance({
+    enabled: !!user,
+    tenantSlug: currentSlug,
+  });
   const { user } = useUser();
   const [showGuestDialog, setShowGuestDialog] = useState(false);
+  const [showPointsAuthPrompt, setShowPointsAuthPrompt] = useState(false);
 
   const catalogPath = buildTenantPath('/productos', currentSlug);
   const cartCheckoutPath = buildTenantPath('/checkout-productos', currentSlug);
+  const loginPath = buildTenantPath('/login', currentSlug);
+  const registerPath = buildTenantPath('/register', currentSlug);
 
   const sharedRequestOptions = useMemo(
     () => ({
@@ -64,6 +70,12 @@ export default function CartPage() {
   const refreshLocalCart = useCallback(() => {
     setCartItems(getLocalCartProducts());
   }, []);
+
+  useEffect(() => {
+    if (pointsRequireAuth) {
+      setShowPointsAuthPrompt(true);
+    }
+  }, [pointsRequireAuth]);
 
   const numberFormatter = useMemo(() => new Intl.NumberFormat('es-AR'), []);
 
@@ -215,16 +227,11 @@ export default function CartPage() {
   const effectivePointsBalance = cartMode === 'local' ? loyaltySummary.points : pointsBalance;
   const pointsAfterSubtotal = Math.max(effectivePointsBalance - pointsTotal, 0);
   const hasPointsDeficit = pointsTotal > effectivePointsBalance;
-  const requiresAuthForPoints = cartItems.some((item) => item.modalidad === 'puntos') && !user;
+  const requiresAuthForPoints = (cartItems.some((item) => item.modalidad === 'puntos') && !user) || pointsRequireAuth;
 
   const handleNavigateToCheckout = () => {
     if (requiresAuthForPoints) {
-      toast({
-        title: 'Iniciá sesión para usar tus puntos',
-        description: 'Identifícate para aplicar tus puntos antes de finalizar el pedido.',
-        variant: 'destructive',
-      });
-      navigate('/login');
+      setShowPointsAuthPrompt(true);
       return;
     }
 
@@ -495,6 +502,25 @@ export default function CartPage() {
           </div>
         </div>
       )}
+
+      <Dialog open={showPointsAuthPrompt} onOpenChange={setShowPointsAuthPrompt}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Inicia sesión para usar tus puntos</DialogTitle>
+            <DialogDescription>
+              Para canjear productos con puntos primero debes iniciar sesión o crear una cuenta.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex flex-col sm:flex-row sm:justify-end gap-2">
+            <Button asChild variant="default">
+              <Link to={loginPath}>Iniciar sesión</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link to={registerPath}>Crear cuenta</Link>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <GuestContactDialog
         open={showGuestDialog}

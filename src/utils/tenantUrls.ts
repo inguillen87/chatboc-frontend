@@ -50,6 +50,10 @@ export const buildTenantAwareUrl = (rawUrl: string, tenantSlug?: string | null):
     target.protocol = new URL(appOrigin).protocol;
     target.host = new URL(appOrigin).host;
 
+    if (!target.searchParams.has('tenant_slug')) {
+      target.searchParams.set('tenant_slug', slug);
+    }
+
     if (!target.searchParams.has('tenant')) {
       target.searchParams.set('tenant', slug);
     }

@@ -11,7 +11,7 @@ interface Props {
   showProfile?: boolean;
   muted?: boolean;
   onToggleSound?: () => void;
-  onCart?: () => void;
+  onCart?: (target?: "cart" | "catalog") => void;
   cartCount?: number;
   logoUrl?: string;
   title?: string;
@@ -95,7 +95,7 @@ const ChatHeader: React.FC<Props> = ({
         ) : null}
         {onCart && (
           <button
-            onClick={onCart}
+            onClick={() => onCart()}
             className="relative text-primary-foreground/80 hover:text-primary-foreground transition"
             aria-label="Ver carrito"
           >
