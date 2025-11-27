@@ -42,7 +42,7 @@ export default function CartPage() {
   const [cartMode, setCartMode] = useState<'api' | 'local'>('api');
   const [loyaltySummary] = useState(() => getDemoLoyaltySummary());
   const navigate = useNavigate();
-  const { currentSlug } = useTenant();
+  const { currentSlug, isLoadingTenant } = useTenant();
   const { user } = useUser();
   const { points: pointsBalance, isLoading: isLoadingPoints, requiresAuth: pointsRequireAuth } = usePointsBalance({
     enabled: !!user,
@@ -50,6 +50,7 @@ export default function CartPage() {
   });
   const [showGuestDialog, setShowGuestDialog] = useState(false);
   const [showPointsAuthPrompt, setShowPointsAuthPrompt] = useState(false);
+  const [showAuthCta, setShowAuthCta] = useState(false);
 
   const catalogPath = buildTenantPath('/productos', currentSlug);
   const cartCheckoutPath = buildTenantPath('/checkout-productos', currentSlug);
@@ -89,9 +90,17 @@ export default function CartPage() {
   const loadCartData = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setShowAuthCta(false);
 
     if (cartMode === 'local') {
       refreshLocalCart();
+      setLoading(false);
+      return;
+    }
+
+    if (!currentSlug) {
+      setError('Selecciona un municipio o inicia sesión para ver tu carrito.');
+      setShowAuthCta(true);
       setLoading(false);
       return;
     }
@@ -145,16 +154,27 @@ export default function CartPage() {
         refreshLocalCart();
         return;
       }
-      setError(getErrorMessage(err, 'No se pudo cargar el carrito. Intenta de nuevo.'));
+
+      const errorMessage = getErrorMessage(err, 'No se pudo cargar el carrito. Intenta de nuevo.');
+
+      if (err instanceof ApiError && err.status === 400 && errorMessage.toLowerCase().includes('tenant')) {
+        setError('Selecciona un municipio o inicia sesión para gestionar tu carrito.');
+        setShowAuthCta(true);
+        return;
+      }
+
+      setError(errorMessage);
       console.error("Error cargando datos del carrito:", err);
     } finally {
       setLoading(false);
     }
-  }, [cartMode, refreshLocalCart, sharedRequestOptions]);
+  }, [cartMode, currentSlug, refreshLocalCart, sharedRequestOptions]);
 
   useEffect(() => {
-    loadCartData();
-  }, [loadCartData]);
+    if (!isLoadingTenant) {
+      loadCartData();
+    }
+  }, [isLoadingTenant, loadCartData]);
 
   const handleUpdateQuantity = async (productName: string, newQuantity: number) => {
     const originalItems = [...cartItems];
@@ -264,7 +284,17 @@ export default function CartPage() {
         <AlertTriangle className="h-12 w-12 mb-4" />
         <p className="text-lg font-semibold">Ocurrió un error</p>
         <p>{error}</p>
-        <Button onClick={loadCartData} className="mt-4">Reintentar</Button>
+        {showAuthCta ? (
+          <div className="flex flex-wrap items-center justify-center gap-3 mt-4">
+            <Button onClick={() => navigate(loginPath)}>Iniciar sesión</Button>
+            <Button variant="outline" onClick={() => navigate(registerPath)}>Registrarme</Button>
+            <Button variant="secondary" asChild>
+              <Link to={catalogPath}>Ver catálogo</Link>
+            </Button>
+          </div>
+        ) : (
+          <Button onClick={loadCartData} className="mt-4">Reintentar</Button>
+        )}
       </div>
     );
   }
