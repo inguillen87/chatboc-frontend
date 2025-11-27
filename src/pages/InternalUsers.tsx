@@ -9,20 +9,22 @@ import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/
 
 const isValidEmail = (value: string) => /.+@.+\..+/.test(value.trim());
 
+type CategoryId = string | number;
+
 interface InternalUser {
   id: number;
   nombre: string;
   email: string;
   rol?: string | null;
   atendidos?: number | null;
-  categoria_id?: number | null;
-  categoria_ids?: number[] | null;
+  categoria_id?: CategoryId | null;
+  categoria_ids?: CategoryId[] | null;
   categorias?: Category[] | null;
   abiertos?: number | null;
 }
 
 interface Category {
-  id: number;
+  id: CategoryId;
   nombre: string;
 }
 
@@ -37,14 +39,14 @@ export default function InternalUsers() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rol, setRol] = useState('empleado');
-  const [categoriaIds, setCategoriaIds] = useState<number[]>([]);
+  const [categoriaIds, setCategoriaIds] = useState<CategoryId[]>([]);
   const [categorySearch, setCategorySearch] = useState('');
   const [editingUser, setEditingUser] = useState<InternalUser | null>(null);
   const [editNombre, setEditNombre] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editPassword, setEditPassword] = useState('');
   const [editRol, setEditRol] = useState('empleado');
-  const [editCategoriaIds, setEditCategoriaIds] = useState<number[]>([]);
+  const [editCategoriaIds, setEditCategoriaIds] = useState<CategoryId[]>([]);
   const [editCategorySearch, setEditCategorySearch] = useState('');
 
   const entityType = useMemo(() => (user?.tipo_chat === 'pyme' ? 'pyme' : 'municipal'), [user]);
@@ -62,7 +64,8 @@ export default function InternalUsers() {
   const normalizeCategory = useCallback((raw: any): Category | null => {
     if (!raw || typeof raw !== 'object') return null;
 
-    const id = typeof raw.id === 'number' ? raw.id : Number(raw.id);
+    const id = raw.id ?? raw.categoria_id ?? raw.categoriaId ?? raw.slug ?? raw.codigo;
+    const idString = id?.toString?.().trim();
     const nameCandidate = [
       raw.nombre,
       raw.name,
@@ -72,21 +75,24 @@ export default function InternalUsers() {
       raw.categoria,
     ].find((value) => typeof value === 'string' && value.trim().length > 0);
 
-    if (!Number.isFinite(id) || !nameCandidate) return null;
+    if (!idString || !nameCandidate) return null;
 
     return { id, nombre: nameCandidate.trim() };
   }, []);
 
   const mergeCategories = useCallback(
     (...categoryLists: (Category[] | null | undefined)[]): Category[] => {
-      const map = new Map<number, Category>();
+      const map = new Map<string | number, Category>();
 
       categoryLists
         .flat()
         .forEach((category) => {
           const normalized = normalizeCategory(category);
-          if (normalized && !map.has(normalized.id)) {
-            map.set(normalized.id, normalized);
+          if (normalized) {
+            const key = normalized.id?.toString?.() ?? '';
+            if (key && !map.has(key)) {
+              map.set(key, normalized);
+            }
           }
         });
 
