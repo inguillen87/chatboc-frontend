@@ -174,6 +174,7 @@ const Integracion = () => {
   const tenantSlug = useMemo(() => {
     const base =
       slugify((user as any)?.slug) ||
+      slugify((user as any)?.tenantSlug) ||
       slugify((user as any)?.endpoint) ||
       slugify((user as any)?.tenant) ||
       slugify((user as any)?.tenant_slug) ||

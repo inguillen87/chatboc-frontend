@@ -84,6 +84,7 @@
     host: chatbocDomain,
     iframePath: ds.iframePath || "/iframe",
     endpoint: ds.endpoint || "municipio",
+    tenantSlug: ds.tenantSlug || ds.tenant_slug || ds.tenant || "",
     entityToken:
       ds.token ||
       ds.entityToken ||
@@ -129,6 +130,11 @@
     welcomeTitle: cfg.welcomeTitle,
     welcomeSubtitle: cfg.welcomeSubtitle,
   });
+
+  if (cfg.tenantSlug) {
+    qs.set("tenantSlug", cfg.tenantSlug);
+    qs.set("tenant", cfg.tenantSlug);
+  }
 
   const iframeSrc = `${cfg.host}${cfg.iframePath}?${qs.toString()}`;
 
