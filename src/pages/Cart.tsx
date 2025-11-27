@@ -43,11 +43,11 @@ export default function CartPage() {
   const [loyaltySummary] = useState(() => getDemoLoyaltySummary());
   const navigate = useNavigate();
   const { currentSlug } = useTenant();
+  const { user } = useUser();
   const { points: pointsBalance, isLoading: isLoadingPoints, requiresAuth: pointsRequireAuth } = usePointsBalance({
     enabled: !!user,
     tenantSlug: currentSlug,
   });
-  const { user } = useUser();
   const [showGuestDialog, setShowGuestDialog] = useState(false);
   const [showPointsAuthPrompt, setShowPointsAuthPrompt] = useState(false);
 
