@@ -6,6 +6,12 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import {
+  extractEntityToken,
+  getStoredEntityToken,
+  normalizeEntityToken,
+  persistEntityToken,
+} from "@/utils/entityToken";
+import {
   Card,
   CardContent,
   CardDescription,
@@ -42,6 +48,7 @@ interface User {
   name: string;
   email: string;
   token: string;
+  entityToken?: string;
   plan?: string;
   tipo_chat?: "pyme" | "municipio";
   widget_icon_url?: string;
@@ -60,6 +67,7 @@ const Integracion = () => {
   const [headerLogoUrl, setHeaderLogoUrl] = useState("");
   const [welcomeTitle, setWelcomeTitle] = useState("");
   const [welcomeSubtitle, setWelcomeSubtitle] = useState("");
+  const [ownerToken, setOwnerToken] = useState<string | null>(() => getStoredEntityToken());
 
   const validarAcceso = (currentUser: User | null) => {
     if (!currentUser) {
@@ -119,7 +127,28 @@ const Integracion = () => {
     return user.tipo_chat === "municipio" ? "municipio" : "pyme";
   }, [user?.tipo_chat]);
 
-  const ownerToken = useMemo(() => user?.token || "OWNER_TOKEN_DEL_WIDGET", [user?.token]);
+  useEffect(() => {
+    if (!user) return;
+
+    const storedToken = getStoredEntityToken();
+    const tokenFromUser = normalizeEntityToken(
+      (user as any)?.entityToken || (user as any)?.entity_token || user.entityToken,
+    );
+    const extracted = extractEntityToken(user);
+    const finalToken = normalizeEntityToken(storedToken || tokenFromUser || extracted);
+
+    if (finalToken) {
+      persistEntityToken(finalToken);
+      setOwnerToken(finalToken);
+      return;
+    }
+
+    if (user.token) {
+      setOwnerToken(user.token);
+    }
+  }, [user]);
+
+  const effectiveOwnerToken = ownerToken || "";
   const tenantSlug = useMemo(() => {
     const base =
       slugify((user as any)?.slug) ||
@@ -164,7 +193,7 @@ const Integracion = () => {
 
     return `<script async src="${widgetScriptUrl}"
   data-api-base="${apiBase}"
-  data-owner-token="${ownerToken}"
+  data-owner-token="${effectiveOwnerToken}"
   data-default-open="false"
   data-width="${WIDGET_STD_WIDTH}"
   data-height="${WIDGET_STD_HEIGHT}"
@@ -174,11 +203,11 @@ const Integracion = () => {
   data-right="${WIDGET_STD_RIGHT}"
   data-endpoint="${endpoint}"
 ${customAttrs ? customAttrs + "\n" : ""}></script>`;
-  }, [apiBase, widgetScriptUrl, ownerToken, endpoint, primaryColor, accentColor, logoUrl, headerLogoUrl, logoAnimation, welcomeTitle, welcomeSubtitle, tenantSlug]);
+  }, [apiBase, widgetScriptUrl, effectiveOwnerToken, endpoint, primaryColor, accentColor, logoUrl, headerLogoUrl, logoAnimation, welcomeTitle, welcomeSubtitle, tenantSlug]);
 
   const iframeSrcUrl = useMemo(() => {
     const url = new URL(`${apiBase}/iframe`);
-    url.searchParams.set("entityToken", ownerToken);
+    url.searchParams.set("entityToken", effectiveOwnerToken);
     url.searchParams.set("tipo_chat", endpoint);
     if (primaryColor) url.searchParams.set("primaryColor", primaryColor);
     if (accentColor) url.searchParams.set("accentColor", accentColor);
@@ -188,11 +217,11 @@ ${customAttrs ? customAttrs + "\n" : ""}></script>`;
     if (welcomeTitle) url.searchParams.set("welcomeTitle", welcomeTitle);
     if (welcomeSubtitle) url.searchParams.set("welcomeSubtitle", welcomeSubtitle);
     return url.toString();
-  }, [apiBase, ownerToken, endpoint, primaryColor, accentColor, logoUrl, headerLogoUrl, logoAnimation, welcomeTitle, welcomeSubtitle]);
+  }, [apiBase, effectiveOwnerToken, endpoint, primaryColor, accentColor, logoUrl, headerLogoUrl, logoAnimation, welcomeTitle, welcomeSubtitle]);
 
   const previewIframeUrl = useMemo(() => {
     const url = new URL(`${iframeBase}/iframe`);
-    url.searchParams.set("entityToken", ownerToken);
+    url.searchParams.set("entityToken", effectiveOwnerToken);
     url.searchParams.set("tipo_chat", endpoint);
     if (primaryColor) url.searchParams.set("primaryColor", primaryColor);
     if (accentColor) url.searchParams.set("accentColor", accentColor);
@@ -202,7 +231,7 @@ ${customAttrs ? customAttrs + "\n" : ""}></script>`;
     if (welcomeTitle) url.searchParams.set("welcomeTitle", welcomeTitle);
     if (welcomeSubtitle) url.searchParams.set("welcomeSubtitle", welcomeSubtitle);
     return url.toString();
-  }, [iframeBase, ownerToken, endpoint, primaryColor, accentColor, logoUrl, headerLogoUrl, logoAnimation, welcomeTitle, welcomeSubtitle]);
+  }, [iframeBase, effectiveOwnerToken, endpoint, primaryColor, accentColor, logoUrl, headerLogoUrl, logoAnimation, welcomeTitle, welcomeSubtitle]);
   
   const codeIframe = useMemo(() => `<iframe
   id="chatboc-iframe"
@@ -241,7 +270,7 @@ document.addEventListener('DOMContentLoaded', function () {
 </script>`, [iframeSrcUrl, apiBase, endpoint]);
 
   useEffect(() => {
-    if (!ownerToken) return;
+    if (!effectiveOwnerToken) return;
     let scriptEl: HTMLScriptElement | null = null;
 
     const buildScript = (src: string) => {
@@ -249,7 +278,7 @@ document.addEventListener('DOMContentLoaded', function () {
       s.src = src;
       s.async = true;
       s.setAttribute('data-api-base', apiBase);
-      s.setAttribute('data-owner-token', ownerToken);
+      s.setAttribute('data-owner-token', effectiveOwnerToken);
       s.setAttribute('data-default-open', 'false');
       s.setAttribute('data-width', WIDGET_STD_WIDTH);
       s.setAttribute('data-height', WIDGET_STD_HEIGHT);
@@ -271,7 +300,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const inject = () => {
       if (scriptEl) scriptEl.remove();
-      (window as any).chatbocDestroyWidget?.(ownerToken);
+      (window as any).chatbocDestroyWidget?.(effectiveOwnerToken);
       const s = buildScript(widgetScriptUrl);
       s.onerror = () => {
         if (widgetScriptUrl !== defaultWidgetScriptUrl) {
@@ -287,9 +316,9 @@ document.addEventListener('DOMContentLoaded', function () {
     inject();
     return () => {
       if (scriptEl) scriptEl.remove();
-      (window as any).chatbocDestroyWidget?.(ownerToken);
+      (window as any).chatbocDestroyWidget?.(effectiveOwnerToken);
     };
-  }, [apiBase, widgetScriptUrl, defaultWidgetScriptUrl, ownerToken, endpoint, primaryColor, accentColor, logoUrl, headerLogoUrl, logoAnimation, welcomeTitle, welcomeSubtitle, tenantSlug]);
+  }, [apiBase, widgetScriptUrl, defaultWidgetScriptUrl, effectiveOwnerToken, endpoint, primaryColor, accentColor, logoUrl, headerLogoUrl, logoAnimation, welcomeTitle, welcomeSubtitle, tenantSlug]);
 
 
   const copiarCodigo = async (tipo: "iframe" | "script") => {
@@ -424,11 +453,18 @@ document.addEventListener('DOMContentLoaded', function () {
           <p>
             Ambos métodos de integración (Script y Iframe) están diseñados para ser seguros y eficientes. El método de Script es generalmente más flexible y recomendado.
           </p>
-          <p>
-            <strong>Token del Widget:</strong> Tu token de integración es <code>{ownerToken.substring(0,8)}...</code>. Ya está incluido en los códigos de abajo.
-          </p>
-        </CardContent>
-      </Card>
+            <p>
+              <strong>Token del Widget:</strong>{" "}
+              {effectiveOwnerToken ? (
+                <>Tu token de integración es <code>{effectiveOwnerToken.substring(0, 8)}...</code>. Ya está incluido en los códigos de abajo.</>
+              ) : (
+                <span className="text-yellow-700 dark:text-yellow-300">
+                  No pudimos localizar el token de integración. Reingresá a tu cuenta o solicita uno desde soporte.
+                </span>
+              )}
+            </p>
+          </CardContent>
+        </Card>
 
       {isFullPlan && (
         <Card className="mb-8">
@@ -574,9 +610,9 @@ document.addEventListener('DOMContentLoaded', function () {
                   justifyContent: "center",
                 }}
               >
-                {user && user.token && user.tipo_chat ? (
-                  <iframe
-                    src={previewIframeUrl}
+                  {user && effectiveOwnerToken && user.tipo_chat ? (
+                    <iframe
+                      src={previewIframeUrl}
                     width={WIDGET_STD_WIDTH}
                     height={WIDGET_STD_HEIGHT}
                     style={{
