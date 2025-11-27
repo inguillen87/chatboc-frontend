@@ -60,7 +60,7 @@ interface ChatPanelProps {
   onRubroSelect?: (rubro: any) => void;
   muted?: boolean;
   onToggleSound?: () => void;
-  onCart?: () => void;
+  onCart?: (target?: "cart" | "catalog") => void;
   cartCount?: number;
   headerLogoUrl?: string;
   welcomeTitle?: string;
@@ -373,7 +373,9 @@ const ChatPanel = ({
         "menucatalogo",
       ];
       if (cartActions.includes(normalized)) {
-        onCart?.();
+        const target: "cart" | "catalog" =
+          normalized === "cart" || normalized === "carrito" ? "cart" : "catalog";
+        onCart?.(target);
         handleSend({ text: "Catálogo", action: "catalogo" });
         return;
       }
@@ -484,7 +486,7 @@ const ChatPanel = ({
           onProfile={onOpenUserPanel}
           muted={muted}
           onToggleSound={onToggleSound}
-          onCart={onCart}
+          onCart={() => onCart?.()}
           cartCount={cartCount}
           logoUrl={headerLogoUrl}
           title={welcomeTitle}
@@ -535,7 +537,7 @@ const ChatPanel = ({
         onProfile={onOpenUserPanel}
         muted={muted}
         onToggleSound={onToggleSound}
-        onCart={onCart}
+        onCart={() => onCart?.()}
         cartCount={cartCount}
         logoUrl={headerLogoUrl}
         title={welcomeTitle}
