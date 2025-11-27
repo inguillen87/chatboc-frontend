@@ -199,7 +199,7 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
   const [tenant, setTenant] = useState<TenantPublicInfo | null>(null);
   const [currentSlug, setCurrentSlug] = useState<string | null>(null);
   const [widgetToken, setWidgetToken] = useState<string | null>(null);
-  const [isLoadingTenant, setIsLoadingTenant] = useState(false);
+  const [isLoadingTenant, setIsLoadingTenant] = useState(true);
   const [tenantError, setTenantError] = useState<string | null>(null);
   const [followedTenants, setFollowedTenants] = useState<TenantSummary[]>([]);
   const [isLoadingFollowedTenants, setIsLoadingFollowedTenants] = useState(false);
