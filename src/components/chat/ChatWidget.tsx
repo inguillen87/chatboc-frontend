@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import React, { Suspense, useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useDarkMode } from "@/hooks/useDarkMode";
 import ChatbocLogoAnimated from "./ChatbocLogoAnimated";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
@@ -11,19 +11,16 @@ import { useUser } from "@/hooks/useUser";
 import { apiFetch, getErrorMessage } from "@/utils/api";
 import { playOpenSound, playProactiveSound } from "@/utils/sounds";
 import ProactiveBubble from "./ProactiveBubble";
-import ChatUserRegisterPanel from "./ChatUserRegisterPanel";
-import ChatUserLoginPanel from "./ChatUserLoginPanel";
-import ChatUserPanel from "./ChatUserPanel";
 import ChatHeader from "./ChatHeader";
-import EntityInfoPanel from "./EntityInfoPanel";
 import ChatPanel from "./ChatPanel";
 import ReadingRuler from "./ReadingRuler";
 import type { Prefs } from "./AccessibilityToggle";
 import { useCartCount } from "@/hooks/useCartCount";
 import { buildTenantAwareNavigatePath } from "@/utils/tenantPaths";
-import { useTenant } from "@/context/TenantContext";
+import { TenantProvider, useTenant, useTenantContextPresence } from "@/context/TenantContext";
+import { MemoryRouter, useInRouterContext } from "react-router-dom";
 
-const PLACEHOLDER_SLUGS = new Set(["iframe", "embed", "widget"]);
+const PLACEHOLDER_SLUGS = new Set(["iframe", "embed", "widget", "default"]);
 
 const sanitizeTenantSlug = (slug?: string | null) => {
   if (!slug) return null;
@@ -35,6 +32,11 @@ const sanitizeTenantSlug = (slug?: string | null) => {
 
   return trimmed;
 };
+
+const ChatUserRegisterPanel = React.lazy(() => import("./ChatUserRegisterPanel"));
+const ChatUserLoginPanel = React.lazy(() => import("./ChatUserLoginPanel"));
+const ChatUserPanel = React.lazy(() => import("./ChatUserPanel"));
+const EntityInfoPanel = React.lazy(() => import("./EntityInfoPanel"));
 
 const readTenantFromScripts = (): string | null => {
   if (typeof document === "undefined") return null;
@@ -99,7 +101,7 @@ const PROACTIVE_MESSAGES = [
 
 const LS_KEY = "chatboc_accessibility";
 
-const ChatWidget: React.FC<ChatWidgetProps> = ({
+const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
   mode = "standalone",
   defaultOpen = false,
   initialView = 'chat',
@@ -243,11 +245,11 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   const resolvedTenantSlug = useMemo(() => {
     const candidates = [
-      tenant?.slug,
       tenantSlugFromEntity,
       tenantSlugFromLocation,
       tenantSlugFromScripts,
       tenantSlugFromSubdomain,
+      tenant?.slug,
       currentSlug,
     ];
 
@@ -388,17 +390,17 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     (target: "cart" | "catalog" = "cart") => {
       const slug = resolvedTenantSlug;
       const basePath = target === "catalog" ? "/productos" : "/cart";
-      const tenantPath = slug
-        ? buildTenantAwareNavigatePath(basePath, slug, "tenant_slug")
-        : basePath;
-      const url = new URL(tenantPath, window.location.origin);
-
       if (!slug) {
-        console.warn("[ChatWidget] No tenant slug available, redirecting to generic path", {
+        console.warn("[ChatWidget] No tenant slug available, showing login/info view instead of redirecting", {
           target,
           basePath,
         });
+        setView((prev) => (prev === "login" || prev === "register" ? prev : "login"));
+        return;
       }
+
+      const tenantPath = buildTenantAwareNavigatePath(basePath, slug, "tenant_slug");
+      const url = new URL(tenantPath, window.location.origin);
 
       window.location.assign(url.toString());
     },
@@ -745,35 +747,46 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
                   onA11yChange={setA11yPrefs}
                 />
               )}
-              {view === "register" ? <ChatUserRegisterPanel onSuccess={() => setView("chat")} onShowLogin={() => setView("login")} entityToken={ownerToken} />
-                : view === "login" ? <ChatUserLoginPanel onSuccess={() => setView("chat")} onShowRegister={() => setView("register")} />
-                : view === "user" ? <ChatUserPanel onClose={() => setView("chat")} />
-                : view === "info" ? <EntityInfoPanel info={entityInfo} onClose={() => setView("chat")} />
-                : <ChatPanel
-                    mode={mode}
-                    widgetId={widgetId}
-                    entityToken={ownerToken}
-                    openWidth={finalOpenWidth}
-                    openHeight={finalOpenHeight}
-                    onClose={toggleChat}
-                    tipoChat={resolvedTipoChat}
-                    onRequireAuth={() => setView("register")}
-                    onShowLogin={() => setView("login")}
-                    onShowRegister={() => setView("register")}
-                    onOpenUserPanel={openUserPanel}
-                    muted={muted}
-                    onToggleSound={toggleMuted}
-                    onCart={openCart}
-                    cartCount={cartCount}
-                    selectedRubro={selectedRubro ?? entityDefaultRubro}
-                    onRubroSelect={handleRubroSelect}
-                    headerLogoUrl={headerLogoUrl || customLauncherLogoUrl || entityInfo?.logo_url || (isDarkMode ? '/chatbocar.png' : '/chatbocar2.png')}
-                    welcomeTitle={headerTitle}
-                    welcomeSubtitle={headerSubtitle}
-                    logoAnimation={logoAnimation}
-                    onA11yChange={setA11yPrefs}
-                    a11yPrefs={a11yPrefs}
-                  />}
+              {view === "register" || view === "login" || view === "user" || view === "info" ? (
+                <Suspense
+                  fallback={
+                    <div className="w-full h-full flex items-center justify-center bg-card rounded-2xl">
+                      <div className="w-6 h-6 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                  }
+                >
+                  {view === "register" ? <ChatUserRegisterPanel onSuccess={() => setView("chat")} onShowLogin={() => setView("login")} entityToken={ownerToken} />
+                    : view === "login" ? <ChatUserLoginPanel onSuccess={() => setView("chat")} onShowRegister={() => setView("register")} />
+                    : view === "user" ? <ChatUserPanel onClose={() => setView("chat")} />
+                    : <EntityInfoPanel info={entityInfo} onClose={() => setView("chat")} />}
+                </Suspense>
+              ) : (
+                <ChatPanel
+                  mode={mode}
+                  widgetId={widgetId}
+                  entityToken={ownerToken}
+                  openWidth={finalOpenWidth}
+                  openHeight={finalOpenHeight}
+                  onClose={toggleChat}
+                  tipoChat={resolvedTipoChat}
+                  onRequireAuth={() => setView("register")}
+                  onShowLogin={() => setView("login")}
+                  onShowRegister={() => setView("register")}
+                  onOpenUserPanel={openUserPanel}
+                  muted={muted}
+                  onToggleSound={toggleMuted}
+                  onCart={openCart}
+                  cartCount={cartCount}
+                  selectedRubro={selectedRubro ?? entityDefaultRubro}
+                  onRubroSelect={handleRubroSelect}
+                  headerLogoUrl={headerLogoUrl || customLauncherLogoUrl || entityInfo?.logo_url || (isDarkMode ? '/chatbocar.png' : '/chatbocar2.png')}
+                  welcomeTitle={headerTitle}
+                  welcomeSubtitle={headerSubtitle}
+                  logoAnimation={logoAnimation}
+                  onA11yChange={setA11yPrefs}
+                  a11yPrefs={a11yPrefs}
+                />
+              )}
             </motion.div>
           ) : (
             <motion.div
@@ -841,6 +854,36 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   }
 
   return null;
+};
+
+const ChatWidget: React.FC<ChatWidgetProps> = (props) => {
+  const tenantContext = useTenantContextPresence();
+  const isInRouter = useInRouterContext();
+
+  const initialEntry = useMemo(() => {
+    if (typeof window === "undefined") return "/";
+    return `${window.location.pathname}${window.location.search}`;
+  }, []);
+
+  if (!tenantContext) {
+    const widgetTree = (
+      <TenantProvider>
+        <ChatWidgetInner {...props} />
+      </TenantProvider>
+    );
+
+    if (isInRouter) {
+      return widgetTree;
+    }
+
+    return (
+      <MemoryRouter initialEntries={[initialEntry]}>
+        {widgetTree}
+      </MemoryRouter>
+    );
+  }
+
+  return <ChatWidgetInner {...props} />;
 };
 
 export default ChatWidget;

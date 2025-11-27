@@ -336,3 +336,6 @@ export const useTenant = () => {
   }
   return context;
 };
+
+// Permite detectar si ya existe un TenantProvider en el árbol sin devolver el valor por defecto.
+export const useTenantContextPresence = () => useContext(TenantContext);
