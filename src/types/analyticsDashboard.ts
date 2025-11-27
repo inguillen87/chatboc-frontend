@@ -16,6 +16,8 @@ export type DashboardData = {
   breakdownCategoria: BreakdownResponse | null;
   breakdownCanal: BreakdownResponse | null;
   breakdownEstado: BreakdownResponse | null;
+  breakdownZona: BreakdownResponse | null;
+  breakdownModalidad: BreakdownResponse | null;
   heatmap: HeatmapResponse | null;
   points: PointsResponse | null;
   topZonas: TopResponse | null;

@@ -90,6 +90,8 @@ export interface SummaryResponse {
     recurrencia: { d30: number; d60: number; d90: number };
     horasPico: { hour: number; value: number }[];
     canales: { label: string; value: number }[];
+    modalidades?: { label: string; value: number }[];
+    funnel?: { etapa: string; valor: number }[];
     plantillas: {
       plantilla: string;
       envios: number;
@@ -233,7 +235,7 @@ export const analyticsService = {
     fetcher<TimeseriesResponse>('timeseries', filters),
   breakdown: (filters: AnalyticsFiltersPayload) =>
     fetcher<BreakdownResponse>('breakdown', filters),
-  heatmap: (filters: AnalyticsFiltersPayload) => fetcher<HeatmapResponse>('geo/heatmap', filters),
+  heatmap: (filters: AnalyticsFiltersPayload) => fetcher<HeatmapResponse>('tickets/heatmap', filters),
   points: (filters: AnalyticsFiltersPayload) => fetcher<PointsResponse>('geo/points', filters),
   top: (filters: AnalyticsFiltersPayload) => fetcher<TopResponse>('top', filters),
   operations: (filters: AnalyticsFiltersPayload) =>
