@@ -9,7 +9,7 @@ export const buildTenantPath = (basePath: string, tenantSlug?: string | null) =>
 export const buildTenantAwareNavigatePath = (
   basePath: string,
   tenantSlug?: string | null,
-  fallbackQueryParam = 'tenant',
+  fallbackQueryParam = 'tenant_slug',
 ) => {
   if (tenantSlug) {
     return buildTenantPath(basePath, tenantSlug);
