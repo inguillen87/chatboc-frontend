@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import ChatWidget from "../components/chat/ChatWidget";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import ErrorBoundary from '../components/ErrorBoundary';
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useInRouterContext } from "react-router-dom";
 import { TenantProvider } from "@/context/TenantContext";
 import { getChatbocConfig } from "@/utils/config";
 import { hexToHsl } from "@/utils/color";
@@ -36,6 +36,7 @@ const Iframe = () => {
   const [entityToken, setEntityToken] = useState<string | null>(null);
   const [tipoChat, setTipoChat] = useState<'pyme' | 'municipio' | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const isInRouter = useInRouterContext();
 
   useEffect(() => {
     const cfg = getChatbocConfig();
@@ -197,24 +198,26 @@ const Iframe = () => {
     />
   );
 
+  const widgetTree = (
+    <TenantProvider>
+      <ChatWidgetComponent />
+    </TenantProvider>
+  );
+
+  const maybeWrappedInRouter = isInRouter ? (
+    widgetTree
+  ) : (
+    <MemoryRouter initialEntries={[initialEntry]}>{widgetTree}</MemoryRouter>
+  );
+
   // Si no hay Google Client ID, no renderizar el Provider para evitar que crashee.
   if (!GOOGLE_CLIENT_ID) {
-    return (
-      <MemoryRouter initialEntries={[initialEntry]}>
-        <TenantProvider>
-          <ChatWidgetComponent />
-        </TenantProvider>
-      </MemoryRouter>
-    );
+    return maybeWrappedInRouter;
   }
 
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-      <MemoryRouter initialEntries={[initialEntry]}>
-        <TenantProvider>
-          <ChatWidgetComponent />
-        </TenantProvider>
-      </MemoryRouter>
+      {maybeWrappedInRouter}
     </GoogleOAuthProvider>
   );
 };
