@@ -12,6 +12,7 @@ import { useSurveyAdmin } from '@/hooks/useSurveyAdmin';
 import type { SurveyDraftPayload } from '@/types/encuestas';
 import { toast } from '@/components/ui/use-toast';
 import { ALL_SURVEY_TEMPLATES, buildDraftFromTemplate } from '@/config/surveys/templates';
+import { useTenant } from '@/context/TenantContext';
 
 const uniquenessLabels: Record<NonNullable<SurveyDraftPayload['politica_unicidad']>, string> = {
   libre: 'Sin restricciones',
@@ -30,7 +31,8 @@ const typeLabels: Record<SurveyDraftPayload['tipo'], string> = {
 
 const NewSurveyPage = () => {
   const navigate = useNavigate();
-  const { createSurvey, isSaving } = useSurveyAdmin();
+  const { currentSlug } = useTenant();
+  const { createSurvey, isSaving } = useSurveyAdmin({ tenantSlug: currentSlug });
   const [selectedTemplate, setSelectedTemplate] = useState('');
   const [municipality, setMunicipality] = useState('');
   const [appliedDraft, setAppliedDraft] = useState<SurveyDraftPayload | null>(null);

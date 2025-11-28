@@ -7,12 +7,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useSurveyAdmin } from '@/hooks/useSurveyAdmin';
 import type { SurveyDraftPayload } from '@/types/encuestas';
 import { toast } from '@/components/ui/use-toast';
+import { useTenant } from '@/context/TenantContext';
 
 const SurveyDetailPage = () => {
   const params = useParams();
   const navigate = useNavigate();
+  const { currentSlug } = useTenant();
   const surveyId = useMemo(() => (params.id ? Number(params.id) : null), [params.id]);
-  const { survey, isLoadingSurvey, surveyError, saveSurvey, publishSurvey, isSaving, isPublishing, refetchSurvey } = useSurveyAdmin({ id: surveyId ?? undefined });
+  const { survey, isLoadingSurvey, surveyError, saveSurvey, publishSurvey, isSaving, isPublishing, refetchSurvey } = useSurveyAdmin({ id: surveyId ?? undefined, tenantSlug: currentSlug });
 
   const handleSave = async (payload: SurveyDraftPayload) => {
     try {
