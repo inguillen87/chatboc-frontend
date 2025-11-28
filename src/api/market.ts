@@ -9,12 +9,12 @@ import {
   MarketProduct,
 } from '@/types/market';
 
-const baseOptions = (slug: string) => ({
+const baseOptions = (tenantSlug: string) => ({
   omitCredentials: true,
   sendAnonId: true,
   omitChatSessionId: true,
   isWidgetRequest: true,
-  tenantSlug: slug,
+  tenantSlug,
 });
 
 const normalizeProduct = (raw: any, index: number): MarketProduct => {
@@ -60,8 +60,11 @@ const normalizeProductList = (rawItems: any[] | undefined | null): MarketProduct
   return rawItems.map((item, index) => normalizeProduct(item, index));
 };
 
-export async function fetchMarketCatalog(slug: string): Promise<MarketCatalogResponse> {
-  const response = await apiFetch<any>(`/api/market/${encodeURIComponent(slug)}/catalog`, baseOptions(slug));
+export async function fetchMarketCatalog(tenantSlug: string): Promise<MarketCatalogResponse> {
+  const response = await apiFetch<any>(
+    `/api/market/${encodeURIComponent(tenantSlug)}/catalog`,
+    baseOptions(tenantSlug),
+  );
   const products = normalizeProductList(response?.products ?? response?.items ?? []);
 
   return {
@@ -71,8 +74,11 @@ export async function fetchMarketCatalog(slug: string): Promise<MarketCatalogRes
   };
 }
 
-export async function fetchMarketCart(slug: string): Promise<MarketCartResponse> {
-  const response = await apiFetch<any>(`/api/market/${encodeURIComponent(slug)}/cart`, baseOptions(slug));
+export async function fetchMarketCart(tenantSlug: string): Promise<MarketCartResponse> {
+  const response = await apiFetch<any>(
+    `/api/market/${encodeURIComponent(tenantSlug)}/cart`,
+    baseOptions(tenantSlug),
+  );
   const items = normalizeCartItems(response?.items ?? response?.cart ?? []);
 
   return {
@@ -82,9 +88,12 @@ export async function fetchMarketCart(slug: string): Promise<MarketCartResponse>
   };
 }
 
-export async function addMarketItem(slug: string, payload: AddToCartPayload): Promise<MarketCartResponse> {
-  const response = await apiFetch<any>(`/api/market/${encodeURIComponent(slug)}/cart/add`, {
-    ...baseOptions(slug),
+export async function addMarketItem(
+  tenantSlug: string,
+  payload: AddToCartPayload,
+): Promise<MarketCartResponse> {
+  const response = await apiFetch<any>(`/api/market/${encodeURIComponent(tenantSlug)}/cart/add`, {
+    ...baseOptions(tenantSlug),
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -102,11 +111,11 @@ export async function addMarketItem(slug: string, payload: AddToCartPayload): Pr
 }
 
 export async function startMarketCheckout(
-  slug: string,
+  tenantSlug: string,
   payload: CheckoutStartPayload,
 ): Promise<CheckoutStartResponse> {
-  return apiFetch<CheckoutStartResponse>(`/api/market/${encodeURIComponent(slug)}/checkout/start`, {
-    ...baseOptions(slug),
+  return apiFetch<CheckoutStartResponse>(`/api/market/${encodeURIComponent(tenantSlug)}/checkout/start`, {
+    ...baseOptions(tenantSlug),
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
