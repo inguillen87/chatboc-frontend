@@ -35,6 +35,8 @@ const phoneCandidates = [
   "whatsapp",
   "whatsapp_number",
   "whatsapp_numero",
+  "telefono_celular",
+  "tel",
   "numero",
   "numero_contacto",
 ];
@@ -60,8 +62,11 @@ const normalizeUsuario = (raw: RawUsuario, index: number): Usuario => {
   const telefono =
     pickFirstString(phoneCandidates, raw) ||
     normalizeString(raw?.contacto?.telefono) ||
+    normalizeString(raw?.contacto?.whatsapp) ||
     normalizeString(raw?.datos_contacto?.telefono) ||
-    normalizeString(raw?.profile?.telefono);
+    normalizeString(raw?.datos_contacto?.celular) ||
+    normalizeString(raw?.profile?.telefono) ||
+    normalizeString(raw?.profile?.whatsapp);
 
   const etiquetas = labelCandidates.reduce<string[]>((acc, key) => {
     const value = raw[key];

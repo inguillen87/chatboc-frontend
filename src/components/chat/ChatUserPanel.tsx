@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { apiFetch } from "@/utils/api";
+import { apiFetch, getErrorMessage } from "@/utils/api";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { buildTenantNavigationUrl } from "@/utils/tenantPaths";
 import {
@@ -64,7 +64,14 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
         const data = await apiFetch<any>("/me", { isWidgetRequest: true });
         setName(data.name || "");
         setEmail(data.email || "");
-        setPhone(data.telefono || data.phone || data.whatsapp || "");
+        setPhone(
+          data.telefono ||
+            data.phone ||
+            data.whatsapp ||
+            data.celular ||
+            data?.contacto?.telefono ||
+            "",
+        );
         setMarketingOptIn(Boolean(data.acepta_marketing));
       } catch (e) {
         /* ignore */
@@ -92,9 +99,16 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
     setSaving(true);
     setError("");
     try {
-      await apiFetch("/api/me", {
+      await apiFetch("/me", {
         method: "PUT",
-        body: { name, email, telefono: phone, acepta_marketing: marketingOptIn },
+        body: {
+          name,
+          email,
+          telefono: phone,
+          whatsapp: phone,
+          celular: phone,
+          acepta_marketing: marketingOptIn,
+        },
         isWidgetRequest: true,
       });
       const stored = safeLocalStorage.getItem("user");
@@ -104,13 +118,15 @@ const ChatUserPanel: React.FC<Props> = ({ onClose }) => {
           obj.name = name;
           obj.email = email;
           obj.telefono = phone;
+          obj.whatsapp = phone;
+          obj.celular = phone;
           obj.acepta_marketing = marketingOptIn;
           safeLocalStorage.setItem("user", JSON.stringify(obj));
         } catch {}
       }
       onClose();
     } catch (e) {
-      setError("No se pudo guardar");
+      setError(getErrorMessage(e, "No se pudo guardar"));
     } finally {
       setSaving(false);
     }
