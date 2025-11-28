@@ -1,6 +1,7 @@
 // utils/api.ts
 
 import { API_BASE_CANDIDATES, BASE_API_URL, SAME_ORIGIN_PROXY_BASE } from '@/config';
+import { TENANT_ROUTE_PREFIXES } from '@/utils/tenantPaths';
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateChatSessionId from "@/utils/chatSessionId"; // Import the new function
 import { getIframeToken } from "@/utils/config";
@@ -31,6 +32,57 @@ const parseDebugFlag = (value?: string | null): boolean => {
   if (typeof value !== "string") return false;
   const normalized = value.trim().toLowerCase();
   return ["1", "true", "yes", "on"].includes(normalized);
+};
+
+const TENANT_PATH_REGEX = new RegExp(`^/(?:${TENANT_ROUTE_PREFIXES.join("|")})/([^/]+)`, "i");
+const PLACEHOLDER_SLUGS = new Set(["iframe", "embed", "widget"]);
+
+const sanitizeTenantSlug = (slug?: string | null) => {
+  if (!slug || typeof slug !== "string") return null;
+  const normalized = slug.trim();
+  if (!normalized) return null;
+  return PLACEHOLDER_SLUGS.has(normalized.toLowerCase()) ? null : normalized;
+};
+
+const inferTenantSlug = (explicitTenant?: string | null): string | null => {
+  const candidate = sanitizeTenantSlug(explicitTenant);
+  if (candidate) return candidate;
+
+  if (typeof window === "undefined") return null;
+
+  const { pathname = "", search = "" } = window.location || {};
+  const match = pathname.match(TENANT_PATH_REGEX);
+  if (match?.[1]) {
+    try {
+      return sanitizeTenantSlug(decodeURIComponent(match[1]));
+    } catch (error) {
+      console.warn("[apiFetch] No se pudo decodificar el slug de la URL", error);
+      return sanitizeTenantSlug(match[1]);
+    }
+  }
+
+  if (search) {
+    try {
+      const params = new URLSearchParams(search);
+      const fromQuery =
+        params.get("tenant") || params.get("tenant_slug") || params.get("endpoint");
+      const normalized = sanitizeTenantSlug(fromQuery);
+      if (normalized) return normalized;
+    } catch (error) {
+      console.warn("[apiFetch] No se pudo leer la query string para tenant", error);
+    }
+  }
+
+  try {
+    const cfg = (window as any).CHATBOC_CONFIG || {};
+    const fromConfig = cfg.tenant?.toString?.() || cfg.tenantSlug?.toString?.() || cfg.endpoint?.toString?.();
+    const normalized = sanitizeTenantSlug(fromConfig);
+    if (normalized) return normalized;
+  } catch (error) {
+    console.warn("[apiFetch] No se pudo leer CHATBOC_CONFIG para tenant", error);
+  }
+
+  return null;
 };
 
 const shouldLogVerboseApi = (): boolean => {
@@ -180,6 +232,7 @@ export async function apiFetch<T>(
   })();
 
   const treatAsWidget = isWidgetRequest ?? (isWidgetContext && isLikelyWidgetEnvironment);
+  const resolvedTenantSlug = inferTenantSlug(tenantSlug);
   const panelToken = safeLocalStorage.getItem("authToken");
   const chatToken = safeLocalStorage.getItem("chatAuthToken");
   let storedRole: string | null = null;
@@ -289,8 +342,8 @@ export async function apiFetch<T>(
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  if (tenantSlug && typeof tenantSlug === "string" && tenantSlug.trim()) {
-    headers["X-Tenant"] = tenantSlug.trim();
+  if (resolvedTenantSlug) {
+    headers["X-Tenant"] = resolvedTenantSlug;
   }
   // Si el endpoint necesita identificar usuario anónimo, mandá siempre el header "Anon-Id"
   if (((!token && anonId) || sendAnonId) && anonId) {
@@ -317,7 +370,7 @@ export async function apiFetch<T>(
       storedRole: normalizedRole,
       headers,
       chatSessionIdAttached: Boolean(chatSessionId),
-      tenantSlug: tenantSlug || null,
+      tenantSlug: resolvedTenantSlug || null,
     });
   }
 
