@@ -420,7 +420,7 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
   const openCart = useCallback(
     (target: "cart" | "catalog" | "market" = "cart") => {
       const storedTenant = sanitizeTenantSlug(safeLocalStorage.getItem("tenantSlug"));
-      const slug = sanitizeTenantSlug(resolvedTenantSlug ?? storedTenant) ?? "junin";
+      const slug = sanitizeTenantSlug(resolvedTenantSlug ?? storedTenant);
 
       if (!slug) {
         toast.error("No hay un tenant configurado para el carrito.");
