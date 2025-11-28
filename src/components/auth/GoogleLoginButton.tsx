@@ -21,6 +21,8 @@ interface Props extends React.HTMLAttributes<HTMLDivElement> {
   onLoggedIn?: () => void;
 }
 
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+
 const GoogleLoginButton: React.FC<Props> = ({
   onLoggedIn,
   className,
@@ -28,6 +30,11 @@ const GoogleLoginButton: React.FC<Props> = ({
 }) => {
   const { refreshUser } = useUser();
   const navigate = useNavigate();
+
+  if (!GOOGLE_CLIENT_ID) {
+    console.warn('[GoogleLoginButton] VITE_GOOGLE_CLIENT_ID is missing. Google login is disabled.');
+    return null;
+  }
 
   const handleSuccess = async (cred: CredentialResponse) => {
     console.log('Google login success:', cred);
