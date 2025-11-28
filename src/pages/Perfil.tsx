@@ -2371,15 +2371,11 @@ export default function Perfil() {
                     <Button
                       className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
                       onClick={() => {
-                        if (!derivedTenantSlug) {
-                          toast({
-                            variant: "destructive",
-                            title: "No encontramos tu tenant",
-                            description: "Actualizá tu slug o volvé a iniciar sesión e intentá nuevamente.",
-                          });
-                          return;
-                        }
-                        navigate(`/t/${derivedTenantSlug}/integracion`);
+                        const integrationPath = derivedTenantSlug
+                          ? `/t/${derivedTenantSlug}/integracion`
+                          : "/integracion";
+
+                        navigate(integrationPath);
                       }}
                     >
                       Ir a la guía de integración
