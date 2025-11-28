@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { Loader2, Search, Share2, ShoppingBag } from 'lucide-react';
+import { Copy, Loader2, MessageCircle, QrCode, Search, Share2, ShoppingBag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import ProductCard from '@/components/market/ProductCard';
@@ -18,6 +18,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescript
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { formatCurrency } from '@/utils/currency';
 import { getValidStoredToken } from '@/utils/authTokens';
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 type ContactInfo = {
   name?: string;
@@ -38,9 +39,11 @@ export default function MarketCartPage() {
 
   const [showContactDialog, setShowContactDialog] = useState(false);
   const [showAuthDialog, setShowAuthDialog] = useState(false);
+  const [showQrModal, setShowQrModal] = useState(false);
   const [showMobileCart, setShowMobileCart] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [confirmation, setConfirmation] = useState<string | null>(null);
+  const [qrError, setQrError] = useState<string | null>(null);
   const [contact, setContact] = useState<ContactInfo>(() => {
     const stored = loadMarketContact(tenantSlug);
     return {
@@ -79,6 +82,18 @@ export default function MarketCartPage() {
     enabled: Boolean(tenantSlug),
   });
 
+  const shareMessage = useMemo(() => {
+    if (!shareUrl) return '';
+    const tenantName = catalogQuery.data?.tenantName?.trim();
+    const prefix = tenantName ? `Mirá el catálogo de ${tenantName}` : 'Mirá este catálogo';
+    return `${prefix}: ${shareUrl}`;
+  }, [catalogQuery.data?.tenantName, shareUrl]);
+
+  const qrImageUrl = useMemo(() => {
+    if (!shareUrl) return '';
+    return `https://quickchart.io/qr?text=${encodeURIComponent(shareUrl)}&margin=12&size=480`;
+  }, [shareUrl]);
+
   const addMutation = useMutation({
     mutationFn: (productId: string) => addMarketItem(tenantSlug, { productId, quantity: 1 }),
     onSuccess: (data) => {
@@ -115,7 +130,7 @@ export default function MarketCartPage() {
     },
   });
 
-  const handleShare = async () => {
+  const handleCopyLink = async () => {
     try {
       if (!shareUrl) return;
       await navigator.clipboard.writeText(shareUrl);
@@ -131,6 +146,18 @@ export default function MarketCartPage() {
         variant: 'destructive',
       });
     }
+  };
+
+  const handleShareWhatsApp = () => {
+    if (!shareMessage) return;
+    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(shareMessage)}`;
+    window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleOpenQr = () => {
+    if (!shareUrl) return;
+    setQrError(null);
+    setShowQrModal(true);
   };
 
   const handleCheckout = () => {
@@ -175,7 +202,8 @@ export default function MarketCartPage() {
   const cartItems: MarketCartItem[] = cartQuery.data?.items ?? [];
   const catalogErrorMessage = catalogQuery.error instanceof Error ? catalogQuery.error.message : null;
   const cartErrorMessage = cartQuery.error instanceof Error ? cartQuery.error.message : null;
-  const canShare = Boolean(shareUrl && navigator?.clipboard);
+  const canCopy = Boolean(shareUrl && navigator?.clipboard);
+  const canShareWhatsApp = Boolean(shareMessage);
 
   const itemsCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
   const hasSession = useMemo(() => {
@@ -241,9 +269,17 @@ export default function MarketCartPage() {
               />
             </div>
             <div className="hidden items-center gap-2 sm:flex">
-              <Button variant="outline" size="sm" onClick={handleShare} disabled={!canShare}>
-                <Share2 className="mr-2 h-4 w-4" />
-                Compartir catálogo
+              <Button variant="outline" size="sm" onClick={handleCopyLink} disabled={!canCopy}>
+                <Copy className="mr-2 h-4 w-4" />
+                Copiar enlace
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleShareWhatsApp} disabled={!canShareWhatsApp}>
+                <MessageCircle className="mr-2 h-4 w-4" />
+                WhatsApp
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleOpenQr} disabled={!shareUrl}>
+                <QrCode className="mr-2 h-4 w-4" />
+                Ver QR
               </Button>
               <Badge variant="secondary" className="flex items-center gap-1 px-3 py-1 text-sm">
                 <ShoppingBag className="h-4 w-4" />
@@ -253,9 +289,17 @@ export default function MarketCartPage() {
           </div>
 
           <div className="flex items-center gap-2 sm:hidden">
-            <Button variant="outline" size="sm" className="w-full" onClick={handleShare} disabled={!canShare}>
-              <Share2 className="mr-2 h-4 w-4" />
-              Compartir
+            <Button variant="outline" size="sm" className="w-full" onClick={handleCopyLink} disabled={!canCopy}>
+              <Copy className="mr-2 h-4 w-4" />
+              Copiar
+            </Button>
+            <Button variant="outline" size="sm" className="w-full" onClick={handleShareWhatsApp} disabled={!canShareWhatsApp}>
+              <MessageCircle className="mr-2 h-4 w-4" />
+              WhatsApp
+            </Button>
+            <Button variant="outline" size="sm" className="w-full" onClick={handleOpenQr} disabled={!shareUrl}>
+              <QrCode className="mr-2 h-4 w-4" />
+              QR
             </Button>
             <Badge variant="secondary" className="flex items-center gap-1 px-3 py-2 text-sm">
               <ShoppingBag className="h-4 w-4" />
@@ -427,6 +471,45 @@ export default function MarketCartPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={showQrModal} onOpenChange={setShowQrModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Código QR del catálogo</DialogTitle>
+            <DialogDescription>Escanealo o compártelo para abrir este catálogo en cualquier dispositivo.</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col items-center gap-4 py-2">
+            {qrImageUrl && !qrError ? (
+              <img
+                src={qrImageUrl}
+                alt="QR del catálogo"
+                className="w-64 max-w-full rounded-xl border bg-white p-4 shadow-sm"
+                onError={() => setQrError('No pudimos generar el código QR automáticamente.')}
+              />
+            ) : (
+              <div className="flex h-52 w-full items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
+                {qrError || 'No pudimos cargar el código QR.'}
+              </div>
+            )}
+            {shareUrl ? (
+              <div className="w-full rounded-md border bg-muted/40 p-3 text-center text-sm">
+                <p className="font-medium text-foreground">Enlace directo</p>
+                <p className="mt-1 break-all text-muted-foreground">{shareUrl}</p>
+              </div>
+            ) : null}
+          </div>
+          <DialogFooter className="gap-2">
+            <DialogClose asChild>
+              <Button variant="secondary" className="w-full sm:w-auto">
+                Cerrar
+              </Button>
+            </DialogClose>
+            <Button className="w-full sm:w-auto" onClick={handleCopyLink} disabled={!canCopy}>
+              <Share2 className="mr-2 h-4 w-4" /> Copiar enlace
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
