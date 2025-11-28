@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useParams } from 'react-router-dom';
-import { ShoppingBag, Share2, Loader2 } from 'lucide-react';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Loader2, Search, Share2, ShoppingBag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import ProductCard from '@/components/market/ProductCard';
@@ -13,6 +13,11 @@ import { loadMarketContact, saveMarketContact } from '@/utils/marketStorage';
 import { toast } from '@/components/ui/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { useUser } from '@/hooks/useUser';
+import { Input } from '@/components/ui/input';
+import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { formatCurrency } from '@/utils/currency';
+import { getValidStoredToken } from '@/utils/authTokens';
 
 type ContactInfo = {
   name?: string;
@@ -21,6 +26,8 @@ type ContactInfo = {
 
 export default function MarketCartPage() {
   const { tenantSlug = '' } = useParams<{ tenantSlug: string }>();
+  const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
   const { user } = useUser();
 
@@ -30,6 +37,9 @@ export default function MarketCartPage() {
     typeof userPhone === 'string' ? userPhone.trim() : userPhone ? String(userPhone).trim() : undefined;
 
   const [showContactDialog, setShowContactDialog] = useState(false);
+  const [showAuthDialog, setShowAuthDialog] = useState(false);
+  const [showMobileCart, setShowMobileCart] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
   const [confirmation, setConfirmation] = useState<string | null>(null);
   const [contact, setContact] = useState<ContactInfo>(() => {
     const stored = loadMarketContact(tenantSlug);
@@ -143,6 +153,11 @@ export default function MarketCartPage() {
       return;
     }
 
+    if (!hasSession) {
+      setShowAuthDialog(true);
+      return;
+    }
+
     if (phone) {
       checkoutMutation.mutate({ name: resolvedName, phone });
       return;
@@ -163,11 +178,38 @@ export default function MarketCartPage() {
   const canShare = Boolean(shareUrl && navigator?.clipboard);
 
   const itemsCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
+  const hasSession = useMemo(() => {
+    const authToken = getValidStoredToken('authToken');
+    const chatToken = getValidStoredToken('chatAuthToken');
+    return Boolean(user?.token || authToken || chatToken);
+  }, [user]);
+
+  const filteredProducts = useMemo(() => {
+    if (!searchTerm.trim()) return catalogProducts;
+    const term = searchTerm.toLowerCase();
+    return catalogProducts.filter((product) => {
+      const name = product.name?.toLowerCase() ?? '';
+      const description = product.description?.toLowerCase() ?? '';
+      return name.includes(term) || description.includes(term);
+    });
+  }, [catalogProducts, searchTerm]);
+
+  const derivedAmount = useMemo(() => {
+    if (cartQuery.data?.totalAmount !== undefined && cartQuery.data?.totalAmount !== null) {
+      return cartQuery.data.totalAmount;
+    }
+    return cartItems.reduce((acc, item) => acc + (item.price ?? 0) * item.quantity, 0);
+  }, [cartItems, cartQuery.data?.totalAmount]);
+
+  const goToLogin = () => {
+    const redirectPath = `${location.pathname}${location.search}`;
+    navigate('/user/login', { state: { redirectTo: redirectPath } });
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white pb-24 sm:pb-12">
       <header className="sticky top-0 z-10 border-b bg-white/80 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
+        <div className="mx-auto flex max-w-5xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-6">
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl bg-primary/10 text-primary">
               {catalogQuery.data?.tenantLogoUrl ? (
@@ -188,12 +230,34 @@ export default function MarketCartPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handleShare} disabled={!canShare}>
+          <div className="flex flex-1 items-center gap-2 sm:max-w-md">
+            <div className="relative w-full">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Buscar productos"
+                className="pl-9"
+              />
+            </div>
+            <div className="hidden items-center gap-2 sm:flex">
+              <Button variant="outline" size="sm" onClick={handleShare} disabled={!canShare}>
+                <Share2 className="mr-2 h-4 w-4" />
+                Compartir catálogo
+              </Button>
+              <Badge variant="secondary" className="flex items-center gap-1 px-3 py-1 text-sm">
+                <ShoppingBag className="h-4 w-4" />
+                {itemsCount}
+              </Badge>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 sm:hidden">
+            <Button variant="outline" size="sm" className="w-full" onClick={handleShare} disabled={!canShare}>
               <Share2 className="mr-2 h-4 w-4" />
-              Compartir catálogo
+              Compartir
             </Button>
-            <Badge variant="secondary" className="flex items-center gap-1 px-3 py-1 text-sm">
+            <Badge variant="secondary" className="flex items-center gap-1 px-3 py-2 text-sm">
               <ShoppingBag className="h-4 w-4" />
               {itemsCount}
             </Badge>
@@ -229,9 +293,9 @@ export default function MarketCartPage() {
               </Alert>
             ) : null}
 
-            {catalogProducts.length ? (
+            {filteredProducts.length ? (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                {catalogProducts.map((product) => (
+                {filteredProducts.map((product) => (
                   <ProductCard
                     key={product.id}
                     product={product}
@@ -242,7 +306,11 @@ export default function MarketCartPage() {
               </div>
             ) : (
               <div className="rounded-lg border bg-white p-6 text-center text-sm text-muted-foreground">
-                {catalogQuery.isLoading ? 'Cargando productos...' : 'No hay productos disponibles en este catálogo.'}
+                {catalogQuery.isLoading
+                  ? 'Cargando productos...'
+                  : searchTerm
+                    ? 'No encontramos productos que coincidan con tu búsqueda.'
+                    : 'No hay productos disponibles en este catálogo.'}
               </div>
             )}
           </div>
@@ -286,6 +354,79 @@ export default function MarketCartPage() {
         onSubmit={submitContact}
         isSubmitting={checkoutMutation.isPending}
       />
+
+      <Sheet open={showMobileCart} onOpenChange={setShowMobileCart}>
+        {itemsCount ? (
+          <div className="fixed bottom-4 left-4 right-4 z-20 sm:hidden">
+            <div className="flex items-center justify-between gap-3 rounded-full border bg-white/95 px-4 py-3 shadow-lg">
+              <div>
+                <p className="text-xs text-muted-foreground">{itemsCount} ítem(s)</p>
+                <p className="text-base font-semibold">{formatCurrency(derivedAmount, 'ARS')}</p>
+              </div>
+              <SheetTrigger asChild>
+                <Button size="sm" className="rounded-full">
+                  Ver carrito
+                </Button>
+              </SheetTrigger>
+            </div>
+          </div>
+        ) : null}
+
+        <SheetContent side="bottom" className="sm:hidden">
+          <SheetHeader>
+            <SheetTitle>Tu carrito</SheetTitle>
+          </SheetHeader>
+
+          <div className="mt-4 space-y-3 overflow-y-auto">
+            {cartItems.length ? (
+              cartItems.map((item) => (
+                <div key={item.id} className="flex items-start justify-between rounded-lg border p-3">
+                  <div>
+                    <p className="font-medium leading-snug">{item.name}</p>
+                    <p className="text-xs text-muted-foreground">Cantidad: {item.quantity}</p>
+                  </div>
+                  <div className="text-right text-sm font-semibold">
+                    {item.price ? formatCurrency(item.price * item.quantity, 'ARS') : '—'}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground">Tu carrito está vacío.</p>
+            )}
+          </div>
+
+          <div className="mt-4 flex items-center justify-between rounded-lg bg-muted/50 px-4 py-3 text-sm">
+            <span className="text-muted-foreground">Total estimado</span>
+            <span className="text-base font-semibold">{formatCurrency(derivedAmount, 'ARS')}</span>
+          </div>
+
+          <Button
+            className="mt-4 w-full"
+            size="lg"
+            onClick={() => {
+              setShowMobileCart(false);
+              handleCheckout();
+            }}
+            disabled={!cartItems.length || checkoutMutation.isPending}
+          >
+            {checkoutMutation.isPending ? 'Procesando...' : 'Finalizar pedido'}
+          </Button>
+        </SheetContent>
+      </Sheet>
+
+      <AlertDialog open={showAuthDialog} onOpenChange={setShowAuthDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Necesitas iniciar sesión</AlertDialogTitle>
+            <AlertDialogDescription>
+              Ingresa con tu número de teléfono para continuar con el pedido y volveremos a traerte aquí.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={goToLogin}>Ir a login</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

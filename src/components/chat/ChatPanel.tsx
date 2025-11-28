@@ -480,6 +480,10 @@ const ChatPanel = ({
     return () => container.removeEventListener("scroll", onScroll);
   }, []);
 
+  const handleOpenCatalog = useCallback(() => {
+    onCart?.("market");
+  }, [onCart]);
+
   if (showRubroSelector) {
     return (
       <div className={cn("chat-root flex flex-col w-full h-full bg-card text-card-foreground overflow-hidden relative", isMobile ? undefined : "rounded-[inherit]")}>
@@ -547,6 +551,24 @@ const ChatPanel = ({
         logoAnimation={logoAnimation}
         onA11yChange={onA11yChange}
       />
+      {onCart && (
+        <div className="px-2 sm:px-4 pt-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center rounded-xl border bg-muted/40 px-3 py-3">
+            <div className="text-sm text-muted-foreground flex-1">
+              <p className="text-sm font-medium text-foreground">Explora el catálogo</p>
+              <p>Conocé los productos disponibles y agregalos al carrito.</p>
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="w-full sm:w-auto"
+              onClick={handleOpenCatalog}
+            >
+              Ver catálogo
+            </Button>
+          </div>
+        </div>
+      )}
       <div ref={chatContainerRef} className="flex-1 p-2 sm:p-4 min-h-0 flex flex-col gap-3 overflow-y-auto">
         {messages.map((msg) => (
           <ChatMessage
