@@ -52,6 +52,7 @@ import OpinarArPage from '@/pages/OpinarArPage';
 import EstadisticasPage from '@/pages/EstadisticasPage';
 import Iframe from '@/pages/iframe';
 import AnalyticsPage from '@/pages/analytics/AnalyticsPage';
+import MarketCartPage from '@/pages/market/MarketCartPage';
 import PublicSurveysIndex from '@/pages/encuestas';
 import PublicSurveyPage from '@/pages/e/[slug]';
 import SurveyQrPage from '@/pages/encuestas/QrPage';
@@ -126,6 +127,7 @@ const routes: RouteConfig[] = [
   ...withTenantPrefixes('/:tenant/productos', { element: <ProductCatalog /> }),
   { path: '/cart', element: <CartPage /> },
   ...withTenantPrefixes('/:tenant/cart', { element: <CartPage /> }),
+  { path: '/market/:slug/cart', element: <MarketCartPage /> },
   { path: '/checkout-productos', element: <ProductCheckoutPage /> },
   ...withTenantPrefixes('/:tenant/checkout-productos', { element: <ProductCheckoutPage /> }),
   ...withTenantPrefixes('/:tenant/pedido/confirmado', { element: <OrderConfirmationPage /> }),
