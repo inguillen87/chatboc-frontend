@@ -80,8 +80,8 @@ function AppRoutes() {
   );
 }
 
-const App = () => (
-  <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+const App = () => {
+  const appTree = (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
@@ -97,7 +97,17 @@ const App = () => (
         </UserProvider>
       </TooltipProvider>
     </QueryClientProvider>
-  </GoogleOAuthProvider>
-);
+  );
+
+  if (!GOOGLE_CLIENT_ID) {
+    return appTree;
+  }
+
+  return (
+    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+      {appTree}
+    </GoogleOAuthProvider>
+  );
+};
 
 export default App;
