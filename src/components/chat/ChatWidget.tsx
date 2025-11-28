@@ -386,11 +386,7 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
 
   const openUserPanel = useCallback(() => {
     if (user) {
-      if (user.rol && user.rol !== 'usuario') {
-        window.location.href = '/perfil';
-      } else {
-        setView('user');
-      }
+      setView('user');
     } else if (entityInfo) {
       setView('info');
     } else {
@@ -831,54 +827,82 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
                   />
                 </Suspense>
               )}
-              {view === "register" || view === "login" || view === "user" || view === "info" ? (
+              <div className="relative w-full flex-1">
                 <Suspense
                   fallback={
-                    <div className="w-full h-full flex items-center justify-center bg-card rounded-2xl">
-                      <div className="w-6 h-6 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-                    </div>
-                  }
-                >
-                  {view === "register" ? <ChatUserRegisterPanel onSuccess={handleAuthSuccess} onShowLogin={() => setView("login")} entityToken={ownerToken} />
-                    : view === "login" ? <ChatUserLoginPanel onSuccess={handleAuthSuccess} onShowRegister={() => setView("register")} entityToken={ownerToken} />
-                    : view === "user" ? <ChatUserPanel onClose={() => setView("chat")} />
-                    : <EntityInfoPanel info={entityInfo} onClose={() => setView("chat")} />}
-                </Suspense>
-              ) : (
-                <Suspense
-                  fallback={
-                    <div className="w-full h-full flex items-center justify-center bg-card rounded-2xl">
+                    <div className="absolute inset-0 flex items-center justify-center bg-card">
                       <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
                     </div>
                   }
                 >
-                  <ChatPanel
-                    mode={mode}
-                    widgetId={widgetId}
-                    entityToken={ownerToken}
-                    openWidth={finalOpenWidth}
-                    openHeight={finalOpenHeight}
-                    onClose={toggleChat}
-                    tipoChat={resolvedTipoChat}
-                    onRequireAuth={() => setView("register")}
-                    onShowLogin={() => setView("login")}
-                    onShowRegister={() => setView("register")}
-                    onOpenUserPanel={openUserPanel}
-                    muted={muted}
-                    onToggleSound={toggleMuted}
-                    onCart={openCart}
-                    cartCount={cartCount}
-                    selectedRubro={selectedRubro ?? entityDefaultRubro}
-                    onRubroSelect={handleRubroSelect}
-                    headerLogoUrl={headerLogoUrl || customLauncherLogoUrl || entityInfo?.logo_url || (isDarkMode ? '/chatbocar.png' : '/chatbocar2.png')}
-                    welcomeTitle={headerTitle}
-                    welcomeSubtitle={headerSubtitle}
-                    logoAnimation={logoAnimation}
-                    onA11yChange={setA11yPrefs}
-                    a11yPrefs={a11yPrefs}
-                  />
+                  <motion.div
+                    className={cn("absolute inset-0", view === "chat" ? "z-10" : "z-0")}
+                    animate={{ opacity: view === "chat" ? 1 : 0, scale: view === "chat" ? 1 : 0.95 }}
+                    transition={{ duration: 0.2 }}
+                    style={{ pointerEvents: view === "chat" ? "auto" : "none" }}
+                  >
+                    <ChatPanel
+                      mode={mode}
+                      widgetId={widgetId}
+                      entityToken={ownerToken}
+                      onClose={toggleChat}
+                      tipoChat={resolvedTipoChat}
+                      onRequireAuth={() => setView("register")}
+                      onShowLogin={() => setView("login")}
+                      onShowRegister={() => setView("register")}
+                      onOpenUserPanel={openUserPanel}
+                      muted={muted}
+                      onToggleSound={toggleMuted}
+                      onCart={openCart}
+                      cartCount={cartCount}
+                      selectedRubro={selectedRubro ?? entityDefaultRubro}
+                      onRubroSelect={handleRubroSelect}
+                      headerLogoUrl={headerLogoUrl || customLauncherLogoUrl || entityInfo?.logo_url || (isDarkMode ? '/chatbocar.png' : '/chatbocar2.png')}
+                      welcomeTitle={headerTitle}
+                      welcomeSubtitle={headerSubtitle}
+                      logoAnimation={logoAnimation}
+                      onA11yChange={setA11yPrefs}
+                      a11yPrefs={a11yPrefs}
+                    />
+                  </motion.div>
+
+                  <motion.div
+                    className={cn("absolute inset-0", view === "register" ? "z-10" : "z-0")}
+                    animate={{ opacity: view === "register" ? 1 : 0, scale: view === "register" ? 1 : 0.95 }}
+                    transition={{ duration: 0.2 }}
+                    style={{ pointerEvents: view === "register" ? "auto" : "none" }}
+                  >
+                    <ChatUserRegisterPanel onSuccess={handleAuthSuccess} onShowLogin={() => setView("login")} entityToken={ownerToken} />
+                  </motion.div>
+
+                  <motion.div
+                    className={cn("absolute inset-0", view === "login" ? "z-10" : "z-0")}
+                    animate={{ opacity: view === "login" ? 1 : 0, scale: view === "login" ? 1 : 0.95 }}
+                    transition={{ duration: 0.2 }}
+                    style={{ pointerEvents: view === "login" ? "auto" : "none" }}
+                  >
+                    <ChatUserLoginPanel onSuccess={handleAuthSuccess} onShowRegister={() => setView("register")} entityToken={ownerToken} />
+                  </motion.div>
+
+                  <motion.div
+                    className={cn("absolute inset-0", view === "user" ? "z-10" : "z-0")}
+                    animate={{ opacity: view === "user" ? 1 : 0, scale: view === "user" ? 1 : 0.95 }}
+                    transition={{ duration: 0.2 }}
+                    style={{ pointerEvents: view === "user" ? "auto" : "none" }}
+                  >
+                    <ChatUserPanel onClose={() => setView("chat")} />
+                  </motion.div>
+
+                  <motion.div
+                    className={cn("absolute inset-0", view === "info" ? "z-10" : "z-0")}
+                    animate={{ opacity: view === "info" ? 1 : 0, scale: view === "info" ? 1 : 0.95 }}
+                    transition={{ duration: 0.2 }}
+                    style={{ pointerEvents: view === "info" ? "auto" : "none" }}
+                  >
+                    <EntityInfoPanel info={entityInfo} onClose={() => setView("chat")} />
+                  </motion.div>
                 </Suspense>
-              )}
+              </div>
             </motion.div>
           ) : (
             <motion.div
