@@ -458,7 +458,7 @@ export const assignTicketToAgent = async (
     for (const endpoint of endpoints) {
         try {
             await apiFetch(endpoint, {
-                method: 'PUT',
+                method: 'POST',
                 body: payload,
             });
             return;
