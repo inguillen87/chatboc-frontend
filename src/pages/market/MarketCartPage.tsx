@@ -19,13 +19,14 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/co
 import { formatCurrency } from '@/utils/currency';
 import { getValidStoredToken } from '@/utils/authTokens';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 type ContactInfo = {
   name?: string;
   phone?: string;
 };
 
-export default function MarketCartPage() {
+function MarketCartPage() {
   const { tenantSlug = '' } = useParams<{ tenantSlug: string }>();
   const navigate = useNavigate();
   const location = useLocation();
@@ -513,3 +514,11 @@ export default function MarketCartPage() {
     </div>
   );
 }
+
+const MarketCartPageWithErrorBoundary = () => (
+  <ErrorBoundary fallbackTitle="No pudimos cargar el catálogo">
+    <MarketCartPage />
+  </ErrorBoundary>
+);
+
+export default MarketCartPageWithErrorBoundary;
