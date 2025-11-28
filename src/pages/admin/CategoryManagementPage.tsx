@@ -110,6 +110,10 @@ const CategoryManagementPage: React.FC = () => {
         <h1 className="text-2xl font-bold text-foreground">Gestión de Categorías</h1>
         <Button onClick={handleCreate}><PlusCircle className="mr-2 h-4 w-4" /> Crear Categoría</Button>
       </div>
+      <p className="text-sm text-muted-foreground mb-6">
+        Las categorías se utilizan para organizar los tickets y asignarlos a los empleados adecuados.
+        Crea y gestiona las categorías que los empleados podrán atender.
+      </p>
       <div className="bg-card rounded-lg border">
         <Table>
           <TableHeader>
