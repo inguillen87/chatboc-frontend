@@ -35,7 +35,35 @@ const parseDebugFlag = (value?: string | null): boolean => {
 };
 
 const TENANT_PATH_REGEX = new RegExp(`^/(?:${TENANT_ROUTE_PREFIXES.join("|")})/([^/]+)`, "i");
-const PLACEHOLDER_SLUGS = new Set(["iframe", "embed", "widget"]);
+const PLACEHOLDER_SLUGS = new Set(["iframe", "embed", "widget", "tenant", "market", "municipio", "pyme"]);
+
+const readTenantFromSubdomain = () => {
+  if (typeof window === "undefined") return null;
+  const host = window.location?.hostname || "";
+  if (!host || host === "localhost") return null;
+
+  const [maybeSlug, ...rest] = host.split(".");
+  if (!maybeSlug || rest.length === 0) return null;
+
+  const normalized = maybeSlug.trim().toLowerCase();
+  if (["www", "app", "panel"].includes(normalized)) return null;
+
+  return maybeSlug;
+};
+
+const readTenantFromStoredUser = () => {
+  try {
+    const rawUser = safeLocalStorage.getItem("user");
+    if (!rawUser) return null;
+    const parsed = JSON.parse(rawUser);
+    const candidate =
+      parsed?.tenant_slug || parsed?.tenantSlug || parsed?.tenant || parsed?.endpoint;
+    return typeof candidate === "string" ? candidate : null;
+  } catch (error) {
+    console.warn("[apiFetch] No se pudo leer tenant del usuario almacenado", error);
+    return null;
+  }
+};
 
 const sanitizeTenantSlug = (slug?: string | null) => {
   if (!slug || typeof slug !== "string") return null;
@@ -47,6 +75,9 @@ const sanitizeTenantSlug = (slug?: string | null) => {
 const inferTenantSlug = (explicitTenant?: string | null): string | null => {
   const candidate = sanitizeTenantSlug(explicitTenant);
   if (candidate) return candidate;
+
+  const storedUserTenant = sanitizeTenantSlug(readTenantFromStoredUser());
+  if (storedUserTenant) return storedUserTenant;
 
   if (typeof window === "undefined") return null;
 
@@ -81,6 +112,9 @@ const inferTenantSlug = (explicitTenant?: string | null): string | null => {
   } catch (error) {
     console.warn("[apiFetch] No se pudo leer CHATBOC_CONFIG para tenant", error);
   }
+
+  const subdomainTenant = sanitizeTenantSlug(readTenantFromSubdomain());
+  if (subdomainTenant) return subdomainTenant;
 
   return null;
 };
