@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -30,6 +30,13 @@ export default function CheckoutDialog({
 }: CheckoutDialogProps) {
   const [name, setName] = useState(defaultName ?? '');
   const [phone, setPhone] = useState(defaultPhone ?? '');
+
+  useEffect(() => {
+    if (open) {
+      setName(defaultName ?? '');
+      setPhone(defaultPhone ?? '');
+    }
+  }, [defaultName, defaultPhone, open]);
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();

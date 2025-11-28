@@ -13,13 +13,18 @@ import { loadMarketContact, saveMarketContact } from '@/utils/marketStorage';
 import { toast } from '@/components/ui/use-toast';
 import { Badge } from '@/components/ui/badge';
 
+type ContactInfo = {
+  name?: string;
+  phone?: string;
+};
+
 export default function MarketCartPage() {
   const { slug = '' } = useParams<{ slug: string }>();
   const queryClient = useQueryClient();
 
   const [showContactDialog, setShowContactDialog] = useState(false);
   const [confirmation, setConfirmation] = useState<string | null>(null);
-  const [contact, setContact] = useState(() => loadMarketContact(slug));
+  const [contact, setContact] = useState<ContactInfo>(() => loadMarketContact(slug));
 
   useEffect(() => {
     setContact(loadMarketContact(slug));
@@ -38,6 +43,7 @@ export default function MarketCartPage() {
     queryKey: ['marketCatalog', slug],
     queryFn: () => fetchMarketCatalog(slug),
     enabled: Boolean(slug),
+    staleTime: 1000 * 60, // cache short catalog loads while browsing
   });
 
   const cartQuery = useQuery({
@@ -125,6 +131,9 @@ export default function MarketCartPage() {
 
   const catalogProducts: MarketProduct[] = catalogQuery.data?.products ?? [];
   const cartItems: MarketCartItem[] = cartQuery.data?.items ?? [];
+  const catalogErrorMessage = catalogQuery.error instanceof Error ? catalogQuery.error.message : null;
+  const cartErrorMessage = cartQuery.error instanceof Error ? cartQuery.error.message : null;
+  const canShare = Boolean(shareUrl && navigator?.clipboard);
 
   const itemsCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
 
@@ -153,7 +162,7 @@ export default function MarketCartPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handleShare}>
+            <Button variant="outline" size="sm" onClick={handleShare} disabled={!canShare}>
               <Share2 className="mr-2 h-4 w-4" />
               Compartir catálogo
             </Button>
@@ -184,6 +193,15 @@ export default function MarketCartPage() {
               ) : null}
             </div>
 
+            {catalogErrorMessage ? (
+              <Alert variant="destructive">
+                <AlertTitle>No pudimos cargar el catálogo</AlertTitle>
+                <AlertDescription>
+                  {catalogErrorMessage || 'Intenta nuevamente desde el enlace o QR.'}
+                </AlertDescription>
+              </Alert>
+            ) : null}
+
             {catalogProducts.length ? (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {catalogProducts.map((product) => (
@@ -210,6 +228,15 @@ export default function MarketCartPage() {
               onCheckout={handleCheckout}
               isSubmitting={checkoutMutation.isPending}
             />
+
+            {cartErrorMessage ? (
+              <Alert variant="destructive" className="mt-3">
+                <AlertTitle>No pudimos actualizar tu carrito</AlertTitle>
+                <AlertDescription>
+                  {cartErrorMessage || 'Revisa tu conexión e intenta de nuevo.'}
+                </AlertDescription>
+              </Alert>
+            ) : null}
 
             <div className="mt-3 text-xs text-muted-foreground">
               <p>
