@@ -61,10 +61,10 @@ export default function CartSummary({
 
       <CardFooter className="flex flex-col gap-3">
         <Button className="w-full" size="lg" onClick={onCheckout} disabled={!items.length || isSubmitting}>
-          {isSubmitting ? 'Procesando...' : 'Ir a checkout'}
+          {isSubmitting ? 'Procesando...' : 'Finalizar pedido'}
         </Button>
         <p className="text-center text-xs text-muted-foreground">
-          Tu pedido se confirma en un paso. Te contactaremos con el detalle.
+          Confirma tu pedido y coordinaremos el detalle con el comercio.
         </p>
       </CardFooter>
     </Card>
