@@ -156,9 +156,13 @@ export default function ProductCheckoutPage() {
       }
 
       try {
+        const endpointPrefix = currentSlug ? `/pwa/public/${currentSlug}` : '';
+        const cartUrl = endpointPrefix ? `${endpointPrefix}/carrito` : '/carrito';
+        const productsUrl = endpointPrefix ? `${endpointPrefix}/productos` : '/productos';
+
         const [cartApiData, productsApiData] = await Promise.all([
-          apiFetch<unknown>('/carrito', sharedRequestOptions),
-          apiFetch<unknown>('/productos', sharedRequestOptions),
+          apiFetch<unknown>(cartUrl, sharedRequestOptions),
+          apiFetch<unknown>(productsUrl, sharedRequestOptions),
         ]);
 
         const productMap = buildProductMap(normalizeProductsPayload(productsApiData, 'CheckoutPage'));

@@ -448,8 +448,8 @@ export const assignTicketToAgent = async (
     };
 
     const endpoints = [
-        `/tickets/${tipo}/${ticketId}/assign`,
         `/tickets/${tipo}/${ticketId}/asignar`,
+        `/tickets/${tipo}/${ticketId}/assign`,
         `/tickets/${tipo}/${ticketId}/asignacion`,
     ];
 
