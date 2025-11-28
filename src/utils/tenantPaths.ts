@@ -8,6 +8,14 @@ const hasTenantPrefix = (path: string) =>
 const resolveTenantPrefix = () => {
   if (APP_TARGET === 'municipio') return 'municipio';
   if (APP_TARGET === 'pyme') return 'pyme';
+
+  if (typeof window !== 'undefined') {
+    const pathname = window.location?.pathname?.toLowerCase?.() || '';
+    if (pathname.includes('/municipio') || pathname.includes('/municipal')) {
+      return 'municipio';
+    }
+  }
+
   return TENANT_ROUTE_PREFIXES[0];
 };
 
