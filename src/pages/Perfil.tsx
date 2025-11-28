@@ -278,6 +278,14 @@ export default function Perfil() {
 
     return null;
   }, [perfil, storedTenantSlug, user]);
+  const isAdminUser = useMemo(
+    () => (user?.rol || "").toLowerCase() === "admin",
+    [user?.rol],
+  );
+  const isProOrFullPlan = useMemo(
+    () => perfil.plan === "pro" || perfil.plan === "full",
+    [perfil.plan],
+  );
   const buildMappingPath = useCallback(
     (path: string) => (derivedTenantSlug ? `/t/${derivedTenantSlug}${path}` : path),
     [derivedTenantSlug],
@@ -2367,7 +2375,7 @@ export default function Perfil() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3 flex flex-col flex-grow">
-                  {perfil.plan === "pro" || perfil.plan === "full" ? (
+                  {isProOrFullPlan && isAdminUser ? (
                     <Button
                       className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
                       onClick={() => {
@@ -2384,10 +2392,16 @@ export default function Perfil() {
                     <Button
                       className="w-full bg-muted text-muted-foreground cursor-not-allowed"
                       disabled
-                      title="Solo para clientes con Plan PRO o FULL"
+                      title={
+                        !isProOrFullPlan
+                          ? "Solo para clientes con Plan PRO o FULL"
+                          : "Solo administradores pueden gestionar la integración"
+                      }
                       style={{ pointerEvents: "none" }}
                     >
-                      Plan PRO requerido para activar integración
+                      {!isProOrFullPlan
+                        ? "Plan PRO requerido para activar integración"
+                        : "Acceso disponible solo para administradores"}
                     </Button>
                   )}
                   <div className="flex-grow flex items-center justify-center p-4">
@@ -2395,7 +2409,8 @@ export default function Perfil() {
                   </div>
                   <div className="text-xs text-muted-foreground mt-auto pt-2">
                     Accedé a los códigos e instrucciones para pegar el widget de
-                    Chatboc en tu web solo si tu plan es PRO o superior.
+                    Chatboc en tu web solo si tu plan es PRO o superior y tenés
+                    rol de administrador.
                     <br />
                     Cualquier duda, escribinos a{" "}
                     <a
