@@ -20,6 +20,11 @@ Este documento resume cómo restaurar la funcionalidad del tenant Junín en ento
 - Revisa que el HTML público del widget (p.ej., `municipiojunin.html`) incluya el token y slug `junin` correctos y que `base_chat_url` apunte a la instancia de Chatboc configurada.
 - Mantén los textos del widget white-label: logos, mensajes de bienvenida y enlaces deben venir del backend o del JSON de configuración (`data/municipios/junin/config.json`).
 
+### WhatsApp oficial
+- Usa siempre el número verificado `+1 743 264-3718` como `whatsapp_oficial` en la configuración del tenant `municipio`.
+- Si aplicas el seed CLI sugerido para Junín, ajusta el bloque de configuración para que defina `config["whatsapp_oficial"] = "+17432643718"` antes de guardar el `TenantProfile`.
+- Los enlaces de WhatsApp del widget/PWA deben construirse a partir de ese campo (por ejemplo, `https://wa.me/17432643718`).
+
 ## Buenas prácticas
 - No hardcodear textos específicos de Junín en componentes React; cualquier personalización debe residir en configuración/JSON.
 - Tras migraciones o seeds, validar login, carga de encuestas y catálogo, y el flujo de puntos/canje en checkout.
