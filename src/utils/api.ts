@@ -119,6 +119,9 @@ const inferTenantSlug = (explicitTenant?: string | null): string | null => {
   return null;
 };
 
+export const resolveTenantSlug = (explicitTenant?: string | null): string | null =>
+  inferTenantSlug(explicitTenant);
+
 const shouldLogVerboseApi = (): boolean => {
   const metaEnv =
     typeof import.meta !== "undefined" && (import.meta as any)?.env
@@ -318,7 +321,14 @@ export async function apiFetch<T>(
     if (!slug) return rawPath;
 
     try {
-      const url = new URL(rawPath, "http://placeholder");
+      const isAbsolute = /^https?:\/\//i.test(rawPath);
+      const placeholderBase =
+        typeof window !== "undefined" && window.location?.origin
+          ? window.location.origin
+          : "http://placeholder";
+      const url = isAbsolute
+        ? new URL(rawPath)
+        : new URL(rawPath, placeholderBase);
       const hasTenantParam = url.searchParams.has("tenant");
       const hasTenantSlugParam = url.searchParams.has("tenant_slug");
 
@@ -330,6 +340,10 @@ export async function apiFetch<T>(
         url.searchParams.set("tenant", slug);
       }
 
+      if (isAbsolute) {
+        return url.toString();
+      }
+
       const normalizedPathname = url.pathname.replace(/^\//, "");
       return `${normalizedPathname}${url.search}${url.hash}`;
     } catch (error) {
@@ -338,7 +352,8 @@ export async function apiFetch<T>(
     }
   };
 
-  const normalizedPath = path.replace(/^\/+/, "");
+  const isAbsolutePath = /^https?:\/\//i.test(path);
+  const normalizedPath = isAbsolutePath ? path : path.replace(/^\/+/, "");
   const normalizedPathWithTenant = appendTenantQueryParams(
     normalizedPath,
     resolvedTenantSlug,
@@ -367,20 +382,24 @@ export async function apiFetch<T>(
     return `${cleanBase}/${pathForBase}`;
   };
 
-  const candidateBases = preferredBase
-    ? [preferredBase.replace(/\/$/, "")]
-    : API_BASE_CANDIDATES.length
-      ? API_BASE_CANDIDATES
-      : [BASE_API_URL].filter((value): value is string => !!value);
+  const candidateBases = isAbsolutePath
+    ? []
+    : preferredBase
+      ? [preferredBase.replace(/\/$/, "")]
+      : API_BASE_CANDIDATES.length
+        ? API_BASE_CANDIDATES
+        : [BASE_API_URL].filter((value): value is string => !!value);
 
   const currentOrigin =
     typeof window !== "undefined" && window.location?.origin
       ? window.location.origin.replace(/\/$/, "")
       : "";
   const fallbackUrl =
-    !preferredBase && !candidateBases.length && !!currentOrigin ? `/${normalizedPathWithTenant}` : "";
+    !preferredBase && !isAbsolutePath && !candidateBases.length && !!currentOrigin
+      ? `/${normalizedPathWithTenant}`
+      : "";
 
-  let url = buildUrl(candidateBases[0] || "");
+  let url = isAbsolutePath ? normalizedPathWithTenant : buildUrl(candidateBases[0] || "");
   const headers: Record<string, string> = options.headers
     ? { ...options.headers }
     : {};
@@ -406,6 +425,7 @@ export async function apiFetch<T>(
 
   if (resolvedTenantSlug) {
     headers["X-Tenant"] = resolvedTenantSlug;
+    headers["X-Tenant-Id"] = resolvedTenantSlug;
   }
   // Si el endpoint necesita identificar usuario anónimo, mandá siempre el header "Anon-Id"
   if (((!token && anonId) || sendAnonId) && anonId) {
@@ -451,6 +471,14 @@ export async function apiFetch<T>(
 
   let response: Response | null = null;
   let lastError: unknown = null;
+
+  if (isAbsolutePath) {
+    try {
+      response = await fetch(url, requestInit);
+    } catch (err) {
+      lastError = err;
+    }
+  }
 
   for (let baseIndex = 0; baseIndex < candidateBases.length; baseIndex++) {
     const base = candidateBases[baseIndex];
