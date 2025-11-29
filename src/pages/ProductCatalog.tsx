@@ -116,8 +116,7 @@ export default function ProductCatalog() {
   useEffect(() => {
     setLoading(true);
     setError(null);
-    const endpoint = currentSlug ? `/pwa/public/${currentSlug}/productos` : '/productos';
-    apiFetch<unknown>(endpoint, sharedRequestOptions)
+    apiFetch<unknown>('/productos', sharedRequestOptions)
       .then((data) => {
         const normalized = normalizeProductsPayload(data, 'ProductCatalog').map((item) =>
           enhanceProductDetails({ ...item, origen: 'api' as const }),

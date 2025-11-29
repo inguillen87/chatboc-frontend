@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Award } from 'lucide-react';
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -545,12 +544,6 @@ export const SurveyForm = ({
         </div>
       </CardHeader>
       <CardContent className="space-y-10">
-        {survey.puntos_recompensa && survey.puntos_recompensa > 0 && (
-          <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-yellow-100 px-3 py-1 text-sm font-medium text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200">
-            <Award className="h-4 w-4" />
-            ¡Ganá {survey.puntos_recompensa} puntos completando esta encuesta!
-          </div>
-        )}
         {submissionErrorTitle && (
           <Alert variant="destructive" className="border-destructive/40 bg-destructive/10 text-left">
             <div className="flex flex-col gap-3">

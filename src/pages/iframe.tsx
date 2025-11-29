@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import React, { useEffect, useState } from "react";
 import ChatWidget from "../components/chat/ChatWidget";
 import { GoogleOAuthProvider } from "@react-oauth/google";
-import { ErrorBoundary } from '../components/ErrorBoundary';
+import ErrorBoundary from '../components/ErrorBoundary';
 import { MemoryRouter, useInRouterContext } from "react-router-dom";
 import { TenantProvider } from "@/context/TenantContext";
 import { getChatbocConfig } from "@/utils/config";

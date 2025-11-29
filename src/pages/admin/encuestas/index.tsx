@@ -8,13 +8,11 @@ import { useSurveyAdmin } from '@/hooks/useSurveyAdmin';
 import type { SurveyAdmin } from '@/types/encuestas';
 import { toast } from '@/components/ui/use-toast';
 import { getAbsolutePublicSurveyUrl } from '@/utils/publicSurveyUrl';
-import { useTenant } from '@/context/TenantContext';
 
 const AdminSurveysIndex = () => {
   const navigate = useNavigate();
-  const { currentSlug } = useTenant();
   const { surveys, isLoadingList, listError, publishSurvey, deleteSurvey, isPublishing, isDeleting, refetchList } =
-    useSurveyAdmin({ tenantSlug: currentSlug });
+    useSurveyAdmin();
   const [publishingId, setPublishingId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
 

@@ -15,7 +15,6 @@ import { getErrorMessage } from '@/utils/api';
 interface UseSurveyAdminOptions {
   id?: number | null;
   listParams?: Record<string, unknown>;
-  tenantSlug?: string;
 }
 
 interface UseSurveyAdminResult {
@@ -42,23 +41,22 @@ const buildListKey = (params?: Record<string, unknown>) =>
 export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAdminResult {
   const queryClient = useQueryClient();
   const normalizedId = useMemo(() => (typeof options.id === 'number' ? options.id : null), [options.id]);
-  const { tenantSlug } = options;
 
   const surveyQuery = useQuery({
-    queryKey: ['survey-admin', normalizedId, tenantSlug],
+    queryKey: ['survey-admin', normalizedId],
     enabled: normalizedId !== null,
-    queryFn: () => (normalizedId !== null ? adminGetSurvey(normalizedId, tenantSlug) : Promise.reject(new Error('No id provided'))),
+    queryFn: () => (normalizedId !== null ? adminGetSurvey(normalizedId) : Promise.reject(new Error('No id provided'))),
   });
 
   const listQuery = useQuery({
-    queryKey: ['survey-admin-list', buildListKey(options.listParams), tenantSlug],
-    queryFn: () => adminListSurveys(options.listParams as any, tenantSlug),
+    queryKey: ['survey-admin-list', buildListKey(options.listParams)],
+    queryFn: () => adminListSurveys(options.listParams as any),
   });
 
   const saveMutation = useMutation({
     mutationFn: async (payload: SurveyDraftPayload) => {
       if (normalizedId === null) throw new Error('No survey id provided');
-      const updated = await adminUpdateSurvey(normalizedId, payload, tenantSlug);
+      const updated = await adminUpdateSurvey(normalizedId, payload);
       await queryClient.invalidateQueries({ queryKey: ['survey-admin', normalizedId] });
       await queryClient.invalidateQueries({ queryKey: ['survey-admin-list'] });
       return updated;
@@ -67,7 +65,7 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
 
   const createMutation = useMutation({
     mutationFn: async (payload: SurveyDraftPayload) => {
-      const created = await adminCreateSurvey(payload, tenantSlug);
+      const created = await adminCreateSurvey(payload);
       await queryClient.invalidateQueries({ queryKey: ['survey-admin-list'] });
       return created;
     },
@@ -77,7 +75,7 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
     mutationFn: async (payload?: { id?: number }) => {
       const targetId = typeof payload?.id === 'number' ? payload.id : normalizedId;
       if (targetId === null) throw new Error('No survey id provided');
-      const published = await adminPublishSurvey(targetId, tenantSlug);
+      const published = await adminPublishSurvey(targetId);
       await queryClient.invalidateQueries({ queryKey: ['survey-admin', targetId] });
       await queryClient.invalidateQueries({ queryKey: ['survey-admin-list'] });
       return published;
@@ -86,7 +84,7 @@ export function useSurveyAdmin(options: UseSurveyAdminOptions = {}): UseSurveyAd
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      await adminDeleteSurvey(id, tenantSlug);
+      await adminDeleteSurvey(id);
       await queryClient.invalidateQueries({ queryKey: ['survey-admin', id] });
       await queryClient.invalidateQueries({ queryKey: ['survey-admin-list'] });
     },

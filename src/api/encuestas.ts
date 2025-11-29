@@ -516,8 +516,8 @@ const normalizeSurveyListResponse = (payload: unknown): SurveyListResponse => {
   return { data: [] };
 };
 
-export const adminListSurveys = async (params?: QueryParams, tenantSlug?: string): Promise<SurveyListResponse> => {
-  const rawResponse = await callAdminSurveyEndpoint<SurveyListResponse | SurveyAdmin[]>(buildQueryString(params), { tenantSlug });
+export const adminListSurveys = async (params?: QueryParams): Promise<SurveyListResponse> => {
+  const rawResponse = await callAdminSurveyEndpoint<SurveyListResponse | SurveyAdmin[]>(buildQueryString(params));
   const normalized = normalizeSurveyListResponse(rawResponse);
   if (!Array.isArray(normalized.data)) {
     return normalized;
@@ -529,71 +529,63 @@ export const adminListSurveys = async (params?: QueryParams, tenantSlug?: string
   };
 };
 
-export const adminCreateSurvey = async (payload: SurveyDraftPayload, tenantSlug?: string): Promise<SurveyAdmin> => {
+export const adminCreateSurvey = async (payload: SurveyDraftPayload): Promise<SurveyAdmin> => {
   const survey = await callAdminSurveyEndpoint<SurveyAdmin>('', {
     method: 'POST',
     body: payload,
-    tenantSlug,
   });
   return normalizeSurveyPreguntas(survey);
 };
 
-export const adminUpdateSurvey = async (id: number, payload: SurveyDraftPayload, tenantSlug?: string): Promise<SurveyAdmin> => {
+export const adminUpdateSurvey = async (id: number, payload: SurveyDraftPayload): Promise<SurveyAdmin> => {
   const survey = await callAdminSurveyEndpoint<SurveyAdmin>(`${id}`, {
     method: 'PUT',
     body: payload,
-    tenantSlug,
   });
   return normalizeSurveyPreguntas(survey);
 };
 
-export const adminDeleteSurvey = (id: number, tenantSlug?: string): Promise<void> =>
+export const adminDeleteSurvey = (id: number): Promise<void> =>
   callAdminSurveyEndpoint(`${id}`, {
     method: 'DELETE',
-    tenantSlug,
   });
 
-export const adminGetSurvey = async (id: number, tenantSlug?: string): Promise<SurveyAdmin> => {
-  const survey = await callAdminSurveyEndpoint<SurveyAdmin>(`${id}`, { tenantSlug });
+export const adminGetSurvey = async (id: number): Promise<SurveyAdmin> => {
+  const survey = await callAdminSurveyEndpoint<SurveyAdmin>(`${id}`);
   return normalizeSurveyPreguntas(survey);
 };
 
-export const adminPublishSurvey = async (id: number, tenantSlug?: string): Promise<SurveyAdmin> => {
+export const adminPublishSurvey = async (id: number): Promise<SurveyAdmin> => {
   const survey = await callAdminSurveyEndpoint<SurveyAdmin>(`${id}/publicar`, {
     method: 'POST',
-    tenantSlug,
   });
   return normalizeSurveyPreguntas(survey);
 };
 
-export const getSummary = (id: number, filtros?: SurveyAnalyticsFilters, tenantSlug?: string): Promise<SurveySummary> =>
-  callAdminSurveyEndpoint(`${id}/analytics/resumen${buildQueryString(filtros)}`, { tenantSlug });
+export const getSummary = (id: number, filtros?: SurveyAnalyticsFilters): Promise<SurveySummary> =>
+  callAdminSurveyEndpoint(`${id}/analytics/resumen${buildQueryString(filtros)}`);
 
 export const getTimeseries = (
   id: number,
   filtros?: SurveyAnalyticsFilters,
-  tenantSlug?: string,
 ): Promise<SurveyTimeseriesPoint[]> =>
-  callAdminSurveyEndpoint(`${id}/analytics/series${buildQueryString(filtros)}`, { tenantSlug });
+  callAdminSurveyEndpoint(`${id}/analytics/series${buildQueryString(filtros)}`);
 
 export const getHeatmap = (
   id: number,
   filtros?: SurveyAnalyticsFilters,
-  tenantSlug?: string,
 ): Promise<SurveyHeatmapPoint[]> =>
-  callAdminSurveyEndpoint(`${id}/analytics/heatmap${buildQueryString(filtros)}`, { tenantSlug });
+  callAdminSurveyEndpoint(`${id}/analytics/heatmap${buildQueryString(filtros)}`);
 
 export const downloadExportCsv = async (
   id: number,
   filtros?: SurveyAnalyticsFilters,
-  tenantSlug?: string,
 ): Promise<Blob> => {
   const responseText = await callAdminSurveyEndpoint<string>(
     `${id}/analytics/export${buildQueryString(filtros)}`,
     {
       method: 'GET',
       headers: { Accept: 'text/csv' },
-      tenantSlug,
     },
   );
   return new Blob([responseText], { type: 'text/csv;charset=utf-8' });
@@ -602,42 +594,35 @@ export const downloadExportCsv = async (
 export const createSnapshot = (
   id: number,
   payload?: { rango?: string },
-  tenantSlug?: string,
 ): Promise<SurveySnapshot> =>
   callAdminSurveyEndpoint(`${id}/snapshots`, {
     method: 'POST',
     body: payload ?? {},
-    tenantSlug,
   });
 
 export const publishSnapshot = (
   id: number,
   snapshotId: number,
-  tenantSlug?: string,
 ): Promise<SurveySnapshot> =>
   callAdminSurveyEndpoint(`${id}/snapshots/${snapshotId}/publicar`, {
     method: 'POST',
-    tenantSlug,
   });
 
 export const verifyResponse = (
   id: number,
   snapshotId: number,
   respuestaId: number,
-  tenantSlug?: string,
 ): Promise<{ ok: boolean; valido: boolean }> =>
   callAdminSurveyEndpoint(`${id}/snapshots/${snapshotId}/verificar`, {
     method: 'POST',
     body: { respuesta_id: respuestaId },
-    tenantSlug,
   });
 
-export const listSnapshots = (id: number, tenantSlug?: string): Promise<SurveySnapshot[]> =>
-  callAdminSurveyEndpoint(`${id}/snapshots`, { tenantSlug });
+export const listSnapshots = (id: number): Promise<SurveySnapshot[]> =>
+  callAdminSurveyEndpoint(`${id}/snapshots`);
 
 export const listSurveyResponses = (
   id: number,
   params?: SurveyResponseFilters,
-  tenantSlug?: string,
 ): Promise<SurveyResponseList> =>
-  callAdminSurveyEndpoint(`${id}/respuestas${buildQueryString(params as QueryParams)}`, { tenantSlug });
+  callAdminSurveyEndpoint(`${id}/respuestas${buildQueryString(params as QueryParams)}`);

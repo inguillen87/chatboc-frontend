@@ -1,63 +1,34 @@
-import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
+import React from 'react';
 
-interface Props {
-  children: ReactNode;
-  fallbackTitle?: string;
+interface ErrorBoundaryProps {
   fallbackMessage?: string;
 }
 
-interface State {
+interface ErrorBoundaryState {
   hasError: boolean;
-  error: Error | null;
 }
 
-export class ErrorBoundary extends Component<Props, State> {
-  constructor(props: Props) {
+class ErrorBoundary extends React.Component<React.PropsWithChildren<ErrorBoundaryProps>, ErrorBoundaryState> {
+  constructor(props: React.PropsWithChildren<ErrorBoundaryProps>) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false };
   }
 
-  static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error };
+  static getDerivedStateFromError(): ErrorBoundaryState {
+    return { hasError: true };
   }
 
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
+  componentDidCatch(error: unknown, info: unknown) {
+    console.error('ErrorBoundary caught an error', error, info);
   }
-
-  handleReload = () => {
-    window.location.reload();
-  };
 
   render() {
     if (this.state.hasError) {
+      const message = this.props.fallbackMessage ||
+        'Ocurrió un error inesperado. Por favor, recargá la página.';
       return (
-        <div className="flex min-h-[50vh] w-full items-center justify-center p-4">
-          <Alert className="max-w-md bg-destructive/5 border-destructive/20">
-            <AlertTitle className="text-destructive font-semibold">
-              {this.props.fallbackTitle || 'Algo salió mal'}
-            </AlertTitle>
-            <AlertDescription className="mt-2 space-y-4">
-              <p className="text-sm text-muted-foreground">
-                {this.props.fallbackMessage || 'Ocurrió un error inesperado al cargar este componente.'}
-              </p>
-              {process.env.NODE_ENV === 'development' && this.state.error && (
-                <pre className="text-xs bg-muted p-2 rounded overflow-auto max-h-32">
-                  {this.state.error.message}
-                </pre>
-              )}
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={this.handleReload}>
-                  Recargar página
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => this.setState({ hasError: false, error: null })}>
-                  Intentar de nuevo
-                </Button>
-              </div>
-            </AlertDescription>
-          </Alert>
+        <div className="p-4 text-center text-red-500">
+          {message}
         </div>
       );
     }
@@ -65,3 +36,5 @@ export class ErrorBoundary extends Component<Props, State> {
     return this.props.children;
   }
 }
+
+export default ErrorBoundary;

@@ -46,7 +46,6 @@ export interface SurveyPublic {
   fin_at: string;
   politica_unicidad: 'por_dni' | 'por_phone' | 'por_ip' | 'por_cookie' | 'libre';
   requiere_datos_contacto?: boolean;
-  puntos_recompensa?: number;
   preguntas: SurveyPregunta[];
   portada_url?: string | null;
   imagen_portada?: string | null;
@@ -130,7 +129,6 @@ export interface SurveyDraftPayload {
   politica_unicidad: SurveyPublic['politica_unicidad'];
   anonimato: boolean;
   requiere_datos_contacto: boolean;
-  puntos_recompensa?: number;
   preguntas: Array<{
     id?: number;
     orden: number;

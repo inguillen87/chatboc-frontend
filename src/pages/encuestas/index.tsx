@@ -16,7 +16,6 @@ import type { PublicSurveyListResult } from '@/api/encuestas';
 import type { SurveyPublic, SurveyTipo } from '@/types/encuestas';
 import { getPublicSurveyQrPageUrl, getPublicSurveyQrUrl, getPublicSurveyUrl } from '@/utils/publicSurveyUrl';
 import { SurveyQrPreview } from '@/components/surveys/SurveyQrPreview';
-import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { usePageMetadata } from '@/hooks/usePageMetadata';
 import {
   buildSurveyDigestMessage,
@@ -634,10 +633,4 @@ const SurveysPublicIndex = () => {
   );
 };
 
-const SurveysPublicIndexWithErrorBoundary = () => (
-  <ErrorBoundary fallbackTitle="No pudimos cargar las encuestas">
-    <SurveysPublicIndex />
-  </ErrorBoundary>
-);
-
-export default SurveysPublicIndexWithErrorBoundary;
+export default SurveysPublicIndex;

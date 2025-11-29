@@ -106,7 +106,6 @@ const buildDraftFromSurvey = (survey?: SurveyAdmin): SurveyDraftPayload => ({
   inicio_at: survey?.inicio_at ?? null,
   fin_at: survey?.fin_at ?? null,
   politica_unicidad: survey?.politica_unicidad ?? 'libre',
-  puntos_recompensa: survey?.puntos_recompensa ?? 0,
   anonimato: survey?.anonimato ?? false,
   requiere_datos_contacto:
     typeof survey?.requiere_datos_contacto === 'boolean'
@@ -159,7 +158,6 @@ const fallbackDraft: SurveyDraftPayload = {
   inicio_at: null,
   fin_at: null,
   politica_unicidad: 'libre',
-  puntos_recompensa: 0,
   anonimato: false,
   requiere_datos_contacto: false,
   preguntas: [],
@@ -419,18 +417,6 @@ export const SurveyEditor = ({
                 ))}
               </SelectContent>
             </Select>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="survey-points">Puntos de recompensa</Label>
-            <Input
-              id="survey-points"
-              type="number"
-              min={0}
-              value={formValues.puntos_recompensa ?? 0}
-              onChange={(event) => setFormValues((prev) => ({ ...prev, puntos_recompensa: Number(event.target.value) }))}
-              placeholder="Ej. 100"
-            />
-            <p className="text-xs text-muted-foreground">Puntos que recibe el usuario al completar la encuesta.</p>
           </div>
           <div className="space-y-2">
             <Label>Política de unicidad</Label>

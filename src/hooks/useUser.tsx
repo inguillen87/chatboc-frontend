@@ -1,5 +1,5 @@
 import React, { useContext, useState, useCallback, useEffect } from 'react';
-import { apiFetch, ApiError } from '@/utils/api';
+import { apiFetch } from '@/utils/api';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { enforceTipoChatForRubro, parseRubro } from '@/utils/tipoChat';
 import { getIframeToken } from '@/utils/config';
@@ -166,18 +166,14 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       safeLocalStorage.setItem('user', JSON.stringify(updated));
       setUser(updated);
     } catch (e) {
-      console.error('Error fetching user profile.', e);
-      // Only logout if explicit auth error (401/403)
-      const isAuthError = e instanceof ApiError && (e.status === 401 || e.status === 403);
-
-      if (isAuthError) {
-        console.warn('Authentication failed, clearing session.');
-        safeLocalStorage.removeItem('user');
-        if (tokenKey) {
-          safeLocalStorage.removeItem(tokenKey);
-        }
-        setUser(null);
+      console.error('Error fetching user profile, logging out.', e);
+      // If fetching the user fails, the token is likely invalid or expired.
+      // Clear the user data and token to force a re-login.
+      safeLocalStorage.removeItem('user');
+      if (tokenKey) {
+        safeLocalStorage.removeItem(tokenKey);
       }
+      setUser(null);
     } finally {
       setLoading(false);
     }

@@ -110,12 +110,9 @@ export default function CartPage() {
     }
 
     try {
-      const cartEndpoint = effectiveTenantSlug ? `/pwa/public/${effectiveTenantSlug}/carrito` : '/carrito';
-      const productsEndpoint = effectiveTenantSlug ? `/pwa/public/${effectiveTenantSlug}/productos` : '/productos';
-
       const [cartApiData, productsApiData] = await Promise.all([
-        apiFetch<unknown>(cartEndpoint, sharedRequestOptions),
-        apiFetch<unknown>(productsEndpoint, sharedRequestOptions),
+        apiFetch<unknown>('/carrito', sharedRequestOptions),
+        apiFetch<unknown>('/productos', sharedRequestOptions),
       ]);
 
       const normalizedProducts = normalizeProductsPayload(productsApiData, 'CartPage');
@@ -208,12 +205,10 @@ export default function CartPage() {
         return;
       }
 
-      const cartEndpoint = effectiveTenantSlug ? `/pwa/public/${effectiveTenantSlug}/carrito` : '/carrito';
-
       if (newQuantity <= 0) {
-        await apiFetch(cartEndpoint, { ...sharedRequestOptions, method: 'DELETE', body: { nombre: productName } });
+        await apiFetch('/carrito', { ...sharedRequestOptions, method: 'DELETE', body: { nombre: productName } });
       } else {
-        await apiFetch(cartEndpoint, { ...sharedRequestOptions, method: 'PUT', body: { nombre: productName, cantidad: newQuantity } });
+        await apiFetch('/carrito', { ...sharedRequestOptions, method: 'PUT', body: { nombre: productName, cantidad: newQuantity } });
       }
       // No es necesario llamar a loadCartData() aquí si el backend confirma la acción,
       // la UI ya está actualizada optimisticamente. Si se quiere re-sincronizar:
