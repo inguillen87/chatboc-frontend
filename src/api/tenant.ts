@@ -67,12 +67,13 @@ const coerceTenantSummary = (input: unknown): TenantSummary | null => {
 const normalizeTenantInfo = (
   payload: unknown,
   fallbackSlug: string,
+  forceSlug?: string | null,
 ): TenantPublicInfo => {
   if (!isRecord(payload)) {
     throw new Error('El backend devolvió un formato inesperado para el espacio solicitado.');
   }
 
-  const slug = coerceString(payload.slug) ?? fallbackSlug;
+  const slug = forceSlug ?? coerceString(payload.slug) ?? fallbackSlug;
   if (!slug) {
     throw new Error('No se pudo identificar el tenant solicitado.');
   }
@@ -181,20 +182,26 @@ const sanitizeTenant = (raw?: string | null) => {
   return PLACEHOLDER_SLUGS.has(normalized.toLowerCase()) ? null : normalized;
 };
 
-export async function getTenantPublicInfoFlexible(
-  slug?: string | null,
-  widgetToken?: string | null,
-): Promise<TenantPublicInfo> {
-  const safeSlug = sanitizeTenant(slug);
-  const safeWidgetToken = normalizeEntityToken(widgetToken) ?? null;
+type TenantResolveOptions = {
+  slug?: string | null;
+  widgetToken?: string | null;
+  forceSlug?: string | null;
+};
 
+const resolveTenantInfo = async ({
+  slug,
+  widgetToken,
+  forceSlug,
+}: TenantResolveOptions): Promise<TenantPublicInfo> => {
   const params = new URLSearchParams();
-  if (safeSlug) params.set('tenant', safeSlug);
-  if (safeWidgetToken) params.set('widget_token', safeWidgetToken);
+  if (slug) params.set('tenant', slug);
+  if (widgetToken) params.set('widget_token', widgetToken);
 
-  try {
-    const response = await apiFetch<unknown>(`/api/pwa/tenant-info${params.toString() ? `?${params.toString()}` : ''}`, {
-      tenantSlug: safeSlug ?? undefined,
+  const fallbackSlug = slug ?? widgetToken ?? '';
+
+  const fetchCandidate = async (endpoint: string) =>
+    apiFetch<unknown>(`${endpoint}${params.toString() ? `?${params.toString()}` : ''}`, {
+      tenantSlug: slug ?? undefined,
       skipAuth: true,
       omitCredentials: true,
       isWidgetRequest: true,
@@ -202,15 +209,68 @@ export async function getTenantPublicInfoFlexible(
       sendAnonId: true,
     });
 
-    return normalizeTenantInfo(response, safeSlug ?? safeWidgetToken ?? '');
+  try {
+    const response = await fetchCandidate('/api/pwa/tenant-info');
+    return normalizeTenantInfo(response, fallbackSlug, forceSlug);
   } catch (primaryError) {
-    if (!safeSlug) {
-      throw primaryError;
-    }
+    try {
+      const response = await fetchCandidate('/pwa/tenant-info');
+      return normalizeTenantInfo(response, fallbackSlug, forceSlug);
+    } catch (secondaryError) {
+      if (!slug && !widgetToken) {
+        throw secondaryError;
+      }
 
-    // Fallback al endpoint anterior si existe el slug
-    return getTenantPublicInfo(safeSlug);
+      const legacyResponse = await apiFetch<unknown>('/public/tenant', {
+        tenantSlug: slug ?? undefined,
+        skipAuth: true,
+        omitCredentials: true,
+        isWidgetRequest: true,
+        omitChatSessionId: true,
+        sendAnonId: true,
+      });
+
+      return normalizeTenantInfo(legacyResponse, fallbackSlug, forceSlug);
+    }
   }
+};
+
+export async function getTenantPublicInfoFlexible(
+  slug?: string | null,
+  widgetToken?: string | null,
+): Promise<TenantPublicInfo> {
+  const safeSlug = sanitizeTenant(slug);
+  const safeWidgetToken = normalizeEntityToken(widgetToken) ?? null;
+
+  if (safeSlug) {
+    try {
+      // Prioriza la resolución por slug explícito sin el widget token para evitar cruces de tenant.
+      return await resolveTenantInfo({ slug: safeSlug, forceSlug: safeSlug });
+    } catch (slugError) {
+      if (!safeWidgetToken) {
+        throw slugError;
+      }
+
+      // Si el slug falló, probamos con el widget token como alternativa.
+      const info = await resolveTenantInfo({
+        slug: safeSlug,
+        widgetToken: safeWidgetToken,
+        forceSlug: safeSlug,
+      });
+
+      if (info.slug !== safeSlug) {
+        return { ...info, slug: safeSlug };
+      }
+
+      return info;
+    }
+  }
+
+  if (safeWidgetToken) {
+    return resolveTenantInfo({ widgetToken: safeWidgetToken });
+  }
+
+  throw new Error('No se pudo identificar el tenant solicitado.');
 }
 
 export async function listTenantNews(slug: string): Promise<TenantNewsItem[]> {
