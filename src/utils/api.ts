@@ -119,6 +119,9 @@ const inferTenantSlug = (explicitTenant?: string | null): string | null => {
   return null;
 };
 
+export const resolveTenantSlug = (explicitTenant?: string | null): string | null =>
+  inferTenantSlug(explicitTenant);
+
 const shouldLogVerboseApi = (): boolean => {
   const metaEnv =
     typeof import.meta !== "undefined" && (import.meta as any)?.env
@@ -314,11 +317,51 @@ export async function apiFetch<T>(
   const shouldAttachChatSession = !omitChatSessionId;
   const chatSessionId = shouldAttachChatSession ? getOrCreateChatSessionId() : null; // Get or create the chat session ID
 
-  const normalizedPath = path.replace(/^\/+/, "");
-  const hasApiPrefix = normalizedPath.startsWith("api/");
+  const appendTenantQueryParams = (rawPath: string, slug: string | null) => {
+    if (!slug) return rawPath;
+
+    try {
+      const isAbsolute = /^https?:\/\//i.test(rawPath);
+      const placeholderBase =
+        typeof window !== "undefined" && window.location?.origin
+          ? window.location.origin
+          : "http://placeholder";
+      const url = isAbsolute
+        ? new URL(rawPath)
+        : new URL(rawPath, placeholderBase);
+      const hasTenantParam = url.searchParams.has("tenant");
+      const hasTenantSlugParam = url.searchParams.has("tenant_slug");
+
+      if (!hasTenantSlugParam) {
+        url.searchParams.set("tenant_slug", slug);
+      }
+
+      if (!hasTenantParam) {
+        url.searchParams.set("tenant", slug);
+      }
+
+      if (isAbsolute) {
+        return url.toString();
+      }
+
+      const normalizedPathname = url.pathname.replace(/^\//, "");
+      return `${normalizedPathname}${url.search}${url.hash}`;
+    } catch (error) {
+      console.warn("[apiFetch] No se pudieron adjuntar query params de tenant", error);
+      return rawPath;
+    }
+  };
+
+  const isAbsolutePath = /^https?:\/\//i.test(path);
+  const normalizedPath = isAbsolutePath ? path : path.replace(/^\/+/, "");
+  const normalizedPathWithTenant = appendTenantQueryParams(
+    normalizedPath,
+    resolvedTenantSlug,
+  );
+  const hasApiPrefix = normalizedPathWithTenant.startsWith("api/");
   const pathWithoutApiPrefix = hasApiPrefix
-    ? normalizedPath.replace(/^api\/+/, "")
-    : normalizedPath;
+    ? normalizedPathWithTenant.replace(/^api\/+/, "")
+    : normalizedPathWithTenant;
   const preferredBase =
     typeof baseUrlOverride === "string" && baseUrlOverride.trim()
       ? baseUrlOverride.trim()
@@ -328,31 +371,35 @@ export async function apiFetch<T>(
     const cleanBase = (base || "").replace(/\/$/, "");
 
     if (!cleanBase) {
-      return `/${trimApiPrefix ? pathWithoutApiPrefix : normalizedPath}`;
+      return `/${trimApiPrefix ? pathWithoutApiPrefix : normalizedPathWithTenant}`;
     }
 
     const isApiBase = cleanBase.endsWith("/api") || cleanBase === "/api";
     const pathForBase = trimApiPrefix || isApiBase
       ? pathWithoutApiPrefix
-      : normalizedPath;
+      : normalizedPathWithTenant;
 
     return `${cleanBase}/${pathForBase}`;
   };
 
-  const candidateBases = preferredBase
-    ? [preferredBase.replace(/\/$/, "")]
-    : API_BASE_CANDIDATES.length
-      ? API_BASE_CANDIDATES
-      : [BASE_API_URL].filter((value): value is string => !!value);
+  const candidateBases = isAbsolutePath
+    ? []
+    : preferredBase
+      ? [preferredBase.replace(/\/$/, "")]
+      : API_BASE_CANDIDATES.length
+        ? API_BASE_CANDIDATES
+        : [BASE_API_URL].filter((value): value is string => !!value);
 
   const currentOrigin =
     typeof window !== "undefined" && window.location?.origin
       ? window.location.origin.replace(/\/$/, "")
       : "";
   const fallbackUrl =
-    !preferredBase && !candidateBases.length && !!currentOrigin ? `/${normalizedPath}` : "";
+    !preferredBase && !isAbsolutePath && !candidateBases.length && !!currentOrigin
+      ? `/${normalizedPathWithTenant}`
+      : "";
 
-  let url = buildUrl(candidateBases[0] || "");
+  let url = isAbsolutePath ? normalizedPathWithTenant : buildUrl(candidateBases[0] || "");
   const headers: Record<string, string> = options.headers
     ? { ...options.headers }
     : {};
@@ -378,6 +425,7 @@ export async function apiFetch<T>(
 
   if (resolvedTenantSlug) {
     headers["X-Tenant"] = resolvedTenantSlug;
+    headers["X-Tenant-Id"] = resolvedTenantSlug;
   }
   // Si el endpoint necesita identificar usuario anónimo, mandá siempre el header "Anon-Id"
   if (((!token && anonId) || sendAnonId) && anonId) {
@@ -423,6 +471,14 @@ export async function apiFetch<T>(
 
   let response: Response | null = null;
   let lastError: unknown = null;
+
+  if (isAbsolutePath) {
+    try {
+      response = await fetch(url, requestInit);
+    } catch (err) {
+      lastError = err;
+    }
+  }
 
   for (let baseIndex = 0; baseIndex < candidateBases.length; baseIndex++) {
     const base = candidateBases[baseIndex];
