@@ -1,5 +1,5 @@
 import React, { useContext, useState, useCallback, useEffect } from 'react';
-import { apiFetch } from '@/utils/api';
+import { apiFetch, ApiError } from '@/utils/api';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { enforceTipoChatForRubro, parseRubro } from '@/utils/tipoChat';
 import { getIframeToken } from '@/utils/config';
@@ -166,27 +166,33 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       safeLocalStorage.setItem('user', JSON.stringify(updated));
       setUser(updated);
     } catch (e) {
-      console.error('Error fetching user profile, logging out.', e);
-      // If fetching the user fails, the token is likely invalid or expired.
-      // Clear the user data and token to force a re-login.
-      safeLocalStorage.removeItem('user');
-      if (tokenKey) {
-        safeLocalStorage.removeItem(tokenKey);
+      const status = e instanceof ApiError ? e.status : (e as any)?.status;
+
+      if (status === 401 || status === 403) {
+        console.error('Auth error fetching user profile, logging out.', e);
+        // If fetching the user fails due to auth, clear session to force re-login.
+        safeLocalStorage.removeItem('user');
+        if (tokenKey) {
+          safeLocalStorage.removeItem(tokenKey);
+        }
+        setUser(null);
+      } else {
+        // Network or server errors shouldn't drop an otherwise valid session.
+        console.warn('Transient error fetching user profile. Preserving session.', e);
       }
-      setUser(null);
     } finally {
       setLoading(false);
     }
   }, []);
 
-    useEffect(() => {
-      const token =
-        getValidStoredToken('authToken') ||
-        getValidStoredToken('chatAuthToken');
-      if (token && (!user || !user.rubro)) {
-        refreshUser();
-      }
-    }, [refreshUser, user]);
+  useEffect(() => {
+    const token =
+      getValidStoredToken('authToken') ||
+      getValidStoredToken('chatAuthToken');
+    if (token && (!user || !user.rubro)) {
+      refreshUser();
+    }
+  }, [refreshUser, user]);
 
   return (
     <UserContext.Provider value={{ user, setUser, refreshUser, loading }}>

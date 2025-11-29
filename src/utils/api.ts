@@ -314,11 +314,39 @@ export async function apiFetch<T>(
   const shouldAttachChatSession = !omitChatSessionId;
   const chatSessionId = shouldAttachChatSession ? getOrCreateChatSessionId() : null; // Get or create the chat session ID
 
+  const appendTenantQueryParams = (rawPath: string, slug: string | null) => {
+    if (!slug) return rawPath;
+
+    try {
+      const url = new URL(rawPath, "http://placeholder");
+      const hasTenantParam = url.searchParams.has("tenant");
+      const hasTenantSlugParam = url.searchParams.has("tenant_slug");
+
+      if (!hasTenantSlugParam) {
+        url.searchParams.set("tenant_slug", slug);
+      }
+
+      if (!hasTenantParam) {
+        url.searchParams.set("tenant", slug);
+      }
+
+      const normalizedPathname = url.pathname.replace(/^\//, "");
+      return `${normalizedPathname}${url.search}${url.hash}`;
+    } catch (error) {
+      console.warn("[apiFetch] No se pudieron adjuntar query params de tenant", error);
+      return rawPath;
+    }
+  };
+
   const normalizedPath = path.replace(/^\/+/, "");
-  const hasApiPrefix = normalizedPath.startsWith("api/");
+  const normalizedPathWithTenant = appendTenantQueryParams(
+    normalizedPath,
+    resolvedTenantSlug,
+  );
+  const hasApiPrefix = normalizedPathWithTenant.startsWith("api/");
   const pathWithoutApiPrefix = hasApiPrefix
-    ? normalizedPath.replace(/^api\/+/, "")
-    : normalizedPath;
+    ? normalizedPathWithTenant.replace(/^api\/+/, "")
+    : normalizedPathWithTenant;
   const preferredBase =
     typeof baseUrlOverride === "string" && baseUrlOverride.trim()
       ? baseUrlOverride.trim()
@@ -328,13 +356,13 @@ export async function apiFetch<T>(
     const cleanBase = (base || "").replace(/\/$/, "");
 
     if (!cleanBase) {
-      return `/${trimApiPrefix ? pathWithoutApiPrefix : normalizedPath}`;
+      return `/${trimApiPrefix ? pathWithoutApiPrefix : normalizedPathWithTenant}`;
     }
 
     const isApiBase = cleanBase.endsWith("/api") || cleanBase === "/api";
     const pathForBase = trimApiPrefix || isApiBase
       ? pathWithoutApiPrefix
-      : normalizedPath;
+      : normalizedPathWithTenant;
 
     return `${cleanBase}/${pathForBase}`;
   };
@@ -350,7 +378,7 @@ export async function apiFetch<T>(
       ? window.location.origin.replace(/\/$/, "")
       : "";
   const fallbackUrl =
-    !preferredBase && !candidateBases.length && !!currentOrigin ? `/${normalizedPath}` : "";
+    !preferredBase && !candidateBases.length && !!currentOrigin ? `/${normalizedPathWithTenant}` : "";
 
   let url = buildUrl(candidateBases[0] || "");
   const headers: Record<string, string> = options.headers
