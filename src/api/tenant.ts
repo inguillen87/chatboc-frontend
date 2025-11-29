@@ -204,12 +204,34 @@ export async function getTenantPublicInfoFlexible(
 
     return normalizeTenantInfo(response, safeSlug ?? safeWidgetToken ?? '');
   } catch (primaryError) {
-    if (!safeSlug) {
-      throw primaryError;
-    }
+    try {
+      const response = await apiFetch<unknown>(`/pwa/tenant-info${params.toString() ? `?${params.toString()}` : ''}`, {
+        tenantSlug: safeSlug ?? undefined,
+        skipAuth: true,
+        omitCredentials: true,
+        isWidgetRequest: true,
+        omitChatSessionId: true,
+        sendAnonId: true,
+      });
 
-    // Fallback al endpoint anterior si existe el slug
-    return getTenantPublicInfo(safeSlug);
+      return normalizeTenantInfo(response, safeSlug ?? safeWidgetToken ?? '');
+    } catch (secondaryError) {
+      if (!safeSlug && !safeWidgetToken) {
+        throw secondaryError;
+      }
+
+      // Fallback al endpoint anterior, permitiendo resolver por widget_token cuando no hay slug
+      const legacyResponse = await apiFetch<unknown>('/public/tenant', {
+        tenantSlug: safeSlug ?? undefined,
+        skipAuth: true,
+        omitCredentials: true,
+        isWidgetRequest: true,
+        omitChatSessionId: true,
+        sendAnonId: true,
+      });
+
+      return normalizeTenantInfo(legacyResponse, safeSlug ?? safeWidgetToken ?? '');
+    }
   }
 }
 
