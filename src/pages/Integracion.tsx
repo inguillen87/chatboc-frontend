@@ -91,6 +91,9 @@ const Integracion = () => {
   const [widgetDomain, setWidgetDomain] = useState<string>(() =>
     typeof window !== "undefined" ? window.location.origin : ""
   );
+  const [widgetId, setWidgetId] = useState(() =>
+    typeof window !== "undefined" ? `chatboc-${window.crypto?.randomUUID?.() || Date.now()}` : "chatboc-widget"
+  );
   const [openWidth, setOpenWidth] = useState("460px");
   const [openHeight, setOpenHeight] = useState("680px");
   const [closedWidth, setClosedWidth] = useState("112px");
@@ -160,6 +163,17 @@ const Integracion = () => {
   const endpoint = useMemo(() => {
     if (!user?.tipo_chat) return "pyme"; // Default or handle error
     return user.tipo_chat === "municipio" ? "municipio" : "pyme";
+  }, [user?.tipo_chat]);
+  const isMunicipal = endpoint === "municipio";
+
+  useEffect(() => {
+    if (!user?.tipo_chat || catalogTouched.current) return;
+    if (user.tipo_chat === "municipio") {
+      setEnableCatalog(false);
+      setRequireLoginForCatalog(false);
+      return;
+    }
+    setEnableCatalog(true);
   }, [user?.tipo_chat]);
 
   useEffect(() => {
@@ -265,6 +279,7 @@ const Integracion = () => {
     if (welcomeTitle) attrs["data-welcome-title"] = welcomeTitle;
     if (welcomeSubtitle) attrs["data-welcome-subtitle"] = welcomeSubtitle;
     if (widgetDomain) attrs["data-domain"] = widgetDomain;
+    if (widgetId) attrs["data-widget-id"] = widgetId;
     if (theme !== "auto") attrs["data-theme"] = theme;
 
     attrs["data-show-catalog"] = enableCatalog ? "true" : "false";
@@ -674,6 +689,37 @@ const Integracion = () => {
           </CardContent>
         </Card>
 
+        <Card className="mb-2">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Layout className="h-5 w-5 text-primary" /> Resumen de la experiencia
+            </CardTitle>
+            <CardDescription>Revisa de un vistazo cómo quedará tu widget antes de copiar el código.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-lg border p-3 flex flex-col gap-1">
+              <p className="text-xs text-muted-foreground">Tipo de chat</p>
+              <p className="font-semibold">{endpoint === "pyme" ? "Comercial / Pyme" : "Institucional"}</p>
+              <p className="text-xs text-muted-foreground">El endpoint determina menús y tono de conversación.</p>
+            </div>
+            <div className="rounded-lg border p-3 flex flex-col gap-1">
+              <p className="text-xs text-muted-foreground">Marketplace</p>
+              <p className="font-semibold">{enableCatalog && !isMunicipal ? "Catálogo visible" : "Catálogo oculto"}</p>
+              <p className="text-xs text-muted-foreground">{requireLoginForCatalog ? "Se pedirá login antes de comprar o canjear." : "Acceso directo al catálogo cuando esté activo."}</p>
+            </div>
+            <div className="rounded-lg border p-3 flex flex-col gap-1">
+              <p className="text-xs text-muted-foreground">Dominio y seguridad</p>
+              <p className="font-semibold break-words">{widgetDomain || "Dominio no establecido"}</p>
+              <p className="text-xs text-muted-foreground">Mantiene coherencia de sesión y evita widgets duplicados.</p>
+            </div>
+            <div className="rounded-lg border p-3 flex flex-col gap-1">
+              <p className="text-xs text-muted-foreground">Identificador del widget</p>
+              <p className="font-semibold break-words">{widgetId}</p>
+              <p className="text-xs text-muted-foreground">Úsalo para diferenciar lanzadores en tu sitio.</p>
+            </div>
+          </CardContent>
+        </Card>
+
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
@@ -772,6 +818,16 @@ const Integracion = () => {
                 onChange={(e) => setWidgetDomain(e.target.value)}
               />
               <p className="text-xs text-muted-foreground">Usamos este dominio para evitar duplicados y mantener la sesión en el mismo origen.</p>
+            </div>
+            <div className="flex flex-col space-y-2 sm:col-span-2">
+              <Label htmlFor="widgetId">Identificador único del widget</Label>
+              <Input
+                id="widgetId"
+                placeholder="chatboc-widget-principal"
+                value={widgetId}
+                onChange={(e) => setWidgetId(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">Sirve para distinguir múltiples instancias en pruebas A/B y prevenir lanzadores duplicados.</p>
             </div>
           </CardContent>
         </Card>
@@ -875,12 +931,15 @@ const Integracion = () => {
             <div className="flex items-center justify-between rounded-lg border p-3">
               <div>
                 <Label htmlFor="enableCatalog">Mostrar catálogo en el widget</Label>
-                <p className="text-xs text-muted-foreground">Ideal para pymes. Para entidades públicas puedes dejarlo apagado.</p>
+                <p className="text-xs text-muted-foreground">
+                  Ideal para experiencias con marketplace. Se desactiva automáticamente en entornos formales.
+                </p>
               </div>
               <Switch
                 id="enableCatalog"
                 checked={enableCatalog}
                 onCheckedChange={(value) => handleCatalogToggle(Boolean(value))}
+                disabled={isMunicipal}
               />
             </div>
             <div className="flex items-center justify-between rounded-lg border p-3">
@@ -895,6 +954,11 @@ const Integracion = () => {
                 disabled={!enableCatalog}
               />
             </div>
+            {isMunicipal && (
+              <p className="text-xs text-muted-foreground pl-1">
+                Este perfil es institucional, por lo que ocultamos catálogo y login comercial para mantener la experiencia formal.
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>
