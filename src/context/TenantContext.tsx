@@ -192,6 +192,12 @@ const resolveTenantBootstrap = (
     return fromScripts;
   }
 
+  const storedSlug = sanitizeTenantSlug(safeLocalStorage.getItem('tenantSlug'));
+
+  if (storedSlug) {
+    return { slug: storedSlug, widgetToken: null };
+  }
+
   return { slug: sanitizeTenantSlug(readTenantFromSubdomain()), widgetToken: null };
 };
 
