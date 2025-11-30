@@ -21,6 +21,7 @@ import { getErrorMessage } from '@/utils/api';
 import { ensureRemoteAnonId } from '@/utils/anonId';
 import { normalizeEntityToken } from '@/utils/entityToken';
 import { TENANT_ROUTE_PREFIXES } from '@/utils/tenantPaths';
+import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 interface TenantContextValue {
   currentSlug: string | null;
@@ -267,6 +268,15 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
       console.warn('[TenantContext] No se pudo asegurar anon_id remoto', error);
     });
   }, [widgetToken]);
+
+  useEffect(() => {
+    const sanitized = sanitizeTenantSlug(currentSlugRef.current);
+    if (sanitized) {
+      safeLocalStorage.setItem('tenantSlug', sanitized);
+    } else {
+      safeLocalStorage.removeItem('tenantSlug');
+    }
+  }, [currentSlug]);
 
   useEffect(() => {
     if (!tenant?.tema || typeof document === 'undefined') return;
