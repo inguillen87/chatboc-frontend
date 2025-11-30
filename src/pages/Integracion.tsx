@@ -177,6 +177,16 @@ const Integracion = () => {
   }, [user?.tipo_chat]);
 
   useEffect(() => {
+    if (!user?.tipo_chat || catalogTouched.current) return;
+    if (user.tipo_chat === "municipio") {
+      setEnableCatalog(false);
+      setRequireLoginForCatalog(false);
+      return;
+    }
+    setEnableCatalog(true);
+  }, [user?.tipo_chat]);
+
+  useEffect(() => {
     if (!user) return;
 
     const token = resolveOwnerToken(user);
