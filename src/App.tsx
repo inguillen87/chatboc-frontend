@@ -30,6 +30,10 @@ function AppRoutes() {
   const location = useLocation();
   useTicketUpdates();
 
+  const layoutExcludedPaths = ['/iframe'];
+  const layoutRoutes = routes.filter(({ path }) => !layoutExcludedPaths.includes(path));
+  const standaloneRoutes = routes.filter(({ path }) => layoutExcludedPaths.includes(path));
+
   // Ahora el array soporta rutas exactas y subrutas tipo "/integracion/preview"
   const rutasSinWidget = [
     '/',
@@ -55,7 +59,7 @@ function AppRoutes() {
     <TenantProvider>
       <Routes>
         <Route element={<Layout />}>
-          {routes.map(({ path, element, roles }) => (
+          {layoutRoutes.map(({ path, element, roles }) => (
             <Route
               key={path} // La key ya estaba correctamente aquí. No se requieren cambios.
               path={path}
@@ -69,6 +73,13 @@ function AppRoutes() {
             />
           ))}
         </Route>
+        {standaloneRoutes.map(({ path, element, roles }) => (
+          <Route
+            key={path}
+            path={path}
+            element={roles ? <ProtectedRoute roles={roles}>{element}</ProtectedRoute> : element}
+          />
+        ))}
         <Route path="*" element={<NotFound />} />
       </Routes>
 

@@ -65,6 +65,16 @@ const readTenantFromStoredUser = () => {
   }
 };
 
+const readTenantFromStorageKey = () => {
+  try {
+    const candidate = safeLocalStorage.getItem("tenantSlug");
+    return typeof candidate === "string" ? candidate : null;
+  } catch (error) {
+    console.warn("[apiFetch] No se pudo leer tenantSlug de localStorage", error);
+    return null;
+  }
+};
+
 const sanitizeTenantSlug = (slug?: string | null) => {
   if (!slug || typeof slug !== "string") return null;
   const normalized = slug.trim();
@@ -78,6 +88,9 @@ const inferTenantSlug = (explicitTenant?: string | null): string | null => {
 
   const storedUserTenant = sanitizeTenantSlug(readTenantFromStoredUser());
   if (storedUserTenant) return storedUserTenant;
+
+  const storedTenantSlug = sanitizeTenantSlug(readTenantFromStorageKey());
+  if (storedTenantSlug) return storedTenantSlug;
 
   if (typeof window === "undefined") return null;
 
