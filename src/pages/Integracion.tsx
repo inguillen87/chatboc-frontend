@@ -30,7 +30,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Copy, Check, Code, HelpCircle, AlertTriangle, Settings, Info, Eye, RefreshCw } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import {
+  Copy,
+  Check,
+  Code,
+  HelpCircle,
+  AlertTriangle,
+  Settings,
+  Info,
+  Eye,
+  RefreshCw,
+  ShieldCheck,
+  Wand2,
+  Layout,
+} from "lucide-react";
 
 const slugify = (value?: string | null) => {
   if (!value) return null;
@@ -68,8 +82,30 @@ const Integracion = () => {
   const [headerLogoUrl, setHeaderLogoUrl] = useState("");
   const [welcomeTitle, setWelcomeTitle] = useState("");
   const [welcomeSubtitle, setWelcomeSubtitle] = useState("");
+  const [defaultOpen, setDefaultOpen] = useState(false);
+  const [theme, setTheme] = useState<"light" | "dark" | "auto">("auto");
+  const [allowAttachments, setAllowAttachments] = useState(true);
+  const [allowLocation, setAllowLocation] = useState(true);
+  const [allowAudio, setAllowAudio] = useState(true);
+  const [zIndex, setZIndex] = useState("100000");
+  const [widgetDomain, setWidgetDomain] = useState<string>(() =>
+    typeof window !== "undefined" ? window.location.origin : ""
+  );
+  const [widgetId, setWidgetId] = useState(() =>
+    typeof window !== "undefined" ? `chatboc-${window.crypto?.randomUUID?.() || Date.now()}` : "chatboc-widget"
+  );
+  const [openWidth, setOpenWidth] = useState("460px");
+  const [openHeight, setOpenHeight] = useState("680px");
+  const [closedWidth, setClosedWidth] = useState("112px");
+  const [closedHeight, setClosedHeight] = useState("112px");
+  const [offsetBottom, setOffsetBottom] = useState("20px");
+  const [offsetRight, setOffsetRight] = useState("20px");
+  const [enableCatalog, setEnableCatalog] = useState(false);
+  const [requireLoginForCatalog, setRequireLoginForCatalog] = useState(false);
+  const [enableFloatingPreview, setEnableFloatingPreview] = useState(false);
   const [ownerToken, setOwnerToken] = useState<string | null>(() => getStoredEntityToken());
   const tokenAlertShown = useRef(false);
+  const catalogTouched = useRef(false);
 
   const validarAcceso = (currentUser: User | null) => {
     if (!currentUser) {
@@ -127,6 +163,17 @@ const Integracion = () => {
   const endpoint = useMemo(() => {
     if (!user?.tipo_chat) return "pyme"; // Default or handle error
     return user.tipo_chat === "municipio" ? "municipio" : "pyme";
+  }, [user?.tipo_chat]);
+  const isMunicipal = endpoint === "municipio";
+
+  useEffect(() => {
+    if (!user?.tipo_chat || catalogTouched.current) return;
+    if (user.tipo_chat === "municipio") {
+      setEnableCatalog(false);
+      setRequireLoginForCatalog(false);
+      return;
+    }
+    setEnableCatalog(true);
   }, [user?.tipo_chat]);
 
   useEffect(() => {
@@ -187,51 +234,100 @@ const Integracion = () => {
     if (base) return base;
     return user?.id ? `entidad-${user.id}` : null;
   }, [user]);
-  const isFullPlan = (user?.plan || "").toLowerCase() === "full";
-
-  const WIDGET_STD_WIDTH = "460px";
-  const WIDGET_STD_HEIGHT = "680px";
-  const WIDGET_STD_CLOSED_WIDTH = "112px"; // Increased from 96px
-  const WIDGET_STD_CLOSED_HEIGHT = "112px"; // Increased from 96px
-  const WIDGET_STD_BOTTOM = "20px";
-  const WIDGET_STD_RIGHT = "20px";
   const apiBase = (import.meta.env.VITE_WIDGET_API_BASE || "https://chatboc.ar").replace(/\/+$/, "");
   const defaultWidgetScriptUrl = `${apiBase}/widget.js`;
   const widgetScriptUrl = import.meta.env.VITE_WIDGET_SCRIPT_URL || defaultWidgetScriptUrl;
   const iframeBase = window.location.origin;
   
-  const codeScript = useMemo(() => {
-    const customAttrs = [
-      primaryColor && `  data-primary-color="${primaryColor}"`,
-      accentColor && `  data-accent-color="${accentColor}"`,
-      logoUrl && `  data-logo-url="${logoUrl}"`,
-      headerLogoUrl && `  data-header-logo-url="${headerLogoUrl}"`,
-      logoAnimation && `  data-logo-animation="${logoAnimation}"`,
-      welcomeTitle && `  data-welcome-title="${welcomeTitle}"`,
-      welcomeSubtitle && `  data-welcome-subtitle="${welcomeSubtitle}"`,
-      tenantSlug && `  data-tenant="${tenantSlug}"`,
-    ]
-      .filter(Boolean)
-      .join("\n");
+  const widgetAttributes = useMemo(() => {
+    const attrs: Record<string, string> = {
+      "data-api-base": apiBase,
+      "data-owner-token": effectiveOwnerToken,
+      "data-default-open": defaultOpen ? "true" : "false",
+      "data-width": openWidth,
+      "data-height": openHeight,
+      "data-closed-width": closedWidth,
+      "data-closed-height": closedHeight,
+      "data-bottom": offsetBottom,
+      "data-right": offsetRight,
+      "data-endpoint": endpoint,
+      "data-z-index": zIndex,
+      "data-allow-attachments": allowAttachments ? "true" : "false",
+      "data-allow-location": allowLocation ? "true" : "false",
+      "data-allow-audio": allowAudio ? "true" : "false",
+    };
 
-    return `<script async src="${widgetScriptUrl}"
-  data-api-base="${apiBase}"
-  data-owner-token="${effectiveOwnerToken}"
-  data-default-open="false"
-  data-width="${WIDGET_STD_WIDTH}"
-  data-height="${WIDGET_STD_HEIGHT}"
-  data-closed-width="${WIDGET_STD_CLOSED_WIDTH}"
-  data-closed-height="${WIDGET_STD_CLOSED_HEIGHT}"
-  data-bottom="${WIDGET_STD_BOTTOM}"
-  data-right="${WIDGET_STD_RIGHT}"
-  data-endpoint="${endpoint}"
-${customAttrs ? customAttrs + "\n" : ""}></script>`;
-  }, [apiBase, widgetScriptUrl, effectiveOwnerToken, endpoint, primaryColor, accentColor, logoUrl, headerLogoUrl, logoAnimation, welcomeTitle, welcomeSubtitle, tenantSlug]);
+    if (tenantSlug) {
+      attrs["data-tenant"] = tenantSlug;
+      attrs["data-tenant-slug"] = tenantSlug;
+    }
+    if (primaryColor) attrs["data-primary-color"] = primaryColor;
+    if (accentColor) attrs["data-accent-color"] = accentColor;
+    if (logoUrl) attrs["data-logo-url"] = logoUrl;
+    if (headerLogoUrl) attrs["data-header-logo-url"] = headerLogoUrl;
+    if (logoAnimation) attrs["data-logo-animation"] = logoAnimation;
+    if (welcomeTitle) attrs["data-welcome-title"] = welcomeTitle;
+    if (welcomeSubtitle) attrs["data-welcome-subtitle"] = welcomeSubtitle;
+    if (widgetDomain) attrs["data-domain"] = widgetDomain;
+    if (widgetId) attrs["data-widget-id"] = widgetId;
+    if (theme !== "auto") attrs["data-theme"] = theme;
+
+    attrs["data-show-catalog"] = enableCatalog ? "true" : "false";
+    attrs["data-require-login-for-catalog"] = requireLoginForCatalog ? "true" : "false";
+
+    return attrs;
+  }, [
+    accentColor,
+    allowAttachments,
+    allowAudio,
+    allowLocation,
+    apiBase,
+    closedHeight,
+    closedWidth,
+    defaultOpen,
+    effectiveOwnerToken,
+    enableCatalog,
+    endpoint,
+    headerLogoUrl,
+    logoAnimation,
+    logoUrl,
+    offsetBottom,
+    offsetRight,
+    openHeight,
+    openWidth,
+    primaryColor,
+    requireLoginForCatalog,
+    tenantSlug,
+    theme,
+    welcomeSubtitle,
+    welcomeTitle,
+    widgetDomain,
+    zIndex,
+  ]);
+
+  const widgetAttributeLines = useMemo(
+    () =>
+      Object.entries(widgetAttributes)
+        .filter(([, value]) => value !== undefined && value !== null && value !== "")
+        .map(([key, value]) => `  ${key}="${value}"`)
+        .join("\n"),
+    [widgetAttributes]
+  );
+
+  const codeScript = useMemo(
+    () =>
+      `<script async src="${widgetScriptUrl}"\n${widgetAttributeLines}\n></script>`,
+    [widgetAttributeLines, widgetScriptUrl]
+  );
 
   const iframeSrcUrl = useMemo(() => {
     const url = new URL(`${apiBase}/iframe`);
     url.searchParams.set("entityToken", effectiveOwnerToken);
     url.searchParams.set("tipo_chat", endpoint);
+    url.searchParams.set("defaultOpen", defaultOpen ? "true" : "false");
+    url.searchParams.set("allowAttachments", allowAttachments ? "true" : "false");
+    url.searchParams.set("allowLocation", allowLocation ? "true" : "false");
+    url.searchParams.set("allowAudio", allowAudio ? "true" : "false");
     if (primaryColor) url.searchParams.set("primaryColor", primaryColor);
     if (accentColor) url.searchParams.set("accentColor", accentColor);
     if (logoUrl) url.searchParams.set("logoUrl", logoUrl);
@@ -239,13 +335,38 @@ ${customAttrs ? customAttrs + "\n" : ""}></script>`;
     if (logoAnimation) url.searchParams.set("logoAnimation", logoAnimation);
     if (welcomeTitle) url.searchParams.set("welcomeTitle", welcomeTitle);
     if (welcomeSubtitle) url.searchParams.set("welcomeSubtitle", welcomeSubtitle);
+    if (theme !== "auto") url.searchParams.set("theme", theme);
+    url.searchParams.set("showCatalog", enableCatalog ? "true" : "false");
+    url.searchParams.set("requireLoginForCatalog", requireLoginForCatalog ? "true" : "false");
     return url.toString();
-  }, [apiBase, effectiveOwnerToken, endpoint, primaryColor, accentColor, logoUrl, headerLogoUrl, logoAnimation, welcomeTitle, welcomeSubtitle]);
+  }, [
+    accentColor,
+    allowAttachments,
+    allowAudio,
+    allowLocation,
+    apiBase,
+    defaultOpen,
+    effectiveOwnerToken,
+    enableCatalog,
+    endpoint,
+    headerLogoUrl,
+    logoAnimation,
+    logoUrl,
+    primaryColor,
+    requireLoginForCatalog,
+    theme,
+    welcomeSubtitle,
+    welcomeTitle,
+  ]);
 
   const previewIframeUrl = useMemo(() => {
     const url = new URL(`${iframeBase}/iframe`);
     url.searchParams.set("entityToken", effectiveOwnerToken);
     url.searchParams.set("tipo_chat", endpoint);
+    url.searchParams.set("defaultOpen", defaultOpen ? "true" : "false");
+    url.searchParams.set("allowAttachments", allowAttachments ? "true" : "false");
+    url.searchParams.set("allowLocation", allowLocation ? "true" : "false");
+    url.searchParams.set("allowAudio", allowAudio ? "true" : "false");
     if (primaryColor) url.searchParams.set("primaryColor", primaryColor);
     if (accentColor) url.searchParams.set("accentColor", accentColor);
     if (logoUrl) url.searchParams.set("logoUrl", logoUrl);
@@ -253,77 +374,101 @@ ${customAttrs ? customAttrs + "\n" : ""}></script>`;
     if (logoAnimation) url.searchParams.set("logoAnimation", logoAnimation);
     if (welcomeTitle) url.searchParams.set("welcomeTitle", welcomeTitle);
     if (welcomeSubtitle) url.searchParams.set("welcomeSubtitle", welcomeSubtitle);
+    if (theme !== "auto") url.searchParams.set("theme", theme);
+    url.searchParams.set("showCatalog", enableCatalog ? "true" : "false");
+    url.searchParams.set("requireLoginForCatalog", requireLoginForCatalog ? "true" : "false");
     return url.toString();
-  }, [iframeBase, effectiveOwnerToken, endpoint, primaryColor, accentColor, logoUrl, headerLogoUrl, logoAnimation, welcomeTitle, welcomeSubtitle]);
-  
+  }, [
+    accentColor,
+    allowAttachments,
+    allowAudio,
+    allowLocation,
+    defaultOpen,
+    effectiveOwnerToken,
+    enableCatalog,
+    endpoint,
+    headerLogoUrl,
+    iframeBase,
+    logoAnimation,
+    logoUrl,
+    primaryColor,
+    requireLoginForCatalog,
+    theme,
+    welcomeSubtitle,
+    welcomeTitle,
+  ]);
+
   const codeIframe = useMemo(() => `<iframe
-  id="chatboc-iframe"
-  src="${iframeSrcUrl}"
-  style="position:fixed; bottom:${WIDGET_STD_BOTTOM}; right:${WIDGET_STD_RIGHT}; border:none; border-radius:50%; z-index:9999; box-shadow:0 4px 32px rgba(0,0,0,0.2); background:transparent; overflow:hidden; width:${WIDGET_STD_CLOSED_WIDTH}; height:${WIDGET_STD_CLOSED_HEIGHT}; display:block; transition: width 0.3s ease, height 0.3s ease, border-radius 0.3s ease;"
-  allow="clipboard-write; geolocation; microphone; camera"
-  loading="lazy"
-  title="Chatboc Widget"
-></iframe>
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-  var chatIframe = document.getElementById('chatboc-iframe');
+    id="chatboc-iframe"
+    src="${iframeSrcUrl}"
+    style="position:fixed; bottom:${offsetBottom}; right:${offsetRight}; border:none; border-radius:50%; z-index:${zIndex}; box-shadow:0 4px 32px rgba(0,0,0,0.2); background:transparent; overflow:hidden; width:${closedWidth}; height:${closedHeight}; display:block; transition: width 0.3s ease, height 0.3s ease, border-radius 0.3s ease;"
+    allow="clipboard-write; geolocation; microphone; camera"
+    loading="lazy"
+    title="Chatboc Widget"
+  ></iframe>
+  <script>
+  document.addEventListener('DOMContentLoaded', function () {
+    var chatIframe = document.getElementById('chatboc-iframe');
 
-  // Es crucial que si este código de iframe se inserta dentro de OTRO iframe en tu sitio,
-  // ese iframe contenedor también debe tener 'allow="clipboard-write; geolocation; microphone; camera"'.
-  // Ejemplo: <iframe src="pagina_con_este_codigo.html" allow="clipboard-write; geolocation; microphone; camera"></iframe>
+    // Es crucial que si este código de iframe se inserta dentro de OTRO iframe en tu sitio,
+    // ese iframe contenedor también debe tener 'allow="clipboard-write; geolocation; microphone; camera"'.
+    // Ejemplo: <iframe src="pagina_con_este_codigo.html" allow="clipboard-write; geolocation; microphone; camera"></iframe>
 
-  // Comunicación con el iframe para ajustar tamaño y forma
-  window.addEventListener('message', function (event) {
-    if (event.origin !== '${apiBase}') return; // Seguridad: aceptar mensajes solo del origen del iframe
+    // Comunicación con el iframe para ajustar tamaño y forma
+    window.addEventListener('message', function (event) {
+      if (event.origin !== '${apiBase}') return; // Seguridad: aceptar mensajes solo del origen del iframe
 
-    if (event.data && event.data.type === 'chatboc-state-change') {
-      if (event.data.dimensions) {
-        chatIframe.style.width = event.data.dimensions.width || '${WIDGET_STD_WIDTH}';
-        chatIframe.style.height = event.data.dimensions.height || '${WIDGET_STD_HEIGHT}';
+      if (event.data && event.data.type === 'chatboc-state-change') {
+        if (event.data.dimensions) {
+          chatIframe.style.width = event.data.dimensions.width || '${openWidth}';
+          chatIframe.style.height = event.data.dimensions.height || '${openHeight}';
+        }
+        chatIframe.style.borderRadius = event.data.isOpen ? '16px' : '50%'; // Más suave la transición
       }
-      chatIframe.style.borderRadius = event.data.isOpen ? '16px' : '50%'; // Más suave la transición
-    }
-  });
+    });
 
-  // Opcional: Enviar un mensaje al iframe una vez cargado para configuraciones iniciales si es necesario
-  // chatIframe.onload = function() {
-  //   chatIframe.contentWindow.postMessage({ type: 'chatboc-init', settings: { exampleSetting: true } }, '${apiBase}');
-  // };
-});
-</script>`, [iframeSrcUrl, apiBase, endpoint]);
+    // Opcional: Enviar un mensaje al iframe una vez cargado para configuraciones iniciales si es necesario
+    // chatIframe.onload = function() {
+    //   chatIframe.contentWindow.postMessage({ type: 'chatboc-init', settings: { exampleSetting: true } }, '${apiBase}');
+    // };
+  });
+  </script>`, [
+    apiBase,
+    closedHeight,
+    closedWidth,
+    iframeSrcUrl,
+    offsetBottom,
+    offsetRight,
+    openHeight,
+    openWidth,
+    zIndex,
+  ]);
 
   useEffect(() => {
-    if (!effectiveOwnerToken) return;
+    if (!effectiveOwnerToken || !enableFloatingPreview) return;
     let scriptEl: HTMLScriptElement | null = null;
+
+    const destroyWidget = () => (window as any).chatbocDestroyWidget?.(effectiveOwnerToken);
+    const removePreviewScripts = () => {
+      document
+        .querySelectorAll('script[data-chatboc-preview="true"]')
+        .forEach((node) => node.remove());
+    };
 
     const buildScript = (src: string) => {
       const s = document.createElement('script');
       s.src = src;
       s.async = true;
-      s.setAttribute('data-api-base', apiBase);
-      s.setAttribute('data-owner-token', effectiveOwnerToken);
-      s.setAttribute('data-default-open', 'false');
-      s.setAttribute('data-width', WIDGET_STD_WIDTH);
-      s.setAttribute('data-height', WIDGET_STD_HEIGHT);
-      s.setAttribute('data-closed-width', WIDGET_STD_CLOSED_WIDTH);
-      s.setAttribute('data-closed-height', WIDGET_STD_CLOSED_HEIGHT);
-      s.setAttribute('data-bottom', WIDGET_STD_BOTTOM);
-      s.setAttribute('data-right', WIDGET_STD_RIGHT);
-      s.setAttribute('data-endpoint', endpoint);
-      if (tenantSlug) s.setAttribute('data-tenant', tenantSlug);
-      if (primaryColor) s.setAttribute('data-primary-color', primaryColor);
-      if (accentColor) s.setAttribute('data-accent-color', accentColor);
-      if (logoUrl) s.setAttribute('data-logo-url', logoUrl);
-      if (headerLogoUrl) s.setAttribute('data-header-logo-url', headerLogoUrl);
-      if (logoAnimation) s.setAttribute('data-logo-animation', logoAnimation);
-      if (welcomeTitle) s.setAttribute('data-welcome-title', welcomeTitle);
-      if (welcomeSubtitle) s.setAttribute('data-welcome-subtitle', welcomeSubtitle);
+      s.dataset.chatbocPreview = 'true';
+      Object.entries(widgetAttributes).forEach(([key, value]) => {
+        s.setAttribute(key, value);
+      });
       return s;
     };
 
     const inject = () => {
-      if (scriptEl) scriptEl.remove();
-      (window as any).chatbocDestroyWidget?.(effectiveOwnerToken);
+      removePreviewScripts();
+      destroyWidget();
       const s = buildScript(widgetScriptUrl);
       s.onerror = () => {
         if (widgetScriptUrl !== defaultWidgetScriptUrl) {
@@ -338,10 +483,17 @@ document.addEventListener('DOMContentLoaded', function () {
 
     inject();
     return () => {
+      removePreviewScripts();
+      destroyWidget();
       if (scriptEl) scriptEl.remove();
-      (window as any).chatbocDestroyWidget?.(effectiveOwnerToken);
     };
-  }, [apiBase, widgetScriptUrl, defaultWidgetScriptUrl, effectiveOwnerToken, endpoint, primaryColor, accentColor, logoUrl, headerLogoUrl, logoAnimation, welcomeTitle, welcomeSubtitle, tenantSlug]);
+  }, [
+    defaultWidgetScriptUrl,
+    effectiveOwnerToken,
+    enableFloatingPreview,
+    widgetAttributes,
+    widgetScriptUrl,
+  ]);
 
 
   const copiarCodigo = async (tipo: "iframe" | "script") => {
@@ -363,6 +515,16 @@ document.addEventListener('DOMContentLoaded', function () {
       // Fallback por si navigator.clipboard no está disponible o falla (e.g. HTTP)
       window.prompt(`Copia manualmente (Ctrl+C / Cmd+C):\n${tipo === "iframe" ? "Código Iframe" : "Código Script"}`, textoACopiar);
     }
+  };
+
+  const handleCatalogToggle = (value: boolean) => {
+    catalogTouched.current = true;
+    setEnableCatalog(value);
+  };
+
+  const handleRequireLoginToggle = (value: boolean) => {
+    catalogTouched.current = true;
+    setRequireLoginForCatalog(value);
   };
 
   if (isLoading) {
@@ -517,13 +679,44 @@ document.addEventListener('DOMContentLoaded', function () {
           </CardContent>
         </Card>
 
-      {isFullPlan && (
-        <Card className="mb-8">
+        <Card className="mb-2">
           <CardHeader>
-            <CardTitle className="text-lg">Personalización del Widget</CardTitle>
-            <CardDescription>
-              Ajusta el color y el icono del lanzador para adaptarlo a tu sitio.
-            </CardDescription>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Layout className="h-5 w-5 text-primary" /> Resumen de la experiencia
+            </CardTitle>
+            <CardDescription>Revisa de un vistazo cómo quedará tu widget antes de copiar el código.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-lg border p-3 flex flex-col gap-1">
+              <p className="text-xs text-muted-foreground">Tipo de chat</p>
+              <p className="font-semibold">{endpoint === "pyme" ? "Comercial / Pyme" : "Institucional"}</p>
+              <p className="text-xs text-muted-foreground">El endpoint determina menús y tono de conversación.</p>
+            </div>
+            <div className="rounded-lg border p-3 flex flex-col gap-1">
+              <p className="text-xs text-muted-foreground">Marketplace</p>
+              <p className="font-semibold">{enableCatalog && !isMunicipal ? "Catálogo visible" : "Catálogo oculto"}</p>
+              <p className="text-xs text-muted-foreground">{requireLoginForCatalog ? "Se pedirá login antes de comprar o canjear." : "Acceso directo al catálogo cuando esté activo."}</p>
+            </div>
+            <div className="rounded-lg border p-3 flex flex-col gap-1">
+              <p className="text-xs text-muted-foreground">Dominio y seguridad</p>
+              <p className="font-semibold break-words">{widgetDomain || "Dominio no establecido"}</p>
+              <p className="text-xs text-muted-foreground">Mantiene coherencia de sesión y evita widgets duplicados.</p>
+            </div>
+            <div className="rounded-lg border p-3 flex flex-col gap-1">
+              <p className="text-xs text-muted-foreground">Identificador del widget</p>
+              <p className="font-semibold break-words">{widgetId}</p>
+              <p className="text-xs text-muted-foreground">Úsalo para diferenciar lanzadores en tu sitio.</p>
+            </div>
+          </CardContent>
+        </Card>
+
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Wand2 className="h-5 w-5 text-primary" /> Personalización visual
+            </CardTitle>
+            <CardDescription>Colores, logos y mensajes de bienvenida en un solo lugar.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">
             <div className="flex flex-col space-y-2">
@@ -545,7 +738,7 @@ document.addEventListener('DOMContentLoaded', function () {
               />
             </div>
             <div className="flex flex-col space-y-2">
-              <Label htmlFor="logoUrl">URL del logo</Label>
+              <Label htmlFor="logoUrl">URL del logo del lanzador</Label>
               <Input
                 id="logoUrl"
                 placeholder="https://..."
@@ -562,7 +755,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 onChange={(e) => setHeaderLogoUrl(e.target.value)}
               />
             </div>
-            <div className="flex flex-col space-y-2 sm:col-span-2">
+            <div className="flex flex-col space-y-2">
               <Label htmlFor="logoAnimation">Animación del logo</Label>
               <Select value={logoAnimation} onValueChange={setLogoAnimation}>
                 <SelectTrigger id="logoAnimation">
@@ -575,11 +768,24 @@ document.addEventListener('DOMContentLoaded', function () {
                 </SelectContent>
               </Select>
             </div>
+            <div className="flex flex-col space-y-2">
+              <Label htmlFor="theme">Tema</Label>
+              <Select value={theme} onValueChange={(value: "light" | "dark" | "auto") => setTheme(value)}>
+                <SelectTrigger id="theme">
+                  <SelectValue placeholder="Automático" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">Automático</SelectItem>
+                  <SelectItem value="light">Claro</SelectItem>
+                  <SelectItem value="dark">Oscuro</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div className="flex flex-col space-y-2 sm:col-span-2">
               <Label htmlFor="welcomeTitle">Título de bienvenida</Label>
               <Input
                 id="welcomeTitle"
-                placeholder="¡Hola! Soy tu asistente virtual"
+                placeholder="Hola, soy tu asistente virtual"
                 value={welcomeTitle}
                 onChange={(e) => setWelcomeTitle(e.target.value)}
               />
@@ -588,14 +794,164 @@ document.addEventListener('DOMContentLoaded', function () {
               <Label htmlFor="welcomeSubtitle">Subtítulo de bienvenida</Label>
               <Input
                 id="welcomeSubtitle"
-                placeholder="Estoy aquí para ayudarte"
+                placeholder="Puedo ayudarte con consultas, trámites y pedidos"
                 value={welcomeSubtitle}
                 onChange={(e) => setWelcomeSubtitle(e.target.value)}
               />
             </div>
+            <div className="flex flex-col space-y-2 sm:col-span-2">
+              <Label htmlFor="widgetDomain">Dominio permitido (data-domain)</Label>
+              <Input
+                id="widgetDomain"
+                placeholder="https://tu-dominio.com"
+                value={widgetDomain}
+                onChange={(e) => setWidgetDomain(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">Usamos este dominio para evitar duplicados y mantener la sesión en el mismo origen.</p>
+            </div>
+            <div className="flex flex-col space-y-2 sm:col-span-2">
+              <Label htmlFor="widgetId">Identificador único del widget</Label>
+              <Input
+                id="widgetId"
+                placeholder="chatboc-widget-principal"
+                value={widgetId}
+                onChange={(e) => setWidgetId(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">Sirve para distinguir múltiples instancias en pruebas A/B y prevenir lanzadores duplicados.</p>
+            </div>
           </CardContent>
         </Card>
-      )}
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-primary" /> Permisos y acceso
+            </CardTitle>
+            <CardDescription>Define cómo se abre el widget y qué permisos puede usar.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <div>
+                <Label htmlFor="defaultOpen">Abrir el chat al cargar</Label>
+                <p className="text-xs text-muted-foreground">Útil para campañas específicas. Manténlo apagado para no molestar.</p>
+              </div>
+              <Switch id="defaultOpen" checked={defaultOpen} onCheckedChange={setDefaultOpen} />
+            </div>
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <div>
+                <Label htmlFor="allowAttachments">Archivos y fotos</Label>
+                <p className="text-xs text-muted-foreground">Habilita carga de adjuntos dentro del chat.</p>
+              </div>
+              <Switch id="allowAttachments" checked={allowAttachments} onCheckedChange={setAllowAttachments} />
+            </div>
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <div>
+                <Label htmlFor="allowLocation">Ubicación y GPS</Label>
+                <p className="text-xs text-muted-foreground">Recomendado para reportes y entregas.</p>
+              </div>
+              <Switch id="allowLocation" checked={allowLocation} onCheckedChange={setAllowLocation} />
+            </div>
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <div>
+                <Label htmlFor="allowAudio">Audio y notas de voz</Label>
+                <p className="text-xs text-muted-foreground">Permite grabar audios desde el widget.</p>
+              </div>
+              <Switch id="allowAudio" checked={allowAudio} onCheckedChange={setAllowAudio} />
+            </div>
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <div>
+                <Label htmlFor="floatingPreview">Mostrar widget flotante aquí</Label>
+                <p className="text-xs text-muted-foreground">Activa una vista real en esta página sin duplicar lanzadores.</p>
+              </div>
+              <Switch id="floatingPreview" checked={enableFloatingPreview} onCheckedChange={setEnableFloatingPreview} />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Layout className="h-5 w-5 text-primary" /> Tamaño y posicionamiento
+            </CardTitle>
+            <CardDescription>Controla las dimensiones del estado abierto y cerrado.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-2">
+            <div className="flex flex-col space-y-2">
+              <Label htmlFor="openWidth">Ancho abierto</Label>
+              <Input id="openWidth" value={openWidth} onChange={(e) => setOpenWidth(e.target.value)} />
+            </div>
+            <div className="flex flex-col space-y-2">
+              <Label htmlFor="openHeight">Alto abierto</Label>
+              <Input id="openHeight" value={openHeight} onChange={(e) => setOpenHeight(e.target.value)} />
+            </div>
+            <div className="flex flex-col space-y-2">
+              <Label htmlFor="closedWidth">Ancho cerrado</Label>
+              <Input id="closedWidth" value={closedWidth} onChange={(e) => setClosedWidth(e.target.value)} />
+            </div>
+            <div className="flex flex-col space-y-2">
+              <Label htmlFor="closedHeight">Alto cerrado</Label>
+              <Input id="closedHeight" value={closedHeight} onChange={(e) => setClosedHeight(e.target.value)} />
+            </div>
+            <div className="flex flex-col space-y-2">
+              <Label htmlFor="offsetBottom">Separación inferior</Label>
+              <Input id="offsetBottom" value={offsetBottom} onChange={(e) => setOffsetBottom(e.target.value)} />
+            </div>
+            <div className="flex flex-col space-y-2">
+              <Label htmlFor="offsetRight">Separación derecha</Label>
+              <Input id="offsetRight" value={offsetRight} onChange={(e) => setOffsetRight(e.target.value)} />
+            </div>
+            <div className="flex flex-col space-y-2 sm:col-span-2">
+              <Label htmlFor="zIndex">Z-index</Label>
+              <Input id="zIndex" value={zIndex} onChange={(e) => setZIndex(e.target.value)} />
+              <p className="text-xs text-muted-foreground">Ajusta esta cifra si tu sitio tiene overlays o barras fijas.</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-primary" /> Catálogo y login
+            </CardTitle>
+            <CardDescription>
+              Usa estas opciones para activar el marketplace en rubros que lo necesiten. Desactívalo para experiencias formales.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <div>
+                <Label htmlFor="enableCatalog">Mostrar catálogo en el widget</Label>
+                <p className="text-xs text-muted-foreground">
+                  Ideal para experiencias con marketplace. Se desactiva automáticamente en entornos formales.
+                </p>
+              </div>
+              <Switch
+                id="enableCatalog"
+                checked={enableCatalog}
+                onCheckedChange={(value) => handleCatalogToggle(Boolean(value))}
+                disabled={isMunicipal}
+              />
+            </div>
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <div>
+                <Label htmlFor="requireLogin">Solicitar login antes de comprar o canjear</Label>
+                <p className="text-xs text-muted-foreground">Útil para mostrar puntos, donaciones o pedidos vinculados al usuario.</p>
+              </div>
+              <Switch
+                id="requireLogin"
+                checked={requireLoginForCatalog}
+                onCheckedChange={(value) => handleRequireLoginToggle(Boolean(value))}
+                disabled={!enableCatalog}
+              />
+            </div>
+            {isMunicipal && (
+              <p className="text-xs text-muted-foreground pl-1">
+                Este perfil es institucional, por lo que ocultamos catálogo y login comercial para mantener la experiencia formal.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       <Tabs defaultValue="script" className="w-full">
         <TabsList className="grid w-full grid-cols-2 mb-6">
@@ -649,8 +1005,8 @@ document.addEventListener('DOMContentLoaded', function () {
             >
               <div
                 style={{
-                  width: WIDGET_STD_WIDTH,
-                  height: WIDGET_STD_HEIGHT,
+                  width: openWidth,
+                  height: openHeight,
                   border: "1px solid #ccc",
                   borderRadius: "16px",
                   overflow: "hidden",
@@ -664,8 +1020,8 @@ document.addEventListener('DOMContentLoaded', function () {
                   {user && effectiveOwnerToken && user.tipo_chat ? (
                     <iframe
                       src={previewIframeUrl}
-                    width={WIDGET_STD_WIDTH}
-                    height={WIDGET_STD_HEIGHT}
+                    width={openWidth}
+                    height={openHeight}
                     style={{
                       border: "none",
                       width: "100%",
