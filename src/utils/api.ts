@@ -142,7 +142,11 @@ const inferTenantSlug = (explicitTenant?: string | null): string | null => {
 
   try {
     const cfg = (window as any).CHATBOC_CONFIG || {};
-    const fromConfig = cfg.tenant?.toString?.() || cfg.tenantSlug?.toString?.() || cfg.endpoint?.toString?.();
+    const fromConfig =
+      cfg.tenant?.toString?.() ||
+      cfg.tenantSlug?.toString?.() ||
+      cfg.tenant_slug?.toString?.() ||
+      cfg.endpoint?.toString?.();
     const normalized = sanitizeTenantSlug(fromConfig);
     if (normalized) return normalized;
   } catch (error) {
@@ -155,8 +159,19 @@ const inferTenantSlug = (explicitTenant?: string | null): string | null => {
   return null;
 };
 
-export const resolveTenantSlug = (explicitTenant?: string | null): string | null =>
-  inferTenantSlug(explicitTenant);
+export const resolveTenantSlug = (explicitTenant?: string | null): string | null => {
+  const resolved = inferTenantSlug(explicitTenant);
+
+  if (resolved) {
+    try {
+      safeLocalStorage.setItem("tenantSlug", resolved);
+    } catch (error) {
+      console.warn("[apiFetch] No se pudo persistir tenantSlug resuelto", error);
+    }
+  }
+
+  return resolved;
+};
 
 const shouldLogVerboseApi = (): boolean => {
   const metaEnv =
