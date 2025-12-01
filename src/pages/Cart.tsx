@@ -561,7 +561,7 @@ export default function CartPage() {
         onClose={() => setShowGuestDialog(false)}
         defaultValues={loadGuestContact()}
         reason="checkout"
-        onLogin={() => navigate('/login')}
+        onLogin={() => navigate(loginPath)}
         onSubmit={handleGuestContactSubmit}
       />
     </div>
