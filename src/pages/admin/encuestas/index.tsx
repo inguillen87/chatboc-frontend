@@ -8,6 +8,7 @@ import { useSurveyAdmin } from '@/hooks/useSurveyAdmin';
 import type { SurveyAdmin } from '@/types/encuestas';
 import { toast } from '@/components/ui/use-toast';
 import { getAbsolutePublicSurveyUrl } from '@/utils/publicSurveyUrl';
+import SectionErrorBoundary from '@/components/errors/SectionErrorBoundary';
 
 const AdminSurveysIndex = () => {
   const navigate = useNavigate();
@@ -67,7 +68,12 @@ const AdminSurveysIndex = () => {
   const items = surveys?.data ?? [];
 
   return (
-    <div className="space-y-6">
+    <SectionErrorBoundary
+      title="No pudimos cargar las encuestas"
+      description="Reintentá o volvé al inicio mientras recuperamos el panel de encuestas."
+      onRetry={() => refetchList()}
+    >
+      <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Encuestas ciudadanas</h1>
@@ -106,7 +112,8 @@ const AdminSurveysIndex = () => {
           )}
         </div>
       )}
-    </div>
+      </div>
+    </SectionErrorBoundary>
   );
 };
 
