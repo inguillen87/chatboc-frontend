@@ -187,8 +187,14 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
       entityInfo?.slugPublico,
       entityInfo?.tenant_slug,
       entityInfo?.tenantSlug,
+      entityInfo?.tenant,
+      entityInfo?.endpoint,
       entityInfo?.municipio_slug,
       entityInfo?.municipioSlug,
+      entityInfo?.public_slug,
+      entityInfo?.publicSlug,
+      entityInfo?.empresa_slug,
+      entityInfo?.empresaSlug,
     ];
 
     for (const candidate of candidates) {
