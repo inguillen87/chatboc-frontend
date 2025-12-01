@@ -14,6 +14,7 @@ import * as XLSX from 'xlsx'; // For Excel parsing
 import { Badge } from '@/components/ui/badge';
 import { requestDocumentPreview } from '@/services/documentIntelligenceService';
 import { useUser } from '@/hooks/useUser';
+import SectionErrorBoundary from '@/components/errors/SectionErrorBoundary';
 
 // Define the structure for a saved mapping configuration
 interface SavedMappingConfig {
@@ -467,26 +468,31 @@ const CatalogMappingPage: React.FC = () => {
   }, [hasHeaders, skipRows, csvDelimiter, excelSheetName, file, useAiAssistance]); // We don't include parseFileHeaders here to avoid loop, its own deps are managed.
 
   return (
-    <div className="container mx-auto p-4 md:p-8">
-      <Button variant="outline" size="sm" onClick={() => navigate('/perfil')} className="mb-4">
-        <ArrowLeft className="mr-2 h-4 w-4" /> Volver a PYME
-      </Button>
+    <SectionErrorBoundary
+      title="No pudimos cargar el mapeo de catálogo"
+      description="Reintentá la carga o volvé al inicio mientras recuperamos la administración del marketplace."
+      onRetry={() => window.location.reload()}
+    >
+      <div className="container mx-auto p-4 md:p-8">
+        <Button variant="outline" size="sm" onClick={() => navigate('/perfil')} className="mb-4">
+          <ArrowLeft className="mr-2 h-4 w-4" /> Volver a PYME
+        </Button>
 
-      <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-6">
-        {mappingId ? "Editar Configuración de Mapeo" : "Crear Nueva Configuración de Mapeo de Catálogo"}
-      </h1>
+        <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-6">
+          {mappingId ? "Editar Configuración de Mapeo" : "Crear Nueva Configuración de Mapeo de Catálogo"}
+        </h1>
 
-      {error && (
-        <div className="bg-destructive/10 border border-destructive text-destructive p-4 rounded-md mb-6 flex items-center">
-          <AlertTriangle className="h-5 w-5 mr-3" />
-          <div>
-            <h4 className="font-semibold">Error</h4>
-            <p className="text-sm">{error}</p>
+        {error && (
+          <div className="bg-destructive/10 border border-destructive text-destructive p-4 rounded-md mb-6 flex items-center">
+            <AlertTriangle className="h-5 w-5 mr-3" />
+            <div>
+              <h4 className="font-semibold">Error</h4>
+              <p className="text-sm">{error}</p>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      <div className="space-y-8">
+        <div className="space-y-8">
         {/* Sección 1: Nombre y Carga de Archivo */}
         <div className="bg-card p-6 rounded-lg shadow">
           <h2 className="text-xl font-semibold mb-4 text-foreground">1. Configuración General y Archivo</h2>
@@ -737,7 +743,8 @@ const CatalogMappingPage: React.FC = () => {
           </Button>
         </div>
       </div>
-    </div>
+      </div>
+    </SectionErrorBoundary>
   );
 };
 
