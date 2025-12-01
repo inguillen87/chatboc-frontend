@@ -19,6 +19,7 @@ import UploadOrderFromFile from '@/components/cart/UploadOrderFromFile';
 import { useUser } from '@/hooks/useUser';
 import { buildTenantPath } from '@/utils/tenantPaths';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 export default function ProductCatalog() {
   const [allProducts, setAllProducts] = useState<ProductDetails[]>([]);
@@ -36,7 +37,7 @@ export default function ProductCatalog() {
   const { user } = useUser();
   const cartCount = useCartCount();
   const effectiveTenantSlug = useMemo(
-    () => currentSlug ?? user?.tenantSlug ?? null,
+    () => currentSlug ?? user?.tenantSlug ?? safeLocalStorage.getItem('tenantSlug') ?? null,
     [currentSlug, user?.tenantSlug],
   );
   const { points: pointsBalance, requiresAuth: pointsRequireAuth, error: pointsError } = usePointsBalance({
