@@ -4,13 +4,13 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { apiFetch } from "@/utils/api";
 import {
   getStoredEntityToken,
   persistEntityToken,
   resolveOwnerToken,
 } from "@/utils/entityToken";
+import { useUser } from "@/hooks/useUser";
 import {
   Card,
   CardContent,
@@ -58,22 +58,29 @@ const slugify = (value?: string | null) => {
 };
 
 interface User {
-  id: number;
-  name: string;
-  email: string;
-  token: string;
+  id?: number;
+  name?: string;
+  email?: string;
+  token?: string;
   entityToken?: string;
   plan?: string;
   tipo_chat?: "pyme" | "municipio";
   widget_icon_url?: string;
   widget_animation?: string;
+  nombre_empresa?: string;
+  slug?: string;
+  tenantSlug?: string;
+  endpoint?: string;
+  tenant?: string;
+  tenant_slug?: string;
+  municipio?: string;
+  empresa?: string;
 }
 
 const Integracion = () => {
   const navigate = useNavigate();
-  const [user, setUser] = useState<User | null>(null);
+  const { user, refreshUser, loading: userLoading } = useUser();
   const [copiado, setCopiado] = useState<"iframe" | "script" | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [isGeneratingToken, setIsGeneratingToken] = useState(false);
   const [primaryColor, setPrimaryColor] = useState("#007aff");
   const [accentColor, setAccentColor] = useState("#007aff");
@@ -107,7 +114,7 @@ const Integracion = () => {
   const tokenAlertShown = useRef(false);
   const catalogTouched = useRef(false);
 
-  const validarAcceso = (currentUser: User | null) => {
+  const validarAcceso = useCallback((currentUser: User | null) => {
     if (!currentUser) {
       navigate("/login");
       return false;
@@ -121,43 +128,31 @@ const Integracion = () => {
       return false;
     }
     return true;
-  };
+  }, [navigate]);
 
   useEffect(() => {
-    const authToken = safeLocalStorage.getItem("authToken");
-    const storedUser = safeLocalStorage.getItem("user");
-    let parsedUser: Omit<User, 'token'> | null = null;
-
-    try {
-      parsedUser = storedUser ? JSON.parse(storedUser) : null;
-    } catch (err) {
-      console.error("Error parsing user from localStorage:", err);
-      safeLocalStorage.removeItem("user"); // Clear corrupted data
+    if (!user && !userLoading) {
+      refreshUser().catch((err) => console.warn("No se pudo refrescar el usuario", err));
     }
+  }, [refreshUser, user, userLoading]);
 
-    if (!authToken || !parsedUser || !parsedUser.id) {
+  useEffect(() => {
+    if (!userLoading && !user) {
       navigate("/login");
+    }
+  }, [navigate, user, userLoading]);
+
+  useEffect(() => {
+    if (userLoading) return;
+    if (!user) return;
+
+    if (!validarAcceso(user)) {
       return;
     }
 
-    const fullUser: User = {
-      ...parsedUser,
-      token: authToken,
-      plan: parsedUser.plan || "free",
-      tipo_chat: parsedUser.tipo_chat || undefined,
-      widget_icon_url: parsedUser.widget_icon_url,
-      widget_animation: parsedUser.widget_animation,
-    };
-    setUser(fullUser);
-    setIsLoading(false);
-
-    if (!validarAcceso(fullUser)) {
-      return;
-    }
-
-    setLogoUrl(fullUser.widget_icon_url || "");
-    setLogoAnimation(fullUser.widget_animation || "");
-  }, [navigate]);
+    setLogoUrl(user.widget_icon_url || "");
+    setLogoAnimation(user.widget_animation || "");
+  }, [user, userLoading, validarAcceso]);
 
 
   const endpoint = useMemo(() => {
@@ -537,7 +532,7 @@ const Integracion = () => {
     setRequireLoginForCatalog(value);
   };
 
-  if (isLoading) {
+  if (userLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen text-foreground bg-background p-4">
         <div className="flex flex-col items-center">
@@ -553,8 +548,8 @@ const Integracion = () => {
   }
 
   if (!user) {
-     // Esto no debería ocurrir si isLoading es false y el useEffect de auth funciona,
-     // pero es una salvaguarda. La navegación a /login ya se gestiona en useEffect.
+    // Esto no debería ocurrir si userLoading es false y el useEffect de auth funciona,
+    // pero es una salvaguarda. La navegación a /login ya se gestiona en useEffect.
     return null;
   }
   
