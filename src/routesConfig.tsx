@@ -66,6 +66,9 @@ import TenantEventsPage from '@/pages/tenant/TenantEventsPage';
 import TenantSurveyListPage from '@/pages/tenant/TenantSurveyListPage';
 import TenantSurveyDetailPage from '@/pages/tenant/TenantSurveyDetailPage';
 import TenantTicketFormPage from '@/pages/tenant/TenantTicketFormPage';
+import MarketCatalogPage from '@/pages/tenant/market/MarketCatalogPage';
+import MarketProductPage from '@/pages/tenant/market/MarketProductPage';
+import MarketCheckoutPage from '@/pages/tenant/market/MarketCheckoutPage';
 
 // NUEVAS IMPORTACIONES PARA EL PORTAL DE USUARIO
 // UserPortalLayout no se importa aquí si se usa como Layout Route en App.tsx
@@ -95,6 +98,9 @@ const routes: RouteConfig[] = [
   ...withTenantPrefixes('/:tenant', { element: <TenantHomePage /> }),
   ...withTenantPrefixes('/:tenant/noticias', { element: <TenantNewsPage /> }),
   ...withTenantPrefixes('/:tenant/eventos', { element: <TenantEventsPage /> }),
+  ...withTenantPrefixes('/:tenant/market', { element: <MarketCatalogPage /> }),
+  ...withTenantPrefixes('/:tenant/product/:slug', { element: <MarketProductPage /> }),
+  ...withTenantPrefixes('/:tenant/checkout', { element: <MarketCheckoutPage /> }),
   ...withTenantPrefixes('/:tenant/reclamos/nuevo', { element: <TenantTicketFormPage /> }),
   ...withTenantPrefixes('/:tenant/pedido/confirmado', { element: <OrderConfirmationPage /> }),
   { path: '/login', element: <Login /> },

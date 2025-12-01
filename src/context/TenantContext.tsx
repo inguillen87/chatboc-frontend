@@ -285,6 +285,11 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
   }, [currentSlug]);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    (window as any).currentTenantSlug = currentSlug ?? null;
+  }, [currentSlug]);
+
+  useEffect(() => {
     if (!tenant?.tema || typeof document === 'undefined') return;
 
     const theme = tenant.tema as Record<string, unknown>;
