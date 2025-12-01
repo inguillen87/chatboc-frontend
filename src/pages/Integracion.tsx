@@ -114,6 +114,32 @@ const Integracion = () => {
   const tokenAlertShown = useRef(false);
   const catalogTouched = useRef(false);
 
+  // Garantiza que el widget global no aparezca en esta página, incluso si quedó montado de otra ruta.
+  useEffect(() => {
+    const destroyWidget = (window as any).chatbocDestroyWidget;
+    destroyWidget?.();
+
+    const hideGlobalStyles = document.createElement('style');
+    hideGlobalStyles.dataset.chatbocHideGlobal = 'true';
+    hideGlobalStyles.textContent = `
+      #chatboc-launcher,
+      .chatboc-launcher,
+      .chatboc-widget-container,
+      .chatboc-widget-root {
+        display: none !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+      }
+    `;
+
+    document.head.appendChild(hideGlobalStyles);
+
+    return () => {
+      destroyWidget?.();
+      hideGlobalStyles.remove();
+    };
+  }, []);
+
   const validarAcceso = useCallback((currentUser: User | null) => {
     if (!currentUser) {
       navigate("/login");
