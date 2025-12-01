@@ -170,13 +170,18 @@ export default function InternalUsers() {
         if (err instanceof ApiError && err.status === 404) return null;
         return null;
       }),
+      apiFetch(`${entityType === 'pyme' ? '/pyme' : '/municipal'}/pedidos/categorias`, { sendEntityToken: true }).catch(err => {
+        if (err instanceof ApiError && err.status === 404) return null;
+        return null;
+      }),
     ])
-      .then(([usersData, categoriesData, ticketCategories]) => {
+      .then(([usersData, categoriesData, ticketCategories, pedidoCategories]) => {
         const staffUsers = filterStaffUsers(usersData);
         setUsers(staffUsers);
         const merged = mergeCategories(
           extractCategories(categoriesData),
           extractCategories(ticketCategories),
+          extractCategories(pedidoCategories),
           extractCategoriesFromUsers(staffUsers),
         );
         setCategories(merged);
