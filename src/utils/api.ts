@@ -82,6 +82,26 @@ const sanitizeTenantSlug = (slug?: string | null) => {
   return PLACEHOLDER_SLUGS.has(normalized.toLowerCase()) ? null : normalized;
 };
 
+const readTenantFromScriptDataset = () => {
+  if (typeof document === "undefined") return null;
+
+  const scripts = Array.from(
+    document.querySelectorAll<HTMLScriptElement>(
+      "script[data-tenant], script[data-tenant-slug], script[data-tenant_slug], script[data-endpoint]",
+    ),
+  );
+
+  for (const script of scripts) {
+    const candidate =
+      script.dataset.tenant || script.dataset.tenantSlug || script.dataset.tenant_slug || script.dataset.endpoint;
+
+    const normalized = sanitizeTenantSlug(candidate);
+    if (normalized) return normalized;
+  }
+
+  return null;
+};
+
 const inferTenantSlug = (explicitTenant?: string | null): string | null => {
   const candidate = sanitizeTenantSlug(explicitTenant);
   if (candidate) return candidate;
@@ -117,9 +137,16 @@ const inferTenantSlug = (explicitTenant?: string | null): string | null => {
     }
   }
 
+  const scriptTenant = readTenantFromScriptDataset();
+  if (scriptTenant) return scriptTenant;
+
   try {
     const cfg = (window as any).CHATBOC_CONFIG || {};
-    const fromConfig = cfg.tenant?.toString?.() || cfg.tenantSlug?.toString?.() || cfg.endpoint?.toString?.();
+    const fromConfig =
+      cfg.tenant?.toString?.() ||
+      cfg.tenantSlug?.toString?.() ||
+      cfg.tenant_slug?.toString?.() ||
+      cfg.endpoint?.toString?.();
     const normalized = sanitizeTenantSlug(fromConfig);
     if (normalized) return normalized;
   } catch (error) {
@@ -132,8 +159,19 @@ const inferTenantSlug = (explicitTenant?: string | null): string | null => {
   return null;
 };
 
-export const resolveTenantSlug = (explicitTenant?: string | null): string | null =>
-  inferTenantSlug(explicitTenant);
+export const resolveTenantSlug = (explicitTenant?: string | null): string | null => {
+  const resolved = inferTenantSlug(explicitTenant);
+
+  if (resolved) {
+    try {
+      safeLocalStorage.setItem("tenantSlug", resolved);
+    } catch (error) {
+      console.warn("[apiFetch] No se pudo persistir tenantSlug resuelto", error);
+    }
+  }
+
+  return resolved;
+};
 
 const shouldLogVerboseApi = (): boolean => {
   const metaEnv =
@@ -371,6 +409,21 @@ export async function apiFetch<T>(
     normalizedPath,
     resolvedTenantSlug,
   );
+
+  const tenantFromQueryParams = (() => {
+    try {
+      const url = new URL(normalizedPathWithTenant, 'http://placeholder');
+      const fromQuery =
+        url.searchParams.get('tenant_slug') ||
+        url.searchParams.get('tenant');
+
+      return sanitizeTenantSlug(fromQuery);
+    } catch {
+      return null;
+    }
+  })();
+
+  const effectiveTenantSlug = resolvedTenantSlug ?? tenantFromQueryParams;
   const hasApiPrefix = normalizedPathWithTenant.startsWith("api/");
   const pathWithoutApiPrefix = hasApiPrefix
     ? normalizedPathWithTenant.replace(/^api\/+/, "")
@@ -436,9 +489,9 @@ export async function apiFetch<T>(
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  if (resolvedTenantSlug) {
-    headers["X-Tenant"] = resolvedTenantSlug;
-    headers["X-Tenant-Id"] = resolvedTenantSlug;
+  if (effectiveTenantSlug) {
+    headers["X-Tenant"] = effectiveTenantSlug;
+    headers["X-Tenant-Id"] = effectiveTenantSlug;
   }
   // Si el endpoint necesita identificar usuario anónimo, mandá siempre el header "Anon-Id"
   if (((!token && anonId) || sendAnonId) && anonId) {
@@ -465,7 +518,7 @@ export async function apiFetch<T>(
       storedRole: normalizedRole,
       headers,
       chatSessionIdAttached: Boolean(chatSessionId),
-      tenantSlug: resolvedTenantSlug || null,
+      tenantSlug: effectiveTenantSlug || null,
     });
   }
 
