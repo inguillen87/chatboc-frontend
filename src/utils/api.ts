@@ -371,6 +371,21 @@ export async function apiFetch<T>(
     normalizedPath,
     resolvedTenantSlug,
   );
+
+  const tenantFromQueryParams = (() => {
+    try {
+      const url = new URL(normalizedPathWithTenant, 'http://placeholder');
+      const fromQuery =
+        url.searchParams.get('tenant_slug') ||
+        url.searchParams.get('tenant');
+
+      return sanitizeTenantSlug(fromQuery);
+    } catch {
+      return null;
+    }
+  })();
+
+  const effectiveTenantSlug = resolvedTenantSlug ?? tenantFromQueryParams;
   const hasApiPrefix = normalizedPathWithTenant.startsWith("api/");
   const pathWithoutApiPrefix = hasApiPrefix
     ? normalizedPathWithTenant.replace(/^api\/+/, "")
@@ -436,9 +451,9 @@ export async function apiFetch<T>(
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  if (resolvedTenantSlug) {
-    headers["X-Tenant"] = resolvedTenantSlug;
-    headers["X-Tenant-Id"] = resolvedTenantSlug;
+  if (effectiveTenantSlug) {
+    headers["X-Tenant"] = effectiveTenantSlug;
+    headers["X-Tenant-Id"] = effectiveTenantSlug;
   }
   // Si el endpoint necesita identificar usuario anónimo, mandá siempre el header "Anon-Id"
   if (((!token && anonId) || sendAnonId) && anonId) {
@@ -465,7 +480,7 @@ export async function apiFetch<T>(
       storedRole: normalizedRole,
       headers,
       chatSessionIdAttached: Boolean(chatSessionId),
-      tenantSlug: resolvedTenantSlug || null,
+      tenantSlug: effectiveTenantSlug || null,
     });
   }
 
