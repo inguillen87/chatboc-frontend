@@ -143,7 +143,10 @@ export default function TicketLookup() {
       }
 
       try {
-        const timeline = await getTicketTimeline(data.id, data.tipo, { public: true });
+        const timeline = await getTicketTimeline(data.id, data.tipo || 'municipio', {
+          public: true,
+          pin: pinVal,
+        });
         setTimelineHistory(timeline.history);
         setTimelineMessages(timeline.messages);
         setEstadoChat(timeline.estado_chat);

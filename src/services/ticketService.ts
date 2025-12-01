@@ -548,10 +548,14 @@ export const getTicketMessages = async (
 export const getTicketTimeline = async (
   ticketId: number,
   tipo: 'municipio' | 'pyme',
-  opts?: { public?: boolean }
+  opts?: { public?: boolean; pin?: string }
 ): Promise<{ estado_chat: string; history: TicketHistoryEvent[]; messages: Message[] }> => {
   try {
-    const endpoint = `/tickets/${tipo}/${ticketId}/timeline`;
+    const endpointBase = `/tickets/${tipo}/${ticketId}/timeline`;
+    const endpoint =
+      opts?.public && opts.pin
+        ? `${endpointBase}?pin=${encodeURIComponent(opts.pin)}`
+        : endpointBase;
     const fetchOpts = opts?.public
       ? { skipAuth: true, sendAnonId: true, sendEntityToken: true }
       : { sendAnonId: true };
