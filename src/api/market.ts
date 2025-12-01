@@ -1,4 +1,4 @@
-import { apiFetch } from '@/utils/api';
+import { ApiError, NetworkError, apiFetch } from '@/utils/api';
 import {
   AddToCartPayload,
   CheckoutStartPayload,
@@ -8,6 +8,8 @@ import {
   MarketCatalogResponse,
   MarketProduct,
 } from '@/types/market';
+import { MARKET_DEMO_PRODUCTS, buildDemoMarketCatalog } from '@/data/marketDemo';
+import { addItemToStoredCart, readStoredCart } from '@/utils/marketStorage';
 
 const baseOptions = (tenantSlug: string) => ({
   omitCredentials: true,
@@ -60,66 +62,109 @@ const normalizeProductList = (rawItems: any[] | undefined | null): MarketProduct
   return rawItems.map((item, index) => normalizeProduct(item, index));
 };
 
-export async function fetchMarketCatalog(tenantSlug: string): Promise<MarketCatalogResponse> {
-  const response = await apiFetch<any>(
-    `/api/market/${encodeURIComponent(tenantSlug)}/catalog`,
-    baseOptions(tenantSlug),
-  );
-  const products = normalizeProductList(response?.products ?? response?.items ?? []);
+const shouldUseDemo = (error: unknown): boolean => {
+  if (error instanceof ApiError) {
+    return [401, 403, 404, 405, 500].includes(error.status);
+  }
+  return error instanceof NetworkError;
+};
 
-  return {
-    tenantName: response?.tenantName ?? response?.nombre ?? response?.tenant_name ?? undefined,
-    tenantLogoUrl: response?.tenantLogoUrl ?? response?.logo ?? response?.tenant_logo_url ?? undefined,
-    products,
-  };
+const getDemoCatalog = (tenantSlug: string) => buildDemoMarketCatalog(tenantSlug).catalog;
+
+export async function fetchMarketCatalog(tenantSlug: string): Promise<MarketCatalogResponse> {
+  try {
+    const response = await apiFetch<any>(
+      `/api/market/${encodeURIComponent(tenantSlug)}/catalog`,
+      baseOptions(tenantSlug),
+    );
+    const products = normalizeProductList(response?.products ?? response?.items ?? []);
+
+    return {
+      tenantName: response?.tenantName ?? response?.nombre ?? response?.tenant_name ?? undefined,
+      tenantLogoUrl: response?.tenantLogoUrl ?? response?.logo ?? response?.tenant_logo_url ?? undefined,
+      products,
+    };
+  } catch (error) {
+    if (!shouldUseDemo(error)) throw error;
+    return getDemoCatalog(tenantSlug);
+  }
 }
 
 export async function fetchMarketCart(tenantSlug: string): Promise<MarketCartResponse> {
-  const response = await apiFetch<any>(
-    `/api/market/${encodeURIComponent(tenantSlug)}/cart`,
-    baseOptions(tenantSlug),
-  );
-  const items = normalizeCartItems(response?.items ?? response?.cart ?? []);
+  try {
+    const response = await apiFetch<any>(
+      `/api/market/${encodeURIComponent(tenantSlug)}/cart`,
+      baseOptions(tenantSlug),
+    );
+    const items = normalizeCartItems(response?.items ?? response?.cart ?? []);
 
-  return {
-    items,
-    totalAmount: response?.totalAmount ?? response?.total ?? response?.total_amount ?? null,
-    totalPoints: response?.totalPoints ?? response?.puntos_totales ?? response?.total_points ?? null,
-  };
+    return {
+      items,
+      totalAmount: response?.totalAmount ?? response?.total ?? response?.total_amount ?? null,
+      totalPoints: response?.totalPoints ?? response?.puntos_totales ?? response?.total_points ?? null,
+    };
+  } catch (error) {
+    if (!shouldUseDemo(error)) throw error;
+    const fallbackCart = readStoredCart(tenantSlug);
+    return { ...fallbackCart, isDemo: true };
+  }
 }
 
 export async function addMarketItem(
   tenantSlug: string,
   payload: AddToCartPayload,
 ): Promise<MarketCartResponse> {
-  const response = await apiFetch<any>(`/api/market/${encodeURIComponent(tenantSlug)}/cart/add`, {
-    ...baseOptions(tenantSlug),
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
+  try {
+    const response = await apiFetch<any>(`/api/market/${encodeURIComponent(tenantSlug)}/cart/add`, {
+      ...baseOptions(tenantSlug),
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
 
-  const items = normalizeCartItems(response?.items ?? response?.cart ?? []);
+    const items = normalizeCartItems(response?.items ?? response?.cart ?? []);
 
-  return {
-    items,
-    totalAmount: response?.totalAmount ?? response?.total ?? response?.total_amount ?? null,
-    totalPoints: response?.totalPoints ?? response?.puntos_totales ?? response?.total_points ?? null,
-  };
+    return {
+      items,
+      totalAmount: response?.totalAmount ?? response?.total ?? response?.total_amount ?? null,
+      totalPoints: response?.totalPoints ?? response?.puntos_totales ?? response?.total_points ?? null,
+    };
+  } catch (error) {
+    if (!shouldUseDemo(error)) throw error;
+    const demoProduct = MARKET_DEMO_PRODUCTS.find((product) => product.id === payload.productId);
+    const fallbackItem: MarketCartItem = {
+      id: payload.productId,
+      name: demoProduct?.name ?? 'Producto',
+      quantity: payload.quantity ?? 1,
+      price: demoProduct?.price ?? null,
+      points: demoProduct?.points ?? null,
+      imageUrl: demoProduct?.imageUrl ?? null,
+    };
+    const stored = addItemToStoredCart(tenantSlug, fallbackItem, payload.quantity ?? 1);
+    return { ...stored, isDemo: true };
+  }
 }
 
 export async function startMarketCheckout(
   tenantSlug: string,
   payload: CheckoutStartPayload,
 ): Promise<CheckoutStartResponse> {
-  return apiFetch<CheckoutStartResponse>(`/api/market/${encodeURIComponent(tenantSlug)}/checkout/start`, {
-    ...baseOptions(tenantSlug),
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
+  try {
+    return await apiFetch<CheckoutStartResponse>(`/api/market/${encodeURIComponent(tenantSlug)}/checkout/start`, {
+      ...baseOptions(tenantSlug),
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch (error) {
+    if (!shouldUseDemo(error)) throw error;
+    return {
+      status: 'demo',
+      message: 'Pedido registrado en modo demo. Te contactaremos al habilitar el catálogo en vivo.',
+    };
+  }
 }
