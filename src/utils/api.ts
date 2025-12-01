@@ -35,7 +35,7 @@ const parseDebugFlag = (value?: string | null): boolean => {
 };
 
 const TENANT_PATH_REGEX = new RegExp(`^/(?:${TENANT_ROUTE_PREFIXES.join("|")})/([^/]+)`, "i");
-const PLACEHOLDER_SLUGS = new Set(["iframe", "embed", "widget", "tenant", "market", "municipio", "pyme"]);
+const PLACEHOLDER_SLUGS = new Set(["iframe", "embed", "widget", "tenant"]);
 
 const readTenantFromSubdomain = () => {
   if (typeof window === "undefined") return null;
@@ -320,7 +320,7 @@ export async function apiFetch<T>(
   })();
 
   const treatAsWidget = isWidgetRequest ?? (isWidgetContext && isLikelyWidgetEnvironment);
-  const resolvedTenantSlug = inferTenantSlug(tenantSlug);
+  const resolvedTenantSlug = resolveTenantSlug(tenantSlug);
   const panelToken = safeLocalStorage.getItem("authToken");
   const chatToken = safeLocalStorage.getItem("chatAuthToken");
   let storedRole: string | null = null;
