@@ -10,6 +10,7 @@ import { fetchMarketCatalog } from '@/api/market';
 import { Copy, MessageCircle, QrCode, ShoppingBag } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 import { Badge } from '@/components/ui/badge';
+import { buildDemoMarketCatalog } from '@/data/marketDemo';
 
 const normalizeProducts = (raw: any): MarketProduct[] => {
   if (!Array.isArray(raw)) return [];
@@ -48,13 +49,17 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
   useEffect(() => {
     setIsLoading(true);
     setError(null);
+    setIsDemo(false);
     fetchMarketCatalog(tenantSlug)
       .then((response) => {
         setProducts(normalizeProducts(response?.products ?? []));
         setIsDemo(Boolean(response?.isDemo));
       })
       .catch((err) => {
-        setError(err instanceof Error ? err.message : 'No se pudo cargar el catálogo.');
+        const demo = buildDemoMarketCatalog(tenantSlug).catalog;
+        setProducts(normalizeProducts(demo.products));
+        setIsDemo(true);
+        setError(err instanceof Error ? err.message : 'No se pudo cargar el catálogo en vivo. Mostramos una demo.');
       })
       .finally(() => setIsLoading(false));
   }, [tenantSlug]);

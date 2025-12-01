@@ -19,6 +19,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/co
 import { formatCurrency } from '@/utils/currency';
 import { getValidStoredToken } from '@/utils/authTokens';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { buildDemoMarketCatalog } from '@/data/marketDemo';
 
 type ContactInfo = {
   name?: string;
@@ -198,10 +199,13 @@ export default function MarketCartPage() {
     checkoutMutation.mutate(payload);
   };
 
-  const catalogProducts: MarketProduct[] = catalogQuery.data?.products ?? [];
+  const fallbackCatalog = useMemo(() => buildDemoMarketCatalog(tenantSlug).catalog, [tenantSlug]);
+  const catalogData = catalogQuery.data ?? (catalogQuery.isError ? fallbackCatalog : undefined);
+  const catalogProducts: MarketProduct[] = catalogData?.products ?? [];
   const cartItems: MarketCartItem[] = cartQuery.data?.items ?? [];
   const catalogErrorMessage = catalogQuery.error instanceof Error ? catalogQuery.error.message : null;
   const cartErrorMessage = cartQuery.error instanceof Error ? cartQuery.error.message : null;
+  const isDemoCatalog = Boolean(catalogData?.isDemo || (!catalogQuery.data && catalogQuery.isError));
   const canCopy = Boolean(shareUrl && navigator?.clipboard);
   const canShareWhatsApp = Boolean(shareMessage);
 
@@ -328,7 +332,16 @@ export default function MarketCartPage() {
               ) : null}
             </div>
 
-            {(catalogErrorMessage || catalogQuery.data?.isDemo) ? (
+            {isDemoCatalog ? (
+              <Alert>
+                <AlertTitle>Catálogo de demostración</AlertTitle>
+                <AlertDescription>
+                  {catalogData?.demoReason || 'Mostramos un catálogo listo para probar mientras se conecta el catálogo en vivo.'}
+                </AlertDescription>
+              </Alert>
+            ) : null}
+
+            {!isDemoCatalog && catalogErrorMessage ? (
               <Alert variant="destructive">
                 <AlertTitle>{catalogQuery.data?.isDemo ? 'Catálogo de demostración' : 'No pudimos cargar el catálogo'}</AlertTitle>
                 <AlertDescription>

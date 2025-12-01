@@ -79,6 +79,11 @@ export async function fetchMarketCatalog(tenantSlug: string): Promise<MarketCata
     );
     const products = normalizeProductList(response?.products ?? response?.items ?? []);
 
+    if (!products.length) {
+      const demo = getDemoCatalog(tenantSlug);
+      return { ...demo, isDemo: true, demoReason: demo.demoReason };
+    }
+
     return {
       tenantName: response?.tenantName ?? response?.nombre ?? response?.tenant_name ?? undefined,
       tenantLogoUrl: response?.tenantLogoUrl ?? response?.logo ?? response?.tenant_logo_url ?? undefined,
