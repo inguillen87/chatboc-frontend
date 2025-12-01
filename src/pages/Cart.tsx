@@ -27,6 +27,7 @@ import { Badge } from '@/components/ui/badge';
 import GuestContactDialog, { GuestContactValues } from '@/components/cart/GuestContactDialog';
 import { loadGuestContact, saveGuestContact } from '@/utils/guestContact';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 // Interfaz para el producto en el carrito, extendiendo ProductDetails y añadiendo cantidad
 interface CartItem extends ProductDetails {
@@ -45,12 +46,12 @@ export default function CartPage() {
   const { currentSlug, isLoadingTenant } = useTenant();
   const { user } = useUser();
   const effectiveTenantSlug = useMemo(
-    () => currentSlug ?? user?.tenantSlug ?? null,
+    () => currentSlug ?? user?.tenantSlug ?? safeLocalStorage.getItem('tenantSlug') ?? null,
     [currentSlug, user?.tenantSlug],
   );
   const { points: pointsBalance, isLoading: isLoadingPoints, requiresAuth: pointsRequireAuth } = usePointsBalance({
     enabled: !!user,
-    tenantSlug: currentSlug,
+    tenantSlug: effectiveTenantSlug,
   });
   const [showGuestDialog, setShowGuestDialog] = useState(false);
   const [showPointsAuthPrompt, setShowPointsAuthPrompt] = useState(false);
@@ -561,7 +562,7 @@ export default function CartPage() {
         onClose={() => setShowGuestDialog(false)}
         defaultValues={loadGuestContact()}
         reason="checkout"
-        onLogin={() => navigate('/login')}
+        onLogin={() => navigate(loginPath)}
         onSubmit={handleGuestContactSubmit}
       />
     </div>
