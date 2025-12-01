@@ -48,12 +48,22 @@ function AppRoutes() {
     "/demo"
   ];
 
-  // El .some() detecta si la ruta actual *empieza* igual que alguna de la lista
-  const isIntegrationRoute = location.pathname.includes("/integracion");
+  // Detecta rutas de integración como segmento, incluso con prefijos de tenant (ej: /t/slug/integracion)
+  const isIntegrationRoute = location.pathname
+    .toLowerCase()
+    .split("/")
+    .includes("integracion");
   const ocultarWidgetGlobalEnApp = rutasSinWidget.some(
     (ruta) =>
       location.pathname === ruta || location.pathname.startsWith(ruta + "/")
   ) || isIntegrationRoute;
+
+  // Evita que el widget global quede montado en rutas de integración
+  React.useEffect(() => {
+    if (ocultarWidgetGlobalEnApp) {
+      (window as any).chatbocDestroyWidget?.();
+    }
+  }, [ocultarWidgetGlobalEnApp]);
 
   return (
     <TenantProvider>
