@@ -82,6 +82,26 @@ const sanitizeTenantSlug = (slug?: string | null) => {
   return PLACEHOLDER_SLUGS.has(normalized.toLowerCase()) ? null : normalized;
 };
 
+const readTenantFromScriptDataset = () => {
+  if (typeof document === "undefined") return null;
+
+  const scripts = Array.from(
+    document.querySelectorAll<HTMLScriptElement>(
+      "script[data-tenant], script[data-tenant-slug], script[data-tenant_slug], script[data-endpoint]",
+    ),
+  );
+
+  for (const script of scripts) {
+    const candidate =
+      script.dataset.tenant || script.dataset.tenantSlug || script.dataset.tenant_slug || script.dataset.endpoint;
+
+    const normalized = sanitizeTenantSlug(candidate);
+    if (normalized) return normalized;
+  }
+
+  return null;
+};
+
 const inferTenantSlug = (explicitTenant?: string | null): string | null => {
   const candidate = sanitizeTenantSlug(explicitTenant);
   if (candidate) return candidate;
@@ -116,6 +136,9 @@ const inferTenantSlug = (explicitTenant?: string | null): string | null => {
       console.warn("[apiFetch] No se pudo leer la query string para tenant", error);
     }
   }
+
+  const scriptTenant = readTenantFromScriptDataset();
+  if (scriptTenant) return scriptTenant;
 
   try {
     const cfg = (window as any).CHATBOC_CONFIG || {};
