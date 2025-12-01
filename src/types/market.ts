@@ -11,6 +11,8 @@ export interface MarketCatalogResponse {
   tenantName?: string;
   tenantLogoUrl?: string;
   products: MarketProduct[];
+  isDemo?: boolean;
+  demoReason?: string;
 }
 
 export interface MarketCartItem {
@@ -26,6 +28,7 @@ export interface MarketCartResponse {
   items: MarketCartItem[];
   totalAmount?: number | null;
   totalPoints?: number | null;
+  isDemo?: boolean;
 }
 
 export interface AddToCartPayload {

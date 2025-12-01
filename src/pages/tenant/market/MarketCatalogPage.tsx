@@ -4,9 +4,13 @@ import { Link, useParams } from 'react-router-dom';
 import ProductCard from '@/components/market/ProductCard';
 import { MarketCartProvider, useMarketCart } from '@/context/MarketCartContext';
 import type { MarketProduct } from '@/types/market';
-import { apiFetch } from '@/api/client';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { fetchMarketCatalog } from '@/api/market';
+import { Copy, MessageCircle, QrCode, ShoppingBag } from 'lucide-react';
+import { toast } from '@/components/ui/use-toast';
+import { Badge } from '@/components/ui/badge';
+import { buildDemoMarketCatalog } from '@/data/marketDemo';
 
 const normalizeProducts = (raw: any): MarketProduct[] => {
   if (!Array.isArray(raw)) return [];
@@ -27,18 +31,35 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
   const [products, setProducts] = useState<MarketProduct[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isDemo, setIsDemo] = useState(false);
   const { addItem, isLoading: isCartLoading } = useMarketCart();
+  const shareUrl = useMemo(() => {
+    if (typeof window === 'undefined' || !tenantSlug) return '';
+    const url = new URL(window.location.href);
+    url.pathname = `/market/${tenantSlug}/cart`;
+    url.search = '';
+    return url.toString();
+  }, [tenantSlug]);
+  const shareMessage = useMemo(() => {
+    if (!shareUrl) return '';
+    const prefix = tenantSlug ? `Catálogo de ${tenantSlug}` : 'Catálogo';
+    return `${prefix}: ${shareUrl}`;
+  }, [shareUrl, tenantSlug]);
 
   useEffect(() => {
     setIsLoading(true);
     setError(null);
-    apiFetch(`/api/${tenantSlug}/productos`)
-      .then((response: any) => {
-        const normalized = normalizeProducts(response?.productos ?? response?.items ?? response);
-        setProducts(normalized);
+    setIsDemo(false);
+    fetchMarketCatalog(tenantSlug)
+      .then((response) => {
+        setProducts(normalizeProducts(response?.products ?? []));
+        setIsDemo(Boolean(response?.isDemo));
       })
       .catch((err) => {
-        setError(err instanceof Error ? err.message : 'No se pudo cargar el catálogo.');
+        const demo = buildDemoMarketCatalog(tenantSlug).catalog;
+        setProducts(normalizeProducts(demo.products));
+        setIsDemo(true);
+        setError(err instanceof Error ? err.message : 'No se pudo cargar el catálogo en vivo. Mostramos una demo.');
       })
       .finally(() => setIsLoading(false));
   }, [tenantSlug]);
@@ -47,12 +68,57 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8">
-      <header className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold">Marketplace</h1>
-        <p className="text-muted-foreground">
-          Explorá los productos y agregalos al carrito para iniciar tu compra.
-        </p>
+      <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-start gap-3">
+          <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl bg-primary/10 text-primary">
+            <ShoppingBag className="h-6 w-6" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-semibold">Marketplace</h1>
+            <p className="text-muted-foreground">
+              Explorá los productos y agregalos al carrito para iniciar tu compra.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" onClick={async () => {
+            try {
+              if (!shareUrl) return;
+              await navigator.clipboard.writeText(shareUrl);
+              toast({ title: 'Enlace copiado', description: 'Listo para compartir por WhatsApp o email.' });
+            } catch (copyError) {
+              toast({ title: 'No se pudo copiar', description: shareUrl, variant: 'destructive' });
+            }
+          }} disabled={!shareUrl || !navigator?.clipboard}>
+            <Copy className="mr-2 h-4 w-4" /> Copiar enlace
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => {
+            if (!shareMessage) return;
+            const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(shareMessage)}`;
+            window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+          }} disabled={!shareMessage}>
+            <MessageCircle className="mr-2 h-4 w-4" /> WhatsApp
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => {
+            if (!shareUrl) return;
+            const qrLink = `https://quickchart.io/qr?text=${encodeURIComponent(shareUrl)}&margin=12&size=320`;
+            window.open(qrLink, '_blank', 'noopener,noreferrer');
+          }} disabled={!shareUrl}>
+            <QrCode className="mr-2 h-4 w-4" /> QR
+          </Button>
+          {isDemo ? <Badge variant="secondary">Demo</Badge> : null}
+        </div>
       </header>
+
+      {isDemo ? (
+        <Alert>
+          <AlertTitle>Catálogo demo listo para mostrar</AlertTitle>
+          <AlertDescription>
+            Usa este catálogo de demostración para compartir por WhatsApp o escaneando el QR mientras se conecta el catálogo real.
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
       {error ? (
         <Alert variant="destructive">
