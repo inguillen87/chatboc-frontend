@@ -35,17 +35,21 @@ export default function ProductCatalog() {
   const { currentSlug } = useTenant();
   const { user } = useUser();
   const cartCount = useCartCount();
+  const effectiveTenantSlug = useMemo(
+    () => currentSlug ?? user?.tenantSlug ?? null,
+    [currentSlug, user?.tenantSlug],
+  );
   const { points: pointsBalance, requiresAuth: pointsRequireAuth, error: pointsError } = usePointsBalance({
     enabled: !!user,
-    tenantSlug: currentSlug,
+    tenantSlug: effectiveTenantSlug,
   });
   const [showPointsAuthPrompt, setShowPointsAuthPrompt] = useState(false);
   const [pointsAuthMessage, setPointsAuthMessage] = useState<string>('Para usar tus puntos tenés que iniciar sesión o registrarte.');
 
-  const catalogPath = buildTenantPath('/productos', currentSlug);
-  const cartPath = buildTenantPath('/cart', currentSlug);
-  const loginPath = buildTenantPath('/login', currentSlug);
-  const registerPath = buildTenantPath('/register', currentSlug);
+  const catalogPath = buildTenantPath('/productos', effectiveTenantSlug);
+  const cartPath = buildTenantPath('/cart', effectiveTenantSlug);
+  const loginPath = buildTenantPath('/login', effectiveTenantSlug);
+  const registerPath = buildTenantPath('/register', effectiveTenantSlug);
   const numberFormatter = useMemo(() => new Intl.NumberFormat('es-AR'), []);
   const shouldShowDemoLoyalty = catalogSource === 'fallback' || cartMode === 'local';
   const shouldShowLiveLoyalty = !shouldShowDemoLoyalty && !!user;
@@ -53,12 +57,12 @@ export default function ProductCatalog() {
   const sharedRequestOptions = useMemo(
     () => ({
       suppressPanel401Redirect: true,
-      tenantSlug: currentSlug ?? undefined,
+      tenantSlug: effectiveTenantSlug ?? undefined,
       sendAnonId: true,
       isWidgetRequest: true,
       omitCredentials: true,
     }) as const,
-    [currentSlug],
+    [effectiveTenantSlug],
   );
 
   const shouldUseDemoCatalog = (err: unknown) => {
