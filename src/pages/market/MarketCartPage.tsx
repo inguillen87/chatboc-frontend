@@ -328,11 +328,13 @@ export default function MarketCartPage() {
               ) : null}
             </div>
 
-            {catalogErrorMessage ? (
+            {(catalogErrorMessage || catalogQuery.data?.isDemo) ? (
               <Alert variant="destructive">
-                <AlertTitle>No pudimos cargar el catálogo</AlertTitle>
+                <AlertTitle>{catalogQuery.data?.isDemo ? 'Catálogo de demostración' : 'No pudimos cargar el catálogo'}</AlertTitle>
                 <AlertDescription>
-                  {catalogErrorMessage || 'Intenta nuevamente desde el enlace o QR.'}
+                  {catalogQuery.data?.demoReason ??
+                    catalogErrorMessage ||
+                      'Intenta nuevamente desde el enlace o QR.'}
                 </AlertDescription>
               </Alert>
             ) : null}
@@ -373,6 +375,16 @@ export default function MarketCartPage() {
                 <AlertTitle>No pudimos actualizar tu carrito</AlertTitle>
                 <AlertDescription>
                   {cartErrorMessage || 'Revisa tu conexión e intenta de nuevo.'}
+                </AlertDescription>
+              </Alert>
+            ) : null}
+
+            {(catalogQuery.data?.isDemo || cartQuery.data?.isDemo) && !cartErrorMessage ? (
+              <Alert className="mt-3" variant="default">
+                <AlertTitle>Modo demo activado</AlertTitle>
+                <AlertDescription>
+                  Usamos un catálogo de demostración mientras conectamos el backend de este tenant. Puedes compartir el enlace o
+                  finalizar un pedido de prueba para mostrar el flujo completo.
                 </AlertDescription>
               </Alert>
             ) : null}

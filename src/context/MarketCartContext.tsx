@@ -8,8 +8,8 @@ import React, {
   type ReactNode,
 } from 'react';
 
-import { apiFetch } from '@/api/client';
 import type { MarketCartItem, MarketCartResponse } from '@/types/market';
+import { addMarketItem, fetchMarketCart } from '@/api/market';
 
 interface MarketCartContextValue {
   items: MarketCartItem[];
@@ -62,11 +62,11 @@ export function MarketCartProvider({ tenantSlug, children }: ProviderProps) {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await apiFetch<MarketCartResponse | any>(`/api/${tenantSlug}/carrito`);
-      const resolvedItems = normalizeCartItems(response?.items ?? response?.cart ?? []);
+      const response = await fetchMarketCart(tenantSlug);
+      const resolvedItems = normalizeCartItems(response?.items ?? []);
       setItems(resolvedItems);
-      setTotalAmount(response?.totalAmount ?? response?.total ?? null);
-      setTotalPoints(response?.totalPoints ?? response?.puntos ?? null);
+      setTotalAmount(response?.totalAmount ?? null);
+      setTotalPoints(response?.totalPoints ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo cargar el carrito.');
     } finally {
@@ -80,14 +80,11 @@ export function MarketCartProvider({ tenantSlug, children }: ProviderProps) {
       setIsLoading(true);
       setError(null);
       try {
-        const response = await apiFetch<MarketCartResponse | any>(`/api/${tenantSlug}/carrito`, {
-          method: 'POST',
-          body: JSON.stringify({ productId, quantity }),
-        });
-        const resolvedItems = normalizeCartItems(response?.items ?? response?.cart ?? []);
+        const response = await addMarketItem(tenantSlug, { productId, quantity });
+        const resolvedItems = normalizeCartItems(response?.items ?? []);
         setItems(resolvedItems);
-        setTotalAmount(response?.totalAmount ?? response?.total ?? null);
-        setTotalPoints(response?.totalPoints ?? response?.puntos ?? null);
+        setTotalAmount(response?.totalAmount ?? null);
+        setTotalPoints(response?.totalPoints ?? null);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'No se pudo agregar el producto.');
       } finally {

@@ -93,6 +93,19 @@ const withTenantPrefixes = (
     path: `/${prefix}${pathSuffix}`,
   }));
 
+const withTenantPrefixesExcept = (
+  pathSuffix: string,
+  config: Omit<RouteConfig, 'path'>,
+  exclude: readonly (typeof TENANT_ROUTE_PREFIXES)[number][] = [],
+): RouteConfig[] => {
+  const exclusionSet = new Set(exclude.map((value) => value.toLowerCase()));
+
+  return TENANT_ROUTE_PREFIXES.filter((prefix) => !exclusionSet.has(prefix.toLowerCase())).map((prefix) => ({
+    ...config,
+    path: `/${prefix}${pathSuffix}`,
+  }));
+};
+
 const routes: RouteConfig[] = [
   { path: '/', element: <Index /> },
   ...withTenantPrefixes('/:tenant', { element: <TenantHomePage /> }),
@@ -134,7 +147,7 @@ const routes: RouteConfig[] = [
   { path: '/productos', element: <ProductCatalog /> },
   ...withTenantPrefixes('/:tenant/productos', { element: <ProductCatalog /> }),
   { path: '/cart', element: <CartPage /> },
-  ...withTenantPrefixes('/:tenant/cart', { element: <CartPage /> }),
+  ...withTenantPrefixesExcept('/:tenant/cart', { element: <CartPage /> }, ['market']),
   { path: '/market/:tenantSlug/cart', element: <MarketCartPage /> },
   { path: '/checkout-productos', element: <ProductCheckoutPage /> },
   ...withTenantPrefixes('/:tenant/checkout-productos', { element: <ProductCheckoutPage /> }),
