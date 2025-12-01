@@ -491,7 +491,6 @@ export async function apiFetch<T>(
 
   if (effectiveTenantSlug) {
     headers["X-Tenant"] = effectiveTenantSlug;
-    headers["X-Tenant-Id"] = effectiveTenantSlug;
   }
   // Si el endpoint necesita identificar usuario anónimo, mandá siempre el header "Anon-Id"
   if (((!token && anonId) || sendAnonId) && anonId) {
