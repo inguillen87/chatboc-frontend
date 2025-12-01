@@ -346,8 +346,8 @@ export default function MarketCartPage() {
                 <AlertTitle>{catalogQuery.data?.isDemo ? 'Catálogo de demostración' : 'No pudimos cargar el catálogo'}</AlertTitle>
                 <AlertDescription>
                   {catalogQuery.data?.demoReason ??
-                    catalogErrorMessage ||
-                      'Intenta nuevamente desde el enlace o QR.'}
+                    (catalogErrorMessage ||
+                      'Intenta nuevamente desde el enlace o QR.')}
                 </AlertDescription>
               </Alert>
             ) : null}
