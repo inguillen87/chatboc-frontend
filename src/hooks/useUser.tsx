@@ -5,6 +5,7 @@ import { enforceTipoChatForRubro, parseRubro } from '@/utils/tipoChat';
 import { getIframeToken } from '@/utils/config';
 import { getStoredEntityToken, normalizeEntityToken, persistEntityToken } from '@/utils/entityToken';
 import { getValidStoredToken } from '@/utils/authTokens';
+import { TENANT_ROUTE_PREFIXES } from '@/utils/tenantPaths';
 
 interface UserData {
   id?: number;
@@ -44,6 +45,40 @@ const UserContext = React.createContext<UserContextValue>({
   refreshUser: async () => {},
   loading: false,
 });
+
+const PLACEHOLDER_SLUGS = new Set(['iframe', 'embed', 'widget']);
+
+const sanitizeTenantSlug = (slug?: string | null) => {
+  if (!slug || typeof slug !== 'string') return null;
+  const normalized = slug.trim();
+  if (!normalized) return null;
+  return PLACEHOLDER_SLUGS.has(normalized.toLowerCase()) ? null : normalized;
+};
+
+const deriveTenantSlugFromUrl = (rawUrl?: string | null) => {
+  if (!rawUrl || typeof rawUrl !== 'string') return null;
+
+  try {
+    const url = new URL(rawUrl, 'http://localhost');
+    const params = url.searchParams;
+    const fromQuery = params.get('tenant') || params.get('tenant_slug') || params.get('endpoint');
+    if (fromQuery?.trim()) {
+      return fromQuery.trim();
+    }
+
+    const segments = url.pathname.split('/').filter(Boolean);
+    const tenantPrefixIndex = segments.findIndex((segment) =>
+      TENANT_ROUTE_PREFIXES.includes(segment.toLowerCase() as typeof TENANT_ROUTE_PREFIXES[number]),
+    );
+    if (tenantPrefixIndex >= 0 && segments[tenantPrefixIndex + 1]) {
+      return decodeURIComponent(segments[tenantPrefixIndex + 1]);
+    }
+  } catch (error) {
+    console.warn('[useUser] No se pudo derivar tenantSlug desde URL pública', { rawUrl, error });
+  }
+
+  return null;
+};
 
 export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<UserData | null>(() => {
@@ -121,6 +156,23 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
           : typeof data.tenant_slug === 'string'
             ? data.tenant_slug
             : undefined;
+      const derivedTenantSlug =
+        normalizedTenantSlug ||
+        deriveTenantSlugFromUrl(
+          typeof data.public_catalog_url === 'string'
+            ? data.public_catalog_url
+            : typeof data.publicCatalogUrl === 'string'
+              ? data.publicCatalogUrl
+              : undefined,
+        ) ||
+        deriveTenantSlugFromUrl(
+          typeof data.public_cart_url === 'string'
+            ? data.public_cart_url
+            : typeof data.publicCartUrl === 'string'
+              ? data.publicCartUrl
+              : undefined,
+        );
+      const resolvedTenantSlug = sanitizeTenantSlug(derivedTenantSlug);
       const normalizedPublicCartUrl =
         typeof data.public_cart_url === 'string'
           ? data.public_cart_url
@@ -152,7 +204,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         rol: data.rol,
         token: activeToken,
         entityToken: normalizedEntityToken || storedEntityToken || undefined,
-        tenantSlug: normalizedTenantSlug,
+        tenantSlug: resolvedTenantSlug || undefined,
         publicCartUrl: normalizedPublicCartUrl,
         publicCatalogUrl: normalizedPublicCatalogUrl,
         categoria_id: Number.isFinite(data.categoria_id) ? Number(data.categoria_id) : undefined,
@@ -163,6 +215,9 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         latitud: typeof data.latitud === 'number' ? data.latitud : Number(data.latitud),
         longitud: typeof data.longitud === 'number' ? data.longitud : Number(data.longitud),
       };
+      if (resolvedTenantSlug) {
+        safeLocalStorage.setItem('tenantSlug', resolvedTenantSlug);
+      }
       safeLocalStorage.setItem('user', JSON.stringify(updated));
       setUser(updated);
     } catch (e) {

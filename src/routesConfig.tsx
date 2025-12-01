@@ -98,6 +98,7 @@ const routes: RouteConfig[] = [
   ...withTenantPrefixes('/:tenant/reclamos/nuevo', { element: <TenantTicketFormPage /> }),
   ...withTenantPrefixes('/:tenant/pedido/confirmado', { element: <OrderConfirmationPage /> }),
   { path: '/login', element: <Login /> },
+  ...withTenantPrefixes('/:tenant/login', { element: <Login /> }),
   ...(FEATURE_ENCUESTAS
     ? [
         { path: '/encuestas', element: <PublicSurveysIndex /> },
@@ -108,6 +109,7 @@ const routes: RouteConfig[] = [
       ]
     : []),
   { path: '/register', element: <Register /> },
+  ...withTenantPrefixes('/:tenant/register', { element: <Register /> }),
   { path: '/user/login', element: <UserLogin /> },
   { path: '/user/register', element: <UserRegister /> },
   { path: '/cuenta', element: <UserAccount /> },
