@@ -11,7 +11,7 @@ interface Props {
   showProfile?: boolean;
   muted?: boolean;
   onToggleSound?: () => void;
-  onCart?: (target?: "cart" | "catalog") => void;
+  onCart?: (target?: "cart" | "catalog" | "market") => void;
   cartCount?: number;
   logoUrl?: string;
   title?: string;

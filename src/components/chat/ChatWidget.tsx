@@ -270,6 +270,19 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
     tenantSlugFromSubdomain,
   ]);
 
+  const resolveActiveTenantSlug = useCallback(() => {
+    return sanitizeTenantSlug(resolvedTenantSlug);
+  }, [resolvedTenantSlug]);
+
+  useEffect(() => {
+    const sanitized = sanitizeTenantSlug(resolvedTenantSlug);
+    if (sanitized) {
+      safeLocalStorage.setItem("tenantSlug", sanitized);
+    } else {
+      safeLocalStorage.removeItem("tenantSlug");
+    }
+  }, [resolvedTenantSlug]);
+
   useEffect(() => {
     const checkMobile = () => {
       if (typeof window !== "undefined") {
@@ -398,16 +411,47 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
     }
   }, [user, entityInfo]);
 
-  const openCart = useCallback(
-    (target: "cart" | "catalog" = "cart") => {
-      const storedTenant = sanitizeTenantSlug(safeLocalStorage.getItem("tenantSlug"));
-      const slug = resolvedTenantSlug ?? storedTenant;
-      const basePath = target === "catalog" ? "/productos" : "/cart";
+  const buildMarketCartUrl = useCallback((slug?: string | null, baseUrl?: string | null) => {
+    const safeSlug = slug?.trim();
+    if (!safeSlug) return null;
+    const path = `/market/${encodeURIComponent(safeSlug)}/cart`;
 
-      const preferredUrl =
-        target === "catalog"
-          ? tenant?.public_catalog_url ?? user?.publicCatalogUrl ?? null
-          : tenant?.public_cart_url ?? user?.publicCartUrl ?? null;
+    try {
+      if (baseUrl) {
+        return new URL(path, baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`).toString();
+      }
+      if (typeof window !== "undefined" && window.location?.origin) {
+        return new URL(path, window.location.origin).toString();
+      }
+    } catch (error) {
+      console.warn('[market] No se pudo componer la URL pública', error);
+    }
+
+    return path;
+  }, []);
+
+  const openCart = useCallback(
+    (target: "cart" | "catalog" | "market" = "cart") => {
+      const slug = resolveActiveTenantSlug();
+
+      if (!slug) {
+        toast.error("No hay un tenant configurado para el carrito.");
+        return;
+      }
+
+      if (target === "market" || target === "catalog") {
+        const destination = buildMarketCartUrl(slug, tenant?.public_base_url ?? null);
+        if (!destination) {
+          toast.error("No pudimos abrir el catálogo público.");
+          return;
+        }
+        window.open(destination, "_blank");
+        return;
+      }
+
+      const basePath = "/cart";
+
+      const preferredUrl = tenant?.public_cart_url ?? user?.publicCartUrl ?? null;
 
       const authToken = authTokenState ?? safeLocalStorage.getItem("authToken") ?? safeLocalStorage.getItem("chatAuthToken");
 
@@ -428,14 +472,15 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
             fallbackQueryParam: "tenant_slug",
           });
 
-      if (!slug) {
-        toast.error("No hay un tenant configurado para el carrito.");
-        return;
-      }
-
       window.open(destination, "_blank");
     },
-    [authTokenState, resolvedTenantSlug, tenant, user]
+    [
+      authTokenState,
+      buildMarketCartUrl,
+      resolveActiveTenantSlug,
+      tenant,
+      user,
+    ]
   );
 
   const handleAuthSuccess = useCallback(() => {
