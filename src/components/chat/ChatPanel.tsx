@@ -520,17 +520,17 @@ const ChatPanel = ({
           onA11yChange={onA11yChange}
         />
         <div className="flex-1 flex items-center justify-center p-4">
-          <div className="w-full max-w-sm rounded-2xl border border-border bg-background/90 p-6 text-center shadow-lg">
+          <div className="w-full max-w-sm rounded-2xl border border-border bg-background/90 p-6 text-center shadow-lg max-h-[70vh] overflow-y-auto space-y-4">
             <img
               src="/chatboc_logo_clean_transparent.png"
               alt="Chatboc"
-              className="mx-auto mb-4 h-14 w-14"
+              className="mx-auto h-14 w-14"
               onError={(e) => {
                 (e.target as HTMLImageElement).src = "/favicon/favicon-48x48.png";
               }}
             />
-            <h2 className="mb-2 text-xl font-semibold text-primary">¡Bienvenido a Chatboc!</h2>
-            <p className="mb-4 text-sm text-muted-foreground">
+            <h2 className="text-xl font-semibold text-primary">¡Bienvenido a Chatboc!</h2>
+            <p className="text-sm text-muted-foreground">
               Seleccioná el rubro que más se parece a tu negocio:
             </p>
             {isLoadingRubros ? (

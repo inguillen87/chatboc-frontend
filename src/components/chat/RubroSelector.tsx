@@ -17,40 +17,42 @@ interface RubroSelectorProps {
 
 const RubroSelector: React.FC<RubroSelectorProps> = ({ rubros, onSelect }) => {
   return (
-    <Accordion type="multiple" className="w-full">
-      {rubros.map((rubro) => (
-        <AccordionItem key={rubro.id} value={String(rubro.id)}>
-          <AccordionTrigger className="capitalize">{rubro.nombre}</AccordionTrigger>
-          <AccordionContent>
-            {Array.isArray(rubro.subrubros) && rubro.subrubros.length > 0 ? (
-              <div className="flex flex-wrap justify-center gap-2 pt-2">
-                {rubro.subrubros.map((sub) => (
-                  <motion.div key={sub.id} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                    <Button
-                      variant="secondary"
-                      className="rounded-xl shadow"
-                      onClick={() => onSelect(sub)}
-                    >
-                      {sub.nombre}
-                    </Button>
-                  </motion.div>
-                ))}
-              </div>
-            ) : (
-              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="pt-2">
-                <Button
-                  variant="secondary"
-                  className="rounded-xl shadow"
-                  onClick={() => onSelect(rubro)}
-                >
-                  {rubro.nombre}
-                </Button>
-              </motion.div>
-            )}
-          </AccordionContent>
-        </AccordionItem>
-      ))}
-    </Accordion>
+    <div className="max-h-[60vh] overflow-y-auto pr-1">
+      <Accordion type="multiple" className="w-full space-y-1">
+        {rubros.map((rubro) => (
+          <AccordionItem key={rubro.id} value={String(rubro.id)}>
+            <AccordionTrigger className="capitalize">{rubro.nombre}</AccordionTrigger>
+            <AccordionContent>
+              {Array.isArray(rubro.subrubros) && rubro.subrubros.length > 0 ? (
+                <div className="flex flex-wrap justify-center gap-2 pt-2">
+                  {rubro.subrubros.map((sub) => (
+                    <motion.div key={sub.id} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                      <Button
+                        variant="secondary"
+                        className="rounded-xl shadow"
+                        onClick={() => onSelect(sub)}
+                      >
+                        {sub.nombre}
+                      </Button>
+                    </motion.div>
+                  ))}
+                </div>
+              ) : (
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="pt-2">
+                  <Button
+                    variant="secondary"
+                    className="rounded-xl shadow"
+                    onClick={() => onSelect(rubro)}
+                  >
+                    {rubro.nombre}
+                  </Button>
+                </motion.div>
+              )}
+            </AccordionContent>
+          </AccordionItem>
+        ))}
+      </Accordion>
+    </div>
   );
 };
 
