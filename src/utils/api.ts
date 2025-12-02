@@ -102,9 +102,44 @@ const readTenantFromScriptDataset = () => {
   return null;
 };
 
-const inferTenantSlug = (explicitTenant?: string | null): string | null => {
+const extractTenantFromPath = (rawPath?: string | null): string | null => {
+  if (typeof rawPath !== "string") return null;
+
+  const normalizedPath = (() => {
+    const trimmed = rawPath.trim();
+    if (!trimmed) return "";
+
+    try {
+      if (/^https?:\/\//i.test(trimmed)) {
+        const url = new URL(trimmed);
+        return `${url.pathname}${url.search}${url.hash}`;
+      }
+    } catch (error) {
+      console.warn("[apiFetch] No se pudo normalizar el path para tenant", error);
+    }
+
+    return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+  })();
+
+  if (!normalizedPath) return null;
+
+  const apiMatch = normalizedPath.match(/^\/api\/([^/?#]+)/i);
+  if (apiMatch?.[1]) return sanitizeTenantSlug(apiMatch[1]);
+
+  const tenantRouteMatch = normalizedPath.match(
+    new RegExp(`^/(?:${TENANT_ROUTE_PREFIXES.join("|")})/([^/?#]+)`, "i"),
+  );
+  if (tenantRouteMatch?.[1]) return sanitizeTenantSlug(tenantRouteMatch[1]);
+
+  return null;
+};
+
+const inferTenantSlug = (explicitTenant?: string | null, pathForFallback?: string | null): string | null => {
   const candidate = sanitizeTenantSlug(explicitTenant);
   if (candidate) return candidate;
+
+  const fromPath = sanitizeTenantSlug(extractTenantFromPath(pathForFallback));
+  if (fromPath) return fromPath;
 
   const storedUserTenant = sanitizeTenantSlug(readTenantFromStoredUser());
   if (storedUserTenant) return storedUserTenant;
@@ -159,8 +194,11 @@ const inferTenantSlug = (explicitTenant?: string | null): string | null => {
   return null;
 };
 
-export const resolveTenantSlug = (explicitTenant?: string | null): string | null => {
-  const resolved = inferTenantSlug(explicitTenant);
+export const resolveTenantSlug = (
+  explicitTenant?: string | null,
+  pathForFallback?: string | null,
+): string | null => {
+  const resolved = inferTenantSlug(explicitTenant, pathForFallback);
 
   if (resolved) {
     try {
@@ -320,7 +358,7 @@ export async function apiFetch<T>(
   })();
 
   const treatAsWidget = isWidgetRequest ?? (isWidgetContext && isLikelyWidgetEnvironment);
-  const resolvedTenantSlug = resolveTenantSlug(tenantSlug);
+  const resolvedTenantSlug = resolveTenantSlug(tenantSlug, path);
   const panelToken = safeLocalStorage.getItem("authToken");
   const chatToken = safeLocalStorage.getItem("chatAuthToken");
   let storedRole: string | null = null;
