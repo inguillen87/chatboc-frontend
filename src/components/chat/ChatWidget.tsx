@@ -143,6 +143,7 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
   const [entityInfo, setEntityInfo] = useState<any | null>(null);
   const [isProfileLoading, setProfileLoading] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const [requireCatalogAuth, setRequireCatalogAuth] = useState(false);
 
   const [isMobileView, setIsMobileView] = useState(
     typeof window !== "undefined" && window.innerWidth < 640
@@ -186,8 +187,14 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
       entityInfo?.slugPublico,
       entityInfo?.tenant_slug,
       entityInfo?.tenantSlug,
+      entityInfo?.tenant,
+      entityInfo?.endpoint,
       entityInfo?.municipio_slug,
       entityInfo?.municipioSlug,
+      entityInfo?.public_slug,
+      entityInfo?.publicSlug,
+      entityInfo?.empresa_slug,
+      entityInfo?.empresaSlug,
     ];
 
     for (const candidate of candidates) {
@@ -271,6 +278,13 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
   ]);
 
   useEffect(() => {
+    const sanitized = sanitizeTenantSlug(resolvedTenantSlug);
+    if (sanitized) {
+      safeLocalStorage.setItem("tenantSlug", sanitized);
+    }
+  }, [resolvedTenantSlug]);
+
+  useEffect(() => {
     const checkMobile = () => {
       if (typeof window !== "undefined") {
         setIsMobileView(window.innerWidth < 640);
@@ -286,6 +300,49 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
   }, []);
 
   useEffect(() => {
+    const fromEntity =
+      (entityInfo as any)?.require_login_for_catalog ??
+      (entityInfo as any)?.requireLoginForCatalog ??
+      (entityInfo as any)?.catalog_requires_login;
+
+    if (typeof fromEntity === "boolean") {
+      setRequireCatalogAuth(fromEntity);
+      return;
+    }
+
+    if (typeof fromEntity === "string") {
+      setRequireCatalogAuth(fromEntity === "true" || fromEntity === "1");
+    }
+  }, [entityInfo]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const params = new URLSearchParams(window.location.search);
+    const fromQuery = params.get("requireLoginForCatalog") || params.get("catalogRequiresLogin");
+    if (fromQuery) {
+      setRequireCatalogAuth(fromQuery === "true" || fromQuery === "1");
+      return;
+    }
+
+    const scripts = Array.from(document.querySelectorAll<HTMLScriptElement>("script[data-owner-token], script[data-tenant], script[data-tenant-slug], script[data-tenant_slug]"));
+
+    for (const script of scripts) {
+      const { dataset } = script;
+      const matchesOwner = ownerToken && dataset.ownerToken === ownerToken;
+      if (!matchesOwner && ownerToken) {
+        continue;
+      }
+
+      const requireLogin = dataset.requireLoginForCatalog || dataset.requireLoginForMarket || dataset.catalogRequiresLogin;
+      if (requireLogin) {
+        setRequireCatalogAuth(requireLogin === "true" || requireLogin === "1");
+        return;
+      }
+    }
+  }, [ownerToken]);
+
+  useEffect(() => {
     setAuthTokenState(
       safeLocalStorage.getItem("authToken") || safeLocalStorage.getItem("chatAuthToken"),
     );
@@ -296,7 +353,7 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
   const [showProactiveBubble, setShowProactiveBubble] = useState(false);
   const [proactiveCycle, setProactiveCycle] = useState(0);
   const [selectedRubro, setSelectedRubro] = useState<string | null>(() => extractRubroKey(initialRubro) ?? null);
-  const [pendingRedirect, setPendingRedirect] = useState<"cart" | null>(null);
+  const [pendingRedirect, setPendingRedirect] = useState<"cart" | "market" | null>(null);
   const [authTokenState, setAuthTokenState] = useState<string | null>(() =>
     safeLocalStorage.getItem("authToken") || safeLocalStorage.getItem("chatAuthToken"),
   );
@@ -442,13 +499,28 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
       const preferredUrl = tenant?.public_cart_url ?? user?.publicCartUrl ?? null;
 
       const authToken = authTokenState ?? safeLocalStorage.getItem("authToken") ?? safeLocalStorage.getItem("chatAuthToken");
+      const requiresAuth = target === "cart" || requireCatalogAuth;
+      const hasSession = Boolean(authToken && user);
 
-      if (!authToken || !slug || !user) {
-        setPendingRedirect("cart");
+      if (requiresAuth && !hasSession) {
+        setPendingRedirect(target === "market" ? "market" : "cart");
         setView("login");
         setIsOpen(true);
         return;
       }
+
+      if (target === "market" || target === "catalog") {
+        const destination = buildMarketCartUrl(slug, tenant?.public_base_url ?? null);
+        if (!destination) {
+          toast.error("No pudimos abrir el catálogo público.");
+          return;
+        }
+        window.open(destination, "_blank");
+        return;
+      }
+
+      const basePath = "/cart";
+      const preferredUrl = tenant?.public_cart_url ?? user?.publicCartUrl ?? null;
 
       const destination = preferredUrl
         ? preferredUrl
@@ -478,6 +550,11 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
     if (pendingRedirect === "cart") {
       setPendingRedirect(null);
       openCart();
+      return;
+    }
+    if (pendingRedirect === "market") {
+      setPendingRedirect(null);
+      openCart("market");
       return;
     }
     setView("chat");
