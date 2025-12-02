@@ -27,7 +27,7 @@ import {
 import { getLocalCartProducts, clearLocalCart } from '@/utils/localCart';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import usePointsBalance from '@/hooks/usePointsBalance';
-import { buildTenantPath } from '@/utils/tenantPaths';
+import { buildTenantApiPath, buildTenantPath } from '@/utils/tenantPaths';
 import { loadGuestContact, saveGuestContact } from '@/utils/guestContact';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
@@ -68,12 +68,16 @@ export default function ProductCheckoutPage() {
   const navigate = useNavigate();
   const { user } = useUser(); // Hook para obtener datos del usuario logueado
   const { currentSlug } = useTenant();
+  const effectiveTenantSlug = useMemo(
+    () => currentSlug ?? user?.tenantSlug ?? safeLocalStorage.getItem('tenantSlug') ?? null,
+    [currentSlug, user?.tenantSlug],
+  );
   const {
     points: pointsBalance,
     isLoading: isLoadingPoints,
     refresh: refreshPointsBalance,
     adjustOptimistic: adjustPointsBalance,
-  } = usePointsBalance({ enabled: !!user, tenantSlug: currentSlug });
+  } = usePointsBalance({ enabled: !!user, tenantSlug: effectiveTenantSlug });
 
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isLoadingCart, setIsLoadingCart] = useState(true);
@@ -85,20 +89,36 @@ export default function ProductCheckoutPage() {
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const guestDefaults = useMemo(() => loadGuestContact(), []);
 
-  const catalogPath = buildTenantPath('/productos', currentSlug);
-  const cartPath = buildTenantPath('/cart', currentSlug);
-  const loginPath = buildTenantPath('/login', currentSlug);
-  const registerPath = buildTenantPath('/register', currentSlug);
+  const catalogPath = buildTenantPath('/productos', effectiveTenantSlug);
+  const cartPath = buildTenantPath('/cart', effectiveTenantSlug);
+  const loginPath = buildTenantPath('/login', effectiveTenantSlug);
+  const registerPath = buildTenantPath('/register', effectiveTenantSlug);
+  const productsApiPath = useMemo(
+    () => buildTenantApiPath('/productos', effectiveTenantSlug),
+    [effectiveTenantSlug],
+  );
+  const cartApiPath = useMemo(
+    () => buildTenantApiPath('/carrito', effectiveTenantSlug),
+    [effectiveTenantSlug],
+  );
+  const checkoutConfirmPath = useMemo(
+    () => buildTenantApiPath('/checkout/confirmar', effectiveTenantSlug),
+    [effectiveTenantSlug],
+  );
+  const checkoutPreferencePath = useMemo(
+    () => buildTenantApiPath('/checkout/crear-preferencia', effectiveTenantSlug),
+    [effectiveTenantSlug],
+  );
 
   const sharedRequestOptions = useMemo(
     () => ({
       suppressPanel401Redirect: true,
-      tenantSlug: currentSlug ?? undefined,
+      tenantSlug: effectiveTenantSlug ?? undefined,
       sendAnonId: true,
       isWidgetRequest: true,
       omitCredentials: true,
     }) as const,
-    [currentSlug],
+    [effectiveTenantSlug],
   );
 
   const { control, handleSubmit, setValue, formState: { errors } } = useForm<CheckoutFormData>({
@@ -155,10 +175,18 @@ export default function ProductCheckoutPage() {
         return;
       }
 
+      if (!effectiveTenantSlug) {
+        setCheckoutMode('local');
+        loadLocalCart();
+        setError('Selecciona un municipio o inicia sesión para finalizar tu compra.');
+        setIsLoadingCart(false);
+        return;
+      }
+
       try {
         const [cartApiData, productsApiData] = await Promise.all([
-          apiFetch<unknown>('/carrito', sharedRequestOptions),
-          apiFetch<unknown>('/productos', sharedRequestOptions),
+          apiFetch<unknown>(cartApiPath, sharedRequestOptions),
+          apiFetch<unknown>(productsApiPath, sharedRequestOptions),
         ]);
 
         const productMap = buildProductMap(normalizeProductsPayload(productsApiData, 'CheckoutPage'));
@@ -188,7 +216,7 @@ export default function ProductCheckoutPage() {
       }
     };
     loadCart();
-  }, [catalogPath, checkoutMode, loadLocalCart, navigate, sharedRequestOptions]);
+  }, [catalogPath, cartApiPath, checkoutMode, effectiveTenantSlug, loadLocalCart, navigate, productsApiPath, sharedRequestOptions]);
 
   const subtotal = useMemo(() => {
     return cartItems.reduce((sum, item) => sum + (item.modalidad === 'puntos' || item.modalidad === 'donacion' ? 0 : item.precio_unitario * item.cantidad), 0);
@@ -290,7 +318,7 @@ export default function ProductCheckoutPage() {
       }
 
       if (subtotal === 0) {
-        await apiFetch('/api/checkout/confirmar', {
+        await apiFetch(checkoutConfirmPath, {
           ...sharedRequestOptions,
           method: 'POST',
           body: pedidoData,
@@ -308,7 +336,7 @@ export default function ProductCheckoutPage() {
       }
 
       const preference = await apiFetch<{ init_point?: string; sandbox_init_point?: string; pedido_id?: string | number }>(
-        '/api/checkout/crear-preferencia',
+        checkoutPreferencePath,
         {
           ...sharedRequestOptions,
           method: 'POST',

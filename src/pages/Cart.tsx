@@ -22,7 +22,7 @@ import { getDemoLoyaltySummary } from '@/utils/demoLoyalty';
 import usePointsBalance from '@/hooks/usePointsBalance';
 import UploadOrderFromFile from '@/components/cart/UploadOrderFromFile';
 import { useUser } from '@/hooks/useUser';
-import { buildTenantPath } from '@/utils/tenantPaths';
+import { buildTenantApiPath, buildTenantPath } from '@/utils/tenantPaths';
 import { Badge } from '@/components/ui/badge';
 import GuestContactDialog, { GuestContactValues } from '@/components/cart/GuestContactDialog';
 import { loadGuestContact, saveGuestContact } from '@/utils/guestContact';
@@ -61,6 +61,14 @@ export default function CartPage() {
   const cartCheckoutPath = buildTenantPath('/checkout-productos', effectiveTenantSlug);
   const loginPath = buildTenantPath('/login', effectiveTenantSlug);
   const registerPath = buildTenantPath('/register', effectiveTenantSlug);
+  const productsApiPath = useMemo(
+    () => buildTenantApiPath('/productos', effectiveTenantSlug),
+    [effectiveTenantSlug],
+  );
+  const cartApiPath = useMemo(
+    () => buildTenantApiPath('/carrito', effectiveTenantSlug),
+    [effectiveTenantSlug],
+  );
 
   const sharedRequestOptions = useMemo(
     () => ({
@@ -112,8 +120,8 @@ export default function CartPage() {
 
     try {
       const [cartApiData, productsApiData] = await Promise.all([
-        apiFetch<unknown>('/carrito', sharedRequestOptions),
-        apiFetch<unknown>('/productos', sharedRequestOptions),
+        apiFetch<unknown>(cartApiPath, sharedRequestOptions),
+        apiFetch<unknown>(productsApiPath, sharedRequestOptions),
       ]);
 
       const normalizedProducts = normalizeProductsPayload(productsApiData, 'CartPage');
@@ -173,7 +181,7 @@ export default function CartPage() {
     } finally {
       setLoading(false);
     }
-  }, [cartMode, effectiveTenantSlug, refreshLocalCart, sharedRequestOptions]);
+  }, [cartApiPath, cartMode, effectiveTenantSlug, productsApiPath, refreshLocalCart, sharedRequestOptions]);
 
   useEffect(() => {
     if (!isLoadingTenant) {
@@ -207,9 +215,13 @@ export default function CartPage() {
       }
 
       if (newQuantity <= 0) {
-        await apiFetch('/carrito', { ...sharedRequestOptions, method: 'DELETE', body: { nombre: productName } });
+        await apiFetch(cartApiPath, { ...sharedRequestOptions, method: 'DELETE', body: { nombre: productName } });
       } else {
-        await apiFetch('/carrito', { ...sharedRequestOptions, method: 'PUT', body: { nombre: productName, cantidad: newQuantity } });
+        await apiFetch(cartApiPath, {
+          ...sharedRequestOptions,
+          method: 'PUT',
+          body: { nombre: productName, cantidad: newQuantity },
+        });
       }
       // No es necesario llamar a loadCartData() aquí si el backend confirma la acción,
       // la UI ya está actualizada optimisticamente. Si se quiere re-sincronizar:
