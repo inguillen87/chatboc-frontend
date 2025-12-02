@@ -1,13 +1,22 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useParams } from 'react-router-dom';
-import { ShoppingBag, Share2, Loader2, ExternalLink } from 'lucide-react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { ShoppingBag, Share2, Loader2, ExternalLink, Copy, QrCode, MessageCircle } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import ProductCard from '@/components/market/ProductCard';
 import CartSummary from '@/components/market/CartSummary';
 import CheckoutDialog from '@/components/market/CheckoutDialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import {
   CartSummarySkeleton,
   MarketCatalogSkeleton,
@@ -20,6 +29,7 @@ import { toast } from '@/components/ui/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { useUser } from '@/hooks/useUser';
 import { cn } from '@/lib/utils';
+import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 type ContactInfo = {
   name?: string;
@@ -30,9 +40,10 @@ type ContactInfo = {
 // agrega ítems al carrito y confirma el pedido dejando su nombre/teléfono.
 // Los datos mínimos (contacto) se guardan de forma local para reusar en futuros pedidos.
 export default function MarketCartPage() {
-  const { slug = '' } = useParams<{ slug: string }>();
+  const { tenantSlug = '' } = useParams<{ tenantSlug: string }>();
   const queryClient = useQueryClient();
   const { user } = useUser();
+  const navigate = useNavigate();
   const cartSummaryRef = useRef<HTMLDivElement | null>(null);
 
   const userName = user?.name ?? user?.nombre ?? user?.full_name;
@@ -44,55 +55,66 @@ export default function MarketCartPage() {
   const [confirmation, setConfirmation] = useState<string | null>(null);
   const [cartPulse, setCartPulse] = useState(false);
   const [contact, setContact] = useState<ContactInfo>(() => {
-    const stored = loadMarketContact(slug);
+    const stored = loadMarketContact(tenantSlug);
     return {
       name: stored.name ?? userName,
       phone: stored.phone ?? normalizedUserPhone,
     };
   });
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
-    const stored = loadMarketContact(slug);
+    const stored = loadMarketContact(tenantSlug);
     setContact((prev) => ({
       name: stored.name ?? prev.name ?? userName,
       phone: stored.phone ?? prev.phone ?? normalizedUserPhone,
     }));
     setConfirmation(null);
-  }, [slug, userName, normalizedUserPhone]);
+  }, [tenantSlug, userName, normalizedUserPhone]);
 
   const shareUrl = useMemo(() => {
-    if (typeof window === 'undefined' || !slug) return '';
+    if (typeof window === 'undefined' || !tenantSlug) return '';
     const url = new URL(window.location.href);
-    url.pathname = `/market/${slug}/cart`;
+    url.pathname = `/market/${tenantSlug}/cart`;
     url.search = '';
     return url.toString();
-  }, [slug]);
-
-  const shareTitle = catalogQuery.data?.tenantName ?? 'Catálogo';
+  }, [tenantSlug]);
 
   const catalogQuery = useQuery({
-    queryKey: ['marketCatalog', slug],
-    queryFn: () => fetchMarketCatalog(slug),
-    enabled: Boolean(slug),
+    queryKey: ['marketCatalog', tenantSlug],
+    queryFn: () => fetchMarketCatalog(tenantSlug),
+    enabled: Boolean(tenantSlug),
     staleTime: 1000 * 60, // cache short catalog loads while browsing
   });
 
   const cartQuery = useQuery({
-    queryKey: ['marketCart', slug],
-    queryFn: () => fetchMarketCart(slug),
-    enabled: Boolean(slug),
+    queryKey: ['marketCart', tenantSlug],
+    queryFn: () => fetchMarketCart(tenantSlug),
+    enabled: Boolean(tenantSlug),
     refetchInterval: 15000,
   });
 
+  const shareTitle = useMemo(
+    () => catalogQuery.data?.tenantName ?? 'Catálogo',
+    [catalogQuery.data?.tenantName],
+  );
+
+  const qrShareUrl = useMemo(() => {
+    if (!shareUrl) return '';
+    return `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(shareUrl)}`;
+  }, [shareUrl]);
+
   const addMutation = useMutation({
-    mutationFn: (productId: string) => addMarketItem(slug, { productId, quantity: 1 }),
+    mutationFn: (productId: string) => addMarketItem(tenantSlug, { productId, quantity: 1 }),
     onMutate: async (productId: string) => {
-      await queryClient.cancelQueries({ queryKey: ['marketCart', slug] });
-      const previousCart = queryClient.getQueryData<MarketCartResponse>(['marketCart', slug]);
-      const catalog = queryClient.getQueryData<MarketCatalogResponse>(['marketCatalog', slug]);
+      await queryClient.cancelQueries({ queryKey: ['marketCart', tenantSlug] });
+      const previousCart = queryClient.getQueryData<MarketCartResponse>(['marketCart', tenantSlug]);
+      const catalog = queryClient.getQueryData<MarketCatalogResponse>(['marketCatalog', tenantSlug]);
       const product = catalog?.products.find((item) => item.id === productId);
 
-      queryClient.setQueryData<MarketCartResponse | undefined>(['marketCart', slug], (current) => {
+      queryClient.setQueryData<MarketCartResponse | undefined>(['marketCart', tenantSlug], (current) => {
         const items = current?.items ? [...current.items] : [];
         const existingIndex = items.findIndex((item) => item.id === productId);
         if (existingIndex >= 0) {
@@ -127,7 +149,7 @@ export default function MarketCartPage() {
       return { previousCart };
     },
     onSuccess: (data) => {
-      queryClient.setQueryData(['marketCart', slug], data);
+      queryClient.setQueryData(['marketCart', tenantSlug], data);
       toast({
         title: 'Agregado al carrito',
         description: 'Actualizamos tu carrito.',
@@ -135,7 +157,7 @@ export default function MarketCartPage() {
     },
     onError: (_error, _variables, context) => {
       if (context?.previousCart) {
-        queryClient.setQueryData(['marketCart', slug], context.previousCart);
+        queryClient.setQueryData(['marketCart', tenantSlug], context.previousCart);
       }
       toast({
         title: 'No se pudo agregar el producto',
@@ -144,24 +166,24 @@ export default function MarketCartPage() {
       });
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['marketCart', slug] });
+      queryClient.invalidateQueries({ queryKey: ['marketCart', tenantSlug] });
     },
   });
 
   const checkoutMutation = useMutation({
-    mutationFn: (payload: { name?: string; phone: string }) => startMarketCheckout(slug, payload),
+    mutationFn: (payload: { name?: string; phone: string }) => startMarketCheckout(tenantSlug, payload),
     onSuccess: (response, variables) => {
-      saveMarketContact(slug, variables);
+      saveMarketContact(tenantSlug, variables);
       setContact(variables);
       setConfirmation(response?.message ?? 'Pedido registrado. Te contactaremos a la brevedad.');
-      queryClient.setQueryData<MarketCartResponse>(['marketCart', slug], {
+      queryClient.setQueryData<MarketCartResponse>(['marketCart', tenantSlug], {
         items: [],
         totalAmount: 0,
         totalPoints: 0,
         availableAmount: null,
         availablePoints: null,
       });
-      queryClient.invalidateQueries({ queryKey: ['marketCart', slug] });
+      queryClient.invalidateQueries({ queryKey: ['marketCart', tenantSlug] });
     },
     onError: () => {
       toast({
@@ -223,12 +245,20 @@ export default function MarketCartPage() {
       return;
     }
 
-    if (!slug) {
+    if (!tenantSlug) {
       toast({
         title: 'No encontramos el catálogo',
         description: 'Revisa el enlace o escanea nuevamente el código QR.',
         variant: 'destructive',
       });
+      return;
+    }
+
+    const sessionToken =
+      safeLocalStorage.getItem('authToken') || safeLocalStorage.getItem('chatAuthToken');
+
+    if (!sessionToken && !user) {
+      setShowLoginPrompt(true);
       return;
     }
 
@@ -255,6 +285,16 @@ export default function MarketCartPage() {
 
   const itemsCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
 
+  const filteredProducts = useMemo(() => {
+    if (!searchTerm.trim()) return catalogProducts;
+    const query = searchTerm.toLowerCase();
+    return catalogProducts.filter(
+      (product) =>
+        product.name.toLowerCase().includes(query) ||
+        (product.description ? product.description.toLowerCase().includes(query) : false),
+    );
+  }, [catalogProducts, searchTerm]);
+
   const scrollToSummary = () => {
     cartSummaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     setCartPulse(true);
@@ -273,7 +313,7 @@ export default function MarketCartPage() {
           {catalogQuery.data?.tenantLogoUrl ? (
             <img
               src={catalogQuery.data.tenantLogoUrl}
-              alt={catalogQuery.data?.tenantName ?? slug}
+              alt={catalogQuery.data?.tenantName ?? tenantSlug}
               className="h-full w-full object-cover"
             />
           ) : (
@@ -283,25 +323,92 @@ export default function MarketCartPage() {
         <div>
           <p className="text-xs uppercase tracking-wide text-muted-foreground">Catálogo</p>
           <h1 className="text-lg font-semibold leading-tight sm:text-xl">
-            {catalogQuery.data?.tenantName ?? slug}
+            {catalogQuery.data?.tenantName ?? tenantSlug}
           </h1>
           {catalogQuery.data?.tenantName ? (
-            <p className="text-xs text-muted-foreground">Ruta única: /market/{slug}/cart</p>
+            <p className="text-xs text-muted-foreground">Ruta única: /market/{tenantSlug}/cart</p>
           ) : null}
         </div>
       </div>
 
       <div className="flex items-center gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleShare}
-          disabled={!canShare}
-          className="transition hover:scale-[1.01]"
-        >
-          <Share2 className="mr-2 h-4 w-4" />
-          Compartir catálogo
-        </Button>
+        <div className="hidden md:flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleShare}
+            disabled={!canShare}
+            className="transition hover:scale-[1.01]"
+          >
+            <Share2 className="mr-2 h-4 w-4" />
+            Compartir
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={async () => {
+              if (!shareUrl) return;
+              await navigator.clipboard.writeText(shareUrl);
+              toast({ title: 'Enlace copiado', description: 'Listo para compartir.' });
+            }}
+            disabled={!shareUrl}
+          >
+            <Copy className="mr-2 h-4 w-4" />
+            Copiar enlace
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              window.open(
+                `https://wa.me/?text=${encodeURIComponent(
+                  `Mirá el catálogo: ${shareUrl}`,
+                )}`,
+                '_blank',
+              )
+            }
+            disabled={!shareUrl}
+          >
+            <MessageCircle className="mr-2 h-4 w-4" />
+            Compartir por WhatsApp
+          </Button>
+          <Dialog open={showQrModal} onOpenChange={setShowQrModal}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm">
+                <QrCode className="mr-2 h-4 w-4" />
+                Ver QR
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-sm">
+              <DialogHeader>
+                <DialogTitle>Escaneá para abrir el catálogo</DialogTitle>
+                <DialogDescription>Comparte esta tienda con un enlace único.</DialogDescription>
+              </DialogHeader>
+              <div className="flex flex-col items-center gap-3">
+                {qrShareUrl ? (
+                  <div className="rounded-xl bg-white p-4 shadow-inner">
+                    <img src={qrShareUrl} alt="QR del catálogo" className="h-56 w-56" />
+                  </div>
+                ) : null}
+                <Button
+                  variant="secondary"
+                  className="w-full"
+                  onClick={async () => {
+                    if (!shareUrl) return;
+                    await navigator.clipboard.writeText(shareUrl);
+                    toast({
+                      title: 'Enlace del catálogo copiado',
+                      description: 'Compartilo por el canal que prefieras.',
+                    });
+                  }}
+                  disabled={!shareUrl}
+                >
+                  <Copy className="mr-2 h-4 w-4" /> Copiar enlace
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
         <motion.div
           animate={{ scale: cartPulse ? 1.08 : 1 }}
           transition={{ type: 'spring', stiffness: 320, damping: 18 }}
@@ -346,17 +453,25 @@ export default function MarketCartPage() {
         <section className="grid gap-6 lg:grid-cols-[2fr_1fr]">
           <div className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
+              <div className="space-y-1">
                 <h2 className="text-xl font-semibold">Productos</h2>
                 <p className="text-sm text-muted-foreground">
                   Catálogo público de este tenant. Agrega ítems y confirma en un paso.
                 </p>
               </div>
-              {catalogQuery.isFetching ? (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Sincronizando catálogo...
-                </div>
-              ) : null}
+              <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+                <Input
+                  placeholder="Buscar productos"
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  className="w-full min-w-[200px] sm:max-w-xs"
+                />
+                {catalogQuery.isFetching ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Sincronizando catálogo...
+                  </div>
+                ) : null}
+              </div>
             </div>
 
             {catalogErrorMessage ? (
@@ -373,9 +488,9 @@ export default function MarketCartPage() {
 
             {isLoadingCatalog ? (
               <MarketCatalogSkeleton cards={4} />
-            ) : catalogProducts.length ? (
+            ) : filteredProducts.length ? (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                {catalogProducts.map((product) => (
+                {filteredProducts.map((product) => (
                   <ProductCard
                     key={product.id}
                     product={product}
@@ -468,6 +583,31 @@ export default function MarketCartPage() {
         onSubmit={submitContact}
         isSubmitting={checkoutMutation.isPending}
       />
+
+      <Dialog open={showLoginPrompt} onOpenChange={setShowLoginPrompt}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Inicia sesión para finalizar</DialogTitle>
+            <DialogDescription>
+              Necesitamos que confirmes tu identidad con tu teléfono para completar el pedido.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3">
+            <Button
+              className="w-full"
+              onClick={() => {
+                const redirect = encodeURIComponent(window.location.pathname + window.location.search);
+                navigate(`/login?redirect=${redirect}`);
+              }}
+            >
+              Ir a iniciar sesión
+            </Button>
+            <Button variant="secondary" className="w-full" onClick={() => setShowLoginPrompt(false)}>
+              Seguir viendo el catálogo
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
