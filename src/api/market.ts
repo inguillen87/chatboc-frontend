@@ -6,6 +6,7 @@ import {
   MarketCartItem,
   MarketCartResponse,
   MarketCatalogResponse,
+  MarketCatalogSection,
   MarketProduct,
 } from '@/types/market';
 import { MARKET_DEMO_PRODUCTS, buildDemoMarketCatalog } from '@/data/marketDemo';
@@ -92,6 +93,30 @@ const normalizeProductList = (rawItems: any[] | undefined | null): MarketProduct
   return rawItems.map((item, index) => normalizeProduct(item, index));
 };
 
+const normalizeSections = (
+  raw: any[] | undefined | null,
+  fallbackProducts?: MarketProduct[],
+): MarketCatalogSection[] | undefined => {
+  if (!Array.isArray(raw)) return undefined;
+
+  return raw
+    .map((item) => {
+      if (!item) return null;
+      const products =
+        item.items || item.productos || item.products || item.canjes
+          ? normalizeProductList(item.items ?? item.productos ?? item.products ?? item.canjes)
+          : undefined;
+
+      return {
+        title: item.title ?? item.titulo ?? item.name ?? item.nombre,
+        description: item.description ?? item.descripcion ?? null,
+        badge: item.badge ?? item.etiqueta ?? null,
+        items: products?.length ? products : fallbackProducts,
+      } satisfies MarketCatalogSection;
+    })
+    .filter((section): section is MarketCatalogSection => Boolean(section?.title));
+};
+
 const shouldUseDemo = (error: unknown): boolean => {
   if (error instanceof ApiError) {
     return [401, 403, 404, 405, 500].includes(error.status);
@@ -107,7 +132,14 @@ export async function fetchMarketCatalog(tenantSlug: string): Promise<MarketCata
       `/api/market/${encodeURIComponent(tenantSlug)}/catalog`,
       baseOptions(tenantSlug),
     );
-    const products = normalizeProductList(response?.products ?? response?.items ?? []);
+    const mergedProducts = [
+      ...(response?.products ?? []),
+      ...(response?.items ?? []),
+      ...(response?.productos ?? []),
+      ...(response?.canjes ?? []),
+    ];
+
+    const products = normalizeProductList(mergedProducts);
 
     if (!products.length) {
       const demo = getDemoCatalog(tenantSlug);
@@ -125,6 +157,12 @@ export async function fetchMarketCatalog(tenantSlug: string): Promise<MarketCata
         response?.public_cart ??
         null,
       whatsappShareUrl: response?.whatsapp_share_url ?? response?.whatsappShareUrl ?? null,
+      heroImageUrl: response?.hero_image_url ?? response?.heroImageUrl ?? null,
+      heroSubtitle: response?.hero_subtitle ?? response?.heroSubtitle ?? null,
+      sections: normalizeSections(
+        response?.sections ?? response?.bloques ?? response?.secciones ?? response?.catalog_sections,
+        products.length ? products.slice(0, 4) : undefined,
+      ),
     };
   } catch (error) {
     if (!shouldUseDemo(error)) throw error;
