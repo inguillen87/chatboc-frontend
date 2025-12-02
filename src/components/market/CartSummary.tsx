@@ -71,6 +71,16 @@ export default function CartSummary({
     return 'Consultar';
   };
 
+  const formatItemPrice = (item: MarketCartItem) => {
+    if (item.priceText) return item.priceText;
+    if (typeof item.price === 'number') {
+      const amount = item.price * item.quantity;
+      return formatCurrency(amount, item.currency ?? currency);
+    }
+    if (typeof item.points === 'number') return `${item.points * item.quantity} pts`;
+    return 'Consultar';
+  };
+
   return (
     <Card className="shadow-sm">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">

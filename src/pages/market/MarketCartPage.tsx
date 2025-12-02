@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Copy, Loader2, MessageCircle, QrCode, Search, Share2, ShoppingBag, Sparkles, Tag } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import ProductCard from '@/components/market/ProductCard';
@@ -20,7 +21,13 @@ import { loadMarketContact, saveMarketContact } from '@/utils/marketStorage';
 import { toast } from '@/components/ui/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { useUser } from '@/hooks/useUser';
-import { cn } from '@/lib/utils';
+import { Input } from '@/components/ui/input';
+import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { formatCurrency } from '@/utils/currency';
+import { getValidStoredToken } from '@/utils/authTokens';
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { MARKET_DEMO_SECTIONS, buildDemoMarketCatalog } from '@/data/marketDemo';
 
 type ContactInfo = {
   name?: string;
@@ -151,6 +158,38 @@ export default function MarketCartPage() {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['marketCart', slug] });
+    },
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: (productId: string) => removeMarketItem(tenantSlug, productId),
+    onSuccess: (data) => {
+      queryClient.setQueryData(['marketCart', tenantSlug], data);
+      toast({
+        title: 'Producto quitado',
+        description: 'Actualizamos tu carrito.',
+      });
+    },
+    onError: () => {
+      toast({
+        title: 'No se pudo actualizar el carrito',
+        description: 'Revisa tu conexión e intenta nuevamente.',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const clearMutation = useMutation({
+    mutationFn: () => clearMarketCart(tenantSlug),
+    onSuccess: (data) => {
+      queryClient.setQueryData(['marketCart', tenantSlug], data);
+    },
+    onError: () => {
+      toast({
+        title: 'No pudimos vaciar el carrito',
+        description: 'Intenta nuevamente en unos segundos.',
+        variant: 'destructive',
+      });
     },
   });
 
@@ -352,6 +391,67 @@ export default function MarketCartPage() {
   const buildSectionSubtitle = (product: MarketProduct): string | null =>
     product.category ?? product.descriptionShort ?? product.description ?? null;
 
+  const categories = useMemo(() => {
+    const unique = new Set(
+      catalogProducts
+        .map((product) => product.category?.trim())
+        .filter((value): value is string => Boolean(value)),
+    );
+    return ['todos', ...Array.from(unique)];
+  }, [catalogProducts]);
+
+  const catalogSections = useMemo(
+    () => (catalogData?.sections?.length ? catalogData.sections : MARKET_DEMO_SECTIONS),
+    [catalogData?.sections],
+  );
+
+  const heroImage =
+    catalogData?.heroImageUrl ??
+    'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1200&q=80';
+  const heroSubtitle =
+    catalogData?.heroSubtitle ??
+    'Demostración pública del catálogo multi-tenant con fotos, canjes, carrito y buscador listo para compartir.';
+
+  const paidProducts = useMemo(() => catalogProducts.filter((product) => !product.points), [catalogProducts]);
+  const redeemableProducts = useMemo(
+    () => catalogProducts.filter((product) => typeof product.points === 'number' && product.points > 0),
+    [catalogProducts],
+  );
+
+  const averageRating = useMemo(() => {
+    const ratings = catalogProducts
+      .map((product) => product.rating)
+      .filter((value): value is number => typeof value === 'number');
+    if (!ratings.length) return null;
+    const total = ratings.reduce((acc, value) => acc + value, 0);
+    return Number((total / ratings.length).toFixed(1));
+  }, [catalogProducts]);
+
+  const sectionsWithItems = useMemo(() => {
+    const hasItems = catalogSections.some((section) => section.items?.length);
+    if (hasItems) return catalogSections;
+
+    return catalogSections.map((section, index) => {
+      if (section.items?.length) return section;
+      if (index === 0 && paidProducts.length) return { ...section, items: paidProducts.slice(0, 6) };
+      if (index === 1 && redeemableProducts.length) return { ...section, items: redeemableProducts.slice(0, 6) };
+      return section;
+    });
+  }, [catalogSections, paidProducts, redeemableProducts]);
+
+  const formatPriceValue = (value?: number | null, currency = 'ARS'): string => {
+    if (typeof value !== 'number' || Number.isNaN(value)) return '';
+    return formatCurrency(value, currency);
+  };
+
+  const buildPriceLabel = (product: MarketProduct): string => {
+    if (product.points) return `${product.points} pts`;
+    return product.priceText ?? formatPriceValue(product.price, product.currency ?? 'ARS') ?? 'Consultar';
+  };
+
+  const buildSectionSubtitle = (product: MarketProduct): string | null =>
+    product.category ?? product.descriptionShort ?? product.description ?? null;
+
   const itemsCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
   const hasSession = useMemo(() => {
     const authToken = getValidStoredToken('authToken');
@@ -453,20 +553,53 @@ export default function MarketCartPage() {
                 Ver QR
               </Button>
               <Badge variant="secondary" className="flex items-center gap-1 px-3 py-1 text-sm">
-                <ShoppingBag className="h-4 w-4" />
-                {itemsCount}
-              </motion.span>
-            </AnimatePresence>
-          </Badge>
-        </motion.div>
-      </div>
-    </div>
-  );
+                <AnimatePresence mode="popLayout" initial={false}>
+                  <motion.span
+                    key={itemsCount}
+                    className="flex items-center gap-1"
+                    initial={{ scale: 0.8, opacity: 0, y: -4 }}
+                    animate={{ scale: 1, opacity: 1, y: 0 }}
+                    exit={{ scale: 0.9, opacity: 0, y: 4 }}
+                    transition={{ type: 'spring', stiffness: 240, damping: 18 }}
+                  >
+                    <ShoppingBag className="h-4 w-4" />
+                    {itemsCount}
+                  </motion.span>
+                </AnimatePresence>
+              </Badge>
+            </div>
+          </div>
 
-  return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50">
-      <header className="sticky top-0 z-10 border-b bg-white/80 backdrop-blur">
-        {isLoadingCatalog ? <MarketHeaderSkeleton /> : HeaderContent}
+          <div className="flex items-center gap-2 sm:hidden">
+            <Button variant="outline" size="sm" className="w-full" onClick={handleCopyLink} disabled={!canCopy}>
+              <Copy className="mr-2 h-4 w-4" />
+              Copiar
+            </Button>
+            <Button variant="outline" size="sm" className="w-full" onClick={handleShareWhatsApp} disabled={!canShareWhatsApp}>
+              <MessageCircle className="mr-2 h-4 w-4" />
+              WhatsApp
+            </Button>
+            <Button variant="outline" size="sm" className="w-full" onClick={handleOpenQr} disabled={!shareUrl}>
+              <QrCode className="mr-2 h-4 w-4" />
+              QR
+            </Button>
+            <Badge variant="secondary" className="flex items-center gap-1 px-3 py-2 text-sm">
+              <AnimatePresence mode="popLayout" initial={false}>
+                <motion.span
+                  key={itemsCount}
+                  className="flex items-center gap-1"
+                  initial={{ scale: 0.9, opacity: 0, y: -2 }}
+                  animate={{ scale: 1, opacity: 1, y: 0 }}
+                  exit={{ scale: 0.95, opacity: 0, y: 2 }}
+                  transition={{ type: 'spring', stiffness: 240, damping: 18 }}
+                >
+                  <ShoppingBag className="h-4 w-4" />
+                  {itemsCount}
+                </motion.span>
+              </AnimatePresence>
+            </Badge>
+          </div>
+        </div>
       </header>
 
       <main className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-6 sm:px-6">
@@ -627,6 +760,22 @@ export default function MarketCartPage() {
                   </Button>
                 </AlertDescription>
               </Alert>
+            ) : null}
+
+            {categories.length > 1 ? (
+              <div className="flex flex-wrap gap-2 overflow-x-auto pb-1">
+                {categories.map((category) => (
+                  <Button
+                    key={category}
+                    variant={activeCategory === category ? 'default' : 'outline'}
+                    size="sm"
+                    className="rounded-full"
+                    onClick={() => setActiveCategory(category)}
+                  >
+                    {category === 'todos' ? 'Todas las secciones' : category}
+                  </Button>
+                ))}
+              </div>
             ) : null}
 
             {categories.length > 1 ? (
