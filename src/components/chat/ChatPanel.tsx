@@ -311,7 +311,26 @@ const ChatPanel = ({
 
   useEffect(() => {
     if (activeTicketId) {
-      const socketUrl = getSocketUrl();
+      const socketUrl =
+        typeof getSocketUrl === "function"
+          ? getSocketUrl()
+          : (() => {
+              if (typeof window === "undefined") return "";
+              try {
+                const url = new URL(window.location.href);
+                url.protocol = url.protocol.replace("http", "ws");
+                return url.origin;
+              } catch (error) {
+                console.error("No se pudo resolver la URL del socket:", error);
+                return "";
+              }
+            })();
+
+      if (!socketUrl) {
+        console.error("Socket URL no disponible. Se omite la conexión.");
+        return;
+      }
+
       const socket = io(socketUrl);
       socketRef.current = socket;
 
