@@ -145,10 +145,14 @@ export const BASE_API_URL = sanitizeBaseUrl(
     CURRENT_ORIGIN
 );
 
+// Prefer explicit backend URLs over the frontend origin to avoid fetching
+// public routes that return HTML (and break JSON parsing) when the same-origin
+// proxy is not available. The order below tries the proxy first, then the
+// configured backend, and only after that the current origin.
 export const API_BASE_CANDIDATES = [
   SAME_ORIGIN_PROXY_BASE,
-  CURRENT_ORIGIN,
   RESOLVED_BACKEND_URL,
+  CURRENT_ORIGIN,
   FALLBACK_BACKEND_URL,
 ]
   .filter((value): value is string => typeof value === 'string' && !!value)
