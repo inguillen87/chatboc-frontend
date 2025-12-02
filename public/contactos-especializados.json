@@ -1,0 +1,63 @@
+{
+  "default": {
+    "nombre": "Atención al Vecino",
+    "titulo": "Mesa de Ayuda General",
+    "telefono": "+5492613168608",
+    "horario": "Lunes a Viernes de 8:00 a 18:00 hs."
+  },
+  "Arreglo de calle": {
+    "nombre": "Juan Carlos de Obras Públicas",
+    "titulo": "Encargado de Bacheo y Calles",
+    "telefono": "+5492610000001",
+    "horario": "Lunes a Viernes de 8:00 a 18:00 hs."
+  },
+  "Luminaria": {
+    "nombre": "Ana María de Servicios",
+    "titulo": "Supervisora de Alumbrado",
+    "telefono": "+5492610000002",
+    "horario": "Lunes a Viernes de 8:00 a 18:00 hs."
+  },
+  "Arbolado": {
+    "nombre": "Roberto de Espacios Verdes",
+    "titulo": "Encargado de Arbolado",
+    "telefono": "+5492610000003",
+    "horario": "Lunes a Viernes de 8:00 a 18:00 hs."
+  },
+  "Limpieza y riego": {
+    "nombre": "Marta de Limpieza",
+    "titulo": "Coordinadora de Limpieza",
+    "telefono": "+5492610000004",
+    "horario": "Lunes a Viernes de 8:00 a 18:00 hs."
+  },
+  "Veterinaria y Bromatologia": {
+    "nombre": "Dra. Laura Funes",
+    "titulo": "Encargada de Veterinaria y Bromatología",
+    "telefono": "+5492634521563",
+    "horario": "Lunes a Viernes de 8:00 a 18:00 hs."
+  },
+  "Licencia de Conducir": {
+    "nombre": "Oficina de Licencias",
+    "titulo": "Consultas sobre Licencias",
+    "telefono": "+5492610000005",
+    "horario": "Lunes a Viernes de 8:00 a 18:00 hs."
+  },
+  "Pago de Tasas": {
+    "nombre": "Oficina de Rentas",
+    "titulo": "Consultas sobre Tasas y Pagos",
+    "telefono": "+5492610000006",
+    "horario": "Lunes a Viernes de 8:00 a 18:00 hs."
+  },
+  "Defensa del Consumidor": {
+    "nombre": "Asesor de Defensa del Consumidor",
+    "titulo": "Consultas y Denuncias",
+    "telefono": "+5492610000007",
+    "horario": "Lunes a Viernes de 8:00 a 18:00 hs.",
+    "email": "defensadelconsumidorjuninmza@gmail.com"
+  },
+  "Otros": {
+    "nombre": "Atención al Vecino",
+    "titulo": "Mesa de Ayuda General",
+    "telefono": "+5492613168608",
+    "horario": "Lunes a Viernes de 8:00 a 18:00 hs."
+  }
+}
