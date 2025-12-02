@@ -21,14 +21,22 @@ function ProductContent({ tenantSlug, productSlug }: { tenantSlug: string; produ
     setError(null);
     apiFetch(`/api/${tenantSlug}/productos/${productSlug}`)
       .then((response: any) => {
-        const normalized: MarketProduct = {
-          id: response?.id ?? response?.product_id ?? productSlug,
-          name: response?.name ?? response?.nombre ?? 'Producto',
-          description: response?.description ?? response?.descripcion ?? null,
-          price: typeof response?.price === 'number' ? response.price : null,
-          points: typeof response?.points === 'number' ? response.points : null,
-          imageUrl: response?.imageUrl ?? response?.imagen ?? null,
-        };
+          const normalized: MarketProduct = {
+            id: response?.id ?? response?.product_id ?? productSlug,
+            name: response?.name ?? response?.nombre ?? 'Producto',
+            description: response?.description ?? response?.descripcion ?? null,
+            descriptionShort: response?.descripcion_corta ?? response?.description_short ?? null,
+            price:
+              typeof response?.price === 'number'
+                ? response.price
+                : typeof response?.precio === 'number'
+                  ? response.precio
+                  : null,
+            priceText: response?.precio_texto ?? response?.price_text ?? null,
+            currency: response?.currency ?? response?.moneda ?? null,
+            points: typeof response?.points === 'number' ? response.points : null,
+            imageUrl: response?.imageUrl ?? response?.imagen ?? null,
+          };
         setProduct(normalized);
       })
       .catch((err) => {
@@ -76,8 +84,12 @@ function ProductContent({ tenantSlug, productSlug }: { tenantSlug: string; produ
           ) : null}
 
           <div className="flex flex-wrap items-center gap-3">
-            {product.price !== null && product.price !== undefined ? (
-              <div className="text-xl font-bold text-primary">{formatCurrency(product.price, 'ARS')}</div>
+            {product.priceText ? (
+              <div className="text-xl font-bold text-primary">{product.priceText}</div>
+            ) : product.price !== null && product.price !== undefined ? (
+              <div className="text-xl font-bold text-primary">
+                {formatCurrency(product.price, (product.currency ?? 'ARS').toUpperCase())}
+              </div>
             ) : null}
             {product.points ? (
               <Badge variant="secondary">{product.points} pts</Badge>

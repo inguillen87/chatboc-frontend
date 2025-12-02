@@ -21,6 +21,11 @@ export default function CartSummary({
   onCheckout,
   isSubmitting,
 }: CartSummaryProps) {
+  const currency = useMemo(() => {
+    const fromItem = items.find((item) => typeof item.currency === 'string' && item.currency.trim());
+    return (fromItem?.currency ?? 'ARS').toUpperCase();
+  }, [items]);
+
   const derivedTotals = useMemo(() => {
     const amount =
       totalAmount ??
@@ -49,7 +54,7 @@ export default function CartSummary({
       <CardContent className="space-y-3 text-sm">
         <div className="flex items-center justify-between">
           <span className="text-muted-foreground">Total</span>
-          <span className="text-lg font-semibold">{formatCurrency(derivedTotals.amount, 'ARS')}</span>
+          <span className="text-lg font-semibold">{formatCurrency(derivedTotals.amount, currency)}</span>
         </div>
         <div className="flex items-center justify-between">
           <span className="text-muted-foreground">Puntos</span>

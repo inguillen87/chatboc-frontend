@@ -19,26 +19,53 @@ const baseOptions = (tenantSlug: string) => ({
   tenantSlug,
 });
 
+const parseNumber = (value: any): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = Number(value.replace(/,/g, '.'));
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+};
+
 const normalizeProduct = (raw: any, index: number): MarketProduct => {
   const resolvedId = raw?.id ?? raw?.product_id ?? raw?.producto_id ?? raw?.slug ?? `product-${index}`;
   const resolvedName = raw?.name ?? raw?.nombre ?? raw?.title ?? `Producto ${index + 1}`;
+  const currency =
+    raw?.currency ?? raw?.moneda ?? raw?.currency_code ?? raw?.moneda_codigo ?? raw?.moneda_id ?? null;
 
-  const parseNumber = (value: any): number | null => {
-    if (typeof value === 'number' && Number.isFinite(value)) return value;
-    if (typeof value === 'string') {
-      const parsed = Number(value.replace(/,/g, '.'));
-      return Number.isFinite(parsed) ? parsed : null;
-    }
-    return null;
-  };
+  const priceText =
+    (typeof raw?.price === 'string' ? raw.price : null) ??
+    (typeof raw?.precio === 'string' ? raw.precio : null) ??
+    (typeof raw?.precio_texto === 'string' ? raw.precio_texto : null) ??
+    (typeof raw?.price_text === 'string' ? raw.price_text : null);
+
+  const normalizedPrice =
+    parseNumber(raw?.precio_monetario ?? raw?.price_amount ?? raw?.precio ?? raw?.price) ??
+    (typeof raw?.precio === 'number' ? raw.precio : null) ??
+    (typeof raw?.price === 'number' ? raw.price : null);
+
+  const pointsValue = parseNumber(raw?.price_points ?? raw?.puntos ?? raw?.points ?? raw?.precio_puntos);
 
   return {
     id: String(resolvedId),
     name: String(resolvedName),
     description: raw?.description ?? raw?.descripcion ?? null,
-    price: parseNumber(raw?.price ?? raw?.precio ?? raw?.price_amount),
-    points: parseNumber(raw?.points ?? raw?.puntos ?? raw?.loyalty_points),
+    descriptionShort: raw?.descripcion_corta ?? raw?.description_short ?? null,
+    price: normalizedPrice,
+    priceText: priceText ?? null,
+    currency: typeof currency === 'string' ? currency.toUpperCase() : null,
+    modality: raw?.modalidad ?? raw?.mode ?? null,
+    points: pointsValue,
     imageUrl: raw?.imageUrl ?? raw?.imagen ?? raw?.image_url ?? raw?.foto ?? null,
+    category: raw?.categoria ?? raw?.category ?? null,
+    unit: raw?.unidad ?? null,
+    quantity: parseNumber(raw?.cantidad) ?? null,
+    sku: raw?.sku ?? null,
+    brand: raw?.marca ?? raw?.brand ?? null,
+    promoInfo: raw?.promocion_info ?? raw?.promo ?? null,
+    publicUrl: raw?.public_url ?? raw?.publicUrl ?? null,
+    whatsappShareUrl: raw?.whatsapp_share_url ?? raw?.whatsappShareUrl ?? null,
   };
 };
 
@@ -53,6 +80,9 @@ const normalizeCartItems = (rawItems: any[] | undefined | null): MarketCartItem[
     return {
       ...product,
       quantity,
+      priceText:
+        product.priceText ??
+        (typeof item?.precio_texto === 'string' ? item.precio_texto : item?.price_text ?? null),
     };
   });
 };
@@ -88,6 +118,13 @@ export async function fetchMarketCatalog(tenantSlug: string): Promise<MarketCata
       tenantName: response?.tenantName ?? response?.nombre ?? response?.tenant_name ?? undefined,
       tenantLogoUrl: response?.tenantLogoUrl ?? response?.logo ?? response?.tenant_logo_url ?? undefined,
       products,
+      publicCartUrl:
+        response?.cart_url ??
+        response?.public_cart_url ??
+        response?.publicCartUrl ??
+        response?.public_cart ??
+        null,
+      whatsappShareUrl: response?.whatsapp_share_url ?? response?.whatsappShareUrl ?? null,
     };
   } catch (error) {
     if (!shouldUseDemo(error)) throw error;
@@ -107,6 +144,13 @@ export async function fetchMarketCart(tenantSlug: string): Promise<MarketCartRes
       items,
       totalAmount: response?.totalAmount ?? response?.total ?? response?.total_amount ?? null,
       totalPoints: response?.totalPoints ?? response?.puntos_totales ?? response?.total_points ?? null,
+      cartUrl:
+        response?.cart_url ??
+        response?.public_cart_url ??
+        response?.cartUrl ??
+        response?.publicCartUrl ??
+        null,
+      whatsappShareUrl: response?.whatsapp_share_url ?? response?.whatsappShareUrl ?? null,
     };
   } catch (error) {
     if (!shouldUseDemo(error)) throw error;

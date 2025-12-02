@@ -40,6 +40,12 @@ const normalizeCartItems = (raw: any): MarketCartItem[] => {
       price: typeof item?.price === 'number' ? item.price : null,
       points: typeof item?.points === 'number' ? item.points : null,
       imageUrl: item?.imageUrl ?? item?.imagen ?? null,
+      priceText:
+        item?.priceText ??
+        item?.precio_texto ??
+        item?.price_text ??
+        (typeof item?.precio === 'string' ? item.precio : null),
+      currency: typeof item?.currency === 'string' ? item.currency : item?.moneda ?? null,
     };
   });
 };
