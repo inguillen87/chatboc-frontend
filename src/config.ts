@@ -88,6 +88,16 @@ const inferSameOriginProxy = (): string | null => {
         return '/api';
       }
     }
+
+    // When running on the production/custom domains (e.g., chatboc.ar or
+    // Vercel previews), the platform always exposes the backend through the
+    // same-origin "/api" proxy. Even if VITE_BACKEND_URL is not defined, we
+    // should still prefer that proxy to avoid hitting frontend-only routes
+    // such as /auth/login directly.
+    const hostname = currentUrl.hostname.toLowerCase();
+    if (hostname.endsWith('chatboc.ar') || hostname.endsWith('vercel.app')) {
+      return '/api';
+    }
   } catch (error) {
     console.warn('[config] Unable to infer same-origin proxy for backend URL', error);
   }
