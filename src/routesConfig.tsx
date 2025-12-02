@@ -53,6 +53,7 @@ import EstadisticasPage from '@/pages/EstadisticasPage';
 import Iframe from '@/pages/iframe';
 import AnalyticsPage from '@/pages/analytics/AnalyticsPage';
 import MarketCartPage from '@/pages/market/MarketCartPage';
+import MarketplaceBlueprintPage from '@/pages/market/MarketplaceBlueprintPage';
 import PublicSurveysIndex from '@/pages/encuestas';
 import PublicSurveyPage from '@/pages/e/[slug]';
 import SurveyQrPage from '@/pages/encuestas/QrPage';
@@ -114,6 +115,7 @@ const routes: RouteConfig[] = [
   ...withTenantPrefixes('/:tenant/market', { element: <MarketCatalogPage /> }),
   ...withTenantPrefixes('/:tenant/product/:slug', { element: <MarketProductPage /> }),
   ...withTenantPrefixes('/:tenant/checkout', { element: <MarketCheckoutPage /> }),
+  ...withTenantPrefixes('/:tenant/market/blueprint', { element: <MarketplaceBlueprintPage /> }),
   ...withTenantPrefixes('/:tenant/reclamos/nuevo', { element: <TenantTicketFormPage /> }),
   ...withTenantPrefixes('/:tenant/pedido/confirmado', { element: <OrderConfirmationPage /> }),
   { path: '/login', element: <Login /> },
@@ -148,7 +150,8 @@ const routes: RouteConfig[] = [
   ...withTenantPrefixes('/:tenant/productos', { element: <ProductCatalog /> }),
   { path: '/cart', element: <CartPage /> },
   ...withTenantPrefixes('/:tenant/cart', { element: <CartPage /> }),
-  { path: '/market/:slug/cart', element: <MarketCartPage /> },
+  { path: '/market/:tenantSlug/cart', element: <MarketCartPage /> },
+  { path: '/market/blueprint', element: <MarketplaceBlueprintPage /> },
   { path: '/checkout-productos', element: <ProductCheckoutPage /> },
   ...withTenantPrefixes('/:tenant/checkout-productos', { element: <ProductCheckoutPage /> }),
   ...withTenantPrefixes('/:tenant/pedido/confirmado', { element: <OrderConfirmationPage /> }),
