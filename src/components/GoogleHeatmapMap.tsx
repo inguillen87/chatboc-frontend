@@ -378,7 +378,7 @@ export function GoogleHeatmapMap({
     map.setZoom(initialZoom);
   }, [center, initialZoom, isLoaded]);
 
-  if (!googleMapsApiKey) {
+  if (!resolvedGoogleKey) {
     reportUnavailable("missing-api-key");
     return (
       <div className={mapContainerClassName}>

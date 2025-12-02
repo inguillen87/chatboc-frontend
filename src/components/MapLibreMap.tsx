@@ -216,14 +216,16 @@ export default function MapLibreMap({
   );
 
   const resolvedGoogleMapsKey = (googleMapsKey ?? import.meta.env.VITE_Maps_API_KEY ?? "").trim();
+  const wantsGoogle = effectiveProvider === "google";
+  const shouldUseGoogle = wantsGoogle && resolvedGoogleMapsKey.length > 0;
 
   useEffect(() => {
-    if (effectiveProvider === "google" && !resolvedGoogleMapsKey) {
+    if (wantsGoogle && !resolvedGoogleMapsKey) {
       handleProviderUnavailable("missing-api-key");
     }
-  }, [effectiveProvider, handleProviderUnavailable, resolvedGoogleMapsKey]);
+  }, [handleProviderUnavailable, resolvedGoogleMapsKey, wantsGoogle]);
 
-  if (effectiveProvider === "google") {
+  if (shouldUseGoogle) {
     return (
       <GoogleHeatmapMap
         center={center}
