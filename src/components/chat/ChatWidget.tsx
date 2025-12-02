@@ -509,19 +509,6 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
         return;
       }
 
-      if (target === "market" || target === "catalog") {
-        const destination = buildMarketCartUrl(slug, tenant?.public_base_url ?? null);
-        if (!destination) {
-          toast.error("No pudimos abrir el catálogo público.");
-          return;
-        }
-        window.open(destination, "_blank");
-        return;
-      }
-
-      const basePath = "/cart";
-      const preferredUrl = tenant?.public_cart_url ?? user?.publicCartUrl ?? null;
-
       const destination = preferredUrl
         ? preferredUrl
         : buildTenantNavigationUrl({
