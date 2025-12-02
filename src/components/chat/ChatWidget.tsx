@@ -278,8 +278,7 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
   ]);
 
   const resolveActiveTenantSlug = useCallback(() => {
-    const storedTenant = sanitizeTenantSlug(safeLocalStorage.getItem("tenantSlug"));
-    return sanitizeTenantSlug(resolvedTenantSlug ?? storedTenant);
+    return sanitizeTenantSlug(resolvedTenantSlug);
   }, [resolvedTenantSlug]);
 
   useEffect(() => {
@@ -288,13 +287,6 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
       safeLocalStorage.setItem("tenantSlug", sanitized);
     } else {
       safeLocalStorage.removeItem("tenantSlug");
-    }
-  }, [resolvedTenantSlug]);
-
-  useEffect(() => {
-    const sanitized = sanitizeTenantSlug(resolvedTenantSlug);
-    if (sanitized) {
-      safeLocalStorage.setItem("tenantSlug", sanitized);
     }
   }, [resolvedTenantSlug]);
 
