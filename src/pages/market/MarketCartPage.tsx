@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { Copy, Loader2, MessageCircle, QrCode, Search, Share2, ShoppingBag } from 'lucide-react';
+import { Copy, Loader2, MessageCircle, QrCode, Search, Share2, ShoppingBag, Sparkles, Tag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import ProductCard from '@/components/market/ProductCard';
@@ -19,7 +19,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/co
 import { formatCurrency } from '@/utils/currency';
 import { getValidStoredToken } from '@/utils/authTokens';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { buildDemoMarketCatalog } from '@/data/marketDemo';
+import { MARKET_DEMO_SECTIONS, buildDemoMarketCatalog } from '@/data/marketDemo';
 
 type ContactInfo = {
   name?: string;
@@ -43,6 +43,7 @@ export default function MarketCartPage() {
   const [showQrModal, setShowQrModal] = useState(false);
   const [showMobileCart, setShowMobileCart] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [activeCategory, setActiveCategory] = useState<string>('todos');
   const [confirmation, setConfirmation] = useState<string | null>(null);
   const [qrError, setQrError] = useState<string | null>(null);
   const [contact, setContact] = useState<ContactInfo>(() => {
@@ -216,6 +217,27 @@ export default function MarketCartPage() {
   const canCopy = Boolean(shareUrl && navigator?.clipboard);
   const canShareWhatsApp = Boolean(shareMessage);
 
+  const categories = useMemo(() => {
+    const unique = new Set(
+      catalogProducts
+        .map((product) => product.category?.trim())
+        .filter((value): value is string => Boolean(value)),
+    );
+    return ['todos', ...Array.from(unique)];
+  }, [catalogProducts]);
+
+  const catalogSections = useMemo(
+    () => (catalogData?.sections?.length ? catalogData.sections : MARKET_DEMO_SECTIONS),
+    [catalogData?.sections],
+  );
+
+  const heroImage =
+    catalogData?.heroImageUrl ??
+    'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1200&q=80';
+  const heroSubtitle =
+    catalogData?.heroSubtitle ??
+    'Demostración pública del catálogo multi-tenant con fotos, canjes, carrito y buscador listo para compartir.';
+
   const itemsCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
   const hasSession = useMemo(() => {
     const authToken = getValidStoredToken('authToken');
@@ -224,14 +246,28 @@ export default function MarketCartPage() {
   }, [user]);
 
   const filteredProducts = useMemo(() => {
-    if (!searchTerm.trim()) return catalogProducts;
-    const term = searchTerm.toLowerCase();
-    return catalogProducts.filter((product) => {
+    const matchesSearch = (product: MarketProduct) => {
+      if (!searchTerm.trim()) return true;
+      const term = searchTerm.toLowerCase();
       const name = product.name?.toLowerCase() ?? '';
       const description = product.description?.toLowerCase() ?? '';
-      return name.includes(term) || description.includes(term);
-    });
-  }, [catalogProducts, searchTerm]);
+      const shortDescription = product.descriptionShort?.toLowerCase() ?? '';
+      const category = product.category?.toLowerCase() ?? '';
+      return (
+        name.includes(term) ||
+        description.includes(term) ||
+        shortDescription.includes(term) ||
+        category.includes(term)
+      );
+    };
+
+    const matchesCategory = (product: MarketProduct) => {
+      if (activeCategory === 'todos') return true;
+      return product.category?.toLowerCase() === activeCategory.toLowerCase();
+    };
+
+    return catalogProducts.filter((product) => matchesSearch(product) && matchesCategory(product));
+  }, [activeCategory, catalogProducts, searchTerm]);
 
   const derivedAmount = useMemo(() => {
     if (cartQuery.data?.totalAmount !== undefined && cartQuery.data?.totalAmount !== null) {
@@ -328,6 +364,70 @@ export default function MarketCartPage() {
           </Alert>
         ) : null}
 
+        <section className="overflow-hidden rounded-2xl border bg-white shadow-sm">
+          <div className="grid gap-0 md:grid-cols-[1.1fr_0.9fr]">
+            <div className="space-y-4 p-6 md:p-8">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="secondary">Catálogo público</Badge>
+                {isDemoCatalog ? <Badge variant="outline">Modo demo</Badge> : null}
+                {catalogQuery.data?.tenantName ? (
+                  <Badge variant="outline" className="flex items-center gap-1">
+                    <Sparkles className="h-3.5 w-3.5" /> {catalogQuery.data.tenantName}
+                  </Badge>
+                ) : null}
+              </div>
+              <div className="space-y-2">
+                <h2 className="text-2xl font-semibold leading-tight sm:text-3xl">
+                  Marketplace listo para compartir
+                </h2>
+                <p className="max-w-2xl text-base text-muted-foreground">{heroSubtitle}</p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="rounded-xl border bg-muted/40 p-4">
+                  <p className="text-xs uppercase text-muted-foreground">Catálogo</p>
+                  <p className="text-xl font-semibold">{catalogProducts.length || 0} ítems</p>
+                  <p className="text-xs text-muted-foreground">Fotos, descripciones y filtros por categoría.</p>
+                </div>
+                <div className="rounded-xl border bg-muted/40 p-4">
+                  <p className="text-xs uppercase text-muted-foreground">Canjes</p>
+                  <p className="text-xl font-semibold">{catalogProducts.filter((p) => p.points).length} opciones</p>
+                  <p className="text-xs text-muted-foreground">Puntos y beneficios en un mismo flujo.</p>
+                </div>
+                <div className="rounded-xl border bg-muted/40 p-4">
+                  <p className="text-xs uppercase text-muted-foreground">Carrito</p>
+                  <p className="text-xl font-semibold">/market/{tenantSlug || 'demo'}/cart</p>
+                  <p className="text-xs text-muted-foreground">URL lista para QR y WhatsApp.</p>
+                </div>
+              </div>
+            </div>
+            <div className="relative hidden min-h-[260px] overflow-hidden bg-muted/50 md:block">
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent" />
+              <img
+                src={heroImage}
+                alt="Portada del catálogo"
+                className="h-full w-full object-cover"
+                loading="lazy"
+              />
+            </div>
+          </div>
+        </section>
+
+        <section className="grid gap-3 sm:grid-cols-3">
+          {catalogSections.map((section) => (
+            <div key={section.title} className="rounded-xl border bg-white/70 p-4 shadow-sm">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase text-muted-foreground">
+                <Tag className="h-4 w-4" />
+                {section.badge ?? 'Sección'}
+              </div>
+              <h3 className="mt-2 text-lg font-semibold leading-snug">{section.title}</h3>
+              {section.description ? (
+                <p className="mt-1 text-sm text-muted-foreground">{section.description}</p>
+              ) : null}
+            </div>
+          ))}
+        </section>
+
         <section className="grid gap-6 lg:grid-cols-[2fr_1fr]">
           <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -357,6 +457,22 @@ export default function MarketCartPage() {
                       'Intenta nuevamente desde el enlace o QR.')}
                 </AlertDescription>
               </Alert>
+            ) : null}
+
+            {categories.length > 1 ? (
+              <div className="flex flex-wrap gap-2 overflow-x-auto pb-1">
+                {categories.map((category) => (
+                  <Button
+                    key={category}
+                    variant={activeCategory === category ? 'default' : 'outline'}
+                    size="sm"
+                    className="rounded-full"
+                    onClick={() => setActiveCategory(category)}
+                  >
+                    {category === 'todos' ? 'Todas las secciones' : category}
+                  </Button>
+                ))}
+              </div>
             ) : null}
 
             {filteredProducts.length ? (
