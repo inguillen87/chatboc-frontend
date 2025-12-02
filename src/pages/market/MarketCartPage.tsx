@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { Copy, Loader2, MessageCircle, QrCode, Search, Share2, ShoppingBag, Sparkles, Tag } from 'lucide-react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { ShoppingBag, Share2, Loader2, ExternalLink, Copy, QrCode, MessageCircle } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -9,25 +9,27 @@ import ProductCard from '@/components/market/ProductCard';
 import CartSummary from '@/components/market/CartSummary';
 import CheckoutDialog from '@/components/market/CheckoutDialog';
 import {
-  addMarketItem,
-  clearMarketCart,
-  fetchMarketCart,
-  fetchMarketCatalog,
-  removeMarketItem,
-  startMarketCheckout,
-} from '@/api/market';
-import { MarketCartItem, MarketProduct } from '@/types/market';
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import {
+  CartSummarySkeleton,
+  MarketCatalogSkeleton,
+  MarketHeaderSkeleton,
+} from '@/components/market/MarketSkeletons';
+import { addMarketItem, fetchMarketCart, fetchMarketCatalog, startMarketCheckout } from '@/api/market';
+import { MarketCartItem, MarketCatalogResponse, MarketCartResponse, MarketProduct } from '@/types/market';
 import { loadMarketContact, saveMarketContact } from '@/utils/marketStorage';
 import { toast } from '@/components/ui/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { useUser } from '@/hooks/useUser';
-import { Input } from '@/components/ui/input';
-import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { formatCurrency } from '@/utils/currency';
-import { getValidStoredToken } from '@/utils/authTokens';
-import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { MARKET_DEMO_SECTIONS, buildDemoMarketCatalog } from '@/data/marketDemo';
+import { cn } from '@/lib/utils';
+import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 type ContactInfo = {
   name?: string;
@@ -36,11 +38,10 @@ type ContactInfo = {
 
 export default function MarketCartPage() {
   const { tenantSlug = '' } = useParams<{ tenantSlug: string }>();
-  const navigate = useNavigate();
-  const location = useLocation();
   const queryClient = useQueryClient();
   const { user } = useUser();
-  const productGridRef = useRef<HTMLDivElement | null>(null);
+  const navigate = useNavigate();
+  const cartSummaryRef = useRef<HTMLDivElement | null>(null);
 
   const userName = user?.name ?? user?.nombre ?? user?.full_name;
   const userPhone = user?.phone ?? user?.telefono ?? user?.telefono_movil ?? user?.celular;
@@ -62,6 +63,9 @@ export default function MarketCartPage() {
       phone: stored.phone ?? normalizedUserPhone,
     };
   });
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     const stored = loadMarketContact(tenantSlug);
@@ -71,6 +75,14 @@ export default function MarketCartPage() {
     }));
     setConfirmation(null);
   }, [tenantSlug, userName, normalizedUserPhone]);
+
+  const shareUrl = useMemo(() => {
+    if (typeof window === 'undefined' || !tenantSlug) return '';
+    const url = new URL(window.location.href);
+    url.pathname = `/market/${tenantSlug}/cart`;
+    url.search = '';
+    return url.toString();
+  }, [tenantSlug]);
 
   const catalogQuery = useQuery({
     queryKey: ['marketCatalog', tenantSlug],
@@ -83,35 +95,61 @@ export default function MarketCartPage() {
     queryKey: ['marketCart', tenantSlug],
     queryFn: () => fetchMarketCart(tenantSlug),
     enabled: Boolean(tenantSlug),
+    refetchInterval: 15000,
   });
 
-  const shareUrl = useMemo(() => {
-    const backendUrl = cartQuery.data?.cartUrl ?? catalogQuery.data?.publicCartUrl;
-    if (backendUrl) return backendUrl;
+  const shareTitle = useMemo(
+    () => catalogQuery.data?.tenantName ?? 'Catálogo',
+    [catalogQuery.data?.tenantName],
+  );
 
-    if (typeof window === 'undefined' || !tenantSlug) return '';
-    const url = new URL(window.location.href);
-    url.pathname = `/market/${tenantSlug}/cart`;
-    url.search = '';
-    return url.toString();
-  }, [cartQuery.data?.cartUrl, catalogQuery.data?.publicCartUrl, tenantSlug]);
-
-  const shareMessage = useMemo(() => {
-    if (catalogQuery.data?.whatsappShareUrl) return catalogQuery.data.whatsappShareUrl;
-    if (cartQuery.data?.whatsappShareUrl) return cartQuery.data.whatsappShareUrl;
+  const qrShareUrl = useMemo(() => {
     if (!shareUrl) return '';
-    const tenantName = catalogQuery.data?.tenantName?.trim();
-    const prefix = tenantName ? `Mirá el catálogo de ${tenantName}` : 'Mirá este catálogo';
-    return `https://wa.me/?text=${encodeURIComponent(`${prefix}: ${shareUrl}`)}`;
-  }, [cartQuery.data?.whatsappShareUrl, catalogQuery.data?.tenantName, shareUrl]);
-
-  const qrImageUrl = useMemo(() => {
-    if (!shareUrl) return '';
-    return `https://quickchart.io/qr?text=${encodeURIComponent(shareUrl)}&margin=12&size=480`;
+    return `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(shareUrl)}`;
   }, [shareUrl]);
 
   const addMutation = useMutation({
     mutationFn: (productId: string) => addMarketItem(tenantSlug, { productId, quantity: 1 }),
+    onMutate: async (productId: string) => {
+      await queryClient.cancelQueries({ queryKey: ['marketCart', tenantSlug] });
+      const previousCart = queryClient.getQueryData<MarketCartResponse>(['marketCart', tenantSlug]);
+      const catalog = queryClient.getQueryData<MarketCatalogResponse>(['marketCatalog', tenantSlug]);
+      const product = catalog?.products.find((item) => item.id === productId);
+
+      queryClient.setQueryData<MarketCartResponse | undefined>(['marketCart', tenantSlug], (current) => {
+        const items = current?.items ? [...current.items] : [];
+        const existingIndex = items.findIndex((item) => item.id === productId);
+        if (existingIndex >= 0) {
+          items[existingIndex] = { ...items[existingIndex], quantity: items[existingIndex].quantity + 1 };
+        } else if (product) {
+          items.push({
+            id: product.id,
+            name: product.name,
+            quantity: 1,
+            price: product.price,
+            points: product.points,
+            imageUrl: product.imageUrl,
+          });
+        }
+
+        const totalAmount =
+          (current?.totalAmount ?? 0) +
+          (product?.price ??
+            (existingIndex >= 0 ? items[existingIndex]?.price ?? 0 : 0));
+        const totalPoints =
+          (current?.totalPoints ?? 0) +
+          (product?.points ?? (existingIndex >= 0 ? items[existingIndex]?.points ?? 0 : 0));
+
+        return {
+          ...(current ?? {}),
+          items,
+          totalAmount,
+          totalPoints,
+        };
+      });
+      setCartPulse(true);
+      return { previousCart };
+    },
     onSuccess: (data) => {
       queryClient.setQueryData(['marketCart', tenantSlug], data);
       toast({
@@ -119,54 +157,34 @@ export default function MarketCartPage() {
         description: 'Actualizamos tu carrito.',
       });
     },
-    onError: () => {
+    onError: (_error, _variables, context) => {
+      if (context?.previousCart) {
+        queryClient.setQueryData(['marketCart', tenantSlug], context.previousCart);
+      }
       toast({
         title: 'No se pudo agregar el producto',
         description: 'Intentá nuevamente en unos segundos.',
         variant: 'destructive',
       });
     },
-  });
-
-  const removeMutation = useMutation({
-    mutationFn: (productId: string) => removeMarketItem(tenantSlug, productId),
-    onSuccess: (data) => {
-      queryClient.setQueryData(['marketCart', tenantSlug], data);
-      toast({
-        title: 'Producto quitado',
-        description: 'Actualizamos tu carrito.',
-      });
-    },
-    onError: () => {
-      toast({
-        title: 'No se pudo actualizar el carrito',
-        description: 'Revisa tu conexión e intenta nuevamente.',
-        variant: 'destructive',
-      });
-    },
-  });
-
-  const clearMutation = useMutation({
-    mutationFn: () => clearMarketCart(tenantSlug),
-    onSuccess: (data) => {
-      queryClient.setQueryData(['marketCart', tenantSlug], data);
-    },
-    onError: () => {
-      toast({
-        title: 'No pudimos vaciar el carrito',
-        description: 'Intenta nuevamente en unos segundos.',
-        variant: 'destructive',
-      });
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['marketCart', tenantSlug] });
     },
   });
 
   const checkoutMutation = useMutation({
-    mutationFn: (payload: { name?: string; phone: string }) =>
-      startMarketCheckout(tenantSlug, payload),
+    mutationFn: (payload: { name?: string; phone: string }) => startMarketCheckout(tenantSlug, payload),
     onSuccess: (response, variables) => {
       saveMarketContact(tenantSlug, variables);
       setContact(variables);
       setConfirmation(response?.message ?? 'Pedido registrado. Te contactaremos a la brevedad.');
+      queryClient.setQueryData<MarketCartResponse>(['marketCart', tenantSlug], {
+        items: [],
+        totalAmount: 0,
+        totalPoints: 0,
+        availableAmount: null,
+        availablePoints: null,
+      });
       queryClient.invalidateQueries({ queryKey: ['marketCart', tenantSlug] });
     },
     onError: () => {
@@ -230,8 +248,11 @@ export default function MarketCartPage() {
       return;
     }
 
-    if (!hasSession) {
-      setShowAuthDialog(true);
+    const sessionToken =
+      safeLocalStorage.getItem('authToken') || safeLocalStorage.getItem('chatAuthToken');
+
+    if (!sessionToken && !user) {
+      setShowLoginPrompt(true);
       return;
     }
 
@@ -361,33 +382,156 @@ export default function MarketCartPage() {
       );
     };
 
-    const matchesCategory = (product: MarketProduct) => {
-      if (activeCategory === 'todos') return true;
-      return product.category?.toLowerCase() === activeCategory.toLowerCase();
-    };
+  const filteredProducts = useMemo(() => {
+    if (!searchTerm.trim()) return catalogProducts;
+    const query = searchTerm.toLowerCase();
+    return catalogProducts.filter(
+      (product) =>
+        product.name.toLowerCase().includes(query) ||
+        (product.description ? product.description.toLowerCase().includes(query) : false),
+    );
+  }, [catalogProducts, searchTerm]);
 
-    return catalogProducts.filter((product) => matchesSearch(product) && matchesCategory(product));
-  }, [activeCategory, catalogProducts, searchTerm]);
-
-  const derivedAmount = useMemo(() => {
-    if (cartQuery.data?.totalAmount !== undefined && cartQuery.data?.totalAmount !== null) {
-      return cartQuery.data.totalAmount;
-    }
-    return cartItems.reduce((acc, item) => acc + (item.price ?? 0) * item.quantity, 0);
-  }, [cartItems, cartQuery.data?.totalAmount]);
-
-  const isUpdatingCart = addMutation.isPending || removeMutation.isPending || clearMutation.isPending;
-
-  const goToLogin = () => {
-    const redirectPath = `${location.pathname}${location.search}`;
-    navigate('/user/login', { state: { redirectTo: redirectPath } });
+  const scrollToSummary = () => {
+    cartSummaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setCartPulse(true);
   };
 
-  const scrollToProducts = () => {
-    if (productGridRef.current) {
-      productGridRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  };
+  useEffect(() => {
+    if (!itemsCount) return;
+    const timeout = setTimeout(() => setCartPulse(false), 350);
+    return () => clearTimeout(timeout);
+  }, [itemsCount]);
+
+  const HeaderContent = (
+    <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
+      <div className="flex items-center gap-3">
+        <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl bg-primary/10 text-primary">
+          {catalogQuery.data?.tenantLogoUrl ? (
+            <img
+              src={catalogQuery.data.tenantLogoUrl}
+              alt={catalogQuery.data?.tenantName ?? tenantSlug}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <ShoppingBag className="h-6 w-6" />
+          )}
+        </div>
+        <div>
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Catálogo</p>
+          <h1 className="text-lg font-semibold leading-tight sm:text-xl">
+            {catalogQuery.data?.tenantName ?? tenantSlug}
+          </h1>
+          {catalogQuery.data?.tenantName ? (
+            <p className="text-xs text-muted-foreground">Ruta única: /market/{tenantSlug}/cart</p>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <div className="hidden md:flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleShare}
+            disabled={!canShare}
+            className="transition hover:scale-[1.01]"
+          >
+            <Share2 className="mr-2 h-4 w-4" />
+            Compartir
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={async () => {
+              if (!shareUrl) return;
+              await navigator.clipboard.writeText(shareUrl);
+              toast({ title: 'Enlace copiado', description: 'Listo para compartir.' });
+            }}
+            disabled={!shareUrl}
+          >
+            <Copy className="mr-2 h-4 w-4" />
+            Copiar enlace
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              window.open(
+                `https://wa.me/?text=${encodeURIComponent(
+                  `Mirá el catálogo: ${shareUrl}`,
+                )}`,
+                '_blank',
+              )
+            }
+            disabled={!shareUrl}
+          >
+            <MessageCircle className="mr-2 h-4 w-4" />
+            Compartir por WhatsApp
+          </Button>
+          <Dialog open={showQrModal} onOpenChange={setShowQrModal}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm">
+                <QrCode className="mr-2 h-4 w-4" />
+                Ver QR
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-sm">
+              <DialogHeader>
+                <DialogTitle>Escaneá para abrir el catálogo</DialogTitle>
+                <DialogDescription>Comparte esta tienda con un enlace único.</DialogDescription>
+              </DialogHeader>
+              <div className="flex flex-col items-center gap-3">
+                {qrShareUrl ? (
+                  <div className="rounded-xl bg-white p-4 shadow-inner">
+                    <img src={qrShareUrl} alt="QR del catálogo" className="h-56 w-56" />
+                  </div>
+                ) : null}
+                <Button
+                  variant="secondary"
+                  className="w-full"
+                  onClick={async () => {
+                    if (!shareUrl) return;
+                    await navigator.clipboard.writeText(shareUrl);
+                    toast({
+                      title: 'Enlace del catálogo copiado',
+                      description: 'Compartilo por el canal que prefieras.',
+                    });
+                  }}
+                  disabled={!shareUrl}
+                >
+                  <Copy className="mr-2 h-4 w-4" /> Copiar enlace
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+        <motion.div
+          animate={{ scale: cartPulse ? 1.08 : 1 }}
+          transition={{ type: 'spring', stiffness: 320, damping: 18 }}
+          className="overflow-hidden rounded-full"
+        >
+          <Badge
+            variant="secondary"
+            className="flex items-center gap-1 px-3 py-1 text-sm shadow-sm"
+          >
+            <ShoppingBag className="h-4 w-4" />
+            <AnimatePresence mode="popLayout" initial={false}>
+              <motion.span
+                key={itemsCount}
+                initial={{ y: 8, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: -8, opacity: 0 }}
+                transition={{ duration: 0.18 }}
+              >
+                {itemsCount}
+              </motion.span>
+            </AnimatePresence>
+          </Badge>
+        </motion.div>
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white pb-24 sm:pb-12">
@@ -620,13 +764,26 @@ export default function MarketCartPage() {
 
         <section className="grid gap-6 lg:grid-cols-[2fr_1fr]">
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold">Productos</h2>
-              {catalogQuery.isLoading ? (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Cargando catálogo...
-                </div>
-              ) : null}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="space-y-1">
+                <h2 className="text-xl font-semibold">Productos</h2>
+                <p className="text-sm text-muted-foreground">
+                  Catálogo público de este tenant. Agrega ítems y confirma en un paso.
+                </p>
+              </div>
+              <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+                <Input
+                  placeholder="Buscar productos"
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  className="w-full min-w-[200px] sm:max-w-xs"
+                />
+                {catalogQuery.isFetching ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Sincronizando catálogo...
+                  </div>
+                ) : null}
+              </div>
             </div>
 
             {isDemoCatalog ? (
@@ -649,24 +806,10 @@ export default function MarketCartPage() {
               </Alert>
             ) : null}
 
-            {categories.length > 1 ? (
-              <div className="flex flex-wrap gap-2 overflow-x-auto pb-1">
-                {categories.map((category) => (
-                  <Button
-                    key={category}
-                    variant={activeCategory === category ? 'default' : 'outline'}
-                    size="sm"
-                    className="rounded-full"
-                    onClick={() => setActiveCategory(category)}
-                  >
-                    {category === 'todos' ? 'Todas las secciones' : category}
-                  </Button>
-                ))}
-              </div>
-            ) : null}
-
-            {filteredProducts.length ? (
-              <div ref={productGridRef} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {isLoadingCatalog ? (
+              <MarketCatalogSkeleton cards={4} />
+            ) : filteredProducts.length ? (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {filteredProducts.map((product) => (
                   <ProductCard
                     key={product.id}
@@ -740,141 +883,28 @@ export default function MarketCartPage() {
         isSubmitting={checkoutMutation.isPending}
       />
 
-      <Sheet open={showMobileCart} onOpenChange={setShowMobileCart}>
-        {itemsCount ? (
-          <div className="fixed bottom-4 left-4 right-4 z-20 sm:hidden">
-            <div className="flex items-center justify-between gap-3 rounded-full border bg-white/95 px-4 py-3 shadow-lg">
-              <div>
-                <p className="text-xs text-muted-foreground">{itemsCount} ítem(s)</p>
-                <p className="text-base font-semibold">{formatCurrency(derivedAmount, 'ARS')}</p>
-              </div>
-              <SheetTrigger asChild>
-                <Button size="sm" className="rounded-full">
-                  Ver carrito
-                </Button>
-              </SheetTrigger>
-            </div>
-          </div>
-        ) : null}
-
-        <SheetContent side="bottom" className="sm:hidden">
-          <SheetHeader>
-            <SheetTitle>Tu carrito</SheetTitle>
-          </SheetHeader>
-
-          <div className="mt-4 space-y-3 overflow-y-auto">
-            {cartItems.length ? (
-              cartItems.map((item) => (
-                <div key={item.id} className="flex items-start justify-between rounded-lg border p-3">
-                  <div className="space-y-1">
-                    <p className="font-medium leading-snug">{item.name}</p>
-                    <p className="text-xs text-muted-foreground">Cantidad: {item.quantity}</p>
-                    {item.modality ? (
-                      <span className="text-[11px] uppercase text-muted-foreground">{item.modality}</span>
-                    ) : null}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 px-2 text-xs"
-                      onClick={() => removeMutation.mutate(item.id)}
-                      disabled={isUpdatingCart}
-                    >
-                      Quitar
-                    </Button>
-                  </div>
-                  <div className="text-right text-sm font-semibold">
-                    {item.price
-                      ? formatCurrency(item.price * item.quantity, item.currency ?? 'ARS')
-                      : item.points
-                        ? `${item.points * item.quantity} pts`
-                        : '—'}
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="text-sm text-muted-foreground">Tu carrito está vacío.</p>
-            )}
-          </div>
-
-          <div className="mt-4 flex items-center justify-between rounded-lg bg-muted/50 px-4 py-3 text-sm">
-            <span className="text-muted-foreground">Total estimado</span>
-            <span className="text-base font-semibold">{formatCurrency(derivedAmount, 'ARS')}</span>
-          </div>
-
-          <Button
-            variant="outline"
-            className="mt-3 w-full"
-            size="sm"
-            onClick={() => clearMutation.mutate()}
-            disabled={!cartItems.length || isUpdatingCart}
-          >
-            Vaciar carrito
-          </Button>
-
-          <Button
-            className="mt-4 w-full"
-            size="lg"
-            onClick={() => {
-              setShowMobileCart(false);
-              handleCheckout();
-            }}
-            disabled={!cartItems.length || checkoutMutation.isPending}
-          >
-            {checkoutMutation.isPending ? 'Procesando...' : 'Finalizar pedido'}
-          </Button>
-        </SheetContent>
-      </Sheet>
-
-      <AlertDialog open={showAuthDialog} onOpenChange={setShowAuthDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Necesitas iniciar sesión</AlertDialogTitle>
-            <AlertDialogDescription>
-              Ingresa con tu número de teléfono para continuar con el pedido y volveremos a traerte aquí.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction onClick={goToLogin}>Ir a login</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <Dialog open={showQrModal} onOpenChange={setShowQrModal}>
-        <DialogContent>
+      <Dialog open={showLoginPrompt} onOpenChange={setShowLoginPrompt}>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Código QR del catálogo</DialogTitle>
-            <DialogDescription>Escanealo o compártelo para abrir este catálogo en cualquier dispositivo.</DialogDescription>
+            <DialogTitle>Inicia sesión para finalizar</DialogTitle>
+            <DialogDescription>
+              Necesitamos que confirmes tu identidad con tu teléfono para completar el pedido.
+            </DialogDescription>
           </DialogHeader>
-          <div className="flex flex-col items-center gap-4 py-2">
-            {qrImageUrl && !qrError ? (
-              <img
-                src={qrImageUrl}
-                alt="QR del catálogo"
-                className="w-64 max-w-full rounded-xl border bg-white p-4 shadow-sm"
-                onError={() => setQrError('No pudimos generar el código QR automáticamente.')}
-              />
-            ) : (
-              <div className="flex h-52 w-full items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
-                {qrError || 'No pudimos cargar el código QR.'}
-              </div>
-            )}
-            {shareUrl ? (
-              <div className="w-full rounded-md border bg-muted/40 p-3 text-center text-sm">
-                <p className="font-medium text-foreground">Enlace directo</p>
-                <p className="mt-1 break-all text-muted-foreground">{shareUrl}</p>
-              </div>
-            ) : null}
-          </div>
-          <DialogFooter className="gap-2">
-            <DialogClose asChild>
-              <Button variant="secondary" className="w-full sm:w-auto">
-                Cerrar
-              </Button>
-            </DialogClose>
-            <Button className="w-full sm:w-auto" onClick={handleCopyLink} disabled={!canCopy}>
-              <Share2 className="mr-2 h-4 w-4" /> Copiar enlace
+          <div className="flex flex-col gap-3">
+            <Button
+              className="w-full"
+              onClick={() => {
+                const redirect = encodeURIComponent(window.location.pathname + window.location.search);
+                navigate(`/login?redirect=${redirect}`);
+              }}
+            >
+              Ir a iniciar sesión
             </Button>
-          </DialogFooter>
+            <Button variant="secondary" className="w-full" onClick={() => setShowLoginPrompt(false)}>
+              Seguir viendo el catálogo
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
