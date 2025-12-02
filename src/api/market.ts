@@ -10,7 +10,12 @@ import {
   MarketProduct,
 } from '@/types/market';
 import { MARKET_DEMO_PRODUCTS, buildDemoMarketCatalog } from '@/data/marketDemo';
-import { addItemToStoredCart, readStoredCart } from '@/utils/marketStorage';
+import {
+  addItemToStoredCart,
+  clearStoredCart,
+  readStoredCart,
+  removeItemFromStoredCart,
+} from '@/utils/marketStorage';
 
 const baseOptions = (tenantSlug: string) => ({
   omitCredentials: true,
@@ -84,6 +89,8 @@ const normalizeCartItems = (rawItems: any[] | undefined | null): MarketCartItem[
       priceText:
         product.priceText ??
         (typeof item?.precio_texto === 'string' ? item.precio_texto : item?.price_text ?? null),
+      currency: product.currency ?? item?.currency ?? item?.moneda ?? null,
+      modality: product.modality ?? item?.modalidad ?? null,
     };
   });
 };
@@ -228,8 +235,56 @@ export async function addMarketItem(
       price: demoProduct?.price ?? null,
       points: demoProduct?.points ?? null,
       imageUrl: demoProduct?.imageUrl ?? null,
+      currency: demoProduct?.currency ?? null,
+      modality: demoProduct?.modality ?? null,
     };
     const stored = addItemToStoredCart(tenantSlug, fallbackItem, payload.quantity ?? 1);
+    return { ...stored, isDemo: true };
+  }
+}
+
+export async function removeMarketItem(tenantSlug: string, productId: string): Promise<MarketCartResponse> {
+  try {
+    const response = await apiFetch<any>(`/api/market/${encodeURIComponent(tenantSlug)}/cart/remove`, {
+      ...baseOptions(tenantSlug),
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ productId }),
+    });
+
+    const items = normalizeCartItems(response?.items ?? response?.cart ?? []);
+
+    return {
+      items,
+      totalAmount: response?.totalAmount ?? response?.total ?? response?.total_amount ?? null,
+      totalPoints: response?.totalPoints ?? response?.puntos_totales ?? response?.total_points ?? null,
+      cartUrl:
+        response?.cart_url ?? response?.public_cart_url ?? response?.cartUrl ?? response?.publicCartUrl ?? null,
+      whatsappShareUrl: response?.whatsapp_share_url ?? response?.whatsappShareUrl ?? null,
+    };
+  } catch (error) {
+    if (!shouldUseDemo(error)) throw error;
+    const stored = removeItemFromStoredCart(tenantSlug, productId);
+    return { ...stored, isDemo: true };
+  }
+}
+
+export async function clearMarketCart(tenantSlug: string): Promise<MarketCartResponse> {
+  try {
+    await apiFetch<any>(`/api/market/${encodeURIComponent(tenantSlug)}/cart/clear`, {
+      ...baseOptions(tenantSlug),
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    return { items: [], totalAmount: null, totalPoints: null };
+  } catch (error) {
+    if (!shouldUseDemo(error)) throw error;
+    const stored = clearStoredCart(tenantSlug);
     return { ...stored, isDemo: true };
   }
 }

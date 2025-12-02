@@ -7,7 +7,14 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import ProductCard from '@/components/market/ProductCard';
 import CartSummary from '@/components/market/CartSummary';
 import CheckoutDialog from '@/components/market/CheckoutDialog';
-import { addMarketItem, fetchMarketCart, fetchMarketCatalog, startMarketCheckout } from '@/api/market';
+import {
+  addMarketItem,
+  clearMarketCart,
+  fetchMarketCart,
+  fetchMarketCatalog,
+  removeMarketItem,
+  startMarketCheckout,
+} from '@/api/market';
 import { MarketCartItem, MarketProduct } from '@/types/market';
 import { loadMarketContact, saveMarketContact } from '@/utils/marketStorage';
 import { toast } from '@/components/ui/use-toast';
@@ -114,6 +121,38 @@ export default function MarketCartPage() {
       toast({
         title: 'No se pudo agregar el producto',
         description: 'Intentá nuevamente en unos segundos.',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: (productId: string) => removeMarketItem(tenantSlug, productId),
+    onSuccess: (data) => {
+      queryClient.setQueryData(['marketCart', tenantSlug], data);
+      toast({
+        title: 'Producto quitado',
+        description: 'Actualizamos tu carrito.',
+      });
+    },
+    onError: () => {
+      toast({
+        title: 'No se pudo actualizar el carrito',
+        description: 'Revisa tu conexión e intenta nuevamente.',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const clearMutation = useMutation({
+    mutationFn: () => clearMarketCart(tenantSlug),
+    onSuccess: (data) => {
+      queryClient.setQueryData(['marketCart', tenantSlug], data);
+    },
+    onError: () => {
+      toast({
+        title: 'No pudimos vaciar el carrito',
+        description: 'Intenta nuevamente en unos segundos.',
         variant: 'destructive',
       });
     },
@@ -306,6 +345,8 @@ export default function MarketCartPage() {
     }
     return cartItems.reduce((acc, item) => acc + (item.price ?? 0) * item.quantity, 0);
   }, [cartItems, cartQuery.data?.totalAmount]);
+
+  const isUpdatingCart = addMutation.isPending || removeMutation.isPending || clearMutation.isPending;
 
   const goToLogin = () => {
     const redirectPath = `${location.pathname}${location.search}`;
@@ -573,6 +614,9 @@ export default function MarketCartPage() {
               totalPoints={cartQuery.data?.totalPoints}
               onCheckout={handleCheckout}
               isSubmitting={checkoutMutation.isPending}
+              onRemoveItem={(productId) => removeMutation.mutate(productId)}
+              onClearCart={() => clearMutation.mutate()}
+              isUpdating={isUpdatingCart}
             />
 
             {cartErrorMessage ? (
@@ -642,12 +686,28 @@ export default function MarketCartPage() {
             {cartItems.length ? (
               cartItems.map((item) => (
                 <div key={item.id} className="flex items-start justify-between rounded-lg border p-3">
-                  <div>
+                  <div className="space-y-1">
                     <p className="font-medium leading-snug">{item.name}</p>
                     <p className="text-xs text-muted-foreground">Cantidad: {item.quantity}</p>
+                    {item.modality ? (
+                      <span className="text-[11px] uppercase text-muted-foreground">{item.modality}</span>
+                    ) : null}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => removeMutation.mutate(item.id)}
+                      disabled={isUpdatingCart}
+                    >
+                      Quitar
+                    </Button>
                   </div>
                   <div className="text-right text-sm font-semibold">
-                    {item.price ? formatCurrency(item.price * item.quantity, 'ARS') : '—'}
+                    {item.price
+                      ? formatCurrency(item.price * item.quantity, item.currency ?? 'ARS')
+                      : item.points
+                        ? `${item.points * item.quantity} pts`
+                        : '—'}
                   </div>
                 </div>
               ))
@@ -660,6 +720,16 @@ export default function MarketCartPage() {
             <span className="text-muted-foreground">Total estimado</span>
             <span className="text-base font-semibold">{formatCurrency(derivedAmount, 'ARS')}</span>
           </div>
+
+          <Button
+            variant="outline"
+            className="mt-3 w-full"
+            size="sm"
+            onClick={() => clearMutation.mutate()}
+            disabled={!cartItems.length || isUpdatingCart}
+          >
+            Vaciar carrito
+          </Button>
 
           <Button
             className="mt-4 w-full"

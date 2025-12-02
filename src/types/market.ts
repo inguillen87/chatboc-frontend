@@ -48,6 +48,7 @@ export interface MarketCartItem {
   imageUrl?: string | null;
   priceText?: string | null;
   currency?: string | null;
+  modality?: string | null;
 }
 
 export interface MarketCartResponse {
