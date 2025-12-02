@@ -144,6 +144,10 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
   const [isProfileLoading, setProfileLoading] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [requireCatalogAuth, setRequireCatalogAuth] = useState(false);
+  const [duplicateInstance, setDuplicateInstance] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return Boolean((window as any).__chatbocWidgetMounted);
+  });
 
   const [isMobileView, setIsMobileView] = useState(
     typeof window !== "undefined" && window.innerWidth < 640
@@ -152,6 +156,23 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
   const { tenant, currentSlug } = useTenant();
 
   const isEmbedded = mode !== "standalone";
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (duplicateInstance) return;
+
+    (window as any).__chatbocWidgetMounted = true;
+
+    return () => {
+      if ((window as any).__chatbocWidgetMounted) {
+        delete (window as any).__chatbocWidgetMounted;
+      }
+    };
+  }, [duplicateInstance]);
+
+  if (duplicateInstance) {
+    return null;
+  }
 
   const derivedEntityTitle =
     (typeof entityInfo?.nombre_empresa === "string" && entityInfo.nombre_empresa.trim()) ||
