@@ -1,72 +1,82 @@
-import { type MarketCatalogResponse, type MarketCatalogSection, type MarketProduct } from '@/types/market';
+import type { MarketCatalogResponse, MarketCatalogSection, MarketProduct } from '@/types/market';
 
 export const MARKET_DEMO_PRODUCTS: MarketProduct[] = [
   {
-    id: 'demo-market-1',
-    name: 'Básicos de almacén',
-    description: 'Pack de demostración para probar el flujo de compra.',
-    price: 3500,
-    imageUrl: null,
-    category: 'General',
-    tags: ['demo', 'venta'],
-  },
-  {
-    id: 'demo-market-2',
-    name: 'Kit de puntos',
-    description: 'Ejemplo de producto canjeable con puntos.',
-    price: null,
-    points: 1500,
-    imageUrl: null,
-    category: 'Beneficios',
-    modality: 'puntos',
-    tags: ['puntos'],
-  },
-  {
-    id: 'demo-market-3',
-    name: 'Donación solidaria',
-    description: 'Simulación de aporte a una causa.',
+    id: 'demo-product-1',
+    name: 'Servicio de orientación',
+    description: 'Consulta breve para guiar el uso de la plataforma.',
     price: 0,
+    points: 900,
     imageUrl: null,
-    category: 'Impacto',
-    modality: 'donacion',
-    tags: ['donacion'],
+    category: 'Servicios',
+    tags: ['soporte', 'orientación'],
+    unit: 'sesión',
+    quantity: 1,
+    promoInfo: 'Incluye seguimiento por chat',
   },
   {
-    id: 'demo-market-4',
-    name: 'Combo mayorista',
-    description: 'Producto en pack para probar cantidades mayores.',
-    price: 8900,
+    id: 'demo-product-2',
+    name: 'Kit informativo digital',
+    description: 'Material descargable con pasos y recomendaciones generales.',
+    price: 3500,
+    points: null,
     imageUrl: null,
-    category: 'Mayorista',
-    tags: ['venta'],
+    category: 'Recursos',
+    tags: ['documentación'],
+    unit: 'archivo',
+    quantity: 1,
+  },
+  {
+    id: 'demo-product-3',
+    name: 'Credenciales autoadhesivas',
+    description: 'Plancha con calcomanías genéricas listas para usar.',
+    price: 6800,
+    points: null,
+    imageUrl: null,
+    category: 'Materiales',
+    tags: ['señalética'],
+    unit: 'paquete',
+    quantity: 1,
+  },
+  {
+    id: 'demo-product-4',
+    name: 'Participación solidaria',
+    description: 'Contribución para iniciativas abiertas y comunitarias.',
+    price: 1500,
+    points: null,
+    imageUrl: null,
+    category: 'Donaciones',
+    tags: ['donación'],
+    unit: 'aporte',
+    quantity: 1,
   },
 ];
 
 export const MARKET_DEMO_SECTIONS: MarketCatalogSection[] = [
   {
-    title: 'Destacados',
-    description: 'Productos listos para compartir mientras se conecta el catálogo en vivo.',
-    items: MARKET_DEMO_PRODUCTS.slice(0, 2),
+    title: 'Productos destacados',
+    description: 'Ejemplos de artículos disponibles mientras se conecta el catálogo en vivo.',
+    items: MARKET_DEMO_PRODUCTS.slice(0, 3),
   },
   {
-    title: 'Explorá más',
-    description: 'Ejemplos adicionales para probar el flujo de carrito y checkout.',
-    items: MARKET_DEMO_PRODUCTS.slice(2),
+    title: 'Acciones rápidas',
+    description: 'Opciones de prueba que ilustran el flujo de compra.',
+    items: MARKET_DEMO_PRODUCTS,
   },
 ];
 
-export function buildDemoMarketCatalog(tenantSlug: string): { catalog: MarketCatalogResponse } {
-  const tenantName = tenantSlug ? tenantSlug.replace(/[-_]/g, ' ').trim() : 'Catálogo demo';
-
-  const catalog: MarketCatalogResponse = {
-    tenantName: tenantName || 'Catálogo demo',
-    products: MARKET_DEMO_PRODUCTS,
-    sections: MARKET_DEMO_SECTIONS,
-    isDemo: true,
-    demoReason: 'Usando catálogo de demostración por falta de datos del backend.',
-    publicCartUrl: null,
-    whatsappShareUrl: null,
+export function buildDemoMarketCatalog(tenantSlug?: string | null): { catalog: MarketCatalogResponse } {
+  const fallbackName = tenantSlug ? `Catálogo demo (${tenantSlug})` : 'Catálogo demo';
+  return {
+    catalog: {
+      tenantName: fallbackName,
+      products: MARKET_DEMO_PRODUCTS,
+      publicCartUrl: null,
+      whatsappShareUrl: null,
+      isDemo: true,
+      demoReason: 'Se muestra un catálogo de demostración hasta recibir productos del backend.',
+      heroSubtitle: 'Este catálogo es genérico y se reemplaza automáticamente cuando llegan productos en vivo.',
+      sections: MARKET_DEMO_SECTIONS,
+    },
   };
-
-  return { catalog };
 }

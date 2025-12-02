@@ -1,159 +1,213 @@
-import {
-  BarChart3,
-  CreditCard,
-  Globe2,
-  LayoutPanelLeft,
-  MessageCircle,
-  ServerCog,
-  ShoppingBag,
-  Sparkles,
-} from 'lucide-react';
+import { Layers, Map, MonitorSmartphone } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
-export const marketplacePillars = [
+interface Pillar {
+  title: string;
+  description: string;
+  badge: string;
+  icon: LucideIcon;
+}
+
+interface Highlight {
+  title: string;
+  description: string;
+  icon: LucideIcon;
+}
+
+interface ChecklistItem {
+  label: string;
+  impact: string;
+  status: 'completado' | 'en curso' | 'pendiente';
+}
+
+interface ChecklistSection {
+  title: string;
+  items: ChecklistItem[];
+}
+
+interface Milestone {
+  label: string;
+  detail: string;
+  owner: string;
+  status: 'listo' | 'en progreso' | 'pendiente';
+}
+
+interface AutomationTrack {
+  title: string;
+  focus: string;
+  actions: string[];
+}
+
+export const marketplacePillars: Pillar[] = [
   {
-    title: 'Catálogo público por slug',
-    description: 'URLs estables por tenant con cache optimizado para compartir en redes y QR.',
+    title: 'Rutas públicas por slug',
+    description: 'Catálogo, carrito y checkout aislados para cada tenant usando el mismo frontend.',
     badge: 'Listo',
-    icon: Globe2,
+    icon: Map,
   },
   {
-    title: 'Carrito aislado por tenant',
-    description: 'Sesión de carrito separada, sin mezclar productos entre municipios o pymes.',
+    title: 'Catálogos vivos',
+    description: 'Productos y precios se consumen de la API; sin textos hardcodeados por municipio.',
     badge: 'Listo',
-    icon: ShoppingBag,
+    icon: Layers,
+  },
+  {
+    title: 'Carrito portátil',
+    description: 'Se conserva por slug y se comparte por QR o WhatsApp.',
+    badge: 'Listo',
+    icon: MonitorSmartphone,
   },
   {
     title: 'Checkout express',
-    description: 'Formulario mínimo con datos validados y opción de contacto directo por WhatsApp.',
+    description: 'Formulario ligero que guarda contacto y dispara la orden al backend.',
     badge: 'En curso',
-    icon: CreditCard,
-  },
-  {
-    title: 'Pagos y logística',
-    description: 'Integraciones configurables para medios de pago y envíos sin tocar el frontend.',
-    badge: 'Próximo',
-    icon: ServerCog,
+    icon: Map,
   },
 ];
 
-export const rolloutMilestones = [
+export const rolloutMilestones: Milestone[] = [
   {
-    label: 'Catálogo público multitenant',
-    detail: 'Rutas /market/:slug y páginas demo siempre disponibles.',
-    owner: 'Frontend',
+    label: 'Catálogo público por tenant',
+    detail: 'Slug, categorías y tarjetas alimentadas 100% por API.',
+    owner: 'frontend',
     status: 'listo',
   },
   {
-    label: 'Carrito y checkout express',
-    detail: 'Flujo de alta de pedido rápido con validación básica.',
-    owner: 'Frontend',
+    label: 'Carrito aislado',
+    detail: 'Persistencia local por tenant con add/remove y totales.',
+    owner: 'frontend',
+    status: 'listo',
+  },
+  {
+    label: 'Checkout express',
+    detail: 'Captura de contacto y disparo de pedido vía API.',
+    owner: 'backend',
     status: 'en progreso',
   },
   {
-    label: 'Webhooks y backoffice',
-    detail: 'Sincronización de catálogos, pedidos y tickets en el panel.',
-    owner: 'Platform',
-    status: 'pendiente',
-  },
-  {
     label: 'Pagos y logística',
-    detail: 'Selector de proveedores y configuración centralizada por slug.',
-    owner: 'Platform',
+    detail: 'Integraciones de cobro y cálculo de entrega configurables por tenant.',
+    owner: 'backend',
     status: 'pendiente',
   },
 ];
 
-export const blueprintHighlights = [
+export const blueprintHighlights: Highlight[] = [
   {
-    title: 'Catalogación sin hardcode',
-    description: 'Todo llega del backend: nombres, categorías, precios y modalidad.',
-    icon: LayoutPanelLeft,
+    title: 'Demo perpetua',
+    description: 'Siempre hay un catálogo demo listo para compartir mientras llega el catálogo real.',
+    icon: MonitorSmartphone,
   },
   {
-    title: 'Demostración siempre activa',
-    description: 'Catálogo demo disponible aunque no exista tenant configurado.',
-    icon: Sparkles,
+    title: 'Modo sin login',
+    description: 'Permite agregar productos y generar pedidos rápidos sin requerir sesión.',
+    icon: Map,
   },
   {
-    title: 'Compartible al instante',
-    description: 'QR y enlaces listos para enviar por WhatsApp sin configuración extra.',
-    icon: MessageCircle,
-  },
-  {
-    title: 'Observabilidad por tenant',
-    description: 'Métricas y alertas de disponibilidad separadas por slug.',
-    icon: BarChart3,
+    title: 'Widget token-ready',
+    description: 'Las llamadas usan tenantSlug y anon_id para aislar sesiones.',
+    icon: Layers,
   },
 ];
 
-export const readinessChecklist = [
+export const readinessChecklist: ChecklistSection[] = [
   {
-    title: 'Frontend',
+    title: 'Frontend white label',
     items: [
-      { label: 'Catálogo y carrito white label', impact: 'Sin textos locales ni datos fijos.', status: 'completado' },
-      { label: 'Fallback demo', impact: 'Catálogo y carrito siguen operativos si falla el backend.', status: 'completado' },
-      { label: 'Checkout express', impact: 'Recoge datos mínimos y deriva a WhatsApp si hace falta.', status: 'en curso' },
+      {
+        label: 'Sin textos locales',
+        impact: 'Todos los labels y CTA provienen de la API o del catálogo demo.',
+        status: 'completado',
+      },
+      {
+        label: 'Mapeo de categorías',
+        impact: 'Las categorías se generan a partir de los datos recibidos.',
+        status: 'en curso',
+      },
+      {
+        label: 'Fallback seguro',
+        impact: 'Demo pública operativa si el backend no responde.',
+        status: 'completado',
+      },
     ],
   },
   {
-    title: 'Backend',
+    title: 'Operación',
     items: [
-      { label: 'API de catálogo y carrito', impact: 'Endpoints multitenant con aislamiento por slug.', status: 'en curso' },
-      { label: 'Webhooks operativos', impact: 'Sincronización hacia CRM y panel.', status: 'pendiente' },
-      { label: 'Pagos y envíos', impact: 'Configurables por tenant sin tocar el frontend.', status: 'pendiente' },
+      {
+        label: 'Checkout desacoplado',
+        impact: 'Envía contacto y carrito al backend usando las rutas por slug.',
+        status: 'en curso',
+      },
+      {
+        label: 'Integraciones',
+        impact: 'Webhooks, notificaciones y pagos se configuran por tenant.',
+        status: 'pendiente',
+      },
+      {
+        label: 'Soporte QR',
+        impact: 'URLs cortas y QR para compartir el carrito.',
+        status: 'completado',
+      },
     ],
   },
   {
-    title: 'Operaciones',
+    title: 'Observabilidad',
     items: [
-      { label: 'Playbook de soporte', impact: 'Respuestas y escalamiento unificados por tenant.', status: 'en curso' },
-      { label: 'Monitoreo y alertas', impact: 'Errores críticos y tiempos de respuesta por slug.', status: 'pendiente' },
-      { label: 'Capacitación', impact: 'Guías de onboarding para nuevos operadores.', status: 'pendiente' },
+      {
+        label: 'Monitoreo por slug',
+        impact: 'Errores y latencias segmentadas por tenant.',
+        status: 'pendiente',
+      },
+      {
+        label: 'Alertas',
+        impact: 'Notificaciones ante caídas de catálogo o checkout.',
+        status: 'pendiente',
+      },
+      {
+        label: 'Health checks',
+        impact: 'Verificaciones periódicas de rutas públicas y API.',
+        status: 'en curso',
+      },
     ],
   },
 ];
 
-export const automationTracks = [
+export const automationTracks: AutomationTrack[] = [
   {
-    title: 'Integración de catálogo',
-    focus: 'API / webhooks',
+    title: 'Catálogo y precios',
+    focus: 'Datos',
     actions: [
-      'Importar productos y categorías desde el backend.',
-      'Validar modalidades (venta, puntos, donación) y stock.',
-      'Propagar imágenes optimizadas para móvil.',
+      'Sincronizar productos por API con normalización automática.',
+      'Generar secciones dinámicas sin hardcodear categorías.',
+      'Publicar QR y enlaces del carrito desde el panel.',
     ],
   },
   {
-    title: 'Checkout y pagos',
+    title: 'Pedidos y pagos',
     focus: 'Operación',
     actions: [
-      'Configurar checkout express con datos mínimos.',
-      'Derivar a pagos o contacto según el tenant.',
-      'Generar QR y enlaces compartibles automáticamente.',
+      'Persistir carrito por slug con anon_id.',
+      'Iniciar checkout ligero y enviar webhook de pedido.',
+      'Preparar integración de pagos y cálculo de envío.',
     ],
   },
   {
-    title: 'Soporte y postventa',
-    focus: 'CX',
+    title: 'Soporte y NPS',
+    focus: 'Experiencia',
     actions: [
-      'Conectar reclamos y NPS al panel.',
-      'Automatizar avisos de stock y actualizaciones de pedido.',
-      'Monitorear SLA de respuesta por canal.',
+      'Colectar feedback post-compra y reclamos centralizados.',
+      'Activar encuestas breves en puntos críticos del flujo.',
+      'Consolidar métricas de conversión por tenant.',
     ],
   },
   {
-    title: 'Datos y seguridad',
-    focus: 'Platform',
+    title: 'Observabilidad',
+    focus: 'Calidad',
     actions: [
-      'Auditar accesos y acciones por usuario.',
-      'Alertar por anomalías en conversión o caídas de catálogo.',
-      'Mantener backups y versionado de catálogos.',
+      'Alertar por fallas de catálogo o checkout.',
+      'Registrar latencia de API y ratio de errores.',
+      'Mantener dashboard de salud por slug.',
     ],
   },
 ];
-
-export const automationTracksFocus = automationTracks.map((track) => track.focus);
-export const blueprintStatus = rolloutMilestones.map((item) => item.status);
-export const checklistStatuses = readinessChecklist.flatMap((section) => section.items.map((item) => item.status));
-
-export type ReadinessStatus = typeof blueprintStatus[number];
