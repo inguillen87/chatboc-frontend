@@ -1,10 +1,11 @@
 import React from 'react';
 import { GoogleLogin, CredentialResponse } from '@react-oauth/google';
-import { apiFetch, ApiError } from '@/utils/api';
+import { apiFetch, ApiError, resolveTenantSlug } from '@/utils/api';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { useUser } from '@/hooks/useUser';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { broadcastAuthTokenToHost } from '@/utils/postMessage';
 
 interface LoginResponse {
   id: number;
@@ -21,6 +22,8 @@ interface Props extends React.HTMLAttributes<HTMLDivElement> {
   onLoggedIn?: () => void;
 }
 
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+
 const GoogleLoginButton: React.FC<Props> = ({
   onLoggedIn,
   className,
@@ -28,6 +31,11 @@ const GoogleLoginButton: React.FC<Props> = ({
 }) => {
   const { refreshUser } = useUser();
   const navigate = useNavigate();
+
+  if (!GOOGLE_CLIENT_ID) {
+    console.warn('[GoogleLoginButton] VITE_GOOGLE_CLIENT_ID is missing. Google login is disabled.');
+    return null;
+  }
 
   const handleSuccess = async (cred: CredentialResponse) => {
     console.log('Google login success:', cred);
@@ -40,6 +48,8 @@ const GoogleLoginButton: React.FC<Props> = ({
         sendEntityToken: true,
       });
       safeLocalStorage.setItem('authToken', data.token);
+      safeLocalStorage.setItem('chatAuthToken', data.token);
+      broadcastAuthTokenToHost(data.token, resolveTenantSlug(), 'google-login');
       await refreshUser();
       if (onLoggedIn) onLoggedIn(); else navigate('/perfil');
     } catch (err) {

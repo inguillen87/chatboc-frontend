@@ -1,0 +1,179 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
+
+import ProductCard from '@/components/market/ProductCard';
+import { MarketCartProvider, useMarketCart } from '@/context/MarketCartContext';
+import type { MarketCatalogResponse, MarketProduct } from '@/types/market';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { fetchMarketCatalog } from '@/api/market';
+import { Copy, MessageCircle, QrCode, ShoppingBag } from 'lucide-react';
+import { toast } from '@/components/ui/use-toast';
+import { Badge } from '@/components/ui/badge';
+import { buildDemoMarketCatalog } from '@/data/marketDemo';
+
+function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
+  const [products, setProducts] = useState<MarketProduct[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isDemo, setIsDemo] = useState(false);
+  const [shareMeta, setShareMeta] = useState<Pick<MarketCatalogResponse, 'publicCartUrl' | 'whatsappShareUrl'> | null>(
+    null,
+  );
+  const { addItem, isLoading: isCartLoading } = useMarketCart();
+  const shareUrl = useMemo(() => {
+    if (shareMeta?.publicCartUrl) return shareMeta.publicCartUrl;
+    if (typeof window === 'undefined' || !tenantSlug) return '';
+    const url = new URL(window.location.href);
+    url.pathname = `/market/${tenantSlug}/cart`;
+    url.search = '';
+    return url.toString();
+  }, [shareMeta?.publicCartUrl, tenantSlug]);
+  const shareMessage = useMemo(() => {
+    if (shareMeta?.whatsappShareUrl) return shareMeta.whatsappShareUrl;
+    if (!shareUrl) return '';
+    const prefix = tenantSlug ? `Catálogo de ${tenantSlug}` : 'Catálogo';
+    return `https://wa.me/?text=${encodeURIComponent(`${prefix}: ${shareUrl}`)}`;
+  }, [shareMeta?.whatsappShareUrl, shareUrl, tenantSlug]);
+
+  useEffect(() => {
+    setIsLoading(true);
+    setError(null);
+    setIsDemo(false);
+    fetchMarketCatalog(tenantSlug)
+      .then((response) => {
+        setProducts(response?.products ?? []);
+        setIsDemo(Boolean(response?.isDemo));
+        setShareMeta({
+          publicCartUrl: response?.publicCartUrl ?? null,
+          whatsappShareUrl: response?.whatsappShareUrl ?? null,
+        });
+      })
+      .catch((err) => {
+        const demo = buildDemoMarketCatalog(tenantSlug).catalog;
+        setProducts(demo.products);
+        setIsDemo(true);
+        setShareMeta({ publicCartUrl: null, whatsappShareUrl: null });
+        setError(err instanceof Error ? err.message : 'No se pudo cargar el catálogo en vivo. Mostramos una demo.');
+      })
+      .finally(() => setIsLoading(false));
+  }, [tenantSlug]);
+
+  const emptyState = !isLoading && products.length === 0;
+
+  return (
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8">
+      <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-start gap-3">
+          <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl bg-primary/10 text-primary">
+            <ShoppingBag className="h-6 w-6" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-semibold">Marketplace</h1>
+            <p className="text-muted-foreground">
+              Explorá los productos y agregalos al carrito para iniciar tu compra.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" onClick={async () => {
+            try {
+              if (!shareUrl) return;
+              await navigator.clipboard.writeText(shareUrl);
+              toast({ title: 'Enlace copiado', description: 'Listo para compartir por WhatsApp o email.' });
+            } catch (copyError) {
+              toast({ title: 'No se pudo copiar', description: shareUrl, variant: 'destructive' });
+            }
+          }} disabled={!shareUrl || !navigator?.clipboard}>
+            <Copy className="mr-2 h-4 w-4" /> Copiar enlace
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => {
+            if (!shareMessage) return;
+            const whatsappUrl = shareMessage.startsWith('https://wa.me')
+              ? shareMessage
+              : `https://wa.me/?text=${encodeURIComponent(shareMessage)}`;
+            window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+          }} disabled={!shareMessage}>
+            <MessageCircle className="mr-2 h-4 w-4" /> WhatsApp
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => {
+            if (!shareUrl) return;
+            const qrLink = `https://quickchart.io/qr?text=${encodeURIComponent(shareUrl)}&margin=12&size=320`;
+            window.open(qrLink, '_blank', 'noopener,noreferrer');
+          }} disabled={!shareUrl}>
+            <QrCode className="mr-2 h-4 w-4" /> QR
+          </Button>
+          {isDemo ? <Badge variant="secondary">Demo</Badge> : null}
+        </div>
+      </header>
+
+      {isDemo ? (
+        <Alert>
+          <AlertTitle>Catálogo demo listo para mostrar</AlertTitle>
+          <AlertDescription>
+            Usa este catálogo de demostración para compartir por WhatsApp o escaneando el QR mientras se conecta el catálogo real.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      {error ? (
+        <Alert variant="destructive">
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
+
+      {isLoading ? <p className="text-sm text-muted-foreground">Cargando catálogo…</p> : null}
+
+      {emptyState ? (
+        <p className="text-sm text-muted-foreground">No hay productos disponibles.</p>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {products.map((product) => (
+            <div key={product.id} className="flex flex-col gap-3">
+              <ProductCard
+                product={product}
+                onAdd={(id) => addItem(id)}
+                isAdding={isCartLoading}
+              />
+              <Button asChild variant="outline" size="sm">
+                <Link to={`/tenant/${tenantSlug}/product/${encodeURIComponent(product.id)}`}>
+                  Ver detalle
+                </Link>
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function MarketCatalogPage() {
+  const params = useParams();
+  const tenantSlug = useMemo(() => params.tenant ?? params.tenantSlug ?? null, [params.tenant, params.tenantSlug]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && tenantSlug) {
+      (window as any).currentTenantSlug = tenantSlug;
+    }
+  }, [tenantSlug]);
+
+  if (!tenantSlug) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-8">
+        <Alert variant="destructive">
+          <AlertTitle>Falta el tenant</AlertTitle>
+          <AlertDescription>Necesitamos el identificador del espacio para mostrar el catálogo.</AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  return (
+    <MarketCartProvider tenantSlug={tenantSlug}>
+      <MarketCatalogContent tenantSlug={tenantSlug} />
+    </MarketCartProvider>
+  );
+}
