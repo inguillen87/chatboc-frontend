@@ -143,7 +143,7 @@ export async function fetchMarketCatalog(tenantSlug: string): Promise<MarketCata
 
     if (!products.length) {
       const demo = getDemoCatalog(tenantSlug);
-      return { ...demo, isDemo: true, demoReason: demo.demoReason };
+    return { ...demo, isDemo: true, demoReason: demo.demoReason };
     }
 
     return {
