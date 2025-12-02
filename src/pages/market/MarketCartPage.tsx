@@ -34,11 +34,10 @@ type ContactInfo = {
   phone?: string;
 };
 
-// Flujo público: el cliente llega vía enlace/QR con el slug del tenant, ve el catálogo,
-// agrega ítems al carrito y confirma el pedido dejando su nombre/teléfono.
-// Los datos mínimos (contacto) se guardan de forma local para reusar en futuros pedidos.
 export default function MarketCartPage() {
-  const { slug = '' } = useParams<{ slug: string }>();
+  const { tenantSlug = '' } = useParams<{ tenantSlug: string }>();
+  const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
   const { user } = useUser();
   const productGridRef = useRef<HTMLDivElement | null>(null);
@@ -55,9 +54,9 @@ export default function MarketCartPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('todos');
   const [confirmation, setConfirmation] = useState<string | null>(null);
-  const [cartPulse, setCartPulse] = useState(false);
+  const [qrError, setQrError] = useState<string | null>(null);
   const [contact, setContact] = useState<ContactInfo>(() => {
-    const stored = loadMarketContact(slug);
+    const stored = loadMarketContact(tenantSlug);
     return {
       name: stored.name ?? userName,
       phone: stored.phone ?? normalizedUserPhone,
@@ -65,45 +64,30 @@ export default function MarketCartPage() {
   });
 
   useEffect(() => {
-    const stored = loadMarketContact(slug);
+    const stored = loadMarketContact(tenantSlug);
     setContact((prev) => ({
       name: stored.name ?? prev.name ?? userName,
       phone: stored.phone ?? prev.phone ?? normalizedUserPhone,
     }));
     setConfirmation(null);
-  }, [slug, userName, normalizedUserPhone]);
-
-  const shareUrl = useMemo(() => {
-    if (typeof window === 'undefined' || !slug) return '';
-    const url = new URL(window.location.href);
-    url.pathname = `/market/${slug}/cart`;
-    url.search = '';
-    return url.toString();
-  }, [slug]);
-
-  const shareTitle = catalogQuery.data?.tenantName ?? 'Catálogo';
+  }, [tenantSlug, userName, normalizedUserPhone]);
 
   const catalogQuery = useQuery({
-    queryKey: ['marketCatalog', slug],
-    queryFn: () => fetchMarketCatalog(slug),
-    enabled: Boolean(slug),
+    queryKey: ['marketCatalog', tenantSlug],
+    queryFn: () => fetchMarketCatalog(tenantSlug),
+    enabled: Boolean(tenantSlug),
     staleTime: 1000 * 60, // cache short catalog loads while browsing
   });
 
   const cartQuery = useQuery({
-    queryKey: ['marketCart', slug],
-    queryFn: () => fetchMarketCart(slug),
-    enabled: Boolean(slug),
-    refetchInterval: 15000,
+    queryKey: ['marketCart', tenantSlug],
+    queryFn: () => fetchMarketCart(tenantSlug),
+    enabled: Boolean(tenantSlug),
   });
 
-  const addMutation = useMutation({
-    mutationFn: (productId: string) => addMarketItem(slug, { productId, quantity: 1 }),
-    onMutate: async (productId: string) => {
-      await queryClient.cancelQueries({ queryKey: ['marketCart', slug] });
-      const previousCart = queryClient.getQueryData<MarketCartResponse>(['marketCart', slug]);
-      const catalog = queryClient.getQueryData<MarketCatalogResponse>(['marketCatalog', slug]);
-      const product = catalog?.products.find((item) => item.id === productId);
+  const shareUrl = useMemo(() => {
+    const backendUrl = cartQuery.data?.cartUrl ?? catalogQuery.data?.publicCartUrl;
+    if (backendUrl) return backendUrl;
 
     if (typeof window === 'undefined' || !tenantSlug) return '';
     const url = new URL(window.location.href);
@@ -126,105 +110,19 @@ export default function MarketCartPage() {
     return `https://quickchart.io/qr?text=${encodeURIComponent(shareUrl)}&margin=12&size=480`;
   }, [shareUrl]);
 
-        const totalAmount =
-          (current?.totalAmount ?? 0) +
-          (product?.price ??
-            (existingIndex >= 0 ? items[existingIndex]?.price ?? 0 : 0));
-        const totalPoints =
-          (current?.totalPoints ?? 0) +
-          (product?.points ?? (existingIndex >= 0 ? items[existingIndex]?.points ?? 0 : 0));
-
-        return {
-          ...(current ?? {}),
-          items,
-          totalAmount,
-          totalPoints,
-        };
-      });
-      setCartPulse(true);
-      return { previousCart };
-    },
+  const addMutation = useMutation({
+    mutationFn: (productId: string) => addMarketItem(tenantSlug, { productId, quantity: 1 }),
     onSuccess: (data) => {
-      queryClient.setQueryData(['marketCart', slug], data);
+      queryClient.setQueryData(['marketCart', tenantSlug], data);
       toast({
         title: 'Agregado al carrito',
         description: 'Actualizamos tu carrito.',
       });
     },
-    onError: (_error, _variables, context) => {
-      if (context?.previousCart) {
-        queryClient.setQueryData(['marketCart', slug], context.previousCart);
-      }
+    onError: () => {
       toast({
         title: 'No se pudo agregar el producto',
         description: 'Intentá nuevamente en unos segundos.',
-        variant: 'destructive',
-      });
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['marketCart', slug] });
-    },
-  });
-
-  const removeMutation = useMutation({
-    mutationFn: (productId: string) => removeMarketItem(tenantSlug, productId),
-    onSuccess: (data) => {
-      queryClient.setQueryData(['marketCart', tenantSlug], data);
-      toast({
-        title: 'Producto quitado',
-        description: 'Actualizamos tu carrito.',
-      });
-    },
-    onError: () => {
-      toast({
-        title: 'No se pudo actualizar el carrito',
-        description: 'Revisa tu conexión e intenta nuevamente.',
-        variant: 'destructive',
-      });
-    },
-  });
-
-  const clearMutation = useMutation({
-    mutationFn: () => clearMarketCart(tenantSlug),
-    onSuccess: (data) => {
-      queryClient.setQueryData(['marketCart', tenantSlug], data);
-    },
-    onError: () => {
-      toast({
-        title: 'No pudimos vaciar el carrito',
-        description: 'Intenta nuevamente en unos segundos.',
-        variant: 'destructive',
-      });
-    },
-  });
-
-  const removeMutation = useMutation({
-    mutationFn: (productId: string) => removeMarketItem(tenantSlug, productId),
-    onSuccess: (data) => {
-      queryClient.setQueryData(['marketCart', tenantSlug], data);
-      toast({
-        title: 'Producto quitado',
-        description: 'Actualizamos tu carrito.',
-      });
-    },
-    onError: () => {
-      toast({
-        title: 'No se pudo actualizar el carrito',
-        description: 'Revisa tu conexión e intenta nuevamente.',
-        variant: 'destructive',
-      });
-    },
-  });
-
-  const clearMutation = useMutation({
-    mutationFn: () => clearMarketCart(tenantSlug),
-    onSuccess: (data) => {
-      queryClient.setQueryData(['marketCart', tenantSlug], data);
-    },
-    onError: () => {
-      toast({
-        title: 'No pudimos vaciar el carrito',
-        description: 'Intenta nuevamente en unos segundos.',
         variant: 'destructive',
       });
     },
@@ -263,19 +161,13 @@ export default function MarketCartPage() {
   });
 
   const checkoutMutation = useMutation({
-    mutationFn: (payload: { name?: string; phone: string }) => startMarketCheckout(slug, payload),
+    mutationFn: (payload: { name?: string; phone: string }) =>
+      startMarketCheckout(tenantSlug, payload),
     onSuccess: (response, variables) => {
-      saveMarketContact(slug, variables);
+      saveMarketContact(tenantSlug, variables);
       setContact(variables);
       setConfirmation(response?.message ?? 'Pedido registrado. Te contactaremos a la brevedad.');
-      queryClient.setQueryData<MarketCartResponse>(['marketCart', slug], {
-        items: [],
-        totalAmount: 0,
-        totalPoints: 0,
-        availableAmount: null,
-        availablePoints: null,
-      });
-      queryClient.invalidateQueries({ queryKey: ['marketCart', slug] });
+      queryClient.invalidateQueries({ queryKey: ['marketCart', tenantSlug] });
     },
     onError: () => {
       toast({
@@ -286,44 +178,36 @@ export default function MarketCartPage() {
     },
   });
 
-  const handleShare = async () => {
-    if (!shareUrl) return;
-    const fallbackCopy = async () => {
+  const handleCopyLink = async () => {
+    try {
+      if (!shareUrl) return;
       await navigator.clipboard.writeText(shareUrl);
       toast({
         title: 'Catálogo listo para compartir',
         description: 'Copiamos el enlace en tu portapapeles.',
       });
-    };
-
-    try {
-      if (navigator.share) {
-        await navigator.share({ url: shareUrl, title: shareTitle });
-        toast({
-          title: 'Enlace compartido',
-          description: 'El catálogo quedó listo para enviar.',
-        });
-        return;
-      }
-
-      if (navigator.clipboard) {
-        await fallbackCopy();
-        return;
-      }
-
+    } catch (error) {
+      console.error('Clipboard error', error);
       toast({
-        title: 'No pudimos compartir automáticamente',
+        title: 'No se pudo copiar el enlace',
         description: shareUrl,
         variant: 'destructive',
       });
-    } catch (error) {
-      console.error('Share/clipboard error', error);
-      toast({
-        title: 'No se pudo compartir el catálogo',
-        description: 'Intenta copiar el enlace manualmente.',
-        variant: 'destructive',
-      });
     }
+  };
+
+  const handleShareWhatsApp = () => {
+    if (!shareMessage) return;
+    const whatsappUrl = shareMessage.startsWith('https://wa.me')
+      ? shareMessage
+      : `https://wa.me/?text=${encodeURIComponent(shareMessage)}`;
+    window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleOpenQr = () => {
+    if (!shareUrl) return;
+    setQrError(null);
+    setShowQrModal(true);
   };
 
   const handleCheckout = () => {
@@ -337,12 +221,17 @@ export default function MarketCartPage() {
       return;
     }
 
-    if (!slug) {
+    if (!tenantSlug) {
       toast({
         title: 'No encontramos el catálogo',
         description: 'Revisa el enlace o escanea nuevamente el código QR.',
         variant: 'destructive',
       });
+      return;
+    }
+
+    if (!hasSession) {
+      setShowAuthDialog(true);
       return;
     }
 
@@ -359,135 +248,15 @@ export default function MarketCartPage() {
     checkoutMutation.mutate(payload);
   };
 
-  const catalogProducts: MarketProduct[] = catalogQuery.data?.products ?? [];
+  const fallbackCatalog = useMemo(() => buildDemoMarketCatalog(tenantSlug).catalog, [tenantSlug]);
+  const catalogData = catalogQuery.data ?? (catalogQuery.isError ? fallbackCatalog : undefined);
+  const catalogProducts: MarketProduct[] = catalogData?.products ?? [];
   const cartItems: MarketCartItem[] = cartQuery.data?.items ?? [];
   const catalogErrorMessage = catalogQuery.error instanceof Error ? catalogQuery.error.message : null;
   const cartErrorMessage = cartQuery.error instanceof Error ? cartQuery.error.message : null;
-  const isLoadingCatalog = catalogQuery.isLoading && !catalogProducts.length;
-  const isLoadingCart = cartQuery.isLoading && !cartItems.length;
-  const canShare = Boolean(shareUrl && (navigator?.clipboard || navigator?.share));
-
-  const categories = useMemo(() => {
-    const unique = new Set(
-      catalogProducts
-        .map((product) => product.category?.trim())
-        .filter((value): value is string => Boolean(value)),
-    );
-    return ['todos', ...Array.from(unique)];
-  }, [catalogProducts]);
-
-  const catalogSections = useMemo(
-    () => (catalogData?.sections?.length ? catalogData.sections : MARKET_DEMO_SECTIONS),
-    [catalogData?.sections],
-  );
-
-  const heroImage =
-    catalogData?.heroImageUrl ??
-    'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1200&q=80';
-  const heroSubtitle =
-    catalogData?.heroSubtitle ??
-    'Demostración pública del catálogo multi-tenant con fotos, canjes, carrito y buscador listo para compartir.';
-
-  const paidProducts = useMemo(() => catalogProducts.filter((product) => !product.points), [catalogProducts]);
-  const redeemableProducts = useMemo(
-    () => catalogProducts.filter((product) => typeof product.points === 'number' && product.points > 0),
-    [catalogProducts],
-  );
-
-  const averageRating = useMemo(() => {
-    const ratings = catalogProducts
-      .map((product) => product.rating)
-      .filter((value): value is number => typeof value === 'number');
-    if (!ratings.length) return null;
-    const total = ratings.reduce((acc, value) => acc + value, 0);
-    return Number((total / ratings.length).toFixed(1));
-  }, [catalogProducts]);
-
-  const sectionsWithItems = useMemo(() => {
-    const hasItems = catalogSections.some((section) => section.items?.length);
-    if (hasItems) return catalogSections;
-
-    return catalogSections.map((section, index) => {
-      if (section.items?.length) return section;
-      if (index === 0 && paidProducts.length) return { ...section, items: paidProducts.slice(0, 6) };
-      if (index === 1 && redeemableProducts.length) return { ...section, items: redeemableProducts.slice(0, 6) };
-      return section;
-    });
-  }, [catalogSections, paidProducts, redeemableProducts]);
-
-  const formatPriceValue = (value?: number | null, currency = 'ARS'): string => {
-    if (typeof value !== 'number' || Number.isNaN(value)) return '';
-    return formatCurrency(value, currency);
-  };
-
-  const buildPriceLabel = (product: MarketProduct): string => {
-    if (product.points) return `${product.points} pts`;
-    return product.priceText ?? formatPriceValue(product.price, product.currency ?? 'ARS') ?? 'Consultar';
-  };
-
-  const buildSectionSubtitle = (product: MarketProduct): string | null =>
-    product.category ?? product.descriptionShort ?? product.description ?? null;
-
-  const categories = useMemo(() => {
-    const unique = new Set(
-      catalogProducts
-        .map((product) => product.category?.trim())
-        .filter((value): value is string => Boolean(value)),
-    );
-    return ['todos', ...Array.from(unique)];
-  }, [catalogProducts]);
-
-  const catalogSections = useMemo(
-    () => (catalogData?.sections?.length ? catalogData.sections : MARKET_DEMO_SECTIONS),
-    [catalogData?.sections],
-  );
-
-  const heroImage =
-    catalogData?.heroImageUrl ??
-    'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1200&q=80';
-  const heroSubtitle =
-    catalogData?.heroSubtitle ??
-    'Demostración pública del catálogo multi-tenant con fotos, canjes, carrito y buscador listo para compartir.';
-
-  const paidProducts = useMemo(() => catalogProducts.filter((product) => !product.points), [catalogProducts]);
-  const redeemableProducts = useMemo(
-    () => catalogProducts.filter((product) => typeof product.points === 'number' && product.points > 0),
-    [catalogProducts],
-  );
-
-  const averageRating = useMemo(() => {
-    const ratings = catalogProducts
-      .map((product) => product.rating)
-      .filter((value): value is number => typeof value === 'number');
-    if (!ratings.length) return null;
-    const total = ratings.reduce((acc, value) => acc + value, 0);
-    return Number((total / ratings.length).toFixed(1));
-  }, [catalogProducts]);
-
-  const sectionsWithItems = useMemo(() => {
-    const hasItems = catalogSections.some((section) => section.items?.length);
-    if (hasItems) return catalogSections;
-
-    return catalogSections.map((section, index) => {
-      if (section.items?.length) return section;
-      if (index === 0 && paidProducts.length) return { ...section, items: paidProducts.slice(0, 6) };
-      if (index === 1 && redeemableProducts.length) return { ...section, items: redeemableProducts.slice(0, 6) };
-      return section;
-    });
-  }, [catalogSections, paidProducts, redeemableProducts]);
-
-  const formatPriceValue = (value?: number | null, currency = 'ARS'): string => {
-    if (typeof value !== 'number' || Number.isNaN(value)) return '';
-    return formatCurrency(value, currency);
-  };
-
-  const buildPriceLabel = (product: MarketProduct): string => {
-    if (product.points) return `${product.points} pts`;
-    return product.priceText ?? formatPriceValue(product.price, product.currency ?? 'ARS') ?? 'Consultar';
-  };
-
-  const buildSectionSubtitle = (product: MarketProduct): string | null =>
-    product.category ?? product.descriptionShort ?? product.description ?? null;
+  const isDemoCatalog = Boolean(catalogData?.isDemo || (!catalogQuery.data && catalogQuery.isError));
+  const canCopy = Boolean(shareUrl && navigator?.clipboard);
+  const canShareWhatsApp = Boolean(shareMessage);
 
   const {
     averageRating,
@@ -851,62 +620,33 @@ export default function MarketCartPage() {
 
         <section className="grid gap-6 lg:grid-cols-[2fr_1fr]">
           <div className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="text-xl font-semibold">Productos</h2>
-                <p className="text-sm text-muted-foreground">
-                  Catálogo público de este tenant. Agrega ítems y confirma en un paso.
-                </p>
-              </div>
-              {catalogQuery.isFetching ? (
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold">Productos</h2>
+              {catalogQuery.isLoading ? (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Sincronizando catálogo...
+                  <Loader2 className="h-4 w-4 animate-spin" /> Cargando catálogo...
                 </div>
               ) : null}
             </div>
 
-            {catalogErrorMessage ? (
-              <Alert variant="destructive">
-                <AlertTitle>No pudimos cargar el catálogo</AlertTitle>
-                <AlertDescription className="flex items-start justify-between gap-3">
-                  <span>{catalogErrorMessage || 'Intenta nuevamente desde el enlace o QR.'}</span>
-                  <Button size="sm" variant="secondary" onClick={() => catalogQuery.refetch()}>
-                    Reintentar
-                  </Button>
+            {isDemoCatalog ? (
+              <Alert>
+                <AlertTitle>Catálogo de demostración</AlertTitle>
+                <AlertDescription>
+                  {catalogData?.demoReason || 'Mostramos un catálogo listo para probar mientras se conecta el catálogo en vivo.'}
                 </AlertDescription>
               </Alert>
             ) : null}
 
-            {categories.length > 1 ? (
-              <div className="flex flex-wrap gap-2 overflow-x-auto pb-1">
-                {categories.map((category) => (
-                  <Button
-                    key={category}
-                    variant={activeCategory === category ? 'default' : 'outline'}
-                    size="sm"
-                    className="rounded-full"
-                    onClick={() => setActiveCategory(category)}
-                  >
-                    {category === 'todos' ? 'Todas las secciones' : category}
-                  </Button>
-                ))}
-              </div>
-            ) : null}
-
-            {categories.length > 1 ? (
-              <div className="flex flex-wrap gap-2 overflow-x-auto pb-1">
-                {categories.map((category) => (
-                  <Button
-                    key={category}
-                    variant={activeCategory === category ? 'default' : 'outline'}
-                    size="sm"
-                    className="rounded-full"
-                    onClick={() => setActiveCategory(category)}
-                  >
-                    {category === 'todos' ? 'Todas las secciones' : category}
-                  </Button>
-                ))}
-              </div>
+            {!isDemoCatalog && catalogErrorMessage ? (
+              <Alert variant="destructive">
+                <AlertTitle>{catalogQuery.data?.isDemo ? 'Catálogo de demostración' : 'No pudimos cargar el catálogo'}</AlertTitle>
+                <AlertDescription>
+                  {catalogQuery.data?.demoReason ??
+                    (catalogErrorMessage ||
+                      'Intenta nuevamente desde el enlace o QR.')}
+                </AlertDescription>
+              </Alert>
             ) : null}
 
             {categories.length > 1 ? (
@@ -938,7 +678,11 @@ export default function MarketCartPage() {
               </div>
             ) : (
               <div className="rounded-lg border bg-white p-6 text-center text-sm text-muted-foreground">
-                No hay productos disponibles en este catálogo.
+                {catalogQuery.isLoading
+                  ? 'Cargando productos...'
+                  : searchTerm
+                    ? 'No encontramos productos que coincidan con tu búsqueda.'
+                    : 'No hay productos disponibles en este catálogo.'}
               </div>
             )}
           </div>
@@ -958,26 +702,23 @@ export default function MarketCartPage() {
             {cartErrorMessage ? (
               <Alert variant="destructive" className="mt-3">
                 <AlertTitle>No pudimos actualizar tu carrito</AlertTitle>
-                <AlertDescription className="flex items-start justify-between gap-3">
-                  <span>{cartErrorMessage || 'Revisa tu conexión e intenta de nuevo.'}</span>
-                  <Button size="sm" variant="secondary" onClick={() => cartQuery.refetch()}>
-                    Reintentar
-                  </Button>
+                <AlertDescription>
+                  {cartErrorMessage || 'Revisa tu conexión e intenta de nuevo.'}
                 </AlertDescription>
               </Alert>
             ) : null}
 
-            <div className="mt-3 space-y-2 rounded-md bg-muted/40 p-3 text-xs text-muted-foreground">
-              <div className="flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full bg-emerald-500" />
-                <span>Checkout simplificado: datos mínimos (nombre + teléfono) por tenant.</span>
-              </div>
-              {contact.phone ? (
-                <div className="flex items-center gap-2 text-foreground">
-                  <ExternalLink className="h-3.5 w-3.5" />
-                  <span>Guardamos tu contacto para agilizar próximos pedidos en este catálogo.</span>
-                </div>
-              ) : null}
+            {(catalogQuery.data?.isDemo || cartQuery.data?.isDemo) && !cartErrorMessage ? (
+              <Alert className="mt-3" variant="default">
+                <AlertTitle>Modo demo activado</AlertTitle>
+                <AlertDescription>
+                  Usamos un catálogo de demostración mientras conectamos el backend de este tenant. Puedes compartir el enlace o
+                  finalizar un pedido de prueba para mostrar el flujo completo.
+                </AlertDescription>
+              </Alert>
+            ) : null}
+
+            <div className="mt-3 text-xs text-muted-foreground">
               <p>
                 Al confirmar, enviaremos el pedido al equipo del comercio. También puedes revisar nuestras
                 <Link to="/legal/privacy" className="ml-1 underline">
@@ -988,25 +729,6 @@ export default function MarketCartPage() {
             </div>
           </div>
         </section>
-
-        <div className={cn('fixed inset-x-0 bottom-4 z-20 px-4 sm:px-6 lg:hidden', !itemsCount && 'hidden')}>
-          <motion.div
-            initial={{ y: 40, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            className="mx-auto flex max-w-md items-center gap-3 rounded-full border bg-white px-4 py-3 shadow-lg"
-          >
-            <div className="flex flex-1 items-center gap-3">
-              <ShoppingBag className="h-5 w-5 text-primary" />
-              <div className="leading-tight">
-                <p className="text-xs text-muted-foreground">Carrito de este catálogo</p>
-                <p className="text-sm font-semibold">{itemsCount} ítem(s)</p>
-              </div>
-            </div>
-            <Button size="sm" onClick={scrollToSummary}>
-              Ver resumen
-            </Button>
-          </motion.div>
-        </div>
       </main>
 
       <CheckoutDialog
