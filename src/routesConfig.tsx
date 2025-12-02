@@ -66,6 +66,9 @@ import TenantEventsPage from '@/pages/tenant/TenantEventsPage';
 import TenantSurveyListPage from '@/pages/tenant/TenantSurveyListPage';
 import TenantSurveyDetailPage from '@/pages/tenant/TenantSurveyDetailPage';
 import TenantTicketFormPage from '@/pages/tenant/TenantTicketFormPage';
+import MarketCatalogPage from '@/pages/tenant/market/MarketCatalogPage';
+import MarketProductPage from '@/pages/tenant/market/MarketProductPage';
+import MarketCheckoutPage from '@/pages/tenant/market/MarketCheckoutPage';
 
 // NUEVAS IMPORTACIONES PARA EL PORTAL DE USUARIO
 // UserPortalLayout no se importa aquí si se usa como Layout Route en App.tsx
@@ -90,14 +93,31 @@ const withTenantPrefixes = (
     path: `/${prefix}${pathSuffix}`,
   }));
 
+const withTenantPrefixesExcept = (
+  pathSuffix: string,
+  config: Omit<RouteConfig, 'path'>,
+  exclude: readonly (typeof TENANT_ROUTE_PREFIXES)[number][] = [],
+): RouteConfig[] => {
+  const exclusionSet = new Set(exclude.map((value) => value.toLowerCase()));
+
+  return TENANT_ROUTE_PREFIXES.filter((prefix) => !exclusionSet.has(prefix.toLowerCase())).map((prefix) => ({
+    ...config,
+    path: `/${prefix}${pathSuffix}`,
+  }));
+};
+
 const routes: RouteConfig[] = [
   { path: '/', element: <Index /> },
   ...withTenantPrefixes('/:tenant', { element: <TenantHomePage /> }),
   ...withTenantPrefixes('/:tenant/noticias', { element: <TenantNewsPage /> }),
   ...withTenantPrefixes('/:tenant/eventos', { element: <TenantEventsPage /> }),
+  ...withTenantPrefixes('/:tenant/market', { element: <MarketCatalogPage /> }),
+  ...withTenantPrefixes('/:tenant/product/:slug', { element: <MarketProductPage /> }),
+  ...withTenantPrefixes('/:tenant/checkout', { element: <MarketCheckoutPage /> }),
   ...withTenantPrefixes('/:tenant/reclamos/nuevo', { element: <TenantTicketFormPage /> }),
   ...withTenantPrefixes('/:tenant/pedido/confirmado', { element: <OrderConfirmationPage /> }),
   { path: '/login', element: <Login /> },
+  ...withTenantPrefixes('/:tenant/login', { element: <Login /> }),
   ...(FEATURE_ENCUESTAS
     ? [
         { path: '/encuestas', element: <PublicSurveysIndex /> },
@@ -108,6 +128,7 @@ const routes: RouteConfig[] = [
       ]
     : []),
   { path: '/register', element: <Register /> },
+  ...withTenantPrefixes('/:tenant/register', { element: <Register /> }),
   { path: '/user/login', element: <UserLogin /> },
   { path: '/user/register', element: <UserRegister /> },
   { path: '/cuenta', element: <UserAccount /> },
@@ -127,7 +148,7 @@ const routes: RouteConfig[] = [
   ...withTenantPrefixes('/:tenant/productos', { element: <ProductCatalog /> }),
   { path: '/cart', element: <CartPage /> },
   ...withTenantPrefixes('/:tenant/cart', { element: <CartPage /> }),
-  { path: '/market/:tenantSlug/cart', element: <MarketCartPage /> },
+  { path: '/market/:slug/cart', element: <MarketCartPage /> },
   { path: '/checkout-productos', element: <ProductCheckoutPage /> },
   ...withTenantPrefixes('/:tenant/checkout-productos', { element: <ProductCheckoutPage /> }),
   ...withTenantPrefixes('/:tenant/pedido/confirmado', { element: <OrderConfirmationPage /> }),

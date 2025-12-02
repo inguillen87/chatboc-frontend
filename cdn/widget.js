@@ -1,6 +1,76 @@
 const ChatbocWidgetInternals =
   (typeof window !== "undefined" && window.ChatbocWidgetInternals) ||
   (() => {
+  const KNOWN_EXTENSION_PATTERNS = [
+    /Cannot assign to read only property '(ethereum|tronLink)' of object '#<Window>'/i,
+    /Cannot assign to read only property '(ethereum|tronLink)'/i,
+    /This document requires 'TrustedScript' assignment/i,
+  ];
+
+  function extractMessage(value) {
+    if (typeof value === "string") return value;
+    if (
+      value &&
+      typeof value === "object" &&
+      "message" in value &&
+      typeof value.message === "string"
+    ) {
+      return value.message;
+    }
+    if (value instanceof Error) {
+      return value.message;
+    }
+    return "";
+  }
+
+  function shouldIgnore(message) {
+    if (!message) return false;
+    return KNOWN_EXTENSION_PATTERNS.some((pattern) => pattern.test(message));
+  }
+
+  function registerExtensionNoiseFilters() {
+    if (typeof window === "undefined") {
+      return () => {};
+    }
+
+    const win = window;
+    if (typeof win.__chatbocExtensionNoiseCleanup === "function") {
+      return win.__chatbocExtensionNoiseCleanup;
+    }
+
+    const handleError = (event) => {
+      const errorMessage = extractMessage((event?.error ?? event?.message) || "");
+      if (shouldIgnore(errorMessage)) {
+        event?.preventDefault?.();
+        event?.stopImmediatePropagation?.();
+        return false;
+      }
+      return undefined;
+    };
+
+    const handleRejection = (event) => {
+      const reasonMessage = extractMessage(event?.reason);
+      if (shouldIgnore(reasonMessage)) {
+        event?.preventDefault?.();
+        event?.stopImmediatePropagation?.();
+      }
+    };
+
+    window.addEventListener("error", handleError, { capture: true });
+    window.addEventListener("unhandledrejection", handleRejection, { capture: true });
+
+    const cleanup = () => {
+      window.removeEventListener("error", handleError, { capture: true });
+      window.removeEventListener("unhandledrejection", handleRejection, { capture: true });
+      delete win.__chatbocExtensionNoiseCleanup;
+    };
+
+    win.__chatbocExtensionNoiseCleanup = cleanup;
+    return cleanup;
+  }
+
+  registerExtensionNoiseFilters();
+
   const TOKEN_EVENT_NAME = "chatboc-token";
   const TOKEN_MANAGER_REGISTRY_KEY = "__chatbocTokenManagers";
   const INITIAL_RETRY_DELAY_MS = 15000;

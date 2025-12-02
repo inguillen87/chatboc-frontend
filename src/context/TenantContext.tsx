@@ -21,6 +21,7 @@ import { getErrorMessage } from '@/utils/api';
 import { ensureRemoteAnonId } from '@/utils/anonId';
 import { normalizeEntityToken } from '@/utils/entityToken';
 import { TENANT_ROUTE_PREFIXES } from '@/utils/tenantPaths';
+import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 interface TenantContextValue {
   currentSlug: string | null;
@@ -50,6 +51,7 @@ const DEFAULT_TENANT_INFO: TenantPublicInfo = {
   public_base_url: null,
   public_cart_url: null,
   public_catalog_url: null,
+  whatsapp_share_url: null,
 };
 
 const DEFAULT_TENANT_CONTEXT: TenantContextValue = {
@@ -191,6 +193,12 @@ const resolveTenantBootstrap = (
     return fromScripts;
   }
 
+  const storedSlug = sanitizeTenantSlug(safeLocalStorage.getItem('tenantSlug'));
+
+  if (storedSlug) {
+    return { slug: storedSlug, widgetToken: null };
+  }
+
   return { slug: sanitizeTenantSlug(readTenantFromSubdomain()), widgetToken: null };
 };
 
@@ -267,6 +275,20 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
       console.warn('[TenantContext] No se pudo asegurar anon_id remoto', error);
     });
   }, [widgetToken]);
+
+  useEffect(() => {
+    const sanitized = sanitizeTenantSlug(currentSlugRef.current);
+    if (sanitized) {
+      safeLocalStorage.setItem('tenantSlug', sanitized);
+    } else {
+      safeLocalStorage.removeItem('tenantSlug');
+    }
+  }, [currentSlug]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    (window as any).currentTenantSlug = currentSlug ?? null;
+  }, [currentSlug]);
 
   useEffect(() => {
     if (!tenant?.tema || typeof document === 'undefined') return;

@@ -31,16 +31,40 @@ export async function fetchKnowledgeBaseSuggestions({
     const endpoint = ticketId
       ? `/tickets/${encodeURIComponent(ticketId)}/knowledge-base/suggestions`
       : '/knowledge-base/suggestions';
+    const queryParams = new URLSearchParams();
+    queryParams.set('query', query);
+    if (language) {
+      queryParams.set('language', language);
+    }
 
-    const response = await apiFetch<SuggestionResponse>(endpoint, {
-      method: 'POST',
-      body: JSON.stringify({ query, language: language || undefined }),
-      tenantSlug,
-      isWidgetRequest: true,
-      omitCredentials: true,
-    });
+    const request = async (method: 'POST' | 'GET') =>
+      apiFetch<SuggestionResponse>(
+        method === 'GET' ? `${endpoint}?${queryParams.toString()}` : endpoint,
+        {
+          method,
+          body:
+            method === 'POST'
+              ? JSON.stringify({ query, language: language || undefined })
+              : undefined,
+          tenantSlug,
+          isWidgetRequest: true,
+          omitCredentials: true,
+        },
+      );
 
-    return Array.isArray(response.suggestions) ? response.suggestions : [];
+    let response: SuggestionResponse | null = null;
+
+    try {
+      response = await request('POST');
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 405) {
+        response = await request('GET');
+      } else {
+        throw error;
+      }
+    }
+
+    return Array.isArray(response?.suggestions) ? response.suggestions : [];
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) {
       return [];

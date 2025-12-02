@@ -1137,6 +1137,8 @@ export default function EstadisticasPage() {
                 availableBarrios={availableBarrios}
                 availableTipos={availableTipos}
                 metadata={heatmapDetails?.metadata?.map?.heatmap}
+                mapConfig={heatmapDetails?.mapConfig}
+                mapLayers={heatmapDetails?.mapLayers}
               />
             ) : (
               <div className="flex h-[520px] items-center justify-center rounded-xl border border-dashed border-border text-sm text-muted-foreground">

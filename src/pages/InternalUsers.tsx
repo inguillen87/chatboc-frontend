@@ -105,10 +105,36 @@ export default function InternalUsers() {
     (data: any): Category[] => {
       const rawCategories = Array.isArray(data?.categorias)
         ? data.categorias
-        : Array.isArray(data)
-          ? data
-          : [];
+        : Array.isArray(data?.data?.categorias)
+          ? data.data.categorias
+          : Array.isArray(data?.data)
+            ? data.data
+            : Array.isArray(data)
+              ? data
+              : [];
       return rawCategories
+        .map(normalizeCategory)
+        .filter((c): c is Category => Boolean(c));
+    },
+    [normalizeCategory]
+  );
+
+  const extractCategoriesFromUsers = useCallback(
+    (list: InternalUser[] | null | undefined): Category[] => {
+      if (!Array.isArray(list)) return [];
+
+      const collected = list.flatMap((user) => {
+        if (!user) return [] as Category[];
+        const fromArray = Array.isArray(user.categorias) ? user.categorias : [];
+        const fromIds = Array.isArray(user.categoria_ids)
+          ? user.categoria_ids.map((id) => ({ id, nombre: '' }))
+          : [];
+        const fromSingle = user.categoria_id ? [{ id: user.categoria_id, nombre: '' }] : [];
+
+        return [...fromArray, ...fromIds, ...fromSingle];
+      });
+
+      return collected
         .map(normalizeCategory)
         .filter((c): c is Category => Boolean(c));
     },
@@ -118,11 +144,15 @@ export default function InternalUsers() {
   const refreshUsers = useCallback(async () => {
     try {
       const data = await apiFetch<InternalUser[]>(usersUrl);
-      setUsers(filterStaffUsers(data));
+      const staffUsers = filterStaffUsers(data);
+      setUsers(staffUsers);
+      setCategories((prev) =>
+        mergeCategories(prev, extractCategoriesFromUsers(staffUsers))
+      );
     } catch (err: any) {
       setError(getErrorMessage(err, 'Error al cargar los usuarios'));
     }
-  }, [filterStaffUsers, usersUrl]);
+  }, [extractCategoriesFromUsers, filterStaffUsers, mergeCategories, usersUrl]);
 
   useEffect(() => {
     setLoading(true);
@@ -140,12 +170,19 @@ export default function InternalUsers() {
         if (err instanceof ApiError && err.status === 404) return null;
         return null;
       }),
+      apiFetch(`${entityType === 'pyme' ? '/pyme' : '/municipal'}/pedidos/categorias`, { sendEntityToken: true }).catch(err => {
+        if (err instanceof ApiError && err.status === 404) return null;
+        return null;
+      }),
     ])
-      .then(([usersData, categoriesData, ticketCategories]) => {
-        setUsers(filterStaffUsers(usersData));
+      .then(([usersData, categoriesData, ticketCategories, pedidoCategories]) => {
+        const staffUsers = filterStaffUsers(usersData);
+        setUsers(staffUsers);
         const merged = mergeCategories(
           extractCategories(categoriesData),
           extractCategories(ticketCategories),
+          extractCategories(pedidoCategories),
+          extractCategoriesFromUsers(staffUsers),
         );
         setCategories(merged);
         setLoading(false);
@@ -155,7 +192,7 @@ export default function InternalUsers() {
         setLoading(false);
       });
 
-  }, [categoriesUrl, entityType, extractCategories, filterStaffUsers, mergeCategories, usersUrl]);
+  }, [categoriesUrl, entityType, extractCategories, extractCategoriesFromUsers, filterStaffUsers, mergeCategories, usersUrl]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -316,12 +353,20 @@ export default function InternalUsers() {
     [normalizedCategories, editCategorySearch]
   );
 
-  const toggleCategory = (id: number) => {
-    setCategoriaIds((prev) => (prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]));
+  const toggleCategory = (id: CategoryId) => {
+    setCategoriaIds((prev) =>
+      prev.some((c) => c?.toString?.() === id?.toString?.())
+        ? prev.filter((c) => c?.toString?.() !== id?.toString?.())
+        : [...prev, id]
+    );
   };
 
-  const toggleEditCategory = (id: number) => {
-    setEditCategoriaIds((prev) => (prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]));
+  const toggleEditCategory = (id: CategoryId) => {
+    setEditCategoriaIds((prev) =>
+      prev.some((c) => c?.toString?.() === id?.toString?.())
+        ? prev.filter((c) => c?.toString?.() !== id?.toString?.())
+        : [...prev, id]
+    );
   };
 
   const getUserCategoryIds = (user: InternalUser) =>
