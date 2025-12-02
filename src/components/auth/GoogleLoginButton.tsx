@@ -6,6 +6,7 @@ import { useUser } from '@/hooks/useUser';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { broadcastAuthTokenToHost } from '@/utils/postMessage';
+import { GOOGLE_CLIENT_ID } from '@/env';
 
 interface LoginResponse {
   id: number;
@@ -21,8 +22,6 @@ interface LoginResponse {
 interface Props extends React.HTMLAttributes<HTMLDivElement> {
   onLoggedIn?: () => void;
 }
-
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
 const GoogleLoginButton: React.FC<Props> = ({
   onLoggedIn,
