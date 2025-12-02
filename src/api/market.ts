@@ -6,6 +6,7 @@ import {
   MarketCartItem,
   MarketCartResponse,
   MarketCatalogResponse,
+  MarketCatalogSection,
   MarketProduct,
 } from '@/types/market';
 import { MARKET_DEMO_PRODUCTS, buildDemoMarketCatalog } from '@/data/marketDemo';
@@ -92,6 +93,21 @@ const normalizeProductList = (rawItems: any[] | undefined | null): MarketProduct
   return rawItems.map((item, index) => normalizeProduct(item, index));
 };
 
+const normalizeSections = (raw: any[] | undefined | null): MarketCatalogSection[] | undefined => {
+  if (!Array.isArray(raw)) return undefined;
+
+  return raw
+    .map((item) => {
+      if (!item) return null;
+      return {
+        title: item.title ?? item.titulo ?? item.name ?? item.nombre,
+        description: item.description ?? item.descripcion ?? null,
+        badge: item.badge ?? item.etiqueta ?? null,
+      } satisfies MarketCatalogSection;
+    })
+    .filter((section): section is MarketCatalogSection => Boolean(section?.title));
+};
+
 const shouldUseDemo = (error: unknown): boolean => {
   if (error instanceof ApiError) {
     return [401, 403, 404, 405, 500].includes(error.status);
@@ -111,7 +127,7 @@ export async function fetchMarketCatalog(tenantSlug: string): Promise<MarketCata
 
     if (!products.length) {
       const demo = getDemoCatalog(tenantSlug);
-      return { ...demo, isDemo: true, demoReason: demo.demoReason };
+    return { ...demo, isDemo: true, demoReason: demo.demoReason };
     }
 
     return {
@@ -125,6 +141,9 @@ export async function fetchMarketCatalog(tenantSlug: string): Promise<MarketCata
         response?.public_cart ??
         null,
       whatsappShareUrl: response?.whatsapp_share_url ?? response?.whatsappShareUrl ?? null,
+      heroImageUrl: response?.hero_image_url ?? response?.heroImageUrl ?? null,
+      heroSubtitle: response?.hero_subtitle ?? response?.heroSubtitle ?? null,
+      sections: normalizeSections(response?.sections ?? response?.bloques ?? response?.secciones),
     };
   } catch (error) {
     if (!shouldUseDemo(error)) throw error;
