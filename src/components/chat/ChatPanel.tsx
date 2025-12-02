@@ -505,7 +505,12 @@ const ChatPanel = ({
 
   if (showRubroSelector) {
     return (
-      <div className={cn("chat-root flex flex-col w-full h-full bg-card text-card-foreground overflow-hidden relative", isMobile ? undefined : "rounded-[inherit]")}>
+      <div
+        className={cn(
+          "chat-root flex h-full w-full flex-col bg-card text-card-foreground overflow-hidden relative",
+          isMobile ? undefined : "rounded-[inherit]",
+        )}
+      >
         <ChatHeader
           onClose={onClose}
           onProfile={onOpenUserPanel}
@@ -519,18 +524,18 @@ const ChatPanel = ({
           logoAnimation={logoAnimation}
           onA11yChange={onA11yChange}
         />
-        <div className="flex-1 flex items-center justify-center p-4">
-          <div className="w-full max-w-sm rounded-2xl border border-border bg-background/90 p-6 text-center shadow-lg">
+        <div className="flex-1 overflow-hidden px-4 pb-4">
+          <div className="mx-auto flex h-full max-h-[calc(100vh-160px)] w-full max-w-sm flex-col rounded-2xl border border-border bg-background/90 p-6 text-center shadow-lg">
             <img
               src="/chatboc_logo_clean_transparent.png"
               alt="Chatboc"
-              className="mx-auto mb-4 h-14 w-14"
+              className="mx-auto h-14 w-14"
               onError={(e) => {
                 (e.target as HTMLImageElement).src = "/favicon/favicon-48x48.png";
               }}
             />
-            <h2 className="mb-2 text-xl font-semibold text-primary">¡Bienvenido a Chatboc!</h2>
-            <p className="mb-4 text-sm text-muted-foreground">
+            <h2 className="text-xl font-semibold text-primary">¡Bienvenido a Chatboc!</h2>
+            <p className="text-sm text-muted-foreground">
               Seleccioná el rubro que más se parece a tu negocio:
             </p>
             {isLoadingRubros ? (
@@ -545,7 +550,9 @@ const ChatPanel = ({
                 </Button>
               </div>
             ) : rubros.length > 0 ? (
-              <RubroSelector rubros={rubros} onSelect={handleRubroSelection} />
+              <div className="min-h-0 flex-1 overflow-hidden pt-2">
+                <RubroSelector rubros={rubros} onSelect={handleRubroSelection} />
+              </div>
             ) : (
               <p className="text-sm text-muted-foreground">No hay rubros disponibles por el momento.</p>
             )}
