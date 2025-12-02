@@ -474,10 +474,21 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
     return path;
   }, []);
 
+  const resolveCartTenantSlug = useCallback(() => {
+    const storedTenant = sanitizeTenantSlug(safeLocalStorage.getItem("tenantSlug"));
+    const candidates = [resolvedTenantSlug, currentSlug, tenant?.slug, storedTenant];
+
+    for (const candidate of candidates) {
+      const sanitized = sanitizeTenantSlug(candidate);
+      if (sanitized) return sanitized;
+    }
+
+    return null;
+  }, [currentSlug, resolvedTenantSlug, tenant?.slug]);
+
   const openCart = useCallback(
     (target: "cart" | "catalog" | "market" = "cart") => {
-      const storedTenant = sanitizeTenantSlug(safeLocalStorage.getItem("tenantSlug"));
-      const slug = sanitizeTenantSlug(resolvedTenantSlug ?? storedTenant);
+      const slug = resolveCartTenantSlug();
 
       if (!slug) {
         toast.error("No hay un tenant configurado para el carrito.");
@@ -524,7 +535,8 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
     [
       authTokenState,
       buildMarketCartUrl,
-      resolvedTenantSlug,
+      resolveCartTenantSlug,
+      requireCatalogAuth,
       tenant,
       user,
     ]

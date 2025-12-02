@@ -392,6 +392,16 @@ export default function MarketCartPage() {
     );
   }, [catalogProducts, searchTerm]);
 
+  const filteredProducts = useMemo(() => {
+    if (!searchTerm.trim()) return catalogProducts;
+    const query = searchTerm.toLowerCase();
+    return catalogProducts.filter(
+      (product) =>
+        product.name.toLowerCase().includes(query) ||
+        (product.description ? product.description.toLowerCase().includes(query) : false),
+    );
+  }, [catalogProducts, searchTerm]);
+
   const scrollToSummary = () => {
     cartSummaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     setCartPulse(true);
