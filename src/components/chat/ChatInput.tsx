@@ -37,21 +37,14 @@ const PLACEHOLDERS = [
   "¿Cuánto cuesta el servicio?",
 ];
 
-// Emojis funcionales para reclamos comunes (incluye alternativas para
-// accesibilidad e inclusión). Se mantienen íconos claros y específicos.
+// Emojis funcionales para reclamos comunes. Evitamos caritas u otros iconos
+// decorativos para mantener la interfaz limpia y significativa.
 const QUICK_EMOJIS = [
-  { emoji: "💧", category: "agua" },
-  { emoji: "💦", category: "agua" },
-  { emoji: "🌧️", category: "agua" },
   { emoji: "🌳", category: "arbolado" },
-  { emoji: "🌲", category: "arbolado" },
+  { emoji: "💧", category: "agua" },
   { emoji: "🔥", category: "fuego" },
-  { emoji: "🚒", category: "fuego" },
   { emoji: "🐶", category: "animales" },
-  { emoji: "🐾", category: "animales" },
   { emoji: "🚮", category: "limpieza" },
-  { emoji: "🧹", category: "limpieza" },
-  { emoji: "🗑️", category: "limpieza" },
 ];
 
 type UploadResponse = UploadResponseLike;

@@ -15,11 +15,12 @@ import TicketTimeline from '@/components/tickets/TicketTimeline';
 import TicketLogisticsSummary from '@/components/tickets/TicketLogisticsSummary';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { getErrorMessage, ApiError } from '@/utils/api';
-import { getContactPhone, getCitizenDni } from '@/utils/ticket';
+import { getContactPhone, getCitizenDni, getTicketChannel } from '@/utils/ticket';
 import { getSpecializedContact, SpecializedContact } from '@/utils/contacts';
 import { collectAttachmentsFromTicket, getPrimaryImageUrl } from '@/components/tickets/DetailsPanel';
 import { Maximize2, X } from 'lucide-react';
 import { toast } from 'sonner';
+import KnowledgeBaseSuggestions from '@/components/tickets/KnowledgeBaseSuggestions';
 export default function TicketLookup() {
   const { ticketId } = useParams<{ ticketId: string }>();
   const navigate = useNavigate();
@@ -34,6 +35,12 @@ export default function TicketLookup() {
   const [estadoChat, setEstadoChat] = useState('');
   const [specialContact, setSpecialContact] = useState<SpecializedContact | null>(null);
   const completionNotifiedRef = useRef<Record<number, string>>({});
+  const languagePreference = React.useMemo(() => {
+    if (typeof navigator !== 'undefined' && navigator.language) {
+      return navigator.language;
+    }
+    return undefined;
+  }, []);
   const attachments = React.useMemo(
     () => collectAttachmentsFromTicket(ticket, timelineMessages),
     [ticket, timelineMessages],
@@ -52,6 +59,7 @@ export default function TicketLookup() {
     () => estadoChat || ticket?.estado || statusFlow[statusFlow.length - 1] || '',
     [estadoChat, ticket?.estado, statusFlow],
   );
+  const channelLabel = React.useMemo(() => getTicketChannel(ticket), [ticket]);
   const hasLocation = React.useMemo(() => {
     if (!ticket) return false;
     const hasCoords =
@@ -143,10 +151,7 @@ export default function TicketLookup() {
       }
 
       try {
-        const timeline = await getTicketTimeline(data.id, data.tipo || 'municipio', {
-          public: true,
-          pin: pinVal,
-        });
+        const timeline = await getTicketTimeline(data.id, data.tipo, { public: true });
         setTimelineHistory(timeline.history);
         setTimelineMessages(timeline.messages);
         setEstadoChat(timeline.estado_chat);
@@ -250,7 +255,6 @@ export default function TicketLookup() {
       sendTicketHistory(ticket, {
         reason: 'manual',
         actor: 'user',
-        pin,
       })
         .then((result) => {
           if (isTicketHistoryDeliveryErrorResult(result)) {
@@ -457,6 +461,11 @@ export default function TicketLookup() {
                 </Card>
               </div>
             </div>
+            <KnowledgeBaseSuggestions
+              ticket={ticketForSummary}
+              messages={timelineMessages}
+              language={languagePreference}
+            />
             <Card className="overflow-hidden">
               <CardHeader>
                 <CardTitle className="text-xl font-semibold">Historial del reclamo</CardTitle>

@@ -3,13 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import MapLibreMap from '@/components/MapLibreMap';
-import {
-  HeatPoint,
-  HeatmapBreakdownItem,
-  HeatmapMapMetadata,
-  MapConfig,
-  MapLayerSource,
-} from '@/services/statsService';
+import { HeatPoint, HeatmapBreakdownItem, HeatmapMapMetadata } from '@/services/statsService';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useMapProvider } from '@/hooks/useMapProvider';
 import type { MapProvider, MapProviderUnavailableReason } from '@/hooks/useMapProvider';
@@ -22,8 +16,6 @@ interface HeatmapProps {
   availableBarrios: string[];
   availableTipos: string[];
   metadata?: HeatmapMapMetadata | null;
-  mapConfig?: MapConfig | null;
-  mapLayers?: Record<string, MapLayerSource> | null;
   onSelect?: (lat: number, lon: number, address?: string) => void;
 }
 
@@ -34,48 +26,12 @@ export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({
   availableBarrios,
   availableTipos,
   metadata,
-  mapConfig,
-  mapLayers,
   onSelect,
 }) => {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedBarrios, setSelectedBarrios] = useState<string[]>([]);
   const [selectedTipos, setSelectedTipos] = useState<string[]>([]);
-  const preferredProvider = useMemo<MapProvider | undefined>(() => {
-    const providerCandidate =
-      typeof mapConfig?.provider === 'string'
-        ? mapConfig.provider
-        : mapLayers?.heatmap?.providerHint;
-    const normalized = typeof providerCandidate === 'string' ? providerCandidate.trim().toLowerCase() : '';
-    if (normalized === 'google') return 'google';
-    if (normalized === 'maptiler' || normalized === 'maplibre') return 'maplibre';
-    return undefined;
-  }, [mapConfig?.provider, mapLayers?.heatmap?.providerHint]);
-
-  const { provider, setProvider } = useMapProvider(preferredProvider ?? 'maplibre', {
-    preferred: preferredProvider,
-  });
-
-  const maptilerKey = useMemo(() => {
-    const key =
-      (mapConfig?.maptiler_key as string | undefined) ||
-      (mapConfig?.maptilerKey as string | undefined) ||
-      (mapConfig?.MAPTILER_API_KEY as string | undefined);
-    return typeof key === 'string' && key.trim().length > 0 ? key.trim() : undefined;
-  }, [mapConfig]);
-
-  const googleMapsKey = useMemo(() => {
-    const key =
-      (mapConfig?.google_maps_key as string | undefined) ||
-      (mapConfig?.googleMapsKey as string | undefined) ||
-      (mapConfig?.google_api_key as string | undefined);
-    return typeof key === 'string' && key.trim().length > 0 ? key.trim() : undefined;
-  }, [mapConfig]);
-
-  const mapStyleUrl = useMemo(() => {
-    const value = mapConfig?.style_url as string | undefined;
-    return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
-  }, [mapConfig]);
+  const { provider, setProvider } = useMapProvider();
 
   const handleProviderUnavailable = useCallback(
     (currentProvider: MapProvider, reason: MapProviderUnavailableReason, details?: unknown) => {
@@ -506,9 +462,6 @@ export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({
           className="h-[600px] rounded-lg"
           fitToBounds={boundsCoordinates.length > 0 ? boundsCoordinates : undefined}
           provider={provider}
-          mapStyleUrl={mapStyleUrl}
-          maptilerKey={maptilerKey}
-          googleMapsKey={googleMapsKey}
           onProviderUnavailable={handleProviderUnavailable}
           disableClientClustering={disableClustering}
         />

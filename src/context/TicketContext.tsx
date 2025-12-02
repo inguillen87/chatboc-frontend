@@ -155,13 +155,6 @@ export const TicketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         }
       });
 
-      const hasCategoryRestrictions =
-        allowedCategoryIds.size > 0 || allowedCategoryNames.size > 0;
-
-      if (!hasCategoryRestrictions) {
-        return list;
-      }
-
       return list.filter((ticket) => {
         const matchesAssignee =
           userId !== undefined && userId !== null &&

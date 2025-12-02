@@ -1,6 +1,6 @@
 // Contenido COMPLETO y CORREGIDO para: Login.tsx
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,8 +9,6 @@ import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { useUser } from "@/hooks/useUser";
 import GoogleLoginButton from "@/components/auth/GoogleLoginButton";
 import { isPasskeySupported, loginPasskey } from "@/services/passkeys";
-import { useTenant } from "@/context/TenantContext";
-import { buildTenantPath } from "@/utils/tenantPaths";
 
 // Asegúrate de que esta interfaz refleje EXACTAMENTE lo que tu backend devuelve en /auth/login
 interface LoginResponse {
@@ -26,23 +24,12 @@ interface LoginResponse {
 const Login = () => {
   const navigate = useNavigate();
   const { refreshUser } = useUser();
-  const { currentSlug } = useTenant();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isPasskeyAvailable, setIsPasskeyAvailable] = useState(false);
   const [isPasskeyLoading, setIsPasskeyLoading] = useState(false);
-
-  const navigateToTenantCatalog = useCallback(
-    (tenantSlug?: string | null) => {
-      const storedSlug = safeLocalStorage.getItem("tenantSlug");
-      const fallbackSlug = tenantSlug?.toString()?.trim() || currentSlug || storedSlug || null;
-      const target = buildTenantPath("/productos", fallbackSlug);
-      navigate(target);
-    },
-    [currentSlug, navigate],
-  );
 
   useEffect(() => {
     let mounted = true;
@@ -74,13 +61,8 @@ const Login = () => {
         safeLocalStorage.setItem("entityToken", data.entityToken);
       }
 
-      const responseTenantSlug = (data as any)?.tenantSlug || (data as any)?.tenant_slug;
-      if (responseTenantSlug) {
-        safeLocalStorage.setItem("tenantSlug", responseTenantSlug);
-      }
-
       await refreshUser();
-      navigateToTenantCatalog(responseTenantSlug);
+      navigate("/perfil");
 
     } catch (err) {
       if (err instanceof ApiError) {
@@ -112,12 +94,8 @@ const Login = () => {
       if (result?.entityToken) {
         safeLocalStorage.setItem("entityToken", result.entityToken);
       }
-      const responseTenantSlug = (result as any)?.tenantSlug || (result as any)?.tenant_slug;
-      if (responseTenantSlug) {
-        safeLocalStorage.setItem("tenantSlug", responseTenantSlug);
-      }
       await refreshUser();
-      navigateToTenantCatalog(responseTenantSlug);
+      navigate("/perfil");
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "No se pudo iniciar sesión con Passkey.";
@@ -156,12 +134,12 @@ const Login = () => {
                 {isPasskeyLoading ? "Verificando Passkey..." : "Entrar con Passkey"}
               </Button>
             )}
-            <GoogleLoginButton className="w-full" onLoggedIn={() => navigateToTenantCatalog()} />
+            <GoogleLoginButton className="w-full" onLoggedIn={() => navigate('/perfil')} />
           </div>
         </form>
         <div className="text-center text-sm text-muted-foreground mt-4">
           ¿No tenés cuenta?{" "}
-          <button onClick={() => navigate(buildTenantPath("/register", currentSlug))} className="text-primary hover:underline">
+          <button onClick={() => navigate("/register")} className="text-primary hover:underline">
             Registrate
           </button>
         </div>

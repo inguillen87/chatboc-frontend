@@ -15,7 +15,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import SectionErrorBoundary from '@/components/errors/SectionErrorBoundary';
 
 interface Category {
   id: number;
@@ -101,71 +100,64 @@ const CategoryManagementPage: React.FC = () => {
     );
   }
 
+  if (error) {
+    return <div className="p-8 text-center text-destructive bg-destructive/10 rounded-md">{error}</div>;
+  }
+
   return (
-    <SectionErrorBoundary
-      title="No pudimos cargar la administración de categorías"
-      description="Reintentá la carga o volvé al inicio mientras revisamos el panel de marketplace."
-      onRetry={() => fetchCategories()}
-    >
-      <div className="p-4 sm:p-6 lg:p-8">
-        {error && <div className="mb-4 rounded-md bg-destructive/10 p-4 text-center text-destructive">{error}</div>}
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-foreground">Gestión de Categorías</h1>
-          <Button onClick={handleCreate}><PlusCircle className="mr-2 h-4 w-4" /> Crear Categoría</Button>
-        </div>
-        <p className="text-sm text-muted-foreground mb-6">
-          Las categorías se utilizan para organizar los tickets y asignarlos a los empleados adecuados.
-          Crea y gestiona las categorías que los empleados podrán atender.
-        </p>
-        <div className="bg-card rounded-lg border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>ID</TableHead>
-                <TableHead>Nombre</TableHead>
-                <TableHead className="text-right">Acciones</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {categories.map((category) => (
-                <TableRow key={category.id}>
-                  <TableCell>{category.id}</TableCell>
-                  <TableCell className="font-medium">{category.nombre}</TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="icon" onClick={() => handleEdit(category)}>
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(category.id)}>
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{editingCategory ? 'Editar Categoría' : 'Crear Categoría'}</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleSubmit}>
-              <div className="py-4">
-                <Input
-                  placeholder="Nombre de la categoría"
-                  value={categoryName}
-                  onChange={(e) => setCategoryName(e.target.value)}
-                  required
-                />
-              </div>
-              <DialogFooter>
-                <Button type="submit">Guardar</Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+    <div className="p-4 sm:p-6 lg:p-8">
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-foreground">Gestión de Categorías</h1>
+        <Button onClick={handleCreate}><PlusCircle className="mr-2 h-4 w-4" /> Crear Categoría</Button>
       </div>
-    </SectionErrorBoundary>
+      <div className="bg-card rounded-lg border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>ID</TableHead>
+              <TableHead>Nombre</TableHead>
+              <TableHead className="text-right">Acciones</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {categories.map((category) => (
+              <TableRow key={category.id}>
+                <TableCell>{category.id}</TableCell>
+                <TableCell className="font-medium">{category.nombre}</TableCell>
+                <TableCell className="text-right">
+                  <Button variant="ghost" size="icon" onClick={() => handleEdit(category)}>
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => handleDelete(category.id)}>
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingCategory ? 'Editar Categoría' : 'Crear Categoría'}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSubmit}>
+            <div className="py-4">
+              <Input
+                placeholder="Nombre de la categoría"
+                value={categoryName}
+                onChange={(e) => setCategoryName(e.target.value)}
+                required
+              />
+            </div>
+            <DialogFooter>
+              <Button type="submit">Guardar</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 };
 

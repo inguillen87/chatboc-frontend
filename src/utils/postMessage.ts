@@ -24,14 +24,6 @@ interface IframeMessage {
   view?: 'chat' | 'register' | 'login' | 'user' | 'info';
 }
 
-interface AuthTokenMessage {
-  type: "chatboc:auth-token";
-  token: string;
-  tenant?: string | null;
-  source?: string;
-  emittedAt?: number;
-}
-
 /**
  * Sends a message from the iframe to the host window.
  * @param message The message object to send.
@@ -76,33 +68,4 @@ export function useHostMessageHandler(
       window.removeEventListener("message", handleMessage);
     };
   }, [widgetId, hostDomain, handler]);
-}
-
-const isEmbeddedContext = () => typeof window !== "undefined" && window.parent !== window;
-
-/**
- * Broadcasts the current auth token to the host page so it can persist
- * the session outside the iframe (e.g., for external widget embeds).
- */
-export function broadcastAuthTokenToHost(
-  token: string | null | undefined,
-  tenant?: string | null,
-  source: string = "widget",
-) {
-  if (!token || typeof token !== "string" || !token.trim()) return;
-  if (!isEmbeddedContext()) return;
-
-  const message: AuthTokenMessage = {
-    type: "chatboc:auth-token",
-    token,
-    tenant: tenant || undefined,
-    source,
-    emittedAt: Date.now(),
-  };
-
-  try {
-    window.parent.postMessage(message, "*");
-  } catch (error) {
-    console.warn("[postMessage] No se pudo enviar el token al host", error);
-  }
 }

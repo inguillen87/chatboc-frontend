@@ -2,10 +2,9 @@ import React, { useState, useRef, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import GoogleLoginButton from "@/components/auth/GoogleLoginButton";
-import { apiFetch, ApiError, resolveTenantSlug } from "@/utils/api";
+import { apiFetch, ApiError } from "@/utils/api";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { useUser } from "@/hooks/useUser";
-import { broadcastAuthTokenToHost } from "@/utils/postMessage";
 
 interface LoginResponse {
   id: number;
@@ -91,7 +90,6 @@ const ChatUserLoginPanel: React.FC<Props> = ({ onSuccess, onShowRegister, entity
       if (token) {
         safeLocalStorage.setItem("authToken", token);
         safeLocalStorage.setItem("chatAuthToken", token);
-        broadcastAuthTokenToHost(token, tenantSlug ?? resolveTenantSlug(), "login-panel");
       }
       if (tenantSlug) {
         safeLocalStorage.setItem("tenantSlug", tenantSlug);

@@ -19,7 +19,6 @@ import UploadOrderFromFile from '@/components/cart/UploadOrderFromFile';
 import { useUser } from '@/hooks/useUser';
 import { buildTenantPath } from '@/utils/tenantPaths';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 export default function ProductCatalog() {
   const [allProducts, setAllProducts] = useState<ProductDetails[]>([]);
@@ -36,21 +35,17 @@ export default function ProductCatalog() {
   const { currentSlug } = useTenant();
   const { user } = useUser();
   const cartCount = useCartCount();
-  const effectiveTenantSlug = useMemo(
-    () => currentSlug ?? user?.tenantSlug ?? safeLocalStorage.getItem('tenantSlug') ?? null,
-    [currentSlug, user?.tenantSlug],
-  );
   const { points: pointsBalance, requiresAuth: pointsRequireAuth, error: pointsError } = usePointsBalance({
     enabled: !!user,
-    tenantSlug: effectiveTenantSlug,
+    tenantSlug: currentSlug,
   });
   const [showPointsAuthPrompt, setShowPointsAuthPrompt] = useState(false);
   const [pointsAuthMessage, setPointsAuthMessage] = useState<string>('Para usar tus puntos tenés que iniciar sesión o registrarte.');
 
-  const catalogPath = buildTenantPath('/productos', effectiveTenantSlug);
-  const cartPath = buildTenantPath('/cart', effectiveTenantSlug);
-  const loginPath = buildTenantPath('/login', effectiveTenantSlug);
-  const registerPath = buildTenantPath('/register', effectiveTenantSlug);
+  const catalogPath = buildTenantPath('/productos', currentSlug);
+  const cartPath = buildTenantPath('/cart', currentSlug);
+  const loginPath = buildTenantPath('/login', currentSlug);
+  const registerPath = buildTenantPath('/register', currentSlug);
   const numberFormatter = useMemo(() => new Intl.NumberFormat('es-AR'), []);
   const shouldShowDemoLoyalty = catalogSource === 'fallback' || cartMode === 'local';
   const shouldShowLiveLoyalty = !shouldShowDemoLoyalty && !!user;
@@ -58,12 +53,12 @@ export default function ProductCatalog() {
   const sharedRequestOptions = useMemo(
     () => ({
       suppressPanel401Redirect: true,
-      tenantSlug: effectiveTenantSlug ?? undefined,
+      tenantSlug: currentSlug ?? undefined,
       sendAnonId: true,
       isWidgetRequest: true,
       omitCredentials: true,
     }) as const,
-    [effectiveTenantSlug],
+    [currentSlug],
   );
 
   const shouldUseDemoCatalog = (err: unknown) => {

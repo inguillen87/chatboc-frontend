@@ -30,10 +30,6 @@ function AppRoutes() {
   const location = useLocation();
   useTicketUpdates();
 
-  const layoutExcludedPaths = ['/iframe'];
-  const layoutRoutes = routes.filter(({ path }) => !layoutExcludedPaths.includes(path));
-  const standaloneRoutes = routes.filter(({ path }) => layoutExcludedPaths.includes(path));
-
   // Ahora el array soporta rutas exactas y subrutas tipo "/integracion/preview"
   const rutasSinWidget = [
     '/',
@@ -48,28 +44,18 @@ function AppRoutes() {
     "/demo"
   ];
 
-  // Detecta rutas de integración como segmento, incluso con prefijos de tenant (ej: /t/slug/integracion)
-  const isIntegrationRoute = location.pathname
-    .toLowerCase()
-    .split("/")
-    .includes("integracion");
+  // El .some() detecta si la ruta actual *empieza* igual que alguna de la lista
+  const isIntegrationRoute = location.pathname.includes("/integracion");
   const ocultarWidgetGlobalEnApp = rutasSinWidget.some(
     (ruta) =>
       location.pathname === ruta || location.pathname.startsWith(ruta + "/")
   ) || isIntegrationRoute;
 
-  // Evita que el widget global quede montado en rutas de integración
-  React.useEffect(() => {
-    if (ocultarWidgetGlobalEnApp) {
-      (window as any).chatbocDestroyWidget?.();
-    }
-  }, [ocultarWidgetGlobalEnApp]);
-
   return (
     <TenantProvider>
       <Routes>
         <Route element={<Layout />}>
-          {layoutRoutes.map(({ path, element, roles }) => (
+          {routes.map(({ path, element, roles }) => (
             <Route
               key={path} // La key ya estaba correctamente aquí. No se requieren cambios.
               path={path}
@@ -83,13 +69,6 @@ function AppRoutes() {
             />
           ))}
         </Route>
-        {standaloneRoutes.map(({ path, element, roles }) => (
-          <Route
-            key={path}
-            path={path}
-            element={roles ? <ProtectedRoute roles={roles}>{element}</ProtectedRoute> : element}
-          />
-        ))}
         <Route path="*" element={<NotFound />} />
       </Routes>
 
@@ -101,8 +80,8 @@ function AppRoutes() {
   );
 }
 
-const App = () => {
-  const appTree = (
+const App = () => (
+  <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
@@ -118,17 +97,7 @@ const App = () => {
         </UserProvider>
       </TooltipProvider>
     </QueryClientProvider>
-  );
-
-  if (!GOOGLE_CLIENT_ID) {
-    return appTree;
-  }
-
-  return (
-    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-      {appTree}
-    </GoogleOAuthProvider>
-  );
-};
+  </GoogleOAuthProvider>
+);
 
 export default App;

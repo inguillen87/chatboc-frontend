@@ -8,7 +8,6 @@ export interface TenantPublicInfo {
   public_base_url?: string | null;
   public_cart_url?: string | null;
   public_catalog_url?: string | null;
-  whatsapp_share_url?: string | null;
 }
 
 export interface TenantSummary {

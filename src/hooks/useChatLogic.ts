@@ -25,39 +25,6 @@ import { ensureAbsoluteUrl, mergeButtons, pickFirstString } from "@/utils/chatBu
 import { deriveAttachmentInfo } from "@/utils/attachment";
 import { getValidStoredToken } from "@/utils/authTokens";
 
-const EMOJI_CATEGORY_MAP: Record<string, string> = {
-  // Agua y saneamiento
-  "💧": "agua",
-  "💦": "agua",
-  "🌊": "agua",
-  "🌧️": "agua",
-  "🚰": "agua",
-  "🚱": "agua",
-  // Arbolado y espacios verdes
-  "🌳": "arbolado",
-  "🌲": "arbolado",
-  "🌴": "arbolado",
-  "🍃": "arbolado",
-  // Fuego y emergencias
-  "🔥": "fuego",
-  "🚒": "fuego",
-  "🧯": "fuego",
-  // Animales
-  "🐶": "animales",
-  "🐱": "animales",
-  "🐾": "animales",
-  "🐕": "animales",
-  // Limpieza y residuos
-  "🚮": "limpieza",
-  "🧹": "limpieza",
-  "🗑️": "limpieza",
-  "🧽": "limpieza",
-};
-
-const findCategoryFromEmoji = (text: string): string | undefined => {
-  return Object.entries(EMOJI_CATEGORY_MAP).find(([emoji]) => text.includes(emoji))?.[1];
-};
-
 interface UseChatLogicOptions {
   tipoChat: 'pyme' | 'municipio';
   entityToken?: string;
@@ -991,7 +958,13 @@ export function useChatLogic({
 
     const emojiFallback =
       (typeof actionPayload?.category === 'string' && actionPayload.category.trim()) ||
-      findCategoryFromEmoji(originalText);
+      ({
+        "🌳": "arbolado",
+        "💧": "agua",
+        "🔥": "fuego",
+        "🐶": "animales",
+        "🚮": "limpieza",
+      }[originalText.trim()]);
 
     // Sanitize text by removing emojis to prevent issues with backend services like Google Search.
     const emojiRegex = /([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g;

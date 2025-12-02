@@ -43,40 +43,44 @@ const TicketAssignment: React.FC<TicketAssignmentProps> = ({ className }) => {
   const categoryCandidates = useMemo(() => {
     if (!selectedTicket) return agents;
 
-    const ticketCategoryIds = new Set<number>();
-    if (selectedTicket.categoria_id) {
-      ticketCategoryIds.add(selectedTicket.categoria_id);
-    }
-    if (selectedTicket.categorias) {
-      for (const category of selectedTicket.categorias) {
-        ticketCategoryIds.add(category.id);
-      }
-    }
+    const categoryIds = new Set<number>();
+    const categoryLabels = new Set<string>();
 
-    if (ticketCategoryIds.size === 0) return agents;
+    const collect = (value?: unknown) => {
+      if (value === undefined || value === null) return;
+      const text = String(value).trim();
+      if (!text) return;
+      const parsed = Number(text);
+      if (Number.isFinite(parsed)) {
+        categoryIds.add(parsed);
+      }
+      categoryLabels.add(text.toLowerCase());
+    };
+
+    [
+      selectedTicket.categoria_principal,
+      selectedTicket.categoria_secundaria,
+      selectedTicket.categoria_simple,
+      selectedTicket.categoria,
+      ...(selectedTicket.categories || []),
+    ].forEach(collect);
 
     return agents.filter((agent) => {
-      if (!agent.categoria_ids && !agent.categorias) return true;
-
-      const agentCategoryIds = new Set<number>();
-      if (agent.categoria_ids) {
-        for (const categoryId of agent.categoria_ids) {
-          agentCategoryIds.add(categoryId);
+      const agentCategories = new Set<number>();
+      (agent.categoria_ids || agent.categorias?.map((c) => c.id) || []).forEach((id) => {
+        if (Number.isFinite(id)) {
+          agentCategories.add(Number(id));
         }
-      }
-      if (agent.categorias) {
-        for (const category of agent.categorias) {
-          agentCategoryIds.add(category.id);
-        }
-      }
+      });
 
-      for (const ticketCategoryId of ticketCategoryIds) {
-        if (agentCategoryIds.has(ticketCategoryId)) {
-          return true;
-        }
-      }
+      const categoryNames = (agent.categorias || []).map((c) => c.nombre?.toLowerCase?.()?.trim?.()).filter(Boolean);
 
-      return false;
+      if (agentCategories.size === 0 && categoryNames.length === 0) return true;
+
+      const matchById = Array.from(agentCategories).some((id) => categoryIds.has(id));
+      const matchByName = categoryNames.some((name) => categoryLabels.has(name || ''));
+
+      return matchById || matchByName;
     });
   }, [agents, selectedTicket]);
 
@@ -140,11 +144,7 @@ const TicketAssignment: React.FC<TicketAssignmentProps> = ({ className }) => {
       toast.success(`Ticket asignado a ${resolvedAgent.nombre_usuario}`);
     } catch (err: any) {
       console.error('Error asignando ticket:', err);
-      if (err.status === 405) {
-        toast.error('No se pudo asignar el ticket. El servidor no está configurado para aceptar asignaciones.');
-      } else {
-        toast.error('No se pudo asignar el ticket. Intenta nuevamente.');
-      }
+      toast.error('No se pudo asignar el ticket. Intenta nuevamente.');
     } finally {
       setAssigning(false);
     }

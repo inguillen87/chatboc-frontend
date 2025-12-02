@@ -1,7 +1,6 @@
 // utils/api.ts
 
 import { API_BASE_CANDIDATES, BASE_API_URL, SAME_ORIGIN_PROXY_BASE } from '@/config';
-import { TENANT_ROUTE_PREFIXES } from '@/utils/tenantPaths';
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import getOrCreateChatSessionId from "@/utils/chatSessionId"; // Import the new function
 import { getIframeToken } from "@/utils/config";
@@ -32,145 +31,6 @@ const parseDebugFlag = (value?: string | null): boolean => {
   if (typeof value !== "string") return false;
   const normalized = value.trim().toLowerCase();
   return ["1", "true", "yes", "on"].includes(normalized);
-};
-
-const TENANT_PATH_REGEX = new RegExp(`^/(?:${TENANT_ROUTE_PREFIXES.join("|")})/([^/]+)`, "i");
-const PLACEHOLDER_SLUGS = new Set(["iframe", "embed", "widget", "tenant"]);
-
-const readTenantFromSubdomain = () => {
-  if (typeof window === "undefined") return null;
-  const host = window.location?.hostname || "";
-  if (!host || host === "localhost") return null;
-
-  const [maybeSlug, ...rest] = host.split(".");
-  if (!maybeSlug || rest.length === 0) return null;
-
-  const normalized = maybeSlug.trim().toLowerCase();
-  if (["www", "app", "panel"].includes(normalized)) return null;
-
-  return maybeSlug;
-};
-
-const readTenantFromStoredUser = () => {
-  try {
-    const rawUser = safeLocalStorage.getItem("user");
-    if (!rawUser) return null;
-    const parsed = JSON.parse(rawUser);
-    const candidate =
-      parsed?.tenant_slug || parsed?.tenantSlug || parsed?.tenant || parsed?.endpoint;
-    return typeof candidate === "string" ? candidate : null;
-  } catch (error) {
-    console.warn("[apiFetch] No se pudo leer tenant del usuario almacenado", error);
-    return null;
-  }
-};
-
-const readTenantFromStorageKey = () => {
-  try {
-    const candidate = safeLocalStorage.getItem("tenantSlug");
-    return typeof candidate === "string" ? candidate : null;
-  } catch (error) {
-    console.warn("[apiFetch] No se pudo leer tenantSlug de localStorage", error);
-    return null;
-  }
-};
-
-const sanitizeTenantSlug = (slug?: string | null) => {
-  if (!slug || typeof slug !== "string") return null;
-  const normalized = slug.trim();
-  if (!normalized) return null;
-  return PLACEHOLDER_SLUGS.has(normalized.toLowerCase()) ? null : normalized;
-};
-
-const readTenantFromScriptDataset = () => {
-  if (typeof document === "undefined") return null;
-
-  const scripts = Array.from(
-    document.querySelectorAll<HTMLScriptElement>(
-      "script[data-tenant], script[data-tenant-slug], script[data-tenant_slug], script[data-endpoint]",
-    ),
-  );
-
-  for (const script of scripts) {
-    const candidate =
-      script.dataset.tenant || script.dataset.tenantSlug || script.dataset.tenant_slug || script.dataset.endpoint;
-
-    const normalized = sanitizeTenantSlug(candidate);
-    if (normalized) return normalized;
-  }
-
-  return null;
-};
-
-const inferTenantSlug = (explicitTenant?: string | null): string | null => {
-  const candidate = sanitizeTenantSlug(explicitTenant);
-  if (candidate) return candidate;
-
-  const storedUserTenant = sanitizeTenantSlug(readTenantFromStoredUser());
-  if (storedUserTenant) return storedUserTenant;
-
-  const storedTenantSlug = sanitizeTenantSlug(readTenantFromStorageKey());
-  if (storedTenantSlug) return storedTenantSlug;
-
-  if (typeof window === "undefined") return null;
-
-  const { pathname = "", search = "" } = window.location || {};
-  const match = pathname.match(TENANT_PATH_REGEX);
-  if (match?.[1]) {
-    try {
-      return sanitizeTenantSlug(decodeURIComponent(match[1]));
-    } catch (error) {
-      console.warn("[apiFetch] No se pudo decodificar el slug de la URL", error);
-      return sanitizeTenantSlug(match[1]);
-    }
-  }
-
-  if (search) {
-    try {
-      const params = new URLSearchParams(search);
-      const fromQuery =
-        params.get("tenant") || params.get("tenant_slug") || params.get("endpoint");
-      const normalized = sanitizeTenantSlug(fromQuery);
-      if (normalized) return normalized;
-    } catch (error) {
-      console.warn("[apiFetch] No se pudo leer la query string para tenant", error);
-    }
-  }
-
-  const scriptTenant = readTenantFromScriptDataset();
-  if (scriptTenant) return scriptTenant;
-
-  try {
-    const cfg = (window as any).CHATBOC_CONFIG || {};
-    const fromConfig =
-      cfg.tenant?.toString?.() ||
-      cfg.tenantSlug?.toString?.() ||
-      cfg.tenant_slug?.toString?.() ||
-      cfg.endpoint?.toString?.();
-    const normalized = sanitizeTenantSlug(fromConfig);
-    if (normalized) return normalized;
-  } catch (error) {
-    console.warn("[apiFetch] No se pudo leer CHATBOC_CONFIG para tenant", error);
-  }
-
-  const subdomainTenant = sanitizeTenantSlug(readTenantFromSubdomain());
-  if (subdomainTenant) return subdomainTenant;
-
-  return null;
-};
-
-export const resolveTenantSlug = (explicitTenant?: string | null): string | null => {
-  const resolved = inferTenantSlug(explicitTenant);
-
-  if (resolved) {
-    try {
-      safeLocalStorage.setItem("tenantSlug", resolved);
-    } catch (error) {
-      console.warn("[apiFetch] No se pudo persistir tenantSlug resuelto", error);
-    }
-  }
-
-  return resolved;
 };
 
 const shouldLogVerboseApi = (): boolean => {
@@ -320,7 +180,6 @@ export async function apiFetch<T>(
   })();
 
   const treatAsWidget = isWidgetRequest ?? (isWidgetContext && isLikelyWidgetEnvironment);
-  const resolvedTenantSlug = resolveTenantSlug(tenantSlug);
   const panelToken = safeLocalStorage.getItem("authToken");
   const chatToken = safeLocalStorage.getItem("chatAuthToken");
   let storedRole: string | null = null;
@@ -368,66 +227,11 @@ export async function apiFetch<T>(
   const shouldAttachChatSession = !omitChatSessionId;
   const chatSessionId = shouldAttachChatSession ? getOrCreateChatSessionId() : null; // Get or create the chat session ID
 
-  const appendTenantQueryParams = (rawPath: string, slug: string | null) => {
-    if (!slug) return rawPath;
-
-    try {
-      const isAbsolute = /^https?:\/\//i.test(rawPath);
-      const placeholderBase =
-        typeof window !== "undefined" && window.location?.origin
-          ? window.location.origin
-          : "http://placeholder";
-      const url = isAbsolute
-        ? new URL(rawPath)
-        : new URL(rawPath, placeholderBase);
-      const hasTenantParam = url.searchParams.has("tenant");
-      const hasTenantSlugParam = url.searchParams.has("tenant_slug");
-
-      if (!hasTenantSlugParam) {
-        url.searchParams.set("tenant_slug", slug);
-      }
-
-      if (!hasTenantParam) {
-        url.searchParams.set("tenant", slug);
-      }
-
-      if (isAbsolute) {
-        return url.toString();
-      }
-
-      const normalizedPathname = url.pathname.replace(/^\//, "");
-      return `${normalizedPathname}${url.search}${url.hash}`;
-    } catch (error) {
-      console.warn("[apiFetch] No se pudieron adjuntar query params de tenant", error);
-      return rawPath;
-    }
-  };
-
-  const isAbsolutePath = /^https?:\/\//i.test(path);
-  const normalizedPath = isAbsolutePath ? path : path.replace(/^\/+/, "");
-  const normalizedPathWithTenant = appendTenantQueryParams(
-    normalizedPath,
-    resolvedTenantSlug,
-  );
-
-  const tenantFromQueryParams = (() => {
-    try {
-      const url = new URL(normalizedPathWithTenant, 'http://placeholder');
-      const fromQuery =
-        url.searchParams.get('tenant_slug') ||
-        url.searchParams.get('tenant');
-
-      return sanitizeTenantSlug(fromQuery);
-    } catch {
-      return null;
-    }
-  })();
-
-  const effectiveTenantSlug = resolvedTenantSlug ?? tenantFromQueryParams;
-  const hasApiPrefix = normalizedPathWithTenant.startsWith("api/");
+  const normalizedPath = path.replace(/^\/+/, "");
+  const hasApiPrefix = normalizedPath.startsWith("api/");
   const pathWithoutApiPrefix = hasApiPrefix
-    ? normalizedPathWithTenant.replace(/^api\/+/, "")
-    : normalizedPathWithTenant;
+    ? normalizedPath.replace(/^api\/+/, "")
+    : normalizedPath;
   const preferredBase =
     typeof baseUrlOverride === "string" && baseUrlOverride.trim()
       ? baseUrlOverride.trim()
@@ -437,35 +241,31 @@ export async function apiFetch<T>(
     const cleanBase = (base || "").replace(/\/$/, "");
 
     if (!cleanBase) {
-      return `/${trimApiPrefix ? pathWithoutApiPrefix : normalizedPathWithTenant}`;
+      return `/${trimApiPrefix ? pathWithoutApiPrefix : normalizedPath}`;
     }
 
     const isApiBase = cleanBase.endsWith("/api") || cleanBase === "/api";
     const pathForBase = trimApiPrefix || isApiBase
       ? pathWithoutApiPrefix
-      : normalizedPathWithTenant;
+      : normalizedPath;
 
     return `${cleanBase}/${pathForBase}`;
   };
 
-  const candidateBases = isAbsolutePath
-    ? []
-    : preferredBase
-      ? [preferredBase.replace(/\/$/, "")]
-      : API_BASE_CANDIDATES.length
-        ? API_BASE_CANDIDATES
-        : [BASE_API_URL].filter((value): value is string => !!value);
+  const candidateBases = preferredBase
+    ? [preferredBase.replace(/\/$/, "")]
+    : API_BASE_CANDIDATES.length
+      ? API_BASE_CANDIDATES
+      : [BASE_API_URL].filter((value): value is string => !!value);
 
   const currentOrigin =
     typeof window !== "undefined" && window.location?.origin
       ? window.location.origin.replace(/\/$/, "")
       : "";
   const fallbackUrl =
-    !preferredBase && !isAbsolutePath && !candidateBases.length && !!currentOrigin
-      ? `/${normalizedPathWithTenant}`
-      : "";
+    !preferredBase && !candidateBases.length && !!currentOrigin ? `/${normalizedPath}` : "";
 
-  let url = isAbsolutePath ? normalizedPathWithTenant : buildUrl(candidateBases[0] || "");
+  let url = buildUrl(candidateBases[0] || "");
   const headers: Record<string, string> = options.headers
     ? { ...options.headers }
     : {};
@@ -489,8 +289,8 @@ export async function apiFetch<T>(
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  if (effectiveTenantSlug) {
-    headers["X-Tenant"] = effectiveTenantSlug;
+  if (tenantSlug && typeof tenantSlug === "string" && tenantSlug.trim()) {
+    headers["X-Tenant"] = tenantSlug.trim();
   }
   // Si el endpoint necesita identificar usuario anónimo, mandá siempre el header "Anon-Id"
   if (((!token && anonId) || sendAnonId) && anonId) {
@@ -517,7 +317,7 @@ export async function apiFetch<T>(
       storedRole: normalizedRole,
       headers,
       chatSessionIdAttached: Boolean(chatSessionId),
-      tenantSlug: effectiveTenantSlug || null,
+      tenantSlug: tenantSlug || null,
     });
   }
 
@@ -536,14 +336,6 @@ export async function apiFetch<T>(
 
   let response: Response | null = null;
   let lastError: unknown = null;
-
-  if (isAbsolutePath) {
-    try {
-      response = await fetch(url, requestInit);
-    } catch (err) {
-      lastError = err;
-    }
-  }
 
   for (let baseIndex = 0; baseIndex < candidateBases.length; baseIndex++) {
     const base = candidateBases[baseIndex];

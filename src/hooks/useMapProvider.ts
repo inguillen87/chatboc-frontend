@@ -22,20 +22,9 @@ const readInitialProvider = (fallback: MapProvider): MapProvider => {
   return isValidProvider(stored) ? stored : fallback;
 };
 
-interface MapProviderOptions {
-  preferred?: MapProvider | null;
-}
-
-export function useMapProvider(
-  defaultProvider: MapProvider = "maplibre",
-  options: MapProviderOptions = {},
-) {
-  const preferredProvider = isValidProvider(options.preferred)
-    ? options.preferred
-    : undefined;
-  const initialProvider = preferredProvider ?? defaultProvider;
+export function useMapProvider(defaultProvider: MapProvider = "maplibre") {
   const [provider, setProviderState] = useState<MapProvider>(() =>
-    readInitialProvider(initialProvider),
+    readInitialProvider(defaultProvider),
   );
 
   useEffect(() => {
@@ -67,24 +56,6 @@ export function useMapProvider(
       window.removeEventListener(EVENT_NAME, handleCustomEvent);
     };
   }, []);
-
-  useEffect(() => {
-    if (!preferredProvider) return;
-
-    setProviderState((current) => {
-      if (typeof window === "undefined") {
-        return current;
-      }
-
-      const stored = window.localStorage.getItem(STORAGE_KEY);
-      if (!isValidProvider(stored)) {
-        window.localStorage.setItem(STORAGE_KEY, preferredProvider);
-        return preferredProvider;
-      }
-
-      return current;
-    });
-  }, [preferredProvider]);
 
   const setProvider = useCallback((next: MapProvider) => {
     setProviderState(next);
