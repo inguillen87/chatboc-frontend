@@ -49,6 +49,11 @@ export default function ProductCard({ product, onAdd, isAdding }: ProductCardPro
             </Badge>
           ) : null}
         </div>
+        {product.category ? (
+          <Badge variant="secondary" className="w-fit text-xs font-medium">
+            {product.category}
+          </Badge>
+        ) : null}
         {product.descriptionShort ? (
           <p className="line-clamp-2 text-sm text-muted-foreground">{product.descriptionShort}</p>
         ) : product.description ? (

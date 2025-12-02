@@ -19,6 +19,13 @@ export interface MarketProduct {
   whatsappShareUrl?: string | null;
 }
 
+export interface MarketCatalogSection {
+  title: string;
+  description?: string | null;
+  badge?: string | null;
+  items?: MarketProduct[] | null;
+}
+
 export interface MarketCatalogResponse {
   tenantName?: string;
   tenantLogoUrl?: string;
@@ -27,6 +34,9 @@ export interface MarketCatalogResponse {
   whatsappShareUrl?: string | null;
   isDemo?: boolean;
   demoReason?: string;
+  heroImageUrl?: string | null;
+  heroSubtitle?: string | null;
+  sections?: MarketCatalogSection[];
 }
 
 export interface MarketCartItem {
@@ -38,6 +48,7 @@ export interface MarketCartItem {
   imageUrl?: string | null;
   priceText?: string | null;
   currency?: string | null;
+  modality?: string | null;
 }
 
 export interface MarketCartResponse {
