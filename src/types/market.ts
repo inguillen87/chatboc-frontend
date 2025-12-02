@@ -6,9 +6,6 @@ export interface MarketProduct {
   rating?: number | null;
   ratingCount?: number | null;
   price?: number | null;
-  priceText?: string | null;
-  currency?: string | null;
-  modality?: string | null;
   points?: number | null;
   imageUrl?: string | null;
   category?: string | null;
@@ -58,9 +55,8 @@ export interface MarketCartResponse {
   items: MarketCartItem[];
   totalAmount?: number | null;
   totalPoints?: number | null;
-  cartUrl?: string | null;
-  whatsappShareUrl?: string | null;
-  isDemo?: boolean;
+  availableAmount?: number | null;
+  availablePoints?: number | null;
 }
 
 export interface AddToCartPayload {

@@ -12,9 +12,9 @@ interface ProductCardProps {
   isAdding?: boolean;
 }
 
-const formatPrice = (value?: number | null, currency = 'ARS'): string => {
+const formatPrice = (value?: number | null): string => {
   if (typeof value !== 'number' || Number.isNaN(value)) return '';
-  return formatCurrency(value, currency);
+  return formatCurrency(value, 'ARS');
 };
 
 export default function ProductCard({ product, onAdd, isAdding }: ProductCardProps) {
@@ -75,7 +75,9 @@ export default function ProductCard({ product, onAdd, isAdding }: ProductCardPro
       </CardHeader>
 
       <CardContent className="flex flex-wrap items-center gap-3 pb-4">
-        {displayPrice ? <div className="text-xl font-bold text-primary">{displayPrice}</div> : null}
+        {product.price !== null && product.price !== undefined ? (
+          <div className="text-xl font-bold text-primary">{formatPrice(product.price)}</div>
+        ) : null}
         {product.points ? (
           <Badge variant="secondary" className="text-sm font-medium">
             {product.points} pts
@@ -92,42 +94,19 @@ export default function ProductCard({ product, onAdd, isAdding }: ProductCardPro
         ) : null}
       </CardContent>
 
-      <CardFooter className="mt-auto flex flex-col gap-2 border-t bg-card/50 p-4">
-        <div className="grid w-full grid-cols-2 gap-2">
-          <Button
-            className="w-full"
-            onClick={() => onAdd(product.id)}
-            disabled={isAdding}
-          >
-            <ShoppingBag className="mr-2 h-4 w-4" />
-            {isAdding ? 'Agregando…' : 'Agregar'}
-          </Button>
-          <Button
-            className="w-full"
-            variant="outline"
-            size="default"
-            onClick={() => {
-              if (product.whatsappShareUrl) {
-                window.open(product.whatsappShareUrl, '_blank', 'noopener,noreferrer');
-                return;
-              }
-              if (product.publicUrl) {
-                window.open(product.publicUrl, '_blank', 'noopener,noreferrer');
-              }
-            }}
-            disabled={!product.publicUrl && !product.whatsappShareUrl}
-          >
-            <Share2 className="mr-2 h-4 w-4" /> Compartir
-          </Button>
-        </div>
-        {product.publicUrl ? (
-          <Button asChild variant="ghost" className="h-9 justify-start px-2 text-xs text-muted-foreground">
-            <a href={product.publicUrl} target="_blank" rel="noreferrer">
-              <ExternalLink className="mr-2 h-3.5 w-3.5" /> Ver detalle público
-            </a>
-          </Button>
-        ) : null}
-      </CardFooter>
-    </Card>
+        <CardFooter className="mt-auto border-t bg-card/50 p-4">
+          <motion.div whileTap={{ scale: 0.98 }} className="w-full">
+            <Button
+              className="w-full"
+              onClick={() => onAdd(product.id)}
+              disabled={isAdding}
+            >
+              <ShoppingBag className="mr-2 h-4 w-4" />
+              {isAdding ? 'Agregando…' : 'Agregar al carrito'}
+            </Button>
+          </motion.div>
+        </CardFooter>
+      </Card>
+    </motion.div>
   );
 }
