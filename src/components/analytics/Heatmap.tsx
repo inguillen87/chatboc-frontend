@@ -72,6 +72,11 @@ export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({
     return typeof key === 'string' && key.trim().length > 0 ? key.trim() : undefined;
   }, [mapConfig]);
 
+  const googleProviderAvailable = useMemo(
+    () => ((googleMapsKey ?? import.meta.env.VITE_Maps_API_KEY ?? '').trim().length > 0),
+    [googleMapsKey],
+  );
+
   const mapStyleUrl = useMemo(() => {
     const value = mapConfig?.style_url as string | undefined;
     return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
@@ -462,7 +467,12 @@ export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({
           <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Proveedor de mapa
           </span>
-          <MapProviderToggle value={provider} onChange={setProvider} size="sm" />
+          <MapProviderToggle
+            value={provider}
+            onChange={setProvider}
+            size="sm"
+            googleAvailable={googleProviderAvailable}
+          />
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
