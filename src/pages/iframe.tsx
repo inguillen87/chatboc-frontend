@@ -11,6 +11,7 @@ import { hexToHsl } from "@/utils/color";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { registerExtensionNoiseFilters } from "@/utils/registerExtensionNoiseFilters";
 import { apiFetch } from "@/utils/api";
+import { GOOGLE_CLIENT_ID } from '@/env';
 
 registerExtensionNoiseFilters();
 
@@ -22,13 +23,6 @@ const DEFAULTS = {
   bottom: 20,
   right: 20,
 };
-
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
-if (!GOOGLE_CLIENT_ID) {
-  console.warn(
-    'VITE_GOOGLE_CLIENT_ID is missing. Google OAuth login will fail until this variable is set. See README.md for setup instructions.'
-  );
-}
 
 const Iframe = () => {
   const [widgetParams, setWidgetParams] = useState<any | null>(null);

@@ -17,15 +17,9 @@ import { DateSettingsProvider } from "./hooks/useDateSettings";
 import { UserProvider } from "./hooks/useUser";
 import useTicketUpdates from "./hooks/useTicketUpdates";
 import { TenantProvider } from "./context/TenantContext";
+import { GOOGLE_CLIENT_ID } from './env';
 
 const queryClient = new QueryClient();
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
-if (!GOOGLE_CLIENT_ID) {
-  console.warn(
-    'VITE_GOOGLE_CLIENT_ID is missing. Google OAuth login will fail until this variable is set. See README.md for setup instructions.'
-  );
-}
-
 function AppRoutes() {
   const location = useLocation();
   useTicketUpdates();
