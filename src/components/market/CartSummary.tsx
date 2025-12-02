@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -10,28 +11,21 @@ interface CartSummaryProps {
   items: MarketCartItem[];
   totalAmount?: number | null;
   totalPoints?: number | null;
+  availableAmount?: number | null;
+  availablePoints?: number | null;
   onCheckout: () => void;
   isSubmitting?: boolean;
-  onRemoveItem?: (productId: string) => void;
-  onClearCart?: () => void;
-  isUpdating?: boolean;
 }
 
 export default function CartSummary({
   items,
   totalAmount,
   totalPoints,
+  availableAmount,
+  availablePoints,
   onCheckout,
   isSubmitting,
-  onRemoveItem,
-  onClearCart,
-  isUpdating,
 }: CartSummaryProps) {
-  const currency = useMemo(() => {
-    const fromItem = items.find((item) => typeof item.currency === 'string' && item.currency.trim());
-    return (fromItem?.currency ?? 'ARS').toUpperCase();
-  }, [items]);
-
   const derivedTotals = useMemo(() => {
     const amount =
       totalAmount ??
@@ -44,15 +38,21 @@ export default function CartSummary({
   }, [items, totalAmount, totalPoints]);
 
   const itemCount = items.reduce((acc, item) => acc + item.quantity, 0);
+  const remainingAmount =
+    typeof availableAmount === 'number' && Number.isFinite(availableAmount)
+      ? Math.max(availableAmount - derivedTotals.amount, 0)
+      : null;
+  const remainingPoints =
+    typeof availablePoints === 'number' && Number.isFinite(availablePoints)
+      ? Math.max(availablePoints - derivedTotals.points, 0)
+      : null;
+  const hasMoneyBalance = availableAmount !== undefined && availableAmount !== null;
+  const hasPointsBalance = availablePoints !== undefined && availablePoints !== null;
 
-  const formatItemPrice = (item: MarketCartItem) => {
-    if (item.priceText) return item.priceText;
-    if (typeof item.price === 'number') {
-      const amount = item.price * item.quantity;
-      return formatCurrency(amount, item.currency ?? currency);
-    }
-    if (typeof item.points === 'number') return `${item.points * item.quantity} pts`;
-    return 'Consultar';
+  const progressWidth = (current: number | null, total: number | null) => {
+    if (current === null || total === null || total <= 0) return '0%';
+    const pct = Math.max(0, Math.min(100, (current / Math.max(current, total)) * 100));
+    return `${pct}%`;
   };
 
   return (
@@ -60,7 +60,17 @@ export default function CartSummary({
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
         <div>
           <p className="text-sm text-muted-foreground">Resumen del carrito</p>
-          <CardTitle className="text-2xl">{itemCount} ítem(s)</CardTitle>
+          <AnimatePresence mode="popLayout" initial={false}>
+            <motion.div
+              key={itemCount}
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 220, damping: 18 }}
+            >
+              <CardTitle className="text-2xl">{itemCount} ítem(s)</CardTitle>
+            </motion.div>
+          </AnimatePresence>
         </div>
         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
           <ShoppingCart className="h-5 w-5" />
@@ -68,68 +78,94 @@ export default function CartSummary({
       </CardHeader>
 
       <CardContent className="space-y-3 text-sm">
-        {items.length ? (
-          <div className="space-y-2">
-            {items.map((item) => (
-              <div key={item.id} className="flex items-start justify-between gap-3 rounded-lg border bg-muted/40 p-3">
-                <div className="space-y-1">
-                  <p className="font-medium leading-snug">{item.name}</p>
-                  <p className="text-xs text-muted-foreground">Cantidad: {item.quantity}</p>
-                  <div className="flex flex-wrap gap-2 text-[11px] uppercase text-muted-foreground">
-                    {item.modality ? <span className="font-semibold">{item.modality}</span> : null}
-                    {item.points ? <span>{item.points} pts</span> : null}
-                  </div>
-                </div>
-                <div className="flex flex-col items-end gap-2 text-right">
-                  <span className="text-sm font-semibold text-foreground">{formatItemPrice(item)}</span>
-                  {onRemoveItem ? (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-8 px-2 text-xs"
-                      onClick={() => onRemoveItem(item.id)}
-                      disabled={isUpdating}
-                    >
-                      Quitar
-                    </Button>
-                  ) : null}
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">Tu carrito está vacío.</p>
-        )}
-
         <div className="flex items-center justify-between">
           <span className="text-muted-foreground">Total</span>
-          <span className="text-lg font-semibold">{formatCurrency(derivedTotals.amount, currency)}</span>
+          <AnimatePresence mode="popLayout" initial={false}>
+            <motion.span
+              key={derivedTotals.amount}
+              className="text-lg font-semibold"
+              initial={{ y: 6, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: -6, opacity: 0 }}
+              transition={{ duration: 0.18 }}
+            >
+              {formatCurrency(derivedTotals.amount, 'ARS')}
+            </motion.span>
+          </AnimatePresence>
         </div>
         <div className="flex items-center justify-between">
           <span className="text-muted-foreground">Puntos</span>
-          <span className="font-medium">{derivedTotals.points}</span>
+          <AnimatePresence mode="popLayout" initial={false}>
+            <motion.span
+              key={derivedTotals.points}
+              className="font-medium"
+              initial={{ y: 6, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: -6, opacity: 0 }}
+              transition={{ duration: 0.18 }}
+            >
+              {derivedTotals.points}
+            </motion.span>
+          </AnimatePresence>
         </div>
+
+        {(hasMoneyBalance || hasPointsBalance) && (
+          <div className="mt-4 space-y-3 rounded-md bg-muted/50 p-3 text-xs">
+            {hasMoneyBalance ? (
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span>Saldo en dinero</span>
+                  <span className="font-medium text-foreground">
+                    {formatCurrency(Math.max(availableAmount, 0), 'ARS')}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-foreground">
+                  <span>Disponible luego del carrito</span>
+                  <span className="font-semibold">{formatCurrency(remainingAmount ?? 0, 'ARS')}</span>
+                </div>
+                <div className="h-2 w-full rounded-full bg-muted">
+                  <motion.div
+                    className="h-2 rounded-full bg-primary"
+                    initial={{ width: 0 }}
+                    animate={{ width: progressWidth(remainingAmount, availableAmount) }}
+                    transition={{ duration: 0.35, ease: 'easeOut' }}
+                  />
+                </div>
+              </div>
+            ) : null}
+
+            {hasPointsBalance ? (
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span>Saldo en puntos</span>
+                  <span className="font-medium text-foreground">{availablePoints}</span>
+                </div>
+                <div className="flex items-center justify-between text-foreground">
+                  <span>Disponible luego del carrito</span>
+                  <span className="font-semibold">{remainingPoints ?? availablePoints}</span>
+                </div>
+                <div className="h-2 w-full rounded-full bg-muted">
+                  <motion.div
+                    className="h-2 rounded-full bg-primary/70"
+                    initial={{ width: 0 }}
+                    animate={{ width: progressWidth(remainingPoints, availablePoints) }}
+                    transition={{ duration: 0.35, ease: 'easeOut' }}
+                  />
+                </div>
+              </div>
+            ) : null}
+          </div>
+        )}
       </CardContent>
 
       <Separator />
 
       <CardFooter className="flex flex-col gap-3">
-        {onClearCart && items.length ? (
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full"
-            onClick={onClearCart}
-            disabled={isUpdating}
-          >
-            Vaciar carrito
-          </Button>
-        ) : null}
         <Button className="w-full" size="lg" onClick={onCheckout} disabled={!items.length || isSubmitting}>
-          {isSubmitting ? 'Procesando...' : 'Finalizar pedido'}
+          {isSubmitting ? 'Procesando...' : 'Ir a checkout'}
         </Button>
         <p className="text-center text-xs text-muted-foreground">
-          Confirma tu pedido y coordinaremos el detalle con el comercio.
+          Tu pedido se confirma en un paso. Te contactaremos con el detalle.
         </p>
       </CardFooter>
     </Card>

@@ -477,12 +477,26 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
   const openCart = useCallback(
     (target: "cart" | "catalog" | "market" = "cart") => {
       const storedTenant = sanitizeTenantSlug(safeLocalStorage.getItem("tenantSlug"));
-      const slug = sanitizeTenantSlug(resolvedTenantSlug ?? storedTenant);
+      const slug = resolvedTenantSlug ?? storedTenant;
 
       if (!slug) {
         toast.error("No hay un tenant configurado para el carrito.");
         return;
       }
+
+      if (target === "market" || target === "catalog") {
+        const destination = buildMarketCartUrl(slug, tenant?.public_base_url ?? null);
+        if (!destination) {
+          toast.error("No pudimos abrir el catálogo público.");
+          return;
+        }
+        window.open(destination, "_blank");
+        return;
+      }
+
+      const basePath = "/cart";
+
+      const preferredUrl = tenant?.public_cart_url ?? user?.publicCartUrl ?? null;
 
       const authToken = authTokenState ?? safeLocalStorage.getItem("authToken") ?? safeLocalStorage.getItem("chatAuthToken");
       const requiresAuth = target === "cart" || requireCatalogAuth;
@@ -523,7 +537,6 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
     [
       authTokenState,
       buildMarketCartUrl,
-      requireCatalogAuth,
       resolvedTenantSlug,
       tenant,
       user,

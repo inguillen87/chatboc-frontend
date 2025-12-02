@@ -147,7 +147,7 @@ const routes: RouteConfig[] = [
   { path: '/productos', element: <ProductCatalog /> },
   ...withTenantPrefixes('/:tenant/productos', { element: <ProductCatalog /> }),
   { path: '/cart', element: <CartPage /> },
-  ...withTenantPrefixesExcept('/:tenant/cart', { element: <CartPage /> }, ['market']),
+  ...withTenantPrefixes('/:tenant/cart', { element: <CartPage /> }),
   { path: '/market/:tenantSlug/cart', element: <MarketCartPage /> },
   { path: '/checkout-productos', element: <ProductCheckoutPage /> },
   ...withTenantPrefixes('/:tenant/checkout-productos', { element: <ProductCheckoutPage /> }),
