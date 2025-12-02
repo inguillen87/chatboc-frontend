@@ -17,7 +17,7 @@ interface RubroSelectorProps {
 
 const RubroSelector: React.FC<RubroSelectorProps> = ({ rubros, onSelect }) => {
   return (
-    <div className="max-h-[60vh] overflow-y-auto pr-1">
+    <div className="h-full min-h-0 overflow-y-auto pr-1">
       <Accordion type="multiple" className="w-full space-y-1">
         {rubros.map((rubro) => (
           <AccordionItem key={rubro.id} value={String(rubro.id)}>

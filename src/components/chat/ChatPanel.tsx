@@ -505,7 +505,12 @@ const ChatPanel = ({
 
   if (showRubroSelector) {
     return (
-      <div className={cn("chat-root flex flex-col w-full h-full bg-card text-card-foreground overflow-hidden relative", isMobile ? undefined : "rounded-[inherit]")}>
+      <div
+        className={cn(
+          "chat-root flex h-full w-full flex-col bg-card text-card-foreground overflow-hidden relative",
+          isMobile ? undefined : "rounded-[inherit]",
+        )}
+      >
         <ChatHeader
           onClose={onClose}
           onProfile={onOpenUserPanel}
@@ -519,8 +524,8 @@ const ChatPanel = ({
           logoAnimation={logoAnimation}
           onA11yChange={onA11yChange}
         />
-        <div className="flex-1 flex items-center justify-center p-4">
-          <div className="w-full max-w-sm rounded-2xl border border-border bg-background/90 p-6 text-center shadow-lg max-h-[70vh] overflow-y-auto space-y-4">
+        <div className="flex-1 overflow-hidden px-4 pb-4">
+          <div className="mx-auto flex h-full max-h-[calc(100vh-160px)] w-full max-w-sm flex-col rounded-2xl border border-border bg-background/90 p-6 text-center shadow-lg">
             <img
               src="/chatboc_logo_clean_transparent.png"
               alt="Chatboc"
@@ -545,7 +550,9 @@ const ChatPanel = ({
                 </Button>
               </div>
             ) : rubros.length > 0 ? (
-              <RubroSelector rubros={rubros} onSelect={handleRubroSelection} />
+              <div className="min-h-0 flex-1 overflow-hidden pt-2">
+                <RubroSelector rubros={rubros} onSelect={handleRubroSelection} />
+              </div>
             ) : (
               <p className="text-sm text-muted-foreground">No hay rubros disponibles por el momento.</p>
             )}

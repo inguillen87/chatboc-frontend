@@ -144,9 +144,13 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
   const [isProfileLoading, setProfileLoading] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [requireCatalogAuth, setRequireCatalogAuth] = useState(false);
-  const [duplicateInstance, setDuplicateInstance] = useState(() => {
+  const [duplicateInstance] = useState(() => {
     if (typeof window === "undefined") return false;
-    return Boolean((window as any).__chatbocWidgetMounted);
+    if ((window as any).__chatbocWidgetMounted) {
+      return true;
+    }
+    (window as any).__chatbocWidgetMounted = true;
+    return false;
   });
 
   const [isMobileView, setIsMobileView] = useState(
@@ -154,14 +158,24 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
   );
 
   const { tenant, currentSlug } = useTenant();
+  const storedTenantSlug = useMemo(
+    () => sanitizeTenantSlug(safeLocalStorage.getItem("tenantSlug")),
+    [],
+  );
 
   const isEmbedded = mode !== "standalone";
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (duplicateInstance) return;
+    const globalAny = window as any;
+    if (typeof globalAny._t !== "function") {
+      globalAny._t = (value: any) => value;
+    }
+  }, []);
 
-    (window as any).__chatbocWidgetMounted = true;
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (duplicateInstance) return;
 
     return () => {
       if ((window as any).__chatbocWidgetMounted) {
@@ -279,6 +293,7 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
       tenantSlugFromLocation,
       tenantSlugFromScripts,
       tenantSlugFromSubdomain,
+      storedTenantSlug,
       currentSlug,
       tenant?.slug,
     ];
@@ -292,6 +307,7 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
   }, [
     currentSlug,
     tenant?.slug,
+    storedTenantSlug,
     tenantSlugFromEntity,
     tenantSlugFromLocation,
     tenantSlugFromScripts,
