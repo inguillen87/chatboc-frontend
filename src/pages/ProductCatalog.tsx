@@ -17,7 +17,7 @@ import { getDemoLoyaltySummary } from '@/utils/demoLoyalty';
 import usePointsBalance from '@/hooks/usePointsBalance';
 import UploadOrderFromFile from '@/components/cart/UploadOrderFromFile';
 import { useUser } from '@/hooks/useUser';
-import { buildTenantPath } from '@/utils/tenantPaths';
+import { buildTenantApiPath, buildTenantPath } from '@/utils/tenantPaths';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
@@ -52,6 +52,14 @@ export default function ProductCatalog() {
   const loginPath = buildTenantPath('/login', effectiveTenantSlug);
   const registerPath = buildTenantPath('/register', effectiveTenantSlug);
   const numberFormatter = useMemo(() => new Intl.NumberFormat('es-AR'), []);
+  const productsApiPath = useMemo(
+    () => buildTenantApiPath('/productos', effectiveTenantSlug),
+    [effectiveTenantSlug],
+  );
+  const cartApiPath = useMemo(
+    () => buildTenantApiPath('/carrito', effectiveTenantSlug),
+    [effectiveTenantSlug],
+  );
   const shouldShowDemoLoyalty = catalogSource === 'fallback' || cartMode === 'local';
   const shouldShowLiveLoyalty = !shouldShowDemoLoyalty && !!user;
 
@@ -121,7 +129,14 @@ export default function ProductCatalog() {
   useEffect(() => {
     setLoading(true);
     setError(null);
-    apiFetch<unknown>('/productos', sharedRequestOptions)
+    if (!effectiveTenantSlug) {
+      activateDemoCatalog();
+      setError('Selecciona un municipio o inicia sesión para ver el catálogo.');
+      setLoading(false);
+      return;
+    }
+
+    apiFetch<unknown>(productsApiPath, sharedRequestOptions)
       .then((data) => {
         const normalized = normalizeProductsPayload(data, 'ProductCatalog').map((item) =>
           enhanceProductDetails({ ...item, origen: 'api' as const }),
@@ -145,7 +160,7 @@ export default function ProductCatalog() {
         setError(getErrorMessage(err, 'No se pudieron cargar los productos. Intenta de nuevo más tarde.'));
       })
       .finally(() => setLoading(false));
-  }, [sharedRequestOptions]);
+  }, [effectiveTenantSlug, productsApiPath, sharedRequestOptions]);
 
   useEffect(() => {
     const lowercasedFilter = searchTerm.toLowerCase();
@@ -244,7 +259,7 @@ export default function ProductCatalog() {
 
       // El backend actual espera 'nombre' y 'cantidad'.
       // Si los nombres no son únicos, esto debería cambiar a product.id o product.sku
-      await apiFetch('/carrito', {
+      await apiFetch(cartApiPath, {
         ...sharedRequestOptions,
         method: 'POST',
         body: payload,
