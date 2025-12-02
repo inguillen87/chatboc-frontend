@@ -477,21 +477,10 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
   const openCart = useCallback(
     (target: "cart" | "catalog" | "market" = "cart") => {
       const storedTenant = sanitizeTenantSlug(safeLocalStorage.getItem("tenantSlug"));
-      const slug = sanitizeTenantSlug(resolvedTenantSlug ?? storedTenant);
+      const slug = resolvedTenantSlug ?? storedTenant;
 
       if (!slug) {
         toast.error("No hay un tenant configurado para el carrito.");
-        return;
-      }
-
-      const authToken = authTokenState ?? safeLocalStorage.getItem("authToken") ?? safeLocalStorage.getItem("chatAuthToken");
-      const requiresAuth = target === "cart" || requireCatalogAuth;
-      const hasSession = Boolean(authToken && user);
-
-      if (requiresAuth && !hasSession) {
-        setPendingRedirect(target === "market" ? "market" : "cart");
-        setView("login");
-        setIsOpen(true);
         return;
       }
 
@@ -506,7 +495,19 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
       }
 
       const basePath = "/cart";
+
       const preferredUrl = tenant?.public_cart_url ?? user?.publicCartUrl ?? null;
+
+      const authToken = authTokenState ?? safeLocalStorage.getItem("authToken") ?? safeLocalStorage.getItem("chatAuthToken");
+      const requiresAuth = target === "cart" || requireCatalogAuth;
+      const hasSession = Boolean(authToken && user);
+
+      if (requiresAuth && !hasSession) {
+        setPendingRedirect(target === "market" ? "market" : "cart");
+        setView("login");
+        setIsOpen(true);
+        return;
+      }
 
       const destination = preferredUrl
         ? preferredUrl
@@ -523,7 +524,6 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
     [
       authTokenState,
       buildMarketCartUrl,
-      requireCatalogAuth,
       resolvedTenantSlug,
       tenant,
       user,
