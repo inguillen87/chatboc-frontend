@@ -22,11 +22,12 @@ import { getDemoLoyaltySummary } from '@/utils/demoLoyalty';
 import usePointsBalance from '@/hooks/usePointsBalance';
 import UploadOrderFromFile from '@/components/cart/UploadOrderFromFile';
 import { useUser } from '@/hooks/useUser';
-import { buildTenantPath } from '@/utils/tenantPaths';
+import { buildTenantApiPath, buildTenantPath } from '@/utils/tenantPaths';
 import { Badge } from '@/components/ui/badge';
 import GuestContactDialog, { GuestContactValues } from '@/components/cart/GuestContactDialog';
 import { loadGuestContact, saveGuestContact } from '@/utils/guestContact';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 // Interfaz para el producto en el carrito, extendiendo ProductDetails y añadiendo cantidad
 interface CartItem extends ProductDetails {
@@ -45,12 +46,12 @@ export default function CartPage() {
   const { currentSlug, isLoadingTenant } = useTenant();
   const { user } = useUser();
   const effectiveTenantSlug = useMemo(
-    () => currentSlug ?? user?.tenantSlug ?? null,
+    () => currentSlug ?? user?.tenantSlug ?? safeLocalStorage.getItem('tenantSlug') ?? null,
     [currentSlug, user?.tenantSlug],
   );
   const { points: pointsBalance, isLoading: isLoadingPoints, requiresAuth: pointsRequireAuth } = usePointsBalance({
     enabled: !!user,
-    tenantSlug: currentSlug,
+    tenantSlug: effectiveTenantSlug,
   });
   const [showGuestDialog, setShowGuestDialog] = useState(false);
   const [showPointsAuthPrompt, setShowPointsAuthPrompt] = useState(false);
@@ -60,6 +61,14 @@ export default function CartPage() {
   const cartCheckoutPath = buildTenantPath('/checkout-productos', effectiveTenantSlug);
   const loginPath = buildTenantPath('/login', effectiveTenantSlug);
   const registerPath = buildTenantPath('/register', effectiveTenantSlug);
+  const productsApiPath = useMemo(
+    () => buildTenantApiPath('/productos', effectiveTenantSlug),
+    [effectiveTenantSlug],
+  );
+  const cartApiPath = useMemo(
+    () => buildTenantApiPath('/carrito', effectiveTenantSlug),
+    [effectiveTenantSlug],
+  );
 
   const sharedRequestOptions = useMemo(
     () => ({
@@ -111,8 +120,8 @@ export default function CartPage() {
 
     try {
       const [cartApiData, productsApiData] = await Promise.all([
-        apiFetch<unknown>('/carrito', sharedRequestOptions),
-        apiFetch<unknown>('/productos', sharedRequestOptions),
+        apiFetch<unknown>(cartApiPath, sharedRequestOptions),
+        apiFetch<unknown>(productsApiPath, sharedRequestOptions),
       ]);
 
       const normalizedProducts = normalizeProductsPayload(productsApiData, 'CartPage');
@@ -172,7 +181,7 @@ export default function CartPage() {
     } finally {
       setLoading(false);
     }
-  }, [cartMode, effectiveTenantSlug, refreshLocalCart, sharedRequestOptions]);
+  }, [cartApiPath, cartMode, effectiveTenantSlug, productsApiPath, refreshLocalCart, sharedRequestOptions]);
 
   useEffect(() => {
     if (!isLoadingTenant) {
@@ -206,9 +215,13 @@ export default function CartPage() {
       }
 
       if (newQuantity <= 0) {
-        await apiFetch('/carrito', { ...sharedRequestOptions, method: 'DELETE', body: { nombre: productName } });
+        await apiFetch(cartApiPath, { ...sharedRequestOptions, method: 'DELETE', body: { nombre: productName } });
       } else {
-        await apiFetch('/carrito', { ...sharedRequestOptions, method: 'PUT', body: { nombre: productName, cantidad: newQuantity } });
+        await apiFetch(cartApiPath, {
+          ...sharedRequestOptions,
+          method: 'PUT',
+          body: { nombre: productName, cantidad: newQuantity },
+        });
       }
       // No es necesario llamar a loadCartData() aquí si el backend confirma la acción,
       // la UI ya está actualizada optimisticamente. Si se quiere re-sincronizar:
@@ -561,7 +574,7 @@ export default function CartPage() {
         onClose={() => setShowGuestDialog(false)}
         defaultValues={loadGuestContact()}
         reason="checkout"
-        onLogin={() => navigate('/login')}
+        onLogin={() => navigate(loginPath)}
         onSubmit={handleGuestContactSubmit}
       />
     </div>

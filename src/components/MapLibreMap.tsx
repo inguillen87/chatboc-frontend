@@ -16,6 +16,9 @@ type Props = {
   marker?: [number, number];
   className?: string;
   provider?: MapProvider;
+  mapStyleUrl?: string | null;
+  maptilerKey?: string | null;
+  googleMapsKey?: string | null;
   adminLocation?: [number, number];
   fitToBounds?: [number, number][];
   boundsPadding?: number | { top?: number; bottom?: number; left?: number; right?: number };
@@ -143,6 +146,9 @@ export default function MapLibreMap({
   marker,
   className,
   provider = "maplibre",
+  mapStyleUrl,
+  maptilerKey,
+  googleMapsKey,
   adminLocation,
   fitToBounds,
   boundsPadding,
@@ -209,6 +215,14 @@ export default function MapLibreMap({
     [onProviderUnavailable],
   );
 
+  const resolvedGoogleMapsKey = (googleMapsKey ?? import.meta.env.VITE_Maps_API_KEY ?? "").trim();
+
+  useEffect(() => {
+    if (effectiveProvider === "google" && !resolvedGoogleMapsKey) {
+      handleProviderUnavailable("missing-api-key");
+    }
+  }, [effectiveProvider, handleProviderUnavailable, resolvedGoogleMapsKey]);
+
   if (effectiveProvider === "google") {
     return (
       <GoogleHeatmapMap
@@ -225,20 +239,21 @@ export default function MapLibreMap({
         onBoundingBoxChange={onBoundingBoxChange}
         onProviderUnavailable={handleProviderUnavailable}
         disableClustering={!shouldCluster}
+        googleMapsKey={resolvedGoogleMapsKey}
       />
     );
   }
 
-  const apiKey = import.meta.env.VITE_MAPTILER_KEY;
-  const apiKeyRef = useRef(apiKey);
+  const resolvedMaptilerKey = (maptilerKey ?? import.meta.env.VITE_MAPTILER_KEY ?? "").trim();
+  const apiKeyRef = useRef(resolvedMaptilerKey);
   const centerRef = useRef(center);
   const showHeatmapRef = useRef(showHeatmap);
   const onSelectRef = useRef(onSelect);
   const initialZoomRef = useRef(initialZoom);
 
   useEffect(() => {
-    apiKeyRef.current = apiKey;
-  }, [apiKey]);
+    apiKeyRef.current = resolvedMaptilerKey;
+  }, [resolvedMaptilerKey]);
 
   useEffect(() => {
     centerRef.current = center;
@@ -288,7 +303,9 @@ export default function MapLibreMap({
         if (!isMounted || !mapContainerRef.current) return;
 
         const key = apiKeyRef.current;
+        const customStyle = (mapStyleUrl ?? "").trim();
         const styleCandidates = [
+          customStyle || null,
           key ? `https://api.maptiler.com/maps/streets-v2/style.json?key=${key}` : null,
           "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
           "https://tiles.stadiamaps.com/styles/alidade_smooth.json",
@@ -739,7 +756,7 @@ export default function MapLibreMap({
         adminMarkerRef.current = null;
       }
     };
-  }, [effectiveProvider, provider]);
+  }, [effectiveProvider, mapStyleUrl, provider, resolvedMaptilerKey]);
 
   useEffect(() => {
     const map = mapRef.current;

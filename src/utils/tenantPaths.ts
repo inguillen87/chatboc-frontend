@@ -2,12 +2,27 @@ import { APP_TARGET } from '@/config';
 
 export const TENANT_ROUTE_PREFIXES = ['m', 'market', 't', 'tenant', 'municipio', 'pyme'] as const;
 
+const TENANT_PLACEHOLDER_SLUGS = new Set(['iframe', 'embed', 'widget']);
+
+const isPlaceholderSlug = (slug?: string | null) => {
+  if (!slug) return false;
+  return TENANT_PLACEHOLDER_SLUGS.has(slug.trim().toLowerCase());
+};
+
 const hasTenantPrefix = (path: string) =>
   TENANT_ROUTE_PREFIXES.some((prefix) => path.startsWith(`/${prefix}/`));
 
 const resolveTenantPrefix = () => {
   if (APP_TARGET === 'municipio') return 'municipio';
   if (APP_TARGET === 'pyme') return 'pyme';
+
+  if (typeof window !== 'undefined') {
+    const pathname = window.location?.pathname?.toLowerCase?.() || '';
+    if (pathname.includes('/municipio') || pathname.includes('/municipal')) {
+      return 'municipio';
+    }
+  }
+
   return TENANT_ROUTE_PREFIXES[0];
 };
 
@@ -18,15 +33,30 @@ export const buildTenantPath = (basePath: string, tenantSlug?: string | null) =>
   if (
     normalizedSlug &&
     safeSlug &&
-    !['iframe', 'embed', 'widget'].includes(safeSlug) &&
+    !isPlaceholderSlug(safeSlug) &&
     !hasTenantPrefix(basePath)
   ) {
+    // NOTE: This is a temporary fix to redirect to the new market cart page.
+    if (basePath === '/cart') {
+      return `/market/${encodeURIComponent(normalizedSlug)}/cart`;
+    }
     const normalized = basePath.startsWith('/') ? basePath.slice(1) : basePath;
     const prefix = resolveTenantPrefix();
     return `/${prefix}/${encodeURIComponent(normalizedSlug)}/${normalized}`;
   }
 
   return basePath;
+};
+
+export const buildTenantApiPath = (basePath: string, tenantSlug?: string | null) => {
+  const normalized = basePath.startsWith('/') ? basePath.slice(1) : basePath;
+  const safeSlug = tenantSlug?.trim();
+
+  if (safeSlug && !isPlaceholderSlug(safeSlug)) {
+    return `/api/${encodeURIComponent(safeSlug)}/${normalized}`;
+  }
+
+  return `/api/${normalized}`;
 };
 
 export const buildTenantAwareNavigatePath = (
