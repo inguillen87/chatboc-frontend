@@ -1,9 +1,14 @@
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+import { resolveTenantSlug } from '@/utils/api';
+
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || '';
 
 export function getTenantSlug(): string | null {
   if (typeof window === 'undefined') return null;
+
   const slug = (window as any).currentTenantSlug;
-  return typeof slug === 'string' && slug.trim() ? slug : null;
+  const normalized = typeof slug === 'string' && slug.trim() ? slug.trim() : null;
+
+  return resolveTenantSlug(normalized);
 }
 
 export function getAuthToken(): string | null {
@@ -16,14 +21,20 @@ export function getAuthToken(): string | null {
   }
 }
 
-export async function apiFetch<T = any>(path: string, options: RequestInit = {}): Promise<T> {
-  const tenant = getTenantSlug();
+export async function apiFetch<T = any>(
+  path: string,
+  options: RequestInit & { tenantSlug?: string | null } = {},
+): Promise<T> {
+  const tenant = resolveTenantSlug(options.tenantSlug ?? getTenantSlug());
   const token = getAuthToken();
 
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
     ...(options.headers as Record<string, string> | undefined),
   };
+
+  if (options.body && !(options.body instanceof FormData)) {
+    headers['Content-Type'] = headers['Content-Type'] ?? 'application/json';
+  }
 
   if (tenant) headers['X-Tenant'] = tenant;
   if (token) headers['Authorization'] = `Bearer ${token}`;
