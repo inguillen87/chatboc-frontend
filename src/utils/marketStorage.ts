@@ -15,6 +15,7 @@ type StoredCartItem = {
   price?: number | null;
   points?: number | null;
   imageUrl?: string | null;
+  currency?: string | null;
 };
 
 export const readStoredCart = (
@@ -38,6 +39,7 @@ export const readStoredCart = (
         price: typeof item?.price === 'number' ? item.price : null,
         points: typeof item?.points === 'number' ? item.points : null,
         imageUrl: typeof item?.imageUrl === 'string' ? item.imageUrl : null,
+        currency: typeof item?.currency === 'string' ? item.currency : null,
       }))
       .filter((item: StoredCartItem) => item.id);
 
@@ -83,6 +85,24 @@ export const addItemToStoredCart = (slug: string, item: StoredCartItem, quantity
   const totalPoints = items.reduce((acc, currentItem) => acc + (currentItem.points ?? 0) * currentItem.quantity, 0);
 
   const payload = { items, totalAmount, totalPoints };
+  persistStoredCart(slug, payload);
+  return payload;
+};
+
+export const removeItemFromStoredCart = (slug: string, productId: string) => {
+  const current = readStoredCart(slug);
+  const items = current.items.filter((item) => item.id !== productId);
+
+  const totalAmount = items.reduce((acc, currentItem) => acc + (currentItem.price ?? 0) * currentItem.quantity, 0);
+  const totalPoints = items.reduce((acc, currentItem) => acc + (currentItem.points ?? 0) * currentItem.quantity, 0);
+
+  const payload = { items, totalAmount, totalPoints };
+  persistStoredCart(slug, payload);
+  return payload;
+};
+
+export const clearStoredCart = (slug: string) => {
+  const payload = { items: [], totalAmount: null, totalPoints: null };
   persistStoredCart(slug, payload);
   return payload;
 };

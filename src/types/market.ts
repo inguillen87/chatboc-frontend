@@ -3,6 +3,8 @@ export interface MarketProduct {
   name: string;
   description?: string | null;
   descriptionShort?: string | null;
+  rating?: number | null;
+  ratingCount?: number | null;
   price?: number | null;
   priceText?: string | null;
   currency?: string | null;
@@ -10,6 +12,7 @@ export interface MarketProduct {
   points?: number | null;
   imageUrl?: string | null;
   category?: string | null;
+  tags?: string[] | null;
   unit?: string | null;
   quantity?: number | null;
   sku?: string | null;
@@ -17,6 +20,13 @@ export interface MarketProduct {
   promoInfo?: string | null;
   publicUrl?: string | null;
   whatsappShareUrl?: string | null;
+}
+
+export interface MarketCatalogSection {
+  title: string;
+  description?: string | null;
+  badge?: string | null;
+  items?: MarketProduct[] | null;
 }
 
 export interface MarketCatalogResponse {
@@ -27,6 +37,9 @@ export interface MarketCatalogResponse {
   whatsappShareUrl?: string | null;
   isDemo?: boolean;
   demoReason?: string;
+  heroImageUrl?: string | null;
+  heroSubtitle?: string | null;
+  sections?: MarketCatalogSection[];
 }
 
 export interface MarketCartItem {
@@ -38,6 +51,7 @@ export interface MarketCartItem {
   imageUrl?: string | null;
   priceText?: string | null;
   currency?: string | null;
+  modality?: string | null;
 }
 
 export interface MarketCartResponse {
