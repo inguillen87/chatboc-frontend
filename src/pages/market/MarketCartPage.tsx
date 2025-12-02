@@ -62,14 +62,6 @@ export default function MarketCartPage() {
     setConfirmation(null);
   }, [tenantSlug, userName, normalizedUserPhone]);
 
-  const shareUrl = useMemo(() => {
-    if (typeof window === 'undefined' || !tenantSlug) return '';
-    const url = new URL(window.location.href);
-    url.pathname = `/market/${tenantSlug}/cart`;
-    url.search = '';
-    return url.toString();
-  }, [tenantSlug]);
-
   const catalogQuery = useQuery({
     queryKey: ['marketCatalog', tenantSlug],
     queryFn: () => fetchMarketCatalog(tenantSlug),
@@ -83,12 +75,25 @@ export default function MarketCartPage() {
     enabled: Boolean(tenantSlug),
   });
 
+  const shareUrl = useMemo(() => {
+    const backendUrl = cartQuery.data?.cartUrl ?? catalogQuery.data?.publicCartUrl;
+    if (backendUrl) return backendUrl;
+
+    if (typeof window === 'undefined' || !tenantSlug) return '';
+    const url = new URL(window.location.href);
+    url.pathname = `/market/${tenantSlug}/cart`;
+    url.search = '';
+    return url.toString();
+  }, [cartQuery.data?.cartUrl, catalogQuery.data?.publicCartUrl, tenantSlug]);
+
   const shareMessage = useMemo(() => {
+    if (catalogQuery.data?.whatsappShareUrl) return catalogQuery.data.whatsappShareUrl;
+    if (cartQuery.data?.whatsappShareUrl) return cartQuery.data.whatsappShareUrl;
     if (!shareUrl) return '';
     const tenantName = catalogQuery.data?.tenantName?.trim();
     const prefix = tenantName ? `Mirá el catálogo de ${tenantName}` : 'Mirá este catálogo';
-    return `${prefix}: ${shareUrl}`;
-  }, [catalogQuery.data?.tenantName, shareUrl]);
+    return `https://wa.me/?text=${encodeURIComponent(`${prefix}: ${shareUrl}`)}`;
+  }, [cartQuery.data?.whatsappShareUrl, catalogQuery.data?.tenantName, catalogQuery.data?.whatsappShareUrl, shareUrl]);
 
   const qrImageUrl = useMemo(() => {
     if (!shareUrl) return '';
@@ -151,7 +156,9 @@ export default function MarketCartPage() {
 
   const handleShareWhatsApp = () => {
     if (!shareMessage) return;
-    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(shareMessage)}`;
+    const whatsappUrl = shareMessage.startsWith('https://wa.me')
+      ? shareMessage
+      : `https://wa.me/?text=${encodeURIComponent(shareMessage)}`;
     window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
   };
 

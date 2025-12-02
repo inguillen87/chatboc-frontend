@@ -51,6 +51,7 @@ const DEFAULT_TENANT_INFO: TenantPublicInfo = {
   public_base_url: null,
   public_cart_url: null,
   public_catalog_url: null,
+  whatsapp_share_url: null,
 };
 
 const DEFAULT_TENANT_CONTEXT: TenantContextValue = {

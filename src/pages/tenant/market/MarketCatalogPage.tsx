@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 
 import ProductCard from '@/components/market/ProductCard';
 import { MarketCartProvider, useMarketCart } from '@/context/MarketCartContext';
-import type { MarketProduct } from '@/types/market';
+import type { MarketCatalogResponse, MarketProduct } from '@/types/market';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { fetchMarketCatalog } from '@/api/market';
@@ -12,39 +12,29 @@ import { toast } from '@/components/ui/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { buildDemoMarketCatalog } from '@/data/marketDemo';
 
-const normalizeProducts = (raw: any): MarketProduct[] => {
-  if (!Array.isArray(raw)) return [];
-  return raw.map((item, index) => {
-    const id = item?.id ?? item?.product_id ?? item?.slug ?? `product-${index}`;
-    return {
-      id: String(id),
-      name: item?.name ?? item?.nombre ?? `Producto ${index + 1}`,
-      description: item?.description ?? item?.descripcion ?? null,
-      price: typeof item?.price === 'number' ? item.price : null,
-      points: typeof item?.points === 'number' ? item.points : null,
-      imageUrl: item?.imageUrl ?? item?.imagen ?? null,
-    };
-  });
-};
-
 function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
   const [products, setProducts] = useState<MarketProduct[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isDemo, setIsDemo] = useState(false);
+  const [shareMeta, setShareMeta] = useState<Pick<MarketCatalogResponse, 'publicCartUrl' | 'whatsappShareUrl'> | null>(
+    null,
+  );
   const { addItem, isLoading: isCartLoading } = useMarketCart();
   const shareUrl = useMemo(() => {
+    if (shareMeta?.publicCartUrl) return shareMeta.publicCartUrl;
     if (typeof window === 'undefined' || !tenantSlug) return '';
     const url = new URL(window.location.href);
     url.pathname = `/market/${tenantSlug}/cart`;
     url.search = '';
     return url.toString();
-  }, [tenantSlug]);
+  }, [shareMeta?.publicCartUrl, tenantSlug]);
   const shareMessage = useMemo(() => {
+    if (shareMeta?.whatsappShareUrl) return shareMeta.whatsappShareUrl;
     if (!shareUrl) return '';
     const prefix = tenantSlug ? `Catálogo de ${tenantSlug}` : 'Catálogo';
-    return `${prefix}: ${shareUrl}`;
-  }, [shareUrl, tenantSlug]);
+    return `https://wa.me/?text=${encodeURIComponent(`${prefix}: ${shareUrl}`)}`;
+  }, [shareMeta?.whatsappShareUrl, shareUrl, tenantSlug]);
 
   useEffect(() => {
     setIsLoading(true);
@@ -52,13 +42,18 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
     setIsDemo(false);
     fetchMarketCatalog(tenantSlug)
       .then((response) => {
-        setProducts(normalizeProducts(response?.products ?? []));
+        setProducts(response?.products ?? []);
         setIsDemo(Boolean(response?.isDemo));
+        setShareMeta({
+          publicCartUrl: response?.publicCartUrl ?? null,
+          whatsappShareUrl: response?.whatsappShareUrl ?? null,
+        });
       })
       .catch((err) => {
         const demo = buildDemoMarketCatalog(tenantSlug).catalog;
-        setProducts(normalizeProducts(demo.products));
+        setProducts(demo.products);
         setIsDemo(true);
+        setShareMeta({ publicCartUrl: null, whatsappShareUrl: null });
         setError(err instanceof Error ? err.message : 'No se pudo cargar el catálogo en vivo. Mostramos una demo.');
       })
       .finally(() => setIsLoading(false));
@@ -95,7 +90,9 @@ function MarketCatalogContent({ tenantSlug }: { tenantSlug: string }) {
           </Button>
           <Button variant="outline" size="sm" onClick={() => {
             if (!shareMessage) return;
-            const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(shareMessage)}`;
+            const whatsappUrl = shareMessage.startsWith('https://wa.me')
+              ? shareMessage
+              : `https://wa.me/?text=${encodeURIComponent(shareMessage)}`;
             window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
           }} disabled={!shareMessage}>
             <MessageCircle className="mr-2 h-4 w-4" /> WhatsApp

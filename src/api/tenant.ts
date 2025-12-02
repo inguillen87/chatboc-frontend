@@ -111,6 +111,10 @@ const normalizeTenantInfo = (
       coerceString(payload.catalog_url) ??
       coerceString(payload.catalogUrl) ??
       null,
+    whatsapp_share_url:
+      coerceString(payload.whatsapp_share_url) ??
+      coerceString(payload.whatsappShareUrl) ??
+      null,
   };
 };
 
