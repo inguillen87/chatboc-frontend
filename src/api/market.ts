@@ -18,7 +18,7 @@ import {
 } from '@/utils/marketStorage';
 
 const baseOptions = (tenantSlug: string) => ({
-  omitCredentials: true,
+  omitCredentials: false,
   sendAnonId: true,
   omitChatSessionId: true,
   isWidgetRequest: true,

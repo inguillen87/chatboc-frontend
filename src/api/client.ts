@@ -40,6 +40,7 @@ export async function apiFetch<T = any>(
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
   const response = await fetch(`${BACKEND_URL}${path}`, {
+    credentials: options.credentials ?? 'include',
     ...options,
     headers,
   });
