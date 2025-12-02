@@ -88,6 +88,9 @@ export interface MapLayerSource {
 
 export interface MapConfig {
   provider?: MapProvider | 'none' | string;
+  google_maps_key?: string;
+  maptiler_key?: string;
+  style_url?: string;
   [key: string]: unknown;
 }
 

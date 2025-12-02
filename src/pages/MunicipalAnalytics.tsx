@@ -1183,6 +1183,8 @@ export default function MunicipalAnalytics() {
           availableBarrios={heatmapBarrios}
           availableTipos={heatmapTipos}
           metadata={heatmapDetails?.metadata?.map?.heatmap}
+          mapConfig={heatmapDetails?.mapConfig}
+          mapLayers={heatmapDetails?.mapLayers}
         />
       ) : (
         <Card className="shadow-lg">

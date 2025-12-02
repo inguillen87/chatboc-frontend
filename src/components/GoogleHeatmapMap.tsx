@@ -19,6 +19,7 @@ type GoogleHeatmapMapProps = {
   onBoundingBoxChange?: (bbox: [number, number, number, number] | null) => void;
   onProviderUnavailable?: (reason: MapProviderUnavailableReason, details?: unknown) => void;
   disableClustering?: boolean;
+  googleMapsKey?: string | null;
 };
 
 declare global {
@@ -117,6 +118,7 @@ export function GoogleHeatmapMap({
   onBoundingBoxChange,
   onProviderUnavailable,
   disableClustering,
+  googleMapsKey,
 }: GoogleHeatmapMapProps) {
   const mapRef = useRef<google.maps.Map | null>(null);
   const unavailableReportedRef = useRef(false);
@@ -173,9 +175,11 @@ export function GoogleHeatmapMap({
     [],
   );
 
+  const resolvedGoogleKey = (googleMapsKey ?? googleMapsApiKey).trim();
+
   const { isLoaded, loadError } = useJsApiLoader({
     id: "chatboc-google-maps",
-    googleMapsApiKey,
+    googleMapsApiKey: resolvedGoogleKey,
     libraries: GOOGLE_LIBRARIES,
     language: "es",
     region: "AR",
@@ -191,6 +195,12 @@ export function GoogleHeatmapMap({
     },
     [onProviderUnavailable],
   );
+
+  useEffect(() => {
+    if (!resolvedGoogleKey) {
+      reportUnavailable("missing-api-key");
+    }
+  }, [reportUnavailable, resolvedGoogleKey]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
