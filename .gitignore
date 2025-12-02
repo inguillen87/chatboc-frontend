@@ -68,6 +68,8 @@ server/analytics/data/seed.json
 
 # Runtime persistence files
 data/
+!src/data/
+!src/data/**
 
 *.njsproj
 *.sln

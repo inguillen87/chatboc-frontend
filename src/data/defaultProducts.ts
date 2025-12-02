@@ -1,0 +1,48 @@
+import { type ProductDetails } from '@/components/product/ProductCard';
+
+export const DEFAULT_PUBLIC_PRODUCTS: ProductDetails[] = [
+  {
+    id: 'demo-1',
+    nombre: 'Kit de inicio',
+    descripcion: 'Productos genéricos para navegar el catálogo de prueba.',
+    precio_unitario: 1999,
+    presentacion: 'Unidad',
+    categoria: 'General',
+    badge: 'Destacado',
+    badge_variant: 'success',
+    origen: 'demo',
+  },
+  {
+    id: 'demo-2',
+    nombre: 'Caja multipropósito',
+    descripcion: 'Incluye varias unidades para simular ventas por caja.',
+    precio_unitario: 4499,
+    precio_por_caja: 24999,
+    unidades_por_caja: 6,
+    presentacion: 'Caja',
+    categoria: 'General',
+    promocion_activa: 'Precio especial por volumen',
+    origen: 'demo',
+  },
+  {
+    id: 'demo-3',
+    nombre: 'Beneficio con puntos',
+    descripcion: 'Ejemplo de canje para flujos de fidelización.',
+    precio_unitario: 0,
+    precio_puntos: 1800,
+    presentacion: 'Digital',
+    categoria: 'Beneficios',
+    modalidad: 'puntos',
+    origen: 'demo',
+  },
+  {
+    id: 'demo-4',
+    nombre: 'Aporte solidario',
+    descripcion: 'Simula una opción de donación en el catálogo.',
+    precio_unitario: 0,
+    presentacion: 'Unidad',
+    categoria: 'Impacto',
+    modalidad: 'donacion',
+    origen: 'demo',
+  },
+];
