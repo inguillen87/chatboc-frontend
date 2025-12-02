@@ -12,6 +12,9 @@ interface CartSummaryProps {
   totalPoints?: number | null;
   onCheckout: () => void;
   isSubmitting?: boolean;
+  onRemoveItem?: (productId: string) => void;
+  onClearCart?: () => void;
+  isUpdating?: boolean;
 }
 
 export default function CartSummary({
@@ -20,6 +23,9 @@ export default function CartSummary({
   totalPoints,
   onCheckout,
   isSubmitting,
+  onRemoveItem,
+  onClearCart,
+  isUpdating,
 }: CartSummaryProps) {
   const currency = useMemo(() => {
     const fromItem = items.find((item) => typeof item.currency === 'string' && item.currency.trim());
@@ -39,6 +45,16 @@ export default function CartSummary({
 
   const itemCount = items.reduce((acc, item) => acc + item.quantity, 0);
 
+  const formatItemPrice = (item: MarketCartItem) => {
+    if (item.priceText) return item.priceText;
+    if (typeof item.price === 'number') {
+      const amount = item.price * item.quantity;
+      return formatCurrency(amount, item.currency ?? currency);
+    }
+    if (typeof item.points === 'number') return `${item.points * item.quantity} pts`;
+    return 'Consultar';
+  };
+
   return (
     <Card className="shadow-sm">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
@@ -52,6 +68,39 @@ export default function CartSummary({
       </CardHeader>
 
       <CardContent className="space-y-3 text-sm">
+        {items.length ? (
+          <div className="space-y-2">
+            {items.map((item) => (
+              <div key={item.id} className="flex items-start justify-between gap-3 rounded-lg border bg-muted/40 p-3">
+                <div className="space-y-1">
+                  <p className="font-medium leading-snug">{item.name}</p>
+                  <p className="text-xs text-muted-foreground">Cantidad: {item.quantity}</p>
+                  <div className="flex flex-wrap gap-2 text-[11px] uppercase text-muted-foreground">
+                    {item.modality ? <span className="font-semibold">{item.modality}</span> : null}
+                    {item.points ? <span>{item.points} pts</span> : null}
+                  </div>
+                </div>
+                <div className="flex flex-col items-end gap-2 text-right">
+                  <span className="text-sm font-semibold text-foreground">{formatItemPrice(item)}</span>
+                  {onRemoveItem ? (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 px-2 text-xs"
+                      onClick={() => onRemoveItem(item.id)}
+                      disabled={isUpdating}
+                    >
+                      Quitar
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">Tu carrito está vacío.</p>
+        )}
+
         <div className="flex items-center justify-between">
           <span className="text-muted-foreground">Total</span>
           <span className="text-lg font-semibold">{formatCurrency(derivedTotals.amount, currency)}</span>
@@ -65,6 +114,17 @@ export default function CartSummary({
       <Separator />
 
       <CardFooter className="flex flex-col gap-3">
+        {onClearCart && items.length ? (
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full"
+            onClick={onClearCart}
+            disabled={isUpdating}
+          >
+            Vaciar carrito
+          </Button>
+        ) : null}
         <Button className="w-full" size="lg" onClick={onCheckout} disabled={!items.length || isSubmitting}>
           {isSubmitting ? 'Procesando...' : 'Finalizar pedido'}
         </Button>
