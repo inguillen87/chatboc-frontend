@@ -23,6 +23,7 @@ export interface MarketCatalogSection {
   title: string;
   description?: string | null;
   badge?: string | null;
+  items?: MarketProduct[] | null;
 }
 
 export interface MarketCatalogResponse {

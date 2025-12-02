@@ -14,6 +14,7 @@ export const MARKET_DEMO_PRODUCTS: MarketProduct[] = [
     imageUrl: buildImage('photo-1505390593764-8a0b8e0b7e1c'),
     category: 'Canjes',
     promoInfo: 'Canje eco',
+    modality: 'canje',
   },
   {
     id: 'reciclaje-premium',
@@ -23,6 +24,7 @@ export const MARKET_DEMO_PRODUCTS: MarketProduct[] = [
     price: null,
     imageUrl: buildImage('photo-1508873699372-7aeab60b44ce'),
     category: 'Canjes',
+    modality: 'canje',
   },
   {
     id: 'kit-escolar-solidario',
@@ -33,6 +35,7 @@ export const MARKET_DEMO_PRODUCTS: MarketProduct[] = [
     imageUrl: buildImage('photo-1523580846011-d3a5bc25702b'),
     category: 'Productos',
     promoInfo: 'Stock limitado',
+    modality: 'venta',
   },
   {
     id: 'campus-digital',
@@ -52,6 +55,7 @@ export const MARKET_DEMO_PRODUCTS: MarketProduct[] = [
     price: null,
     imageUrl: buildImage('photo-1508979827776-5b7eb0f58c01'),
     category: 'Movilidad',
+    modality: 'canje',
   },
   {
     id: 'arbol-nativo',
@@ -61,6 +65,7 @@ export const MARKET_DEMO_PRODUCTS: MarketProduct[] = [
     points: null,
     imageUrl: buildImage('photo-1455218873509-8097305ee378'),
     category: 'Sustentabilidad',
+    modality: 'venta',
   },
   {
     id: 'visita-planta',
@@ -70,6 +75,7 @@ export const MARKET_DEMO_PRODUCTS: MarketProduct[] = [
     points: null,
     imageUrl: buildImage('photo-1441974231531-c6227db76b6e'),
     category: 'Experiencias',
+    modality: 'venta',
   },
   {
     id: 'donacion-alimentos',
@@ -79,6 +85,7 @@ export const MARKET_DEMO_PRODUCTS: MarketProduct[] = [
     points: 300,
     imageUrl: buildImage('photo-1504753793650-d4a2b783c15e'),
     category: 'Solidario',
+    modality: 'donación',
   },
 ];
 
@@ -87,11 +94,18 @@ export const MARKET_DEMO_SECTIONS: MarketCatalogSection[] = [
     title: 'Productos con fotos y fichas claras',
     description: 'Catálogo mobile-first con precios, puntos, modalidad y enlaces públicos listos para compartir.',
     badge: 'Catálogo',
+    items: [
+      MARKET_DEMO_PRODUCTS[2],
+      MARKET_DEMO_PRODUCTS[5],
+      MARKET_DEMO_PRODUCTS[6],
+      MARKET_DEMO_PRODUCTS[3],
+    ],
   },
   {
     title: 'Canjes y beneficios',
     description: 'Combina productos pagos con canjes por puntos en un mismo carrito y muestra las bonificaciones disponibles.',
     badge: 'Puntos',
+    items: [MARKET_DEMO_PRODUCTS[0], MARKET_DEMO_PRODUCTS[1], MARKET_DEMO_PRODUCTS[4], MARKET_DEMO_PRODUCTS[7]],
   },
   {
     title: 'Carrito compartible',
@@ -127,7 +141,7 @@ export const buildDemoMarketCatalog = (
       isDemo: true,
       demoReason: 'Mostrando catálogo de demostración mientras se conecta el backend.',
       heroImageUrl: buildImage('photo-1520607162513-77705c0f0d4a'),
-      heroSubtitle: 'Demostración pública del catálogo multi-tenant con productos, canjes y carrito.',
+      heroSubtitle: 'Catálogo listo con fotos, secciones, buscador y carrito demo estilo marketplace.',
       sections: MARKET_DEMO_SECTIONS,
     },
   };

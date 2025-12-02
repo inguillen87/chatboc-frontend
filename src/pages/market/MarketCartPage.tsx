@@ -238,6 +238,37 @@ export default function MarketCartPage() {
     catalogData?.heroSubtitle ??
     'Demostración pública del catálogo multi-tenant con fotos, canjes, carrito y buscador listo para compartir.';
 
+  const paidProducts = useMemo(() => catalogProducts.filter((product) => !product.points), [catalogProducts]);
+  const redeemableProducts = useMemo(
+    () => catalogProducts.filter((product) => typeof product.points === 'number' && product.points > 0),
+    [catalogProducts],
+  );
+
+  const sectionsWithItems = useMemo(() => {
+    const hasItems = catalogSections.some((section) => section.items?.length);
+    if (hasItems) return catalogSections;
+
+    return catalogSections.map((section, index) => {
+      if (section.items?.length) return section;
+      if (index === 0 && paidProducts.length) return { ...section, items: paidProducts.slice(0, 6) };
+      if (index === 1 && redeemableProducts.length) return { ...section, items: redeemableProducts.slice(0, 6) };
+      return section;
+    });
+  }, [catalogSections, paidProducts, redeemableProducts]);
+
+  const formatPriceValue = (value?: number | null, currency = 'ARS'): string => {
+    if (typeof value !== 'number' || Number.isNaN(value)) return '';
+    return formatCurrency(value, currency);
+  };
+
+  const buildPriceLabel = (product: MarketProduct): string => {
+    if (product.points) return `${product.points} pts`;
+    return product.priceText ?? formatPriceValue(product.price, product.currency ?? 'ARS') ?? 'Consultar';
+  };
+
+  const buildSectionSubtitle = (product: MarketProduct): string | null =>
+    product.category ?? product.descriptionShort ?? product.description ?? null;
+
   const itemsCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
   const hasSession = useMemo(() => {
     const authToken = getValidStoredToken('authToken');
@@ -413,9 +444,9 @@ export default function MarketCartPage() {
           </div>
         </section>
 
-        <section className="grid gap-3 sm:grid-cols-3">
-          {catalogSections.map((section) => (
-            <div key={section.title} className="rounded-xl border bg-white/70 p-4 shadow-sm">
+        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {sectionsWithItems.map((section) => (
+            <div key={section.title} className="rounded-2xl border bg-white/80 p-4 shadow-sm">
               <div className="flex items-center gap-2 text-xs font-semibold uppercase text-muted-foreground">
                 <Tag className="h-4 w-4" />
                 {section.badge ?? 'Sección'}
@@ -423,6 +454,44 @@ export default function MarketCartPage() {
               <h3 className="mt-2 text-lg font-semibold leading-snug">{section.title}</h3>
               {section.description ? (
                 <p className="mt-1 text-sm text-muted-foreground">{section.description}</p>
+              ) : null}
+
+              {section.items?.length ? (
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  {section.items.slice(0, 4).map((item) => (
+                    <div
+                      key={item.id}
+                      className="group overflow-hidden rounded-xl border bg-muted/30 p-2 transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
+                    >
+                      <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-white">
+                        {item.imageUrl ? (
+                          <img
+                            src={item.imageUrl}
+                            alt={item.name}
+                            className="h-full w-full object-cover"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                            <ShoppingBag className="h-5 w-5" />
+                          </div>
+                        )}
+                        {item.modality ? (
+                          <Badge className="absolute left-2 top-2 bg-white/90 text-xs font-semibold text-foreground" variant="secondary">
+                            {item.modality}
+                          </Badge>
+                        ) : null}
+                      </div>
+                      <p className="mt-2 line-clamp-1 text-sm font-semibold leading-tight">{item.name}</p>
+                      {buildSectionSubtitle(item) ? (
+                        <p className="line-clamp-2 text-xs text-muted-foreground">{buildSectionSubtitle(item)}</p>
+                      ) : null}
+                      <div className="mt-1 flex items-center gap-2 text-xs font-semibold text-primary">
+                        {buildPriceLabel(item) || 'Consultar'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               ) : null}
             </div>
           ))}
