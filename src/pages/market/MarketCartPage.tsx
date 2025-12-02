@@ -105,21 +105,26 @@ export default function MarketCartPage() {
       const catalog = queryClient.getQueryData<MarketCatalogResponse>(['marketCatalog', slug]);
       const product = catalog?.products.find((item) => item.id === productId);
 
-      queryClient.setQueryData<MarketCartResponse | undefined>(['marketCart', slug], (current) => {
-        const items = current?.items ? [...current.items] : [];
-        const existingIndex = items.findIndex((item) => item.id === productId);
-        if (existingIndex >= 0) {
-          items[existingIndex] = { ...items[existingIndex], quantity: items[existingIndex].quantity + 1 };
-        } else if (product) {
-          items.push({
-            id: product.id,
-            name: product.name,
-            quantity: 1,
-            price: product.price,
-            points: product.points,
-            imageUrl: product.imageUrl,
-          });
-        }
+    if (typeof window === 'undefined' || !tenantSlug) return '';
+    const url = new URL(window.location.href);
+    url.pathname = `/market/${tenantSlug}/cart`;
+    url.search = '';
+    return url.toString();
+  }, [cartQuery.data?.cartUrl, catalogQuery.data?.publicCartUrl, tenantSlug]);
+
+  const shareMessage = useMemo(() => {
+    if (catalogQuery.data?.whatsappShareUrl) return catalogQuery.data.whatsappShareUrl;
+    if (cartQuery.data?.whatsappShareUrl) return cartQuery.data.whatsappShareUrl;
+    if (!shareUrl) return '';
+    const tenantName = catalogQuery.data?.tenantName?.trim();
+    const prefix = tenantName ? `Mirá el catálogo de ${tenantName}` : 'Mirá este catálogo';
+    return `https://wa.me/?text=${encodeURIComponent(`${prefix}: ${shareUrl}`)}`;
+  }, [cartQuery.data?.whatsappShareUrl, catalogQuery.data?.tenantName, shareUrl]);
+
+  const qrImageUrl = useMemo(() => {
+    if (!shareUrl) return '';
+    return `https://quickchart.io/qr?text=${encodeURIComponent(shareUrl)}&margin=12&size=480`;
+  }, [shareUrl]);
 
         const totalAmount =
           (current?.totalAmount ?? 0) +
@@ -158,6 +163,38 @@ export default function MarketCartPage() {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['marketCart', slug] });
+    },
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: (productId: string) => removeMarketItem(tenantSlug, productId),
+    onSuccess: (data) => {
+      queryClient.setQueryData(['marketCart', tenantSlug], data);
+      toast({
+        title: 'Producto quitado',
+        description: 'Actualizamos tu carrito.',
+      });
+    },
+    onError: () => {
+      toast({
+        title: 'No se pudo actualizar el carrito',
+        description: 'Revisa tu conexión e intenta nuevamente.',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const clearMutation = useMutation({
+    mutationFn: () => clearMarketCart(tenantSlug),
+    onSuccess: (data) => {
+      queryClient.setQueryData(['marketCart', tenantSlug], data);
+    },
+    onError: () => {
+      toast({
+        title: 'No pudimos vaciar el carrito',
+        description: 'Intenta nuevamente en unos segundos.',
+        variant: 'destructive',
+      });
     },
   });
 
@@ -438,6 +475,84 @@ export default function MarketCartPage() {
       return section;
     });
   }, [catalogSections, paidProducts, redeemableProducts]);
+
+  const formatPriceValue = (value?: number | null, currency = 'ARS'): string => {
+    if (typeof value !== 'number' || Number.isNaN(value)) return '';
+    return formatCurrency(value, currency);
+  };
+
+  const buildPriceLabel = (product: MarketProduct): string => {
+    if (product.points) return `${product.points} pts`;
+    return product.priceText ?? formatPriceValue(product.price, product.currency ?? 'ARS') ?? 'Consultar';
+  };
+
+  const buildSectionSubtitle = (product: MarketProduct): string | null =>
+    product.category ?? product.descriptionShort ?? product.description ?? null;
+
+  const {
+    averageRating,
+    catalogSections,
+    categories,
+    heroImage,
+    heroSubtitle,
+    paidProducts,
+    redeemableProducts,
+    sectionsWithItems,
+  } = useMemo(() => {
+    const computedCategories = [
+      'todos',
+      ...Array.from(
+        new Set(
+          catalogProducts
+            .map((product) => product.category?.trim())
+            .filter((value): value is string => Boolean(value)),
+        ),
+      ),
+    ];
+
+    const computedCatalogSections = catalogData?.sections?.length ? catalogData.sections : MARKET_DEMO_SECTIONS;
+
+    const computedPaidProducts = catalogProducts.filter((product) => !product.points);
+    const computedRedeemableProducts = catalogProducts.filter(
+      (product) => typeof product.points === 'number' && product.points > 0,
+    );
+
+    const ratings = catalogProducts
+      .map((product) => product.rating)
+      .filter((value): value is number => typeof value === 'number');
+    const computedAverageRating = ratings.length
+      ? Number((ratings.reduce((acc, value) => acc + value, 0) / ratings.length).toFixed(1))
+      : null;
+
+    const computedSectionsWithItems = (() => {
+      const hasItems = computedCatalogSections.some((section) => section.items?.length);
+      if (hasItems) return computedCatalogSections;
+
+      return computedCatalogSections.map((section, index) => {
+        if (section.items?.length) return section;
+        if (index === 0 && computedPaidProducts.length)
+          return { ...section, items: computedPaidProducts.slice(0, 6) };
+        if (index === 1 && computedRedeemableProducts.length)
+          return { ...section, items: computedRedeemableProducts.slice(0, 6) };
+        return section;
+      });
+    })();
+
+    return {
+      averageRating: computedAverageRating,
+      catalogSections: computedCatalogSections,
+      categories: computedCategories,
+      heroImage:
+        catalogData?.heroImageUrl ??
+        'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1200&q=80',
+      heroSubtitle:
+        catalogData?.heroSubtitle ??
+        'Demostración pública del catálogo multi-tenant con fotos, canjes, carrito y buscador listo para compartir.',
+      paidProducts: computedPaidProducts,
+      redeemableProducts: computedRedeemableProducts,
+      sectionsWithItems: computedSectionsWithItems,
+    };
+  }, [catalogData?.heroImageUrl, catalogData?.heroSubtitle, catalogData?.sections, catalogProducts]);
 
   const formatPriceValue = (value?: number | null, currency = 'ARS'): string => {
     if (typeof value !== 'number' || Number.isNaN(value)) return '';
@@ -760,6 +875,22 @@ export default function MarketCartPage() {
                   </Button>
                 </AlertDescription>
               </Alert>
+            ) : null}
+
+            {categories.length > 1 ? (
+              <div className="flex flex-wrap gap-2 overflow-x-auto pb-1">
+                {categories.map((category) => (
+                  <Button
+                    key={category}
+                    variant={activeCategory === category ? 'default' : 'outline'}
+                    size="sm"
+                    className="rounded-full"
+                    onClick={() => setActiveCategory(category)}
+                  >
+                    {category === 'todos' ? 'Todas las secciones' : category}
+                  </Button>
+                ))}
+              </div>
             ) : null}
 
             {categories.length > 1 ? (
