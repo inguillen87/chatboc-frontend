@@ -60,7 +60,7 @@ interface ChatPanelProps {
   onRubroSelect?: (rubro: any) => void;
   muted?: boolean;
   onToggleSound?: () => void;
-  onCart?: (target?: "cart" | "catalog") => void;
+  onCart?: (target?: "cart" | "catalog" | "market") => void;
   cartCount?: number;
   headerLogoUrl?: string;
   welcomeTitle?: string;
@@ -371,10 +371,12 @@ const ChatPanel = ({
         "store",
         "catalogomenu",
         "menucatalogo",
+        "market",
+        "marketcatalog",
       ];
       if (cartActions.includes(normalized)) {
-        const target: "cart" | "catalog" =
-          normalized === "cart" || normalized === "carrito" ? "cart" : "catalog";
+        const target: "cart" | "catalog" | "market" =
+          normalized === "cart" || normalized === "carrito" ? "cart" : "market";
         onCart?.(target);
         handleSend({ text: "Catálogo", action: "catalogo" });
         return;
