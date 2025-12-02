@@ -179,6 +179,7 @@ export interface TicketHistoryEmailOptions {
     reason?: TicketHistoryEmailReason;
     estado?: string;
     actor?: 'agent' | 'user';
+    pin?: string;
     [key: string]: unknown;
 }
 
@@ -305,6 +306,7 @@ export const requestTicketHistoryEmail = async ({
             sendEmail,
             sendSms,
             notify,
+            pin,
             ...rest
         } = rawOptions;
 
@@ -389,9 +391,19 @@ export const requestTicketHistoryEmail = async ({
     };
 
     try {
-        await apiFetch(`/tickets/${tipo}/${ticketId}/send-history`, {
+        const { pin, ...notificationOptions } = options || {};
+        const baseUrl = `/tickets/${tipo}/${ticketId}/send-history`;
+        const endpoint = pin
+            ? `${baseUrl}?pin=${encodeURIComponent(pin)}`
+            : baseUrl;
+        const baseFetchOptions = pin
+            ? { skipAuth: true, sendAnonId: true, sendEntityToken: true }
+            : { sendAnonId: true };
+
+        await apiFetch(endpoint, {
             method: 'POST',
-            body: buildNotificationPayload(options),
+            body: buildNotificationPayload(notificationOptions),
+            ...baseFetchOptions,
         });
         return { status: 'sent' };
     } catch (error) {
@@ -552,13 +564,12 @@ export const getTicketTimeline = async (
 ): Promise<{ estado_chat: string; history: TicketHistoryEvent[]; messages: Message[] }> => {
   try {
     const endpointBase = `/tickets/${tipo}/${ticketId}/timeline`;
-    const endpoint =
-      opts?.public && opts.pin
-        ? `${endpointBase}?pin=${encodeURIComponent(opts.pin)}`
-        : endpointBase;
+    const endpoint = opts?.pin
+      ? `${endpointBase}?pin=${encodeURIComponent(opts.pin)}`
+      : endpointBase;
     const fetchOpts = opts?.public
       ? { skipAuth: true, sendAnonId: true, sendEntityToken: true }
-      : { sendAnonId: true };
+      : { sendAnonId: true, sendEntityToken: true };
     const response = await apiFetch<TicketTimelineResponse>(endpoint, fetchOpts);
     const history: TicketHistoryEvent[] = [];
     const messages: Message[] = [];

@@ -250,6 +250,7 @@ export default function TicketLookup() {
       sendTicketHistory(ticket, {
         reason: 'manual',
         actor: 'user',
+        pin,
       })
         .then((result) => {
           if (isTicketHistoryDeliveryErrorResult(result)) {
