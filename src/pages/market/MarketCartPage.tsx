@@ -19,7 +19,7 @@ import { loadMarketContact, saveMarketContact } from '@/utils/marketStorage';
 import { toast } from '@/components/ui/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { useUser } from '@/hooks/useUser';
-import { cn } from '@/utils/cn';
+import { cn } from '@/lib/utils';
 
 type ContactInfo = {
   name?: string;
