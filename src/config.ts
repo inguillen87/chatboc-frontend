@@ -58,10 +58,6 @@ const normalizeSurveyBaseUrl = (value?: string): string => {
 };
 
 const RESOLVED_BACKEND_URL = normalizeBackendUrl(VITE_BACKEND_URL);
-const CURRENT_ORIGIN =
-  typeof window !== 'undefined' && window.location?.origin
-    ? sanitizeBaseUrl(window.location.origin)
-    : '';
 
 const inferSameOriginProxy = (): string | null => {
   if (typeof window === 'undefined') {
@@ -129,17 +125,16 @@ export const SAME_ORIGIN_PROXY_BASE = sanitizeBaseUrl(preferSameOriginProxy || '
 
 export const BASE_API_URL = sanitizeBaseUrl(
   SAME_ORIGIN_PROXY_BASE ||
-    CURRENT_ORIGIN ||
     RESOLVED_BACKEND_URL ||
     FALLBACK_BACKEND_URL ||
-    CURRENT_ORIGIN
+    (typeof window !== 'undefined' ? window.location.origin : '')
 );
 
 export const API_BASE_CANDIDATES = [
   SAME_ORIGIN_PROXY_BASE,
-  CURRENT_ORIGIN,
   RESOLVED_BACKEND_URL,
   FALLBACK_BACKEND_URL,
+  typeof window !== 'undefined' ? sanitizeBaseUrl(window.location.origin) : '',
 ]
   .filter((value): value is string => typeof value === 'string' && !!value)
   .filter((value, index, self) => self.indexOf(value) === index);
