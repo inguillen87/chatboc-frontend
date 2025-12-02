@@ -10,6 +10,7 @@ type MapProviderToggleProps = {
   className?: string;
   orientation?: "horizontal" | "vertical";
   size?: "default" | "sm";
+  googleAvailable?: boolean;
 };
 
 export function MapProviderToggle({
@@ -18,6 +19,7 @@ export function MapProviderToggle({
   className,
   orientation = "horizontal",
   size = "default",
+  googleAvailable = true,
 }: MapProviderToggleProps) {
   const baseId = useId();
   const mapLibreId = `${baseId}-maplibre`;
@@ -46,8 +48,11 @@ export function MapProviderToggle({
         </Label>
       </div>
       <div className="flex items-center gap-2">
-        <RadioGroupItem value="google" id={googleId} />
-        <Label htmlFor={googleId} className={labelClass}>
+        <RadioGroupItem value="google" id={googleId} disabled={!googleAvailable} />
+        <Label
+          htmlFor={googleId}
+          className={cn(labelClass, !googleAvailable && "text-muted-foreground/60")}
+        >
           Google
         </Label>
       </div>

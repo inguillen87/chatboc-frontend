@@ -38,6 +38,10 @@ export function MapWidget({
   const [mode, setMode] = useState<Mode>('heatmap');
   const [lastBbox, setLastBbox] = useState<[number, number, number, number] | null>(null);
   const { provider, setProvider } = useMapProvider();
+  const googleProviderAvailable = useMemo(
+    () => ((import.meta.env.VITE_Maps_API_KEY ?? '').trim().length > 0),
+    [],
+  );
   const [providerWarning, setProviderWarning] = useState<string | null>(null);
 
   const handleProviderUnavailable = useCallback(
@@ -138,7 +142,12 @@ export function MapWidget({
             <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               Mapa
             </span>
-            <MapProviderToggle value={provider} onChange={setProvider} size="sm" />
+            <MapProviderToggle
+              value={provider}
+              onChange={setProvider}
+              size="sm"
+              googleAvailable={googleProviderAvailable}
+            />
           </div>
           <div className="flex items-center gap-2">
             <Button

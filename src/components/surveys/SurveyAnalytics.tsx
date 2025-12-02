@@ -437,6 +437,10 @@ export const SurveyAnalytics = ({
     [heatmapPoints],
   );
   const { provider, setProvider } = useMapProvider();
+  const googleProviderAvailable = useMemo(
+    () => ((import.meta.env.VITE_Maps_API_KEY ?? '').trim().length > 0),
+    [],
+  );
   const normalizedFilters: SurveyAnalyticsFilters = filters ?? {};
   const boundingBoxValue = useMemo(() => {
     const bbox = normalizedFilters.bbox;
@@ -888,7 +892,12 @@ export const SurveyAnalytics = ({
             <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Proveedor de mapa
             </span>
-            <MapProviderToggle value={provider} onChange={setProvider} size="sm" />
+            <MapProviderToggle
+              value={provider}
+              onChange={setProvider}
+              size="sm"
+              googleAvailable={googleProviderAvailable}
+            />
           </div>
         </CardHeader>
         <CardContent className="h-[420px]">
