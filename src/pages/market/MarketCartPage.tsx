@@ -1,19 +1,25 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
-import { ShoppingBag, Share2, Loader2 } from 'lucide-react';
+import { ShoppingBag, Share2, Loader2, ExternalLink } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import ProductCard from '@/components/market/ProductCard';
 import CartSummary from '@/components/market/CartSummary';
 import CheckoutDialog from '@/components/market/CheckoutDialog';
+import {
+  CartSummarySkeleton,
+  MarketCatalogSkeleton,
+  MarketHeaderSkeleton,
+} from '@/components/market/MarketSkeletons';
 import { addMarketItem, fetchMarketCart, fetchMarketCatalog, startMarketCheckout } from '@/api/market';
 import { MarketCartItem, MarketCatalogResponse, MarketCartResponse, MarketProduct } from '@/types/market';
 import { loadMarketContact, saveMarketContact } from '@/utils/marketStorage';
 import { toast } from '@/components/ui/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { useUser } from '@/hooks/useUser';
+import { cn } from '@/utils/cn';
 
 type ContactInfo = {
   name?: string;
@@ -27,6 +33,7 @@ export default function MarketCartPage() {
   const { slug = '' } = useParams<{ slug: string }>();
   const queryClient = useQueryClient();
   const { user } = useUser();
+  const cartSummaryRef = useRef<HTMLDivElement | null>(null);
 
   const userName = user?.name ?? user?.nombre ?? user?.full_name;
   const userPhone = user?.phone ?? user?.telefono ?? user?.telefono_movil ?? user?.celular;
@@ -60,6 +67,8 @@ export default function MarketCartPage() {
     url.search = '';
     return url.toString();
   }, [slug]);
+
+  const shareTitle = catalogQuery.data?.tenantName ?? 'Catálogo';
 
   const catalogQuery = useQuery({
     queryKey: ['marketCatalog', slug],
@@ -164,18 +173,40 @@ export default function MarketCartPage() {
   });
 
   const handleShare = async () => {
-    try {
-      if (!shareUrl) return;
+    if (!shareUrl) return;
+    const fallbackCopy = async () => {
       await navigator.clipboard.writeText(shareUrl);
       toast({
         title: 'Catálogo listo para compartir',
         description: 'Copiamos el enlace en tu portapapeles.',
       });
-    } catch (error) {
-      console.error('Clipboard error', error);
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share({ url: shareUrl, title: shareTitle });
+        toast({
+          title: 'Enlace compartido',
+          description: 'El catálogo quedó listo para enviar.',
+        });
+        return;
+      }
+
+      if (navigator.clipboard) {
+        await fallbackCopy();
+        return;
+      }
+
       toast({
-        title: 'No se pudo copiar el enlace',
+        title: 'No pudimos compartir automáticamente',
         description: shareUrl,
+        variant: 'destructive',
+      });
+    } catch (error) {
+      console.error('Share/clipboard error', error);
+      toast({
+        title: 'No se pudo compartir el catálogo',
+        description: 'Intenta copiar el enlace manualmente.',
         variant: 'destructive',
       });
     }
@@ -218,9 +249,16 @@ export default function MarketCartPage() {
   const cartItems: MarketCartItem[] = cartQuery.data?.items ?? [];
   const catalogErrorMessage = catalogQuery.error instanceof Error ? catalogQuery.error.message : null;
   const cartErrorMessage = cartQuery.error instanceof Error ? cartQuery.error.message : null;
-  const canShare = Boolean(shareUrl && navigator?.clipboard);
+  const isLoadingCatalog = catalogQuery.isLoading && !catalogProducts.length;
+  const isLoadingCart = cartQuery.isLoading && !cartItems.length;
+  const canShare = Boolean(shareUrl && (navigator?.clipboard || navigator?.share));
 
   const itemsCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
+
+  const scrollToSummary = () => {
+    cartSummaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setCartPulse(true);
+  };
 
   useEffect(() => {
     if (!itemsCount) return;
@@ -228,66 +266,73 @@ export default function MarketCartPage() {
     return () => clearTimeout(timeout);
   }, [itemsCount]);
 
-  return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
-      <header className="sticky top-0 z-10 border-b bg-white/80 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl bg-primary/10 text-primary">
-              {catalogQuery.data?.tenantLogoUrl ? (
-                <img
-                  src={catalogQuery.data.tenantLogoUrl}
-                  alt={catalogQuery.data?.tenantName ?? slug}
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <ShoppingBag className="h-6 w-6" />
-              )}
-            </div>
-            <div>
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Catálogo</p>
-              <h1 className="text-lg font-semibold leading-tight sm:text-xl">
-                {catalogQuery.data?.tenantName ?? slug}
-              </h1>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleShare}
-              disabled={!canShare}
-              className="transition hover:scale-[1.01]"
-            >
-              <Share2 className="mr-2 h-4 w-4" />
-              Compartir catálogo
-            </Button>
-            <motion.div
-              animate={{ scale: cartPulse ? 1.08 : 1 }}
-              transition={{ type: 'spring', stiffness: 320, damping: 18 }}
-              className="overflow-hidden rounded-full"
-            >
-              <Badge
-                variant="secondary"
-                className="flex items-center gap-1 px-3 py-1 text-sm shadow-sm"
-              >
-                <ShoppingBag className="h-4 w-4" />
-                <AnimatePresence mode="popLayout" initial={false}>
-                  <motion.span
-                    key={itemsCount}
-                    initial={{ y: 8, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    exit={{ y: -8, opacity: 0 }}
-                    transition={{ duration: 0.18 }}
-                  >
-                    {itemsCount}
-                  </motion.span>
-                </AnimatePresence>
-              </Badge>
-            </motion.div>
-          </div>
+  const HeaderContent = (
+    <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
+      <div className="flex items-center gap-3">
+        <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl bg-primary/10 text-primary">
+          {catalogQuery.data?.tenantLogoUrl ? (
+            <img
+              src={catalogQuery.data.tenantLogoUrl}
+              alt={catalogQuery.data?.tenantName ?? slug}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <ShoppingBag className="h-6 w-6" />
+          )}
         </div>
+        <div>
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Catálogo</p>
+          <h1 className="text-lg font-semibold leading-tight sm:text-xl">
+            {catalogQuery.data?.tenantName ?? slug}
+          </h1>
+          {catalogQuery.data?.tenantName ? (
+            <p className="text-xs text-muted-foreground">Ruta única: /market/{slug}/cart</p>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleShare}
+          disabled={!canShare}
+          className="transition hover:scale-[1.01]"
+        >
+          <Share2 className="mr-2 h-4 w-4" />
+          Compartir catálogo
+        </Button>
+        <motion.div
+          animate={{ scale: cartPulse ? 1.08 : 1 }}
+          transition={{ type: 'spring', stiffness: 320, damping: 18 }}
+          className="overflow-hidden rounded-full"
+        >
+          <Badge
+            variant="secondary"
+            className="flex items-center gap-1 px-3 py-1 text-sm shadow-sm"
+          >
+            <ShoppingBag className="h-4 w-4" />
+            <AnimatePresence mode="popLayout" initial={false}>
+              <motion.span
+                key={itemsCount}
+                initial={{ y: 8, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: -8, opacity: 0 }}
+                transition={{ duration: 0.18 }}
+              >
+                {itemsCount}
+              </motion.span>
+            </AnimatePresence>
+          </Badge>
+        </motion.div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50">
+      <header className="sticky top-0 z-10 border-b bg-white/80 backdrop-blur">
+        {isLoadingCatalog ? <MarketHeaderSkeleton /> : HeaderContent}
       </header>
 
       <main className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-6 sm:px-6">
@@ -300,11 +345,16 @@ export default function MarketCartPage() {
 
         <section className="grid gap-6 lg:grid-cols-[2fr_1fr]">
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold">Productos</h2>
-              {catalogQuery.isLoading ? (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-semibold">Productos</h2>
+                <p className="text-sm text-muted-foreground">
+                  Catálogo público de este tenant. Agrega ítems y confirma en un paso.
+                </p>
+              </div>
+              {catalogQuery.isFetching ? (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Cargando catálogo...
+                  <Loader2 className="h-4 w-4 animate-spin" /> Sincronizando catálogo...
                 </div>
               ) : null}
             </div>
@@ -312,13 +362,18 @@ export default function MarketCartPage() {
             {catalogErrorMessage ? (
               <Alert variant="destructive">
                 <AlertTitle>No pudimos cargar el catálogo</AlertTitle>
-                <AlertDescription>
-                  {catalogErrorMessage || 'Intenta nuevamente desde el enlace o QR.'}
+                <AlertDescription className="flex items-start justify-between gap-3">
+                  <span>{catalogErrorMessage || 'Intenta nuevamente desde el enlace o QR.'}</span>
+                  <Button size="sm" variant="secondary" onClick={() => catalogQuery.refetch()}>
+                    Reintentar
+                  </Button>
                 </AlertDescription>
               </Alert>
             ) : null}
 
-            {catalogProducts.length ? (
+            {isLoadingCatalog ? (
+              <MarketCatalogSkeleton cards={4} />
+            ) : catalogProducts.length ? (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {catalogProducts.map((product) => (
                   <ProductCard
@@ -331,32 +386,49 @@ export default function MarketCartPage() {
               </div>
             ) : (
               <div className="rounded-lg border bg-white p-6 text-center text-sm text-muted-foreground">
-                {catalogQuery.isLoading ? 'Cargando productos...' : 'No hay productos disponibles en este catálogo.'}
+                No hay productos disponibles en este catálogo.
               </div>
             )}
           </div>
 
-          <div className="lg:sticky lg:top-24">
-            <CartSummary
-              items={cartItems}
-              totalAmount={cartQuery.data?.totalAmount}
-              totalPoints={cartQuery.data?.totalPoints}
-              availableAmount={cartQuery.data?.availableAmount}
-              availablePoints={cartQuery.data?.availablePoints}
-              onCheckout={handleCheckout}
-              isSubmitting={checkoutMutation.isPending}
-            />
+          <div className="lg:sticky lg:top-24" ref={cartSummaryRef}>
+            {isLoadingCart ? (
+              <CartSummarySkeleton />
+            ) : (
+              <CartSummary
+                items={cartItems}
+                totalAmount={cartQuery.data?.totalAmount}
+                totalPoints={cartQuery.data?.totalPoints}
+                availableAmount={cartQuery.data?.availableAmount}
+                availablePoints={cartQuery.data?.availablePoints}
+                onCheckout={handleCheckout}
+                isSubmitting={checkoutMutation.isPending}
+              />
+            )}
 
             {cartErrorMessage ? (
               <Alert variant="destructive" className="mt-3">
                 <AlertTitle>No pudimos actualizar tu carrito</AlertTitle>
-                <AlertDescription>
-                  {cartErrorMessage || 'Revisa tu conexión e intenta de nuevo.'}
+                <AlertDescription className="flex items-start justify-between gap-3">
+                  <span>{cartErrorMessage || 'Revisa tu conexión e intenta de nuevo.'}</span>
+                  <Button size="sm" variant="secondary" onClick={() => cartQuery.refetch()}>
+                    Reintentar
+                  </Button>
                 </AlertDescription>
               </Alert>
             ) : null}
 
-            <div className="mt-3 text-xs text-muted-foreground">
+            <div className="mt-3 space-y-2 rounded-md bg-muted/40 p-3 text-xs text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <div className="h-2 w-2 rounded-full bg-emerald-500" />
+                <span>Checkout simplificado: datos mínimos (nombre + teléfono) por tenant.</span>
+              </div>
+              {contact.phone ? (
+                <div className="flex items-center gap-2 text-foreground">
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  <span>Guardamos tu contacto para agilizar próximos pedidos en este catálogo.</span>
+                </div>
+              ) : null}
               <p>
                 Al confirmar, enviaremos el pedido al equipo del comercio. También puedes revisar nuestras
                 <Link to="/legal/privacy" className="ml-1 underline">
@@ -367,6 +439,25 @@ export default function MarketCartPage() {
             </div>
           </div>
         </section>
+
+        <div className={cn('fixed inset-x-0 bottom-4 z-20 px-4 sm:px-6 lg:hidden', !itemsCount && 'hidden')}>
+          <motion.div
+            initial={{ y: 40, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="mx-auto flex max-w-md items-center gap-3 rounded-full border bg-white px-4 py-3 shadow-lg"
+          >
+            <div className="flex flex-1 items-center gap-3">
+              <ShoppingBag className="h-5 w-5 text-primary" />
+              <div className="leading-tight">
+                <p className="text-xs text-muted-foreground">Carrito de este catálogo</p>
+                <p className="text-sm font-semibold">{itemsCount} ítem(s)</p>
+              </div>
+            </div>
+            <Button size="sm" onClick={scrollToSummary}>
+              Ver resumen
+            </Button>
+          </motion.div>
+        </div>
       </main>
 
       <CheckoutDialog
