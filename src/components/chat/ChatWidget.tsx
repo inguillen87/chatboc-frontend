@@ -167,6 +167,14 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    const globalAny = window as any;
+    if (typeof globalAny._t !== "function") {
+      globalAny._t = (value: any) => value;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
     if (duplicateInstance) return;
 
     return () => {
