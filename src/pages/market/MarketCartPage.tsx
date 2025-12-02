@@ -20,8 +20,11 @@ type ContactInfo = {
   phone?: string;
 };
 
+// Flujo público: el cliente llega vía enlace/QR con el slug del tenant, ve el catálogo,
+// agrega ítems al carrito y confirma el pedido dejando su nombre/teléfono.
+// Los datos mínimos (contacto) se guardan de forma local para reusar en futuros pedidos.
 export default function MarketCartPage() {
-  const { tenantSlug = '' } = useParams<{ tenantSlug: string }>();
+  const { slug = '' } = useParams<{ slug: string }>();
   const queryClient = useQueryClient();
   const { user } = useUser();
 
@@ -34,7 +37,7 @@ export default function MarketCartPage() {
   const [confirmation, setConfirmation] = useState<string | null>(null);
   const [cartPulse, setCartPulse] = useState(false);
   const [contact, setContact] = useState<ContactInfo>(() => {
-    const stored = loadMarketContact(tenantSlug);
+    const stored = loadMarketContact(slug);
     return {
       name: stored.name ?? userName,
       phone: stored.phone ?? normalizedUserPhone,
@@ -42,45 +45,45 @@ export default function MarketCartPage() {
   });
 
   useEffect(() => {
-    const stored = loadMarketContact(tenantSlug);
+    const stored = loadMarketContact(slug);
     setContact((prev) => ({
       name: stored.name ?? prev.name ?? userName,
       phone: stored.phone ?? prev.phone ?? normalizedUserPhone,
     }));
     setConfirmation(null);
-  }, [tenantSlug, userName, normalizedUserPhone]);
+  }, [slug, userName, normalizedUserPhone]);
 
   const shareUrl = useMemo(() => {
-    if (typeof window === 'undefined' || !tenantSlug) return '';
+    if (typeof window === 'undefined' || !slug) return '';
     const url = new URL(window.location.href);
-    url.pathname = `/market/${tenantSlug}/cart`;
+    url.pathname = `/market/${slug}/cart`;
     url.search = '';
     return url.toString();
-  }, [tenantSlug]);
+  }, [slug]);
 
   const catalogQuery = useQuery({
-    queryKey: ['marketCatalog', tenantSlug],
-    queryFn: () => fetchMarketCatalog(tenantSlug),
-    enabled: Boolean(tenantSlug),
+    queryKey: ['marketCatalog', slug],
+    queryFn: () => fetchMarketCatalog(slug),
+    enabled: Boolean(slug),
     staleTime: 1000 * 60, // cache short catalog loads while browsing
   });
 
   const cartQuery = useQuery({
-    queryKey: ['marketCart', tenantSlug],
-    queryFn: () => fetchMarketCart(tenantSlug),
-    enabled: Boolean(tenantSlug),
+    queryKey: ['marketCart', slug],
+    queryFn: () => fetchMarketCart(slug),
+    enabled: Boolean(slug),
     refetchInterval: 15000,
   });
 
   const addMutation = useMutation({
-    mutationFn: (productId: string) => addMarketItem(tenantSlug, { productId, quantity: 1 }),
+    mutationFn: (productId: string) => addMarketItem(slug, { productId, quantity: 1 }),
     onMutate: async (productId: string) => {
-      await queryClient.cancelQueries({ queryKey: ['marketCart', tenantSlug] });
-      const previousCart = queryClient.getQueryData<MarketCartResponse>(['marketCart', tenantSlug]);
-      const catalog = queryClient.getQueryData<MarketCatalogResponse>(['marketCatalog', tenantSlug]);
+      await queryClient.cancelQueries({ queryKey: ['marketCart', slug] });
+      const previousCart = queryClient.getQueryData<MarketCartResponse>(['marketCart', slug]);
+      const catalog = queryClient.getQueryData<MarketCatalogResponse>(['marketCatalog', slug]);
       const product = catalog?.products.find((item) => item.id === productId);
 
-      queryClient.setQueryData<MarketCartResponse | undefined>(['marketCart', tenantSlug], (current) => {
+      queryClient.setQueryData<MarketCartResponse | undefined>(['marketCart', slug], (current) => {
         const items = current?.items ? [...current.items] : [];
         const existingIndex = items.findIndex((item) => item.id === productId);
         if (existingIndex >= 0) {
@@ -115,7 +118,7 @@ export default function MarketCartPage() {
       return { previousCart };
     },
     onSuccess: (data) => {
-      queryClient.setQueryData(['marketCart', tenantSlug], data);
+      queryClient.setQueryData(['marketCart', slug], data);
       toast({
         title: 'Agregado al carrito',
         description: 'Actualizamos tu carrito.',
@@ -123,7 +126,7 @@ export default function MarketCartPage() {
     },
     onError: (_error, _variables, context) => {
       if (context?.previousCart) {
-        queryClient.setQueryData(['marketCart', tenantSlug], context.previousCart);
+        queryClient.setQueryData(['marketCart', slug], context.previousCart);
       }
       toast({
         title: 'No se pudo agregar el producto',
@@ -132,18 +135,24 @@ export default function MarketCartPage() {
       });
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['marketCart', tenantSlug] });
+      queryClient.invalidateQueries({ queryKey: ['marketCart', slug] });
     },
   });
 
   const checkoutMutation = useMutation({
-    mutationFn: (payload: { name?: string; phone: string }) =>
-      startMarketCheckout(tenantSlug, payload),
+    mutationFn: (payload: { name?: string; phone: string }) => startMarketCheckout(slug, payload),
     onSuccess: (response, variables) => {
-      saveMarketContact(tenantSlug, variables);
+      saveMarketContact(slug, variables);
       setContact(variables);
       setConfirmation(response?.message ?? 'Pedido registrado. Te contactaremos a la brevedad.');
-      queryClient.invalidateQueries({ queryKey: ['marketCart', tenantSlug] });
+      queryClient.setQueryData<MarketCartResponse>(['marketCart', slug], {
+        items: [],
+        totalAmount: 0,
+        totalPoints: 0,
+        availableAmount: null,
+        availablePoints: null,
+      });
+      queryClient.invalidateQueries({ queryKey: ['marketCart', slug] });
     },
     onError: () => {
       toast({
@@ -183,7 +192,7 @@ export default function MarketCartPage() {
       return;
     }
 
-    if (!tenantSlug) {
+    if (!slug) {
       toast({
         title: 'No encontramos el catálogo',
         description: 'Revisa el enlace o escanea nuevamente el código QR.',
@@ -228,7 +237,7 @@ export default function MarketCartPage() {
               {catalogQuery.data?.tenantLogoUrl ? (
                 <img
                   src={catalogQuery.data.tenantLogoUrl}
-                  alt={catalogQuery.data?.tenantName ?? tenantSlug}
+                  alt={catalogQuery.data?.tenantName ?? slug}
                   className="h-full w-full object-cover"
                 />
               ) : (
@@ -238,7 +247,7 @@ export default function MarketCartPage() {
             <div>
               <p className="text-xs uppercase tracking-wide text-muted-foreground">Catálogo</p>
               <h1 className="text-lg font-semibold leading-tight sm:text-xl">
-                {catalogQuery.data?.tenantName ?? tenantSlug}
+                {catalogQuery.data?.tenantName ?? slug}
               </h1>
             </div>
           </div>
