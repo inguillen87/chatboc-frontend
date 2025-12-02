@@ -276,6 +276,15 @@ const ChatWidgetInner: React.FC<ChatWidgetProps> = ({
   }, [resolvedTenantSlug]);
 
   useEffect(() => {
+    const sanitized = sanitizeTenantSlug(resolvedTenantSlug);
+    if (sanitized) {
+      safeLocalStorage.setItem("tenantSlug", sanitized);
+    } else {
+      safeLocalStorage.removeItem("tenantSlug");
+    }
+  }, [resolvedTenantSlug]);
+
+  useEffect(() => {
     const checkMobile = () => {
       if (typeof window !== "undefined") {
         setIsMobileView(window.innerWidth < 640);
