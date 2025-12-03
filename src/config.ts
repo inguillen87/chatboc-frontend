@@ -170,7 +170,7 @@ export const getSocketUrl = (): string => {
     try {
       const url = new URL(RESOLVED_BACKEND_URL);
       url.protocol = url.protocol.replace('http', 'ws');
-      return url.href;
+      return url.origin;
     } catch (e) {
       console.error("Invalid backend URL for WebSocket:", RESOLVED_BACKEND_URL);
       // Fallback to current location in case of invalid URL.
@@ -186,6 +186,10 @@ export const getSocketUrl = (): string => {
   url.protocol = url.protocol.replace('http', 'ws');
   return url.origin;
 };
+
+export const SOCKET_PATH = SAME_ORIGIN_PROXY_BASE
+  ? `${SAME_ORIGIN_PROXY_BASE.replace(/\/$/, '')}/socket.io`
+  : '/socket.io';
 
 // --- Other Environment Variables ---
 

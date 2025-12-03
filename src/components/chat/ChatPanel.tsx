@@ -24,7 +24,7 @@ import { useUser } from "@/hooks/useUser";
 import { useBusinessHours } from "@/hooks/useBusinessHours";
 import { Button } from "@/components/ui/button";
 import io from 'socket.io-client';
-import { getSocketUrl } from "@/config";
+import { getSocketUrl, SOCKET_PATH } from "@/config";
 import { safeOn, assertEventSource } from "@/utils/safeOn";
 import { Loader2 } from "lucide-react";
 import { getInitialMunicipioContext } from "@/utils/contexto_municipio";
@@ -331,7 +331,7 @@ const ChatPanel = ({
         return;
       }
 
-      const socket = io(socketUrl);
+      const socket = io(socketUrl, { path: SOCKET_PATH });
       socketRef.current = socket;
 
       const room = `ticket_${tipoChat}_${activeTicketId}`;

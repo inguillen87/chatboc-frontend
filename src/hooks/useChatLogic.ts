@@ -8,7 +8,7 @@ import {
   Post,
 } from "@/types/chat";
 import { io, Socket } from "socket.io-client";
-import { getSocketUrl } from "@/config";
+import { getSocketUrl, SOCKET_PATH } from "@/config";
 import { apiFetch, getErrorMessage } from "@/utils/api";
 import { getAskEndpoint, parseRubro } from "@/utils/chatEndpoints";
 import { extractRubroKey } from "@/utils/rubros";
@@ -905,6 +905,7 @@ export function useChatLogic({
     const socket = io(socketUrl, {
       transports: ['websocket', 'polling'],
       withCredentials: true,
+      path: SOCKET_PATH,
       auth: {
         ...(userAuthToken && { token: userAuthToken }), // Prioritize user JWT for auth
         entityToken: entityToken // Pass entity token for context
