@@ -6,6 +6,7 @@ import { useUser } from './useUser';
 import { apiFetch, resolveTenantSlug } from '@/utils/api';
 import { safeOn, assertEventSource } from '@/utils/safeOn';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
+import { getSocketUrl, SOCKET_PATH } from '@/config';
 
 interface TicketUpdate {
   ticket_id: number;
@@ -18,17 +19,41 @@ interface UseTicketUpdatesOptions {
   onNewComment?: (data: any) => void;
 }
 
-const normalizeSocketUrl = (value: string): string | undefined => {
+const normalizeSocketUrl = (value?: string): string | undefined => {
   if (!value) return undefined;
-  if (/^wss?:\/\//i.test(value)) return value;
-  if (/^https?:\/\//i.test(value)) {
-    return value.replace(/^http/i, 'ws');
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  if (/^wss?:\/\//i.test(trimmed)) return trimmed;
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed.replace(/^http/i, 'ws');
   }
   return undefined;
 };
 
+const sanitizeSocketPath = (value?: string) => {
+  const normalized = value?.trim().replace(/\/+$|\s+/g, '') || '/socket.io';
+  if (!normalized) return '/socket.io';
+  return normalized.startsWith('/') ? normalized : `/${normalized}`;
+};
+
 const rawSocketUrl = import.meta.env.VITE_SOCKET_URL || '';
-const SOCKET_URL = normalizeSocketUrl(rawSocketUrl);
+const socketPath = sanitizeSocketPath(import.meta.env.VITE_SOCKET_PATH || SOCKET_PATH || '/socket.io');
+
+const resolveSocketUrl = (): string | undefined => {
+  const fromEnv = normalizeSocketUrl(rawSocketUrl);
+  if (fromEnv) return fromEnv;
+
+  const fromConfig = normalizeSocketUrl(getSocketUrl());
+  if (fromConfig) return fromConfig;
+
+  if (typeof window !== 'undefined') {
+    return normalizeSocketUrl(window.location.origin.replace(/^http/i, 'ws'));
+  }
+
+  return undefined;
+};
+
+const SOCKET_URL = resolveSocketUrl();
 
 export default function useTicketUpdates(options: UseTicketUpdatesOptions = {}) {
   const { onNewTicket, onNewComment } = options;
@@ -107,6 +132,7 @@ export default function useTicketUpdates(options: UseTicketUpdatesOptions = {}) 
       const socketOptions: Partial<ManagerOptions & SocketOptions> = {
         transports: ['websocket'],
         withCredentials: true,
+        path: socketPath,
       };
 
       if (token) {
