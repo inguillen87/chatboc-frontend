@@ -1,6 +1,11 @@
 (function () {
   "use strict";
 
+  if (typeof window !== "undefined") {
+    if (window.__chatbocWidgetLoaded) return;
+    window.__chatbocWidgetLoaded = true;
+  }
+
   const KNOWN_EXTENSION_PATTERNS = [
     /Cannot assign to read only property '(ethereum|tronLink)' of object '#<Window>'/i,
     /Cannot assign to read only property '(ethereum|tronLink)'/i,
@@ -483,8 +488,22 @@
       },
     };
 
-    const initialBottom = script.getAttribute("data-bottom") || SCRIPT_CONFIG.DEFAULT_INITIAL_BOTTOM;
-    const initialRight = script.getAttribute("data-right") || SCRIPT_CONFIG.DEFAULT_INITIAL_RIGHT;
+    const positionAttr = (script.getAttribute("data-position") || "bottom-right").toLowerCase();
+    const isBottom = !positionAttr.includes("top");
+    const isLeft = positionAttr.includes("left");
+
+    const initialBottom = isBottom
+      ? script.getAttribute("data-bottom") || SCRIPT_CONFIG.DEFAULT_INITIAL_BOTTOM
+      : "";
+    const initialTop = !isBottom
+      ? script.getAttribute("data-top") || SCRIPT_CONFIG.DEFAULT_INITIAL_BOTTOM
+      : "";
+    const initialRight = !isLeft
+      ? script.getAttribute("data-right") || SCRIPT_CONFIG.DEFAULT_INITIAL_RIGHT
+      : "";
+    const initialLeft = isLeft
+      ? script.getAttribute("data-left") || SCRIPT_CONFIG.DEFAULT_INITIAL_RIGHT
+      : "";
     const defaultOpen = script.getAttribute("data-default-open") === "true";
     const theme = script.getAttribute("data-theme") || "";
     const rubroAttr = script.getAttribute("data-rubro") || "";
@@ -558,7 +577,9 @@
       Object.assign(widgetContainer.style, {
         position: "fixed",
         bottom: initialBottom,
+        top: initialTop,
         right: initialRight,
+        left: initialLeft,
         width: currentDims.width,
         height: currentDims.height,
         zIndex: zIndexBase.toString(),
