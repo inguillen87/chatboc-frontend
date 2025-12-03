@@ -1,11 +1,12 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { apiFetch, ApiError, getErrorMessage, resolveTenantSlug } from '@/utils/api';
+import { apiFetch, ApiError, getErrorMessage } from '@/utils/api';
 import useRequireRole from '@/hooks/useRequireRole';
 import { useUser } from '@/hooks/useUser';
 import type { Role } from '@/utils/roles';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
+import { getTenant } from '@/utils/tenant';
 
 const isValidEmail = (value: string) => /.+@.+\..+/.test(value.trim());
 
@@ -51,22 +52,8 @@ export default function InternalUsers() {
   const [editCategorySearch, setEditCategorySearch] = useState('');
 
   const tenantSlug = useMemo(
-    () =>
-      resolveTenantSlug(
-        user?.tenantSlug ||
-          // @ts-expect-error: backend still returns snake_case occasionally
-          (user as any)?.tenant_slug ||
-          null,
-      ),
+    () => getTenant({ userTenant: user?.tenantSlug || (user as any)?.tenant_slug }),
     [user],
-  );
-  const buildTenantPath = useCallback(
-    (suffix: string) => {
-      if (!tenantSlug) throw new Error('No se pudo determinar el tenant');
-      const normalizedSuffix = suffix.startsWith('/') ? suffix : `/${suffix}`;
-      return `/municipio/${tenantSlug}${normalizedSuffix}`;
-    },
-    [tenantSlug],
   );
 
   const filterStaffUsers = useCallback((list: InternalUser[] | null | undefined) => {
@@ -178,10 +165,10 @@ export default function InternalUsers() {
 
   const fetchWithTenant = useCallback(
     async <T,>(suffix: string, options: Parameters<typeof apiFetch<T>>[1] = {}) => {
-      const path = buildTenantPath(suffix);
-      return apiFetch<T>(path, { ...options, tenantSlug });
+      const normalizedPath = suffix.startsWith('/') ? suffix : `/${suffix}`;
+      return apiFetch<T>(normalizedPath, { ...options, tenantSlug });
     },
-    [buildTenantPath, tenantSlug],
+    [tenantSlug],
   );
 
   const refreshUsers = useCallback(async () => {
@@ -197,6 +184,11 @@ export default function InternalUsers() {
         mergeCategories(prev, extractCategoriesFromUsers(staffUsers))
       );
     } catch (err: any) {
+      if (err instanceof ApiError && err.status === 404) {
+        setUsers([]);
+        setError('No hay empleados cargados todavía.');
+        return;
+      }
       setError(getErrorMessage(err, 'Error al cargar los usuarios'));
     }
   }, [extractCategoriesFromUsers, fetchWithTenant, filterStaffUsers, mergeCategories, tenantSlug]);
@@ -215,10 +207,10 @@ export default function InternalUsers() {
         if (err instanceof ApiError && err.status === 404) return [];
         throw err;
       }),
-      fetchWithTenant('/categorias', { tenantSlug, omitEntityToken: true }).catch(err => {
+      fetchWithTenant('/ticket-categorias', { tenantSlug, omitEntityToken: true }).catch(err => {
         if (err instanceof ApiError) {
           if (err.status === 404) {
-            setError((prev) => prev ?? 'No se encontraron categorías disponibles.');
+            setError((prev) => prev ?? 'No hay categorías cargadas todavía.');
             return null;
           }
           setError((prev) => prev ?? getErrorMessage(err, 'No se pudieron cargar las categorías.'));
@@ -226,28 +218,12 @@ export default function InternalUsers() {
         }
         throw err;
       }),
-      fetchWithTenant('/tickets/categorias', { tenantSlug, omitEntityToken: true }).catch(err => {
-        if (err instanceof ApiError) {
-          setError((prev) => prev ?? getErrorMessage(err, 'No se pudieron cargar las categorías de tickets.'));
-          return null;
-        }
-        return null;
-      }),
-      fetchWithTenant('/pedidos/categorias', { tenantSlug, omitEntityToken: true }).catch(err => {
-        if (err instanceof ApiError) {
-          setError((prev) => prev ?? getErrorMessage(err, 'No se pudieron cargar las categorías de pedidos.'));
-          return null;
-        }
-        return null;
-      }),
     ])
-      .then(([usersData, categoriesData, ticketCategories, pedidoCategories]) => {
+      .then(([usersData, categoriesData]) => {
         const staffUsers = filterStaffUsers(usersData);
         setUsers(staffUsers);
         const merged = mergeCategories(
           extractCategories(categoriesData),
-          extractCategories(ticketCategories),
-          extractCategories(pedidoCategories),
           extractCategoriesFromUsers(staffUsers),
         );
         setCategories(merged);
