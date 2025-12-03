@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 
 import { MarketCartProvider, useMarketCart } from '@/context/MarketCartContext';
 import type { MarketProduct } from '@/types/market';
-import { apiFetch } from '@/api/client';
+import { apiClient } from '@/api/client';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,7 +19,8 @@ function ProductContent({ tenantSlug, productSlug }: { tenantSlug: string; produ
   useEffect(() => {
     setIsLoading(true);
     setError(null);
-    apiFetch(`/api/${tenantSlug}/productos/${productSlug}`)
+    apiClient
+      .get(`/public/market/${tenantSlug}/productos/${productSlug}`)
       .then((response: any) => {
           const normalized: MarketProduct = {
             id: response?.id ?? response?.product_id ?? productSlug,
