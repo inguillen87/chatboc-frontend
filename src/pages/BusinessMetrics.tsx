@@ -30,10 +30,11 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { apiFetch, getErrorMessage } from "@/utils/api";
+import { apiFetch, getErrorMessage, resolveTenantSlug } from "@/utils/api";
 import ChartTooltip from "@/components/analytics/ChartTooltip";
 import TicketStatsCharts from "@/components/TicketStatsCharts";
 import { getTicketStats, TicketStatsResponse } from "@/services/statsService";
+import { useUser } from "@/hooks/useUser";
 
 // --- MOCK DATA & TYPES (as per backend spec) ---
 
@@ -205,12 +206,22 @@ export default function BusinessMetrics() {
   const [ticketCharts, setTicketCharts] = useState<TicketStatsResponse['charts']>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { user } = useUser();
+  const tenantSlug = useMemo(
+    () => resolveTenantSlug(user?.tenantSlug || (user as any)?.tenant_slug),
+    [user],
+  );
 
   const fetchAllMetrics = useCallback(async () => {
     setLoading(true);
     setError(null);
+    if (!tenantSlug) {
+      setLoading(false);
+      setError('No se pudo determinar el tenant para cargar las métricas.');
+      return;
+    }
     try {
-      const ticketStatsPromise = getTicketStats({ tipo: 'pyme' }).catch((error) => {
+      const ticketStatsPromise = getTicketStats({ tipo: 'pyme' }, { tenantSlug }).catch((error) => {
         console.error('Error fetching ticket stats:', error);
         return { charts: [] } as TicketStatsResponse;
       });
@@ -223,11 +234,11 @@ export default function BusinessMetrics() {
         regionSalesRes,
         ticketStatsRes
       ] = await Promise.all([
-        apiFetch<{ summary: string }>('/api/metrics/summary'),
-        apiFetch<KpiData>('/api/metrics/kpis'),
-        apiFetch<{ data: SalesDataPoint[] }>('/api/metrics/sales-over-time?period=30d'),
-        apiFetch<{ products: TopProduct[] }>('/api/metrics/top-products?limit=5'),
-        apiFetch<{ regions: RegionSale[] }>('/api/metrics/sales-by-region'),
+        apiFetch<{ summary: string }>('/api/metrics/summary', { tenantSlug }),
+        apiFetch<KpiData>('/api/metrics/kpis', { tenantSlug }),
+        apiFetch<{ data: SalesDataPoint[] }>('/api/metrics/sales-over-time?period=30d', { tenantSlug }),
+        apiFetch<{ products: TopProduct[] }>('/api/metrics/top-products?limit=5', { tenantSlug }),
+        apiFetch<{ regions: RegionSale[] }>('/api/metrics/sales-by-region', { tenantSlug }),
         ticketStatsPromise
       ]);
 
@@ -243,7 +254,7 @@ export default function BusinessMetrics() {
     } finally {
         setLoading(false);
     }
-  }, []);
+  }, [tenantSlug]);
 
   useEffect(() => {
     fetchAllMetrics();

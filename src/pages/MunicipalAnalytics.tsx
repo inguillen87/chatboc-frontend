@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { apiFetch, ApiError } from '@/utils/api';
+import { apiFetch, ApiError, resolveTenantSlug } from '@/utils/api';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -27,6 +27,7 @@ import {
   HeatmapDataset,
   TicketStatsResponse,
 } from '@/services/statsService';
+import { useUser } from '@/hooks/useUser';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import {
@@ -189,6 +190,11 @@ const buildFallbackAnalytics = (
 
 export default function MunicipalAnalytics() {
   useRequireRole(['admin', 'super_admin'] as Role[]);
+  const { user } = useUser();
+  const tenantSlug = useMemo(
+    () => resolveTenantSlug(user?.tenantSlug || (user as any)?.tenant_slug),
+    [user],
+  );
   const [data, setData] = useState<AnalyticsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -225,8 +231,12 @@ export default function MunicipalAnalytics() {
   }, []);
 
   useEffect(() => {
+    if (!tenantSlug) {
+      setAllowedStatuses([]);
+      return;
+    }
     let active = true;
-    getMunicipalTicketStates()
+    getMunicipalTicketStates({ tenantSlug })
       .then((states) => {
         if (!active) return;
         setAllowedStatuses(states);
@@ -239,11 +249,17 @@ export default function MunicipalAnalytics() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [tenantSlug]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
+
+    if (!tenantSlug) {
+      setLoading(false);
+      setError('No se pudo determinar el municipio para cargar las estadísticas.');
+      return;
+    }
 
     const disableAnalytics = analyticsDisabledRef.current;
     if (disableAnalytics) {
@@ -271,15 +287,17 @@ export default function MunicipalAnalytics() {
     };
 
     try {
+      let serverError: string | null = null;
       const analyticsPromise = disableAnalytics
         ? Promise.resolve<AnalyticsResponse | null>(null)
         : apiFetch<AnalyticsResponse>(
             `${MUNICIPAL_ANALYTICS_PATH}${qs.toString() ? `?${qs.toString()}` : ''}`,
+            { tenantSlug },
           );
 
       const [analyticsResult, statsResult, heatmapResult] = await Promise.allSettled([
         analyticsPromise,
-        getTicketStats(statsParams),
+        getTicketStats(statsParams, { tenantSlug }),
         getHeatmapPoints({
           tipo: 'municipio',
           categoria: categoryFilter !== 'all' ? categoryFilter : undefined,
@@ -287,7 +305,7 @@ export default function MunicipalAnalytics() {
           edad_min: ageMin || undefined,
           edad_max: ageMax || undefined,
           estado: statusFilters.length > 0 ? statusFilters : undefined,
-        }),
+        }, { tenantSlug }),
       ]);
 
       const analyticsValue =
@@ -308,6 +326,9 @@ export default function MunicipalAnalytics() {
         statsResult.status === 'fulfilled' ? statsResult.value : null;
       if (statsResult.status === 'rejected') {
         console.error('Error fetching ticket stats:', statsResult.reason);
+        if (statsResult.reason instanceof ApiError && statsResult.reason.status >= 500) {
+          serverError = 'No se pudieron cargar las estadísticas del municipio. Intentá nuevamente más tarde.';
+        }
       }
 
       const heatmapDataset: HeatmapDataset =
@@ -315,6 +336,9 @@ export default function MunicipalAnalytics() {
       const heatmapValue = heatmapDataset.points ?? [];
       if (heatmapResult.status === 'rejected') {
         console.error('Error fetching heatmap data:', heatmapResult.reason);
+        if (heatmapResult.reason instanceof ApiError && heatmapResult.reason.status >= 500) {
+          serverError = serverError ?? 'No se pudieron cargar los datos del mapa de calor.';
+        }
       }
 
       const fallbackAnalytics = buildFallbackAnalytics(statsValue, heatmapValue);
@@ -345,7 +369,9 @@ export default function MunicipalAnalytics() {
         (statsValue?.charts && statsValue.charts.length > 0) ||
         heatmapValue.length > 0;
 
-      if (!hasAnyData) {
+      if (serverError) {
+        setError(serverError);
+      } else if (!hasAnyData) {
         setError('No hay datos disponibles con los filtros actuales.');
       }
     } catch (err: any) {
@@ -367,7 +393,7 @@ export default function MunicipalAnalytics() {
     } finally {
       setLoading(false);
     }
-  }, [categoryFilter, genderFilter, ageMin, ageMax, statusFilters, markAnalyticsDisabled]);
+  }, [categoryFilter, genderFilter, ageMin, ageMax, statusFilters, markAnalyticsDisabled, tenantSlug]);
 
   useEffect(() => {
     fetchData();
