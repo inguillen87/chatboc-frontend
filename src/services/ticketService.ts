@@ -51,6 +51,7 @@ export const getTickets = async (
   try {
     const response = await apiFetch<{ tickets: Ticket[] }>('/tickets', {
       tenantSlug,
+      omitTenant: true,
     });
     const tickets = response.tickets || [];
 
