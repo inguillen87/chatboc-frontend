@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { apiFetch, ApiError, getErrorMessage } from '@/utils/api';
+import { apiFetch, ApiError, getErrorMessage, resolveTenantSlug } from '@/utils/api';
 import useRequireRole from '@/hooks/useRequireRole';
 import { useUser } from '@/hooks/useUser';
 import type { Role } from '@/utils/roles';
@@ -49,9 +49,34 @@ export default function InternalUsers() {
   const [editCategoriaIds, setEditCategoriaIds] = useState<CategoryId[]>([]);
   const [editCategorySearch, setEditCategorySearch] = useState('');
 
-  const entityType = useMemo(() => (user?.tipo_chat === 'pyme' ? 'pyme' : 'municipal'), [user]);
-  const usersUrl = useMemo(() => (entityType === 'pyme' ? '/pyme/usuarios' : '/municipal/usuarios'), [entityType]);
-  const categoriesUrl = useMemo(() => (entityType === 'pyme' ? '/pyme/categorias' : '/municipal/categorias'), [entityType]);
+  const tenantSlug = useMemo(
+    () =>
+      resolveTenantSlug(
+        user?.tenantSlug ||
+          // @ts-expect-error: backend still returns snake_case occasionally
+          (user as any)?.tenant_slug ||
+          null,
+      ),
+    [user],
+  );
+  const entityType = useMemo(() => {
+    const normalized = (user?.tipo_chat || '').toString().toLowerCase();
+    if (normalized === 'pyme') return 'pyme';
+    if (normalized === 'municipio') return 'municipio';
+    return 'municipal';
+  }, [user]);
+
+  const entityPaths = useMemo(() => {
+    const primary = entityType === 'pyme' ? '/pyme' : entityType === 'municipio' ? '/municipio' : '/municipal';
+    const fallback = primary === '/pyme'
+      ? []
+      : primary === '/municipal'
+        ? ['/municipio']
+        : ['/municipal'];
+    return [primary, ...fallback];
+  }, [entityType]);
+
+  const [resolvedEntityPath, setResolvedEntityPath] = useState<string | null>(null);
 
   const filterStaffUsers = useCallback((list: InternalUser[] | null | undefined) => {
     if (!Array.isArray(list)) return [];
@@ -141,9 +166,33 @@ export default function InternalUsers() {
     [normalizeCategory]
   );
 
+  const fetchWithEntityFallback = useCallback(
+    async <T,>(suffix: string, options: Parameters<typeof apiFetch<T>>[1]) => {
+      let lastError: unknown = null;
+
+      for (const base of entityPaths) {
+        try {
+          const result = await apiFetch<T>(`${base}${suffix}`, options);
+          setResolvedEntityPath((prev) => prev || base);
+          return result;
+        } catch (err) {
+          if (err instanceof ApiError && err.status === 404) {
+            lastError = err;
+            continue;
+          }
+          throw err;
+        }
+      }
+
+      if (lastError) throw lastError;
+      throw new Error('No se pudo resolver la ruta del tenant');
+    },
+    [entityPaths],
+  );
+
   const refreshUsers = useCallback(async () => {
     try {
-      const data = await apiFetch<InternalUser[]>(usersUrl);
+      const data = await fetchWithEntityFallback<InternalUser[]>('/usuarios', { tenantSlug });
       const staffUsers = filterStaffUsers(data);
       setUsers(staffUsers);
       setCategories((prev) =>
@@ -152,25 +201,25 @@ export default function InternalUsers() {
     } catch (err: any) {
       setError(getErrorMessage(err, 'Error al cargar los usuarios'));
     }
-  }, [extractCategoriesFromUsers, filterStaffUsers, mergeCategories, usersUrl]);
+  }, [extractCategoriesFromUsers, fetchWithEntityFallback, filterStaffUsers, mergeCategories, tenantSlug]);
 
   useEffect(() => {
     setLoading(true);
     setError(null);
     Promise.all([
-      apiFetch<InternalUser[]>(usersUrl).catch(err => {
+      fetchWithEntityFallback<InternalUser[]>('/usuarios', { tenantSlug }).catch(err => {
         if (err instanceof ApiError && err.status === 404) return [];
         throw err;
       }),
-      apiFetch(categoriesUrl, { sendEntityToken: true }).catch(err => {
+      fetchWithEntityFallback('/categorias', { tenantSlug, omitEntityToken: true }).catch(err => {
         if (err instanceof ApiError && err.status === 404) return null;
         throw err;
       }),
-      apiFetch(`${entityType === 'pyme' ? '/pyme' : '/municipal'}/tickets/categorias`, { sendEntityToken: true }).catch(err => {
+      fetchWithEntityFallback('/tickets/categorias', { tenantSlug, omitEntityToken: true }).catch(err => {
         if (err instanceof ApiError && err.status === 404) return null;
         return null;
       }),
-      apiFetch(`${entityType === 'pyme' ? '/pyme' : '/municipal'}/pedidos/categorias`, { sendEntityToken: true }).catch(err => {
+      fetchWithEntityFallback('/pedidos/categorias', { tenantSlug, omitEntityToken: true }).catch(err => {
         if (err instanceof ApiError && err.status === 404) return null;
         return null;
       }),
@@ -192,7 +241,7 @@ export default function InternalUsers() {
         setLoading(false);
       });
 
-  }, [categoriesUrl, entityType, extractCategories, extractCategoriesFromUsers, filterStaffUsers, mergeCategories, usersUrl]);
+  }, [extractCategories, extractCategoriesFromUsers, fetchWithEntityFallback, filterStaffUsers, mergeCategories, tenantSlug]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -222,9 +271,10 @@ export default function InternalUsers() {
         }
       }
 
-      await apiFetch(usersUrl, {
+      await fetchWithEntityFallback('/usuarios', {
         method: 'POST',
         body: payload,
+        tenantSlug,
       });
       await refreshUsers();
       setNombre('');
@@ -247,9 +297,8 @@ export default function InternalUsers() {
       `¿Eliminar el empleado ${user.nombre}? ${cargaTexto}`
     );
     if (!wantsToDelete) return;
-    const deleteUrl = `${usersUrl}/${user.id}`;
     try {
-      await apiFetch(deleteUrl, { method: 'DELETE' });
+      await fetchWithEntityFallback(`/usuarios/${user.id}`, { method: 'DELETE', tenantSlug });
       await refreshUsers();
     } catch (err: any) {
       setError(getErrorMessage(err, 'Error al eliminar el usuario'));
@@ -283,7 +332,6 @@ export default function InternalUsers() {
       return;
     }
 
-    const updateUrl = `${usersUrl}/${editingUser.id}`;
     if (hasAvailableCategories && editCategoriaIds.length === 0) {
       setError('Seleccioná al menos una categoría.');
       return;
@@ -308,7 +356,7 @@ export default function InternalUsers() {
 
     try {
       setError(null);
-      await apiFetch(updateUrl, { method: 'PUT', body: payload });
+      await fetchWithEntityFallback(`/usuarios/${editingUser.id}`, { method: 'PUT', body: payload, tenantSlug });
       await refreshUsers();
       setEditingUser(null);
       setEditPassword('');
