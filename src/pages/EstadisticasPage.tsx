@@ -630,7 +630,6 @@ export default function EstadisticasPage() {
       const [statsResult, heatmapResult, ticketsResult] = await Promise.allSettled([
         getTicketStats(params),
         getHeatmapPoints({
-          tipo_ticket: segment,
           tipo: segment,
           fecha_inicio: start,
           fecha_fin: end,

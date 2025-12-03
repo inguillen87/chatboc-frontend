@@ -102,7 +102,7 @@ const computeFallbackCenter = (
   return { lat: -34.6037, lng: -58.3816 } as const; // Buenos Aires as neutral fallback
 };
 
-const googleMapsApiKey = import.meta.env.VITE_Maps_API_KEY || "";
+const googleMapsApiKey = (import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "").trim();
 
 export function GoogleHeatmapMap({
   center,
@@ -176,11 +176,12 @@ export function GoogleHeatmapMap({
   );
 
   const resolvedGoogleKey = (googleMapsKey ?? googleMapsApiKey).trim();
+  const shouldLoadGoogle = Boolean(resolvedGoogleKey);
 
   const { isLoaded, loadError } = useJsApiLoader({
     id: "chatboc-google-maps",
-    googleMapsApiKey: resolvedGoogleKey,
-    libraries: GOOGLE_LIBRARIES,
+    googleMapsApiKey: shouldLoadGoogle ? resolvedGoogleKey : "disabled-google-maps",
+    libraries: shouldLoadGoogle ? GOOGLE_LIBRARIES : [],
     language: "es",
     region: "AR",
   });
@@ -197,10 +198,14 @@ export function GoogleHeatmapMap({
   );
 
   useEffect(() => {
-    if (!resolvedGoogleKey) {
+    if (!shouldLoadGoogle) {
       reportUnavailable("missing-api-key");
     }
-  }, [reportUnavailable, resolvedGoogleKey]);
+  }, [reportUnavailable, shouldLoadGoogle]);
+
+  if (!shouldLoadGoogle) {
+    return null;
+  }
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -383,7 +388,7 @@ export function GoogleHeatmapMap({
     return (
       <div className={mapContainerClassName}>
         <div className="flex h-full w-full items-center justify-center rounded-2xl border border-dashed border-border px-6 text-center text-sm text-muted-foreground">
-          No se configuró la clave de Google Maps (`VITE_Maps_API_KEY`). Agregala en el backend para habilitar este mapa.
+          No se configuró la clave de Google Maps (`VITE_GOOGLE_MAPS_API_KEY`). Agregala en el backend para habilitar este mapa.
         </div>
       </div>
     );
@@ -394,7 +399,7 @@ export function GoogleHeatmapMap({
     return (
       <div className={mapContainerClassName}>
         <div className="flex h-full w-full items-center justify-center rounded-2xl border border-dashed border-border px-6 text-center text-sm text-muted-foreground">
-          No se pudo cargar Google Maps. Revisá la clave (`VITE_Maps_API_KEY`) o la conexión a Internet.
+          No se pudo cargar Google Maps. Revisá la clave (`VITE_GOOGLE_MAPS_API_KEY`) o la conexión a Internet.
         </div>
       </div>
     );
@@ -415,7 +420,7 @@ export function GoogleHeatmapMap({
     return (
       <div className={mapContainerClassName}>
         <div className="flex h-full w-full items-center justify-center rounded-2xl border border-dashed border-border px-6 text-center text-sm text-muted-foreground">
-          No se pudo inicializar Google Maps. Verificá la clave (`VITE_Maps_API_KEY`) y la configuración de facturación.
+          No se pudo inicializar Google Maps. Verificá la clave (`VITE_GOOGLE_MAPS_API_KEY`) y la configuración de facturación.
         </div>
       </div>
     );

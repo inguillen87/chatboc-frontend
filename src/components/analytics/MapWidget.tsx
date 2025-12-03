@@ -39,7 +39,7 @@ export function MapWidget({
   const [lastBbox, setLastBbox] = useState<[number, number, number, number] | null>(null);
   const { provider, setProvider } = useMapProvider();
   const googleProviderAvailable = useMemo(
-    () => ((import.meta.env.VITE_Maps_API_KEY ?? '').trim().length > 0),
+    () => ((import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? '').trim().length > 0),
     [],
   );
   const [providerWarning, setProviderWarning] = useState<string | null>(null);
@@ -54,7 +54,7 @@ export function MapWidget({
       setProvider('maplibre');
       const reasons: Record<MapProviderUnavailableReason, string> = {
         'missing-api-key':
-          'Falta configurar VITE_Maps_API_KEY para mostrar el mapa de calor. Se cambió automáticamente a MapLibre.',
+          'Falta configurar VITE_GOOGLE_MAPS_API_KEY para mostrar el mapa de calor. Se cambió automáticamente a MapLibre.',
         'load-error': 'No se pudo cargar Google Maps. Revisá la clave y la conexión. Se usará MapLibre por ahora.',
         'heatmap-unavailable':
           'Google Maps no ofrece el layer de calor en esta cuenta. Se cambió automáticamente a MapLibre.',

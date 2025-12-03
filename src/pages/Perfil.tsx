@@ -682,7 +682,7 @@ export default function Perfil() {
 
       const [stats, heatmapDataset, categoryData] = await Promise.all([
         getTicketStats({ tipo }),
-        getHeatmapPoints({ tipo_ticket: tipo, tipo }),
+        getHeatmapPoints({ tipo }),
         apiFetch<{ categorias: { id: number; nombre: string }[] }>(
           '/municipal/categorias',
         ).catch((err) => {

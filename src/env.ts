@@ -18,13 +18,6 @@ const resolveGoogleClientId = (): { value: string; fromFallback: boolean } => {
   return { value: FALLBACK_GOOGLE_CLIENT_ID, fromFallback: true };
 };
 
-const { value: resolvedGoogleClientId, fromFallback } = resolveGoogleClientId();
-
-if (fromFallback) {
-  console.warn(
-    '[env] VITE_GOOGLE_CLIENT_ID is missing. Falling back to the default client ID documented in the README. ' +
-      'Configure the variable in your environment to silence this warning.',
-  );
-}
+const { value: resolvedGoogleClientId } = resolveGoogleClientId();
 
 export const GOOGLE_CLIENT_ID = resolvedGoogleClientId;
