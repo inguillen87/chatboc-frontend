@@ -45,9 +45,13 @@ const normalizeAssignableAgent = (raw: any): AssignableAgent | null => {
     };
 };
 
-export const getTickets = async (): Promise<{tickets: Ticket[]}> => {
+export const getTickets = async (
+  tenantSlug?: string | null,
+): Promise<{ tickets: Ticket[] }> => {
   try {
-    const response = await apiFetch<{tickets: Ticket[]}>('/tickets');
+    const response = await apiFetch<{ tickets: Ticket[] }>('/tickets', {
+      tenantSlug,
+    });
     const tickets = response.tickets || [];
 
     const ticketsWithAvatars = tickets.map(ticket => ({

@@ -28,6 +28,7 @@ import { formatCurrency } from '@/utils/currency';
 import { getValidStoredToken } from '@/utils/authTokens';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { MARKET_DEMO_SECTIONS, buildDemoMarketCatalog } from '@/data/marketDemo';
+import { ApiError } from '@/utils/api';
 
 type ContactInfo = {
   name?: string;
@@ -253,8 +254,18 @@ export default function MarketCartPage() {
   const catalogData = catalogQuery.data ?? (catalogQuery.isError ? fallbackCatalog : undefined);
   const catalogProducts: MarketProduct[] = catalogData?.products ?? [];
   const cartItems: MarketCartItem[] = cartQuery.data?.items ?? [];
-  const catalogErrorMessage = catalogQuery.error instanceof Error ? catalogQuery.error.message : null;
-  const cartErrorMessage = cartQuery.error instanceof Error ? cartQuery.error.message : null;
+  const catalogServerError = catalogQuery.error instanceof ApiError && catalogQuery.error.status >= 500;
+  const cartServerError = cartQuery.error instanceof ApiError && cartQuery.error.status >= 500;
+  const catalogErrorMessage = catalogServerError
+    ? 'Ocurrió un error en el servidor'
+    : catalogQuery.error instanceof Error
+      ? catalogQuery.error.message
+      : null;
+  const cartErrorMessage = cartServerError
+    ? 'Ocurrió un error en el servidor'
+    : cartQuery.error instanceof Error
+      ? cartQuery.error.message
+      : null;
   const isDemoCatalog = Boolean(catalogData?.isDemo || (!catalogQuery.data && catalogQuery.isError));
   const canCopy = Boolean(shareUrl && navigator?.clipboard);
   const canShareWhatsApp = Boolean(shareMessage);
@@ -639,13 +650,12 @@ export default function MarketCartPage() {
               </Alert>
             ) : null}
 
-            {!isDemoCatalog && catalogErrorMessage ? (
+            {!isDemoCatalog && catalogServerError ? (
               <Alert variant="destructive">
                 <AlertTitle>{catalogQuery.data?.isDemo ? 'Catálogo de demostración' : 'No pudimos cargar el catálogo'}</AlertTitle>
                 <AlertDescription>
                   {catalogQuery.data?.demoReason ??
-                    (catalogErrorMessage ||
-                      'Intenta nuevamente desde el enlace o QR.')}
+                    (catalogErrorMessage || 'Intenta nuevamente desde el enlace o QR.')}
                 </AlertDescription>
               </Alert>
             ) : null}
@@ -683,7 +693,7 @@ export default function MarketCartPage() {
                   ? 'Cargando productos...'
                   : searchTerm
                     ? 'No encontramos productos que coincidan con tu búsqueda.'
-                    : 'No hay productos disponibles en este catálogo.'}
+                    : 'No hay productos en el marketplace de este municipio todavía'}
               </div>
             )}
           </div>
@@ -700,7 +710,7 @@ export default function MarketCartPage() {
               isUpdating={isUpdatingCart}
             />
 
-            {cartErrorMessage ? (
+            {cartServerError ? (
               <Alert variant="destructive" className="mt-3">
                 <AlertTitle>No pudimos actualizar tu carrito</AlertTitle>
                 <AlertDescription>
