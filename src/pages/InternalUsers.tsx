@@ -87,6 +87,12 @@ export default function InternalUsers() {
   }, []);
 
   const normalizeCategory = useCallback((raw: any): Category | null => {
+    if (typeof raw === 'string') {
+      const trimmed = raw.trim();
+      if (!trimmed) return null;
+      return { id: trimmed, nombre: trimmed };
+    }
+
     if (!raw || typeof raw !== 'object') return null;
 
     const id = raw.id ?? raw.categoria_id ?? raw.categoriaId ?? raw.slug ?? raw.codigo;
@@ -100,9 +106,14 @@ export default function InternalUsers() {
       raw.categoria,
     ].find((value) => typeof value === 'string' && value.trim().length > 0);
 
-    if (!idString || !nameCandidate) return null;
+    if (!idString && !nameCandidate) return null;
 
-    return { id, nombre: nameCandidate.trim() };
+    const nombre = (nameCandidate ?? idString ?? '').trim();
+    const resolvedId = idString || nombre;
+
+    if (!resolvedId || !nombre) return null;
+
+    return { id: resolvedId, nombre };
   }, []);
 
   const mergeCategories = useCallback(
@@ -132,11 +143,15 @@ export default function InternalUsers() {
         ? data.categorias
         : Array.isArray(data?.data?.categorias)
           ? data.data.categorias
-          : Array.isArray(data?.data)
-            ? data.data
-            : Array.isArray(data)
-              ? data
-              : [];
+          : Array.isArray(data?.categories)
+            ? data.categories
+            : Array.isArray(data?.data?.categories)
+              ? data.data.categories
+              : Array.isArray(data?.data)
+                ? data.data
+                : Array.isArray(data)
+                  ? data
+                  : [];
       return rawCategories
         .map(normalizeCategory)
         .filter((c): c is Category => Boolean(c));
@@ -580,7 +595,7 @@ export default function InternalUsers() {
           {users.map((u) => {
             const categoryIds = getUserCategoryIds(u);
             const categoriaNombre = categoryIds
-              .map((id) => categories.find((c) => c.id === id)?.nombre)
+              .map((id) => categories.find((c) => c.id?.toString?.() === id?.toString?.())?.nombre)
               .filter(Boolean)
               .join(', ');
             return (
