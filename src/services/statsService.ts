@@ -2223,15 +2223,42 @@ export const getTicketStats = async (
     delete (normalizedParams as any).tipo_ticket;
 
     const query = buildSearchParams(normalizedParams).toString();
-    const resp = await apiFetch<unknown>(
+    const candidatePaths = [
+      `/api/estadisticas/tickets${query ? `?${query}` : ''}`,
       `/estadisticas/tickets${query ? `?${query}` : ''}`,
-    );
+    ];
+
+    let resp: unknown = null;
+    let lastError: unknown = null;
+
+    for (const path of candidatePaths) {
+      try {
+        resp = await apiFetch<unknown>(path);
+        break;
+      } catch (error) {
+        lastError = error;
+        const errorCode = (error as Error & { code?: string }).code;
+        if (errorCode === 'HTML_PAYLOAD') {
+          continue;
+        }
+        if (error instanceof ApiError && error.status === 404) {
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    if (resp === null) {
+      throw lastError ?? new Error('No stats endpoint responded successfully');
+    }
 
     const normalizedPayload = normalizeApiPayload(resp);
 
     if (isHtmlPayload(normalizedPayload)) {
-      console.warn('[statsService] Received HTML payload for /estadisticas/tickets, aborting further alias attempts.');
-      const error = new Error('HTML payload returned from /estadisticas/tickets');
+      console.warn(
+        '[statsService] Received HTML payload for /api/estadisticas/tickets, aborting further alias attempts.',
+      );
+      const error = new Error('HTML payload returned from /api/estadisticas/tickets');
       (error as Error & { code?: string }).code = 'HTML_PAYLOAD';
       throw error;
     }
@@ -2293,15 +2320,40 @@ export const getHeatmapDataset = async (
     delete (normalizedParams as any).tipo_ticket;
 
     const query = buildSearchParams(normalizedParams).toString();
-    const payload = await apiFetch<unknown>(
+    const candidatePaths = [
+      `/api/estadisticas/mapa_calor/datos${query ? `?${query}` : ''}`,
       `/estadisticas/mapa_calor/datos${query ? `?${query}` : ''}`,
-    );
+    ];
+
+    let payload: unknown = null;
+    let lastError: unknown = null;
+
+    for (const path of candidatePaths) {
+      try {
+        payload = await apiFetch<unknown>(path);
+        break;
+      } catch (error) {
+        lastError = error;
+        const errorCode = (error as Error & { code?: string }).code;
+        if (errorCode === 'HTML_PAYLOAD') {
+          continue;
+        }
+        if (error instanceof ApiError && error.status === 404) {
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    if (payload === null) {
+      throw lastError ?? new Error('No heatmap endpoint responded successfully');
+    }
     const normalizedPayload = normalizeApiPayload(payload);
     if (isHtmlPayload(normalizedPayload)) {
       console.warn(
-        '[statsService] Received HTML payload for /estadisticas/mapa_calor/datos, aborting further alias attempts.',
+        '[statsService] Received HTML payload for /api/estadisticas/mapa_calor/datos, aborting further alias attempts.',
       );
-      const error = new Error('HTML payload returned from /estadisticas/mapa_calor/datos');
+      const error = new Error('HTML payload returned from /api/estadisticas/mapa_calor/datos');
       (error as Error & { code?: string }).code = 'HTML_PAYLOAD';
       throw error;
     }
