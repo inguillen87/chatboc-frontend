@@ -126,9 +126,18 @@ const shouldUseDemo = (error: unknown): boolean => {
 
 const getDemoCatalog = (tenantSlug: string) => buildDemoMarketCatalog(tenantSlug).catalog;
 
+const buildTenantQueryParams = (tenantSlug: string) =>
+  new URLSearchParams({
+    tenant: tenantSlug,
+    tenant_slug: tenantSlug,
+  }).toString();
+
 export async function fetchMarketCatalog(tenantSlug: string): Promise<MarketCatalogResponse> {
   try {
-    const response = await apiClient.get<any>(`/public/market/${encodeURIComponent(tenantSlug)}/productos`, tenantSlug);
+    const response = await apiClient.get<any>(
+      `/public/market/${encodeURIComponent(tenantSlug)}/productos?${buildTenantQueryParams(tenantSlug)}`,
+      tenantSlug,
+    );
     const mergedProducts = [
       ...(response?.products ?? []),
       ...(response?.items ?? []),
@@ -169,7 +178,10 @@ export async function fetchMarketCatalog(tenantSlug: string): Promise<MarketCata
 
 export async function fetchMarketCart(tenantSlug: string): Promise<MarketCartResponse> {
   try {
-    const response = await apiClient.get<any>(`/public/market/${encodeURIComponent(tenantSlug)}/carrito`, tenantSlug);
+    const response = await apiClient.get<any>(
+      `/public/market/${encodeURIComponent(tenantSlug)}/carrito?${buildTenantQueryParams(tenantSlug)}`,
+      tenantSlug,
+    );
     const items = normalizeCartItems(response?.items ?? response?.cart ?? []);
 
     return {
@@ -197,7 +209,7 @@ export async function addMarketItem(
 ): Promise<MarketCartResponse> {
   try {
     const response = await apiClient.post<any>(
-      `/public/market/${encodeURIComponent(tenantSlug)}/carrito`,
+      `/public/market/${encodeURIComponent(tenantSlug)}/carrito?${buildTenantQueryParams(tenantSlug)}`,
       payload,
       tenantSlug,
     );
@@ -230,7 +242,7 @@ export async function addMarketItem(
 export async function removeMarketItem(tenantSlug: string, productId: string): Promise<MarketCartResponse> {
   try {
     const response = await apiClient.post<any>(
-      `/public/market/${encodeURIComponent(tenantSlug)}/carrito/remove`,
+      `/public/market/${encodeURIComponent(tenantSlug)}/carrito/remove?${buildTenantQueryParams(tenantSlug)}`,
       { productId },
       tenantSlug,
     );
@@ -254,7 +266,11 @@ export async function removeMarketItem(tenantSlug: string, productId: string): P
 
 export async function clearMarketCart(tenantSlug: string): Promise<MarketCartResponse> {
   try {
-    await apiClient.post(`/public/market/${encodeURIComponent(tenantSlug)}/carrito/clear`, undefined, tenantSlug);
+    await apiClient.post(
+      `/public/market/${encodeURIComponent(tenantSlug)}/carrito/clear?${buildTenantQueryParams(tenantSlug)}`,
+      undefined,
+      tenantSlug,
+    );
 
     return { items: [], totalAmount: null, totalPoints: null };
   } catch (error) {
@@ -270,7 +286,7 @@ export async function startMarketCheckout(
 ): Promise<CheckoutStartResponse> {
   try {
     return await apiClient.post<CheckoutStartResponse>(
-      `/public/market/${encodeURIComponent(tenantSlug)}/checkout`,
+      `/public/market/${encodeURIComponent(tenantSlug)}/checkout?${buildTenantQueryParams(tenantSlug)}`,
       payload,
       tenantSlug,
     );

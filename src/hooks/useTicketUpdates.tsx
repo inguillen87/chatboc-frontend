@@ -3,7 +3,7 @@ import { io, Socket } from 'socket.io-client';
 import type { ManagerOptions, SocketOptions } from 'socket.io-client';
 import { toast } from '@/components/ui/use-toast';
 import { useUser } from './useUser';
-import { apiFetch } from '@/utils/api';
+import { apiFetch, resolveTenantSlug } from '@/utils/api';
 import { safeOn, assertEventSource } from '@/utils/safeOn';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
@@ -46,7 +46,8 @@ export default function useTicketUpdates(options: UseTicketUpdatesOptions = {}) 
   }, [onNewComment]);
 
   useEffect(() => {
-    if (!user) return;
+    const tenantSlug = resolveTenantSlug(user?.tenantSlug);
+    if (!user || !tenantSlug) return;
 
     let socket: Socket | null = null;
     let active = true;
@@ -83,6 +84,7 @@ export default function useTicketUpdates(options: UseTicketUpdatesOptions = {}) 
         const settings = await apiFetch<{ ticket?: boolean }>('/notifications', {
           isWidgetRequest: false,
           omitCredentials: false,
+          tenantSlug,
         });
         if (!active) return;
 
