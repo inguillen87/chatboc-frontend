@@ -57,19 +57,39 @@ const normalizeSurveyBaseUrl = (value?: string): string => {
   }
 };
 
-const RESOLVED_BACKEND_URL = normalizeBackendUrl(VITE_BACKEND_URL);
-const CURRENT_ORIGIN =
-  typeof window !== 'undefined' && window.location?.origin
-    ? sanitizeBaseUrl(window.location.origin)
-    : '';
-
-const inferSameOriginProxy = (): string | null => {
-  if (typeof window === 'undefined') {
-    return null;
+const getGlobalLocation = (): Location | null => {
+  if (typeof window !== 'undefined' && window.location) return window.location;
+  if (typeof globalThis !== 'undefined') {
+    const maybeLocation = (globalThis as any)?.location;
+    if (maybeLocation?.origin || maybeLocation?.href) return maybeLocation as Location;
   }
+  return null;
+};
+
+const getCurrentOrigin = (): string => {
+  const locationRef = getGlobalLocation();
+  if (!locationRef) return '';
+
+  const originCandidate = locationRef.origin || locationRef.href || '';
 
   try {
-    const currentUrl = new URL(window.location.href);
+    const normalized = new URL(originCandidate);
+    return sanitizeBaseUrl(normalized.origin);
+  } catch (error) {
+    console.warn('[config] Unable to normalize origin from location', error);
+    return sanitizeBaseUrl(originCandidate);
+  }
+};
+
+const RESOLVED_BACKEND_URL = normalizeBackendUrl(VITE_BACKEND_URL);
+const CURRENT_ORIGIN = getCurrentOrigin();
+
+const inferSameOriginProxy = (): string | null => {
+  const locationRef = getGlobalLocation();
+  if (!locationRef?.href) return null;
+
+  try {
+    const currentUrl = new URL(locationRef.href);
 
     if (RESOLVED_BACKEND_URL) {
       const backendUrl = new URL(RESOLVED_BACKEND_URL);
@@ -106,12 +126,11 @@ const inferSameOriginProxy = (): string | null => {
 };
 
 const inferBackendUrlFromOrigin = (): string => {
-  if (typeof window === 'undefined' || !window.location?.origin) {
-    return '';
-  }
+  const locationRef = getGlobalLocation();
+  if (!locationRef?.href) return '';
 
   try {
-    const url = new URL(window.location.href);
+    const url = new URL(locationRef.href);
     return url.origin;
   } catch (error) {
     console.warn('[config] Unable to infer backend URL from origin', error);
@@ -174,15 +193,22 @@ export const getSocketUrl = (): string => {
     } catch (e) {
       console.error("Invalid backend URL for WebSocket:", RESOLVED_BACKEND_URL);
       // Fallback to current location in case of invalid URL.
-      const fallbackUrl = new URL(window.location.href);
-      fallbackUrl.protocol = fallbackUrl.protocol.replace('http', 'ws');
-      return fallbackUrl.origin;
+      const locationRef = getGlobalLocation();
+      if (locationRef?.href) {
+        const fallbackUrl = new URL(locationRef.href);
+        fallbackUrl.protocol = fallbackUrl.protocol.replace('http', 'ws');
+        return fallbackUrl.origin;
+      }
+      return '';
     }
   }
 
   // In dev mode with proxy, or in production when VITE_BACKEND_URL is not set,
   // connect to the same host that is serving the frontend.
-  const url = new URL(window.location.href);
+  const locationRef = getGlobalLocation();
+  if (!locationRef?.href) return '';
+
+  const url = new URL(locationRef.href);
   url.protocol = url.protocol.replace('http', 'ws');
   return url.origin;
 };
