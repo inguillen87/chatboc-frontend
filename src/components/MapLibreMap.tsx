@@ -216,7 +216,7 @@ export default function MapLibreMap({
     [onProviderUnavailable],
   );
 
-  const resolvedGoogleMapsKey = (googleMapsKey ?? import.meta.env.VITE_Maps_API_KEY ?? "").trim();
+  const resolvedGoogleMapsKey = (googleMapsKey ?? import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? "").trim();
   const wantsGoogle = effectiveProvider === "google";
   const shouldUseGoogle = wantsGoogle && resolvedGoogleMapsKey.length > 0;
 

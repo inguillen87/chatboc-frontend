@@ -281,7 +281,6 @@ export default function MunicipalAnalytics() {
         analyticsPromise,
         getTicketStats(statsParams),
         getHeatmapPoints({
-          tipo_ticket: 'municipio',
           tipo: 'municipio',
           categoria: categoryFilter !== 'all' ? categoryFilter : undefined,
           genero: genderFilter || undefined,

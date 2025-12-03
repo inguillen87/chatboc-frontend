@@ -115,8 +115,6 @@ export default function ProductCheckoutPage() {
       suppressPanel401Redirect: true,
       tenantSlug: effectiveTenantSlug ?? undefined,
       sendAnonId: true,
-      isWidgetRequest: true,
-      omitCredentials: true,
     }) as const,
     [effectiveTenantSlug],
   );

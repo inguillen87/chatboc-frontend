@@ -166,8 +166,6 @@ const OrderConfirmationPage = () => {
       suppressPanel401Redirect: true,
       tenantSlug: currentSlug ?? undefined,
       sendAnonId: true,
-      isWidgetRequest: true,
-      omitCredentials: true,
     }) as const,
     [currentSlug],
   );
