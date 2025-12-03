@@ -94,6 +94,7 @@ const buildGeoJson = (points: HeatPoint[]) => ({
     type: "Feature",
     properties: {
       weight: p.totalWeight ?? p.weight ?? 1,
+      intensity: p.intensity ?? p.totalWeight ?? p.weight ?? 1,
       id: p.id,
       ticket: p.ticket,
       categoria: p.categoria,
@@ -357,8 +358,8 @@ export default function MapLibreMap({
             source: "points",
             maxzoom: 15,
             paint: {
-              "heatmap-weight": ["get", "weight"],
-              "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 0, 1, 15, 3],
+              "heatmap-weight": ["coalesce", ["get", "intensity"], ["get", "weight"], 1],
+              "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 0, 1, 15, 3.5],
               "heatmap-radius": [
                 "interpolate",
                 ["linear"],
@@ -366,21 +367,31 @@ export default function MapLibreMap({
                 0,
                 [
                   "max",
-                  3,
+                  4,
                   [
                     "*",
                     ["sqrt", ["coalesce", ["get", "clusterSize"], 1]],
-                    2,
+                    2.6,
                   ],
                 ],
                 9,
                 [
                   "max",
-                  16,
+                  14,
                   [
                     "*",
                     ["sqrt", ["coalesce", ["get", "clusterSize"], 1]],
-                    4,
+                    4.8,
+                  ],
+                ],
+                13,
+                [
+                  "max",
+                  18,
+                  [
+                    "*",
+                    ["sqrt", ["coalesce", ["get", "clusterSize"], 1]],
+                    6.4,
                   ],
                 ],
               ],

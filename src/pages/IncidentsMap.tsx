@@ -96,7 +96,9 @@ export default function IncidentsMap() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedStates, setSelectedStates] = useState<string[]>([]);
   const [availableBarrios, setAvailableBarrios] = useState<string[]>([]);
+  const [availableDistritos, setAvailableDistritos] = useState<string[]>([]);
   const [disableClustering, setDisableClustering] = useState(false);
+  const [timeRange, setTimeRange] = useState<'custom' | '7d' | '30d' | '90d'>('30d');
   const { provider, setProvider } = useMapProvider();
   const handleProviderUnavailable = useCallback(
     (currentProvider: MapProvider, reason: MapProviderUnavailableReason, details?: unknown) => {
@@ -165,6 +167,11 @@ export default function IncidentsMap() {
         new Set(points.map((d) => d.barrio).filter((b): b is string => Boolean(b))),
       ).sort((a, b) => a.localeCompare(b));
       setAvailableBarrios(barrios);
+
+      const distritos = Array.from(
+        new Set(points.map((d) => d.distrito).filter((d): d is string => Boolean(d))),
+      ).sort((a, b) => a.localeCompare(b));
+      setAvailableDistritos(distritos);
 
       if (options?.mergeFilters) {
         const categoriesFromPoints = Array.from(
@@ -236,11 +243,31 @@ export default function IncidentsMap() {
 
   const startDateRef = useRef<HTMLInputElement>(null);
   const endDateRef = useRef<HTMLInputElement>(null);
-  const districtRef = useRef<HTMLInputElement>(null);
+  const districtRef = useRef<HTMLSelectElement>(null);
   const barrioRef = useRef<HTMLSelectElement>(null);
   const genderRef = useRef<HTMLSelectElement>(null);
   const ageMinRef = useRef<HTMLInputElement>(null);
   const ageMaxRef = useRef<HTMLInputElement>(null);
+
+  const setDateRange = useCallback((range: 'custom' | '7d' | '30d' | '90d') => {
+    setTimeRange(range);
+    if (!startDateRef.current || !endDateRef.current) return;
+
+    if (range === 'custom') {
+      startDateRef.current.value = '';
+      endDateRef.current.value = '';
+      return;
+    }
+
+    const today = new Date();
+    const end = today.toISOString().slice(0, 10);
+    const days = range === '7d' ? 7 : range === '30d' ? 30 : 90;
+    const startDate = new Date(today);
+    startDate.setDate(today.getDate() - days);
+    const start = startDate.toISOString().slice(0, 10);
+    startDateRef.current.value = start;
+    endDateRef.current.value = end;
+  }, []);
 
   const ticketType = useMemo(() => (user?.tipo_chat === 'pyme' ? 'pyme' : 'municipio'), [user]);
 
@@ -249,6 +276,10 @@ export default function IncidentsMap() {
     setError(null);
 
     try {
+      if (timeRange !== 'custom') {
+        setDateRange(timeRange);
+      }
+
       const filters = {
         fecha_inicio: sanitizeFilterValue(startDateRef.current?.value),
         fecha_fin: sanitizeFilterValue(endDateRef.current?.value),
@@ -316,11 +347,15 @@ export default function IncidentsMap() {
     } finally {
       setIsLoading(false);
     }
-  }, [ticketType, adminCoords, selectedCategories, selectedStates, applyHeatmapDataset]);
+  }, [ticketType, adminCoords, selectedCategories, selectedStates, applyHeatmapDataset, setDateRange, timeRange]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    setDateRange(timeRange);
+  }, [setDateRange, timeRange]);
 
   useEffect(() => {
     const categoriesUrl = ticketType === 'pyme' ? '/pyme/categorias' : '/municipal/categorias';
@@ -401,6 +436,19 @@ export default function IncidentsMap() {
                 <MapProviderToggle value={provider} onChange={setProvider} />
               </div>
               <div>
+                <label className="block text-sm font-medium text-muted-foreground mb-1">Rango rápido</label>
+                <select
+                  className="mt-1 block w-full px-3 py-2 bg-input border-border text-foreground rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+                  value={timeRange}
+                  onChange={(e) => setDateRange(e.target.value as typeof timeRange)}
+                >
+                  <option value="7d">Últimos 7 días</option>
+                  <option value="30d">Últimos 30 días</option>
+                  <option value="90d">Últimos 90 días</option>
+                  <option value="custom">Personalizado</option>
+                </select>
+              </div>
+              <div>
                 <label htmlFor="startDate" className="block text-sm font-medium text-muted-foreground mb-1">
                   Fecha Inicio
                 </label>
@@ -409,6 +457,7 @@ export default function IncidentsMap() {
                   id="startDate"
                   ref={startDateRef}
                   className="mt-1 block w-full px-3 py-2 bg-input border-border text-foreground rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+                  disabled={timeRange !== 'custom'}
                 />
               </div>
               <div>
@@ -420,6 +469,7 @@ export default function IncidentsMap() {
                   id="endDate"
                   ref={endDateRef}
                   className="mt-1 block w-full px-3 py-2 bg-input border-border text-foreground rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+                  disabled={timeRange !== 'custom'}
                 />
               </div>
               <div>
@@ -489,13 +539,18 @@ export default function IncidentsMap() {
                 <label htmlFor="district" className="block text-sm font-medium text-muted-foreground mb-1">
                   Distrito
                 </label>
-                <input
-                  type="text"
+                <select
                   id="district"
                   ref={districtRef}
                   className="mt-1 block w-full px-3 py-2 bg-input border-border text-foreground rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
-                  placeholder="Ej: Centro"
-                />
+                >
+                  <option value="">Todos</option>
+                  {availableDistritos.map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label htmlFor="gender" className="block text-sm font-medium text-muted-foreground mb-1">
