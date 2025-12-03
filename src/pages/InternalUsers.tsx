@@ -9,7 +9,7 @@ import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/
 
 const isValidEmail = (value: string) => /.+@.+\..+/.test(value.trim());
 
-type CategoryId = string | number;
+type CategoryId = number;
 
 interface InternalUser {
   id: number;
@@ -23,10 +23,11 @@ interface InternalUser {
   abiertos?: number | null;
 }
 
-interface Category {
-  id: CategoryId;
+type Category = {
+  id: number;
   nombre: string;
-}
+  tipo?: string;
+};
 
 export default function InternalUsers() {
   useRequireRole(['admin', 'super_admin'] as Role[]);
@@ -59,24 +60,14 @@ export default function InternalUsers() {
       ),
     [user],
   );
-  const entityType = useMemo(() => {
-    const normalized = (user?.tipo_chat || '').toString().toLowerCase();
-    if (normalized === 'pyme') return 'pyme';
-    if (normalized === 'municipio') return 'municipio';
-    return 'municipal';
-  }, [user]);
-
-  const entityPaths = useMemo(() => {
-    const primary = entityType === 'pyme' ? '/pyme' : entityType === 'municipio' ? '/municipio' : '/municipal';
-    const fallback = primary === '/pyme'
-      ? []
-      : primary === '/municipal'
-        ? ['/municipio']
-        : ['/municipal'];
-    return [primary, ...fallback];
-  }, [entityType]);
-
-  const [resolvedEntityPath, setResolvedEntityPath] = useState<string | null>(null);
+  const buildTenantPath = useCallback(
+    (suffix: string) => {
+      if (!tenantSlug) throw new Error('No se pudo determinar el tenant');
+      const normalizedSuffix = suffix.startsWith('/') ? suffix : `/${suffix}`;
+      return `/municipio/${tenantSlug}${normalizedSuffix}`;
+    },
+    [tenantSlug],
+  );
 
   const filterStaffUsers = useCallback((list: InternalUser[] | null | undefined) => {
     if (!Array.isArray(list)) return [];
@@ -87,16 +78,12 @@ export default function InternalUsers() {
   }, []);
 
   const normalizeCategory = useCallback((raw: any): Category | null => {
-    if (typeof raw === 'string') {
-      const trimmed = raw.trim();
-      if (!trimmed) return null;
-      return { id: trimmed, nombre: trimmed };
-    }
-
     if (!raw || typeof raw !== 'object') return null;
 
-    const id = raw.id ?? raw.categoria_id ?? raw.categoriaId ?? raw.slug ?? raw.codigo;
-    const idString = id?.toString?.().trim();
+    const idValue = raw.id ?? raw.categoria_id ?? raw.categoriaId ?? raw.slug ?? raw.codigo;
+    const numericId = typeof idValue === 'number' ? idValue : Number(idValue);
+    if (!Number.isFinite(numericId)) return null;
+
     const nameCandidate = [
       raw.nombre,
       raw.name,
@@ -106,14 +93,14 @@ export default function InternalUsers() {
       raw.categoria,
     ].find((value) => typeof value === 'string' && value.trim().length > 0);
 
-    if (!idString && !nameCandidate) return null;
+    if (!nameCandidate) return null;
 
-    const nombre = (nameCandidate ?? idString ?? '').trim();
-    const resolvedId = idString || nombre;
+    const nombre = nameCandidate.trim();
+    if (!nombre) return null;
 
-    if (!resolvedId || !nombre) return null;
+    const tipo = typeof raw.tipo === 'string' && raw.tipo.trim() ? raw.tipo.trim() : undefined;
 
-    return { id: resolvedId, nombre };
+    return { id: numericId, nombre, tipo };
   }, []);
 
   const mergeCategories = useCallback(
@@ -167,9 +154,17 @@ export default function InternalUsers() {
         if (!user) return [] as Category[];
         const fromArray = Array.isArray(user.categorias) ? user.categorias : [];
         const fromIds = Array.isArray(user.categoria_ids)
-          ? user.categoria_ids.map((id) => ({ id, nombre: '' }))
+          ? user.categoria_ids
+              .map((id) => {
+                const parsed = Number(id);
+                return Number.isFinite(parsed) ? { id: parsed, nombre: String(id) } : null;
+              })
+              .filter((c): c is Category => Boolean(c))
           : [];
-        const fromSingle = user.categoria_id ? [{ id: user.categoria_id, nombre: '' }] : [];
+        const fromSingle =
+          user.categoria_id && Number.isFinite(Number(user.categoria_id))
+            ? [{ id: Number(user.categoria_id), nombre: String(user.categoria_id) }]
+            : [];
 
         return [...fromArray, ...fromIds, ...fromSingle];
       });
@@ -181,33 +176,21 @@ export default function InternalUsers() {
     [normalizeCategory]
   );
 
-  const fetchWithEntityFallback = useCallback(
-    async <T,>(suffix: string, options: Parameters<typeof apiFetch<T>>[1]) => {
-      let lastError: unknown = null;
-
-      for (const base of entityPaths) {
-        try {
-          const result = await apiFetch<T>(`${base}${suffix}`, options);
-          setResolvedEntityPath((prev) => prev || base);
-          return result;
-        } catch (err) {
-          if (err instanceof ApiError && err.status === 404) {
-            lastError = err;
-            continue;
-          }
-          throw err;
-        }
-      }
-
-      if (lastError) throw lastError;
-      throw new Error('No se pudo resolver la ruta del tenant');
+  const fetchWithTenant = useCallback(
+    async <T,>(suffix: string, options: Parameters<typeof apiFetch<T>>[1] = {}) => {
+      const path = buildTenantPath(suffix);
+      return apiFetch<T>(path, { ...options, tenantSlug });
     },
-    [entityPaths],
+    [buildTenantPath, tenantSlug],
   );
 
   const refreshUsers = useCallback(async () => {
+    if (!tenantSlug) {
+      setError('No se pudo determinar el tenant');
+      return;
+    }
     try {
-      const data = await fetchWithEntityFallback<InternalUser[]>('/usuarios', { tenantSlug });
+      const data = await fetchWithTenant<InternalUser[]>('/empleados', { tenantSlug });
       const staffUsers = filterStaffUsers(data);
       setUsers(staffUsers);
       setCategories((prev) =>
@@ -216,25 +199,31 @@ export default function InternalUsers() {
     } catch (err: any) {
       setError(getErrorMessage(err, 'Error al cargar los usuarios'));
     }
-  }, [extractCategoriesFromUsers, fetchWithEntityFallback, filterStaffUsers, mergeCategories, tenantSlug]);
+  }, [extractCategoriesFromUsers, fetchWithTenant, filterStaffUsers, mergeCategories, tenantSlug]);
 
   useEffect(() => {
+    if (!tenantSlug) {
+      setLoading(false);
+      setError('No se pudo determinar el tenant');
+      return;
+    }
+
     setLoading(true);
     setError(null);
     Promise.all([
-      fetchWithEntityFallback<InternalUser[]>('/usuarios', { tenantSlug }).catch(err => {
+      fetchWithTenant<InternalUser[]>('/empleados', { tenantSlug }).catch(err => {
         if (err instanceof ApiError && err.status === 404) return [];
         throw err;
       }),
-      fetchWithEntityFallback('/categorias', { tenantSlug, omitEntityToken: true }).catch(err => {
+      fetchWithTenant('/categorias', { tenantSlug, omitEntityToken: true }).catch(err => {
         if (err instanceof ApiError && err.status === 404) return null;
         throw err;
       }),
-      fetchWithEntityFallback('/tickets/categorias', { tenantSlug, omitEntityToken: true }).catch(err => {
+      fetchWithTenant('/tickets/categorias', { tenantSlug, omitEntityToken: true }).catch(err => {
         if (err instanceof ApiError && err.status === 404) return null;
         return null;
       }),
-      fetchWithEntityFallback('/pedidos/categorias', { tenantSlug, omitEntityToken: true }).catch(err => {
+      fetchWithTenant('/pedidos/categorias', { tenantSlug, omitEntityToken: true }).catch(err => {
         if (err instanceof ApiError && err.status === 404) return null;
         return null;
       }),
@@ -256,13 +245,17 @@ export default function InternalUsers() {
         setLoading(false);
       });
 
-  }, [extractCategories, extractCategoriesFromUsers, fetchWithEntityFallback, filterStaffUsers, mergeCategories, tenantSlug]);
+  }, [extractCategories, extractCategoriesFromUsers, fetchWithTenant, filterStaffUsers, mergeCategories, tenantSlug]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nombre.trim() || !email.trim() || !password.trim()) return;
     if (!isValidEmail(email)) {
       setError('Ingresá un email válido.');
+      return;
+    }
+    if (!tenantSlug) {
+      setError('No se pudo determinar el tenant');
       return;
     }
     if (hasAvailableCategories && categoriaIds.length === 0) {
@@ -276,17 +269,10 @@ export default function InternalUsers() {
         email,
         password,
         rol,
+        categoria_ids: categoriaIds,
       };
 
-      if (categoriaIds.length > 0) {
-        payload.categoria_ids = categoriaIds;
-
-        if (categoriaIds.length === 1) {
-          payload.categoria_id = categoriaIds[0];
-        }
-      }
-
-      await fetchWithEntityFallback('/usuarios', {
+      await fetchWithTenant('/empleados', {
         method: 'POST',
         body: payload,
         tenantSlug,
@@ -304,6 +290,10 @@ export default function InternalUsers() {
   };
 
   const handleDelete = async (user: InternalUser) => {
+    if (!tenantSlug) {
+      setError('No se pudo determinar el tenant');
+      return;
+    }
     const cargaAbiertos = typeof user.abiertos === 'number' ? user.abiertos : 0;
     const cargaTexto = cargaAbiertos > 0
       ? `Tiene ${cargaAbiertos} ticket(s) abiertos que deberás reasignar.`
@@ -313,7 +303,7 @@ export default function InternalUsers() {
     );
     if (!wantsToDelete) return;
     try {
-      await fetchWithEntityFallback(`/usuarios/${user.id}`, { method: 'DELETE', tenantSlug });
+      await fetchWithTenant(`/empleados/${user.id}`, { method: 'DELETE', tenantSlug });
       await refreshUsers();
     } catch (err: any) {
       setError(getErrorMessage(err, 'Error al eliminar el usuario'));
@@ -325,10 +315,13 @@ export default function InternalUsers() {
     setEditNombre(user.nombre || '');
     setEditEmail(user.email || '');
     setEditRol(user.rol || 'empleado');
-    const userCategoryIds =
-      user.categoria_ids ||
-      user.categorias?.map((c) => c.id) ||
-      (user.categoria_id ? [user.categoria_id] : []);
+    const userCategoryIds = [
+      ...(Array.isArray(user.categoria_ids) ? user.categoria_ids : []),
+      ...(Array.isArray(user.categorias) ? user.categorias.map((c) => c.id) : []),
+      ...(user.categoria_id ? [user.categoria_id] : []),
+    ]
+      .map((value) => Number(value))
+      .filter((value) => Number.isFinite(value)) as number[];
     setEditCategoriaIds(userCategoryIds);
     setEditPassword('');
     setEditCategorySearch('');
@@ -347,6 +340,11 @@ export default function InternalUsers() {
       return;
     }
 
+    if (!tenantSlug) {
+      setError('No se pudo determinar el tenant');
+      return;
+    }
+
     if (hasAvailableCategories && editCategoriaIds.length === 0) {
       setError('Seleccioná al menos una categoría.');
       return;
@@ -356,22 +354,15 @@ export default function InternalUsers() {
       nombre: editNombre.trim(),
       email: editEmail.trim(),
       rol: editRol,
+      categoria_ids: editCategoriaIds,
     };
-
-    if (editCategoriaIds.length > 0) {
-      payload.categoria_ids = editCategoriaIds;
-
-      if (editCategoriaIds.length === 1) {
-        payload.categoria_id = editCategoriaIds[0];
-      }
-    }
     if (editPassword.trim()) {
       payload.password = editPassword.trim();
     }
 
     try {
       setError(null);
-      await fetchWithEntityFallback(`/usuarios/${editingUser.id}`, { method: 'PUT', body: payload, tenantSlug });
+      await fetchWithTenant(`/empleados/${editingUser.id}`, { method: 'PUT', body: payload, tenantSlug });
       await refreshUsers();
       setEditingUser(null);
       setEditPassword('');
@@ -417,23 +408,21 @@ export default function InternalUsers() {
   );
 
   const toggleCategory = (id: CategoryId) => {
-    setCategoriaIds((prev) =>
-      prev.some((c) => c?.toString?.() === id?.toString?.())
-        ? prev.filter((c) => c?.toString?.() !== id?.toString?.())
-        : [...prev, id]
-    );
+    setCategoriaIds((prev) => (prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]));
   };
 
   const toggleEditCategory = (id: CategoryId) => {
-    setEditCategoriaIds((prev) =>
-      prev.some((c) => c?.toString?.() === id?.toString?.())
-        ? prev.filter((c) => c?.toString?.() !== id?.toString?.())
-        : [...prev, id]
-    );
+    setEditCategoriaIds((prev) => (prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]));
   };
 
   const getUserCategoryIds = (user: InternalUser) =>
-    user.categoria_ids || user.categorias?.map((c) => c.id) || (user.categoria_id ? [user.categoria_id] : []);
+    ([
+      ...(Array.isArray(user.categoria_ids) ? user.categoria_ids : []),
+      ...(Array.isArray(user.categorias) ? user.categorias.map((c) => c.id) : []),
+      ...(user.categoria_id ? [user.categoria_id] : []),
+    ]
+      .map((value) => Number(value))
+      .filter((value) => Number.isFinite(value)) as number[]);
 
   if (loading) return <p className="p-4">Cargando...</p>;
   if (error) return <p className="p-4 text-destructive">{error}</p>;
@@ -595,7 +584,7 @@ export default function InternalUsers() {
           {users.map((u) => {
             const categoryIds = getUserCategoryIds(u);
             const categoriaNombre = categoryIds
-              .map((id) => categories.find((c) => c.id?.toString?.() === id?.toString?.())?.nombre)
+              .map((id) => categories.find((c) => c.id === id)?.nombre)
               .filter(Boolean)
               .join(', ');
             return (

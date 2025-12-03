@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 import { MarketCartProvider, useMarketCart } from '@/context/MarketCartContext';
-import { apiFetch } from '@/api/client';
+import { apiClient } from '@/api/client';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,10 +21,7 @@ function CheckoutContent({ tenantSlug }: { tenantSlug: string }) {
     setCheckoutMessage(null);
     setIsSubmitting(true);
     try {
-      const response = await apiFetch(`/api/${tenantSlug}/checkout/mercadopago`, {
-        method: 'POST',
-        body: JSON.stringify({ name, phone }),
-      });
+      const response = await apiClient.post(`/public/market/${tenantSlug}/checkout`, { name, phone });
       setCheckoutMessage(response?.message ?? 'Checkout iniciado. Revisá tu correo o WhatsApp.');
       await refreshCart();
     } catch (err) {
