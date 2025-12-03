@@ -49,15 +49,15 @@
   "rewrites": [
     {
       "source": "/public/(.*)",
-      "destination": "https://chatbot-backend-2e14.onrender.com/public/$1"
+      "destination": "/api/public/$1"
     },
     {
       "source": "/api/(.*)",
-      "destination": "https://chatbot-backend-2e14.onrender.com/api/$1"
+      "destination": "/api/$1"
     },
     {
       "source": "/socket.io/(.*)",
-      "destination": "https://chatbot-backend-2e14.onrender.com/socket.io/$1"
+      "destination": "/socket.io/$1"
     },
     { "source": "/iframe", "destination": "/iframe.html" },
     { "source": "/iframe/(.*)", "destination": "/iframe.html" },

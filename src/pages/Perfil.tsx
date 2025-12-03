@@ -89,7 +89,7 @@ import { normalizeRole } from "@/utils/roles";
 import { useMunicipalPosts } from "@/hooks/useMunicipalPosts";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { getCurrentTipoChat } from "@/utils/tipoChat";
-import { apiFetch, getErrorMessage, ApiError } from "@/utils/api"; // Importa apiFetch y getErrorMessage
+import { apiFetch, getErrorMessage, ApiError, resolveTenantSlug } from "@/utils/api"; // Importa apiFetch y getErrorMessage
 import { toLocalISOString } from "@/utils/fecha";
 import { fmtAR } from "@/utils/date";
 import { suggestMappings, SystemField, DEFAULT_SYSTEM_FIELDS } from "@/utils/columnMatcher";
@@ -222,6 +222,10 @@ const DIAS = [
 export default function Perfil() {
   const navigate = useNavigate();
   const { user, refreshUser } = useUser(); // Usa refreshUser del hook
+  const tenantSlug = useMemo(
+    () => resolveTenantSlug(user?.tenantSlug || (user as any)?.tenant_slug),
+    [user],
+  );
   const isPyme = user?.tipo_chat === "pyme";
   const parseCoordinate = (value: unknown): number | null => {
     if (typeof value === "number" && !Number.isNaN(value)) {
@@ -678,13 +682,27 @@ export default function Perfil() {
   const fetchMapData = useCallback(async () => {
     setIsMapLoading(true);
     try {
+      if (!tenantSlug) {
+        setIsMapLoading(false);
+        setError('No se pudo determinar el municipio para cargar el mapa.');
+        setHeatmapData([]);
+        setHeatmapDetails(null);
+        return;
+      }
+
       const tipo = user?.tipo_chat ?? getCurrentTipoChat();
 
       const [stats, heatmapDataset, categoryData] = await Promise.all([
+<<<<<<< HEAD
         getTicketStats({ tipo }),
         getHeatmapPoints({ tipo }),
+=======
+        getTicketStats({ tipo }, { tenantSlug }),
+        getHeatmapPoints({ tipo }, { tenantSlug }),
+>>>>>>> 4dd1699b96df0d6a19db75d9db52a61284ae689d
         apiFetch<{ categorias: { id: number; nombre: string }[] }>(
           '/municipal/categorias',
+          { tenantSlug },
         ).catch((err) => {
           console.warn('Error fetching categories for heatmap filters:', err);
           return null;
@@ -772,7 +790,7 @@ export default function Perfil() {
     } finally {
       setIsMapLoading(false);
     }
-  }, [user?.tipo_chat]);
+  }, [tenantSlug, user?.tipo_chat]);
 
 
   useEffect(() => {

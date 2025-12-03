@@ -3,7 +3,7 @@ import MapLibreMap from '@/components/MapLibreMap';
 import TicketStatsCharts from '@/components/TicketStatsCharts';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
-import { ApiError, apiFetch } from '@/utils/api';
+import { ApiError, apiFetch, resolveTenantSlug } from '@/utils/api';
 import useRequireRole from '@/hooks/useRequireRole';
 import { useUser } from '@/hooks/useUser';
 import type { Role } from '@/utils/roles';
@@ -64,6 +64,10 @@ const sanitizeFilterValue = (value?: string | null): string | undefined => {
 export default function IncidentsMap() {
   useRequireRole(['admin', 'super_admin'] as Role[]);
   const { user } = useUser();
+  const tenantSlug = useMemo(
+    () => resolveTenantSlug(user?.tenantSlug || (user as any)?.tenant_slug),
+    [user],
+  );
 
   const parseCoordinate = (value: unknown): number | undefined => {
     if (typeof value === 'number' && !Number.isNaN(value)) {
@@ -275,6 +279,12 @@ export default function IncidentsMap() {
     setIsLoading(true);
     setError(null);
 
+    if (!tenantSlug) {
+      setIsLoading(false);
+      setError('No se pudo determinar el municipio para cargar el mapa.');
+      return;
+    }
+
     try {
       if (timeRange !== 'custom') {
         setDateRange(timeRange);
@@ -295,12 +305,17 @@ export default function IncidentsMap() {
       const heatmapKey = buildHeatmapCacheKey({
         ...filters,
         tipo: ticketType,
+        tenantSlug,
       });
 
       const cache = heatmapCache.current;
       const heatmapPromise = !forceRefresh && cache.has(heatmapKey)
         ? Promise.resolve(cache.get(heatmapKey) ?? { points: [] })
+<<<<<<< HEAD
         : getHeatmapPoints({ tipo: ticketType, ...filters }).then((data) => {
+=======
+        : getHeatmapPoints({ tipo: ticketType, ...filters }, { tenantSlug }).then((data) => {
+>>>>>>> 4dd1699b96df0d6a19db75d9db52a61284ae689d
             cache.set(heatmapKey, data);
             if (cache.size > HEATMAP_CACHE_LIMIT) {
               const firstKey = cache.keys().next().value;
@@ -313,7 +328,7 @@ export default function IncidentsMap() {
 
       const [heatmapDatasetResult, stats] = await Promise.all([
         heatmapPromise,
-        getTicketStats({ tipo: ticketType, ...filters }),
+        getTicketStats({ tipo: ticketType, ...filters }, { tenantSlug }),
       ]);
       setCharts(stats.charts || []);
 
@@ -346,7 +361,7 @@ export default function IncidentsMap() {
     } finally {
       setIsLoading(false);
     }
-  }, [ticketType, adminCoords, selectedCategories, selectedStates, applyHeatmapDataset, setDateRange, timeRange]);
+  }, [ticketType, adminCoords, selectedCategories, selectedStates, applyHeatmapDataset, setDateRange, timeRange, tenantSlug]);
 
   useEffect(() => {
     fetchData();
@@ -357,9 +372,14 @@ export default function IncidentsMap() {
   }, [setDateRange, timeRange]);
 
   useEffect(() => {
+    if (!tenantSlug) {
+      setCategories([]);
+      return;
+    }
     const categoriesUrl = ticketType === 'pyme' ? '/pyme/categorias' : '/municipal/categorias';
     apiFetch<{ categorias: { nombre: string }[] }>(categoriesUrl, {
       sendEntityToken: true,
+      tenantSlug,
     })
       .then((data) => {
         const names = Array.isArray(data.categorias)
@@ -368,12 +388,17 @@ export default function IncidentsMap() {
         setCategories(names);
       })
       .catch((err) => console.error('Error fetching categories:', err));
-  }, [ticketType]);
+  }, [ticketType, tenantSlug]);
 
   useEffect(() => {
+    if (!tenantSlug) {
+      setStates([]);
+      return;
+    }
     const statesUrl = ticketType === 'pyme' ? '/pyme/estados' : '/municipal/estados';
     apiFetch<{ estados: { nombre: string }[] | string[] }>(statesUrl, {
       sendEntityToken: true,
+      tenantSlug,
     })
       .then((data) => {
         const raw = (data as any).estados;
@@ -383,7 +408,7 @@ export default function IncidentsMap() {
         setStates(names);
       })
       .catch((err) => console.error('Error fetching states:', err));
-  }, [ticketType]);
+  }, [ticketType, tenantSlug]);
 
   useEffect(() => {
     if (!center && adminCoords) {

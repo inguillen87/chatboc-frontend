@@ -45,6 +45,7 @@ import {
   Wand2,
   Layout,
 } from "lucide-react";
+import { getTenant } from "@/utils/tenant";
 
 const slugify = (value?: string | null) => {
   if (!value) return null;
@@ -80,7 +81,7 @@ interface User {
 const Integracion = () => {
   const navigate = useNavigate();
   const { user, refreshUser, loading: userLoading } = useUser();
-  const [copiado, setCopiado] = useState<"iframe" | "script" | null>(null);
+  const [copiado, setCopiado] = useState<"iframe" | "script" | "widget" | null>(null);
   const [isGeneratingToken, setIsGeneratingToken] = useState(false);
   const [loadingSettings, setLoadingSettings] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
@@ -114,9 +115,14 @@ const Integracion = () => {
   const [enableFloatingPreview, setEnableFloatingPreview] = useState(false);
   const [ownerToken, setOwnerToken] = useState<string | null>(() => getStoredEntityToken());
   const [widgetSettingsMessage, setWidgetSettingsMessage] = useState<string | null>(null);
+<<<<<<< HEAD
+=======
+  const [widgetSettings, setWidgetSettings] = useState<Record<string, any> | null>(null);
+>>>>>>> 4dd1699b96df0d6a19db75d9db52a61284ae689d
   const tokenAlertShown = useRef(false);
   const catalogTouched = useRef(false);
   const settingsLoaded = useRef(false);
+  const previewFrameRef = useRef<HTMLIFrameElement | null>(null);
 
   // Garantiza que el widget global no aparezca en esta página, incluso si quedó montado de otra ruta.
   useEffect(() => {
@@ -269,9 +275,17 @@ const Integracion = () => {
 
     setLoadingSettings(true);
     setWidgetSettingsMessage(null);
+<<<<<<< HEAD
     apiFetch<Record<string, any>>("/integracion/widget-settings")
       .then((settings) => {
         applyWidgetSettings(settings);
+=======
+    apiFetch<Record<string, any>>("/api/integracion/widget-settings", { tenantSlug })
+      .then((settings) => {
+        applyWidgetSettings(settings);
+        setWidgetSettings(settings);
+        settingsLoaded.current = true;
+>>>>>>> 4dd1699b96df0d6a19db75d9db52a61284ae689d
         setWidgetSettingsMessage(null);
       })
       .catch((err) => {
@@ -288,13 +302,14 @@ const Integracion = () => {
         });
       })
       .finally(() => setLoadingSettings(false));
-  }, [applyWidgetSettings, user, userLoading]);
+  }, [applyWidgetSettings, tenantSlug, user, userLoading]);
 
   const handleGenerateIntegrationToken = useCallback(async () => {
     setIsGeneratingToken(true);
     try {
-      const response = await apiFetch<{ entityToken: string }>("/integracion/regenerar-token", {
+      const response = await apiFetch<{ entityToken: string }>("/api/integracion/regenerar-token", {
         method: "POST",
+        tenantSlug,
       });
       const normalized = persistEntityToken(response?.entityToken);
       setOwnerToken(normalized);
@@ -314,19 +329,20 @@ const Integracion = () => {
 
   const effectiveOwnerToken = ownerToken || "";
   const tenantSlug = useMemo(() => {
-    const base =
+    const resolved = getTenant({ userTenant: user?.tenantSlug || (user as any)?.tenant_slug });
+    if (resolved) return resolved;
+
+    const fallback =
       slugify((user as any)?.slug) ||
-      slugify((user as any)?.tenantSlug) ||
       slugify((user as any)?.endpoint) ||
       slugify((user as any)?.tenant) ||
-      slugify((user as any)?.tenant_slug) ||
       slugify((user as any)?.municipio) ||
       slugify((user as any)?.empresa) ||
       slugify((user as any)?.nombre_empresa) ||
       slugify(user?.name || null) ||
       slugify(user?.email?.split("@")[0] || null);
 
-    if (base) return base;
+    if (fallback) return fallback;
     return user?.id ? `entidad-${user.id}` : null;
   }, [user]);
   const apiBase = (import.meta.env.VITE_WIDGET_API_BASE || "https://chatboc.ar").replace(/\/+$/, "");
@@ -338,6 +354,7 @@ const Integracion = () => {
     const attrs: Record<string, string> = {
       "data-api-base": apiBase,
       "data-owner-token": effectiveOwnerToken,
+      "data-widget-token": effectiveOwnerToken,
       "data-default-open": defaultOpen ? "true" : "false",
       "data-width": openWidth,
       "data-height": openHeight,
@@ -414,6 +431,37 @@ const Integracion = () => {
       `<script async src="${widgetScriptUrl}"\n${widgetAttributeLines}\n></script>`,
     [widgetAttributeLines, widgetScriptUrl]
   );
+
+  const widgetTokenForSnippet = useMemo(
+    () => widgetSettings?.widget_token || widgetSettings?.widgetToken || effectiveOwnerToken,
+    [effectiveOwnerToken, widgetSettings],
+  );
+
+  const tenantForSnippet = useMemo(
+    () => tenantSlug || (widgetSettings as any)?.tenant || '',
+    [tenantSlug, widgetSettings],
+  );
+
+  const codeWidgetSnippet = useMemo(() => {
+    const safeTenant = tenantForSnippet || 'tu-tenant';
+    const safeToken = widgetTokenForSnippet || 'TU_WIDGET_TOKEN';
+    return `<script src="${widgetScriptUrl}"\n  data-tenant="${safeTenant}"\n  data-widget-token="${safeToken}">\n</script>`;
+  }, [tenantForSnippet, widgetScriptUrl, widgetTokenForSnippet]);
+
+  useEffect(() => {
+    const frame = previewFrameRef.current;
+    if (!frame) return;
+    const doc = frame.contentDocument;
+    if (!doc) return;
+
+    doc.open();
+    const previewToken = widgetTokenForSnippet || '';
+    const previewTenant = tenantForSnippet || '';
+    doc.write(`<!doctype html><html><body style="margin:0;">
+      <script src="${widgetScriptUrl}" data-tenant="${previewTenant}" data-widget-token="${previewToken}"></script>
+    </body></html>`);
+    doc.close();
+  }, [tenantForSnippet, widgetScriptUrl, widgetTokenForSnippet]);
 
   const settingsPayload = useMemo(
     () => ({
@@ -671,8 +719,9 @@ const Integracion = () => {
   ]);
 
 
-  const copiarCodigo = async (tipo: "iframe" | "script") => {
-    const textoACopiar = tipo === "iframe" ? codeIframe : codeScript;
+  const copiarCodigo = async (tipo: "iframe" | "script" | "widget") => {
+    const textoACopiar =
+      tipo === "iframe" ? codeIframe : tipo === "script" ? codeScript : codeWidgetSnippet;
     try {
       await navigator.clipboard.writeText(textoACopiar);
       setCopiado(tipo);
@@ -878,8 +927,50 @@ const Integracion = () => {
                 </Button>
               </div>
             )}
+      </CardContent>
+        </Card>
+
+      <div className="grid gap-4 md:grid-cols-2 mb-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <div>
+              <CardTitle>Script listo para copiar</CardTitle>
+              <CardDescription>Incluye tenant y widget token.</CardDescription>
+            </div>
+            <Button variant="secondary" size="sm" onClick={() => copiarCodigo("widget")}
+              disabled={!codeWidgetSnippet}
+              className="flex items-center gap-2">
+              {copiado === "widget" ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+              {copiado === "widget" ? "Copiado" : "Copiar"}
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <pre className="bg-muted/50 dark:bg-muted/30 p-3 text-xs rounded-md overflow-x-auto">
+              <code>{codeWidgetSnippet}</code>
+            </pre>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Preview en vivo</CardTitle>
+            <CardDescription>Usa los mismos parámetros de tenant y token.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {widgetTokenForSnippet ? (
+              <iframe
+                ref={previewFrameRef}
+                title="Widget preview"
+                className="w-full h-80 rounded-md border"
+              />
+            ) : (
+              <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+                Generá o recuperá el token para ver la vista previa del widget.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
         <Card className="mb-2">
           <CardHeader>
