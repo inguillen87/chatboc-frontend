@@ -1,7 +1,7 @@
 import { ApiError, NetworkError, resolveTenantSlug } from '@/utils/api';
-import { BASE_API_URL } from '@/config';
 
-const NORMALIZED_BACKEND_URL = (BASE_API_URL || '').replace(/\/$/, '').replace(/\/api$/, '');
+const RAW_BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://www.chatboc.ar';
+const BACKEND_URL = RAW_BACKEND_URL.replace(/\/$/, '').replace(/\/api$/, '');
 
 export function getTenantSlug(): string | null {
   if (typeof window === 'undefined') return null;
@@ -28,20 +28,13 @@ const buildUrl = (path: string, tenantSlug: string | null) => {
 
   const isAbsoluteApiPath = normalizedPath.startsWith('/api/');
   const hasMunicipioPrefix = normalizedPath.startsWith('/municipio/');
-  const hasMunicipalPrefix = normalizedPath.startsWith('/municipal/');
   const isPublicPath = normalizedPath.startsWith('/public/');
 
   const effectivePath = isAbsoluteApiPath
     ? normalizedPath
-    : `/api${hasMunicipioPrefix || hasMunicipalPrefix || isPublicPath || !prefix ? normalizedPath : `${prefix}${normalizedPath}`}`;
+    : `/api${hasMunicipioPrefix || isPublicPath || !prefix ? normalizedPath : `${prefix}${normalizedPath}`}`;
 
-  const base = NORMALIZED_BACKEND_URL;
-  const fullPath = `${effectivePath.replace(/^\/api\/api/, '/api')}`;
-  if (!base) {
-    return fullPath;
-  }
-
-  return `${base}${fullPath}`;
+  return `${BACKEND_URL}${effectivePath.replace(/^\/api\/api/, '/api')}`;
 };
 
 export async function apiFetch<T = any>(

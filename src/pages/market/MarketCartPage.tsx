@@ -29,10 +29,6 @@ import { getValidStoredToken } from '@/utils/authTokens';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { MARKET_DEMO_SECTIONS, buildDemoMarketCatalog } from '@/data/marketDemo';
 import { ApiError } from '@/utils/api';
-<<<<<<< HEAD
-=======
-import { getTenant } from '@/utils/tenant';
->>>>>>> 4dd1699b96df0d6a19db75d9db52a61284ae689d
 
 type ContactInfo = {
   name?: string;
@@ -40,12 +36,8 @@ type ContactInfo = {
 };
 
 export default function MarketCartPage() {
-<<<<<<< HEAD
   const { tenant = '' } = useParams<{ tenant: string }>();
   const tenantSlug = tenant;
-=======
-  const { tenant: tenantParam = '' } = useParams<{ tenant: string }>();
->>>>>>> 4dd1699b96df0d6a19db75d9db52a61284ae689d
   const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();
@@ -264,7 +256,6 @@ export default function MarketCartPage() {
   const cartItems: MarketCartItem[] = cartQuery.data?.items ?? [];
   const catalogServerError = catalogQuery.error instanceof ApiError && catalogQuery.error.status >= 500;
   const cartServerError = cartQuery.error instanceof ApiError && cartQuery.error.status >= 500;
-<<<<<<< HEAD
   const catalogErrorMessage = catalogServerError
     ? 'Ocurrió un error en el servidor'
     : catalogQuery.error instanceof Error
@@ -275,24 +266,6 @@ export default function MarketCartPage() {
     : cartQuery.error instanceof Error
       ? cartQuery.error.message
       : null;
-=======
-  const resolveApiMessage = (error: unknown) => {
-    if (error instanceof ApiError) {
-      const backendMessage =
-        typeof (error as any)?.body?.message === 'string'
-          ? (error as any).body.message
-          : null;
-      return backendMessage || error.message;
-    }
-    return error instanceof Error ? error.message : null;
-  };
-  const catalogErrorMessage = catalogServerError
-    ? 'Ocurrió un error en el servidor'
-    : resolveApiMessage(catalogQuery.error);
-  const cartErrorMessage = cartServerError
-    ? 'Ocurrió un error en el servidor'
-    : resolveApiMessage(cartQuery.error);
->>>>>>> 4dd1699b96df0d6a19db75d9db52a61284ae689d
   const isDemoCatalog = Boolean(catalogData?.isDemo || (!catalogQuery.data && catalogQuery.isError));
   const canCopy = Boolean(shareUrl && navigator?.clipboard);
   const canShareWhatsApp = Boolean(shareMessage);
@@ -918,21 +891,3 @@ export default function MarketCartPage() {
     </div>
   );
 }
-  const tenantFromQuery = useMemo(() => {
-    try {
-      const params = new URLSearchParams(location.search);
-      return params.get('tenant') || params.get('tenant_slug') || '';
-    } catch {
-      return '';
-    }
-  }, [location.search]);
-
-  const tenantSlug = useMemo(
-    () =>
-      getTenant({
-        explicitTenant: tenantParam || tenantFromQuery,
-        userTenant: user?.tenantSlug || (user as any)?.tenant_slug,
-        fallbackPath: `${location.pathname}${location.search}`,
-      }) || '',
-    [location.pathname, location.search, tenantFromQuery, tenantParam, user],
-  );

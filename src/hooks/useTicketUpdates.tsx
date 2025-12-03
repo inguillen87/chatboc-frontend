@@ -6,7 +6,6 @@ import { useUser } from './useUser';
 import { apiFetch, resolveTenantSlug } from '@/utils/api';
 import { safeOn, assertEventSource } from '@/utils/safeOn';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
-import { getSocketUrl } from '@/config';
 
 interface TicketUpdate {
   ticket_id: number;
@@ -29,11 +28,7 @@ const normalizeSocketUrl = (value: string): string | undefined => {
 };
 
 const rawSocketUrl = import.meta.env.VITE_SOCKET_URL || '';
-<<<<<<< HEAD
 const SOCKET_URL = normalizeSocketUrl(rawSocketUrl);
-=======
-const ENV_SOCKET_URL = normalizeSocketUrl(rawSocketUrl);
->>>>>>> 4dd1699b96df0d6a19db75d9db52a61284ae689d
 
 export default function useTicketUpdates(options: UseTicketUpdatesOptions = {}) {
   const { onNewTicket, onNewComment } = options;
@@ -51,11 +46,7 @@ export default function useTicketUpdates(options: UseTicketUpdatesOptions = {}) 
   }, [onNewComment]);
 
   useEffect(() => {
-<<<<<<< HEAD
     const tenantSlug = resolveTenantSlug(user?.tenantSlug);
-=======
-    const tenantSlug = resolveTenantSlug(user?.tenantSlug || (user as any)?.tenant_slug);
->>>>>>> 4dd1699b96df0d6a19db75d9db52a61284ae689d
     if (!user || !tenantSlug) return;
 
     let socket: Socket | null = null;
@@ -83,11 +74,6 @@ export default function useTicketUpdates(options: UseTicketUpdatesOptions = {}) 
     };
     const handleConnectError = (err: any) => {
       console.error('Socket.io connection error:', err);
-      if (err?.message?.includes('400') || err?.description?.includes('400') || err?.data?.status === 400) {
-        if (socket?.io) {
-          socket.io.opts.reconnection = false;
-        }
-      }
       socket?.close();
     };
 
@@ -121,32 +107,13 @@ export default function useTicketUpdates(options: UseTicketUpdatesOptions = {}) 
       const socketOptions: Partial<ManagerOptions & SocketOptions> = {
         transports: ['websocket'],
         withCredentials: true,
-        path: '/socket.io',
-        reconnectionAttempts: 3,
-        reconnectionDelayMax: 5000,
       };
 
       if (token) {
         socketOptions.auth = { token };
       }
 
-      const resolvedSocketUrl = (() => {
-        if (ENV_SOCKET_URL) return ENV_SOCKET_URL;
-        try {
-          const derived = getSocketUrl();
-          return normalizeSocketUrl(derived) ?? derived;
-        } catch (err) {
-          console.error('Unable to resolve socket URL', err);
-          return undefined;
-        }
-      })();
-
-      if (!resolvedSocketUrl) {
-        console.warn('Socket URL not available; skipping ticket updates connection.');
-        return;
-      }
-
-      socket = io(resolvedSocketUrl, socketOptions);
+      socket = io(SOCKET_URL ?? undefined, socketOptions);
 
       assertEventSource(socket, 'ticket-socket');
 

@@ -62,7 +62,7 @@ import {
   TicketStatsResponse,
 } from '@/services/statsService';
 import { getTickets } from '@/services/ticketService';
-import { getErrorMessage, resolveTenantSlug } from '@/utils/api';
+import { getErrorMessage } from '@/utils/api';
 import type { Ticket } from '@/types/tickets';
 import {
   Activity,
@@ -612,21 +612,10 @@ export default function EstadisticasPage() {
     }
   }, [user]);
 
-  const tenantSlug = useMemo(
-    () => resolveTenantSlug(user?.tenantSlug || (user as any)?.tenant_slug),
-    [user],
-  );
-
   const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
     const { start, end } = getRangeDates(range);
-
-    if (!tenantSlug) {
-      setLoading(false);
-      setError('No se pudo determinar el municipio para las estadísticas.');
-      return;
-    }
 
     const params: TicketStatsParams = {
       tipo: segment,
@@ -639,15 +628,15 @@ export default function EstadisticasPage() {
 
     try {
       const [statsResult, heatmapResult, ticketsResult] = await Promise.allSettled([
-        getTicketStats(params, { tenantSlug }),
+        getTicketStats(params),
         getHeatmapPoints({
           tipo: segment,
           fecha_inicio: start,
           fecha_fin: end,
           estado: statusFilter !== 'all' ? statusFilter : undefined,
           categoria: categoryFilter !== 'all' ? categoryFilter : undefined,
-        }, { tenantSlug }),
-        getTickets(tenantSlug),
+        }),
+        getTickets(),
       ]);
 
       const statsData: TicketStatsResponse['charts'] =
@@ -765,7 +754,7 @@ export default function EstadisticasPage() {
     } finally {
       setLoading(false);
     }
-  }, [segment, range, statusFilter, categoryFilter, tenantSlug]);
+  }, [segment, range, statusFilter, categoryFilter]);
 
   useEffect(() => {
     loadData();

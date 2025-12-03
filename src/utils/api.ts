@@ -606,6 +606,10 @@ export async function apiFetch<T>(
         const candidateResponse = await fetch(candidateUrl, requestInit);
 
         const shouldRetryForStatus = (status: number) => {
+          if (status === 404) {
+            return true;
+          }
+
           if (allowAuthFallback && (status === 401 || status === 403)) {
             return true;
           }
@@ -698,7 +702,6 @@ export async function apiFetch<T>(
       !acceptPreference ||
       acceptPreference.includes("json") ||
       acceptPreference.includes("*/*");
-    const isJsonContentType = responseContentType.includes("application/json");
 
     if (trimmedText) {
       try {
@@ -722,29 +725,6 @@ export async function apiFetch<T>(
       data = null;
     }
 
-    if (response.ok && expectsJsonResponse && !isJsonContentType) {
-      const snippet = trimmedText.slice(0, 200);
-      console.error("[apiFetch] Non-JSON response received", {
-        status: response.status,
-        url,
-        contentType: responseContentType,
-      });
-
-      const humanReadableType = responseContentType || 'texto';
-      const friendlyMessage = response.status === 404
-        ? 'No se encontraron datos para esta solicitud.'
-        : `No se pudo procesar la respuesta del servidor (tipo: ${humanReadableType}).`;
-
-      throw new ApiError(
-        friendlyMessage,
-        response.status || 502,
-        {
-          raw: snippet,
-          contentType: responseContentType,
-        },
-      );
-    }
-
     if (
       response.ok &&
       expectsJsonResponse &&
@@ -752,13 +732,9 @@ export async function apiFetch<T>(
       !parsedAsJson
     ) {
       const snippet = trimmedText.slice(0, 200);
-      console.error("[apiFetch] Response body was not valid JSON", {
-        status: response.status,
-        url,
-        contentType: responseContentType,
-      });
+      const humanReadableType = responseContentType || 'texto';
       throw new ApiError(
-        'No se pudo procesar la respuesta del servidor.',
+        `Respuesta inesperada del servidor (tipo: ${humanReadableType}). Verificá la configuración del endpoint '${path}' y sus encabezados CORS.`,
         response.status || 502,
         {
           raw: snippet,
@@ -819,16 +795,6 @@ export async function apiFetch<T>(
         response.status,
         data
       );
-    }
-
-    if (!response.ok && expectsJsonResponse && !isJsonContentType) {
-      const snippet = trimmedText.slice(0, 200);
-      console.error('[apiFetch] Non-JSON error response', {
-        status: response.status,
-        url,
-        contentType: responseContentType,
-        preview: snippet,
-      });
     }
 
     if (!response.ok) {

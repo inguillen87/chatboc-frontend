@@ -1,4 +1,4 @@
-import { ApiError, apiFetch, resolveTenantSlug } from '@/utils/api';
+import { ApiError, apiFetch } from '@/utils/api';
 import type { MapProvider } from '@/hooks/useMapProvider';
 
 export interface HeatmapBreakdownItem {
@@ -142,10 +142,6 @@ export interface TicketStatsParams {
   sugerencia?: string | string[];
   prioridad?: string | string[];
 }
-
-type StatsRequestOptions = {
-  tenantSlug?: string | null;
-};
 
 const MUNICIPAL_TIPO_ALIASES = ['municipio', 'municipal', 'municipalidad'] as const;
 
@@ -2215,9 +2211,7 @@ const tryMunicipalAliases = async <T>(
 
 export const getTicketStats = async (
   params?: TicketStatsParams,
-  options?: StatsRequestOptions,
 ): Promise<TicketStatsResponse> => {
-  const tenantSlug = resolveTenantSlug(options?.tenantSlug);
   const fetchStats = async (overrideTipo?: string): Promise<TicketStatsResponse> => {
     const normalizedParams: TicketStatsParams = {
       ...(params || {}),
@@ -2231,7 +2225,6 @@ export const getTicketStats = async (
     const query = buildSearchParams(normalizedParams).toString();
     const resp = await apiFetch<unknown>(
       `/estadisticas/tickets${query ? `?${query}` : ''}`,
-      { tenantSlug },
     );
 
     const normalizedPayload = normalizeApiPayload(resp);
@@ -2288,9 +2281,7 @@ export interface HeatmapParams {
 
 export const getHeatmapDataset = async (
   params?: HeatmapParams,
-  options?: StatsRequestOptions,
 ): Promise<HeatmapDataset> => {
-  const tenantSlug = resolveTenantSlug(options?.tenantSlug);
   const requestHeatmap = async (overrideTipo?: string): Promise<HeatmapDataset> => {
     const normalizedParams: HeatmapParams = {
       ...(params || {}),
@@ -2304,10 +2295,6 @@ export const getHeatmapDataset = async (
     const query = buildSearchParams(normalizedParams).toString();
     const payload = await apiFetch<unknown>(
       `/estadisticas/mapa_calor/datos${query ? `?${query}` : ''}`,
-<<<<<<< HEAD
-=======
-      { tenantSlug },
->>>>>>> 4dd1699b96df0d6a19db75d9db52a61284ae689d
     );
     const normalizedPayload = normalizeApiPayload(payload);
     if (isHtmlPayload(normalizedPayload)) {
@@ -2334,11 +2321,8 @@ export const getHeatmapDataset = async (
   }
 };
 
-export const getHeatmapPoints = async (
-  params?: HeatmapParams,
-  options?: StatsRequestOptions,
-): Promise<HeatPoint[]> => {
-  const dataset = await getHeatmapDataset(params, options);
+export const getHeatmapPoints = async (params?: HeatmapParams): Promise<HeatPoint[]> => {
+  const dataset = await getHeatmapDataset(params);
   return dataset.points;
 };
 
@@ -2386,23 +2370,13 @@ const extractStatusKeysFromCharts = (
   return Object.keys(statusChart.data).filter((key) => typeof key === 'string' && key.trim().length > 0);
 };
 
-export const getMunicipalTicketStates = async (options?: StatsRequestOptions): Promise<string[]> => {
-  const tenantSlug = resolveTenantSlug(options?.tenantSlug);
+export const getMunicipalTicketStates = async (): Promise<string[]> => {
   let payload: MunicipalStatesPayload | null = null;
-<<<<<<< HEAD
     try {
       payload = await apiFetch<MunicipalStatesPayload>('/municipio/estados');
     } catch (err) {
       console.warn('Error fetching municipal ticket states from /municipio/estados, attempting fallback.', err);
     }
-=======
-
-  try {
-    payload = await apiFetch<MunicipalStatesPayload>('/municipal/estados', { tenantSlug });
-  } catch (err) {
-    console.warn('Error fetching municipal ticket states from /municipal/estados, attempting fallback.', err);
-  }
->>>>>>> 4dd1699b96df0d6a19db75d9db52a61284ae689d
 
   const normalized = normalizeStatesResponse(payload);
   if (normalized.length > 0) {
@@ -2410,7 +2384,7 @@ export const getMunicipalTicketStates = async (options?: StatsRequestOptions): P
   }
 
   try {
-    const stats = await getTicketStats({ tipo: 'municipio' }, { tenantSlug });
+    const stats = await getTicketStats({ tipo: 'municipio' });
     const derived = extractStatusKeysFromCharts(stats?.charts);
     return Array.from(new Set(derived));
   } catch (err) {

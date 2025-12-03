@@ -130,34 +130,30 @@ const FALLBACK_BACKEND_URL = sanitizeBaseUrl(inferBackendUrlFromOrigin());
 
 const preferSameOriginProxy = inferSameOriginProxy();
 
-const DEFAULT_API_BASE = '/api';
-
 // When the widget is served from a host that proxies /api (e.g., www.chatboc.ar), keep
 // API calls on the same origin even if VITE_BACKEND_URL is set, so that requests avoid
 // CORS-preflight failures due to custom headers. Using "/api" as the base ensures that
 // endpoints are routed through the proxy while still allowing backend URLs as a
 // fallback for environments without one.
-export const SAME_ORIGIN_PROXY_BASE = sanitizeBaseUrl(preferSameOriginProxy || DEFAULT_API_BASE);
+export const SAME_ORIGIN_PROXY_BASE = sanitizeBaseUrl(preferSameOriginProxy || '');
 
 export const BASE_API_URL = sanitizeBaseUrl(
   SAME_ORIGIN_PROXY_BASE ||
     CURRENT_ORIGIN ||
     RESOLVED_BACKEND_URL ||
     FALLBACK_BACKEND_URL ||
-    DEFAULT_API_BASE
+    CURRENT_ORIGIN
 );
 
 // Prefer explicit backend URLs over the frontend origin to avoid fetching
 // public routes that return HTML (and break JSON parsing) when the same-origin
-// proxy is not available. In production, stay on the same-origin /api proxy.
-const DEV_BACKEND_CANDIDATE =
-  typeof VITE_BACKEND_URL === 'string' && import.meta.env?.DEV
-    ? normalizeBackendUrl(VITE_BACKEND_URL)
-    : '';
-
+// proxy is not available. The order below tries the proxy first, then the
+// configured backend, and only after that the current origin.
 export const API_BASE_CANDIDATES = [
-  SAME_ORIGIN_PROXY_BASE || DEFAULT_API_BASE,
-  DEV_BACKEND_CANDIDATE,
+  SAME_ORIGIN_PROXY_BASE,
+  RESOLVED_BACKEND_URL,
+  CURRENT_ORIGIN,
+  FALLBACK_BACKEND_URL,
 ]
   .filter((value): value is string => typeof value === 'string' && !!value)
   .filter((value, index, self) => self.indexOf(value) === index);
