@@ -2224,14 +2224,16 @@ export const getTicketStats = async (
 
     const query = buildSearchParams(normalizedParams).toString();
     const resp = await apiFetch<unknown>(
-      `/estadisticas/tickets${query ? `?${query}` : ''}`,
+      `/api/estadisticas/tickets${query ? `?${query}` : ''}`,
     );
 
     const normalizedPayload = normalizeApiPayload(resp);
 
     if (isHtmlPayload(normalizedPayload)) {
-      console.warn('[statsService] Received HTML payload for /estadisticas/tickets, aborting further alias attempts.');
-      const error = new Error('HTML payload returned from /estadisticas/tickets');
+      console.warn(
+        '[statsService] Received HTML payload for /api/estadisticas/tickets, aborting further alias attempts.',
+      );
+      const error = new Error('HTML payload returned from /api/estadisticas/tickets');
       (error as Error & { code?: string }).code = 'HTML_PAYLOAD';
       throw error;
     }
@@ -2294,14 +2296,14 @@ export const getHeatmapDataset = async (
 
     const query = buildSearchParams(normalizedParams).toString();
     const payload = await apiFetch<unknown>(
-      `/estadisticas/mapa_calor/datos${query ? `?${query}` : ''}`,
+      `/api/estadisticas/mapa_calor/datos${query ? `?${query}` : ''}`,
     );
     const normalizedPayload = normalizeApiPayload(payload);
     if (isHtmlPayload(normalizedPayload)) {
       console.warn(
-        '[statsService] Received HTML payload for /estadisticas/mapa_calor/datos, aborting further alias attempts.',
+        '[statsService] Received HTML payload for /api/estadisticas/mapa_calor/datos, aborting further alias attempts.',
       );
-      const error = new Error('HTML payload returned from /estadisticas/mapa_calor/datos');
+      const error = new Error('HTML payload returned from /api/estadisticas/mapa_calor/datos');
       (error as Error & { code?: string }).code = 'HTML_PAYLOAD';
       throw error;
     }
