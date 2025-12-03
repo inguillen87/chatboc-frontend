@@ -30,6 +30,8 @@ type Category = {
   tipo?: string;
 };
 
+const MUNICIPAL_BASE_PATH = '/municipal';
+
 export default function InternalUsers() {
   useRequireRole(['admin', 'super_admin'] as Role[]);
   const { user } = useUser();
