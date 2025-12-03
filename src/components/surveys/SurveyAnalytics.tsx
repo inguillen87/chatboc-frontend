@@ -438,7 +438,7 @@ export const SurveyAnalytics = ({
   );
   const { provider, setProvider } = useMapProvider();
   const googleProviderAvailable = useMemo(
-    () => ((import.meta.env.VITE_Maps_API_KEY ?? '').trim().length > 0),
+    () => ((import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? '').trim().length > 0),
     [],
   );
   const normalizedFilters: SurveyAnalyticsFilters = filters ?? {};

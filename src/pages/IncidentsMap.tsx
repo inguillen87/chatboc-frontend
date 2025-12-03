@@ -294,14 +294,13 @@ export default function IncidentsMap() {
 
       const heatmapKey = buildHeatmapCacheKey({
         ...filters,
-        tipo_ticket: ticketType,
         tipo: ticketType,
       });
 
       const cache = heatmapCache.current;
       const heatmapPromise = !forceRefresh && cache.has(heatmapKey)
         ? Promise.resolve(cache.get(heatmapKey) ?? { points: [] })
-        : getHeatmapPoints({ tipo_ticket: ticketType, tipo: ticketType, ...filters }).then((data) => {
+        : getHeatmapPoints({ tipo: ticketType, ...filters }).then((data) => {
             cache.set(heatmapKey, data);
             if (cache.size > HEATMAP_CACHE_LIMIT) {
               const firstKey = cache.keys().next().value;

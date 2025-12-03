@@ -73,7 +73,7 @@ export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({
   }, [mapConfig]);
 
   const googleProviderAvailable = useMemo(
-    () => ((googleMapsKey ?? import.meta.env.VITE_Maps_API_KEY ?? '').trim().length > 0),
+    () => ((googleMapsKey ?? import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? '').trim().length > 0),
     [googleMapsKey],
   );
 

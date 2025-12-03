@@ -358,7 +358,9 @@ export async function apiFetch<T>(
   })();
 
   const treatAsWidget = isWidgetRequest ?? (isWidgetContext && isLikelyWidgetEnvironment);
-  const resolvedTenantSlug = resolveTenantSlug(tenantSlug, path);
+  const resolvedTenantSlug = treatAsWidget && tenantSlug === undefined
+    ? null
+    : resolveTenantSlug(tenantSlug, path);
   const panelToken = safeLocalStorage.getItem("authToken");
   const chatToken = safeLocalStorage.getItem("chatAuthToken");
   let storedRole: string | null = null;

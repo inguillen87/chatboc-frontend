@@ -18,11 +18,17 @@ interface UseTicketUpdatesOptions {
   onNewComment?: (data: any) => void;
 }
 
-const rawSocketUrl =
-  import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_URL || '';
-const SOCKET_URL = /^https?:\/\//i.test(rawSocketUrl)
-  ? rawSocketUrl
-  : undefined;
+const normalizeSocketUrl = (value: string): string | undefined => {
+  if (!value) return undefined;
+  if (/^wss?:\/\//i.test(value)) return value;
+  if (/^https?:\/\//i.test(value)) {
+    return value.replace(/^http/i, 'ws');
+  }
+  return undefined;
+};
+
+const rawSocketUrl = import.meta.env.VITE_SOCKET_URL || '';
+const SOCKET_URL = normalizeSocketUrl(rawSocketUrl);
 
 export default function useTicketUpdates(options: UseTicketUpdatesOptions = {}) {
   const { onNewTicket, onNewComment } = options;
@@ -74,7 +80,10 @@ export default function useTicketUpdates(options: UseTicketUpdatesOptions = {}) 
       let shouldConnect = true;
 
       try {
-        const settings = await apiFetch<{ ticket?: boolean }>('/notifications');
+        const settings = await apiFetch<{ ticket?: boolean }>('/notifications', {
+          isWidgetRequest: false,
+          omitCredentials: false,
+        });
         if (!active) return;
 
         if (settings && typeof settings.ticket === 'boolean') {
