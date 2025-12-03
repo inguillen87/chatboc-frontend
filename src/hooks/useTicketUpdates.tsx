@@ -135,6 +135,13 @@ export default function useTicketUpdates(options: UseTicketUpdatesOptions = {}) 
         path: socketPath,
       };
 
+      if (tenantSlug) {
+        socketOptions.query = {
+          tenant: tenantSlug,
+          tenant_slug: tenantSlug,
+        };
+      }
+
       if (token) {
         socketOptions.auth = { token };
       }
