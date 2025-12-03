@@ -51,7 +51,9 @@ export const getTickets = async (
   try {
     const response = await apiFetch<{ tickets: Ticket[] }>('/tickets', {
       tenantSlug,
-      omitTenant: true,
+      omitTenant: false,
+      // Algunos despliegues requieren el tenant para filtrar los tickets
+      // correctamente y evitar errores 500 en el backend.
     });
     const tickets = response.tickets || [];
 
