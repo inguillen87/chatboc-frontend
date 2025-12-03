@@ -359,22 +359,60 @@
 
     const entityTokenAttr = script.getAttribute("data-entity-token");
     const entityToken = (entityTokenAttr || ownerToken).trim();
+    const forceLoad = script.getAttribute("data-force") === "true";
+    const widgetIdAttr = (script.getAttribute("data-widget-id") || "").trim();
+    const domainAttr = (script.getAttribute("data-domain") || "").trim();
+
+    let allowedDomainOrigin = "";
+    if (domainAttr) {
+      try {
+        allowedDomainOrigin = new URL(domainAttr, window.location.href).origin;
+      } catch (err) {
+        console.warn("Chatboc widget: domain inválido", err);
+      }
+    }
+
+    const currentOrigin = window.location.origin;
+    if (allowedDomainOrigin && currentOrigin !== allowedDomainOrigin) {
+      console.warn(
+        `Chatboc widget: dominio actual (${currentOrigin}) distinto al permitido (${allowedDomainOrigin}). Se omite la carga.`
+      );
+      return;
+    }
+
+    const resolvedWidgetId =
+      widgetIdAttr || tenantSlug || ownerToken || script.getAttribute("data-tenant") || "chatboc-widget";
 
     const registry = (window.__chatbocWidgets = window.__chatbocWidgets || {});
-    const registryKey = ownerToken || tenantSlug || "tenantless";
+    const baseRegistryKey = ownerToken || tenantSlug || "tenantless";
+    const registryKey = `${baseRegistryKey}::${resolvedWidgetId}`;
+    const existingEntry = registry[registryKey] || registry[baseRegistryKey];
 
-    if (registry[registryKey]) {
-      if (script.getAttribute("data-force") === "true") {
-        if (typeof registry[registryKey].destroy === "function") {
-          registry[registryKey].destroy();
-        }
-        delete registry[registryKey];
-      } else {
+    if (existingEntry) {
+      if (forceLoad && typeof existingEntry.destroy === "function") {
+        existingEntry.destroy();
+      } else if (!forceLoad) {
         console.warn(
-          `Chatboc widget already loaded for token ${registryKey}. Skipping.`
+          `Chatboc widget already loaded for token ${baseRegistryKey}. Skipping.`
         );
         return;
       }
+    }
+
+    const existingContainer = document.querySelector(".chatboc-widget-container");
+    const existingById = resolvedWidgetId
+      ? document.querySelector(
+          `[data-chatboc-widget-id="${resolvedWidgetId.replace(/"/g, "\\\"")}"]`
+        )
+      : null;
+
+    if ((existingById || existingContainer) && !forceLoad) {
+      console.warn("Chatboc widget: ya existe un widget montado en la página. Se evita duplicar.");
+      return;
+    }
+
+    if (forceLoad && typeof window.chatbocDestroyWidget === "function") {
+      window.chatbocDestroyWidget();
     }
 
     const scriptOrigin =
@@ -466,6 +504,7 @@
       endpointAttr === "municipio" || endpointAttr === "pyme" ? endpointAttr : "pyme";
 
     function buildWidget(finalCta) {
+      const registryKeys = [registryKey, baseRegistryKey];
       const zIndexBase = parseInt(script.getAttribute("data-z") || SCRIPT_CONFIG.DEFAULT_Z_INDEX, 10);
       const iframeId = `chatboc-dynamic-iframe-${Math.random().toString(36).substring(2, 9)}`;
       let iframeIsCurrentlyOpen = defaultOpen;
@@ -510,7 +549,12 @@
 
       const widgetContainer = document.createElement("div");
       widgetContainer.id = `chatboc-widget-container-${iframeId}`;
+      widgetContainer.className = "chatboc-widget-container";
       widgetContainer.setAttribute("data-chatboc-token", ownerToken);
+      widgetContainer.setAttribute("data-chatboc-widget-id", resolvedWidgetId);
+      if (allowedDomainOrigin) {
+        widgetContainer.setAttribute("data-chatboc-domain", allowedDomainOrigin);
+      }
       Object.assign(widgetContainer.style, {
         position: "fixed",
         bottom: initialBottom,
@@ -761,12 +805,20 @@
         widgetContainer.removeEventListener("mousedown", dragStart);
         widgetContainer.removeEventListener("touchstart", dragStart);
         widgetContainer?.remove();
-        delete registry[registryKey];
+        registryKeys.forEach((key) => delete registry[key]);
         unsubscribeAuth?.();
         window.removeEventListener(TOKEN_EVENT_NAME, tokenEventHandler);
       }
 
-      registry[registryKey] = { destroy, container: widgetContainer, post: postToIframe };
+      const registryEntry = {
+        destroy,
+        container: widgetContainer,
+        post: postToIframe,
+        widgetId: resolvedWidgetId,
+        baseKey: baseRegistryKey,
+      };
+      registry[registryKey] = registryEntry;
+      registry[baseRegistryKey] = registryEntry;
 
       unsubscribeAuth = authManager.subscribe((token) => {
         latestToken = token;
@@ -781,8 +833,17 @@
       window.Chatboc.toggle = () => postToIframe({ type: "TOGGLE_CHAT", isOpen: !iframeIsCurrentlyOpen });
 
       if (!window.chatbocDestroyWidget) {
-        window.chatbocDestroyWidget = (tok) => {
-          registry[tok]?.destroy();
+        window.chatbocDestroyWidget = (identifier) => {
+          Object.entries(registry).forEach(([key, entry]) => {
+            if (
+              !identifier ||
+              key === identifier ||
+              entry?.widgetId === identifier ||
+              entry?.baseKey === identifier
+            ) {
+              entry?.destroy?.();
+            }
+          });
         };
       }
     }
