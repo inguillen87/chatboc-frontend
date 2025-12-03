@@ -1,6 +1,11 @@
 (function () {
   "use strict";
 
+  if (typeof window !== "undefined") {
+    if (window.__chatbocWidgetLoaded) return;
+    window.__chatbocWidgetLoaded = true;
+  }
+
   const KNOWN_EXTENSION_PATTERNS = [
     /Cannot assign to read only property '(ethereum|tronLink)' of object '#<Window>'/i,
     /Cannot assign to read only property '(ethereum|tronLink)'/i,
