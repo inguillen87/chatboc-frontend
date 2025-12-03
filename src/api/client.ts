@@ -1,7 +1,32 @@
 import { ApiError, NetworkError, resolveTenantSlug } from '@/utils/api';
 
 const RAW_BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://www.chatboc.ar';
-const BACKEND_URL = RAW_BACKEND_URL.replace(/\/$/, '').replace(/\/api$/, '');
+
+const resolveBackendUrl = () => {
+  const normalizedEnvUrl = RAW_BACKEND_URL.replace(/\/$/, '').replace(/\/api$/, '');
+
+  if (typeof window === 'undefined') return normalizedEnvUrl;
+
+  try {
+    const envOrigin = new URL(normalizedEnvUrl).origin;
+    const currentOrigin = window.location.origin.replace(/\/$/, '');
+
+    // Prioritize same-origin requests when the configured backend differs from the current host
+    // to avoid CORS/preflight issues when the backend does not allow the frontend origin.
+    if (envOrigin && envOrigin !== currentOrigin) {
+      return currentOrigin;
+    }
+  } catch {
+    // If the env URL is not a valid absolute URL, fall back to the current origin when available.
+    if (window.location?.origin) {
+      return window.location.origin.replace(/\/$/, '');
+    }
+  }
+
+  return normalizedEnvUrl;
+};
+
+const BACKEND_URL = resolveBackendUrl();
 
 export function getTenantSlug(): string | null {
   if (typeof window === 'undefined') return null;
