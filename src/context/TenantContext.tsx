@@ -311,7 +311,7 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
     setIsLoadingFollowedTenants(true);
     setFollowedTenantsError(null);
     try {
-      const items = await listFollowedTenants();
+      const items = await listFollowedTenants(currentSlugRef.current, widgetToken);
       setFollowedTenants(items);
     } catch (error) {
       setFollowedTenantsError(
@@ -320,7 +320,7 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setIsLoadingFollowedTenants(false);
     }
-  }, []);
+  }, [widgetToken]);
 
   useEffect(() => {
     refreshFollowedTenants().catch((error) => {

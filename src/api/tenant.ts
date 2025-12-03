@@ -337,9 +337,15 @@ const extractTenantArray = (input: unknown): unknown[] => {
   return [];
 };
 
-export async function listFollowedTenants(): Promise<TenantSummary[]> {
+export async function listFollowedTenants(
+  tenantSlug?: string | null,
+  widgetToken?: string | null,
+): Promise<TenantSummary[]> {
   try {
     const response = await apiFetch<unknown>('/app/me/tenants', {
+      tenantSlug: tenantSlug ?? null,
+      entityToken: widgetToken ?? undefined,
+      isWidgetRequest: Boolean(widgetToken),
       omitChatSessionId: true,
       suppressPanel401Redirect: true,
     });
