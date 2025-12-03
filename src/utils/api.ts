@@ -269,6 +269,12 @@ interface ApiFetchOptions {
    */
   omitCredentials?: boolean;
   /**
+   * When true, avoids inferring or appending tenant parameters to the request.
+   * Useful for panel endpoints that already scope by session and fail when
+   * extra tenant query params are provided.
+   */
+  omitTenant?: boolean;
+  /**
    * Marks the request as originating from the public widget.
    * Prevents leaking panel credentials while still allowing chat auth tokens.
    */
@@ -315,6 +321,7 @@ export async function apiFetch<T>(
     tenantSlug,
     baseUrlOverride,
     omitEntityToken,
+    omitTenant,
   } = options;
 
   const rawIframeToken = getIframeToken();
@@ -358,9 +365,11 @@ export async function apiFetch<T>(
   })();
 
   const treatAsWidget = isWidgetRequest ?? (isWidgetContext && isLikelyWidgetEnvironment);
-  const resolvedTenantSlug = treatAsWidget && tenantSlug === undefined
+  const resolvedTenantSlug = omitTenant
     ? null
-    : resolveTenantSlug(tenantSlug, path);
+    : treatAsWidget && tenantSlug === undefined
+      ? null
+      : resolveTenantSlug(tenantSlug, path);
   const panelToken = safeLocalStorage.getItem("authToken");
   const chatToken = safeLocalStorage.getItem("chatAuthToken");
   let storedRole: string | null = null;
