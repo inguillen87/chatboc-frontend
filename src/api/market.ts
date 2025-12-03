@@ -1,4 +1,4 @@
-import { ApiError, NetworkError, apiFetch } from '@/utils/api';
+import { ApiError, NetworkError } from '@/utils/api';
 import {
   AddToCartPayload,
   CheckoutStartPayload,
@@ -16,14 +16,7 @@ import {
   readStoredCart,
   removeItemFromStoredCart,
 } from '@/utils/marketStorage';
-
-const baseOptions = (tenantSlug: string) => ({
-  omitCredentials: false,
-  sendAnonId: true,
-  omitChatSessionId: true,
-  isWidgetRequest: true,
-  tenantSlug,
-});
+import { apiClient } from '@/api/client';
 
 const parseNumber = (value: any): number | null => {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
@@ -135,15 +128,12 @@ const getDemoCatalog = (tenantSlug: string) => buildDemoMarketCatalog(tenantSlug
 
 export async function fetchMarketCatalog(tenantSlug: string): Promise<MarketCatalogResponse> {
   try {
-    const response = await apiFetch<any>(
-      `/api/market/${encodeURIComponent(tenantSlug)}/catalog`,
-      baseOptions(tenantSlug),
-    );
+    const response = await apiClient.get<any>(`/public/market/${encodeURIComponent(tenantSlug)}/productos`, tenantSlug);
     const mergedProducts = [
       ...(response?.products ?? []),
       ...(response?.items ?? []),
       ...(response?.productos ?? []),
-      ...(response?.canjes ?? []),
+      ...(Array.isArray(response) ? response : []),
     ];
 
     const products = normalizeProductList(mergedProducts);
@@ -179,10 +169,7 @@ export async function fetchMarketCatalog(tenantSlug: string): Promise<MarketCata
 
 export async function fetchMarketCart(tenantSlug: string): Promise<MarketCartResponse> {
   try {
-    const response = await apiFetch<any>(
-      `/api/market/${encodeURIComponent(tenantSlug)}/cart`,
-      baseOptions(tenantSlug),
-    );
+    const response = await apiClient.get<any>(`/public/market/${encodeURIComponent(tenantSlug)}/carrito`, tenantSlug);
     const items = normalizeCartItems(response?.items ?? response?.cart ?? []);
 
     return {
@@ -209,14 +196,11 @@ export async function addMarketItem(
   payload: AddToCartPayload,
 ): Promise<MarketCartResponse> {
   try {
-    const response = await apiFetch<any>(`/api/market/${encodeURIComponent(tenantSlug)}/cart/add`, {
-      ...baseOptions(tenantSlug),
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
+    const response = await apiClient.post<any>(
+      `/public/market/${encodeURIComponent(tenantSlug)}/carrito`,
+      payload,
+      tenantSlug,
+    );
 
     const items = normalizeCartItems(response?.items ?? response?.cart ?? []);
 
@@ -245,14 +229,11 @@ export async function addMarketItem(
 
 export async function removeMarketItem(tenantSlug: string, productId: string): Promise<MarketCartResponse> {
   try {
-    const response = await apiFetch<any>(`/api/market/${encodeURIComponent(tenantSlug)}/cart/remove`, {
-      ...baseOptions(tenantSlug),
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ productId }),
-    });
+    const response = await apiClient.post<any>(
+      `/public/market/${encodeURIComponent(tenantSlug)}/carrito/remove`,
+      { productId },
+      tenantSlug,
+    );
 
     const items = normalizeCartItems(response?.items ?? response?.cart ?? []);
 
@@ -273,13 +254,7 @@ export async function removeMarketItem(tenantSlug: string, productId: string): P
 
 export async function clearMarketCart(tenantSlug: string): Promise<MarketCartResponse> {
   try {
-    await apiFetch<any>(`/api/market/${encodeURIComponent(tenantSlug)}/cart/clear`, {
-      ...baseOptions(tenantSlug),
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+    await apiClient.post(`/public/market/${encodeURIComponent(tenantSlug)}/carrito/clear`, undefined, tenantSlug);
 
     return { items: [], totalAmount: null, totalPoints: null };
   } catch (error) {
@@ -294,14 +269,11 @@ export async function startMarketCheckout(
   payload: CheckoutStartPayload,
 ): Promise<CheckoutStartResponse> {
   try {
-    return await apiFetch<CheckoutStartResponse>(`/api/market/${encodeURIComponent(tenantSlug)}/checkout/start`, {
-      ...baseOptions(tenantSlug),
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
+    return await apiClient.post<CheckoutStartResponse>(
+      `/public/market/${encodeURIComponent(tenantSlug)}/checkout`,
+      payload,
+      tenantSlug,
+    );
   } catch (error) {
     if (!shouldUseDemo(error)) throw error;
     return {
