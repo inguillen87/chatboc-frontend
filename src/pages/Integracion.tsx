@@ -82,6 +82,8 @@ const Integracion = () => {
   const { user, refreshUser, loading: userLoading } = useUser();
   const [copiado, setCopiado] = useState<"iframe" | "script" | null>(null);
   const [isGeneratingToken, setIsGeneratingToken] = useState(false);
+  const [loadingSettings, setLoadingSettings] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
   const [primaryColor, setPrimaryColor] = useState("#007aff");
   const [accentColor, setAccentColor] = useState("#007aff");
   const [logoUrl, setLogoUrl] = useState("");
@@ -113,6 +115,7 @@ const Integracion = () => {
   const [ownerToken, setOwnerToken] = useState<string | null>(() => getStoredEntityToken());
   const tokenAlertShown = useRef(false);
   const catalogTouched = useRef(false);
+  const settingsLoaded = useRef(false);
 
   // Garantiza que el widget global no aparezca en esta página, incluso si quedó montado de otra ruta.
   useEffect(() => {
@@ -180,22 +183,56 @@ const Integracion = () => {
     setLogoAnimation(user.widget_animation || "");
   }, [user, userLoading, validarAcceso]);
 
+  const applyWidgetSettings = useCallback(
+    (data: Record<string, any> | null | undefined) => {
+      if (!data || typeof data !== "object") return;
+
+      const pick = <T,>(value: unknown, fallback: T): T => {
+        if (value === undefined || value === null) return fallback;
+        return value as T;
+      };
+
+      setPrimaryColor(pick<string>(data.primary_color ?? data.primaryColor, "#007aff"));
+      setAccentColor(pick<string>(data.accent_color ?? data.accentColor, "#007aff"));
+      setLogoUrl(pick<string>(data.logo_url ?? data.logoUrl, ""));
+      setHeaderLogoUrl(pick<string>(data.header_logo_url ?? data.headerLogoUrl ?? data.logo_url, ""));
+      setLogoAnimation(pick<string>(data.logo_animation ?? data.logoAnimation, ""));
+      setWelcomeTitle(pick<string>(data.welcome_title ?? data.welcomeTitle, ""));
+      setWelcomeSubtitle(pick<string>(data.welcome_subtitle ?? data.welcomeSubtitle, ""));
+      setDefaultOpen(Boolean(data.default_open ?? data.defaultOpen));
+      setTheme(pick<"light" | "dark" | "auto">(data.theme ?? "auto", "auto"));
+      setAllowAttachments(Boolean(data.allow_attachments ?? data.allowAttachments ?? true));
+      setAllowLocation(Boolean(data.allow_location ?? data.allowLocation ?? true));
+      setAllowAudio(Boolean(data.allow_audio ?? data.allowAudio ?? true));
+      setZIndex(pick<string>(data.z_index ?? data.zIndex ?? "100000", "100000"));
+      setWidgetDomain(
+        pick<string>(
+          data.domain ?? data.widget_domain ?? data.widgetDomain ?? widgetDomain,
+          typeof window !== "undefined" ? window.location.origin : "",
+        ),
+      );
+      setWidgetId(pick<string>(data.widget_id ?? data.widgetId ?? widgetId, widgetId));
+      setOpenWidth(pick<string>(data.open_width ?? data.openWidth ?? "460px", "460px"));
+      setOpenHeight(pick<string>(data.open_height ?? data.openHeight ?? "680px", "680px"));
+      setClosedWidth(pick<string>(data.closed_width ?? data.closedWidth ?? "112px", "112px"));
+      setClosedHeight(pick<string>(data.closed_height ?? data.closedHeight ?? "112px", "112px"));
+      setOffsetBottom(pick<string>(data.offset_bottom ?? data.offsetBottom ?? "20px", "20px"));
+      setOffsetRight(pick<string>(data.offset_right ?? data.offsetRight ?? "20px", "20px"));
+      setEnableCatalog(Boolean(data.show_catalog ?? data.showCatalog ?? data.enable_catalog));
+      setRequireLoginForCatalog(Boolean(data.require_login_for_catalog ?? data.requireLoginForCatalog));
+      setEnableFloatingPreview(Boolean(data.floating_preview ?? data.enableFloatingPreview));
+
+      settingsLoaded.current = true;
+    },
+    [widgetDomain, widgetId],
+  );
+
 
   const endpoint = useMemo(() => {
     if (!user?.tipo_chat) return "pyme"; // Default or handle error
     return user.tipo_chat === "municipio" ? "municipio" : "pyme";
   }, [user?.tipo_chat]);
   const isMunicipal = endpoint === "municipio";
-
-  useEffect(() => {
-    if (!user?.tipo_chat || catalogTouched.current) return;
-    if (user.tipo_chat === "municipio") {
-      setEnableCatalog(false);
-      setRequireLoginForCatalog(false);
-      return;
-    }
-    setEnableCatalog(true);
-  }, [user?.tipo_chat]);
 
   useEffect(() => {
     if (!user?.tipo_chat || catalogTouched.current) return;
@@ -225,6 +262,21 @@ const Integracion = () => {
       });
     }
   }, [user]);
+
+  useEffect(() => {
+    if (userLoading || !user || settingsLoaded.current) return;
+
+    setLoadingSettings(true);
+    apiFetch<Record<string, any>>("/integracion/widget-settings")
+      .then(applyWidgetSettings)
+      .catch((err) => {
+        console.warn("No se pudieron cargar los ajustes del widget", err);
+        toast.error("No pudimos cargar tus ajustes del widget", {
+          icon: <AlertTriangle className="text-destructive" />,
+        });
+      })
+      .finally(() => setLoadingSettings(false));
+  }, [applyWidgetSettings, user, userLoading]);
 
   const handleGenerateIntegrationToken = useCallback(async () => {
     setIsGeneratingToken(true);
@@ -351,6 +403,63 @@ const Integracion = () => {
     [widgetAttributeLines, widgetScriptUrl]
   );
 
+  const settingsPayload = useMemo(
+    () => ({
+      primary_color: primaryColor,
+      accent_color: accentColor,
+      logo_url: logoUrl,
+      header_logo_url: headerLogoUrl,
+      logo_animation: logoAnimation,
+      welcome_title: welcomeTitle,
+      welcome_subtitle: welcomeSubtitle,
+      default_open: defaultOpen,
+      theme,
+      allow_attachments: allowAttachments,
+      allow_location: allowLocation,
+      allow_audio: allowAudio,
+      z_index: zIndex,
+      domain: widgetDomain,
+      widget_id: widgetId,
+      open_width: openWidth,
+      open_height: openHeight,
+      closed_width: closedWidth,
+      closed_height: closedHeight,
+      offset_bottom: offsetBottom,
+      offset_right: offsetRight,
+      show_catalog: enableCatalog,
+      require_login_for_catalog: requireLoginForCatalog,
+      floating_preview: enableFloatingPreview,
+      endpoint,
+    }),
+    [
+      accentColor,
+      allowAttachments,
+      allowAudio,
+      allowLocation,
+      closedHeight,
+      closedWidth,
+      defaultOpen,
+      enableCatalog,
+      enableFloatingPreview,
+      endpoint,
+      headerLogoUrl,
+      logoAnimation,
+      logoUrl,
+      offsetBottom,
+      offsetRight,
+      openHeight,
+      openWidth,
+      primaryColor,
+      requireLoginForCatalog,
+      theme,
+      welcomeSubtitle,
+      welcomeTitle,
+      widgetDomain,
+      widgetId,
+      zIndex,
+    ],
+  );
+
   const iframeSrcUrl = useMemo(() => {
     const url = new URL(`${apiBase}/iframe`);
     url.searchParams.set("entityToken", effectiveOwnerToken);
@@ -474,6 +583,29 @@ const Integracion = () => {
     openWidth,
     zIndex,
   ]);
+
+  const handleSaveSettings = useCallback(async () => {
+    setSavingSettings(true);
+    try {
+      await apiFetch("/integracion/widget-settings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(settingsPayload),
+      });
+      toast.success("Ajustes del widget guardados", {
+        icon: <Check className="text-green-500" />,
+      });
+    } catch (err) {
+      console.error("Error al guardar los ajustes del widget", err);
+      toast.error("No pudimos guardar los ajustes", {
+        icon: <AlertTriangle className="text-destructive" />,
+      });
+    } finally {
+      setSavingSettings(false);
+    }
+  }, [settingsPayload]);
 
   useEffect(() => {
     if (!effectiveOwnerToken || !enableFloatingPreview) return;
@@ -653,6 +785,27 @@ const Integracion = () => {
           Integra fácilmente el chatbot en tu sitio web o plataforma. Elige el método que mejor se adapte a tus necesidades.
         </p>
       </header>
+
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="text-sm text-muted-foreground">
+          {loadingSettings
+            ? "Cargando ajustes guardados del widget..."
+            : "Personaliza el widget, guarda los cambios y reutiliza el mismo script en todos tus dominios autorizados."}
+        </div>
+        <div className="flex items-center gap-2">
+          {loadingSettings && <RefreshCw className="h-4 w-4 animate-spin text-primary" />}
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={handleSaveSettings}
+            disabled={savingSettings || loadingSettings}
+            className="flex items-center gap-2"
+          >
+            {savingSettings ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+            {savingSettings ? "Guardando ajustes..." : "Guardar ajustes del widget"}
+          </Button>
+        </div>
+      </div>
 
       <Card className="mb-8 bg-blue-50 border-blue-200 dark:bg-blue-900/30 dark:border-blue-700">
         <CardHeader>
