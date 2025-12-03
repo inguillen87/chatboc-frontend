@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { apiFetch } from "@/utils/api";
+import { apiFetch, ApiError } from "@/utils/api";
 import {
   getStoredEntityToken,
   persistEntityToken,
@@ -113,6 +113,7 @@ const Integracion = () => {
   const [requireLoginForCatalog, setRequireLoginForCatalog] = useState(false);
   const [enableFloatingPreview, setEnableFloatingPreview] = useState(false);
   const [ownerToken, setOwnerToken] = useState<string | null>(() => getStoredEntityToken());
+  const [widgetSettingsMessage, setWidgetSettingsMessage] = useState<string | null>(null);
   const tokenAlertShown = useRef(false);
   const catalogTouched = useRef(false);
   const settingsLoaded = useRef(false);
@@ -267,10 +268,21 @@ const Integracion = () => {
     if (userLoading || !user || settingsLoaded.current) return;
 
     setLoadingSettings(true);
+    setWidgetSettingsMessage(null);
     apiFetch<Record<string, any>>("/integracion/widget-settings")
-      .then(applyWidgetSettings)
+      .then((settings) => {
+        applyWidgetSettings(settings);
+        setWidgetSettingsMessage(null);
+      })
       .catch((err) => {
         console.warn("No se pudieron cargar los ajustes del widget", err);
+        if (err instanceof ApiError && err.status === 404) {
+          setWidgetSettingsMessage(
+            "Aún no tenés ajustes personalizados de widget. Podés guardarlos ahora.",
+          );
+          return;
+        }
+        setWidgetSettingsMessage('No pudimos cargar los ajustes del widget en este momento.');
         toast.error("No pudimos cargar tus ajustes del widget", {
           icon: <AlertTriangle className="text-destructive" />,
         });
@@ -785,6 +797,12 @@ const Integracion = () => {
           Integra fácilmente el chatbot en tu sitio web o plataforma. Elige el método que mejor se adapte a tus necesidades.
         </p>
       </header>
+
+      {widgetSettingsMessage && (
+        <div className="mb-4 rounded-md border border-dashed border-muted-foreground/40 bg-muted/30 p-3 text-sm text-muted-foreground">
+          {widgetSettingsMessage}
+        </div>
+      )}
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="text-sm text-muted-foreground">

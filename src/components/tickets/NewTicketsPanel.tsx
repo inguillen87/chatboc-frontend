@@ -229,9 +229,9 @@ const NewTicketsPanel: React.FC = () => {
 
   if (error) {
     return (
-        <div className="flex h-screen w-full bg-background text-foreground items-center justify-center p-4 text-center">
-            <p className="text-destructive">{error}</p>
-        </div>
+      <Card className="relative flex h-full min-h-[520px] w-full flex-col items-center justify-center border border-border/70 bg-card/90 p-6 text-center shadow-2xl backdrop-blur-md">
+        <p className="text-sm text-destructive">{error}</p>
+      </Card>
     )
   }
 

@@ -216,15 +216,28 @@ export default function InternalUsers() {
         throw err;
       }),
       fetchWithTenant('/categorias', { tenantSlug, omitEntityToken: true }).catch(err => {
-        if (err instanceof ApiError && err.status === 404) return null;
+        if (err instanceof ApiError) {
+          if (err.status === 404) {
+            setError((prev) => prev ?? 'No se encontraron categorías disponibles.');
+            return null;
+          }
+          setError((prev) => prev ?? getErrorMessage(err, 'No se pudieron cargar las categorías.'));
+          return null;
+        }
         throw err;
       }),
       fetchWithTenant('/tickets/categorias', { tenantSlug, omitEntityToken: true }).catch(err => {
-        if (err instanceof ApiError && err.status === 404) return null;
+        if (err instanceof ApiError) {
+          setError((prev) => prev ?? getErrorMessage(err, 'No se pudieron cargar las categorías de tickets.'));
+          return null;
+        }
         return null;
       }),
       fetchWithTenant('/pedidos/categorias', { tenantSlug, omitEntityToken: true }).catch(err => {
-        if (err instanceof ApiError && err.status === 404) return null;
+        if (err instanceof ApiError) {
+          setError((prev) => prev ?? getErrorMessage(err, 'No se pudieron cargar las categorías de pedidos.'));
+          return null;
+        }
         return null;
       }),
     ])
