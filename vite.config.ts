@@ -104,18 +104,24 @@ export default defineConfig(({ mode }) => {
     ],
     server: {
       port: 5173,
-      proxy: {
-        '/api': {
-          target: 'https://chatbot-backend-2e14.onrender.com',
-          changeOrigin: true,
-          secure: false,
-          rewrite: (path) => path.replace(/^\/api/, ''),
-        },
-        '/socket.io': {
-          target: 'wss://chatbot-backend-2e14.onrender.com',
-          ws: true,
-        },
-      },
+      proxy: (() => {
+        const rawBackend = process.env.VITE_BACKEND_URL || 'http://localhost:5000';
+        const socketTarget = rawBackend.replace(/^http/i, 'ws');
+
+        return {
+          '/api': {
+            target: rawBackend,
+            changeOrigin: true,
+            secure: false,
+          },
+          '/socket.io': {
+            target: socketTarget,
+            ws: true,
+            changeOrigin: true,
+            secure: false,
+          },
+        };
+      })(),
     },
     resolve: {
       alias: {

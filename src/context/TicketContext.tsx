@@ -4,6 +4,7 @@ import { getTickets } from '@/services/ticketService';
 import useTicketUpdates from '@/hooks/useTicketUpdates';
 import { mapToKnownCategory } from '@/utils/category';
 import { useUser } from '@/hooks/useUser';
+import { ApiError, resolveTenantSlug } from '@/utils/api';
 
 interface TicketContextType {
   tickets: Ticket[];
@@ -214,8 +215,10 @@ export const TicketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   );
 
   const fetchTickets = useCallback(async () => {
+    const tenantSlug = resolveTenantSlug(user?.tenantSlug);
+
     try {
-      const apiResponse = await getTickets();
+      const apiResponse = await getTickets(tenantSlug);
       const fetchedTickets = (apiResponse as any)?.tickets;
 
       if (Array.isArray(fetchedTickets)) {
@@ -246,12 +249,20 @@ export const TicketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       }
     } catch (err) {
       console.error('Error fetching tickets:', err);
-      setError('No se pudieron cargar los tickets.');
+      if (err instanceof ApiError) {
+        if (err.status >= 500) {
+          setError('Ocurrió un error en el servidor.');
+        } else {
+          setError('Error al obtener los tickets.');
+        }
+      } else {
+        setError('Error al obtener los tickets.');
+      }
       setTickets([]);
     } finally {
       setLoading(false);
     }
-  }, [filterTicketsForUser]);
+  }, [filterTicketsForUser, user?.tenantSlug]);
 
   useEffect(() => {
     setLoading(true);

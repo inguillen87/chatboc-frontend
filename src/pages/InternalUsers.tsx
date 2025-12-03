@@ -29,6 +29,8 @@ type Category = {
   tipo?: string;
 };
 
+const MUNICIPAL_BASE_PATH = '/municipal';
+
 export default function InternalUsers() {
   useRequireRole(['admin', 'super_admin'] as Role[]);
   const { user } = useUser();
@@ -64,7 +66,7 @@ export default function InternalUsers() {
     (suffix: string) => {
       if (!tenantSlug) throw new Error('No se pudo determinar el tenant');
       const normalizedSuffix = suffix.startsWith('/') ? suffix : `/${suffix}`;
-      return `/municipio/${tenantSlug}${normalizedSuffix}`;
+      return `${MUNICIPAL_BASE_PATH}${normalizedSuffix}`;
     },
     [tenantSlug],
   );
@@ -197,6 +199,11 @@ export default function InternalUsers() {
         mergeCategories(prev, extractCategoriesFromUsers(staffUsers))
       );
     } catch (err: any) {
+      if (err instanceof ApiError && err.status === 404) {
+        setUsers([]);
+        setError('No hay empleados cargados todavía.');
+        return;
+      }
       setError(getErrorMessage(err, 'Error al cargar los usuarios'));
     }
   }, [extractCategoriesFromUsers, fetchWithTenant, filterStaffUsers, mergeCategories, tenantSlug]);

@@ -3,9 +3,10 @@ import { io, Socket } from 'socket.io-client';
 import type { ManagerOptions, SocketOptions } from 'socket.io-client';
 import { toast } from '@/components/ui/use-toast';
 import { useUser } from './useUser';
-import { apiFetch } from '@/utils/api';
+import { apiFetch, resolveTenantSlug } from '@/utils/api';
 import { safeOn, assertEventSource } from '@/utils/safeOn';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
+import { getSocketUrl } from '@/config';
 
 interface TicketUpdate {
   ticket_id: number;
@@ -28,7 +29,7 @@ const normalizeSocketUrl = (value: string): string | undefined => {
 };
 
 const rawSocketUrl = import.meta.env.VITE_SOCKET_URL || '';
-const SOCKET_URL = normalizeSocketUrl(rawSocketUrl);
+const ENV_SOCKET_URL = normalizeSocketUrl(rawSocketUrl);
 
 export default function useTicketUpdates(options: UseTicketUpdatesOptions = {}) {
   const { onNewTicket, onNewComment } = options;
@@ -46,7 +47,8 @@ export default function useTicketUpdates(options: UseTicketUpdatesOptions = {}) 
   }, [onNewComment]);
 
   useEffect(() => {
-    if (!user) return;
+    const tenantSlug = resolveTenantSlug(user?.tenantSlug || (user as any)?.tenant_slug);
+    if (!user || !tenantSlug) return;
 
     let socket: Socket | null = null;
     let active = true;
@@ -73,6 +75,11 @@ export default function useTicketUpdates(options: UseTicketUpdatesOptions = {}) 
     };
     const handleConnectError = (err: any) => {
       console.error('Socket.io connection error:', err);
+      if (err?.message?.includes('400') || err?.description?.includes('400') || err?.data?.status === 400) {
+        if (socket?.io) {
+          socket.io.opts.reconnection = false;
+        }
+      }
       socket?.close();
     };
 
@@ -83,6 +90,7 @@ export default function useTicketUpdates(options: UseTicketUpdatesOptions = {}) 
         const settings = await apiFetch<{ ticket?: boolean }>('/notifications', {
           isWidgetRequest: false,
           omitCredentials: false,
+          tenantSlug,
         });
         if (!active) return;
 
@@ -105,13 +113,32 @@ export default function useTicketUpdates(options: UseTicketUpdatesOptions = {}) 
       const socketOptions: Partial<ManagerOptions & SocketOptions> = {
         transports: ['websocket'],
         withCredentials: true,
+        path: '/socket.io',
+        reconnectionAttempts: 3,
+        reconnectionDelayMax: 5000,
       };
 
       if (token) {
         socketOptions.auth = { token };
       }
 
-      socket = io(SOCKET_URL ?? undefined, socketOptions);
+      const resolvedSocketUrl = (() => {
+        if (ENV_SOCKET_URL) return ENV_SOCKET_URL;
+        try {
+          const derived = getSocketUrl();
+          return normalizeSocketUrl(derived) ?? derived;
+        } catch (err) {
+          console.error('Unable to resolve socket URL', err);
+          return undefined;
+        }
+      })();
+
+      if (!resolvedSocketUrl) {
+        console.warn('Socket URL not available; skipping ticket updates connection.');
+        return;
+      }
+
+      socket = io(resolvedSocketUrl, socketOptions);
 
       assertEventSource(socket, 'ticket-socket');
 
