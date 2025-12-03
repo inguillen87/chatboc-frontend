@@ -35,7 +35,8 @@ type ContactInfo = {
 };
 
 export default function MarketCartPage() {
-  const { tenantSlug = '' } = useParams<{ tenantSlug: string }>();
+  const { tenant = '' } = useParams<{ tenant: string }>();
+  const tenantSlug = tenant;
   const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();
