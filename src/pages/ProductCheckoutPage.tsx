@@ -234,7 +234,16 @@ export default function ProductCheckoutPage() {
           setError(getErrorMessage(err, 'No se pudo cargar el carrito del servidor. Seguimos con el carrito local.'));
           return;
         }
-        setError(getErrorMessage(err, 'No se pudo cargar tu carrito.'));
+
+        const errorMessage = getErrorMessage(err, 'No se pudo cargar tu carrito.');
+
+        if (err instanceof ApiError && err.status === 400 && errorMessage.toLowerCase().includes('tenant')) {
+           setCheckoutMode('local');
+           loadLocalCart();
+           return;
+        }
+
+        setError(errorMessage);
       } finally {
         setIsLoadingCart(false);
       }
