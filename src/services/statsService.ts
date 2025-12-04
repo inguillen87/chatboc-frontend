@@ -2226,6 +2226,8 @@ export const getTicketStats = async (
     const candidatePaths = [
       `/api/estadisticas/tickets${query ? `?${query}` : ''}`,
       `/estadisticas/tickets${query ? `?${query}` : ''}`,
+      `/api/municipal/estadisticas/tickets${query ? `?${query}` : ''}`,
+      `/municipal/estadisticas/tickets${query ? `?${query}` : ''}`,
     ];
 
     let resp: unknown = null;
@@ -2323,6 +2325,8 @@ export const getHeatmapDataset = async (
     const candidatePaths = [
       `/api/estadisticas/mapa_calor/datos${query ? `?${query}` : ''}`,
       `/estadisticas/mapa_calor/datos${query ? `?${query}` : ''}`,
+      `/api/municipal/estadisticas/mapa_calor/datos${query ? `?${query}` : ''}`,
+      `/municipal/estadisticas/mapa_calor/datos${query ? `?${query}` : ''}`,
     ];
 
     let payload: unknown = null;
