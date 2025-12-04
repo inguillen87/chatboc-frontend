@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { ShoppingBag, ArrowUpRight, ShieldCheck } from 'lucide-react';
 import { usePortalContent } from '@/hooks/usePortalContent';
+import { GridSkeleton } from '@/components/user-portal/shared/PortalContentSkeleton';
 
 const statusCopy = {
   available: 'Disponible',
@@ -17,7 +18,7 @@ const statusCopy = {
 
 const UserCatalogPage = () => {
   const { currentSlug } = useTenant();
-  const { content, isDemo } = usePortalContent();
+  const { content, isDemo, isLoading } = usePortalContent();
   const loginPath = useMemo(() => buildTenantPath('/login', currentSlug ?? undefined), [currentSlug]);
   const catalog = content.catalog ?? [];
 
@@ -40,6 +41,8 @@ const UserCatalogPage = () => {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {isLoading && catalog.length === 0 && <GridSkeleton items={6} />}
+
         {catalog.map((item) => (
           <motion.div key={item.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>
             <Card className="h-full border border-muted/70 shadow-sm overflow-hidden">
@@ -80,6 +83,14 @@ const UserCatalogPage = () => {
             </Card>
           </motion.div>
         ))}
+
+        {!isLoading && catalog.length === 0 && (
+          <Card className="sm:col-span-2 lg:col-span-3">
+            <CardContent className="py-10 text-center text-muted-foreground">
+              El catálogo aún no tiene módulos publicados.
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );

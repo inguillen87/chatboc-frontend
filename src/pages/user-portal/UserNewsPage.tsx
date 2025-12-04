@@ -10,6 +10,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { CalendarDays, Link as LinkIcon, Newspaper, Sparkles, Tag, RefreshCw } from 'lucide-react';
 import { usePortalContent } from '@/hooks/usePortalContent';
 import { cn } from '@/lib/utils';
+import { GridSkeleton, HeroSkeleton } from '@/components/user-portal/shared/PortalContentSkeleton';
 
 const UserNewsPage = () => {
   const { currentSlug } = useTenant();
@@ -53,7 +54,9 @@ const UserNewsPage = () => {
         </div>
       </div>
 
-      {featured && (
+      {isLoading && filteredNews.length === 0 && <HeroSkeleton />}
+
+      {featured && !isLoading && (
         <Card className="overflow-hidden border border-muted/70 shadow-sm">
           <div className="relative h-56 md:h-64 w-full overflow-hidden">
             {featured.coverUrl && (
@@ -95,6 +98,8 @@ const UserNewsPage = () => {
         </TabsList>
 
         <TabsContent value={activeCategory} className="space-y-4">
+          {isLoading && filteredNews.length === 0 && <GridSkeleton items={4} />}
+
           {filteredNews.map((item) => (
             <motion.div key={item.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>
               <Card className="border border-muted/70 shadow-sm bg-card/80">

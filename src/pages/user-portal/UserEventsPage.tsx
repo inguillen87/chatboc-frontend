@@ -10,6 +10,7 @@ import { Separator } from '@/components/ui/separator';
 import { Calendar, Clock4, MapPin, Sparkles, Ticket, RefreshCw, MonitorPlay } from 'lucide-react';
 import { usePortalContent } from '@/hooks/usePortalContent';
 import { cn } from '@/lib/utils';
+import { HeroSkeleton, ListSkeleton } from '@/components/user-portal/shared/PortalContentSkeleton';
 
 const statusLabel = {
   inscripcion: 'Inscripción abierta',
@@ -53,7 +54,9 @@ const UserEventsPage = () => {
         </div>
       </div>
 
-      {heroEvent && (
+      {isLoading && events.length === 0 && <HeroSkeleton />}
+
+      {heroEvent && !isLoading && (
         <Card className="overflow-hidden border border-muted/70 shadow-sm">
           <div className="relative h-52 md:h-64 w-full overflow-hidden">
             {heroEvent.coverUrl && (
@@ -83,6 +86,8 @@ const UserEventsPage = () => {
       )}
 
       <div className="space-y-4">
+        {isLoading && events.length === 0 && <ListSkeleton items={3} />}
+
         {events.map((event) => (
           <motion.div
             key={event.id}
