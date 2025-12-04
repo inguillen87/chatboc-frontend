@@ -26,7 +26,7 @@ const TenantSurveyDetailPage = () => {
     return null;
   }, [currentSlug, tenant?.slug]);
 
-  const basePath = tenantSlug ? `/t/${encodeURIComponent(tenantSlug)}` : null;
+  const basePath = tenantSlug ? `/${encodeURIComponent(tenantSlug)}` : null;
 
   const {
     survey,
