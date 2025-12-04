@@ -60,18 +60,17 @@ export default function InternalUsers() {
       ),
     [user],
   );
-  const buildTenantPath = useCallback(
-    (suffix: string) => {
-      if (!tenantSlug) throw new Error('No se pudo determinar el tenant');
-      const normalizedSuffix = suffix.startsWith('/') ? suffix : `/${suffix}`;
+  const buildTenantPath = useCallback((suffix: string) => {
+    if (!tenantSlug) throw new Error('No se pudo determinar el tenant');
+    const normalizedSuffix = suffix.startsWith('/') ? suffix : `/${suffix}`;
 
-      // Los endpoints municipales viven bajo el prefijo `/municipal`.
-      // Usamos el tenantSlug para mantener la compatibilidad multi-entidad
-      // y evitar hittear rutas públicas sin proxy (que devuelven HTML 404).
-      return `/municipal/${tenantSlug}${normalizedSuffix}`;
-    },
-    [tenantSlug],
-  );
+    // Los endpoints municipales viven bajo el prefijo `/municipal` y reciben
+    // el tenant vía query params o headers. No se debe incrustar el slug en el
+    // path porque se termina llamando a rutas públicas inexistentes
+    // (p. ej. /api/municipal/municipio/empleados devuelve 404 HTML en vez de
+    // JSON). Mantener el prefijo plano evita los 404 y los problemas de CORS.
+    return `/municipal${normalizedSuffix}`;
+  }, [tenantSlug]);
 
   const filterStaffUsers = useCallback((list: InternalUser[] | null | undefined) => {
     if (!Array.isArray(list)) return [];
