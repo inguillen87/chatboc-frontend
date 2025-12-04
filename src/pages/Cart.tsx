@@ -92,10 +92,11 @@ export default function CartPage() {
   const numberFormatter = useMemo(() => new Intl.NumberFormat('es-AR'), []);
 
   const shouldUseLocalCart = (err: unknown) => {
-    return (
-      (err instanceof ApiError && [401, 403, 405].includes(err.status)) ||
-      err instanceof NetworkError
-    );
+    if (err instanceof ApiError) {
+      if ([401, 403, 405].includes(err.status)) return true;
+      if (err.status === 400 && getErrorMessage(err).toLowerCase().includes('tenant')) return true;
+    }
+    return err instanceof NetworkError;
   };
 
   const loadCartData = useCallback(async () => {
@@ -110,8 +111,8 @@ export default function CartPage() {
     }
 
     if (!effectiveTenantSlug) {
-      setError('Selecciona un municipio o inicia sesión para ver tu carrito.');
-      setShowAuthCta(true);
+      setCartMode('local');
+      refreshLocalCart();
       setLoading(false);
       return;
     }
@@ -167,12 +168,6 @@ export default function CartPage() {
       }
 
       const errorMessage = getErrorMessage(err, 'No se pudo cargar el carrito. Intenta de nuevo.');
-
-      if (err instanceof ApiError && err.status === 400 && errorMessage.toLowerCase().includes('tenant')) {
-        setError('Selecciona un municipio o inicia sesión para gestionar tu carrito.');
-        setShowAuthCta(true);
-        return;
-      }
 
       setError(errorMessage);
       console.error("Error cargando datos del carrito:", err);
