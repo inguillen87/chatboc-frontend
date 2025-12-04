@@ -12,7 +12,7 @@ Authentication:
 ## 1. Consolidated Content (Dashboard)
 **Endpoint:** `GET /content`
 **Purpose:** Fetches a summary of data for the dashboard to minimize round trips.
-**Response JSON:**
+**Response JSON:*
 ```json
 {
   "notifications": [
