@@ -186,16 +186,39 @@ export default function InternalUsers() {
     async <T,>(suffix: string, options: Parameters<typeof apiFetch<T>>[1] = {}) => {
       const { primary, legacy } = resolveMunicipalPaths(suffix);
 
-      const attempt = (path: string) => apiFetch<T>(path, { ...options, tenantSlug });
+      const preferredBase = options.baseUrlOverride ?? undefined;
+      const fallbackBase = '';
 
-      try {
-        return await attempt(primary);
-      } catch (err) {
-        if (err instanceof ApiError && err.status === 404 && legacy !== primary) {
-          return attempt(legacy);
+      const attempts = [
+        { path: primary, base: preferredBase },
+        { path: primary, base: fallbackBase },
+        { path: legacy, base: preferredBase },
+        { path: legacy, base: fallbackBase },
+      ].filter((attempt, index, self) =>
+        self.findIndex(
+          (candidate) =>
+            candidate.path === attempt.path && (candidate.base || '') === (attempt.base || ''),
+        ) === index,
+      );
+
+      const shouldRetry = (error: unknown) => {
+        if (!(error instanceof ApiError)) return false;
+        if (error.status === 404) return true;
+        return error.message.includes('Respuesta inesperada del servidor');
+      };
+
+      let lastError: unknown;
+
+      for (const { path, base } of attempts) {
+        try {
+          return await apiFetch<T>(path, { ...options, tenantSlug, baseUrlOverride: base });
+        } catch (err) {
+          lastError = err;
+          if (!shouldRetry(err)) break;
         }
-        throw err;
       }
+
+      throw lastError;
     },
     [resolveMunicipalPaths, tenantSlug],
   );
