@@ -8,6 +8,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { getDemoLoyaltySummary } from '@/utils/demoLoyalty';
+import { usePortalContent } from '@/hooks/usePortalContent';
 
 const rewards = [
   { id: 'reward-01', title: 'Envío prioritario', cost: 1200, type: 'Servicio' },
@@ -37,7 +38,8 @@ const perks = [
 ];
 
 const UserBenefitsPage = () => {
-  const summary = useMemo(() => getDemoLoyaltySummary(), []);
+  const { content } = usePortalContent();
+  const summary = useMemo(() => content.loyaltySummary ?? getDemoLoyaltySummary(), [content]);
   const { currentSlug } = useTenant();
   const loginPath = useMemo(() => buildTenantPath('/login', currentSlug ?? undefined), [currentSlug]);
 
