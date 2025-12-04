@@ -74,7 +74,7 @@ export default function ProductCatalog() {
 
   const shouldUseDemoCatalog = (err: unknown) => {
     return (
-      (err instanceof ApiError && [401, 403, 405].includes(err.status)) ||
+      (err instanceof ApiError && [400, 401, 403, 405].includes(err.status)) ||
       err instanceof NetworkError
     );
   };
@@ -129,7 +129,6 @@ export default function ProductCatalog() {
     setError(null);
     if (!effectiveTenantSlug) {
       activateDemoCatalog();
-      setError('Selecciona un municipio o inicia sesión para ver el catálogo.');
       setLoading(false);
       return;
     }
