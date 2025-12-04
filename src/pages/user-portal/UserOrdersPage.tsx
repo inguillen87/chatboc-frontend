@@ -219,3 +219,5 @@ const UserOrdersPage = () => {
     </div>
   );
 }
+
+export default UserOrdersPage;
