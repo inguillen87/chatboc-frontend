@@ -17,6 +17,7 @@ const mainNavItems: SideNavItem[] = [
   { path: '/portal/catalogo', label: 'Catálogo', icon: <ShoppingBag className="h-5 w-5" /> },
   { path: '/portal/pedidos', label: 'Mis Gestiones', icon: <ListChecks className="h-5 w-5" /> },
   { path: '/portal/noticias', label: 'Novedades', icon: <Newspaper className="h-5 w-5" /> },
+  { path: '/portal/eventos', label: 'Eventos', icon: <CalendarDays className="h-5 w-5" /> },
   { path: '/portal/beneficios', label: 'Beneficios', icon: <TicketPercent className="h-5 w-5" /> },
   { path: '/portal/encuestas', label: 'Encuestas', icon: <MessageSquareQuote className="h-5 w-5" /> },
 ];

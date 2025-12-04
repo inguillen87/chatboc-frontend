@@ -136,6 +136,10 @@ export default function ProductCheckoutPage() {
     navigate('/portal/pedidos');
   }, [navigate]);
 
+  const handleViewOrders = useCallback(() => {
+    navigate('/portal/pedidos');
+  }, [navigate]);
+
   const catalogPath = buildTenantPath('/productos', effectiveTenantSlug);
   const cartPath = buildTenantPath('/cart', effectiveTenantSlug);
   const loginPath = buildTenantPath('/login', effectiveTenantSlug);
@@ -378,6 +382,13 @@ export default function ProductCheckoutPage() {
         telefono: data.telefono,
         direccion_envio: data.direccion,
         referencias_envio: data.referencias,
+      },
+      envio: {
+        metodo: data.metodoEnvio,
+        direccion: data.direccion,
+        referencias: data.referencias,
+        notas: data.notasEnvio,
+        coordenadas: shippingCoords ?? undefined,
       },
       envio: {
         metodo: data.metodoEnvio,
@@ -748,6 +759,84 @@ export default function ProductCheckoutPage() {
                   <p className="text-sm text-destructive mt-1">
                     {errors.direccion.message}
                   </p>
+                )}
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="referencias">Referencias para entregar</Label>
+                  <Controller
+                    name="referencias"
+                    control={control}
+                    render={({ field }) => (
+                      <Input
+                        id="referencias"
+                        {...field}
+                        placeholder="Piso, timbre o punto de referencia"
+                      />
+                    )}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="notasEnvio">Notas para el repartidor</Label>
+                  <Controller
+                    name="notasEnvio"
+                    control={control}
+                    render={({ field }) => (
+                      <Input
+                        id="notasEnvio"
+                        {...field}
+                        placeholder="Accesos, horarios, etc."
+                      />
+                    )}
+                  />
+                </div>
+              </div>
+              <div className="flex flex-col gap-2">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <Label>Ubicación en el mapa</Label>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      if (!navigator.geolocation) {
+                        toast({ title: 'Ubicación no disponible', description: 'Tu navegador no permite obtener la ubicación.', variant: 'destructive' });
+                        return;
+                      }
+                      setIsLocating(true);
+                      navigator.geolocation.getCurrentPosition(
+                        (pos) => {
+                          setIsLocating(false);
+                          setShippingCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+                        },
+                        (err) => {
+                          console.warn('[Checkout] Geolocation error', err);
+                          setIsLocating(false);
+                          toast({ title: 'No pudimos leer tu ubicación', description: 'Ingresá la dirección manualmente.', variant: 'destructive' });
+                        },
+                        { enableHighAccuracy: true, timeout: 8000 }
+                      );
+                    }}
+                  >
+                    {isLocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    {isLocating ? 'Obteniendo ubicación...' : 'Usar mi ubicación'}
+                  </Button>
+                </div>
+                {shippingCoords ? (
+                  <p className="text-sm text-muted-foreground">
+                    Guardaremos las coordenadas para el envío ({shippingCoords.lat.toFixed(5)}, {shippingCoords.lng.toFixed(5)}).
+                    {` `}
+                    <a
+                      className="text-primary underline"
+                      href={`https://www.google.com/maps/search/?api=1&query=${shippingCoords.lat},${shippingCoords.lng}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Ver en Google Maps
+                    </a>
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Podés adjuntar tu ubicación para agilizar la entrega.</p>
                 )}
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

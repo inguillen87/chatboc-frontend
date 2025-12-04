@@ -78,13 +78,18 @@ import MarketCheckoutPage from '@/pages/tenant/market/MarketCheckoutPage';
 import UserDashboardPage from '@/pages/user-portal/UserDashboardPage';
 import UserCatalogPage from '@/pages/user-portal/UserCatalogPage';
 import UserOrdersPage from '@/pages/user-portal/UserOrdersPage';
-// Añadir más imports a medida que se creen las páginas (Noticias, Encuestas, etc.)
+import UserNewsPage from '@/pages/user-portal/UserNewsPage';
+import UserEventsPage from '@/pages/user-portal/UserEventsPage';
+import UserBenefitsPage from '@/pages/user-portal/UserBenefitsPage';
+import UserSurveysPage from '@/pages/user-portal/UserSurveysPage';
+import UserAccountPage from '@/pages/user-portal/UserAccountPage';
 
 export interface RouteConfig {
   path: string;
   element: React.ReactElement;
   roles?: string[]; // Roles para admin/empleado de Chatboc
   userPortal?: boolean; // Flag para rutas del portal de usuario final (cliente/vecino)
+  allowGuest?: boolean; // Permite acceder sin sesión (modo demo)
 }
 
 const withTenantPrefixes = (
@@ -214,12 +219,14 @@ const routes: RouteConfig[] = [
   {
     path: '/portal/dashboard',
     element: <UserDashboardPage />,
-    userPortal: true
+    userPortal: true,
+    allowGuest: true
   },
   {
     path: '/portal/catalogo',
     element: <UserCatalogPage />,
-    userPortal: true
+    userPortal: true,
+    allowGuest: true
   },
   {
     path: '/portal/pedidos',
@@ -227,12 +234,36 @@ const routes: RouteConfig[] = [
     userPortal: true,
     allowGuest: true
   },
-  // Placeholder para otras rutas del portal que añadiremos:
-  // { path: '/portal/noticias', element: <UserNoticiasPage />, userPortal: true },
-  // { path: '/portal/eventos', element: <UserEventosPage />, userPortal: true },
-  // { path: '/portal/encuestas', element: <UserEncuestasPage />, userPortal: true },
-  // { path: '/portal/beneficios', element: <UserBeneficiosPage />, userPortal: true },
-  // { path: '/portal/cuenta', element: <UserCuentaPage />, userPortal: true },
+  {
+    path: '/portal/noticias',
+    element: <UserNewsPage />,
+    userPortal: true,
+    allowGuest: true,
+  },
+  {
+    path: '/portal/eventos',
+    element: <UserEventsPage />,
+    userPortal: true,
+    allowGuest: true,
+  },
+  {
+    path: '/portal/beneficios',
+    element: <UserBenefitsPage />,
+    userPortal: true,
+    allowGuest: true,
+  },
+  {
+    path: '/portal/encuestas',
+    element: <UserSurveysPage />,
+    userPortal: true,
+    allowGuest: true,
+  },
+  {
+    path: '/portal/cuenta',
+    element: <UserAccountPage />,
+    userPortal: true,
+    allowGuest: true,
+  },
   { path: '/iframe', element: <Iframe /> },
 ];
 
