@@ -5,6 +5,8 @@ import GoogleLoginButton from "@/components/auth/GoogleLoginButton";
 import { apiFetch, ApiError } from "@/utils/api";
 import { safeLocalStorage } from "@/utils/safeLocalStorage";
 import { useUser } from "@/hooks/useUser";
+import { extractEntityToken, normalizeEntityToken, persistEntityToken } from "@/utils/entityToken";
+import { resolveTenantSlug } from "@/utils/api";
 
 
 interface RegisterResponse {
@@ -35,11 +37,74 @@ const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin, entity
   const [accepted, setAccepted] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resolvedEntityToken, setResolvedEntityToken] = useState<string | null>(null);
+  const [resolvingToken, setResolvingToken] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     nameRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const captureEntityToken = async () => {
+      const fromProp = normalizeEntityToken(entityToken);
+      if (fromProp) {
+        setResolvedEntityToken(fromProp);
+        persistEntityToken(fromProp);
+        return;
+      }
+
+      const fromStorage = normalizeEntityToken(safeLocalStorage.getItem("entityToken"));
+      if (fromStorage) {
+        setResolvedEntityToken(fromStorage);
+        return;
+      }
+
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const tokenFromUrl = normalizeEntityToken(params.get("token"));
+        if (tokenFromUrl) {
+          persistEntityToken(tokenFromUrl);
+          setResolvedEntityToken(tokenFromUrl);
+          return;
+        }
+      } catch (err) {
+        console.warn("[ChatUserRegisterPanel] No se pudo leer el token desde la URL", err);
+      }
+
+      setResolvingToken(true);
+      try {
+        const tenantSlug = resolveTenantSlug();
+        const info = await apiFetch<Record<string, unknown>>("/pwa/tenant-info", {
+          skipAuth: true,
+          sendAnonId: true,
+          isWidgetRequest: true,
+          tenantSlug,
+          omitCredentials: true,
+        });
+        if (!active) return;
+        const tokenFromApi = extractEntityToken(info);
+        if (tokenFromApi) {
+          setResolvedEntityToken(tokenFromApi);
+          persistEntityToken(tokenFromApi);
+        }
+      } catch (err) {
+        if (active) {
+          console.warn("[ChatUserRegisterPanel] No se pudo recuperar el token de la entidad", err);
+        }
+      } finally {
+        if (active) setResolvingToken(false);
+      }
+    };
+
+    captureEntityToken();
+
+    return () => {
+      active = false;
+    };
+  }, [entityToken]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,20 +123,17 @@ const ChatUserRegisterPanel: React.FC<Props> = ({ onSuccess, onShowLogin, entity
       };
       if (phone.trim()) payload.telefono = phone.trim();
 
-      // Prioritize entityToken from prop, then localStorage, then URL (handled by useEffect)
-      let currentEntityToken = entityToken || safeLocalStorage.getItem("entityToken");
+      const currentEntityToken =
+        resolvedEntityToken ||
+        normalizeEntityToken(entityToken) ||
+        normalizeEntityToken(safeLocalStorage.getItem("entityToken"));
 
       if (!currentEntityToken) {
-        const params = new URLSearchParams(window.location.search);
-        const tokenFromUrl = params.get('token');
-        if (tokenFromUrl) {
-          currentEntityToken = tokenFromUrl;
-          safeLocalStorage.setItem('entityToken', tokenFromUrl); // Save it for potential future use in this session
+        if (resolvingToken) {
+          setError("Buscando los datos de la entidad. Por favor intentá nuevamente en unos segundos.");
+        } else {
+          setError("No se pudo obtener el token de la entidad para registrar la cuenta.");
         }
-      }
-
-      if (!currentEntityToken) {
-        setError("El token de la entidad es requerido para el registro. Contacte a soporte si el problema persiste.");
         setLoading(false);
         return;
       }
