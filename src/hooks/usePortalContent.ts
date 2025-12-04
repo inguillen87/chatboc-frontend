@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTenant } from '@/context/TenantContext';
 import { demoPortalContent, PortalContent } from '@/data/portalDemoContent';
+import { getDemoLoyaltySummary } from '@/utils/demoLoyalty';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
 
 const PORTAL_CACHE_KEY = 'chatboc_portal_cache';
@@ -50,7 +51,13 @@ export const usePortalContent = () => {
     placeholderData: cached ?? demoPortalContent,
   });
 
-  const content = query.data ?? cached ?? demoPortalContent;
+  const content = useMemo(() => {
+    const base = query.data ?? cached ?? demoPortalContent;
+    if (!base.loyaltySummary) {
+      return { ...base, loyaltySummary: getDemoLoyaltySummary() };
+    }
+    return base;
+  }, [cached, query.data]);
   const isDemo = !query.data;
 
   return {

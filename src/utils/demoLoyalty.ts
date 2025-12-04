@@ -64,3 +64,11 @@ export const getDemoLoyaltySummary = (): DemoLoyaltySummary => {
   persistSummary(summary);
   return summary;
 };
+
+// Ensure the demo helper remains available in environments that reference it globally
+try {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (window as any).getDemoLoyaltySummary = getDemoLoyaltySummary;
+} catch {
+  // noop for SSR or non-browser environments
+}

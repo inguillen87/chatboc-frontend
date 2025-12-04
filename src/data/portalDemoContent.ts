@@ -1,4 +1,4 @@
-import { DemoLoyaltySummary } from '@/utils/demoLoyalty';
+import { DemoLoyaltySummary, getDemoLoyaltySummary } from '@/utils/demoLoyalty';
 
 export type PortalNotification = {
   id: string;
@@ -70,6 +70,7 @@ export type PortalContent = {
 };
 
 export const demoPortalContent: PortalContent = {
+  loyaltySummary: getDemoLoyaltySummary(),
   notifications: [
     {
       id: 'notif-01',
