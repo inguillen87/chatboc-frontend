@@ -37,7 +37,10 @@ const checkoutSchema = z.object({
   email: z.string().email({ message: "Ingresa un email válido." }),
   telefono: z.string().min(8, { message: "Ingresa un teléfono válido." }),
   direccion: z.string().min(5, { message: "La dirección es requerida." }),
-  // notasAdicionales: z.string().optional(), // Campo opcional para el futuro
+  referencias: z.string().optional(),
+  notasEnvio: z.string().optional(),
+  metodoEnvio: z.enum(['delivery', 'pickup']).default('delivery'),
+  metodoPago: z.enum(['mercado_pago', 'acordar']).default('mercado_pago'),
 });
 
 type CheckoutFormData = z.infer<typeof checkoutSchema>;
@@ -87,7 +90,23 @@ export default function ProductCheckoutPage() {
   const [showPointsAuthPrompt, setShowPointsAuthPrompt] = useState(false);
   const [checkoutMode, setCheckoutMode] = useState<'api' | 'local'>('api');
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [shippingCoords, setShippingCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [isLocating, setIsLocating] = useState(false);
   const guestDefaults = useMemo(() => loadGuestContact(), []);
+
+  const handleViewOrders = useCallback(() => {
+    const destination = '/portal/pedidos';
+    if (user) {
+      navigate(destination);
+      return;
+    }
+
+    navigate('/user/login', {
+      state: {
+        redirectTo: destination,
+      },
+    });
+  }, [navigate, user]);
 
   const catalogPath = buildTenantPath('/productos', effectiveTenantSlug);
   const cartPath = buildTenantPath('/cart', effectiveTenantSlug);
@@ -126,6 +145,10 @@ export default function ProductCheckoutPage() {
       email: guestDefaults.email || '',
       telefono: guestDefaults.telefono || '',
       direccion: '',
+      referencias: '',
+      notasEnvio: '',
+      metodoEnvio: 'delivery',
+      metodoPago: 'mercado_pago',
     }
   });
 
@@ -140,10 +163,12 @@ export default function ProductCheckoutPage() {
   }, [user, setValue]);
 
   const shouldUseLocalCart = (err: unknown) => {
-    return (
-      (err instanceof ApiError && [401, 403, 405].includes(err.status)) ||
-      err instanceof NetworkError
-    );
+    if (err instanceof ApiError) {
+      if ([400, 401, 403, 405].includes(err.status)) return true;
+      const errorCode = err.body?.code || err.body?.error_code || err.body?.errorCode;
+      if (errorCode && String(errorCode).toLowerCase().includes('tenant')) return true;
+    }
+    return err instanceof NetworkError;
   };
 
   const loadLocalCart = useCallback(() => {
@@ -206,6 +231,7 @@ export default function ProductCheckoutPage() {
         if (shouldUseLocalCart(err)) {
           setCheckoutMode('local');
           loadLocalCart();
+          setError(getErrorMessage(err, 'No se pudo cargar el carrito del servidor. Seguimos con el carrito local.'));
           return;
         }
         setError(getErrorMessage(err, 'No se pudo cargar tu carrito.'));
@@ -266,6 +292,14 @@ export default function ProductCheckoutPage() {
         email: data.email,
         telefono: data.telefono,
         direccion_envio: data.direccion,
+        referencias_envio: data.referencias,
+      },
+      envio: {
+        metodo: data.metodoEnvio,
+        direccion: data.direccion,
+        referencias: data.referencias,
+        notas: data.notasEnvio,
+        coordenadas: shippingCoords ?? undefined,
       },
       items: cartItems.map(item => ({
         producto_id: item.id, // Asumiendo que el backend prefiere ID
@@ -279,6 +313,7 @@ export default function ProductCheckoutPage() {
         dinero: subtotal,
         puntos: pointsTotal,
       },
+      metodo_pago: data.metodoPago,
       // En el futuro: metodo_pago, metodo_envio, notas, etc.
       estado: 'pendiente_confirmacion', // Estado inicial del pedido
     };
@@ -315,7 +350,9 @@ export default function ProductCheckoutPage() {
         return;
       }
 
-      if (subtotal === 0) {
+      const shouldSkipMp = data.metodoPago === 'acordar';
+
+      if (subtotal === 0 || shouldSkipMp) {
         await apiFetch(checkoutConfirmPath, {
           ...sharedRequestOptions,
           method: 'POST',
@@ -325,9 +362,11 @@ export default function ProductCheckoutPage() {
         await applyPointsAdjustments();
         toast({
           title: 'Pedido confirmado',
-          description: hasDonations
-            ? 'Registramos tus donaciones. Recibirás instrucciones de entrega.'
-            : 'Registramos tu canje de puntos.',
+          description: shouldSkipMp
+            ? 'Registramos tu pedido. Coordinaremos el pago con el vendedor.'
+            : hasDonations
+              ? 'Registramos tus donaciones. Recibirás instrucciones de entrega.'
+              : 'Registramos tu canje de puntos.',
           className: 'bg-green-600 text-white',
         });
         return;
@@ -420,8 +459,7 @@ export default function ProductCheckoutPage() {
         </p>
         <div className="flex gap-4">
           <Button onClick={() => navigate(catalogPath)}>Seguir Comprando</Button>
-          <Button variant="outline" onClick={() => navigate('/perfil/pedidos')}>Ver Mis Pedidos</Button>
-          {/* Asumiendo que /perfil/pedidos es donde el usuario ve sus pedidos */}
+          <Button variant="outline" onClick={handleViewOrders}>Ver Mis Pedidos</Button>
         </div>
       </div>
     );
@@ -549,22 +587,164 @@ export default function ProductCheckoutPage() {
                 />
                 {errors.direccion && <p className="text-sm text-destructive mt-1">{errors.direccion.message}</p>}
               </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="referencias">Referencias para entregar</Label>
+                  <Controller
+                    name="referencias"
+                    control={control}
+                    render={({ field }) => (
+                      <Input
+                        id="referencias"
+                        {...field}
+                        placeholder="Piso, timbre o punto de referencia"
+                      />
+                    )}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="notasEnvio">Notas para el repartidor</Label>
+                  <Controller
+                    name="notasEnvio"
+                    control={control}
+                    render={({ field }) => (
+                      <Input
+                        id="notasEnvio"
+                        {...field}
+                        placeholder="Accesos, horarios, etc."
+                      />
+                    )}
+                  />
+                </div>
+              </div>
+              <div className="flex flex-col gap-2">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <Label>Ubicación en el mapa</Label>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      if (!navigator.geolocation) {
+                        toast({ title: 'Ubicación no disponible', description: 'Tu navegador no permite obtener la ubicación.', variant: 'destructive' });
+                        return;
+                      }
+                      setIsLocating(true);
+                      navigator.geolocation.getCurrentPosition(
+                        (pos) => {
+                          setIsLocating(false);
+                          setShippingCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+                        },
+                        (err) => {
+                          console.warn('[Checkout] Geolocation error', err);
+                          setIsLocating(false);
+                          toast({ title: 'No pudimos leer tu ubicación', description: 'Ingresá la dirección manualmente.', variant: 'destructive' });
+                        },
+                        { enableHighAccuracy: true, timeout: 8000 }
+                      );
+                    }}
+                  >
+                    {isLocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    {isLocating ? 'Obteniendo ubicación...' : 'Usar mi ubicación'}
+                  </Button>
+                </div>
+                {shippingCoords ? (
+                  <p className="text-sm text-muted-foreground">
+                    Guardaremos las coordenadas para el envío ({shippingCoords.lat.toFixed(5)}, {shippingCoords.lng.toFixed(5)}).
+                    {` `}
+                    <a
+                      className="text-primary underline"
+                      href={`https://www.google.com/maps/search/?api=1&query=${shippingCoords.lat},${shippingCoords.lng}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Ver en Google Maps
+                    </a>
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Podés adjuntar tu ubicación para agilizar la entrega.</p>
+                )}
+              </div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader><CardTitle>2. Método de Envío</CardTitle></CardHeader>
             <CardContent>
-              <p className="text-muted-foreground">Por el momento, el envío se coordina post-compra.</p>
-              {/* Placeholder para futura selección de envío */}
+              <div className="space-y-3">
+                <Controller
+                  name="metodoEnvio"
+                  control={control}
+                  render={({ field }) => (
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input
+                          type="radio"
+                          value="delivery"
+                          checked={field.value === 'delivery'}
+                          onChange={() => field.onChange('delivery')}
+                        />
+                        <div>
+                          <p className="font-medium">Envío a domicilio</p>
+                          <p className="text-sm text-muted-foreground">Coordinamos la entrega con los datos ingresados.</p>
+                        </div>
+                      </label>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input
+                          type="radio"
+                          value="pickup"
+                          checked={field.value === 'pickup'}
+                          onChange={() => field.onChange('pickup')}
+                        />
+                        <div>
+                          <p className="font-medium">Retiro en punto de entrega</p>
+                          <p className="text-sm text-muted-foreground">Te enviaremos la dirección y horario para retirar.</p>
+                        </div>
+                      </label>
+                    </div>
+                  )}
+                />
+              </div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader><CardTitle>3. Método de Pago</CardTitle></CardHeader>
             <CardContent>
-              <p className="text-muted-foreground">El pago se realizará por "Transferencia Bancaria" o "Acordar con el Vendedor". Nos contactaremos para coordinar.</p>
-              {/* Placeholder para futura selección de pago */}
+              <div className="space-y-3">
+                <Controller
+                  name="metodoPago"
+                  control={control}
+                  render={({ field }) => (
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input
+                          type="radio"
+                          value="mercado_pago"
+                          checked={field.value === 'mercado_pago'}
+                          onChange={() => field.onChange('mercado_pago')}
+                        />
+                        <div>
+                          <p className="font-medium">Mercado Pago (recomendado)</p>
+                          <p className="text-sm text-muted-foreground">Al confirmar te redirigimos para completar el pago seguro.</p>
+                        </div>
+                      </label>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input
+                          type="radio"
+                          value="acordar"
+                          checked={field.value === 'acordar'}
+                          onChange={() => field.onChange('acordar')}
+                        />
+                        <div>
+                          <p className="font-medium">Acordar con el vendedor</p>
+                          <p className="text-sm text-muted-foreground">Registramos el pedido y coordinamos el pago por otro medio.</p>
+                        </div>
+                      </label>
+                    </div>
+                  )}
+                />
+              </div>
             </CardContent>
           </Card>
         </div>
