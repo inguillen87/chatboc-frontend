@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Link, Outlet, useNavigate } from 'react-router-dom'; // import useNavigate
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -11,10 +11,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Menu as MenuIconLucide, Bell, Settings, LogOut, Building, ChevronDown } from 'lucide-react';
+import { Menu as MenuIconLucide, Bell, Settings, LogOut, Building, ChevronDown, Moon, Sun } from 'lucide-react';
 import SideNavigationBar from '../navigation/SideNavigationBar';
 import BottomNavigationBar from '../navigation/BottomNavigationBar';
 import { useUser } from '@/hooks/useUser';
+import { usePortalTheme } from '@/hooks/usePortalTheme';
+import { Badge } from '@/components/ui/badge';
 
 
 const UserPortalLayout: React.FC = () => {
@@ -22,6 +24,18 @@ const UserPortalLayout: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useUser();
   const [hasNotifications] = useState(true);
+  const { toggle, active, setTheme } = usePortalTheme();
+
+  const themeLabel = useMemo(() => {
+    switch (active) {
+      case 'dark':
+        return 'Modo oscuro';
+      case 'light':
+        return 'Modo claro';
+      default:
+        return 'Modo automático';
+    }
+  }, [active]);
 
   const handleLogout = () => {
     console.log("Cerrar Sesión");
@@ -30,9 +44,9 @@ const UserPortalLayout: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-light">
+    <div className="flex flex-col min-h-screen bg-light bg-gradient-to-b from-background via-background to-muted/40 dark:from-background dark:via-background dark:to-muted/20 transition-colors">
       {/* Navbar Superior */}
-      <header className="bg-background border-b border-border shadow-sm sticky top-0 z-40 h-16">
+      <header className="bg-background/95 backdrop-blur-md border-b border-border/80 shadow-sm sticky top-0 z-40 h-16">
         <div className="container mx-auto px-4 flex items-center justify-between h-full">
           <div className="flex items-center gap-2">
             {/* Logo de la Organización */}
@@ -53,6 +67,41 @@ const UserPortalLayout: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2 md:gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="rounded-full md:hidden"
+              aria-label="Cambiar tema"
+              onClick={toggle}
+            >
+              {active === 'dark' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+            </Button>
+            <div className="hidden lg:flex items-center gap-2">
+              <Badge variant="secondary" className="hidden xl:inline-flex">{themeLabel}</Badge>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="rounded-full" aria-label="Cambiar tema">
+                    {active === 'dark' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                  <DropdownMenuLabel>Tema del portal</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setTheme('light')}>
+                    <Sun className="mr-2 h-4 w-4" />
+                    Claro
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setTheme('dark')}>
+                    <Moon className="mr-2 h-4 w-4" />
+                    Oscuro
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setTheme('system')}>
+                    <ChevronDown className="mr-2 h-4 w-4" />
+                    Automático
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
             <div className="relative">
               <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-primary rounded-full">
                 <Bell className="h-5 w-5" />
@@ -132,7 +181,7 @@ const UserPortalLayout: React.FC = () => {
 
         {/* Contenido Principal */}
         {/* El ml-64 para desktop debe ser condicional si el sidebar es colapsable */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 bg-light md:ml-64">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 bg-gradient-to-b from-background via-background to-muted/30 dark:from-background dark:via-background dark:to-muted/10 md:ml-64 transition-colors">
           <Outlet />
         </main>
       </div>
