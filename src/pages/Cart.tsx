@@ -110,8 +110,8 @@ export default function CartPage() {
     }
 
     if (!effectiveTenantSlug) {
-      setError('Selecciona un municipio o inicia sesión para ver tu carrito.');
-      setShowAuthCta(true);
+      setCartMode('local');
+      refreshLocalCart();
       setLoading(false);
       return;
     }
