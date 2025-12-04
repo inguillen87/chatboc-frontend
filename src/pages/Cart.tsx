@@ -92,11 +92,10 @@ export default function CartPage() {
   const numberFormatter = useMemo(() => new Intl.NumberFormat('es-AR'), []);
 
   const shouldUseLocalCart = (err: unknown) => {
-    if (err instanceof ApiError) {
-      if ([401, 403, 405].includes(err.status)) return true;
-      if (err.status === 400 && getErrorMessage(err).toLowerCase().includes('tenant')) return true;
-    }
-    return err instanceof NetworkError;
+    return (
+      (err instanceof ApiError && [400, 401, 403, 405].includes(err.status)) ||
+      err instanceof NetworkError
+    );
   };
 
   const loadCartData = useCallback(async () => {
@@ -161,6 +160,7 @@ export default function CartPage() {
       }
 
     } catch (err) {
+      // Always fallback to local cart on these errors
       if (shouldUseLocalCart(err)) {
         setCartMode('local');
         refreshLocalCart();
@@ -168,6 +168,13 @@ export default function CartPage() {
       }
 
       const errorMessage = getErrorMessage(err, 'No se pudo cargar el carrito. Intenta de nuevo.');
+
+      if (err instanceof ApiError && err.status === 400 && errorMessage.toLowerCase().includes('tenant')) {
+        // Fallback to local cart if tenant is missing/invalid
+        setCartMode('local');
+        refreshLocalCart();
+        return;
+      }
 
       setError(errorMessage);
       console.error("Error cargando datos del carrito:", err);
