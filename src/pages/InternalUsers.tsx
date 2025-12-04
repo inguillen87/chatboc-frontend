@@ -60,18 +60,20 @@ export default function InternalUsers() {
       ),
     [user],
   );
-  const buildTenantPath = useCallback(
-    (suffix: string) => {
-      if (!tenantSlug) throw new Error('No se pudo determinar el tenant');
-      const normalizedSuffix = suffix.startsWith('/') ? suffix : `/${suffix}`;
+  const resolveMunicipalPaths = useCallback((suffix: string) => {
+    if (!tenantSlug) throw new Error('No se pudo determinar el tenant');
+    const normalizedSuffix = suffix.startsWith('/') ? suffix : `/${suffix}`;
 
-      // Los endpoints municipales viven bajo el prefijo `/municipal`.
-      // Usamos el tenantSlug para mantener la compatibilidad multi-entidad
-      // y evitar hittear rutas públicas sin proxy (que devuelven HTML 404).
-      return `/municipal/${tenantSlug}${normalizedSuffix}`;
-    },
-    [tenantSlug],
-  );
+    // En la infraestructura actual existen dos variantes para los endpoints
+    // municipales: el prefijo plano `/municipal` (preferido) y un prefijo
+    // legado que incluye el slug en el path (`/municipal/:slug`). Para evitar
+    // 404 HTML y errores de CORS, siempre se intenta primero el prefijo plano
+    // y, solo si devuelve 404, se reintenta con la variante legado.
+    const primary = `/municipal${normalizedSuffix}`;
+    const legacy = `/municipal/${encodeURIComponent(tenantSlug)}${normalizedSuffix}`;
+
+    return { primary, legacy };
+  }, [tenantSlug]);
 
   const filterStaffUsers = useCallback((list: InternalUser[] | null | undefined) => {
     if (!Array.isArray(list)) return [];
@@ -182,10 +184,43 @@ export default function InternalUsers() {
 
   const fetchWithTenant = useCallback(
     async <T,>(suffix: string, options: Parameters<typeof apiFetch<T>>[1] = {}) => {
-      const path = buildTenantPath(suffix);
-      return apiFetch<T>(path, { ...options, tenantSlug });
+      const { primary, legacy } = resolveMunicipalPaths(suffix);
+
+      const preferredBase = options.baseUrlOverride ?? undefined;
+      const fallbackBase = '';
+
+      const attempts = [
+        { path: primary, base: preferredBase },
+        { path: primary, base: fallbackBase },
+        { path: legacy, base: preferredBase },
+        { path: legacy, base: fallbackBase },
+      ].filter((attempt, index, self) =>
+        self.findIndex(
+          (candidate) =>
+            candidate.path === attempt.path && (candidate.base || '') === (attempt.base || ''),
+        ) === index,
+      );
+
+      const shouldRetry = (error: unknown) => {
+        if (!(error instanceof ApiError)) return false;
+        if (error.status === 404) return true;
+        return error.message.includes('Respuesta inesperada del servidor');
+      };
+
+      let lastError: unknown;
+
+      for (const { path, base } of attempts) {
+        try {
+          return await apiFetch<T>(path, { ...options, tenantSlug, baseUrlOverride: base });
+        } catch (err) {
+          lastError = err;
+          if (!shouldRetry(err)) break;
+        }
+      }
+
+      throw lastError;
     },
-    [buildTenantPath, tenantSlug],
+    [resolveMunicipalPaths, tenantSlug],
   );
 
   const refreshUsers = useCallback(async () => {
