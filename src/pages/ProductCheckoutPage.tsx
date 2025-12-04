@@ -141,7 +141,7 @@ export default function ProductCheckoutPage() {
 
   const shouldUseLocalCart = (err: unknown) => {
     return (
-      (err instanceof ApiError && [401, 403, 405].includes(err.status)) ||
+      (err instanceof ApiError && [400, 401, 403, 405].includes(err.status)) ||
       err instanceof NetworkError
     );
   };
@@ -208,7 +208,16 @@ export default function ProductCheckoutPage() {
           loadLocalCart();
           return;
         }
-        setError(getErrorMessage(err, 'No se pudo cargar tu carrito.'));
+
+        const errorMessage = getErrorMessage(err, 'No se pudo cargar tu carrito.');
+
+        if (err instanceof ApiError && err.status === 400 && errorMessage.toLowerCase().includes('tenant')) {
+           setCheckoutMode('local');
+           loadLocalCart();
+           return;
+        }
+
+        setError(errorMessage);
       } finally {
         setIsLoadingCart(false);
       }
