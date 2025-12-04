@@ -104,42 +104,6 @@ export default function ProductCheckoutPage() {
   const guestDefaults = useMemo(() => loadGuestContact(), []);
   const [loyaltySummary] = useState(() => getDemoLoyaltySummary());
 
-  const handleViewOrders = useCallback(() => {
-    const destination = '/portal/pedidos';
-    if (user) {
-      navigate(destination);
-      return;
-    }
-
-    navigate('/user/login', {
-      state: {
-        redirectTo: destination,
-      },
-    });
-  }, [navigate, user]);
-
-  const handleViewOrders = useCallback(() => {
-    const destination = '/portal/pedidos';
-    if (user) {
-      navigate(destination);
-      return;
-    }
-
-    navigate('/user/login', {
-      state: {
-        redirectTo: destination,
-      },
-    });
-  }, [navigate, user]);
-
-  const handleViewOrders = useCallback(() => {
-    navigate('/portal/pedidos');
-  }, [navigate]);
-
-  const handleViewOrders = useCallback(() => {
-    navigate('/portal/pedidos');
-  }, [navigate]);
-
   const catalogPath = buildTenantPath('/productos', effectiveTenantSlug);
   const cartPath = buildTenantPath('/cart', effectiveTenantSlug);
   const loginPath = buildTenantPath('/login', effectiveTenantSlug);
@@ -390,13 +354,6 @@ export default function ProductCheckoutPage() {
         notas: data.notasEnvio,
         coordenadas: shippingCoords ?? undefined,
       },
-      envio: {
-        metodo: data.metodoEnvio,
-        direccion: data.direccion,
-        referencias: data.referencias,
-        notas: data.notasEnvio,
-        coordenadas: shippingCoords ?? undefined,
-      },
       items: cartItems.map((item) => ({
         producto_id: item.id,
         nombre_producto: item.nombre,
@@ -565,8 +522,17 @@ export default function ProductCheckoutPage() {
 
   const handleViewOrders = useCallback(() => {
     const destination = buildTenantPath('/perfil/pedidos', effectiveTenantSlug);
-    navigate(destination);
-  }, [navigate, effectiveTenantSlug]);
+    if (user) {
+      navigate(destination);
+      return;
+    }
+
+    navigate(loginPath, {
+      state: {
+        redirectTo: destination,
+      },
+    });
+  }, [navigate, user, effectiveTenantSlug, loginPath]);
 
   if (orderPlaced) {
     const demoSuccess = checkoutMode === 'local';
