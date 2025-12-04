@@ -170,12 +170,15 @@ To ensure the User Portal updates instantly when an Admin posts content, the bac
 
 **Room Name:** `tenant_slug` (e.g., "municipio", "ferreteria")
 
-**Events to Emit:**
-*   `tenant_content_update`: Generic signal that something changed.
-*   `news_update`: Signal that news items have changed.
-*   `events_update`: Signal that events have changed.
-*   `catalog_update`: Signal that catalog items have changed.
+**Events Emitted:**
+*   `tenant_content_update`: Generic signal that something changed. Payload: `{ "type": "news_update" }`
+*   `news_update`: Signal that news items have changed. Payload: New/Updated Post object.
+*   `events_update`: Signal that events have changed. Payload: New/Updated Post object.
+*   `catalog_update`: Signal that catalog items have changed. Payload: `{}` or Item object.
 
-**Trigger Logic:**
-*   When `POST /municipal/posts` (create/update post) is successful -> Emit `news_update` or `events_update`.
-*   When Catalog Upload/Process is successful -> Emit `catalog_update`.
+**Triggers:**
+*   `POST /municipal/posts` (Create/Update News/Events).
+*   `POST /api/admin/market/catalog` (Create Product).
+*   `PUT /api/admin/market/catalog/:id` (Update Product).
+*   `DELETE /api/admin/market/catalog/:id` (Delete Product).
+*   `POST /catalogo/upload` (Bulk Upload).
