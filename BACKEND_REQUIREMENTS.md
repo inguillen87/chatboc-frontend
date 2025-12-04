@@ -164,3 +164,18 @@ Authentication:
 - **WhatsApp:** The webhook handler should use the `tenant_id` associated with the phone number to fetch the same News/Events data and serve it via text/interactive messages.
 - **Chat Widget:** The widget embeds the portal or specific flows. It should query these same endpoints using the `tenant_id` from the script tag configuration.
 - **Admin Panel:** Changes made in the Admin Panel (creating news/events) must write to the database tables that back these endpoints.
+
+## 7. Real-time Updates (Socket.IO)
+To ensure the User Portal updates instantly when an Admin posts content, the backend must emit Socket.IO events to the tenant's room.
+
+**Room Name:** `tenant_slug` (e.g., "municipio", "ferreteria")
+
+**Events to Emit:**
+*   `tenant_content_update`: Generic signal that something changed.
+*   `news_update`: Signal that news items have changed.
+*   `events_update`: Signal that events have changed.
+*   `catalog_update`: Signal that catalog items have changed.
+
+**Trigger Logic:**
+*   When `POST /municipal/posts` (create/update post) is successful -> Emit `news_update` or `events_update`.
+*   When Catalog Upload/Process is successful -> Emit `catalog_update`.
