@@ -46,7 +46,7 @@ const TenantHomePage = () => {
     return '';
   }, [currentSlug, params.tenant, tenant?.slug]);
 
-  const basePath = slug ? `/t/${encodeURIComponent(slug)}` : null;
+  const basePath = slug ? `/${encodeURIComponent(slug)}` : null;
 
   const newsQuery = useQuery<TenantNewsItem[]>({
     queryKey: ['tenant-news', slug],
