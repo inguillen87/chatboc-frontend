@@ -53,7 +53,6 @@ import OpinarArPage from '@/pages/OpinarArPage';
 import EstadisticasPage from '@/pages/EstadisticasPage';
 import Iframe from '@/pages/iframe';
 import AnalyticsPage from '@/pages/analytics/AnalyticsPage';
-import MarketCartPage from '@/pages/market/MarketCartPage';
 import MarketplaceBlueprintPage from '@/pages/market/MarketplaceBlueprintPage';
 import PublicSurveysIndex from '@/pages/encuestas';
 import PublicSurveyPage from '@/pages/e/[slug]';
@@ -150,8 +149,7 @@ const routes: RouteConfig[] = [
   { path: '/productos', element: <ProductCatalog /> },
   ...withTenantPrefixes('/:tenant/productos', { element: <ProductCatalog /> }),
   { path: '/cart', element: <CartPage /> },
-  ...withTenantPrefixesExcept('/:tenant/cart', { element: <MarketCartPage /> }, ['market']),
-  { path: '/market/:tenant/cart', element: <MarketCartPage /> },
+  ...withTenantPrefixes('/:tenant/cart', { element: <CartPage /> }),
   { path: '/market/blueprint', element: <MarketplaceBlueprintPage /> },
   { path: '/checkout-productos', element: <ProductCheckoutPage /> },
   ...withTenantPrefixes('/:tenant/checkout-productos', { element: <ProductCheckoutPage /> }),
