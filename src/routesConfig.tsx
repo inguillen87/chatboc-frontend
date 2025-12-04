@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 // ... (importaciones existentes) ...
@@ -149,7 +150,8 @@ const routes: RouteConfig[] = [
   { path: '/productos', element: <ProductCatalog /> },
   ...withTenantPrefixes('/:tenant/productos', { element: <ProductCatalog /> }),
   { path: '/cart', element: <CartPage /> },
-  ...withTenantPrefixes('/:tenant/cart', { element: <CartPage /> }),
+  ...withTenantPrefixesExcept('/:tenant/cart', { element: <MarketCartPage /> }, ['market']),
+  { path: '/market/:tenant/cart', element: <MarketCartPage /> },
   { path: '/market/blueprint', element: <MarketplaceBlueprintPage /> },
   { path: '/checkout-productos', element: <ProductCheckoutPage /> },
   ...withTenantPrefixes('/:tenant/checkout-productos', { element: <ProductCheckoutPage /> }),
