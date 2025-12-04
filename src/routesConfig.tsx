@@ -52,6 +52,7 @@ import OpinarArPage from '@/pages/OpinarArPage';
 import EstadisticasPage from '@/pages/EstadisticasPage';
 import Iframe from '@/pages/iframe';
 import AnalyticsPage from '@/pages/analytics/AnalyticsPage';
+import MarketCartPage from '@/pages/market/MarketCartPage';
 import MarketplaceBlueprintPage from '@/pages/market/MarketplaceBlueprintPage';
 import PublicSurveysIndex from '@/pages/encuestas';
 import PublicSurveyPage from '@/pages/e/[slug]';
