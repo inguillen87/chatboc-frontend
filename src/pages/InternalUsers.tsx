@@ -64,7 +64,11 @@ export default function InternalUsers() {
     (suffix: string) => {
       if (!tenantSlug) throw new Error('No se pudo determinar el tenant');
       const normalizedSuffix = suffix.startsWith('/') ? suffix : `/${suffix}`;
-      return `/municipio/${tenantSlug}${normalizedSuffix}`;
+
+      // Los endpoints municipales viven bajo el prefijo `/municipal`.
+      // Usamos el tenantSlug para mantener la compatibilidad multi-entidad
+      // y evitar hittear rutas públicas sin proxy (que devuelven HTML 404).
+      return `/municipal/${tenantSlug}${normalizedSuffix}`;
     },
     [tenantSlug],
   );
