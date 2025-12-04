@@ -25,7 +25,7 @@ const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({ onOpenMobileM
 
   // Función para determinar si una ruta está activa, considerando subrutas para "Más"
   const isMoreSectionActive = () => {
-    const morePaths = ['/portal/noticias', '/portal/beneficios', '/portal/encuestas', '/portal/cuenta'];
+    const morePaths = ['/portal/noticias', '/portal/eventos', '/portal/beneficios', '/portal/encuestas', '/portal/cuenta'];
     return morePaths.some(path => location.pathname.startsWith(path));
   };
 

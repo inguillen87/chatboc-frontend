@@ -13,11 +13,13 @@ import NotFound from "./pages/NotFound";
 import ChatWidget from "@/components/chat/ChatWidget";
 import routes from "./routesConfig";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import UserPortalGuard from "@/components/user-portal/UserPortalGuard";
 import { DateSettingsProvider } from "./hooks/useDateSettings";
 import { UserProvider } from "./hooks/useUser";
 import useTicketUpdates from "./hooks/useTicketUpdates";
 import { TenantProvider } from "./context/TenantContext";
 import { GOOGLE_CLIENT_ID } from './env';
+import UserPortalLayout from "@/components/user-portal/layout/UserPortalLayout";
 
 const queryClient = new QueryClient();
 function AppRoutes() {
@@ -25,8 +27,10 @@ function AppRoutes() {
   useTicketUpdates();
 
   const layoutExcludedPaths = ['/iframe'];
-  const layoutRoutes = routes.filter(({ path }) => !layoutExcludedPaths.includes(path));
-  const standaloneRoutes = routes.filter(({ path }) => layoutExcludedPaths.includes(path));
+  const layoutRoutes = routes.filter(({ path, userPortal }) => !layoutExcludedPaths.includes(path) && !userPortal);
+  const portalRoutes = routes.filter(({ userPortal }) => userPortal);
+  const guestPortalPaths = portalRoutes.filter(({ allowGuest }) => allowGuest).map(({ path }) => path);
+  const standaloneRoutes = routes.filter(({ path, userPortal }) => layoutExcludedPaths.includes(path) && !userPortal);
 
   // Ahora el array soporta rutas exactas y subrutas tipo "/integracion/preview"
   const rutasSinWidget = [
@@ -77,6 +81,13 @@ function AppRoutes() {
             />
           ))}
         </Route>
+        {portalRoutes.length > 0 && (
+          <Route element={<UserPortalGuard allowGuestPaths={guestPortalPaths}><UserPortalLayout /></UserPortalGuard>}>
+            {portalRoutes.map(({ path, element }) => (
+              <Route key={path} path={path} element={element} />
+            ))}
+          </Route>
+        )}
         {standaloneRoutes.map(({ path, element, roles }) => (
           <Route
             key={path}
