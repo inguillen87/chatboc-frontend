@@ -29,6 +29,7 @@ function AppRoutes() {
   const layoutExcludedPaths = ['/iframe'];
   const layoutRoutes = routes.filter(({ path, userPortal }) => !layoutExcludedPaths.includes(path) && !userPortal);
   const portalRoutes = routes.filter(({ userPortal }) => userPortal);
+  const guestPortalPaths = portalRoutes.filter(({ allowGuest }) => allowGuest).map(({ path }) => path);
   const standaloneRoutes = routes.filter(({ path, userPortal }) => layoutExcludedPaths.includes(path) && !userPortal);
 
   // Ahora el array soporta rutas exactas y subrutas tipo "/integracion/preview"
@@ -81,7 +82,7 @@ function AppRoutes() {
           ))}
         </Route>
         {portalRoutes.length > 0 && (
-          <Route element={<UserPortalGuard><UserPortalLayout /></UserPortalGuard>}>
+          <Route element={<UserPortalGuard allowGuestPaths={guestPortalPaths}><UserPortalLayout /></UserPortalGuard>}>
             {portalRoutes.map(({ path, element }) => (
               <Route key={path} path={path} element={element} />
             ))}

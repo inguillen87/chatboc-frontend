@@ -224,7 +224,8 @@ const routes: RouteConfig[] = [
   {
     path: '/portal/pedidos',
     element: <UserOrdersPage />,
-    userPortal: true
+    userPortal: true,
+    allowGuest: true
   },
   // Placeholder para otras rutas del portal que añadiremos:
   // { path: '/portal/noticias', element: <UserNoticiasPage />, userPortal: true },
