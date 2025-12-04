@@ -1,5 +1,6 @@
 
 import React from 'react';
+import { Navigate } from 'react-router-dom';
 
 // ... (importaciones existentes) ...
 import { FEATURE_ENCUESTAS } from '@/config/featureFlags';
@@ -137,6 +138,7 @@ const routes: RouteConfig[] = [
   { path: '/cuenta', element: <UserAccount /> },
   { path: '/demo', element: <Demo /> },
   { path: '/perfil', element: <Perfil /> },
+  { path: '/perfil/pedidos', element: <Navigate to="/portal/pedidos" replace /> },
   { path: '/chat', element: <ChatPage /> },
   { path: '/chat/:ticketId', element: <TicketLookup /> },
   { path: '/checkout', element: <Checkout /> },
@@ -222,7 +224,8 @@ const routes: RouteConfig[] = [
   {
     path: '/portal/pedidos',
     element: <UserOrdersPage />,
-    userPortal: true
+    userPortal: true,
+    allowGuest: true
   },
   // Placeholder para otras rutas del portal que añadiremos:
   // { path: '/portal/noticias', element: <UserNoticiasPage />, userPortal: true },
