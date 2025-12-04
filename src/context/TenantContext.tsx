@@ -17,7 +17,7 @@ import {
   unfollowTenant as unfollowTenantRequest,
 } from '@/api/tenant';
 import type { TenantPublicInfo, TenantSummary } from '@/types/tenant';
-import { getErrorMessage } from '@/utils/api';
+import { ApiError, getErrorMessage } from '@/utils/api';
 import { ensureRemoteAnonId } from '@/utils/anonId';
 import { normalizeEntityToken } from '@/utils/entityToken';
 import { TENANT_ROUTE_PREFIXES } from '@/utils/tenantPaths';
@@ -215,6 +215,13 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
   const activeTenantRequest = useRef(0);
   const currentSlugRef = useRef<string | null>(null);
 
+  const isRecoverableTenantError = useCallback((error: unknown) => {
+    if (error instanceof ApiError) {
+      return [400, 401, 403, 404, 405].includes(error.status);
+    }
+    return false;
+  }, []);
+
   const fetchTenant = useCallback(async (slug: string | null, token: string | null) => {
     const requestId = ++activeTenantRequest.current;
     setIsLoadingTenant(true);
@@ -231,16 +238,23 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
       }
     } catch (error) {
       if (activeTenantRequest.current === requestId) {
+        const recoverable = isRecoverableTenantError(error);
         setTenant(DEFAULT_TENANT_INFO);
-        setTenantError(getErrorMessage(error));
+        setTenantError(recoverable ? null : getErrorMessage(error));
+        if (recoverable) {
+          setCurrentSlug(null);
+          currentSlugRef.current = null;
+        }
       }
-      throw error;
+      if (!isRecoverableTenantError(error)) {
+        throw error;
+      }
     } finally {
       if (activeTenantRequest.current === requestId) {
         setIsLoadingTenant(false);
       }
     }
-  }, []);
+  }, [isRecoverableTenantError]);
 
   useEffect(() => {
     const { slug, widgetToken: token } = resolveTenantBootstrap(location.pathname, location.search);
