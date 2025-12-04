@@ -137,7 +137,7 @@ const routes: RouteConfig[] = [
       ]
     : []),
   { path: '/register', element: <Register /> },
-  ...withTenantPrefixes('/:tenant/register', { element: <Register /> }),
+  ...withTenantPrefixes('/:tenant/register', { element: <UserRegister /> }),
   { path: '/user/login', element: <UserLogin /> },
   { path: '/user/register', element: <UserRegister /> },
   { path: '/cuenta', element: <UserAccount /> },
