@@ -9,13 +9,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import AddressAutocomplete from '@/components/ui/AddressAutocomplete'; // Reutilizar
+import AddressAutocomplete from '@/components/ui/AddressAutocomplete';
 import { Loader2, AlertTriangle, ArrowLeft, CheckCircle } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 
 import { ApiError, NetworkError, apiFetch, getErrorMessage } from '@/utils/api';
-import { useUser } from '@/hooks/useUser'; // Para pre-rellenar datos
-import { ProductDetails } from '@/components/product/ProductCard'; // Para tipo de producto
+import { useUser } from '@/hooks/useUser';
+import { ProductDetails } from '@/components/product/ProductCard';
 import { formatCurrency } from '@/utils/currency';
 import { useTenant } from '@/context/TenantContext';
 import { safeLocalStorage } from '@/utils/safeLocalStorage';
@@ -29,15 +29,21 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import usePointsBalance from '@/hooks/usePointsBalance';
 import { buildTenantApiPath, buildTenantPath } from '@/utils/tenantPaths';
 import { loadGuestContact, saveGuestContact } from '@/utils/guestContact';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 // Esquema de validación para el formulario de checkout
 const checkoutSchema = z.object({
-  nombre: z.string().min(3, { message: "El nombre debe tener al menos 3 caracteres." }),
-  email: z.string().email({ message: "Ingresa un email válido." }),
-  telefono: z.string().min(8, { message: "Ingresa un teléfono válido." }),
-  direccion: z.string().min(5, { message: "La dirección es requerida." }),
-  // notasAdicionales: z.string().optional(), // Campo opcional para el futuro
+  nombre: z.string().min(3, { message: 'El nombre debe tener al menos 3 caracteres.' }),
+  email: z.string().email({ message: 'Ingresa un email válido.' }),
+  telefono: z.string().min(8, { message: 'Ingresa un teléfono válido.' }),
+  direccion: z.string().min(5, { message: 'La dirección es requerida.' }),
 });
 
 type CheckoutFormData = z.infer<typeof checkoutSchema>;
@@ -66,12 +72,14 @@ const persistDemoOrder = (snapshot: DemoOrderSnapshot) => {
 
 export default function ProductCheckoutPage() {
   const navigate = useNavigate();
-  const { user } = useUser(); // Hook para obtener datos del usuario logueado
+  const { user } = useUser();
   const { currentSlug } = useTenant();
+
   const effectiveTenantSlug = useMemo(
     () => currentSlug ?? user?.tenantSlug ?? safeLocalStorage.getItem('tenantSlug') ?? null,
     [currentSlug, user?.tenantSlug],
   );
+
   const {
     points: pointsBalance,
     isLoading: isLoadingPoints,
@@ -87,12 +95,14 @@ export default function ProductCheckoutPage() {
   const [showPointsAuthPrompt, setShowPointsAuthPrompt] = useState(false);
   const [checkoutMode, setCheckoutMode] = useState<'api' | 'local'>('api');
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+
   const guestDefaults = useMemo(() => loadGuestContact(), []);
 
   const catalogPath = buildTenantPath('/productos', effectiveTenantSlug);
   const cartPath = buildTenantPath('/cart', effectiveTenantSlug);
   const loginPath = buildTenantPath('/login', effectiveTenantSlug);
   const registerPath = buildTenantPath('/register', effectiveTenantSlug);
+
   const productsApiPath = useMemo(
     () => buildTenantApiPath('/productos', effectiveTenantSlug),
     [effectiveTenantSlug],
@@ -111,22 +121,28 @@ export default function ProductCheckoutPage() {
   );
 
   const sharedRequestOptions = useMemo(
-    () => ({
-      suppressPanel401Redirect: true,
-      tenantSlug: effectiveTenantSlug ?? undefined,
-      sendAnonId: true,
-    }) as const,
+    () =>
+      ({
+        suppressPanel401Redirect: true,
+        tenantSlug: effectiveTenantSlug ?? undefined,
+        sendAnonId: true,
+      }) as const,
     [effectiveTenantSlug],
   );
 
-  const { control, handleSubmit, setValue, formState: { errors } } = useForm<CheckoutFormData>({
+  const {
+    control,
+    handleSubmit,
+    setValue,
+    formState: { errors },
+  } = useForm<CheckoutFormData>({
     resolver: zodResolver(checkoutSchema),
     defaultValues: {
       nombre: guestDefaults.nombre || '',
       email: guestDefaults.email || '',
       telefono: guestDefaults.telefono || '',
       direccion: '',
-    }
+    },
   });
 
   // Pre-rellenar formulario si el usuario está logueado
@@ -135,7 +151,7 @@ export default function ProductCheckoutPage() {
       setValue('nombre', user.name || '');
       setValue('email', user.email || '');
       setValue('telefono', user.telefono || '');
-      // La dirección del perfil podría no ser la de envío, así que la dejamos opcional o para selección
+      // La dirección del perfil podría no ser la de envío, así que la dejamos sin tocar
     }
   }, [user, setValue]);
 
@@ -187,9 +203,14 @@ export default function ProductCheckoutPage() {
           apiFetch<unknown>(productsApiPath, sharedRequestOptions),
         ]);
 
-        const productMap = buildProductMap(normalizeProductsPayload(productsApiData, 'CheckoutPage'));
+        const productMap = buildProductMap(
+          normalizeProductsPayload(productsApiData, 'CheckoutPage'),
+        );
 
-        const populatedCartItems: CartItem[] = normalizeCartPayload(cartApiData, 'CheckoutPage')
+        const populatedCartItems: CartItem[] = normalizeCartPayload(
+          cartApiData,
+          'CheckoutPage',
+        )
           .map(([productName, cantidad]) => {
             const productDetail = productMap[productName];
             return productDetail ? { ...productDetail, cantidad } : null;
@@ -197,8 +218,12 @@ export default function ProductCheckoutPage() {
           .filter((item): item is CartItem => item !== null);
 
         if (populatedCartItems.length === 0) {
-          toast({ title: "Carrito vacío", description: "No hay productos para finalizar la compra.", variant: "destructive" });
-          navigate(catalogPath); // Redirigir si el carrito está vacío
+          toast({
+            title: 'Carrito vacío',
+            description: 'No hay productos para finalizar la compra.',
+            variant: 'destructive',
+          });
+          navigate(catalogPath);
         } else {
           setCartItems(populatedCartItems);
         }
@@ -214,10 +239,26 @@ export default function ProductCheckoutPage() {
       }
     };
     loadCart();
-  }, [catalogPath, cartApiPath, checkoutMode, effectiveTenantSlug, loadLocalCart, navigate, productsApiPath, sharedRequestOptions]);
+  }, [
+    catalogPath,
+    cartApiPath,
+    checkoutMode,
+    effectiveTenantSlug,
+    loadLocalCart,
+    navigate,
+    productsApiPath,
+    sharedRequestOptions,
+  ]);
 
   const subtotal = useMemo(() => {
-    return cartItems.reduce((sum, item) => sum + (item.modalidad === 'puntos' || item.modalidad === 'donacion' ? 0 : item.precio_unitario * item.cantidad), 0);
+    return cartItems.reduce(
+      (sum, item) =>
+        sum +
+        (item.modalidad === 'puntos' || item.modalidad === 'donacion'
+          ? 0
+          : item.precio_unitario * item.cantidad),
+      0,
+    );
   }, [cartItems]);
 
   const pointsTotal = useMemo(() => {
@@ -230,14 +271,23 @@ export default function ProductCheckoutPage() {
     }, 0);
   }, [cartItems]);
 
-  const missingPoints = useMemo(() => Math.max(pointsTotal - pointsBalance, 0), [pointsBalance, pointsTotal]);
+  const missingPoints = useMemo(
+    () => Math.max(pointsTotal - pointsBalance, 0),
+    [pointsBalance, pointsTotal],
+  );
 
-  const hasDonations = useMemo(() => cartItems.some((item) => item.modalidad === 'donacion'), [cartItems]);
+  const hasDonations = useMemo(
+    () => cartItems.some((item) => item.modalidad === 'donacion'),
+    [cartItems],
+  );
+
   const requiresAuthForPoints = useMemo(
     () => cartItems.some((item) => item.modalidad === 'puntos') && !user,
     [cartItems, user],
   );
+
   const hasPointsDeficit = checkoutMode !== 'local' && missingPoints > 0;
+
   const completionLabel = useMemo(
     () => (hasDonations ? 'donación' : pointsTotal > 0 ? 'canje' : 'compra'),
     [hasDonations, pointsTotal],
@@ -250,7 +300,10 @@ export default function ProductCheckoutPage() {
     try {
       await refreshPointsBalance();
     } catch (err) {
-      console.warn('[ProductCheckoutPage] No se pudo refrescar el saldo de puntos después de la operación', err);
+      console.warn(
+        '[ProductCheckoutPage] No se pudo refrescar el saldo de puntos después de la operación',
+        err,
+      );
     }
   }, [adjustPointsBalance, pointsTotal, refreshPointsBalance]);
 
@@ -258,7 +311,11 @@ export default function ProductCheckoutPage() {
     setIsSubmitting(true);
     setError(null);
     setCheckoutError(null);
-    saveGuestContact({ nombre: data.nombre, email: data.email, telefono: data.telefono });
+    saveGuestContact({
+      nombre: data.nombre,
+      email: data.email,
+      telefono: data.telefono,
+    });
 
     const pedidoData = {
       cliente: {
@@ -267,9 +324,9 @@ export default function ProductCheckoutPage() {
         telefono: data.telefono,
         direccion_envio: data.direccion,
       },
-      items: cartItems.map(item => ({
-        producto_id: item.id, // Asumiendo que el backend prefiere ID
-        nombre_producto: item.nombre, // Enviar nombre por si ID no está en backend aún
+      items: cartItems.map((item) => ({
+        producto_id: item.id,
+        nombre_producto: item.nombre,
         cantidad: item.cantidad,
         precio_unitario: item.precio_unitario,
         modalidad: item.modalidad ?? 'venta',
@@ -279,15 +336,18 @@ export default function ProductCheckoutPage() {
         dinero: subtotal,
         puntos: pointsTotal,
       },
-      // En el futuro: metodo_pago, metodo_envio, notas, etc.
-      estado: 'pendiente_confirmacion', // Estado inicial del pedido
+      estado: 'pendiente_confirmacion',
     };
 
     try {
       if (requiresAuthForPoints) {
         const warning = 'Inicia sesión para canjear tus puntos.';
         setCheckoutError(warning);
-        toast({ title: 'Necesitas iniciar sesión', description: warning, variant: 'destructive' });
+        toast({
+          title: 'Necesitas iniciar sesión',
+          description: warning,
+          variant: 'destructive',
+        });
         setIsSubmitting(false);
         return;
       }
@@ -302,7 +362,10 @@ export default function ProductCheckoutPage() {
       }
 
       if (checkoutMode === 'local') {
-        persistDemoOrder({ payload: { ...pedidoData, modo: 'demo' }, createdAt: new Date().toISOString() });
+        persistDemoOrder({
+          payload: { ...pedidoData, modo: 'demo' },
+          createdAt: new Date().toISOString(),
+        });
         clearLocalCart();
         setCartItems([]);
         setOrderPlaced(true);
@@ -333,16 +396,18 @@ export default function ProductCheckoutPage() {
         return;
       }
 
-      const preference = await apiFetch<{ init_point?: string; sandbox_init_point?: string; pedido_id?: string | number }>(
-        checkoutPreferencePath,
-        {
-          ...sharedRequestOptions,
-          method: 'POST',
-          body: pedidoData,
-        },
-      );
+      const preference = await apiFetch<{
+        init_point?: string;
+        sandbox_init_point?: string;
+        pedido_id?: string | number;
+        estado?: string;
+      }>(checkoutPreferencePath, {
+        ...sharedRequestOptions,
+        method: 'POST',
+        body: pedidoData,
+      });
 
-      const estado = typeof preference === 'object' ? (preference as any)?.estado : undefined;
+      const estado = typeof preference === 'object' ? preference?.estado : undefined;
       if (estado && String(estado).toLowerCase() === 'confirmado') {
         setOrderPlaced(true);
         toast({
@@ -361,28 +426,29 @@ export default function ProductCheckoutPage() {
         return;
       }
 
-      setOrderPlaced(true); // fallback si no hay redirección
+      setOrderPlaced(true);
       toast({
         title: 'Pedido registrado',
         description: `Guardamos tu ${completionLabel}. Te avisaremos por email si faltan pasos para el pago.`,
         className: 'bg-green-600 text-white',
       });
-
-      // await apiFetch('/carrito/vaciar', { method: 'DELETE' }); // Endpoint para vaciar carrito en backend (opcional)
-      // O el backend podría vaciar el carrito al crear el pedido.
-      // Por ahora, el usuario puede volver al carrito y verlo vacío o la página de catálogo.
-
     } catch (err) {
       if (err instanceof ApiError) {
         const code = err.body?.code || err.body?.error_code || err.body?.errorCode;
+
         if (err.status === 401 && code === 'REQUIERE_LOGIN_PUNTOS') {
           const message = 'Para usar tus puntos tenés que iniciar sesión o registrarte.';
           setCheckoutError(message);
-          toast({ title: 'Inicia sesión para usar puntos', description: message, variant: 'destructive' });
+          toast({
+            title: 'Inicia sesión para usar puntos',
+            description: message,
+            variant: 'destructive',
+          });
           setShowPointsAuthPrompt(true);
           setIsSubmitting(false);
           return;
         }
+
         if (err.status === 400 && code === 'SALDO_INSUFICIENTE') {
           const faltan = err.body?.faltan ?? missingPoints;
           const message = faltan
@@ -390,20 +456,38 @@ export default function ProductCheckoutPage() {
             : 'No tienes puntos suficientes para completar este canje.';
           setCheckoutError(message);
           setError(message);
-          toast({ title: 'Saldo insuficiente', description: message, variant: 'destructive' });
+          toast({
+            title: 'Saldo insuficiente',
+            description: message,
+            variant: 'destructive',
+          });
           setIsSubmitting(false);
           return;
         }
       }
 
-      const message = getErrorMessage(err, "No se pudo procesar tu pedido. Intenta nuevamente.");
+      const message = getErrorMessage(
+        err,
+        'No se pudo procesar tu pedido. Intenta nuevamente.',
+      );
       setError(message);
       setCheckoutError(message);
-      toast({ title: "Error al procesar pedido", description: message, variant: "destructive" });
+      toast({
+        title: 'Error al procesar pedido',
+        description: message,
+        variant: 'destructive',
+      });
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  const isDemoMode = checkoutMode === 'local';
+
+  const handleViewOrders = useCallback(() => {
+    const destination = buildTenantPath('/perfil/pedidos', effectiveTenantSlug);
+    navigate(destination);
+  }, [navigate, effectiveTenantSlug]);
 
   if (orderPlaced) {
     const demoSuccess = checkoutMode === 'local';
@@ -418,28 +502,28 @@ export default function ProductCheckoutPage() {
             ? 'Tu simulación quedó registrada en este navegador para mostrar el flujo completo.'
             : `Tu ${completionLabel} fue recibido y está siendo procesado.`}
         </p>
-        <div className="flex gap-4">
+        <div className="flex gap-4 flex-wrap justify-center">
           <Button onClick={() => navigate(catalogPath)}>Seguir Comprando</Button>
-          <Button variant="outline" onClick={() => navigate('/perfil/pedidos')}>Ver Mis Pedidos</Button>
-          {/* Asumiendo que /perfil/pedidos es donde el usuario ve sus pedidos */}
+          <Button variant="outline" onClick={handleViewOrders}>
+            Ver Mis Pedidos
+          </Button>
         </div>
       </div>
     );
   }
 
-
-  const isDemoMode = checkoutMode === 'local';
-
   if (isLoadingCart) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        <p className="mt-4 text-muted-foreground">Cargando información del checkout...</p>
+        <p className="mt-4 text-muted-foreground">
+          Cargando información del checkout...
+        </p>
       </div>
     );
   }
 
-  if (error && !cartItems.length) { // Si hay error y no se cargó el carrito
+  if (error && !cartItems.length) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] text-destructive">
         <AlertTriangle className="h-12 w-12 mb-4" />
@@ -456,32 +540,42 @@ export default function ProductCheckoutPage() {
         <DialogHeader>
           <DialogTitle>Para usar tus puntos tenés que iniciar sesión</DialogTitle>
           <DialogDescription>
-            Inicia sesión o regístrate para aplicar tus puntos al pedido. Te llevaremos a la pantalla correspondiente y
-            podrás volver para finalizar el checkout.
+            Inicia sesión o regístrate para aplicar tus puntos al pedido. Te llevaremos a
+            la pantalla correspondiente y podrás volver para finalizar el checkout.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="flex flex-col sm:flex-row sm:justify-end gap-2">
-          <Button variant="outline" onClick={() => navigate(registerPath)}>Registrarme</Button>
+          <Button variant="outline" onClick={() => navigate(registerPath)}>
+            Registrarme
+          </Button>
           <Button onClick={() => navigate(loginPath)}>Iniciar sesión</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 
-
   return (
     <div className="container mx-auto p-4 md:p-8">
       {pointsAuthDialog}
-      <Button variant="outline" onClick={() => navigate(cartPath)} className="mb-6">
+
+      <Button
+        variant="outline"
+        onClick={() => navigate(cartPath)}
+        className="mb-6"
+      >
         <ArrowLeft className="mr-2 h-4 w-4" /> Volver al Carrito
       </Button>
-      <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-4">Finalizar Compra</h1>
+
+      <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
+        Finalizar Compra
+      </h1>
 
       {!user && (
         <Alert className="mb-6">
           <AlertTitle>Completa tus datos</AlertTitle>
           <AlertDescription>
-            Necesitamos nombre, email y teléfono para confirmar tu {completionLabel}. Si quieres sumar puntos más adelante, inicia sesión.
+            Necesitamos nombre, email y teléfono para confirmar tu {completionLabel}. Si
+            quieres sumar puntos más adelante, inicia sesión.
           </AlertDescription>
         </Alert>
       )}
@@ -490,7 +584,8 @@ export default function ProductCheckoutPage() {
         <Alert className="mb-8">
           <AlertTitle>Checkout en modo demo</AlertTitle>
           <AlertDescription>
-            Los pedidos se guardan localmente para mostrar el flujo completo sin requerir credenciales del backend.
+            Los pedidos se guardan localmente para mostrar el flujo completo sin requerir
+            credenciales del backend.
           </AlertDescription>
         </Alert>
       )}
@@ -499,41 +594,77 @@ export default function ProductCheckoutPage() {
         <Alert variant="destructive" className="mb-6">
           <AlertTitle>Saldo de puntos insuficiente</AlertTitle>
           <AlertDescription>
-            Necesitas {pointsTotal} pts pero tu saldo actual es {pointsBalance} pts. Te faltan {missingPoints} pts para confirmar este pedido.
-          </AlertDescription>
-        </Alert>
-      )}
-      {requiresAuthForPoints && !hasPointsDeficit && (
-        <Alert variant="destructive" className="mb-6">
-          <AlertTitle>Inicia sesión para canjear puntos</AlertTitle>
-          <AlertDescription>
-            Necesitamos asociar tus puntos a tu cuenta antes de confirmar este pedido. Inicia sesión y vuelve a intentar.
+            Necesitas {pointsTotal} pts pero tu saldo actual es {pointsBalance} pts. Te
+            faltan {missingPoints} pts para confirmar este pedido.
           </AlertDescription>
         </Alert>
       )}
 
-      <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      {requiresAuthForPoints && !hasPointsDeficit && (
+        <Alert variant="destructive" className="mb-6">
+          <AlertTitle>Inicia sesión para canjear puntos</AlertTitle>
+          <AlertDescription>
+            Necesitamos asociar tus puntos a tu cuenta antes de confirmar este pedido.
+            Inicia sesión y vuelve a intentar.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <form
+        onSubmit={handleSubmit(onSubmit)}
+        className="grid grid-cols-1 lg:grid-cols-3 gap-8"
+      >
         <div className="lg:col-span-2 space-y-6">
           <Card>
-            <CardHeader><CardTitle>1. Información de Contacto y Envío</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle>1. Información de Contacto y Envío</CardTitle>
+            </CardHeader>
             <CardContent className="space-y-4">
               <div>
                 <Label htmlFor="nombre">Nombre Completo</Label>
-                <Controller name="nombre" control={control} render={({ field }) => <Input id="nombre" {...field} />} />
-                {errors.nombre && <p className="text-sm text-destructive mt-1">{errors.nombre.message}</p>}
+                <Controller
+                  name="nombre"
+                  control={control}
+                  render={({ field }) => <Input id="nombre" {...field} />}
+                />
+                {errors.nombre && (
+                  <p className="text-sm text-destructive mt-1">
+                    {errors.nombre.message}
+                  </p>
+                )}
               </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="email">Email</Label>
-                  <Controller name="email" control={control} render={({ field }) => <Input id="email" type="email" {...field} />} />
-                  {errors.email && <p className="text-sm text-destructive mt-1">{errors.email.message}</p>}
+                  <Controller
+                    name="email"
+                    control={control}
+                    render={({ field }) => (
+                      <Input id="email" type="email" {...field} />
+                    )}
+                  />
+                  {errors.email && (
+                    <p className="text-sm text-destructive mt-1">
+                      {errors.email.message}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <Label htmlFor="telefono">Teléfono</Label>
-                  <Controller name="telefono" control={control} render={({ field }) => <Input id="telefono" {...field} />} />
-                  {errors.telefono && <p className="text-sm text-destructive mt-1">{errors.telefono.message}</p>}
+                  <Controller
+                    name="telefono"
+                    control={control}
+                    render={({ field }) => <Input id="telefono" {...field} />}
+                  />
+                  {errors.telefono && (
+                    <p className="text-sm text-destructive mt-1">
+                      {errors.telefono.message}
+                    </p>
+                  )}
                 </div>
               </div>
+
               <div>
                 <Label htmlFor="direccion">Dirección de Envío</Label>
                 <Controller
@@ -542,49 +673,75 @@ export default function ProductCheckoutPage() {
                   render={({ field }) => (
                     <AddressAutocomplete
                       onSelect={(address) => field.onChange(address)}
-                      initialValue={field.value} // Para que se muestre si ya hay un valor
+                      initialValue={field.value}
                       placeholder="Ingresa tu dirección completa"
                     />
                   )}
                 />
-                {errors.direccion && <p className="text-sm text-destructive mt-1">{errors.direccion.message}</p>}
+                {errors.direccion && (
+                  <p className="text-sm text-destructive mt-1">
+                    {errors.direccion.message}
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader><CardTitle>2. Método de Envío</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle>2. Método de Envío</CardTitle>
+            </CardHeader>
             <CardContent>
-              <p className="text-muted-foreground">Por el momento, el envío se coordina post-compra.</p>
-              {/* Placeholder para futura selección de envío */}
+              <p className="text-muted-foreground">
+                Por el momento, el envío se coordina post-compra.
+              </p>
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader><CardTitle>3. Método de Pago</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle>3. Método de Pago</CardTitle>
+            </CardHeader>
             <CardContent>
-              <p className="text-muted-foreground">El pago se realizará por "Transferencia Bancaria" o "Acordar con el Vendedor". Nos contactaremos para coordinar.</p>
-              {/* Placeholder para futura selección de pago */}
+              <p className="text-muted-foreground">
+                El pago se realizará por &quot;Transferencia Bancaria&quot; o &quot;Acordar
+                con el Vendedor&quot;. Nos contactaremos para coordinar.
+              </p>
             </CardContent>
           </Card>
         </div>
 
         <div className="lg:col-span-1">
           <Card className="sticky top-24 shadow-lg">
-            <CardHeader><CardTitle>Resumen del Pedido</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle>Resumen del Pedido</CardTitle>
+            </CardHeader>
             <CardContent className="space-y-3">
-              {cartItems.map(item => (
-                <div key={item.id || item.nombre} className="flex justify-between items-center text-sm">
+              {cartItems.map((item) => (
+                <div
+                  key={item.id || item.nombre}
+                  className="flex justify-between items-center text-sm"
+                >
                   <div className="flex-1">
-                    <p className="font-medium text-foreground">{item.nombre} <span className="text-xs text-muted-foreground">x{item.cantidad}</span></p>
-                    {item.presentacion && <p className="text-xs text-muted-foreground">{item.presentacion}</p>}
+                    <p className="font-medium text-foreground">
+                      {item.nombre}{' '}
+                      <span className="text-xs text-muted-foreground">
+                        x{item.cantidad}
+                      </span>
+                    </p>
+                    {item.presentacion && (
+                      <p className="text-xs text-muted-foreground">
+                        {item.presentacion}
+                      </p>
+                    )}
                   </div>
                   <span className="font-medium text-foreground">
                     {item.modalidad === 'puntos'
-                      ? `${(item.precio_puntos ?? item.precio_unitario ?? 0) * item.cantidad} pts`
+                      ? `${(item.precio_puntos ?? item.precio_unitario ?? 0) *
+                          item.cantidad} pts`
                       : item.modalidad === 'donacion'
-                        ? 'Donación'
-                        : formatCurrency(item.precio_unitario * item.cantidad)}
+                      ? 'Donación'
+                      : formatCurrency(item.precio_unitario * item.cantidad)}
                   </span>
                 </div>
               ))}
@@ -597,13 +754,34 @@ export default function ProductCheckoutPage() {
                 <span>Total en dinero</span>
                 <span>{formatCurrency(subtotal)}</span>
               </div>
-              {hasDonations && <p className="text-sm text-muted-foreground">Incluye donaciones sin costo monetario.</p>}
-              {checkoutError && <p className="text-sm text-destructive mt-2">{checkoutError}</p>}
-              {error && <p className="text-sm text-destructive mt-2">{error}</p>}
+              {hasDonations && (
+                <p className="text-sm text-muted-foreground">
+                  Incluye donaciones sin costo monetario.
+                </p>
+              )}
+              {checkoutError && (
+                <p className="text-sm text-destructive mt-2">{checkoutError}</p>
+              )}
+              {error && (
+                <p className="text-sm text-destructive mt-2">{error}</p>
+              )}
             </CardContent>
             <CardFooter>
-              <Button type="submit" size="lg" className="w-full" disabled={isSubmitting || isLoadingCart || cartItems.length === 0 || hasPointsDeficit || requiresAuthForPoints}>
-                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              <Button
+                type="submit"
+                size="lg"
+                className="w-full"
+                disabled={
+                  isSubmitting ||
+                  isLoadingCart ||
+                  cartItems.length === 0 ||
+                  hasPointsDeficit ||
+                  requiresAuthForPoints
+                }
+              >
+                {isSubmitting ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : null}
                 {isSubmitting ? 'Procesando Pedido...' : 'Confirmar Pedido'}
               </Button>
             </CardFooter>
