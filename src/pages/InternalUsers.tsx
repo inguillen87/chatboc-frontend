@@ -60,16 +60,19 @@ export default function InternalUsers() {
       ),
     [user],
   );
-  const buildTenantPath = useCallback((suffix: string) => {
+  const resolveMunicipalPaths = useCallback((suffix: string) => {
     if (!tenantSlug) throw new Error('No se pudo determinar el tenant');
     const normalizedSuffix = suffix.startsWith('/') ? suffix : `/${suffix}`;
 
-    // Los endpoints municipales viven bajo el prefijo `/municipal` y reciben
-    // el tenant vía query params o headers. No se debe incrustar el slug en el
-    // path porque se termina llamando a rutas públicas inexistentes
-    // (p. ej. /api/municipal/municipio/empleados devuelve 404 HTML en vez de
-    // JSON). Mantener el prefijo plano evita los 404 y los problemas de CORS.
-    return `/municipal${normalizedSuffix}`;
+    // En la infraestructura actual existen dos variantes para los endpoints
+    // municipales: el prefijo plano `/municipal` (preferido) y un prefijo
+    // legado que incluye el slug en el path (`/municipal/:slug`). Para evitar
+    // 404 HTML y errores de CORS, siempre se intenta primero el prefijo plano
+    // y, solo si devuelve 404, se reintenta con la variante legado.
+    const primary = `/municipal${normalizedSuffix}`;
+    const legacy = `/municipal/${encodeURIComponent(tenantSlug)}${normalizedSuffix}`;
+
+    return { primary, legacy };
   }, [tenantSlug]);
 
   const filterStaffUsers = useCallback((list: InternalUser[] | null | undefined) => {
@@ -181,10 +184,20 @@ export default function InternalUsers() {
 
   const fetchWithTenant = useCallback(
     async <T,>(suffix: string, options: Parameters<typeof apiFetch<T>>[1] = {}) => {
-      const path = buildTenantPath(suffix);
-      return apiFetch<T>(path, { ...options, tenantSlug });
+      const { primary, legacy } = resolveMunicipalPaths(suffix);
+
+      const attempt = (path: string) => apiFetch<T>(path, { ...options, tenantSlug });
+
+      try {
+        return await attempt(primary);
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 404 && legacy !== primary) {
+          return attempt(legacy);
+        }
+        throw err;
+      }
     },
-    [buildTenantPath, tenantSlug],
+    [resolveMunicipalPaths, tenantSlug],
   );
 
   const refreshUsers = useCallback(async () => {
