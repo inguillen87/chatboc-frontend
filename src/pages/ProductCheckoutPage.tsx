@@ -30,6 +30,7 @@ import usePointsBalance from '@/hooks/usePointsBalance';
 import { buildTenantApiPath, buildTenantPath } from '@/utils/tenantPaths';
 import { loadGuestContact, saveGuestContact } from '@/utils/guestContact';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { getDemoLoyaltySummary } from '@/utils/demoLoyalty';
 
 // Esquema de validación para el formulario de checkout
 const checkoutSchema = z.object({
@@ -88,6 +89,7 @@ export default function ProductCheckoutPage() {
   const [checkoutMode, setCheckoutMode] = useState<'api' | 'local'>('api');
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const guestDefaults = useMemo(() => loadGuestContact(), []);
+  const [loyaltySummary] = useState(() => getDemoLoyaltySummary());
 
   const catalogPath = buildTenantPath('/productos', effectiveTenantSlug);
   const cartPath = buildTenantPath('/cart', effectiveTenantSlug);
@@ -141,7 +143,7 @@ export default function ProductCheckoutPage() {
 
   const shouldUseLocalCart = (err: unknown) => {
     return (
-      (err instanceof ApiError && [401, 403, 405].includes(err.status)) ||
+      (err instanceof ApiError && [400, 401, 403, 405].includes(err.status)) ||
       err instanceof NetworkError
     );
   };
@@ -208,7 +210,16 @@ export default function ProductCheckoutPage() {
           loadLocalCart();
           return;
         }
-        setError(getErrorMessage(err, 'No se pudo cargar tu carrito.'));
+
+        const errorMessage = getErrorMessage(err, 'No se pudo cargar tu carrito.');
+
+        if (err instanceof ApiError && err.status === 400 && errorMessage.toLowerCase().includes('tenant')) {
+           setCheckoutMode('local');
+           loadLocalCart();
+           return;
+        }
+
+        setError(errorMessage);
       } finally {
         setIsLoadingCart(false);
       }
@@ -230,14 +241,18 @@ export default function ProductCheckoutPage() {
     }, 0);
   }, [cartItems]);
 
-  const missingPoints = useMemo(() => Math.max(pointsTotal - pointsBalance, 0), [pointsBalance, pointsTotal]);
+  const effectivePointsBalance = checkoutMode === 'local' ? loyaltySummary.points : pointsBalance;
+
+  const missingPoints = useMemo(() => Math.max(pointsTotal - effectivePointsBalance, 0), [effectivePointsBalance, pointsTotal]);
 
   const hasDonations = useMemo(() => cartItems.some((item) => item.modalidad === 'donacion'), [cartItems]);
   const requiresAuthForPoints = useMemo(
-    () => cartItems.some((item) => item.modalidad === 'puntos') && !user,
-    [cartItems, user],
+    () => cartItems.some((item) => item.modalidad === 'puntos') && !user && checkoutMode !== 'local',
+    [cartItems, user, checkoutMode],
   );
-  const hasPointsDeficit = checkoutMode !== 'local' && missingPoints > 0;
+
+  const hasPointsDeficit = missingPoints > 0;
+
   const completionLabel = useMemo(
     () => (hasDonations ? 'donación' : pointsTotal > 0 ? 'canje' : 'compra'),
     [hasDonations, pointsTotal],
@@ -306,7 +321,7 @@ export default function ProductCheckoutPage() {
         clearLocalCart();
         setCartItems([]);
         setOrderPlaced(true);
-        await applyPointsAdjustments();
+        // await applyPointsAdjustments(); // Don't adjust real points in demo
         toast({
           title: 'Simulación registrada',
           description: 'Guardamos tu pedido demo en este navegador.',
@@ -499,7 +514,7 @@ export default function ProductCheckoutPage() {
         <Alert variant="destructive" className="mb-6">
           <AlertTitle>Saldo de puntos insuficiente</AlertTitle>
           <AlertDescription>
-            Necesitas {pointsTotal} pts pero tu saldo actual es {pointsBalance} pts. Te faltan {missingPoints} pts para confirmar este pedido.
+            Necesitas {pointsTotal} pts pero tu saldo actual es {effectivePointsBalance} pts. Te faltan {missingPoints} pts para confirmar este pedido.
           </AlertDescription>
         </Alert>
       )}
