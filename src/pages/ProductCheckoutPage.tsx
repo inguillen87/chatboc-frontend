@@ -149,12 +149,10 @@ export default function ProductCheckoutPage() {
   }, [user, setValue]);
 
   const shouldUseLocalCart = (err: unknown) => {
-    if (err instanceof ApiError) {
-      if ([400, 401, 403, 405].includes(err.status)) return true;
-      const errorCode = err.body?.code || err.body?.error_code || err.body?.errorCode;
-      if (errorCode && String(errorCode).toLowerCase().includes('tenant')) return true;
-    }
-    return err instanceof NetworkError;
+    return (
+      (err instanceof ApiError && [400, 401, 403, 405].includes(err.status)) ||
+      err instanceof NetworkError
+    );
   };
 
   const loadLocalCart = useCallback(() => {
