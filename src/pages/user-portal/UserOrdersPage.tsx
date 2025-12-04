@@ -1,218 +1,221 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import { useUser } from '@/hooks/useUser';
-import { useTenant } from '@/context/TenantContext';
-import { safeLocalStorage } from '@/utils/safeLocalStorage';
+import React, { useEffect, useMemo, useState } from 'react';
+import { format } from 'date-fns';
+import { Loader2, MapPin, ShoppingBag, User as UserIcon } from 'lucide-react';
+
 import { Button } from '@/components/ui/button';
-import { Link, useNavigate } from 'react-router-dom';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
+import { useTenant } from '@/context/TenantContext';
 import { buildTenantPath } from '@/utils/tenantPaths';
-import { Loader2, Package, AlertTriangle, FileText, CheckCircle, Clock } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { safeLocalStorage } from '@/utils/safeLocalStorage';
 import { formatCurrency } from '@/utils/currency';
 import { getDemoLoyaltySummary } from '@/utils/demoLoyalty';
 
-// Tipos para los pedidos demo
-interface DemoOrderSnapshot {
-  createdAt: string;
-  payload: {
-    cliente: { nombre: string; email: string; telefono: string; direccion_envio: string; };
-    items: Array<{
-      nombre_producto: string;
-      cantidad: number;
-      precio_unitario: number;
-      modalidad: string;
-      precio_puntos?: number;
-    }>;
-    totales: { dinero: number; puntos: number; };
-    estado: string;
-    modo?: string;
+type DemoOrderItem = {
+  nombre_producto?: string;
+  cantidad?: number;
+  precio_unitario?: number;
+  precio_puntos?: number;
+  modalidad?: string;
+};
+
+type DemoOrderPayload = {
+  contacto?: {
+    nombre?: string;
+    email?: string;
+    telefono?: string;
+    direccion?: string;
+    referencias?: string;
   };
-}
+  items?: DemoOrderItem[];
+  totales?: {
+    dinero?: number;
+    puntos?: number;
+  };
+  metodo_pago?: string;
+  metodo_envio?: string;
+  estado?: string;
+};
 
-export default function UserOrdersPage() {
-  const { user, isLoading: isLoadingUser } = useUser();
+type DemoOrderSnapshot = {
+  createdAt: string;
+  payload?: DemoOrderPayload;
+};
+
+const DEMO_ORDERS_KEY = 'chatboc_demo_orders';
+
+const parseDemoOrders = (): DemoOrderSnapshot[] => {
+  try {
+    const raw = safeLocalStorage.getItem(DEMO_ORDERS_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter(entry => entry && typeof entry === 'object' && typeof entry.createdAt === 'string')
+      .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  } catch {
+    return [];
+  }
+};
+
+const formatDateTime = (value: string) => {
+  try {
+    return format(new Date(value), 'dd/MM/yyyy HH:mm');
+  } catch {
+    return value;
+  }
+};
+
+const UserOrdersPage = () => {
   const { currentSlug } = useTenant();
-  const navigate = useNavigate();
-  const [demoOrders, setDemoOrders] = useState<DemoOrderSnapshot[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [loyaltySummary] = useState(() => getDemoLoyaltySummary());
-
-  const effectiveTenantSlug = useMemo(
-    () => currentSlug ?? user?.tenantSlug ?? safeLocalStorage.getItem('tenantSlug') ?? null,
-    [currentSlug, user?.tenantSlug],
-  );
-
-  const loginPath = buildTenantPath('/login', effectiveTenantSlug);
-  const registerPath = buildTenantPath('/register', effectiveTenantSlug);
-  const catalogPath = buildTenantPath('/productos', effectiveTenantSlug);
-
-  const numberFormatter = useMemo(() => new Intl.NumberFormat('es-AR'), []);
+  const loginPath = useMemo(() => buildTenantPath('/login', currentSlug ?? undefined), [currentSlug]);
+  const [demoOrders, setDemoOrders] = useState<DemoOrderSnapshot[] | null>(null);
+  const loyaltySummary = useMemo(() => getDemoLoyaltySummary(), []);
 
   useEffect(() => {
-    // Cargar pedidos demo del localStorage
-    try {
-      const raw = safeLocalStorage.getItem('chatboc_demo_orders');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-          setDemoOrders(parsed);
-        }
-      }
-    } catch (err) {
-      console.warn('Error loading demo orders', err);
-    } finally {
-      setIsLoading(false);
-    }
+    setDemoOrders(parseDemoOrders());
   }, []);
 
-  if (isLoadingUser || isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)]">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        <p className="mt-4 text-muted-foreground">Cargando información...</p>
-      </div>
-    );
-  }
-
-  // Si el usuario está logueado, deberíamos mostrar sus pedidos reales.
-  // Por ahora, si no hay backend integrado para "mis pedidos", mostramos un placeholder
-  // o los pedidos demo si existen (para facilitar la demo).
-  // El requerimiento principal es que funcione el botón "Ver Mis Pedidos" tras el checkout demo.
-
-  const showDemoContent = !user || demoOrders.length > 0;
+  const hasDemoOrders = (demoOrders?.length ?? 0) > 0;
 
   return (
-    <div className="container mx-auto p-4 md:p-8">
-      <h1 className="text-3xl font-bold text-foreground mb-6">Mis Pedidos y Actividad</h1>
-
-      {/* Resumen de Actividad (Puntos, Encuestas) - Visible en Demo */}
-      <div className="mb-8 rounded-xl border border-primary/20 bg-gradient-to-r from-primary/5 via-primary/10 to-transparent p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-primary mb-4 flex items-center gap-2">
-           <FileText className="h-5 w-5" /> Resumen de Participación
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-          <div>
-            <p className="text-sm text-muted-foreground">Saldo disponible</p>
-            <p className="text-2xl font-bold text-primary">{numberFormatter.format(loyaltySummary.points)} pts</p>
-            {!user && <Badge variant="outline" className="mt-1 text-xs">Modo Demo</Badge>}
-          </div>
-          <div>
-            <p className="text-sm text-muted-foreground">Encuestas respondidas</p>
-            <p className="text-xl font-semibold">{loyaltySummary.surveysCompleted}</p>
-          </div>
-          <div>
-            <p className="text-sm text-muted-foreground">Ideas y reclamos</p>
-            <p className="text-xl font-semibold">{loyaltySummary.suggestionsShared + loyaltySummary.claimsFiled}</p>
-          </div>
+    <div className="container mx-auto max-w-5xl px-4 py-8 space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">Mis pedidos y actividad</h1>
+          <p className="text-muted-foreground text-sm md:text-base">
+            Consulta el historial de tus pedidos de prueba y tus puntos generados en este dispositivo.
+          </p>
         </div>
+        <Button asChild variant="outline">
+          <a href={loginPath}>Iniciar sesión</a>
+        </Button>
       </div>
 
-      {!user && demoOrders.length === 0 && (
-        <div className="text-center py-12 border border-dashed rounded-lg">
-          <AlertTriangle className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-          <h2 className="text-xl font-semibold mb-2">No has iniciado sesión</h2>
-          <p className="text-muted-foreground mb-6">Inicia sesión para ver tu historial de pedidos y reclamos.</p>
-          <div className="flex justify-center gap-4">
-            <Button asChild>
-              <Link to={loginPath}>Iniciar Sesión</Link>
-            </Button>
-            <Button variant="outline" asChild>
-              <Link to={registerPath}>Registrarme</Link>
-            </Button>
+      <Card>
+        <CardHeader>
+          <CardTitle>Resumen de participación</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div>
+            <p className="text-sm text-muted-foreground">Puntos</p>
+            <p className="text-2xl font-semibold">{loyaltySummary.points.toLocaleString()} pts</p>
           </div>
-        </div>
-      )}
-
-      {showDemoContent && demoOrders.length > 0 && (
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-semibold">Historial de Pedidos (Demo)</h2>
-            {!user && (
-              <Badge variant="secondary">Guardado localmente</Badge>
-            )}
+          <div>
+            <p className="text-sm text-muted-foreground">Encuestas</p>
+            <p className="text-2xl font-semibold">{loyaltySummary.surveysCompleted}</p>
           </div>
+          <div>
+            <p className="text-sm text-muted-foreground">Sugerencias</p>
+            <p className="text-2xl font-semibold">{loyaltySummary.suggestionsShared}</p>
+          </div>
+          <div>
+            <p className="text-sm text-muted-foreground">Reclamos</p>
+            <p className="text-2xl font-semibold">{loyaltySummary.claimsFiled}</p>
+          </div>
+        </CardContent>
+      </Card>
 
-          {demoOrders.map((order, index) => (
-            <Card key={index} className="overflow-hidden border-border shadow-sm">
-              <CardHeader className="bg-muted/30 py-3 flex flex-row items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Package className="h-5 w-5 text-primary" />
-                  <CardTitle className="text-base">Pedido #{demoOrders.length - index}</CardTitle>
-                  <Badge variant="outline" className="ml-2 font-normal text-xs">
-                    {new Date(order.createdAt).toLocaleDateString()}
-                  </Badge>
-                </div>
-                <Badge className={order.payload.estado === 'confirmado' ? 'bg-green-500' : 'bg-yellow-500'}>
-                  {order.payload.estado === 'pendiente_confirmacion' ? 'Pendiente' : order.payload.estado}
-                </Badge>
-              </CardHeader>
-              <CardContent className="p-4">
-                <div className="space-y-3">
-                  {order.payload.items.map((item, idx) => (
-                    <div key={idx} className="flex justify-between items-center text-sm border-b border-border/50 last:border-0 pb-2 last:pb-0">
-                      <div>
-                        <span className="font-medium">{item.nombre_producto}</span>
-                        <span className="text-muted-foreground ml-2">x{item.cantidad}</span>
-                        <div className="flex gap-2 mt-1">
-                           <Badge variant="secondary" className="text-[10px] h-5 px-1.5">{item.modalidad}</Badge>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        {item.modalidad === 'puntos' ? (
-                          <span className="font-medium text-primary">{(item.precio_puntos || 0) * item.cantidad} pts</span>
-                        ) : item.modalidad === 'donacion' ? (
-                          <span className="font-medium text-green-600">Donación</span>
-                        ) : (
-                          <span className="font-medium">{formatCurrency(item.precio_unitario * item.cantidad)}</span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-              <CardFooter className="bg-muted/10 py-3 flex justify-between items-center border-t border-border">
-                 <div className="text-sm text-muted-foreground">
-                    Total
-                 </div>
-                 <div className="text-right">
-                    {order.payload.totales.dinero > 0 && (
-                      <div className="font-bold">{formatCurrency(order.payload.totales.dinero)}</div>
-                    )}
-                    {order.payload.totales.puntos > 0 && (
-                      <div className="font-bold text-primary">{numberFormatter.format(order.payload.totales.puntos)} pts</div>
-                    )}
-                    {order.payload.totales.dinero === 0 && order.payload.totales.puntos === 0 && (
-                      <div className="font-bold text-green-600">Gratuito / Donación</div>
-                    )}
-                 </div>
-              </CardFooter>
-            </Card>
-          ))}
-
-          {!user && (
-            <div className="mt-8 bg-blue-50 border border-blue-100 rounded-lg p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-               <div>
-                  <h3 className="font-semibold text-blue-800">Guarda tu historial</h3>
-                  <p className="text-sm text-blue-700">Inicia sesión para conservar tus pedidos, sumar puntos reales y hacer seguimiento.</p>
-               </div>
-               <Button asChild>
-                  <Link to={loginPath}>Iniciar Sesión</Link>
-               </Button>
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle>Historial de pedidos (demo)</CardTitle>
+            <span className="text-xs text-muted-foreground">Guardado localmente en este navegador</span>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {demoOrders === null && (
+            <div className="flex items-center gap-2 text-muted-foreground text-sm">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Cargando historial...
             </div>
           )}
-        </div>
-      )}
 
-      {demoOrders.length === 0 && user && (
-         <div className="text-center py-12">
-            <Package className="mx-auto h-16 w-16 text-muted-foreground/50 mb-4" />
-            <h3 className="text-lg font-medium">Aún no tienes pedidos</h3>
-            <p className="text-muted-foreground mb-6">Explora nuestro catálogo y realiza tu primera compra o canje.</p>
-            <Button asChild>
-               <Link to={catalogPath}>Ir al Catálogo</Link>
-            </Button>
-         </div>
-      )}
+          {demoOrders && !hasDemoOrders && (
+            <p className="text-muted-foreground text-sm">
+              Aún no tienes pedidos de prueba guardados. Finaliza una compra en modo demo para ver el historial aquí.
+            </p>
+          )}
+
+          {hasDemoOrders && (
+            <div className="space-y-4">
+              {demoOrders?.map((order, idx) => {
+                const items = order.payload?.items ?? [];
+                const totales = order.payload?.totales ?? {};
+                const contacto = order.payload?.contacto;
+                return (
+                  <Card key={`${order.createdAt}-${idx}`} className="border border-muted">
+                    <CardHeader className="space-y-1">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <ShoppingBag className="h-4 w-4" />
+                          Pedido demo
+                        </div>
+                        <span className="text-xs text-muted-foreground">{formatDateTime(order.createdAt)}</span>
+                      </div>
+                      <div className="text-lg font-semibold text-foreground">
+                        {order.payload?.estado ?? 'Pendiente'}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {order.payload?.metodo_envio === 'pickup' ? 'Retiro en punto de entrega' : 'Envío a domicilio'}
+                        {order.payload?.metodo_pago ? ` · Pago: ${order.payload.metodo_pago}` : ''}
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {contacto && (
+                        <div className="flex flex-col gap-1 text-sm text-muted-foreground">
+                          <div className="flex items-center gap-2">
+                            <UserIcon className="h-4 w-4" />
+                            <span>{contacto.nombre ?? 'Contacto'}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <MapPin className="h-4 w-4" />
+                            <span>{contacto.direccion ?? 'Dirección no especificada'}</span>
+                          </div>
+                          {contacto.referencias && <span className="ml-6">{contacto.referencias}</span>}
+                          {contacto.telefono && <span className="ml-6">Tel: {contacto.telefono}</span>}
+                        </div>
+                      )}
+
+                      <div className="space-y-2">
+                        {items.map((item, itemIdx) => (
+                          <div key={itemIdx} className="flex flex-wrap items-center justify-between text-sm">
+                            <div className="font-medium text-foreground">
+                              {item.nombre_producto ?? 'Producto sin nombre'}
+                              {item.modalidad ? ` · ${item.modalidad}` : ''}
+                            </div>
+                            <div className="text-muted-foreground">
+                              x{item.cantidad ?? 1}
+                              {item.precio_unitario != null && (
+                                <span className="ml-2">{formatCurrency(item.precio_unitario)}</span>
+                              )}
+                              {item.precio_puntos != null && <span className="ml-2">{item.precio_puntos} pts</span>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                    <CardFooter className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="text-sm text-muted-foreground">
+                        Total dinerario: {totales.dinero != null ? formatCurrency(totales.dinero) : '-'}
+                      </div>
+                      {totales.puntos != null && (
+                        <div className="text-sm text-muted-foreground">Total en puntos: {totales.puntos} pts</div>
+                      )}
+                    </CardFooter>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+        <Separator />
+        <CardFooter className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
+          <span>Inicia sesión para sincronizar tus pedidos reales y reclamos asociados a tu cuenta.</span>
+          <Button asChild size="sm">
+            <a href={loginPath}>Ir a iniciar sesión</a>
+          </Button>
+        </CardFooter>
+      </Card>
     </div>
   );
 }
