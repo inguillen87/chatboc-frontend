@@ -94,6 +94,20 @@ export default function ProductCheckoutPage() {
   const [isLocating, setIsLocating] = useState(false);
   const guestDefaults = useMemo(() => loadGuestContact(), []);
 
+  const handleViewOrders = useCallback(() => {
+    const destination = '/portal/pedidos';
+    if (user) {
+      navigate(destination);
+      return;
+    }
+
+    navigate('/user/login', {
+      state: {
+        redirectTo: destination,
+      },
+    });
+  }, [navigate, user]);
+
   const catalogPath = buildTenantPath('/productos', effectiveTenantSlug);
   const cartPath = buildTenantPath('/cart', effectiveTenantSlug);
   const loginPath = buildTenantPath('/login', effectiveTenantSlug);
@@ -149,10 +163,12 @@ export default function ProductCheckoutPage() {
   }, [user, setValue]);
 
   const shouldUseLocalCart = (err: unknown) => {
-    return (
-      (err instanceof ApiError && [400, 401, 403, 405].includes(err.status)) ||
-      err instanceof NetworkError
-    );
+    if (err instanceof ApiError) {
+      if ([400, 401, 403, 405].includes(err.status)) return true;
+      const errorCode = err.body?.code || err.body?.error_code || err.body?.errorCode;
+      if (errorCode && String(errorCode).toLowerCase().includes('tenant')) return true;
+    }
+    return err instanceof NetworkError;
   };
 
   const loadLocalCart = useCallback(() => {
@@ -452,8 +468,7 @@ export default function ProductCheckoutPage() {
         </p>
         <div className="flex gap-4">
           <Button onClick={() => navigate(catalogPath)}>Seguir Comprando</Button>
-          <Button variant="outline" onClick={() => navigate('/perfil/pedidos')}>Ver Mis Pedidos</Button>
-          {/* Asumiendo que /perfil/pedidos es donde el usuario ve sus pedidos */}
+          <Button variant="outline" onClick={handleViewOrders}>Ver Mis Pedidos</Button>
         </div>
       </div>
     );
