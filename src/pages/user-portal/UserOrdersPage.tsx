@@ -218,6 +218,4 @@ const UserOrdersPage = () => {
       </Card>
     </div>
   );
-};
-
-export default UserOrdersPage;
+}
